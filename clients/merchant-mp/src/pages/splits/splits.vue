@@ -1,39 +1,46 @@
 <template>
   <view class="page">
-    <view class="tabs">
-      <text class="tab" :class="{ active: tab === 'FAILED' }" @click="switchTab('FAILED')"
-        >失败</text
-      >
-      <text class="tab" :class="{ active: tab === 'ALL' }" @click="switchTab('ALL')">全部</text>
-    </view>
-
-    <view v-if="loading" class="card state">加载中…</view>
-    <view v-else-if="error" class="card state">
-      <text class="err">{{ error }}</text>
-      <button class="retry" size="mini" @click="load">重试</button>
-    </view>
-    <empty-state
-      v-else-if="!list.length"
-      icon="💱"
-      :title="tab === 'FAILED' ? '暂无分账异常' : '暂无分账记录'"
-      hint="订单分账后会出现在这里；失败单请核对微信收款账户"
-    />
-    <view v-else>
-      <view v-for="s in list" :key="s.splitId" class="card item">
-        <view class="head">
-          <text class="tag" :class="statusClass(s.status)">{{ statusLabel(s.status) }}</text>
-          <text class="time">{{ formatTime(s.createdAt) }}</text>
-        </view>
-        <text class="title">订单 {{ s.orderId }}</text>
-        <text class="meta"
-          >柜机 {{ emptyDisplay(s.deviceId, 'device') }} · 商户所得 ¥{{
-            money(s.merchantCents)
-          }}</text
+    <app-nav-bar title="分账明细" />
+    <view class="page-body">
+      <view class="tabs">
+        <text class="tab" :class="{ active: tab === 'FAILED' }" @click="switchTab('FAILED')"
+          >失败</text
         >
-        <text v-if="s.failureReason" class="fail">失败原因：{{ s.failureReason }}</text>
+        <text class="tab" :class="{ active: tab === 'ALL' }" @click="switchTab('ALL')">全部</text>
       </view>
-    </view>
-  </view>
+
+      <view v-if="loading && !list.length" class="card state">加载中…</view>
+      <view v-else-if="error && !list.length" class="card state">
+        <text class="err">{{ error }}</text>
+        <button class="retry" size="mini" @click="load">重试</button>
+      </view>
+      <empty-state
+        v-else-if="!list.length"
+        icon="/static/menu/splits.png"
+        :title="tab === 'FAILED' ? '暂无分账异常' : '暂无分账记录'"
+        hint="订单分账后会出现在这里；失败单请核对微信收款账户"
+      />
+      <view v-else>
+        <view v-for="s in list" :key="s.splitId" class="card item">
+          <view class="head">
+            <text class="tag" :class="statusClass(s.status)">{{ statusLabel(s.status) }}</text>
+            <text class="time">{{ formatTime(s.createdAt) }}</text>
+          </view>
+          <text class="title">订单 {{ displayBizNo(s.orderId) }}</text>
+          <text class="meta"
+            >柜机 {{ emptyDisplay(s.deviceId, 'device') }} · 商户所得 ¥{{
+              money(s.merchantCents)
+            }}</text
+          >
+          <text class="meta"
+            >毛额 ¥{{ money(s.grossCents) }} · 平台 ¥{{ money(s.platformCents) }}</text
+          >
+          <text v-if="s.wechatOutOrderNo" class="meta">外部单 {{ s.wechatOutOrderNo }}</text>
+          <text v-if="s.failureReason" class="fail">失败原因：{{ s.failureReason }}</text>
+        </view>
+      </view>
+    </view></view
+  >
 </template>
 
 <script setup lang="ts">
@@ -42,7 +49,7 @@ import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { emptyDisplay, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import { emptyDisplay, displayBizNo, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 import type { MerchantMe, RevenueSplit } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -100,7 +107,7 @@ function statusClass(status?: string) {
 }
 
 async function load() {
-  loading.value = true;
+  if (!list.value.length) loading.value = true;
   error.value = '';
   try {
     await refreshMe();
@@ -140,7 +147,7 @@ async function load() {
 
 <style scoped>
 .page {
-  padding: 24rpx;
+  padding: 0;
   min-height: 100vh;
   box-sizing: border-box;
 }
@@ -233,5 +240,9 @@ async function load() {
   font-size: 24rpx;
   color: #b91c1c;
   line-height: 1.5;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

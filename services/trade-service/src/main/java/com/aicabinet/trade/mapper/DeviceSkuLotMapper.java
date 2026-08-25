@@ -42,6 +42,16 @@ public interface DeviceSkuLotMapper extends BaseTradeMapper<DeviceSkuLot> {
         return rows.stream().findFirst();
     }
 
+    default List<DeviceSkuLot> findAllByDeviceIdAndSkuIdAndBatchNo(
+            String deviceId, String skuId, String batchNo) {
+        return selectList(Wrappers.<DeviceSkuLot>lambdaQuery()
+                .eq(DeviceSkuLot::getDeviceId, deviceId)
+                .eq(DeviceSkuLot::getSkuId, skuId)
+                .eq(DeviceSkuLot::getBatchNo, batchNo)
+                .gt(DeviceSkuLot::getQuantity, 0)
+                .orderByAsc(DeviceSkuLot::getExpiryDate));
+    }
+
     /** 同批次可能分多个货道存放；补货入库按货道精确匹配。 */
     default Optional<DeviceSkuLot> findByDeviceIdAndSkuIdAndBatchNoAndSlotId(
             String deviceId, String skuId, String batchNo, String slotId) {
@@ -53,6 +63,12 @@ public interface DeviceSkuLotMapper extends BaseTradeMapper<DeviceSkuLot> {
     }
 
     int sumSellableQuantity(@Param("deviceId") String deviceId, @Param("skuId") String skuId);
+
+    List<LinkedHashMap<String, Object>> _sumSellableBySku(@Param("deviceId") String deviceId);
+
+    default List<Object[]> sumSellableBySku(String deviceId) {
+        return ColumnMapRows.toObjectRows(_sumSellableBySku(deviceId), 2);
+    }
 
     long countNearExpiry(@Param("today") LocalDate today, @Param("nearDate") LocalDate nearDate);
 

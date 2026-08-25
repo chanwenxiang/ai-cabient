@@ -4,12 +4,15 @@ import com.aicabinet.common.constants.PayChannels;
 import com.aicabinet.common.dto.CreateSessionRequest;
 import com.aicabinet.common.dto.DoorEventRequest;
 import com.aicabinet.common.dto.GravityDeltaRequest;
+import com.aicabinet.common.dto.LiveCartDto;
+import com.aicabinet.common.dto.LiveCartUpdateRequest;
 import com.aicabinet.common.dto.OrderDto;
 import com.aicabinet.common.dto.SessionCartRequest;
 import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.dto.VideoAttachRequest;
 import com.aicabinet.common.enums.DoorState;
 import com.aicabinet.common.enums.SessionState;
+import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.config.VisionAsyncProperties;
@@ -21,6 +24,8 @@ import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,11 +39,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-
 @Service
 public class SessionService {
 
@@ -68,11 +73,17 @@ public class SessionService {
     private final OpsExceptionService opsExceptionService;
     private final UserInfoMapper userInfoRepository;
     private final CabinetOrderMapper orderRepository;
+    private final InventoryLotService inventoryLotService;
     private final DisputeService disputeService;
     private final ConsumerPreauthService consumerPreauthService;
+    private final MerchantOpsPolicyService opsPolicyService;
+    private final DistributedLockService distributedLockService;
 
     @Autowired
     private ScheduledTaskService taskService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     public SessionService(ShoppingSessionMapper repository,
                           DeviceServiceClient deviceClient,
@@ -88,8 +99,11 @@ public class SessionService {
                           OpsExceptionService opsExceptionService,
                           UserInfoMapper userInfoRepository,
                           CabinetOrderMapper orderRepository,
+                          InventoryLotService inventoryLotService,
                           @Lazy DisputeService disputeService,
-                          ConsumerPreauthService consumerPreauthService) {
+                          ConsumerPreauthService consumerPreauthService,
+                          MerchantOpsPolicyService opsPolicyService,
+                          DistributedLockService distributedLockService) {
         this.repository = repository;
         this.deviceClient = deviceClient;
         this.userValidationService = userValidationService;
@@ -104,8 +118,11 @@ public class SessionService {
         this.opsExceptionService = opsExceptionService;
         this.userInfoRepository = userInfoRepository;
         this.orderRepository = orderRepository;
+        this.inventoryLotService = inventoryLotService;
         this.disputeService = disputeService;
         this.consumerPreauthService = consumerPreauthService;
+        this.opsPolicyService = opsPolicyService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
@@ -114,9 +131,10 @@ public class SessionService {
         if (idempotencyKey != null) {
             return repository.findByIdempotencyKey(idempotencyKey)
                     .map(existing -> validateIdempotentReplay(userId, request.deviceId(), existing))
-                    .orElseGet(() -> doCreateSession(userId, request));
+                    .orElseGet(() -> runWithDeviceOpenLock(request.deviceId(),
+                            () -> doCreateSession(userId, request)));
         }
-        return doCreateSession(userId, request);
+        return runWithDeviceOpenLock(request.deviceId(), () -> doCreateSession(userId, request));
     }
 
     private SessionDto doCreateSession(Long userId, CreateSessionRequest request) {
@@ -124,6 +142,7 @@ public class SessionService {
         userValidationService.validateCanOpenDoor(userId, request.deviceId(), entryChannel);
         deviceValidationService.requireDevice(request.deviceId());
         deviceValidationService.ensureDeviceAvailable(request.deviceId());
+        opsPolicyService.requireInflightCapacity(request.deviceId());
 
         ShoppingSession session = new ShoppingSession();
         session.setSessionId(generateSessionId());
@@ -131,6 +150,7 @@ public class SessionService {
         session.setDeviceId(request.deviceId());
         session.setState(SessionState.CREATED);
         session.setEntryChannel(entryChannel);
+        session.setPreferredCouponId(request.preferredCouponId());
         session.setIdempotencyKey(normalizeIdempotencyKey(request.idempotencyKey()));
         // 先强制写入唯一幂等键，再改变状态和下发开门命令。并发重复请求会在这里失败，
         // 不会出现两个事务都先向同一台柜机发送开门命令、最后才在提交时发现冲突。
@@ -150,6 +170,10 @@ public class SessionService {
      */
     @Transactional
     public SessionDto createSessionForDevTest(Long userId, CreateSessionRequest request) {
+        return runWithDeviceOpenLock(request.deviceId(), () -> doCreateSessionForDevTest(userId, request));
+    }
+
+    private SessionDto doCreateSessionForDevTest(Long userId, CreateSessionRequest request) {
         String entryChannel = resolveEntryChannel(userId, request.entryChannel());
         userValidationService.validateCanOpenDoor(userId, request.deviceId(), entryChannel);
         deviceValidationService.requireDevice(request.deviceId());
@@ -161,6 +185,7 @@ public class SessionService {
         session.setDeviceId(request.deviceId());
         session.setState(SessionState.CREATED);
         session.setEntryChannel(entryChannel);
+        session.setPreferredCouponId(request.preferredCouponId());
         repository.save(session);
 
         boolean passwordFree = userValidationService.isPasswordFreeReady(userId, entryChannel);
@@ -199,7 +224,12 @@ public class SessionService {
     @Transactional
     public SessionDto completeDevUploadRecognition(String sessionId,
                                                    VisionServiceClient.RecognitionResult recognition) {
-        ShoppingSession session = repository.findById(sessionId)
+        return runWithSessionLifeLock(sessionId, () -> doCompleteDevUploadRecognition(sessionId, recognition));
+    }
+
+    private SessionDto doCompleteDevUploadRecognition(String sessionId,
+                                                      VisionServiceClient.RecognitionResult recognition) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (session.getState() == SessionState.SHOPPING) {
             transition(session, SessionState.RECOGNIZING);
@@ -259,8 +289,39 @@ public class SessionService {
         return afterDoor;
     }
 
+    /**
+     * 演示/联调用关门结算：无柜机硬件时由用户端主动触发关门，走同一套结算链路。
+     * 仅允许本人正在 SHOPPING 的会话，且由 Controller 按 mockEnabled 开关放行。
+     * 扣款以会话购物车（点选同步的重力证据）为准；未选商品则零元结算，不再注入演示可乐。
+     */
+    @Transactional
+    public SessionDto demoCloseSession(Long userId, String sessionId) {
+        ShoppingSession session = repository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        if (!session.getUserId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND);
+        }
+        if (session.getState() != SessionState.SHOPPING) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前会话状态不可关门结算");
+        }
+        return self.handleDoorEvent(new DoorEventRequest(
+                session.getSessionId(),
+                session.getDeviceId(),
+                DoorState.CLOSED,
+                System.currentTimeMillis(),
+                null,
+                null,
+                null,
+                null,
+                null));
+    }
+
     @Transactional
     public SessionDto applyDoorEvent(DoorEventRequest event) {
+        return runWithSessionLifeLock(event.sessionId(), () -> doApplyDoorEvent(event));
+    }
+
+    private SessionDto doApplyDoorEvent(DoorEventRequest event) {
         ShoppingSession session = repository.findByIdForUpdate(event.sessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
 
@@ -289,6 +350,10 @@ public class SessionService {
 
     @Transactional
     public SessionDto attachVideo(VideoAttachRequest request) {
+        return runWithSessionLifeLock(request.sessionId(), () -> doAttachVideo(request));
+    }
+
+    private SessionDto doAttachVideo(VideoAttachRequest request) {
         ShoppingSession session = repository.findByIdForUpdate(request.sessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!session.getDeviceId().equals(request.deviceId())) {
@@ -317,7 +382,11 @@ public class SessionService {
     /** 补货关门后：视觉/重力快照回写货道实测，不创建订单。 */
     @Transactional
     public SessionDto finishRestockSnapshot(String sessionId) {
-        ShoppingSession session = repository.findById(sessionId)
+        return runWithSessionLifeLock(sessionId, () -> doFinishRestockSnapshot(sessionId));
+    }
+
+    private SessionDto doFinishRestockSnapshot(String sessionId) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!isRestockSession(session)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "not a restock session");
@@ -342,7 +411,11 @@ public class SessionService {
 
     @Transactional
     public SessionDto attachGravityDeltas(GravityDeltaRequest request) {
-        ShoppingSession session = repository.findById(request.sessionId())
+        return runWithSessionLifeLock(request.sessionId(), () -> doAttachGravityDeltas(request));
+    }
+
+    private SessionDto doAttachGravityDeltas(GravityDeltaRequest request) {
+        ShoppingSession session = repository.findByIdForUpdate(request.sessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!session.getDeviceId().equals(request.deviceId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DEVICE_MISMATCH);
@@ -357,7 +430,11 @@ public class SessionService {
     /** 演示/开发：消费者点选商品同步到会话，关门 mock 结算时按此列表扣款。 */
     @Transactional
     public SessionDto updateSessionCart(Long userId, String sessionId, SessionCartRequest request) {
-        ShoppingSession session = repository.findById(sessionId)
+        return runWithSessionLifeLock(sessionId, () -> doUpdateSessionCart(userId, sessionId, request));
+    }
+
+    private SessionDto doUpdateSessionCart(Long userId, String sessionId, SessionCartRequest request) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         requireSessionOwner(userId, session);
         if (!EnumSet.of(SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING).contains(session.getState())) {
@@ -366,12 +443,125 @@ public class SessionService {
         List<GravityDeltaRequest.GravityDeltaItem> deltas = (request.items() == null ? List.<SessionCartRequest.CartItem>of() : request.items())
                 .stream()
                 .filter(item -> item.qty() > 0)
-                .map(item -> new GravityDeltaRequest.GravityDeltaItem(item.skuId(), -item.qty(), null))
+                .map(item -> {
+                    // 与货道账面同源：可售批次（ON_SALE / NEAR_EXPIRY）
+                    int available = inventoryLotService.availableSellableQuantity(
+                            session.getDeviceId(), item.skuId());
+                    if (item.qty() > available) {
+                        throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                "库存不足 sku=" + item.skuId() + " 当前=" + available + " 选购=" + item.qty());
+                    }
+                    return new GravityDeltaRequest.GravityDeltaItem(item.skuId(), -item.qty(), null);
+                })
                 .toList();
         session.setGravityDeltas(deltas.isEmpty() ? null : gravityHelper.fromRequestItems(deltas));
         repository.save(session);
         log.info("session cart updated session={} items={}", sessionId, deltas.size());
         return toDto(session);
+    }
+
+    /**
+     * 第三方识别推送实时购物车（internal）。仅更新展示字段，不触发扣款。
+     */
+    @Transactional
+    public LiveCartDto updateLiveCartFromVision(String sessionId, LiveCartUpdateRequest request) {
+        return runWithSessionLifeLock(sessionId, () -> doUpdateLiveCartFromVision(sessionId, request));
+    }
+
+    private LiveCartDto doUpdateLiveCartFromVision(String sessionId, LiveCartUpdateRequest request) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        if (!EnumSet.of(SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING).contains(session.getState())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SESSION_STATE_INVALID);
+        }
+        Map<String, LiveCartDto.LiveCartLine> bySku = new LinkedHashMap<>();
+        String mode = request == null ? "REPLACE" : request.resolvedMode();
+        if ("DELTA".equals(mode)) {
+            for (LiveCartDto.LiveCartLine existing : parseLiveCartLines(session.getLiveCart())) {
+                bySku.put(existing.skuId(), existing);
+            }
+        }
+        List<LiveCartUpdateRequest.LiveCartItem> incoming =
+                request == null || request.items() == null ? List.of() : request.items();
+        for (LiveCartUpdateRequest.LiveCartItem item : incoming) {
+            if (item == null || item.skuId() == null || item.skuId().isBlank()) {
+                continue;
+            }
+            String sku = item.skuId().trim();
+            if ("DELTA".equals(mode)) {
+                LiveCartDto.LiveCartLine prev = bySku.get(sku);
+                int prevQty = prev == null ? 0 : prev.quantity();
+                int nextQty = Math.max(0, prevQty + item.quantity());
+                if (nextQty <= 0) {
+                    bySku.remove(sku);
+                    continue;
+                }
+                int unit = item.unitPriceCents() != null && item.unitPriceCents() > 0
+                        ? item.unitPriceCents()
+                        : (prev != null ? prev.unitPriceCents() : 0);
+                String name = item.skuName() != null && !item.skuName().isBlank()
+                        ? item.skuName()
+                        : (prev != null ? prev.skuName() : sku);
+                bySku.put(sku, new LiveCartDto.LiveCartLine(sku, name, nextQty, unit, unit * nextQty));
+            } else {
+                if (item.quantity() <= 0) {
+                    continue;
+                }
+                int unit = item.unitPriceCents() == null ? 0 : Math.max(0, item.unitPriceCents());
+                String name = item.skuName() == null || item.skuName().isBlank() ? sku : item.skuName();
+                bySku.put(sku, new LiveCartDto.LiveCartLine(sku, name, item.quantity(), unit, unit * item.quantity()));
+            }
+        }
+        if ("REPLACE".equals(mode) && incoming.isEmpty()) {
+            bySku.clear();
+        }
+        List<LiveCartDto.LiveCartLine> lines = new ArrayList<>(bySku.values());
+        session.setLiveCart(writeLiveCartJson(lines));
+        repository.save(session);
+        log.info("live cart updated session={} mode={} lines={}", sessionId, mode, lines.size());
+        return toLiveCartDto(sessionId, lines);
+    }
+
+    @Transactional(readOnly = true)
+    public LiveCartDto getLiveCart(Long userId, String sessionId) {
+        ShoppingSession session = repository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        requireSessionOwner(userId, session);
+        return toLiveCartDto(sessionId, parseLiveCartLines(session.getLiveCart()));
+    }
+
+    private List<LiveCartDto.LiveCartLine> parseLiveCartLines(String json) {
+        if (json == null || json.isBlank() || objectMapper == null) {
+            return List.of();
+        }
+        try {
+            List<LiveCartDto.LiveCartLine> lines = objectMapper.readValue(json, new TypeReference<>() {});
+            return lines == null ? List.of() : lines;
+        } catch (Exception e) {
+            log.warn("parse live_cart failed: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private String writeLiveCartJson(List<LiveCartDto.LiveCartLine> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(lines);
+        } catch (Exception e) {
+            throw new IllegalStateException("serialize live_cart failed", e);
+        }
+    }
+
+    private static LiveCartDto toLiveCartDto(String sessionId, List<LiveCartDto.LiveCartLine> lines) {
+        int qty = 0;
+        int amount = 0;
+        for (LiveCartDto.LiveCartLine line : lines) {
+            qty += line.quantity();
+            amount += line.lineAmountCents();
+        }
+        return new LiveCartDto(sessionId, lines, qty, amount);
     }
 
     private SessionDto onDoorOpened(ShoppingSession session) {
@@ -443,12 +633,14 @@ public class SessionService {
     /** 关门事务提交后再结算，避免 vision 异常回滚门状态。 */
     @Transactional
     public SessionDto settleAfterClose(String sessionId) {
-        ShoppingSession session = repository.findById(sessionId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        if (session.getState() != SessionState.RECOGNIZING) {
-            return toDto(session);
-        }
-        return settleSession(session);
+        return runWithSessionLifeLock(sessionId, () -> {
+            ShoppingSession session = repository.findByIdForUpdate(sessionId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+            if (session.getState() != SessionState.RECOGNIZING) {
+                return toDto(session);
+            }
+            return settleSession(session);
+        });
     }
 
     private SessionDto settleSession(ShoppingSession session) {
@@ -531,7 +723,14 @@ public class SessionService {
 
     @Transactional
     public void completeAsyncRecognition(String sessionId, VisionServiceClient.RecognitionResult recognition) {
-        ShoppingSession session = repository.findById(sessionId)
+        runWithSessionLifeLock(sessionId, () -> {
+            doCompleteAsyncRecognition(sessionId, recognition);
+            return null;
+        });
+    }
+
+    private void doCompleteAsyncRecognition(String sessionId, VisionServiceClient.RecognitionResult recognition) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (session.getState() != SessionState.RECOGNIZING) {
             log.warn("ignore async recognition session={} state={}", sessionId, session.getState());
@@ -633,7 +832,11 @@ public class SessionService {
 
     @Transactional
     public SessionDto cancelSession(Long userId, String sessionId) {
-        ShoppingSession session = repository.findById(sessionId)
+        return runWithSessionLifeLock(sessionId, () -> doCancelSession(userId, sessionId));
+    }
+
+    private SessionDto doCancelSession(Long userId, String sessionId) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         requireSessionOwner(userId, session);
         if (session.getState() == SessionState.CANCELLED) {
@@ -693,7 +896,11 @@ public class SessionService {
     /** 运营兜底：终止异常活跃会话，使设备重新可用。调用方必须完成权限、二次确认和审计。 */
     @Transactional
     public SessionDto forceCancelForOperations(String sessionId, String reason) {
-        ShoppingSession session = repository.findById(sessionId)
+        return runWithSessionLifeLock(sessionId, () -> doForceCancelForOperations(sessionId, reason));
+    }
+
+    private SessionDto doForceCancelForOperations(String sessionId, String reason) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!ACTIVE_STATES.contains(session.getState())) return toDto(session);
         consumerPreauthService.releaseIfFrozen(session);
@@ -711,7 +918,11 @@ public class SessionService {
     /** 运营重试识别/结算。订单和扣款仍由 SettlementService 的会话幂等约束保护。 */
     @Transactional
     public SessionDto retryForOperations(String sessionId) {
-        ShoppingSession session = repository.findById(sessionId)
+        return runWithSessionLifeLock(sessionId, () -> doRetryForOperations(sessionId));
+    }
+
+    private SessionDto doRetryForOperations(String sessionId) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (session.getState() == SessionState.COMPLETED) return toDto(session);
         if (!EnumSet.of(SessionState.FAILED, SessionState.DISPUTED, SessionState.RECOGNIZING,
@@ -745,11 +956,12 @@ public class SessionService {
             return;
         }
         boolean failed = false;
+        String summary = "本次无超时开门会话";
         try {
         Instant cutoff = Instant.now().minus(OPENING_EXPIRE_SECONDS, ChronoUnit.SECONDS);
-        repository.findByStateInAndCreatedAtBefore(
-                        List.of(SessionState.OPENING, SessionState.CREATED), cutoff, 500)
-                .forEach(s -> {
+        var stale = repository.findByStateInAndCreatedAtBefore(
+                        List.of(SessionState.OPENING, SessionState.CREATED), cutoff, 500);
+        stale.forEach(s -> {
                     consumerPreauthService.releaseIfFrozen(s);
                     s.setState(SessionState.CANCELLED);
                     repository.save(s);
@@ -758,13 +970,16 @@ public class SessionService {
                             s.getOrderId(), s.getUserId(), "开门超时", "开门命令在90秒内未得到设备响应");
                     log.warn("opening session expired session={} device={}", s.getSessionId(), s.getDeviceId());
                 });
+        if (!stale.isEmpty()) {
+            summary = "取消超时开门会话 " + stale.size() + " 个";
+        }
         } catch (Exception e) {
             failed = true;
             taskService.finish("session-opening-expire", "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("session-opening-expire", "SUCCESS", null, start);
+                taskService.finish("session-opening-expire", "SUCCESS", summary, start);
             }
         }
     }
@@ -778,13 +993,15 @@ public class SessionService {
             return;
         }
         boolean failed = false;
+        String summary = "本次无超时补货会话";
         try {
         Instant cutoff = Instant.now().minus(RESTOCK_SHOPPING_EXPIRE_MINUTES, ChronoUnit.MINUTES);
-        repository.findByStateInAndUpdatedAtBefore(
+        var stale = repository.findByStateInAndUpdatedAtBefore(
                         List.of(SessionState.SHOPPING, SessionState.WAITING_UPLOAD), cutoff, 500)
                 .stream()
                 .filter(DeviceValidationService::isRestockSession)
-                .forEach(s -> {
+                .toList();
+        stale.forEach(s -> {
                     s.setFailReason("补货会话超时自动关闭");
                     if (s.getCloseTime() == null) {
                         s.setCloseTime(Instant.now());
@@ -798,13 +1015,16 @@ public class SessionService {
                     log.warn("restock shopping session expired session={} device={}",
                             s.getSessionId(), s.getDeviceId());
                 });
+        if (!stale.isEmpty()) {
+            summary = "关闭超时补货会话 " + stale.size() + " 个";
+        }
         } catch (Exception e) {
             failed = true;
             taskService.finish("session-restock-expire", "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("session-restock-expire", "SUCCESS", null, start);
+                taskService.finish("session-restock-expire", "SUCCESS", summary, start);
             }
         }
     }
@@ -818,22 +1038,24 @@ public class SessionService {
             return;
         }
         boolean failed = false;
+        String summary = "本次无识别超时会话";
         try {
         Instant cutoff = Instant.now().minus(10, ChronoUnit.MINUTES);
-        repository.findByStateInAndUpdatedAtBefore(
+        int upgraded = 0;
+        for (ShoppingSession s : repository.findByStateInAndUpdatedAtBefore(
                         List.of(SessionState.RECOGNIZING, SessionState.WAITING_UPLOAD, SessionState.SETTLING),
-                        cutoff, 500)
-                .forEach(s -> {
+                        cutoff, 500)) {
                     Instant anchor = s.getCloseTime() != null ? s.getCloseTime()
                             : (s.getUpdatedAt() != null ? s.getUpdatedAt() : s.getCreatedAt());
                     if (anchor == null || !anchor.isBefore(cutoff)) {
-                        return;
+                        continue;
                     }
                     try {
                         // 补货会话不走消费者争议：超时尽力快照后关闭，避免误建争议单
                         if (DeviceValidationService.isRestockSession(s)) {
                             closeStaleRestockRecognizing(s);
-                            return;
+                            upgraded++;
+                            continue;
                         }
                         SessionState from = s.getState();
                         String failReason = "识别超时，已转人工审核，本次暂未扣款";
@@ -859,17 +1081,21 @@ public class SessionService {
                                 "识别超时", "关门后超过10分钟未完成识别结算");
                         log.warn("识别超时会话已升级 session={} from={} to={}",
                                 s.getSessionId(), from, s.getState());
+                        upgraded++;
                     } catch (Exception e) {
                         log.warn("识别超时升级失败 session={}", s.getSessionId(), e);
                     }
-                });
+                }
+        if (upgraded > 0) {
+            summary = "识别超时升级 " + upgraded + " 个会话";
+        }
         } catch (Exception e) {
             failed = true;
             taskService.finish("session-recognizing-expire", "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("session-recognizing-expire", "SUCCESS", null, start);
+                taskService.finish("session-recognizing-expire", "SUCCESS", summary, start);
             }
         }
     }
@@ -929,7 +1155,7 @@ public class SessionService {
     }
 
     private String generateSessionId() {
-        return "S" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
+        return BizIds.nextNumeric();
     }
 
     private SessionDto toDto(ShoppingSession s) {
@@ -960,5 +1186,45 @@ public class SessionService {
         return userInfoRepository.findById(userId)
                 .map(u -> PayChannels.normalizeEntryChannel(u.getPayPreferredChannel()))
                 .orElse(null);
+    }
+
+    static String sessionLifeLockKey(String sessionId) {
+        return "session:life:" + sessionId;
+    }
+
+    static String sessionOpenLockKey(String deviceId) {
+        return "session:open:" + deviceId;
+    }
+
+    private <T> T runWithDeviceOpenLock(String deviceId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(sessionOpenLockKey(deviceId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备开门处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(sessionOpenLockKey(deviceId));
+        }
+    }
+
+    private <T> T runWithSessionLifeLock(String sessionId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(sessionLifeLockKey(sessionId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "会话处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (DisputeRequiredException | BalanceInsufficientException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(sessionLifeLockKey(sessionId));
+        }
     }
 }

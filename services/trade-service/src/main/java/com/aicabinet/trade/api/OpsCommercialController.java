@@ -8,6 +8,21 @@ import com.aicabinet.trade.service.FileAttachmentService;
 import com.aicabinet.trade.service.OpsCommercialFacade;
 import com.aicabinet.trade.service.OpsCsvExportService;
 import com.aicabinet.trade.service.ProcurementService;
+import com.aicabinet.trade.service.PurchaseSuggestionService;
+import com.aicabinet.trade.service.SupplierPayableService;
+import com.aicabinet.trade.service.OpsTwoFactorService;
+import com.aicabinet.trade.service.DeviceTempPlanService;
+import com.aicabinet.trade.service.DeviceEnvService;
+import com.aicabinet.trade.service.MediaAssetService;
+import com.aicabinet.trade.service.AdCampaignService;
+import com.aicabinet.trade.service.FootfallAnalyticsService;
+import com.aicabinet.trade.service.OrgService;
+import com.aicabinet.trade.service.SiteContractService;
+import com.aicabinet.common.dto.TwoFactorCodeRequest;
+import com.aicabinet.common.dto.TwoFactorEnrollDto;
+import com.aicabinet.common.dto.TwoFactorStatusDto;
+import com.aicabinet.trade.service.WarehouseStocktakeService;
+import com.aicabinet.trade.service.WarehouseBinService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -16,6 +31,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -30,19 +46,288 @@ public class OpsCommercialController {
     private final OpsCommercialFacade facade;
     private final CommercialFlowService commercialFlowService;
     private final ProcurementService procurementService;
+    private final PurchaseSuggestionService purchaseSuggestionService;
+    private final SupplierPayableService supplierPayableService;
+    private final WarehouseStocktakeService warehouseStocktakeService;
+    private final WarehouseBinService warehouseBinService;
     private final OpsCsvExportService csvExportService;
     private final FileAttachmentService fileAttachmentService;
+    private final OpsTwoFactorService opsTwoFactorService;
+    private final DeviceTempPlanService deviceTempPlanService;
+    private final DeviceEnvService deviceEnvService;
+    private final MediaAssetService mediaAssetService;
+    private final AdCampaignService adCampaignService;
+    private final FootfallAnalyticsService footfallAnalyticsService;
+    private final OrgService orgService;
+    private final SiteContractService siteContractService;
 
     public OpsCommercialController(OpsCommercialFacade facade,
                                    CommercialFlowService commercialFlowService,
                                    ProcurementService procurementService,
+                                   PurchaseSuggestionService purchaseSuggestionService,
+                                   SupplierPayableService supplierPayableService,
+                                   WarehouseStocktakeService warehouseStocktakeService,
+                                   WarehouseBinService warehouseBinService,
                                    OpsCsvExportService csvExportService,
-                                   FileAttachmentService fileAttachmentService) {
+                                   FileAttachmentService fileAttachmentService,
+                                   OpsTwoFactorService opsTwoFactorService,
+                                   DeviceTempPlanService deviceTempPlanService,
+                                   DeviceEnvService deviceEnvService,
+                                   MediaAssetService mediaAssetService,
+                                   AdCampaignService adCampaignService,
+                                   FootfallAnalyticsService footfallAnalyticsService,
+                                   OrgService orgService,
+                                   SiteContractService siteContractService) {
         this.facade = facade;
         this.commercialFlowService = commercialFlowService;
         this.procurementService = procurementService;
+        this.purchaseSuggestionService = purchaseSuggestionService;
+        this.supplierPayableService = supplierPayableService;
+        this.warehouseStocktakeService = warehouseStocktakeService;
+        this.warehouseBinService = warehouseBinService;
         this.csvExportService = csvExportService;
         this.fileAttachmentService = fileAttachmentService;
+        this.opsTwoFactorService = opsTwoFactorService;
+        this.deviceTempPlanService = deviceTempPlanService;
+        this.deviceEnvService = deviceEnvService;
+        this.mediaAssetService = mediaAssetService;
+        this.adCampaignService = adCampaignService;
+        this.footfallAnalyticsService = footfallAnalyticsService;
+        this.orgService = orgService;
+        this.siteContractService = siteContractService;
+    }
+
+    // --- 组织架构与点位生命周期 ---
+    @RequiresPermissions("ops:org:list")
+    @GetMapping("/org/tree")
+    public ApiResponse<List<OrgNodeDto>> orgTree(HttpServletRequest request) {
+        return ApiResponse.ok(orgService.tree(operatorId(request)));
+    }
+
+    @RequiresPermissions("ops:org:edit")
+    @PutMapping("/org/nodes")
+    public ApiResponse<OrgNodeDto> upsertOrgNode(
+            HttpServletRequest request,
+            @Valid @RequestBody UpsertOrgNodeRequest body) {
+        return ApiResponse.ok(orgService.upsertNode(operatorId(request), body));
+    }
+
+    @RequiresPermissions("ops:org:edit")
+    @PostMapping("/org/nodes/{nodeId}/toggle")
+    public ApiResponse<OrgNodeDto> toggleOrgNode(
+            HttpServletRequest request,
+            @PathVariable Long nodeId,
+            @RequestParam boolean enabled) {
+        return ApiResponse.ok(orgService.toggleNode(operatorId(request), nodeId, enabled));
+    }
+
+    @RequiresPermissions("ops:org:edit")
+    @PutMapping("/org/nodes/{nodeId}/devices")
+    public ApiResponse<OrgNodeDto> assignOrgDevices(
+            HttpServletRequest request,
+            @PathVariable Long nodeId,
+            @Valid @RequestBody AssignOrgDevicesRequest body) {
+        return ApiResponse.ok(orgService.assignDevices(operatorId(request), nodeId, body.deviceIds()));
+    }
+
+    @RequiresPermissions("ops:org:edit")
+    @DeleteMapping("/org/nodes/{nodeId}")
+    public ApiResponse<Void> deleteOrgNode(
+            HttpServletRequest request, @PathVariable Long nodeId) {
+        orgService.deleteNode(operatorId(request), nodeId);
+        return ApiResponse.ok(null);
+    }
+
+    @RequiresPermissions("ops:org:list")
+    @GetMapping("/site-contracts")
+    public ApiResponse<List<SiteContractDto>> siteContracts(HttpServletRequest request) {
+        return ApiResponse.ok(siteContractService.list(operatorId(request)));
+    }
+
+    @RequiresPermissions("ops:org:edit")
+    @PutMapping("/site-contracts/{deviceId}")
+    public ApiResponse<SiteContractDto> upsertSiteContract(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @Valid @RequestBody UpsertSiteContractRequest body) {
+        return ApiResponse.ok(siteContractService.upsert(operatorId(request), deviceId, body));
+    }
+
+    @RequiresPermissions("ops:org:edit")
+    @DeleteMapping("/site-contracts/{contractId}")
+    public ApiResponse<Void> deleteSiteContract(
+            HttpServletRequest request, @PathVariable Long contractId) {
+        siteContractService.delete(operatorId(request), contractId);
+        return ApiResponse.ok(null);
+    }
+
+    // --- 客流 / 时段热区 / 坪效分析 ---
+    @RequiresPermissions("ops:analytics:footfall:view")
+    @GetMapping("/analytics/footfall")
+    public ApiResponse<FootfallAnalyticsDto> footfallAnalytics(
+            HttpServletRequest request,
+            @RequestParam(name = "days", defaultValue = "7") int days,
+            @RequestParam(name = "deviceLimit", defaultValue = "50") int deviceLimit,
+            @RequestParam(name = "skuLimit", defaultValue = "20") int skuLimit) {
+        return ApiResponse.ok(footfallAnalyticsService.analytics(days, deviceLimit, skuLimit));
+    }
+
+    @RequiresPermissions("ops:analytics:footfall:view")
+    @GetMapping("/analytics/footfall/slots")
+    public ApiResponse<List<SlotHeatDto>> footfallSlotHeat(
+            HttpServletRequest request,
+            @RequestParam String deviceId,
+            @RequestParam(name = "days", defaultValue = "7") int days) {
+        return ApiResponse.ok(footfallAnalyticsService.slotHeat(deviceId, days));
+    }
+
+    // --- 广告/多媒体运营：素材库 + 投放计划（读写沿用设备权限码，避免新建角色权限） ---
+    @RequiresPermissions("ops:ad:list")
+    @GetMapping("/ad/assets")
+    public ApiResponse<List<MediaAssetDto>> adAssets(HttpServletRequest request) {
+        return ApiResponse.ok(mediaAssetService.list());
+    }
+
+    @RequiresPermissions("ops:ad:edit")
+    @PostMapping(value = "/ad/assets", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<MediaAssetDto> uploadAdAsset(
+            HttpServletRequest request,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(name = "title", required = false) String title,
+            @RequestParam(name = "durationSeconds", defaultValue = "0") int durationSeconds,
+            @RequestParam(name = "assetType", required = false) String assetType) throws IOException {
+        return ApiResponse.ok(mediaAssetService.upload(
+                operatorId(request), file, title, durationSeconds, assetType));
+    }
+
+    @RequiresPermissions("ops:ad:edit")
+    @PutMapping("/ad/assets/{assetId}")
+    public ApiResponse<MediaAssetDto> updateAdAsset(
+            HttpServletRequest request,
+            @PathVariable Long assetId,
+            @Valid @RequestBody UpsertMediaAssetRequest body) {
+        return ApiResponse.ok(mediaAssetService.update(assetId, body));
+    }
+
+    @RequiresPermissions("ops:ad:edit")
+    @DeleteMapping("/ad/assets/{assetId}")
+    public ApiResponse<Void> deleteAdAsset(
+            HttpServletRequest request, @PathVariable Long assetId) {
+        mediaAssetService.delete(assetId);
+        return ApiResponse.ok(null);
+    }
+
+    @RequiresPermissions("ops:ad:list")
+    @GetMapping("/ad/campaigns")
+    public ApiResponse<List<AdCampaignDto>> adCampaigns(HttpServletRequest request) {
+        return ApiResponse.ok(adCampaignService.list());
+    }
+
+    @RequiresPermissions("ops:ad:list")
+    @GetMapping("/ad/campaigns/{campaignId}")
+    public ApiResponse<AdCampaignDto> adCampaign(
+            HttpServletRequest request, @PathVariable Long campaignId) {
+        return ApiResponse.ok(adCampaignService.get(campaignId));
+    }
+
+    @RequiresPermissions("ops:ad:edit")
+    @PostMapping("/ad/campaigns")
+    public ApiResponse<AdCampaignDto> createAdCampaign(
+            HttpServletRequest request,
+            @Valid @RequestBody UpsertAdCampaignRequest body) {
+        return ApiResponse.ok(adCampaignService.upsert(operatorId(request), null, body));
+    }
+
+    @RequiresPermissions("ops:ad:edit")
+    @PutMapping("/ad/campaigns/{campaignId}")
+    public ApiResponse<AdCampaignDto> updateAdCampaign(
+            HttpServletRequest request,
+            @PathVariable Long campaignId,
+            @Valid @RequestBody UpsertAdCampaignRequest body) {
+        return ApiResponse.ok(adCampaignService.upsert(operatorId(request), campaignId, body));
+    }
+
+    @RequiresPermissions("ops:ad:edit")
+    @PostMapping("/ad/campaigns/{campaignId}/launch")
+    public ApiResponse<AdCampaignDto> launchAdCampaign(
+            HttpServletRequest request, @PathVariable Long campaignId) {
+        return ApiResponse.ok(adCampaignService.launch(operatorId(request), campaignId));
+    }
+
+    @RequiresPermissions("ops:ad:edit")
+    @PostMapping("/ad/campaigns/{campaignId}/stop")
+    public ApiResponse<AdCampaignDto> stopAdCampaign(
+            HttpServletRequest request, @PathVariable Long campaignId) {
+        return ApiResponse.ok(adCampaignService.stop(operatorId(request), campaignId));
+    }
+
+    @RequiresPermissions("ops:ad:edit")
+    @DeleteMapping("/ad/campaigns/{campaignId}")
+    public ApiResponse<Void> deleteAdCampaign(
+            HttpServletRequest request, @PathVariable Long campaignId) {
+        adCampaignService.delete(operatorId(request), campaignId);
+        return ApiResponse.ok(null);
+    }
+
+    // --- 设备：温控计划 + 环境多指标监控 ---
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/temp-plan")
+    public ApiResponse<DeviceTempPlanDto> tempPlan(
+            HttpServletRequest request, @PathVariable String deviceId) {
+        return ApiResponse.ok(deviceTempPlanService.get(operatorId(request), deviceId));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PutMapping("/devices/{deviceId}/temp-plan")
+    public ApiResponse<DeviceTempPlanDto> upsertTempPlan(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @Valid @RequestBody UpsertDeviceTempPlanRequest body) {
+        return ApiResponse.ok(deviceTempPlanService.upsert(
+                operatorId(request), deviceId, body.enabled(), body.entries()));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/temp-plan/apply")
+    public ApiResponse<DeviceTempPlanDto> applyTempPlan(
+            HttpServletRequest request, @PathVariable String deviceId) {
+        return ApiResponse.ok(deviceTempPlanService.applyNow(operatorId(request), deviceId));
+    }
+
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/env-readings")
+    public ApiResponse<List<DeviceEnvReadingDto>> envReadings(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @RequestParam(name = "type", required = false) String type,
+            @RequestParam(name = "hours", defaultValue = "24") int hours,
+            @RequestParam(name = "limit", defaultValue = "200") int limit) {
+        return ApiResponse.ok(deviceEnvService.list(deviceId, type, hours, limit));
+    }
+
+    // --- 个人中心：双因子认证（TOTP） ---
+    @GetMapping("/rbac/me/two-factor/status")
+    public ApiResponse<TwoFactorStatusDto> twoFactorStatus(HttpServletRequest request) {
+        return ApiResponse.ok(opsTwoFactorService.status(operatorId(request)));
+    }
+
+    @GetMapping("/rbac/me/two-factor/enroll")
+    public ApiResponse<TwoFactorEnrollDto> enrollTwoFactor(HttpServletRequest request) {
+        return ApiResponse.ok(opsTwoFactorService.enroll(operatorId(request)));
+    }
+
+    @PostMapping("/rbac/me/two-factor/confirm")
+    public ApiResponse<Void> confirmTwoFactor(HttpServletRequest request,
+                                              @Valid @RequestBody TwoFactorCodeRequest body) {
+        opsTwoFactorService.confirm(operatorId(request), body.code());
+        return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/rbac/me/two-factor/disable")
+    public ApiResponse<Void> disableTwoFactor(HttpServletRequest request,
+                                              @Valid @RequestBody TwoFactorCodeRequest body) {
+        opsTwoFactorService.disable(operatorId(request), body.code());
+        return ApiResponse.ok(null);
     }
 
     @RequiresPermissions("ops:admin")
@@ -71,6 +356,8 @@ public class OpsCommercialController {
                 body.contactName(),
                 body.contactPhone(),
                 body.status(),
+                body.paymentTermsDays(),
+                body.creditLimitCents(),
                 body.createdAt()
         );
         return ApiResponse.ok(procurementService.upsertSupplier(operatorId(request), merged));
@@ -80,6 +367,28 @@ public class OpsCommercialController {
     @GetMapping("/purchase-orders")
     public ApiResponse<List<PurchaseOrderDto>> purchaseOrders(HttpServletRequest request) {
         return ApiResponse.ok(procurementService.listPurchaseOrders(operatorId(request)));
+    }
+
+    @RequiresPermissions("ops:procurement:list")
+    @GetMapping("/purchase-orders/{purchaseOrderId}")
+    public ApiResponse<PurchaseOrderDto> purchaseOrder(
+            HttpServletRequest request,
+            @PathVariable Long purchaseOrderId) {
+        return ApiResponse.ok(procurementService.getPurchaseOrder(operatorId(request), purchaseOrderId));
+    }
+
+    @RequiresPermissions("ops:procurement:list")
+    @GetMapping("/procurement/suggestions")
+    public ApiResponse<List<PurchaseSuggestionDto>> purchaseSuggestions(
+            HttpServletRequest request,
+            @RequestParam(required = false) String warehouseId,
+            @RequestParam(required = false) Integer leadTimeDays,
+            @RequestParam(required = false) Integer coverageDays) {
+        return ApiResponse.ok(purchaseSuggestionService.suggest(
+                operatorId(request),
+                warehouseId,
+                leadTimeDays == null ? 0 : leadTimeDays,
+                coverageDays == null ? 0 : coverageDays));
     }
 
     @RequiresPermissions("ops:procurement:edit")
@@ -111,6 +420,150 @@ public class OpsCommercialController {
             HttpServletRequest request,
             @Valid @RequestBody CreatePurchaseReturnRequest body) {
         return ApiResponse.ok(procurementService.createPurchaseReturn(operatorId(request), body));
+    }
+
+    @RequiresPermissions("ops:procurement:list")
+    @GetMapping("/suppliers/payables")
+    public ApiResponse<List<SupplierPayableDto>> payables(
+            HttpServletRequest request,
+            @RequestParam(required = false) String supplierId,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false, defaultValue = "false") boolean overdueOnly) {
+        return ApiResponse.ok(supplierPayableService.listPayables(
+                operatorId(request), supplierId, status, overdueOnly));
+    }
+
+    @RequiresPermissions("ops:procurement:list")
+    @GetMapping("/suppliers/payables/summary")
+    public ApiResponse<List<SupplierPayableSummaryDto>> payableSummary(
+            HttpServletRequest request,
+            @RequestParam(required = false) String supplierId) {
+        return ApiResponse.ok(supplierPayableService.summary(operatorId(request), supplierId));
+    }
+
+    @RequiresPermissions("ops:procurement:edit")
+    @PostMapping("/suppliers/payables/{payableId}/pay")
+    public ApiResponse<SupplierPayableDto> payPayable(
+            HttpServletRequest request,
+            @PathVariable Long payableId,
+            @Valid @RequestBody PaySupplierRequest body) {
+        return ApiResponse.ok(supplierPayableService.pay(operatorId(request), payableId, body));
+    }
+
+    // --- 整仓盘点 ---
+    @RequiresPermissions("ops:warehouse:list")
+    @GetMapping("/warehouse/stocktakes")
+    public ApiResponse<List<StocktakeDto>> stocktakes(
+            HttpServletRequest request,
+            @RequestParam(required = false) String status) {
+        return ApiResponse.ok(warehouseStocktakeService.list(operatorId(request), status));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping("/warehouse/stocktakes")
+    public ApiResponse<StocktakeDto> createStocktake(
+            HttpServletRequest request,
+            @Valid @RequestBody CreateStocktakeRequest body) {
+        return ApiResponse.ok(warehouseStocktakeService.create(operatorId(request), body));
+    }
+
+    @RequiresPermissions("ops:warehouse:list")
+    @GetMapping("/warehouse/stocktakes/{stocktakeId}")
+    public ApiResponse<StocktakeDto> stocktakeDetail(
+            HttpServletRequest request,
+            @PathVariable Long stocktakeId) {
+        return ApiResponse.ok(warehouseStocktakeService.get(operatorId(request), stocktakeId));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PutMapping("/warehouse/stocktakes/{stocktakeId}/lines/{lineId}")
+    public ApiResponse<StocktakeLineDto> updateStocktakeLine(
+            HttpServletRequest request,
+            @PathVariable Long stocktakeId,
+            @PathVariable Long lineId,
+            @Valid @RequestBody UpdateStocktakeLineRequest body) {
+        return ApiResponse.ok(warehouseStocktakeService.updateLine(
+                operatorId(request), stocktakeId, lineId, body));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping("/warehouse/stocktakes/{stocktakeId}/complete")
+    public ApiResponse<StocktakeDto> completeStocktake(
+            HttpServletRequest request,
+            @PathVariable Long stocktakeId) {
+        return ApiResponse.ok(warehouseStocktakeService.complete(operatorId(request), stocktakeId));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping("/warehouse/stocktakes/{stocktakeId}/adjust")
+    public ApiResponse<StocktakeDto> adjustStocktake(
+            HttpServletRequest request,
+            @PathVariable Long stocktakeId,
+            @RequestBody(required = false) AdjustStocktakeRequest body) {
+        return ApiResponse.ok(warehouseStocktakeService.adjust(operatorId(request), stocktakeId, body));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping("/warehouse/stocktakes/{stocktakeId}/cancel")
+    public ApiResponse<StocktakeDto> cancelStocktake(
+            HttpServletRequest request,
+            @PathVariable Long stocktakeId) {
+        return ApiResponse.ok(warehouseStocktakeService.cancel(operatorId(request), stocktakeId));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping(value = "/warehouse/stocktakes/{stocktakeId}/scan-photo",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<StocktakeDto> scanStocktakePhoto(
+            HttpServletRequest request,
+            @PathVariable Long stocktakeId,
+            @RequestParam("file") MultipartFile file) throws IOException {
+        return ApiResponse.ok(warehouseStocktakeService.applyVisionCounts(
+                operatorId(request), stocktakeId, file.getBytes(), file.getOriginalFilename()));
+    }
+
+    // --- 货位管理 ---
+    @RequiresPermissions("ops:warehouse:list")
+    @GetMapping("/warehouse/bins")
+    public ApiResponse<List<WarehouseBinDto>> bins(
+            HttpServletRequest request,
+            @RequestParam(required = false) String warehouseId) {
+        return ApiResponse.ok(warehouseBinService.listBins(operatorId(request), warehouseId));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PutMapping("/warehouse/bins")
+    public ApiResponse<WarehouseBinDto> upsertBin(
+            HttpServletRequest request,
+            @Valid @RequestBody UpsertWarehouseBinRequest body) {
+        return ApiResponse.ok(warehouseBinService.upsertBin(operatorId(request), body));
+    }
+
+    @RequiresPermissions("ops:warehouse:list")
+    @GetMapping("/warehouse/bins/stock")
+    public ApiResponse<List<WarehouseBinStockDto>> binStock(
+            HttpServletRequest request,
+            @RequestParam(required = false) String warehouseId,
+            @RequestParam(required = false) Long binId) {
+        return ApiResponse.ok(warehouseBinService.listBinStock(operatorId(request), warehouseId, binId));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping("/warehouse/bins/stock/inbound")
+    public ApiResponse<Void> binInbound(
+            HttpServletRequest request,
+            @Valid @RequestBody BinInboundRequest body) {
+        warehouseBinService.inboundToBin(operatorId(request), body);
+        return ApiResponse.ok(null);
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping("/warehouse/bins/stock/move")
+    public ApiResponse<Void> binMove(
+            HttpServletRequest request,
+            @Valid @RequestBody BinMoveRequest body) {
+        warehouseBinService.moveBetweenBins(operatorId(request), body);
+        return ApiResponse.ok(null);
     }
 
     // --- OTA ---

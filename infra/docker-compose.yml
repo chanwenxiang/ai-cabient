@@ -1,10 +1,13 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: aicabinet
       POSTGRES_USER: aicabinet
       POSTGRES_PASSWORD: aicabinet
+    mem_limit: 1g
+    cpus: 1.0
     ports:
       # Host port avoids Windows Hyper-V reserved range ~5433–5532.
       - "${POSTGRES_PORT:-15433}:5432"
@@ -13,11 +16,21 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports:
       - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    mem_limit: 512m
+    cpus: 0.5
 
   emqx:
     image: emqx/emqx:5.5
+    restart: unless-stopped
     ports:
       # Host ports avoid Windows Hyper-V reserved range ~1822–1921 (includes 1883/8883/18083).
       - "${EMQX_MQTT_PORT:-11883}:1883"
@@ -25,9 +38,18 @@ services:
       - "${EMQX_DASHBOARD_PORT:-28083}:18083"
     environment:
       EMQX_ALLOW_ANONYMOUS: "true"
+    healthcheck:
+      test: ["CMD", "emqx", "ctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    mem_limit: 512m
+    cpus: 0.5
 
   minio:
     image: minio/minio:latest
+    restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -39,6 +61,14 @@ services:
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - miniodata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    mem_limit: 768m
+    cpus: 0.5
 
   redpanda:
     image: redpandadata/redpanda:v24.1.1
@@ -68,15 +98,20 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.51.0
+    restart: unless-stopped
     ports:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    mem_limit: 512m
+    cpus: 0.5
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
   grafana:
     image: grafana/grafana:10.4.0
+    restart: unless-stopped
+    profiles: ["apps"]
     ports:
       - "${GRAFANA_PORT:-13000}:3000"
     environment:

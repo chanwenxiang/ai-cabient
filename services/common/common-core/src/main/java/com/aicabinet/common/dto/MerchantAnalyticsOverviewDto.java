@@ -8,5 +8,28 @@ public record MerchantAnalyticsOverviewDto(
         long cogsCents,
         long grossMarginCents,
         long writeOffCostCents,
-        List<MerchantSkuSalesDto> topSkus
-) {}
+        List<MerchantSkuSalesDto> topSkus,
+        long orderCount,
+        long avgOrderValueCents,
+        long itemQtySold,
+        long avgUnitPriceCents,
+        long prevRevenueCents,
+        long prevGrossMarginCents,
+        Double revenueChangePct,
+        Double marginChangePct,
+        int stockoutSkuCount,
+        long stockoutLossEstimateCents
+) {
+    /** 兼容旧 6 字段构造。 */
+    public MerchantAnalyticsOverviewDto(
+            int days,
+            long revenueCents,
+            long cogsCents,
+            long grossMarginCents,
+            long writeOffCostCents,
+            List<MerchantSkuSalesDto> topSkus
+    ) {
+        this(days, revenueCents, cogsCents, grossMarginCents, writeOffCostCents, topSkus,
+                0, 0, 0, 0, 0, 0, null, null, 0, 0);
+    }
+}

@@ -8,28 +8,36 @@ import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.util.BizIds;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.UUID;
-
 @Service
 public class BalanceLedgerService {
     private final UserAccountMapper accountRepository;
     private final PaymentOperationMapper operationRepository;
+    private final DistributedLockService distributedLockService;
 
     public BalanceLedgerService(UserAccountMapper accountRepository,
-                                PaymentOperationMapper operationRepository) {
+                                PaymentOperationMapper operationRepository,
+                                DistributedLockService distributedLockService) {
         this.accountRepository = accountRepository;
         this.operationRepository = operationRepository;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
     public PaymentOperation change(Long userId, int deltaCents, String businessType,
                                    String businessId, String idempotencyKey, String reason) {
+        return runWithBalanceLock(userId, () -> doChange(userId, deltaCents, businessType,
+                businessId, idempotencyKey, reason));
+    }
+
+    private PaymentOperation doChange(Long userId, int deltaCents, String businessType,
+                                      String businessId, String idempotencyKey, String reason) {
         if (deltaCents == 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
         }
@@ -58,8 +66,7 @@ public class BalanceLedgerService {
         accountRepository.save(account);
 
         PaymentOperation operation = new PaymentOperation();
-        operation.setOperationId("BL-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase());
-        // order_id FK → cabinet_order；充值/运营调账等业务单号不能写入该列
+        operation.setOperationId(BizIds.nextNumeric());
         operation.setOrderId(resolveCabinetOrderId(businessType, businessId));
         operation.setOperationType(businessType);
         operation.setAmountCents(Math.abs(deltaCents));
@@ -80,6 +87,13 @@ public class BalanceLedgerService {
     public PaymentOperation recordFreezeOnly(Long userId, int amountCents, String businessType,
                                              String businessId, String idempotencyKey,
                                              String reason, int balanceBefore, int balanceAfter) {
+        return runWithBalanceLock(userId, () -> doRecordFreezeOnly(userId, amountCents, businessType,
+                businessId, idempotencyKey, reason, balanceBefore, balanceAfter));
+    }
+
+    private PaymentOperation doRecordFreezeOnly(Long userId, int amountCents, String businessType,
+                                                String businessId, String idempotencyKey,
+                                                String reason, int balanceBefore, int balanceAfter) {
         if (amountCents <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
         }
@@ -88,7 +102,7 @@ public class BalanceLedgerService {
             return existing.get();
         }
         PaymentOperation operation = new PaymentOperation();
-        operation.setOperationId("BL-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase());
+        operation.setOperationId(BizIds.nextNumeric());
         operation.setOrderId(null);
         operation.setOperationType(businessType);
         operation.setAmountCents(amountCents);
@@ -100,6 +114,25 @@ public class BalanceLedgerService {
         operation.setBalanceBeforeCents(balanceBefore);
         operation.setBalanceAfterCents(balanceAfter);
         return operationRepository.saveAndFlush(operation);
+    }
+
+    static String balanceLockKey(long userId) {
+        return AdminDashboardService.userBalanceLockKey(userId);
+    }
+
+    private <T> T runWithBalanceLock(long userId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(balanceLockKey(userId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "余额处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(balanceLockKey(userId));
+        }
     }
 
     /** 仅购物扣款/退款类流水挂接 cabinet_order，避免充值单号触发 FK 失败。 */

@@ -2,6 +2,8 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.OrderDto;
 import com.aicabinet.common.dto.OrderLineDto;
+import com.aicabinet.common.dto.OrderRefundRequest;
+import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.StagingProperties;
@@ -20,8 +22,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.UUID;
-
+import java.util.Map;
 @Service
 public class SettlementService {
 
@@ -49,6 +50,11 @@ public class SettlementService {
     private final CouponService couponService;
     private final MemberService memberService;
     private final RefundPolicyService refundPolicyService;
+    private final NotificationService notificationService;
+    private final DeviceSlotMapper slotRepository;
+    private final ConsumerPreauthService consumerPreauthService;
+    private final SystemConfigService systemConfigService;
+    private final DistributedLockService distributedLockService;
 
     public SettlementService(ShoppingSessionMapper sessionRepository,
                              SkuCatalogMapper skuCatalogRepository,
@@ -71,7 +77,12 @@ public class SettlementService {
                              SkuVisionEnrollmentService skuVisionEnrollmentService,
                              CouponService couponService,
                              MemberService memberService,
-                             RefundPolicyService refundPolicyService) {
+                             RefundPolicyService refundPolicyService,
+                             NotificationService notificationService,
+                             DeviceSlotMapper slotRepository,
+                             ConsumerPreauthService consumerPreauthService,
+                             SystemConfigService systemConfigService,
+                             DistributedLockService distributedLockService) {
         this.sessionRepository = sessionRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.orderRepository = orderRepository;
@@ -94,6 +105,11 @@ public class SettlementService {
         this.couponService = couponService;
         this.memberService = memberService;
         this.refundPolicyService = refundPolicyService;
+        this.notificationService = notificationService;
+        this.slotRepository = slotRepository;
+        this.consumerPreauthService = consumerPreauthService;
+        this.systemConfigService = systemConfigService;
+        this.distributedLockService = distributedLockService;
     }
 
     /** 人工审核后确认清单：无订单则首次扣款；有订单则按差额退/补。 */
@@ -106,23 +122,26 @@ public class SettlementService {
 
     @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
     public OrderDto settle(ShoppingSession session) {
-        if (orderRepository.findBySessionId(session.getSessionId()).isPresent()) {
-            return toDto(orderRepository.findBySessionId(session.getSessionId()).get());
-        }
-        deviceValidationService.ensureSettlementAllowed(session.getDeviceId());
+        return runWithSessionSettleLock(session.getSessionId(), () -> {
+            sessionRepository.findByIdForUpdate(session.getSessionId());
+            if (orderRepository.findBySessionId(session.getSessionId()).isPresent()) {
+                return toDto(orderRepository.findBySessionId(session.getSessionId()).get());
+            }
+            deviceValidationService.ensureSettlementAllowed(session.getDeviceId());
 
-        try {
-            VisionServiceClient.RecognitionResult recognition = visionClient.recognize(session);
-            recognition = withGravityFallback(session, recognition);
-            return processRecognitionResult(session, recognition);
-        } catch (RestClientException | IllegalStateException e) {
-            log.warn("vision unavailable, hold charge and escalate session={}", session.getSessionId(), e);
-            VisionServiceClient.RecognitionResult unavailable = new VisionServiceClient.RecognitionResult(
-                    "UNAVAILABLE-" + session.getSessionId(), List.of(), 0f, true,
-                    "vision-unavailable", List.of());
-            escalateToDispute(session, unavailable, "识别服务暂时不可用，已转人工审核，本次暂未扣款");
-            throw e;
-        }
+            try {
+                VisionServiceClient.RecognitionResult recognition = visionClient.recognize(session);
+                recognition = withGravityFallback(session, recognition);
+                return processRecognitionResultUnlocked(session, recognition);
+            } catch (RestClientException | IllegalStateException e) {
+                log.warn("vision unavailable, hold charge and escalate session={}", session.getSessionId(), e);
+                VisionServiceClient.RecognitionResult unavailable = new VisionServiceClient.RecognitionResult(
+                        "UNAVAILABLE-" + session.getSessionId(), List.of(), 0f, true,
+                        "vision-unavailable", List.of());
+                escalateToDispute(session, unavailable, "识别服务暂时不可用，已转人工审核，本次暂未扣款");
+                throw e;
+            }
+        });
     }
 
     @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
@@ -140,6 +159,20 @@ public class SettlementService {
     public OrderDto processRecognitionResult(ShoppingSession session,
                                              VisionServiceClient.RecognitionResult recognition,
                                              boolean allowDevFallback) {
+        return runWithSessionSettleLock(session.getSessionId(), () -> {
+            sessionRepository.findByIdForUpdate(session.getSessionId());
+            return processRecognitionResultUnlocked(session, recognition, allowDevFallback);
+        });
+    }
+
+    private OrderDto processRecognitionResultUnlocked(ShoppingSession session,
+                                                      VisionServiceClient.RecognitionResult recognition) {
+        return processRecognitionResultUnlocked(session, recognition, true);
+    }
+
+    private OrderDto processRecognitionResultUnlocked(ShoppingSession session,
+                                                      VisionServiceClient.RecognitionResult recognition,
+                                                      boolean allowDevFallback) {
         if (orderRepository.findBySessionId(session.getSessionId()).isPresent()) {
             return toDto(orderRepository.findBySessionId(session.getSessionId()).get());
         }
@@ -153,28 +186,25 @@ public class SettlementService {
         // Honor explicit vision need_review even in local mock mode (dispute E2E toggle).
         // Previously mock cart settle short-circuited before this check, so force-review never fired.
         if (recognition.needReview()) {
-            // 沙箱：gravity-fill（视觉空+重力有货）允许按重力结算；错配 / 纯 mock 仍禁止静默扣款
+            // 沙箱：gravity-fill（视觉空+重力有货）允许按重力结算；错配仍禁止静默扣款
             if (!blocksSilentSettle(recognition) || allowsSandboxGravityFillSettle(recognition)) {
                 OrderDto stagingOrder = tryStagingGravitySettle(session);
                 if (stagingOrder != null) {
                     return stagingOrder;
                 }
             }
-            // 本地 mock：仅「非错配/非 mock 标称」且有重力扣减时按演示结算；错配与 mock-v1 一律进审单
-            if (allowDevFallback && securityProperties.mockEnabled() && !blocksSilentSettle(recognition)) {
-                List<VisionServiceClient.RecognizedItem> cartItems =
-                        gravityHelper.toRecognizedItems(session.getGravityDeltas());
-                if (!cartItems.isEmpty()) {
-                    log.info("dev mock settle on needReview session={} cartItems={}",
-                            session.getSessionId(), cartItems.size());
-                    return finalizeOrder(session, cartItems);
+            // 本地 mock：有重力扣减证据时按购物车结算（OBS-012）；纯 mock 无证据仍进审单
+            if (allowDevFallback) {
+                OrderDto cartOrder = tryDevMockEvidenceSettle(session, recognition);
+                if (cartOrder != null) {
+                    return cartOrder;
                 }
             }
             escalateToDispute(session, recognition, reviewReasonFor(recognition));
         }
 
         if (allowDevFallback && securityProperties.mockEnabled()) {
-            // mock 标称结果不可当作生产精度自动扣款；沙箱 gravity-fill 除外
+            // mock 标称结果不可当作生产精度自动扣款；有重力证据或沙箱 gravity-fill 除外
             if (blocksSilentSettle(recognition)) {
                 if (allowsSandboxGravityFillSettle(recognition)) {
                     OrderDto stagingOrder = tryStagingGravitySettle(session);
@@ -182,10 +212,16 @@ public class SettlementService {
                         return stagingOrder;
                     }
                 }
+                OrderDto cartOrder = tryDevMockEvidenceSettle(session, recognition);
+                if (cartOrder != null) {
+                    return cartOrder;
+                }
                 escalateToDispute(session, recognition, reviewReasonFor(recognition));
             }
-            List<VisionServiceClient.RecognizedItem> cartItems =
-                    gravityHelper.toRecognizedItems(session.getGravityDeltas());
+            List<VisionServiceClient.RecognizedItem> cartItems = List.of();
+            if (allowsGravityEvidenceSettle()) {
+                cartItems = gravityHelper.toRecognizedItems(session.getGravityDeltas());
+            }
             if (cartItems.isEmpty() && recognition.items() != null && !recognition.items().isEmpty()) {
                 cartItems = recognition.items();
                 log.info("dev mock settle session={} using vision items={}", session.getSessionId(), cartItems.size());
@@ -199,6 +235,14 @@ public class SettlementService {
             OrderDto stagingOrder = tryStagingGravitySettle(session);
             if (stagingOrder != null) {
                 return stagingOrder;
+            }
+            // 竞品口径：视觉空 + 重力净零（含显式 []）→ 未取货/拿了又放回，自动零结；
+            // 无重力证据时生产仍进争议（防摄像头静默失败）。
+            if (shouldAutoCompleteEmptyCart(session)) {
+                log.info("empty cart auto-complete session={} device={} gravityPresent={}",
+                        session.getSessionId(), session.getDeviceId(),
+                        session.getGravityDeltas() != null);
+                return finalizeOrder(session, List.of());
             }
             if (allowDevFallback && securityProperties.mockEnabled()) {
                 log.warn("dev mock: empty recognition, zero-settle session={}", session.getSessionId());
@@ -225,8 +269,41 @@ public class SettlementService {
         return finalizeOrder(session, recognition.items());
     }
 
+    /**
+     * 视觉无商品时是否自动零结。
+     * <ul>
+     *   <li>VISION_GRAVITY：重力净扣减为空且会话带重力字段（含 {@code []}）→ 传感器佐证未取货</li>
+     *   <li>VISION / 无重力字段 → 看 empty_auto_complete_no_gravity 或 mock/staging，否则进审单</li>
+     * </ul>
+     */
+    private boolean shouldAutoCompleteEmptyCart(ShoppingSession session) {
+        if (systemConfigService.usesGravityFusion()) {
+            List<VisionServiceClient.RecognizedItem> gravityItems =
+                    gravityHelper.toRecognizedItems(session.getGravityDeltas());
+            if (gravityItems != null && !gravityItems.isEmpty()) {
+                return false;
+            }
+            if (session.getGravityDeltas() != null) {
+                return true;
+            }
+        }
+        if (systemConfigService.getBoolean(SystemConfigService.SETTLEMENT_EMPTY_AUTO_NO_GRAVITY, false)) {
+            return true;
+        }
+        return securityProperties.mockEnabled()
+                || stagingProperties.stagingMode()
+                || stagingProperties.gravityFallbackSettle();
+    }
+
+    private boolean allowsGravityEvidenceSettle() {
+        return systemConfigService.usesGravityFusion() || stagingProperties.gravityFallbackSettle();
+    }
+
     /** 预发/沙箱 E2E：有重力扣减信号时优先按重力结算，避免无真实购物视频时误入争议。 */
     private OrderDto tryStagingGravitySettle(ShoppingSession session) {
+        if (!allowsGravityEvidenceSettle()) {
+            return null;
+        }
         if (!stagingProperties.stagingMode() && !stagingProperties.gravityFallbackSettle()) {
             return null;
         }
@@ -244,6 +321,9 @@ public class SettlementService {
      * gravity-mismatch / 纯 mock 仍须人工审核。
      */
     private boolean allowsSandboxGravityFillSettle(VisionServiceClient.RecognitionResult recognition) {
+        if (!systemConfigService.usesGravityFusion()) {
+            return false;
+        }
         if (!stagingProperties.stagingMode() && !stagingProperties.gravityFallbackSettle()) {
             return false;
         }
@@ -251,9 +331,39 @@ public class SettlementService {
         return version.contains("gravity-fill") && !version.contains("gravity-mismatch");
     }
 
+    /**
+     * 本地演示：{@code AICABINET_MOCK_ENABLED} 下，只要会话有重力扣减证据，即按重力 finalize → PAID。
+     * 覆盖 mock-v1 / gravity-fill / gravity-mismatch（演示柜模拟器常带重力，视觉 mock 易错配）。
+     * 生产（mock 关闭）不走此分支；无重力证据返回 null，由调用方进审单。
+     */
+    private OrderDto tryDevMockEvidenceSettle(ShoppingSession session,
+                                             VisionServiceClient.RecognitionResult recognition) {
+        if (!allowsGravityEvidenceSettle()) {
+            return null;
+        }
+        if (!securityProperties.mockEnabled()) {
+            return null;
+        }
+        List<VisionServiceClient.RecognizedItem> cartItems =
+                gravityHelper.toRecognizedItems(session.getGravityDeltas());
+        if (cartItems == null || cartItems.isEmpty()) {
+            return null;
+        }
+        log.info("dev mock settle with gravity evidence session={} cartItems={} version={}",
+                session.getSessionId(), cartItems.size(), recognition.modelVersion());
+        return finalizeOrder(session, cartItems);
+    }
+
     private VisionServiceClient.RecognitionResult withGravityFallback(ShoppingSession session,
                                                                       VisionServiceClient.RecognitionResult recognition) {
+        if (!systemConfigService.usesGravityFusion()) {
+            return recognition;
+        }
         return gravityHelper.reconcileWithGravity(session.getGravityDeltas(), recognition);
+    }
+
+    private String gravityDeltasForInventory(ShoppingSession session) {
+        return systemConfigService.usesGravityFusion() ? session.getGravityDeltas() : null;
     }
 
     /** mock / gravity-mismatch / gravity-fill 不得静默按「生产精度」扣款。 */
@@ -297,6 +407,8 @@ public class SettlementService {
     private void escalateToDispute(ShoppingSession session,
                                  VisionServiceClient.RecognitionResult recognition,
                                  String reason) {
+        // 转人工暂不扣款：释放开门预授权，避免多笔争议会话叠冻结导致可用余额为 0（BUG-001）
+        consumerPreauthService.releaseIfFrozen(session);
         disputeService.createTicket(session, recognition, reason);
         throw new DisputeRequiredException(reason);
     }
@@ -316,15 +428,26 @@ public class SettlementService {
     @Transactional
     public OrderDto settleManual(ShoppingSession session,
                                  List<VisionServiceClient.RecognizedItem> items) {
-        if (orderRepository.findBySessionId(session.getSessionId()).isPresent()) {
-            return toDto(orderRepository.findBySessionId(session.getSessionId()).get());
-        }
-        return finalizeOrder(session, items);
+        return runWithSessionSettleLock(session.getSessionId(), () -> {
+            sessionRepository.findByIdForUpdate(session.getSessionId());
+            if (orderRepository.findBySessionId(session.getSessionId()).isPresent()) {
+                return toDto(orderRepository.findBySessionId(session.getSessionId()).get());
+            }
+            return finalizeOrder(session, items);
+        });
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = {BalanceInsufficientException.class})
     public ConfirmDisputeResult confirmDisputedItems(ShoppingSession session,
                                                    List<VisionServiceClient.RecognizedItem> items) {
+        return runWithSessionSettleLock(session.getSessionId(), () -> {
+            sessionRepository.findByIdForUpdate(session.getSessionId());
+            return confirmDisputedItemsUnlocked(session, items);
+        });
+    }
+
+    private ConfirmDisputeResult confirmDisputedItemsUnlocked(ShoppingSession session,
+                                                              List<VisionServiceClient.RecognizedItem> items) {
         if (items == null || items.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_ITEMS_REQUIRED);
         }
@@ -353,10 +476,17 @@ public class SettlementService {
                         com.aicabinet.trade.domain.CabinetOrderLine::getBatchNo,
                         (a, b) -> a));
 
-        int original = order.getTotalAmountCents();
+        int originalPayable = order.getTotalAmountCents();
         applyItemsToOrder(order, items);
+        recalculatePayableAfterLineChange(order);
         int finalTotal = order.getTotalAmountCents();
-        int delta = finalTotal - original;
+        int delta = finalTotal - originalPayable;
+
+        // 先校验余额再动库存/账本，避免 412 触发 UnexpectedRollbackException（BUG-007）
+        if (delta > 0 && !userValidationService.canChargeViaPasswordFree(
+                session.getUserId(), session.getEntryChannel())) {
+            userValidationService.validateSufficientBalanceForCharge(session.getUserId(), delta);
+        }
 
         if (order.isInventoryDeducted()) {
             var adjustedBatches = inventoryService.adjustForOrder(
@@ -364,7 +494,7 @@ public class SettlementService {
             applyBatchNos(order, adjustedBatches);
         } else {
             var deductedBatches = inventoryService.deductForOrder(
-                    session.getDeviceId(), items, session.getSessionId(), session.getGravityDeltas());
+                    session.getDeviceId(), items, session.getSessionId(), gravityDeltasForInventory(session));
             applyBatchNos(order, deductedBatches);
             order.setInventoryDeducted(true);
         }
@@ -374,47 +504,315 @@ public class SettlementService {
             order.setStatus("PAID");
         }
         if (delta != 0) {
-            revenueSplitService.resyncSplitForOrder(order);
+            revenueSplitService.adjustSplitAfterOrderChange(order, originalPayable);
         }
         orderRepository.save(order);
         replaceOrderLines(order);
         log.info("dispute adjust session={} order={} original={} final={} delta={}",
-                session.getSessionId(), order.getOrderId(), original, finalTotal, delta);
-        return new ConfirmDisputeResult(toDto(order), original, finalTotal, delta);
+                session.getSessionId(), order.getOrderId(), originalPayable, finalTotal, delta);
+        return new ConfirmDisputeResult(toDto(order), originalPayable, finalTotal, delta);
     }
 
-    /** 免单：退还该会话已扣款项（原路退回）。 */
+    /** 免单：退还该会话已扣款项（原路退回）；默认回库（兼容历史免单=误识别）。 */
     @Transactional
     public int waiveAndRefund(ShoppingSession session) {
+        return waiveAndRefund(session, true);
+    }
+
+    /**
+     * 免单/全额退款。
+     *
+     * @param restoreInventory true=退货退款回库；false=仅退款不回库（货已离柜）
+     */
+    @Transactional
+    public int waiveAndRefund(ShoppingSession session, boolean restoreInventory) {
+        return runWithSessionSettleLock(session.getSessionId(), () -> {
+            sessionRepository.findByIdForUpdate(session.getSessionId());
+            return waiveAndRefundUnlocked(session, restoreInventory);
+        });
+    }
+
+    private int waiveAndRefundUnlocked(ShoppingSession session, boolean restoreInventory) {
         return orderRepository.findBySessionId(session.getSessionId())
                 .map(order -> {
                     hydrateOrderLines(order);
                     if ("REFUNDED".equals(order.getStatus())) {
                         return 0;
                     }
-                    int amount = order.getTotalAmountCents();
-                    if (order.isInventoryDeducted()) {
-                        List<VisionServiceClient.RecognizedItem> items = order.getLines().stream()
-                                .map(l -> new VisionServiceClient.RecognizedItem(l.getSkuId(), l.getQuantity(), 1f))
-                                .toList();
-                        var batchBySku = order.getLines().stream()
-                                .filter(l -> l.getBatchNo() != null && !l.getBatchNo().isBlank())
-                                .collect(java.util.stream.Collectors.toMap(
-                                        com.aicabinet.trade.domain.CabinetOrderLine::getSkuId,
-                                        com.aicabinet.trade.domain.CabinetOrderLine::getBatchNo,
-                                        (a, b) -> a));
+                    int netPaid = orderPaymentService.netCompletedCents(order.getOrderId());
+                    int amount = netPaid > 0 ? netPaid : 0;
+                    boolean didRestore = false;
+                    List<VisionServiceClient.RecognizedItem> items = order.getLines().stream()
+                            .map(l -> new VisionServiceClient.RecognizedItem(l.getSkuId(), l.getQuantity(), 1f))
+                            .toList();
+                    var batchBySku = order.getLines().stream()
+                            .filter(l -> l.getBatchNo() != null && !l.getBatchNo().isBlank())
+                            .collect(java.util.stream.Collectors.toMap(
+                                    com.aicabinet.trade.domain.CabinetOrderLine::getSkuId,
+                                    com.aicabinet.trade.domain.CabinetOrderLine::getBatchNo,
+                                    (a, b) -> a));
+                    if (restoreInventory && order.isInventoryDeducted()) {
                         inventoryService.restoreForOrder(order.getDeviceId(), items, batchBySku);
                         order.setInventoryDeducted(false);
+                        didRestore = true;
+                    } else if (!restoreInventory && order.isInventoryDeducted()) {
+                        // 销售时已扣库；仅退款不回库 → 记 REFUND_KEPT 审计流水，禁止二次报损扣库
+                        inventoryService.recordRefundKeptGoods(
+                                order.getDeviceId(), items, batchBySku, order.getOrderId());
                     }
-                    orderPaymentService.refundOrder(order, amount, "争议免单退款");
+                    if (amount > 0) {
+                        orderPaymentService.refundOrder(order, amount,
+                                restoreInventory ? "争议免单退款(回库)" : "争议免单退款(不回库)");
+                    } else {
+                        log.warn("waive skip refund: no net charge order={}", order.getOrderId());
+                    }
+                    if (order.getRefundedAt() == null) {
+                        order.setRefundedAt(java.time.Instant.now());
+                    }
                     order.setStatus("REFUNDED");
                     orderRepository.save(order);
                     revenueSplitService.voidSplitOnFullRefund(order.getOrderId());
-                    log.info("争议免单退款 session={} order={} refund={} channel={}",
-                            session.getSessionId(), order.getOrderId(), amount, order.getPayChannel());
+                    log.info("争议免单退款 session={} order={} refund={} channel={} restoreInventory={} didRestore={}",
+                            session.getSessionId(), order.getOrderId(), amount, order.getPayChannel(),
+                            restoreInventory, didRestore);
                     return amount;
                 })
                 .orElse(0);
+    }
+
+    /**
+     * 按行部分退款（竞品口径）：指定 SKU/数量退款；行级或默认决定是否回库。
+     * 退完全部行 → {@code REFUNDED}；否则 → {@code PARTIAL_REFUNDED}。
+     */
+    @Transactional
+    public PartialRefundResult partialRefund(CabinetOrder order,
+                                             List<OrderRefundRequest.PartialRefundLine> refundLines,
+                                             boolean defaultRestore,
+                                             String reason) {
+        if (order == null || refundLines == null || refundLines.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请指定要退款的商品行");
+        }
+        hydrateOrderLines(order);
+        if (order.getLines() == null || order.getLines().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单无商品行，无法按行退款");
+        }
+        Map<String, CabinetOrderLine> bySku = mergeLinesBySku(order.getLines());
+        List<VisionServiceClient.RecognizedItem> restoreItems = new java.util.ArrayList<>();
+        List<VisionServiceClient.RecognizedItem> keptItems = new java.util.ArrayList<>();
+        Map<String, String> batchBySku = new java.util.HashMap<>();
+        boolean anyRestored = false;
+        Map<String, Integer> refundQtyBySku = new java.util.LinkedHashMap<>();
+        int priorPayable = Math.max(0, order.getTotalAmountCents());
+
+        for (OrderRefundRequest.PartialRefundLine req : refundLines) {
+            if (req == null || req.skuId() == null || req.skuId().isBlank() || req.quantity() <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款行 SKU/数量无效");
+            }
+            String sku = req.skuId().trim();
+            CabinetOrderLine line = bySku.get(sku);
+            if (line == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "订单不含商品：" + sku);
+            }
+            int already = refundQtyBySku.getOrDefault(sku, 0);
+            int need = already + req.quantity();
+            if (need > line.getQuantity()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "退款数量超过订单行：" + sku + " 可退 " + (line.getQuantity() - already));
+            }
+            refundQtyBySku.put(sku, need);
+            boolean restore = req.restoreInventory() != null ? req.restoreInventory() : defaultRestore;
+            if (line.getBatchNo() != null && !line.getBatchNo().isBlank()) {
+                batchBySku.putIfAbsent(sku, line.getBatchNo());
+            }
+            var item = new VisionServiceClient.RecognizedItem(sku, req.quantity(), 1f);
+            if (restore) {
+                restoreItems.add(item);
+                anyRestored = true;
+            } else {
+                keptItems.add(item);
+            }
+        }
+
+        List<CabinetOrderLine> remaining = buildRemainingLines(bySku, refundQtyBySku);
+        order.setLines(remaining);
+        int newSubtotal = remaining.stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
+        couponService.recalcOrRestoreAfterPartialRefund(order, newSubtotal);
+        recalculatePayableAfterLineChange(order);
+        int refundCents = Math.max(0, priorPayable - order.getTotalAmountCents());
+        if (refundCents <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额为 0");
+        }
+
+        if (order.isInventoryDeducted()) {
+            if (!restoreItems.isEmpty()) {
+                inventoryService.restoreForOrder(order.getDeviceId(), restoreItems, batchBySku);
+            }
+            if (!keptItems.isEmpty()) {
+                inventoryService.recordRefundKeptGoods(
+                        order.getDeviceId(), keptItems, batchBySku, order.getOrderId());
+            }
+            if (remaining.isEmpty()) {
+                order.setInventoryDeducted(false);
+            }
+        }
+
+        int priorRefunded = Math.max(0, order.getRefundedCents());
+        orderPaymentService.refundOrder(order, refundCents, reason == null ? "按行部分退款" : reason);
+        // 支付层正常会累加 refundedCents；演示账号早退 / 历史路径漏写时在此兜底，避免 PARTIAL_REFUNDED 金额为 0
+        if (order.getRefundedCents() < priorRefunded + refundCents) {
+            order.setRefundedCents(priorRefunded + refundCents);
+        }
+        if (order.getRefundedAt() == null) {
+            order.setRefundedAt(java.time.Instant.now());
+        }
+        boolean full = remaining.isEmpty() || order.getTotalAmountCents() <= 0;
+        order.setStatus(full ? "REFUNDED" : "PARTIAL_REFUNDED");
+        if (full) {
+            order.setRefundedAt(java.time.Instant.now());
+            revenueSplitService.adjustSplitAfterPartialRefund(order, true);
+        } else {
+            revenueSplitService.adjustSplitAfterPartialRefund(order, false);
+        }
+        orderRepository.save(order);
+        replaceOrderLines(order);
+        log.info("partial refund order={} refundCents={} status={} restoredLines={} keptLines={}",
+                order.getOrderId(), refundCents, order.getStatus(), restoreItems.size(), keptItems.size());
+        return new PartialRefundResult(refundCents, order.getStatus(), anyRestored);
+    }
+
+    public record PartialRefundResult(int refundedCents, String status, boolean anyInventoryRestored) {}
+
+    @Transactional(readOnly = true)
+    public int estimatePartialRefundCents(CabinetOrder order,
+                                          List<OrderRefundRequest.PartialRefundLine> refundLines) {
+        if (order == null || refundLines == null || refundLines.isEmpty()) {
+            return 0;
+        }
+        CabinetOrder scratch = copyOrderForPartialRefundEstimate(order);
+        hydrateOrderLines(scratch);
+        if (scratch.getLines() == null || scratch.getLines().isEmpty()) {
+            return 0;
+        }
+        Map<String, CabinetOrderLine> bySku = mergeLinesBySku(scratch.getLines());
+        Map<String, Integer> refundQtyBySku = validatePartialRefundQuantities(bySku, refundLines);
+        int priorPayable = Math.max(0, scratch.getTotalAmountCents());
+        List<CabinetOrderLine> remaining = buildRemainingLines(bySku, refundQtyBySku);
+        scratch.setLines(remaining);
+        int newSubtotal = remaining.stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
+        applyPartialRefundPayablePreview(scratch, newSubtotal);
+        recalculatePayableAfterLineChange(scratch);
+        return Math.max(0, priorPayable - scratch.getTotalAmountCents());
+    }
+
+    private static CabinetOrder copyOrderForPartialRefundEstimate(CabinetOrder order) {
+        CabinetOrder copy = new CabinetOrder();
+        copy.setOrderId(order.getOrderId());
+        copy.setTotalAmountCents(order.getTotalAmountCents());
+        copy.setOriginalAmountCents(order.getOriginalAmountCents());
+        copy.setCouponId(order.getCouponId());
+        copy.setCouponDiscountCents(order.getCouponDiscountCents());
+        copy.setMemberDiscountCents(order.getMemberDiscountCents());
+        if (order.getLines() != null) {
+            List<CabinetOrderLine> lines = new java.util.ArrayList<>();
+            for (CabinetOrderLine line : order.getLines()) {
+                CabinetOrderLine l = new CabinetOrderLine();
+                l.setSkuId(line.getSkuId());
+                l.setSkuName(line.getSkuName());
+                l.setQuantity(line.getQuantity());
+                l.setUnitPriceCents(line.getUnitPriceCents());
+                l.setLineAmountCents(line.getLineAmountCents());
+                l.setBatchNo(line.getBatchNo());
+                l.setSlotId(line.getSlotId());
+                l.setUnitCostCents(line.getUnitCostCents());
+                l.setConfidence(line.getConfidence());
+                lines.add(l);
+            }
+            copy.setLines(lines);
+        }
+        return copy;
+    }
+
+    /** 只读预估：按剩余明细重算应付，不写券状态。 */
+    private void applyPartialRefundPayablePreview(CabinetOrder order, int remainingSubtotalCents) {
+        order.setOriginalAmountCents(Math.max(0, remainingSubtotalCents));
+        if (order.getCouponId() == null) {
+            order.setCouponDiscountCents(0);
+            order.setTotalAmountCents(Math.max(0, remainingSubtotalCents));
+            return;
+        }
+        int discount = couponService.discountForOrderCoupon(order.getCouponId(), remainingSubtotalCents);
+        if (discount <= 0) {
+            order.setCouponId(null);
+            order.setCouponDiscountCents(0);
+            order.setTotalAmountCents(Math.max(0, remainingSubtotalCents));
+            return;
+        }
+        order.setCouponDiscountCents(discount);
+        order.setTotalAmountCents(Math.max(0, remainingSubtotalCents - discount));
+    }
+
+    private static Map<String, CabinetOrderLine> mergeLinesBySku(List<CabinetOrderLine> lines) {
+        Map<String, CabinetOrderLine> bySku = new java.util.LinkedHashMap<>();
+        for (CabinetOrderLine line : lines) {
+            if (line.getSkuId() == null) {
+                continue;
+            }
+            bySku.merge(line.getSkuId(), line, (a, b) -> {
+                a.setQuantity(a.getQuantity() + b.getQuantity());
+                a.setLineAmountCents(a.getLineAmountCents() + b.getLineAmountCents());
+                return a;
+            });
+        }
+        return bySku;
+    }
+
+    private static Map<String, Integer> validatePartialRefundQuantities(
+            Map<String, CabinetOrderLine> bySku,
+            List<OrderRefundRequest.PartialRefundLine> refundLines) {
+        Map<String, Integer> refundQtyBySku = new java.util.LinkedHashMap<>();
+        for (OrderRefundRequest.PartialRefundLine req : refundLines) {
+            if (req == null || req.skuId() == null || req.skuId().isBlank() || req.quantity() <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款行 SKU/数量无效");
+            }
+            String sku = req.skuId().trim();
+            CabinetOrderLine line = bySku.get(sku);
+            if (line == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "订单不含商品：" + sku);
+            }
+            int already = refundQtyBySku.getOrDefault(sku, 0);
+            int need = already + req.quantity();
+            if (need > line.getQuantity()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "退款数量超过订单行：" + sku + " 可退 " + (line.getQuantity() - already));
+            }
+            refundQtyBySku.put(sku, need);
+        }
+        return refundQtyBySku;
+    }
+
+    private static List<CabinetOrderLine> buildRemainingLines(
+            Map<String, CabinetOrderLine> bySku,
+            Map<String, Integer> refundQtyBySku) {
+        List<CabinetOrderLine> remaining = new java.util.ArrayList<>();
+        for (Map.Entry<String, CabinetOrderLine> e : bySku.entrySet()) {
+            CabinetOrderLine src = e.getValue();
+            int cut = refundQtyBySku.getOrDefault(e.getKey(), 0);
+            int left = src.getQuantity() - cut;
+            if (left > 0) {
+                CabinetOrderLine copy = new CabinetOrderLine();
+                copy.setSkuId(src.getSkuId());
+                copy.setSkuName(src.getSkuName());
+                copy.setQuantity(left);
+                copy.setUnitPriceCents(src.getUnitPriceCents());
+                copy.setLineAmountCents(src.getUnitPriceCents() * left);
+                copy.setConfidence(src.getConfidence());
+                copy.setBatchNo(src.getBatchNo());
+                copy.setSlotId(src.getSlotId());
+                copy.setUnitCostCents(src.getUnitCostCents());
+                remaining.add(copy);
+            }
+        }
+        return remaining;
     }
 
     private OrderDto finalizeOrder(ShoppingSession session,
@@ -438,7 +836,7 @@ public class SettlementService {
             }
         }
         var batchBySku = inventoryService.deductForOrder(
-                session.getDeviceId(), items, session.getSessionId(), session.getGravityDeltas());
+                session.getDeviceId(), items, session.getSessionId(), gravityDeltasForInventory(session));
         applyBatchNos(order, batchBySku);
         order.setInventoryDeducted(true);
         order.setStatus(unpaid ? "PENDING" : "PAID");
@@ -449,7 +847,7 @@ public class SettlementService {
         if (unpaid) {
             session.setOrderId(order.getOrderId());
             sessionRepository.save(session);
-            videoArchiveService.archiveAfterSettlement(session, order.getLines());
+            videoArchiveService.archiveAfterSettlement(session);
             log.info("unpaid order created session={} order={} amount={}",
                     session.getSessionId(), order.getOrderId(), order.getTotalAmountCents());
             return toDto(order);
@@ -465,7 +863,7 @@ public class SettlementService {
                 orderRepository.save(order);
                 session.setOrderId(order.getOrderId());
                 sessionRepository.save(session);
-                videoArchiveService.archiveAfterSettlement(session, order.getLines());
+                videoArchiveService.archiveAfterSettlement(session);
                 log.info("unpaid order after charge fail session={} order={} amount={}",
                         session.getSessionId(), order.getOrderId(), order.getTotalAmountCents());
                 return toDto(order);
@@ -490,11 +888,25 @@ public class SettlementService {
         } catch (Exception e) {
             log.warn("member stats update failed order={}", order.getOrderId(), e);
         }
-        videoArchiveService.archiveAfterSettlement(session, order.getLines());
+        try {
+            notificationService.notifyConsumer(
+                    session.getUserId(),
+                    "order_paid",
+                    Map.of("orderId", order.getOrderId(), "amount", yuan(order.getTotalAmountCents())),
+                    "ORDER",
+                    order.getOrderId());
+        } catch (Exception e) {
+            log.warn("order paid notification failed order={}", order.getOrderId(), e);
+        }
+        videoArchiveService.archiveAfterSettlement(session);
         log.info("settled session={} order={} amount={} couponDiscount={} channel={}",
                 session.getSessionId(), order.getOrderId(), order.getTotalAmountCents(),
                 order.getCouponDiscountCents(), order.getPayChannel());
         return toDto(order);
+    }
+
+    private static String yuan(int cents) {
+        return java.math.BigDecimal.valueOf(cents, 2).stripTrailingZeros().toPlainString();
     }
 
     private static boolean isInsufficientBalance(ResponseStatusException e) {
@@ -505,14 +917,20 @@ public class SettlementService {
         return reason != null && (reason.contains("余额") || reason.toLowerCase().contains("insufficient"));
     }
 
-    /** Pick best coupon and rewrite payable; caller must markUsed after order is persisted (FK). */
+    /** Pick preferred or best coupon and rewrite payable; caller must markUsed after order is persisted (FK). */
     private CouponService.BestCoupon selectBestCouponForOrder(CabinetOrder order) {
         int subtotal = order.getTotalAmountCents();
         order.setOriginalAmountCents(subtotal);
         if (subtotal <= 0 || order.getUserId() == null) {
             return null;
         }
-        var best = couponService.selectBestCoupon(order.getUserId(), subtotal);
+        Long preferred = null;
+        if (order.getSessionId() != null) {
+            preferred = sessionRepository.findById(order.getSessionId())
+                    .map(ShoppingSession::getPreferredCouponId)
+                    .orElse(null);
+        }
+        var best = couponService.selectPreferredOrBest(order.getUserId(), preferred, subtotal);
         if (best.isEmpty()) {
             return null;
         }
@@ -521,8 +939,8 @@ public class SettlementService {
         order.setCouponId(pick.couponId());
         order.setCouponDiscountCents(discount);
         order.setTotalAmountCents(Math.max(0, subtotal - discount));
-        log.info("auto applied coupon order={} couponId={} discount={} payable={}",
-                order.getOrderId(), pick.couponId(), discount, order.getTotalAmountCents());
+        log.info("applied coupon order={} couponId={} preferred={} discount={} payable={}",
+                order.getOrderId(), pick.couponId(), preferred, discount, order.getTotalAmountCents());
         return pick;
     }
 
@@ -540,12 +958,14 @@ public class SettlementService {
 
     private void applyItemsToOrder(CabinetOrder order, List<VisionServiceClient.RecognizedItem> items) {
         order.getLines().clear();
+        Map<String, String> slotBySku = inferSlotBySku(order.getDeviceId());
         int total = 0;
         for (VisionServiceClient.RecognizedItem item : items) {
             SkuCatalog sku = skuCatalogRepository.findById(item.skuId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                             ApiMessages.SKU_NOT_FOUND + "：" + item.skuId()));
             int unitPrice = skuPricingService.resolveUnitPriceCents(order.getDeviceId(), sku);
+            unitPrice = memberService.applyMemberPriceDiscount(order.getUserId(), unitPrice);
             int lineAmount = unitPrice * item.quantity();
             total += lineAmount;
 
@@ -557,9 +977,45 @@ public class SettlementService {
             line.setLineAmountCents(lineAmount);
             line.setUnitCostCents(sku.getPurchaseCostCents());
             line.setConfidence(item.confidence());
+            line.setSlotId(slotBySku.get(sku.getSkuId()));
             order.addLine(line);
         }
+        order.setOriginalAmountCents(total);
         order.setTotalAmountCents(total);
+    }
+
+    /** 争议改单后按新明细重算折后应付（保留已绑券/会员折扣字段）。 */
+    private void recalculatePayableAfterLineChange(CabinetOrder order) {
+        int subtotal = order.getLines().stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
+        order.setOriginalAmountCents(subtotal);
+        int couponDisc = 0;
+        if (order.getCouponId() != null && subtotal > 0) {
+            couponDisc = couponService.discountForOrderCoupon(order.getCouponId(), subtotal);
+        }
+        order.setCouponDiscountCents(couponDisc);
+        int memberDisc = Math.min(Math.max(0, order.getMemberDiscountCents()),
+                Math.max(0, subtotal - couponDisc));
+        order.setMemberDiscountCents(memberDisc);
+        order.setTotalAmountCents(Math.max(0, subtotal - couponDisc - memberDisc));
+    }
+
+    /** SKU 唯一绑定某货道时回填货道；同一 SKU 出现在多个货道则不推断。 */
+    private Map<String, String> inferSlotBySku(String deviceId) {
+        Map<String, String> map = new java.util.HashMap<>();
+        if (deviceId == null) {
+            return map;
+        }
+        for (DeviceSlot slot : slotRepository.findByIdDeviceId(deviceId)) {
+            if (!slot.isEnabled() || slot.getAssignedSkuId() == null || slot.getAssignedSkuId().isBlank()) {
+                continue;
+            }
+            String existing = map.putIfAbsent(slot.getAssignedSkuId(), slot.getSlotCode());
+            if (existing != null) {
+                map.put(slot.getAssignedSkuId(), null);
+            }
+        }
+        map.values().removeIf(v -> v == null);
+        return map;
     }
 
     private static void applyBatchNos(CabinetOrder order, java.util.Map<String, String> batchBySku) {
@@ -577,7 +1033,7 @@ public class SettlementService {
     private CabinetOrder buildOrder(ShoppingSession session,
                                     List<VisionServiceClient.RecognizedItem> items) {
         CabinetOrder order = new CabinetOrder();
-        order.setOrderId("O" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
+        order.setOrderId(BizIds.nextNumeric());
         order.setSessionId(session.getSessionId());
         order.setUserId(session.getUserId());
         order.setDeviceId(session.getDeviceId());
@@ -642,8 +1098,23 @@ public class SettlementService {
                 : order.getLines().stream()
                         .map(l -> new OrderLineDto(
                                 l.getSkuId(), l.getSkuName(), l.getQuantity(),
-                                l.getUnitPriceCents(), l.getLineAmountCents(), l.getBatchNo()))
+                                l.getUnitPriceCents(), l.getLineAmountCents(), l.getBatchNo(), l.getSlotId()))
                         .toList();
+        Integer memberDiscount = order.getMemberDiscountCents() > 0
+                ? Integer.valueOf(order.getMemberDiscountCents())
+                : null;
+        if (originalAmount == null && order.getMemberDiscountCents() > 0) {
+            originalAmount = order.getTotalAmountCents()
+                    + order.getCouponDiscountCents()
+                    + order.getMemberDiscountCents();
+        }
+        String merchantId = null;
+        try {
+            DeviceInfo device = deviceValidationService.requireDevice(order.getDeviceId());
+            merchantId = device.getMerchantId();
+        } catch (Exception ignored) {
+            // 详情仍可返回，商户号留空
+        }
         return new OrderDto(
                 order.getOrderId(),
                 order.getSessionId(),
@@ -659,7 +1130,34 @@ public class SettlementService {
                 originalAmount,
                 refundPolicyService != null
                         ? refundPolicyService.resolveForDevice(order.getDeviceId()).name()
-                        : null
+                        : null,
+                memberDiscount,
+                order.getPayTradeNo(),
+                order.getRefundedAt(),
+                order.isInventoryDeducted(),
+                merchantId,
+                Math.max(0, order.getRefundedCents())
         );
+    }
+
+    static String sessionSettleLockKey(String sessionId) {
+        return "session:settle:" + sessionId;
+    }
+
+    private <T> T runWithSessionSettleLock(String sessionId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(sessionSettleLockKey(sessionId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "会话结算处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (DisputeRequiredException | BalanceInsufficientException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(sessionSettleLockKey(sessionId));
+        }
     }
 }

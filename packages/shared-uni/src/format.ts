@@ -36,58 +36,54 @@ function parseDate(value: DateInput): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function dateParts(date: Date, options: Intl.DateTimeFormatOptions) {
-  return new Intl.DateTimeFormat('zh-CN', {
-    timeZone: 'Asia/Shanghai',
-    hour12: false,
-    ...options
-  }).formatToParts(date);
+function pad2(n: number): string {
+  return n < 10 ? '0' + n : String(n);
 }
 
-function part(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes) {
-  return parts.find((item) => item.type === type)?.value ?? '';
+/**
+ * 东八区墙钟。微信小程序（尤其真机/低版本基础库）没有 Intl，不能用 DateTimeFormat。
+ * 中国无夏令时，UTC+8 固定。
+ */
+function shanghaiClock(date: Date) {
+  const sh = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  return {
+    year: String(sh.getUTCFullYear()),
+    month: pad2(sh.getUTCMonth() + 1),
+    day: pad2(sh.getUTCDate()),
+    hour: pad2(sh.getUTCHours()),
+    minute: pad2(sh.getUTCMinutes()),
+    second: pad2(sh.getUTCSeconds())
+  };
 }
 
 /** 完整时间：YYYY-MM-DD HH:mm:ss（东八区） */
 export function formatDateTime(value?: DateInput, fallback: string = EMPTY.none): string {
   const date = parseDate(value ?? null);
   if (!date) return value != null && value !== '' ? String(value) : fallback;
-  const parts = dateParts(date, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
-  return `${part(parts, 'year')}-${part(parts, 'month')}-${part(parts, 'day')} ${part(parts, 'hour')}:${part(parts, 'minute')}:${part(parts, 'second')}`;
+  const p = shanghaiClock(date);
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
 }
 
 /** 列表常用：YYYY-MM-DD HH:mm（东八区） */
 export function formatDateTimeMinute(value?: DateInput, fallback: string = EMPTY.date): string {
   const date = parseDate(value ?? null);
   if (!date) return value != null && value !== '' ? String(value) : fallback;
-  const parts = dateParts(date, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-  return `${part(parts, 'year')}-${part(parts, 'month')}-${part(parts, 'day')} ${part(parts, 'hour')}:${part(parts, 'minute')}`;
+  const p = shanghaiClock(date);
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
 }
 
 /** 紧凑时间：MM/DD HH:mm（东八区），适合移动端列表 */
 export function formatDateTimeShort(value?: DateInput, fallback: string = EMPTY.date): string {
   const date = parseDate(value ?? null);
   if (!date) return value != null && value !== '' ? String(value) : fallback;
-  const parts = dateParts(date, {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-  return `${part(parts, 'month')}/${part(parts, 'day')} ${part(parts, 'hour')}:${part(parts, 'minute')}`;
+  const p = shanghaiClock(date);
+  return `${p.month}/${p.day} ${p.hour}:${p.minute}`;
+}
+
+/** 东八区当天 00:00 的时间戳，用于「今天」筛选 */
+export function startOfTodayShanghaiMs(now: Date = new Date()): number {
+  const p = shanghaiClock(now);
+  return new Date(`${p.year}-${p.month}-${p.day}T00:00:00+08:00`).getTime();
 }
 
 export function fmtMoney(cents?: number | null, empty: string = EMPTY.money) {
@@ -210,4 +206,110 @@ export function localizeDisputeReason(reason?: string | null): string {
 
 export function orderStatusLabel(status?: string) {
   return displayLabel('order_status', status, '未知状态');
+}
+
+/**
+ * 订单号 / 会话号 / 充值单 / 支付流水 / 异常单 / 分账单等「字母+十六进制」业务编号 → 纯数字展示。
+ * 不转换柜机编号、SKU、配置键等业务编码。导航/接口仍用原始 id。
+ */
+const LEDGER_OR_PAYMENT_OP_PREFIX = /^(?:MOCK-[A-Z]+-)?(?:BL|MW|LW|RF|ADJ|EX|ADM|CHARGE|REFUND)-?/i;
+
+export function displayBizNo(id?: string | number | null, empty: string = EMPTY.order): string {
+  if (id == null) return empty;
+  const raw = String(id).trim();
+  if (!raw) return empty;
+  if (/^\d+$/.test(raw)) return raw;
+
+  const isLedgerOrPaymentOp = LEDGER_OR_PAYMENT_OP_PREFIX.test(raw);
+
+  // 柜机 / SKU / 仓库等可读编码原样展示（余额流水 BL- 等须先排除，避免 BL- 里的 L 命中 [G-Z]）
+  if (!isLedgerOrPaymentOp) {
+    if (/^(CAB|SKU|ORG|WH|BIN|LOT|ROUTE)[-_]/i.test(raw)) return raw;
+    if (/^[A-Z]{2,}[-_][A-Z]*\d/i.test(raw) && /[G-Z]/i.test(raw)) return raw;
+  }
+
+  const withoutMock = raw.replace(/^MOCK-[A-Z]+-/i, '');
+  const withoutLedgerPrefix = withoutMock.replace(/^(BL|MW|LW|RF|ADJ|EX|ADM|CHARGE|REFUND)-?/i, '');
+  const body =
+    withoutLedgerPrefix !== withoutMock
+      ? withoutLedgerPrefix.replace(/-/g, '')
+      : withoutMock
+          .replace(/^(PSC|ALI-AG|PREVIEW)-?/i, '')
+          .replace(/^[A-Z]+-?/i, '')
+          .replace(/-/g, '');
+
+  const hex = body.replace(/[^0-9A-Fa-f]/g, '');
+  if (hex.length >= 8 && /^[0-9A-Fa-f]+$/i.test(hex)) {
+    const slice = hex.length > 15 ? hex.slice(-15) : hex;
+    const digits = hexToDecimalString(slice);
+    if (digits) return digits;
+  }
+
+  const digitsOnly = raw.replace(/\D/g, '');
+  return digitsOnly.length >= 4 ? digitsOnly : raw;
+}
+
+/** 十六进制 → 十进制字符串；不依赖 BigInt（兼容旧微信基础库）。 */
+function hexToDecimalString(hex: string): string | null {
+  try {
+    if (typeof BigInt === 'function') {
+      return BigInt(`0x${hex}`).toString();
+    }
+  } catch {
+    /* fall through to digit loop */
+  }
+  let dec = '0';
+  for (const ch of hex) {
+    const nibble = parseInt(ch, 16);
+    if (Number.isNaN(nibble)) return null;
+    dec = decimalMulAdd(dec, 16, nibble);
+  }
+  return dec.replace(/^0+(?=\d)/, '') || '0';
+}
+
+function decimalMulAdd(dec: string, mul: number, add: number): string {
+  let carry = add;
+  let out = '';
+  for (let i = dec.length - 1; i >= 0; i--) {
+    const n = Number(dec[i]) * mul + carry;
+    out = String(n % 10) + out;
+    carry = Math.floor(n / 10);
+  }
+  while (carry > 0) {
+    out = String(carry % 10) + out;
+    carry = Math.floor(carry / 10);
+  }
+  return out || '0';
+}
+
+/** 列表短号：纯数字，超长取末尾 */
+export function shortBizNo(
+  id?: string | number | null,
+  maxLen = 14,
+  empty: string = EMPTY.order
+): string {
+  const full = displayBizNo(id, empty);
+  if (full === empty) return full;
+  return full.length <= maxLen ? full : full.slice(-maxLen);
+}
+
+/** 把正文里嵌套的字母+十六进制业务号替换为纯数字（消息模板等） */
+export function rewriteBizNosInText(text?: string | null): string {
+  if (text == null || text === '') return '';
+  return String(text).replace(
+    /\b(?:MOCK-[A-Z]+-)?(?:BL|MW|LW|RF|ADJ|EX|ADM)-?[0-9A-Fa-f]{8,}\b|\b[OSDR][0-9A-Fa-f]{10,}\b/g,
+    (m) => displayBizNo(m, m)
+  );
+}
+
+/**
+ * 通知标题去掉末尾「 #单号 / #{var}」——编号改在「关联单号」行展示。
+ * 例：「新补货任务 #16」→「新补货任务」
+ */
+export function sanitizeNotifyTitle(text?: string | null): string {
+  if (text == null || text === '') return '';
+  return String(text)
+    .replace(/\s*#\{\w+\}\s*$/u, '')
+    .replace(/\s*#[\w.-]+\s*$/u, '')
+    .trim();
 }

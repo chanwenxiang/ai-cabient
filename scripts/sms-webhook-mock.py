@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Minimal SMS webhook receiver for staging / Step 5 validation.
 
-trade-service POSTs: {"phoneNumber":"138...","code":"123456"}
+trade-service POSTs:
+  - 验证码: {"phoneNumber":"138...","code":"123456"}
+  - 通知短信: {"phoneNumber":"138...","message":"..."}
 """
 
 from __future__ import annotations
@@ -48,10 +50,15 @@ class SmsWebhookHandler(BaseHTTPRequestHandler):
             return
         phone = str(data.get("phoneNumber", "")).strip()
         code = str(data.get("code", "")).strip()
-        if not phone or not code:
-            self._respond(400, b"missing phoneNumber or code")
+        message = str(data.get("message", "")).strip()
+        if not phone:
+            self._respond(400, b"missing phoneNumber")
             return
-        line = f"{phone} -> {code}\n"
+        payload = message if message else code
+        if not payload:
+            self._respond(400, b"missing code or message")
+            return
+        line = f"{phone} -> {payload}\n"
         print(line.strip())
         try:
             with open(LOG_FILE, "a", encoding="utf-8") as f:
@@ -59,7 +66,7 @@ class SmsWebhookHandler(BaseHTTPRequestHandler):
         except OSError as exc:
             print(f"warn: cannot write log file: {exc}")
         with _lock:
-            _last = {"phoneNumber": phone, "code": code}
+            _last = {"phoneNumber": phone, "code": code, "message": message}
         self._respond(204, b"")
 
     def _respond(self, status: int, body: bytes) -> None:

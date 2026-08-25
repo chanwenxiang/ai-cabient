@@ -5,7 +5,10 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">定时任务</span>
-            <span class="hint">任务启停即时生效；手动触发走分布式锁，集群下单实例执行</span>
+            <span class="hint"
+              >启停即时生效；点「立即执行」后看本表「最近执行 /
+              最近结果说明」两列（不是另开页面）</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -54,10 +57,12 @@
             <template #default="{ row }">{{ row.taskKey }}</template>
           </el-table-column>
           <el-table-column label="分组" width="110" align="center">
-            <template #default="{ row }">{{ row.taskGroup }}</template>
+            <template #default="{ row }">{{
+              dictLabel('scheduled_task_group', row.taskGroup)
+            }}</template>
           </el-table-column>
           <el-table-column label="调度说明" width="130" align="center">
-            <template #default="{ row }">{{ row.scheduleDesc || '—' }}</template>
+            <template #default="{ row }">{{ row.scheduleDesc || '暂无' }}</template>
           </el-table-column>
           <el-table-column label="状态" width="110" align="center">
             <template #default="{ row }">
@@ -92,10 +97,10 @@
             align="center"
             show-overflow-tooltip
           >
-            <template #default="{ row }">{{ row.lastMessage || '—' }}</template>
+            <template #default="{ row }">{{ row.lastMessage || '暂无' }}</template>
           </el-table-column>
           <el-table-column label="备注" min-width="220" align="center" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.remark || '—' }}</template>
+            <template #default="{ row }">{{ row.remark || '暂无' }}</template>
           </el-table-column>
           <el-table-column label="操作" width="190" align="center" class-name="col-action">
             <template #default="{ row }">
@@ -110,7 +115,7 @@
                 立即执行
               </el-button>
               <el-button v-if="canEdit" size="small" plain @click="openRemark(row)">备注</el-button>
-              <span v-if="!canRun && !canEdit" class="cell-hint">—</span>
+              <span v-if="!canRun && !canEdit" class="cell-hint">暂无</span>
             </template>
           </el-table-column>
         </el-table>
@@ -163,6 +168,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import { useAuthStore } from '@/stores/auth';
+import { dictLabel } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface ScheduledTaskRow {
@@ -231,12 +237,12 @@ function resultType(result?: string) {
 }
 
 function resultLabel(result?: string) {
-  return { SUCCESS: '成功', FAILED: '失败', SKIPPED: '跳过' }[result || ''] || result || '—';
+  return { SUCCESS: '成功', FAILED: '失败', SKIPPED: '跳过' }[result || ''] || '未知';
 }
 
 function formatDuration(ms: number) {
-  if (ms < 1000) return `${ms} ms`;
-  return `${(ms / 1000).toFixed(1)} s`;
+  if (ms < 1000) return `${ms} 毫秒`;
+  return `${(ms / 1000).toFixed(1)} 秒`;
 }
 
 function search() {
@@ -287,14 +293,16 @@ async function onRun(row: ScheduledTaskRow) {
   }
   runningKey.value = row.taskKey;
   try {
-    const res = await api.request<{ result: string; message: string }>(
-      `/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}/run`,
-      'POST'
-    );
+    const res = await api.request<{
+      result: string;
+      message: string;
+      lastMessage?: string;
+      lastDurationMs?: number;
+    }>(`/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}/run`, 'POST');
     if (res?.result === 'SKIPPED') {
       ElMessage.warning(res.message || '任务已跳过');
     } else {
-      ElMessage.success(res?.message || '已触发执行');
+      ElMessage.success(res?.message || '已执行，请看「最近执行 / 最近结果说明」列');
     }
     await load();
   } catch (e: any) {

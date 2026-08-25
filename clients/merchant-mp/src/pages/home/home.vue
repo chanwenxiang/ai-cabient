@@ -9,7 +9,7 @@
         ><text>{{ error }}</text
         ><text class="banner-retry" @click="load">重试</text></view
       >
-      <view class="dash-header">
+      <view class="dash-header" :style="headerPadStyle">
         <text class="hello">你好，{{ meName }}</text>
         <text class="sub">{{ merchantNames }}</text>
         <view class="header-stats">
@@ -28,8 +28,8 @@
         </view>
       </view>
 
-      <!-- 竞品式主路径：扫码到柜 → 补货/查看 -->
-      <view class="scan-card">
+      <!-- 竞品式主路径：扫码到柜 → 补货/查看（无补货权限时不展示，避免财务误操作） -->
+      <view v-if="canReplenishment" class="scan-card">
         <view class="scan-copy">
           <text class="scan-title">扫码到柜</text>
           <text class="scan-desc">扫描柜门二维码，查看库存或开始补货</text>
@@ -59,7 +59,12 @@
           aria-label="补货任务"
           @click="goReplenishment()"
         >
-          <text class="quick-icon" aria-hidden="true">📦</text>
+          <image
+            class="quick-icon"
+            :src="menuIcon('replenish')"
+            mode="aspectFit"
+            aria-hidden="true"
+          />
           <text class="quick-label">补货任务</text>
           <text v-if="pendingTaskCount" class="quick-badge">{{ pendingTaskCount }}</text>
         </view>
@@ -70,7 +75,12 @@
           aria-label="柜机列表"
           @click="goTab('/pages/devices/devices')"
         >
-          <text class="quick-icon" aria-hidden="true">🗄️</text>
+          <image
+            class="quick-icon"
+            :src="menuIcon('cabinet')"
+            mode="aspectFit"
+            aria-hidden="true"
+          />
           <text class="quick-label">柜机列表</text>
         </view>
         <view
@@ -80,7 +90,12 @@
           aria-label="待办事项"
           @click="goTab('/pages/alerts/alerts')"
         >
-          <text class="quick-icon" aria-hidden="true">🔔</text>
+          <image
+            class="quick-icon"
+            :src="menuIcon('pending')"
+            mode="aspectFit"
+            aria-hidden="true"
+          />
           <text class="quick-label">待办事项</text>
           <text v-if="pendingCount" class="quick-badge">{{ pendingCount }}</text>
         </view>
@@ -92,38 +107,48 @@
           <text class="section-more" @click="goReplenishment()">全部 ›</text>
         </view>
         <text v-if="preferredId" class="pref-tip">常驻柜 {{ preferredId }} 优先置顶</text>
-        <view v-if="taskPreviewLoading" class="empty-inline">任务加载中…</view>
-        <view v-else-if="!taskPreview.length" class="empty-inline empty-actions">
-          <text class="empty-title">暂无待处理补货任务</text>
-          <text class="empty-hint">可扫码巡柜看缺货，或从柜机列表进详情</text>
-          <view class="empty-btns">
-            <button class="empty-btn primary" :loading="scanning" @click="onScan">扫码到柜</button>
-            <button v-if="canDevices" class="empty-btn" @click="goTab('/pages/devices/devices')">
-              柜机列表
-            </button>
-            <button class="empty-btn" @click="goReplenishment()">查看记录</button>
-          </view>
-        </view>
-        <view
-          v-for="task in taskPreview"
-          :key="task.taskId"
-          class="task-row"
-          hover-class="task-row-hover"
-          role="button"
-          :aria-label="`补货任务 ${deviceLabel(task.deviceId)} ${statusLabel(task.status)}`"
-          @click="goReplenishment(task.deviceId, task.taskId)"
+        <!-- 仅首次进入显示加载；之后切回工作台保留上次列表/空态，避免「任务加载中」闪一下 -->
+        <view v-if="taskPreviewLoading && !taskPreviewBooted" class="empty-inline"
+          >任务加载中…</view
         >
-          <view class="task-copy">
-            <text class="task-name">
-              {{ deviceLabel(task.deviceId) }}
-              <text v-if="preferredId && task.deviceId === preferredId" class="pref-mark"
-                >常驻</text
-              >
-            </text>
-            <text class="task-meta">{{ task.deviceId }} · {{ statusLabel(task.status) }}</text>
+        <empty-state
+          v-else-if="!taskPreview.length"
+          compact
+          title="暂无待处理补货任务"
+          hint="可扫码巡柜看缺货，或从柜机列表进详情"
+        >
+          <button class="empty-btn primary" :loading="scanning" @click="onScan">扫码到柜</button>
+          <button
+            v-if="canDevices"
+            class="empty-btn ghost"
+            @click="goTab('/pages/devices/devices')"
+          >
+            柜机列表
+          </button>
+          <button class="empty-btn ghost" @click="goReplenishment()">查看记录</button>
+        </empty-state>
+        <block v-else>
+          <view
+            v-for="task in taskPreview"
+            :key="task.taskId"
+            class="task-row"
+            hover-class="task-row-hover"
+            role="button"
+            :aria-label="`补货任务 ${deviceLabel(task.deviceId)} ${statusLabel(task.status)}`"
+            @click="goReplenishment(task.deviceId, task.taskId)"
+          >
+            <view class="task-copy">
+              <text class="task-name">
+                {{ deviceLabel(task.deviceId) }}
+                <text v-if="preferredId && task.deviceId === preferredId" class="pref-mark"
+                  >常驻</text
+                >
+              </text>
+              <text class="task-meta">{{ task.deviceId }} · {{ statusLabel(task.status) }}</text>
+            </view>
+            <text class="task-go">去补货 ›</text>
           </view>
-          <text class="task-go">去补货 ›</text>
-        </view>
+        </block>
       </view>
 
       <view
@@ -186,6 +211,10 @@
             <text class="kpi-label">商户收入</text>
             <text class="kpi-value">{{ incomeToday }}</text>
           </view>
+          <view v-if="canFinanceKpi && avgOrderToday !== '暂无'">
+            <text class="kpi-label">近{{ analyticsDays }}日客单</text>
+            <text class="kpi-value">{{ avgOrderToday }}</text>
+          </view>
           <view>
             <text class="kpi-label">在线柜机</text>
             <text class="kpi-value">{{ onlineText }}</text>
@@ -212,12 +241,19 @@ import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
+import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
 import { formatMerchantNames } from '@/utils/merchant-display';
+import { menuIcon } from '@/utils/menu-icon';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
 import { mergeTodoItems } from '@/utils/todo-list';
 import type { AnnouncementDto, MerchantMe } from '@aicabinet/shared-types';
 
 type TaskRow = { taskId: number; deviceId: string; status: string };
+
+/** Tab 页底栏已有「工作台」：去掉重复标题，只留状态栏占位 */
+const headerPadStyle = {
+  borderTop: getStatusBarPadPx() + 'px solid var(--brand-deep, #134e4a)'
+};
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const preferredId = ref(getPreferredDeviceId());
@@ -245,12 +281,16 @@ const canFinanceKpi = computed(() => canBusiness.value || canSettlements.value |
 
 const loading = ref(true);
 const taskPreviewLoading = ref(false);
+/** 今日补货是否已完成过至少一次拉取（之后切 Tab 不再显示「任务加载中」） */
+const taskPreviewBooted = ref(false);
 const scanning = ref(false);
 const error = ref('');
 const meName = ref('');
 const merchantNames = ref('');
 const revenueToday = ref('暂无');
 const incomeToday = ref('暂无');
+const avgOrderToday = ref('暂无');
+const analyticsDays = ref(7);
 const trendBars = ref<{ date: string; label: string; height: number }[]>([]);
 const pendingCount = ref(0);
 const offlineCount = ref(0);
@@ -356,7 +396,8 @@ async function load() {
   const seq = ++loadSeq;
   hydrateFromCache();
   loading.value = !meName.value;
-  taskPreviewLoading.value = canReplenishment.value;
+  // 仅首次拉取显示加载文案；有数据或已 boot 后静默刷新
+  taskPreviewLoading.value = !taskPreviewBooted.value && canReplenishment.value;
   error.value = '';
   try {
     let profile: MerchantMe;
@@ -371,45 +412,55 @@ async function load() {
     meName.value = profile.displayName || profile.phoneNumber || '同事';
     merchantNames.value = formatMerchantNames(profile.merchants);
 
-    const [s, trend, workbench, exceptionPage, expiryRows, devices, tasks, announcements] =
-      await Promise.all([
-        merchantApi.stats().catch(() => ({}) as Record<string, number>),
-        canTrend.value
-          ? (
-              merchantApi.trend(7) as Promise<{
-                last7Days?: { date: string; revenueCents: number }[];
-              }>
-            ).catch(() => ({ last7Days: [] }))
-          : Promise.resolve({ last7Days: [] }),
-        canAlerts.value
-          ? merchantApi.workbench().catch(() => ({
-              offlineDevices: 0,
-              openDisputes: 0,
-              lowStockItems: 0,
-              expiryAlerts: 0,
-              slotDiscrepancies: 0,
-              actionItems: []
-            }))
-          : Promise.resolve({
-              offlineDevices: 0,
-              openDisputes: 0,
-              lowStockItems: 0,
-              expiryAlerts: 0,
-              slotDiscrepancies: 0,
-              actionItems: []
-            }),
-        canAlerts.value
-          ? merchantApi.openExceptions(100).catch(() => ({ items: [], total: 0 }))
-          : Promise.resolve({ items: [], total: 0 }),
-        canAlerts.value ? merchantApi.expiryAlerts().catch(() => []) : Promise.resolve([]),
-        canDevices.value || canReplenishment.value
-          ? merchantApi.devices().catch(() => [])
-          : Promise.resolve([]),
-        canReplenishment.value
-          ? merchantApi.replenishmentTasks().catch(() => [])
-          : Promise.resolve([]),
-        merchantApi.listAnnouncements().catch(() => [])
-      ]);
+    const [
+      s,
+      trend,
+      workbench,
+      exceptionPage,
+      expiryRows,
+      devices,
+      tasks,
+      announcements,
+      analytics
+    ] = await Promise.all([
+      merchantApi.stats().catch(() => ({}) as Record<string, number>),
+      canTrend.value
+        ? (
+            merchantApi.trend(7) as Promise<{
+              last7Days?: { date: string; revenueCents: number }[];
+            }>
+          ).catch(() => ({ last7Days: [] }))
+        : Promise.resolve({ last7Days: [] }),
+      canAlerts.value
+        ? merchantApi.workbench().catch(() => ({
+            offlineDevices: 0,
+            openDisputes: 0,
+            lowStockItems: 0,
+            expiryAlerts: 0,
+            slotDiscrepancies: 0,
+            actionItems: []
+          }))
+        : Promise.resolve({
+            offlineDevices: 0,
+            openDisputes: 0,
+            lowStockItems: 0,
+            expiryAlerts: 0,
+            slotDiscrepancies: 0,
+            actionItems: []
+          }),
+      canAlerts.value
+        ? merchantApi.openExceptions(100).catch(() => ({ items: [], total: 0 }))
+        : Promise.resolve({ items: [], total: 0 }),
+      canAlerts.value ? merchantApi.expiryAlerts().catch(() => []) : Promise.resolve([]),
+      canDevices.value || canReplenishment.value
+        ? merchantApi.devices().catch(() => [])
+        : Promise.resolve([]),
+      canReplenishment.value
+        ? merchantApi.replenishmentTasks().catch(() => [])
+        : Promise.resolve([]),
+      merchantApi.listAnnouncements().catch(() => []),
+      canBusiness.value ? merchantApi.analytics(7).catch(() => null) : Promise.resolve(null)
+    ]);
     if (seq !== loadSeq) return;
     latestAnnouncement.value = announcements?.[0] || null;
 
@@ -418,6 +469,11 @@ async function load() {
     stats.value = s;
     revenueToday.value = canFinanceKpi.value ? fmtMoney(s.revenueTodayCents) : '暂无';
     incomeToday.value = canFinanceKpi.value ? fmtMoney(s.merchantIncomeTodayCents) : '暂无';
+    analyticsDays.value = Number(analytics?.days || 7);
+    avgOrderToday.value =
+      canBusiness.value && analytics?.avgOrderValueCents != null
+        ? fmtMoney(analytics.avgOrderValueCents)
+        : '暂无';
     offlineCount.value = canAlerts.value
       ? workbench.offlineDevices || 0
       : Number(s.deviceOffline || 0);
@@ -485,6 +541,7 @@ async function load() {
     if (seq === loadSeq) {
       loading.value = false;
       taskPreviewLoading.value = false;
+      taskPreviewBooted.value = true;
     }
   }
 }
@@ -497,29 +554,36 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .page {
   min-height: 100%;
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, #ecfdf5 0, #f0fdfa 280rpx, #f0fdfa 100%);
+  background: #ffffff;
 }
 .dash-header {
-  background: linear-gradient(145deg, #134e4a, #0f766e 60%, #14b8a6);
-  padding: 36rpx 32rpx 40rpx;
+  background: linear-gradient(
+    165deg,
+    var(--brand-deep, #134e4a) 0%,
+    var(--brand, #0f766e) 55%,
+    var(--brand, #0f766e) 100%
+  );
+  padding: 12rpx 24rpx 28rpx;
   color: #fff;
-  border-radius: 0 0 32rpx 32rpx;
+  border-radius: 0;
+  margin: 0;
+  box-sizing: border-box;
 }
 .hello {
-  font-size: 36rpx;
+  font-size: 32rpx;
   font-weight: 700;
   display: block;
 }
 .sub {
-  font-size: 24rpx;
+  font-size: 22rpx;
   opacity: 0.85;
   display: block;
-  margin-top: 6rpx;
+  margin-top: 4rpx;
 }
 .header-stats {
   display: flex;
-  margin-top: 28rpx;
-  padding-top: 24rpx;
+  margin-top: 12rpx;
+  padding-top: 12rpx;
   border-top: 1rpx solid rgba(255, 255, 255, 0.18);
 }
 .h-stat {
@@ -528,31 +592,32 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .h-val {
   display: block;
-  font-size: 40rpx;
+  font-size: 36rpx;
   font-weight: 800;
 }
 .h-val.urgent {
-  color: #fecaca;
+  color: #fff;
+  text-shadow: 0 0 0 transparent;
 }
 .h-label {
   display: block;
-  margin-top: 4rpx;
-  font-size: 22rpx;
+  margin-top: 2rpx;
+  font-size: 20rpx;
   opacity: 0.8;
 }
 
 .scan-card {
-  margin: -20rpx 24rpx 0;
+  margin: 12rpx 24rpx 0;
   position: relative;
   z-index: 2;
   background: #fff;
-  border-radius: 24rpx;
-  padding: 28rpx 24rpx;
+  border-radius: 14rpx;
+  padding: 16rpx 18rpx;
   display: flex;
   align-items: center;
-  gap: 20rpx;
-  box-shadow: 0 12rpx 36rpx rgba(15, 118, 110, 0.12);
-  border: 1rpx solid #ccfbf1;
+  gap: 12rpx;
+  box-shadow: 0 6rpx 16rpx rgba(15, 118, 110, 0.08);
+  border: 1rpx solid var(--brand-tint, #ccfbf1);
 }
 .scan-copy {
   flex: 1;
@@ -560,29 +625,29 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .scan-title {
   display: block;
-  font-size: 32rpx;
+  font-size: 28rpx;
   font-weight: 700;
-  color: #134e4a;
+  color: var(--brand-deep, #134e4a);
 }
 .scan-desc {
   display: block;
-  margin-top: 6rpx;
-  font-size: 24rpx;
+  margin-top: 4rpx;
+  font-size: 22rpx;
   color: #64748b;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 .scan-btn {
   margin: 0;
   flex-shrink: 0;
-  height: 80rpx;
-  line-height: 80rpx;
-  padding: 0 36rpx;
-  border-radius: 40rpx;
-  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  height: 68rpx;
+  line-height: 68rpx;
+  padding: 0 28rpx;
+  border-radius: 34rpx;
+  background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
   color: #fff;
-  font-size: 30rpx;
+  font-size: 28rpx;
   font-weight: 700;
-  box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.25);
+  box-shadow: 0 6rpx 16rpx rgba(15, 118, 110, 0.22);
 }
 .scan-btn::after {
   border: none;
@@ -592,21 +657,21 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 
 .notice-strip {
-  margin: 16rpx 24rpx 0;
-  padding: 18rpx 20rpx;
+  margin: 12rpx 20rpx 0;
+  padding: 14rpx 16rpx;
   display: flex;
   align-items: center;
   gap: 12rpx;
-  background: #fffbeb;
-  border: 1rpx solid #fde68a;
-  border-radius: 16rpx;
+  background: #ecfdf5;
+  border: 1rpx solid var(--brand-soft, #99f6e4);
+  border-radius: 14rpx;
 }
 .notice-tag {
   flex-shrink: 0;
   font-size: 20rpx;
   font-weight: 700;
-  color: #b45309;
-  background: #fef3c7;
+  color: var(--brand, #0f766e);
+  background: var(--brand-tint, #ccfbf1);
   padding: 6rpx 10rpx;
   border-radius: 8rpx;
 }
@@ -628,26 +693,34 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
 .quick-row {
   display: flex;
-  gap: 12rpx;
-  margin: 20rpx 24rpx 0;
+  gap: 10rpx;
+  margin: 14rpx 20rpx 0;
 }
 .quick-item {
   position: relative;
   flex: 1;
   background: #fff;
-  border-radius: 20rpx;
-  padding: 24rpx 12rpx;
+  border-radius: 16rpx;
+  padding: 18rpx 10rpx;
   text-align: center;
   border: 1rpx solid #e2e8f0;
-  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
+  box-shadow: 0 4rpx 14rpx rgba(15, 23, 42, 0.04);
 }
 .quick-item.primary {
-  border-color: #99f6e4;
-  background: linear-gradient(180deg, #f0fdfa, #fff);
+  border-color: var(--brand-soft, #99f6e4);
+  background: linear-gradient(180deg, var(--page-tint, #f0fdfa), #fff);
 }
 .quick-icon {
   display: block;
-  font-size: 36rpx;
+  width: 76rpx;
+  height: 76rpx;
+  margin: 0 auto;
+  border-radius: 20rpx;
+  background: #ecfdf5;
+  color: var(--brand, #0f766e);
+  font-size: 34rpx;
+  font-weight: 700;
+  line-height: 76rpx;
 }
 .quick-label {
   display: block;
@@ -672,8 +745,8 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 
 .card {
-  margin: 20rpx 24rpx 0;
-  padding: 28rpx 24rpx;
+  margin: 14rpx 20rpx 0;
+  padding: 20rpx 20rpx;
   background: #fff;
   border-radius: 22rpx;
   border: 1rpx solid #e2e8f0;
@@ -691,17 +764,17 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: #0f172a;
 }
 .section-more {
-  color: #0f766e;
+  color: var(--brand, #0f766e);
   font-size: 24rpx;
 }
 .pref-tip {
   display: block;
   margin: 0 0 12rpx;
   font-size: 22rpx;
-  color: #0f766e;
+  color: var(--brand, #0f766e);
 }
 .empty-inline {
-  padding: 28rpx 0 8rpx;
+  padding: 16rpx 0 4rpx;
   text-align: center;
   color: #94a3b8;
   font-size: 26rpx;
@@ -731,17 +804,29 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .empty-btn {
   margin: 0;
   padding: 0 22rpx;
+  min-height: 64rpx;
   height: 64rpx;
-  line-height: 64rpx;
+  line-height: 1.2;
   border-radius: 999rpx;
   font-size: 24rpx;
-  color: #0f766e;
+  color: var(--brand, #0f766e);
   background: #ecfdf5;
   border: none;
+  min-width: 0;
+  max-width: none;
+  width: auto;
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .empty-btn.primary {
   color: #fff;
-  background: #0f766e;
+  background: var(--brand, #0f766e);
+  min-width: 0;
+  max-width: none;
 }
 .empty-btn::after {
   border: none;
@@ -784,8 +869,8 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   margin-left: 10rpx;
   padding: 2rpx 10rpx;
   border-radius: 8rpx;
-  background: #ccfbf1;
-  color: #0f766e;
+  background: var(--brand-tint, #ccfbf1);
+  color: var(--brand, #0f766e);
   font-size: 20rpx;
   font-weight: 700;
 }
@@ -796,7 +881,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: #94a3b8;
 }
 .task-go {
-  color: #0f766e;
+  color: var(--brand, #0f766e);
   font-size: 26rpx;
   font-weight: 600;
 }
@@ -837,11 +922,11 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 
 .ops-block {
-  margin: 28rpx 24rpx 0;
+  margin: 16rpx 20rpx 0;
 }
 .ops-title {
   display: block;
-  margin: 0 8rpx 14rpx;
+  margin: 0 8rpx 10rpx;
   font-size: 24rpx;
   color: #94a3b8;
   letter-spacing: 1rpx;
@@ -849,12 +934,12 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .ops-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12rpx;
+  gap: 10rpx;
 }
 .ops-card {
   background: #fff;
-  border-radius: 18rpx;
-  padding: 28rpx 20rpx;
+  border-radius: 16rpx;
+  padding: 20rpx 16rpx;
   text-align: center;
   border: 1rpx solid #e2e8f0;
 }
@@ -882,7 +967,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   margin-top: 6rpx;
   font-size: 28rpx;
   font-weight: 700;
-  color: #0f766e;
+  color: var(--brand, #0f766e);
 }
 .bars {
   display: flex;
@@ -898,7 +983,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .bar {
   width: 100%;
-  background: linear-gradient(180deg, #14b8a6, #0f766e);
+  background: linear-gradient(180deg, var(--brand, #0f766e), var(--brand, #0f766e));
   border-radius: 6rpx 6rpx 0 0;
   min-height: 8rpx;
 }
@@ -923,7 +1008,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   gap: 16rpx;
 }
 .banner-retry {
-  color: #0f766e;
+  color: var(--brand, #0f766e);
   font-weight: 600;
   flex-shrink: 0;
 }

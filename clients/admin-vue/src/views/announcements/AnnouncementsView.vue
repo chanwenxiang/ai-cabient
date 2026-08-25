@@ -128,7 +128,7 @@
           <el-table-column label="优先级" width="88" align="center">
             <template #default="{ row }">
               <el-tag :type="priorityType(row.priority) || 'info'" size="small">
-                {{ priorityMap[row.priority] || row.priority }}
+                {{ priorityMap[row.priority] || '普通' }}
               </el-tag>
             </template>
           </el-table-column>
@@ -237,7 +237,7 @@
       <el-descriptions v-if="previewRow" :column="2" border>
         <el-descriptions-item label="标题" :span="2">{{ previewRow.title }}</el-descriptions-item>
         <el-descriptions-item label="优先级">{{
-          priorityMap[previewRow.priority] || previewRow.priority
+          priorityMap[previewRow.priority] || '普通'
         }}</el-descriptions-item>
         <el-descriptions-item label="目标">{{
           displayLabel('announcement_audience', previewRow.targetScope)
@@ -357,7 +357,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         row.title,
         row.content || '',
         displayLabel('announcement_audience', row.targetScope),
-        priorityMap[row.priority] || row.priority,
+        priorityMap[row.priority] || '普通',
         displayLabel('announcement_status', row.status),
         formatTime(row.publishAt)
       ]),

@@ -51,7 +51,7 @@
       <button
         type="button"
         class="map-count-btn"
-        :aria-label="listHydrated ? `共 ${filteredPoints.length} 个柜机落点` : '柜机落点 — 加载中…'"
+        :aria-label="listHydrated ? `共 ${filteredPoints.length} 个柜机落点` : '柜机落点 加载中…'"
         tabindex="-1"
       >
         {{ listHydrated ? `共 ${filteredPoints.length} 个柜机落点` : '落点加载中…' }}

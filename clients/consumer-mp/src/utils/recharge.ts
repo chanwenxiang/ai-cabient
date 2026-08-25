@@ -34,9 +34,32 @@ export function takeAlipayReturnPage(): string {
   return page || ALIPAY_RETURN_PAGE;
 }
 
+/** 仅允许跳转到支付宝网关（正式 / 沙箱）。 */
+function isAllowedAlipayAction(action: string): boolean {
+  try {
+    const url = new URL(
+      action,
+      typeof window !== 'undefined' ? window.location.origin : 'https://local.invalid'
+    );
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+    const host = url.hostname.toLowerCase();
+    return (
+      host === 'openapi.alipay.com' ||
+      host === 'openapi.alipaydev.com' ||
+      host.endsWith('.alipay.com') ||
+      host.endsWith('.alipaydev.com')
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function openAlipayPayUrl(payUrl: string) {
   if (!payUrl) {
     throw new Error('支付宝支付链接为空');
+  }
+  if (!isAllowedAlipayAction(payUrl)) {
+    throw new Error('支付宝支付地址无效');
   }
   rememberAlipayReturnPage();
   // #ifdef H5
@@ -49,7 +72,8 @@ export function openAlipayPayUrl(payUrl: string) {
 
 /**
  * 提交支付宝 pagePay 表单。
- * 禁止 document.write：会毁掉当前 SPA，取消支付返回时页面空白且像「掉登录」。
+ * 禁止 document.write：会毁掉当前 SPA；禁止把后端 HTML（含 script）直接 innerHTML。
+ * 只解析 form/action/hidden inputs，用 createElement 重建后再 submit。
  */
 export function openAlipayPayForm(payFormHtml: string) {
   if (!payFormHtml) {
@@ -57,13 +81,35 @@ export function openAlipayPayForm(payFormHtml: string) {
   }
   rememberAlipayReturnPage();
   // #ifdef H5
-  const host = document.createElement('div');
-  host.innerHTML = payFormHtml.trim();
-  const form = host.querySelector('form');
-  if (!form) {
+  const doc = new DOMParser().parseFromString(payFormHtml.trim(), 'text/html');
+  const src = doc.querySelector('form');
+  if (!src) {
     throw new Error('支付宝支付表单无效');
   }
-  form.setAttribute('style', 'display:none');
+  const action = (src.getAttribute('action') || '').trim();
+  if (!isAllowedAlipayAction(action)) {
+    throw new Error('支付宝支付地址无效');
+  }
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = action;
+  form.acceptCharset = 'utf-8';
+  form.style.display = 'none';
+  const nodes = Array.from(src.querySelectorAll('input')).slice(0, 64);
+  for (const node of nodes) {
+    const name = (node.getAttribute('name') || '').trim();
+    if (!name || name.length > 128) continue;
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = name;
+    input.value = String(
+      (node as HTMLInputElement).value || node.getAttribute('value') || ''
+    ).slice(0, 8192);
+    form.appendChild(input);
+  }
+  if (!form.querySelector('input')) {
+    throw new Error('支付宝支付表单无效');
+  }
   document.body.appendChild(form);
   form.submit();
   // #endif

@@ -2,12 +2,19 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.UserFeedback;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import org.apache.ibatis.annotations.Mapper;
-
 import java.util.List;
+import java.util.Optional;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface UserFeedbackMapper extends BaseTradeMapper<UserFeedback> {
+
+    UserFeedback _findByIdForUpdateRaw(@Param("feedbackId") Long feedbackId);
+
+    default Optional<UserFeedback> findByIdForUpdate(Long feedbackId) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(feedbackId));
+    }
 
     default List<UserFeedback> findAllOrderByCreatedAtDesc() {
         return selectList(Wrappers.<UserFeedback>lambdaQuery().orderByDesc(UserFeedback::getCreatedAt));

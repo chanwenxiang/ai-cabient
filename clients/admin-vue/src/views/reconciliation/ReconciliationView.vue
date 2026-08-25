@@ -77,9 +77,9 @@
     </el-form>
 
     <div class="kpi-tags">
-      <el-tag size="small" type="info">批次 {{ listHydrated ? totalCount : '—' }}</el-tag>
-      <el-tag size="small" type="danger">差异 {{ listHydrated ? mismatchBatchCount : '—' }}</el-tag>
-      <el-tag size="small" type="success">匹配 {{ listHydrated ? matchedBatchCount : '—' }}</el-tag>
+      <el-tag size="small" type="info">批次 {{ listHydrated ? totalCount : '…' }}</el-tag>
+      <el-tag size="small" type="danger">差异 {{ listHydrated ? mismatchBatchCount : '…' }}</el-tag>
+      <el-tag size="small" type="success">匹配 {{ listHydrated ? matchedBatchCount : '…' }}</el-tag>
     </div>
 
     <div class="table-scroll">
@@ -123,8 +123,8 @@
           </el-table-column>
           <el-table-column label="差异笔数" width="100" align="center">
             <template #default="{ row }">
-              <span :class="{ 'is-mismatch': (row.mismatchCount ?? 0) > 0 }">
-                {{ row.mismatchCount ?? 0 }}
+              <span :class="{ 'is-mismatch': (row.unmatchedCount ?? 0) > 0 }">
+                {{ row.unmatchedCount ?? 0 }}
               </span>
             </template>
           </el-table-column>
@@ -202,9 +202,15 @@
               </el-tag>
             </el-descriptions-item>
             <el-descriptions-item label="差异笔数">
-              <span :class="{ 'is-mismatch': (detail.summary?.mismatchCount ?? 0) > 0 }">
-                {{ detail.summary?.mismatchCount ?? 0 }}
+              <span :class="{ 'is-mismatch': (detail.summary?.unmatchedCount ?? 0) > 0 }">
+                {{ detail.summary?.unmatchedCount ?? 0 }}
               </span>
+            </el-descriptions-item>
+            <el-descriptions-item label="创建时间">
+              {{ formatDateTime(detail.summary?.createdAt) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="完成时间">
+              {{ formatDateTime(detail.summary?.completedAt) }}
             </el-descriptions-item>
           </el-descriptions>
           <el-table
@@ -236,6 +242,16 @@
               <template #default="{ row }"
                 >¥{{ ((row.amountCents || 0) / 100).toFixed(2) }}</template
               >
+            </el-table-column>
+            <el-table-column label="交易类型" width="100" align="center">
+              <template #default="{ row }">{{ row.tradeType || '暂无' }}</template>
+            </el-table-column>
+            <el-table-column label="交易时间" width="160" align="center" class-name="col-text">
+              <template #default="{ row }">
+                <span class="cell-datetime">{{
+                  row.tradeTime ? formatDateTime(row.tradeTime) : '暂无'
+                }}</span>
+              </template>
             </el-table-column>
             <el-table-column label="匹配" width="80" align="center">
               <template #default="{ row }">
@@ -320,7 +336,8 @@ const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
 const totalCount = computed(() => filtered.value.length);
 const mismatchBatchCount = computed(
   () =>
-    filtered.value.filter((row) => (row.mismatchCount ?? 0) > 0 || row.status === 'MISMATCH').length
+    filtered.value.filter((row) => (row.unmatchedCount ?? 0) > 0 || row.status === 'MISMATCH')
+      .length
 );
 const matchedBatchCount = computed(() => totalCount.value - mismatchBatchCount.value);
 
@@ -333,7 +350,7 @@ const { onExport } = useListCsv({
       row.reconDate || '',
       dictLabel('pay_channel', row.channel),
       dictLabel('reconciliation_status', row.status),
-      row.mismatchCount ?? 0,
+      row.unmatchedCount ?? 0,
       formatDateTime(row.createdAt)
     ])
 });
@@ -344,7 +361,7 @@ function localDate() {
 }
 
 function rowClassName({ row }: { row: Row }) {
-  return (row.mismatchCount ?? 0) > 0 || row.status === 'MISMATCH' ? 'is-mismatch-row' : '';
+  return (row.unmatchedCount ?? 0) > 0 || row.status === 'MISMATCH' ? 'is-mismatch-row' : '';
 }
 
 function syncRouteQuery() {

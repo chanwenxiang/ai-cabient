@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev:mp-weixin": "uni -p mp-weixin",
-    "build:mp-weixin": "node ../../scripts/validate-miniapp-env.mjs && uni build -p mp-weixin",
+    "build:mp-weixin": "node ../../scripts/validate-miniapp-env.mjs && uni build -p mp-weixin && node ../../scripts/patch-mp-weixin-appjson.mjs",
     "build:mp-weixin:prod": "npm run build:mp-weixin",
-    "dev:h5": "uni",
+    "patch:mp-weixin": "node ../../scripts/patch-mp-weixin-appjson.mjs",
+    "dev:h5": "node ./node_modules/@dcloudio/vite-plugin-uni/bin/uni.js",
     "build:h5": "uni build",
     "type-check": "tsc --noEmit",
     "test:uat": "node tests/merchant-h5-uat.mjs",

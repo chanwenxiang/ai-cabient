@@ -4,8 +4,12 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("member_level_rule")
+@Getter
+@Setter
 public class MemberLevelRule {
     @TableId(type = IdType.AUTO)
     private Long id;
@@ -18,6 +22,15 @@ public class MemberLevelRule {
 
     private java.math.BigDecimal maxSpent;
 
+    private Integer minPoints = 0;
+
+    private Integer maxPoints;
+
+    private java.math.BigDecimal pointsRate = java.math.BigDecimal.ONE;
+
+    /** 会员价折扣百分比：5 表示 95 折，0 表示无会员价 */
+    private java.math.BigDecimal priceDiscountPct = java.math.BigDecimal.ZERO;
+
     private Integer sortorder;
 
     private String status;
@@ -26,30 +39,15 @@ public class MemberLevelRule {
 
     private Instant updatedAt;
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
 
-    public String getLevelCode() { return levelCode; }
-    public void setLevelCode(String levelCode) { this.levelCode = levelCode; }
 
-    public String getLevelName() { return levelName; }
-    public void setLevelName(String levelName) { this.levelName = levelName; }
 
-    public java.math.BigDecimal getMinSpent() { return minSpent; }
-    public void setMinSpent(java.math.BigDecimal minSpent) { this.minSpent = minSpent; }
 
-    public java.math.BigDecimal getMaxSpent() { return maxSpent; }
-    public void setMaxSpent(java.math.BigDecimal maxSpent) { this.maxSpent = maxSpent; }
 
-    public Integer getSortorder() { return sortorder; }
-    public void setSortorder(Integer sortorder) { this.sortorder = sortorder; }
 
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
 
-    public Instant getCreatedAt() { return createdAt; }
-    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
-    public Instant getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
+
+
+
 }

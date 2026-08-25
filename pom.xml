@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -30,6 +30,7 @@
         <pnpm.version>9.15.9</pnpm.version>
         <resilience4j.version>2.2.0</resilience4j.version>
         <xxl-job.version>3.4.2</xxl-job.version>
+        <lombok.version>1.18.38</lombok.version>
     </properties>
 
     <dependencyManagement>
@@ -63,8 +64,21 @@
                 <artifactId>xxl-job-core</artifactId>
                 <version>${xxl-job.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
 
     <build>
         <plugins>
@@ -76,6 +90,13 @@
                     <source>${java.version}</source>
                     <target>${java.version}</target>
                     <parameters>true</parameters>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
         </plugins>
@@ -102,5 +123,4 @@
         </pluginManagement>
     </build>
 </project>
-
 

@@ -58,6 +58,8 @@ public class UnpaidOrderService {
     private final WeChatMiniAppProperties weChatMiniAppProperties;
     private final SettlementService settlementService;
     private final ConsumerPreauthService consumerPreauthService;
+    private final NotificationService notificationService;
+    private final DistributedLockService distributedLockService;
 
     public UnpaidOrderService(CabinetOrderMapper orderRepository,
                               CabinetOrderLineMapper orderLineRepository,
@@ -76,7 +78,9 @@ public class UnpaidOrderService {
                               WeChatMiniAppClient weChatMiniAppClient,
                               WeChatMiniAppProperties weChatMiniAppProperties,
                               @Lazy SettlementService settlementService,
-                              ConsumerPreauthService consumerPreauthService) {
+                              ConsumerPreauthService consumerPreauthService,
+                              NotificationService notificationService,
+                              DistributedLockService distributedLockService) {
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
         this.userInfoRepository = userInfoRepository;
@@ -95,6 +99,8 @@ public class UnpaidOrderService {
         this.weChatMiniAppProperties = weChatMiniAppProperties;
         this.settlementService = settlementService;
         this.consumerPreauthService = consumerPreauthService;
+        this.notificationService = notificationService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
@@ -134,47 +140,53 @@ public class UnpaidOrderService {
     @Transactional
     public UnpaidOrderActionResultDto cancel(Long operatorId, String orderId, CancelUnpaidOrderRequest request) {
         permissionService.requirePermission(operatorId, "ops:order:cancel");
-        CabinetOrder order = requirePendingScoped(operatorId, orderId);
-        String reason = request.reason().trim();
-        restoreInventory(order);
-        order.setStatus("CANCELLED");
-        orderRepository.save(order);
-        consumerPreauthService.releaseBySessionId(order.getSessionId());
+        return runWithOrderPaymentLock(orderId, () -> {
+            CabinetOrder order = requirePendingScoped(operatorId, orderId);
+            String reason = request.reason().trim();
+            restoreInventory(order);
+            order.setStatus("CANCELLED");
+            orderRepository.save(order);
+            consumerPreauthService.releaseBySessionId(order.getSessionId());
 
-        boolean blacklist = Boolean.TRUE.equals(request.blacklist());
-        if (blacklist && order.getUserId() != null) {
-            Instant expires = Instant.now().plus(30, ChronoUnit.DAYS);
-            riskControlService.addBlacklist(operatorId, order.getUserId(),
-                    "待支付关单：" + reason, expires);
-        }
-        auditService.record(operatorId, "ORDER_CANCEL_UNPAID", "ORDER", orderId,
-                reason + (blacklist ? "；已拉黑用户 30 天" : ""));
-        log.info("unpaid order cancelled order={} by={} blacklist={}", orderId, operatorId, blacklist);
-        return new UnpaidOrderActionResultDto(orderId, "CANCELLED",
-                blacklist ? "已关单并拉黑用户 30 天" : "待支付订单已关闭，库存已回滚", false, blacklist);
+            boolean blacklist = Boolean.TRUE.equals(request.blacklist());
+            if (blacklist && order.getUserId() != null) {
+                Instant expires = Instant.now().plus(30, ChronoUnit.DAYS);
+                riskControlService.addBlacklist(operatorId, order.getUserId(),
+                        "待支付关单：" + reason, expires);
+            }
+            auditService.record(operatorId, "ORDER_CANCEL_UNPAID", "ORDER", orderId,
+                    reason + (blacklist ? "；已拉黑用户 30 天" : ""));
+            log.info("unpaid order cancelled order={} by={} blacklist={}", orderId, operatorId, blacklist);
+            return new UnpaidOrderActionResultDto(orderId, "CANCELLED",
+                    blacklist ? "已关单并拉黑用户 30 天" : "待支付订单已关闭，库存已回滚", false, blacklist);
+        });
     }
 
     @Transactional
     public OrderDto collect(Long operatorId, String orderId) {
         permissionService.requireAnyPermission(operatorId, "ops:order:remind", "ops:order:cancel", "ops:order:refund");
-        CabinetOrder order = requirePendingScoped(operatorId, orderId);
-        markPaid(order);
-        auditService.record(operatorId, "ORDER_COLLECT_UNPAID", "ORDER", orderId, "运营代收");
-        return settlementService.getOrderBySession(order.getSessionId());
+        return runWithOrderPaymentLock(orderId, () -> {
+            CabinetOrder order = requirePendingScoped(operatorId, orderId);
+            markPaid(order);
+            auditService.record(operatorId, "ORDER_COLLECT_UNPAID", "ORDER", orderId, "运营代收");
+            return settlementService.getOrderBySession(order.getSessionId());
+        });
     }
 
     @Transactional
     public OrderDto collectByUser(Long userId, String orderId) {
-        CabinetOrder order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        if (!order.getUserId().equals(userId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND);
-        }
-        if (!"PENDING".equals(order.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PENDING);
-        }
-        markPaid(order);
-        return settlementService.getOrderBySession(order.getSessionId());
+        return runWithOrderPaymentLock(orderId, () -> {
+            CabinetOrder order = orderRepository.findByIdForUpdate(orderId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+            if (!order.getUserId().equals(userId)) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND);
+            }
+            if (!"PENDING".equals(order.getStatus())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PENDING);
+            }
+            markPaid(order);
+            return settlementService.getOrderBySession(order.getSessionId());
+        });
     }
 
     @Transactional
@@ -189,17 +201,26 @@ public class UnpaidOrderService {
         int n = 0;
         for (CabinetOrder order : expired) {
             try {
-                restoreInventory(order);
-                order.setStatus("CANCELLED");
-                orderRepository.save(order);
-                consumerPreauthService.releaseBySessionId(order.getSessionId());
-                if (autoBlacklist && order.getUserId() != null) {
-                    riskControlService.addBlacklist(0L, order.getUserId(),
-                            "待支付超时自动关单", Instant.now().plus(7, ChronoUnit.DAYS));
+                CabinetOrder cancelled = runWithOrderPaymentLock(order.getOrderId(), () -> {
+                    CabinetOrder locked = orderRepository.findByIdForUpdate(order.getOrderId()).orElse(null);
+                    if (locked == null || !"PENDING".equals(locked.getStatus())) {
+                        return null;
+                    }
+                    restoreInventory(locked);
+                    locked.setStatus("CANCELLED");
+                    orderRepository.save(locked);
+                    consumerPreauthService.releaseBySessionId(locked.getSessionId());
+                    if (autoBlacklist && locked.getUserId() != null) {
+                        riskControlService.addBlacklist(0L, locked.getUserId(),
+                                "待支付超时自动关单", Instant.now().plus(7, ChronoUnit.DAYS));
+                    }
+                    auditService.record(0L, "ORDER_AUTO_CANCEL_UNPAID", "ORDER", locked.getOrderId(),
+                            "超时 " + hours + " 小时自动关单；是否拉黑=" + (autoBlacklist ? "是" : "否"));
+                    return locked;
+                });
+                if (cancelled != null) {
+                    n++;
                 }
-                auditService.record(0L, "ORDER_AUTO_CANCEL_UNPAID", "ORDER", order.getOrderId(),
-                        "超时 " + hours + " 小时自动关单；是否拉黑=" + (autoBlacklist ? "是" : "否"));
-                n++;
             } catch (Exception ex) {
                 log.warn("auto cancel unpaid failed order={}", order.getOrderId(), ex);
             }
@@ -235,21 +256,48 @@ public class UnpaidOrderService {
         } catch (Exception ex) {
             log.warn("member stats on collect failed order={}", order.getOrderId(), ex);
         }
+        try {
+            notificationService.notifyConsumer(
+                    order.getUserId(),
+                    "order_paid",
+                    Map.of("orderId", order.getOrderId(), "amount", yuan(order.getTotalAmountCents())),
+                    "ORDER",
+                    order.getOrderId());
+        } catch (Exception ex) {
+            log.warn("order paid notification on collect failed order={}", order.getOrderId(), ex);
+        }
+    }
+
+    private static String yuan(int cents) {
+        return java.math.BigDecimal.valueOf(cents, 2).stripTrailingZeros().toPlainString();
     }
 
     private CouponService.BestCoupon applyBestCouponForCollect(CabinetOrder order) {
         if (order.getUserId() == null || order.getTotalAmountCents() <= 0) {
             return null;
         }
-        if (order.getCouponId() != null && order.getCouponDiscountCents() > 0) {
-            // 兼容旧数据：PENDING 上已带券字段则沿用
-            return new CouponService.BestCoupon(
-                    order.getCouponId(), order.getCouponDiscountCents(), null);
+        hydrate(order);
+        int subtotal = order.getLines().stream()
+                .mapToInt(CabinetOrderLine::getLineAmountCents)
+                .sum();
+        if (subtotal <= 0) {
+            subtotal = order.getOriginalAmountCents() > 0
+                    ? order.getOriginalAmountCents()
+                    : order.getTotalAmountCents();
         }
-        int subtotal = order.getOriginalAmountCents() > 0
-                ? order.getOriginalAmountCents()
-                : order.getTotalAmountCents();
         order.setOriginalAmountCents(subtotal);
+        if (order.getCouponId() != null) {
+            int discount = couponService.discountForOrderCoupon(order.getCouponId(), subtotal);
+            if (discount <= 0) {
+                order.setCouponId(null);
+                order.setCouponDiscountCents(0);
+                order.setTotalAmountCents(subtotal);
+                return null;
+            }
+            order.setCouponDiscountCents(discount);
+            order.setTotalAmountCents(Math.max(0, subtotal - discount));
+            return new CouponService.BestCoupon(order.getCouponId(), discount, null);
+        }
         order.setTotalAmountCents(subtotal);
         var best = couponService.selectBestCoupon(order.getUserId(), subtotal);
         if (best.isEmpty()) {
@@ -279,7 +327,7 @@ public class UnpaidOrderService {
     }
 
     private CabinetOrder requirePendingScoped(Long operatorId, String orderId) {
-        CabinetOrder order = orderRepository.findById(orderId)
+        CabinetOrder order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         merchantScopeService.requireDeviceAccess(operatorId, order.getDeviceId());
         if (!"PENDING".equals(order.getStatus())) {
@@ -307,5 +355,20 @@ public class UnpaidOrderService {
             }
         }
         return false;
+    }
+
+    private <T> T runWithOrderPaymentLock(String orderId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(OrderPaymentService.orderPaymentLockKey(orderId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单支付处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(OrderPaymentService.orderPaymentLockKey(orderId));
+        }
     }
 }

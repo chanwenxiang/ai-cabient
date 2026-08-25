@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.*;
+import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,6 +41,9 @@ public class CompetitiveGapService {
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final DeviceSalesLockService salesLockService;
+    private final SecurityProperties securityProperties;
+    private final OpsUserRouteScopeMapper routeScopeMapper;
+    private final DistributedLockService distributedLockService;
 
     public CompetitiveGapService(OpsUserDeviceScopeMapper deviceScopeMapper,
                                  OpsUserDeviceScopePrefMapper deviceScopePrefMapper,
@@ -53,7 +58,10 @@ public class CompetitiveGapService {
                                  MerchantScopeService merchantScopeService,
                                  PermissionService permissionService,
                                  AdminAuditService auditService,
-                                 DeviceSalesLockService salesLockService) {
+                                 DeviceSalesLockService salesLockService,
+                                 SecurityProperties securityProperties,
+                                 OpsUserRouteScopeMapper routeScopeMapper,
+                                 DistributedLockService distributedLockService) {
         this.deviceScopeMapper = deviceScopeMapper;
         this.deviceScopePrefMapper = deviceScopePrefMapper;
         this.opsConfigMapper = opsConfigMapper;
@@ -68,6 +76,9 @@ public class CompetitiveGapService {
         this.permissionService = permissionService;
         this.auditService = auditService;
         this.salesLockService = salesLockService;
+        this.securityProperties = securityProperties;
+        this.routeScopeMapper = routeScopeMapper;
+        this.distributedLockService = distributedLockService;
     }
 
     // ---- M2 device scope ----
@@ -78,28 +89,42 @@ public class CompetitiveGapService {
         String mode = deviceScopePrefMapper.findById(userId)
                 .map(OpsUserDeviceScopePref::getScopeMode)
                 .orElse("ALL");
+        if ("PARTIAL".equalsIgnoreCase(mode)) {
+            mode = "DEVICE_IDS";
+        }
         List<String> devices = deviceScopeMapper.findByUserId(userId).stream()
                 .map(OpsUserDeviceScope::getDeviceId)
                 .toList();
-        return new OpsUserDeviceScopeDto(userId, mode, devices);
+        List<String> routes = routeScopeMapper.findByUserId(userId).stream()
+                .map(OpsUserRouteScope::getRouteCode)
+                .toList();
+        return new OpsUserDeviceScopeDto(userId, mode, devices, routes);
     }
 
     @Transactional
     public OpsUserDeviceScopeDto assignUserDeviceScope(Long operatorId, Long userId, OpsUserDeviceScopeDto body) {
         permissionService.requireAnyPermission(operatorId, "ops:rbac:assign:device", "ops:rbac:assign");
+        return runWithDeviceScopeLock(userId, () -> doAssignUserDeviceScope(operatorId, userId, body));
+    }
+
+    private OpsUserDeviceScopeDto doAssignUserDeviceScope(Long operatorId, Long userId, OpsUserDeviceScopeDto body) {
         String mode = body.scopeMode() == null || body.scopeMode().isBlank()
                 ? "ALL" : body.scopeMode().trim().toUpperCase();
-        if (!"ALL".equals(mode) && !"PARTIAL".equals(mode)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scopeMode 仅支持 ALL / PARTIAL");
+        if ("PARTIAL".equals(mode)) {
+            mode = "DEVICE_IDS";
         }
-        OpsUserDeviceScopePref pref = deviceScopePrefMapper.findById(userId).orElseGet(OpsUserDeviceScopePref::new);
+        if (!Set.of("ALL", "DEVICE_IDS", "ROUTE").contains(mode)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scopeMode 仅支持 ALL / DEVICE_IDS / ROUTE");
+        }
+        OpsUserDeviceScopePref pref = deviceScopePrefMapper.findByIdForUpdate(userId).orElseGet(OpsUserDeviceScopePref::new);
         pref.setUserId(userId);
         pref.setScopeMode(mode);
         pref.setUpdatedAt(Instant.now());
         deviceScopePrefMapper.save(pref);
 
         deviceScopeMapper.deleteByUserId(userId);
-        if ("PARTIAL".equals(mode) && body.deviceIds() != null) {
+        routeScopeMapper.deleteByUserId(userId);
+        if ("DEVICE_IDS".equals(mode) && body.deviceIds() != null) {
             for (String deviceId : body.deviceIds()) {
                 if (deviceId == null || deviceId.isBlank()) {
                     continue;
@@ -108,6 +133,17 @@ public class CompetitiveGapService {
                 row.setUserId(userId);
                 row.setDeviceId(deviceId.trim());
                 deviceScopeMapper.insert(row);
+            }
+        }
+        if ("ROUTE".equals(mode) && body.routeCodes() != null) {
+            for (String route : body.routeCodes()) {
+                if (route == null || route.isBlank()) {
+                    continue;
+                }
+                OpsUserRouteScope row = new OpsUserRouteScope();
+                row.setUserId(userId);
+                row.setRouteCode(route.trim());
+                routeScopeMapper.insert(row);
             }
         }
         auditService.record(operatorId, "OPS_USER_DEVICE_SCOPE", "USER", String.valueOf(userId), mode);
@@ -129,7 +165,11 @@ public class CompetitiveGapService {
     public MerchantOpsConfigDto saveOpsConfig(Long operatorId, String merchantId, MerchantOpsConfigDto body) {
         permissionService.requirePermission(operatorId, "ops:merchant:edit");
         merchantScopeService.requireMerchantAccess(operatorId, merchantId);
-        MerchantOpsConfig cfg = opsConfigMapper.findById(merchantId).orElseGet(MerchantOpsConfig::new);
+        return runWithMerchantLock(merchantId, () -> doSaveOpsConfig(merchantId, body));
+    }
+
+    private MerchantOpsConfigDto doSaveOpsConfig(String merchantId, MerchantOpsConfigDto body) {
+        MerchantOpsConfig cfg = opsConfigMapper.findByIdForUpdate(merchantId).orElseGet(MerchantOpsConfig::new);
         cfg.setMerchantId(merchantId);
         cfg.setStockingType(nz(body.stockingType(), "CAPACITY"));
         cfg.setStockoutThresholdPct(body.stockoutThresholdPct() <= 0 ? 50 : Math.min(100, body.stockoutThresholdPct()));
@@ -164,8 +204,11 @@ public class CompetitiveGapService {
         if (allowed != null && allowed.isEmpty()) {
             return new PageResult<>(List.of(), page, size, 0);
         }
-        ensureSyntheticOfflineEvents(allowed);
-        ensureNoSalesEvents(allowed);
+        // 仅本地 mock：列表为空时补演示事件；生产应由真实心跳/扫描任务写事件，禁止读接口写库
+        if (securityProperties.mockEnabled()) {
+            ensureSyntheticOfflineEvents(allowed);
+            ensureNoSalesEvents(allowed);
+        }
         var result = deviceOpsEventMapper.search(
                 allowed, eventType, Instant.now().minusSeconds(86400L * 14), Instant.now(),
                 page, Math.min(size, 100), eventIdAsc);
@@ -196,7 +239,11 @@ public class CompetitiveGapService {
     public DevicePolicyDto updateDevicePolicy(Long operatorId, String deviceId, DevicePolicyDto body) {
         permissionService.requirePermission(operatorId, "ops:device:edit");
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
-        DeviceInfo d = deviceInfoMapper.findById(deviceId)
+        return runWithDevicePolicyLock(deviceId, () -> doUpdateDevicePolicy(operatorId, deviceId, body));
+    }
+
+    private DevicePolicyDto doUpdateDevicePolicy(Long operatorId, String deviceId, DevicePolicyDto body) {
+        DeviceInfo d = deviceInfoMapper.findByIdForUpdate(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在"));
         d.setPriceLocked(body.priceLocked());
         d.setSkuEditForbidden(body.skuEditForbidden());
@@ -229,6 +276,10 @@ public class CompetitiveGapService {
         return toPolicy(deviceInfoMapper.findById(deviceId).orElse(d));
     }
 
+    private <T> T runWithDevicePolicyLock(String deviceId, Supplier<T> action) {
+        return runWithLock(DeviceSalesLockService.deviceSalesLockKey(deviceId), action);
+    }
+
     // ---- M4 sales reports + phone verify ----
 
     @Transactional(readOnly = true)
@@ -259,9 +310,61 @@ public class CompetitiveGapService {
         return switch (dimension) {
             case "CABINET", "DEVICE" -> aggregateByDevice(deviceIds, start, end);
             case "MERCHANT" -> aggregateByMerchant(deviceIds, start, end);
-            case "MARGIN", "PRODUCT" -> aggregateByProduct(deviceIds, start);
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dim 支持 PRODUCT/CABINET/MERCHANT/MARGIN");
+            case "MARGIN", "PRODUCT", "SKU" -> aggregateByProduct(deviceIds, start, end);
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dim 支持 PRODUCT/SKU/CABINET/MERCHANT/MARGIN");
         };
+    }
+
+    /** 商户可读子集：商品 / 货柜 / 毛利（不含跨商户 MERCHANT 维）。 */
+    @Transactional(readOnly = true)
+    public List<SalesReportRowDto> salesReportForDevices(Set<String> deviceIds, String dim,
+                                                         String fromDate, String toDate) {
+        LocalDate from = fromDate == null || fromDate.isBlank()
+                ? LocalDate.now(ZONE).minusDays(7) : LocalDate.parse(fromDate.trim());
+        LocalDate to = toDate == null || toDate.isBlank()
+                ? LocalDate.now(ZONE) : LocalDate.parse(toDate.trim());
+        Instant start = from.atStartOfDay(ZONE).toInstant();
+        Instant end = to.plusDays(1).atStartOfDay(ZONE).toInstant();
+        Set<String> scoped = deviceIds == null ? Set.of() : deviceIds;
+        String dimension = dim == null ? "PRODUCT" : dim.trim().toUpperCase();
+        return switch (dimension) {
+            case "CABINET", "DEVICE" -> aggregateByDevice(scoped, start, end);
+            case "MARGIN", "PRODUCT", "SKU" -> aggregateByProduct(scoped, start, end);
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商户报表 dim 支持 PRODUCT/CABINET/MARGIN");
+        };
+    }
+
+    /** 短信/渠道验证成功后写入审计流水（无运营权限校验）。 */
+    @Transactional
+    public void auditPhoneVerify(Long userId, String phone, String channel) {
+        if (phone == null || phone.isBlank()) {
+            return;
+        }
+        PhoneVerifyLog log = new PhoneVerifyLog();
+        log.setUserId(userId);
+        log.setPhone(phone.trim());
+        log.setChannel(channel == null || channel.isBlank() ? "SMS" : channel.trim().toUpperCase());
+        log.setVerifiedAt(Instant.now());
+        phoneVerifyLogMapper.insert(log);
+    }
+
+    public String salesReportCsv(List<SalesReportRowDto> rows) {
+        StringBuilder sb = new StringBuilder("dimKey,dimLabel,orderCount,qty,revenueCents,cogsCents,marginCents\n");
+        for (SalesReportRowDto r : rows) {
+            sb.append(csv(r.dimKey())).append(',')
+                    .append(csv(r.dimLabel())).append(',')
+                    .append(r.orderCount()).append(',')
+                    .append(r.qty()).append(',')
+                    .append(r.revenueCents()).append(',')
+                    .append(r.cogsCents()).append(',')
+                    .append(r.marginCents()).append('\n');
+        }
+        return sb.toString();
+    }
+
+    private static String csv(String v) {
+        String s = v == null ? "" : v.replace("\"", "\"\"");
+        return "\"" + s + "\"";
     }
 
     @Transactional(readOnly = true)
@@ -269,11 +372,31 @@ public class CompetitiveGapService {
                                                          int page, int size) {
         permissionService.requireAnyPermission(operatorId, "ops:phone-verify:list", "ops:risk:list", "ops:user:list");
         var result = phoneVerifyLogMapper.search(phone, channel, null, null, page, Math.min(size, 100));
+        Map<String, String> merchantNames = merchantNamesForLogs(result.getRecords());
         List<PhoneVerifyLogDto> items = result.getRecords().stream()
-                .map(l -> new PhoneVerifyLogDto(l.getLogId(), l.getUserId(), l.getPhone(),
-                        l.getChannel(), l.getMerchantId(), l.getVerifiedAt()))
+                .map(l -> toPhoneVerifyDto(l, merchantNames))
                 .toList();
         return new PageResult<>(items, page, size, result.getTotal());
+    }
+
+    private Map<String, String> merchantNamesForLogs(List<PhoneVerifyLog> logs) {
+        Set<String> ids = logs.stream()
+                .map(PhoneVerifyLog::getMerchantId)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return merchantMapper.selectBatchIds(ids).stream()
+                .collect(Collectors.toMap(Merchant::getMerchantId, Merchant::getMerchantName, (a, b) -> a));
+    }
+
+    private PhoneVerifyLogDto toPhoneVerifyDto(PhoneVerifyLog log, Map<String, String> merchantNames) {
+        String merchantId = log.getMerchantId();
+        String merchantName = merchantId != null && !merchantId.isBlank()
+                ? merchantNames.get(merchantId) : null;
+        return new PhoneVerifyLogDto(log.getLogId(), log.getUserId(), log.getPhone(),
+                log.getChannel(), merchantId, merchantName, log.getVerifiedAt());
     }
 
     @Transactional
@@ -289,8 +412,78 @@ public class CompetitiveGapService {
         log.setMerchantId(body.merchantId());
         log.setVerifiedAt(Instant.now());
         phoneVerifyLogMapper.insert(log);
-        return new PhoneVerifyLogDto(log.getLogId(), log.getUserId(), log.getPhone(),
-                log.getChannel(), log.getMerchantId(), log.getVerifiedAt());
+        return toPhoneVerifyDto(log, merchantNamesForLogs(List.of(log)));
+    }
+
+    @Transactional
+    public PhoneVerifyLogDto updatePhoneVerify(Long operatorId, Long logId, PhoneVerifyLogDto body) {
+        permissionService.requireAnyPermission(operatorId, "ops:phone-verify:list", "ops:user:list");
+        return runWithPhoneVerifyLogLock(logId, () -> doUpdatePhoneVerify(logId, body));
+    }
+
+    private PhoneVerifyLogDto doUpdatePhoneVerify(Long logId, PhoneVerifyLogDto body) {
+        PhoneVerifyLog log = phoneVerifyLogMapper.findByIdForUpdate(logId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "验证记录不存在"));
+        if (body.phone() == null || body.phone().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "手机号不能为空");
+        }
+        log.setUserId(body.userId());
+        log.setPhone(body.phone().trim());
+        log.setChannel(body.channel() == null || body.channel().isBlank() ? log.getChannel() : body.channel().trim());
+        log.setMerchantId(body.merchantId());
+        phoneVerifyLogMapper.updateById(log);
+        return toPhoneVerifyDto(log, merchantNamesForLogs(List.of(log)));
+    }
+
+    @Transactional
+    public void deletePhoneVerify(Long operatorId, Long logId) {
+        permissionService.requireAnyPermission(operatorId, "ops:phone-verify:list", "ops:user:list");
+        runWithPhoneVerifyLogLock(logId, () -> {
+            doDeletePhoneVerify(logId);
+            return null;
+        });
+    }
+
+    private void doDeletePhoneVerify(Long logId) {
+        if (phoneVerifyLogMapper.findByIdForUpdate(logId).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "验证记录不存在");
+        }
+        phoneVerifyLogMapper.deleteById(logId);
+    }
+
+    static String opsDeviceScopeLockKey(long userId) {
+        return "ops:device-scope:" + userId;
+    }
+
+    static String phoneVerifyLogLockKey(long logId) {
+        return "phone-verify:log:" + logId;
+    }
+
+    private <T> T runWithDeviceScopeLock(long userId, Supplier<T> action) {
+        return runWithLock(opsDeviceScopeLockKey(userId), action);
+    }
+
+    private <T> T runWithMerchantLock(String merchantId, Supplier<T> action) {
+        return runWithLock(MerchantService.merchantLockKey(merchantId), action);
+    }
+
+    private <T> T runWithPhoneVerifyLogLock(long logId, Supplier<T> action) {
+        return runWithLock(phoneVerifyLogLockKey(logId), action);
+    }
+
+    private <T> T runWithLock(String lockKey, Supplier<T> action) {
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "配置处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
     }
 
     // ---- helpers ----
@@ -314,7 +507,7 @@ public class CompetitiveGapService {
                 e.setEventType("OFFLINE");
                 e.setSeverity("WARN");
                 e.setTitle("设备离线");
-                e.setDetail("onlineStatus=" + d.getOnlineStatus());
+                e.setDetail("在线状态：" + onlineStatusLabel(d.getOnlineStatus()));
                 e.setCreatedAt(Instant.now());
                 deviceOpsEventMapper.insert(e);
             }
@@ -364,25 +557,31 @@ public class CompetitiveGapService {
             e.setEventType("NO_SALES");
             e.setSeverity("WARN");
             e.setTitle("近7日无销售");
-            e.setDetail("lifecycle=DEPLOYED");
+            e.setDetail("生命周期：已部署");
             e.setCreatedAt(Instant.now());
             deviceOpsEventMapper.insert(e);
         }
     }
 
-    private List<SalesReportRowDto> aggregateByProduct(Set<String> deviceIds, Instant since) {
-        List<Object[]> rows = deviceIds == null
-                ? lineMapper.skuBreakdownSince(since)
-                : deviceIds.isEmpty() ? List.of() : lineMapper.skuBreakdownByDevicesSince(deviceIds, since);
+    private List<SalesReportRowDto> aggregateByProduct(Set<String> deviceIds, Instant start, Instant end) {
+        List<Object[]> rows;
+        if (deviceIds == null) {
+            rows = lineMapper.skuBreakdownBetween(start, end);
+        } else if (deviceIds.isEmpty()) {
+            rows = List.of();
+        } else {
+            rows = lineMapper.skuBreakdownByDevicesBetween(deviceIds, start, end);
+        }
         List<SalesReportRowDto> out = new ArrayList<>();
         for (Object[] row : rows) {
             long qty = ((Number) row[2]).longValue();
             long revenue = ((Number) row[3]).longValue();
             long cogs = ((Number) row[4]).longValue();
+            long orderCount = row.length > 5 && row[5] instanceof Number n ? n.longValue() : 0L;
             out.add(new SalesReportRowDto(
                     String.valueOf(row[0]),
                     String.valueOf(row[1]),
-                    0,
+                    orderCount,
                     qty,
                     revenue,
                     cogs,
@@ -393,22 +592,24 @@ public class CompetitiveGapService {
     }
 
     private List<SalesReportRowDto> aggregateByDevice(Set<String> deviceIds, Instant start, Instant end) {
-        List<CabinetOrder> orders = orderMapper.findByCreatedAtBetween(start, end);
-        Map<String, Agg> map = new HashMap<>();
-        for (CabinetOrder o : orders) {
-            if (deviceIds != null && !deviceIds.contains(o.getDeviceId())) {
-                continue;
-            }
-            Agg a = map.computeIfAbsent(o.getDeviceId(), k -> new Agg());
-            a.orderCount++;
-            a.revenue += o.getTotalAmountCents();
+        if (deviceIds != null && deviceIds.isEmpty()) {
+            return List.of();
         }
-        Map<String, String> names = deviceInfoMapper.findByDeviceIdIn(map.keySet()).stream()
+        List<Object[]> rows = lineMapper.deviceBreakdownBetween(deviceIds, start, end);
+        Map<String, String> names = deviceInfoMapper.findByDeviceIdIn(
+                        rows.stream().map(r -> String.valueOf(r[0])).collect(Collectors.toSet())).stream()
                 .collect(Collectors.toMap(DeviceInfo::getDeviceId, DeviceInfo::getDeviceName, (a, b) -> a));
-        return map.entrySet().stream()
-                .map(e -> new SalesReportRowDto(
-                        e.getKey(), names.getOrDefault(e.getKey(), e.getKey()),
-                        e.getValue().orderCount, 0, e.getValue().revenue, 0, e.getValue().revenue))
+        return rows.stream()
+                .map(r -> {
+                    String did = String.valueOf(r[0]);
+                    long qty = ((Number) r[1]).longValue();
+                    long revenue = ((Number) r[2]).longValue();
+                    long cogs = ((Number) r[3]).longValue();
+                    long orderCount = ((Number) r[4]).longValue();
+                    return new SalesReportRowDto(
+                            did, names.getOrDefault(did, did),
+                            orderCount, qty, revenue, cogs, revenue - cogs);
+                })
                 .sorted((a, b) -> Long.compare(b.revenueCents(), a.revenueCents()))
                 .toList();
     }
@@ -422,16 +623,19 @@ public class CompetitiveGapService {
         Map<String, String> deviceMerchant = devices.stream()
                 .collect(Collectors.toMap(DeviceInfo::getDeviceId,
                         d -> d.getMerchantId() == null ? "" : d.getMerchantId(), (a, b) -> a));
-        List<CabinetOrder> orders = orderMapper.findByCreatedAtBetween(start, end);
+        List<Object[]> deviceRows = lineMapper.deviceBreakdownBetween(deviceIds, start, end);
         Map<String, Agg> map = new HashMap<>();
-        for (CabinetOrder o : orders) {
-            if (deviceIds != null && !deviceIds.contains(o.getDeviceId())) {
+        for (Object[] r : deviceRows) {
+            String did = String.valueOf(r[0]);
+            if (deviceIds != null && !deviceIds.contains(did)) {
                 continue;
             }
-            String mid = deviceMerchant.getOrDefault(o.getDeviceId(), "");
+            String mid = deviceMerchant.getOrDefault(did, "");
             Agg a = map.computeIfAbsent(mid, k -> new Agg());
-            a.orderCount++;
-            a.revenue += o.getTotalAmountCents();
+            a.orderCount += ((Number) r[4]).longValue();
+            a.qty += ((Number) r[1]).longValue();
+            a.revenue += ((Number) r[2]).longValue();
+            a.cogs += ((Number) r[3]).longValue();
         }
         Set<String> merchantIds = map.keySet().stream()
                 .filter(id -> id != null && !id.isBlank())
@@ -444,7 +648,8 @@ public class CompetitiveGapService {
                 .map(e -> new SalesReportRowDto(
                         e.getKey(),
                         names.getOrDefault(e.getKey(), e.getKey().isBlank() ? "(未绑定)" : e.getKey()),
-                        e.getValue().orderCount, 0, e.getValue().revenue, 0, e.getValue().revenue))
+                        e.getValue().orderCount, e.getValue().qty, e.getValue().revenue,
+                        e.getValue().cogs, e.getValue().revenue - e.getValue().cogs))
                 .sorted((a, b) -> Long.compare(b.revenueCents(), a.revenueCents()))
                 .toList();
     }
@@ -482,8 +687,21 @@ public class CompetitiveGapService {
         return v == null || v.isBlank() ? def : v.trim();
     }
 
+    private static String onlineStatusLabel(String status) {
+        if (status == null || status.isBlank()) {
+            return "未知";
+        }
+        return switch (status.toUpperCase()) {
+            case "ONLINE" -> "在线";
+            case "OFFLINE" -> "离线";
+            default -> status;
+        };
+    }
+
     private static class Agg {
         long orderCount;
+        long qty;
         long revenue;
+        long cogs;
     }
 }

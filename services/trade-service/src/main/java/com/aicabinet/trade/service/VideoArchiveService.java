@@ -2,13 +2,13 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.VideoClipDto;
 import com.aicabinet.common.storage.ObjectStorageKeys;
-import com.aicabinet.trade.domain.CabinetOrderLine;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.storage.MinioVideoService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -19,7 +19,8 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * 结算完成后将购物录像按 SKU 复制到归档路径，便于运营按商品检索。
+ * 购物录像归档：正常成交单仅按抽检比例保留副本（原始录像由 ILM 按保留期过期），
+ * 争议/需回查会话立即归档单副本，供运营回放。
  */
 @Service
 public class VideoArchiveService {
@@ -28,31 +29,39 @@ public class VideoArchiveService {
 
     private final MinioVideoService minioVideoService;
     private final ObjectMapper objectMapper;
+    /** 正常成交单归档抽检比例（0-1），其余仅在争议/回查时归档 */
+    @Value("${app.video.archive-sampling-rate:0.05}")
+    private double archiveSamplingRate;
 
     public VideoArchiveService(MinioVideoService minioVideoService, ObjectMapper objectMapper) {
         this.minioVideoService = minioVideoService;
         this.objectMapper = objectMapper;
     }
 
-    /** 最佳努力归档，失败不影响结算主流程。 */
-    public void archiveAfterSettlement(ShoppingSession session, List<CabinetOrderLine> lines) {
-        if (session == null || lines == null || lines.isEmpty()) {
+    /** 结算后归档（最佳努力，失败不影响结算主流程）：仅抽检命中时保留副本。 */
+    public void archiveAfterSettlement(ShoppingSession session) {
+        if (session == null || session.getSessionId() == null || session.getSessionId().isBlank()) {
+            return;
+        }
+        if (archiveSamplingRate <= 0) {
+            return;
+        }
+        double p = (session.getSessionId().hashCode() & 0x7fffffff) / (double) Integer.MAX_VALUE;
+        if (p >= archiveSamplingRate) {
+            return;
+        }
+        archiveSession(session);
+    }
+
+    /** 争议/需回查会话：立即归档所有机位录像（单副本，幂等，可重复调用）。 */
+    public void archiveSession(ShoppingSession session) {
+        if (session == null || session.getSessionId() == null || session.getSessionId().isBlank()) {
             return;
         }
         List<String> videoUris = collectVideoUris(session);
         if (videoUris.isEmpty()) {
             return;
         }
-        Set<String> skuIds = new LinkedHashSet<>();
-        for (CabinetOrderLine line : lines) {
-            if (line.getSkuId() != null && !line.getSkuId().isBlank()) {
-                skuIds.add(line.getSkuId().trim());
-            }
-        }
-        if (skuIds.isEmpty()) {
-            return;
-        }
-
         Instant archivedAt = session.getCloseTime() != null ? session.getCloseTime() : Instant.now();
         long userId = session.getUserId() != null ? session.getUserId() : 0L;
         int copied = 0;
@@ -63,17 +72,19 @@ public class VideoArchiveService {
             }
             String camera = cameraFromObjectKey(parsed.objectKey());
             String extension = extensionFromObjectKey(parsed.objectKey());
-            for (String skuId : skuIds) {
-                String archiveKey = ObjectStorageKeys.archiveVideoKey(
-                        skuId, userId, session.getSessionId(), camera, extension, archivedAt);
-                if (minioVideoService.copyObject(videoUri, archiveKey)) {
-                    copied++;
-                }
+            String archiveKey = ObjectStorageKeys.archiveVideoKey(
+                    userId, session.getSessionId(), camera, extension, archivedAt);
+            if (minioVideoService.copyObject(videoUri, archiveKey)) {
+                copied++;
             }
         }
         if (copied > 0) {
-            log.info("video archive session={} skus={} copies={}", session.getSessionId(), skuIds.size(), copied);
+            log.info("video archive session={} copies={}", session.getSessionId(), copied);
         }
+    }
+
+    void setArchiveSamplingRate(double rate) {
+        this.archiveSamplingRate = rate;
     }
 
     private List<String> collectVideoUris(ShoppingSession session) {

@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.*;
+import com.aicabinet.trade.domain.CouponDefinition;
 import com.aicabinet.trade.domain.PromotionActivity;
 import com.aicabinet.trade.mapper.PromotionActivityMapper;
 import org.slf4j.Logger;
@@ -19,9 +20,12 @@ public class PromotionService {
     private static final Logger log = LoggerFactory.getLogger(PromotionService.class);
 
     private final PromotionActivityMapper repository;
+    private final DistributedLockService distributedLockService;
 
-    public PromotionService(PromotionActivityMapper repository) {
+    public PromotionService(PromotionActivityMapper repository,
+                            DistributedLockService distributedLockService) {
         this.repository = repository;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
@@ -105,11 +109,87 @@ public class PromotionService {
         return updateStatus(activityId, "STOPPED");
     }
 
+    @Transactional
+    public void reserveBudgetOnClaim(Long activityId, int reserveCents) {
+        if (activityId == null || reserveCents <= 0) {
+            return;
+        }
+        runWithActivityLock(activityId, () -> doReserveBudgetOnClaim(activityId, reserveCents));
+    }
+
+    private void doReserveBudgetOnClaim(Long activityId, int reserveCents) {
+        PromotionActivity activity = repository.findByIdForUpdate(activityId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "活动不存在"));
+        long budget = activity.getBudgetCents();
+        long used = activity.getUsedCents();
+        if (budget > 0 && used + reserveCents > budget) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "活动预算已用完");
+        }
+        activity.setUsedCents(used + reserveCents);
+        activity.setUpdatedAt(Instant.now());
+        repository.save(activity);
+        log.info("promotion budget reserved activity={} reserve={} used={}/{}", activityId, reserveCents,
+                activity.getUsedCents(), budget);
+    }
+
+    /** 券退还/作废时释放已占用预算。 */
+    @Transactional
+    public void releaseBudget(Long activityId, int releaseCents) {
+        if (activityId == null || releaseCents <= 0) {
+            return;
+        }
+        runWithActivityLock(activityId, () -> doReleaseBudget(activityId, releaseCents));
+    }
+
+    private void doReleaseBudget(Long activityId, int releaseCents) {
+        repository.findByIdForUpdate(activityId).ifPresent(activity -> {
+            activity.setUsedCents(Math.max(0, activity.getUsedCents() - releaseCents));
+            activity.setUpdatedAt(Instant.now());
+            repository.save(activity);
+            log.info("promotion budget released activity={} release={} used={}", activityId, releaseCents,
+                    activity.getUsedCents());
+        });
+    }
+
+    static String promotionActivityLockKey(Long activityId) {
+        return "promotion:activity:" + activityId;
+    }
+
+    private void runWithActivityLock(Long activityId, Runnable action) {
+        runWithActivityLock(activityId, () -> {
+            action.run();
+            return null;
+        });
+    }
+
+    private <T> T runWithActivityLock(Long activityId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(promotionActivityLockKey(activityId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "活动处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(promotionActivityLockKey(activityId));
+        }
+    }
+
+    /** 领券预算占用额：默认按券面额。 */
+    public static int budgetReserveCents(CouponDefinition def) {
+        if (def == null) {
+            return 0;
+        }
+        return Math.max(0, def.getDenominationCents());
+    }
+
     private PromotionActivityDto toDto(PromotionActivity a) {
         return new PromotionActivityDto(
                 a.getActivityId(), a.getActivityName(), a.getActivityType(),
                 a.getStatus(), a.getStartTime(), a.getEndTime(),
                 a.getBudgetCents(), a.getUsedCents(), a.getUserLimit(),
-                a.getDeviceScope(), a.getDescription());
+                a.getDeviceScope(), a.getRuleConfig(), a.getDescription());
     }
 }

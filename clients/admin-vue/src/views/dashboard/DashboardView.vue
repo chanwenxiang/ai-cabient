@@ -6,7 +6,9 @@
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
               <span class="title">运营工作台</span>
-              <span class="hint">今日快照与待办；补货开门请在「补货调度」或补货员小程序操作</span>
+              <span class="hint"
+                >今日快照；分区对齐资金 / 履约 / 设备 / 进件；补货开门请在「补货调度」操作</span
+              >
             </div>
           </div>
           <div class="page-card-head__actions">
@@ -44,7 +46,7 @@
           >
             <div class="stat-label">在售货柜</div>
             <div class="stat-value">
-              {{ listHydrated ? (workbench?.devicesOnSale ?? '无') : '—' }}
+              {{ listHydrated ? (workbench?.devicesOnSale ?? '无') : '暂无' }}
             </div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
@@ -65,7 +67,7 @@
             @keydown.enter="goDevicesByOnlineRate"
           >
             <div class="stat-label">设备在线率</div>
-            <div class="stat-value">{{ listHydrated ? `${onlineRate.toFixed(1)}%` : '—' }}</div>
+            <div class="stat-value">{{ listHydrated ? `${onlineRate.toFixed(1)}%` : '…' }}</div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
               <template v-else>
@@ -88,7 +90,7 @@
           >
             <div class="stat-label">今日营收</div>
             <div class="stat-value">
-              {{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '—' }}
+              {{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '…' }}
             </div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
@@ -111,7 +113,7 @@
             @keydown.enter="goExceptions"
           >
             <div class="stat-label">待处理异常</div>
-            <div class="stat-value">{{ listHydrated ? openExceptionCount : '—' }}</div>
+            <div class="stat-value">{{ listHydrated ? openExceptionCount : '…' }}</div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
               <template v-else-if="canAccessPath('/exceptions')">
@@ -130,51 +132,81 @@
       </el-row>
     </el-card>
 
+    <el-row :gutter="12" class="zone-row">
+      <el-col v-for="zone in workZones" :key="zone.key" :xs="24" :sm="12" :lg="6">
+        <el-card class="page-card zone-card" shadow="never">
+          <template #header>
+            <div class="zone-head">
+              <div>
+                <div class="zone-title">{{ zone.title }}</div>
+                <div class="zone-hint">{{ zone.hint }}</div>
+              </div>
+              <el-tag
+                v-if="listHydrated && zone.total > 0"
+                type="danger"
+                size="small"
+                effect="light"
+              >
+                {{ zone.total }}
+              </el-tag>
+              <el-tag v-else-if="listHydrated" type="success" size="small" effect="plain"
+                >正常</el-tag
+              >
+            </div>
+          </template>
+          <div class="zone-links">
+            <button
+              v-for="item in zone.items"
+              :key="item.label"
+              type="button"
+              class="zone-link"
+              :class="{ warn: item.count > 0 }"
+              @click="goQuick(item)"
+            >
+              <span>{{ item.label }}</span>
+              <strong>{{ listHydrated ? item.count : '…' }}</strong>
+            </button>
+            <p v-if="listHydrated && !zone.items.length" class="zone-empty">无权限或暂无入口</p>
+          </div>
+          <el-button
+            v-if="zone.extraPath && canAccessPath(zone.extraPath)"
+            class="zone-extra"
+            text
+            type="primary"
+            @click="goPath(zone.extraPath, zone.extraQuery)"
+          >
+            {{ zone.extraLabel }}
+          </el-button>
+        </el-card>
+      </el-col>
+    </el-row>
+
     <el-card class="page-card queue-card" shadow="never">
       <template #header>
         <div class="page-card-head">
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
-              <span class="title">异常优先队列</span>
-              <span class="hint">有待办的入口优先展示；下方列表按严重程度排序，点「处理」直达</span>
+              <span class="title">告警明细</span>
+              <span class="hint">按严重程度排序；上方分区对齐资金 / 履约 / 设备 / 进件待办</span>
             </div>
           </div>
           <div class="page-card-head__actions">
-            <el-checkbox v-model="showZeroLinks">显示无待办入口</el-checkbox>
+            <el-checkbox v-model="showZeroLinks">分区显示 0 待办</el-checkbox>
+            <el-button
+              v-if="canAccessPath('/merchant-onboarding')"
+              plain
+              @click="goPath('/merchant-onboarding')"
+            >
+              进件工作台
+            </el-button>
           </div>
         </div>
       </template>
 
-      <el-row :gutter="10" class="quick-row">
-        <el-col
-          v-for="item in visibleQuickLinks"
-          :key="item.label"
-          :xs="12"
-          :sm="8"
-          :md="6"
-          :lg="4"
-          :xl="3"
-        >
-          <button
-            type="button"
-            class="quick-tile"
-            :class="{ warn: item.count > 0, muted: item.count === 0 }"
-            @click="goQuick(item)"
-          >
-            <span class="quick-label">{{ item.label }}</span>
-            <span class="quick-value">{{ listHydrated ? item.count : '—' }}</span>
-          </button>
-        </el-col>
-      </el-row>
-      <p v-if="!visibleQuickLinks.length" class="empty-quick">
-        <template v-if="!listHydrated">加载中…</template>
-        <template v-else-if="totalIssues > 0">有待办但当前账号无对应入口权限</template>
-        <template v-else>当前无待办入口，勾选「显示无待办入口」可查看全部</template>
-      </p>
-
       <div class="table-toolbar">
         <span class="table-meta"
-          >待处理明细 {{ listHydrated ? sortedActions.length : '—' }} 条</span
+          >待处理明细 {{ listHydrated ? sortedActions.length : '…' }} 条 · 入口合计
+          {{ listHydrated ? totalIssues : '…' }}</span
         >
         <el-radio-group v-model="severityFilter" size="small">
           <el-radio-button value="all">全部</el-radio-button>
@@ -231,10 +263,10 @@
               <template #default="{ row }">
                 <TableActions
                   v-if="canHandleAction(row)"
-                  :actions="[{ key: 'handle', label: '处理', icon: Right, type: 'primary' }]"
+                  :actions="[{ key: 'handle', label: '查看', icon: Right, type: 'primary' }]"
                   @action="() => goAction(row)"
                 />
-                <span v-else class="no-perm">—</span>
+                <span v-else class="no-perm">暂无</span>
               </template>
             </el-table-column>
           </el-table>
@@ -261,6 +293,8 @@ import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
+import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
+import { shortBizNo } from '@aicabinet/shared-uni/format';
 import type { OpsWorkbench, PageResult } from '@aicabinet/shared-types';
 
 interface OpsStats {
@@ -303,6 +337,7 @@ const showZeroLinks = ref(false);
 const severityFilter = ref<'all' | 'urgent'>('all');
 const page = ref(1);
 const pageSize = 10;
+const onboardPending = ref(0);
 
 const quickLinks = computed<QuickLink[]>(() => [
   {
@@ -343,9 +378,10 @@ const quickLinks = computed<QuickLink[]>(() => [
   },
   {
     label: '缺货柜/SKU',
+    // 与 countLowStock（quantity <= low_threshold，含断货）对齐；勿用 LOW（会排除 qty=0）
     count: stats.value.lowStockSkuCount || workbench.value?.lowStockItems || 0,
     path: '/stock-health',
-    query: { dimension: 'LOW' }
+    query: { dimension: 'ALL' }
   },
   {
     label: '临期批次',
@@ -389,12 +425,76 @@ const accessibleQuickLinks = computed(() =>
   quickLinks.value.filter((item) => canAccessPath(item.path))
 );
 
-const visibleQuickLinks = computed(() => {
-  if (!listHydrated.value) return [];
-  const list = showZeroLinks.value
-    ? accessibleQuickLinks.value
-    : accessibleQuickLinks.value.filter((item) => item.count > 0);
-  return [...list].sort((a, b) => b.count - a.count);
+function filterZone(labels: string[]) {
+  const set = new Set(labels);
+  const list = accessibleQuickLinks.value.filter((item) => set.has(item.label));
+  if (showZeroLinks.value) return list;
+  return list.filter((item) => item.count > 0);
+}
+
+const workZones = computed(() => {
+  const fund = filterZone(['超时待支付', '对账差异', '分账异常']);
+  const fulfill = filterZone([
+    '待审争议',
+    '异常中心',
+    '待上传',
+    '异常会话',
+    '补货任务',
+    '签收超时'
+  ]);
+  const device = filterZone(['停售货柜', '离线设备', '缺货柜/SKU', '临期批次']);
+  const onboard: QuickLink[] = canAccessPath('/merchant-onboarding')
+    ? [
+        {
+          label: '进件待办',
+          count: onboardPending.value,
+          path: '/merchant-onboarding',
+          query: { status: 'SUBMITTED' }
+        }
+      ].filter((item) => showZeroLinks.value || item.count > 0)
+    : [];
+  return [
+    {
+      key: 'fund',
+      title: '资金异常',
+      hint: '支付超时 · 对账 · 分账',
+      items: fund,
+      total: fund.reduce((s, i) => s + i.count, 0),
+      extraPath: '/finance',
+      extraLabel: '财务看板',
+      extraQuery: undefined as Record<string, string> | undefined
+    },
+    {
+      key: 'fulfill',
+      title: '履约异常',
+      hint: '争议 · 上传 · 补货 · 在途',
+      items: fulfill,
+      total: fulfill.reduce((s, i) => s + i.count, 0) + openExceptionCount.value,
+      extraPath: '/exceptions',
+      extraLabel: '异常中心',
+      extraQuery: { status: 'OPEN' }
+    },
+    {
+      key: 'device',
+      title: '设备运维',
+      hint: '停售 · 离线 · 缺货临期',
+      items: device,
+      total: device.reduce((s, i) => s + i.count, 0),
+      extraPath: '/devices',
+      extraLabel: '设备列表',
+      extraQuery: undefined
+    },
+    {
+      key: 'onboard',
+      title: '进件待办',
+      hint: '微信 / 支付宝 / 支付分',
+      items: onboard,
+      total: onboard.reduce((s, i) => s + i.count, 0),
+      extraPath: '/merchant-onboarding',
+      extraLabel: '进件工作台',
+      extraQuery: undefined
+    }
+  ];
 });
 
 function actionTargetPath(row: OpsActionItem) {
@@ -472,22 +572,7 @@ function priority(severity = '') {
 }
 
 function typeLabel(type = '') {
-  return (
-    (
-      {
-        DISPUTE: '账单争议',
-        DEVICE_OFFLINE: '设备离线',
-        UPLOAD_STUCK: '录像滞留',
-        SESSION_STALE: '会话超时',
-        LOW_STOCK: '库存不足',
-        REPLENISHMENT: '补货任务',
-        RECON_MISMATCH: '对账差异',
-        RECONCILIATION_MISMATCH: '对账差异',
-        SPLIT_EXCEPTION: '分账异常',
-        IN_TRANSIT_OVERDUE: '签收超时'
-      } as Record<string, string>
-    )[type] || type
-  );
+  return displayLabel('ops_alert_type', type, '其他告警');
 }
 
 function contextLabel(row: OpsActionItem) {
@@ -500,7 +585,7 @@ function contextLabel(row: OpsActionItem) {
 }
 
 function shortId(id: string) {
-  return id.length > 14 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id;
+  return shortBizNo(id, 10, id);
 }
 
 function goQuick(item: QuickLink) {
@@ -625,6 +710,19 @@ async function load(opts?: { silent?: boolean }) {
     stats.value = s || {};
     workbench.value = wb;
     openExceptionCount.value = ex?.total || 0;
+    if (canAccessPath('/merchant-onboarding')) {
+      try {
+        const rows = await api.request<{ status?: string }[]>(
+          '/api/v2/ops/admin/merchant-onboarding?status=SUBMITTED',
+          'GET'
+        );
+        onboardPending.value = (rows || []).length;
+      } catch {
+        onboardPending.value = 0;
+      }
+    } else {
+      onboardPending.value = 0;
+    }
   } catch (e) {
     if (!opts?.silent) {
       ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -675,8 +773,67 @@ onMounted(() => load({ silent: true }));
   color: var(--el-text-color-placeholder);
   font-size: 13px;
 }
+.zone-row {
+  margin-top: 12px;
+}
+.zone-card {
+  height: 100%;
+  margin-bottom: 12px;
+}
+.zone-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.zone-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+.zone-hint {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.zone-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 96px;
+}
+.zone-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  border: 1px solid var(--layout-border);
+  background: var(--el-fill-color-blank);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--layout-text);
+}
+.zone-link:hover {
+  border-color: color-mix(in srgb, var(--app-primary, #0f766e) 40%, var(--layout-border));
+}
+.zone-link.warn strong {
+  color: #dc2626;
+}
+.zone-link strong {
+  font-size: 16px;
+}
+.zone-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.zone-extra {
+  margin-top: 8px;
+  padding: 0;
+}
 .queue-card {
-  margin-top: 16px;
+  margin-top: 4px;
 }
 .stats-row {
   margin-bottom: 4px;

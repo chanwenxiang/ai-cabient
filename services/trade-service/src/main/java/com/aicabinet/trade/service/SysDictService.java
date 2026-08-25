@@ -22,15 +22,18 @@ public class SysDictService {
     private final SysDictDataMapper dataRepository;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    private final DistributedLockService distributedLockService;
 
     public SysDictService(SysDictTypeMapper typeRepository,
                           SysDictDataMapper dataRepository,
                           PermissionService permissionService,
-                          AdminAuditService auditService) {
+                          AdminAuditService auditService,
+                          DistributedLockService distributedLockService) {
         this.typeRepository = typeRepository;
         this.dataRepository = dataRepository;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.distributedLockService = distributedLockService;
     }
 
     public List<DictDtos.DictTypeDto> listTypes(Long operatorId) {
@@ -66,6 +69,34 @@ public class SysDictService {
         return buildActiveRuntimeMap();
     }
 
+  public static final String DEVICE_FAULT_ISSUE = "device_fault_issue";
+
+    /** 展示用：含已停用项，便于历史数据仍显示运营配置过的中文。 */
+    @Transactional(readOnly = true)
+    public String labelOf(String dictType, String value, String fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback != null ? fallback : "暂无";
+        }
+        String type = dictType.trim().toLowerCase();
+        String key = value.trim().toUpperCase();
+        return dataRepository.findByDictTypeAndDictValue(type, key)
+                .map(SysDictData::getDictLabel)
+                .filter(label -> label != null && !label.isBlank())
+                .orElse(fallback != null ? fallback : key);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isActiveDictValue(String dictType, String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        String type = dictType.trim().toLowerCase();
+        String key = value.trim().toUpperCase();
+        return dataRepository.findByDictTypeAndDictValue(type, key)
+                .filter(row -> "ACTIVE".equalsIgnoreCase(row.getStatus()))
+                .isPresent();
+    }
+
     private DictDtos.DictRuntimeDto buildActiveRuntimeMap() {
         Map<String, List<DictDtos.DictDataDto>> map = new LinkedHashMap<>();
         for (SysDictData row : dataRepository.findByStatusOrderByDictTypeAscSortOrderAsc("ACTIVE")) {
@@ -78,8 +109,12 @@ public class SysDictService {
     public DictDtos.DictTypeDto upsertType(Long operatorId, DictDtos.DictTypeUpsertRequest req) {
         permissionService.requirePermission(operatorId, "ops:dict:edit");
         String type = requireText(req.dictType(), "字典类型").trim().toLowerCase();
+        return runWithDictTypeLock(type, () -> doUpsertType(operatorId, req, type));
+    }
+
+    private DictDtos.DictTypeDto doUpsertType(Long operatorId, DictDtos.DictTypeUpsertRequest req, String type) {
         String name = requireText(req.dictName(), "字典名称").trim();
-        SysDictType entity = typeRepository.findById(type).orElseGet(SysDictType::new);
+        SysDictType entity = typeRepository.findByIdForUpdate(type).orElseGet(SysDictType::new);
         boolean created = entity.getDictType() == null;
         entity.setDictType(type);
         entity.setDictName(name);
@@ -101,18 +136,24 @@ public class SysDictService {
     public DictDtos.DictDataDto upsertItem(Long operatorId, String dictType, Long dictDataId,
                                            DictDtos.DictDataUpsertRequest req) {
         permissionService.requirePermission(operatorId, "ops:dict:edit");
+        String type = dictType.trim().toLowerCase();
+        return runWithDictTypeLock(type, () -> doUpsertItem(operatorId, type, dictDataId, req));
+    }
+
+    private DictDtos.DictDataDto doUpsertItem(Long operatorId, String dictType, Long dictDataId,
+                                              DictDtos.DictDataUpsertRequest req) {
         requireType(dictType);
         String value = requireText(req.dictValue(), "字典值").trim().toUpperCase();
         String label = requireText(req.dictLabel(), "字典标签").trim();
         SysDictData entity;
         if (dictDataId != null) {
-            entity = dataRepository.findById(dictDataId)
+            entity = dataRepository.findByIdForUpdate(dictDataId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "字典项不存在"));
             if (!dictType.equals(entity.getDictType())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "字典类型不匹配");
             }
         } else {
-            entity = dataRepository.findByDictTypeAndDictValue(dictType, value).orElseGet(SysDictData::new);
+            entity = dataRepository.findByDictTypeAndDictValueForUpdate(dictType, value).orElseGet(SysDictData::new);
             entity.setDictType(dictType);
         }
         boolean created = entity.getDictDataId() == null;
@@ -137,11 +178,46 @@ public class SysDictService {
     @Transactional
     public void deleteItem(Long operatorId, Long dictDataId) {
         permissionService.requirePermission(operatorId, "ops:dict:edit");
-        SysDictData entity = dataRepository.findById(dictDataId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "字典项不存在"));
-        dataRepository.delete(entity);
-        auditService.record(operatorId, "DICT_DATA_DELETE", "DICT_DATA",
-                entity.getDictType() + ":" + entity.getDictValue(), entity.getDictLabel());
+        runWithDictDataIdLock(dictDataId, () -> {
+            SysDictData entity = dataRepository.findByIdForUpdate(dictDataId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "字典项不存在"));
+            dataRepository.delete(entity);
+            auditService.record(operatorId, "DICT_DATA_DELETE", "DICT_DATA",
+                    entity.getDictType() + ":" + entity.getDictValue(), entity.getDictLabel());
+            return null;
+        });
+    }
+
+    static String dictTypeLockKey(String dictType) {
+        return "dict:type:" + dictType.trim().toLowerCase();
+    }
+
+    static String dictDataIdLockKey(Long dictDataId) {
+        return "dict:data:" + dictDataId;
+    }
+
+    private <T> T runWithDictTypeLock(String dictType, java.util.function.Supplier<T> action) {
+        String key = dictTypeLockKey(dictType);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "字典处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
+    }
+
+    private <T> T runWithDictDataIdLock(Long dictDataId, java.util.function.Supplier<T> action) {
+        String key = dictDataIdLockKey(dictDataId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "字典项处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
     }
 
     private SysDictType requireType(String dictType) {

@@ -65,6 +65,32 @@
             </template>
           </el-table-column>
           <el-table-column
+            label="姓名"
+            min-width="120"
+            class-name="col-text"
+            label-class-name="col-text"
+            align="center"
+            header-align="center"
+          >
+            <template #default="{ row }">{{ userNameText(row) }}</template>
+          </el-table-column>
+          <el-table-column
+            label="手机号"
+            width="140"
+            class-name="col-text"
+            label-class-name="col-text"
+            align="center"
+            header-align="center"
+          >
+            <template #default="{ row }">{{ textOrNone(row.phoneNumber) }}</template>
+          </el-table-column>
+          <el-table-column label="角色" width="110" align="center">
+            <template #default="{ row }">
+              <el-tag v-if="row.role" size="small" effect="plain">{{ roleLabel(row.role) }}</el-tag>
+              <span v-else class="muted">暂无</span>
+            </template>
+          </el-table-column>
+          <el-table-column
             label="余额"
             width="120"
             align="right"
@@ -76,37 +102,23 @@
               >¥{{ ((row.balanceCents || 0) / 100).toFixed(2) }}</template
             >
           </el-table-column>
-          <el-table-column
-            label="用户"
-            min-width="120"
-            class-name="col-text"
-            label-class-name="col-text"
-            align="center"
-            header-align="center"
-          >
-            <template #default="{ row }">{{ row.name || '未命名' }}</template>
-          </el-table-column>
-          <el-table-column
-            label="手机号"
-            width="140"
-            class-name="col-text"
-            label-class-name="col-text"
-            align="center"
-            header-align="center"
-          >
-            <template #default="{ row }">{{ row.phoneNumber || '无' }}</template>
-          </el-table-column>
-          <el-table-column label="角色" width="110" align="center">
-            <template #default="{ row }">
-              <el-tag v-if="row.role" size="small" effect="plain">{{ row.role }}</el-tag>
-              <span v-else class="muted">无</span>
-            </template>
-          </el-table-column>
           <el-table-column label="实名" width="96" align="center">
             <template #default="{ row }">
               <el-tag :type="row.verified ? 'success' : 'warning'" size="small">
                 {{ row.verified ? '已实名' : '未实名' }}
               </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="会员等级" width="100" align="center">
+            <template #default="{ row }">{{ memberLevelLabel(row.memberLevel) }}</template>
+          </el-table-column>
+          <el-table-column label="积分" width="80" align="center">
+            <template #default="{ row }">{{ row.availablePoints ?? 0 }}</template>
+          </el-table-column>
+          <el-table-column label="黑名单" width="96" align="center">
+            <template #default="{ row }">
+              <el-tag v-if="row.blacklisted" size="small" type="danger">已拉黑</el-tag>
+              <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
           <el-table-column label="注册时间" width="168" align="center" class-name="col-text">
@@ -206,6 +218,8 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
+import { displayLabel } from '@aicabinet/shared-dict';
+import { textOrNone } from '@/utils/display';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface UserRow {
@@ -215,7 +229,24 @@ interface UserRow {
   verified: boolean;
   balanceCents: number;
   role?: string;
+  memberLevel?: string;
+  availablePoints?: number;
+  blacklisted?: boolean;
   createdAt?: string;
+}
+
+function memberLevelLabel(level?: string) {
+  return displayLabel('member_level', level, '普通');
+}
+
+function userNameText(row: UserRow) {
+  const name = row.name != null ? String(row.name).trim() : '';
+  if (name) return name;
+  return '暂无';
+}
+
+function roleLabel(role?: string) {
+  return displayLabel('user_role', role, '暂无');
 }
 
 const route = useRoute();
@@ -298,8 +329,8 @@ const { onExport } = useListCsv({
     pickSelected(items.value).map((row) => [
       row.userId,
       row.phoneNumber,
-      row.name,
-      row.role || '无',
+      userNameText(row),
+      roleLabel(row.role),
       row.verified ? '已实名' : '未实名',
       ((row.balanceCents || 0) / 100).toFixed(2),
       formatDateTime(row.createdAt)

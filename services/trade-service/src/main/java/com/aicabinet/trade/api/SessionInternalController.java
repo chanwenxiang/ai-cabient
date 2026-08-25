@@ -3,6 +3,8 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.DoorEventRequest;
 import com.aicabinet.common.dto.GravityDeltaRequest;
+import com.aicabinet.common.dto.LiveCartDto;
+import com.aicabinet.common.dto.LiveCartUpdateRequest;
 import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.dto.VideoAttachRequest;
 import com.aicabinet.common.dto.VideoUploadPresignRequest;
@@ -56,5 +58,13 @@ public class SessionInternalController {
     @PostMapping("/gravity-deltas")
     public ApiResponse<SessionDto> gravityDeltas(@Valid @RequestBody GravityDeltaRequest request) {
         return ApiResponse.ok(sessionService.attachGravityDeltas(request));
+    }
+
+    /** 第三方识别推送开门中实时购物车（仅展示，不扣款） */
+    @PostMapping("/{sessionId}/live-cart")
+    public ApiResponse<LiveCartDto> liveCart(
+            @PathVariable("sessionId") String sessionId,
+            @Valid @RequestBody LiveCartUpdateRequest body) {
+        return ApiResponse.ok(sessionService.updateLiveCartFromVision(sessionId, body));
     }
 }

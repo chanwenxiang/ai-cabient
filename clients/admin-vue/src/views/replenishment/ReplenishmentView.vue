@@ -13,46 +13,46 @@
             <button
               type="button"
               class="kpi-tag-btn"
-              :aria-label="listHydrated ? `待执行 ${plannedCount}` : '待执行 — 加载中…'"
+              :aria-label="listHydrated ? `待执行 ${plannedCount}` : '待执行 加载中…'"
             >
               <el-tag size="small" type="info"
-                >待执行 {{ listHydrated ? plannedCount : '—' }}</el-tag
+                >待执行 {{ listHydrated ? plannedCount : '…' }}</el-tag
               >
             </button>
             <button
               type="button"
               class="kpi-tag-btn"
-              :aria-label="listHydrated ? `待处理设备 ${pendingTaskCount}` : '待处理设备 — 加载中…'"
+              :aria-label="listHydrated ? `待处理设备 ${pendingTaskCount}` : '待处理设备 加载中…'"
             >
               <el-tag size="small" type="warning"
-                >待处理设备 {{ listHydrated ? pendingTaskCount : '—' }}</el-tag
+                >待处理设备 {{ listHydrated ? pendingTaskCount : '…' }}</el-tag
               >
             </button>
             <button
               type="button"
               class="kpi-tag-btn"
-              :aria-label="listHydrated ? `已履约 ${fulfilledCount}` : '已履约 — 加载中…'"
+              :aria-label="listHydrated ? `已履约 ${fulfilledCount}` : '已履约 加载中…'"
             >
               <el-tag size="small" type="success"
-                >已履约 {{ listHydrated ? fulfilledCount : '—' }}</el-tag
+                >已履约 {{ listHydrated ? fulfilledCount : '…' }}</el-tag
               >
             </button>
             <button
               type="button"
               class="kpi-tag-btn"
-              :aria-label="listHydrated ? `要货待审 ${pendingRequestCount}` : '要货待审 — 加载中…'"
+              :aria-label="listHydrated ? `要货待审 ${pendingRequestCount}` : '要货待审 加载中…'"
             >
-              <el-tag size="small">要货待审 {{ listHydrated ? pendingRequestCount : '—' }}</el-tag>
+              <el-tag size="small">要货待审 {{ listHydrated ? pendingRequestCount : '…' }}</el-tag>
             </button>
             <button
               type="button"
               class="kpi-tag-btn"
               :aria-label="
-                listHydrated && !expiryLoading ? `临期 ${expiryAlerts.length}` : '临期 — 加载中…'
+                listHydrated && !expiryLoading ? `临期 ${expiryAlerts.length}` : '临期 加载中…'
               "
             >
               <el-tag size="small" type="danger"
-                >临期 {{ listHydrated && !expiryLoading ? expiryAlerts.length : '—' }}</el-tag
+                >临期 {{ listHydrated && !expiryLoading ? expiryAlerts.length : '暂无' }}</el-tag
               >
             </button>
             <el-tag
@@ -454,6 +454,21 @@
                     row.completedAt ? formatDateTime(row.completedAt) : '无'
                   }}</span>
                 </template>
+              </el-table-column>
+              <el-table-column label="要货单" width="90" align="center">
+                <template #default="{ row }">
+                  <span v-if="row.requestId" class="cell-id">{{ row.requestId }}</span>
+                  <span v-else class="muted">暂无</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="出库单" width="90" align="center">
+                <template #default="{ row }">
+                  <span v-if="row.outboundId" class="cell-id">{{ row.outboundId }}</span>
+                  <span v-else class="muted">暂无</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="备注" min-width="120" align="center" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.notes || '暂无' }}</template>
               </el-table-column>
               <el-table-column label="操作" width="120" align="center" class-name="col-action">
                 <template #default="{ row }">
@@ -907,10 +922,10 @@
               class="evidence-thumb"
               @click="openEvidencePreview(f)"
             >
-              <img :src="f.previewUrl" :alt="f.fileName || `文件 #${f.fileId}`" />
+              <img :src="f.previewUrl" :alt="f.fileName || `文件 ${f.fileId}`" />
             </button>
             <div class="evidence-meta">
-              <span class="mono">{{ f.fileName || `文件 #${f.fileId}` }}</span>
+              <span class="mono">{{ f.fileName || `文件 ${f.fileId}` }}</span>
               <span class="meta">{{ formatFileSize(f.fileSize) }}</span>
             </div>
           </div>
@@ -927,9 +942,10 @@
             <el-table-column label="类型" width="88" align="center">
               <template #default="{ row }">{{ lineTypeLabel(row.lineType) }}</template>
             </el-table-column>
-            <el-table-column label="商品" min-width="110" show-overflow-tooltip align="center">
+            <el-table-column label="商品" min-width="140" show-overflow-tooltip align="center">
               <template #default="{ row }">
-                <span class="mono">{{ row.skuId || '无' }}</span>
+                <div>{{ row.skuName || row.skuId || '无' }}</div>
+                <small v-if="row.skuName && row.skuId" class="muted mono">{{ row.skuId }}</small>
               </template>
             </el-table-column>
             <el-table-column prop="quantity" label="数量" width="72" align="center" />
@@ -1094,7 +1110,7 @@ import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Check, Close, Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { api, downloadAuthFile } from '@/api/client';
+import { api, authFetch, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
@@ -1104,7 +1120,7 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
 import { sortByPrimaryKey } from '@/utils/sort-by-pk';
-import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 type Row = Record<string, any>;
@@ -1318,7 +1334,7 @@ const pagedShortages = computed(() => slicePage(shortages.value));
 const pagedExpiry = computed(() => slicePage(expiryAlerts.value));
 const pagedFulfillment = computed(() => slicePage(fulfillmentTasks.value));
 const linesDrawerTitle = computed(() =>
-  linesTask.value?.taskId ? `理货明细 · 任务 #${linesTask.value.taskId}` : '理货明细'
+  linesTask.value?.taskId ? `理货明细 · 任务 ${linesTask.value.taskId}` : '理货明细'
 );
 const restockQtyTotal = computed(() =>
   taskLines.value
@@ -1812,9 +1828,7 @@ function formatTaskDuration(row: Row) {
 
 function lineTypeLabel(type?: string) {
   const code = String(type || 'RESTOCK').toUpperCase();
-  if (code === 'RESTOCK') return '上架';
-  if (code === 'PULL_OFF' || code === 'REMOVE' || code === 'PULL') return '下架';
-  return code;
+  return displayLabel('restock_line_type', code, '未知');
 }
 
 function formatFileSize(size?: number) {
@@ -1844,8 +1858,8 @@ async function createFromExpiry(row: Row, lineType: 'PULL_OFF' | 'RESTOCK') {
     );
     ElMessage.success(
       lineType === 'PULL_OFF'
-        ? `已生成下架任务 #${route?.tasks?.[0]?.taskId || route?.routeId || ''}`
-        : `已生成补货任务 #${route?.tasks?.[0]?.taskId || route?.routeId || ''}`
+        ? `已生成下架任务 ${route?.tasks?.[0]?.taskId || route?.routeId || ''}`
+        : `已生成补货任务 ${route?.tasks?.[0]?.taskId || route?.routeId || ''}`
     );
     await loadExpiryAlerts();
     await load();
@@ -1967,7 +1981,6 @@ async function loadEvidencePreviews(
     previewUrl?: string;
   }[]
 ) {
-  const token = localStorage.getItem('admin_token');
   const base = window.location.origin;
   const next: typeof files = [];
   const urls: string[] = [];
@@ -1978,9 +1991,8 @@ async function loadEvidencePreviews(
       /\.(png|jpe?g|gif|webp|bmp)$/i.test(String(f.fileName || ''));
     if (looksImage) {
       try {
-        const res = await fetch(
-          `${base}/api/v2/ops/admin/replenishment/tasks/${taskId}/evidence/${f.fileId}`,
-          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        const res = await authFetch(
+          `${base}/api/v2/ops/admin/replenishment/tasks/${taskId}/evidence/${f.fileId}`
         );
         if (res.ok) {
           const blob = await res.blob();
@@ -2038,7 +2050,7 @@ async function checkInRestockTask(task: Row) {
   }
   try {
     await ElMessageBox.confirm(
-      `确认对 ${deviceName(task.deviceId)}（任务 #${task.taskId}）做运营代签到？\n现场补货员应在商户小程序带 GPS 签到；后台代签到用于联调/应急，不强制 GPS。`,
+      `确认对 ${deviceName(task.deviceId)}（任务 ${task.taskId}）做运营代签到？\n现场补货员应在商户小程序带 GPS 签到；后台代签到用于联调/应急，不强制 GPS。`,
       '补货签到',
       { type: 'warning', confirmButtonText: '确认签到' }
     );
@@ -2048,7 +2060,7 @@ async function checkInRestockTask(task: Row) {
   checkInLoading.value = task.taskId;
   try {
     await api.request(`/api/v2/ops/admin/replenishment/tasks/${task.taskId}/check-in`, 'POST', {});
-    ElMessage.success(`任务 #${task.taskId} 已签到，可补货开门`);
+    ElMessage.success(`任务 ${task.taskId} 已签到，可补货开门`);
     await load();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '签到失败');
@@ -2080,8 +2092,8 @@ async function cancelEmptyRoute(row: Row) {
   try {
     await ElMessageBox.confirm(
       orphanCleanup
-        ? `确认收口路线 #${row.routeId} 的脏出库/在途？\n已发运未签收将回仓并取消在途。`
-        : `确认取消空路线 #${row.routeId}（${row.routeName || ''}）？\n仅未签到且未交接的任务可取消；已发运未签收会回仓。`,
+        ? `确认收口路线 ${row.routeId} 的脏出库/在途？\n已发运未签收将回仓并取消在途。`
+        : `确认取消空路线 ${row.routeId}（${row.routeName || ''}）？\n仅未签到且未交接的任务可取消；已发运未签收会回仓。`,
       orphanCleanup ? '收口脏出库' : '取消空路线',
       { type: 'warning', confirmButtonText: orphanCleanup ? '确认收口' : '确认取消' }
     );
@@ -2092,7 +2104,7 @@ async function cancelEmptyRoute(row: Row) {
   try {
     await api.request(`/api/v2/ops/admin/replenishment/routes/${row.routeId}/cancel-empty`, 'POST');
     ElMessage.success(
-      orphanCleanup ? `路线 #${row.routeId} 脏出库已收口` : `路线 #${row.routeId} 已取消`
+      orphanCleanup ? `路线 ${row.routeId} 脏出库已收口` : `路线 ${row.routeId} 已取消`
     );
     await load();
   } catch (error) {
@@ -2114,7 +2126,7 @@ async function openRestockDoor(task: Row) {
   const locked = deviceSalesLocked(task.deviceId);
   try {
     await ElMessageBox.confirm(
-      `确认对 ${deviceName(task.deviceId)}（${task.deviceId}）下发补货开门？\n将绑定任务 #${task.taskId}，不产生消费者账单。\n（与设备详情「远程开门」不同）` +
+      `确认对 ${deviceName(task.deviceId)}（${task.deviceId}）下发补货开门？\n将绑定任务 ${task.taskId}，不产生消费者账单。\n（与设备详情「远程开门」不同）` +
         (locked
           ? '\n\n注意：该柜当前锁机停售，消费者无法开门；补货开门仅供上架，完成后请视情况解锁恢复售卖。'
           : ''),
@@ -2154,7 +2166,7 @@ async function completeRestockTask(task: Row) {
   }
   try {
     await ElMessageBox.confirm(
-      `确认完成任务 #${task.taskId}（${deviceName(task.deviceId)}）上架？\n未签到将被后端拒绝；完成后将写入库存。`,
+      `确认完成任务 ${task.taskId}（${deviceName(task.deviceId)}）上架？\n未签到将被后端拒绝；完成后将写入库存。`,
       '完成上架',
       { type: 'warning', confirmButtonText: '确认完成' }
     );
@@ -2164,7 +2176,7 @@ async function completeRestockTask(task: Row) {
   completeLoading.value = task.taskId;
   try {
     await api.request(`/api/v2/ops/admin/replenishment/tasks/${task.taskId}/complete`, 'POST');
-    ElMessage.success(`任务 #${task.taskId} 已完成上架`);
+    ElMessage.success(`任务 ${task.taskId} 已完成上架`);
     await load();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '完成上架失败');
@@ -2193,7 +2205,7 @@ async function createPlan() {
     const linked = (outbounds || []).filter((o) => o.routeId === route?.routeId);
     if (linked.length) {
       ElMessage.success({
-        message: `路线已创建，出库单 #${linked[0].outboundId} 待拣货发运（仓库页）`,
+        message: `路线已创建，出库单 ${linked[0].outboundId} 待拣货发运（仓库页）`,
         duration: 5000
       });
     } else {
@@ -2221,7 +2233,7 @@ async function onRequestAction(row: Row, key: string) {
     if (key === 'accept') {
       const linesPreview = formatRequestLines(row);
       await ElMessageBox.confirm(
-        `确认接单要货 #${row.requestId}？\n设备：${deviceName(row.deviceId)}（${row.deviceId}）\n明细：${linesPreview}`,
+        `确认接单要货 ${row.requestId}？\n设备：${deviceName(row.deviceId)}（${row.deviceId}）\n明细：${linesPreview}`,
         '接单',
         { type: 'warning', confirmButtonText: '确认接单' }
       );
@@ -2232,11 +2244,11 @@ async function onRequestAction(row: Row, key: string) {
       }>(`/api/v2/ops/admin/replenishment/requests/${row.requestId}/accept`, 'POST');
       if (accepted?.outboundId) {
         ElMessage.success(
-          `已接单，出库 #${accepted.outboundId}，补货任务 #${accepted.replenishmentTaskId ?? '无'}`
+          `已接单，出库 ${accepted.outboundId}，补货任务 ${accepted.replenishmentTaskId ?? '无'}`
         );
       } else {
         ElMessage.success(
-          `已接单，无仓配库存，已建现场补货任务 #${accepted?.replenishmentTaskId ?? '无'}`
+          `已接单，无仓配库存，已建现场补货任务 ${accepted?.replenishmentTaskId ?? '无'}`
         );
       }
     } else if (key === 'reject') {
@@ -2292,7 +2304,7 @@ async function goRequestTask(row: Row) {
     task = findTaskById(taskId);
   }
   if (!task) {
-    ElMessage.warning(`未找到补货任务 #${taskId}，请到履约记录中查找`);
+    ElMessage.warning(`未找到补货任务 ${taskId}，请到履约记录中查找`);
     tab.value = 'fulfillment';
     syncRouteQuery();
     return;

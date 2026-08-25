@@ -4,9 +4,20 @@ import com.aicabinet.trade.domain.WarehouseInTransit;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface WarehouseInTransitMapper extends BaseTradeMapper<WarehouseInTransit> {
+
+    List<WarehouseInTransit> _findByOutboundIdAndDeviceIdAndStatusForUpdateRaw(
+            @Param("outboundId") Long outboundId,
+            @Param("deviceId") String deviceId,
+            @Param("status") String status);
+
+    default List<WarehouseInTransit> findByOutboundIdAndDeviceIdAndStatusForUpdate(
+            Long outboundId, String deviceId, String status) {
+        return _findByOutboundIdAndDeviceIdAndStatusForUpdateRaw(outboundId, deviceId, status);
+    }
 
     default List<WarehouseInTransit> findByDeviceIdAndStatus(String deviceId, String status) {
     return selectList(Wrappers.<WarehouseInTransit>lambdaQuery().eq(WarehouseInTransit::getDeviceId, deviceId).eq(WarehouseInTransit::getStatus, status));

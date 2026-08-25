@@ -1,15 +1,14 @@
 <template>
   <div class="login-page">
     <div
-      class="login-bg login-bg-drift"
-      :style="{ backgroundImage: `url(${loginBgUrl})` }"
+      class="login-bg"
       aria-hidden="true"
+      :style="{ backgroundImage: `url(${bgVendingNight})` }"
     />
     <div class="login-bg-fx" aria-hidden="true">
       <span class="fx-grid" />
-      <span class="fx-orb fx-orb-a" />
-      <span class="fx-orb fx-orb-b" />
       <span class="fx-scan" />
+      <i v-for="p in particles" :key="p.left" class="fx-particle" :style="p.style" />
     </div>
     <div class="login-overlay" aria-hidden="true" />
     <div class="login-card">
@@ -18,7 +17,7 @@
         <h1>AI开门柜</h1>
         <p class="sub">运营管理系统</p>
       </div>
-      <el-form label-position="top" @submit.prevent="onSubmit">
+      <el-form v-if="!twoFactorStep" label-position="top" @submit.prevent="onSubmit">
         <el-form-item label="手机号">
           <el-input
             ref="phoneInput"
@@ -86,8 +85,51 @@
         >
         <p v-if="err" class="err" role="alert">{{ err }}</p>
         <div class="login-extras">
-          <el-checkbox v-model="rememberPhone" size="small">记住手机号</el-checkbox>
+          <div class="remember-group">
+            <el-checkbox v-model="rememberCredentials" size="small">记住账号和密码</el-checkbox>
+          </div>
           <button type="button" class="link-btn" @click="openResetDialog">忘记密码？</button>
+        </div>
+      </el-form>
+      <el-form v-else label-position="top" @submit.prevent="onSubmitTwoFactor">
+        <div class="twofa-head">
+          <p class="twofa-title">双因子验证</p>
+          <p class="twofa-sub">
+            {{
+              usingRecovery
+                ? '请输入 8 个后备码之一（形如 XXXXX-XXXXX-XXXXX）'
+                : '请打开身份验证器 App，输入当前 6 位动态码'
+            }}
+          </p>
+        </div>
+        <el-form-item :label="usingRecovery ? '后备码' : '动态码'">
+          <el-input
+            ref="twoFactorInput"
+            v-model="twoFactorCode"
+            maxlength="20"
+            autocomplete="one-time-code"
+            spellcheck="false"
+            :placeholder="usingRecovery ? 'XXXXX-XXXXX-XXXXX' : '6 位动态码'"
+            size="large"
+            :disabled="loading"
+            @input="err = ''"
+            @keyup.enter="onSubmitTwoFactor"
+          />
+        </el-form-item>
+        <el-button
+          type="primary"
+          native-type="submit"
+          :loading="loading"
+          :disabled="loading"
+          class="submit-btn"
+          >验证并登录</el-button
+        >
+        <p v-if="err" class="err" role="alert">{{ err }}</p>
+        <div class="twofa-extras">
+          <button type="button" class="link-btn" @click="usingRecovery = !usingRecovery">
+            {{ usingRecovery ? '改用动态码' : '使用后备码登录' }}
+          </button>
+          <button type="button" class="link-btn" @click="backToPassword">返回密码登录</button>
         </div>
       </el-form>
       <p v-if="ENABLE_TEST_TOOLS" class="hint">
@@ -195,17 +237,66 @@ import { useAuthStore } from '@/stores/auth';
 import { api } from '@/api/client';
 import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
 import { safeRedirectPath } from '@/utils/safe-redirect';
-import loginBgUrl from '@/assets/login-bg-v2.svg';
+import bgVendingNight from '@/assets/bg-vending-night.jpg';
+
+/** 登录页动态背景粒子：固定参数，避免每次渲染随机跳动。 */
+const particles = Array.from({ length: 16 }, (_, i) => {
+  const left = ((i * 6.3 + 2) % 100).toFixed(1);
+  const size = 3 + (i % 3) * 2;
+  const delay = ((i * 1.37) % 14).toFixed(1);
+  const duration = (10 + (i % 6) * 2).toFixed(1);
+  return {
+    left,
+    style: {
+      left: `${left}%`,
+      width: `${size}px`,
+      height: `${size}px`,
+      animationDelay: `${delay}s`,
+      animationDuration: `${duration}s`
+    }
+  };
+});
 
 const phone = ref(localStorage.getItem('admin_phone') || (ENABLE_TEST_TOOLS ? '13900000001' : ''));
-const password = ref(ENABLE_TEST_TOOLS ? '123456' : '');
+
+/** 记住密码：base64 轻量混淆存储。localStorage 本身无法加密，仅避免密码明文直读。 */
+const PW_STORE_KEY = 'admin_password';
+const PW_FLAG_KEY = 'admin_remember_password';
+
+function encodePassword(raw: string): string {
+  return `v1:${btoa(encodeURIComponent(raw))}`;
+}
+
+function decodePassword(stored: string | null): string {
+  if (!stored || !stored.startsWith('v1:')) return '';
+  try {
+    return decodeURIComponent(atob(stored.slice(3)));
+  } catch {
+    return '';
+  }
+}
+
+const rememberPassword = ref(localStorage.getItem(PW_FLAG_KEY) !== '0');
+/** 记住账号和密码（合并开关）：任一旧选项开启过则默认勾选，兼容历史 localStorage */
+const rememberCredentials = ref(
+  rememberPassword.value || localStorage.getItem('admin_remember_phone') !== '0'
+);
+const password = ref(
+  rememberCredentials.value
+    ? decodePassword(localStorage.getItem(PW_STORE_KEY))
+    : ENABLE_TEST_TOOLS
+      ? '123456'
+      : ''
+);
 const captchaCode = ref('');
 const captchaId = ref('');
 const captchaImage = ref('');
 const captchaLoading = ref(false);
 const loading = ref(false);
 const err = ref('');
-const rememberPhone = ref(localStorage.getItem('admin_remember_phone') !== '0');
+const twoFactorStep = ref(false);
+const twoFactorCode = ref('');
+const usingRecovery = ref(false);
 const resetVisible = ref(false);
 const resetSaving = ref(false);
 const resetCaptchaId = ref('');
@@ -352,6 +443,21 @@ onMounted(async () => {
   else captchaInput.value?.focus?.();
 });
 
+async function finishLogin(normalizedPhone: string) {
+  if (rememberCredentials.value) {
+    localStorage.setItem('admin_remember_phone', '1');
+    localStorage.setItem('admin_phone', normalizedPhone);
+    localStorage.setItem(PW_FLAG_KEY, '1');
+    localStorage.setItem(PW_STORE_KEY, encodePassword(password.value));
+  } else {
+    localStorage.removeItem('admin_phone');
+    localStorage.setItem('admin_remember_phone', '0');
+    localStorage.setItem(PW_FLAG_KEY, '0');
+    localStorage.removeItem(PW_STORE_KEY);
+  }
+  router.replace(safeRedirectPath(route.query.redirect));
+}
+
 async function onSubmit() {
   const normalizedPhone = phone.value.trim();
   if (!/^1\d{10}$/.test(normalizedPhone)) {
@@ -374,21 +480,45 @@ async function onSubmit() {
   loading.value = true;
   err.value = '';
   try {
-    await auth.login(normalizedPhone, password.value, {
+    const result = await auth.login(normalizedPhone, password.value, {
       captchaId: captchaId.value,
       captchaCode: captchaCode.value.trim()
     });
-    if (rememberPhone.value) {
-      localStorage.setItem('admin_remember_phone', '1');
-      localStorage.setItem('admin_phone', normalizedPhone);
-    } else {
-      localStorage.removeItem('admin_phone');
-      localStorage.setItem('admin_remember_phone', '0');
+    if (result?.twoFactorRequired) {
+      twoFactorStep.value = true;
+      twoFactorCode.value = '';
+      usingRecovery.value = false;
+      return;
     }
-    router.replace(safeRedirectPath(route.query.redirect));
+    await finishLogin(normalizedPhone);
   } catch (e) {
     err.value = e instanceof Error ? e.message : '登录失败';
     await loadCaptcha();
+  } finally {
+    loading.value = false;
+  }
+}
+
+function backToPassword() {
+  twoFactorStep.value = false;
+  twoFactorCode.value = '';
+  usingRecovery.value = false;
+}
+
+async function onSubmitTwoFactor() {
+  const code = twoFactorCode.value.trim();
+  if (!code) {
+    err.value = usingRecovery.value ? '请输入后备码' : '请输入动态码';
+    return;
+  }
+  loading.value = true;
+  err.value = '';
+  try {
+    await auth.completeTwoFactor(code, usingRecovery.value);
+    await finishLogin(phone.value.trim());
+  } catch (e) {
+    err.value = e instanceof Error ? e.message : '验证失败';
+    twoFactorCode.value = '';
   } finally {
     loading.value = false;
   }
@@ -408,14 +538,20 @@ async function onSubmit() {
 .login-bg {
   position: absolute;
   inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background-color: #082f34;
   background-position: center;
   background-size: cover;
-  background-repeat: no-repeat;
-  z-index: 0;
+  animation: bgKenBurns 28s ease-in-out infinite alternate;
 }
-.login-bg-drift {
-  animation: bgDrift 26s ease-in-out infinite alternate;
-  transform-origin: center center;
+@keyframes bgKenBurns {
+  from {
+    transform: scale(1) translate(0, 0);
+  }
+  to {
+    transform: scale(1.08) translate(-1.2%, -1%);
+  }
 }
 .login-bg-fx {
   position: absolute;
@@ -428,31 +564,12 @@ async function onSubmit() {
   position: absolute;
   inset: -40%;
   background-image:
-    linear-gradient(rgba(20, 184, 166, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(20, 184, 166, 0.08) 1px, transparent 1px);
-  background-size: 48px 48px;
+    linear-gradient(rgba(94, 234, 212, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(94, 234, 212, 0.055) 1px, transparent 1px);
+  background-size: 52px 52px;
   animation: gridDrift 24s linear infinite;
-}
-.fx-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(64px);
-}
-.fx-orb-a {
-  top: 12%;
-  left: 18%;
-  width: 320px;
-  height: 320px;
-  background: rgba(15, 118, 110, 0.28);
-  animation: orbPulseA 10s ease-in-out infinite;
-}
-.fx-orb-b {
-  bottom: 8%;
-  right: 12%;
-  width: 280px;
-  height: 280px;
-  background: rgba(45, 212, 191, 0.2);
-  animation: orbPulseB 12s ease-in-out infinite;
+  -webkit-mask-image: radial-gradient(ellipse 78% 72% at 50% 36%, #000 32%, transparent 80%);
+  mask-image: radial-gradient(ellipse 78% 72% at 50% 36%, #000 32%, transparent 80%);
 }
 .fx-scan {
   position: absolute;
@@ -464,19 +581,26 @@ async function onSubmit() {
   animation: scanLine 7s linear infinite;
   opacity: 0.7;
 }
+.fx-particle {
+  position: absolute;
+  bottom: -14px;
+  border-radius: 50%;
+  background: rgba(94, 234, 212, 0.6);
+  box-shadow: 0 0 10px rgba(45, 212, 191, 0.55);
+  animation-name: particleRise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
 .login-overlay {
   position: absolute;
   inset: 0;
   z-index: 2;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.42), rgba(30, 58, 95, 0.32));
-}
-@keyframes bgDrift {
-  from {
-    transform: scale(1);
-  }
-  to {
-    transform: scale(1.06);
-  }
+  background: linear-gradient(
+    160deg,
+    rgba(4, 25, 30, 0.4) 0%,
+    rgba(6, 36, 43, 0.22) 46%,
+    rgba(3, 20, 25, 0.5) 100%
+  );
 }
 @keyframes gridDrift {
   from {
@@ -486,26 +610,20 @@ async function onSubmit() {
     transform: translate(48px, 48px);
   }
 }
-@keyframes orbPulseA {
-  0%,
+@keyframes particleRise {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.85;
+  }
+  85% {
+    opacity: 0.5;
+  }
   100% {
-    transform: translate(0, 0) scale(1);
-    opacity: 0.65;
-  }
-  50% {
-    transform: translate(28px, 22px) scale(1.12);
-    opacity: 1;
-  }
-}
-@keyframes orbPulseB {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-    opacity: 0.55;
-  }
-  50% {
-    transform: translate(-24px, -18px) scale(1.1);
-    opacity: 0.9;
+    transform: translate(28px, -108vh);
+    opacity: 0;
   }
 }
 @keyframes scanLine {
@@ -525,11 +643,10 @@ async function onSubmit() {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .login-bg-drift,
   .fx-grid,
-  .fx-orb-a,
-  .fx-orb-b,
-  .fx-scan {
+  .fx-scan,
+  .fx-particle,
+  .login-bg {
     animation: none;
   }
 }
@@ -540,12 +657,12 @@ async function onSubmit() {
   max-width: 400px;
   padding: 36px 32px 28px;
   border-radius: 16px;
-  border: 1px solid rgba(45, 212, 191, 0.28);
-  backdrop-filter: blur(16px);
-  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(148, 210, 198, 0.22);
+  background: rgba(8, 24, 30, 0.58);
+  backdrop-filter: blur(26px);
   box-shadow:
-    0 24px 64px rgba(2, 6, 23, 0.45),
-    inset 0 1px 0 rgba(148, 163, 184, 0.12);
+    0 24px 64px rgba(2, 10, 14, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 .card-header {
   margin-bottom: 28px;
@@ -561,50 +678,54 @@ async function onSubmit() {
   font-size: 22px;
   font-weight: 700;
   color: #ecfeff;
-  background: linear-gradient(145deg, #14b8a6, #0f766e);
+  background: linear-gradient(145deg, #14b8a6, var(--app-primary, #0f766e));
   box-shadow: 0 10px 24px rgba(15, 118, 110, 0.35);
 }
 .card-header h1 {
   margin: 0 0 6px;
   font-size: 1.75rem;
   font-weight: 700;
-  color: #e2e8f0;
+  color: #ecfeff;
   letter-spacing: 0.02em;
+  text-shadow: 0 2px 18px rgba(2, 10, 14, 0.75);
 }
 .sub {
-  color: #94a3b8;
+  color: rgba(207, 250, 254, 0.72);
   margin: 0;
   font-size: 0.95rem;
+  text-shadow: 0 1px 10px rgba(2, 10, 14, 0.7);
 }
 .login-card :deep(.el-form-item) {
   margin-bottom: 20px;
 }
 .login-card :deep(.el-form-item__label) {
   font-weight: 500;
-  color: #cbd5e1;
+  color: rgba(204, 251, 241, 0.88);
   padding-bottom: 6px;
   line-height: 1.4;
+  text-shadow: 0 1px 8px rgba(2, 10, 14, 0.65);
 }
 .login-card :deep(.el-input__wrapper) {
   border-radius: 10px;
-  background: rgba(30, 41, 59, 0.85);
-  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.22) inset;
+  background: rgba(8, 24, 30, 0.42);
+  box-shadow: 0 0 0 1px rgba(148, 210, 198, 0.26) inset;
   padding: 4px 12px;
+  backdrop-filter: blur(8px);
 }
 .login-card :deep(.el-input__inner) {
-  color: #f1f5f9;
+  color: #f0fdfa;
 }
 .login-card :deep(.el-input__inner::placeholder) {
-  color: #64748b;
+  color: rgba(148, 210, 198, 0.55);
 }
 .login-card :deep(.el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.38) inset;
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.42) inset;
 }
 .login-card :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.55) inset;
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.5) inset;
 }
 .login-card :deep(.el-input__password) {
-  color: #94a3b8;
+  color: rgba(148, 210, 198, 0.72);
 }
 .submit-btn {
   width: 100%;
@@ -627,13 +748,14 @@ async function onSubmit() {
   flex: 0 0 120px;
   height: 40px;
   padding: 0;
-  border: 1px solid rgba(45, 212, 191, 0.28);
+  border: 1px solid rgba(148, 210, 198, 0.3);
   border-radius: 10px;
-  background: rgba(30, 41, 59, 0.9);
+  background: rgba(8, 24, 30, 0.42);
   cursor: pointer;
   overflow: hidden;
-  color: #94a3b8;
+  color: rgba(207, 250, 254, 0.8);
   font-size: 12px;
+  backdrop-filter: blur(8px);
 }
 .captcha-img-btn:disabled {
   opacity: 0.7;
@@ -651,16 +773,51 @@ async function onSubmit() {
   text-align: center;
   font-size: 0.875rem;
 }
+.twofa-head {
+  margin-bottom: 4px;
+}
+.twofa-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+.twofa-sub {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+.twofa-extras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+}
 .login-extras {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-top: 12px;
-  color: #94a3b8;
+  color: rgba(207, 250, 254, 0.72);
+  text-shadow: 0 1px 8px rgba(2, 10, 14, 0.6);
+  --el-color-primary: var(--app-primary, #0f766e);
+  --el-color-primary-light-3: #5aa89e;
+  --el-color-primary-light-5: #9dcfc7;
+  --el-color-primary-light-7: #d3ece6;
+  --el-color-primary-light-8: #e6f5f1;
+  --el-color-primary-light-9: #f2faf8;
+  --el-color-primary-dark-2: #0b5c55;
 }
 .login-extras :deep(.el-checkbox__label) {
-  color: #cbd5e1;
+  color: rgba(204, 251, 241, 0.82);
   font-size: 13px;
+}
+.remember-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
 }
 .link-btn {
   border: none;
@@ -689,7 +846,7 @@ async function onSubmit() {
   flex: 0 0 auto;
 }
 .hint {
-  color: #64748b;
+  color: rgba(207, 250, 254, 0.6);
   font-size: 0.8rem;
   margin: 20px 0 0;
   text-align: center;

@@ -16,6 +16,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -26,6 +28,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class SkuVisionEnrollmentServiceTest {
 
     @Mock private SkuCatalogMapper skuCatalogRepository;
@@ -35,11 +38,16 @@ class SkuVisionEnrollmentServiceTest {
     @Mock private AdminAuditService auditService;
     @Mock private VisionServiceClient visionServiceClient;
     @Mock private UserInfoMapper userInfoRepository;
+    @Mock private FileAttachmentService fileAttachmentService;
+    @Mock private DistributedLockService distributedLockService;
 
     private SkuVisionEnrollmentService service;
 
     @BeforeEach
     void setUp() {
+        when(distributedLockService.tryLock(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(true);
         service = new SkuVisionEnrollmentService(
                 skuCatalogRepository,
                 yoloRepository,
@@ -49,13 +57,15 @@ class SkuVisionEnrollmentServiceTest {
                 new StagingProperties(false, false),
                 new ObjectMapper(),
                 visionServiceClient,
-                userInfoRepository);
+                userInfoRepository,
+                fileAttachmentService,
+                distributedLockService);
     }
 
     @Test
     void enrollSku_shouldPersistCatalogAndMapping() {
-        when(skuCatalogRepository.findById("SKU-NEW-001")).thenReturn(Optional.empty());
-        when(yoloRepository.findById("cola_demo")).thenReturn(Optional.empty());
+        when(skuCatalogRepository.findByIdForUpdate("SKU-NEW-001")).thenReturn(Optional.empty());
+        when(yoloRepository.findByIdForUpdate("cola_demo")).thenReturn(Optional.empty());
         when(skuCatalogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(yoloRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -87,7 +97,7 @@ class SkuVisionEnrollmentServiceTest {
     @Test
     void advanceEnrollment_shouldMoveDraftToMapping() {
         SkuCatalog sku = baseSku("SKU-DRAFT", "DRAFT", "cola_demo");
-        when(skuCatalogRepository.findById("SKU-DRAFT")).thenReturn(Optional.of(sku));
+        when(skuCatalogRepository.findByIdForUpdate("SKU-DRAFT")).thenReturn(Optional.of(sku));
         when(yoloRepository.existsById("cola_demo")).thenReturn(true);
         when(skuCatalogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -102,7 +112,7 @@ class SkuVisionEnrollmentServiceTest {
     @Test
     void advanceEnrollment_shouldMoveMappingToTested() {
         SkuCatalog sku = baseSku("SKU-A", "MAPPING", "cola_demo");
-        when(skuCatalogRepository.findById("SKU-A")).thenReturn(Optional.of(sku));
+        when(skuCatalogRepository.findByIdForUpdate("SKU-A")).thenReturn(Optional.of(sku));
         when(yoloRepository.existsById("cola_demo")).thenReturn(true);
         when(skuCatalogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -117,7 +127,7 @@ class SkuVisionEnrollmentServiceTest {
     @Test
     void advanceEnrollment_toProduction_shouldMarkMappingEffective() {
         SkuCatalog sku = baseSku("SKU-B", "TESTED", "cola_demo");
-        when(skuCatalogRepository.findById("SKU-B")).thenReturn(Optional.of(sku));
+        when(skuCatalogRepository.findByIdForUpdate("SKU-B")).thenReturn(Optional.of(sku));
         when(yoloRepository.existsById("cola_demo")).thenReturn(true);
         when(skuCatalogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -132,7 +142,7 @@ class SkuVisionEnrollmentServiceTest {
     @Test
     void advanceEnrollment_shouldRejectWhenAlreadyProduction() {
         SkuCatalog sku = baseSku("SKU-C", "PRODUCTION", "cola_demo");
-        when(skuCatalogRepository.findById("SKU-C")).thenReturn(Optional.of(sku));
+        when(skuCatalogRepository.findByIdForUpdate("SKU-C")).thenReturn(Optional.of(sku));
 
         assertThrows(ResponseStatusException.class, () -> service.advanceEnrollment(1L, "SKU-C"));
     }
@@ -140,7 +150,7 @@ class SkuVisionEnrollmentServiceTest {
     @Test
     void updateEnrollmentStatus_shouldRequireExistingMapping() {
         SkuCatalog sku = baseSku("SKU-D", "DRAFT", "missing_class");
-        when(skuCatalogRepository.findById("SKU-D")).thenReturn(Optional.of(sku));
+        when(skuCatalogRepository.findByIdForUpdate("SKU-D")).thenReturn(Optional.of(sku));
         when(yoloRepository.existsById("missing_class")).thenReturn(false);
 
         assertThrows(ResponseStatusException.class,

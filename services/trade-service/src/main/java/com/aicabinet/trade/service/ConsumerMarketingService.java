@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 @Service
 public class ConsumerMarketingService {
@@ -43,17 +44,20 @@ public class ConsumerMarketingService {
     private final CouponDefinitionMapper couponDefinitionRepository;
     private final UserCouponMapper userCouponRepository;
     private final CouponService couponService;
+    private final DistributedLockService distributedLockService;
 
     public ConsumerMarketingService(PromotionService promotionService,
                                     PromotionActivityMapper activityRepository,
                                     CouponDefinitionMapper couponDefinitionRepository,
                                     UserCouponMapper userCouponRepository,
-                                    CouponService couponService) {
+                                    CouponService couponService,
+                                    DistributedLockService distributedLockService) {
         this.promotionService = promotionService;
         this.activityRepository = activityRepository;
         this.couponDefinitionRepository = couponDefinitionRepository;
         this.userCouponRepository = userCouponRepository;
         this.couponService = couponService;
+        this.distributedLockService = distributedLockService;
     }
 
     public List<MarketingCampaignDto> activeCampaigns() {
@@ -65,7 +69,11 @@ public class ConsumerMarketingService {
         if (running.isEmpty()) {
             running = promotionService.listActive();
         }
-        return running.stream().map(p -> toCampaign(p, userId)).toList();
+        // POINTS 活动已下线（无领券能力），不进消费者「进行中」列表，避免展示「已下线」CTA。
+        return running.stream()
+                .filter(p -> p.activityType() == null || !"POINTS".equalsIgnoreCase(p.activityType()))
+                .map(p -> toCampaign(p, userId))
+                .toList();
     }
 
     public List<MarketingBannerDto> banners() {
@@ -104,7 +112,11 @@ public class ConsumerMarketingService {
         if (userId == null || userId <= 0) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
         }
-        PromotionActivity activity = activityRepository.findById(activityId)
+        return runWithCampaignClaimLock(userId, activityId, () -> doClaimCampaign(userId, activityId));
+    }
+
+    private CouponDto doClaimCampaign(Long userId, Long activityId) {
+        PromotionActivity activity = activityRepository.findByIdForUpdate(activityId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "活动不存在"));
         if (!"ACTIVE".equalsIgnoreCase(activity.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "活动未开始或已结束");
@@ -133,6 +145,26 @@ public class ConsumerMarketingService {
         return couponService.issueToUser(userId, def.getCouponDefId());
     }
 
+    static String campaignClaimLockKey(long userId, long activityId) {
+        return "marketing:claim:" + userId + ":" + activityId;
+    }
+
+    private <T> T runWithCampaignClaimLock(long userId, long activityId, Supplier<T> action) {
+        String lockKey = campaignClaimLockKey(userId, activityId);
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "领券处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
+    }
+
     private CouponDefinition resolveCouponDef(Long activityId) {
         return couponDefinitionRepository.findByActivityId(activityId).stream()
                 .filter(d -> "ACTIVE".equalsIgnoreCase(d.getStatus()))
@@ -143,10 +175,11 @@ public class ConsumerMarketingService {
     private MarketingCampaignDto toCampaign(PromotionActivityDto p, Long userId) {
         String type = p.activityType() != null ? p.activityType() : "DISCOUNT";
         String ctaPath = "/pages/coupons/coupons";
-        String ctaLabel = "去领券";
+        // 「去领券」易被理解成仅跳转券包；实际点击会发券，文案用「立即领取」。
+        String ctaLabel = "立即领取";
         Boolean claimed = null;
-        Boolean claimable = null;
-        if (!"POINTS".equalsIgnoreCase(type) && userId != null) {
+        Boolean claimable = true;
+        if (userId != null) {
             var defs = couponDefinitionRepository.findByActivityId(p.activityId());
             if (!defs.isEmpty()) {
                 Long defId = defs.get(0).getCouponDefId();
@@ -155,15 +188,12 @@ public class ConsumerMarketingService {
                 claimed = count >= limit;
                 claimable = !claimed;
                 if (Boolean.TRUE.equals(claimed)) {
-                    ctaLabel = "已领取";
+                    ctaLabel = "查看券包";
                 }
             } else {
                 claimable = false;
+                ctaLabel = "暂无可领";
             }
-        }
-        if ("POINTS".equalsIgnoreCase(type)) {
-            ctaLabel = "已下线";
-            claimable = false;
         }
         return new MarketingCampaignDto(
                 p.activityId(),

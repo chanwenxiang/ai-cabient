@@ -11,13 +11,16 @@ import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.payment.AlipayPayClient;
 import com.aicabinet.trade.payment.WeChatPayClient;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.util.BizIds;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,8 +43,11 @@ public class OrderPaymentService {
     private final WeChatPayProperties weChatPayProperties;
     private final SecurityProperties securityProperties;
     private final PaymentOperationMapper paymentOperationRepository;
+    private final CabinetOrderMapper cabinetOrderRepository;
+    private final DistributedLockService distributedLockService;
     private final ShoppingSessionMapper sessionRepository;
     private final ConsumerPreauthService consumerPreauthService;
+    private final MemberService memberService;
 
     public OrderPaymentService(UserInfoMapper userInfoRepository,
                                PayScoreService payScoreService,
@@ -50,10 +56,13 @@ public class OrderPaymentService {
                                WeChatPayProperties weChatPayProperties,
                                SecurityProperties securityProperties,
                                PaymentOperationMapper paymentOperationRepository,
+                               CabinetOrderMapper cabinetOrderRepository,
+                               DistributedLockService distributedLockService,
                                BalanceLedgerService balanceLedgerService,
                                CheckoutProperties checkoutProperties,
                                ShoppingSessionMapper sessionRepository,
-                               ConsumerPreauthService consumerPreauthService) {
+                               ConsumerPreauthService consumerPreauthService,
+                               @Lazy MemberService memberService) {
         this.userInfoRepository = userInfoRepository;
         this.payScoreService = payScoreService;
         this.weChatPayClient = weChatPayClient;
@@ -61,10 +70,13 @@ public class OrderPaymentService {
         this.weChatPayProperties = weChatPayProperties;
         this.securityProperties = securityProperties;
         this.paymentOperationRepository = paymentOperationRepository;
+        this.cabinetOrderRepository = cabinetOrderRepository;
+        this.distributedLockService = distributedLockService;
         this.balanceLedgerService = balanceLedgerService;
         this.checkoutProperties = checkoutProperties;
         this.sessionRepository = sessionRepository;
         this.consumerPreauthService = consumerPreauthService;
+        this.memberService = memberService;
     }
 
     @Transactional
@@ -73,16 +85,25 @@ public class OrderPaymentService {
             order.setPayChannel(PayChannels.BALANCE);
             return;
         }
-        // 零元单（未取货 / 券全额抵扣）不走账本，避免 delta=0 被拒
         if (order.getTotalAmountCents() <= 0) {
             order.setPayChannel(PayChannels.BALANCE);
             releaseSessionPreauth(order);
             return;
         }
+        runWithOrderPaymentLock(order.getOrderId(), locked -> {
+            chargeOrderUnderLock(locked);
+            cabinetOrderRepository.updateById(locked);
+            syncPaymentFields(order, locked);
+        });
+    }
+
+    private void chargeOrderUnderLock(CabinetOrder order) {
         String idemKey = "CHARGE:" + order.getOrderId() + ":" + order.getTotalAmountCents();
         if (isCompleted(idemKey)) {
             order.setPayChannel(paymentOperationRepository.findByIdempotencyKey(idemKey)
                     .map(PaymentOperation::getChannel).orElse(PayChannels.BALANCE));
+            ensurePayTradeNo(order);
+            ensurePaymentOperationId(order);
             return;
         }
         UserInfo user = userInfoRepository.findById(order.getUserId())
@@ -115,8 +136,18 @@ public class OrderPaymentService {
         }
 
         int remainDebit = order.getTotalAmountCents();
+        int capturedViaPreauth = 0;
         if (session != null) {
-            remainDebit = consumerPreauthService.captureForCharge(session, order.getTotalAmountCents());
+            int orderAmount = order.getTotalAmountCents();
+            remainDebit = consumerPreauthService.captureForCharge(session, orderAmount);
+            capturedViaPreauth = Math.max(0, orderAmount - remainDebit);
+        }
+        if (capturedViaPreauth > 0 && remainDebit > 0) {
+            String preauthChargeKey = "CHARGE:PREAUTH:" + order.getOrderId() + ":" + order.getTotalAmountCents();
+            if (!isCompleted(preauthChargeKey)) {
+                recordOperation(order, "CHARGE", capturedViaPreauth, PayChannels.BALANCE, preauthChargeKey,
+                        null, "order charge via preauth capture");
+            }
         }
         if (remainDebit > 0) {
             var operation = balanceLedgerService.change(order.getUserId(), -remainDebit, "CHARGE",
@@ -132,6 +163,12 @@ public class OrderPaymentService {
             }
         }
         order.setPayChannel(PayChannels.BALANCE);
+        ensurePaymentOperationId(order);
+    }
+
+    /** 订单已完成支付流水的净入账（分），供争议免单等场景使用。 */
+    public int netCompletedCents(String orderId) {
+        return paymentOperationRepository.netCompletedCents(orderId);
     }
 
     private void releaseSessionPreauth(CabinetOrder order) {
@@ -146,11 +183,17 @@ public class OrderPaymentService {
         if (deltaCents == 0 || order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
             return;
         }
-        if (deltaCents > 0) {
-            chargeDelta(order, deltaCents);
-        } else {
-            refundAmount(order, -deltaCents, "争议改单退差");
-        }
+        runWithOrderPaymentLock(order.getOrderId(), locked -> {
+            if (deltaCents > 0) {
+                chargeDelta(locked, deltaCents);
+            } else {
+                refundAmount(locked, -deltaCents, "争议改单退差");
+                locked.setRefundedCents(Math.max(0, locked.getRefundedCents()) + (-deltaCents));
+                locked.setRefundedAt(Instant.now());
+                cabinetOrderRepository.updateById(locked);
+            }
+            syncPaymentFields(order, locked);
+        });
     }
 
     @Transactional
@@ -158,8 +201,25 @@ public class OrderPaymentService {
         if (amountCents <= 0 || order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
             return;
         }
-        refundAmount(order, amountCents, reason);
-        order.setRefundedAt(Instant.now());
+        runWithOrderPaymentLock(order.getOrderId(), locked -> {
+            int netCharged = paymentOperationRepository.netCompletedCents(locked.getOrderId());
+            if (netCharged <= 0) {
+                log.warn("skip refund without prior charge order={} requested={}", locked.getOrderId(), amountCents);
+                return;
+            }
+            int refundCents = Math.min(amountCents, netCharged);
+            refundAmount(locked, refundCents, reason);
+            try {
+                memberService.clawbackPointsOnRefund(locked.getUserId(), refundCents,
+                        locked.getOrderId(), "REFUND:" + locked.getOrderId() + ":" + refundCents);
+            } catch (Exception e) {
+                log.warn("points clawback failed order={} amount={}", locked.getOrderId(), refundCents, e);
+            }
+            locked.setRefundedAt(Instant.now());
+            locked.setRefundedCents(Math.max(0, locked.getRefundedCents()) + refundCents);
+            cabinetOrderRepository.updateById(locked);
+            syncPaymentFields(order, locked);
+        });
     }
 
     private void chargeDelta(CabinetOrder order, int deltaCents) {
@@ -201,7 +261,12 @@ public class OrderPaymentService {
     }
 
     private void refundWeChat(CabinetOrder order, int amountCents, String reason, String idemKey) {
-        if (weChatPayProperties.isConfigured() && order.getPayTradeNo() != null) {
+        if (weChatPayProperties.isConfigured()) {
+            ensurePayTradeNo(order);
+            if (order.getPayTradeNo() == null || order.getPayTradeNo().isBlank()) {
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                        "缺少微信支付交易号，无法原路退款");
+            }
             String outRefundNo = deterministicRefundNo(idemKey);
             // 微信退款 total 必须是原支付单金额；改单后 order.total 可能已变，不能直接用
             int totalCents = resolveOriginalChargeTotalCents(order, amountCents);
@@ -212,19 +277,24 @@ public class OrderPaymentService {
             return;
         }
         if (securityProperties.mockEnabled()) {
-            recordOperation(order, "REFUND", amountCents, PayChannels.WECHAT, idemKey, null, reason);
-            // Mock 支付分未真实扣款时，退款记入余额，保证争议免单/退差在演示链路可见。
+            // Mock 支付分未真实扣款时，退款记入余额（balanceLedgerService 已写 payment_operation）
             balanceLedgerService.change(order.getUserId(), amountCents, "REFUND",
-                    order.getOrderId(), idemKey + ":wallet", reasonOrDefault(reason) + "（模拟支付退回余额）");
+                    order.getOrderId(), idemKey, reasonOrDefault(reason) + "（模拟支付退回余额）");
+            recordOperation(order, "REFUND", amountCents, PayChannels.WECHAT, idemKey, null,
+                    reasonOrDefault(reason) + "（模拟支付退回余额）");
             log.info("wechat mock order refund order={} amount={} credited to wallet", order.getOrderId(), amountCents);
             return;
         }
-        balanceLedgerService.change(order.getUserId(), amountCents, "REFUND",
-                order.getOrderId(), idemKey, reason);
+        throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ApiMessages.WECHAT_PAY_NOT_CONFIGURED);
     }
 
     private void refundAlipay(CabinetOrder order, int amountCents, String reason, String idemKey) {
         if (alipayPayClient.isConfigured()) {
+            ensurePayTradeNo(order);
+            if (order.getPayTradeNo() == null || order.getPayTradeNo().isBlank()) {
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                        "缺少支付宝交易号，无法原路退款");
+            }
             String outRefundNo = deterministicRefundNo(idemKey);
             alipayPayClient.refund(order.getOrderId(), outRefundNo, amountCents, reasonOrDefault(reason));
             recordOperation(order, "REFUND", amountCents, PayChannels.ALIPAY, idemKey, outRefundNo, reason);
@@ -232,14 +302,14 @@ public class OrderPaymentService {
             return;
         }
         if (securityProperties.mockEnabled()) {
-            recordOperation(order, "REFUND", amountCents, PayChannels.ALIPAY, idemKey, null, reason);
             balanceLedgerService.change(order.getUserId(), amountCents, "REFUND",
-                    order.getOrderId(), idemKey + ":wallet", reasonOrDefault(reason) + "（模拟支付退回余额）");
+                    order.getOrderId(), idemKey, reasonOrDefault(reason) + "（模拟支付退回余额）");
+            recordOperation(order, "REFUND", amountCents, PayChannels.ALIPAY, idemKey, null,
+                    reasonOrDefault(reason) + "（模拟支付退回余额）");
             log.info("alipay mock order refund order={} amount={} credited to wallet", order.getOrderId(), amountCents);
             return;
         }
-        balanceLedgerService.change(order.getUserId(), amountCents, "REFUND",
-                order.getOrderId(), idemKey, reason);
+        throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ApiMessages.ALIPAY_PAY_NOT_CONFIGURED);
     }
 
     private static String reasonOrDefault(String reason) {
@@ -258,7 +328,7 @@ public class OrderPaymentService {
             return;
         }
         PaymentOperation op = new PaymentOperation();
-        op.setOperationId(type + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase());
+        op.setOperationId(resolveOperationId(type, channel));
         op.setOrderId(order.getOrderId());
         op.setOperationType(type);
         op.setAmountCents(amountCents);
@@ -280,6 +350,99 @@ public class OrderPaymentService {
             return "DEFAULT";
         }
         return Integer.toUnsignedString(reason.hashCode(), 36).toUpperCase();
+    }
+
+    private static String resolveOperationId(String type, String channel) {
+        if (PayChannels.BALANCE.equalsIgnoreCase(channel)) {
+            return BizIds.nextNumeric();
+        }
+        return type + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase();
+    }
+
+    /**
+     * Legacy 订单可能未写入 payment_operation_id，但 CHARGE 流水已落库。
+     */
+    private void ensurePaymentOperationId(CabinetOrder order) {
+        if (order.getPaymentOperationId() != null && !order.getPaymentOperationId().isBlank()) {
+            return;
+        }
+        paymentOperationRepository.findLatestChargeOperationId(order.getOrderId())
+                .ifPresent(opId -> {
+                    int updated = cabinetOrderRepository.backfillPaymentOperationIdIfAbsent(order.getOrderId(), opId);
+                    if (updated > 0) {
+                        order.setPaymentOperationId(opId);
+                        log.info("backfilled paymentOperationId order={} opId={}", order.getOrderId(), opId);
+                    } else {
+                        cabinetOrderRepository.findById(order.getOrderId())
+                                .map(CabinetOrder::getPaymentOperationId)
+                                .filter(s -> s != null && !s.isBlank())
+                                .ifPresent(order::setPaymentOperationId);
+                    }
+                });
+    }
+
+    /**
+     * Legacy 订单可能未写入 pay_trade_no，但 CHARGE 流水已记录 gateway_trade_no。
+     * 退款前回填并持久化，避免 OPS-02 误拒。
+     */
+    private void ensurePayTradeNo(CabinetOrder order) {
+        if (order.getPayTradeNo() != null && !order.getPayTradeNo().isBlank()) {
+            return;
+        }
+        String channel = order.getPayChannel();
+        if (channel == null || channel.isBlank()) {
+            return;
+        }
+        paymentOperationRepository.findLatestGatewayTradeNoForCharge(order.getOrderId(), channel)
+                .ifPresent(tradeNo -> {
+                    int updated = cabinetOrderRepository.backfillPayTradeNoIfAbsent(order.getOrderId(), tradeNo);
+                    if (updated > 0) {
+                        order.setPayTradeNo(tradeNo);
+                        log.info("backfilled payTradeNo order={} channel={} tradeNo={}",
+                                order.getOrderId(), channel, tradeNo);
+                    } else {
+                        cabinetOrderRepository.findById(order.getOrderId())
+                                .map(CabinetOrder::getPayTradeNo)
+                                .filter(s -> s != null && !s.isBlank())
+                                .ifPresent(order::setPayTradeNo);
+                    }
+                });
+    }
+
+    static String orderPaymentLockKey(String orderId) {
+        return "order:payment:" + orderId;
+    }
+
+    @FunctionalInterface
+    private interface LockedOrderConsumer {
+        void accept(CabinetOrder locked) throws Exception;
+    }
+
+    private void runWithOrderPaymentLock(String orderId, LockedOrderConsumer action) {
+        if (!distributedLockService.tryLock(orderPaymentLockKey(orderId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单支付处理中，请稍后重试");
+        }
+        try {
+            CabinetOrder locked = cabinetOrderRepository.findByIdForUpdate(orderId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+            action.accept(locked);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(orderPaymentLockKey(orderId));
+        }
+    }
+
+    private static void syncPaymentFields(CabinetOrder target, CabinetOrder locked) {
+        target.setPayChannel(locked.getPayChannel());
+        target.setPayTradeNo(locked.getPayTradeNo());
+        target.setPaymentOperationId(locked.getPaymentOperationId());
+        target.setBalanceBeforeCents(locked.getBalanceBeforeCents());
+        target.setBalanceAfterCents(locked.getBalanceAfterCents());
+        target.setRefundedCents(locked.getRefundedCents());
+        target.setRefundedAt(locked.getRefundedAt());
     }
 
     /**

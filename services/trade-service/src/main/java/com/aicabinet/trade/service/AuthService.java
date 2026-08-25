@@ -12,8 +12,10 @@ import com.aicabinet.trade.auth.LoginThrottleService;
 import com.aicabinet.trade.config.AuthProperties;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
+import com.aicabinet.trade.domain.PhoneVerifyLog;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
+import com.aicabinet.trade.mapper.PhoneVerifyLogMapper;
 import com.aicabinet.trade.payment.AlipayOauthClient;
 import com.aicabinet.trade.sms.SmsCodeService;
 import com.aicabinet.trade.support.ApiMessages;
@@ -25,6 +27,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.function.Supplier;
 
 @Service
 public class AuthService {
@@ -40,6 +44,8 @@ public class AuthService {
     private final ServerBootMarker serverBootMarker;
     private final AuthProperties authProperties;
     private final LoginThrottleService loginThrottleService;
+    private final PhoneVerifyLogMapper phoneVerifyLogMapper;
+    private final DistributedLockService distributedLockService;
 
     public AuthService(UserInfoMapper userInfoRepository,
                        UserAccountMapper userAccountRepository,
@@ -51,7 +57,9 @@ public class AuthService {
                        PasswordEncoder passwordEncoder,
                        ServerBootMarker serverBootMarker,
                        AuthProperties authProperties,
-                       LoginThrottleService loginThrottleService) {
+                       LoginThrottleService loginThrottleService,
+                       PhoneVerifyLogMapper phoneVerifyLogMapper,
+                       DistributedLockService distributedLockService) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.jwtService = jwtService;
@@ -63,6 +71,8 @@ public class AuthService {
         this.serverBootMarker = serverBootMarker;
         this.authProperties = authProperties;
         this.loginThrottleService = loginThrottleService;
+        this.phoneVerifyLogMapper = phoneVerifyLogMapper;
+        this.distributedLockService = distributedLockService;
     }
 
     public void sendSmsCode(String phoneNumber) {
@@ -86,6 +96,7 @@ public class AuthService {
             throwLockedOr(phone, ApiMessages.INVALID_CODE);
         }
         loginThrottleService.clearFailures(phone);
+        auditPhoneVerify(user.getUserId(), phone, "SMS");
         return tokenFor(user);
     }
 
@@ -112,10 +123,30 @@ public class AuthService {
 
     @Transactional
     public LoginResponse adminLoginByPassword(PasswordLoginRequest request) {
-        LoginResponse response = loginByPassword(request);
-        requireOperator(response.userId());
-        requireActiveAccount(response.userId());
-        return response;
+        String phone = normalizePhone(request.phoneNumber());
+        if (!phone.matches("1\\d{10}")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
+        }
+        UserInfo user = requireExistingUser(phone);
+        verifyPassword(user, request.password());
+        requireOperator(user.getUserId());
+        requireActiveAccount(user.getUserId());
+        loginThrottleService.clearFailures(phone);
+        if (user.isTotpEnabled()) {
+            String challenge = jwtService.createTwoFactorChallengeToken(user.getUserId());
+            return new LoginResponse(challenge, user.getUserId(), 300L,
+                    serverBootMarker.epochMillis(), authProperties.cookieEnabled(), true);
+        }
+        return tokenFor(user);
+    }
+
+    /** 2FA 校验通过后完成登录：不重新验证密码，仅确认账号可用并签发正式 token。 */
+    @Transactional
+    public LoginResponse finalizeTwoFactorLogin(Long userId) {
+        requireActiveAccount(userId);
+        UserInfo user = userInfoRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        return tokenFor(user);
     }
 
     /** 运营后台忘记密码：短信验证码 + 图形验证码校验后重置。 */
@@ -135,8 +166,14 @@ public class AuthService {
         if (!smsCodeService.verifyCode(phone, request.smsCode())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_CODE);
         }
-        user.setPasswordHash(passwordEncoder.encode(newPassword));
-        userInfoRepository.save(user);
+        runWithUserAccountLock(user.getUserId(), () -> {
+            UserInfo locked = userInfoRepository.findByIdForUpdate(user.getUserId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+            locked.setPasswordHash(passwordEncoder.encode(newPassword));
+            userInfoRepository.save(locked);
+            auditPhoneVerify(locked.getUserId(), phone, "SMS_RESET");
+            return null;
+        });
     }
 
     /** 微信小程序 wx.login：已绑定 openId 直接登录；否则自动建档（竞品扫码免注册） */
@@ -153,36 +190,45 @@ public class AuthService {
         return loginOrCreateByOpenId(session.openId(), phoneNumber);
     }
 
-    private LoginResponse loginOrCreateByOpenId(String openId, String phoneNumber) {
-        var byOpenId = userInfoRepository.findByWxOpenId(openId);
-        if (byOpenId.isPresent()) {
-            return tokenFor(byOpenId.get());
-        }
-        String phone = phoneNumber != null ? normalizePhone(phoneNumber) : "";
-        if (!phone.isBlank()) {
-            if (!phone.matches("1\\d{10}")) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
-            }
-            UserInfo user = requireExistingUser(phone);
-            user.setWxOpenId(openId);
-            userInfoRepository.save(user);
-            return tokenFor(user);
-        }
-        return tokenFor(createWxConsumer(openId));
-    }
-
-    /** 支付宝 H5 授权：已绑定 user_id 直接登录；否则自动建档 */
     @Transactional
     public LoginResponse alipayLogin(AlipayLoginRequest request) {
         String alipayUserId = alipayOauthClient.resolveUserId(request.authCode());
-        var byAlipay = userInfoRepository.findByAlipayUserId(alipayUserId);
-        if (byAlipay.isPresent()) {
-            return tokenFor(byAlipay.get());
-        }
-        return tokenFor(createAlipayConsumer(alipayUserId));
+        return runWithAlipayUserLock(alipayUserId, () -> {
+            var byAlipay = userInfoRepository.findByAlipayUserId(alipayUserId);
+            if (byAlipay.isPresent()) {
+                return tokenFor(byAlipay.get());
+            }
+            return tokenFor(createAlipayConsumer(alipayUserId));
+        });
+    }
+
+    private LoginResponse loginOrCreateByOpenId(String openId, String phoneNumber) {
+        return runWithWxOpenIdLock(openId, () -> {
+            var byOpenId = userInfoRepository.findByWxOpenId(openId);
+            if (byOpenId.isPresent()) {
+                return tokenFor(byOpenId.get());
+            }
+            String phone = phoneNumber != null ? normalizePhone(phoneNumber) : "";
+            if (!phone.isBlank()) {
+                if (!phone.matches("1\\d{10}")) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
+                }
+                UserInfo user = requireExistingUser(phone);
+                UserInfo locked = userInfoRepository.findByIdForUpdate(user.getUserId())
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+                locked.setWxOpenId(openId);
+                userInfoRepository.save(locked);
+                return tokenFor(locked);
+            }
+            return tokenFor(createWxConsumer(openId));
+        });
     }
 
     private UserInfo createWxConsumer(String openId) {
+        var existing = userInfoRepository.findByWxOpenId(openId);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
         Long userId = userInfoRepository.nextConsumerUserId(CabinetConstants.OPERATOR_USER_ID_START);
         UserInfo user = new UserInfo();
         user.setUserId(userId);
@@ -200,6 +246,10 @@ public class AuthService {
     }
 
     private UserInfo createAlipayConsumer(String alipayUserId) {
+        var existing = userInfoRepository.findByAlipayUserId(alipayUserId);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
         Long userId = userInfoRepository.nextConsumerUserId(CabinetConstants.OPERATOR_USER_ID_START);
         UserInfo user = new UserInfo();
         user.setUserId(userId);
@@ -257,7 +307,20 @@ public class AuthService {
     private LoginResponse tokenFor(UserInfo user) {
         String token = jwtService.createToken(user.getUserId());
         return new LoginResponse(token, user.getUserId(), jwtService.getExpirationSeconds(),
-                serverBootMarker.epochMillis(), authProperties.cookieEnabled());
+                serverBootMarker.epochMillis(), authProperties.cookieEnabled(), false);
+    }
+
+    private void auditPhoneVerify(Long userId, String phone, String channel) {
+        try {
+            PhoneVerifyLog log = new PhoneVerifyLog();
+            log.setUserId(userId);
+            log.setPhone(phone);
+            log.setChannel(channel);
+            log.setVerifiedAt(java.time.Instant.now());
+            phoneVerifyLogMapper.insert(log);
+        } catch (Exception ignored) {
+            // 审计失败不阻断登录
+        }
     }
 
     public long currentServerBootEpoch() {
@@ -284,5 +347,40 @@ public class AuthService {
             return "";
         }
         return code.trim();
+    }
+
+    static String wxOpenIdLockKey(String openId) {
+        return "auth:wx-openid:" + openId;
+    }
+
+    static String alipayUserLockKey(String alipayUserId) {
+        return "auth:alipay:" + alipayUserId;
+    }
+
+    private <T> T runWithWxOpenIdLock(String openId, Supplier<T> action) {
+        return runWithLock(wxOpenIdLockKey(openId), "登录处理中，请稍后重试", action);
+    }
+
+    private <T> T runWithAlipayUserLock(String alipayUserId, Supplier<T> action) {
+        return runWithLock(alipayUserLockKey(alipayUserId), "登录处理中，请稍后重试", action);
+    }
+
+    private <T> T runWithUserAccountLock(long userId, Supplier<T> action) {
+        return runWithLock(AccountService.userAccountLockKey(userId), "账号处理中，请稍后重试", action);
+    }
+
+    private <T> T runWithLock(String lockKey, String busyMessage, Supplier<T> action) {
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, busyMessage);
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
     }
 }

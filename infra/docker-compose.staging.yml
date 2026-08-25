@@ -22,8 +22,8 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: staging
       AICABINET_STAGING_MODE: "true"
-      AICABINET_SECURITY_MOCK_ENABLED: "false"
       AICABINET_MOCK_ENABLED: "false"
+      AICABINET_SECURITY_MOCK_ENABLED: "false"
       CHECKOUT_BALANCE_ONLY: ${CHECKOUT_BALANCE_ONLY:-true}
       RECON_MOCK_ENABLED: ${RECON_MOCK_ENABLED:-true}
       SMS_WEBHOOK_URL: http://sms-webhook-mock:8099/send

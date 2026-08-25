@@ -7,10 +7,13 @@ import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.CabinetOrderLine;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.DisputeTicket;
+import com.aicabinet.trade.domain.Member;
 import com.aicabinet.trade.domain.RechargeOrder;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.SkuCatalog;
+import com.aicabinet.trade.domain.AliyunCategoryMapping;
+import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.storage.MinioVideoService;
@@ -91,6 +94,11 @@ public class AdminDashboardService {
     private final BalanceLedgerService balanceLedgerService;
     private final RefundPolicyService refundPolicyService;
     private final OpsExceptionMapper exceptionRepository;
+    private final FileAttachmentService fileAttachmentService;
+    private final MemberMapper memberRepository;
+    private final UserBlacklistMapper blacklistRepository;
+    private final DistributedLockService distributedLockService;
+    private final AliyunCategoryMappingMapper aliyunCategoryMappingRepository;
 
     public AdminDashboardService(DeviceInfoMapper deviceRepository,
                                  ShoppingSessionMapper sessionRepository,
@@ -120,7 +128,12 @@ public class AdminDashboardService {
                                  WarehouseInTransitMapper inTransitRepository,
                                  BalanceLedgerService balanceLedgerService,
                                  RefundPolicyService refundPolicyService,
-                                 OpsExceptionMapper exceptionRepository) {
+                                 OpsExceptionMapper exceptionRepository,
+                                 FileAttachmentService fileAttachmentService,
+                                 MemberMapper memberRepository,
+                                 UserBlacklistMapper blacklistRepository,
+                                 DistributedLockService distributedLockService,
+                                 AliyunCategoryMappingMapper aliyunCategoryMappingRepository) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -150,6 +163,11 @@ public class AdminDashboardService {
         this.balanceLedgerService = balanceLedgerService;
         this.refundPolicyService = refundPolicyService;
         this.exceptionRepository = exceptionRepository;
+        this.fileAttachmentService = fileAttachmentService;
+        this.memberRepository = memberRepository;
+        this.blacklistRepository = blacklistRepository;
+        this.distributedLockService = distributedLockService;
+        this.aliyunCategoryMappingRepository = aliyunCategoryMappingRepository;
     }
 
     @Transactional(readOnly = true)
@@ -942,8 +960,19 @@ public class AdminDashboardService {
                 minUserId,
                 maxUserId,
                 pageable);
+        List<Long> userIds = result.getContent().stream().map(UserInfo::getUserId).toList();
+        Map<Long, Member> memberByUser = memberRepository.findByUserIds(userIds).stream()
+                .collect(Collectors.toMap(Member::getUserId, m -> m, (a, b) -> a));
+        Set<Long> blacklistedUsers = blacklistRepository.findActiveUserIds(userIds);
+        Map<Long, Integer> balanceByUser = userAccountRepository.findByUserIds(userIds).stream()
+                .collect(Collectors.toMap(UserAccount::getUserId, UserAccount::getBalanceCents, (a, b) -> a));
         return new PageResult<>(
-                result.getContent().stream().map(this::toUserDto).toList(),
+                result.getContent().stream()
+                        .map(u -> toUserDto(u,
+                                balanceByUser.getOrDefault(u.getUserId(), 0),
+                                memberByUser.get(u.getUserId()),
+                                blacklistedUsers.contains(u.getUserId())))
+                        .toList(),
                 result.getNumber(),
                 result.getSize(),
                 result.getTotalElements()
@@ -1000,6 +1029,7 @@ public class AdminDashboardService {
         sku.setSkuId(skuId);
         sku.setSkuCode(code);
         applySkuRequest(sku, request);
+        syncSkuCategoryId(sku);
         touchSkuUpdater(sku, operatorId);
         if (sku.getCreatedAt() == null) {
             sku.setCreatedAt(Instant.now());
@@ -1015,12 +1045,19 @@ public class AdminDashboardService {
         permissionService.requirePermission(operatorId, "ops:sku:edit");
         SkuCatalog sku = skuCatalogRepository.findById(skuId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SKU_NOT_FOUND));
+        String oldImageUrl = sku.getImageUrl();
         String barcode = trimToNull(request.barcode());
         assertBarcodeUnique(barcode, skuId);
         assertSkuNameUnique(request.skuName(), skuId);
         applySkuRequest(sku, request);
+        syncSkuCategoryId(sku);
         touchSkuUpdater(sku, operatorId);
         skuCatalogRepository.save(sku);
+        String newImageUrl = trimToNull(request.imageUrl());
+        if (oldImageUrl != null && !oldImageUrl.equals(newImageUrl)) {
+            // 主图被替换/清空时释放旧图（无引用则删除对象），避免孤儿文件堆积
+            fileAttachmentService.releaseSkuImageIfUnused(oldImageUrl, operatorId);
+        }
         auditService.record(operatorId, "SKU_UPDATE", "SKU", sku.getSkuId(),
                 "code=" + sku.getSkuCode() + " " + sku.getSkuName() + " price=" + sku.getPriceCents());
         return sku.toDto();
@@ -1088,6 +1125,19 @@ public class AdminDashboardService {
             name = phone != null && !phone.isBlank() ? phone : ("账号 " + operatorId);
         }
         sku.setUpdatedByName(name);
+    }
+
+    private void syncSkuCategoryId(SkuCatalog sku) {
+        String category = sku.getCategory();
+        if (category == null || category.isBlank()) {
+            sku.setCategoryId(null);
+            return;
+        }
+        AliyunCategoryMapping mapping = aliyunCategoryMappingRepository.selectOne(
+                Wrappers.<AliyunCategoryMapping>lambdaQuery()
+                        .eq(AliyunCategoryMapping::getCategoryName, category.trim())
+                        .last("LIMIT 1"));
+        sku.setCategoryId(mapping != null ? mapping.getCategoryId() : null);
     }
 
     private static String trimToNull(String value) {
@@ -1271,8 +1321,9 @@ public class AdminDashboardService {
         Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(orderIds);
         Map<String, List<CabinetOrderLine>> linesByOrder = loadOrderLinesByOrderIds(orderIds);
         StringBuilder sb = new StringBuilder(
-                "orderId,sessionId,userId,deviceId,totalAmountCents,status,payChannel,payTradeNo,paymentOperationId,"
-                        + "lineCount,lineSummary,inventoryDeducted,couponDiscountCents,refundedAt,createdAt\n");
+                "orderId,sessionId,userId,deviceId,merchantId,totalAmountCents,originalAmountCents,status,payChannel,"
+                        + "payTradeNo,paymentOperationId,lineCount,lineSummary,inventoryDeducted,"
+                        + "couponDiscountCents,memberDiscountCents,refundPolicy,refundedAt,createdAt\n");
         for (CabinetOrder o : page.getContent()) {
             AdminOrderSummaryDto row = toOrderSummary(
                     o,
@@ -1282,7 +1333,9 @@ public class AdminDashboardService {
                     .append(csv(row.sessionId())).append(',')
                     .append(row.userId()).append(',')
                     .append(csv(row.deviceId())).append(',')
+                    .append(csv(row.merchantId())).append(',')
                     .append(row.totalAmountCents()).append(',')
+                    .append(row.originalAmountCents()).append(',')
                     .append(csv(row.status())).append(',')
                     .append(csv(row.payChannel())).append(',')
                     .append(csv(row.payTradeNo())).append(',')
@@ -1291,6 +1344,8 @@ public class AdminDashboardService {
                     .append(csv(row.lineSummary())).append(',')
                     .append(row.inventoryDeducted()).append(',')
                     .append(row.couponDiscountCents()).append(',')
+                    .append(row.memberDiscountCents()).append(',')
+                    .append(csv(row.refundPolicy())).append(',')
                     .append(csv(row.refundedAt() == null ? "" : String.valueOf(row.refundedAt()))).append(',')
                     .append(csv(String.valueOf(row.createdAt()))).append('\n');
         }
@@ -1314,16 +1369,23 @@ public class AdminDashboardService {
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<ShoppingSession> page = querySessions(
                 operatorId, deviceId, state, sessionId, userId, from, to, keyword, pageable);
-        StringBuilder sb = new StringBuilder("sessionId,userId,deviceId,state,orderId,openTime,closeTime,createdAt\n");
+        StringBuilder sb = new StringBuilder(
+                "sessionId,userId,deviceId,state,sessionKind,entryChannel,orderId,uploadStatus,failReason,"
+                        + "openTime,closeTime,createdAt,updatedAt\n");
         for (ShoppingSession s : page.getContent()) {
             sb.append(csv(s.getSessionId())).append(',')
                     .append(s.getUserId()).append(',')
                     .append(csv(s.getDeviceId())).append(',')
                     .append(s.getState()).append(',')
+                    .append(csv(DeviceValidationService.sessionKind(s))).append(',')
+                    .append(csv(s.getEntryChannel())).append(',')
                     .append(csv(s.getOrderId())).append(',')
+                    .append(csv(s.getUploadStatus())).append(',')
+                    .append(csv(s.getFailReason())).append(',')
                     .append(csv(String.valueOf(s.getOpenTime()))).append(',')
                     .append(csv(String.valueOf(s.getCloseTime()))).append(',')
-                    .append(csv(String.valueOf(s.getCreatedAt()))).append('\n');
+                    .append(csv(String.valueOf(s.getCreatedAt()))).append(',')
+                    .append(csv(String.valueOf(s.getUpdatedAt()))).append('\n');
         }
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
@@ -1468,14 +1530,35 @@ public class AdminDashboardService {
         if (userId >= CabinetConstants.OPERATOR_USER_ID_START) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.CANNOT_ADJUST_OPERATOR_BALANCE);
         }
-        UserInfo user = userInfoRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
-        var ledger = balanceLedgerService.change(userId, request.deltaCents(), "ADMIN_ADJUST",
-                "ADMIN-" + userId, "ADMIN:" + request.idempotencyKey().trim(), request.reason());
-        auditService.record(operatorId, "BALANCE_ADJUST", "USER", String.valueOf(userId),
-                "delta=" + request.deltaCents() + " balance=" + ledger.getBalanceAfterCents()
-                        + " reason=" + request.reason().trim());
-        return toUserDto(user);
+        return runWithUserBalanceLock(userId, () -> {
+            UserInfo user = userInfoRepository.findById(userId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+            var ledger = balanceLedgerService.change(userId, request.deltaCents(), "ADMIN_ADJUST",
+                    "ADMIN-" + userId, "ADMIN:" + request.idempotencyKey().trim(), request.reason());
+            auditService.record(operatorId, "BALANCE_ADJUST", "USER", String.valueOf(userId),
+                    "delta=" + request.deltaCents() + " balance=" + ledger.getBalanceAfterCents()
+                            + " reason=" + request.reason().trim());
+            return toUserDto(user);
+        });
+    }
+
+    static String userBalanceLockKey(long userId) {
+        return "user:balance:" + userId;
+    }
+
+    private <T> T runWithUserBalanceLock(long userId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(userBalanceLockKey(userId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "余额处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(userBalanceLockKey(userId));
+        }
     }
 
     @Transactional
@@ -1573,11 +1656,28 @@ public class AdminDashboardService {
     private AdminUserDto toUserDto(UserInfo u) {
         int balance = userAccountRepository.findById(u.getUserId())
                 .map(a -> a.getBalanceCents()).orElse(0);
+        Member member = memberRepository.findByUserId(u.getUserId()).orElse(null);
+        boolean blacklisted = blacklistRepository.findActiveByUserId(u.getUserId()).isPresent();
+        return toUserDto(u, balance, member, blacklisted);
+    }
+
+    private AdminUserDto toUserDto(UserInfo u, int balance, Member member, boolean blacklisted) {
         String role = u.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START ? "OPERATOR" : "CONSUMER";
         return new AdminUserDto(
-                u.getUserId(), u.getPhoneNumber(), u.getName(), u.isVerified(),
-                balance, role, u.getCreatedAt()
+                u.getUserId(), u.getPhoneNumber(), resolveUserDisplayName(u), u.isVerified(),
+                balance, role, u.getCreatedAt(),
+                member != null ? member.getMemberLevel() : "NORMAL",
+                member != null && member.getAvailablePoints() != null ? member.getAvailablePoints() : 0,
+                blacklisted
         );
+    }
+
+    /** 列表展示名：优先实名/昵称，空则留 null 由前端显示「暂无」。 */
+    private static String resolveUserDisplayName(UserInfo u) {
+        if (u.getName() != null && !u.getName().isBlank()) {
+            return u.getName().trim();
+        }
+        return null;
     }
 
     private static String csv(String value) {
@@ -1588,10 +1688,6 @@ public class AdminDashboardService {
             return "\"" + value.replace("\"", "\"\"") + "\"";
         }
         return value;
-    }
-
-    private Page<ShoppingSession> querySessions(Long operatorId, String deviceId, SessionState state, Pageable pageable) {
-        return querySessions(operatorId, deviceId, state, null, null, null, null, null, pageable);
     }
 
     private Page<ShoppingSession> querySessions(
@@ -1620,12 +1716,6 @@ public class AdminDashboardService {
                 to,
                 blankToNull(keyword),
                 pageable);
-    }
-
-    private Page<CabinetOrder> queryOrders(
-            Long operatorId, String deviceId, String status, Pageable pageable) {
-        return queryOrders(operatorId, deviceId, status, null, null, null,
-                null, null, null, null, null, null, pageable);
     }
 
     private Page<CabinetOrder> queryOrders(
@@ -1796,6 +1886,15 @@ public class AdminDashboardService {
 
     private AdminSessionDto toSessionDto(ShoppingSession s) {
         String previewUrl = minioVideoService.presignPlaybackUrl(s.getVideoUri()).orElse(null);
+        Long shoppingMs = null;
+        if (s.getOpenTime() != null && s.getCloseTime() != null) {
+            shoppingMs = Math.max(0L, java.time.Duration.between(s.getOpenTime(), s.getCloseTime()).toMillis());
+        }
+        Long recognitionMs = null;
+        if (s.getCloseTime() != null && s.getUpdatedAt() != null
+                && !s.getUpdatedAt().isBefore(s.getCloseTime())) {
+            recognitionMs = Math.max(0L, java.time.Duration.between(s.getCloseTime(), s.getUpdatedAt()).toMillis());
+        }
         return new AdminSessionDto(
                 s.getSessionId(), s.getUserId(), s.getDeviceId(), s.getState(),
                 s.getOpenTime(), s.getCloseTime(), s.getOrderId(), s.getVideoUri(),
@@ -1803,7 +1902,13 @@ public class AdminDashboardService {
                 s.getFailReason(),
                 s.getCreatedAt(), s.getUpdatedAt(),
                 DeviceValidationService.sessionKind(s),
-                s.getReplenishmentTaskId()
+                s.getReplenishmentTaskId(),
+                s.getEntryChannel(),
+                s.getEntryChannel(),
+                s.getPreauthCents() > 0 ? s.getPreauthCents() : null,
+                s.getPreauthStatus(),
+                shoppingMs,
+                recognitionMs
         );
     }
 
@@ -1813,12 +1918,33 @@ public class AdminDashboardService {
         if (o.getPaymentOperationId() != null && o.getPaymentOperationId().startsWith("BL-")) {
             payChannel = "BALANCE";
         }
+        String merchantId = null;
+        if (o.getDeviceId() != null) {
+            merchantId = deviceRepository.findById(o.getDeviceId())
+                    .map(DeviceInfo::getMerchantId)
+                    .orElse(null);
+        }
+        int coupon = Math.max(0, o.getCouponDiscountCents());
+        int member = Math.max(0, o.getMemberDiscountCents());
+        int original = o.getOriginalAmountCents() > 0
+                ? o.getOriginalAmountCents()
+                : o.getTotalAmountCents() + coupon + member;
+        String refundPolicy = null;
+        try {
+            refundPolicy = refundPolicyService.resolveForDevice(o.getDeviceId()).name();
+        } catch (Exception ignored) {
+            // leave null
+        }
         return new AdminOrderSummaryDto(
                 o.getOrderId(),
                 o.getSessionId(),
                 o.getUserId(),
                 o.getDeviceId(),
+                merchantId,
                 o.getTotalAmountCents(),
+                original,
+                coupon,
+                member,
                 o.getStatus(),
                 payChannel,
                 lineCount,
@@ -1826,8 +1952,8 @@ public class AdminDashboardService {
                 o.getPayTradeNo(),
                 o.getPaymentOperationId(),
                 o.getRefundedAt(),
-                o.getCouponDiscountCents(),
                 o.isInventoryDeducted(),
+                refundPolicy,
                 o.getCreatedAt()
         );
     }

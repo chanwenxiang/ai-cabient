@@ -13,6 +13,12 @@ import org.springframework.data.domain.Pageable;
 @Mapper
 public interface OrderRevenueSplitMapper extends BaseTradeMapper<OrderRevenueSplit> {
 
+    OrderRevenueSplit _findByOrderIdForUpdateRaw(@org.apache.ibatis.annotations.Param("orderId") String orderId);
+
+    default Optional<OrderRevenueSplit> findByOrderIdForUpdate(String orderId) {
+        return Optional.ofNullable(_findByOrderIdForUpdateRaw(orderId));
+    }
+
     default Optional<OrderRevenueSplit> findByOrderId(String orderId) {
     return Optional.ofNullable(selectOne(Wrappers.<OrderRevenueSplit>lambdaQuery().eq(OrderRevenueSplit::getOrderId, orderId)));
     }
@@ -76,6 +82,21 @@ public interface OrderRevenueSplitMapper extends BaseTradeMapper<OrderRevenueSpl
 
     default List<OrderRevenueSplit> findTop20ByStatusOrderByCreatedAtAsc(String status) {
     return selectList(Wrappers.<OrderRevenueSplit>lambdaQuery().eq(OrderRevenueSplit::getStatus, status).orderByAsc(OrderRevenueSplit::getCreatedAt).last("LIMIT 20"));
+    }
+
+    default List<OrderRevenueSplit> findTop20ByWechatPendingReturnNoIsNotNullOrderByCreatedAtAsc() {
+        return selectList(Wrappers.<OrderRevenueSplit>lambdaQuery()
+                .isNotNull(OrderRevenueSplit::getWechatPendingReturnNo)
+                .ne(OrderRevenueSplit::getWechatPendingReturnNo, "")
+                .orderByAsc(OrderRevenueSplit::getCreatedAt)
+                .last("LIMIT 20"));
+    }
+
+    default List<OrderRevenueSplit> findTop20ByFailureReasonContainingOrderByCreatedAtAsc(String fragment) {
+        return selectList(Wrappers.<OrderRevenueSplit>lambdaQuery()
+                .like(OrderRevenueSplit::getFailureReason, fragment)
+                .orderByAsc(OrderRevenueSplit::getCreatedAt)
+                .last("LIMIT 20"));
     }
 
     default long countByMerchantIdInAndStatusIn(Collection<String> merchantIds, Collection<String> statuses) {

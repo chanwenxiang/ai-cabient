@@ -27,6 +27,7 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -49,6 +50,7 @@ public class DeviceAssetService {
     private final MerchantScopeService merchantScopeService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    private final DistributedLockService distributedLockService;
 
     public DeviceAssetService(DeviceInfoMapper deviceInfoMapper,
                               DeviceLifecycleEventMapper lifecycleEventMapper,
@@ -58,7 +60,8 @@ public class DeviceAssetService {
                               MerchantMapper merchantMapper,
                               MerchantScopeService merchantScopeService,
                               PermissionService permissionService,
-                              AdminAuditService auditService) {
+                              AdminAuditService auditService,
+                              DistributedLockService distributedLockService) {
         this.deviceInfoMapper = deviceInfoMapper;
         this.lifecycleEventMapper = lifecycleEventMapper;
         this.inventoryMapper = inventoryMapper;
@@ -68,16 +71,21 @@ public class DeviceAssetService {
         this.merchantScopeService = merchantScopeService;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
     public DeviceInfo applyLifecycle(Long operatorId, String deviceId, DeviceLifecycleRequest request) {
+        return runWithDeviceAssetLock(deviceId, () -> doApplyLifecycle(operatorId, deviceId, request));
+    }
+
+    private DeviceInfo doApplyLifecycle(Long operatorId, String deviceId, DeviceLifecycleRequest request) {
         permissionService.requirePermission(operatorId, "ops:device:edit");
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         if (request == null || request.action() == null || request.action().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少 action");
         }
-        DeviceInfo device = deviceInfoMapper.findById(deviceId)
+        DeviceInfo device = deviceInfoMapper.findByIdForUpdate(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
         String action = request.action().trim().toUpperCase(Locale.ROOT);
         String from = normalizeLifecycle(device.getLifecycleStatus());
@@ -179,6 +187,10 @@ public class DeviceAssetService {
         permissionService.requireAnyPermission(operatorId, "ops:stock-health:list", "ops:device:list", "ops:replenishment:list");
         Set<String> allowed = merchantScopeService.allowedDeviceIds(operatorId);
         String dim = dimension == null || dimension.isBlank() ? "ALL" : dimension.trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("ALL", "STOCKOUT", "LOW", "NEAR_EXPIRY").contains(dim)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "dimension 仅支持 ALL/STOCKOUT/LOW/NEAR_EXPIRY");
+        }
         String deviceFilter = deviceId == null ? "" : deviceId.trim();
 
         Map<String, DeviceInfo> devices = deviceInfoMapper.findAll().stream()
@@ -200,21 +212,24 @@ public class DeviceAssetService {
                 .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s, (a, b) -> a));
 
         List<StockHealthRowDto> rows = new ArrayList<>();
+        Map<String, Boolean> ledgerByDevice = new HashMap<>();
+        Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
         if (!"NEAR_EXPIRY".equals(dim)) {
             List<DeviceSkuInventory> inv = inventoryMapper.selectList(Wrappers.<DeviceSkuInventory>lambdaQuery()
                     .in(DeviceSkuInventory::getDeviceId, devices.keySet()));
             for (DeviceSkuInventory row : inv) {
                 DeviceInfo d = devices.get(row.getDeviceId());
                 if (d == null) continue;
-                boolean stockout = row.getQuantity() <= 0;
-                boolean low = !stockout && row.getQuantity() <= Math.max(row.getLowThreshold(), 0);
+                int qty = effectiveSellableQty(row, ledgerByDevice, sellableByDevice);
+                boolean stockout = qty <= 0;
+                boolean low = !stockout && qty <= Math.max(row.getLowThreshold(), 0);
                 if ("STOCKOUT".equals(dim) && !stockout) continue;
                 if ("LOW".equals(dim) && !low) continue;
                 if ("ALL".equals(dim) && !stockout && !low) continue;
                 String kind = stockout ? "STOCKOUT" : "LOW";
                 int capacity = Math.max(row.getCapacity(), 0);
                 double rate = capacity <= 0 ? (stockout ? 100d : 0d)
-                        : Math.max(0d, (1d - (row.getQuantity() * 1d / capacity)) * 100d);
+                        : Math.max(0d, (1d - (qty * 1d / capacity)) * 100d);
                 Integer daysOut = stockout ? estimateDaysOut(row.getDeviceId(), row.getSkuId(), row.getUpdatedAt()) : null;
                 SkuCatalog sku = skus.get(row.getSkuId());
                 rows.add(new StockHealthRowDto(
@@ -226,7 +241,7 @@ public class DeviceAssetService {
                         normalizeLifecycle(d.getLifecycleStatus()),
                         row.getSkuId(),
                         sku == null ? row.getSkuId() : sku.getSkuName(),
-                        row.getQuantity(),
+                        qty,
                         capacity,
                         row.getLowThreshold(),
                         Math.round(rate * 10d) / 10d,
@@ -236,6 +251,14 @@ public class DeviceAssetService {
                         null,
                         null
                 ));
+            }
+        }
+        Map<String, Integer> capacityByDeviceSku = new HashMap<>();
+        if ("NEAR_EXPIRY".equals(dim) || "ALL".equals(dim)) {
+            List<DeviceSkuInventory> caps = inventoryMapper.selectList(Wrappers.<DeviceSkuInventory>lambdaQuery()
+                    .in(DeviceSkuInventory::getDeviceId, devices.keySet()));
+            for (DeviceSkuInventory inv : caps) {
+                capacityByDeviceSku.put(inv.getDeviceId() + "\0" + inv.getSkuId(), Math.max(inv.getCapacity(), 0));
             }
         }
         if ("NEAR_EXPIRY".equals(dim) || "ALL".equals(dim)) {
@@ -251,6 +274,7 @@ public class DeviceAssetService {
                 int nearDays = sku != null ? Math.max(sku.getNearExpiryDays(), 0) : 7;
                 long daysLeft = ChronoUnit.DAYS.between(today, lot.getExpiryDate());
                 if (daysLeft > nearDays) continue;
+                int capacity = capacityByDeviceSku.getOrDefault(lot.getDeviceId() + "\0" + lot.getSkuId(), 0);
                 rows.add(new StockHealthRowDto(
                         "NEAR_EXPIRY",
                         d.getDeviceId(),
@@ -261,7 +285,7 @@ public class DeviceAssetService {
                         lot.getSkuId(),
                         sku == null ? lot.getSkuId() : sku.getSkuName(),
                         lot.getQuantity(),
-                        0,
+                        capacity,
                         null,
                         0d,
                         null,
@@ -295,6 +319,28 @@ public class DeviceAssetService {
         return COOP.contains(s) ? s : null;
     }
 
+    private int effectiveSellableQty(DeviceSkuInventory row,
+                                     Map<String, Boolean> ledgerByDevice,
+                                     Map<String, Map<String, Integer>> sellableByDevice) {
+        String deviceId = row.getDeviceId();
+        boolean ledger = ledgerByDevice.computeIfAbsent(deviceId,
+                d -> !lotMapper.findByDeviceId(d).isEmpty());
+        if (!ledger) {
+            return row.getQuantity();
+        }
+        Map<String, Integer> bySku = sellableByDevice.computeIfAbsent(deviceId, d -> {
+            Map<String, Integer> map = new HashMap<>();
+            for (Object[] r : lotMapper.sumSellableBySku(d)) {
+                if (r == null || r.length < 2 || r[0] == null || r[1] == null) {
+                    continue;
+                }
+                map.merge(String.valueOf(r[0]), ((Number) r[1]).intValue(), Integer::sum);
+            }
+            return map;
+        });
+        return bySku.getOrDefault(row.getSkuId(), 0);
+    }
+
     private Integer estimateDaysOut(String deviceId, String skuId, Instant updatedAt) {
         if (updatedAt == null) return null;
         long days = ChronoUnit.DAYS.between(updatedAt.atZone(ZONE).toLocalDate(), LocalDate.now(ZONE));
@@ -323,5 +369,24 @@ public class DeviceAssetService {
         if (v == null) return null;
         String t = v.trim();
         return t.isEmpty() ? null : t;
+    }
+
+    static String deviceAssetLockKey(String deviceId) {
+        return "device:asset:" + deviceId;
+    }
+
+    private <T> T runWithDeviceAssetLock(String deviceId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(deviceAssetLockKey(deviceId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备资产处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(deviceAssetLockKey(deviceId));
+        }
     }
 }

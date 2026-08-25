@@ -66,9 +66,15 @@ aicabinet:
     login-max-failures: ${LOGIN_MAX_FAILURES:5}
     login-lock-minutes: ${LOGIN_LOCK_MINUTES:10}
     sms:
-      mock-code: "123456"
+      mock-code: ${SMS_MOCK_CODE:}
       ttl-seconds: 300
       webhook-url: ${SMS_WEBHOOK_URL:}
+      provider: ${SMS_PROVIDER:webhook}
+      aliyun-access-key-id: ${SMS_ALIYUN_ACCESS_KEY_ID:}
+      aliyun-access-key-secret: ${SMS_ALIYUN_ACCESS_KEY_SECRET:}
+      aliyun-sign-name: ${SMS_ALIYUN_SIGN_NAME:}
+      aliyun-template-code: ${SMS_ALIYUN_TEMPLATE_CODE:}
+      aliyun-region-id: ${SMS_ALIYUN_REGION_ID:cn-hangzhou}
   cors:
     allowed-origins:
       - ${CORS_ORIGIN:http://localhost:8080}
@@ -90,6 +96,12 @@ aicabinet:
     app-secret: ${WECHAT_MINIAPP_SECRET:}
     subscribe-template-id: ${WECHAT_MERCHANT_SUBSCRIBE_TEMPLATE:}
     notify-page: pages/alerts/alerts
+    consumer-subscribe-template-id: ${WECHAT_CONSUMER_SUBSCRIBE_TEMPLATE:}
+    consumer-notify-page: pages/messages/messages
+  notify:
+    wechat-enabled: ${NOTIFY_WECHAT_ENABLED:false}
+    sms-enabled: ${NOTIFY_SMS_ENABLED:false}
+    async-enabled: ${NOTIFY_ASYNC_ENABLED:false}
   wechat-web:
     enabled: ${WECHAT_WEB_ENABLED:true}
     app-id: ${WECHAT_WEB_APP_ID:}
@@ -144,6 +156,9 @@ aicabinet:
     gateway-url: ${ALIPAY_GATEWAY:https://openapi.alipay.com/gateway.do}
     notify-url: ${ALIPAY_NOTIFY_URL:}
     return-url: ${ALIPAY_RETURN_URL:}
+    agreement-product-code: ${ALIPAY_AGREEMENT_PRODUCT_CODE:GENERAL_WITHHOLDING}
+    agreement-notify-url: ${ALIPAY_AGREEMENT_NOTIFY_URL:}
+    agreement-sign-scene: ${ALIPAY_AGREEMENT_SIGN_SCENE:DEFAULT}
   payscore:
     enabled: ${PAYSCORE_ENABLED:false}
     mock-enabled: ${PAYSCORE_MOCK_ENABLED:true}
@@ -168,6 +183,7 @@ aicabinet:
     base-url: ${MERCHANT_AI_BASE_URL:http://localhost:11434}
     model: ${MERCHANT_AI_MODEL:qwen2.5:1.5b}
   xxljob:
+    # Docker apps 默认 true；本地 IDEA 默认 false，避免无调度中心时资金任务停跑
     enabled: ${XXL_JOB_ENABLED:false}
 
 app:
@@ -218,7 +234,8 @@ springdoc:
     tags-sorter: alpha
     operations-sorter: method
 
-# XXL-JOB 执行器（调度中心独立部署；XXL_JOB_ENABLED=true 时启用并注册）
+# XXL-JOB 执行器（调度中心独立部署；XXL_JOB_ENABLED=true 时注册）
+# 资金类任务见 XxlJobManagedTasks；控制台默认 http://localhost:18090/xxl-job-admin
 xxl:
   job:
     admin:

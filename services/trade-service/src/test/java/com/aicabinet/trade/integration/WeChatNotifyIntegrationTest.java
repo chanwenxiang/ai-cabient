@@ -18,9 +18,11 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
@@ -49,11 +51,18 @@ class WeChatNotifyIntegrationTest {
             .withUsername("test")
             .withPassword("test");
 
+    @Container
+    @SuppressWarnings("resource") // lifecycle owned by Testcontainers JUnit extension
+    static GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+            .withExposedPorts(6379);
+
     @DynamicPropertySource
     static void datasourceProps(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.data.redis.host", redis::getHost);
+        registry.add("spring.data.redis.port", () -> String.valueOf(redis.getMappedPort(6379)));
 
         keys = WeChatPayTestKeys.generate();
         registry.add("aicabinet.wechat-pay.enabled", () -> "true");
@@ -131,6 +140,9 @@ class WeChatNotifyIntegrationTest {
         ObjectNode transaction = objectMapper.createObjectNode();
         transaction.put("out_trade_no", orderId);
         transaction.put("trade_state", "SUCCESS");
+        ObjectNode amount = objectMapper.createObjectNode();
+        amount.put("total", 500);
+        transaction.set("amount", amount);
         String plain = objectMapper.writeValueAsString(transaction);
 
         String resourceNonce = "resource-nonce";

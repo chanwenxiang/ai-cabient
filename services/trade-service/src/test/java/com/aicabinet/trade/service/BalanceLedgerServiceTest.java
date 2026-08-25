@@ -15,15 +15,20 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class BalanceLedgerServiceTest {
     @Mock UserAccountMapper accountRepository;
     @Mock PaymentOperationMapper operationRepository;
+    @Mock DistributedLockService distributedLockService;
     BalanceLedgerService service;
 
-    @BeforeEach void setUp() { service = new BalanceLedgerService(accountRepository, operationRepository); }
+    @BeforeEach void setUp() {
+        service = new BalanceLedgerService(accountRepository, operationRepository, distributedLockService);
+        when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
+    }
 
     @Test void debit_recordsBeforeAndAfterBalance() {
         UserAccount account = account(7L, 1000);

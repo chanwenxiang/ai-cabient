@@ -62,6 +62,22 @@ function Wait-ServiceHealthy {
     exit 1
 }
 
+function Warn-DemoSecretsIfNeeded {
+    if ($Prod) { return }
+    $internalKey = $env:INTERNAL_API_KEY
+    if (-not $internalKey) { $internalKey = Get-DotEnvValue "INTERNAL_API_KEY" }
+    $jwt = $env:JWT_SECRET
+    if (-not $jwt) { $jwt = Get-DotEnvValue "JWT_SECRET" }
+    $devInternal = "dev-internal-key-change-me"
+    $devJwt = "ai-cabinet-dev-secret-key-32bytes!!"
+    if ((-not $internalKey) -or $internalKey -eq $devInternal -or (-not $jwt) -or $jwt -eq $devJwt) {
+        Write-Host ""
+        Write-Host "SECURITY: demo JWT/INTERNAL_API_KEY detected — localhost only." -ForegroundColor Yellow
+        Write-Host "  Do not expose this stack to the public internet." -ForegroundColor Yellow
+        Write-Host "  Go-live: copy infra/.env.production.example, run scripts/check-env.ps1 -Prod, use docker-compose.production.yml" -ForegroundColor Yellow
+    }
+}
+
 if ($Prod) {
     Write-Host "Production mode: ensure infra/.env has strong secrets and mock disabled."
 }
@@ -71,6 +87,8 @@ if ($Build) { $upArgs += "--build" }
 
 docker compose @composeArgs @upArgs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+Warn-DemoSecretsIfNeeded
 
 if ($Smoke) {
     Wait-ServiceHealthy "trade-service" $WaitSeconds

@@ -31,6 +31,8 @@ public class DeviceSlotService {
     private final SalesVelocityService salesVelocityService;
     private final RefundPolicyService refundPolicyService;
     private final InventoryLotService inventoryLotService;
+    private final MerchantOpsPolicyService opsPolicyService;
+    private final DistributedLockService distributedLockService;
 
     public DeviceSlotService(DeviceSlotMapper slotRepository,
                              DeviceSkuLotMapper lotRepository,
@@ -42,7 +44,9 @@ public class DeviceSlotService {
                              MerchantScopeService merchantScopeService,
                              SalesVelocityService salesVelocityService,
                              RefundPolicyService refundPolicyService,
-                             InventoryLotService inventoryLotService) {
+                             InventoryLotService inventoryLotService,
+                             MerchantOpsPolicyService opsPolicyService,
+                             DistributedLockService distributedLockService) {
         this.slotRepository = slotRepository;
         this.lotRepository = lotRepository;
         this.deviceRepository = deviceRepository;
@@ -54,6 +58,8 @@ public class DeviceSlotService {
         this.salesVelocityService = salesVelocityService;
         this.refundPolicyService = refundPolicyService;
         this.inventoryLotService = inventoryLotService;
+        this.opsPolicyService = opsPolicyService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -66,8 +72,11 @@ public class DeviceSlotService {
                 .map(s -> toSlotDto(s, bookBySlot.getOrDefault(s.getId().getSlotCode(), 0)))
                 .toList();
         DeviceOpsMetricsDto metrics = computeMetrics(device, slots, bookBySlot);
+        Map<String, Integer> sellableBySku = inventoryLotService.deviceUsesLotLedger(deviceId)
+                ? inventoryLotService.sellableQtyBySku(deviceId)
+                : null;
         List<DeviceInventoryDto> skuInventory = inventoryRepository.findByIdDeviceId(deviceId).stream()
-                .map(this::toInventoryDto)
+                .map(inv -> toInventoryDto(inv, sellableBySku))
                 .toList();
         return new DeviceDetailDto(toAdminDeviceDto(device), metrics, slotDtos, skuInventory);
     }
@@ -85,6 +94,13 @@ public class DeviceSlotService {
     @Transactional
     public void deleteSlot(Long operatorId, String deviceId, String slotCode) {
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
+        runWithDeviceSlotLock(deviceId, () -> {
+            doDeleteSlot(deviceId, slotCode);
+            return null;
+        });
+    }
+
+    private void doDeleteSlot(String deviceId, String slotCode) {
         requireDevice(deviceId);
         String normalized = slotCode.trim().toUpperCase();
         DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, normalized))
@@ -119,6 +135,9 @@ public class DeviceSlotService {
         for (DeviceSlot slot : candidates) {
             String deviceId = slot.getId().getDeviceId();
             if (allowed != null && !allowed.contains(deviceId)) {
+                continue;
+            }
+            if (!deviceRepository.existsById(deviceId)) {
                 continue;
             }
             alerts.addAll(buildDiscrepancyForSlot(slot, loadBookQtyBySlot(deviceId), deviceNames));
@@ -167,6 +186,12 @@ public class DeviceSlotService {
     @Transactional
     public int applyPhysicalSnapshot(String deviceId, Map<String, Integer> slotPhysical,
                                      String source, String refId) {
+        return runWithDeviceSlotLock(deviceId,
+                () -> doApplyPhysicalSnapshot(deviceId, slotPhysical, source, refId));
+    }
+
+    private int doApplyPhysicalSnapshot(String deviceId, Map<String, Integer> slotPhysical,
+                                        String source, String refId) {
         requireDevice(deviceId);
         int updated = 0;
         Instant now = Instant.now();
@@ -190,11 +215,13 @@ public class DeviceSlotService {
     /** 无传感数据时：用账面数量刷新实测（降低误报）。 */
     @Transactional
     public int syncPhysicalFromBook(String deviceId, String refId) {
-        Map<String, Integer> bookBySlot = loadBookQtyBySlot(deviceId);
-        if (bookBySlot.isEmpty()) {
-            return 0;
-        }
-        return applyPhysicalSnapshot(deviceId, bookBySlot, "BOOK_SYNC", refId);
+        return runWithDeviceSlotLock(deviceId, () -> {
+            Map<String, Integer> bookBySlot = loadBookQtyBySlot(deviceId);
+            if (bookBySlot.isEmpty()) {
+                return 0;
+            }
+            return doApplyPhysicalSnapshot(deviceId, bookBySlot, "BOOK_SYNC", refId);
+        });
     }
 
     /** 销售扣减后同步货道实测数量（仅更新已有实测值的货道）。 */
@@ -329,6 +356,11 @@ public class DeviceSlotService {
     @Transactional
     public int allocateSkuCountsToSlots(String deviceId, Map<String, Integer> skuTotals,
                                         String source, String refId) {
+        return runWithDeviceSlotLock(deviceId, () -> doAllocateSkuCountsToSlots(deviceId, skuTotals, source, refId));
+    }
+
+    private int doAllocateSkuCountsToSlots(String deviceId, Map<String, Integer> skuTotals,
+                                           String source, String refId) {
         requireDevice(deviceId);
         Map<String, Integer> bookBySlot = loadBookQtyBySlot(deviceId);
         Map<String, Integer> physical = new HashMap<>();
@@ -355,7 +387,7 @@ public class DeviceSlotService {
                 remaining -= alloc;
             }
         }
-        return applyPhysicalSnapshot(deviceId, physical, source, refId);
+        return doApplyPhysicalSnapshot(deviceId, physical, source, refId);
     }
 
     @Transactional(readOnly = true)
@@ -379,6 +411,12 @@ public class DeviceSlotService {
     @Transactional(readOnly = true)
     public List<SkuQuantityDto> inventorySnapshot(String deviceId) {
         requireDevice(deviceId);
+        if (inventoryLotService.deviceUsesLotLedger(deviceId)) {
+            return inventoryLotService.sellableQtyBySku(deviceId).entrySet().stream()
+                    .filter(e -> e.getValue() != null && e.getValue() > 0)
+                    .map(e -> new SkuQuantityDto(e.getKey(), e.getValue()))
+                    .toList();
+        }
         return inventoryRepository.findByIdDeviceId(deviceId).stream()
                 .filter(inv -> inv.getQuantity() > 0)
                 .map(inv -> new SkuQuantityDto(inv.getId().getSkuId(), inv.getQuantity()))
@@ -548,6 +586,10 @@ public class DeviceSlotService {
     @Transactional
     public List<DeviceSlotDto> upsertSlots(Long operatorId, String deviceId, List<UpsertDeviceSlotRequest> requests) {
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
+        return runWithDeviceSlotLock(deviceId, () -> doUpsertSlots(operatorId, deviceId, requests));
+    }
+
+    private List<DeviceSlotDto> doUpsertSlots(Long operatorId, String deviceId, List<UpsertDeviceSlotRequest> requests) {
         requireDevice(deviceId);
         if (requests == null || requests.isEmpty()) {
             throw badRequest("slots required");
@@ -589,10 +631,16 @@ public class DeviceSlotService {
     @Transactional
     public DeviceSlotDto stocktakeSlot(Long operatorId, String deviceId, SlotStocktakeRequest request) {
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
+        return runWithDeviceInventoryLock(deviceId, () -> doStocktakeSlot(operatorId, deviceId, request));
+    }
+
+    private DeviceSlotDto doStocktakeSlot(Long operatorId, String deviceId, SlotStocktakeRequest request) {
         requireDevice(deviceId);
+        opsPolicyService.requirePhotoEvidence(deviceId, true, request.photoEvidenceUrl());
         String slotCode = request.slotCode().trim().toUpperCase();
         DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode))
                 .orElseThrow(() -> notFound("slot"));
+        assertQuantityWithinSlotCapacity(slot, slotCode, request.physicalQty());
         slot.setLastPhysicalQty(request.physicalQty());
         slot.setLastPhysicalAt(Instant.now());
         slotRepository.save(slot);
@@ -619,6 +667,76 @@ public class DeviceSlotService {
         if (slotCode == null || slotCode.isBlank()) {
             return;
         }
+        runWithDeviceSlotLock(deviceId, () -> {
+            doRecordRestock(deviceId, slotCode);
+            return null;
+        });
+    }
+
+    /**
+     * 校正账面/实盘：超 max_level 的货道优先挪到同 SKU 空位，仍放不下则盘亏到上限。
+     */
+    @Transactional
+    public int clampDeviceOverCapacity(String deviceId) {
+        return runWithDeviceSlotLock(deviceId, () -> doClampDeviceOverCapacity(deviceId));
+    }
+
+    private int doClampDeviceOverCapacity(String deviceId) {
+        requireDevice(deviceId);
+        int slotsFixed = 0;
+        String refId = "CLAMP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        for (DeviceSlot slot : slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId)) {
+            if (!slot.isEnabled()) {
+                continue;
+            }
+            String slotCode = slot.getId().getSlotCode();
+            int cap = resolveSlotCapacity(slot);
+            if (cap <= 0) {
+                continue;
+            }
+            String skuId = slot.getAssignedSkuId();
+            if (skuId == null || skuId.isBlank()) {
+                continue;
+            }
+            int book = loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
+            if (book <= cap) {
+                continue;
+            }
+            int surplus = book - cap;
+            for (SlotRestockAllocation alloc : allocateRestockQuantity(deviceId, skuId, surplus)) {
+                inventoryLotService.transferBetweenSlots(
+                        deviceId, skuId, slotCode, alloc.slotCode(), alloc.quantity(), null, refId);
+                surplus -= alloc.quantity();
+            }
+            book = loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
+            if (book > cap) {
+                inventoryLotService.stocktakeAdjustForSlot(deviceId, skuId, slotCode, cap, null, refId);
+            }
+            slotsFixed++;
+            log.warn("clamp over-capacity slot device={} slot={} cap={} ref={}", deviceId, slotCode, cap, refId);
+        }
+        if (slotsFixed > 0) {
+            syncPhysicalFromBook(deviceId, refId);
+        }
+        return slotsFixed;
+    }
+
+    private static int resolveSlotCapacity(DeviceSlot slot) {
+        if (slot.getMaxLevel() > 0) {
+            return slot.getMaxLevel();
+        }
+        return slot.getParLevel() > 0 ? slot.getParLevel() : 0;
+    }
+
+    private static void assertQuantityWithinSlotCapacity(DeviceSlot slot, String slotCode, int qty) {
+        int cap = resolveSlotCapacity(slot);
+        if (cap > 0 && qty > cap) {
+            throw badRequest(String.format(
+                    com.aicabinet.trade.support.ApiMessages.SLOT_QTY_OVER_CAPACITY, slotCode, cap, qty));
+        }
+    }
+
+    private void doRecordRestock(String deviceId, String slotCode) {
         String normalized = slotCode.trim().toUpperCase();
         slotRepository.findById(new DeviceSlotId(deviceId, normalized)).ifPresent(slot -> {
             int bookQty = loadBookQtyBySlot(deviceId).getOrDefault(normalized, 0);
@@ -669,15 +787,26 @@ public class DeviceSlotService {
     /** 新设备无货道时按设备类型套用默认 planogram。 */
     @Transactional
     public void ensureDefaultSlots(String deviceId, String deviceType) {
+        runWithDeviceSlotLock(deviceId, () -> {
+            doEnsureDefaultSlots(deviceId, deviceType);
+            return null;
+        });
+    }
+
+    private void doEnsureDefaultSlots(String deviceId, String deviceType) {
         if (slotRepository.countByIdDeviceIdAndEnabledTrue(deviceId) > 0) {
             return;
         }
-        applyPlanogramTemplate(deviceId, deviceType);
+        doApplyPlanogramTemplate(deviceId, deviceType);
     }
 
     /** 强制套用模板（仅填充缺失货道，不覆盖已有）。 */
     @Transactional
     public int applyPlanogramTemplate(String deviceId, String deviceType) {
+        return runWithDeviceSlotLock(deviceId, () -> doApplyPlanogramTemplate(deviceId, deviceType));
+    }
+
+    private int doApplyPlanogramTemplate(String deviceId, String deviceType) {
         requireDevice(deviceId);
         int created = 0;
         for (UpsertDeviceSlotRequest req : PlanogramTemplateService.templateFor(deviceType)) {
@@ -708,7 +837,7 @@ public class DeviceSlotService {
     public int applyPlanogramTemplate(Long operatorId, String deviceId) {
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         DeviceInfo device = requireDevice(deviceId);
-        return applyPlanogramTemplate(deviceId, device.getDeviceType());
+        return runWithDeviceSlotLock(deviceId, () -> doApplyPlanogramTemplate(deviceId, device.getDeviceType()));
     }
 
     private DeviceOpsMetricsDto computeMetrics(DeviceInfo device, List<DeviceSlot> slots,
@@ -829,11 +958,19 @@ public class DeviceSlotService {
         return "OK";
     }
 
-    private DeviceInventoryDto toInventoryDto(DeviceSkuInventory inv) {
+    private DeviceInventoryDto toInventoryDto(DeviceSkuInventory inv, Map<String, Integer> sellableBySku) {
+        String deviceId = inv.getId().getDeviceId();
+        String skuId = inv.getId().getSkuId();
+        int qty = inv.getQuantity();
+        if (sellableBySku != null) {
+            qty = sellableBySku.getOrDefault(skuId, 0);
+        } else if (inventoryLotService.deviceUsesLotLedger(deviceId)) {
+            qty = inventoryLotService.sellableQuantity(deviceId, skuId);
+        }
         return new DeviceInventoryDto(
-                inv.getId().getDeviceId(),
-                inv.getId().getSkuId(),
-                inv.getQuantity(),
+                deviceId,
+                skuId,
+                qty,
                 inv.getCapacity(),
                 inv.getLowThreshold(),
                 inv.getUpdatedAt()
@@ -877,5 +1014,40 @@ public class DeviceSlotService {
 
     private static ResponseStatusException badRequest(String message) {
         return new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+    }
+
+    static String deviceSlotLockKey(String deviceId) {
+        return "device:slot:" + deviceId;
+    }
+
+    private <T> T runWithDeviceSlotLock(String deviceId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(deviceSlotLockKey(deviceId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "货道处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(deviceSlotLockKey(deviceId));
+        }
+    }
+
+    private <T> T runWithDeviceInventoryLock(String deviceId, java.util.function.Supplier<T> action) {
+        String lockKey = InventoryService.deviceLockKey(deviceId);
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "库存繁忙，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
     }
 }

@@ -1,4 +1,5 @@
 import { ElMessage } from 'element-plus';
+import { authFetch } from '@/api/client';
 
 export type SessionVideoLoadResult = {
   url: string;
@@ -12,10 +13,8 @@ export function useSessionVideo() {
     if (!id) {
       throw new Error('无关联会话，无法播放录像');
     }
-    const token = localStorage.getItem('admin_token');
-    const res = await fetch(
-      `${window.location.origin}/api/v2/ops/admin/sessions/${encodeURIComponent(id)}/video`,
-      { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+    const res = await authFetch(
+      `${window.location.origin}/api/v2/ops/admin/sessions/${encodeURIComponent(id)}/video`
     );
     if (!res.ok) {
       if (res.status === 404) throw new Error('录像尚未上传或不存在');

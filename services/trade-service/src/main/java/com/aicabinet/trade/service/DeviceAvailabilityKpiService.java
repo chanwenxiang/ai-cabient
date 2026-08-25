@@ -30,15 +30,18 @@ public class DeviceAvailabilityKpiService {
     private final OpsExceptionMapper exceptionRepository;
     private final AdminAuditLogMapper auditRepository;
     private final DeviceAvailabilityKpiDailyMapper kpiRepository;
+    private final DistributedLockService distributedLockService;
 
     public DeviceAvailabilityKpiService(DeviceInfoMapper deviceRepository,
                                         OpsExceptionMapper exceptionRepository,
                                         AdminAuditLogMapper auditRepository,
-                                        DeviceAvailabilityKpiDailyMapper kpiRepository) {
+                                        DeviceAvailabilityKpiDailyMapper kpiRepository,
+                                        DistributedLockService distributedLockService) {
         this.deviceRepository = deviceRepository;
         this.exceptionRepository = exceptionRepository;
         this.auditRepository = auditRepository;
         this.kpiRepository = kpiRepository;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
@@ -61,13 +64,53 @@ public class DeviceAvailabilityKpiService {
 
     @Transactional
     public DeviceAvailabilityKpiDto snapshotDaily(LocalDate date) {
-        DeviceAvailabilityKpiDaily row = computeRow(date);
+        if (!distributedLockService.tryLock(deviceKpiDailyLockKey(date), 60, 5)) {
+            log.warn("device kpi snapshot lock busy date={}", date);
+            return getByDate(date);
+        }
+        try {
+            return doSnapshotDaily(date);
+        } finally {
+            distributedLockService.unlock(deviceKpiDailyLockKey(date));
+        }
+    }
+
+    static String deviceKpiDailyLockKey(LocalDate date) {
+        return "device-kpi:daily:" + date;
+    }
+
+    private DeviceAvailabilityKpiDto doSnapshotDaily(LocalDate date) {
+        DeviceAvailabilityKpiDaily computed = computeRow(date);
+        DeviceAvailabilityKpiDaily row = kpiRepository.findByIdForUpdate(date).orElseGet(() -> {
+            DeviceAvailabilityKpiDaily fresh = new DeviceAvailabilityKpiDaily();
+            fresh.setKpiDate(date);
+            return fresh;
+        });
+        copyMetrics(computed, row);
         row.setCreatedAt(Instant.now());
-        kpiRepository.save(row);
+        if (row.getKpiDate() == null) {
+            row.setKpiDate(date);
+        }
+        if (kpiRepository.selectById(date) == null) {
+            kpiRepository.insert(row);
+        } else {
+            kpiRepository.updateById(row);
+        }
         log.info("device availability kpi snapshot date={} offline={} autoLock={} autoUnlock={} manualUnlock={}",
                 date, row.getOfflineEvents(), row.getAutoLockCount(),
                 row.getAutoUnlockCount(), row.getManualUnlockCount());
         return toDto(row);
+    }
+
+    private static void copyMetrics(DeviceAvailabilityKpiDaily from, DeviceAvailabilityKpiDaily to) {
+        to.setDeviceTotal(from.getDeviceTotal());
+        to.setOfflineEvents(from.getOfflineEvents());
+        to.setAutoLockCount(from.getAutoLockCount());
+        to.setAutoUnlockCount(from.getAutoUnlockCount());
+        to.setManualUnlockCount(from.getManualUnlockCount());
+        to.setAvgLockHours(from.getAvgLockHours());
+        to.setAvgRecoverHours(from.getAvgRecoverHours());
+        to.setManualInterventionRate(from.getManualInterventionRate());
     }
 
     private DeviceAvailabilityKpiDaily computeRow(LocalDate date) {
@@ -90,11 +133,10 @@ public class DeviceAvailabilityKpiService {
         row.setAvgRecoverHours(exceptionRepository
                 .avgResolutionHoursByExceptionTypeAndCreatedAtBetween("DEVICE_OFFLINE", start, end));
 
-        int auto = row.getAutoUnlockCount();
-        int manual = row.getManualUnlockCount();
-        if (auto + manual > 0) {
-            row.setManualInterventionRate((double) manual / (auto + manual));
-        }
+        int auto = row.getAutoUnlockCount() == null ? 0 : row.getAutoUnlockCount();
+        int manual = row.getManualUnlockCount() == null ? 0 : row.getManualUnlockCount();
+        // 无解锁样本时记 0，避免前端出现空值/破折号；有样本则人工占比
+        row.setManualInterventionRate(auto + manual > 0 ? (double) manual / (auto + manual) : 0d);
         return row;
     }
 

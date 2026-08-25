@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.MerchantPaymentOnboardingMapper">
+
+  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.MerchantPaymentOnboarding">
+    <![CDATA[
+    SELECT o.* FROM merchant_payment_onboarding o WHERE o.onboarding_id = #{onboardingId} FOR UPDATE
+    ]]>
+  </select>
+
+  <select id="_findByMerchantAndChannelForUpdateRaw" resultType="com.aicabinet.trade.domain.MerchantPaymentOnboarding">
+    <![CDATA[
+    SELECT o.* FROM merchant_payment_onboarding o
+    WHERE o.merchant_id = #{merchantId} AND o.channel = #{channel}
+    FOR UPDATE
+    ]]>
+  </select>
+
+</mapper>

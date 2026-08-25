@@ -29,8 +29,10 @@ public class ExpiryAlertScheduler {
             return;
         }
         boolean failed = false;
+        String summary = "本次无临期预警";
         try {
             int alerts = inventoryLotService.scanExpiryAlerts();
+            summary = alerts <= 0 ? "本次无临期预警" : "临期/过期预警 " + alerts + " 条";
             if (alerts > 0) {
                 log.info("expiry scan created/updated alerts={}", alerts);
             }
@@ -40,7 +42,7 @@ public class ExpiryAlertScheduler {
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("expiry-alert", "SUCCESS", null, start);
+                taskService.finish("expiry-alert", "SUCCESS", summary, start);
             }
         }
     }

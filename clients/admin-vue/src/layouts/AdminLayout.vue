@@ -86,7 +86,7 @@
               <el-avatar :size="32" class="user-avatar">{{ userInitial }}</el-avatar>
               <div class="user-text">
                 <span class="user-name">{{ auth.displayName }}</span>
-                <span class="user-detail">{{ auth.phone || '—' }} · {{ auth.roleText }}</span>
+                <span class="user-detail">{{ auth.phone || '暂无' }} · {{ auth.roleText }}</span>
                 <span class="user-scope">{{ auth.dataScopeText }}</span>
               </div>
             </button>
@@ -175,6 +175,7 @@ import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
 import { dictRuntimeEpoch } from '@/stores/dict-runtime';
 import { PRIMARY_OPTIONS, useSettingsStore } from '@/stores/settings';
+import { observeTableScrollFit, stopTableScrollFit } from '@/utils/table-scroll-fit';
 import AppBreadcrumb from '@/components/AppBreadcrumb.vue';
 import GlobalSearch from '@/components/GlobalSearch.vue';
 import SidebarMenuTree from '@/components/SidebarMenuTree.vue';
@@ -505,6 +506,7 @@ onMounted(() => {
   settings.init();
   syncSidebarWithViewport();
   void auth.refreshPermissions();
+  observeTableScrollFit(document.getElementById('main-content') as HTMLElement);
   window.addEventListener('click', hideTagMenu);
   window.addEventListener('scroll', hideTagMenu, true);
   window.addEventListener('resize', syncSidebarWithViewport);
@@ -512,6 +514,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  stopTableScrollFit();
   window.removeEventListener('click', hideTagMenu);
   window.removeEventListener('scroll', hideTagMenu, true);
   window.removeEventListener('resize', syncSidebarWithViewport);
@@ -800,6 +803,11 @@ onUnmounted(() => {
   max-width: none;
   min-width: 0;
   box-sizing: border-box;
+}
+/* 客流坪效：不许撑开主区，否则白卡片整页横滑、左右边「缺一截」 */
+.layout-main-scroll > .footfall-page,
+.layout-main-scroll > .page-fill > .footfall-page {
+  max-width: 100% !important;
 }
 .color-dot {
   display: inline-block;

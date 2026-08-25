@@ -8,5 +8,7 @@ public record SupplierDto(
         String contactName,
         String contactPhone,
         String status,
+        Integer paymentTermsDays,
+        Long creditLimitCents,
         Instant createdAt
 ) {}

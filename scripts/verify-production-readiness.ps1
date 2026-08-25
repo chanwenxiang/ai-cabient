@@ -46,7 +46,8 @@ function Invoke-Checked {
     Write-Host "==> $Name"
     Push-Location $WorkingDirectory
     try {
-        & $FilePath @Arguments
+        # 2>&1 将原生 stderr 并入成功流，避免 EAP=Stop 时把构建工具的 stderr 提示误判为致命错误
+        & $FilePath @Arguments 2>&1 | Out-Host
         if ($LASTEXITCODE -ne 0) {
             Add-Result "FAIL" $Name "exit code $LASTEXITCODE"
         } else {
@@ -94,14 +95,15 @@ function Test-RepositoryUtf8 {
     $extensions = @(".java", ".js", ".json", ".md", ".properties", ".ps1", ".py", ".sql", ".wxml", ".wxss", ".xml", ".yml", ".yaml")
     $strictUtf8 = New-Object System.Text.UTF8Encoding($false, $true)
     $invalid = New-Object System.Collections.Generic.List[string]
-    Get-ChildItem $Root -Recurse -File | Where-Object {
-        $extensions -contains $_.Extension.ToLowerInvariant() -and
+    $candidates = Get-ChildItem $Root -Recurse -File | Where-Object {
+        ($null -ne $_.Extension -and $extensions -contains $_.Extension.ToLowerInvariant()) -and
         $_.FullName -notmatch '[\\/](\.git|node_modules|target|dist|\.venv|cache)[\\/]'
-    } | ForEach-Object {
+    }
+    foreach ($file in $candidates) {
         try {
-            [void]$strictUtf8.GetString([System.IO.File]::ReadAllBytes($_.FullName))
+            [void]$strictUtf8.GetString([System.IO.File]::ReadAllBytes($file.FullName))
         } catch {
-            $invalid.Add($_.FullName.Substring($Root.Length + 1)) | Out-Null
+            $invalid.Add($file.FullName.Substring($Root.Length + 1)) | Out-Null
         }
     }
     if ($invalid.Count -eq 0) {

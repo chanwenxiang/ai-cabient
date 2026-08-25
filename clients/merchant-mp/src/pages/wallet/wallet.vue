@@ -1,86 +1,120 @@
 <template>
   <view class="page-root">
-    <view v-if="loadError" class="banner-err">
-      <text>{{ loadError }}</text>
-      <text class="banner-retry" @click="load">重试</text>
+    <app-nav-bar title="商户钱包" />
+    <view class="page-body">
+      <view v-if="loadError" class="banner-err">
+        <text>{{ loadError }}</text>
+        <text class="banner-retry" @click="load">重试</text>
+      </view>
+
+      <empty-state
+        v-if="!loading && overview && !overview.bound"
+        icon="/static/menu/wallet.png"
+        title="暂无商户钱包"
+        hint="当前账号未绑定开通经营工具的商户，无法查看可提现余额"
+      />
+
+      <template v-else-if="overview && overview.bound">
+        <view class="summary-card">
+          <text class="role-tag">商户 · 可自主提现</text>
+          <text class="name"
+            >{{ emptyDisplay(overview.merchantName, 'text') }} ·
+            {{ emptyDisplay(overview.merchantId, 'text') }}</text
+          >
+          <view class="bal-row">
+            <text class="bal-label">可用余额</text>
+            <text class="bal-value">¥{{ yuan(overview.availableCents) }}</text>
+          </view>
+          <view class="bal-sub">
+            <text>账面 ¥{{ yuan(overview.balanceCents) }}</text>
+            <text>冻结 ¥{{ yuan(overview.frozenCents) }}</text>
+          </view>
+        </view>
+
+        <view class="action-card">
+          <view class="amount-field">
+            <input
+              class="amount-input"
+              type="digit"
+              v-model="amountYuan"
+              placeholder="提现金额（元）"
+              placeholder-class="amount-ph"
+            />
+          </view>
+          <text v-if="maxWithdrawYuan" class="withdraw-hint"
+            >最多可提现 ¥{{ maxWithdrawYuan }}</text
+          >
+          <button class="btn-primary" :disabled="submitting" @click="submitWithdraw">
+            申请提现
+          </button>
+          <text class="tip">分账入账后可提现；演示环境默认 Mock 打款。大额需运营审核。</text>
+        </view>
+
+        <view class="section">
+          <text class="section-title">最近提现</text>
+          <view v-for="w in overview.recentWithdraws || []" :key="w.requestId" class="row-item">
+            <view class="row-main">
+              <text>¥{{ yuan(w.amountCents) }}</text>
+              <text class="status">{{ withdrawStatus(w.status) }}</text>
+            </view>
+            <text class="row-sub"
+              >{{ emptyDisplay(w.requestNo, 'order')
+              }}{{
+                w.payChannel ? ` · ${displayLabel('pay_channel', w.payChannel, w.payChannel)}` : ''
+              }}</text
+            >
+            <text class="row-sub"
+              >手续费 ¥{{ yuan(w.feeCents || 0)
+              }}{{ Number(w.feeCents || 0) === 0 ? '（免收）' : '' }} · 到账 ¥{{
+                yuan(Math.max(0, Number(w.amountCents || 0) - Number(w.feeCents || 0)))
+              }}</text
+            >
+            <text v-if="w.payoutRef || w.payoutMessage" class="row-sub"
+              >回执 {{ w.payoutRef || w.payoutMessage }}</text
+            >
+            <text v-if="w.reviewRemark" class="row-sub fail">备注 {{ w.reviewRemark }}</text>
+            <text v-if="w.paidAt || w.createdAt" class="row-sub">{{
+              formatTime(w.paidAt || w.createdAt)
+            }}</text>
+          </view>
+          <empty-state
+            v-if="!(overview.recentWithdraws || []).length"
+            compact
+            icon="/static/menu/wallet.png"
+            title="暂无提现记录"
+            hint="提交提现后会出现在这里"
+          />
+        </view>
+
+        <view class="section">
+          <text class="section-title">最近流水</text>
+          <view v-for="l in overview.recentLedgers || []" :key="l.ledgerId" class="row-item">
+            <view class="row-main">
+              <text>{{ ledgerLabel(l.entryType) }}</text>
+              <text
+                :class="{ credit: Number(l.amountCents) > 0, debit: Number(l.amountCents) < 0 }"
+              >
+                {{ formatSigned(l.amountCents) }}
+              </text>
+            </view>
+            <text class="row-sub">{{ emptyDisplay(l.remark, 'text') }}</text>
+            <text v-if="l.refId" class="row-sub">关联 {{ l.refType || 'REF' }} {{ l.refId }}</text>
+            <text v-if="l.balanceAfter != null" class="row-sub"
+              >余额后 ¥{{ yuan(l.balanceAfter) }} · 冻结后 ¥{{ yuan(l.frozenAfter) }}</text
+            >
+          </view>
+          <empty-state
+            v-if="!(overview.recentLedgers || []).length"
+            compact
+            icon="/static/menu/billing.png"
+            title="暂无流水记录"
+            hint="分账入账与提现变动会显示在这里"
+          />
+        </view>
+      </template>
+
+      <view v-if="loading" class="loading-inline">加载中…</view>
     </view>
-
-    <empty-state
-      v-if="!loading && overview && !overview.bound"
-      icon="钱"
-      title="暂无商户钱包"
-      hint="当前账号未绑定开通经营工具的商户，无法查看可提现余额"
-    />
-
-    <template v-else-if="overview && overview.bound">
-      <view class="summary-card">
-        <text class="role-tag">商户 · 可自主提现</text>
-        <text class="name"
-          >{{ emptyDisplay(overview.merchantName, 'text') }} ·
-          {{ emptyDisplay(overview.merchantId, 'text') }}</text
-        >
-        <view class="bal-row">
-          <text class="bal-label">可用余额</text>
-          <text class="bal-value">¥{{ yuan(overview.availableCents) }}</text>
-        </view>
-        <view class="bal-sub">
-          <text>账面 ¥{{ yuan(overview.balanceCents) }}</text>
-          <text>冻结 ¥{{ yuan(overview.frozenCents) }}</text>
-        </view>
-      </view>
-
-      <view class="action-card">
-        <input
-          class="amount-input"
-          type="digit"
-          v-model="amountYuan"
-          placeholder="提现金额（元）"
-        />
-        <text v-if="maxWithdrawYuan" class="withdraw-hint">最多可提现 ¥{{ maxWithdrawYuan }}</text>
-        <button class="btn-primary" :disabled="submitting" @click="submitWithdraw">申请提现</button>
-        <text class="tip">分账入账后可提现；演示环境默认 Mock 打款。大额需运营审核。</text>
-      </view>
-
-      <view class="section">
-        <text class="section-title">最近提现</text>
-        <view v-for="w in overview.recentWithdraws || []" :key="w.requestId" class="row-item">
-          <view class="row-main">
-            <text>¥{{ yuan(w.amountCents) }}</text>
-            <text class="status">{{ withdrawStatus(w.status) }}</text>
-          </view>
-          <text class="row-sub">{{ emptyDisplay(w.requestNo, 'order') }}</text>
-        </view>
-        <empty-state
-          v-if="!(overview.recentWithdraws || []).length"
-          compact
-          icon="提"
-          title="暂无提现记录"
-          hint="提交提现后会出现在这里"
-        />
-      </view>
-
-      <view class="section">
-        <text class="section-title">最近流水</text>
-        <view v-for="l in overview.recentLedgers || []" :key="l.ledgerId" class="row-item">
-          <view class="row-main">
-            <text>{{ ledgerLabel(l.entryType) }}</text>
-            <text :class="{ credit: Number(l.amountCents) > 0, debit: Number(l.amountCents) < 0 }">
-              {{ formatSigned(l.amountCents) }}
-            </text>
-          </view>
-          <text class="row-sub">{{ emptyDisplay(l.remark, 'text') }}</text>
-        </view>
-        <empty-state
-          v-if="!(overview.recentLedgers || []).length"
-          compact
-          icon="流"
-          title="暂无流水记录"
-          hint="分账入账与提现变动会显示在这里"
-        />
-      </view>
-    </template>
-
-    <view v-if="loading" class="loading-inline">加载中…</view>
   </view>
 </template>
 
@@ -88,7 +122,7 @@
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { emptyDisplay } from '@aicabinet/shared-uni/format';
+import { emptyDisplay, formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import EmptyState from '@/components/empty-state.vue';
 import {
   merchantApi,
@@ -105,6 +139,10 @@ const overview = ref<WalletOverview | null>(null);
 const maxWithdrawYuan = computed(() =>
   overview.value?.availableCents != null ? yuan(overview.value.availableCents) : ''
 );
+
+function formatTime(t?: string) {
+  return formatDateTimeShort(t, '');
+}
 
 function yuan(cents?: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
@@ -130,7 +168,7 @@ async function load() {
     handleUnauthorized();
     return;
   }
-  loading.value = true;
+  loading.value = !overview.value;
   loadError.value = '';
   try {
     overview.value = await merchantApi.wallet();
@@ -214,14 +252,47 @@ onShow(load);
   color: var(--text-subtle, #94a3b8);
   font-size: 22rpx;
 }
-.amount-input {
+.amount-field {
+  display: flex;
+  align-items: center;
   width: 100%;
+  height: 108rpx;
+  min-height: 108rpx;
+  margin-bottom: 16rpx;
+  padding: 0 28rpx;
+  box-sizing: border-box;
   background: #f8fafc;
   border: 1rpx solid #e2e8f0;
   border-radius: 16rpx;
-  padding: 20rpx;
-  margin-bottom: 16rpx;
-  box-sizing: border-box;
+}
+.amount-input {
+  flex: 1;
+  width: 100%;
+  height: 108rpx;
+  min-height: 108rpx;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 32rpx;
+  color: #0f172a;
+  line-height: normal;
+}
+.amount-field :deep(uni-input),
+.amount-field :deep(.uni-input-wrapper),
+.amount-field :deep(.uni-input-input),
+.amount-field :deep(input) {
+  width: 100% !important;
+  height: 108rpx !important;
+  min-height: 108rpx !important;
+  line-height: normal !important;
+  font-size: 32rpx !important;
+  color: #0f172a !important;
+}
+.amount-ph {
+  color: #94a3b8;
+  font-size: 28rpx;
+  line-height: normal;
 }
 .withdraw-hint {
   display: block;
@@ -257,6 +328,9 @@ onShow(load);
   margin-top: 4rpx;
   display: block;
 }
+.row-sub.fail {
+  color: #b91c1c;
+}
 .status {
   color: var(--brand, #0f766e);
   font-weight: 500;
@@ -285,5 +359,9 @@ onShow(load);
   text-align: center;
   color: var(--text-subtle, #94a3b8);
   padding: 40rpx;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

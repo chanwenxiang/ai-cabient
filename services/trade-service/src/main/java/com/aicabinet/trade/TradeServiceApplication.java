@@ -9,6 +9,7 @@ import com.aicabinet.trade.config.OpsMonitoringProperties;
 import com.aicabinet.trade.config.LineWithdrawProperties;
 import com.aicabinet.trade.config.MerchantWithdrawProperties;
 import com.aicabinet.trade.config.MinioProperties;
+import com.aicabinet.trade.config.NotificationProperties;
 import com.aicabinet.trade.config.ProfitSharingProperties;
 import com.aicabinet.trade.config.RiskControlProperties;
 import com.aicabinet.trade.config.SecurityProperties;
@@ -40,8 +41,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         MerchantWithdrawProperties.class,
         RiskControlProperties.class,
         com.aicabinet.trade.config.PayScoreProperties.class,
+        NotificationProperties.class,
         com.aicabinet.trade.config.DisputeSlaProperties.class,
-        com.aicabinet.trade.config.RopProperties.class})
+        com.aicabinet.trade.config.RopProperties.class,
+        com.aicabinet.trade.config.RoutePlanningProperties.class})
 public class TradeServiceApplication {
 
     public static void main(String[] args) {

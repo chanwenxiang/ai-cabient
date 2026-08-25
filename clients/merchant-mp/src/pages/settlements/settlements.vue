@@ -1,139 +1,166 @@
 <template>
   <view class="page-root">
-    <view class="date-bar">
-      <!-- H5：原生 date 用浏览器浮层日历，避免 uni-picker 窄屏把年列表撑进页面 -->
-      <input
-        v-if="isH5"
-        class="date-input"
-        type="date"
-        :value="startDate"
-        :max="endDate"
-        @change="onStartDate"
-      />
-      <picker
-        v-else
-        mode="date"
-        :value="startDate"
-        start="2020-01-01"
-        :end="endDate"
-        @change="onStartDate"
-      >
-        <text class="date-text">{{ startDate }}</text>
-      </picker>
-      <text class="date-sep">至</text>
-      <input
-        v-if="isH5"
-        class="date-input"
-        type="date"
-        :value="endDate"
-        :min="startDate"
-        @change="onEndDate"
-      />
-      <picker
-        v-else
-        mode="date"
-        :value="endDate"
-        :start="startDate"
-        end="2035-12-31"
-        @change="onEndDate"
-      >
-        <text class="date-text">{{ endDate }}</text>
-      </picker>
-    </view>
-
-    <view v-if="loadError" class="banner-err">
-      <text>{{ loadError }}</text>
-      <text class="banner-retry" @click="load">重试</text>
-    </view>
-
-    <view class="summary-card">
-      <view class="summary-row">
-        <text class="summary-label">区间营收</text>
-        <text class="summary-value">¥{{ summary.gross }}</text>
-      </view>
-      <view class="summary-row">
-        <text class="summary-label">平台抽成</text>
-        <text class="summary-value minus">-¥{{ summary.platformFee }}</text>
-      </view>
-      <view class="summary-row total">
-        <text class="summary-label">商户所得</text>
-        <text class="summary-value">¥{{ summary.merchantIncome }}</text>
-      </view>
-      <view class="summary-row">
-        <text class="summary-label">待分账</text>
-        <text class="summary-value">¥{{ summary.pending }}</text>
-      </view>
-      <view class="summary-row">
-        <text class="summary-label">本月已结算</text>
-        <text class="summary-value">¥{{ summary.settledMonth }}</text>
-      </view>
-    </view>
-
-    <view class="tip-card">
-      <text class="tip-text"
-        >T+1
-        结算：当日支付流水通常次日完成入账。可提现余额请到「商户钱包」申请提现；线长佣金请走「线长钱包」。</text
-      >
-      <text v-if="profitNote" class="tip-meta">{{ profitNote }}</text>
-      <text v-if="canViewSplits" class="tip-link" @click="goSplits">查看分账明细 ›</text>
-    </view>
-
-    <view class="section">
-      <text class="section-title">按日汇总</text>
-      <view v-if="loading" class="loading-inline">结算数据加载中…</view>
-      <template v-else>
-        <view v-for="d in daily" :key="d.date" class="device-row">
-          <view class="device-info">
-            <text class="device-name">{{ d.date }}</text>
-            <text class="device-orders">
-              {{ d.orderCount }} 笔 · 实付 ¥{{ (d.grossCents / 100).toFixed(2) }} · 抽成 ¥{{
-                (d.platformCents / 100).toFixed(2)
-              }}
-            </text>
-            <text class="device-orders"
-              >待分 ¥{{ (d.pendingCents / 100).toFixed(2) }} · 已结 ¥{{
-                (d.settledCents / 100).toFixed(2)
-              }}</text
-            >
-          </view>
-          <text class="device-amount">¥{{ (d.merchantCents / 100).toFixed(2) }}</text>
-        </view>
-        <empty-state
-          v-if="!daily.length"
-          compact
-          icon="📅"
-          title="所选日期暂无结算数据"
-          hint="可调整上方日期范围，或等待订单完成分账"
+    <app-nav-bar title="结算对账" />
+    <view class="page-body">
+      <view class="date-bar">
+        <!-- H5：原生 date 用浏览器浮层日历，避免 uni-picker 窄屏把年列表撑进页面 -->
+        <input
+          v-if="isH5"
+          class="date-input"
+          type="date"
+          :value="startDate"
+          :max="endDate"
+          @change="onStartDate"
         />
-      </template>
-    </view>
-
-    <view class="section">
-      <text class="section-title">结算批次</text>
-      <view v-if="batchWarn" class="section-warn">{{ batchWarn }}</view>
-      <view v-if="loading" class="loading-inline">批次加载中…</view>
-      <template v-else>
-        <view v-for="b in batches" :key="b.batchNo" class="device-row">
-          <view class="device-info">
-            <text class="device-name">{{ b.batchNo }}</text>
-            <text class="device-orders"
-              >{{ batchStatusLabel(b.batchStatus) }} · {{ b.orderCount }} 笔</text
-            >
-          </view>
-          <text class="device-amount">¥{{ (b.merchantCents / 100).toFixed(2) }}</text>
-        </view>
-        <empty-state
-          v-if="!batches.length"
-          compact
-          icon="📦"
-          title="暂无结算批次"
-          hint="平台定期提交分账后，批次会显示在这里"
+        <picker
+          v-else
+          mode="date"
+          :value="startDate"
+          start="2020-01-01"
+          :end="endDate"
+          @change="onStartDate"
+        >
+          <text class="date-text">{{ startDate }}</text>
+        </picker>
+        <text class="date-sep">至</text>
+        <input
+          v-if="isH5"
+          class="date-input"
+          type="date"
+          :value="endDate"
+          :min="startDate"
+          @change="onEndDate"
         />
-      </template>
-    </view>
+        <picker
+          v-else
+          mode="date"
+          :value="endDate"
+          :start="startDate"
+          end="2035-12-31"
+          @change="onEndDate"
+        >
+          <text class="date-text">{{ endDate }}</text>
+        </picker>
+      </view>
 
-    <view v-if="canExport" class="actions">
-      <button class="btn-outline" @click="onExport">导出对账单</button>
+      <view v-if="loadError" class="banner-err">
+        <text>{{ loadError }}</text>
+        <text class="banner-retry" @click="load">重试</text>
+      </view>
+
+      <view class="summary-card">
+        <view class="summary-row">
+          <text class="summary-label">区间营收</text>
+          <text class="summary-value">¥{{ summary.gross }}</text>
+        </view>
+        <view class="summary-row">
+          <text class="summary-label">平台抽成</text>
+          <text class="summary-value minus">-¥{{ summary.platformFee }}</text>
+        </view>
+        <view class="summary-row total">
+          <text class="summary-label">商户所得</text>
+          <text class="summary-value">¥{{ summary.merchantIncome }}</text>
+        </view>
+        <view class="summary-row">
+          <text class="summary-label">区间客单</text>
+          <text class="summary-value">¥{{ summary.avgOrder }}</text>
+        </view>
+        <view class="summary-row">
+          <text class="summary-label">待分账</text>
+          <text class="summary-value">¥{{ summary.pending }}</text>
+        </view>
+        <view class="summary-row">
+          <text class="summary-label">本月已结算</text>
+          <text class="summary-value">¥{{ summary.settledMonth }}</text>
+        </view>
+        <view v-if="Number(summary.failedOrders) > 0" class="summary-row">
+          <text class="summary-label">分账失败笔数</text>
+          <text class="summary-value danger">{{ summary.failedOrders }}</text>
+        </view>
+      </view>
+
+      <view class="tip-card">
+        <text class="tip-text"
+          >T+1
+          结算：当日支付流水通常次日完成入账。可提现余额请到「商户钱包」申请提现；线长佣金请走「线长钱包」。</text
+        >
+        <text v-if="profitNote" class="tip-meta">{{ profitNote }}</text>
+        <text v-if="canViewWallet" class="tip-link" @click="goWallet">去商户钱包提现 ›</text>
+        <text v-if="canViewSplits" class="tip-link" @click="goSplits">查看分账明细 ›</text>
+      </view>
+
+      <view class="section">
+        <text class="section-title">按日汇总</text>
+        <view v-if="loading && !daily.length" class="loading-inline">结算数据加载中…</view>
+        <template v-else>
+          <view v-for="d in daily" :key="d.date" class="device-row">
+            <view class="device-info">
+              <text class="device-name">{{ d.date }}</text>
+              <text class="device-orders">
+                {{ d.orderCount }} 笔 · 客单 ¥{{
+                  d.orderCount > 0 ? (d.grossCents / d.orderCount / 100).toFixed(2) : '0.00'
+                }}
+                · 抽成 ¥{{ (d.platformCents / 100).toFixed(2) }}
+              </text>
+              <text class="device-orders"
+                >待分 ¥{{ (d.pendingCents / 100).toFixed(2) }} · 已结 ¥{{
+                  (d.settledCents / 100).toFixed(2)
+                }}</text
+              >
+              <text v-if="d.failedCount" class="device-fail">失败 {{ d.failedCount }} 笔</text>
+            </view>
+            <text class="device-amount">¥{{ (d.merchantCents / 100).toFixed(2) }}</text>
+          </view>
+          <empty-state
+            v-if="!daily.length"
+            compact
+            icon="/static/menu/settlements.png"
+            title="所选日期暂无结算数据"
+            hint="可调整上方日期范围，或等待订单完成分账"
+          />
+        </template>
+      </view>
+
+      <view class="section">
+        <text class="section-title">结算批次</text>
+        <view v-if="batchWarn" class="section-warn">{{ batchWarn }}</view>
+        <view v-if="loading && !batches.length && !daily.length" class="loading-inline"
+          >批次加载中…</view
+        >
+        <template v-else>
+          <view v-for="b in batches" :key="b.batchNo" class="device-row">
+            <view class="device-info">
+              <text class="device-name">{{ b.batchNo }}</text>
+              <text class="device-orders"
+                >{{ batchStatusLabel(b.batchStatus) }} · {{ b.orderCount }} 笔</text
+              >
+              <text class="device-orders"
+                >已结 ¥{{ ((b.settledCents || 0) / 100).toFixed(2) }} · 待分 ¥{{
+                  ((b.pendingCents || 0) / 100).toFixed(2)
+                }}</text
+              >
+              <text v-if="b.failedCount" class="device-fail">失败 {{ b.failedCount }} 笔</text>
+              <text v-if="b.settleAfter || b.settledAt" class="device-orders">{{
+                b.settledAt
+                  ? `入账 ${formatBatchTime(b.settledAt)}`
+                  : `计划 ${formatBatchTime(b.settleAfter)}`
+              }}</text>
+            </view>
+            <text class="device-amount">¥{{ (b.merchantCents / 100).toFixed(2) }}</text>
+          </view>
+          <empty-state
+            v-if="!batches.length"
+            compact
+            icon="/static/menu/orders.png"
+            title="暂无结算批次"
+            hint="平台定期提交分账后，批次会显示在这里"
+          />
+        </template>
+      </view>
+
+      <view v-if="canExport" class="actions">
+        <button class="btn-outline" @click="onExport">导出对账单</button>
+      </view>
     </view>
   </view>
 </template>
@@ -161,6 +188,7 @@ const { me, refresh: refreshMe } = useMerchantMe();
 const canViewSettlements = computed(() => hasPerm(me.value, 'merchant:settlements:view'));
 const canExport = computed(() => hasPerm(me.value, 'merchant:settlements:export'));
 const canViewSplits = computed(() => hasPerm(me.value, 'merchant:splits:list'));
+const canViewWallet = computed(() => hasPerm(me.value, 'merchant:wallet:view'));
 const isH5 = typeof document !== 'undefined';
 
 function localDateISO(d: Date) {
@@ -174,6 +202,14 @@ function batchStatusLabel(status?: string) {
   return displayLabel('settlement_batch_status', status, '未知状态');
 }
 
+function formatBatchTime(iso?: string) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 const today = localDateISO(new Date());
 const sevenDaysAgo = localDateISO(new Date(Date.now() - 7 * 86400000));
 
@@ -184,7 +220,9 @@ const summary = ref({
   platformFee: '0.00',
   merchantIncome: '0.00',
   pending: '0.00',
-  settledMonth: '0.00'
+  settledMonth: '0.00',
+  avgOrder: '0.00',
+  failedOrders: '0'
 });
 const daily = ref<MerchantDailySettlement[]>([]);
 const batches = ref<MerchantSettlementBatch[]>([]);
@@ -194,21 +232,17 @@ const loadError = ref('');
 const batchWarn = ref('');
 let loadSeq = 0;
 
-function readDateEvent(e: { detail?: { value?: string }; target?: { value?: string } }) {
-  return String(e?.detail?.value ?? e?.target?.value ?? '').trim();
-}
-
-function onStartDate(e: { detail?: { value?: string }; target?: { value?: string } }) {
-  const v = readDateEvent(e);
-  if (!v) return;
-  startDate.value = v;
+function onStartDate(e: unknown) {
+  const ev = e as { detail?: { value?: string }; target?: { value?: string } };
+  const v = String(ev?.detail?.value ?? ev?.target?.value ?? '').trim();
+  if (v) startDate.value = v;
   void load();
 }
 
-function onEndDate(e: { detail?: { value?: string }; target?: { value?: string } }) {
-  const v = readDateEvent(e);
-  if (!v) return;
-  endDate.value = v;
+function onEndDate(e: unknown) {
+  const ev = e as { detail?: { value?: string }; target?: { value?: string } };
+  const v = String(ev?.detail?.value ?? ev?.target?.value ?? '').trim();
+  if (v) endDate.value = v;
   void load();
 }
 
@@ -230,7 +264,9 @@ async function load() {
       platformFee: '0.00',
       merchantIncome: '0.00',
       pending: '0.00',
-      settledMonth: '0.00'
+      settledMonth: '0.00',
+      avgOrder: '0.00',
+      failedOrders: '0'
     };
     profitNote.value = '';
     loading.value = false;
@@ -249,7 +285,8 @@ async function load() {
     uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
     return;
   }
-  loading.value = true;
+  // 已有日汇总时静默刷新，避免日期区/摘要先空再撑开
+  if (!daily.value.length) loading.value = true;
   loadError.value = '';
   batchWarn.value = '';
   try {
@@ -291,12 +328,16 @@ async function load() {
     const gross = days.reduce((s, d) => s + (d.grossCents || 0), 0);
     const platform = days.reduce((s, d) => s + (d.platformCents || 0), 0);
     const merchant = days.reduce((s, d) => s + (d.merchantCents || 0), 0);
+    const orders = days.reduce((s, d) => s + (d.orderCount || 0), 0);
+    const failed = days.reduce((s, d) => s + (d.failedCount || 0), 0);
     summary.value = {
       gross: (gross / 100).toFixed(2),
       platformFee: (platform / 100).toFixed(2),
       merchantIncome: (merchant / 100).toFixed(2),
       pending: ((overview.pendingAmountCents || 0) / 100).toFixed(2),
-      settledMonth: ((overview.settledMonthCents || 0) / 100).toFixed(2)
+      settledMonth: ((overview.settledMonthCents || 0) / 100).toFixed(2),
+      avgOrder: orders > 0 ? (gross / orders / 100).toFixed(2) : '0.00',
+      failedOrders: String(failed || overview.failedSplitCount || 0)
     };
     profitNote.value = overview.profitSharing?.note || '';
   } catch (e: unknown) {
@@ -310,6 +351,10 @@ async function load() {
 
 function goSplits() {
   uni.navigateTo({ url: '/pages/splits/splits' });
+}
+
+function goWallet() {
+  uni.navigateTo({ url: '/pages/wallet/wallet' });
 }
 
 function onExport() {
@@ -335,8 +380,8 @@ function onExport() {
 
 <style scoped>
 .page-root {
-  padding: 20rpx;
-  background: #f0fdfa;
+  padding: 0;
+  background: #ffffff;
   min-height: 100vh;
 }
 .date-bar {
@@ -411,6 +456,9 @@ function onExport() {
 }
 .summary-value.minus {
   color: rgba(255, 255, 255, 0.7);
+}
+.summary-value.danger {
+  color: #fecaca;
 }
 .tip-card {
   background: #ecfdf5;
@@ -487,6 +535,13 @@ function onExport() {
   font-size: 22rpx;
   color: #999;
 }
+.device-fail {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #dc2626;
+  font-weight: 600;
+}
 .device-amount {
   font-size: 28rpx;
   font-weight: 600;
@@ -499,11 +554,15 @@ function onExport() {
 }
 .actions {
   padding: 20rpx 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 .btn-outline {
   width: 100%;
+  min-height: 80rpx;
   height: 80rpx;
-  line-height: 80rpx;
+  line-height: 1.2;
   border: 2rpx solid #0f766e;
   color: #0f766e;
   border-radius: 44rpx;
@@ -511,8 +570,17 @@ function onExport() {
   font-size: 28rpx;
   font-weight: 600;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
 }
 .btn-outline::after {
   border: none;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

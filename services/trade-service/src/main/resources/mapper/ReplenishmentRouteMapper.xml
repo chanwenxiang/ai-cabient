@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.ReplenishmentRouteMapper">
+
+  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.ReplenishmentRoute">
+    <![CDATA[
+    SELECT r.* FROM replenishment_route r WHERE r.route_id = #{routeId} FOR UPDATE
+    ]]>
+  </select>
+
+</mapper>

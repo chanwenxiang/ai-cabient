@@ -14,6 +14,7 @@ import com.aicabinet.common.dto.ReopenDisputeRequest;
 import com.aicabinet.common.dto.ResolveDisputeRequest;
 import com.aicabinet.common.dto.ResolveDisputeResultDto;
 import com.aicabinet.common.enums.SessionState;
+import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.domain.CabinetOrder;
@@ -48,7 +49,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -75,6 +75,9 @@ private final UserInfoMapper userInfoRepository;
     private final OpsExceptionService opsExceptionService;
     private final FileAttachmentService fileAttachmentService;
     private final RefundPolicyService refundPolicyService;
+    private final VideoArchiveService videoArchiveService;
+    private final OrderPaymentService orderPaymentService;
+    private final DistributedLockService distributedLockService;
 
     public DisputeService(DisputeTicketMapper disputeRepository,
                           DisputeMessageMapper disputeMessageRepository,
@@ -94,7 +97,10 @@ private final UserInfoMapper userInfoRepository;
                           UserInfoMapper userInfoRepository,
                           @Lazy OpsExceptionService opsExceptionService,
                           FileAttachmentService fileAttachmentService,
-                          RefundPolicyService refundPolicyService) {
+                          RefundPolicyService refundPolicyService,
+                          VideoArchiveService videoArchiveService,
+                          OrderPaymentService orderPaymentService,
+                          DistributedLockService distributedLockService) {
         this.disputeRepository = disputeRepository;
         this.disputeMessageRepository = disputeMessageRepository;
         this.sessionRepository = sessionRepository;
@@ -114,24 +120,32 @@ private final UserInfoMapper userInfoRepository;
         this.opsExceptionService = opsExceptionService;
         this.fileAttachmentService = fileAttachmentService;
         this.refundPolicyService = refundPolicyService;
+        this.videoArchiveService = videoArchiveService;
+        this.orderPaymentService = orderPaymentService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
     public DisputeTicketDto createTicket(ShoppingSession session,
                                          VisionServiceClient.RecognitionResult recognition,
                                          String reason) {
-        return disputeRepository.findBySessionId(session.getSessionId())
-                .map(this::toDto)
-                .orElseGet(() -> saveOpenTicket(
-                        session.getUserId(),
-                        session.getSessionId(),
-                        reason,
-                        toJson(recognition != null && recognition.items() != null ? recognition.items() : List.of()),
-                        "RECOGNITION",
-                        recognition != null ? priorityForRecognition(recognition) : "HIGH",
-                        recognition != null ? reviewCodeFor(recognition, reason) : "TIMEOUT",
-                        toJson(recognition != null && recognition.detectedClasses() != null
-                                ? recognition.detectedClasses() : List.of())));
+        var existing = disputeRepository.findBySessionId(session.getSessionId());
+        if (existing.isPresent()) {
+            return toDto(existing.get());
+        }
+        DisputeTicketDto dto = saveOpenTicket(
+                session.getUserId(),
+                session.getSessionId(),
+                reason,
+                toJson(recognition != null && recognition.items() != null ? recognition.items() : List.of()),
+                "RECOGNITION",
+                recognition != null ? priorityForRecognition(recognition) : "HIGH",
+                recognition != null ? reviewCodeFor(recognition, reason) : "TIMEOUT",
+                toJson(recognition != null && recognition.detectedClasses() != null
+                        ? recognition.detectedClasses() : List.of()));
+        // 争议/回查会话立即归档录像副本（原始录像会在保留期后过期）
+        videoArchiveService.archiveSession(session);
+        return dto;
     }
 
     /** 会话卡在上传/识别/结算：无视觉结果时开争议单，避免静默扣款。 */
@@ -171,6 +185,8 @@ private final UserInfoMapper userInfoRepository;
         }
         DisputeTicketDto dto = saveOpenTicket(userId, session.getSessionId(), request.reason().trim(), "[]",
                 normalizeCategory(request.category()), normalizePriority(request.priority()), null, null);
+        // 用户事后申诉：在原始录像仍保留期间立即归档，避免过期后无法回放
+        videoArchiveService.archiveSession(session);
         fileAttachmentService.bindEvidenceToDispute(userId, dto.ticketId(), request.evidenceFileIds());
         session.setState(SessionState.DISPUTED);
         sessionRepository.save(session);
@@ -184,34 +200,81 @@ private final UserInfoMapper userInfoRepository;
     }
 
     /**
-     * 消费者自助全额退款：创建申诉工单（可带附图）并立即原路退款。
-     */
-    @Transactional
-    public OrderRefundResultDto refundByConsumer(Long userId, String orderId, OrderRefundRequest request) {
-        CabinetOrder order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        if (!userId.equals(order.getUserId())) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND);
-        }
-        if (refundPolicyService != null && !refundPolicyService.allowsAutoRefund(order.getDeviceId())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "该柜机未开启自助退款，请提交账单申诉，由运营审核后处理");
-        }
-        return executeFullRefund(userId, order, request, false);
-    }
-
-    /**
-     * 运营后台直接全额退款（无需先点争议结案）。
+     * 运营后台退款（全额或按行部分退）。
      */
     @Transactional
     public OrderRefundResultDto refundByOperator(Long operatorId, String orderId, OrderRefundRequest request) {
         permissionService.requirePermission(operatorId, "ops:order:refund");
-        CabinetOrder order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        ShoppingSession session = sessionRepository.findById(order.getSessionId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
-        return executeFullRefund(operatorId, order, request, true);
+        return runWithOrderPaymentLock(orderId, lockedOrder -> {
+            ShoppingSession session = sessionRepository.findById(lockedOrder.getSessionId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+            merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
+            if (request != null && request.lines() != null && !request.lines().isEmpty()) {
+                return executePartialRefund(operatorId, lockedOrder, request, true);
+            }
+            return executeFullRefund(operatorId, lockedOrder, request, true);
+        });
+    }
+
+    /**
+     * 消费者自助退款：全额或按行（受限额策略约束）。
+     */
+    @Transactional
+    public OrderRefundResultDto refundByConsumer(Long userId, String orderId, OrderRefundRequest request) {
+        return runWithOrderPaymentLock(orderId, lockedOrder -> {
+            if (!userId.equals(lockedOrder.getUserId())) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND);
+            }
+            boolean partial = request != null && request.lines() != null && !request.lines().isEmpty();
+            if (partial) {
+                int estimate = settlementService.estimatePartialRefundCents(lockedOrder, request.lines());
+                refundPolicyService.assertConsumerSelfRefundAllowed(lockedOrder, estimate, true);
+                return executePartialRefund(userId, lockedOrder, request, false);
+            }
+            refundPolicyService.assertConsumerSelfRefundAllowed(lockedOrder, lockedOrder.getTotalAmountCents(), false);
+            return executeFullRefund(userId, lockedOrder, request, false);
+        });
+    }
+
+    private OrderRefundResultDto executePartialRefund(Long actorId, CabinetOrder order, OrderRefundRequest request,
+                                                      boolean operator) {
+        if ("REFUNDED".equals(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单已退款");
+        }
+        if (!Set.of("PAID", "COMPLETED", "DISPUTED", "PARTIAL_REFUNDED").contains(String.valueOf(order.getStatus()))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前订单状态不可退款");
+        }
+        String reason = request != null && request.reason() != null ? request.reason().trim() : "";
+        if (reason.length() < 4) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写至少 4 字退款原因");
+        }
+        boolean defaultRestore = RefundInventoryPolicy.resolve(
+                request.restoreInventory(), reason, !operator);
+        var outcome = settlementService.partialRefund(order, request.lines(), defaultRestore, reason);
+        ShoppingSession session = sessionRepository.findById(order.getSessionId()).orElse(null);
+        if (session != null && "REFUNDED".equals(outcome.status())) {
+            session.setState(SessionState.COMPLETED);
+            sessionRepository.save(session);
+        }
+        auditService.record(actorId,
+                operator ? "ORDER_PARTIAL_REFUND_OPS" : "ORDER_PARTIAL_REFUND_CONSUMER",
+                "ORDER", order.getOrderId(),
+                "refund=" + outcome.refundedCents() + "; status=" + outcome.status()
+                        + "; restore=" + outcome.anyInventoryRestored() + "; reason=" + reason);
+        String hint = outcome.anyInventoryRestored() ? "（含回库行）" : "（未回库/仅退款）";
+        String message = (outcome.status().equals("REFUNDED") ? "退款成功" : "部分退款成功")
+                + "，已退回 ¥" + String.format("%.2f", outcome.refundedCents() / 100.0)
+                + "，状态 " + outcome.status() + hint;
+        return new OrderRefundResultDto(
+                order.getOrderId(),
+                order.getSessionId(),
+                null,
+                outcome.status(),
+                outcome.refundedCents(),
+                order.getPayChannel(),
+                message,
+                outcome.anyInventoryRestored(),
+                true);
     }
 
     private OrderRefundResultDto executeFullRefund(Long actorId, CabinetOrder order, OrderRefundRequest request,
@@ -219,7 +282,7 @@ private final UserInfoMapper userInfoRepository;
         if ("REFUNDED".equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "订单已退款");
         }
-        if (!Set.of("PAID", "COMPLETED", "DISPUTED").contains(String.valueOf(order.getStatus()))) {
+        if (!Set.of("PAID", "COMPLETED", "DISPUTED", "PARTIAL_REFUNDED").contains(String.valueOf(order.getStatus()))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前订单状态不可退款");
         }
         String reason = request != null && request.reason() != null ? request.reason().trim() : "";
@@ -256,22 +319,30 @@ private final UserInfoMapper userInfoRepository;
             fileAttachmentService.bindEvidenceToDispute(order.getUserId(), ticket.getTicketId(),
                     request.evidenceFileIds());
         }
-        int refunded = settlementService.waiveAndRefund(session);
+        boolean restoreInventory = RefundInventoryPolicy.resolve(
+                request != null ? request.restoreInventory() : null,
+                reason,
+                // 运营默认不回库（须显式勾选）；消费者自助偏误识别场景，未知文案默认回库
+                !operator);
+        int refunded = settlementService.waiveAndRefund(session, restoreInventory);
         ticket.setStatus("RESOLVED");
         ticket.setResolutionItems("[]");
         ticket.setResolvedAt(Instant.now());
         if (operator) {
-            ticket.setOperatorNote("运营直接退款: " + reason);
+            ticket.setOperatorNote("运营直接退款: " + reason
+                    + (restoreInventory ? " [回库]" : " [不回库]"));
         }
         disputeRepository.save(ticket);
         session.setState(SessionState.COMPLETED);
         sessionRepository.save(session);
         auditService.record(actorId, operator ? "ORDER_REFUND_OPS" : "ORDER_REFUND_CONSUMER",
                 "ORDER", order.getOrderId(),
-                "ticket=" + ticket.getTicketId() + "; refund=" + refunded + "; reason=" + reason);
+                "ticket=" + ticket.getTicketId() + "; refund=" + refunded
+                        + "; restoreInventory=" + restoreInventory + "; reason=" + reason);
+        String inventoryHint = restoreInventory ? "，库存已回库" : "，库存未回库（货已离柜/仅退款）";
         String message = refunded > 0
-                ? "退款成功，已退回 ¥" + String.format("%.2f", refunded / 100.0)
-                : "已处理，本单无需退款金额";
+                ? "退款成功，已退回 ¥" + String.format("%.2f", refunded / 100.0) + inventoryHint
+                : "已处理，本单无需退款金额" + inventoryHint;
         return new OrderRefundResultDto(
                 order.getOrderId(),
                 session.getSessionId(),
@@ -279,7 +350,9 @@ private final UserInfoMapper userInfoRepository;
                 "REFUNDED",
                 refunded,
                 order.getPayChannel(),
-                message);
+                message,
+                restoreInventory,
+                false);
     }
 
     private DisputeTicketDto saveOpenTicket(Long userId, String sessionId, String reason, String itemsJson,
@@ -309,7 +382,7 @@ private final UserInfoMapper userInfoRepository;
     }
 
     private static String newTicketId() {
-        return "D" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
+        return BizIds.nextNumeric();
     }
 
     @Transactional(readOnly = true)
@@ -393,10 +466,14 @@ private final UserInfoMapper userInfoRepository;
         return toDto(ticket);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = {com.aicabinet.trade.service.BalanceInsufficientException.class})
     public ResolveDisputeResultDto resolveTicket(Long operatorId, String ticketId, ResolveDisputeRequest request) {
         permissionService.requirePermission(operatorId, "ops:dispute:resolve");
-        DisputeTicket ticket = disputeRepository.findById(ticketId)
+        return runWithDisputeTicketLock(ticketId, () -> doResolveTicket(operatorId, ticketId, request));
+    }
+
+    private ResolveDisputeResultDto doResolveTicket(Long operatorId, String ticketId, ResolveDisputeRequest request) {
+        DisputeTicket ticket = disputeRepository.findByIdForUpdate(ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
         if (!"OPEN".equals(ticket.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.TICKET_ALREADY_RESOLVED);
@@ -417,7 +494,8 @@ private final UserInfoMapper userInfoRepository;
         });
         ResolveDisputeResultDto result = switch (resolutionType) {
             case "KEEP" -> resolveKeep(operatorId, ticket, session);
-            case "WAIVE" -> resolveWaive(operatorId, ticket, session);
+            case "WAIVE" -> resolveWaive(operatorId, ticket, session,
+                    request != null ? request.restoreInventory() : null);
             case "ADJUST", "CONFIRM" -> resolveConfirm(operatorId, ticket, session, request, resolutionType);
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
         };
@@ -430,18 +508,33 @@ private final UserInfoMapper userInfoRepository;
         // 三端一致：结案后订单不得再挂 DISPUTED
         // WAIVE → REFUNDED（免单兜底）；KEEP/CONFIRM/ADJUST → PAID
         final String resolvedType = resolutionType;
-        orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
-            if (!"DISPUTED".equals(order.getStatus())) {
-                return;
-            }
-            if ("WAIVE".equals(resolvedType)) {
-                order.setStatus("REFUNDED");
-            } else {
-                order.setStatus("PAID");
+        orderRepository.findBySessionId(session.getSessionId()).ifPresent(order ->
+                alignOrderStatusAfterDisputeResolve(order, resolvedType));
+        return result;
+    }
+
+    /** 结案后订单状态与真实入账对齐，避免未支付却被标 PAID。 */
+    private void alignOrderStatusAfterDisputeResolve(CabinetOrder order, String resolutionType) {
+        if (!"DISPUTED".equals(order.getStatus())) {
+            return;
+        }
+        if ("WAIVE".equals(resolutionType)) {
+            order.setStatus("REFUNDED");
+            if (order.getRefundedAt() == null) {
+                order.setRefundedAt(Instant.now());
             }
             orderRepository.save(order);
-        });
-        return result;
+            return;
+        }
+        int netPaid = orderPaymentService.netCompletedCents(order.getOrderId());
+        if (netPaid <= 0) {
+            order.setStatus(order.getTotalAmountCents() <= 0 ? "PAID" : "PENDING");
+        } else if (order.getRefundedCents() > 0 && netPaid < order.getTotalAmountCents()) {
+            order.setStatus("PARTIAL_REFUNDED");
+        } else {
+            order.setStatus("PAID");
+        }
+        orderRepository.save(order);
     }
 
     /**
@@ -540,16 +633,19 @@ private final UserInfoMapper userInfoRepository;
         return toDto(ticket);
     }
 
-    private ResolveDisputeResultDto resolveWaive(Long operatorId, DisputeTicket ticket, ShoppingSession session) {
-        int refunded = settlementService.waiveAndRefund(session);
+    private ResolveDisputeResultDto resolveWaive(Long operatorId, DisputeTicket ticket, ShoppingSession session,
+                                                 Boolean restoreInventoryFlag) {
+        boolean restore = RefundInventoryPolicy.resolve(restoreInventoryFlag, ticket.getReason(), true);
+        int refunded = settlementService.waiveAndRefund(session, restore);
         ticket.setStatus("RESOLVED");
         ticket.setResolutionItems("[]");
         ticket.setResolvedAt(Instant.now());
         disputeRepository.save(ticket);
         auditService.record(operatorId, "DISPUTE_WAIVE", "DISPUTE", ticket.getTicketId(),
-                "refund=" + refunded);
+                "refund=" + refunded + "; restoreInventory=" + restore);
         String message = refunded > 0
                 ? "已免单，退还 ¥" + String.format("%.2f", refunded / 100.0)
+                + (restore ? "，库存已回库" : "，库存未回库")
                 : "已免单，无需扣款";
         return new ResolveDisputeResultDto(null, "WAIVE", refunded, 0, -refunded, message);
     }
@@ -656,6 +752,15 @@ private final UserInfoMapper userInfoRepository;
                 .filter(o -> !"REFUNDED".equals(o.getStatus()))
                 .map(CabinetOrder::getTotalAmountCents)
                 .orElse(null);
+        Integer refundedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
+                .map(o -> {
+                    int r = Math.max(0, o.getRefundedCents());
+                    if (r <= 0 && "REFUNDED".equals(o.getStatus())) {
+                        return o.getTotalAmountCents();
+                    }
+                    return r > 0 ? r : null;
+                })
+                .orElse(null);
         String previewUrl = minioVideoService.presignPlaybackUrl(videoUri).orElse(null);
         Instant now = Instant.now();
         boolean slaOverdue = "OPEN".equals(ticket.getStatus())
@@ -677,7 +782,8 @@ private final UserInfoMapper userInfoRepository;
                 ticket.getClosedAt(), ticket.getReopenedAt(), loadMessages(ticket.getTicketId()),
                 fileAttachmentService.listDisputeEvidence(ticket.getTicketId()),
                 reviewCode,
-                parseDetectedClasses(ticket.getDetectedClasses()));
+                parseDetectedClasses(ticket.getDetectedClasses()),
+                refundedAmountCents);
     }
 
     @Transactional(readOnly = true)
@@ -690,7 +796,69 @@ private final UserInfoMapper userInfoRepository;
         List<DisputeMessageDto> messages = loadMessages(ticket.getTicketId());
         boolean canReply = "OPEN".equals(ticket.getStatus())
                 && permissionService.hasPermission(userId, "merchant:disputes:reply");
-        return new MerchantDisputeDetailDto(dto, messages, canReply);
+        boolean canResolve = "OPEN".equals(ticket.getStatus())
+                && permissionService.hasPermission(userId, "merchant:disputes:resolve");
+        return new MerchantDisputeDetailDto(dto, messages, canReply, canResolve);
+    }
+
+    /**
+     * 商户有限结案：仅 KEEP / WAIVE / CONFIRM（不可 ADJUST 随意改价）。
+     */
+    @Transactional(noRollbackFor = {com.aicabinet.trade.service.BalanceInsufficientException.class})
+    public ResolveDisputeResultDto resolveAsMerchant(Long userId, String ticketId, ResolveDisputeRequest request) {
+        permissionService.requirePermission(userId, "merchant:disputes:resolve");
+        merchantPortalGuard.requireAccess(userId);
+        return runWithDisputeTicketLock(ticketId, () -> doResolveAsMerchant(userId, ticketId, request));
+    }
+
+    private ResolveDisputeResultDto doResolveAsMerchant(Long userId, String ticketId, ResolveDisputeRequest request) {
+        DisputeTicket ticket = disputeRepository.findByIdForUpdate(ticketId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
+        requireTicketDeviceAccess(userId, ticket);
+        if (!"OPEN".equals(ticket.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.TICKET_ALREADY_RESOLVED);
+        }
+        ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+
+        String resolutionType = requireResolutionType(request == null ? null : request.effectiveResolutionType());
+        if (!Set.of("KEEP", "WAIVE", "CONFIRM").contains(resolutionType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商户结案仅支持：维持原单 / 免单退款 / 按确认清单");
+        }
+        if ("CONFIRM".equals(resolutionType) && (request == null || request.items() == null || request.items().isEmpty())) {
+            // 默认用工单建议行，避免商户端无商品选择器时无法结案
+            List<ResolveDisputeRequest.ManualLineItem> suggested = parseItems(ticket.getItems()).stream()
+                    .filter(i -> i != null && i.skuId() != null && i.quantity() > 0)
+                    .map(i -> new ResolveDisputeRequest.ManualLineItem(i.skuId(), i.quantity()))
+                    .toList();
+            if (suggested.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_ITEMS_REQUIRED);
+            }
+            request = new ResolveDisputeRequest(
+                    suggested, "CONFIRM", null, request != null ? request.restoreInventory() : null);
+        }
+        orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
+            if ("REFUNDED".equals(order.getStatus()) && !"WAIVE".equals(resolutionType) && !"KEEP".equals(resolutionType)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_ALREADY_REFUNDED);
+            }
+        });
+        ResolveDisputeResultDto result = switch (resolutionType) {
+            case "KEEP" -> resolveKeep(userId, ticket, session);
+            case "WAIVE" -> resolveWaive(userId, ticket, session,
+                    request != null ? request.restoreInventory() : null);
+            case "CONFIRM" -> resolveConfirm(userId, ticket, session, request, "CONFIRM");
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
+        };
+        opsExceptionService.resolveOpenForSession(userId, session.getSessionId(),
+                "商户争议结案(" + resolutionType + ")同步关闭异常");
+        session.setState(SessionState.COMPLETED);
+        sessionRepository.save(session);
+        final String resolvedType = resolutionType;
+        orderRepository.findBySessionId(session.getSessionId()).ifPresent(order ->
+                alignOrderStatusAfterDisputeResolve(order, resolvedType));
+        auditService.record(userId, "MERCHANT_DISPUTE_RESOLVE", "DISPUTE", ticketId,
+                "type=" + resolutionType);
+        return result;
     }
 
     @Transactional
@@ -727,9 +895,20 @@ private final UserInfoMapper userInfoRepository;
         String deviceId = session != null ? session.getDeviceId() : null;
         String sessionState = session != null ? session.getState().name() : null;
         String orderId = session != null ? session.getOrderId() : null;
+        String videoUri = session != null ? session.getVideoUri() : null;
+        String previewUrl = minioVideoService.presignPlaybackUrl(videoUri).orElse(null);
         Integer billedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
                 .filter(o -> !"REFUNDED".equals(o.getStatus()))
                 .map(CabinetOrder::getTotalAmountCents)
+                .orElse(null);
+        Integer refundedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
+                .map(o -> {
+                    int r = Math.max(0, o.getRefundedCents());
+                    if (r <= 0 && "REFUNDED".equals(o.getStatus())) {
+                        return o.getTotalAmountCents();
+                    }
+                    return r > 0 ? r : null;
+                })
                 .orElse(null);
         Instant now = Instant.now();
         boolean slaOverdue = "OPEN".equals(ticket.getStatus())
@@ -745,13 +924,14 @@ private final UserInfoMapper userInfoRepository;
         return new DisputeTicketDto(
                 ticket.getTicketId(), ticket.getSessionId(), deviceId, displayReason,
                 ticket.getStatus(), suggested, resolved, ticket.getCreatedAt(), ticket.getResolvedAt(),
-                null, null, sessionState, orderId, billedAmountCents,
+                videoUri, previewUrl, sessionState, orderId, billedAmountCents,
                 ticket.getSlaDueAt(), slaOverdue, slaHoursRemaining,
                 ticket.getCategory(), ticket.getPriority(), ticket.getOperatorNote(),
                 ticket.getClosedAt(), ticket.getReopenedAt(), List.of(),
                 fileAttachmentService.listDisputeEvidence(ticket.getTicketId()),
                 reviewCode,
-                parseDetectedClasses(ticket.getDetectedClasses()));
+                parseDetectedClasses(ticket.getDetectedClasses()),
+                refundedAmountCents);
     }
 
     private DisputeTicket requireTicket(String ticketId) {
@@ -954,5 +1134,46 @@ private final UserInfoMapper userInfoRepository;
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    static String disputeTicketLockKey(String ticketId) {
+        return "dispute:ticket:" + ticketId;
+    }
+
+    @FunctionalInterface
+    private interface LockedOrderSupplier<T> {
+        T get(CabinetOrder order);
+    }
+
+    private <T> T runWithOrderPaymentLock(String orderId, LockedOrderSupplier<T> action) {
+        if (!distributedLockService.tryLock(OrderPaymentService.orderPaymentLockKey(orderId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单支付处理中，请稍后重试");
+        }
+        try {
+            CabinetOrder locked = orderRepository.findByIdForUpdate(orderId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+            return action.get(locked);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(OrderPaymentService.orderPaymentLockKey(orderId));
+        }
+    }
+
+    private <T> T runWithDisputeTicketLock(String ticketId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(disputeTicketLockKey(ticketId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "争议处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(disputeTicketLockKey(ticketId));
+        }
     }
 }

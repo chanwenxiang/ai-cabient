@@ -1,59 +1,63 @@
 <template>
   <view class="page">
-    <view v-if="loading" class="card state">加载中…</view>
-    <view v-else-if="error" class="card state">
-      <text class="err">{{ error }}</text>
-      <button class="retry" size="mini" @click="load">重试</button>
-    </view>
-    <empty-state
-      v-else-if="!list.length"
-      icon="告"
-      title="暂无平台公告"
-      hint="运营发布的维护、活动与规则通知会出现在这里"
-    />
-    <view v-else>
-      <view
-        v-for="item in list"
-        :key="item.announceId"
-        class="card item"
-        hover-class="item-hover"
-        @click="goDetail(item.announceId)"
-      >
-        <view class="head">
-          <text
-            v-if="priorityLabel(item.priority)"
-            class="tag"
-            :class="priorityClass(item.priority)"
-          >
-            {{ priorityLabel(item.priority) }}
-          </text>
-          <text v-if="unread(item.announceId)" class="unread-dot" aria-label="未读">新</text>
-          <text class="time">{{ formatTime(item.publishAt) }}</text>
-        </view>
-        <text class="title">{{ item.title }}</text>
-        <text class="preview">{{ previewText(item.content) }}</text>
-        <text class="action">查看详情 ›</text>
+    <app-nav-bar title="通知公告" />
+    <view class="page-body">
+      <view v-if="loading && !list.length" class="card state">加载中…</view>
+      <view v-else-if="error && !list.length" class="card state">
+        <text class="err">{{ error }}</text>
+        <button class="retry" size="mini" @click="load">重试</button>
       </view>
-    </view>
-  </view>
+      <empty-state
+        v-else-if="!list.length"
+        icon="/static/menu/notice.png"
+        title="暂无平台公告"
+        hint="运营发布的维护、活动与规则通知会出现在这里"
+      />
+      <view v-else>
+        <view
+          v-for="item in list"
+          :key="item.announceId"
+          class="card item"
+          hover-class="item-hover"
+          @click="goDetail(item.announceId)"
+        >
+          <view class="head">
+            <text
+              v-if="priorityLabel(item.priority)"
+              class="tag"
+              :class="priorityClass(item.priority)"
+            >
+              {{ priorityLabel(item.priority) }}
+            </text>
+            <text v-if="unread(item.announceId)" class="unread-dot" aria-label="未读">新</text>
+            <text class="time">{{ formatTime(item.publishAt) }}</text>
+          </view>
+          <text class="title">{{ item.title }}</text>
+          <text class="preview">{{ previewText(item.content) }}</text>
+          <text class="action">查看详情 ›</text>
+        </view>
+      </view>
+    </view></view
+  >
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
+import { useAnnouncementsList } from '@aicabinet/shared-uni/announcements';
 import { merchantApi } from '@/utils/merchant-api';
-import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
-import { announcementReadMap } from '@aicabinet/shared-uni/announcement-read';
-import type { AnnouncementDto } from '@aicabinet/shared-types';
 
-const loading = ref(true);
-const error = ref('');
-const list = ref<AnnouncementDto[]>([]);
-const readMap = ref<Record<string, number>>({});
-
-function unread(id?: number) {
-  return id != null && readMap.value[String(id)] == null;
-}
+const {
+  loading,
+  error,
+  list,
+  unread,
+  load,
+  goDetail,
+  formatTime,
+  previewText,
+  priorityLabel,
+  priorityClass
+} = useAnnouncementsList(() => merchantApi.listAnnouncements());
 
 onShow(() => {
   if (!uni.getStorageSync('merchant_token')) {
@@ -70,53 +74,11 @@ onPullDownRefresh(async () => {
     uni.stopPullDownRefresh();
   }
 });
-
-async function load() {
-  loading.value = true;
-  error.value = '';
-  try {
-    list.value = (await merchantApi.listAnnouncements()) || [];
-    readMap.value = announcementReadMap();
-  } catch (e) {
-    list.value = [];
-    error.value = e instanceof Error ? e.message : '加载失败';
-  } finally {
-    loading.value = false;
-  }
-}
-
-function goDetail(id?: number) {
-  if (!id) return;
-  uni.navigateTo({ url: `/pages/announcements/detail?id=${id}` });
-}
-
-function formatTime(t?: string) {
-  return formatDateTimeMinute(t, '');
-}
-
-function previewText(content?: string) {
-  const text = String(content || '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return text.length > 80 ? `${text.slice(0, 80)}…` : text;
-}
-
-function priorityLabel(p?: string) {
-  if (p === 'URGENT') return '紧急';
-  if (p === 'HIGH') return '重要';
-  return '';
-}
-
-function priorityClass(p?: string) {
-  if (p === 'URGENT') return 'urgent';
-  if (p === 'HIGH') return 'high';
-  return '';
-}
 </script>
 
 <style scoped>
 .page {
-  padding: 24rpx;
+  padding: 0;
   min-height: 100vh;
   box-sizing: border-box;
 }
@@ -201,5 +163,9 @@ function priorityClass(p?: string) {
   font-size: 24rpx;
   color: #0f766e;
   font-weight: 600;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

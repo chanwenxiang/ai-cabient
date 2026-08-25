@@ -1,114 +1,128 @@
 <template>
   <view class="page">
-    <view class="tabs">
-      <view class="tab" :class="{ active: mode === 'create' }" @click="mode = 'create'"
-        >发起要货</view
-      >
-      <view class="tab" :class="{ active: mode === 'list' }" @click="switchToList">我的申请</view>
-    </view>
-
-    <view v-if="mode === 'create'" class="panel">
-      <view class="card">
-        <text class="label">目标柜机</text>
-        <picker :range="deviceLabels" :value="deviceIndex" @change="onDevicePick">
-          <view class="picker">{{ deviceLabels[deviceIndex] || '请选择柜机' }}</view>
-        </picker>
-        <text v-if="preferredId && selectedDeviceId === preferredId" class="hint"
-          >当前为常驻柜</text
+    <app-nav-bar title="要货申请" />
+    <view class="page-body">
+      <view class="tabs">
+        <view class="tab" :class="{ active: mode === 'create' }" @click="mode = 'create'"
+          >发起要货</view
         >
+        <view class="tab" :class="{ active: mode === 'list' }" @click="switchToList">我的申请</view>
       </view>
 
-      <view class="card">
-        <view class="row-between">
-          <text class="label">要货明细</text>
-          <text class="hint" @click="loadDraft">刷新建议</text>
+      <view v-if="mode === 'create'" class="panel">
+        <view class="card">
+          <text class="label">目标柜机</text>
+          <picker :range="deviceLabels" :value="deviceIndex" @change="onDevicePick">
+            <view class="picker">{{ deviceLabels[deviceIndex] || '请选择柜机' }}</view>
+          </picker>
+          <text v-if="preferredId && selectedDeviceId === preferredId" class="hint"
+            >当前为常驻柜</text
+          >
         </view>
-        <view v-if="draftLoading" class="empty-inline">加载建议中…</view>
-        <view v-else-if="!draftLines.length" class="empty-inline">
-          该柜机暂无可要货商品（无绑定货道 SKU）
+
+        <view class="card">
+          <view class="row-between">
+            <text class="label">要货明细</text>
+            <text class="hint" @click="loadDraft">刷新建议</text>
+          </view>
+          <view v-if="draftLoading" class="empty-inline">加载建议中…</view>
+          <view v-else-if="!draftLines.length" class="empty-inline">
+            该柜机暂无可要货商品（无绑定货道 SKU）
+          </view>
+          <view
+            v-for="line in draftLines"
+            :key="line.skuId"
+            class="line-row"
+            @click="toggleLine(line)"
+          >
+            <view class="check" :class="{ on: line.selected }">{{ line.selected ? '✓' : '' }}</view>
+            <view class="line-copy">
+              <text class="sku-name">{{ line.skuName }}</text>
+              <text class="sku-meta">
+                {{ line.skuId }} · 库存 {{ line.currentQty }}/{{ line.capacity }}
+                <text v-if="line.suggestQty > 0"> · 建议 {{ line.suggestQty }}</text>
+                <text v-if="line.soldQty7d > 0"> · 近7日销 {{ line.soldQty7d }}</text>
+              </text>
+              <text v-if="suggestReasonLabel(line.suggestReason)" class="sku-reason">{{
+                suggestReasonLabel(line.suggestReason)
+              }}</text>
+            </view>
+            <view class="qty-box" @click.stop>
+              <text class="qty-btn" @click="adjustQty(line, -1)">−</text>
+              <text class="qty-val">{{ line.qty }}</text>
+              <text class="qty-btn" @click="adjustQty(line, 1)">+</text>
+            </view>
+          </view>
         </view>
+
+        <view class="card">
+          <text class="label">备注（可选）</text>
+          <input
+            v-model="notes"
+            class="input"
+            placeholder="如：周末客流大，优先补可乐"
+            maxlength="80"
+          />
+        </view>
+
         <view
-          v-for="line in draftLines"
-          :key="line.skuId"
-          class="line-row"
-          @click="toggleLine(line)"
+          class="btn-primary btn-block"
+          :class="{ disabled: submitting || !canSubmit }"
+          @click="submit"
         >
-          <view class="check" :class="{ on: line.selected }">{{ line.selected ? '✓' : '' }}</view>
-          <view class="line-copy">
-            <text class="sku-name">{{ line.skuName }}</text>
-            <text class="sku-meta">
-              {{ line.skuId }} · 库存 {{ line.currentQty }}/{{ line.capacity }}
-              <text v-if="line.suggestQty > 0"> · 建议 {{ line.suggestQty }}</text>
+          <text class="btn-label">{{
+            submitting ? '提交中…' : `提交要货（${selectedCount} 种）`
+          }}</text>
+        </view>
+        <text v-if="!canRequest" class="err">当前账号无要货权限</text>
+      </view>
+
+      <view v-else class="panel">
+        <view class="filters">
+          <view
+            v-for="t in statusTabs"
+            :key="t.value"
+            class="filter"
+            :class="{ active: listStatus === t.value }"
+            @click="changeListStatus(t.value)"
+            >{{ t.label }}</view
+          >
+        </view>
+        <view v-if="listLoading" class="empty-inline">加载中…</view>
+        <view v-else-if="listError" class="empty-inline err">{{ listError }}</view>
+        <view v-else-if="!requests.length" class="empty-inline">暂无要货申请</view>
+        <view
+          v-for="req in requests"
+          :key="req.requestId"
+          class="card req-card"
+          :class="{ clickable: canGoReplenish(req) }"
+          :hover-class="canGoReplenish(req) ? 'req-card-hover' : ''"
+          @click="onRequestCard(req)"
+        >
+          <view class="row-between">
+            <text class="req-id">申请号 {{ req.requestId }}</text>
+            <text class="status" :class="(req.status || '').toLowerCase()">
+              {{ displayLabel('replenishment_request_status', req.status) }}
             </text>
           </view>
-          <view class="qty-box" @click.stop>
-            <text class="qty-btn" @click="adjustQty(line, -1)">−</text>
-            <text class="qty-val">{{ line.qty }}</text>
-            <text class="qty-btn" @click="adjustQty(line, 1)">+</text>
+          <text class="sku-name">{{ req.deviceName || req.deviceId }}</text>
+          <text class="sku-meta">{{ req.deviceId }} · {{ formatTime(req.submittedAt) }}</text>
+          <view v-if="req.lines?.length" class="lines">
+            <text v-for="l in req.lines" :key="l.lineId || l.skuId" class="line-chip">
+              {{ l.skuName || l.skuId }} ×{{ l.requestedQty }}
+            </text>
           </view>
+          <text v-if="req.reviewedAt" class="sku-meta">审核 {{ formatTime(req.reviewedAt) }}</text>
+          <text v-if="req.rejectReason" class="reject">驳回：{{ req.rejectReason }}</text>
+          <text v-if="req.notes" class="notes">备注：{{ req.notes }}</text>
+          <view v-if="req.status === 'ACCEPTED' && req.replenishmentTaskId" class="detail-btn"
+            >去补货 ›</view
+          >
         </view>
-      </view>
-
-      <view class="card">
-        <text class="label">备注（可选）</text>
-        <input
-          v-model="notes"
-          class="input"
-          placeholder="如：周末客流大，优先补可乐"
-          maxlength="80"
-        />
-      </view>
-
-      <view class="btn-primary" :class="{ disabled: submitting || !canSubmit }" @click="submit">{{
-        submitting ? '提交中…' : `提交要货（${selectedCount} 种）`
-      }}</view>
-      <text v-if="!canRequest" class="err">当前账号无要货权限</text>
-    </view>
-
-    <view v-else class="panel">
-      <view class="filters">
-        <view
-          v-for="t in statusTabs"
-          :key="t.value"
-          class="filter"
-          :class="{ active: listStatus === t.value }"
-          @click="changeListStatus(t.value)"
-          >{{ t.label }}</view
+        <text v-if="requests.length >= 100" class="trunc-hint"
+          >已加载 {{ requests.length }} 条申请</text
         >
       </view>
-      <view v-if="listLoading" class="empty-inline">加载中…</view>
-      <view v-else-if="listError" class="empty-inline err">{{ listError }}</view>
-      <view v-else-if="!requests.length" class="empty-inline">暂无要货申请</view>
-      <view
-        v-for="req in requests"
-        :key="req.requestId"
-        class="card req-card"
-        :class="{ clickable: canGoReplenish(req) }"
-        :hover-class="canGoReplenish(req) ? 'req-card-hover' : ''"
-        @click="onRequestCard(req)"
-      >
-        <view class="row-between">
-          <text class="req-id">#{{ req.requestId }}</text>
-          <text class="status" :class="(req.status || '').toLowerCase()">
-            {{ displayLabel('replenishment_request_status', req.status) }}
-          </text>
-        </view>
-        <text class="sku-name">{{ req.deviceName || req.deviceId }}</text>
-        <text class="sku-meta">{{ req.deviceId }} · {{ formatTime(req.submittedAt) }}</text>
-        <view v-if="req.lines?.length" class="lines">
-          <text v-for="l in req.lines" :key="l.lineId || l.skuId" class="line-chip">
-            {{ l.skuName || l.skuId }} ×{{ l.requestedQty }}
-          </text>
-        </view>
-        <text v-if="req.rejectReason" class="reject">驳回：{{ req.rejectReason }}</text>
-        <text v-if="req.notes" class="notes">备注：{{ req.notes }}</text>
-        <view v-if="req.status === 'ACCEPTED' && req.replenishmentTaskId" class="detail-btn"
-          >去补货 ›</view
-        >
-      </view>
-      <text v-if="requests.length >= 100" class="trunc-hint"
-        >已加载 {{ requests.length }} 条申请</text
-      >
     </view>
   </view>
 </template>
@@ -134,6 +148,8 @@ type DraftLine = {
   currentQty: number;
   capacity: number;
   suggestQty: number;
+  soldQty7d: number;
+  suggestReason: string;
   qty: number;
   selected: boolean;
 };
@@ -179,6 +195,15 @@ const selectedCount = computed(
 const canSubmit = computed(
   () => canRequest.value && !!selectedDeviceId.value && selectedCount.value > 0
 );
+
+/** 补货建议理由：PAR=目标库存，ROP=销量再订货点 */
+function suggestReasonLabel(code?: string) {
+  const c = String(code || '').toUpperCase();
+  if (!c || c === 'PAR') return '';
+  if (c === 'ROP') return '按销量补货';
+  if (c === 'PAR+ROP') return '目标库存+销量';
+  return code || '';
+}
 
 onLoad((opts) => {
   if (!uni.getStorageSync('merchant_token')) {
@@ -283,11 +308,15 @@ async function loadDraft() {
       const book = Number(slot.bookQty) || 0;
       const capacity = Number(slot.maxLevel ?? slot.parLevel) || 0;
       const suggestQty = Number(sug?.suggestQty) || 0;
+      const soldQty7d = Number(sug?.soldQty7d) || 0;
+      const suggestReason = String(sug?.suggestReason || '');
       const existing = bySku.get(skuId);
       if (existing) {
         existing.currentQty += book;
         existing.capacity += capacity;
         existing.suggestQty = Math.max(existing.suggestQty, suggestQty);
+        existing.soldQty7d = Math.max(existing.soldQty7d, soldQty7d);
+        if (suggestReason) existing.suggestReason = suggestReason;
         continue;
       }
       const defaultQty =
@@ -298,9 +327,12 @@ async function loadDraft() {
         currentQty: book,
         capacity,
         suggestQty,
+        soldQty7d,
+        suggestReason,
         qty: defaultQty > 0 ? defaultQty : 1,
         selected: suggestQty > 0 || defaultQty > 0
       });
+      suggestMap.delete(skuId);
     }
     // suggestions without slot binding still show
     for (const [skuId, sug] of suggestMap) {
@@ -312,6 +344,8 @@ async function loadDraft() {
         currentQty: Number(sug.currentQty) || 0,
         capacity: Number(sug.capacity) || 0,
         suggestQty: Number(sug.suggestQty) || 0,
+        soldQty7d: Number(sug.soldQty7d) || 0,
+        suggestReason: String(sug.suggestReason || ''),
         qty,
         selected: (sug.suggestQty || 0) > 0
       });
@@ -413,8 +447,8 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 <style scoped>
 .page {
   min-height: 100vh;
-  padding: 16rpx 20rpx 48rpx;
-  background: #f0fdfa;
+  padding: 0;
+  background: #ffffff;
 }
 .tabs {
   display: flex;
@@ -529,6 +563,12 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   color: #94a3b8;
   margin-top: 4rpx;
 }
+.sku-reason {
+  display: block;
+  margin-top: 4rpx;
+  color: #0f766e;
+  font-size: 20rpx;
+}
 .qty-box {
   display: flex;
   align-items: center;
@@ -552,26 +592,44 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   font-weight: 600;
 }
 .input {
+  display: block;
   width: 100%;
-  padding: 16rpx 18rpx;
+  height: 80rpx;
+  min-height: 80rpx;
+  line-height: 80rpx;
+  padding: 0 18rpx;
   border-radius: 12rpx;
   background: #f8fafc;
   border: 1rpx solid #e2e8f0;
   font-size: 26rpx;
   box-sizing: border-box;
+  color: #0f172a;
 }
 .btn-primary {
-  margin-top: 8rpx;
+  margin-top: 16rpx;
   background: linear-gradient(135deg, #134e4a, #0f766e);
   color: #fff;
   border-radius: 44rpx;
-  padding: 0;
+  padding: 0 40rpx;
   min-height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   text-align: center;
   font-weight: 600;
   font-size: 30rpx;
   box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+.btn-primary .btn-label {
+  display: block;
+  width: 100%;
+  text-align: center;
+  color: #fff;
+  font-weight: 600;
+  font-size: 30rpx;
+  line-height: 1.2;
 }
 .btn-primary::after {
   border: none;
@@ -679,5 +737,9 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   color: #fff;
   font-size: 24rpx;
   font-weight: 600;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

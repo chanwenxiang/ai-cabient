@@ -9,15 +9,20 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class RestockSnapshotServiceTest {
 
     @Mock
@@ -26,6 +31,8 @@ class RestockSnapshotServiceTest {
     private DeviceSlotService deviceSlotService;
     @Mock
     private VisionServiceClient visionClient;
+    @Mock
+    private DistributedLockService distributedLockService;
 
     private RestockSnapshotService restockSnapshotService;
 
@@ -36,8 +43,10 @@ class RestockSnapshotServiceTest {
 
     @BeforeEach
     void setUp() {
+        when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L)))
+                .thenReturn(true);
         restockSnapshotService = new RestockSnapshotService(
-                gravityHelper, deviceSlotService, visionClient);
+                gravityHelper, deviceSlotService, visionClient, distributedLockService);
     }
 
     @Test

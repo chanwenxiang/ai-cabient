@@ -165,7 +165,7 @@
                 class="link-cell mono"
                 @click="goSessions(row.deviceId, row.sessionId)"
               >
-                {{ row.sessionId }}
+                {{ displayBizNo(row.sessionId, '无') }}
               </button>
               <span v-else class="muted">无</span>
             </template>
@@ -184,7 +184,7 @@
                 class="link-cell mono"
                 @click="goOrders(row.deviceId, row.orderId)"
               >
-                {{ row.orderId }}
+                {{ displayBizNo(row.orderId) }}
               </button>
               <span v-else class="muted">无</span>
             </template>
@@ -204,7 +204,7 @@
             show-overflow-tooltip
           >
             <template #default="{ row }">
-              {{ dictLabel('dispute_category', row.category) || row.category || '未知' }}
+              {{ displayLabel('dispute_category', row.category, '未知') }}
             </template>
           </el-table-column>
           <el-table-column label="优先级" width="88" align="center">
@@ -214,13 +214,24 @@
                 size="small"
                 :type="row.priority === 'HIGH' || row.priority === 'URGENT' ? 'danger' : 'info'"
               >
-                {{ dictLabel('dispute_priority', row.priority) || row.priority }}
+                {{ displayLabel('dispute_priority', row.priority, '未知') }}
               </el-tag>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
           <el-table-column label="已扣金额" width="110" align="center" class-name="col-money">
             <template #default="{ row }">¥{{ money(row.billedAmountCents) }}</template>
+          </el-table-column>
+          <el-table-column label="证据" width="88" align="center">
+            <template #default="{ row }">
+              <el-tag
+                size="small"
+                :type="evidenceCount(row) > 0 ? 'success' : 'info'"
+                effect="plain"
+              >
+                {{ evidenceCount(row) > 0 ? `${evidenceCount(row)} 件` : '无' }}
+              </el-tag>
+            </template>
           </el-table-column>
           <el-table-column label="创建时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
@@ -357,9 +368,9 @@
                 class="link-cell mono"
                 @click="goSessions(selected.deviceId, selected.sessionId)"
               >
-                {{ selected.sessionId }}
+                {{ displayBizNo(selected.sessionId, '无') }}
               </button>
-              <span v-else>-</span>
+              <span v-else class="muted">暂无</span>
             </el-descriptions-item>
             <el-descriptions-item label="设备">
               <button
@@ -370,7 +381,7 @@
               >
                 {{ selected.deviceId }}
               </button>
-              <span v-else>-</span>
+              <span v-else class="muted">暂无</span>
             </el-descriptions-item>
             <el-descriptions-item label="原因">
               <div class="reason-block">
@@ -422,7 +433,7 @@
                 class="link-cell mono"
                 @click="goOrders(selected.deviceId, selected.orderId)"
               >
-                {{ selected.orderId }}
+                {{ displayBizNo(selected.orderId) }}
               </button>
             </el-descriptions-item>
           </el-descriptions>
@@ -448,6 +459,12 @@
               <el-table-column prop="quantity" label="数量" width="72" align="center" />
               <el-table-column label="单价" width="88" align="center">
                 <template #default="{ row }">¥{{ money(row.unitPriceCents) }}</template>
+              </el-table-column>
+              <el-table-column label="小计" width="88" align="center">
+                <template #default="{ row }">¥{{ money(row.lineAmountCents) }}</template>
+              </el-table-column>
+              <el-table-column prop="slotId" label="货道" width="72" align="center">
+                <template #default="{ row }">{{ row.slotId || '暂无' }}</template>
               </el-table-column>
             </el-table>
           </div>
@@ -536,10 +553,18 @@
 <script setup lang="ts">
 import { computed, onActivated, onDeactivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Link, Refresh, VideoCamera, View, Warning } from '@element-plus/icons-vue';
+import {
+  CircleClose,
+  Link,
+  Refresh,
+  RefreshLeft,
+  VideoCamera,
+  View,
+  Warning
+} from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
-import { api } from '@/api/client';
+import { api, authFetch } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -552,7 +577,7 @@ import type {
   OrderLineDto,
   PageResult
 } from '@aicabinet/shared-types';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 interface ResolveDisputeResultDto {
@@ -626,9 +651,9 @@ const { onExport } = useListCsv({
       row.deviceId,
       row.sessionId,
       row.orderId,
-      dictLabel('dispute_status', row.status),
-      dictLabel('dispute_category', row.category) || row.category,
-      dictLabel('dispute_priority', row.priority) || row.priority,
+      displayLabel('dispute_status', row.status, '未知'),
+      displayLabel('dispute_category', row.category, '未知'),
+      displayLabel('dispute_priority', row.priority, '未知'),
       money(row.billedAmountCents),
       row.reason,
       formatDateTime(row.createdAt),
@@ -727,6 +752,10 @@ function money(cents?: number) {
   return ((cents || 0) / 100).toFixed(2);
 }
 
+function evidenceCount(row: { evidence?: unknown[] | null }) {
+  return Array.isArray(row.evidence) ? row.evidence.length : 0;
+}
+
 function disputeStatusType(s?: string) {
   if (s === 'OPEN') return 'warning';
   if (s === 'RESOLVED') return 'success';
@@ -789,6 +818,12 @@ function rowActions(row: DisputeTicketDto): TableAction[] {
   if (row.orderId || row.deviceId) {
     actions.push({ key: 'order', label: '订单', icon: Link, overflow: true });
   }
+  if (row.status === 'RESOLVED' && auth.hasPerm('ops:dispute:resolve')) {
+    actions.push({ key: 'close', label: '关闭', icon: CircleClose, overflow: true });
+  }
+  if (row.status === 'CLOSED' && auth.hasPerm('ops:dispute:resolve')) {
+    actions.push({ key: 'reopen', label: '重开', icon: RefreshLeft, overflow: true });
+  }
   return actions;
 }
 
@@ -798,6 +833,44 @@ function onRowAction(key: string, row: DisputeTicketDto) {
   if (key === 'exception') goExceptions(row.deviceId);
   if (key === 'order') goOrders(row.deviceId, row.orderId);
   if (key === 'mapping') goVisionMapping(row);
+  if (key === 'close') void closeTicket(row);
+  if (key === 'reopen') void reopenTicket(row);
+}
+
+async function closeTicket(row: DisputeTicketDto) {
+  try {
+    await ElMessageBox.confirm(`确认关闭争议 ${row.ticketId}？关闭后仍可重开。`, '关闭争议', {
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/disputes/${encodeURIComponent(row.ticketId)}/close`, 'POST', {});
+    ElMessage.success('已关闭');
+    await load(false);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '关闭失败');
+  }
+}
+
+async function reopenTicket(row: DisputeTicketDto) {
+  try {
+    await ElMessageBox.confirm(`确认重开争议 ${row.ticketId}？`, '重开争议', { type: 'warning' });
+  } catch {
+    return;
+  }
+  try {
+    await api.request(
+      `/api/v2/ops/disputes/${encodeURIComponent(row.ticketId)}/reopen`,
+      'POST',
+      {}
+    );
+    ElMessage.success('已重开');
+    await load(false);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '重开失败');
+  }
 }
 
 function goVisionMapping(row?: DisputeTicketDto | null) {
@@ -876,14 +949,12 @@ async function onDisputeImagePick(ev: Event) {
   suggestingDispute.value = true;
   disputeSuggestHint.value = '';
   try {
-    const token = localStorage.getItem('admin_token');
     const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin;
     const form = new FormData();
     form.append('deviceId', selected.value.deviceId);
     form.append('image', file);
-    const res = await fetch(`${base}/api/v2/ops/dispute-suggest`, {
+    const res = await authFetch(`${base}/api/v2/ops/dispute-suggest`, {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: form
     });
     const json = await res.json().catch(() => ({}));
@@ -975,6 +1046,28 @@ async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'A
     ElMessage.error(e instanceof Error ? e.message : '确认失败');
     return;
   }
+  let restoreInventory: boolean | undefined;
+  if (resolutionType === 'WAIVE') {
+    try {
+      await ElMessageBox.confirm(
+        '免单库存处理：\n「退货退款」= 误识别/货仍在柜，回库\n「仅退款」= 顾客已拿走，不回库',
+        '免单是否回库',
+        {
+          distinguishCancelAndClose: true,
+          confirmButtonText: '退货退款（回库）',
+          cancelButtonText: '仅退款（不回库）',
+          type: 'warning'
+        }
+      );
+      restoreInventory = true;
+    } catch (action) {
+      if (action === 'cancel') {
+        restoreInventory = false;
+      } else {
+        return;
+      }
+    }
+  }
   resolving.value = true;
   try {
     const result = await api.request<ResolveDisputeResultDto>(
@@ -982,6 +1075,7 @@ async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'A
       'POST',
       {
         resolutionType,
+        restoreInventory,
         items:
           resolutionType === 'ADJUST' || resolutionType === 'CONFIRM' ? draftConfirmItems.value : []
       }
@@ -999,7 +1093,9 @@ function classifyKeyword(raw: string): { orderId?: string; sessionId?: string; d
   const v = raw.trim();
   if (!v) return {};
   if (/^O/i.test(v)) return { orderId: v };
-  if (/^S/i.test(v)) return { sessionId: v };
+  // 会话号：历史 S 前缀，或雪花数字（看板关联里常见）
+  if (/^S/i.test(v) || /^\d{10,}$/.test(v)) return { sessionId: v };
+  // 设备号多含字母/短横线（如 CAB-001）
   return { deviceId: v };
 }
 
@@ -1011,6 +1107,8 @@ function syncRouteQuery() {
     query.reviewCode = reviewCodeTab.value;
   }
   if (keyword.value.trim()) query.keyword = keyword.value.trim();
+  // 看板深链工单号：tab 变更触发的 replace 不得冲掉，否则详情无法自动打开
+  if (focusDisputeId.value) query.ticketId = focusDisputeId.value;
   router.replace({ query });
 }
 
@@ -1056,13 +1154,23 @@ async function load(showToast = false) {
     );
     items.value = sortById(data.items || [], 'ticketId');
     total.value = data.total || 0;
-    clearSelection();
-    if (focusDisputeId.value && !detailVisible.value) {
-      const hit = items.value.find(
-        (it) => String(it.ticketId ?? '') === String(focusDisputeId.value)
-      );
-      if (hit) openDetail(hit);
+    // 关键词若是工单号（雪花）被当成 sessionId 会空；回退按 ticketId 拉详情
+    if (!items.value.length && /^\d{10,}$/.test(keyword.value.trim())) {
+      try {
+        const byTicket = await api.request<DisputeTicketDto>(
+          `/api/v2/ops/disputes/${encodeURIComponent(keyword.value.trim())}`,
+          'GET'
+        );
+        if (byTicket?.ticketId) {
+          items.value = [byTicket];
+          total.value = 1;
+        }
+      } catch {
+        /* 非工单号则保持空列表 */
+      }
     }
+    clearSelection();
+    await openFocusedTicket();
     if (showToast) ElMessage.success('已刷新');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -1093,8 +1201,24 @@ function reset() {
   load(false);
 }
 
+/** 看板/深链带入筛选时，清掉本地粘住的分拣 tab，避免 MOCK 把 EMPTY 工单滤没 */
+function hasInboundDeepLink() {
+  return (
+    typeof route.query.status === 'string' ||
+    typeof route.query.sessionId === 'string' ||
+    typeof route.query.ticketId === 'string' ||
+    typeof route.query.disputeId === 'string' ||
+    typeof route.query.keyword === 'string' ||
+    typeof route.query.orderId === 'string' ||
+    typeof route.query.deviceId === 'string' ||
+    typeof route.query.category === 'string' ||
+    typeof route.query.reviewCode === 'string'
+  );
+}
+
 function applyRouteQuery() {
   let changed = false;
+  const inbound = hasInboundDeepLink();
   const allowedStatus = new Set(['OPEN', 'RESOLVED', 'CLOSED']);
   if (typeof route.query.status === 'string' && route.query.status) {
     const next = route.query.status.trim().toUpperCase();
@@ -1109,6 +1233,9 @@ function applyRouteQuery() {
       categoryTab.value = next === 'RECOGNITION' ? 'RECOGNITION' : next === 'ALL' ? 'ALL' : next;
       changed = true;
     }
+  } else if (inbound && categoryTab.value !== 'ALL') {
+    categoryTab.value = 'ALL';
+    changed = true;
   }
   if (typeof route.query.reviewCode === 'string') {
     const next = route.query.reviewCode || 'ALL';
@@ -1117,8 +1244,9 @@ function applyRouteQuery() {
       if (next !== 'ALL') categoryTab.value = 'RECOGNITION';
       changed = true;
     }
-  } else if (reviewCodeTab.value !== 'ALL' && !route.query.reviewCode) {
-    // keep
+  } else if (inbound && reviewCodeTab.value !== 'ALL') {
+    reviewCodeTab.value = 'ALL';
+    changed = true;
   }
   const routeKeyword =
     typeof route.query.keyword === 'string'
@@ -1134,16 +1262,33 @@ function applyRouteQuery() {
     keyword.value = routeKeyword;
     changed = true;
   }
-  if (typeof route.query.disputeId === 'string') {
-    if (route.query.disputeId !== focusDisputeId.value) {
-      focusDisputeId.value = route.query.disputeId;
-      changed = true;
-    }
-  } else if (focusDisputeId.value) {
-    focusDisputeId.value = '';
+  const focusId =
+    typeof route.query.ticketId === 'string'
+      ? route.query.ticketId
+      : typeof route.query.disputeId === 'string'
+        ? route.query.disputeId
+        : '';
+  if (focusId !== focusDisputeId.value) {
+    focusDisputeId.value = focusId;
     changed = true;
   }
   return changed;
+}
+
+async function openFocusedTicket() {
+  if (!focusDisputeId.value || detailVisible.value) return;
+  let row = items.value.find((it) => String(it.ticketId ?? '') === String(focusDisputeId.value));
+  if (!row) {
+    try {
+      row = await api.request<DisputeTicketDto>(
+        `/api/v2/ops/disputes/${encodeURIComponent(focusDisputeId.value)}`,
+        'GET'
+      );
+    } catch {
+      row = undefined;
+    }
+  }
+  if (row) openDetail(row);
 }
 
 async function reloadFromRouteQuery() {
@@ -1162,7 +1307,8 @@ watch(
       route.query.sessionId,
       route.query.deviceId,
       route.query.orderId,
-      route.query.ticketId
+      route.query.ticketId,
+      route.query.disputeId
     ] as const,
   () => {
     void reloadFromRouteQuery();
@@ -1174,7 +1320,11 @@ onActivated(async () => {
   selected.value = null;
   resolveFeedback.value = null;
   clearEmbedVideo();
-  await reloadFromRouteQuery();
+  // keep-alive 复用时必须按本次 query 重置分拣 tab，再拉列表
+  applyRouteQuery();
+  page.value = 1;
+  await load(false);
+  await openFocusedTicket();
 });
 onDeactivated(() => {
   detailVisible.value = false;
@@ -1185,21 +1335,7 @@ onMounted(async () => {
   applyRouteQuery();
   syncRouteQuery();
   await load(false);
-  const ticketId = route.query.ticketId;
-  if (typeof ticketId === 'string' && ticketId) {
-    let row = items.value.find((t) => t.ticketId === ticketId);
-    if (!row) {
-      try {
-        row = await api.request<DisputeTicketDto>(
-          `/api/v2/ops/disputes/${encodeURIComponent(ticketId)}`,
-          'GET'
-        );
-      } catch {
-        row = undefined;
-      }
-    }
-    if (row) openDetail(row);
-  }
+  await openFocusedTicket();
 });
 </script>
 

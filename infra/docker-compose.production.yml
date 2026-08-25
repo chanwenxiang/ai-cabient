@@ -9,8 +9,8 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       AICABINET_STAGING_MODE: "false"
-      AICABINET_SECURITY_MOCK_ENABLED: "false"
       AICABINET_MOCK_ENABLED: "false"
+      AICABINET_SECURITY_MOCK_ENABLED: "false"
 
   vision-service:
     build:

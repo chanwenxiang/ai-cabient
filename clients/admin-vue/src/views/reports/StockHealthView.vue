@@ -93,37 +93,37 @@
       <button
         type="button"
         class="kpi-tile warn"
-        :aria-label="listHydrated ? `断货行 ${countBy('STOCKOUT')}` : '断货行 — 加载中…'"
+        :aria-label="listHydrated ? `断货行 ${countBy('STOCKOUT')}` : '断货行 加载中…'"
       >
         <div class="kpi-label">断货行</div>
-        <div class="kpi-value">{{ listHydrated ? countBy('STOCKOUT') : '—' }}</div>
+        <div class="kpi-value">{{ listHydrated ? countBy('STOCKOUT') : '…' }}</div>
         <div v-if="!listHydrated" class="kpi-hint">加载中…</div>
       </button>
       <button
         type="button"
         class="kpi-tile"
-        :aria-label="listHydrated ? `低库存行 ${countBy('LOW')}` : '低库存行 — 加载中…'"
+        :aria-label="listHydrated ? `低库存行 ${countBy('LOW')}` : '低库存行 加载中…'"
       >
         <div class="kpi-label">低库存行</div>
-        <div class="kpi-value">{{ listHydrated ? countBy('LOW') : '—' }}</div>
+        <div class="kpi-value">{{ listHydrated ? countBy('LOW') : '…' }}</div>
         <div v-if="!listHydrated" class="kpi-hint">加载中…</div>
       </button>
       <button
         type="button"
         class="kpi-tile warn"
-        :aria-label="listHydrated ? `临期行 ${countBy('NEAR_EXPIRY')}` : '临期行 — 加载中…'"
+        :aria-label="listHydrated ? `临期行 ${countBy('NEAR_EXPIRY')}` : '临期行 加载中…'"
       >
         <div class="kpi-label">临期行</div>
-        <div class="kpi-value">{{ listHydrated ? countBy('NEAR_EXPIRY') : '—' }}</div>
+        <div class="kpi-value">{{ listHydrated ? countBy('NEAR_EXPIRY') : '…' }}</div>
         <div v-if="!listHydrated" class="kpi-hint">加载中…</div>
       </button>
       <button
         type="button"
         class="kpi-tile"
-        :aria-label="listHydrated ? `涉及柜机 ${deviceCount}` : '涉及柜机 — 加载中…'"
+        :aria-label="listHydrated ? `涉及柜机 ${deviceCount}` : '涉及柜机 加载中…'"
       >
         <div class="kpi-label">涉及柜机</div>
-        <div class="kpi-value">{{ listHydrated ? deviceCount : '—' }}</div>
+        <div class="kpi-value">{{ listHydrated ? deviceCount : '…' }}</div>
         <div v-if="!listHydrated" class="kpi-hint">加载中…</div>
       </button>
     </div>
@@ -238,11 +238,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Box, Delete, Refresh, Remove, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -401,16 +401,7 @@ function countBy(dim: string) {
 }
 
 function dimLabel(dim?: string) {
-  switch (dim) {
-    case 'STOCKOUT':
-      return '断货';
-    case 'LOW':
-      return '低库存';
-    case 'NEAR_EXPIRY':
-      return '临期';
-    default:
-      return dim || '未知';
-  }
+  return displayLabel('stock_health_dim', dim, '未知');
 }
 
 function dimTag(dim?: string): 'danger' | 'warning' | 'info' {
@@ -459,21 +450,76 @@ async function onExport() {
   }
 }
 
-onMounted(async () => {
-  const dim = typeof route.query.dimension === 'string' ? route.query.dimension.toUpperCase() : '';
-  if (['ALL', 'STOCKOUT', 'LOW', 'NEAR_EXPIRY'].includes(dim)) {
+const VALID_DIMS = new Set(['ALL', 'STOCKOUT', 'LOW', 'NEAR_EXPIRY']);
+
+/** 看板快捷入口带 query 时覆盖本地筛选；无对应 query 则保留用户上次选择 */
+function applyRouteQuery() {
+  let changed = false;
+  const dim =
+    typeof route.query.dimension === 'string' ? route.query.dimension.trim().toUpperCase() : '';
+  if (VALID_DIMS.has(dim) && dim !== dimension.value) {
     dimension.value = dim;
+    changed = true;
   }
-  if (typeof route.query.deviceId === 'string') {
-    deviceId.value = route.query.deviceId;
+  if ('deviceId' in route.query) {
+    const next = typeof route.query.deviceId === 'string' ? route.query.deviceId : '';
+    if (next !== deviceId.value) {
+      deviceId.value = next;
+      changed = true;
+    }
   }
+  if ('merchantId' in route.query) {
+    const next = typeof route.query.merchantId === 'string' ? route.query.merchantId : '';
+    if (next !== merchantId.value) {
+      merchantId.value = next;
+      changed = true;
+    }
+  }
+  if ('routeCode' in route.query) {
+    const next = typeof route.query.routeCode === 'string' ? route.query.routeCode : '';
+    if (next !== routeCode.value) {
+      routeCode.value = next;
+      changed = true;
+    }
+  }
+  if ('lifecycleStatus' in route.query) {
+    const next =
+      typeof route.query.lifecycleStatus === 'string' ? route.query.lifecycleStatus : 'DEPLOYED';
+    if (next !== lifecycleStatus.value) {
+      lifecycleStatus.value = next || 'DEPLOYED';
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+onMounted(async () => {
+  applyRouteQuery();
   await loadDeviceOptions();
   await load();
 });
 
 onActivated(() => {
+  // keep-alive 复用时 onMounted 不重跑；须按本次路由 query 同步维度
+  applyRouteQuery();
   void load();
 });
+
+watch(
+  () =>
+    [
+      route.query.dimension,
+      route.query.deviceId,
+      route.query.merchantId,
+      route.query.routeCode,
+      route.query.lifecycleStatus
+    ] as const,
+  () => {
+    if (applyRouteQuery()) {
+      void load();
+    }
+  }
+);
 </script>
 
 <style scoped>

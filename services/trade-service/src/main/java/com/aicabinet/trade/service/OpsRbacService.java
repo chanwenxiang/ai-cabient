@@ -44,6 +44,7 @@ public class OpsRbacService {
     private final UserAccountMapper userAccountRepository;
     private final OperatorUserIdAllocator operatorUserIdAllocator;
     private final PasswordEncoder passwordEncoder;
+    private final DistributedLockService distributedLockService;
 
     public OpsRbacService(OpsRoleMapper roleRepository,
                           OpsPermissionMapper permissionRepository,
@@ -56,7 +57,8 @@ public class OpsRbacService {
                           UserInfoMapper userInfoRepository,
                           UserAccountMapper userAccountRepository,
                           OperatorUserIdAllocator operatorUserIdAllocator,
-                          PasswordEncoder passwordEncoder) {
+                          PasswordEncoder passwordEncoder,
+                          DistributedLockService distributedLockService) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
         this.rolePermissionRepository = rolePermissionRepository;
@@ -69,12 +71,17 @@ public class OpsRbacService {
         this.userAccountRepository = userAccountRepository;
         this.operatorUserIdAllocator = operatorUserIdAllocator;
         this.passwordEncoder = passwordEncoder;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
     public OpsRoleDto createRole(Long operatorId, CreateOpsRoleRequest request) {
         permissionService.requirePermission(operatorId, "ops:rbac:role:add");
         String roleKey = request.roleKey().trim();
+        return runWithRoleKeyLock(roleKey, () -> doCreateRole(request, roleKey));
+    }
+
+    private OpsRoleDto doCreateRole(CreateOpsRoleRequest request, String roleKey) {
         if (roleRepository.findByRoleKey(roleKey).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "角色标识已存在");
         }
@@ -93,7 +100,11 @@ public class OpsRbacService {
     @Transactional
     public OpsRoleDto updateRole(Long operatorId, Long roleId, UpdateOpsRoleRequest request) {
         permissionService.requirePermission(operatorId, "ops:rbac:role:edit");
-        OpsRole role = roleRepository.findById(roleId)
+        return runWithRoleLock(roleId, () -> doUpdateRole(roleId, request));
+    }
+
+    private OpsRoleDto doUpdateRole(Long roleId, UpdateOpsRoleRequest request) {
+        OpsRole role = roleRepository.findByIdForUpdate(roleId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ROLE_NOT_FOUND));
         if ("admin".equals(role.getRoleKey()) && request.status() != null
                 && !"ACTIVE".equalsIgnoreCase(request.status().trim())) {
@@ -134,8 +145,12 @@ public class OpsRbacService {
     @Transactional
     public OpsPermissionDto createPermission(Long operatorId, CreateOpsPermissionRequest request) {
         permissionService.requirePermission(operatorId, "ops:rbac:menu:add");
-        String permType = normalizePermType(request.permType());
         String permCode = request.permCode().trim();
+        return runWithPermissionCodeLock(permCode, () -> doCreatePermission(operatorId, request, permCode));
+    }
+
+    private OpsPermissionDto doCreatePermission(Long operatorId, CreateOpsPermissionRequest request, String permCode) {
+        String permType = normalizePermType(request.permType());
         if (permissionRepository.findByPermCode(permCode).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "权限标识已存在");
         }
@@ -159,7 +174,11 @@ public class OpsRbacService {
     @Transactional
     public OpsPermissionDto updatePermission(Long operatorId, Long permissionId, UpdateOpsPermissionRequest request) {
         permissionService.requirePermission(operatorId, "ops:rbac:menu:edit");
-        OpsPermission p = permissionRepository.findById(permissionId)
+        return runWithPermissionLock(permissionId, () -> doUpdatePermission(permissionId, request));
+    }
+
+    private OpsPermissionDto doUpdatePermission(Long permissionId, UpdateOpsPermissionRequest request) {
+        OpsPermission p = permissionRepository.findByIdForUpdate(permissionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "菜单权限不存在"));
         Long parentId = request.parentId() == null ? p.getParentId() : request.parentId();
         if (parentId.equals(permissionId)) {
@@ -183,7 +202,14 @@ public class OpsRbacService {
     @Transactional
     public void deletePermission(Long operatorId, Long permissionId) {
         permissionService.requirePermission(operatorId, "ops:rbac:menu:remove");
-        OpsPermission p = permissionRepository.findById(permissionId)
+        runWithPermissionLock(permissionId, () -> {
+            doDeletePermission(permissionId);
+            return null;
+        });
+    }
+
+    private void doDeletePermission(Long permissionId) {
+        OpsPermission p = permissionRepository.findByIdForUpdate(permissionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "菜单权限不存在"));
         long childCount = permissionRepository.countByParentIdAndStatus(permissionId, "ACTIVE");
         if (childCount > 0) {
@@ -252,7 +278,11 @@ public class OpsRbacService {
     @Transactional
     public OpsRolePermissionsDto assignRolePermissions(Long operatorId, Long roleId, List<Long> permissionIds) {
         permissionService.requirePermission(operatorId, "ops:rbac:role:perm");
-        var role = roleRepository.findById(roleId)
+        return runWithRoleLock(roleId, () -> doAssignRolePermissions(operatorId, roleId, permissionIds));
+    }
+
+    private OpsRolePermissionsDto doAssignRolePermissions(Long operatorId, Long roleId, List<Long> permissionIds) {
+        var role = roleRepository.findByIdForUpdate(roleId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ROLE_NOT_FOUND));
         if ("admin".equals(role.getRoleKey())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.CANNOT_MODIFY_ADMIN_ROLE);
@@ -289,6 +319,10 @@ public class OpsRbacService {
     public OpsOperatorDto createOperator(Long operatorId, CreateOpsOperatorRequest request) {
         permissionService.requirePermission(operatorId, "ops:rbac:assign:add");
         String phone = normalizePhone(request.phoneNumber());
+        return runWithOperatorPhoneLock(phone, () -> doCreateOperator(request, phone));
+    }
+
+    private OpsOperatorDto doCreateOperator(CreateOpsOperatorRequest request, String phone) {
         if (userInfoRepository.findByPhoneNumber(phone).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.PHONE_ALREADY_EXISTS);
         }
@@ -316,8 +350,12 @@ public class OpsRbacService {
     @Transactional
     public OpsOperatorDto updateOperator(Long operatorId, Long userId, UpdateOpsOperatorRequest request) {
         permissionService.requirePermission(operatorId, "ops:rbac:assign:edit");
+        return runWithOperatorLock(userId, () -> doUpdateOperator(operatorId, userId, request));
+    }
+
+    private OpsOperatorDto doUpdateOperator(Long operatorId, Long userId, UpdateOpsOperatorRequest request) {
         ensureOperatorAccount(userId);
-        UserInfo user = userInfoRepository.findById(userId)
+        UserInfo user = userInfoRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
         String phone = normalizePhone(request.phoneNumber());
         userInfoRepository.findByPhoneNumber(phone).ifPresent(existing -> {
@@ -344,11 +382,18 @@ public class OpsRbacService {
     @Transactional
     public void disableOperator(Long operatorId, Long userId) {
         permissionService.requirePermission(operatorId, "ops:rbac:assign:disable");
+        runWithOperatorLock(userId, () -> {
+            doDisableOperator(operatorId, userId);
+            return null;
+        });
+    }
+
+    private void doDisableOperator(Long operatorId, Long userId) {
         ensureOperatorAccount(userId);
         if (userId.equals(operatorId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.CANNOT_DISABLE_SELF);
         }
-        UserInfo user = userInfoRepository.findById(userId)
+        UserInfo user = userInfoRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
         user.setStatus("INACTIVE");
         userInfoRepository.save(user);
@@ -357,11 +402,18 @@ public class OpsRbacService {
     /** 运营账号自助修改密码（个人中心）。 */
     @Transactional
     public void changeMyPassword(Long operatorId, ChangePasswordRequest request) {
+        runWithOperatorLock(operatorId, () -> {
+            doChangeMyPassword(operatorId, request);
+            return null;
+        });
+    }
+
+    private void doChangeMyPassword(Long operatorId, ChangePasswordRequest request) {
         String newPassword = request.newPassword();
         if (newPassword == null || newPassword.length() < 6 || newPassword.length() > 64) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "新密码长度需在 6-64 位之间");
         }
-        UserInfo user = userInfoRepository.findById(operatorId)
+        UserInfo user = userInfoRepository.findByIdForUpdate(operatorId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
         String hash = user.getPasswordHash();
         if (hash == null || hash.isBlank() || !passwordEncoder.matches(request.oldPassword(), hash)) {
@@ -385,9 +437,11 @@ public class OpsRbacService {
     @Transactional
     public OpsUserRolesDto assignRoles(Long operatorId, Long userId, List<Long> roleIds) {
         permissionService.requirePermission(operatorId, "ops:rbac:assign:role");
-        ensureOperatorAccount(userId);
-        replaceUserRoles(userId, roleIds);
-        return getUserRoles(operatorId, userId);
+        return runWithOperatorLock(userId, () -> {
+            ensureOperatorAccount(userId);
+            replaceUserRoles(userId, roleIds);
+            return getUserRoles(operatorId, userId);
+        });
     }
 
     private void replaceUserRoles(Long userId, List<Long> roleIds) {
@@ -417,6 +471,10 @@ public class OpsRbacService {
     @Transactional
     public OpsUserMerchantsDto assignMerchants(Long operatorId, Long userId, List<String> merchantIds) {
         permissionService.requirePermission(operatorId, "ops:rbac:assign:merchant");
+        return runWithOperatorLock(userId, () -> doAssignMerchants(operatorId, userId, merchantIds));
+    }
+
+    private OpsUserMerchantsDto doAssignMerchants(Long operatorId, Long userId, List<String> merchantIds) {
         ensureOperatorAccount(userId);
         Set<String> allowed = merchantScopeService.allowedMerchantIds(operatorId);
         userMerchantRepository.deleteByIdUserId(userId);
@@ -577,5 +635,101 @@ public class OpsRbacService {
         return new OpsRoleDto(
                 role.getRoleId(), role.getRoleKey(), role.getRoleName(),
                 role.getStatus(), role.getRemark(), List.of(permCount + " 项权限"));
+    }
+
+    static String opsRoleLockKey(Long roleId) {
+        return "ops:role:" + roleId;
+    }
+
+    static String opsRoleKeyLockKey(String roleKey) {
+        return "ops:role:key:" + roleKey.trim().toLowerCase();
+    }
+
+    static String opsPermissionLockKey(Long permissionId) {
+        return "ops:permission:" + permissionId;
+    }
+
+    static String opsPermissionCodeLockKey(String permCode) {
+        return "ops:permission:code:" + permCode.trim();
+    }
+
+    static String opsOperatorLockKey(Long userId) {
+        return "ops:operator:" + userId;
+    }
+
+    static String opsOperatorPhoneLockKey(String phone) {
+        return "ops:operator:phone:" + phone.trim();
+    }
+
+    private <T> T runWithRoleLock(Long roleId, java.util.function.Supplier<T> action) {
+        String key = opsRoleLockKey(roleId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "角色处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
+    }
+
+    private <T> T runWithRoleKeyLock(String roleKey, java.util.function.Supplier<T> action) {
+        String key = opsRoleKeyLockKey(roleKey);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "角色处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
+    }
+
+    private <T> T runWithPermissionLock(Long permissionId, java.util.function.Supplier<T> action) {
+        String key = opsPermissionLockKey(permissionId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "菜单权限处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
+    }
+
+    private <T> T runWithPermissionCodeLock(String permCode, java.util.function.Supplier<T> action) {
+        String key = opsPermissionCodeLockKey(permCode);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "菜单权限处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
+    }
+
+    private <T> T runWithOperatorLock(Long userId, java.util.function.Supplier<T> action) {
+        String key = opsOperatorLockKey(userId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "运营账号处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
+    }
+
+    private <T> T runWithOperatorPhoneLock(String phone, java.util.function.Supplier<T> action) {
+        String key = opsOperatorPhoneLockKey(phone);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "运营账号处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
     }
 }

@@ -81,13 +81,13 @@ if ($rows.Count -gt 0 -and -not $DryRun) {
                         -Path "/api/v2/ops/admin/exceptions/$exId/manual-resolve" -Headers $auth -Body @{
                             resolutionType = 'WAIVE'
                             items          = @()
-                            reason         = 'E2E cleanup waive'
+                            reason         = '端到端测试清理：免单结案'
                             idempotencyKey = "cleanup-waive-$exId"
                         } | Out-Null
                 } else {
                     Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
                         -Path "/api/v2/ops/admin/exceptions/$exId/resolve" -Headers $auth -Body @{
-                            resolution = 'E2E cleanup auto-resolve'
+                            resolution = '端到端测试清理：自动结案'
                         } | Out-Null
                 }
             } catch {
@@ -97,7 +97,7 @@ if ($rows.Count -gt 0 -and -not $DryRun) {
     } catch {
         Write-Warning "Operator login failed; falling back to SQL resolve: $_"
         $sql = @"
-UPDATE ops_exception SET status='RESOLVED', resolution='E2E cleanup', resolved_at=NOW(), updated_at=NOW()
+UPDATE ops_exception SET status='RESOLVED', resolution='端到端测试清理', resolved_at=NOW(), updated_at=NOW()
 WHERE status IN ('OPEN','PROCESSING');
 UPDATE shopping_session SET state='CANCELLED', updated_at=NOW()
 WHERE state IN ('DISPUTED','RECOGNIZING','SETTLING','SHOPPING','OPENING','CREATED')

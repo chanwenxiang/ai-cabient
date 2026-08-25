@@ -21,16 +21,16 @@ public class SmsCodeService {
 
     private final AuthProperties authProperties;
     private final SecurityProperties securityProperties;
-    private final WebhookSmsSender webhookSmsSender;
+    private final SmsSender smsSender;
     private final SmsVerificationCodeMapper codeRepository;
 
     public SmsCodeService(AuthProperties authProperties,
                           SecurityProperties securityProperties,
-                          WebhookSmsSender webhookSmsSender,
+                          SmsSender smsSender,
                           SmsVerificationCodeMapper codeRepository) {
         this.authProperties = authProperties;
         this.securityProperties = securityProperties;
-        this.webhookSmsSender = webhookSmsSender;
+        this.smsSender = smsSender;
         this.codeRepository = codeRepository;
     }
 
@@ -45,15 +45,17 @@ public class SmsCodeService {
             log.info("DEV SMS code for {}: {} (stored in DB)", maskPhone(normalized), code);
             return;
         }
-        webhookSmsSender.send(normalized, code);
+        smsSender.send(normalized, code);
     }
 
     @Transactional
     public boolean verifyCode(String phoneNumber, String code) {
         String normalized = normalizePhone(phoneNumber);
-        // dev：允许配置的万能码，便于旧脚本联调
+        // dev：允许配置的万能码，便于旧脚本联调（mock-code 为空则只认 DB 中真实下发码）
+        String mockCode = authProperties.sms().mockCode();
         if (securityProperties.mockEnabled()
-                && authProperties.sms().mockCode().equals(code)) {
+                && mockCode != null && !mockCode.isBlank()
+                && mockCode.equals(code)) {
             markLatestUsed(normalized);
             return true;
         }
@@ -103,7 +105,10 @@ public class SmsCodeService {
 
     private String generateCode() {
         if (securityProperties.mockEnabled()) {
-            return authProperties.sms().mockCode();
+            String mockCode = authProperties.sms().mockCode();
+            if (mockCode != null && !mockCode.isBlank()) {
+                return mockCode;
+            }
         }
         return String.format("%06d", RANDOM.nextInt(1_000_000));
     }

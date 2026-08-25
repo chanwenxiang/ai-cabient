@@ -8,6 +8,7 @@ import com.aicabinet.trade.config.QrProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.config.WeChatWebProperties;
+import com.aicabinet.trade.config.WeChatMiniAppProperties;
 import com.aicabinet.trade.domain.SystemConfig;
 import com.aicabinet.trade.mapper.SystemConfigMapper;
 import org.springframework.http.HttpStatus;
@@ -30,6 +31,10 @@ public class SystemConfigService {
     public static final String SETTLEMENT_MIN_CONFIDENCE = "settlement.min_confidence";
     public static final String DISPUTE_AUTO_OPEN = "dispute.auto_open";
     public static final String REFUND_DEFAULT_POLICY = "refund.default_policy";
+    public static final String REFUND_SELF_MAX_HOURS = "refund.self.max_hours";
+    public static final String REFUND_SELF_MAX_CENTS = "refund.self.max_cents";
+    public static final String REFUND_SELF_MAX_DAILY = "refund.self.max_daily";
+    public static final String REFUND_SELF_PARTIAL_ENABLED = "refund.self.partial_enabled";
     /** 待支付订单超时自动关单小时数, 0=关闭自动关单. */
     public static final String UNPAID_AUTO_CANCEL_HOURS = "order.unpaid.auto_cancel_hours";
     /** 超时关单时是否自动拉黑用户. */
@@ -38,17 +43,30 @@ public class SystemConfigService {
     public static final String RECHARGE_AUTO_CANCEL_MINUTES = "recharge.pending.auto_cancel_minutes";
     /** 设备离线超过该分钟数后自动锁机停售, 0=不自动锁机. */
     public static final String DEVICE_OFFLINE_AUTO_LOCK_MINUTES = "device.offline.auto_sales_lock_minutes";
+    /** 人工/策略解锁后，离线自动锁机宽限分钟数, 0=无宽限. */
+    public static final String DEVICE_OFFLINE_MANUAL_UNLOCK_GRACE_MINUTES =
+            "device.offline.manual_unlock_grace_minutes";
     public static final String DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED = "device.offline.auto_unlock_enabled";
     public static final String DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES = "device.offline.auto_unlock_stable_minutes";
     public static final String DISPUTE_SLA_HOURS = "dispute.sla.hours";
     public static final String DISPUTE_SLA_REMINDER_HOURS = "dispute.sla.reminder_hours";
     public static final String DISPUTE_SLA_WEBHOOK = "dispute.sla.webhook";
+    public static final String OPS_ALERT_DINGTALK_WEBHOOK = "ops.alert.dingtalk_webhook";
+    public static final String OPS_ALERT_WECOM_WEBHOOK = "ops.alert.wecom_webhook";
+    public static final String OPS_ALERT_WEBHOOK = "ops.alert.webhook";
     public static final String OPS_SCAN_DOOR_OPEN_MINUTES = "ops.scan.door_open_minutes";
     public static final String OPS_SCAN_UPLOAD_STUCK_MINUTES = "ops.scan.upload_stuck_minutes";
     public static final String OPS_SCAN_RECOGNITION_STUCK_MINUTES = "ops.scan.recognition_stuck_minutes";
     public static final String OPS_SCAN_SETTLEMENT_STUCK_MINUTES = "ops.scan.settlement_stuck_minutes";
     /** 消费者开门预授权冻结金额(分), 优先于配置文件, 柜机押金可覆盖. */
     public static final String CHECKOUT_PREAUTH_CENTS = "checkout.preauth_cents";
+    /** 纯视觉柜（会话无重力字段）空车是否自动零结；默认 false 进争议。 */
+    public static final String SETTLEMENT_EMPTY_AUTO_NO_GRAVITY =
+            "settlement.empty_auto_complete_no_gravity";
+    /** 结算识别方式: VISION=纯视觉；VISION_GRAVITY=视觉+重力融合。 */
+    public static final String SETTLEMENT_RECOGNITION_MODE = "settlement.recognition_mode";
+    public static final String RECOGNITION_MODE_VISION = "VISION";
+    public static final String RECOGNITION_MODE_VISION_GRAVITY = "VISION_GRAVITY";
 
     private final SystemConfigMapper repository;
     private final SecurityProperties securityProperties;
@@ -56,7 +74,9 @@ public class SystemConfigService {
     private final WeChatPayProperties weChatPayProperties;
     private final PayScoreProperties payScoreProperties;
     private final WeChatWebProperties weChatWebProperties;
+    private final WeChatMiniAppProperties weChatMiniAppProperties;
     private final QrProperties qrProperties;
+    private final DistributedLockService distributedLockService;
 
     public SystemConfigService(SystemConfigMapper repository,
                                SecurityProperties securityProperties,
@@ -64,14 +84,18 @@ public class SystemConfigService {
                                WeChatPayProperties weChatPayProperties,
                                PayScoreProperties payScoreProperties,
                                WeChatWebProperties weChatWebProperties,
-                               QrProperties qrProperties) {
+                               WeChatMiniAppProperties weChatMiniAppProperties,
+                               QrProperties qrProperties,
+                               DistributedLockService distributedLockService) {
         this.repository = repository;
         this.securityProperties = securityProperties;
         this.alipayProperties = alipayProperties;
         this.weChatPayProperties = weChatPayProperties;
         this.payScoreProperties = payScoreProperties;
         this.weChatWebProperties = weChatWebProperties;
+        this.weChatMiniAppProperties = weChatMiniAppProperties;
         this.qrProperties = qrProperties;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -80,6 +104,13 @@ public class SystemConfigService {
                 .map(SystemConfig::getConfigValue)
                 .filter(v -> !v.isBlank())
                 .orElse(defaultValue);
+    }
+
+    /** 是否在结算中融合重力（仅 VISION_GRAVITY）。默认 VISION=否。 */
+    @Transactional(readOnly = true)
+    public boolean usesGravityFusion() {
+        String mode = getValue(SETTLEMENT_RECOGNITION_MODE, RECOGNITION_MODE_VISION);
+        return RECOGNITION_MODE_VISION_GRAVITY.equalsIgnoreCase(mode.trim());
     }
 
     @Transactional(readOnly = true)
@@ -108,6 +139,12 @@ public class SystemConfigService {
     public Map<String, String> consumerPublicConfig() {
         Map<String, String> map = new LinkedHashMap<>();
         map.put("servicePhone", getValue(CONSUMER_SERVICE_PHONE, "400-888-0018"));
+        boolean wechatSubscribeOk = weChatMiniAppProperties.isConfigured()
+                && weChatMiniAppProperties.resolveConsumerTemplateId() != null
+                && !weChatMiniAppProperties.resolveConsumerTemplateId().isBlank();
+        map.put("wechatSubscribeEnabled", String.valueOf(wechatSubscribeOk));
+        map.put("wechatSubscribeTemplateId",
+                wechatSubscribeOk ? weChatMiniAppProperties.resolveConsumerTemplateId() : "");
         map.put("mockEnabled", String.valueOf(securityProperties.mockEnabled()));
         // 沙箱: 已配置支付宝密钥, 或 mock 模式下允许走 mock 支付宝预下单
         boolean alipayOk = alipayProperties.isConfigured()
@@ -170,7 +207,11 @@ public class SystemConfigService {
 
     @Transactional
     public SystemConfigDto upsert(String key, String value, String description) {
-        SystemConfig config = repository.findById(key).orElseGet(SystemConfig::new);
+        return runWithConfigLock(key, () -> doUpsert(key, value, description));
+    }
+
+    private SystemConfigDto doUpsert(String key, String value, String description) {
+        SystemConfig config = repository.findByIdForUpdate(key).orElseGet(SystemConfig::new);
         config.setConfigKey(key);
         config.setConfigValue(value);
         if (description != null && !description.isBlank()) {
@@ -187,23 +228,53 @@ public class SystemConfigService {
         if (configKey == null || configKey.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "配置键不能为空");
         }
-        if (!repository.existsById(configKey)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "参数不存在");
+        runWithConfigLock(configKey, () -> {
+            if (repository.findByIdForUpdate(configKey).isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "参数不存在");
+            }
+            repository.deleteById(configKey);
+            return null;
+        });
+    }
+
+    static String systemConfigLockKey(String configKey) {
+        return "sys:config:" + configKey.trim();
+    }
+
+    private <T> T runWithConfigLock(String configKey, java.util.function.Supplier<T> action) {
+        String key = systemConfigLockKey(configKey);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "系统配置处理中，请稍后重试");
         }
-        repository.deleteById(configKey);
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
     }
 
     private void ensureDefaults() {
         upsertIfAbsent(CONSUMER_SERVICE_PHONE, "400-888-0018", "C端客服电话");
         upsertIfAbsent(OPS_SUPPORT_EMAIL, "ops@aicabinet.local", "运营支持邮箱");
         upsertIfAbsent(SETTLEMENT_MIN_CONFIDENCE, "0.72", "自动结算最低识别置信度");
+        upsertIfAbsent(SETTLEMENT_RECOGNITION_MODE, RECOGNITION_MODE_VISION,
+                "结算识别方式: VISION=纯视觉(忽略重力), VISION_GRAVITY=视觉+重力融合");
+        upsertIfAbsent(SETTLEMENT_EMPTY_AUTO_NO_GRAVITY, "false",
+                "纯视觉柜空车是否自动零结（无重力字段时）；默认 false 进争议");
         upsertIfAbsent(DISPUTE_AUTO_OPEN, "true", "识别低置信是否自动开争议工单");
         upsertIfAbsent(REFUND_DEFAULT_POLICY, "AUTO_REFUND",
                 "全局默认退款策略: AUTO_REFUND=自助退款, DISPUTE_ONLY=仅申诉");
+        upsertIfAbsent(REFUND_SELF_MAX_HOURS, "24", "消费者自助退款时限（下单后小时数）");
+        upsertIfAbsent(REFUND_SELF_MAX_CENTS, "5000", "消费者自助单笔退款上限（分），0=不限制");
+        upsertIfAbsent(REFUND_SELF_MAX_DAILY, "3", "消费者每日自助退款次数上限，0=不限制");
+        upsertIfAbsent(REFUND_SELF_PARTIAL_ENABLED, "true", "是否允许消费者按行自助部分退");
+        upsertIfAbsent("debt.block_open_on_pending", "true", "有待支付订单时是否禁止开门");
         upsertIfAbsent(UNPAID_AUTO_CANCEL_HOURS, "48", "待支付订单超时自动关单小时数, 0=关闭");
         upsertIfAbsent(UNPAID_AUTO_BLACKLIST, "false", "待支付超时关单时是否自动拉黑用户");
         upsertIfAbsent(RECHARGE_AUTO_CANCEL_MINUTES, "30", "待支付充值单超时自动取消分钟数, 0=关闭");
         upsertIfAbsent(DEVICE_OFFLINE_AUTO_LOCK_MINUTES, "10", "设备离线超时自动锁机分钟数, 0=关闭");
+        upsertIfAbsent(DEVICE_OFFLINE_MANUAL_UNLOCK_GRACE_MINUTES, "45",
+                "人工解锁后离线自动锁机宽限分钟数, 0=无宽限");
         upsertIfAbsent(DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED, "false",
                 "设备恢复稳定在线后是否自动解锁起售（默认关闭）");
         upsertIfAbsent(DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, "15",
@@ -211,6 +282,11 @@ public class SystemConfigService {
         upsertIfAbsent(DISPUTE_SLA_HOURS, "48", "争议工单 SLA 处理时限（小时）");
         upsertIfAbsent(DISPUTE_SLA_REMINDER_HOURS, "12", "争议 SLA 到期前提醒提前量（小时）");
         upsertIfAbsent(DISPUTE_SLA_WEBHOOK, "", "争议 SLA 提醒/逾期推送 Webhook URL（留空不推送）");
+        upsertIfAbsent(OPS_ALERT_DINGTALK_WEBHOOK, "", "运营告警：钉钉机器人 Webhook URL（留空不推送）");
+        upsertIfAbsent(OPS_ALERT_WECOM_WEBHOOK, "", "运营告警：企业微信机器人 Webhook URL（留空不推送）");
+        upsertIfAbsent(OPS_ALERT_WEBHOOK, "", "运营告警：通用 JSON Webhook URL（留空不推送）");
+        upsertIfAbsent("ops.log_retention.notify_months", "6", "通知日志保留月数，0=不清理");
+        upsertIfAbsent("ops.log_retention.points_months", "12", "积分日志保留月数，0=不清理");
         upsertIfAbsent(OPS_SCAN_DOOR_OPEN_MINUTES, "10", "柜门开启超时告警分钟数");
         upsertIfAbsent(OPS_SCAN_UPLOAD_STUCK_MINUTES, "5", "视频上传卡点告警分钟数");
         upsertIfAbsent(OPS_SCAN_RECOGNITION_STUCK_MINUTES, "3", "识别卡点告警分钟数");

@@ -14,8 +14,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import lombok.Getter;
+import lombok.Setter;
 
 @Service
+@Getter
+@Setter
 public class AmapGeocodeService {
 
     private final String amapWebKey;

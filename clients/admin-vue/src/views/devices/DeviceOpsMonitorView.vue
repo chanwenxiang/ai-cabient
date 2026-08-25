@@ -128,10 +128,15 @@
         <el-table-column
           prop="detail"
           label="详情"
-          min-width="220"
+          min-width="200"
           show-overflow-tooltip
           align="center"
-        />
+        >
+          <template #default="{ row }">{{ formatEventDetail(row.detail) }}</template>
+        </el-table-column>
+        <el-table-column label="账龄" width="100" align="center">
+          <template #default="{ row }">{{ eventAge(row.createdAt) }}</template>
+        </el-table-column>
         <el-table-column label="时间" width="170" align="center">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
@@ -199,10 +204,57 @@ const displayItems = computed(() => {
 });
 
 function eventTypeLabel(t?: string) {
-  return dictLabel('device_ops_event', t) || t || '未知';
+  return displayLabel('device_ops_event', t, '未知');
 }
 function severityLabel(s?: string) {
   return displayLabel('risk_severity', s, '未知');
+}
+
+/** OBS-023：详情里的 onlineStatus=OFFLINE / lifecycle=DEPLOYED 等键值中文化 */
+function formatEventDetail(detail?: string) {
+  if (!detail) return '暂无';
+  if (!detail.includes('=')) return detail;
+  const keyLabels: Record<string, string> = {
+    onlineStatus: '在线状态',
+    lifecycle: '生命周期',
+    lifecycleStatus: '生命周期',
+    salesLocked: '锁机'
+  };
+  return detail
+    .split(/[,;]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const i = part.indexOf('=');
+      if (i <= 0) return part;
+      const key = part.slice(0, i).trim();
+      const val = part.slice(i + 1).trim();
+      const keyLabel = keyLabels[key] || key;
+      let valLabel = val;
+      if (key === 'onlineStatus') valLabel = displayLabel('online_status', val, '未知');
+      else if (key === 'lifecycle' || key === 'lifecycleStatus')
+        valLabel = displayLabel('device_lifecycle', val, '未知');
+      else if (key === 'salesLocked')
+        valLabel =
+          val === 'true' || val === 't' || val === '1'
+            ? '是'
+            : val === 'false' || val === 'f' || val === '0'
+              ? '否'
+              : val;
+      return `${keyLabel}：${valLabel}`;
+    })
+    .join('；');
+}
+
+function eventAge(createdAt?: string) {
+  if (!createdAt) return '暂无';
+  const ms = Date.now() - new Date(createdAt).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return '暂无';
+  const m = Math.floor(ms / 60000);
+  if (m < 60) return `${Math.max(0, m)} 分前`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h} 小时前`;
+  return `${Math.floor(h / 24)} 天前`;
 }
 
 function onSortChange(payload: Sort) {

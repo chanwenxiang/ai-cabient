@@ -1,7 +1,10 @@
 import { API_BASE_URL } from '@/config/api';
 import { clearDictOverrides, displayLabel } from '@aicabinet/shared-dict';
 import { matchPermission } from '@aicabinet/shared-rbac';
+import { loadRuntimeDict as sharedLoadRuntimeDict } from '@aicabinet/shared-uni/dict-runtime';
 import { localizeApiMessage } from '@aicabinet/shared-uni/format';
+import { withQuery } from '@aicabinet/shared-uni/query';
+import { mpRequest, type MpApiSession } from '@aicabinet/shared-uni/request';
 
 export type MerchantReplenishmentSuggest = {
   deviceId?: string;
@@ -11,7 +14,61 @@ export type MerchantReplenishmentSuggest = {
   lowThreshold?: number;
   suggestQty: number;
   inTransitQty?: number;
+  soldQty7d?: number;
+  soldQty14d?: number;
+  ropPoint?: number;
   suggestReason?: string;
+};
+
+export type MerchantReplenishmentEfficiency = {
+  todayAssigned: number;
+  todayCompleted: number;
+  todayInProgress: number;
+  todayPending: number;
+  completionRatePercent: number;
+};
+
+export type DeviceLowStockItem = {
+  deviceId: string;
+  skuId: string;
+  quantity: number;
+  capacity: number;
+  lowThreshold: number;
+  updatedAt?: string;
+};
+
+export type MerchantSlotDiscrepancy = {
+  deviceId: string;
+  deviceName?: string;
+  slotCode: string;
+  assignedSkuId?: string;
+  assignedSkuName?: string;
+  bookQty: number;
+  physicalQty: number;
+  qtyDiff: number;
+  lastPhysicalAt?: string;
+};
+
+export type MerchantDeviceReport = {
+  deviceId: string;
+  deviceName: string;
+  onlineStatus: string;
+  orderTotal: number;
+  revenueTotalCents: number;
+  orderToday: number;
+  revenueTodayCents: number;
+  sessionTotal: number;
+  sessionActive: number;
+  avgOrderValueTodayCents?: number;
+  avgOrderValueTotalCents?: number;
+  routeCode?: string;
+  address?: string;
+};
+
+export type MerchantProfileUpdate = {
+  contactPhone?: string;
+  alertContactName?: string;
+  alertContactPhone?: string;
 };
 
 export type MerchantReplenishmentRequestLine = {
@@ -20,6 +77,7 @@ export type MerchantReplenishmentRequestLine = {
   skuName?: string;
   suggestedQty?: number;
   requestedQty: number;
+  approvedQty?: number;
 };
 
 export type MerchantReplenishmentRequest = {
@@ -35,13 +93,18 @@ export type MerchantReplenishmentRequest = {
   rejectReason?: string;
   replenishmentTaskId?: number;
   outboundId?: number;
+  dueAt?: string;
   lines?: MerchantReplenishmentRequestLine[];
 };
 
 export type WalletLedger = {
-  ledgerId?: string;
+  ledgerId?: string | number;
   entryType?: string;
   amountCents?: number;
+  balanceAfter?: number;
+  frozenAfter?: number;
+  refType?: string;
+  refId?: string;
   remark?: string;
   createdAt?: string;
 };
@@ -50,8 +113,16 @@ export type WithdrawRecord = {
   requestId?: string;
   requestNo?: string;
   amountCents?: number;
+  /** 手续费（分） */
+  feeCents?: number;
   status?: string;
+  payChannel?: string;
+  payoutRef?: string;
+  payoutMessage?: string;
+  reviewRemark?: string;
   createdAt?: string;
+  paidAt?: string;
+  reviewedAt?: string;
 };
 
 export type WalletOverview = {
@@ -81,38 +152,17 @@ export function getToken() {
   return uni.getStorageSync('merchant_token') || '';
 }
 
-let refreshInFlight: Promise<boolean> | null = null;
-
-/** 401 时静默刷新 token（单飞）；刷新失败才走 handleUnauthorized */
-async function refreshTokenSilently(): Promise<boolean> {
-  if (!getToken()) return false;
-  if (refreshInFlight) return refreshInFlight;
-  const pending = new Promise<boolean>((resolve, reject) => {
-    uni.request({
-      url: API_BASE_URL + '/api/v2/auth/refresh',
-      method: 'POST',
-      header: { Authorization: 'Bearer ' + getToken(), 'Content-Type': 'application/json' },
-      timeout: 20_000,
-      success(res) {
-        const body = res.data as { code?: number; data?: { token: string; userId?: string } };
-        if (res.statusCode === 200 && body?.code === 0 && body.data?.token) {
-          uni.setStorageSync('merchant_token', body.data.token);
-          if (body.data.userId) uni.setStorageSync('merchant_user_id', body.data.userId);
-          resolve(true);
-          return;
-        }
-        reject(new Error('登录已失效'));
-      },
-      fail() {
-        reject(new Error('网络错误'));
-      }
-    });
-  }).finally(() => {
-    refreshInFlight = null;
-  });
-  refreshInFlight = pending;
-  return pending;
-}
+const mpApiSession: MpApiSession = {
+  baseUrl: API_BASE_URL,
+  timeoutMs: 20_000,
+  getToken,
+  clearSession,
+  applyRefreshedToken: (data) => {
+    uni.setStorageSync('merchant_token', data.token);
+    if (data.userId) uni.setStorageSync('merchant_user_id', data.userId);
+  },
+  handleUnauthorized
+};
 
 export function clearSession() {
   uni.removeStorageSync('merchant_token');
@@ -202,42 +252,14 @@ export function request<T>(
   auth = true,
   retried = false
 ): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const header: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (auth && getToken()) header.Authorization = 'Bearer ' + getToken();
-    uni.request({
-      url: API_BASE_URL + path,
-      method: method as UniApp.RequestOptions['method'],
-      data: data as UniApp.RequestOptions['data'],
-      header,
-      timeout: 20_000,
-      success(res) {
-        const body = res.data as { code?: number; message?: string; data?: T };
-        if (res.statusCode === 401) {
-          if (auth && !retried) {
-            refreshTokenSilently()
-              .then(() => request<T>(path, method, data, auth, true).then(resolve, reject))
-              .catch(() => reject(handleUnauthorized(body?.message)));
-            return;
-          }
-          reject(handleUnauthorized(body?.message));
-          return;
-        }
-        if (res.statusCode === 403) {
-          reject(new Error(localizeApiMessage(body?.message, '权限不足')));
-          return;
-        }
-        if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0) {
-          resolve(body.data as T);
-          return;
-        }
-        reject(new Error(localizeApiMessage(body?.message, `请求失败 (${res.statusCode})`)));
-      },
-      fail(err) {
-        reject(new Error(localizeApiMessage(err.errMsg, '网络错误')));
-      }
-    });
-  });
+  return mpRequest<T>(
+    mpApiSession,
+    path,
+    method as UniApp.RequestOptions['method'],
+    data,
+    auth,
+    retried
+  );
 }
 
 export function merchantLogin(phone: string, password: string) {
@@ -249,8 +271,10 @@ export function merchantLogin(phone: string, password: string) {
   ).then(async (data) => {
     uni.setStorageSync('merchant_token', data.token);
     uni.setStorageSync('merchant_user_id', data.userId);
-    const { loadRuntimeDict } = await import('@/utils/dict-runtime');
-    await loadRuntimeDict();
+    await sharedLoadRuntimeDict({
+      getToken: getToken,
+      fetchRuntime: () => request('/api/v2/dicts/runtime', 'GET')
+    });
     return data;
   });
 }
@@ -452,6 +476,42 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').MerchantAnalyticsOverview>(
       `/api/v2/merchant/analytics/overview?days=${days}`
     ),
+  salesReports: (dim = 'PRODUCT', fromDate?: string, toDate?: string) =>
+    request<
+      Array<{
+        dimKey: string;
+        dimLabel: string;
+        orderCount: number;
+        qty: number;
+        revenueCents: number;
+        cogsCents: number;
+        marginCents: number;
+      }>
+    >(withQuery('/api/v2/merchant/analytics/sales-reports', { dim, fromDate, toDate })),
+  skuSales: (days = 30, deviceId?: string) =>
+    request<import('@aicabinet/shared-types').MerchantSkuSales[]>(
+      withQuery('/api/v2/merchant/analytics/sku-sales', { days, deviceId })
+    ),
+  skuVelocity: (deviceId: string) =>
+    request<import('@aicabinet/shared-types').MerchantSkuVelocity[]>(
+      `/api/v2/merchant/analytics/velocity?deviceId=${encodeURIComponent(deviceId)}`
+    ),
+  aiInsight: (days = 30) =>
+    request<import('@aicabinet/shared-types').MerchantAiInsight>(
+      `/api/v2/merchant/analytics/ai-insight?days=${days}`
+    ),
+  expirySummary: () =>
+    request<import('@aicabinet/shared-types').MerchantExpirySummary>(
+      '/api/v2/merchant/analytics/expiry-summary'
+    ),
+  deviceTemperatureHistory: (deviceId: string, hours = 24) =>
+    request<import('@aicabinet/shared-types').DeviceTemperatureReading[]>(
+      `/api/v2/merchant/devices/${encodeURIComponent(deviceId)}/temperature-history?hours=${hours}`
+    ),
+  pricingHistory: (deviceId?: string, skuId?: string) =>
+    request<import('@aicabinet/shared-types').MerchantSkuPriceChange[]>(
+      withQuery('/api/v2/merchant/pricing/history', { deviceId, skuId })
+    ),
   settlements: () =>
     request<import('@aicabinet/shared-types').MerchantSettlementOverview>(
       '/api/v2/merchant/settlements/overview'
@@ -470,31 +530,49 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').MerchantSettlementBatch[]>(
       `/api/v2/merchant/settlements/batches?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
     ),
-  revenueSplits: (page = 0, size = 50, status?: string, from?: string, to?: string) => {
-    const q = new URLSearchParams({ page: String(page), size: String(size) });
-    if (status) q.set('status', status);
-    if (from) q.set('from', from);
-    if (to) q.set('to', to);
-    return request<{ items: import('@aicabinet/shared-types').RevenueSplit[]; total: number }>(
-      `/api/v2/merchant/revenue-splits?${q}`
-    );
-  },
+  revenueSplits: (page = 0, size = 50, status?: string, from?: string, to?: string) =>
+    request<
+      import('@aicabinet/shared-types').PageResult<import('@aicabinet/shared-types').RevenueSplit>
+    >(withQuery('/api/v2/merchant/revenue-splits', { page, size, status, from, to })),
   exportSettlementsUrl: (from: string, to: string) =>
     `${API_BASE_URL}/api/v2/merchant/settlements/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+  exportOrdersUrl: (deviceId?: string) => {
+    const q = deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : '';
+    return `${API_BASE_URL}/api/v2/merchant/orders/export${q}`;
+  },
   exportDeviceReportsUrl: () => `${API_BASE_URL}/api/v2/merchant/device-reports/export`,
   replenishmentSuggestions: (deviceId: string) =>
     request<MerchantReplenishmentSuggest[]>(
       `/api/v2/merchant/replenishment/suggestions?deviceId=${encodeURIComponent(deviceId)}`
     ),
-  replenishmentRequests: (status?: string, deviceId?: string) => {
-    const q = new URLSearchParams();
-    if (status) q.set('status', status);
-    if (deviceId) q.set('deviceId', deviceId);
-    const qs = q.toString();
-    return request<MerchantReplenishmentRequest[]>(
-      `/api/v2/merchant/replenishment/requests${qs ? `?${qs}` : ''}`
-    );
-  },
+  getTaxProfile: (merchantId: string) =>
+    request<{
+      merchantId: string;
+      companyName: string;
+      taxNo: string;
+      address?: string;
+      bankName?: string;
+      bankAccount?: string;
+      phone?: string;
+    }>(`/api/v2/merchant/tax-profile?merchantId=${encodeURIComponent(merchantId)}`),
+  saveTaxProfile: (body: {
+    merchantId: string;
+    companyName: string;
+    taxNo: string;
+    address?: string;
+    bankName?: string;
+    bankAccount?: string;
+    phone?: string;
+  }) => request('/api/v2/merchant/tax-profile', 'PUT', body),
+  myReplenishmentEfficiency: () =>
+    request<MerchantReplenishmentEfficiency>('/api/v2/merchant/replenishment/my-efficiency'),
+  /** 缺货巡柜：全部低库存 SKU 明细（按柜聚合由页面完成） */
+  lowStockDevices: () =>
+    request<DeviceLowStockItem[]>('/api/v2/merchant/inventory?lowStockOnly=true'),
+  replenishmentRequests: (status?: string, deviceId?: string) =>
+    request<MerchantReplenishmentRequest[]>(
+      withQuery('/api/v2/merchant/replenishment/requests', { status, deviceId })
+    ),
   submitReplenishmentRequest: (body: {
     deviceId: string;
     notes?: string;
@@ -540,18 +618,39 @@ export const merchantApi = {
         restockHeadroom?: number;
       }[]
     >('/api/v2/merchant/expiry-alerts'),
-  disputes: (status?: string, page = 0, size = 100) => {
-    const q = new URLSearchParams({ page: String(page), size: String(size) });
-    if (status) q.set('status', status);
-    return request<{ items?: MerchantDisputeTicket[]; total?: number } | MerchantDisputeTicket[]>(
-      `/api/v2/merchant/disputes?${q}`
-    );
+  slotDiscrepancies: (deviceId?: string) => {
+    const q = deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : '';
+    return request<MerchantSlotDiscrepancy[]>(`/api/v2/merchant/slot-discrepancies${q}`);
   },
-  orders: (deviceId?: string, page = 0, size = 50) => {
-    const q = new URLSearchParams({ page: String(page), size: String(size) });
-    if (deviceId) q.set('deviceId', deviceId);
-    return request<{ items?: MerchantOrderSummary[]; total?: number } | MerchantOrderSummary[]>(
-      `/api/v2/merchant/orders?${q}`
+  deviceReports: () => request<MerchantDeviceReport[]>('/api/v2/merchant/device-reports'),
+  updateMerchantProfile: (body: MerchantProfileUpdate) =>
+    request<unknown[]>('/api/v2/merchant/profile', 'PATCH', body),
+  disputes: (status?: string, page = 0, size = 100) =>
+    request<import('@aicabinet/shared-types').PageResult<MerchantDisputeTicket>>(
+      withQuery('/api/v2/merchant/disputes', { page, size, status })
+    ),
+  orders: (
+    opts: {
+      deviceId?: string;
+      status?: string;
+      from?: string;
+      to?: string;
+      keyword?: string;
+      page?: number;
+      size?: number;
+    } = {}
+  ) => {
+    const { deviceId, status, from, to, keyword, page = 0, size = 50 } = opts;
+    return request<import('@aicabinet/shared-types').PageResult<MerchantOrderSummary>>(
+      withQuery('/api/v2/merchant/orders', {
+        page,
+        size,
+        deviceId,
+        status,
+        from,
+        to,
+        keyword
+      })
     );
   },
   orderDetail: (orderId: string) =>
@@ -563,7 +662,26 @@ export const merchantApi = {
       `/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}/reply`,
       'POST',
       { body }
-    )
+    ),
+  disputeResolve: (
+    ticketId: string,
+    body: {
+      resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM';
+      restoreInventory?: boolean;
+      items?: { skuId: string; quantity: number }[];
+    }
+  ) =>
+    request<{ message?: string; resolutionType?: string }>(
+      `/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}/resolve`,
+      'POST',
+      body
+    ),
+  notifications: (limit = 50) =>
+    request<MerchantNotificationDto[]>(`/api/v2/merchant/notifications?limit=${limit}`),
+  notificationUnreadCount: () =>
+    request<{ count: number }>('/api/v2/merchant/notifications/unread-count'),
+  markNotificationRead: (id: number) =>
+    request<void>(`/api/v2/merchant/notifications/${id}/read`, 'POST')
 };
 
 export type MerchantOrderSummary = {
@@ -572,7 +690,15 @@ export type MerchantOrderSummary = {
   deviceId?: string;
   status?: string;
   totalAmountCents?: number;
+  originalAmountCents?: number;
   lineCount?: number;
+  lineSummary?: string;
+  payChannel?: string;
+  couponDiscountCents?: number;
+  memberDiscountCents?: number;
+  refundedAt?: string;
+  /** 累计已退款（分） */
+  refundedCents?: number;
   createdAt?: string;
 };
 
@@ -582,17 +708,41 @@ export type MerchantDisputeTicket = {
   reason?: string;
   deviceId?: string;
   createdAt?: string;
+  resolvedAt?: string;
+  slaDueAt?: string;
+  slaOverdue?: boolean;
+  slaHoursRemaining?: number;
+  category?: string;
   lastMessage?: string;
   canReply?: boolean;
   orderId?: string;
   billedAmountCents?: number;
+  refundedAmountCents?: number;
   sessionId?: string;
+  videoUri?: string;
+  videoPreviewUrl?: string;
+  suggestedItems?: { skuId?: string; skuName?: string; quantity?: number }[];
 };
 
 export type MerchantDisputeDetail = {
   ticket?: MerchantDisputeTicket;
   messages?: { body?: string; authorType?: string; createdAt?: string }[];
   canReply?: boolean;
+  canResolve?: boolean;
+};
+
+export type MerchantNotificationDto = {
+  id: number;
+  title: string;
+  body: string;
+  templateCode?: string;
+  channel?: string;
+  audience?: string;
+  bizType?: string;
+  bizId?: string;
+  read: boolean;
+  readAt?: string | null;
+  createdAt: string;
 };
 
 export function canEditPlanogram(me: import('@aicabinet/shared-types').MerchantMe | null) {
@@ -613,19 +763,8 @@ export function hasPerm(
   return matchPermission(me?.permissions, code);
 }
 
-/** 商户端展示用：运营字典「设备」在商户侧统一为「柜机」 */
-const MERCHANT_ALERT_TYPE_LABELS: Record<string, string> = {
-  DEVICE_OFFLINE: '柜机离线',
-  DEVICE_FAULT: '柜机故障',
-  REPLENISHMENT: '补货任务',
-  REPLENISHMENT_REQUIRED: '需补货',
-  LOW_STOCK: '低库存',
-  EXPIRY: '临期',
-  DISPUTE: '消费争议'
-};
-
 export function alertTypeLabel(type: string) {
-  return MERCHANT_ALERT_TYPE_LABELS[type] || displayLabel('exception_type', type, '告警');
+  return displayLabel('merchant_alert_type', type, '告警');
 }
 
 export function merchantAlertTitle(_type: string, title: string) {

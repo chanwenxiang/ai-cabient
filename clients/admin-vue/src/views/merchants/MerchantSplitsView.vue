@@ -32,7 +32,7 @@
           type="info"
           :closable="false"
           show-icon
-          title="上级商户可见全部下级货柜。运营账号绑定上级后，数据范围自动包含下级组织。"
+          title="上级商户可见全部下级货柜。组织树展示各级平台抽成；子商户结算按自身 platformRateBps，上级通过组织归属汇总经营数据（非自动再抽成）。"
           class="status-banner"
         />
         <div class="org-toolbar">
@@ -56,7 +56,13 @@
             <div class="org-node">
               <div class="org-node__meta">
                 <strong>{{ data.merchantName || data.merchantId }}</strong>
-                <small>{{ data.merchantId }} · 设备 {{ data.deviceCount || 0 }}</small>
+                <small
+                  >{{ data.merchantId }} · 设备 {{ data.deviceCount || 0 }} · 平台抽成
+                  {{ ((data.platformRateBps || 0) / 100).toFixed(1) }}%</small
+                >
+                <small v-if="data.parentMerchantId" class="org-cascade"
+                  >上级 {{ data.parentMerchantId }} · 级联保留 {{ cascadeKeepPct(data) }}%</small
+                >
               </div>
               <div class="org-node__actions">
                 <el-button v-if="canEdit" link type="primary" @click.stop="openOrgEdit(data)"
@@ -202,6 +208,26 @@
                 </template>
               </el-table-column>
               <el-table-column prop="deviceCount" label="设备数" width="90" align="center" />
+              <el-table-column label="商户状态" width="100" align="center">
+                <template #default="{ row }">
+                  <el-tag size="small" effect="plain">{{
+                    displayLabel('merchant_status', row.status, '未知')
+                  }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="联系人" min-width="100" align="center" show-overflow-tooltip>
+                <template #default="{ row }">{{
+                  row.alertContactName || row.contactName || '暂无'
+                }}</template>
+              </el-table-column>
+              <el-table-column label="电话" width="120" align="center">
+                <template #default="{ row }">{{
+                  row.contactPhone || row.alertContactPhone || '暂无'
+                }}</template>
+              </el-table-column>
+              <el-table-column label="备注" min-width="100" align="center" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.remark || '暂无' }}</template>
+              </el-table-column>
             </el-table>
           </div>
         </div>
@@ -243,6 +269,15 @@
           </el-form-item>
         </el-form>
         <div v-loading="opsConfigLoading" style="min-height: 120px">
+          <el-alert
+            type="info"
+            :closable="false"
+            show-icon
+            class="mb-12"
+            title="理货策略强校验"
+            description="开启「盘点/补货拍照」后，盘点接口必须带 photoEvidenceUrl；「并发订单上限」>0 时开门建会话会拦截超限。"
+            style="margin-bottom: 12px"
+          />
           <el-form v-if="opsConfig" label-width="140px" style="max-width: 640px">
             <el-form-item label="备货类型">
               <el-radio-group v-model="opsConfig.stockingType">
@@ -300,14 +335,26 @@
         <el-divider content-position="left">商户侧推荐岗位</el-divider>
         <el-table :data="roleTemplates" stripe border>
           <el-table-column prop="templateName" label="岗位" width="120" align="center" />
-          <el-table-column prop="description" label="说明" min-width="220" align="center" />
+          <el-table-column prop="templateCode" label="编码" width="120" align="center">
+            <template #default="{ row }">{{ row.templateCode || row.code || '暂无' }}</template>
+          </el-table-column>
+          <el-table-column prop="description" label="说明" min-width="200" align="center" />
           <el-table-column
             prop="permissionHint"
             label="权限提示"
-            min-width="240"
+            min-width="200"
             show-overflow-tooltip
             align="center"
           />
+          <el-table-column label="权限数" width="90" align="center">
+            <template #default="{ row }">
+              {{
+                Array.isArray(row.permissions)
+                  ? row.permissions.length
+                  : (row.permissionCount ?? '暂无')
+              }}
+            </template>
+          </el-table-column>
         </el-table>
       </el-tab-pane>
 
@@ -395,7 +442,7 @@
                 class-name="col-text"
               >
                 <template #default="{ row }"
-                  ><span class="cell-id">{{ row.splitId }}</span></template
+                  ><span class="cell-id">{{ displayBizNo(row.splitId) }}</span></template
                 >
               </el-table-column>
               <el-table-column
@@ -412,7 +459,7 @@
                     class="link-cell mono"
                     @click="goOrder(row.orderId)"
                   >
-                    {{ row.orderId }}
+                    {{ displayBizNo(row.orderId) }}
                   </button>
                   <span v-else class="muted">无</span>
                 </template>
@@ -431,6 +478,23 @@
               <el-table-column label="商户收入" width="110" align="center" class-name="col-money">
                 <template #default="{ row }">¥{{ money(row.merchantCents) }}</template>
               </el-table-column>
+              <el-table-column label="平台抽成" width="110" align="center" class-name="col-money">
+                <template #default="{ row }">¥{{ money(row.platformCents) }}</template>
+              </el-table-column>
+              <el-table-column label="订单总额" width="110" align="center" class-name="col-money">
+                <template #default="{ row }">¥{{ money(row.grossCents) }}</template>
+              </el-table-column>
+              <el-table-column label="设备" min-width="100" align="center" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.deviceId || '暂无' }}</template>
+              </el-table-column>
+              <el-table-column
+                label="结算批次"
+                min-width="110"
+                align="center"
+                show-overflow-tooltip
+              >
+                <template #default="{ row }">{{ row.settlementBatchNo || '暂无' }}</template>
+              </el-table-column>
               <el-table-column label="状态" width="120" align="center">
                 <template #default="{ row }">
                   <el-tag size="small" :type="splitTagType(row.status)">
@@ -440,12 +504,25 @@
               </el-table-column>
               <el-table-column
                 label="失败原因"
-                min-width="160"
+                min-width="140"
                 align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.failureReason || '无' }}</template>
+              </el-table-column>
+              <el-table-column label="创建时间" width="150" align="center" class-name="col-text">
+                <template #default="{ row }">
+                  <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="结算时间" width="150" align="center" class-name="col-text">
+                <template #default="{ row }">
+                  <span v-if="row.settledAt" class="cell-datetime">{{
+                    formatDateTime(row.settledAt)
+                  }}</span>
+                  <span v-else class="muted">暂无</span>
+                </template>
               </el-table-column>
               <el-table-column
                 v-if="showSplitActionColumn"
@@ -510,15 +587,18 @@
         上级商户可见全部下级货柜。抽成单位为 bps：1000 = 10%，按订单实付计入平台。
       </p>
       <el-form label-position="top">
-        <el-form-item label="商户 ID" required>
+        <el-form-item label="商户编号" required>
           <el-input
             v-model="orgForm.merchantId"
             :disabled="orgForm.editing"
-            placeholder="如 MCH-EAST"
+            placeholder="业务编号，如 MCH-EAST"
           />
         </el-form-item>
         <el-form-item label="名称" required>
           <el-input v-model="orgForm.merchantName" placeholder="组织 / 商户名称" />
+        </el-form-item>
+        <el-form-item label="联系电话">
+          <el-input v-model="orgForm.contactPhone" placeholder="如 0755-88880001" maxlength="32" />
         </el-form-item>
         <el-form-item label="上级商户">
           <el-select
@@ -596,7 +676,7 @@ import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { CircleCheck, Refresh, RefreshRight, Upload } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
@@ -611,6 +691,7 @@ import type {
   RevenueSplit
 } from '@aicabinet/shared-types';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
 const route = useRoute();
 const { router, goPath } = useNavAccess();
@@ -688,6 +769,7 @@ const orgForm = ref({
   editing: false,
   merchantId: '',
   merchantName: '',
+  contactPhone: '',
   parentMerchantId: '' as string | null,
   platformRateBps: 1000
 });
@@ -730,6 +812,11 @@ const merchantTree = computed(() => {
   sortRec(roots);
   return roots;
 });
+
+/** 子商户相对平台：商户侧保留比例 = 100% - 本级平台抽成 */
+function cascadeKeepPct(node: { platformRateBps?: number }) {
+  return ((10000 - (node.platformRateBps || 0)) / 100).toFixed(1);
+}
 
 const parentOptions = computed(() => merchants.value);
 
@@ -1152,6 +1239,7 @@ function openOrgEdit(row?: MerchantDto) {
       editing: true,
       merchantId: row.merchantId,
       merchantName: row.merchantName || '',
+      contactPhone: row.contactPhone || '',
       parentMerchantId: row.parentMerchantId || '',
       platformRateBps: row.platformRateBps ?? 1000
     };
@@ -1160,6 +1248,7 @@ function openOrgEdit(row?: MerchantDto) {
       editing: false,
       merchantId: '',
       merchantName: '',
+      contactPhone: '',
       parentMerchantId: '',
       platformRateBps: 1000
     };
@@ -1170,7 +1259,7 @@ function openOrgEdit(row?: MerchantDto) {
 async function saveOrg() {
   const f = orgForm.value;
   if (!f.merchantId.trim() || !f.merchantName.trim()) {
-    ElMessage.warning('请填写商户 ID 与名称');
+    ElMessage.warning('请填写商户编号与名称');
     return;
   }
   orgSaving.value = true;
@@ -1179,7 +1268,7 @@ async function saveOrg() {
     await api.request('/api/v2/ops/admin/merchants', 'POST', {
       merchantId: f.merchantId.trim(),
       merchantName: f.merchantName.trim(),
-      contactPhone: existing?.contactPhone,
+      contactPhone: f.contactPhone.trim() || null,
       platformRateBps: f.platformRateBps,
       wechatReceiverId: existing?.wechatReceiverId,
       status: existing?.status || 'ACTIVE',
@@ -1436,6 +1525,9 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 1.3;
+}
+.org-node__meta .org-cascade {
+  color: var(--el-color-primary);
 }
 .org-node__actions {
   display: flex;

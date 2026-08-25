@@ -13,5 +13,6 @@ public record PromotionActivityDto(
     long usedCents,
     int userLimit,
     String deviceScope,
+    String ruleConfig,
     String description
 ) {}

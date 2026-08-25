@@ -13,5 +13,6 @@ public record PaymentReconciliationDto(
         int matchedCount,
         int unmatchedCount,
         String status,
+        Instant createdAt,
         Instant completedAt
 ) {}

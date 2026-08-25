@@ -3,21 +3,31 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.RechargeOrderMapper">
 
+  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.RechargeOrder">
+    <![CDATA[
+    SELECT r.* FROM recharge_order r WHERE r.order_id = #{orderId} FOR UPDATE
+    ]]>
+  </select>
+
   <select id="sumPaidAmountBetween" resultType="long">
     <![CDATA[
-    SELECT COALESCE(SUM(r.amount_cents), 0) FROM recharge_order r WHERE r.status = 'PAID' AND r.paid_at >= #{start} AND r.paid_at < #{end}
+    SELECT COALESCE(SUM(r.amount_cents), 0) FROM recharge_order r
+    WHERE r.status = 'PAID' AND r.paid_at >= #{start} AND r.paid_at < #{end}
     ]]>
   </select>
 
   <select id="findPaidOrderIdsBetween" resultType="string">
     <![CDATA[
-    SELECT r.order_id FROM recharge_order r WHERE r.status = 'PAID' AND r.paid_at >= #{start} AND r.paid_at < #{end}
+    SELECT r.order_id FROM recharge_order r
+    WHERE r.status = 'PAID' AND r.paid_at >= #{start} AND r.paid_at < #{end}
     ]]>
   </select>
 
   <select id="findPaidBetween" resultType="com.aicabinet.trade.domain.RechargeOrder">
     <![CDATA[
-    SELECT r.* FROM recharge_order r WHERE r.status = 'PAID' AND r.paid_at >= #{start} AND r.paid_at < #{end}
+    SELECT r.* FROM recharge_order r
+    WHERE r.status = 'PAID' AND r.paid_at >= #{start} AND r.paid_at < #{end}
     ]]>
   </select>
+
 </mapper>

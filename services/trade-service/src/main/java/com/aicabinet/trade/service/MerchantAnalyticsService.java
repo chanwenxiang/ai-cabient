@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
 import com.aicabinet.trade.mapper.PullOffTaskMapper;
@@ -25,30 +26,39 @@ public class MerchantAnalyticsService {
     private final MerchantPortalGuard merchantPortalGuard;
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final CabinetOrderLineMapper lineRepository;
+    private final CabinetOrderMapper orderRepository;
     private final InventoryWriteOffMapper writeOffRepository;
     private final PullOffTaskMapper pullOffTaskRepository;
     private final SalesVelocityService salesVelocityService;
     private final SkuCatalogMapper skuCatalogRepository;
     private final DeviceSkuInventoryMapper inventoryRepository;
+    private final InventoryLotService inventoryLotService;
+    private final CompetitiveGapService competitiveGapService;
 
     public MerchantAnalyticsService(PermissionService permissionService,
                                     MerchantPortalGuard merchantPortalGuard,
                                     MerchantFeaturePackService merchantFeaturePackService,
                                     CabinetOrderLineMapper lineRepository,
+                                    CabinetOrderMapper orderRepository,
                                     InventoryWriteOffMapper writeOffRepository,
                                     PullOffTaskMapper pullOffTaskRepository,
                                     SalesVelocityService salesVelocityService,
                                     SkuCatalogMapper skuCatalogRepository,
-                                    DeviceSkuInventoryMapper inventoryRepository) {
+                                    DeviceSkuInventoryMapper inventoryRepository,
+                                    InventoryLotService inventoryLotService,
+                                    CompetitiveGapService competitiveGapService) {
         this.permissionService = permissionService;
         this.merchantPortalGuard = merchantPortalGuard;
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.lineRepository = lineRepository;
+        this.orderRepository = orderRepository;
         this.writeOffRepository = writeOffRepository;
         this.pullOffTaskRepository = pullOffTaskRepository;
         this.salesVelocityService = salesVelocityService;
         this.skuCatalogRepository = skuCatalogRepository;
         this.inventoryRepository = inventoryRepository;
+        this.inventoryLotService = inventoryLotService;
+        this.competitiveGapService = competitiveGapService;
     }
 
     @Transactional(readOnly = true)
@@ -60,12 +70,51 @@ public class MerchantAnalyticsService {
             return emptyOverview(window);
         }
         Instant since = windowStart(window);
+        Instant prevStart = LocalDate.now(ZONE).minusDays(2L * window - 1).atStartOfDay(ZONE).toInstant();
+
         long revenue = lineRepository.sumRevenueByDeviceIdsSince(deviceIds, since);
         long cogs = lineRepository.sumCogsByDeviceIdsSince(deviceIds, since);
         long writeOff = writeOffRepository.sumCostCentsByDeviceIdsSince(deviceIds, since);
-        List<MerchantSkuSalesDto> topSkus = mapSkuSales(
-                lineRepository.skuBreakdownByDevicesSince(deviceIds, since), 20);
-        return new MerchantAnalyticsOverviewDto(window, revenue, cogs, revenue - cogs, writeOff, topSkus);
+        long margin = revenue - cogs;
+
+        long prevRevenue = lineRepository.sumRevenueByDeviceIdsBetween(deviceIds, prevStart, since);
+        long prevCogs = lineRepository.sumCogsByDeviceIdsBetween(deviceIds, prevStart, since);
+        long prevMargin = prevRevenue - prevCogs;
+
+        long orderCount = orderRepository.countByDeviceIdInAndCreatedAtBetween(
+                deviceIds, since, Instant.now().plusSeconds(1));
+        // 与运营台客单口径一致：订单实付合计 / 订单数
+        long orderRevenue = orderRepository.sumTotalAmountByDeviceIdInSince(deviceIds, since);
+        long avgOrder = orderCount > 0 ? orderRevenue / orderCount : 0;
+
+        List<Object[]> skuRows = lineRepository.skuBreakdownByDevicesSince(deviceIds, since);
+        long itemQty = 0;
+        for (Object[] row : skuRows) {
+            itemQty += toLong(row[2]);
+        }
+        long avgUnit = itemQty > 0 ? revenue / itemQty : 0;
+
+        StockoutEstimate stockout = estimateStockoutLoss(deviceIds, skuRows, window);
+        List<MerchantSkuSalesDto> topSkus = mapSkuSales(skuRows, 20);
+
+        return new MerchantAnalyticsOverviewDto(
+                window,
+                revenue,
+                cogs,
+                margin,
+                writeOff,
+                topSkus,
+                orderCount,
+                avgOrder,
+                itemQty,
+                avgUnit,
+                prevRevenue,
+                prevMargin,
+                changePct(revenue, prevRevenue),
+                changePct(margin, prevMargin),
+                stockout.skuCount(),
+                stockout.lossCents()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -118,6 +167,18 @@ public class MerchantAnalyticsService {
                 writeOffRepository.sumCostCentsByDeviceIdsSince(deviceIds, since30));
     }
 
+    /** 销售四表商户子集：商品 / 货柜 / 毛利。 */
+    @Transactional(readOnly = true)
+    public List<SalesReportRowDto> salesReports(Long userId, String dim, String fromDate, String toDate) {
+        requireAnalytics(userId);
+        Set<String> deviceIds = requireScopedDevices(userId);
+        return competitiveGapService.salesReportForDevices(deviceIds, dim, fromDate, toDate);
+    }
+
+    public String salesReportsCsv(Long userId, String dim, String fromDate, String toDate) {
+        return competitiveGapService.salesReportCsv(salesReports(userId, dim, fromDate, toDate));
+    }
+
     @Transactional(readOnly = true)
     public List<MerchantSkuPerformanceDto> skuPerformance(Long userId, int days) {
         requireAnalytics(userId);
@@ -133,9 +194,19 @@ public class MerchantAnalyticsService {
             names.put(skuId, row[1] != null ? String.valueOf(row[1]) : skuId);
             sales.put(skuId, new long[]{toLong(row[2]), toLong(row[3]), toLong(row[4])});
         }
-        Map<String, Long> stock = inventoryRepository.findByIdDeviceIdIn(deviceIds).stream()
-                .collect(Collectors.groupingBy(i -> i.getId().getSkuId(),
-                        Collectors.summingLong(i -> i.getQuantity())));
+        Map<String, Long> stock = new HashMap<>();
+        Map<String, Boolean> ledgerByDevice = new HashMap<>();
+        Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
+        for (var inv : inventoryRepository.findByIdDeviceIdIn(deviceIds)) {
+            String deviceId = inv.getId().getDeviceId();
+            String skuId = inv.getId().getSkuId();
+            boolean ledger = ledgerByDevice.computeIfAbsent(deviceId, inventoryLotService::deviceUsesLotLedger);
+            int qty = ledger
+                    ? sellableByDevice.computeIfAbsent(deviceId, inventoryLotService::sellableQtyBySku)
+                            .getOrDefault(skuId, 0)
+                    : inv.getQuantity();
+            stock.merge(skuId, (long) qty, Long::sum);
+        }
         Set<String> skuIds = new HashSet<>(stock.keySet());
         skuIds.addAll(sales.keySet());
         skuCatalogRepository.findAllById(skuIds).forEach(s -> names.put(s.getSkuId(), s.getSkuName()));
@@ -194,7 +265,57 @@ public class MerchantAnalyticsService {
     }
 
     private static MerchantAnalyticsOverviewDto emptyOverview(int window) {
-        return new MerchantAnalyticsOverviewDto(window, 0, 0, 0, 0, List.of());
+        return new MerchantAnalyticsOverviewDto(
+                window, 0, 0, 0, 0, List.of(),
+                0, 0, 0, 0, 0, 0, null, null, 0, 0);
+    }
+
+    private StockoutEstimate estimateStockoutLoss(
+            Set<String> deviceIds, List<Object[]> skuRows, int window) {
+        Map<String, long[]> sales = new HashMap<>();
+        for (Object[] row : skuRows) {
+            String skuId = String.valueOf(row[0]);
+            sales.put(skuId, new long[]{toLong(row[2]), toLong(row[3]), toLong(row[4])});
+        }
+        Map<String, Long> stock = new HashMap<>();
+        Map<String, Boolean> ledgerByDevice = new HashMap<>();
+        Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
+        for (var inv : inventoryRepository.findByIdDeviceIdIn(deviceIds)) {
+            String deviceId = inv.getId().getDeviceId();
+            String skuId = inv.getId().getSkuId();
+            boolean ledger = ledgerByDevice.computeIfAbsent(deviceId, inventoryLotService::deviceUsesLotLedger);
+            int qty = ledger
+                    ? sellableByDevice.computeIfAbsent(deviceId, inventoryLotService::sellableQtyBySku)
+                            .getOrDefault(skuId, 0)
+                    : inv.getQuantity();
+            stock.merge(skuId, (long) qty, Long::sum);
+        }
+        int oosCount = 0;
+        long loss = 0;
+        for (Map.Entry<String, Long> e : stock.entrySet()) {
+            if (e.getValue() > 0) {
+                continue;
+            }
+            long[] v = sales.get(e.getKey());
+            if (v == null || v[0] <= 0) {
+                continue;
+            }
+            oosCount++;
+            // 按日均销量 × 件均毛利 × min(窗口,7) 估算近期缺货损失
+            long unitMargin = Math.max(0, (v[1] - v[2]) / Math.max(1, v[0]));
+            double daily = (double) v[0] / Math.max(1, window);
+            loss += Math.round(daily * unitMargin * Math.min(window, 7));
+        }
+        return new StockoutEstimate(oosCount, loss);
+    }
+
+    private record StockoutEstimate(int skuCount, long lossCents) {}
+
+    private static Double changePct(long current, long previous) {
+        if (previous == 0) {
+            return current == 0 ? 0.0 : null;
+        }
+        return ((double) (current - previous) / previous) * 100.0;
     }
 
     private static List<MerchantSkuSalesDto> mapSkuSales(List<Object[]> rows, int limit) {

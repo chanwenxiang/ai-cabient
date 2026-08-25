@@ -122,7 +122,7 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
           box-sizing: border-box;
           background: rgba(15, 23, 42, 0.55);
           overscroll-behavior: contain;
-          font-family: var(--app-font, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif);
+          font-family: var(--app-font, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", sans-serif);
           -webkit-font-smoothing: antialiased;
         }
         #${HOST_ID} .mtp-card {

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.SkuDelistReviewMapper">
+
+  <select id="_findBySkuIdForUpdateRaw" resultType="com.aicabinet.trade.domain.SkuDelistReview">
+    <![CDATA[
+    SELECT r.* FROM sku_delist_review r WHERE r.sku_id = #{skuId} FOR UPDATE
+    ]]>
+  </select>
+
+</mapper>

@@ -6,8 +6,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -35,6 +37,9 @@ public class IdempotencyService {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private DistributedLockService distributedLockService;
 
     private static final int DEFAULT_EXPIRE_HOURS = 24;
 
@@ -73,6 +78,17 @@ public class IdempotencyService {
 
     @Transactional
     public void saveIdempotency(String idempotencyKey, String businessType, String businessId, Object response) {
+        runWithIdempotencyLock(idempotencyKey, () -> {
+            doSaveIdempotency(idempotencyKey, businessType, businessId, response);
+            return null;
+        });
+    }
+
+    private void doSaveIdempotency(String idempotencyKey, String businessType, String businessId, Object response) {
+        if (repository.findByIdForUpdate(idempotencyKey).isPresent()) {
+            log.info("幂等键已存在，跳过重复写入 key={}", idempotencyKey);
+            return;
+        }
         IdempotencyKey entity = new IdempotencyKey();
         entity.setIdempotencyKey(idempotencyKey);
         entity.setBusinessType(businessType);
@@ -99,7 +115,26 @@ public class IdempotencyService {
 
     @Transactional
     public void deleteIdempotency(String idempotencyKey) {
-        repository.deleteById(idempotencyKey);
-        log.info("幂等键已删除 key={}", idempotencyKey);
+        runWithIdempotencyLock(idempotencyKey, () -> {
+            repository.deleteById(idempotencyKey);
+            log.info("幂等键已删除 key={}", idempotencyKey);
+            return null;
+        });
+    }
+
+    static String idempotencyLockKey(String idempotencyKey) {
+        return "idem:" + idempotencyKey.trim();
+    }
+
+    private <T> T runWithIdempotencyLock(String idempotencyKey, java.util.function.Supplier<T> action) {
+        String key = idempotencyLockKey(idempotencyKey);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "幂等处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
     }
 }

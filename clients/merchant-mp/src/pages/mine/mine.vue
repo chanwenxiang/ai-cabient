@@ -1,11 +1,47 @@
 <template>
   <view class="page">
-    <view class="profile-header">
-      <view class="avatar">{{ avatarText }}</view>
-      <view class="profile-info">
-        <text class="hello">{{ meName }}</text>
-        <text class="sub">{{ merchantNames }}</text>
-        <text v-if="phone" class="phone">{{ phone }}</text>
+    <view class="profile-header" :style="headerPadStyle">
+      <view class="profile-main">
+        <view class="avatar">{{ avatarText }}</view>
+        <view class="profile-info">
+          <text class="hello">{{ meName }}</text>
+          <text class="sub">{{ merchantNames }}</text>
+          <text v-if="phone" class="phone">{{ phone }}</text>
+        </view>
+        <text v-if="canEditProfile" class="edit-btn" @click="openProfileEdit">编辑资料</text>
+      </view>
+    </view>
+
+    <view v-if="profileEditVisible" class="mask" @click="profileEditVisible = false">
+      <view class="dialog" @click.stop>
+        <text class="dialog-title">编辑资料</text>
+        <text class="hint">维护联系电话与告警联系人，用于异常通知与现场联系</text>
+        <input
+          class="input"
+          type="number"
+          maxlength="11"
+          placeholder="联系电话"
+          :value="profileForm.contactPhone"
+          @input="profileForm.contactPhone = eventInput($event)"
+        />
+        <input
+          class="input"
+          placeholder="告警联系人"
+          :value="profileForm.alertContactName"
+          @input="profileForm.alertContactName = eventInput($event)"
+        />
+        <input
+          class="input"
+          type="number"
+          maxlength="11"
+          placeholder="告警电话"
+          :value="profileForm.alertContactPhone"
+          @input="profileForm.alertContactPhone = eventInput($event)"
+        />
+        <view class="dialog-actions">
+          <button class="btn ghost" @click="profileEditVisible = false">取消</button>
+          <button class="btn" :loading="profileSaving" @click="saveProfileEdit">保存</button>
+        </view>
       </view>
     </view>
 
@@ -18,7 +54,7 @@
         :class="{ highlight: item.key === 'replenishment' }"
         @click="goNav(item)"
       >
-        <text class="menu-icon">{{ item.icon }}</text>
+        <image class="menu-icon" :src="menuIcon(item.icon)" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">{{ item.title }}</text>
           <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
@@ -30,7 +66,7 @@
     <view v-if="teamNav.length" class="section-label">团队与设置</view>
     <view v-if="teamNav.length" class="menu-list">
       <view v-for="item in teamNav" :key="item.key" class="menu-cell" @click="goNav(item)">
-        <text class="menu-icon">{{ item.icon }}</text>
+        <image class="menu-icon" :src="menuIcon(item.icon)" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">{{ item.title }}</text>
           <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
@@ -42,7 +78,7 @@
     <view class="section-label">平台公告</view>
     <view class="menu-list">
       <view class="menu-cell" @click="goAnnouncements">
-        <text class="menu-icon">告</text>
+        <image class="menu-icon" :src="menuIcon('notice')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">通知公告</text>
           <text class="menu-desc">运营发布的维护、活动与规则通知</text>
@@ -69,14 +105,14 @@
         </button>
       </view>
       <view v-if="!subscribeReady" class="notify-warn"
-        >未配置订阅消息模板（VITE_WX_SUBSCRIBE_TMPL_IDS），当前仅可保存偏好，无法向微信申请推送授权。</view
+        >未配置订阅消息模板，当前仅可保存偏好，无法向微信申请推送授权。</view
       >
       <view class="notify-types">
         <label v-for="t in alertTypeOptions" :key="t.value" class="notify-type">
           <switch
             :checked="enabledTypes.includes(t.value)"
             color="#0f766e"
-            @change="(e) => onToggleType(t.value, !!e.detail.value)"
+            @change="(e) => onToggleType(t.value, switchEnabled(e))"
           />
           <text>{{ t.label }}</text>
         </label>
@@ -87,7 +123,7 @@
     <view v-if="bizNav.length" class="section-label">经营工具</view>
     <view v-if="bizNav.length" class="menu-list">
       <view v-for="item in bizNav" :key="item.key" class="menu-cell" @click="goNav(item)">
-        <text class="menu-icon">{{ item.icon }}</text>
+        <image class="menu-icon" :src="menuIcon(item.icon)" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">{{ item.title }}</text>
           <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
@@ -98,7 +134,7 @@
 
     <view class="menu-list">
       <view class="menu-cell danger-cell" @click="onLogout">
-        <text class="menu-icon">🚪</text>
+        <image class="menu-icon" :src="menuIcon('logout')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title danger">退出登录</text>
         </view>
@@ -111,7 +147,13 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
-import { clearSession, merchantApi } from '@/utils/merchant-api';
+import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
+import {
+  clearSession,
+  hasPerm,
+  merchantApi,
+  type MerchantProfileUpdate
+} from '@/utils/merchant-api';
 import {
   hasSubscribeTemplates,
   MERCHANT_ALERT_TYPES,
@@ -127,11 +169,20 @@ import {
 } from '@/config/merchant-nav';
 import type { MerchantMe } from '@aicabinet/shared-types';
 import { formatMerchantNames } from '@/utils/merchant-display';
+import { menuIcon } from '@/utils/menu-icon';
+
+const headerPadStyle = {
+  borderTop: getStatusBarPadPx() + 'px solid var(--brand-deep, #134e4a)'
+};
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const meName = ref('');
 const merchantNames = ref('');
 const phone = ref('');
+const canEditProfile = computed(() => hasPerm(me.value, 'merchant:profile:edit'));
+const profileEditVisible = ref(false);
+const profileSaving = ref(false);
+const profileForm = ref<MerchantProfileUpdate>({});
 const avatarText = computed(() => (meName.value || '商').slice(0, 1));
 const notifyBusy = ref(false);
 const wxBound = ref(false);
@@ -155,6 +206,33 @@ function goNav(item: MerchantNavItem) {
     return;
   }
   uni.navigateTo({ url: item.url });
+}
+
+function openProfileEdit() {
+  profileForm.value = { contactPhone: '', alertContactName: '', alertContactPhone: '' };
+  profileEditVisible.value = true;
+}
+
+async function saveProfileEdit() {
+  profileSaving.value = true;
+  try {
+    await merchantApi.updateMerchantProfile({
+      contactPhone: profileForm.value.contactPhone || undefined,
+      alertContactName: profileForm.value.alertContactName || undefined,
+      alertContactPhone: profileForm.value.alertContactPhone || undefined
+    });
+    uni.showToast({ title: '已保存', icon: 'success' });
+    profileEditVisible.value = false;
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '保存失败', icon: 'none' });
+  } finally {
+    profileSaving.value = false;
+  }
+}
+
+function eventInput(e: unknown) {
+  const ev = e as { detail?: { value?: unknown }; target?: { value?: unknown } };
+  return String(ev?.detail?.value ?? ev?.target?.value ?? '');
 }
 
 function goAnnouncements() {
@@ -195,6 +273,11 @@ function onToggleType(type: string, on: boolean) {
   if (on) set.add(type);
   else set.delete(type);
   enabledTypes.value = [...set];
+}
+
+function switchEnabled(e: unknown) {
+  const ev = e as { detail?: { value?: boolean } };
+  return !!ev?.detail?.value;
 }
 
 async function onBindWx() {
@@ -263,32 +346,121 @@ function onLogout() {
 </script>
 
 <style scoped>
-.page {
-  min-height: 100%;
-  padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, #ecfdf5 0, #f0fdfa 280rpx, #f0fdfa 100%);
+.edit-btn {
+  align-self: flex-start;
+  padding: 10rpx 22rpx;
+  border-radius: 999rpx;
+  background: #ecfdf5;
+  color: var(--brand, #0f766e);
+  font-size: 24rpx;
+  font-weight: 600;
 }
-.profile-header {
-  margin: 20rpx 24rpx 0;
-  padding: 40rpx 32rpx;
-  border-radius: 28rpx;
+.mask {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: flex-end;
+}
+.dialog {
+  width: 100%;
+  background: #fff;
+  border-radius: 28rpx 28rpx 0 0;
+  padding: 32rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+.dialog-title {
+  display: block;
+  font-size: 32rpx;
+  font-weight: 700;
+  color: var(--brand-deep, #134e4a);
+}
+.hint {
+  display: block;
+  margin: 8rpx 0 20rpx;
+  font-size: 24rpx;
+  color: #64748b;
+}
+.input {
+  display: block;
+  width: 100%;
+  height: 80rpx;
+  min-height: 80rpx;
+  line-height: 80rpx;
+  box-sizing: border-box;
+  background: #f8fafc;
+  border: 1rpx solid #e2e8f0;
+  border-radius: 14rpx;
+  padding: 0 20rpx;
+  margin-bottom: 16rpx;
+  font-size: 28rpx;
+  color: #0f172a;
+}
+.dialog-actions {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 8rpx;
+}
+.btn {
+  flex: 1;
+  background: var(--brand, #0f766e);
+  color: #fff;
+  border: none;
+  border-radius: 999rpx;
+  font-size: 28rpx;
+  min-height: 80rpx;
+  line-height: 1.2;
   display: flex;
   align-items: center;
-  gap: 24rpx;
-  background: linear-gradient(145deg, #134e4a, #0f766e 60%, #14b8a6);
-  box-shadow: 0 16rpx 40rpx rgba(15, 118, 110, 0.2);
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+}
+.btn.ghost {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.page {
+  min-height: 100%;
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  background: #ffffff;
+}
+.profile-header {
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+  background: linear-gradient(
+    145deg,
+    var(--brand-deep, #134e4a),
+    var(--brand, #0f766e) 60%,
+    var(--brand, #0f766e)
+  );
+  box-shadow: none;
   color: #fff;
 }
+.profile-main {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  padding: 12rpx 24rpx 24rpx;
+}
 .avatar {
-  width: 100rpx;
-  height: 100rpx;
+  width: 80rpx;
+  height: 80rpx;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.22);
   border: 2rpx solid rgba(255, 255, 255, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 44rpx;
+  font-size: 34rpx;
   font-weight: 700;
 }
 .profile-info {
@@ -296,77 +468,82 @@ function onLogout() {
   min-width: 0;
 }
 .hello {
-  font-size: 36rpx;
+  font-size: 30rpx;
   font-weight: 700;
   display: block;
 }
 .sub {
-  font-size: 26rpx;
+  font-size: 22rpx;
   opacity: 0.9;
   display: block;
-  margin-top: 4rpx;
+  margin-top: 2rpx;
 }
 .phone {
-  font-size: 24rpx;
+  font-size: 22rpx;
   opacity: 0.75;
   display: block;
-  margin-top: 4rpx;
+  margin-top: 2rpx;
 }
 .section-label {
-  margin: 28rpx 32rpx 10rpx;
+  margin: 14rpx 28rpx 6rpx;
   font-size: 22rpx;
   color: #94a3b8;
   letter-spacing: 1rpx;
 }
 .menu-list {
   margin: 0 24rpx;
+  background: #fff;
+  border-radius: 14rpx;
+  overflow: hidden;
 }
 .menu-cell {
-  background: #fff;
-  border-radius: 20rpx;
-  padding: 28rpx 24rpx;
-  margin-bottom: 12rpx;
+  background: transparent;
+  border-radius: 0;
+  padding: 20rpx 22rpx;
+  margin-bottom: 0;
   display: flex;
   align-items: center;
-  gap: 20rpx;
-  border: 1rpx solid #e2e8f0;
-  box-shadow: 0 6rpx 18rpx rgba(15, 118, 110, 0.05);
+  gap: 14rpx;
+  border: none;
+  border-bottom: 1rpx solid #f1f5f9;
+  box-shadow: none;
+  min-height: 84rpx;
+  box-sizing: border-box;
+}
+.menu-cell:last-child {
+  border-bottom: none;
 }
 .menu-cell.highlight {
-  border-color: #99f6e4;
-  background: linear-gradient(90deg, #fff, #f0fdfa);
+  border-color: transparent;
+  border-bottom: 1rpx solid #f1f5f9;
+  background: #f8fffc;
 }
 .menu-icon {
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 18rpx;
-  background: #f0fdfa;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 34rpx;
-  color: #0f766e;
-  font-weight: 700;
+  width: 40rpx;
+  height: 40rpx;
+  flex-shrink: 0;
 }
 .menu-text {
   flex: 1;
   min-width: 0;
 }
 .menu-title {
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: 28rpx;
+  font-weight: 500;
   display: block;
-  color: #1e293b;
+  color: #0f172a;
+  line-height: 1.3;
 }
 .menu-desc {
-  font-size: 24rpx;
+  font-size: 22rpx;
   color: #94a3b8;
   display: block;
-  margin-top: 4rpx;
+  margin-top: 2rpx;
+  line-height: 1.3;
 }
 .menu-arrow {
   color: #cbd5e1;
-  font-size: 36rpx;
+  font-size: 28rpx;
 }
 .notify-card {
   background: #fff;
@@ -383,7 +560,7 @@ function onLogout() {
 .bind-btn {
   flex-shrink: 0;
   background: #ecfdf5;
-  color: #0f766e;
+  color: var(--brand, #0f766e);
   border: none;
   font-size: 22rpx;
 }
@@ -391,8 +568,8 @@ function onLogout() {
   margin-bottom: 16rpx;
   padding: 12rpx 16rpx;
   border-radius: 12rpx;
-  background: #fff7ed;
-  color: #c2410c;
+  background: #ecfdf5;
+  color: var(--brand, #0f766e);
   font-size: 22rpx;
   line-height: 1.4;
 }
@@ -409,7 +586,7 @@ function onLogout() {
 }
 .save-btn {
   margin-top: 20rpx;
-  background: #0f766e;
+  background: var(--brand, #0f766e);
   color: #fff;
   border: none;
   border-radius: 12rpx;

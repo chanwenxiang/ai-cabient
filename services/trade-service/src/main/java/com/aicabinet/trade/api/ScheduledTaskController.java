@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -78,10 +79,6 @@ public class ScheduledTaskController {
                                                       @PathVariable String taskKey) {
         ScheduledTaskRegistry.TaskDescriptor descriptor = registry.get(taskKey)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存在: " + taskKey));
-        if (descriptor.xxlManaged() && xxlJobEnabled) {
-            return ApiResponse.ok(new ScheduledTaskRunResultDto(
-                    taskKey, "SKIPPED", "该任务已由 XXL-JOB 调度接管，请在调度中心执行"));
-        }
         if (!taskService.isEnabled(taskKey)) {
             return ApiResponse.ok(new ScheduledTaskRunResultDto(
                     taskKey, "SKIPPED", "任务已停用，请先在列表中启用"));
@@ -91,11 +88,29 @@ public class ScheduledTaskController {
                     taskKey, "SKIPPED", "任务正在执行中，请稍后再试"));
         }
         try {
-            descriptor.action().run();
+            Instant beforeRun = taskService.get(taskKey).lastRunAt();
+            // XXL 托管任务：运营「立即执行」仍走本进程，经 runAllowingBuiltin 绕过内置让位
+            taskService.runAllowingBuiltin(descriptor.action());
             auditService.record(operatorId(request), "SCHEDULED_TASK_RUN",
                     "SCHEDULED_TASK", taskKey, descriptor.name());
+            ScheduledTaskDto after = taskService.get(taskKey);
+            if (after.lastRunAt() == null
+                    || (beforeRun != null && !after.lastRunAt().isAfter(beforeRun))) {
+                String hint = descriptor.xxlManaged() && xxlJobEnabled
+                        ? "任务未写入执行记录（可能未抢到锁；也可在 XXL-JOB 控制台触发）"
+                        : "任务未写入执行记录（可能未抢到锁或提前返回）";
+                return ApiResponse.ok(new ScheduledTaskRunResultDto(taskKey, "SKIPPED", hint));
+            }
+            String detail = after.lastMessage() == null || after.lastMessage().isBlank()
+                    ? "已执行"
+                    : after.lastMessage();
+            String duration = after.lastDurationMs() == null ? "—" : after.lastDurationMs() + " ms";
             return ApiResponse.ok(new ScheduledTaskRunResultDto(
-                    taskKey, "TRIGGERED", "已触发执行，结果见列表最近执行列"));
+                    taskKey,
+                    "TRIGGERED",
+                    detail + "（耗时 " + duration + "）",
+                    after.lastMessage(),
+                    after.lastDurationMs()));
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "任务执行失败: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));

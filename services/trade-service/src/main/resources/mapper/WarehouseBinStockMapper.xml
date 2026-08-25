@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.WarehouseBinStockMapper">
+
+  <select id="_findByBinIdAndSkuIdAndBatchNoForUpdateRaw"
+          resultType="com.aicabinet.trade.domain.WarehouseBinStock">
+    <![CDATA[
+    SELECT s.* FROM warehouse_bin_stock s
+    WHERE s.bin_id = #{binId}
+      AND s.sku_id = #{skuId}
+      AND s.batch_no = #{batchNo}
+    FOR UPDATE
+    ]]>
+  </select>
+
+</mapper>

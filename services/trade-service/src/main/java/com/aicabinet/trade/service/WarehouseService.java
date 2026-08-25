@@ -37,6 +37,8 @@ public class WarehouseService {
     private final DeviceSlotService deviceSlotService;
     private final SalesVelocityService salesVelocityService;
     private final InTransitService inTransitService;
+    private final InventoryLotService inventoryLotService;
+    private final DistributedLockService distributedLockService;
 
     public WarehouseService(WarehouseMapper warehouseRepository,
                             WarehouseInventoryMapper inventoryRepository,
@@ -51,7 +53,9 @@ public class WarehouseService {
                             SkuCatalogMapper skuCatalogRepository,
                             DeviceSlotService deviceSlotService,
                             SalesVelocityService salesVelocityService,
-                            InTransitService inTransitService) {
+                            InTransitService inTransitService,
+                            InventoryLotService inventoryLotService,
+                            DistributedLockService distributedLockService) {
         this.warehouseRepository = warehouseRepository;
         this.inventoryRepository = inventoryRepository;
         this.inboundRepository = inboundRepository;
@@ -66,6 +70,8 @@ public class WarehouseService {
         this.deviceSlotService = deviceSlotService;
         this.salesVelocityService = salesVelocityService;
         this.inTransitService = inTransitService;
+        this.inventoryLotService = inventoryLotService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -167,6 +173,44 @@ public class WarehouseService {
         recordWarehouseMovement(wh, skuId, batchNo, "PURCHASE_RETURN", -qty, refType, refId, operatorId);
     }
 
+    /** 盘点差异调整：把账面库存直接对齐到实盘数量，并记录库存流水。 */
+    @Transactional
+    public void adjustStocktake(String warehouseId, String skuId, String batchNo,
+                                LocalDate productionDate, LocalDate expiryDate,
+                                int bookQty, int countedQty, Long operatorId, Long stocktakeId) {
+        int delta = countedQty - bookQty;
+        if (delta == 0) {
+            return;
+        }
+        String wh = resolveWarehouseId(warehouseId);
+        warehouseRepository.findById(wh).orElseThrow(() -> notFound("warehouse"));
+        if (delta > 0) {
+            addWarehouseStock(wh, skuId, batchNo, productionDate, expiryDate, delta);
+        } else {
+            deductWarehouseStock(wh, skuId, batchNo, -delta);
+        }
+        recordWarehouseMovement(wh, skuId, batchNo, "STOCKTAKE", delta,
+                "STOCKTAKE", String.valueOf(stocktakeId), operatorId);
+    }
+
+    /** 货位操作同步仓库总库存：入库/出库调整仓库账面并记录流水；移库 delta=0 仅留痕。 */
+    @Transactional
+    public void binStockChange(String warehouseId, String skuId, String batchNo,
+                               LocalDate productionDate, LocalDate expiryDate,
+                               int deltaQty, Long operatorId, String refType, String refId) {
+        if (deltaQty == 0) {
+            return;
+        }
+        String wh = resolveWarehouseId(warehouseId);
+        warehouseRepository.findById(wh).orElseThrow(() -> notFound("warehouse"));
+        if (deltaQty > 0) {
+            addWarehouseStock(wh, skuId, batchNo, productionDate, expiryDate, deltaQty);
+        } else {
+            deductWarehouseStock(wh, skuId, batchNo, -deltaQty);
+        }
+        recordWarehouseMovement(wh, skuId, batchNo, "BIN_STOCK", deltaQty, refType, refId, operatorId);
+    }
+
     @Transactional(readOnly = true)
     public List<ReplenishmentSuggestDto> suggestForDevice(String deviceId) {
         return suggestForDevice(deviceId, false);
@@ -223,19 +267,26 @@ public class WarehouseService {
             return suggestForDevice(deviceId, false);
         }
         List<ReplenishmentSuggestDto> lowStock = deviceInventoryRepository.findByIdDeviceId(dev).stream()
-                .filter(i -> i.getQuantity() <= i.getLowThreshold())
                 .map(i -> {
-                    SalesVelocityService.SkuVelocity velocity = velocityBySku.getOrDefault(
-                            i.getId().getSkuId(), new SalesVelocityService.SkuVelocity(0, 0, 0, 0));
                     String skuId = i.getId().getSkuId();
+                    int book = bookQtyForSuggest(dev, skuId, i.getQuantity());
+                    return Map.entry(i, book);
+                })
+                .filter(e -> e.getValue() <= e.getKey().getLowThreshold())
+                .map(e -> {
+                    DeviceSkuInventory i = e.getKey();
+                    int book = e.getValue();
+                    String skuId = i.getId().getSkuId();
+                    SalesVelocityService.SkuVelocity velocity = velocityBySku.getOrDefault(
+                            skuId, new SalesVelocityService.SkuVelocity(0, 0, 0, 0));
                     int inTransit = inTransitBySku.getOrDefault(skuId, 0);
-                    int rawSuggest = Math.max(0, i.getCapacity() - i.getQuantity());
+                    int rawSuggest = Math.max(0, i.getCapacity() - book);
                     // 有货道陈列时按可补容量截断，避免出库远超货道
                     rawSuggest = capSuggestBySlotHeadroom(dev, skuId, rawSuggest);
                     return new ReplenishmentSuggestDto(
                             i.getId().getDeviceId(),
                             skuId,
-                            i.getQuantity(),
+                            book,
                             i.getCapacity(),
                             i.getLowThreshold(),
                             Math.max(0, rawSuggest - inTransit), inTransit,
@@ -252,10 +303,10 @@ public class WarehouseService {
                 .map(e -> {
                     String skuId = e.getKey();
                     SalesVelocityService.SkuVelocity velocity = e.getValue();
-                    int book = deviceInventoryRepository.findByIdDeviceId(dev).stream()
+                    int book = bookQtyForSuggest(dev, skuId, deviceInventoryRepository.findByIdDeviceId(dev).stream()
                             .filter(inv -> skuId.equals(inv.getId().getSkuId()))
                             .mapToInt(DeviceSkuInventory::getQuantity)
-                            .sum();
+                            .sum());
                     if (book > velocity.ropPoint()) {
                         return null;
                     }
@@ -274,6 +325,13 @@ public class WarehouseService {
                 })
                 .filter(java.util.Objects::nonNull)
                 .toList();
+    }
+
+    private int bookQtyForSuggest(String deviceId, String skuId, int inventoryQty) {
+        if (inventoryLotService.deviceUsesLotLedger(deviceId)) {
+            return inventoryLotService.sellableQuantity(deviceId, skuId);
+        }
+        return inventoryQty;
     }
 
     /** 已绑定货道时，建议量不超过货道可补总容量。 */
@@ -417,14 +475,22 @@ public class WarehouseService {
 
     @Transactional
     public WarehouseOutboundDto markPicked(Long outboundId) {
-        WarehouseOutbound outbound = outboundRepository.findById(outboundId)
-                .orElseThrow(() -> notFound("outbound"));
+        return runWithOutboundLock(outboundId, () -> doMarkPicked(outboundId));
+    }
+
+    private WarehouseOutboundDto doMarkPicked(Long outboundId) {
+        WarehouseOutbound outbound = requireOutboundForUpdate(outboundId);
         if ("SHIPPED".equals(outbound.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "already shipped");
         }
         List<WarehouseOutboundLine> lines = outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
         if (lines.isEmpty()) {
             throw badRequest("出库单无明细，无法拣货（可能库存不足未生成行项）");
+        }
+        // OBS-017：拣货时即按货道余量截断；全部无余量则拒绝，避免落入 PICKED 后发运 400
+        lines = clampLinesToSlotHeadroom(lines);
+        if (lines.isEmpty()) {
+            throw badRequest("货道已满，无可拣货数量；请先腾出货道或作废出库单");
         }
         lines.forEach(line -> {
                     line.setPicked(true);
@@ -439,8 +505,11 @@ public class WarehouseService {
 
     @Transactional
     public WarehouseOutboundDto shipOutbound(Long operatorId, Long outboundId) {
-        WarehouseOutbound outbound = outboundRepository.findById(outboundId)
-                .orElseThrow(() -> notFound("outbound"));
+        return runWithOutboundLock(outboundId, () -> doShipOutbound(operatorId, outboundId));
+    }
+
+    private WarehouseOutboundDto doShipOutbound(Long operatorId, Long outboundId) {
+        WarehouseOutbound outbound = requireOutboundForUpdate(outboundId);
         if ("SHIPPED".equals(outbound.getStatus())) {
             return getOutbound(outboundId);
         }
@@ -490,8 +559,11 @@ public class WarehouseService {
      */
     @Transactional
     public WarehouseOutboundDto cancelUnreceivedOutbound(Long outboundId, Long operatorId) {
-        WarehouseOutbound outbound = outboundRepository.findById(outboundId)
-                .orElseThrow(() -> notFound("outbound"));
+        return runWithOutboundLock(outboundId, () -> doCancelUnreceivedOutbound(outboundId, operatorId));
+    }
+
+    private WarehouseOutboundDto doCancelUnreceivedOutbound(Long outboundId, Long operatorId) {
+        WarehouseOutbound outbound = requireOutboundForUpdate(outboundId);
         if ("CANCELLED".equals(outbound.getStatus())) {
             return getOutbound(outboundId);
         }
@@ -517,7 +589,7 @@ public class WarehouseService {
             return getOutbound(outboundId);
         }
         for (String device : devices) {
-            cancelUnreceivedOutboundForDevice(outboundId, device, operatorId);
+            doCancelUnreceivedOutboundForDevice(outboundId, device, operatorId);
         }
         return getOutbound(outboundId);
     }
@@ -531,8 +603,14 @@ public class WarehouseService {
         if (outboundId == null || deviceId == null || deviceId.isBlank()) {
             return;
         }
-        WarehouseOutbound outbound = outboundRepository.findById(outboundId)
-                .orElseThrow(() -> notFound("outbound"));
+        runWithOutboundLock(outboundId, () -> {
+            doCancelUnreceivedOutboundForDevice(outboundId, deviceId, operatorId);
+            return null;
+        });
+    }
+
+    private void doCancelUnreceivedOutboundForDevice(Long outboundId, String deviceId, Long operatorId) {
+        WarehouseOutbound outbound = requireOutboundForUpdate(outboundId);
         if ("CANCELLED".equals(outbound.getStatus())) {
             return;
         }
@@ -677,6 +755,13 @@ public class WarehouseService {
         if (outboundId == null || deviceId == null || deviceId.isBlank() || appliedQty < 0) {
             return;
         }
+        runWithOutboundLock(outboundId, () -> {
+            doMarkDeviceHandoverReceived(outboundId, deviceId, appliedQty);
+            return null;
+        });
+    }
+
+    private void doMarkDeviceHandoverReceived(Long outboundId, String deviceId, int appliedQty) {
         List<WarehouseOutboundLine> deviceLines =
                 outboundLineRepository.findByOutboundIdAndDeviceIdOrderByLineIdAsc(outboundId, deviceId.trim());
         if (deviceLines.isEmpty()) {
@@ -699,7 +784,7 @@ public class WarehouseService {
             }
             outboundLineRepository.save(line);
         }
-        WarehouseOutbound outbound = outboundRepository.findById(outboundId).orElse(null);
+        WarehouseOutbound outbound = requireOutboundForUpdate(outboundId);
         if (outbound == null) {
             return;
         }
@@ -769,37 +854,54 @@ public class WarehouseService {
      */
     private FefoAllocResult allocateFefoLots(Long outboundId, String warehouseId, String deviceId,
                                              String skuId, int needQty, String slotId, boolean requireFull) {
-        int remaining = needQty;
-        int lines = 0;
-        List<WarehouseInventory> lots = inventoryRepository
-                .findByWarehouseIdAndSkuIdOrderByExpiryDateAsc(warehouseId, skuId);
-        for (WarehouseInventory lot : lots) {
-            if (remaining <= 0) break;
-            if (lot.getQuantity() <= 0 || lot.getExpiryDate().isBefore(LocalDate.now())) continue;
-            int allocated = outboundLineRepository.sumAllocatedQty(warehouseId, skuId, lot.getBatchNo());
-            int available = Math.max(0, lot.getQuantity() - allocated);
-            if (available <= 0) continue;
-            int take = Math.min(available, remaining);
-            WarehouseOutboundLine line = new WarehouseOutboundLine();
-            line.setOutboundId(outboundId);
-            line.setDeviceId(deviceId);
-            line.setSkuId(skuId);
-            line.setBatchNo(lot.getBatchNo());
-            line.setExpiryDate(lot.getExpiryDate());
-            line.setQuantity(take);
-            line.setPicked(false);
-            if (slotId != null && !slotId.isBlank()) {
-                line.setSlotId(slotId.trim().toUpperCase());
+        String lockKey = "warehouse:alloc:" + warehouseId + ":" + skuId;
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "仓库分配繁忙，请稍后重试");
+        }
+        try {
+            int remaining = needQty;
+            int lines = 0;
+            List<WarehouseInventory> lots = inventoryRepository
+                    .findByWarehouseIdAndSkuIdOrderByExpiryDateAsc(warehouseId, skuId);
+            for (WarehouseInventory lot : lots) {
+                if (remaining <= 0) {
+                    break;
+                }
+                if (lot.getQuantity() <= 0 || lot.getExpiryDate().isBefore(LocalDate.now())) {
+                    continue;
+                }
+                WarehouseInventory lockedLot = inventoryRepository
+                        .findByWarehouseIdAndSkuIdAndBatchNoForUpdate(warehouseId, skuId, lot.getBatchNo())
+                        .orElse(lot);
+                int allocated = outboundLineRepository.sumAllocatedQty(warehouseId, skuId, lockedLot.getBatchNo());
+                int available = Math.max(0, lockedLot.getQuantity() - allocated);
+                if (available <= 0) {
+                    continue;
+                }
+                int take = Math.min(available, remaining);
+                WarehouseOutboundLine line = new WarehouseOutboundLine();
+                line.setOutboundId(outboundId);
+                line.setDeviceId(deviceId);
+                line.setSkuId(skuId);
+                line.setBatchNo(lockedLot.getBatchNo());
+                line.setExpiryDate(lockedLot.getExpiryDate());
+                line.setQuantity(take);
+                line.setPicked(false);
+                if (slotId != null && !slotId.isBlank()) {
+                    line.setSlotId(slotId.trim().toUpperCase());
+                }
+                outboundLineRepository.save(line);
+                remaining -= take;
+                lines++;
             }
-            outboundLineRepository.save(line);
-            remaining -= take;
-            lines++;
+            if (remaining > 0 && requireFull) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "warehouse stock insufficient for outbound sku=" + skuId + " need=" + needQty + " remaining=" + remaining);
+            }
+            return new FefoAllocResult(lines, needQty - remaining);
+        } finally {
+            distributedLockService.unlock(lockKey);
         }
-        if (remaining > 0 && requireFull) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "warehouse stock insufficient for outbound sku=" + skuId + " need=" + needQty + " remaining=" + remaining);
-        }
-        return new FefoAllocResult(lines, needQty - remaining);
     }
 
     /** 发运前按货道余量截断出库行；数量归零的行删除。 */
@@ -854,30 +956,36 @@ public class WarehouseService {
 
     private void addWarehouseStock(String warehouseId, String skuId, String batchNo,
                                    LocalDate productionDate, LocalDate expiryDate, int qty) {
-        WarehouseInventory inv = inventoryRepository.findByWarehouseIdAndSkuIdAndBatchNo(warehouseId, skuId, batchNo)
-                .orElseGet(() -> {
-                    WarehouseInventory n = new WarehouseInventory();
-                    n.setWarehouseId(warehouseId);
-                    n.setSkuId(skuId);
-                    n.setBatchNo(batchNo);
-                    n.setProductionDate(productionDate);
-                    n.setExpiryDate(expiryDate);
-                    return n;
-                });
-        inv.setQuantity(inv.getQuantity() + qty);
-        if (productionDate != null) inv.setProductionDate(productionDate);
-        if (expiryDate != null) inv.setExpiryDate(expiryDate);
-        inventoryRepository.save(inv);
+        runWithStockLock(warehouseId, skuId, batchNo, () -> {
+            WarehouseInventory inv = inventoryRepository.findByWarehouseIdAndSkuIdAndBatchNoForUpdate(warehouseId, skuId, batchNo)
+                    .orElseGet(() -> {
+                        WarehouseInventory n = new WarehouseInventory();
+                        n.setWarehouseId(warehouseId);
+                        n.setSkuId(skuId);
+                        n.setBatchNo(batchNo);
+                        n.setProductionDate(productionDate);
+                        n.setExpiryDate(expiryDate);
+                        return n;
+                    });
+            inv.setQuantity(inv.getQuantity() + qty);
+            if (productionDate != null) inv.setProductionDate(productionDate);
+            if (expiryDate != null) inv.setExpiryDate(expiryDate);
+            inventoryRepository.save(inv);
+            return null;
+        });
     }
 
     private void deductWarehouseStock(String warehouseId, String skuId, String batchNo, int qty) {
-        WarehouseInventory inv = inventoryRepository.findByWarehouseIdAndSkuIdAndBatchNo(warehouseId, skuId, batchNo)
-                .orElseThrow(() -> badRequest("warehouse stock insufficient: " + skuId + "/" + batchNo));
-        if (inv.getQuantity() < qty) {
-            throw badRequest("warehouse stock insufficient: " + skuId + "/" + batchNo);
-        }
-        inv.setQuantity(inv.getQuantity() - qty);
-        inventoryRepository.save(inv);
+        runWithStockLock(warehouseId, skuId, batchNo, () -> {
+            WarehouseInventory inv = inventoryRepository.findByWarehouseIdAndSkuIdAndBatchNoForUpdate(warehouseId, skuId, batchNo)
+                    .orElseThrow(() -> badRequest("warehouse stock insufficient: " + skuId + "/" + batchNo));
+            if (inv.getQuantity() < qty) {
+                throw badRequest("warehouse stock insufficient: " + skuId + "/" + batchNo);
+            }
+            inv.setQuantity(inv.getQuantity() - qty);
+            inventoryRepository.save(inv);
+            return null;
+        });
     }
 
     private void recordWarehouseMovement(String warehouseId, String skuId, String batchNo,
@@ -908,6 +1016,49 @@ public class WarehouseService {
     private String resolveWarehouseId(String warehouseId) {
         if (warehouseId != null && !warehouseId.isBlank()) return warehouseId.trim();
         return DEFAULT_WAREHOUSE_ID;
+    }
+
+    static String outboundLockKey(Long outboundId) {
+        return "warehouse:outbound:" + outboundId;
+    }
+
+    static String stockLockKey(String warehouseId, String skuId, String batchNo) {
+        return "warehouse:stock:" + warehouseId + ":" + skuId + ":" + batchNo;
+    }
+
+    private <T> T runWithStockLock(String warehouseId, String skuId, String batchNo,
+                                   java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(stockLockKey(warehouseId, skuId, batchNo), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "仓库库存处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(stockLockKey(warehouseId, skuId, batchNo));
+        }
+    }
+
+    private WarehouseOutbound requireOutboundForUpdate(Long outboundId) {
+        return outboundRepository.findByIdForUpdate(outboundId).orElseThrow(() -> notFound("outbound"));
+    }
+
+    private <T> T runWithOutboundLock(Long outboundId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(outboundLockKey(outboundId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "出库单处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(outboundLockKey(outboundId));
+        }
     }
 
     private WarehouseDto toWarehouseDto(Warehouse w) {

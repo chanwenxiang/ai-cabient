@@ -1,78 +1,64 @@
 <template>
-  <view class="page-root">
+  <view class="page-root page-fill" :class="{ 'is-landing': showLanding }">
     <!-- 落地页：仅 Tab 进入时展示，柜码直达不经过此页 -->
     <view v-if="showLanding" class="landing">
-      <image class="hero-illustration" :src="heroIllustration" mode="widthFix" />
+      <image class="landing-bg" :src="landingBgUrl" mode="aspectFill" aria-hidden="true" />
       <view class="landing-overlay" />
 
       <view class="landing-content">
-        <view class="landing-head">
-          <text class="brand">AI开门柜</text>
-          <text class="tagline">扫码开门 · 拿了就走</text>
-          <view class="pay-badge">
-            <text class="pay-badge-icon">✓</text>
-            <text class="pay-badge-text">关门自动结算</text>
-          </view>
-          <view class="flow-steps">
-            <text class="flow-step">扫码</text>
-            <text class="flow-sep">→</text>
-            <text class="flow-step">开门</text>
-            <text class="flow-sep">→</text>
-            <text class="flow-step">取货</text>
-            <text class="flow-sep">→</text>
-            <text class="flow-step">关门扣款</text>
-          </view>
-        </view>
-
-        <view v-if="lastDeviceId" class="resume-card" @click="startShoppingFlow(lastDeviceId)">
-          <text class="resume-title">继续在本柜购物</text>
-          <text class="resume-sub">{{ lastDeviceName || lastDeviceId }}</text>
-        </view>
-
-        <view v-if="landingError" class="landing-error" :class="'kind-' + landingErrorKind">
-          <view class="error-icon">!</view>
-          <view class="error-copy">
-            <text class="error-title">{{ landingErrorTitle }}</text>
-            <text class="error-detail">{{ landingError }}</text>
-            <view class="error-actions">
-              <text
-                v-if="landingErrorKind === 'balance'"
-                class="error-action primary"
-                @click="goRechargeFromError"
-                >去充值</text
-              >
-              <text
-                v-else-if="lastFailedDeviceId"
-                class="error-action primary"
-                @click="retryLastOpen"
-                >重试开门</text
-              >
-              <text
-                v-if="landingErrorKind === 'device_not_found'"
-                class="error-action"
-                @click="onScan"
-                >重新扫码</text
-              >
-              <text
-                class="error-action"
-                @click="
-                  landingError = '';
-                  showManual = true;
-                "
-                >换一台</text
-              >
+        <view class="landing-top">
+          <view class="landing-head" :style="landingHeadStyle">
+            <text class="brand">AI开门柜</text>
+            <text class="tagline">扫码开门 · 拿了就走</text>
+            <view class="pay-badge">
+              <text class="pay-badge-icon">✓</text>
+              <text class="pay-badge-text">关门自动结算</text>
             </view>
           </view>
-          <text
-            class="error-close"
-            role="button"
-            aria-label="关闭错误提示"
-            @click="landingError = ''"
-            >×</text
-          >
-        </view>
 
-        <view class="landing-spacer" />
+          <view v-if="landingError" class="landing-error" :class="'kind-' + landingErrorKind">
+            <view class="error-icon">!</view>
+            <view class="error-copy">
+              <text class="error-title">{{ landingErrorTitle }}</text>
+              <text class="error-detail">{{ landingError }}</text>
+              <view class="error-actions">
+                <text
+                  v-if="landingErrorKind === 'balance'"
+                  class="error-action primary"
+                  @click="goRechargeFromError"
+                  >去充值</text
+                >
+                <text
+                  v-else-if="lastFailedDeviceId"
+                  class="error-action primary"
+                  @click="retryLastOpen"
+                  >重试开门</text
+                >
+                <text
+                  v-if="landingErrorKind === 'device_not_found'"
+                  class="error-action"
+                  @click="onScan"
+                  >重新扫码</text
+                >
+                <text
+                  class="error-action"
+                  @click="
+                    landingError = '';
+                    showManual = true;
+                  "
+                  >换一台</text
+                >
+              </view>
+            </view>
+            <text
+              class="error-close"
+              role="button"
+              aria-label="关闭错误提示"
+              @click="landingError = ''"
+              >×</text
+            >
+          </view>
+        </view>
 
         <view class="landing-action">
           <button
@@ -93,37 +79,61 @@
             <text class="scan-circle-text">{{ opening ? '连接中…' : '扫码购物' }}</text>
           </button>
           <text class="scan-tip">对准柜门二维码，即可开门取货</text>
+          <view v-if="lastDeviceId" class="resume-card" @click="startShoppingFlow(lastDeviceId)">
+            <text class="resume-title">继续在本柜购物</text>
+            <text class="resume-sub">{{ lastDeviceName || lastDeviceId }}</text>
+          </view>
+          <text class="nearby-link" role="button" @click="goNearby">附近找柜</text>
         </view>
 
-        <view v-if="showManualEntry" class="landing-foot">
+        <view v-if="showManualEntry && !showManual" class="landing-foot">
           <text
             class="manual-link"
             role="button"
             data-testid="manual-device-toggle"
-            @click="showManual = !showManual"
+            @click="showManual = true"
           >
-            {{ showManual ? '收起' : manualEntryLabel }}
+            {{ manualEntryLabel }}
           </text>
-          <view v-if="showManual" class="manual-form">
-            <text class="field-label">柜机编号</text>
-            <input
-              v-model="deviceInput"
-              class="input"
-              data-testid="device-code-input"
-              aria-label="柜机编号"
-              placeholder="例如 CAB-001…"
-            />
-            <button
-              class="btn-primary"
-              hover-class="btn-hover"
-              role="button"
-              data-testid="open-door-confirm"
-              :loading="opening"
-              :disabled="opening"
-              @click="confirmDevice"
-            >
-              {{ opening ? '开门中…' : '确认并开门' }}
-            </button>
+        </view>
+      </view>
+
+      <view v-if="authPromptVisible" class="landing-mask" @click="dismissAuthPrompt">
+        <view class="landing-sheet" @click.stop="noop">
+          <text class="landing-sheet-title">需要授权</text>
+          <text class="landing-sheet-body">扫码开门需先完成微信授权</text>
+          <view class="landing-sheet-actions">
+            <text class="landing-sheet-btn" @click="dismissAuthPrompt">取消</text>
+            <text class="landing-sheet-btn primary" @click="goLoginFromScan">去登录</text>
+          </view>
+        </view>
+      </view>
+
+      <view v-if="showManual" class="landing-mask" @click="showManual = false">
+        <view class="landing-sheet" @click.stop="noop">
+          <text class="landing-sheet-title">{{ manualEntryLabel }}</text>
+          <text class="landing-sheet-label">柜机编号</text>
+          <input
+            v-model="deviceInput"
+            class="sheet-input"
+            data-testid="device-code-input"
+            aria-label="柜机编号"
+            placeholder="例如 CAB-001…"
+            placeholder-class="sheet-ph"
+          />
+          <button
+            class="btn-primary btn-block"
+            hover-class="btn-hover"
+            role="button"
+            data-testid="open-door-confirm"
+            :loading="opening"
+            :disabled="opening"
+            @click="confirmDevice"
+          >
+            {{ opening ? '开门中…' : '确认并开门' }}
+          </button>
+          <view class="landing-sheet-cancel-wrap">
+            <text class="landing-sheet-cancel" @click="showManual = false">取消</text>
           </view>
         </view>
       </view>
@@ -167,10 +177,36 @@
         <text class="shopping-banner-sub">{{ shoppingBannerSub }}</text>
       </view>
       <view class="catalog-notice">
-        <text>本柜价目仅供参考，请直接取货；实付以关门识别为准，无需在小程序点选商品</text>
+        <text>{{ catalogNotice }}</text>
       </view>
 
       <scroll-view scroll-y class="product-scroll" :show-scrollbar="false" enhanced>
+        <view v-if="products.length" class="catalog-tools">
+          <view class="search-box">
+            <input
+              v-model="searchKeyword"
+              class="search-input"
+              placeholder="搜索本柜商品"
+              placeholder-class="search-placeholder"
+              confirm-type="search"
+            />
+            <text v-if="searchKeyword" class="search-clear" @click="clearSearchKeyword">×</text>
+          </view>
+          <scroll-view scroll-x class="category-row" :show-scrollbar="false">
+            <view class="category-chip" :class="{ active: !activeCategory }" @click="clearCategory"
+              >全部</view
+            >
+            <view
+              v-for="cat in productCategories"
+              :key="cat"
+              class="category-chip"
+              :class="{ active: activeCategory === cat }"
+              :data-cat="cat"
+              @click="onCategoryChipTap"
+              >{{ cat }}</view
+            >
+          </scroll-view>
+        </view>
         <view v-if="productsLoading" class="card loading-card"
           ><text class="meta">加载商品中…</text></view
         >
@@ -182,20 +218,74 @@
             <text class="empty-link" @click="resetDevice">换一台</text>
           </view>
         </view>
+        <view v-else-if="!filteredProducts.length" class="card loading-card catalog-empty">
+          <text class="empty-title">未找到匹配商品</text>
+          <text class="empty-hint">换个关键词或分类试试</text>
+          <view class="empty-actions">
+            <text class="empty-link" @click="resetCatalogFilter">查看全部商品</text>
+          </view>
+        </view>
         <view v-else class="product-grid">
-          <view v-for="p in products" :key="p.skuId" class="product-cell">
-            <view class="product-thumb" :class="'cat-' + thumbTone(p)">
-              <image
-                v-if="showThumb(p)"
-                class="product-img"
-                :src="productThumb(p)"
-                mode="aspectFill"
-                @error="onThumbError(p.skuId)"
-              />
-              <text v-else class="product-mark">{{ productGlyph(p) }}</text>
+          <view
+            v-for="p in filteredProducts"
+            :key="p.skuId"
+            class="product-cell"
+            :class="{ selected: (selected[p.skuId] || 0) > 0 }"
+            role="button"
+            :aria-label="`选择 ${p.skuName}`"
+            :data-sku-id="p.skuId"
+            @click="onProductCellTap"
+          >
+            <view class="product-cell-inner">
+              <view class="product-thumb" :class="'cat-' + thumbTone(p)">
+                <image
+                  v-if="showThumb(p)"
+                  class="product-img"
+                  :src="productThumb(p)"
+                  mode="aspectFill"
+                  @error="onThumbError(p.skuId)"
+                />
+                <text v-else class="product-mark">{{ productGlyph(p) }}</text>
+                <text
+                  v-if="sessionActive && state === 'SHOPPING' && mockEnabled && selectedQty(p) > 0"
+                  class="product-badge"
+                  >{{ selectedQty(p) }}</text
+                >
+              </view>
+              <text class="product-name">{{ p.skuName }}</text>
+              <text class="product-price">{{ fmtMoney(p.priceCents) }}</text>
+              <text v-if="p.category" class="product-cat">{{ p.category }}</text>
+              <text
+                v-if="sessionActive && state === 'SHOPPING' && (mockEnabled || stockOf(p) > 0)"
+                class="product-stock"
+                >{{ stockLabel(p) }}</text
+              >
+              <view
+                v-if="sessionActive && state === 'SHOPPING' && mockEnabled"
+                class="product-stepper"
+                @click.stop="noop"
+              >
+                <text
+                  class="stepper-btn"
+                  role="button"
+                  :aria-label="`减少 ${p.skuName}`"
+                  :data-sku-id="p.skuId"
+                  @click.stop="onRemoveProductTap"
+                  >−</text
+                >
+                <text class="stepper-qty">{{ selectedQty(p) }}/{{ stockOf(p) }}</text>
+                <text
+                  class="stepper-btn plus"
+                  :class="{ disabled: !canAddProduct(p) }"
+                  role="button"
+                  :aria-disabled="(!canAddProduct(p)).toString()"
+                  :aria-label="`增加 ${p.skuName}`"
+                  :data-sku-id="p.skuId"
+                  @click.stop="onAddProductTap"
+                  >+</text
+                >
+              </view>
             </view>
-            <text class="product-name">{{ p.skuName }}</text>
-            <text class="product-price">{{ fmtMoney(p.priceCents) }}</text>
           </view>
         </view>
         <view class="list-bottom" />
@@ -204,11 +294,39 @@
       <view class="cart-bar">
         <view class="cart-info">
           <text class="cart-hint">{{ cartBarHint }}</text>
-          <text v-if="sessionActive && state === 'SHOPPING'" class="cart-sub"
-            >拿错可放回，关门后按最终取走结算</text
-          >
+          <text v-if="sessionActive && state === 'SHOPPING'" class="cart-sub">{{
+            mockEnabled
+              ? '点选后关门结算；未选则不扣款'
+              : liveCartQty > 0
+                ? '识别中实时更新，关门后按最终取走结算'
+                : '拿错可放回，关门后按最终取走结算'
+          }}</text>
         </view>
-        <view v-if="sessionActive" class="cart-status-chip" :class="stateTone">
+        <view v-if="sessionActive && state === 'SHOPPING' && mockEnabled" class="cart-demo">
+          <view class="cart-demo-info">
+            <text class="cart-demo-label">已选 {{ selectedCount }} 件</text>
+            <text class="cart-demo-amt">{{ selectedAmount }}</text>
+          </view>
+          <button
+            class="cart-close-btn"
+            hover-class="btn-hover"
+            :loading="closingDoor"
+            :disabled="closingDoor"
+            @click="closeDoorDemo"
+          >
+            关门结算
+          </button>
+        </view>
+        <view
+          v-else-if="sessionActive && state === 'SHOPPING' && liveCartQty > 0"
+          class="cart-demo live"
+        >
+          <view class="cart-demo-info">
+            <text class="cart-demo-label">识别中 {{ liveCartQty }} 件</text>
+            <text class="cart-demo-amt">{{ liveCartAmount }}</text>
+          </view>
+        </view>
+        <view v-else-if="sessionActive" class="cart-status-chip" :class="stateTone">
           {{ cartBarAction }}
         </view>
         <button
@@ -262,17 +380,18 @@
 </template>
 
 <script setup lang="ts">
-import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app';
+import { onHide, onLoad, onReady, onShow, onUnload } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import OpenPrepDrawer from '@/components/open-prep-drawer.vue';
 import {
   clearOpenAttempt,
   consumerApi,
   ensureConsumerAuth,
-  getConsumerToken,
-  requireConsumerAuth
+  getConsumerToken
 } from '@/utils/consumer-api';
 import { parseCabinetScan, parseLaunchOptions } from '@aicabinet/shared-uni/qrcode';
+import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
+import landingBgUrl from '@/static/bg-shop-indoor.jpg';
 import {
   sessionStateHint,
   sessionStateLabel,
@@ -284,10 +403,10 @@ import {
   fmtMoney,
   type OpenErrorKind
 } from '@aicabinet/shared-uni/format';
+import { parseQuery } from '@aicabinet/shared-uni/query';
 import { resumePendingRechargeIfAny } from '@/utils/recharge';
 import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
 import { productGlyph, productThumb } from '@/utils/product-thumb';
-import heroIllustration from '@/static/login-bg.png';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import {
   delay,
@@ -305,6 +424,15 @@ import type {
 } from '@aicabinet/shared-types';
 
 const devTools = showDevTools();
+/** 真机：标题从微信胶囊下方起排，避免顶穿状态栏 */
+const landingHeadStyle = ref({
+  paddingTop: getBelowCapsulePadPx(10) + 'px'
+});
+function refreshLandingPad() {
+  landingHeadStyle.value = {
+    paddingTop: getBelowCapsulePadPx(10) + 'px'
+  };
+}
 /** H5 无可靠扫码时始终提供手输；微信小程序仅开发构建显示 */
 const isH5 = ref(false);
 // #ifdef H5
@@ -324,6 +452,8 @@ const enteringFlow = ref(false);
 const showManual = ref(false);
 const products = ref<DeviceProduct[]>([]);
 const productsLoading = ref(false);
+const searchKeyword = ref('');
+const activeCategory = ref('');
 const deviceStatusText = ref('');
 const deviceOffline = ref(false);
 /** 本柜开门预授权门槛（分），来自 DeviceStatus.preauthCents */
@@ -348,10 +478,15 @@ const openingSeconds = ref(90);
 const brokenThumbs = ref<Record<string, boolean>>({});
 const lastDeviceId = ref('');
 const lastDeviceName = ref('');
+const authPromptVisible = ref(false);
 const showPrepDrawer = ref(false);
 const prepAccount = ref<AccountDto | null>(null);
 const recognitionDeferred = ref(false);
 const recognitionElapsedSec = ref(0);
+/** 演示点选：skuId -> 件数；实际扣款仍以关门识别为准 */
+const selected = ref<Record<string, number>>({});
+const mockEnabled = ref(false);
+const closingDoor = ref(false);
 let recognitionTimer: ReturnType<typeof setInterval> | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let devicePollTimer: ReturnType<typeof setInterval> | null = null;
@@ -374,6 +509,36 @@ const sessionActive = computed(
       state.value
     )
 );
+
+const productCategories = computed(() => {
+  const cats = new Set<string>();
+  for (const p of products.value) {
+    const cat = String(p.category || '').trim();
+    if (cat) cats.add(cat);
+  }
+  return Array.from(cats).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+});
+
+const filteredProducts = computed(() => {
+  const kw = searchKeyword.value.trim().toLowerCase();
+  const cat = activeCategory.value;
+  return products.value.filter((p) => {
+    if (cat && String(p.category || '').trim() !== cat) return false;
+    if (
+      kw &&
+      !String(p.skuName || '')
+        .toLowerCase()
+        .includes(kw)
+    )
+      return false;
+    return true;
+  });
+});
+
+function resetCatalogFilter() {
+  searchKeyword.value = '';
+  activeCategory.value = '';
+}
 
 const showLanding = computed(() => !scanned.value && !enteringFlow.value);
 
@@ -445,25 +610,43 @@ const flowOverlayHint = computed(() => {
 });
 
 const shoppingBannerTitle = computed(() => {
-  if (state.value === 'SHOPPING') return '柜门已开，请自由取货';
+  if (state.value === 'SHOPPING') {
+    return mockEnabled.value ? '柜门已开，请点选商品' : '柜门已开，请自由取货';
+  }
   if (state.value === 'OPENING' || state.value === 'CREATED') return '正在开门，请稍候';
   if (['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value)) return '正在识别结算';
-  if (canReopen.value) return '本柜可继续购物';
+  if (canReopen.value) return '本柜价目（浏览）';
   return '选好商品后请关好柜门';
 });
 
 const shoppingBannerSub = computed(() => {
-  if (state.value === 'SHOPPING') return '无需在手机上点选商品，拿了就走';
+  if (state.value === 'SHOPPING') {
+    return mockEnabled.value
+      ? '点选件数后点关门结算，未选则不扣款'
+      : '无需在手机上点选商品，拿了就走';
+  }
   if (['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value)) {
     return '可先离开，账单会在「订单」中展示';
   }
-  if (canReopen.value) return '点击下方再次开门，或扫其他柜机';
+  if (canReopen.value) return '上一单已结束。可先浏览价目，再买需再次开门';
   return '实际扣款以视觉识别结果为准';
 });
 
+const catalogNotice = computed(() => {
+  if (mockEnabled.value && state.value === 'SHOPPING') {
+    return '演示·按库存点选：点选后关门结算；未选不扣款';
+  }
+  if (canReopen.value) {
+    return '本柜价目可先浏览；再买需要重新开门，因为上一单关门后柜门已锁';
+  }
+  return '本柜价目仅供参考，请直接取货；实付以关门识别为准';
+});
+
 const cartBarHint = computed(() => {
-  if (state.value === 'SHOPPING') return '请取货后关好柜门';
-  if (!sessionActive.value) return '可再次开门继续购买';
+  if (state.value === 'SHOPPING') {
+    return mockEnabled.value ? '点选商品后关门结算' : '请取货后关好柜门';
+  }
+  if (!sessionActive.value) return '浏览价目无需开门';
   return '关门后自动识别并扣款';
 });
 
@@ -480,20 +663,18 @@ function payReady(acc: AccountDto) {
 }
 
 onLoad(async (opts) => {
+  refreshLandingPad();
   let launch = parseLaunchOptions((opts || {}) as Record<string, string>);
   // H5：兼容 ?deviceId= / hash 查询（柜门二维码 deep link）
   if (!launch.deviceId && typeof window !== 'undefined') {
     try {
-      const fromSearch = parseLaunchOptions(
-        Object.fromEntries(new URLSearchParams(window.location.search).entries())
-      );
+      const fromSearchMap = parseQuery(window.location.search);
+      const fromSearch = parseLaunchOptions(fromSearchMap);
       if (fromSearch.deviceId) {
         launch = fromSearch;
       } else if (window.location.hash.includes('deviceId=')) {
         const hashQuery = window.location.hash.split('?')[1] || '';
-        const fromHash = parseLaunchOptions(
-          Object.fromEntries(new URLSearchParams(hashQuery).entries())
-        );
+        const fromHash = parseLaunchOptions(parseQuery(hashQuery));
         if (fromHash.deviceId) launch = fromHash;
       }
     } catch {
@@ -509,7 +690,10 @@ onLoad(async (opts) => {
   }
 });
 
+onReady(() => refreshLandingPad());
+
 onShow(async () => {
+  refreshLandingPad();
   lastDeviceId.value = uni.getStorageSync('last_device_id') || '';
   lastDeviceName.value = uni.getStorageSync('last_device_name') || '';
   await loadConsumerConfig();
@@ -528,6 +712,11 @@ onShow(async () => {
       }
       await startShoppingFlow(reopen, ch || undefined);
       return;
+    }
+    const browse = uni.getStorageSync('browse_device_id');
+    if (browse) {
+      uni.removeStorageSync('browse_device_id');
+      await showDeviceCatalog(String(browse));
     }
     restoreActiveSession();
   }
@@ -578,6 +767,7 @@ function resetDevice() {
   deviceName.value = '';
   deviceStatusText.value = '';
   products.value = [];
+  resetCatalogFilter();
 }
 
 async function startShoppingFlow(id: string, scanChannel?: string | null) {
@@ -598,12 +788,13 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
   landingErrorKind.value = 'other';
 
   try {
-    if (!(await requireConsumerAuth('扫码开门需先完成微信授权'))) {
+    if (!(await ensureConsumerAuth())) {
       // 登录成功回到首页后由 onShow 读取 reopen_device_id 续开
       uni.setStorageSync('reopen_device_id', cabinetId);
       if (entryChannel.value) {
         uni.setStorageSync('reopen_entry_channel', entryChannel.value);
       }
+      authPromptVisible.value = true;
       return;
     }
     if (!(await ensureCanOpenDoor())) {
@@ -675,9 +866,11 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
       )
     ]);
     if (productsResult.status === 'fulfilled') {
-      products.value = productsResult.value;
+      products.value = normalizeProducts(productsResult.value);
+      clampSelectionToStock();
     } else {
       products.value = [];
+      resetCatalogFilter();
       // 商品失败不阻断开门，仅提示
       uni.showToast({ title: formatError(productsResult.reason), icon: 'none' });
     }
@@ -711,6 +904,7 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
       deviceName.value = '';
       deviceStatusText.value = '';
       products.value = [];
+      resetCatalogFilter();
       lastFailedDeviceId.value = cabinetId;
       lastFailedChannel.value = entryChannel.value;
     }
@@ -767,6 +961,10 @@ function goRechargeFromError() {
   uni.navigateTo({ url: '/pages/recharge/recharge' });
 }
 
+function goNearby() {
+  uni.navigateTo({ url: '/pages/nearby/nearby' });
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(timeoutMessage)), ms);
@@ -790,6 +988,17 @@ function retryLastOpen() {
   startShoppingFlow(id, lastFailedChannel.value);
 }
 
+function dismissAuthPrompt() {
+  authPromptVisible.value = false;
+}
+
+function goLoginFromScan() {
+  authPromptVisible.value = false;
+  uni.navigateTo({
+    url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/index/index')
+  });
+}
+
 function goOrders() {
   uni.switchTab({ url: '/pages/orders/orders' });
 }
@@ -808,6 +1017,7 @@ async function loadConsumerConfig() {
     const cfg = await consumerApi.consumerPublicConfig();
     const phone = cfg?.servicePhone || cfg?.['consumer.service_phone'];
     if (phone) servicePhone.value = phone;
+    mockEnabled.value = String(cfg?.mockEnabled) === 'true';
   } catch {
     /* 使用默认客服电话 */
   }
@@ -898,7 +1108,7 @@ function onScan() {
     onlyFromCamera: false,
     scanType: ['qrCode', 'barCode'],
     success(res) {
-      const raw = String(res.result || '').trim();
+      const raw = String(res.result || res.path || '').trim();
       if (!raw) {
         uni.showToast({ title: '未识别到有效内容，请对准柜门二维码', icon: 'none' });
         return;
@@ -933,7 +1143,7 @@ function confirmDevice() {
   // #ifdef H5
   if (!raw.trim() && typeof document !== 'undefined') {
     const el = document.querySelector(
-      '.manual-form input, .uni-input-input, input'
+      '.sheet-input, .uni-input-input, input'
     ) as HTMLInputElement | null;
     if (el?.value) raw = el.value;
   }
@@ -955,12 +1165,37 @@ async function loadDeviceAndProducts() {
   productsLoading.value = true;
   try {
     await refreshDeviceStatus();
-    products.value = await consumerApi.deviceProducts(deviceId.value);
+    products.value = normalizeProducts(await consumerApi.deviceProducts(deviceId.value));
+    clampSelectionToStock();
   } catch (e) {
     uni.showToast({ title: formatError(e), icon: 'none' });
   } finally {
     productsLoading.value = false;
   }
+}
+
+function normalizeProducts(list: DeviceProduct[] | null | undefined): DeviceProduct[] {
+  return (list || []).map((p) => ({
+    ...p,
+    quantity: Math.max(0, Math.floor(Number(p.quantity) || 0))
+  }));
+}
+
+function clampSelectionToStock() {
+  let changed = false;
+  const next: Record<string, number> = { ...selected.value };
+  for (const [skuId, qty] of Object.entries(next)) {
+    const p = products.value.find((x) => x.skuId === skuId);
+    const max = p ? stockOf(p) : 0;
+    const want = Math.max(0, qty || 0);
+    const capped = Math.min(want, max);
+    if (capped !== want) {
+      changed = true;
+      if (capped > 0) next[skuId] = capped;
+      else delete next[skuId];
+    }
+  }
+  if (changed) selected.value = next;
 }
 
 async function refreshDeviceStatus() {
@@ -972,11 +1207,23 @@ async function refreshDeviceStatus() {
     const online = s.online === true || (s.onlineStatus || '').toUpperCase() === 'ONLINE';
     const reason = String(s.busyReason || '').toUpperCase();
     const unavailable = s.available === false;
+    const remoteState = String(s.activeSessionState || '').toUpperCase();
+    // 设备侧会话已进购物时，纠正本地仍停在开门中的文案
+    if (
+      remoteState === 'SHOPPING' &&
+      (state.value === 'OPENING' || state.value === 'CREATED' || !state.value)
+    ) {
+      state.value = 'SHOPPING';
+      stateLabel.value = sessionStateLabel('SHOPPING');
+      stateHint.value = sessionStateHint('SHOPPING');
+      stateTone.value = sessionStateTone('SHOPPING');
+      stopOpeningCountdown();
+    }
     // 仅真正离线视为 offline；暂停营业/占用走业务错误，避免误报「离线」
     deviceOffline.value = !online;
     if (!online) {
       deviceStatusText.value = '离线';
-    } else if (state.value === 'SHOPPING') {
+    } else if (state.value === 'SHOPPING' || remoteState === 'SHOPPING') {
       deviceStatusText.value = '门已开 · 购物中';
     } else if (state.value === 'CREATED' || state.value === 'OPENING') {
       deviceStatusText.value = '正在开门';
@@ -1012,6 +1259,30 @@ async function reopenShop() {
   await startShoppingFlow(deviceId.value);
 }
 
+/** 只展示本柜价目，不创建会话、不开门。结算后「返回本柜」走这里。 */
+async function showDeviceCatalog(id: string) {
+  const cabinetId = id.trim().toUpperCase();
+  if (!cabinetId || sessionActive.value || opening.value || enteringFlow.value) return;
+  deviceId.value = cabinetId;
+  scanned.value = true;
+  productsLoading.value = true;
+  try {
+    const status = await consumerApi.deviceStatus(cabinetId);
+    deviceName.value = status.deviceName || cabinetId;
+    await refreshDeviceStatus();
+    products.value = normalizeProducts(await consumerApi.deviceProducts(cabinetId));
+    clampSelectionToStock();
+    uni.setStorageSync('last_device_id', cabinetId);
+    uni.setStorageSync('last_device_name', deviceName.value);
+    lastDeviceId.value = cabinetId;
+    lastDeviceName.value = deviceName.value;
+  } catch (e) {
+    uni.showToast({ title: formatError(e), icon: 'none' });
+  } finally {
+    productsLoading.value = false;
+  }
+}
+
 async function cancelOpening() {
   if (cancelling.value) return;
   // 尚无 session：仅取消本地开门等待
@@ -1021,6 +1292,7 @@ async function cancelOpening() {
     scanned.value = false;
     deviceId.value = '';
     products.value = [];
+    resetCatalogFilter();
     uni.showToast({ title: '已取消开门', icon: 'none' });
     return;
   }
@@ -1065,7 +1337,174 @@ function clearSessionUi() {
   stateHint.value = '';
   stateTone.value = 'idle';
   recognitionDeferred.value = false;
+  selected.value = {};
+  liveCartQty.value = 0;
+  liveCartAmountCents.value = 0;
   stopRecognitionTimer();
+}
+
+function clearSearchKeyword() {
+  searchKeyword.value = '';
+}
+
+function clearCategory() {
+  activeCategory.value = '';
+}
+
+function onCategoryChipTap(e: { currentTarget?: { dataset?: Record<string, string> } }) {
+  const cat = String(e?.currentTarget?.dataset?.cat ?? '');
+  if (!cat) return;
+  activeCategory.value = activeCategory.value === cat ? '' : cat;
+}
+
+function productBySkuId(skuId: string): DeviceProduct | undefined {
+  return products.value.find((p) => p.skuId === skuId);
+}
+
+function onProductCellTap(e: { currentTarget?: { dataset?: Record<string, string> } }) {
+  const skuId = String(e?.currentTarget?.dataset?.skuId ?? '');
+  const p = productBySkuId(skuId);
+  if (p) addProduct(p);
+}
+
+function onAddProductTap(e: { currentTarget?: { dataset?: Record<string, string> } }) {
+  const skuId = String(e?.currentTarget?.dataset?.skuId ?? '');
+  const p = productBySkuId(skuId);
+  if (p) addProduct(p);
+}
+
+function onRemoveProductTap(e: { currentTarget?: { dataset?: Record<string, string> } }) {
+  const skuId = String(e?.currentTarget?.dataset?.skuId ?? '');
+  const p = productBySkuId(skuId);
+  if (p) removeProduct(p);
+}
+
+function noop() {
+  /* 阻止步进器点击冒泡到商品卡片 */
+}
+
+function selectedQty(p: DeviceProduct) {
+  return selected.value[p.skuId] || 0;
+}
+
+/** 柜内可售库存；缺字段按 0，禁止演示默认放宽到 9。 */
+function stockOf(p: DeviceProduct) {
+  const raw = Number(p.quantity);
+  if (Number.isFinite(raw) && raw >= 0) return Math.floor(raw);
+  return 0;
+}
+
+function stockLabel(p: DeviceProduct) {
+  const n = stockOf(p);
+  return n > 0 ? `库存仅 ${n} 件` : '暂无库存';
+}
+
+function canAddProduct(p: DeviceProduct) {
+  return selectedQty(p) < stockOf(p);
+}
+
+function addProduct(p: DeviceProduct) {
+  if (!sessionActive.value) return;
+  const max = stockOf(p);
+  const cur = selected.value[p.skuId] || 0;
+  if (max <= 0) {
+    uni.showToast({ title: '暂无库存', icon: 'none' });
+    return;
+  }
+  if (cur >= max) {
+    uni.showToast({ title: `库存仅 ${max} 件，无法再加`, icon: 'none' });
+    return;
+  }
+  selected.value = { ...selected.value, [p.skuId]: cur + 1 };
+}
+
+function removeProduct(p: DeviceProduct) {
+  const next = Math.max(0, (selected.value[p.skuId] || 0) - 1);
+  selected.value = { ...selected.value, [p.skuId]: next };
+}
+
+const selectedCount = computed(() => Object.values(selected.value).reduce((sum, q) => sum + q, 0));
+
+const liveCartQty = ref(0);
+const liveCartAmountCents = ref(0);
+const liveCartAmount = computed(() => fmtMoney(liveCartAmountCents.value));
+
+async function refreshLiveCart() {
+  if (!sessionId.value || state.value !== 'SHOPPING' || mockEnabled.value) {
+    return;
+  }
+  try {
+    const cart = await consumerApi.getLiveCart(sessionId.value);
+    liveCartQty.value = Number(cart?.totalQty || 0);
+    liveCartAmountCents.value = Number(cart?.totalAmountCents || 0);
+  } catch {
+    // 识别推送未就绪时忽略
+  }
+}
+
+const selectedAmount = computed(() => {
+  const byId = new Map(products.value.map((p) => [p.skuId, p]));
+  let total = 0;
+  for (const [skuId, qty] of Object.entries(selected.value)) {
+    const p = byId.get(skuId);
+    if (p) total += p.priceCents * qty;
+  }
+  return fmtMoney(total);
+});
+
+/** 演示关门：先把点选同步到会话购物车，再触发关门结算（后端 mockEnabled 才放行）。 */
+async function closeDoorDemo() {
+  if (!sessionId.value || closingDoor.value) return;
+  closingDoor.value = true;
+  const sid = sessionId.value;
+  try {
+    const byId = new Map(products.value.map((p) => [p.skuId, p]));
+    let clamped = false;
+    const items = Object.entries(selected.value)
+      .map(([skuId, qty]) => {
+        const p = byId.get(skuId);
+        const max = p ? stockOf(p) : 0;
+        const want = Math.max(0, qty || 0);
+        const next = Math.min(want, max);
+        if (next !== want) clamped = true;
+        return { skuId, qty: next };
+      })
+      .filter((it) => it.qty > 0);
+    if (clamped) {
+      const nextSel: Record<string, number> = {};
+      for (const it of items) nextSel[it.skuId] = it.qty;
+      selected.value = nextSel;
+      uni.showToast({ title: '已按库存调整数量', icon: 'none' });
+    }
+    if (items.length) {
+      await consumerApi.updateSessionCart(sid, { items });
+    }
+    const s = await consumerApi.demoCloseSession(sid);
+    applySessionView(s);
+    if (s.state === 'COMPLETED' || s.state === 'DISPUTED') {
+      stopPoll();
+      await finishSession(s.state, sid);
+      return;
+    }
+    if (['FAILED', 'CANCELLED'].includes(s.state)) {
+      stopPoll();
+      uni.removeStorageSync('active_session_id');
+      clearOpenAttempt();
+      clearSessionUi();
+      uni.showToast({
+        title: sessionStateHint(s.state) || '购物未完成',
+        icon: 'none',
+        duration: 2800
+      });
+      return;
+    }
+    startPoll();
+    uni.showToast({ title: '已关门，结算中…', icon: 'none' });
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '关门失败，请重试', icon: 'none' });
+  } finally {
+    closingDoor.value = false;
+  }
 }
 
 function startRecognitionTimer(since?: string) {
@@ -1156,7 +1595,14 @@ function applySessionView(s: SessionDto) {
     stopRecognitionTimer();
     recognitionDeferred.value = false;
   }
-  if (s.deviceId && deviceId.value) refreshDeviceStatusThrottled(s.deviceId);
+  // 状态一变就立刻改顶栏文案；勿走 30s 节流，否则会卡在「正在开门」
+  if (s.state === 'SHOPPING') {
+    opening.value = false;
+    deviceStatusText.value = '门已开 · 购物中';
+    deviceOffline.value = false;
+  } else if (s.deviceId && deviceId.value) {
+    refreshDeviceStatusThrottled(s.deviceId);
+  }
 }
 
 function startOpeningCountdown(createdAt?: string) {
@@ -1219,6 +1665,12 @@ function startPoll() {
       const s = await consumerApi.getSession(sessionId.value);
       applySessionView(s);
       pollError.value = '';
+      if (s.state === 'SHOPPING') {
+        await refreshLiveCart();
+      } else {
+        liveCartQty.value = 0;
+        liveCartAmountCents.value = 0;
+      }
       if (s.state === 'COMPLETED' || s.state === 'DISPUTED') {
         stopPoll();
         const sid = sessionId.value;
@@ -1268,32 +1720,45 @@ function stopDevicePoll() {
   flex-direction: column;
   box-sizing: border-box;
   overflow: hidden;
-  background: #f7f7f7;
+  background: #ffffff;
   position: relative;
+}
+.page-root.is-landing {
+  background: var(--brand-deep, #064e3b);
 }
 
 .landing {
   position: relative;
   flex: 1;
   min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
-  background: #f5c842;
+  background: var(--brand-deep, #064e3b);
 }
-.hero-illustration {
+.landing-bg {
   position: absolute;
-  top: 140rpx;
   left: 0;
+  top: 0;
   width: 100%;
+  height: 100%;
   z-index: 0;
 }
 .landing-overlay {
   position: absolute;
   left: 0;
+  top: 0;
   right: 0;
   bottom: 0;
-  height: 42%;
   z-index: 1;
-  background: linear-gradient(180deg, rgba(245, 200, 66, 0) 0%, rgba(245, 200, 66, 0.55) 100%);
+  /* 同一绿色仅调透明度，杜绝灰绿/青绿断层 */
+  background: linear-gradient(
+    180deg,
+    rgba(6, 78, 59, 0.72) 0%,
+    rgba(6, 78, 59, 0.45) 45%,
+    rgba(6, 78, 59, 0.82) 100%
+  );
 }
 .landing-content {
   position: relative;
@@ -1302,95 +1767,94 @@ function stopDevicePoll() {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 0 32rpx calc(24rpx + env(safe-area-inset-bottom));
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0 32rpx 12rpx;
+  box-sizing: border-box;
+}
+.landing-top {
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 .landing-head {
   flex-shrink: 0;
-  padding-top: 48rpx;
+  /* padding-top 由 landingHeadStyle（胶囊下方）注入；H5 无胶囊时用状态栏回退 */
+  padding-top: 0;
   text-align: center;
+  width: 100%;
 }
 .brand {
-  font-size: 56rpx;
+  font-size: 44rpx;
   font-weight: 800;
-  color: #5c3d1e;
+  color: #ffffff;
   display: block;
   letter-spacing: 2rpx;
 }
 .tagline {
-  font-size: 30rpx;
-  color: #7a5a32;
-  margin-top: 10rpx;
+  font-size: 26rpx;
+  color: rgba(255, 255, 255, 0.9);
+  margin-top: 8rpx;
   display: block;
 }
 .pay-badge {
   display: inline-flex;
   align-items: center;
-  gap: 8rpx;
-  margin-top: 18rpx;
-  padding: 10rpx 22rpx;
+  gap: 6rpx;
+  margin-top: 12rpx;
+  padding: 6rpx 16rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.18);
+  border: 1rpx solid rgba(255, 255, 255, 0.32);
 }
 .pay-badge-icon {
-  color: #07c160;
-  font-size: 24rpx;
+  color: #ffffff;
+  font-size: 22rpx;
   font-weight: 700;
 }
 .pay-badge-text {
-  color: #4b5563;
-  font-size: 22rpx;
-}
-.flow-steps {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 8rpx;
-  margin-top: 20rpx;
-  padding: 0 12rpx;
-}
-.flow-step {
-  font-size: 22rpx;
-  color: #7a5a32;
-  font-weight: 600;
-}
-.flow-sep {
+  color: #ffffff;
   font-size: 20rpx;
-  color: #c4a574;
 }
 
 .resume-card {
-  margin-top: 24rpx;
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 20rpx;
-  padding: 24rpx 28rpx;
-  border-left: 6rpx solid #ea580c;
-  box-shadow: 0 8rpx 24rpx rgba(92, 61, 30, 0.1);
+  margin-top: 28rpx;
+  width: 100%;
+  max-width: 520rpx;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 16rpx;
+  padding: 16rpx 20rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.28);
+  box-sizing: border-box;
+  text-align: center;
 }
 .resume-title {
-  font-size: 30rpx;
+  font-size: 26rpx;
   font-weight: 600;
-  color: #ea580c;
+  color: #ffffff;
   display: block;
+  text-align: center;
 }
 .resume-sub {
-  font-size: 24rpx;
-  color: #7a5a32;
-  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.78);
+  margin-top: 2rpx;
   display: block;
-}
-
-.landing-spacer {
-  flex: 1;
-  min-height: 80rpx;
+  text-align: center;
 }
 
 .landing-action {
-  flex-shrink: 0;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-bottom: 16rpx;
+  justify-content: center;
+  width: 100%;
 }
 .scan-circle {
   margin: 0;
@@ -1410,74 +1874,84 @@ function stopDevicePoll() {
   transform: scale(0.98);
 }
 .scan-circle-inner {
-  width: 220rpx;
-  height: 220rpx;
+  width: 168rpx;
+  height: 168rpx;
   border-radius: 50%;
-  background: linear-gradient(145deg, #fb923c, #ea580c);
+  /* 与页面深绿统一，不再用白底 */
+  background: linear-gradient(145deg, var(--brand, #047857), var(--brand-deep, #064e3b));
+  border: 2rpx solid rgba(255, 255, 255, 0.22);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 16rpx 48rpx rgba(234, 88, 12, 0.38);
+  box-shadow:
+    0 10rpx 28rpx rgba(6, 78, 59, 0.45),
+    0 0 0 10rpx rgba(255, 255, 255, 0.1);
 }
 .scan-icon-box {
-  width: 96rpx;
-  height: 96rpx;
+  width: 72rpx;
+  height: 72rpx;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .scan-circle-text {
-  margin-top: 20rpx;
-  font-size: 34rpx;
+  margin-top: 16rpx;
+  font-size: 30rpx;
   font-weight: 700;
-  color: #5c3d1e;
+  color: #ffffff;
 }
 .scan-tip {
-  margin-top: 16rpx;
-  font-size: 24rpx;
-  color: #7a5a32;
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .landing-foot {
   flex-shrink: 0;
-  padding: 8rpx 0 0;
+  padding: 4rpx 0 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 .manual-link {
-  display: block;
+  display: inline-block;
+  margin: 0 auto;
   text-align: center;
-  font-size: 24rpx;
-  color: #9a7b4f;
-  padding: 12rpx 0;
+  font-size: 22rpx;
+  color: #ffffff;
+  padding: 8rpx 20rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1rpx solid rgba(255, 255, 255, 0.32);
 }
-.manual-form {
-  margin-top: 8rpx;
-}
-.field-label {
+.nearby-link {
   display: block;
-  font-size: 24rpx;
-  color: #64748b;
-  margin-bottom: 8rpx;
-}
-.input {
-  background: #fff;
-  border: 1rpx solid #e5e5e5;
-  border-radius: 12rpx;
-  padding: 20rpx 24rpx;
-  margin-bottom: 16rpx;
-  font-size: 28rpx;
-  color: #191919;
+  margin: 20rpx auto 0;
+  text-align: center;
+  font-size: 26rpx;
+  color: rgba(255, 255, 255, 0.92);
+  text-decoration: underline;
+  text-underline-offset: 4rpx;
 }
 .btn-primary {
   margin: 0;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  width: 100%;
+  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
   color: #fff;
   border-radius: 44rpx;
   font-size: 32rpx;
   font-weight: 600;
-  line-height: 88rpx;
+  line-height: 1.2;
+  min-height: 88rpx;
   height: 88rpx;
   box-shadow: 0 10rpx 28rpx rgba(5, 150, 105, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-primary::after {
   border: none;
@@ -1520,7 +1994,7 @@ function stopDevicePoll() {
 .scan-line {
   width: 8rpx;
   height: 40rpx;
-  background: #fff;
+  background: #ffffff;
   border-radius: 4rpx;
 }
 
@@ -1548,7 +2022,7 @@ function stopDevicePoll() {
 }
 .device-status {
   font-size: 24rpx;
-  color: #07c160;
+  color: var(--brand-wx, #07c160);
   display: block;
   margin-top: 4rpx;
 }
@@ -1574,7 +2048,7 @@ function stopDevicePoll() {
   margin: 12rpx 24rpx 0;
   padding: 22rpx 24rpx;
   border-radius: 16rpx;
-  background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
+  background: linear-gradient(135deg, var(--brand-soft, #ecfdf5), var(--brand-soft, #ecfdf5));
   border: 1rpx solid #bbf7d0;
 }
 .shopping-banner.wait {
@@ -1585,7 +2059,7 @@ function stopDevicePoll() {
   display: block;
   font-size: 30rpx;
   font-weight: 700;
-  color: #065f46;
+  color: var(--brand-deep, #064e3b);
 }
 .shopping-banner.wait .shopping-banner-title {
   color: #92400e;
@@ -1594,7 +2068,7 @@ function stopDevicePoll() {
   display: block;
   margin-top: 6rpx;
   font-size: 24rpx;
-  color: #047857;
+  color: var(--brand, #047857);
   line-height: 1.4;
 }
 .shopping-banner.wait .shopping-banner-sub {
@@ -1608,6 +2082,63 @@ function stopDevicePoll() {
   font-size: 24rpx;
   color: #8c6d1f;
   line-height: 1.4;
+}
+
+.catalog-tools {
+  padding: 0 16rpx 4rpx;
+}
+.search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 72rpx;
+  padding: 0 28rpx;
+  border-radius: 36rpx;
+  background: #fff;
+  border: 1rpx solid #e2e8f0;
+  box-shadow: 0 4rpx 16rpx rgba(15, 118, 110, 0.06);
+}
+.search-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  font-size: 26rpx;
+  color: #0f172a;
+}
+.search-placeholder {
+  color: #94a3b8;
+}
+.search-clear {
+  padding: 6rpx 4rpx 6rpx 16rpx;
+  color: #94a3b8;
+  font-size: 34rpx;
+  line-height: 1;
+}
+.category-row {
+  display: flex;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  margin-top: 16rpx;
+  width: 100%;
+  height: 64rpx;
+  box-sizing: border-box;
+}
+.category-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 56rpx;
+  padding: 0 26rpx;
+  margin-right: 12rpx;
+  border-radius: 28rpx;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 24rpx;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.category-chip.active {
+  background: #0f766e;
+  color: #fff;
 }
 
 .product-scroll {
@@ -1646,34 +2177,65 @@ function stopDevicePoll() {
 }
 .catalog-empty .empty-link {
   font-size: 26rpx;
-  color: #059669;
+  color: var(--brand, #047857);
   font-weight: 650;
 }
 
 .product-grid {
   display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
-  padding: 0 16rpx;
-  gap: 16rpx;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 12rpx 12rpx;
 }
 .product-cell {
-  width: calc(50% - 8rpx);
+  flex: 0 0 33.333%;
+  max-width: 33.333%;
+  width: 33.333%;
   box-sizing: border-box;
-  background: #fff;
-  border-radius: 16rpx;
-  padding: 16rpx;
+  padding: 6rpx;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
+}
+.product-cell-inner {
+  flex: 1;
+  min-width: 0;
+  background: #fff;
+  border-radius: 14rpx;
+  padding: 12rpx;
+  box-sizing: border-box;
+  border: 2rpx solid #eef2f0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.05);
+}
+.product-cell.selected .product-cell-inner {
+  border-color: var(--brand-wx, #07c160);
+  background: #f4fef8;
 }
 .product-thumb {
   width: 100%;
-  height: 200rpx;
+  height: 148rpx;
+  flex-shrink: 0;
   border-radius: 12rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  margin-bottom: 12rpx;
+  position: relative;
+}
+.product-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
 }
 .product-thumb.cat-drink {
   background: linear-gradient(135deg, #e6f4ff, #bae0ff);
@@ -1695,43 +2257,111 @@ function stopDevicePoll() {
   height: 100%;
 }
 .product-mark {
-  width: 96rpx;
-  height: 96rpx;
-  border-radius: 24rpx;
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 16rpx;
   background: rgba(255, 255, 255, 0.72);
-  color: #047857;
-  font-size: 40rpx;
+  color: var(--brand, #047857);
+  font-size: 28rpx;
   font-weight: 800;
-  line-height: 96rpx;
+  line-height: 64rpx;
   text-align: center;
 }
+.product-badge {
+  position: absolute;
+  top: 6rpx;
+  right: 6rpx;
+  min-width: 32rpx;
+  height: 32rpx;
+  padding: 0 8rpx;
+  border-radius: 16rpx;
+  background: var(--brand-wx, #07c160);
+  color: #fff;
+  font-size: 20rpx;
+  font-weight: 700;
+  line-height: 32rpx;
+  text-align: center;
+  box-shadow: 0 4rpx 12rpx rgba(7, 193, 96, 0.35);
+}
 .product-name {
-  font-size: 26rpx;
+  font-size: 22rpx;
   color: #191919;
-  line-height: 1.35;
-  min-height: 72rpx;
+  line-height: 1.3;
+  font-weight: 600;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  min-height: 58rpx;
+  margin-top: 8rpx;
 }
 
 /* #ifdef H5 */
-/* H5 的原生导航栏和 TabBar 都是 fixed，uni-page-body 的 100% 会把底部操作区
-   继续撑到 TabBar 下方。显式扣除两者高度，保证“再次开门”等关键按钮可点击。 */
+/* 铺满手机框；底栏叠在上方，勿再扣 50px 留白条 */
 .page-root {
-  height: calc(100vh - 94px);
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
 }
 /* #endif */
 .product-price {
-  font-size: 32rpx;
-  color: #07c160;
+  font-size: 26rpx;
+  color: var(--brand-wx, #07c160);
   font-weight: 700;
-  margin-top: 8rpx;
+  margin-top: 4rpx;
+}
+.product-cat {
+  font-size: 18rpx;
+  color: #94a3b8;
+  margin-top: 2rpx;
+  line-height: 1.2;
+}
+.product-stock {
+  font-size: 18rpx;
+  color: #b45309;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.product-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6rpx;
+}
+.stepper-btn {
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 50%;
+  background: #eef6f2;
+  color: var(--brand, #047857);
+  font-size: 28rpx;
+  font-weight: 700;
+  line-height: 44rpx;
+  text-align: center;
+}
+.stepper-btn.plus {
+  background: var(--brand, #047857);
+  color: #fff;
+}
+.stepper-btn.plus.disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+.stepper-qty {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 20rpx;
+  font-weight: 700;
+  color: #26342d;
 }
 
 .cart-bar {
   flex-shrink: 0;
+  position: relative;
+  z-index: 5;
+  isolation: isolate;
   background: #fff;
   padding: 16rpx 24rpx;
   padding-bottom: calc(16rpx + constant(safe-area-inset-bottom));
@@ -1756,15 +2386,62 @@ function stopDevicePoll() {
 .cart-cta {
   margin: 0;
   padding: 0 48rpx;
+  min-height: 80rpx;
   height: 80rpx;
-  line-height: 80rpx;
-  background: #07c160;
+  line-height: 1.2;
+  background: var(--brand-wx, #07c160);
   color: #fff;
   border-radius: 40rpx;
   font-size: 30rpx;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .cart-cta::after {
+  border: none;
+}
+.cart-demo {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+.cart-demo-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.cart-demo-label {
+  font-size: 22rpx;
+  color: #888;
+}
+.cart-demo-amt {
+  font-size: 30rpx;
+  font-weight: 800;
+  color: var(--brand-wx, #07c160);
+  margin-top: 4rpx;
+}
+.cart-close-btn {
+  margin: 0;
+  padding: 0 40rpx;
+  min-height: 80rpx;
+  height: 80rpx;
+  line-height: 1.2;
+  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
+  color: #fff;
+  border-radius: 40rpx;
+  font-size: 30rpx;
+  font-weight: 700;
+  box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+}
+.cart-close-btn::after {
   border: none;
 }
 .settlement-review-card {
@@ -1779,7 +2456,7 @@ function stopDevicePoll() {
 }
 .settlement-review-card.tone-success {
   border-color: #bbf7d0;
-  background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+  background: linear-gradient(135deg, var(--brand-soft, #ecfdf5), var(--brand-soft, #ecfdf5));
 }
 .settlement-review-card.tone-wait {
   border-color: #fed7aa;
@@ -1802,10 +2479,10 @@ function stopDevicePoll() {
   font-size: 24rpx;
 }
 .review-icon.tone-wait {
-  background: #059669;
+  background: var(--brand, #047857);
 }
 .review-icon.tone-success {
-  background: #059669;
+  background: var(--brand, #047857);
 }
 .review-icon.tone-warn {
   background: #ef4444;
@@ -1841,7 +2518,7 @@ function stopDevicePoll() {
   font-weight: 600;
 }
 .review-link.primary {
-  color: #047857;
+  color: var(--brand, #047857);
 }
 .review-link.subtle {
   color: #9ca3af;
@@ -1853,7 +2530,7 @@ function stopDevicePoll() {
   border-radius: 40rpx;
   font-size: 28rpx;
   font-weight: 600;
-  color: #07c160;
+  color: var(--brand-wx, #07c160);
   background: #e8f8ef;
 }
 .cart-status-chip.wait {
@@ -1861,7 +2538,7 @@ function stopDevicePoll() {
   background: #fff7e6;
 }
 .cart-status-chip.active {
-  color: #07c160;
+  color: var(--brand-wx, #07c160);
   background: #e8f8ef;
 }
 .cart-status-chip.error {
@@ -1885,7 +2562,7 @@ function stopDevicePoll() {
   background: #fffdf5;
 }
 .flow-overlay.active {
-  background: #f0fdf4;
+  background: var(--brand-soft, #ecfdf5);
 }
 .flow-overlay.error {
   background: #fff5f5;
@@ -1895,7 +2572,7 @@ function stopDevicePoll() {
   height: 120rpx;
   border-radius: 50%;
   border: 8rpx solid #e8f8ef;
-  border-top-color: #07c160;
+  border-top-color: var(--brand-wx, #07c160);
   margin-bottom: 40rpx;
 }
 .flow-spinner.pulse {
@@ -1909,7 +2586,7 @@ function stopDevicePoll() {
 @media (prefers-reduced-motion: reduce) {
   .flow-spinner.pulse {
     animation: none;
-    border-top-color: #07c160;
+    border-top-color: var(--brand-wx, #07c160);
     opacity: 0.85;
   }
 }
@@ -1929,7 +2606,7 @@ function stopDevicePoll() {
 }
 .flow-device {
   font-size: 26rpx;
-  color: #07c160;
+  color: var(--brand-wx, #07c160);
   margin-top: 24rpx;
 }
 .flow-err {
@@ -1941,12 +2618,18 @@ function stopDevicePoll() {
 .flow-cancel {
   margin-top: 40rpx;
   padding: 0 36rpx;
+  min-height: 72rpx;
   height: 72rpx;
-  line-height: 72rpx;
+  line-height: 1.2;
   border-radius: 36rpx;
   background: #f2f3f5;
   color: #576b95;
   font-size: 26rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .flow-cancel::after {
   border: none;
@@ -1961,84 +2644,54 @@ function stopDevicePoll() {
 }
 
 /* visual overrides (merged) */
-.landing {
-  padding: 0;
-  background: #f5c842;
-}
-.landing-head {
-  padding-top: 52rpx;
-  text-align: center;
-}
-.brand {
-  font-size: 58rpx;
-}
-.tagline {
-  font-size: 31rpx;
-}
-.hero-illustration {
-  top: 150rpx;
-}
-.resume-card {
-  margin-top: 22rpx;
-  padding: 24rpx 28rpx;
-  border-left: 6rpx solid #ea580c;
-  border-radius: 22rpx;
-  box-shadow: 0 12rpx 34rpx rgba(92, 61, 30, 0.1);
-}
-.resume-title {
-  color: #ea580c;
-}
-.resume-sub {
-  color: #7a5a32;
-}
 .landing-error {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 6;
   display: flex;
   align-items: flex-start;
-  gap: 18rpx;
-  margin-top: 20rpx;
-  padding: 22rpx;
-  border: 1rpx solid #fecaca;
-  border-radius: 20rpx;
-  background: rgba(255, 247, 247, 0.94);
-  box-shadow: 0 9rpx 24rpx rgba(220, 38, 38, 0.07);
+  gap: 14rpx;
+  margin-top: 14rpx;
+  width: 100%;
+  max-width: 620rpx;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 16rpx 20rpx;
+  border-radius: 16rpx;
+  background: var(--brand-deep, #064e3b);
+  border: 1rpx solid rgba(255, 255, 255, 0.16);
+  box-sizing: border-box;
 }
-.landing-error.kind-balance {
-  border-color: #fcd34d;
-  background: rgba(255, 251, 235, 0.96);
-  box-shadow: 0 9rpx 24rpx rgba(217, 119, 6, 0.08);
+.landing-error.kind-balance,
+.landing-error.kind-device_not_found {
+  background: var(--brand-deep, #064e3b);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 .landing-error.kind-balance .error-icon {
   background: #f59e0b;
 }
-.landing-error.kind-balance .error-title {
-  color: #92400e;
-}
-.landing-error.kind-balance .error-detail {
-  color: #b45309;
-}
-.landing-error.kind-device_not_found {
-  border-color: #cbd5e1;
-  background: rgba(248, 250, 252, 0.96);
+.landing-error.kind-balance .error-title,
+.landing-error.kind-balance .error-detail,
+.landing-error.kind-device_not_found .error-title,
+.landing-error.kind-device_not_found .error-detail {
+  color: rgba(255, 255, 255, 0.92);
 }
 .landing-error.kind-device_not_found .error-icon {
-  background: #64748b;
-}
-.landing-error.kind-device_not_found .error-title {
-  color: #334155;
-}
-.landing-error.kind-device_not_found .error-detail {
-  color: #475569;
+  background: rgba(255, 255, 255, 0.28);
 }
 .error-icon {
   display: flex;
-  flex: 0 0 42rpx;
-  height: 42rpx;
+  flex: 0 0 36rpx;
+  height: 36rpx;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   color: #fff;
-  background: #ef4444;
+  background: rgba(239, 68, 68, 0.85);
   font-weight: 800;
+  font-size: 22rpx;
 }
 .error-copy {
   min-width: 0;
@@ -2049,54 +2702,147 @@ function stopDevicePoll() {
   display: block;
 }
 .error-title {
-  color: #991b1b;
-  font-size: 25rpx;
+  color: #ffffff;
+  font-size: 24rpx;
   font-weight: 700;
 }
 .error-detail {
-  margin-top: 6rpx;
-  color: #b45353;
+  margin-top: 4rpx;
+  color: rgba(255, 255, 255, 0.78);
   font-size: 22rpx;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 .error-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 16rpx;
-  margin-top: 14rpx;
+  gap: 12rpx;
+  margin-top: 10rpx;
 }
 .error-action {
-  padding: 8rpx 18rpx;
+  padding: 6rpx 14rpx;
   border-radius: 999rpx;
-  border: 1rpx solid #f0b4b4;
-  color: #9f1239;
+  border: 1rpx solid rgba(255, 255, 255, 0.32);
+  color: #ffffff;
   font-size: 22rpx;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.18);
 }
 .error-action.primary {
-  border-color: #059669;
-  color: #047857;
-  background: #ecfdf5;
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+  background: rgba(4, 120, 87, 0.55);
 }
 .error-close {
-  padding: 0 5rpx;
-  color: #b98b8b;
-  font-size: 34rpx;
+  padding: 0 4rpx;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 30rpx;
   line-height: 1;
 }
-.scan-circle-inner {
-  width: 228rpx;
-  height: 228rpx;
-  box-shadow: 0 18rpx 52rpx rgba(234, 88, 12, 0.4);
+.landing-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  background: rgba(4, 31, 26, 0.42);
 }
-.scan-circle-text {
-  font-size: 36rpx;
+.landing-sheet {
+  width: 100%;
+  max-width: 520rpx;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 28rpx 24rpx 24rpx;
+  border-radius: 20rpx;
+  background: var(--brand-deep, #064e3b);
+  border: 1rpx solid rgba(255, 255, 255, 0.16);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
-.landing-foot {
-  padding-bottom: 22rpx;
+.landing-sheet-title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #ffffff;
+  text-align: center;
 }
-.manual-link {
-  color: #9a7b4f;
+.landing-sheet-body {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.5;
+}
+.landing-sheet-label {
+  display: block;
+  margin-top: 22rpx;
+  margin-bottom: 8rpx;
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.78);
+  text-align: center;
+}
+.sheet-input {
+  display: block;
+  width: 100%;
+  height: 88rpx;
+  margin-bottom: 20rpx;
+  padding: 0 24rpx;
+  box-sizing: border-box;
+  border-radius: 12rpx;
+  background: var(--brand-ink, #043f32);
+  border: 1rpx solid rgba(255, 255, 255, 0.18);
+  font-size: 28rpx;
+  color: #ffffff;
+}
+.sheet-ph {
+  color: rgba(255, 255, 255, 0.4);
+}
+.landing-sheet-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+.landing-sheet .btn-primary,
+.landing-sheet uni-button.btn-primary {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  align-self: stretch !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+.landing-sheet-btn {
+  padding: 10rpx 22rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  font-size: 26rpx;
+  background: var(--brand-ink, #043f32);
+}
+.landing-sheet-btn.primary {
+  border-color: transparent;
+  background: var(--brand, #047857);
+  font-weight: 600;
+}
+.landing-sheet-cancel-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-top: 16rpx;
+}
+.landing-sheet-cancel {
+  display: block;
+  width: 100%;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 26rpx;
+  padding: 8rpx 0;
+  box-sizing: border-box;
 }
 .device-bar {
   margin: 18rpx 20rpx 0;
@@ -2117,28 +2863,25 @@ function stopDevicePoll() {
   background: #fffbeb;
 }
 .product-grid {
-  padding: 0 20rpx;
-  gap: 18rpx;
+  padding: 0 12rpx 12rpx;
 }
-.product-cell {
-  width: calc(50% - 9rpx);
-  padding: 15rpx;
-  border: 1rpx solid #eef2f0;
-  border-radius: 22rpx;
-  box-shadow: 0 9rpx 26rpx rgba(15, 23, 42, 0.055);
+.product-cell-inner {
+  border-radius: 14rpx;
+  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.05);
 }
 .product-thumb {
-  height: 210rpx;
-  border-radius: 17rpx;
+  height: 148rpx;
+  border-radius: 12rpx;
 }
 .product-name {
-  font-size: 27rpx;
+  font-size: 22rpx;
   font-weight: 600;
   color: #26342d;
+  min-height: 58rpx;
 }
 .product-price {
-  color: #047857;
-  font-size: 34rpx;
+  color: var(--brand, #047857);
+  font-size: 26rpx;
 }
 .cart-bar {
   border-top: 0;
@@ -2146,11 +2889,11 @@ function stopDevicePoll() {
   padding: 18rpx 24rpx;
 }
 .cart-cta {
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
   box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.22);
 }
 .flow-overlay {
-  background: radial-gradient(circle at 50% 35%, #ecfdf5, #fff 55%);
+  background: radial-gradient(circle at 50% 35%, var(--brand-soft, #ecfdf5), #fff 55%);
 }
 .flow-spinner {
   width: 132rpx;
@@ -2165,7 +2908,7 @@ function stopDevicePoll() {
 .flow-device {
   padding: 10rpx 18rpx;
   border-radius: 999rpx;
-  background: #ecfdf5;
+  background: var(--brand-soft, #ecfdf5);
   font-weight: 600;
 }
 </style>

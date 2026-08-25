@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.SkuQuantityDto;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
@@ -36,6 +37,7 @@ public class DemoDataService {
     private final UserInfoMapper userInfoRepository;
     private final UserAccountMapper userAccountRepository;
     private final DeviceSlotService deviceSlotService;
+    private final InventoryLotService inventoryLotService;
 
     public DemoDataService(SecurityProperties securityProperties,
                            SkuCatalogMapper skuCatalogRepository,
@@ -46,7 +48,8 @@ public class DemoDataService {
                            SkuVisionMappingMapper skuVisionMappingRepository,
                            UserInfoMapper userInfoRepository,
                            UserAccountMapper userAccountRepository,
-                           DeviceSlotService deviceSlotService) {
+                           DeviceSlotService deviceSlotService,
+                           InventoryLotService inventoryLotService) {
         this.securityProperties = securityProperties;
         this.skuCatalogRepository = skuCatalogRepository;
         this.deviceInfoRepository = deviceInfoRepository;
@@ -57,6 +60,7 @@ public class DemoDataService {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.deviceSlotService = deviceSlotService;
+        this.inventoryLotService = inventoryLotService;
     }
 
     @Transactional
@@ -83,14 +87,13 @@ public class DemoDataService {
     }
 
     /**
-     * 识别兜底：取柜内首个有库存、可视觉结算的 SKU（与真实业务一致，不再写死 SKU-DEMO-001）。
+     * 识别兜底：取柜内首个有可售库存、可视觉结算的 SKU（与真实业务一致，不再写死 SKU-DEMO-001）。
      */
     @Transactional(readOnly = true)
     public String resolveFallbackSku(String deviceId) {
         String targetDevice = deviceId != null && !deviceId.isBlank() ? deviceId.trim() : DEMO_DEVICE_ID;
-        Optional<String> fromInventory = deviceSkuInventoryRepository.findByIdDeviceId(targetDevice).stream()
-                .filter(inv -> inv.getQuantity() > 0)
-                .map(inv -> inv.getId().getSkuId())
+        Optional<String> fromInventory = deviceSlotService.inventorySnapshot(targetDevice).stream()
+                .map(SkuQuantityDto::skuId)
                 .filter(this::isChargeableSku)
                 .findFirst();
         if (fromInventory.isPresent()) {
@@ -129,11 +132,13 @@ public class DemoDataService {
 
     private void ensureSkus() {
         for (DemoSkuSeed seed : DEMO_SKUS) {
-            SkuCatalog sku = skuCatalogRepository.findById(seed.skuId()).orElse(new SkuCatalog());
-            sku.setSkuId(seed.skuId());
-            if (sku.getSkuCode() == null) {
-                sku.setSkuCode(skuCatalogRepository.nextSkuCode());
+            if (skuCatalogRepository.findById(seed.skuId()).isPresent()) {
+                // 已存在则保留运营改价/改图/下架等，避免每次启动用种子覆盖
+                continue;
             }
+            SkuCatalog sku = new SkuCatalog();
+            sku.setSkuId(seed.skuId());
+            sku.setSkuCode(skuCatalogRepository.nextSkuCode());
             sku.setSkuName(seed.name());
             sku.setPriceCents(seed.priceCents());
             sku.setWeightGrams(seed.weightGrams());
@@ -142,18 +147,14 @@ public class DemoDataService {
             sku.setDescription(seed.description());
             sku.setCategory(seed.category());
             sku.setBarcode(seed.barcode());
-            if (sku.getUnit() == null || sku.getUnit().isBlank()) {
-                sku.setUnit("件");
-            }
+            sku.setUnit("件");
             sku.setStatus("ACTIVE");
             sku.setShelfLifeDays(seed.shelfLifeDays());
             sku.setNearExpiryDays(seed.nearExpiryDays());
             sku.setBlockSaleDaysBeforeExpiry(seed.blockSaleDays());
             sku.setStorageType("AMBIENT");
             sku.setMinChargeConfidence(seed.minChargeConfidence());
-            if (sku.getPurchaseCostCents() == null) {
-                sku.setPurchaseCostCents(seed.purchaseCostCents());
-            }
+            sku.setPurchaseCostCents(seed.purchaseCostCents());
             skuCatalogRepository.save(sku);
         }
     }
@@ -173,23 +174,44 @@ public class DemoDataService {
             return;
         }
         String repaired = DeviceNameSupport.canonicalIfCorrupted(DEMO_DEVICE_ID, device.getDeviceName());
+        boolean dirty = repaired != null;
         if (repaired != null) {
             device.setDeviceName(repaired);
+        }
+        if (device.getLatitude() == null || device.getLongitude() == null) {
+            device.setLatitude(31.2304);
+            device.setLongitude(121.4737);
+            if (device.getAddress() == null || device.getAddress().isBlank()) {
+                device.setAddress("上海市黄浦区演示点位");
+            }
+            dirty = true;
+        }
+        if (dirty) {
             deviceInfoRepository.save(device);
         }
     }
 
     private void ensureDeviceInventory() {
+        boolean lotLedger = inventoryLotService.deviceUsesLotLedger(DEMO_DEVICE_ID);
         for (DemoInvSeed seed : DEMO_INVENTORY) {
             DeviceSkuInventoryId id = new DeviceSkuInventoryId(DEMO_DEVICE_ID, seed.skuId());
-            DeviceSkuInventory inv = deviceSkuInventoryRepository.findById(id).orElse(new DeviceSkuInventory());
-            inv.setId(id);
-            if (inv.getQuantity() <= 0) {
-                inv.setQuantity(seed.quantity());
+            var existing = deviceSkuInventoryRepository.findById(id);
+            if (existing.isPresent()) {
+                // 已有行：不覆盖 quantity/capacity/lowThreshold；有批次账本时只同步可售汇总
+                if (lotLedger) {
+                    inventoryLotService.syncAggregateInventory(DEMO_DEVICE_ID, seed.skuId());
+                }
+                continue;
             }
+            DeviceSkuInventory inv = new DeviceSkuInventory();
+            inv.setId(id);
+            inv.setQuantity(lotLedger ? 0 : seed.quantity());
             inv.setCapacity(seed.capacity());
             inv.setLowThreshold(seed.lowThreshold());
             deviceSkuInventoryRepository.save(inv);
+            if (lotLedger) {
+                inventoryLotService.syncAggregateInventory(DEMO_DEVICE_ID, seed.skuId());
+            }
         }
     }
 
@@ -274,17 +296,17 @@ public class DemoDataService {
 
     private static final List<DemoSkuSeed> DEMO_SKUS = List.of(
             new DemoSkuSeed("SKU-DEMO-001", "可口可乐 330ml", 350, 330, 190,
-                    "/admin/sku-demo/cola.svg", "经典可乐", "饮料", "6901028300018", 270, 7, 0, 0.92f),
+                    "/admin/sku-demo/cola.jpg", "经典可乐", "饮料", "6901028300018", 270, 7, 0, 0.92f),
             new DemoSkuSeed("SKU-SODA-001", "雪碧 500ml", 400, 500, 220,
-                    "/admin/sku-demo/sprite.svg", "柠檬味汽水", "饮料", "6901028300019", 270, 7, 0, 0.80f),
+                    "/admin/sku-demo/sprite.jpg", "柠檬味汽水", "饮料", "6901028300019", 270, 7, 0, 0.80f),
             new DemoSkuSeed("SKU-WATER-001", "矿泉水 550ml", 200, 550, 110,
-                    "/admin/sku-demo/water.svg", "饮用天然水", "饮料", "6901028300021", 365, 14, 0, 0.92f),
+                    "/admin/sku-demo/water.jpg", "饮用天然水", "饮料", "6901028300021", 365, 14, 0, 0.92f),
             new DemoSkuSeed("SKU-SNACK-001", "原味薯片 70g", 650, 70, 360,
-                    "/admin/sku-demo/chips.svg", "休闲零食", "零食", "6901028300022", 180, 7, 0, 0.92f),
+                    "/admin/sku-demo/chips.jpg", "休闲零食", "零食", "6901028300022", 180, 7, 0, 0.92f),
             new DemoSkuSeed("SKU-MILK-001", "纯牛奶 250ml", 450, 250, 250,
-                    "/admin/sku-demo/milk.svg", "常温灭菌乳", "乳品", "6901028300023", 180, 5, 1, 0.92f),
+                    "/admin/sku-demo/milk.jpg", "常温灭菌乳", "乳品", "6901028300023", 180, 5, 1, 0.92f),
             new DemoSkuSeed("SKU-NOODLE-001", "红烧牛肉面", 520, 120, 290,
-                    "/admin/sku-demo/noodle.svg", "方便食品", "方便食品", "6901028300024", 270, 7, 0, 0.92f)
+                    "/admin/sku-demo/noodle.jpg", "方便食品", "方便食品", "6901028300024", 270, 7, 0, 0.92f)
     );
 
     private static final List<DemoInvSeed> DEMO_INVENTORY = List.of(

@@ -48,33 +48,54 @@ public class ProfitSharingRetryScheduler {
             return;
         }
         boolean failed = false;
+        String summary = "本次无失败分账单";
         try {
             if (!profitSharingProperties.enabled() || !profitSharingProperties.retryEnabled()) {
+                summary = "分账未启用";
                 return;
             }
             if (!profitSharingService.isApiReady()) {
+                summary = "分账接口未就绪";
                 return;
             }
             int batch = Math.min(profitSharingProperties.retryBatchSize(), 20);
             List<OrderRevenueSplit> failedSplits =
                     splitRepository.findTop20ByStatusOrderByCreatedAtAsc("WECHAT_FAILED");
-            if (failedSplits.isEmpty()) {
-                return;
-            }
             if (failedSplits.size() > batch) {
                 failedSplits = failedSplits.subList(0, batch);
             }
-            var merchantIds = failedSplits.stream()
+            var merchantIds = new java.util.HashSet<String>();
+            failedSplits.stream()
                     .map(OrderRevenueSplit::getMerchantId)
                     .filter(id -> id != null && !id.isBlank())
-                    .collect(Collectors.toSet());
+                    .forEach(merchantIds::add);
+            List<OrderRevenueSplit> pendingReturns =
+                    splitRepository.findTop20ByWechatPendingReturnNoIsNotNullOrderByCreatedAtAsc();
+            if (pendingReturns.size() > batch) {
+                pendingReturns = pendingReturns.subList(0, batch);
+            }
+            int polled = profitSharingService.pollPendingReturns(pendingReturns);
+
+            List<OrderRevenueSplit> failedReturns =
+                    splitRepository.findTop20ByFailureReasonContainingOrderByCreatedAtAsc("分账回退未成功");
+            if (failedReturns.size() > batch) {
+                failedReturns = failedReturns.subList(0, batch);
+            }
+            failedReturns.stream()
+                    .map(OrderRevenueSplit::getMerchantId)
+                    .filter(id -> id != null && !id.isBlank())
+                    .forEach(merchantIds::add);
             Map<String, Merchant> merchants = merchantIds.isEmpty()
                     ? Map.of()
                     : merchantRepository.findAllById(merchantIds).stream()
                     .collect(Collectors.toMap(Merchant::getMerchantId, m -> m, (a, b) -> a));
             int retried = profitSharingService.retryFailedSplits(failedSplits, merchants);
-            if (retried > 0) {
-                log.info("profit sharing retry attempted count={}", retried);
+            int returnRetried = profitSharingService.retryFailedReturns(failedReturns, merchants);
+
+            summary = buildSummary(retried, polled, returnRetried);
+            if (retried > 0 || polled > 0 || returnRetried > 0) {
+                log.info("profit sharing retry splits={} polledReturns={} retriedReturns={}",
+                        retried, polled, returnRetried);
             }
         } catch (Exception e) {
             failed = true;
@@ -82,8 +103,27 @@ public class ProfitSharingRetryScheduler {
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("profit-sharing-retry", "SUCCESS", null, start);
+                taskService.finish("profit-sharing-retry", "SUCCESS", summary, start);
             }
         }
+    }
+
+    private static String buildSummary(int retried, int polled, int returnRetried) {
+        if (retried <= 0 && polled <= 0 && returnRetried <= 0) {
+            return "本次无失败分账单";
+        }
+        StringBuilder sb = new StringBuilder();
+        if (retried > 0) {
+            sb.append("重试分账 ").append(retried).append(" 条");
+        }
+        if (polled > 0) {
+            if (!sb.isEmpty()) sb.append("；");
+            sb.append("确认回退 ").append(polled).append(" 条");
+        }
+        if (returnRetried > 0) {
+            if (!sb.isEmpty()) sb.append("；");
+            sb.append("重试回退 ").append(returnRetried).append(" 条");
+        }
+        return sb.toString();
     }
 }

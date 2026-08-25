@@ -2,7 +2,11 @@ package com.aicabinet.trade.domain;
 
 import java.io.Serializable;
 import java.util.Objects;
+import lombok.Getter;
+import lombok.Setter;
 
+@Getter
+@Setter
 public class DeviceSlotId implements Serializable {
 
     private String deviceId;
@@ -17,10 +21,6 @@ public class DeviceSlotId implements Serializable {
         this.slotCode = slotCode;
     }
 
-    public String getDeviceId() { return deviceId; }
-    public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
-    public String getSlotCode() { return slotCode; }
-    public void setSlotCode(String slotCode) { this.slotCode = slotCode; }
 
     @Override
     public boolean equals(Object o) {

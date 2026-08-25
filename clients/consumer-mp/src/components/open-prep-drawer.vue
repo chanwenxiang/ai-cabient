@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="drawer-mask" @click="onCancel">
     <view class="drawer-panel" @click.stop>
       <view class="drawer-handle" />
@@ -23,7 +23,12 @@
         <input v-model="realName" class="input" placeholder="与身份证一致" maxlength="32" />
         <text class="field-label">身份证后四位</text>
         <input v-model="idCardLast4" class="input" type="number" maxlength="4" placeholder="0000" />
-        <button class="btn-primary" hover-class="btn-hover" :loading="busy" @click="onVerify">
+        <button
+          class="btn-primary btn-block"
+          hover-class="btn-hover"
+          :loading="busy"
+          @click="onVerify"
+        >
           {{ busy ? '提交中…' : '下一步' }}
         </button>
       </view>
@@ -49,7 +54,7 @@
         </view>
         <button
           v-if="showWechatSign"
-          class="btn-primary"
+          class="btn-primary btn-block"
           hover-class="btn-hover"
           :loading="busy"
           :disabled="busy"
@@ -59,7 +64,7 @@
         </button>
         <button
           v-if="showAlipaySign"
-          class="btn-alipay"
+          class="btn-alipay btn-block"
           hover-class="btn-hover"
           :loading="busy"
           :disabled="busy"
@@ -82,7 +87,7 @@
           </text>
           <button
             v-if="wechatPayLive || (devTools && wechatRechargeEnabled)"
-            class="btn-wechat"
+            class="btn-wechat btn-block"
             hover-class="btn-hover"
             :loading="busy"
             :disabled="busy"
@@ -92,7 +97,7 @@
           </button>
           <button
             v-if="devTools && mockRechargeEnabled"
-            class="btn-ghost-fill"
+            class="btn-ghost-fill btn-block"
             hover-class="btn-hover"
             :loading="busy"
             :disabled="busy"
@@ -102,7 +107,7 @@
           </button>
           <button
             v-if="devTools && alipayRechargeEnabled"
-            class="btn-alipay"
+            class="btn-alipay btn-block"
             hover-class="btn-hover"
             :loading="busy"
             :disabled="busy"
@@ -461,7 +466,7 @@ function onCancel() {
   box-shadow: 0 0 0 6rpx #f4f7f5;
 }
 .prep-step.done .prep-dot {
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   box-shadow: 0 0 0 6rpx #d1fae5;
 }
@@ -511,54 +516,87 @@ function onCancel() {
 }
 .btn-primary {
   margin: 0;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  width: 100%;
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
   font-size: 32rpx;
   font-weight: 600;
-  line-height: 88rpx;
+  line-height: 1.2;
+  min-height: 88rpx;
   height: 88rpx;
   box-shadow: 0 9rpx 24rpx rgba(5, 150, 105, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-primary::after {
   border: none;
 }
+.drawer-body > .btn-alipay {
+  margin: 16rpx 0 0;
+  width: 100%;
+  border-radius: 44rpx;
+}
 .btn-alipay {
   margin: 16rpx 0 0;
+  width: 100%;
   background: #1677ff;
   color: #fff;
   border-radius: 12rpx;
   font-size: 30rpx;
   font-weight: 600;
-  line-height: 88rpx;
+  line-height: 1.2;
+  min-height: 88rpx;
   height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-alipay::after {
   border: none;
 }
 .btn-wechat {
   margin: 16rpx 0 0;
+  width: 100%;
   background: #07c160;
   color: #fff;
   border-radius: 12rpx;
   font-size: 30rpx;
   font-weight: 600;
-  line-height: 88rpx;
+  line-height: 1.2;
+  min-height: 88rpx;
   height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-wechat::after {
   border: none;
 }
 .btn-ghost-fill {
   margin: 16rpx 0 0;
+  width: 100%;
   background: #f0fdf4;
   color: #047857;
   border-radius: 12rpx;
   font-size: 28rpx;
   font-weight: 600;
-  line-height: 88rpx;
+  line-height: 1.2;
+  min-height: 88rpx;
   height: 88rpx;
   border: 1rpx solid #bbf7d0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-ghost-fill::after {
   border: none;

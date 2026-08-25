@@ -3,10 +3,19 @@ package com.aicabinet.trade.mapper;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+
+import java.util.Optional;
 
 @Mapper
 public interface SkuCatalogMapper extends BaseTradeMapper<SkuCatalog> {
+
+    SkuCatalog _findByIdForUpdateRaw(@Param("skuId") String skuId);
+
+    default Optional<SkuCatalog> findByIdForUpdate(String skuId) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(skuId));
+    }
 
     default java.util.List<SkuCatalog> findAllByOrderBySkuIdAsc() {
         return selectList(Wrappers.<SkuCatalog>lambdaQuery().orderByAsc(SkuCatalog::getSkuId));

@@ -93,6 +93,9 @@
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
+          <el-table-column label="操作人ID" width="100" align="center" class-name="col-text">
+            <template #default="{ row }">{{ row.operatorId ?? '暂无' }}</template>
+          </el-table-column>
           <el-table-column
             label="操作人"
             min-width="120"
@@ -130,7 +133,7 @@
             show-overflow-tooltip
           >
             <template #default="{ row }">
-              <span v-if="row.targetId" class="cell-id">{{ row.targetId }}</span>
+              <span v-if="row.targetId" class="cell-id">{{ displayBizNo(row.targetId) }}</span>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
@@ -175,7 +178,7 @@ import {
   auditTargetLabel,
   formatOpsActionDetail
 } from '@aicabinet/shared-dict';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import type { PageResult } from '@aicabinet/shared-types';
 import { api } from '@/api/client';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';

@@ -16,12 +16,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 微信分账 API v3 骨架。购物订单当前走余额扣款，默认仅记账本（LEDGER_ONLY）；
  * 运营可在绑定微信支付交易号后手动/自动提交分账。
  */
 @Service
+@Getter
+@Setter
 public class WeChatProfitSharingService {
 
     private static final Logger log = LoggerFactory.getLogger(WeChatProfitSharingService.class);
@@ -114,6 +118,189 @@ public class WeChatProfitSharingService {
             log.warn("wechat profit sharing failed splitId={}: {}", split.getSplitId(), e.getMessage());
         }
         return splitRepository.save(split);
+    }
+
+    /**
+     * 分账回退提交结果。
+     */
+    public enum ReturnSubmitOutcome {
+        SUCCESS, PROCESSING, FAILED
+    }
+
+    /**
+     * 分账回退：部分退款/全额退款时从接收方回退已分金额。
+     */
+    @Transactional
+    public ReturnSubmitOutcome returnMerchantShare(OrderRevenueSplit split,
+                                                   Merchant merchant,
+                                                   long returnCents,
+                                                   String outReturnNo,
+                                                   String description) {
+        if (split == null || merchant == null || returnCents <= 0) {
+            return ReturnSubmitOutcome.FAILED;
+        }
+        if (merchant.getWechatReceiverId() == null || merchant.getWechatReceiverId().isBlank()) {
+            log.warn("profit sharing return skipped: merchant missing wechatReceiverId splitId={}", split.getSplitId());
+            return ReturnSubmitOutcome.FAILED;
+        }
+        String outOrderNo = split.getWechatOutOrderNo();
+        if (outOrderNo == null || outOrderNo.isBlank()) {
+            outOrderNo = "PS" + split.getSplitId();
+        }
+        String returnNo = outReturnNo == null || outReturnNo.isBlank()
+                ? "PSR" + split.getSplitId()
+                : outReturnNo.trim();
+        if (profitSharingProperties.mockEnabled()) {
+            log.info("mock profit sharing return splitId={} orderId={} amount={} outReturnNo={}",
+                    split.getSplitId(), split.getOrderId(), returnCents, returnNo);
+            return ReturnSubmitOutcome.SUCCESS;
+        }
+        if (!isApiReady()) {
+            return ReturnSubmitOutcome.FAILED;
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("out_order_no", outOrderNo);
+        body.put("out_return_no", returnNo);
+        body.put("return_mchid", merchant.getWechatReceiverId().trim());
+        body.put("amount", returnCents);
+        body.put("description", truncate(description != null ? description : "分账回退"));
+        try {
+            JsonNode resp = weChatPayV3Client.post("/v3/profitsharing/return-orders", body);
+            ReturnSubmitOutcome outcome = mapReturnResult(resp.path("result").asText(""));
+            log.info("wechat profit sharing return submitted splitId={} outReturnNo={} amount={} outcome={}",
+                    split.getSplitId(), returnNo, returnCents, outcome);
+            return outcome;
+        } catch (Exception e) {
+            log.warn("wechat profit sharing return failed splitId={} outReturnNo={}: {}",
+                    split.getSplitId(), returnNo, e.getMessage());
+            return ReturnSubmitOutcome.FAILED;
+        }
+    }
+
+    /**
+     * 查询分账回退单状态。
+     */
+    public ReturnSubmitOutcome queryReturnOutcome(String outReturnNo) {
+        if (outReturnNo == null || outReturnNo.isBlank()) {
+            return ReturnSubmitOutcome.FAILED;
+        }
+        if (profitSharingProperties.mockEnabled()) {
+            return ReturnSubmitOutcome.SUCCESS;
+        }
+        if (!isApiReady()) {
+            return ReturnSubmitOutcome.FAILED;
+        }
+        try {
+            String encoded = URLEncoder.encode(outReturnNo.trim(), StandardCharsets.UTF_8);
+            JsonNode resp = weChatPayV3Client.get("/v3/profitsharing/return-orders/" + encoded);
+            return mapReturnResult(resp.path("result").asText(""));
+        } catch (Exception e) {
+            log.warn("wechat profit sharing return query failed outReturnNo={}: {}", outReturnNo, e.getMessage());
+            return ReturnSubmitOutcome.FAILED;
+        }
+    }
+
+    /**
+     * 轮询待确认的分账回退并同步本地 split。
+     */
+    @Transactional
+    public boolean refreshPendingReturn(OrderRevenueSplit split) {
+        if (split == null || split.getWechatPendingReturnNo() == null || split.getWechatPendingReturnNo().isBlank()) {
+            return false;
+        }
+        ReturnSubmitOutcome outcome = queryReturnOutcome(split.getWechatPendingReturnNo());
+        return applyReturnOutcome(split, outcome);
+    }
+
+    @Transactional
+    public int pollPendingReturns(List<OrderRevenueSplit> splits) {
+        if (!isApiReady() || splits == null || splits.isEmpty()) {
+            return 0;
+        }
+        int updated = 0;
+        for (OrderRevenueSplit split : splits) {
+            if (refreshPendingReturn(split)) {
+                updated++;
+            }
+        }
+        return updated;
+    }
+
+    /**
+     * 重试失败的分账回退（failureReason 含「分账回退未成功」且记录了 pending 信息）。
+     */
+    @Transactional
+    public int retryFailedReturns(List<OrderRevenueSplit> splits, Map<String, Merchant> merchantsById) {
+        if (!isApiReady() || splits == null || splits.isEmpty()) {
+            return 0;
+        }
+        int retried = 0;
+        for (OrderRevenueSplit split : splits) {
+            if (split.getWechatPendingReturnNo() == null || split.getWechatPendingReturnNo().isBlank()) {
+                continue;
+            }
+            long returnCents = split.getWechatPendingReturnCents() != null ? split.getWechatPendingReturnCents() : 0;
+            if (returnCents <= 0) {
+                continue;
+            }
+            Merchant merchant = merchantsById.get(split.getMerchantId());
+            if (merchant == null) {
+                continue;
+            }
+            ReturnSubmitOutcome outcome = returnMerchantShare(
+                    split,
+                    merchant,
+                    returnCents,
+                    split.getWechatPendingReturnNo(),
+                    split.getFailureReason() != null ? split.getFailureReason() : "分账回退重试");
+            applyReturnOutcome(split, outcome);
+            if (outcome != ReturnSubmitOutcome.FAILED) {
+                retried++;
+            }
+        }
+        return retried;
+    }
+
+    private boolean applyReturnOutcome(OrderRevenueSplit split, ReturnSubmitOutcome outcome) {
+        if (split == null || outcome == null) {
+            return false;
+        }
+        switch (outcome) {
+            case SUCCESS -> {
+                split.setWechatPendingReturnNo(null);
+                split.setWechatPendingReturnCents(null);
+                split.setFailureReason(null);
+                splitRepository.save(split);
+                log.info("profit sharing return confirmed splitId={} order={}", split.getSplitId(), split.getOrderId());
+                return true;
+            }
+            case PROCESSING -> {
+                split.setFailureReason(null);
+                splitRepository.save(split);
+                return false;
+            }
+            case FAILED -> {
+                if (split.getFailureReason() == null || !split.getFailureReason().contains("分账回退未成功")) {
+                    split.setFailureReason("分账回退未成功需人工处理");
+                }
+                splitRepository.save(split);
+                return true;
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
+    private static ReturnSubmitOutcome mapReturnResult(String result) {
+        if (result == null || result.isBlank()) {
+            return ReturnSubmitOutcome.PROCESSING;
+        }
+        return switch (result.toUpperCase()) {
+            case "SUCCESS" -> ReturnSubmitOutcome.SUCCESS;
+            case "FAIL", "FAILED" -> ReturnSubmitOutcome.FAILED;
+            default -> ReturnSubmitOutcome.PROCESSING;
+        };
     }
 
     /**

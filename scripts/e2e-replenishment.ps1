@@ -78,6 +78,9 @@ Write-Host "    merchantUserId=$MerchantUserId"
 $today = (Get-Date).ToString("yyyy-MM-dd")
 $routeName = "E2E replenishment $today $([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
 
+Write-Host "==> 2b. Ensure warehouse stock for device replenishment gaps"
+Prepare-E2eReplenishmentPlan -BaseUrl $BaseUrl -OpsAuth $opsAuth -DeviceId $DeviceId
+
 Write-Host "==> 3. Plan replenishment route for $DeviceId"
 $route = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/ops/admin/replenishment/plan" -Headers $opsAuth -Body @{
     routeName       = $routeName

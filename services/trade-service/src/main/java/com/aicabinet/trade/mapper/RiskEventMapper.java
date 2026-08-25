@@ -3,12 +3,20 @@ package com.aicabinet.trade.mapper;
 import com.aicabinet.trade.domain.RiskEvent;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.time.Instant;
+import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 @Mapper
 public interface RiskEventMapper extends BaseTradeMapper<RiskEvent> {
+
+    RiskEvent _findByIdForUpdateRaw(@Param("eventId") Long eventId);
+
+    default Optional<RiskEvent> findByIdForUpdate(Long eventId) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(eventId));
+    }
 
     default Page<RiskEvent> findAllByOrderByCreatedAtDesc(Pageable pageable) {
     var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<RiskEvent>(

@@ -90,8 +90,8 @@
       class="chase-banner"
       :title="
         listHydrated
-          ? `本页 ${displayItems.length} 条超时未付（账龄 ≥ 30 分钟，按账龄降序）`
-          : '超时未付 — 加载中…'
+          ? `本页 ${displayItems.length} 条超时未付（账龄 ≥ 30 分钟，按创建时间新→旧）`
+          : '超时未付 加载中…'
       "
     />
 
@@ -100,8 +100,6 @@
         <el-table
           v-loading="loading"
           :data="displayItems"
-          :default-sort="idDefaultSort"
-          @sort-change="onIdSortChange"
           stripe
           border
           class="report-table"
@@ -117,17 +115,62 @@
             />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="orderId"
-            label="订单号"
-            min-width="140"
-            align="center"
-            sortable="custom"
-          >
+          <el-table-column prop="orderId" label="订单号" min-width="140" align="center">
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="openDetail(row)">
-                <span class="cell-id">{{ row.orderId }}</span>
+                <span class="cell-id">{{ displayBizNo(row.orderId) }}</span>
               </button>
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="商品"
+            min-width="140"
+            align="center"
+            class-name="col-goods"
+            label-class-name="col-goods"
+          >
+            <template #default="{ row }">
+              <div
+                v-for="(disp, idx) in [goodsDisplay(row)]"
+                :key="`${row.orderId}-${idx}`"
+                class="goods-cell"
+              >
+                <template v-if="disp.lines.length">
+                  <div v-for="(g, i) in disp.lines" :key="`${row.orderId}-${i}`" class="goods-line">
+                    <img class="goods-thumb" :src="goodsThumb(g.title)" alt="" />
+                    <span class="goods-name">{{ g.title }}</span>
+                    <span v-if="g.qty" class="goods-qty">×{{ g.qty }}</span>
+                  </div>
+                  <div v-if="disp.extraKinds != null" class="goods-meta">
+                    等 {{ disp.extraKinds }} 种 · 共 {{ disp.total }} 件
+                  </div>
+                  <div v-else-if="disp.total > 1 || disp.lines.length > 1" class="goods-meta">
+                    共 {{ disp.total }} 件
+                  </div>
+                </template>
+                <span v-else class="muted">暂无</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="金额" width="100" align="center">
+            <template #default="{ row }">
+              <div class="amount-cell">
+                <span>¥{{ money(row.totalAmountCents) }}</span>
+                <small
+                  v-if="Number(row.originalAmountCents || 0) > Number(row.totalAmountCents || 0)"
+                  class="muted"
+                  >原 ¥{{ money(row.originalAmountCents) }}</small
+                >
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="优惠" width="110" align="center">
+            <template #default="{ row }">
+              <template v-if="orderDiscountCents(row) > 0">
+                <span class="discount">-¥{{ money(orderDiscountCents(row)) }}</span>
+                <small v-if="Number(row.memberDiscountCents || 0) > 0" class="muted">含会员</small>
+              </template>
+              <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
           <el-table-column label="会话" min-width="110" align="center" show-overflow-tooltip>
@@ -138,7 +181,7 @@
                 class="link-cell mono"
                 @click="goSessions(row.deviceId, row.sessionId)"
               >
-                {{ row.sessionId }}
+                {{ displayBizNo(row.sessionId, '无') }}
               </button>
               <span v-else class="muted">无</span>
             </template>
@@ -159,6 +202,11 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
+          <el-table-column label="商户" min-width="100" align="center" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span>{{ row.merchantId || '无' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column
             label="流水号"
             min-width="110"
@@ -167,13 +215,15 @@
             show-overflow-tooltip
           >
             <template #default="{ row }">
-              <span class="mono">{{ row.payTradeNo || row.paymentOperationId || '无' }}</span>
+              <span class="mono">{{
+                displayBizNo(row.payTradeNo || row.paymentOperationId, '无')
+              }}</span>
             </template>
           </el-table-column>
           <el-table-column label="订单状态" width="90" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="orderStatusType(row.status)">
-                {{ dictLabel('order_status', row.status) || row.status || '未知状态' }}
+                {{ displayLabel('order_status', row.status, '未知状态') }}
               </el-tag>
             </template>
           </el-table-column>
@@ -194,7 +244,7 @@
           <el-table-column label="支付渠道" width="84" align="center">
             <template #default="{ row }">
               <el-tag size="small" effect="plain">
-                {{ dictLabel('pay_channel', row.payChannel) || row.payChannel || '未知渠道' }}
+                {{ displayLabel('pay_channel', row.payChannel, '未知渠道') }}
               </el-tag>
             </template>
           </el-table-column>
@@ -209,37 +259,23 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="商品"
-            min-width="140"
-            align="center"
-            class-name="col-goods"
-            label-class-name="col-goods"
-          >
+          <el-table-column label="退款策略" width="100" align="center">
             <template #default="{ row }">
-              <div
-                v-for="(disp, idx) in [goodsDisplay(row)]"
-                :key="`${row.orderId}-${idx}`"
-                class="goods-cell"
-              >
-                <template v-if="disp.lines.length">
-                  <div v-for="(g, i) in disp.lines" :key="`${row.orderId}-${i}`" class="goods-line">
-                    <span class="goods-name">{{ g.title }}</span>
-                    <span v-if="g.qty" class="goods-qty">×{{ g.qty }}</span>
-                  </div>
-                  <div v-if="disp.extraKinds != null" class="goods-meta">
-                    等 {{ disp.extraKinds }} 种 · 共 {{ disp.total }} 件
-                  </div>
-                  <div v-else-if="disp.total > 1 || disp.lines.length > 1" class="goods-meta">
-                    共 {{ disp.total }} 件
-                  </div>
-                </template>
-                <span v-else class="muted">—</span>
-              </div>
+              <el-tag size="small" effect="plain">{{ refundPolicyLabel(row.refundPolicy) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="金额" width="100" align="center">
-            <template #default="{ row }">¥{{ money(row.totalAmountCents) }}</template>
+          <el-table-column label="退款时间" width="140" align="center" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span v-if="row.refundedAt" class="cell-datetime">{{
+                formatDateTime(row.refundedAt)
+              }}</span>
+              <span
+                v-else-if="row.status === 'REFUNDED' || row.status === 'PARTIAL_REFUNDED'"
+                class="muted"
+                >暂无</span
+              >
+              <span v-else class="muted">—</span>
+            </template>
           </el-table-column>
           <el-table-column v-if="statusTab === 'PENDING'" label="账龄" width="110" align="center">
             <template #default="{ row }">
@@ -279,7 +315,7 @@
         <template v-if="detail">
           <el-descriptions :column="1" border size="small">
             <el-descriptions-item label="订单号">
-              <span class="cell-id">{{ detail.orderId }}</span>
+              <span class="cell-id">{{ displayBizNo(detail.orderId) }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="会话">
               <button
@@ -288,9 +324,9 @@
                 class="link-cell mono"
                 @click="goSessions(detail.deviceId, detail.sessionId)"
               >
-                {{ detail.sessionId }}
+                {{ displayBizNo(detail.sessionId, '无') }}
               </button>
-              <span v-else>-</span>
+              <span v-else class="muted">暂无</span>
             </el-descriptions-item>
             <el-descriptions-item label="设备">
               <button
@@ -301,7 +337,7 @@
               >
                 {{ detail.deviceId }}
               </button>
-              <span v-else>-</span>
+              <span v-else class="muted">暂无</span>
             </el-descriptions-item>
             <el-descriptions-item label="状态">
               {{ dictLabel('order_status', detail.status) }}
@@ -309,12 +345,48 @@
             <el-descriptions-item label="金额"
               >¥{{ money(detail.totalAmountCents) }}</el-descriptions-item
             >
+            <el-descriptions-item v-if="Number(detail.originalAmountCents || 0) > 0" label="原价"
+              >¥{{ money(detail.originalAmountCents) }}</el-descriptions-item
+            >
+            <el-descriptions-item v-if="Number(detail.couponDiscountCents || 0) > 0" label="券优惠"
+              >-¥{{ money(detail.couponDiscountCents) }}</el-descriptions-item
+            >
+            <el-descriptions-item
+              v-if="Number(detail.memberDiscountCents || 0) > 0"
+              label="会员优惠"
+              >-¥{{ money(detail.memberDiscountCents) }}</el-descriptions-item
+            >
             <el-descriptions-item label="支付渠道">
-              {{ dictLabel('pay_channel', detail.payChannel) || detail.payChannel || '未知渠道' }}
+              {{ displayLabel('pay_channel', detail.payChannel, '未知渠道') }}
             </el-descriptions-item>
+            <el-descriptions-item label="流水号">
+              <span class="mono">{{
+                displayBizNo(detail.payTradeNo || detail.paymentOperationId, '无')
+              }}</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="商户">{{
+              detail.merchantId || '无'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="退款策略">{{
+              refundPolicyLabel(detail.refundPolicy)
+            }}</el-descriptions-item>
+            <el-descriptions-item label="扣库存">{{
+              detail.inventoryDeducted ? '已扣' : '未扣'
+            }}</el-descriptions-item>
             <el-descriptions-item label="创建时间">{{
               formatDateTime(detail.createdAt)
             }}</el-descriptions-item>
+            <el-descriptions-item
+              v-if="
+                detail.refundedAt ||
+                detail.status === 'REFUNDED' ||
+                detail.status === 'PARTIAL_REFUNDED'
+              "
+              label="退款时间"
+              >{{
+                detail.refundedAt ? formatDateTime(detail.refundedAt) : '暂无'
+              }}</el-descriptions-item
+            >
           </el-descriptions>
 
           <div class="drawer-actions">
@@ -358,7 +430,15 @@
               type="danger"
               :loading="refundingId === detail.orderId"
               @click="refundOrder(detail)"
-              >原路退款</el-button
+              >全额退款</el-button
+            >
+            <el-button
+              v-if="canRefund(detail.status) && auth.hasPerm('ops:order:refund')"
+              type="warning"
+              plain
+              :loading="refundingId === detail.orderId"
+              @click="openPartialRefund(detail)"
+              >按行退款</el-button
             >
           </div>
 
@@ -374,7 +454,29 @@
               align="center"
               class-name="col-text"
             />
+            <el-table-column
+              prop="skuId"
+              label="SKU"
+              min-width="100"
+              align="center"
+              show-overflow-tooltip
+            />
+            <el-table-column prop="slotId" label="货道" width="80" align="center">
+              <template #default="{ row }">{{ row.slotId || '暂无' }}</template>
+            </el-table-column>
+            <el-table-column
+              prop="batchNo"
+              label="批次"
+              width="100"
+              align="center"
+              show-overflow-tooltip
+            >
+              <template #default="{ row }">{{ row.batchNo || '暂无' }}</template>
+            </el-table-column>
             <el-table-column prop="quantity" label="数量" width="70" align="center" />
+            <el-table-column label="单价" width="90" align="center">
+              <template #default="{ row }"> ¥{{ money(row.unitPriceCents || 0) }} </template>
+            </el-table-column>
             <el-table-column label="小计" width="90" align="center">
               <template #default="{ row }">
                 ¥{{ money(row.lineAmountCents || row.amountCents || 0) }}
@@ -394,21 +496,57 @@
               >扣款完成</el-timeline-item
             >
             <el-timeline-item
-              v-if="detail.status === 'REFUNDED'"
-              :timestamp="formatDateTime(detail.updatedAt)"
+              v-if="detail.status === 'REFUNDED' || detail.status === 'PARTIAL_REFUNDED'"
+              :timestamp="detail.refundedAt ? formatDateTime(detail.refundedAt) : '暂无'"
               type="warning"
-              >已退款</el-timeline-item
+              >{{ detail.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款' }}</el-timeline-item
             >
             <el-timeline-item
               v-if="detail.sessionId"
               :timestamp="formatDateTime(detail.createdAt)"
               type="info"
-              >关联会话 {{ detail.sessionId }}</el-timeline-item
+              >关联会话 {{ displayBizNo(detail.sessionId, '无') }}</el-timeline-item
             >
           </el-timeline>
         </template>
       </div>
     </el-drawer>
+
+    <el-dialog v-model="partialOpen" title="按行部分退款" width="640px" destroy-on-close>
+      <p class="partial-hint">
+        指定要退的 SKU 数量；可按行选择是否回库（退货退款 / 仅退款不回库）。
+      </p>
+      <el-input
+        v-model="partialReason"
+        type="textarea"
+        :rows="2"
+        maxlength="256"
+        show-word-limit
+        placeholder="退款原因（至少4字）"
+        class="partial-reason"
+      />
+      <el-table :data="partialRows" size="small" border empty-text="无商品行">
+        <el-table-column prop="skuName" label="商品" min-width="120" />
+        <el-table-column prop="skuId" label="SKU" width="120" />
+        <el-table-column prop="maxQty" label="可退" width="64" align="center" />
+        <el-table-column label="退款数量" width="110" align="center">
+          <template #default="{ row }">
+            <el-input-number v-model="row.qty" :min="0" :max="row.maxQty" size="small" />
+          </template>
+        </el-table-column>
+        <el-table-column label="回库" width="88" align="center">
+          <template #default="{ row }">
+            <el-switch v-model="row.restore" inline-prompt active-text="回" inactive-text="否" />
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="partialOpen = false">取消</el-button>
+        <el-button type="danger" :loading="!!refundingId" @click="submitPartialRefund"
+          >确认按行退款</el-button
+        >
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
@@ -427,7 +565,7 @@ import {
   Coin
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
@@ -437,13 +575,27 @@ import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { OrderSummary, PageResult } from '@aicabinet/shared-types';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
-import { useIdColumnSort } from '@/composables/useIdColumnSort';
-
 const UNPAID_OVERDUE_MS = 30 * 60 * 1000;
 
 type GoodsLine = { title: string; qty: string };
+
+const SKU_DEMO_IMAGES: Array<[RegExp, string]> = [
+  [/可口可乐|可乐|cola/i, '/admin/sku-demo/cola.jpg'],
+  [/雪碧|sprite/i, '/admin/sku-demo/sprite.jpg'],
+  [/矿泉水|纯净水|water/i, '/admin/sku-demo/water.jpg'],
+  [/薯片|chips/i, '/admin/sku-demo/chips.jpg'],
+  [/牛奶|milk/i, '/admin/sku-demo/milk.jpg'],
+  [/牛肉面|方便面|泡面|noodle/i, '/admin/sku-demo/noodle.jpg']
+];
+
+function goodsThumb(title: string) {
+  for (const [rule, image] of SKU_DEMO_IMAGES) {
+    if (rule.test(title)) return image;
+  }
+  return '/admin/sku-demo/default.jpg';
+}
 
 function parseGoodsLines(summary: string | null | undefined): GoodsLine[] {
   if (!summary?.trim()) return [];
@@ -483,16 +635,11 @@ const keyword = ref('');
 const payChannel = ref('');
 const createdRange = ref<[string, string] | null>(null);
 const status = ref('');
-const statusTab = ref('ALL');
+const statusTab = ref(localStorage.getItem('ops_order_status_tab') || 'ALL');
 const overdueOnly = ref(false);
 const focusOrderId = ref('');
 const items = ref<OrderSummary[]>([]);
 
-const {
-  defaultSort: idDefaultSort,
-  onSortChange: onIdSortChange,
-  sortById
-} = useIdColumnSort<OrderSummary>('orderId');
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
@@ -502,15 +649,13 @@ const detail = ref<any>(null);
 
 const displayItems = computed(() => {
   let list = [...items.value];
-  if (statusTab.value === 'PENDING') {
+  if (statusTab.value === 'PENDING' && overdueOnly.value) {
     // overdueOnly: load() already scans; keep filter as safety net for mixed pages
-    if (overdueOnly.value) {
-      list = list.filter((row) => isUnpaidOverdue(row));
-    }
-    list.sort((a, b) => orderAgeMs(b.createdAt) - orderAgeMs(a.createdAt));
-    return list;
+    list = list.filter((row) => isUnpaidOverdue(row));
   }
-  return sortById(list);
+  // 创建时间新→旧（去掉订单号主键排序）
+  list.sort((a, b) => createdAtMs(b.createdAt) - createdAtMs(a.createdAt));
+  return list;
 });
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
@@ -540,11 +685,11 @@ const { onExport: exportSelectedCsv } = useListCsv({
       row.sessionId,
       row.userId,
       row.deviceId,
-      row.payTradeNo || row.paymentOperationId || '',
-      dictLabel('order_status', row.status) || row.status,
+      displayBizNo(row.payTradeNo || row.paymentOperationId, ''),
+      displayLabel('order_status', row.status, '未知状态'),
       paymentStatusLabel(row.status),
       refundColumnLabel(row.status),
-      dictLabel('pay_channel', row.payChannel) || row.payChannel || '未知渠道',
+      displayLabel('pay_channel', row.payChannel, '未知渠道'),
       row.inventoryDeducted ? '已扣' : '未扣',
       row.lineSummary || '',
       row.lineCount,
@@ -590,6 +735,17 @@ function money(cents?: number) {
   return ((cents || 0) / 100).toFixed(2);
 }
 
+function orderDiscountCents(row: { couponDiscountCents?: number; memberDiscountCents?: number }) {
+  return Number(row.couponDiscountCents || 0) + Number(row.memberDiscountCents || 0);
+}
+
+function refundPolicyLabel(policy?: string | null) {
+  if (!policy) return '暂无';
+  if (policy === 'AUTO_REFUND') return '自助退';
+  if (policy === 'DISPUTE_ONLY') return '仅争议';
+  return policy;
+}
+
 function orderStatusType(s?: string) {
   if (s === 'PAID' || s === 'COMPLETED') return 'success';
   if (s === 'CANCELLED' || s === 'REFUNDED' || s === 'PARTIAL_REFUNDED') return 'info';
@@ -610,13 +766,7 @@ function refundTagType(s?: string) {
 }
 
 function paymentStatusLabel(s?: string) {
-  if (s === 'PAID' || s === 'COMPLETED') return '已支付';
-  if (s === 'REFUNDED') return '已退款';
-  if (s === 'PARTIAL_REFUNDED') return '部分退款';
-  if (s === 'CANCELLED') return '已关闭';
-  if (s === 'PENDING') return '待支付';
-  if (s === 'DISPUTED') return '争议中';
-  return s ? dictLabel('order_status', s) || s : '无';
+  return s ? displayLabel('order_status', s, '未知状态') : '暂无';
 }
 
 function paymentStatusType(s?: string) {
@@ -627,7 +777,13 @@ function paymentStatusType(s?: string) {
 }
 
 function canRefund(s?: string) {
-  return s === 'PAID' || s === 'COMPLETED' || s === 'DISPUTED';
+  return s === 'PAID' || s === 'COMPLETED' || s === 'DISPUTED' || s === 'PARTIAL_REFUNDED';
+}
+
+function createdAtMs(createdAt?: string) {
+  if (!createdAt) return 0;
+  const t = new Date(createdAt).getTime();
+  return Number.isFinite(t) ? t : 0;
 }
 
 function orderAgeMs(createdAt?: string) {
@@ -769,21 +925,44 @@ async function refundOrder(row: { orderId: string; status?: string }) {
   try {
     const { value } = await ElMessageBox.prompt(
       `确认原路退回订单 ${row.orderId} 的全部金额？`,
-      '订单退款',
+      '全额退款',
       {
         inputPlaceholder: '请填写退款原因（至少4字）',
         inputValidator: (v) =>
           (!!String(v || '').trim() && String(v).trim().length >= 4) || '请填写至少4字原因',
-        confirmButtonText: '确认退款',
+        confirmButtonText: '下一步',
         type: 'warning'
       }
     );
+    let restoreInventory = false;
+    try {
+      await ElMessageBox.confirm(
+        '请选择库存处理（竞品口径）：\n「退货退款」= 货仍在柜/误识别，库存回库\n「仅退款」= 货已拿走，库存不回库',
+        '库存是否回库',
+        {
+          distinguishCancelAndClose: true,
+          confirmButtonText: '退货退款（回库）',
+          cancelButtonText: '仅退款（不回库）',
+          type: 'warning'
+        }
+      );
+      restoreInventory = true;
+    } catch (action) {
+      if (action === 'cancel') {
+        restoreInventory = false;
+      } else {
+        return;
+      }
+    }
     refundingId.value = row.orderId;
-    const result = await api.request<{ message?: string; refundedCents?: number }>(
-      `/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}/refund`,
-      'POST',
-      { reason: String(value).trim() }
-    );
+    const result = await api.request<{
+      message?: string;
+      refundedCents?: number;
+      inventoryRestored?: boolean;
+    }>(`/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}/refund`, 'POST', {
+      reason: String(value).trim(),
+      restoreInventory
+    });
     ElMessage.success(result.message || '退款成功');
     if (detailOpen.value && detail.value?.orderId === row.orderId) {
       await openDetail(row as OrderSummary);
@@ -793,6 +972,83 @@ async function refundOrder(row: { orderId: string; status?: string }) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '退款失败');
     }
+  } finally {
+    refundingId.value = '';
+  }
+}
+
+const partialOpen = ref(false);
+const partialReason = ref('');
+const partialOrderId = ref('');
+type PartialRow = {
+  skuId: string;
+  skuName: string;
+  maxQty: number;
+  qty: number;
+  restore: boolean;
+};
+const partialRows = ref<PartialRow[]>([]);
+
+function openPartialRefund(row: OrderSummary & { lines?: any[]; items?: any[] }) {
+  const lines = (row.lines ||
+    row.items ||
+    detail.value?.lines ||
+    detail.value?.items ||
+    []) as any[];
+  if (!lines.length) {
+    ElMessage.warning('无商品行，无法按行退款');
+    return;
+  }
+  partialOrderId.value = row.orderId;
+  partialReason.value = '按行部分退款';
+  partialRows.value = lines
+    .filter((l) => l && (l.skuId || l.sku_id) && (l.quantity || l.qty) > 0)
+    .map((l) => ({
+      skuId: String(l.skuId || l.sku_id),
+      skuName: String(l.skuName || l.sku_name || l.title || l.skuId || ''),
+      maxQty: Number(l.quantity || l.qty || 0),
+      qty: 0,
+      restore: false
+    }));
+  if (!partialRows.value.length) {
+    ElMessage.warning('无有效商品行');
+    return;
+  }
+  partialOpen.value = true;
+}
+
+async function submitPartialRefund() {
+  const lines = partialRows.value
+    .filter((r) => r.qty > 0)
+    .map((r) => ({
+      skuId: r.skuId,
+      quantity: r.qty,
+      restoreInventory: r.restore
+    }));
+  if (!lines.length) {
+    ElMessage.warning('请至少填写一行退款数量');
+    return;
+  }
+  const reason = partialReason.value.trim();
+  if (reason.length < 4) {
+    ElMessage.warning('请填写至少4字退款原因');
+    return;
+  }
+  try {
+    refundingId.value = partialOrderId.value;
+    const result = await api.request<{ message?: string }>(
+      `/api/v2/ops/admin/orders/${encodeURIComponent(partialOrderId.value)}/refund`,
+      'POST',
+      { reason, lines }
+    );
+    ElMessage.success(result.message || '按行退款成功');
+    partialOpen.value = false;
+    if (detailOpen.value && detail.value?.orderId === partialOrderId.value) {
+      await openDetail({ orderId: partialOrderId.value } as OrderSummary);
+    }
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '按行退款失败');
   } finally {
     refundingId.value = '';
   }
@@ -892,6 +1148,7 @@ function syncRouteQuery() {
 function onStatusTab(name: string | number) {
   const tab = String(name);
   statusTab.value = tab;
+  localStorage.setItem('ops_order_status_tab', tab);
   status.value = tab === 'ALL' ? '' : tab;
   if (tab !== 'PENDING') overdueOnly.value = false;
   page.value = 1;
@@ -1073,6 +1330,19 @@ onActivated(() => {
 </script>
 
 <style scoped>
+.discount {
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
+
+.amount-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  line-height: 1.2;
+}
+
 .page-card-head {
   display: flex;
   justify-content: space-between;
@@ -1129,11 +1399,19 @@ onActivated(() => {
 }
 .goods-line {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: center;
   gap: 6px;
   min-width: 0;
   max-width: 100%;
+}
+.goods-thumb {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex: 0 0 auto;
+  background: #f0fdf4;
 }
 .goods-name {
   font-weight: 600;
@@ -1186,5 +1464,14 @@ onActivated(() => {
 }
 .order-timeline {
   margin-top: 8px;
+}
+.partial-hint {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
+}
+.partial-reason {
+  margin-bottom: 12px;
 }
 </style>

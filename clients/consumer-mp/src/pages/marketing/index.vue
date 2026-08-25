@@ -1,54 +1,67 @@
-﻿<template>
-  <view class="page">
-    <swiper
-      class="banner"
-      circular
-      autoplay
-      :interval="4200"
-      indicator-dots
-      indicator-active-color="#059669"
-    >
-      <swiper-item v-for="b in banners" :key="b.id">
-        <view class="banner-card" :class="'tone-' + b.tone" @click="openPath(b.ctaPath)">
-          <view class="banner-copy">
-            <text class="banner-title">{{ b.title }}</text>
-            <text class="banner-sub">{{ b.subtitle }}</text>
-            <text class="banner-cta">立即查看 ›</text>
+<template>
+  <view class="page page-root page-fill">
+    <app-nav-bar title="热门活动" />
+    <view class="page-scroll">
+      <view class="page-body">
+        <swiper
+          class="banner"
+          circular
+          autoplay
+          :interval="4200"
+          indicator-dots
+          indicator-active-color="#059669"
+        >
+          <swiper-item v-for="b in banners" :key="b.id">
+            <view class="banner-card" :class="'tone-' + b.tone" @click="openPath(b.ctaPath)">
+              <view class="banner-copy">
+                <text class="banner-title">{{ b.title }}</text>
+                <text class="banner-sub">{{ b.subtitle }}</text>
+                <text class="banner-cta">立即查看 ›</text>
+              </view>
+              <image class="banner-mark" :src="menuIcon('gift')" mode="aspectFit" />
+            </view>
+          </swiper-item>
+        </swiper>
+
+        <view class="entry" @click="goCoupons">
+          <view>
+            <text class="entry-title">我的优惠券</text>
+            <text class="entry-sub">{{ couponEntrySub }}</text>
           </view>
-          <text class="banner-mark">{{ uiGlyph(b.emoji, '惠') }}</text>
+          <text class="entry-arrow">›</text>
         </view>
-      </swiper-item>
-    </swiper>
 
-    <view class="entry" @click="goCoupons">
-      <view>
-        <text class="entry-title">我的优惠券</text>
-        <text class="entry-sub">{{ couponEntrySub }}</text>
-      </view>
-      <text class="entry-arrow">›</text>
-    </view>
-
-    <view class="section-title">进行中</view>
-    <view v-if="loading" class="empty">加载中…</view>
-    <empty-state
-      v-else-if="!campaigns.length"
-      icon="热"
-      title="暂无进行中活动"
-      hint="可先领券，或扫码开门购物"
-    >
-      <button class="empty-btn" @click="goShop">去扫码购物</button>
-      <button class="empty-btn ghost" @click="goCoupons">去领券</button>
-    </empty-state>
-    <view v-else>
-      <view v-for="c in campaigns" :key="c.id" class="campaign" @click="onCampaignClick(c)">
-        <view class="campaign-badge" :class="'tone-' + c.coverColor">{{ c.typeLabel }}</view>
-        <text class="campaign-title">{{ c.title }}</text>
-        <text class="campaign-desc">{{ c.description }}</text>
-        <view class="campaign-foot">
-          <text class="campaign-time">{{ formatRange(c.startTime, c.endTime) }}</text>
-          <text class="campaign-cta" :class="{ muted: c.claimed || claimingId === c.id }">
-            {{ claimingId === c.id ? '领取中…' : c.ctaLabel }} ›
-          </text>
+        <view class="section-title">进行中</view>
+        <view v-if="loading && !campaigns.length" class="empty">加载中…</view>
+        <empty-state
+          v-else-if="!campaigns.length"
+          icon="/static/menu/hot.png"
+          title="暂无进行中活动"
+          hint="可先领券，或扫码开门购物"
+        >
+          <button class="empty-btn" @click="goShop">去扫码购物</button>
+          <button class="empty-btn ghost" @click="goCoupons">去领券</button>
+        </empty-state>
+        <view v-else>
+          <view v-for="c in campaigns" :key="c.id" class="campaign" @click="onCampaignClick(c)">
+            <view class="campaign-badge" :class="'tone-' + c.coverColor">{{ c.typeLabel }}</view>
+            <text class="campaign-title">{{ c.title }}</text>
+            <text class="campaign-desc">{{ c.description }}</text>
+            <view class="campaign-foot">
+              <view class="campaign-time-wrap">
+                <text class="campaign-time">{{ formatRange(c.startTime, c.endTime) }}</text>
+                <text v-if="remainText(c.endTime)" class="campaign-remain">{{
+                  remainText(c.endTime)
+                }}</text>
+              </view>
+              <text
+                class="campaign-cta"
+                :class="{ muted: c.claimed || !c.claimable || claimingId === c.id }"
+              >
+                {{ claimingId === c.id ? '领取中…' : displayCta(c) }} ›
+              </text>
+            </view>
+          </view>
         </view>
       </view>
     </view>
@@ -65,7 +78,7 @@ import {
   type MarketingBannerDto,
   type MarketingCampaignDto
 } from '@/utils/consumer-api';
-import { uiGlyph } from '@/utils/ui-glyph';
+import { menuIcon } from '@/utils/menu-icon';
 
 const banners = ref<MarketingBannerDto[]>([]);
 const campaigns = ref<MarketingCampaignDto[]>([]);
@@ -83,7 +96,7 @@ const couponEntrySub = computed(() =>
 onShow(() => load());
 
 async function load() {
-  loading.value = true;
+  if (!campaigns.value.length && !banners.value.length) loading.value = true;
   authed.value = !!getConsumerToken();
   try {
     const [b, c] = await Promise.all([
@@ -102,7 +115,8 @@ async function load() {
             ctaPath: '/pages/coupons/coupons'
           }
         ];
-    campaigns.value = c || [];
+    // POINTS 已下线，兜底过滤（后端也会过滤）
+    campaigns.value = (c || []).filter((x) => String(x.type || '').toUpperCase() !== 'POINTS');
     if (authed.value) {
       try {
         couponCount.value = Number(await consumerApi.couponCount()) || 0;
@@ -113,8 +127,10 @@ async function load() {
       couponCount.value = 0;
     }
   } catch (e) {
-    banners.value = [];
-    campaigns.value = [];
+    if (!campaigns.value.length) {
+      banners.value = [];
+      campaigns.value = [];
+    }
     uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
   } finally {
     loading.value = false;
@@ -134,16 +150,23 @@ function openPath(path?: string) {
   uni.navigateTo({ url: path });
 }
 
+function displayCta(c: MarketingCampaignDto) {
+  if (c.claimed) return c.ctaLabel || '查看券包';
+  if (c.claimable === false) return c.ctaLabel || '暂不可领';
+  return c.ctaLabel || '立即领取';
+}
+
 async function onCampaignClick(c: MarketingCampaignDto) {
   if (!c?.id) return;
-  if (c.type === 'POINTS') {
+  if (String(c.type || '').toUpperCase() === 'POINTS') {
     uni.showToast({ title: '该活动类型已下线', icon: 'none' });
     return;
   }
-  if (c.claimed || claimingId.value === c.id) {
-    openPath('/pages/coupons/coupons');
+  if (c.claimed || c.claimable === false) {
+    openPath(c.ctaPath || '/pages/coupons/coupons');
     return;
   }
+  if (claimingId.value === c.id) return;
   if (!(await requireConsumerAuth('领取活动需先完成登录', '/pages/marketing/index'))) return;
   claimingId.value = c.id;
   try {
@@ -152,20 +175,21 @@ async function onCampaignClick(c: MarketingCampaignDto) {
     uni.showToast({ title: `已领取 ${name}`, icon: 'success' });
     c.claimed = true;
     c.claimable = false;
-    c.ctaLabel = '已领取';
+    c.ctaLabel = '查看券包';
     try {
       couponCount.value = await consumerApi.couponCount();
     } catch {
       /* keep previous count */
     }
-    setTimeout(() => openPath('/pages/coupons/coupons'), 400);
+    setTimeout(() => openPath(c.ctaPath || '/pages/coupons/coupons'), 400);
   } catch (e) {
     const msg = e instanceof Error ? e.message : '领取失败';
     uni.showToast({ title: msg, icon: 'none' });
     if (String(msg).includes('已领取')) {
       c.claimed = true;
-      c.ctaLabel = '已领取';
-      openPath('/pages/coupons/coupons');
+      c.claimable = false;
+      c.ctaLabel = '查看券包';
+      openPath(c.ctaPath || '/pages/coupons/coupons');
     }
   } finally {
     claimingId.value = null;
@@ -185,13 +209,50 @@ function formatRange(start?: string, end?: string) {
   if (!s && !e) return '长期有效';
   return `${s} - ${e}`;
 }
+
+function remainText(end?: string) {
+  if (!end) return '';
+  const t = new Date(end).getTime();
+  if (!Number.isFinite(t)) return '';
+  const diff = t - Date.now();
+  if (diff <= 0) return '即将结束';
+  const days = Math.ceil(diff / (24 * 60 * 60 * 1000));
+  if (days <= 1) return '今日截止';
+  if (days <= 7) return `剩 ${days} 天`;
+  return '';
+}
 </script>
 
 <style scoped>
 .page {
-  min-height: 100vh;
-  padding: 24rpx;
-  background: #f5f7f8;
+  height: 100%;
+  min-height: 100%;
+  padding: 0;
+  background: #ffffff;
+  box-sizing: border-box;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.page-scroll {
+  flex: 1 1 0;
+  height: 0;
+  min-height: 0;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.page-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 .banner {
   height: 280rpx;
@@ -206,7 +267,7 @@ function formatRange(start?: string, end?: string) {
   justify-content: space-between;
   align-items: center;
   color: #fff;
-  background: linear-gradient(135deg, #064e3b, #0d9488);
+  background: linear-gradient(135deg, #064e3b, #059669);
 }
 .banner-card.tone-amber {
   background: linear-gradient(135deg, #92400e, #f59e0b);
@@ -339,10 +400,22 @@ function formatRange(start?: string, end?: string) {
   justify-content: space-between;
   align-items: center;
   margin-top: 18rpx;
+  gap: 16rpx;
+}
+.campaign-time-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+  min-width: 0;
 }
 .campaign-time {
   font-size: 22rpx;
   color: #94a3b8;
+}
+.campaign-remain {
+  font-size: 20rpx;
+  color: #b45309;
+  font-weight: 600;
 }
 .campaign-cta {
   font-size: 24rpx;
@@ -358,14 +431,22 @@ function formatRange(start?: string, end?: string) {
   color: #999;
 }
 .empty-btn {
-  margin: 0;
-  width: 320rpx;
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 0;
+  width: 100%;
+  min-height: 72rpx;
   height: 72rpx;
-  line-height: 72rpx;
+  line-height: 1.2;
   background: #059669;
   color: #fff;
   border-radius: 36rpx;
   font-size: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .empty-btn.ghost {
   background: #fff;

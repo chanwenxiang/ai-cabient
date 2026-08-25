@@ -2,7 +2,11 @@ package com.aicabinet.trade.domain;
 
 import java.io.Serializable;
 import java.util.Objects;
+import lombok.Getter;
+import lombok.Setter;
 
+@Getter
+@Setter
 public class OpsUserMerchantId implements Serializable {
 
     private Long userId;
@@ -16,10 +20,6 @@ public class OpsUserMerchantId implements Serializable {
         this.merchantId = merchantId;
     }
 
-    public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
-    public String getMerchantId() { return merchantId; }
-    public void setMerchantId(String merchantId) { this.merchantId = merchantId; }
 
     @Override
     public boolean equals(Object o) {

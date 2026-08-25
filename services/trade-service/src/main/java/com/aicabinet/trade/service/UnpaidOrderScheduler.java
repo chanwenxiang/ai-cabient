@@ -27,22 +27,20 @@ public class UnpaidOrderScheduler {
             return;
         }
         boolean failed = false;
+        String summary = "本次无超时未付订单";
         try {
-            try {
-                int n = unpaidOrderService.autoCancelExpired();
-                if (n > 0) {
-                    log.info("unpaid auto-cancel finished count={}", n);
-                }
-            } catch (Exception ex) {
-                log.warn("unpaid auto-cancel failed", ex);
+            int n = unpaidOrderService.autoCancelExpired();
+            summary = n <= 0 ? "本次无超时未付订单" : "取消超时未付订单 " + n + " 笔";
+            if (n > 0) {
+                log.info("unpaid auto-cancel finished count={}", n);
             }
         } catch (Exception e) {
             failed = true;
             taskService.finish("unpaid-cancel", "FAILED", e.getMessage(), start);
-            throw e;
+            log.warn("unpaid auto-cancel failed", e);
         } finally {
             if (!failed) {
-                taskService.finish("unpaid-cancel", "SUCCESS", null, start);
+                taskService.finish("unpaid-cancel", "SUCCESS", summary, start);
             }
         }
     }

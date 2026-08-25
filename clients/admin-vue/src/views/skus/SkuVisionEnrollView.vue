@@ -175,7 +175,7 @@
             sortable="custom"
           >
             <template #default="{ row }">
-              <span class="cell-id">{{ row.skuCode ?? '—' }}</span>
+              <span class="cell-id">{{ row.skuCode ?? '暂无' }}</span>
             </template>
           </el-table-column>
           <el-table-column label="主图" width="72" align="center">
@@ -490,7 +490,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, Upload, CircleCheck, ArrowRight } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type UploadRequestOptions } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
-import { api } from '@/api/client';
+import { api, authFetch } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useDictOptions } from '@/composables/useDictOptions';
@@ -840,9 +840,9 @@ function enrollmentLabel(status?: string) {
 }
 
 function categoryLabel(code?: string | null) {
-  if (!code) return '无';
+  if (!code) return '暂无';
   void dictRuntimeEpoch.value;
-  return dictLabel('category_code', code) || code;
+  return displayLabel('category_code', code, '未分类');
 }
 
 /** 字典键值入库；兼容历史中文标签 */
@@ -866,8 +866,6 @@ function onThumbError(e: Event) {
 }
 
 function skuStatusLabel(status?: string) {
-  if (status === 'ACTIVE') return '上架';
-  if (status === 'INACTIVE') return '下架';
   return displayLabel('sku_status', status, '未知状态');
 }
 
@@ -1287,15 +1285,13 @@ async function onImageUpload(options: UploadRequestOptions) {
 }
 
 async function uploadMultipart<T>(path: string, fields: Record<string, string | File>): Promise<T> {
-  const token = localStorage.getItem('admin_token');
   const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin;
   const form = new FormData();
   for (const [key, val] of Object.entries(fields)) {
     form.append(key === 'image' ? 'image' : key, val);
   }
-  const res = await fetch(`${base}${path}`, {
+  const res = await authFetch(`${base}${path}`, {
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: form
   });
   const json = await res.json().catch(() => ({}));

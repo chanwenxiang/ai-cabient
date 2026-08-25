@@ -25,6 +25,12 @@ const bizChildren: any[] = [
     meta: { title: '数据分析', group: '概览' }
   },
   {
+    path: 'footfall',
+    name: 'footfall',
+    component: () => import('@/views/analytics/FootfallView.vue'),
+    meta: { title: '客流坪效', group: '概览' }
+  },
+  {
     path: 'reports',
     name: 'reports',
     component: () => import('@/views/reports/DeviceReportView.vue'),
@@ -183,6 +189,24 @@ const bizChildren: any[] = [
     meta: { title: '充值管理', group: '财务商户' }
   },
   {
+    path: 'balance-refunds',
+    name: 'balance-refunds',
+    component: () => import('@/views/finance/BalanceRefundView.vue'),
+    meta: { title: '余额退款', group: '财务商户' }
+  },
+  {
+    path: 'invoices',
+    name: 'invoices',
+    component: () => import('@/views/finance/InvoiceListView.vue'),
+    meta: { title: '开票申请', group: '财务商户' }
+  },
+  {
+    path: 'merchant-onboarding',
+    name: 'merchant-onboarding',
+    component: () => import('@/views/merchants/MerchantOnboardingView.vue'),
+    meta: { title: '进件工作台', group: '财务商户' }
+  },
+  {
     path: 'users',
     name: 'users',
     component: () => import('@/views/users/UserListView.vue'),
@@ -262,6 +286,12 @@ const bizChildren: any[] = [
     meta: { title: '定时任务', group: '系统' }
   },
   {
+    path: 'org-sites',
+    name: 'org-sites',
+    component: () => import('@/views/system/OrgSitesView.vue'),
+    meta: { title: '组织与点位', group: '系统' }
+  },
+  {
     path: 'announcements',
     name: 'announcements',
     component: () => import('@/views/announcements/AnnouncementsView.vue'),
@@ -285,6 +315,60 @@ const bizChildren: any[] = [
     name: 'coupons',
     component: () => import('@/views/promotions/CouponsView.vue'),
     meta: { title: '优惠券', group: '增长风控' }
+  },
+  {
+    path: 'ad-assets',
+    name: 'ad-assets',
+    component: () => import('@/views/growth/AdAssetsView.vue'),
+    meta: { title: '素材库', group: '增长风控' }
+  },
+  {
+    path: 'ad-campaigns',
+    name: 'ad-campaigns',
+    component: () => import('@/views/growth/AdCampaignsView.vue'),
+    meta: { title: '投放计划', group: '增长风控' }
+  },
+  {
+    path: 'points-redeem',
+    name: 'points-redeem',
+    component: () => import('@/views/growth/PointsRedeemView.vue'),
+    meta: { title: '积分兑换管理', group: '增长风控' }
+  },
+  {
+    path: 'member-levels',
+    name: 'member-levels',
+    component: () => import('@/views/growth/MemberLevelsView.vue'),
+    meta: { title: '会员等级规则', group: '增长风控' }
+  },
+  {
+    path: 'marketing-roi',
+    name: 'marketing-roi',
+    component: () => import('@/views/growth/MarketingRoiView.vue'),
+    meta: { title: '活动效果分析', group: '增长风控' }
+  },
+  {
+    path: 'replenishment-staff',
+    name: 'replenishment-staff',
+    component: () => import('@/views/growth/ReplenishmentStaffView.vue'),
+    meta: { title: '补货员效率', group: '履约仓储' }
+  },
+  {
+    path: 'sku-review',
+    name: 'sku-review',
+    component: () => import('@/views/growth/SkuReviewView.vue'),
+    meta: { title: '选品诊断', group: '设备商品' }
+  },
+  {
+    path: 'user-analysis',
+    name: 'user-analysis',
+    component: () => import('@/views/growth/UserAnalysisView.vue'),
+    meta: { title: '用户分析', group: '概览' }
+  },
+  {
+    path: 'notifications',
+    name: 'notifications',
+    component: () => import('@/views/growth/NotificationsView.vue'),
+    meta: { title: '消息记录', group: '增长风控' }
   },
   {
     path: 'feedback',
@@ -318,6 +402,12 @@ const router = createRouter({
       name: 'login',
       component: () => import('@/views/LoginView.vue'),
       meta: { public: true }
+    },
+    {
+      path: '/print',
+      name: 'print',
+      component: () => import('@/views/print/PrintView.vue'),
+      meta: { title: '打印单据' }
     },
     {
       path: '/',

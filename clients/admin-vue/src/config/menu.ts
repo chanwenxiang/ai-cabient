@@ -44,6 +44,13 @@ const BASE_NAV: NavItem[] = [
     keywords: ['图表', '趋势', '营收', 'analytics', '看板']
   },
   {
+    path: '/footfall',
+    title: '客流坪效',
+    group: '概览',
+    perm: 'ops:analytics:footfall:view',
+    keywords: ['客流', '坪效', '热区', '转化', 'footfall', '热力']
+  },
+  {
     path: '/reports',
     title: '设备报表',
     group: '概览',
@@ -70,6 +77,13 @@ const BASE_NAV: NavItem[] = [
     group: '概览',
     perm: 'ops:stock-health:list',
     keywords: ['缺货', '断货', '临期', '库存健康', 'stock']
+  },
+  {
+    path: '/user-analysis',
+    title: '用户分析',
+    group: '概览',
+    perm: 'ops:user-analysis:view',
+    keywords: ['用户', '复购', '活跃', '沉睡', 'user-analysis']
   },
 
   {
@@ -144,6 +158,13 @@ const BASE_NAV: NavItem[] = [
     keywords: ['sku', '商品', '定价', '条码', '品牌']
   },
   {
+    path: '/sku-review',
+    title: '选品诊断',
+    group: '设备商品',
+    perm: 'ops:sku-review:list',
+    keywords: ['选品', '淘汰', '滞销', '动销', 'sku-review']
+  },
+  {
     path: '/sku-vision',
     title: '识别入驻',
     group: '设备商品',
@@ -209,6 +230,13 @@ const BASE_NAV: NavItem[] = [
     keywords: ['商户', '分账', '开关', '货道']
   },
   {
+    path: '/merchant-onboarding',
+    title: '进件工作台',
+    group: '财务商户',
+    perm: 'ops:merchant:onboard:list',
+    keywords: ['进件', '微信', '支付宝', '支付分', 'onboarding']
+  },
+  {
     path: '/line-managers',
     title: '线长钱包',
     group: '财务商户',
@@ -242,6 +270,20 @@ const BASE_NAV: NavItem[] = [
     group: '财务商户',
     perm: 'ops:recharge:list',
     keywords: ['充值', '余额']
+  },
+  {
+    path: '/balance-refunds',
+    title: '余额退款',
+    group: '财务商户',
+    perm: 'ops:balance-refund:list',
+    keywords: ['余额退款', '退余额', '原路退']
+  },
+  {
+    path: '/invoices',
+    title: '开票申请',
+    group: '财务商户',
+    perm: 'ops:invoice:list',
+    keywords: ['开票', '发票', '税号', 'invoice']
   },
   {
     path: '/users',
@@ -278,6 +320,55 @@ const BASE_NAV: NavItem[] = [
     group: '增长风控',
     perm: 'ops:coupon:list',
     keywords: ['优惠券', 'coupon', '发券']
+  },
+  {
+    path: '/ad-assets',
+    title: '素材库',
+    group: '增长风控',
+    perm: 'ops:ad:list',
+    keywords: ['素材', '广告', '媒体', '上传']
+  },
+  {
+    path: '/ad-campaigns',
+    title: '投放计划',
+    group: '增长风控',
+    perm: 'ops:ad:campaign:list',
+    keywords: ['投放', '广告', 'campaign', '轮播']
+  },
+  {
+    path: '/points-redeem',
+    title: '积分兑换管理',
+    group: '增长风控',
+    perm: 'ops:points:list',
+    keywords: ['积分', '兑换', 'points', 'redeem']
+  },
+  {
+    path: '/member-levels',
+    title: '会员等级规则',
+    group: '增长风控',
+    perm: 'ops:member-level:list',
+    keywords: ['会员', '等级', '积分倍率', 'member-level']
+  },
+  {
+    path: '/marketing-roi',
+    title: '活动效果分析',
+    group: '增长风控',
+    perm: 'ops:marketing-roi:view',
+    keywords: ['活动', 'ROI', '营销', '核销', 'marketing-roi']
+  },
+  {
+    path: '/replenishment-staff',
+    title: '补货员效率',
+    group: '履约仓储',
+    perm: 'ops:replenishment:list',
+    keywords: ['补货员', '效率', '任务', '准时率', 'replenishment-staff']
+  },
+  {
+    path: '/notifications',
+    title: '消息记录',
+    group: '增长风控',
+    perm: 'ops:notify:list',
+    keywords: ['消息', '通知', 'notification']
   },
   {
     path: '/feedback',
@@ -335,6 +426,13 @@ const BASE_NAV: NavItem[] = [
     group: '系统',
     perm: 'ops:task:list',
     keywords: ['定时', '任务', '调度', 'job', 'task']
+  },
+  {
+    path: '/org-sites',
+    title: '组织与点位',
+    group: '系统',
+    perm: 'ops:org:list',
+    keywords: ['组织', '点位', '场地', '合同', '布机', '撤机', 'org']
   },
   {
     path: '/announcements',

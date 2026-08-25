@@ -3,7 +3,7 @@ import type { Sort } from 'element-plus';
 import { sortByPrimaryKey, type SortDirection } from '@/utils/sort-by-pk';
 
 /**
- * 列表主键/ID 列：默认升序，点击表头切换升/降序。
+ * 列表主键/ID 列：默认升序（小→大），点击表头切换升/降序。
  * - 表格绑定 `:default-sort="idDefaultSort"` `@sort-change="onIdSortChange"`
  * - ID 列加 `prop="<idProp>"` 与 `sortable="custom"`
  * - 展示数据用 `sortById(rows)` 或把 `idSortDir` 传给已有 sortByPrimaryKey
@@ -21,6 +21,7 @@ export function useIdColumnSort<T = any>(
 
   function onIdSortChange(payload: Sort) {
     if (payload.prop && payload.prop !== idProp) return;
+    // 取消排序时回到默认升序
     idSortDir.value = payload.order === 'descending' ? 'desc' : 'asc';
     options?.onChange?.();
   }

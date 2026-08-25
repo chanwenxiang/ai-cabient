@@ -1,34 +1,42 @@
 import type { LoginResponse } from '@aicabinet/shared-types';
 import { clearDictOverrides } from '@aicabinet/shared-dict';
 import { localizeApiMessage } from '@aicabinet/shared-uni/format';
+import { parseQuery, queryGet } from '@aicabinet/shared-uni/query';
+import { loadRuntimeDict as sharedLoadRuntimeDict } from '@aicabinet/shared-uni/dict-runtime';
+import {
+  formatMpRequestError,
+  mpRequest,
+  refreshTokenSilently as sharedRefreshToken,
+  type MpApiSession
+} from '@aicabinet/shared-uni/request';
 import { API_BASE_URL } from '@/config/api';
 import { isDevBuild } from '@/utils/runtime-flags';
 
 const BASE_URL = API_BASE_URL;
 
 function formatRequestError(errMsg: string | undefined, path: string) {
-  const raw = errMsg || '网络错误';
-  if (raw === 'request:fail' || raw.includes('request:fail')) {
-    // #ifdef H5
-    return isDevBuild
-      ? `网络不太稳定（${path}），请确认本机服务已启动后重试`
-      : '网络不太稳定，请稍后再试';
-    // #endif
-    // #ifndef H5
-    return isDevBuild
-      ? '网络不太稳定，请稍后再试。开发调试时可在微信开发者工具勾选「不校验合法域名」'
-      : '网络不太稳定，请稍后再试';
-    // #endif
-  }
-  return localizeApiMessage(raw);
+  return formatMpRequestError(errMsg, path, isDevBuild, BASE_URL);
 }
 const TOKEN_KEY = 'consumer_token';
 const USER_KEY = 'consumer_user_id';
 const EXPIRES_KEY = 'consumer_token_expires';
 const OPEN_ATTEMPT_KEY = 'consumer_open_attempt';
+/** 用户主动退出后禁止静默微信建档，直到再次点登录 */
+const SKIP_SILENT_AUTH_KEY = 'consumer_skip_silent_auth';
 const REQUEST_TIMEOUT_MS = 12_000;
 
-let refreshInFlight: Promise<boolean> | null = null;
+const mpApiSession: MpApiSession = {
+  baseUrl: BASE_URL,
+  isDevBuild,
+  timeoutMs: REQUEST_TIMEOUT_MS,
+  getToken: getConsumerToken,
+  clearSession: clearConsumerSession,
+  applyRefreshedToken: (data) => applyTokenSession(data as LoginResponse),
+  handleUnauthorized: (message) => {
+    clearConsumerSession();
+    return new Error(localizeApiMessage(message, '登录已失效'));
+  }
+};
 
 export function getConsumerToken() {
   return uni.getStorageSync(TOKEN_KEY) || '';
@@ -68,6 +76,7 @@ export function clearOpenAttempt() {
 }
 
 function applyTokenSession(data: LoginResponse) {
+  uni.removeStorageSync(SKIP_SILENT_AUTH_KEY);
   uni.setStorageSync(TOKEN_KEY, data.token);
   uni.setStorageSync(USER_KEY, data.userId);
   const ms = (data.expiresInSeconds ?? 1800) * 1000;
@@ -75,35 +84,14 @@ function applyTokenSession(data: LoginResponse) {
   if (data.serverBootEpoch != null) {
     uni.setStorageSync('consumer_server_boot', data.serverBootEpoch);
   }
-  void import('@/utils/dict-runtime').then((m) => m.loadRuntimeDict());
+  void sharedLoadRuntimeDict({
+    getToken: getConsumerToken,
+    fetchRuntime: () => request('/api/v2/dicts/runtime', 'GET')
+  });
 }
 
 async function refreshTokenSilently(): Promise<boolean> {
-  if (!getConsumerToken()) return false;
-  if (refreshInFlight) return refreshInFlight;
-  const pending = new Promise<boolean>((resolve, reject) => {
-    uni.request({
-      url: BASE_URL + '/api/v2/auth/refresh',
-      method: 'POST',
-      header: { Authorization: 'Bearer ' + getConsumerToken(), 'Content-Type': 'application/json' },
-      success(res) {
-        const body = res.data as { code?: number; data?: LoginResponse };
-        if (res.statusCode === 200 && body?.code === 0 && body.data) {
-          applyTokenSession(body.data);
-          resolve(true);
-          return;
-        }
-        reject(new Error('登录已失效'));
-      },
-      fail(err) {
-        reject(new Error(formatRequestError(err.errMsg, '/api/v2/auth/refresh')));
-      }
-    });
-  }).finally(() => {
-    refreshInFlight = null;
-  });
-  refreshInFlight = pending;
-  return pending;
+  return sharedRefreshToken(mpApiSession);
 }
 
 /** Thin wrappers for pages that expect `{ data }` like axios-style clients. */
@@ -122,49 +110,7 @@ export function request<T>(
   auth = true,
   retried = false
 ): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const header: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (auth && getConsumerToken()) header.Authorization = 'Bearer ' + getConsumerToken();
-    uni.request({
-      url: BASE_URL + path,
-      method,
-      data: data as UniApp.RequestOptions['data'],
-      header,
-      timeout: REQUEST_TIMEOUT_MS,
-      async success(res) {
-        const body = res.data as { code?: number; message?: string; data?: T };
-        if (res.statusCode === 401 && auth && !retried) {
-          try {
-            await refreshTokenSilently();
-            resolve(await request(path, method, data, auth, true));
-          } catch (e) {
-            clearConsumerSession();
-            reject(e);
-          }
-          return;
-        }
-        if (res.statusCode === 401 || res.statusCode === 403) {
-          clearConsumerSession();
-          reject(new Error(localizeApiMessage(body?.message, '登录已失效')));
-          return;
-        }
-        if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0) {
-          resolve(body.data as T);
-          return;
-        }
-        const err = new Error(
-          localizeApiMessage(body?.message, `请求失败 (${res.statusCode})`)
-        ) as Error & {
-          status?: number;
-        };
-        err.status = res.statusCode;
-        reject(err);
-      },
-      fail(err) {
-        reject(new Error(formatRequestError(err.errMsg, path)));
-      }
-    });
-  });
+  return mpRequest<T>(mpApiSession, path, method, data, auth, retried);
 }
 
 export function uploadDisputeEvidenceFile(
@@ -303,11 +249,11 @@ export function consumerWxH5Login(code: string) {
 function readQueryParam(name: string): string {
   try {
     if (typeof window === 'undefined') return '';
-    const fromSearch = new URLSearchParams(window.location.search).get(name);
+    const fromSearch = queryGet(window.location.search, name);
     if (fromSearch) return fromSearch;
     const hash = window.location.hash || '';
     const q = hash.includes('?') ? hash.split('?')[1] : '';
-    if (q) return new URLSearchParams(q).get(name) || '';
+    if (q) return queryGet(q, name);
   } catch {
     /* ignore */
   }
@@ -326,14 +272,16 @@ function stripAuthCodeFromUrl() {
     url.searchParams.delete('state');
     if (url.hash.includes('?')) {
       const [path, qs] = url.hash.split('?');
-      const sp = new URLSearchParams(qs);
-      sp.delete('auth_code');
-      sp.delete('authCode');
-      sp.delete('app_id');
-      sp.delete('source');
-      sp.delete('code');
-      sp.delete('state');
-      const next = sp.toString();
+      const sp = parseQuery(qs);
+      delete sp.auth_code;
+      delete sp.authCode;
+      delete sp.app_id;
+      delete sp.source;
+      delete sp.code;
+      delete sp.state;
+      const next = Object.entries(sp)
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join('&');
       url.hash = next ? `${path}?${next}` : path;
     }
     window.history.replaceState({}, '', url.toString());
@@ -357,8 +305,16 @@ function wxLoginCode(): Promise<string> {
   });
 }
 
-/** 竞品式静默登录：扫码进小程序即完成微信建档，无需先填手机号 */
-export async function ensureConsumerAuth(): Promise<boolean> {
+export function markConsumerExplicitLogout() {
+  uni.setStorageSync(SKIP_SILENT_AUTH_KEY, '1');
+}
+
+function shouldSkipSilentAuth() {
+  return uni.getStorageSync(SKIP_SILENT_AUTH_KEY) === '1';
+}
+
+/** 竞品式静默登录：扫码进小程序即完成微信建档，无需先填手机号。主动退出后不再静默重建。 */
+export async function ensureConsumerAuth(opts?: { force?: boolean }): Promise<boolean> {
   if (getConsumerToken()) {
     const ok = await bootstrapConsumerSession();
     if (ok) return true;
@@ -400,6 +356,7 @@ export async function ensureConsumerAuth(): Promise<boolean> {
   return false;
   // #endif
   // #ifdef MP-WEIXIN
+  if (!opts?.force && shouldSkipSilentAuth()) return false;
   try {
     const code = await wxLoginCode();
     await consumerWxLogin(code);
@@ -524,6 +481,20 @@ export const consumerApi = {
       '/api/v2/account/alipay-agreement/sign',
       'POST'
     ),
+  setPayPreferred: (channel: 'BALANCE' | 'WECHAT' | 'ALIPAY') =>
+    request<import('@aicabinet/shared-types').AccountDto>('/api/v2/account/pay-preferred', 'PUT', {
+      channel
+    }),
+  listBalanceRefunds: () =>
+    request<import('@aicabinet/shared-types').BalanceRefundRequestDto[]>(
+      '/api/v2/account/balance-refunds'
+    ),
+  applyBalanceRefund: (amountCents: number, reason?: string) =>
+    request<import('@aicabinet/shared-types').BalanceRefundRequestDto>(
+      '/api/v2/account/balance-refunds',
+      'POST',
+      { amountCents, reason }
+    ),
   deviceStatus: (deviceId: string) =>
     request<import('@aicabinet/shared-types').DeviceStatusDto>(
       `/api/v2/devices/${encodeURIComponent(deviceId)}/status`
@@ -532,9 +503,40 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').DeviceProduct[]>(
       `/api/v2/devices/${encodeURIComponent(deviceId)}/products`
     ),
+  nearbyDevices: (q: { lat: number; lng: number; radiusKm?: number; limit?: number }) => {
+    const radiusKm = q.radiusKm ?? 5;
+    const limit = q.limit ?? 20;
+    return request<
+      Array<{
+        deviceId: string;
+        deviceName?: string;
+        address?: string;
+        latitude?: number;
+        longitude?: number;
+        distanceMeters: number;
+        onlineStatus?: string;
+        available: boolean;
+        sellableSkuCount: number;
+        sellableItemCount: number;
+        previewSkus?: Array<{
+          skuId: string;
+          skuName?: string;
+          quantity: number;
+          unitPriceCents: number;
+        }>;
+      }>
+    >(
+      `/api/v2/devices/nearby?lat=${encodeURIComponent(String(q.lat))}&lng=${encodeURIComponent(String(q.lng))}&radiusKm=${radiusKm}&limit=${limit}`
+    );
+  },
   createSession: async (deviceId: string, entryChannel?: string | null) => {
     const attempt = getOrCreateOpenAttempt(deviceId);
-    const body: { deviceId: string; idempotencyKey: string; entryChannel?: string } = {
+    const body: {
+      deviceId: string;
+      idempotencyKey: string;
+      entryChannel?: string;
+      preferredCouponId?: number;
+    } = {
       deviceId: attempt.deviceId,
       idempotencyKey: attempt.idempotencyKey
     };
@@ -543,6 +545,11 @@ export const consumerApi = {
       .toUpperCase();
     if (channel === 'WECHAT' || channel === 'ALIPAY') {
       body.entryChannel = channel;
+    }
+    const preferredRaw = uni.getStorageSync('preferred_coupon_id');
+    const preferred = Number(preferredRaw);
+    if (Number.isFinite(preferred) && preferred > 0) {
+      body.preferredCouponId = preferred;
     }
     try {
       return await request<import('@aicabinet/shared-types').SessionDto>(
@@ -581,16 +588,40 @@ export const consumerApi = {
       'PUT',
       body
     ),
+  /** 演示关门结算：无柜机硬件时模拟关门（后端 mockEnabled 才放行）。 */
+  demoCloseSession: (sessionId: string) =>
+    request<import('@aicabinet/shared-types').SessionDto>(
+      `/api/v2/sessions/${sessionId}/demo-close`,
+      'POST'
+    ),
   getSessionOrder: (sessionId: string) =>
     request<import('@aicabinet/shared-types').OrderDetailDto>(
       `/api/v2/sessions/${sessionId}/order`
     ),
+  getLiveCart: (sessionId: string) =>
+    request<{
+      sessionId: string;
+      items: Array<{
+        skuId: string;
+        skuName?: string;
+        quantity: number;
+        unitPriceCents: number;
+        lineAmountCents: number;
+      }>;
+      totalQty: number;
+      totalAmountCents: number;
+    }>(`/api/v2/sessions/${encodeURIComponent(sessionId)}/live-cart`),
   listOrders: (page = 0, size = 20) =>
     request<
       import('@aicabinet/shared-types').PageResult<import('@aicabinet/shared-types').OrderSummary>
     >(`/api/v2/orders?page=${page}&size=${size}`),
   getOrder: (orderId: string) =>
     request<import('@aicabinet/shared-types').OrderDetailDto>(`/api/v2/orders/${orderId}`),
+  payOrder: (orderId: string) =>
+    request<import('@aicabinet/shared-types').OrderDetailDto>(
+      `/api/v2/orders/${encodeURIComponent(orderId)}/pay`,
+      'POST'
+    ),
   fileDispute: (body: import('@aicabinet/shared-types').FileDisputeRequest) =>
     request<import('@aicabinet/shared-types').DisputeTicketDto>('/api/v2/disputes', 'POST', body),
   listMyDisputes: () =>
@@ -613,6 +644,22 @@ export const consumerApi = {
       'POST',
       body
     ),
+  applyInvoice: (orderId: string, body: { title: string; taxNo?: string; email?: string }) =>
+    request<{ invoiceId: number; status: string }>(
+      `/api/v2/orders/${encodeURIComponent(orderId)}/invoice`,
+      'POST',
+      body
+    ),
+  listMyInvoices: () =>
+    request<
+      Array<{
+        invoiceId: number;
+        orderId: string;
+        title: string;
+        amountCents: number;
+        status: string;
+      }>
+    >('/api/v2/account/invoices'),
   consumerPublicConfig: () =>
     request<Record<string, string>>('/api/v2/public/consumer-config', 'GET', null, false),
   reportDeviceFault: (
@@ -630,10 +677,26 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').UserFeedbackDto[]>('/api/v2/feedback/mine'),
 
   memberProfile: () => request<MemberProfileDto>('/api/v2/member/profile'),
+  memberPoints: () => request<MemberPointsSummaryDto>('/api/v2/member/points'),
+  memberPointsLog: (limit = 50) =>
+    request<MemberPointsLogDto[]>(`/api/v2/member/points/log?limit=${limit}`),
+  redeemItems: () => request<PointsRedeemItemDto[]>('/api/v2/member/redeem/items'),
+  redeemPoints: (itemId: number) => request<CouponDto>('/api/v2/member/redeem', 'POST', { itemId }),
+  notifications: (limit = 50) =>
+    request<NotificationDto[]>(`/api/v2/member/notifications?limit=${limit}`),
+  notificationUnreadCount: () =>
+    request<{ count: number }>('/api/v2/member/notifications/unread-count'),
+  markNotificationRead: (id: number) =>
+    request<void>(`/api/v2/member/notifications/${id}/read`, 'POST'),
+  markAllNotificationsRead: () => request<void>('/api/v2/member/notifications/read-all', 'POST'),
+  notifyPrefs: () => request<NotifyPrefDto[]>('/api/v2/member/notifications/prefs'),
+  updateNotifyPref: (category: string, enabled: boolean) =>
+    request<NotifyPrefDto>('/api/v2/member/notifications/prefs', 'PUT', { category, enabled }),
   marketingBanners: () =>
     request<MarketingBannerDto[]>('/api/v2/marketing/banners', 'GET', undefined, false),
+  // auth=true：有 token 时带上，后端可返回「已领取/查看券包」；无 token 仍可游客浏览
   marketingCampaigns: () =>
-    request<MarketingCampaignDto[]>('/api/v2/marketing/campaigns/active', 'GET', undefined, false),
+    request<MarketingCampaignDto[]>('/api/v2/marketing/campaigns/active', 'GET', undefined, true),
   claimCampaign: (activityId: number) =>
     request<CouponDto>(`/api/v2/marketing/campaigns/${activityId}/claim`, 'POST'),
   myCoupons: (status?: string) =>
@@ -663,6 +726,8 @@ export type MemberProfileDto = {
   levelCode: string;
   levelName: string;
   totalSpent: number;
+  availablePoints: number;
+  totalPoints: number;
   orderCount: number;
   spentToNextLevel: number;
   nextLevelName?: string | null;
@@ -672,9 +737,73 @@ export type MemberProfileDto = {
     levelName: string;
     minSpent: number;
     maxSpent?: number | null;
+    minPoints: number;
+    maxPoints?: number | null;
+    pointsRate: number;
     sortOrder: number;
   }>;
   createdAt?: string;
+};
+
+export type MemberPointsSummaryDto = {
+  availablePoints: number;
+  totalPoints: number;
+  usedPoints: number;
+  expiredPoints: number;
+  levelCode: string;
+  levelName: string;
+  pointsRate: number;
+  nextLevelPointsGap: number;
+};
+
+export type MemberPointsLogDto = {
+  id: number;
+  points: number;
+  pointsType: string;
+  sourceType?: string;
+  description?: string;
+  createdAt: string;
+  expireAt?: string | null;
+};
+
+export type PointsRedeemItemDto = {
+  itemId: number;
+  title: string;
+  subtitle?: string;
+  coverEmoji: string;
+  pointsCost: number;
+  couponDefId: number;
+  couponName?: string;
+  stockTotal: number;
+  redeemedCount: number;
+  availableStock: number;
+  sortOrder: number;
+  status: string;
+  createdAt?: string;
+  denominationCents?: number;
+  minSpendCents?: number;
+  validityDays?: number;
+  deviceScope?: string;
+};
+
+export type NotificationDto = {
+  id: number;
+  title: string;
+  body: string;
+  templateCode?: string;
+  channel?: string;
+  audience?: string;
+  bizType?: string;
+  bizId?: string;
+  read: boolean;
+  readAt?: string | null;
+  createdAt: string;
+};
+
+export type NotifyPrefDto = {
+  category: string;
+  label: string;
+  enabled: boolean;
 };
 
 export type MarketingBannerDto = {
@@ -715,4 +844,6 @@ export type CouponDto = {
   receivedAt?: string;
   usedAt?: string;
   couponCode?: string;
+  deviceScope?: string;
+  description?: string;
 };

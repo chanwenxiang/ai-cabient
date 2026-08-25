@@ -1,170 +1,294 @@
 <template>
   <view class="page-root">
-    <view v-if="loading" class="loading"><text>加载中…</text></view>
-    <view v-else-if="error" class="error">
-      <text>{{ error }}</text>
-      <button class="btn-outline" style="margin-top: 24rpx" @click="reload">重试</button>
-    </view>
-    <view v-else>
-      <view class="status-bar" :class="'status-' + (order?.status || '').toLowerCase()">
-        <text class="status-icon">{{ statusIcon }}</text>
-        <view class="status-copy">
-          <text class="status-title">{{ statusTitle }}</text>
-          <text class="status-detail">{{ statusDetail }}</text>
-        </view>
+    <app-nav-bar title="订单详情" />
+    <view class="page-body">
+      <view v-if="loading && !order" class="loading"><text>加载中…</text></view>
+      <view v-else-if="error && !order" class="error">
+        <text>{{ error }}</text>
+        <button class="btn-outline" style="margin-top: 24rpx" @click="reload">重试</button>
       </view>
-
-      <view class="section">
-        <text class="section-title">商品清单</text>
-        <view v-for="item in order?.lines || []" :key="item.skuId" class="item-row">
-          <view class="item-info">
-            <text class="item-name">{{ item.skuName || item.skuId || '商品' }}</text>
-            <text class="item-qty">x{{ item.quantity }}</text>
+      <view v-else-if="order">
+        <view class="status-bar" :class="'status-' + (order?.status || '').toLowerCase()">
+          <text class="status-icon">{{ statusIcon }}</text>
+          <view class="status-copy">
+            <text class="status-title">{{ statusTitle }}</text>
+            <text class="status-detail">{{ statusDetail }}</text>
           </view>
-          <text class="item-price">{{ fmtMoney(item.lineAmountCents) }}</text>
         </view>
-        <view v-if="!(order?.lines || []).length" class="empty-lines">本次未识别到取走商品</view>
-        <view class="total-row">
-          <text class="total-label">商品合计</text>
-          <text class="total-amount">{{
-            fmtMoney(order?.originalAmountCents || order?.totalAmountCents || 0)
-          }}</text>
-        </view>
-        <view v-if="order?.couponDiscountCents" class="discount-row">
-          <text class="discount-label">优惠券抵扣</text>
-          <text class="discount-amount">-{{ fmtMoney(order.couponDiscountCents) }}</text>
-        </view>
-        <view v-if="order?.couponDiscountCents" class="total-row pay">
-          <text class="total-label">实付</text>
-          <text class="total-amount">{{ fmtMoney(order?.totalAmountCents || 0) }}</text>
-        </view>
-      </view>
 
-      <view class="section">
-        <text class="section-title">支付信息</text>
-        <view class="info-row"
-          ><text class="info-label">支付方式</text
-          ><text class="info-value">{{ payChannelText }}</text></view
-        >
-        <view class="info-row"
-          ><text class="info-label">扣款时间</text
-          ><text class="info-value">{{
-            formatTime(order?.payTime || order?.createdAt)
-          }}</text></view
-        >
-        <view class="info-row"
-          ><text class="info-label">订单编号</text
-          ><text class="info-value mono">{{ emptyDisplay(order?.orderId, 'order') }}</text></view
-        >
-        <view class="info-row"
-          ><text class="info-label">柜机编号</text
-          ><text class="info-value mono">{{ emptyDisplay(order?.deviceId, 'device') }}</text></view
-        >
-      </view>
-
-      <view class="actions">
-        <button v-if="order?.deviceId" class="btn-primary" @click="reopenCabinet">
-          再去本柜购物
-        </button>
-        <button v-if="videoUrl" class="btn-outline" @click="playVideo">查看购物视频</button>
-        <button
-          v-if="canRefund"
-          class="btn-refund"
-          :disabled="refundLoading || disputeLoading"
-          @click="openRefund"
-        >
-          {{ refundDone ? '已退款' : '立即退款' }}
-        </button>
-        <button
-          v-if="canDispute"
-          class="btn-outline danger"
-          :disabled="disputeLoading || refundLoading"
-          @click="openDispute"
-        >
-          {{
-            disputeFiled ? '申诉已提交' : autoRefundEnabled ? '提交账单申诉' : '申请退款 / 账单申诉'
-          }}
-        </button>
-        <button class="btn-outline" @click="goHelp">帮助与客服</button>
-      </view>
-
-      <view class="support" @click="callSupport">客服电话: {{ supportPhoneDisplay }} ›</view>
-    </view>
-
-    <view v-if="showDispute" class="dispute-mask" @click="closeDispute">
-      <view class="dispute-panel" @click.stop>
-        <text class="dispute-title">{{ refundMode ? '立即退款' : '申请退款 / 账单申诉' }}</text>
-        <text class="dispute-sub">
-          {{
-            refundMode
-              ? '将原路退回本单已扣款项（余额/微信/支付宝）。可上传凭证图片辅助核对。'
-              : '仅提交申诉工单，运营审核后再退款。可上传凭证图片。'
-          }}
-        </text>
-        <view class="chip-row">
-          <text
-            v-for="chip in reasonChips"
-            :key="chip.label"
-            class="reason-chip"
-            :class="{ on: selectedCategory === chip.category }"
-            @click="pickChip(chip)"
-            >{{ chip.label }}</text
+        <view class="section">
+          <text class="section-title">商品清单</text>
+          <view
+            v-for="item in order?.lines || []"
+            :key="item.skuId + '-' + (item.slotId || '')"
+            class="item-row"
           >
-        </view>
-        <text class="field-label">申诉说明</text>
-        <textarea
-          v-model="disputeReason"
-          class="dispute-input"
-          maxlength="200"
-          aria-label="申诉说明"
-          placeholder="例如：我没有拿这个商品 / 数量不对…"
-        />
-        <view class="evidence-block">
-          <text class="evidence-label">申诉附图（选填，最多 5 张）</text>
-          <view class="evidence-row">
-            <view v-for="(img, idx) in evidence" :key="img.localPath + idx" class="evidence-item">
-              <image
-                class="evidence-img"
-                :src="previewEvidenceSrc(img)"
-                mode="aspectFill"
-                :alt="`证据图 ${idx + 1}`"
-              />
-              <text
-                class="evidence-del"
-                role="button"
-                aria-label="删除证据图"
-                @click="removeEvidence(idx)"
-                >×</text
+            <image
+              class="item-thumb"
+              :src="skuImageFor(item.skuId, item.skuName)"
+              mode="aspectFill"
+              aria-hidden="true"
+            />
+            <view class="item-info">
+              <text class="item-name">{{ item.skuName || item.skuId || '商品' }}</text>
+              <text class="item-qty"
+                >x{{ item.quantity }}{{ item.slotId ? ` · 货道 ${item.slotId}` : ''
+                }}{{ item.batchNo ? ` · 批次 ${item.batchNo}` : '' }}</text
               >
-              <text v-if="img.uploading" class="evidence-uploading">上传中…</text>
+              <text v-if="item.unitPriceCents != null" class="item-unit"
+                >单价 {{ fmtMoney(item.unitPriceCents) }}</text
+              >
             </view>
-            <view
-              v-if="evidence.length < 5"
-              class="evidence-add"
-              role="button"
-              aria-label="添加证据图"
-              @click="onAddEvidence"
-              >+</view
+            <text class="item-price">{{ fmtMoney(item.lineAmountCents) }}</text>
+          </view>
+          <view v-if="!(order?.lines || []).length" class="empty-lines">本次未识别到取走商品</view>
+          <view class="total-row">
+            <text class="total-label">商品合计</text>
+            <text class="total-amount">{{
+              fmtMoney(order?.originalAmountCents || order?.totalAmountCents || 0)
+            }}</text>
+          </view>
+          <view v-if="order?.couponDiscountCents" class="discount-row">
+            <text class="discount-label">优惠券抵扣</text>
+            <text class="discount-amount">减{{ fmtMoney(order.couponDiscountCents) }}</text>
+          </view>
+          <view v-if="Number(order?.memberDiscountCents || 0) > 0" class="discount-row">
+            <text class="discount-label">会员优惠</text>
+            <text class="discount-amount">减{{ fmtMoney(order.memberDiscountCents) }}</text>
+          </view>
+          <view
+            v-if="order?.couponDiscountCents || Number(order?.memberDiscountCents || 0) > 0"
+            class="total-row pay"
+          >
+            <text class="total-label">实付</text>
+            <text class="total-amount">{{ fmtMoney(order?.totalAmountCents || 0) }}</text>
+          </view>
+        </view>
+
+        <view class="section">
+          <text class="section-title">支付信息</text>
+          <view class="info-row"
+            ><text class="info-label">支付方式</text
+            ><text class="info-value">{{ payChannelText }}</text></view
+          >
+          <view v-if="order?.payTradeNo || order?.paymentOperationId" class="info-row"
+            ><text class="info-label">流水号</text
+            ><text class="info-value mono">{{
+              displayBizNo(order?.payTradeNo || order?.paymentOperationId)
+            }}</text></view
+          >
+          <view class="info-row"
+            ><text class="info-label">扣款时间</text
+            ><text class="info-value">{{
+              formatTime(order?.payTime || order?.createdAt)
+            }}</text></view
+          >
+          <view
+            v-if="
+              order?.status === 'REFUNDED' ||
+              order?.status === 'PARTIAL_REFUNDED' ||
+              refundCents > 0
+            "
+            class="info-row"
+          >
+            <text class="info-label">退款</text>
+            <text class="info-value"
+              >{{ order?.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
+              }}{{ refundCents > 0 ? ` ${fmtMoney(refundCents)}` : '' }}</text
             >
           </view>
+          <view
+            v-if="order?.status === 'REFUNDED' || order?.status === 'PARTIAL_REFUNDED'"
+            class="info-row"
+          >
+            <text class="info-label">退款时间</text>
+            <text class="info-value">{{
+              order?.refundedAt ? formatTime(order.refundedAt) : '暂无'
+            }}</text>
+          </view>
+          <view class="info-row"
+            ><text class="info-label">订单编号</text
+            ><text class="info-value mono">{{ displayBizNo(order?.orderId) }}</text></view
+          >
+          <view class="info-row"
+            ><text class="info-label">柜机编号</text
+            ><text class="info-value mono">{{
+              emptyDisplay(order?.deviceId, 'device')
+            }}</text></view
+          >
         </view>
-        <button
-          class="btn-submit"
-          :loading="disputeLoading || refundLoading"
-          :disabled="disputeLoading || refundLoading"
-          @click="submitAction"
-        >
-          {{
-            refundMode
-              ? refundLoading
-                ? '退款中…'
-                : '确认退款'
-              : disputeLoading
-                ? '提交中…'
-                : '提交申诉'
-          }}
-        </button>
-        <text class="dispute-cancel" @click="closeDispute">取消</text>
+
+        <view class="actions">
+          <button v-if="order?.deviceId" class="btn-primary" @click="reopenCabinet">
+            再去本柜购物
+          </button>
+          <button
+            v-if="order?.status === 'UNPAID'"
+            class="btn-primary"
+            :disabled="paying"
+            @click="payNow"
+          >
+            {{ paying ? '支付中…' : '去支付' }}
+          </button>
+          <button v-if="videoUrl" class="btn-outline" @click="playVideo">查看购物视频</button>
+          <button
+            v-if="canRefund"
+            class="btn-refund"
+            :disabled="refundLoading || disputeLoading"
+            @click="openRefund"
+          >
+            {{ refundDone ? '已退款' : '立即退款' }}
+          </button>
+          <button
+            v-if="canDispute"
+            class="btn-outline danger"
+            :disabled="disputeLoading || refundLoading"
+            @click="openDispute"
+          >
+            {{
+              disputeFiled
+                ? '申诉已提交'
+                : autoRefundEnabled
+                  ? '提交账单申诉'
+                  : '申请退款 / 账单申诉'
+            }}
+          </button>
+          <button
+            v-if="canInvoice"
+            class="btn-outline"
+            :disabled="invoiceLoading || invoiceDone"
+            @click="openInvoice"
+          >
+            {{ invoiceDone ? '已申请开票' : '申请开票' }}
+          </button>
+          <button class="btn-outline" @click="goHelp">帮助与客服</button>
+        </view>
+
+        <view class="support" @click="callSupport">客服电话: {{ supportPhoneDisplay }} ›</view>
+      </view>
+
+      <view v-if="showInvoice" class="dispute-mask" @click="closeInvoice">
+        <view class="dispute-panel" @click.stop>
+          <text class="dispute-title">申请开票</text>
+          <text class="dispute-sub">提交后运营开具电子发票（演示环境为申请留痕）</text>
+          <text class="field-label">发票抬头</text>
+          <input
+            v-model="invoiceTitle"
+            class="dispute-input"
+            maxlength="64"
+            placeholder="个人姓名或公司全称"
+          />
+          <text class="field-label">税号（企业选填）</text>
+          <input
+            v-model="invoiceTaxNo"
+            class="dispute-input"
+            maxlength="32"
+            placeholder="纳税人识别号"
+          />
+          <text class="field-label">接收邮箱（选填）</text>
+          <input
+            v-model="invoiceEmail"
+            class="dispute-input"
+            maxlength="128"
+            placeholder="发票发送邮箱"
+          />
+          <view class="dispute-actions">
+            <button class="btn-outline" @click="closeInvoice">取消</button>
+            <button class="btn-primary" :loading="invoiceLoading" @click="submitInvoice">
+              {{ invoiceLoading ? '提交中…' : '提交申请' }}
+            </button>
+          </view>
+        </view>
+      </view>
+
+      <view v-if="showDispute" class="dispute-mask" @click="closeDispute">
+        <view class="dispute-panel" @click.stop>
+          <text class="dispute-title">{{ refundMode ? '立即退款' : '申请退款 / 账单申诉' }}</text>
+          <text class="dispute-sub">
+            {{
+              refundMode
+                ? '将原路退回本单已扣款项。选「没拿/识别有误」会回库；选「质量问题(已拿走)」仅退款不回库。'
+                : '仅提交申诉工单，运营审核后再退款。可上传凭证图片。'
+            }}
+          </text>
+          <view class="chip-row">
+            <text
+              v-for="chip in reasonChips"
+              :key="chip.label"
+              class="reason-chip"
+              :class="{ on: selectedCategory === chip.category }"
+              @click="pickChip(chip)"
+              >{{ chip.label }}</text
+            >
+          </view>
+          <text class="field-label">申诉说明</text>
+          <textarea
+            v-model="disputeReason"
+            class="dispute-input"
+            maxlength="200"
+            aria-label="申诉说明"
+            placeholder="例如：我没有拿这个商品 / 数量不对…"
+          />
+          <view v-if="refundMode && refundLineRows.length" class="partial-block">
+            <text class="field-label">按行退款（不选则全额退）</text>
+            <view v-for="row in refundLineRows" :key="row.skuId" class="partial-row">
+              <text class="partial-name">{{ row.skuName }}</text>
+              <text class="partial-meta">可退 {{ row.maxQty }}</text>
+              <input
+                class="partial-qty"
+                type="number"
+                :value="String(row.qty)"
+                @input="(e: any) => onPartialQty(row, e)"
+              />
+            </view>
+          </view>
+          <view class="evidence-block">
+            <text class="evidence-label">申诉附图（选填，最多 5 张）</text>
+            <view class="evidence-row">
+              <view v-for="(img, idx) in evidence" :key="img.localPath + idx" class="evidence-item">
+                <image
+                  class="evidence-img"
+                  :src="previewEvidenceSrc(img)"
+                  mode="aspectFill"
+                  :alt="`证据图 ${idx + 1}`"
+                />
+                <text
+                  class="evidence-del"
+                  role="button"
+                  aria-label="删除证据图"
+                  @click="removeEvidence(idx)"
+                  >×</text
+                >
+                <text v-if="img.uploading" class="evidence-uploading">上传中…</text>
+              </view>
+              <view
+                v-if="evidence.length < 5"
+                class="evidence-add"
+                role="button"
+                aria-label="添加证据图"
+                @click="onAddEvidence"
+                >+</view
+              >
+            </view>
+          </view>
+          <button
+            class="btn-submit"
+            :loading="disputeLoading || refundLoading"
+            :disabled="disputeLoading || refundLoading"
+            @click="submitAction"
+          >
+            {{
+              refundMode
+                ? refundLoading
+                  ? '退款中…'
+                  : '确认退款'
+                : disputeLoading
+                  ? '提交中…'
+                  : '提交申诉'
+            }}
+          </button>
+          <text class="dispute-cancel" @click="closeDispute">取消</text>
+        </view>
       </view>
     </view>
   </view>
@@ -175,16 +299,20 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
+import { skuImageFor } from '@aicabinet/shared-uni/product-image';
 import {
   emptyDisplay,
+  displayBizNo,
   formatDateTimeMinute,
   orderStatusLabel,
   fmtMoney
 } from '@aicabinet/shared-uni/format';
+import { parseQuery, queryGet } from '@aicabinet/shared-uni/query';
 import type { OrderDetailDto } from '@aicabinet/shared-types';
 import {
   DISPUTE_REASON_CHIPS,
   appendChipToReason,
+  inferRestoreInventory,
   type DisputeReasonChip
 } from '@/utils/dispute-form';
 import { consumerAppealErrorMessage } from '@/utils/dispute-copy';
@@ -206,10 +334,18 @@ const refundMode = ref(false);
 const disputeReason = ref('');
 const disputeLoading = ref(false);
 const refundLoading = ref(false);
+const paying = ref(false);
 const disputeFiled = ref(false);
 const refundDone = ref(false);
+const invoiceLoading = ref(false);
+const invoiceDone = ref(false);
+const showInvoice = ref(false);
+const invoiceTitle = ref('');
+const invoiceTaxNo = ref('');
+const invoiceEmail = ref('');
 const reasonChips = DISPUTE_REASON_CHIPS;
 const selectedCategory = ref('USER_APPEAL');
+const selectedChip = ref<DisputeReasonChip | null>(null);
 const evidence = ref<LocalEvidence[]>([]);
 const supportPhoneDisplay = ref('400-888-0018');
 const supportPhoneDial = ref('4008880018');
@@ -218,19 +354,29 @@ const supportPhoneDial = ref('4008880018');
 let bootstrapPromise: Promise<void> | null = null;
 let bootstrapTarget = '';
 
+function currentPageOptions(): Record<string, string | undefined> {
+  const pages = getCurrentPages();
+  const cur = pages[pages.length - 1] as { options?: Record<string, string> } | undefined;
+  return cur?.options || {};
+}
+
 function resolveOrderId(opt?: Record<string, string | undefined>): string {
-  const fromOpt = String(opt?.orderId || opt?.id || '').trim();
+  const merged = { ...currentPageOptions(), ...opt };
+  const fromOpt = String(merged.orderId || merged.id || '').trim();
   if (fromOpt) return fromOpt;
-  if (typeof window === 'undefined' || typeof window.location === 'undefined') return '';
-  try {
-    const hash = String(window.location.hash || '');
-    const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
-    const search = String(window.location.search || '').replace(/^\?/, '');
-    const q = new URLSearchParams(hashQuery || search);
-    return String(q.get('orderId') || q.get('id') || '').trim();
-  } catch {
-    return '';
+  if (typeof window !== 'undefined' && typeof window.location !== 'undefined') {
+    try {
+      const hash = String(window.location.hash || '');
+      const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
+      const search = String(window.location.search || '').replace(/^\?/, '');
+      const fromUrl =
+        queryGet(hashQuery || search, 'orderId') || queryGet(hashQuery || search, 'id');
+      if (fromUrl.trim()) return fromUrl.trim();
+    } catch {
+      /* keep fallback */
+    }
   }
+  return String(orderId.value || '').trim();
 }
 
 async function bootstrap(opt?: Record<string, string | undefined>) {
@@ -271,7 +417,7 @@ onLoad((opt) => {
 });
 
 onShow(() => {
-  void bootstrap();
+  void bootstrap(currentPageOptions());
 });
 
 function onHashChange() {
@@ -309,7 +455,7 @@ async function reload() {
     loading.value = false;
     return;
   }
-  loading.value = true;
+  if (!order.value) loading.value = true;
   error.value = '';
   try {
     order.value = await consumerApi.getOrder(orderId.value);
@@ -320,7 +466,7 @@ async function reload() {
       disputeFiled.value = true;
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : '加载失败';
+    if (!order.value) error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     loading.value = false;
   }
@@ -340,6 +486,15 @@ const statusIcon = computed(() => {
 });
 
 const statusTitle = computed(() => orderStatusLabel(order.value?.status) || '订单详情');
+
+const refundCents = computed(() => {
+  const o = order.value;
+  if (!o) return 0;
+  const n = Number(o.refundedCents || 0);
+  if (n > 0) return n;
+  if (o.status === 'REFUNDED') return Number(o.totalAmountCents || 0);
+  return 0;
+});
 
 const canDispute = computed(() => {
   const s = order.value?.status;
@@ -364,9 +519,76 @@ const canRefund = computed(() => {
     autoRefundEnabled.value &&
     !!order.value?.orderId &&
     !refundDone.value &&
-    (s === 'PAID' || s === 'COMPLETED')
+    (s === 'PAID' || s === 'COMPLETED' || s === 'PARTIAL_REFUNDED')
   );
 });
+
+const canInvoice = computed(() => {
+  const s = order.value?.status;
+  return (
+    !!order.value?.orderId &&
+    !invoiceDone.value &&
+    (s === 'PAID' || s === 'COMPLETED' || s === 'PARTIAL_REFUNDED') &&
+    (order.value?.totalAmountCents || 0) > 0
+  );
+});
+
+function openInvoice() {
+  invoiceTitle.value = '';
+  invoiceTaxNo.value = '';
+  invoiceEmail.value = '';
+  showInvoice.value = true;
+}
+
+function closeInvoice() {
+  showInvoice.value = false;
+}
+
+async function submitInvoice() {
+  const oid = order.value?.orderId;
+  if (!oid) return;
+  const title = invoiceTitle.value.trim();
+  if (!title) {
+    uni.showToast({ title: '请填写发票抬头', icon: 'none' });
+    return;
+  }
+  invoiceLoading.value = true;
+  try {
+    await consumerApi.applyInvoice(oid, {
+      title,
+      taxNo: invoiceTaxNo.value.trim() || undefined,
+      email: invoiceEmail.value.trim() || undefined
+    });
+    invoiceDone.value = true;
+    showInvoice.value = false;
+    uni.showToast({ title: '开票申请已提交', icon: 'success' });
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '提交失败', icon: 'none' });
+  } finally {
+    invoiceLoading.value = false;
+  }
+}
+type RefundLineRow = { skuId: string; skuName: string; maxQty: number; qty: number };
+const refundLineRows = ref<RefundLineRow[]>([]);
+
+function syncRefundLines() {
+  refundLineRows.value = (order.value?.lines || [])
+    .filter((l) => l?.skuId && (l.quantity || 0) > 0)
+    .map((l) => ({
+      skuId: String(l.skuId),
+      skuName: String(l.skuName || l.skuId),
+      maxQty: Number(l.quantity || 0),
+      qty: 0
+    }));
+}
+
+function onPartialQty(row: RefundLineRow, e: any) {
+  const n = Math.max(
+    0,
+    Math.min(row.maxQty, parseInt(String(e?.detail?.value ?? e?.target?.value ?? 0), 10) || 0)
+  );
+  row.qty = n;
+}
 
 const statusDetail = computed(() => {
   if (order.value?.status === 'PAID' || order.value?.status === 'COMPLETED') {
@@ -390,15 +612,17 @@ const payChannelText = computed(() => {
   return displayLabel('pay_channel', ch, '未知渠道');
 });
 
-function formatTime(t: string) {
+function formatTime(t?: string) {
   return formatDateTimeMinute(t, '暂无');
 }
 
 function playVideo() {
   if (!videoUrl.value) return;
   // 统一进入原生视频播放页（H5 / 小程序均可）
+  const oid = encodeURIComponent(String(order.value?.orderId || ''));
+  const did = encodeURIComponent(String(order.value?.deviceId || ''));
   uni.navigateTo({
-    url: `/pages/video/video?url=${encodeURIComponent(videoUrl.value)}`
+    url: `/pages/video/video?url=${encodeURIComponent(videoUrl.value)}&orderId=${oid}&deviceId=${did}`
   });
 }
 
@@ -406,6 +630,7 @@ function openDispute() {
   refundMode.value = false;
   disputeReason.value = '';
   selectedCategory.value = 'USER_APPEAL';
+  selectedChip.value = null;
   evidence.value = [];
   showDispute.value = true;
 }
@@ -414,8 +639,24 @@ function openRefund() {
   refundMode.value = true;
   disputeReason.value = '申请退回本单已扣款项';
   selectedCategory.value = 'USER_APPEAL';
+  selectedChip.value = DISPUTE_REASON_CHIPS.find((c) => c.label === '申请退款') || null;
   evidence.value = [];
+  syncRefundLines();
   showDispute.value = true;
+}
+
+async function payNow() {
+  if (!order.value?.orderId || paying.value) return;
+  paying.value = true;
+  try {
+    await consumerApi.payOrder(order.value.orderId);
+    uni.showToast({ title: '支付成功', icon: 'success' });
+    await reload();
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '支付失败', icon: 'none' });
+  } finally {
+    paying.value = false;
+  }
 }
 
 function closeDispute() {
@@ -424,6 +665,7 @@ function closeDispute() {
 
 function pickChip(chip: DisputeReasonChip) {
   selectedCategory.value = chip.category;
+  selectedChip.value = chip;
   disputeReason.value = appendChipToReason(disputeReason.value, chip);
 }
 
@@ -501,10 +743,25 @@ async function submitRefund() {
     uni.showToast({ title: '图片仍在上传', icon: 'none' });
     return;
   }
+  const restoreInventory = inferRestoreInventory(reason, selectedChip.value);
+  const lines = refundLineRows.value
+    .filter((r) => r.qty > 0)
+    .map((r) => ({
+      skuId: r.skuId,
+      quantity: r.qty,
+      restoreInventory
+    }));
+  const isPartial = lines.length > 0;
   const confirmed = await new Promise<boolean>((resolve) =>
     uni.showModal({
-      title: '确认退款',
-      content: '将立即原路退回本单金额，是否继续？',
+      title: isPartial ? '确认按行退款' : '确认退款',
+      content: isPartial
+        ? restoreInventory
+          ? `将退款所选 ${lines.length} 行商品并回库。是否继续？`
+          : `将退款所选 ${lines.length} 行商品（不回库）。是否继续？`
+        : restoreInventory
+          ? '将立即全额退款，并把本单商品回库（适用于没拿/误识别）。是否继续？'
+          : '将立即全额退款，但库存不回库（货已拿走/仅退款）。是否继续？',
       confirmText: '确认退款',
       success: (r) => resolve(!!r.confirm),
       fail: () => resolve(false)
@@ -515,7 +772,9 @@ async function submitRefund() {
   try {
     const result = await consumerApi.refundOrder(oid, {
       reason,
-      evidenceFileIds: evidenceFileIds(evidence.value)
+      evidenceFileIds: evidenceFileIds(evidence.value),
+      restoreInventory,
+      ...(isPartial ? { lines } : {})
     });
     refundDone.value = true;
     disputeFiled.value = true;
@@ -553,9 +812,14 @@ function callSupport() {
 
 <style scoped>
 .page-root {
-  padding: 20rpx;
-  background: #f7f7f7;
-  min-height: 100vh;
+  padding: 0;
+  background: #ffffff;
+  /* 用 100% 贴齐 page 高度；100vh 在桌面手机框内会撑出多余内滚动条 */
+  min-height: 100%;
+  box-sizing: border-box;
+}
+.page-body {
+  padding: 20rpx 20rpx calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .loading,
@@ -595,7 +859,7 @@ function callSupport() {
   font-size: 32rpx;
   font-weight: 700;
   margin-right: 20rpx;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   flex-shrink: 0;
 }
@@ -632,14 +896,33 @@ function callSupport() {
   align-items: center;
   padding: 14rpx 0;
   border-bottom: 1rpx solid #f5f5f5;
+  gap: 16rpx;
+}
+.item-thumb {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 14rpx;
+  background: #f0fdf4;
+  flex-shrink: 0;
+}
+.item-info {
+  flex: 1;
+  min-width: 0;
 }
 .item-name {
   font-size: 28rpx;
+  display: block;
 }
 .item-qty {
   font-size: 24rpx;
   color: #999;
   margin-left: 12rpx;
+}
+.item-unit {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
 }
 .item-price {
   font-size: 28rpx;
@@ -695,61 +978,82 @@ function callSupport() {
   color: #333;
 }
 .mono {
-  font-family: monospace;
+  font-family: var(--app-font-mono);
   font-size: 22rpx;
 }
 .actions {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 20rpx;
   padding: 10rpx 0;
 }
+/* 纵向操作区：通栏等宽，避免「立即退款」等比「再去本柜购物」短一截 */
+.actions .btn-primary,
+.actions .btn-outline,
+.actions .btn-refund {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  align-self: stretch !important;
+  justify-content: center;
+  padding-left: 36rpx;
+  padding-right: 36rpx;
+}
 .btn-primary {
-  width: 100%;
-  display: block;
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   box-sizing: border-box;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   border: none;
   color: #fff;
   border-radius: 44rpx;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   font-size: 28rpx;
   font-weight: 600;
-  text-align: center;
   box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
 }
 .btn-outline {
-  width: 100%;
-  display: block;
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   box-sizing: border-box;
   height: 80rpx;
-  line-height: 80rpx;
+  line-height: 1.2;
   border: 2rpx solid #059669;
   color: #059669;
   border-radius: 44rpx;
   background: #fff;
   font-size: 28rpx;
   font-weight: 600;
-  text-align: center;
 }
 .btn-outline.danger {
   border-color: #ef4444;
   color: #b91c1c;
 }
 .btn-refund {
-  width: 100%;
-  display: block;
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   box-sizing: border-box;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   border: none;
   color: #fff;
   border-radius: 44rpx;
   background: linear-gradient(135deg, #dc2626, #ef4444);
   font-size: 28rpx;
   font-weight: 600;
-  text-align: center;
   box-shadow: 0 8rpx 24rpx rgba(239, 68, 68, 0.22);
 }
 .btn-primary::after,
@@ -816,7 +1120,7 @@ function callSupport() {
 .dispute-input {
   width: 100%;
   min-height: 140rpx;
-  background: #f7f7f7;
+  background: #f5f7f8;
   border-radius: 12rpx;
   padding: 20rpx;
   box-sizing: border-box;
@@ -885,13 +1189,19 @@ function callSupport() {
 }
 .btn-submit {
   width: 100%;
+  min-height: 88rpx;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   background: #ef4444;
   color: #fff;
   border-radius: 44rpx;
   font-size: 30rpx;
   border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .dispute-cancel {
   display: block;
@@ -900,5 +1210,32 @@ function callSupport() {
   margin-top: 20rpx;
   font-size: 28rpx;
   padding: 8rpx;
+}
+.partial-block {
+  margin: 16rpx 0 8rpx;
+}
+.partial-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 12rpx;
+}
+.partial-name {
+  flex: 1;
+  font-size: 26rpx;
+  color: #1e293b;
+}
+.partial-meta {
+  font-size: 22rpx;
+  color: #94a3b8;
+}
+.partial-qty {
+  width: 100rpx;
+  height: 56rpx;
+  border: 1rpx solid #e2e8f0;
+  border-radius: 8rpx;
+  text-align: center;
+  font-size: 26rpx;
+  background: #fff;
 }
 </style>

@@ -58,69 +58,73 @@
 
     <el-tabs v-model="tab">
       <el-tab-pane label="日资金账单" name="bills">
-        <el-table
-          v-loading="loading"
-          :data="pagedBills"
-          :default-sort="billIdDefaultSort"
-          @sort-change="onBillIdSortChange"
-          stripe
-          border
-          class="report-table"
-          row-key="rowKey"
-          @selection-change="onBillSelectionChange"
-          empty-text=" "
-        >
-          <template #empty
-            ><el-empty v-if="listHydrated && !loading" description="暂无账单"
-          /></template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="bizDate" label="账期" width="120" align="center" />
-          <el-table-column
-            prop="merchantId"
-            label="商户编号"
-            min-width="120"
-            align="center"
-            class-name="col-text"
-            show-overflow-tooltip
-            sortable="custom"
-          >
-            <template #default="{ row }">
-              <span class="cell-id">{{ row.merchantId }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column
-            label="商户"
-            min-width="120"
-            align="center"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
-            <template #default="{ row }">{{ row.merchantName || '无' }}</template>
-          </el-table-column>
-          <el-table-column label="订单实付" width="110" align="center">
-            <template #default="{ row }">¥{{ yuan(row.orderPaidCents) }}</template>
-          </el-table-column>
-          <el-table-column label="平台抽成" width="100" align="center">
-            <template #default="{ row }">¥{{ yuan(row.platformFeeCents) }}</template>
-          </el-table-column>
-          <el-table-column label="通道费(估)" width="100" align="center">
-            <template #default="{ row }">¥{{ yuan(row.channelFeeCents) }}</template>
-          </el-table-column>
-          <el-table-column label="已入账" width="100" align="center">
-            <template #default="{ row }">¥{{ yuan(row.creditedCents) }}</template>
-          </el-table-column>
-          <el-table-column label="待入账" width="100" align="center">
-            <template #default="{ row }">¥{{ yuan(row.pendingCents) }}</template>
-          </el-table-column>
-          <el-table-column prop="orderCount" label="笔数" width="80" align="center" />
-          <el-table-column label="固化" width="80" align="center">
-            <template #default="{ row }">
-              <el-tag :type="row.solidified ? 'success' : 'info'" size="small">
-                {{ row.solidified ? '已固化' : '实时' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-        </el-table>
+        <div class="table-scroll">
+          <div class="table-scroll-inner">
+            <el-table
+              v-loading="loading"
+              :data="pagedBills"
+              :default-sort="billIdDefaultSort"
+              @sort-change="onBillIdSortChange"
+              stripe
+              border
+              class="report-table"
+              row-key="rowKey"
+              @selection-change="onBillSelectionChange"
+              empty-text=" "
+            >
+              <template #empty
+                ><el-empty v-if="listHydrated && !loading" description="暂无账单"
+              /></template>
+              <el-table-column type="selection" width="48" align="center" />
+              <el-table-column prop="bizDate" label="账期" width="120" align="center" />
+              <el-table-column
+                prop="merchantId"
+                label="商户编号"
+                min-width="120"
+                align="center"
+                class-name="col-text"
+                show-overflow-tooltip
+                sortable="custom"
+              >
+                <template #default="{ row }">
+                  <span class="cell-id">{{ row.merchantId }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                label="商户"
+                min-width="120"
+                align="center"
+                class-name="col-text"
+                show-overflow-tooltip
+              >
+                <template #default="{ row }">{{ row.merchantName || '无' }}</template>
+              </el-table-column>
+              <el-table-column label="订单实付" width="110" align="center">
+                <template #default="{ row }">¥{{ yuan(row.orderPaidCents) }}</template>
+              </el-table-column>
+              <el-table-column label="平台抽成" width="100" align="center">
+                <template #default="{ row }">¥{{ yuan(row.platformFeeCents) }}</template>
+              </el-table-column>
+              <el-table-column label="通道费(估)" width="100" align="center">
+                <template #default="{ row }">¥{{ yuan(row.channelFeeCents) }}</template>
+              </el-table-column>
+              <el-table-column label="已入账" width="100" align="center">
+                <template #default="{ row }">¥{{ yuan(row.creditedCents) }}</template>
+              </el-table-column>
+              <el-table-column label="待入账" width="100" align="center">
+                <template #default="{ row }">¥{{ yuan(row.pendingCents) }}</template>
+              </el-table-column>
+              <el-table-column prop="orderCount" label="笔数" width="80" align="center" />
+              <el-table-column label="固化" width="80" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="row.solidified ? 'success' : 'info'" size="small">
+                    {{ row.solidified ? '已固化' : '实时' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
         <PagePager
           :hydrated="listHydrated"
           v-model:current-page="billPage"
@@ -167,68 +171,72 @@
             </el-select>
           </el-form-item>
         </el-form>
-        <el-table
-          v-loading="ledgerLoading"
-          :data="filteredLedger"
-          :default-sort="ledgerIdDefaultSort"
-          @sort-change="onLedgerIdSortChange"
-          stripe
-          border
-          class="report-table"
-          row-key="entryId"
-          @selection-change="onLedgerSelectionChange"
-          empty-text=" "
-        >
-          <template #empty
-            ><el-empty v-if="ledgerHydrated && !ledgerLoading" description="暂无流水"
-          /></template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="entryId"
-            label="分录号"
-            width="100"
-            align="center"
-            class-name="col-text"
-            sortable="custom"
-          >
-            <template #default="{ row }">
-              <span class="cell-id">{{ row.entryId }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="财务类型" width="140" align="center">
-            <template #default="{ row }">{{
-              dictLabel('fund_ledger_type', row.financialType)
-            }}</template>
-          </el-table-column>
-          <el-table-column label="收支" width="80" align="center">
-            <template #default="{ row }">
-              <el-tag :type="row.direction === 'IN' ? 'success' : 'danger'" size="small">
-                {{ dictLabel('fund_direction', row.direction) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="金额" width="110" align="center">
-            <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
-          </el-table-column>
-          <el-table-column
-            prop="orderId"
-            label="订单"
-            min-width="160"
-            show-overflow-tooltip
-            align="center"
-          />
-          <el-table-column prop="deviceId" label="货柜" width="120" align="center" />
-          <el-table-column
-            prop="merchantName"
-            label="商户"
-            min-width="140"
-            show-overflow-tooltip
-            align="center"
-          />
-          <el-table-column label="时间" width="170" align="center">
-            <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
-          </el-table-column>
-        </el-table>
+        <div class="table-scroll">
+          <div class="table-scroll-inner">
+            <el-table
+              v-loading="ledgerLoading"
+              :data="filteredLedger"
+              :default-sort="ledgerIdDefaultSort"
+              @sort-change="onLedgerIdSortChange"
+              stripe
+              border
+              class="report-table"
+              row-key="entryId"
+              @selection-change="onLedgerSelectionChange"
+              empty-text=" "
+            >
+              <template #empty
+                ><el-empty v-if="ledgerHydrated && !ledgerLoading" description="暂无流水"
+              /></template>
+              <el-table-column type="selection" width="48" align="center" />
+              <el-table-column
+                prop="entryId"
+                label="分录号"
+                width="100"
+                align="center"
+                class-name="col-text"
+                sortable="custom"
+              >
+                <template #default="{ row }">
+                  <span class="cell-id">{{ displayBizNo(row.entryId) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="财务类型" width="140" align="center">
+                <template #default="{ row }">{{
+                  dictLabel('fund_ledger_type', row.financialType)
+                }}</template>
+              </el-table-column>
+              <el-table-column label="收支" width="80" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="row.direction === 'IN' ? 'success' : 'danger'" size="small">
+                    {{ dictLabel('fund_direction', row.direction) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="金额" width="110" align="center">
+                <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
+              </el-table-column>
+              <el-table-column
+                prop="orderId"
+                label="订单"
+                min-width="160"
+                show-overflow-tooltip
+                align="center"
+              />
+              <el-table-column prop="deviceId" label="货柜" width="120" align="center" />
+              <el-table-column
+                prop="merchantName"
+                label="商户"
+                min-width="140"
+                show-overflow-tooltip
+                align="center"
+              />
+              <el-table-column label="时间" width="170" align="center">
+                <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
         <PagePager
           :hydrated="ledgerHydrated"
           v-model:current-page="ledgerPage"
@@ -251,6 +259,7 @@ import PagePager from '@/components/PagePager.vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { displayBizNo } from '@aicabinet/shared-uni/format';
 import { api, downloadAuthFile } from '@/api/client';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';

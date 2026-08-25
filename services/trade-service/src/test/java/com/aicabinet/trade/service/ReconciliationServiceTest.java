@@ -3,7 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.reconciliation.PlatformBillLine;
 import com.aicabinet.trade.reconciliation.PlatformBillProviderRegistry;
-import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.mapper.PaymentPlatformBillLineMapper;
 import com.aicabinet.trade.mapper.PaymentReconciliationMapper;
 import com.aicabinet.trade.mapper.RechargeOrderMapper;
@@ -29,18 +29,23 @@ class ReconciliationServiceTest {
 
     @Mock private PaymentReconciliationMapper reconRepository;
     @Mock private PaymentPlatformBillLineMapper billLineRepository;
-    @Mock private CabinetOrderMapper orderRepository;
+    @Mock private PaymentOperationMapper paymentOperationRepository;
     @Mock private RechargeOrderMapper rechargeRepository;
     @Mock private PlatformBillProviderRegistry billProviderRegistry;
     @Mock private CabinetMetrics cabinetMetrics;
+    @Mock private DistributedLockService distributedLockService;
 
     private ReconciliationService service;
 
     @BeforeEach
     void setUp() {
         service = new ReconciliationService(
-                reconRepository, billLineRepository, orderRepository, rechargeRepository,
-                billProviderRegistry, new ObjectMapper(), cabinetMetrics);
+                reconRepository, billLineRepository, paymentOperationRepository, rechargeRepository,
+                billProviderRegistry, new ObjectMapper(), cabinetMetrics, distributedLockService);
+        org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
     }
 
     @Test
@@ -50,9 +55,10 @@ class ReconciliationServiceTest {
         Instant start = date.atStartOfDay(zone).toInstant();
 
         when(reconRepository.findByReconDateAndChannel(date, "MOCK")).thenReturn(Optional.empty());
-        when(orderRepository.sumTotalAmountBetween(any(), any())).thenReturn(350L);
+        when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("MOCK"))).thenReturn(350L);
         when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(0L);
-        when(orderRepository.findOrderIdsBetween(any(), any())).thenReturn(List.of("ORD-1"));
+        when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("MOCK")))
+                .thenReturn(List.of("ORD-1"));
         when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
         when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of(
                 new PlatformBillLine("P1", "ORD-1", 350, start, "PAY", "{}")
@@ -78,9 +84,10 @@ class ReconciliationServiceTest {
     void runDaily_recordsMismatchMetricWhenDiff() {
         LocalDate date = LocalDate.now();
         when(reconRepository.findByReconDateAndChannel(date, "WECHAT")).thenReturn(Optional.empty());
-        when(orderRepository.sumTotalAmountBetween(any(), any())).thenReturn(100L);
+        when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("WECHAT"))).thenReturn(100L);
         when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(0L);
-        when(orderRepository.findOrderIdsBetween(any(), any())).thenReturn(List.of());
+        when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("WECHAT")))
+                .thenReturn(List.of());
         when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
         when(billProviderRegistry.fetchBill("WECHAT", date)).thenReturn(List.of(
                 new PlatformBillLine("P9", "ORD-X", 500, Instant.now(), "WECHAT", "raw")
@@ -103,9 +110,10 @@ class ReconciliationServiceTest {
     void runDaily_flagsLedgerOnlyOrdersAsMismatch() {
         LocalDate date = LocalDate.now();
         when(reconRepository.findByReconDateAndChannel(date, "MOCK")).thenReturn(Optional.empty());
-        when(orderRepository.sumTotalAmountBetween(any(), any())).thenReturn(100L);
+        when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("MOCK"))).thenReturn(100L);
         when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(0L);
-        when(orderRepository.findOrderIdsBetween(any(), any())).thenReturn(List.of("ORD-LEDGER-ONLY"));
+        when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("MOCK")))
+                .thenReturn(List.of("ORD-LEDGER-ONLY"));
         when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
         when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of());
         when(reconRepository.save(any())).thenAnswer(inv -> {
@@ -124,6 +132,34 @@ class ReconciliationServiceTest {
     }
 
     @Test
+    void runDaily_includesRechargeInLedgerTotal() {
+        LocalDate date = LocalDate.of(2024, 6, 2);
+        when(reconRepository.findByReconDateAndChannel(date, "WECHAT")).thenReturn(Optional.empty());
+        when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("WECHAT"))).thenReturn(200L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(150L);
+        when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("WECHAT")))
+                .thenReturn(List.of("ORD-1"));
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of("RCH-1"));
+        when(billProviderRegistry.fetchBill("WECHAT", date)).thenReturn(List.of(
+                new PlatformBillLine("P1", "ORD-1", 200, Instant.now(), "PAY", "{}"),
+                new PlatformBillLine("P2", "RCH-1", 150, Instant.now(), "PAY", "{}")
+        ));
+        when(reconRepository.save(any())).thenAnswer(inv -> {
+            var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
+            if (r.getReconId() == null) {
+                r.setReconId(11L);
+            }
+            return r;
+        });
+
+        var result = service.runDaily(100000001L, date, "WECHAT");
+
+        assertEquals("MATCHED", result.status());
+        assertEquals(350, result.ledgerTotal());
+        assertEquals(350, result.platformTotal());
+    }
+
+    @Test
     void runDaily_recomputesExistingReconciliation() {
         LocalDate date = LocalDate.now();
         var existing = new com.aicabinet.trade.domain.PaymentReconciliation();
@@ -131,9 +167,10 @@ class ReconciliationServiceTest {
         existing.setReconDate(date);
         existing.setChannel("MOCK");
         when(reconRepository.findByReconDateAndChannel(date, "MOCK")).thenReturn(Optional.of(existing));
-        when(orderRepository.sumTotalAmountBetween(any(), any())).thenReturn(0L);
+        when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("MOCK"))).thenReturn(0L);
         when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(0L);
-        when(orderRepository.findOrderIdsBetween(any(), any())).thenReturn(List.of());
+        when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("MOCK")))
+                .thenReturn(List.of());
         when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
         when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of());
         when(reconRepository.save(any())).thenAnswer(inv -> {

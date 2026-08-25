@@ -1,62 +1,110 @@
 <template>
   <view class="page-root">
-    <view v-if="loading" class="loading"><text>加载中…</text></view>
-    <view v-else-if="error" class="empty">
-      <text class="err">{{ error }}</text>
-      <button class="retry" @click="load">重试</button>
-    </view>
-    <view v-else-if="order">
-      <view class="status-bar" :class="'s-' + (order.status || '').toLowerCase()">
-        <text class="status-title">{{ statusText(order.status) }}</text>
-        <text class="status-amt">{{ money(order.totalAmountCents) }}</text>
+    <app-nav-bar title="订单详情" />
+    <view class="page-body">
+      <view v-if="loading && !order" class="loading"><text>加载中…</text></view>
+      <view v-else-if="error && !order" class="empty">
+        <text class="err">{{ error }}</text>
+        <button class="retry" @click="load">重试</button>
       </view>
+      <view v-else-if="order">
+        <view class="status-bar" :class="'s-' + (order.status || '').toLowerCase()">
+          <text class="status-title">{{ statusText(order.status) }}</text>
+          <text class="status-amt">{{ money(order.totalAmountCents) }}</text>
+        </view>
 
-      <view class="section">
-        <text class="section-title">商品明细</text>
-        <view v-for="(line, i) in order.lines || []" :key="i" class="line">
-          <view class="line-info">
-            <text class="line-name">{{ line.skuName || line.skuId || '商品' }}</text>
-            <text class="line-qty">x{{ line.quantity }}</text>
+        <view class="section">
+          <text class="section-title">商品明细</text>
+          <view v-for="(line, i) in order.lines || []" :key="i" class="line">
+            <image
+              class="line-thumb"
+              :src="skuImageFor(line.skuId, line.skuName)"
+              mode="aspectFill"
+              aria-hidden="true"
+            />
+            <view class="line-info">
+              <text class="line-name">{{ line.skuName || line.skuId || '商品' }}</text>
+              <text class="line-qty"
+                >x{{ line.quantity }}{{ line.slotId ? ` · 货道 ${line.slotId}` : ''
+                }}{{ line.batchNo ? ` · 批次 ${line.batchNo}` : '' }}</text
+              >
+              <text v-if="line.unitPriceCents != null" class="line-unit"
+                >单价 {{ money(line.unitPriceCents) }}</text
+              >
+            </view>
+            <text class="line-amt">{{ money(line.lineAmountCents) }}</text>
           </view>
-          <text class="line-amt">{{ money(line.lineAmountCents) }}</text>
+          <view v-if="!(order.lines || []).length" class="muted">无商品明细</view>
+          <view v-if="Number(order.originalAmountCents || 0) > 0" class="sum-row">
+            <text>原价</text>
+            <text>{{ money(order.originalAmountCents) }}</text>
+          </view>
+          <view v-if="order.couponDiscountCents" class="sum-row">
+            <text>券优惠</text>
+            <text>减{{ money(order.couponDiscountCents) }}</text>
+          </view>
+          <view v-if="Number(order.memberDiscountCents || 0) > 0" class="sum-row">
+            <text>会员优惠</text>
+            <text>减{{ money(order.memberDiscountCents) }}</text>
+          </view>
+          <view class="sum-row strong">
+            <text>实付</text>
+            <text>{{ money(order.totalAmountCents) }}</text>
+          </view>
         </view>
-        <view v-if="!(order.lines || []).length" class="muted">无商品明细</view>
-        <view v-if="order.couponDiscountCents" class="sum-row">
-          <text>优惠</text>
-          <text>-{{ money(order.couponDiscountCents) }}</text>
-        </view>
-        <view class="sum-row strong">
-          <text>实付</text>
-          <text>{{ money(order.totalAmountCents) }}</text>
-        </view>
-      </view>
 
-      <view class="section">
-        <text class="section-title">订单信息</text>
-        <view class="info-row"
-          ><text class="lbl">订单号</text
-          ><text class="val mono">{{ emptyDisplay(order.orderId, 'order') }}</text></view
-        >
-        <view class="info-row"
-          ><text class="lbl">会话</text
-          ><text class="val mono">{{ emptyDisplay(order.sessionId, 'session') }}</text></view
-        >
-        <view class="info-row"
-          ><text class="lbl">柜机</text
-          ><text class="val mono">{{ emptyDisplay(order.deviceId, 'device') }}</text></view
-        >
-        <view class="info-row"
-          ><text class="lbl">支付方式</text><text class="val">{{ payChannelText }}</text></view
-        >
-        <view class="info-row"
-          ><text class="lbl">创建时间</text
-          ><text class="val">{{ formatTime(order.createdAt) }}</text></view
-        >
-      </view>
+        <view class="section">
+          <text class="section-title">订单信息</text>
+          <view class="info-row"
+            ><text class="lbl">订单号</text
+            ><text class="val mono">{{ emptyDisplay(order.orderId, 'order') }}</text></view
+          >
+          <view class="info-row"
+            ><text class="lbl">会话</text
+            ><text class="val mono">{{ emptyDisplay(order.sessionId, 'session') }}</text></view
+          >
+          <view class="info-row"
+            ><text class="lbl">柜机</text
+            ><text class="val mono">{{ emptyDisplay(order.deviceId, 'device') }}</text></view
+          >
+          <view class="info-row"
+            ><text class="lbl">支付方式</text><text class="val">{{ payChannelText }}</text></view
+          >
+          <view v-if="order.payTradeNo || order.paymentOperationId" class="info-row"
+            ><text class="lbl">流水号</text
+            ><text class="val mono">{{
+              displayBizNo(order.payTradeNo || order.paymentOperationId)
+            }}</text></view
+          >
+          <view v-if="order.refundPolicy" class="info-row"
+            ><text class="lbl">退款策略</text
+            ><text class="val">{{ refundPolicyText(order.refundPolicy) }}</text></view
+          >
+          <view class="info-row"
+            ><text class="lbl">创建时间</text
+            ><text class="val">{{ formatTime(order.createdAt) }}</text></view
+          >
+          <view
+            v-if="
+              order.refundedAt ||
+              order.status === 'REFUNDED' ||
+              order.status === 'PARTIAL_REFUNDED' ||
+              refundCents > 0
+            "
+            class="info-row"
+            ><text class="lbl">退款</text
+            ><text class="val"
+              >{{ order.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
+              }}{{ refundCents > 0 ? ` ${fmtMoney(refundCents)}` : ''
+              }}{{ order.refundedAt ? ` · ${formatTime(order.refundedAt)}` : '' }}</text
+            ></view
+          >
+        </view>
 
-      <view class="actions">
-        <button v-if="order.deviceId" class="btn-primary" @click="goDevice">查看柜机</button>
-        <button class="btn-outline" @click="goDisputes">相关争议</button>
+        <view class="actions">
+          <button v-if="order.deviceId" class="btn-primary" @click="goDevice">查看柜机</button>
+          <button class="btn-outline" @click="goDisputes">相关争议</button>
+        </view>
       </view>
     </view>
   </view>
@@ -66,7 +114,9 @@
 import { computed, ref } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
+import { skuImageFor } from '@aicabinet/shared-uni/product-image';
 import {
+  displayBizNo,
   emptyDisplay,
   formatDateTimeShort,
   orderStatusLabel,
@@ -80,7 +130,10 @@ type OrderLine = {
   skuId?: string;
   skuName?: string;
   quantity?: number;
+  unitPriceCents?: number;
   lineAmountCents?: number;
+  batchNo?: string;
+  slotId?: string;
 };
 
 type OrderDetail = {
@@ -89,9 +142,15 @@ type OrderDetail = {
   deviceId?: string;
   status?: string;
   payChannel?: string;
+  payTradeNo?: string;
+  paymentOperationId?: string;
   totalAmountCents?: number;
   couponDiscountCents?: number;
+  memberDiscountCents?: number;
   originalAmountCents?: number;
+  refundPolicy?: string;
+  refundedAt?: string;
+  refundedCents?: number;
   lines?: OrderLine[];
   createdAt?: string;
 };
@@ -108,8 +167,18 @@ const payChannelText = computed(() =>
   displayLabel('pay_channel', order.value?.payChannel, '未知渠道')
 );
 
-onLoad((opt: Record<string, string | undefined>) => {
-  orderId.value = String(opt?.orderId || opt?.id || '').trim();
+const refundCents = computed(() => {
+  const o = order.value;
+  if (!o) return 0;
+  const n = Number(o.refundedCents || 0);
+  if (n > 0) return n;
+  if (o.status === 'REFUNDED') return Number(o.totalAmountCents || 0);
+  return 0;
+});
+
+onLoad((opt) => {
+  const q = (opt || {}) as Record<string, string | undefined>;
+  orderId.value = String(q.orderId || q.id || '').trim();
   void load();
 });
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
@@ -134,13 +203,15 @@ async function load() {
     uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
     return;
   }
-  loading.value = true;
+  if (!order.value) loading.value = true;
   error.value = '';
   try {
     order.value = (await merchantApi.orderDetail(orderId.value)) as OrderDetail;
   } catch (e) {
-    order.value = null;
-    error.value = e instanceof Error ? e.message : '加载失败';
+    if (!order.value) {
+      order.value = null;
+      error.value = e instanceof Error ? e.message : '加载失败';
+    }
   } finally {
     loading.value = false;
   }
@@ -148,6 +219,14 @@ async function load() {
 
 function statusText(s?: string) {
   return orderStatusLabel(s);
+}
+
+function refundPolicyText(policy?: string) {
+  if (policy === 'AUTO_REFUND') return '自助退';
+  if (policy === 'DISPUTE_ONLY') return '仅争议';
+  if (!policy) return '默认规则';
+  if (/^[A-Z][A-Z0-9_]*$/.test(policy)) return '默认规则';
+  return policy;
 }
 
 function money(cents?: number) {
@@ -181,9 +260,9 @@ function goDisputes() {
 <style scoped>
 .page-root {
   min-height: 100vh;
-  background: #f0fdfa;
-  padding: 24rpx;
-  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  background: #ffffff;
+  padding: 0;
+
   box-sizing: border-box;
 }
 .loading,
@@ -215,33 +294,39 @@ function goDisputes() {
   border: none;
 }
 .status-bar {
-  background: linear-gradient(145deg, #0f766e, #14b8a6);
-  color: #fff;
+  background: linear-gradient(135deg, #ecfdf5, #fff);
+  color: #14201b;
   border-radius: 16rpx;
   padding: 28rpx 24rpx;
   margin-bottom: 20rpx;
+  border: 1rpx solid #d1fae5;
 }
 .status-bar.s-disputed {
-  background: linear-gradient(145deg, #9a3412, #ea580c);
+  background: linear-gradient(135deg, #fff7ed, #fff);
+  border-color: #fed7aa;
 }
 .status-bar.s-refunded,
 .status-bar.s-partial_refunded {
-  background: linear-gradient(145deg, #1e3a8a, #3b82f6);
+  background: linear-gradient(135deg, #eff6ff, #fff);
+  border-color: #bfdbfe;
 }
 .status-bar.s-pending,
 .status-bar.s-processing {
-  background: linear-gradient(145deg, #854d0e, #ca8a04);
+  background: linear-gradient(135deg, #fefce8, #fff);
+  border-color: #fde68a;
 }
 .status-title {
   display: block;
   font-size: 30rpx;
-  font-weight: 600;
+  font-weight: 700;
+  color: #0f172a;
 }
 .status-amt {
   display: block;
   margin-top: 8rpx;
   font-size: 44rpx;
   font-weight: 700;
+  color: #0f766e;
 }
 .section {
   background: #fff;
@@ -262,6 +347,14 @@ function goDisputes() {
   justify-content: space-between;
   align-items: center;
   padding: 12rpx 0;
+  gap: 16rpx;
+}
+.line-thumb {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 14rpx;
+  background: #ecfdf5;
+  flex-shrink: 0;
 }
 .line-info {
   display: flex;
@@ -280,6 +373,12 @@ function goDisputes() {
 .line-qty {
   font-size: 24rpx;
   color: #94a3b8;
+}
+.line-unit {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #64748b;
 }
 .line-amt {
   font-size: 28rpx;
@@ -328,20 +427,25 @@ function goDisputes() {
 .actions {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 16rpx;
   margin-top: 8rpx;
 }
 .btn-primary,
 .btn-outline {
   width: 100%;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   box-sizing: border-box;
   border-radius: 44rpx;
   font-size: 28rpx;
   font-weight: 600;
   min-height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   padding: 0 32rpx;
+  margin: 0;
 }
 .btn-primary {
   background: linear-gradient(135deg, #134e4a, #0f766e);
@@ -354,10 +458,13 @@ function goDisputes() {
   color: #0f766e;
   border: 2rpx solid #0f766e;
   min-height: 80rpx;
-  line-height: 80rpx;
 }
 .btn-primary::after,
 .btn-outline::after {
   border: none;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

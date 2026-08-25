@@ -18,21 +18,21 @@
     <div class="profile-head">
       <el-avatar :size="64" class="avatar">{{ initial }}</el-avatar>
       <div class="name-cell">
-        <strong class="display-name">{{ profileReady ? auth.displayName : '—' }}</strong>
-        <small>{{ profileReady ? auth.phone || '无' : '—' }}</small>
-        <small class="cell-id">ID {{ profileReady ? auth.userId || '无' : '—' }}</small>
+        <strong class="display-name">{{ profileReady ? auth.displayName : '…' }}</strong>
+        <small>{{ profileReady ? auth.phone || '无' : '…' }}</small>
+        <small class="cell-id">ID {{ profileReady ? auth.userId || '无' : '…' }}</small>
       </div>
     </div>
 
     <el-descriptions :column="1" border class="profile-desc">
       <el-descriptions-item label="角色">{{
-        profileReady ? auth.roleText : '—'
+        profileReady ? auth.roleText : '…'
       }}</el-descriptions-item>
       <el-descriptions-item label="数据范围">{{
-        profileReady ? auth.dataScopeText : '—'
+        profileReady ? auth.dataScopeText : '…'
       }}</el-descriptions-item>
       <el-descriptions-item label="权限数">
-        {{ profileReady ? (auth.profile?.permissionCount ?? permissions.length) : '—' }}
+        {{ profileReady ? (auth.profile?.permissionCount ?? permissions.length) : '暂无' }}
       </el-descriptions-item>
       <el-descriptions-item label="主题">
         <el-tag size="small" :type="settings.theme === 'dark' ? 'info' : 'success'" effect="plain">
@@ -42,6 +42,71 @@
       <el-descriptions-item label="字号">{{ fontLabel }}</el-descriptions-item>
       <el-descriptions-item label="操作列">{{ actionLabel }}</el-descriptions-item>
     </el-descriptions>
+
+    <div class="twofa-card">
+      <div class="perm-head">
+        <h4>双因子认证（TOTP）</h4>
+        <el-tag size="small" :type="twoFactorEnabled ? 'success' : 'info'" effect="plain">
+          {{ twoFactorEnabled ? '已启用' : '未启用' }}
+        </el-tag>
+      </div>
+      <p class="meta">登录时除密码外需输入身份验证器动态码，建议所有运营账号启用</p>
+
+      <template v-if="!twoFactorEnabled">
+        <el-button
+          v-if="!enrollData"
+          type="primary"
+          plain
+          :loading="twoFactorLoading"
+          @click="enroll"
+          >绑定身份验证器</el-button
+        >
+        <div v-else class="enroll-box">
+          <p class="meta">
+            1. 打开身份验证器 App（Google Authenticator / Microsoft Authenticator
+            等），扫码或手动输入密钥：
+          </p>
+          <el-input :model-value="enrollData.secret" readonly class="secret-input">
+            <template #append>
+              <el-button @click="copyText(enrollData.secret)">复制密钥</el-button>
+            </template>
+          </el-input>
+          <p class="meta break-all">{{ enrollData.otpauthUri }}</p>
+          <p class="meta">2. 输入 App 当前显示的 6 位动态码完成绑定：</p>
+          <div class="enroll-row">
+            <el-input
+              v-model="confirmCode"
+              maxlength="6"
+              placeholder="6 位动态码"
+              class="code-input"
+              @keyup.enter="confirm"
+            />
+            <el-button type="primary" :loading="twoFactorLoading" @click="confirm"
+              >确认绑定</el-button
+            >
+          </div>
+          <p class="meta warn">
+            请立即保存以下 8 个后备码（仅显示一次），丢失后只能联系管理员重置：
+          </p>
+          <div class="recovery-codes">
+            <el-tag v-for="c in enrollData.recoveryCodes" :key="c" size="small">{{ c }}</el-tag>
+          </div>
+        </div>
+      </template>
+
+      <div v-else class="enroll-row">
+        <el-input
+          v-model="disableCode"
+          maxlength="6"
+          placeholder="输入当前动态码以关闭"
+          class="code-input"
+          @keyup.enter="disable"
+        />
+        <el-button type="danger" plain :loading="twoFactorLoading" @click="disable"
+          >关闭双因子认证</el-button
+        >
+      </div>
+    </div>
 
     <div v-if="permissions.length" class="perm-block">
       <div class="perm-head">
@@ -107,6 +172,7 @@ import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { useSettingsStore } from '@/stores/settings';
+import type { TwoFactorEnroll, TwoFactorStatus } from '@aicabinet/shared-types';
 
 const auth = useAuthStore();
 const settings = useSettingsStore();
@@ -122,6 +188,87 @@ const actionLabel = computed(() => (settings.tableActionMode === 'label' ? '图�
 const pwdVisible = ref(false);
 const pwdSaving = ref(false);
 const pwdForm = ref({ oldPassword: '', newPassword: '', confirmPassword: '' });
+const twoFactorEnabled = ref(false);
+const twoFactorLoading = ref(false);
+const enrollData = ref<TwoFactorEnroll | null>(null);
+const confirmCode = ref('');
+const disableCode = ref('');
+
+onMounted(() => {
+  void loadTwoFactorStatus();
+});
+
+async function loadTwoFactorStatus() {
+  try {
+    const s = await api.request<TwoFactorStatus>(
+      '/api/v2/ops/admin/rbac/me/two-factor/status',
+      'GET'
+    );
+    twoFactorEnabled.value = !!s?.enabled;
+  } catch {
+    // 软失败：保持默认未启用展示
+  }
+}
+
+async function enroll() {
+  twoFactorLoading.value = true;
+  try {
+    enrollData.value = await api.request<TwoFactorEnroll>(
+      '/api/v2/ops/admin/rbac/me/two-factor/enroll',
+      'GET'
+    );
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '绑定失败');
+  } finally {
+    twoFactorLoading.value = false;
+  }
+}
+
+async function confirm() {
+  const code = confirmCode.value.trim();
+  if (!code) {
+    ElMessage.warning('请输入动态码');
+    return;
+  }
+  twoFactorLoading.value = true;
+  try {
+    await api.request('/api/v2/ops/admin/rbac/me/two-factor/confirm', 'POST', { code });
+    twoFactorEnabled.value = true;
+    enrollData.value = null;
+    confirmCode.value = '';
+    ElMessage.success('双因子认证已启用');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '启用失败');
+  } finally {
+    twoFactorLoading.value = false;
+  }
+}
+
+async function disable() {
+  const code = disableCode.value.trim();
+  if (!code) {
+    ElMessage.warning('请输入动态码');
+    return;
+  }
+  twoFactorLoading.value = true;
+  try {
+    await api.request('/api/v2/ops/admin/rbac/me/two-factor/disable', 'POST', { code });
+    twoFactorEnabled.value = false;
+    disableCode.value = '';
+    ElMessage.success('已关闭双因子认证');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '关闭失败');
+  } finally {
+    twoFactorLoading.value = false;
+  }
+}
+
+function copyText(text: string) {
+  navigator.clipboard
+    ?.writeText(text)
+    .then(() => ElMessage.success('已复制'))
+    .catch(() => ElMessage.warning('复制失败'));
+}
 
 function openPasswordDialog() {
   pwdForm.value = { oldPassword: '', newPassword: '', confirmPassword: '' };
@@ -176,6 +323,42 @@ onActivated(() => {
 </script>
 
 <style scoped>
+.twofa-card {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-blank);
+}
+.enroll-box {
+  margin-top: 12px;
+}
+.secret-input {
+  max-width: 420px;
+  margin: 8px 0;
+}
+.enroll-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.code-input {
+  max-width: 260px;
+}
+.recovery-codes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.warn {
+  color: #b45309;
+}
+.break-all {
+  word-break: break-all;
+}
+
 .page-card-head {
   display: flex;
   justify-content: space-between;

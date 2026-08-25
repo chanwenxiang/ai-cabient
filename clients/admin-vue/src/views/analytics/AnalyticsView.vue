@@ -27,7 +27,7 @@
           >
             <div class="stat-label">今日营收</div>
             <div class="stat-value">
-              {{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '—' }}
+              {{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '…' }}
             </div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
@@ -47,7 +47,7 @@
             @keydown.enter="goPath('/orders')"
           >
             <div class="stat-label">今日订单</div>
-            <div class="stat-value">{{ listHydrated ? stats.orderToday || 0 : '—' }}</div>
+            <div class="stat-value">{{ listHydrated ? stats.orderToday || 0 : '…' }}</div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
               <template v-else>{{
@@ -67,7 +67,7 @@
           >
             <div class="stat-label">24h 开门成功率</div>
             <div class="stat-value">
-              {{ listHydrated ? `${((stats.doorSuccessRate24h || 0) * 100).toFixed(1)}%` : '—' }}
+              {{ listHydrated ? `${((stats.doorSuccessRate24h || 0) * 100).toFixed(1)}%` : '…' }}
             </div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
@@ -89,7 +89,7 @@
             <div class="stat-label">24h 自动识别率</div>
             <div class="stat-value">
               {{
-                listHydrated ? `${((stats.recognitionAutoRate24h || 0) * 100).toFixed(1)}%` : '—'
+                listHydrated ? `${((stats.recognitionAutoRate24h || 0) * 100).toFixed(1)}%` : '…'
               }}
             </div>
             <div class="stat-hint">
@@ -206,7 +206,7 @@
           <ul v-if="orderChannelSvg" class="donut-legend-list">
             <li v-for="p in orderChannelParts" :key="p.label">
               <i :style="{ background: p.color }" />
-              {{ p.label }} ¥{{ ((p.value || 0) / 100).toFixed(p.value >= 10000 ? 0 : 2) }}
+              {{ p.label }} ¥{{ ((p.value || 0) / 100).toFixed(2) }}
               <span class="muted">（{{ p.count }} 单）</span>
             </li>
           </ul>
@@ -220,7 +220,7 @@
           <ul v-if="rechargeChannelSvg" class="donut-legend-list">
             <li v-for="p in rechargeChannelParts" :key="p.label">
               <i :style="{ background: p.color }" />
-              {{ p.label }} ¥{{ ((p.value || 0) / 100).toFixed(p.value >= 10000 ? 0 : 2) }}
+              {{ p.label }} ¥{{ ((p.value || 0) / 100).toFixed(2) }}
               <span class="muted">（{{ p.count }} 笔）</span>
             </li>
           </ul>
@@ -276,10 +276,10 @@
             <ul v-if="deviceSvg" class="donut-legend-list">
               <li>
                 <i style="background: #2dd4bf" />在线
-                {{ listHydrated ? stats.deviceOnline || 0 : '—' }}
+                {{ listHydrated ? stats.deviceOnline || 0 : '…' }}
               </li>
               <li>
-                <i style="background: #64748b" />离线 {{ listHydrated ? offlineDevices : '—' }}
+                <i style="background: #64748b" />离线 {{ listHydrated ? offlineDevices : '…' }}
               </li>
             </ul>
           </div>
@@ -288,13 +288,13 @@
         <ChartPanel title="经营快照" compact>
           <el-descriptions :column="1" border size="small" class="snapshot-desc">
             <el-descriptions-item label="累计营收">
-              {{ listHydrated ? `¥${((stats.revenueTotalCents || 0) / 100).toFixed(2)}` : '—' }}
+              {{ listHydrated ? `¥${((stats.revenueTotalCents || 0) / 100).toFixed(2)}` : '…' }}
             </el-descriptions-item>
             <el-descriptions-item label="累计订单">
-              {{ listHydrated ? stats.orderTotal || 0 : '—' }}
+              {{ listHydrated ? stats.orderTotal || 0 : '…' }}
             </el-descriptions-item>
             <el-descriptions-item label="待审争议">
-              <template v-if="!listHydrated">—</template>
+              <template v-if="!listHydrated">暂无</template>
               <el-button
                 v-else-if="(stats.disputeOpen || 0) > 0 && canAccessPath('/disputes')"
                 link
@@ -306,10 +306,10 @@
               <span v-else class="muted">{{ stats.disputeOpen || 0 }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="24h 争议率">
-              {{ listHydrated ? `${((stats.disputeRate24h || 0) * 100).toFixed(1)}%` : '—' }}
+              {{ listHydrated ? `${((stats.disputeRate24h || 0) * 100).toFixed(1)}%` : '…' }}
             </el-descriptions-item>
             <el-descriptions-item label="今日毛利率">
-              <template v-if="!listHydrated">—</template>
+              <template v-if="!listHydrated">暂无</template>
               <el-button
                 v-else-if="canAccessPath('/finance')"
                 link
@@ -332,7 +332,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import ChartBox from '@/components/ChartBox.vue';
 import ChartPanel from '@/components/ChartPanel.vue';
@@ -389,6 +389,14 @@ const CHANNEL_COLORS: Record<string, string> = {
   MOCK: '#94a3b8',
   UNKNOWN: '#64748b'
 };
+/** 渠道代码兜底中文名（字典未加载时避免界面出现英文） */
+const CHANNEL_LABELS: Record<string, string> = {
+  WECHAT: '微信',
+  ALIPAY: '支付宝',
+  BALANCE: '余额',
+  MOCK: '其他',
+  UNKNOWN: '未知'
+};
 
 const route = useRoute();
 const { router, canAccessPath, goPath } = useNavAccess();
@@ -425,7 +433,7 @@ function channelParts(statsList?: ChannelStat[]) {
   return (statsList || []).map((s, i) => {
     const code = String(s.channel || 'UNKNOWN').toUpperCase();
     return {
-      label: dictLabel('pay_channel', code) || code,
+      label: displayLabel('pay_channel', code, CHANNEL_LABELS[code] || '未知'),
       value: s.amountCents || 0,
       count: s.count || 0,
       color: CHANNEL_COLORS[code] || ['#2dd4bf', '#60a5fa', '#a78bfa', '#fbbf24', '#f472b6'][i % 5]
@@ -478,7 +486,7 @@ const opsSvg = computed(() => {
 const orderChannelSvg = computed(() =>
   buildDonutChart({
     parts: orderChannelParts.value.map((p) => ({ label: p.label, value: p.value, color: p.color })),
-    formatCenter: (cents) => (cents / 100).toFixed(cents % 100 === 0 ? 0 : 2),
+    formatCenter: (cents) => (cents / 100).toFixed(2),
     formatValue: (cents) => `¥${(cents / 100).toFixed(2)}`,
     valueLabel: '金额'
   })
@@ -491,7 +499,7 @@ const rechargeChannelSvg = computed(() =>
       value: p.value,
       color: p.color
     })),
-    formatCenter: (cents) => (cents / 100).toFixed(cents % 100 === 0 ? 0 : 2),
+    formatCenter: (cents) => (cents / 100).toFixed(2),
     formatValue: (cents) => `¥${(cents / 100).toFixed(2)}`,
     valueLabel: '金额'
   })

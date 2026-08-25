@@ -1,111 +1,103 @@
-<template>
-  <view class="page">
-    <view v-if="loading" class="state">加载中…</view>
-    <view v-else-if="error" class="state">
-      <text class="err">{{ error }}</text>
-      <button class="retry" size="mini" @click="load">重试</button>
-    </view>
-    <empty-state
-      v-else-if="!list.length"
-      icon="告"
-      title="暂无通知公告"
-      hint="平台维护、活动与规则变更会在这里发布"
-    />
-    <view v-else class="list">
-      <view
-        v-for="item in list"
-        :key="item.announceId"
-        class="card"
-        hover-class="card-hover"
-        @click="goDetail(item.announceId)"
-      >
-        <view class="card-head">
-          <text
-            v-if="priorityLabel(item.priority)"
-            class="tag"
-            :class="priorityClass(item.priority)"
-          >
-            {{ priorityLabel(item.priority) }}
-          </text>
-          <text v-if="unread(item.announceId)" class="unread-dot" aria-label="未读">新</text>
-          <text class="time">{{ formatTime(item.publishAt) }}</text>
+﻿<template>
+  <view class="page page-root">
+    <app-nav-bar title="通知公告" />
+    <view class="page-body">
+      <view v-if="loading && !list.length" class="state">加载中…</view>
+      <view v-else-if="error && !list.length" class="state">
+        <text class="err">{{ error }}</text>
+        <button class="retry" size="mini" @click="load">重试</button>
+      </view>
+      <empty-state
+        v-else-if="!list.length"
+        icon="/static/menu/notice.png"
+        title="暂无通知公告"
+        hint="平台维护、活动与规则变更会在这里发布"
+      />
+      <view v-else class="list">
+        <view
+          v-for="item in list"
+          :key="item.announceId"
+          class="card"
+          hover-class="card-hover"
+          @click="goDetail(item.announceId)"
+        >
+          <view class="card-head">
+            <text
+              v-if="priorityLabel(item.priority)"
+              class="tag"
+              :class="priorityClass(item.priority)"
+            >
+              {{ priorityLabel(item.priority) }}
+            </text>
+            <text v-if="typeLabel(item.announceType)" class="tag type">{{
+              typeLabel(item.announceType)
+            }}</text>
+            <text v-if="unread(item.announceId)" class="unread-dot" aria-label="未读">新</text>
+            <text class="time">{{ formatTime(item.publishAt) }}</text>
+          </view>
+          <text class="title">{{ item.title }}</text>
+          <text class="preview">{{ previewText(item.content) }}</text>
+          <text v-if="expireHint(item.expireAt)" class="expire">{{
+            expireHint(item.expireAt)
+          }}</text>
         </view>
-        <text class="title">{{ item.title }}</text>
-        <text class="preview">{{ previewText(item.content) }}</text>
       </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
+import { useAnnouncementsList } from '@aicabinet/shared-uni/announcements';
 import { consumerApi } from '@/utils/consumer-api';
-import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
-import { announcementReadMap } from '@aicabinet/shared-uni/announcement-read';
-import type { AnnouncementDto } from '@aicabinet/shared-types';
 
-const loading = ref(true);
-const error = ref('');
-const list = ref<AnnouncementDto[]>([]);
-const readMap = ref<Record<string, number>>({});
+const {
+  loading,
+  error,
+  list,
+  unread,
+  load,
+  goDetail,
+  formatTime,
+  previewText,
+  priorityLabel,
+  priorityClass
+} = useAnnouncementsList(() => consumerApi.listAnnouncements(), { previewMax: 72 });
 
-function unread(id?: number) {
-  return id != null && readMap.value[String(id)] == null;
+function typeLabel(t?: string) {
+  const v = String(t || '').toUpperCase();
+  if (v === 'MAINTENANCE') return '维护';
+  if (v === 'ACTIVITY' || v === 'CAMPAIGN') return '活动';
+  if (v === 'RULE' || v === 'POLICY') return '规则';
+  if (v === 'SYSTEM') return '系统';
+  return t ? String(t) : '';
+}
+
+function expireHint(expireAt?: string) {
+  if (!expireAt) return '';
+  const t = new Date(expireAt).getTime();
+  if (!Number.isFinite(t)) return '';
+  const diff = t - Date.now();
+  if (diff <= 0) return '已过展示期';
+  const days = Math.ceil(diff / (24 * 60 * 60 * 1000));
+  if (days <= 3) return `展示至 ${formatTime(expireAt)} · 即将下线`;
+  return `展示至 ${formatTime(expireAt)}`;
 }
 
 onShow(() => {
   void load();
 });
-
-async function load() {
-  loading.value = true;
-  error.value = '';
-  try {
-    list.value = (await consumerApi.listAnnouncements()) || [];
-    readMap.value = announcementReadMap();
-  } catch (e) {
-    list.value = [];
-    error.value = e instanceof Error ? e.message : '加载失败';
-  } finally {
-    loading.value = false;
-  }
-}
-
-function goDetail(id?: number) {
-  if (!id) return;
-  uni.navigateTo({ url: `/pages/announcements/detail?id=${id}` });
-}
-
-function formatTime(t?: string) {
-  return formatDateTimeMinute(t, '');
-}
-
-function previewText(content?: string) {
-  const text = String(content || '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return text.length > 72 ? `${text.slice(0, 72)}…` : text;
-}
-
-function priorityLabel(p?: string) {
-  if (p === 'URGENT') return '紧急';
-  if (p === 'HIGH') return '重要';
-  return '';
-}
-
-function priorityClass(p?: string) {
-  if (p === 'URGENT') return 'urgent';
-  if (p === 'HIGH') return 'high';
-  return '';
-}
 </script>
 
 <style scoped>
 .page {
-  min-height: 100vh;
-  padding: 24rpx 24rpx 48rpx;
-  background: #f7f7f7;
+  min-height: 100%;
+  padding: 0;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .state {
@@ -143,8 +135,8 @@ function priorityClass(p?: string) {
 }
 .card-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 12rpx;
   margin-bottom: 12rpx;
 }
@@ -154,6 +146,10 @@ function priorityClass(p?: string) {
   padding: 8rpx 12rpx;
   border-radius: 999rpx;
   font-weight: 600;
+}
+.tag.type {
+  color: #047857;
+  background: #ecfdf5;
 }
 .tag.high {
   color: #b45309;
@@ -170,7 +166,6 @@ function priorityClass(p?: string) {
   line-height: 1;
   padding: 6rpx 10rpx;
   border-radius: 999rpx;
-  margin-left: 8rpx;
 }
 .time {
   color: #94a3b8;
@@ -190,5 +185,11 @@ function priorityClass(p?: string) {
   font-size: 26rpx;
   color: #64748b;
   line-height: 1.55;
+}
+.expire {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: #b45309;
 }
 </style>
