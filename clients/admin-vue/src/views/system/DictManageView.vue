@@ -63,12 +63,13 @@
                 <el-table-column
                   v-if="canEdit"
                   label="操作"
-                  width="64"
+                  width="110"
                   class-name="col-action"
                   align="center"
                 >
                   <template #default="{ row }">
                     <el-button link type="primary" @click.stop="openType(row)">编辑</el-button>
+                    <el-button link type="danger" @click.stop="removeType(row)">删除</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -666,6 +667,32 @@ async function removeItem(row: DictItemRow) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '删除失败');
     }
+  }
+}
+
+async function removeType(row: DictTypeRow) {
+  const count = row.itemCount ?? 0;
+  try {
+    await ElMessageBox.confirm(
+      count > 0
+        ? `确认删除字典类型「${row.dictName}」？将同时删除其下 ${count} 个字典项。`
+        : `确认删除字典类型「${row.dictName}」？`,
+      '删除字典类型',
+      { type: 'warning', confirmButtonText: '删除' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/dicts/types/${encodeURIComponent(row.dictType)}`, 'DELETE');
+    ElMessage.success('已删除');
+    if (selected.value?.dictType === row.dictType) {
+      selected.value = null;
+      items.value = [];
+    }
+    await Promise.all([loadTypes(), loadRuntimeDict()]);
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : '删除失败');
   }
 }
 

@@ -1,10 +1,13 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.ScheduledTaskDto;
+import com.aicabinet.common.dto.UpdateScheduledTaskMetaRequest;
+import com.aicabinet.common.dto.UpsertScheduledTaskRequest;
 import com.aicabinet.trade.domain.ScheduledTask;
 import com.aicabinet.trade.mapper.ScheduledTaskMapper;
 import com.xxl.job.core.context.XxlJobContext;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -13,6 +16,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * 定时任务管理：启停开关、分布式锁执行守卫、最近执行记录。
@@ -26,16 +31,21 @@ public class ScheduledTaskService {
 
     private static final ThreadLocal<Boolean> ALLOW_BUILTIN = new ThreadLocal<>();
 
+    private static final Pattern TASK_KEY_PATTERN = Pattern.compile("^[a-z0-9][a-z0-9_-]{1,62}$");
+
     private final ScheduledTaskMapper taskRepository;
+    private final ScheduledTaskRegistry registry;
     private final DistributedLockService lockService;
     private final AdminAuditService auditService;
     private final boolean xxlJobEnabled;
 
     public ScheduledTaskService(ScheduledTaskMapper taskRepository,
+                                @Lazy ScheduledTaskRegistry registry,
                                 DistributedLockService lockService,
                                 AdminAuditService auditService,
                                 @Value("${aicabinet.xxljob.enabled:false}") boolean xxlJobEnabled) {
         this.taskRepository = taskRepository;
+        this.registry = registry;
         this.lockService = lockService;
         this.auditService = auditService;
         this.xxlJobEnabled = xxlJobEnabled;
@@ -44,13 +54,80 @@ public class ScheduledTaskService {
     @Transactional(readOnly = true)
     public List<ScheduledTaskDto> listAll() {
         return taskRepository.findAllByOrderByTaskKeyAsc().stream()
-                .map(ScheduledTaskService::toDto)
+                .map(this::toDto)
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public ScheduledTaskDto get(String taskKey) {
         return toDto(requireTask(taskKey));
+    }
+
+    /** 新建自定义任务行（无代码 runner；仅作登记/启停，立即执行需后续注册）。 */
+    @Transactional
+    public ScheduledTaskDto create(Long operatorId, UpsertScheduledTaskRequest req) {
+        if (req == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体不能为空");
+        }
+        String taskKey = normalizeTaskKey(req.taskKey());
+        return runWithAdminTaskLock(taskKey, () -> doCreate(operatorId, taskKey, req));
+    }
+
+    private ScheduledTaskDto doCreate(Long operatorId, String taskKey, UpsertScheduledTaskRequest req) {
+        if (taskRepository.selectById(taskKey) != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "任务标识已存在: " + taskKey);
+        }
+        if (registry.get(taskKey).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "任务标识与内置任务冲突: " + taskKey);
+        }
+        ScheduledTask row = new ScheduledTask();
+        row.setTaskKey(taskKey);
+        row.setTaskName(req.taskName().trim());
+        row.setTaskGroup(normalizeGroup(req.taskGroup()));
+        row.setScheduleDesc(blankToNull(req.scheduleDesc()));
+        row.setEnabled(req.enabled() == null || Boolean.TRUE.equals(req.enabled()));
+        row.setRemark(blankToNull(req.remark()));
+        row.setUpdatedAt(Instant.now());
+        taskRepository.save(row);
+        auditService.record(operatorId, "SCHEDULED_TASK_CREATE", "SCHEDULED_TASK", taskKey, row.getTaskName());
+        return toDto(row);
+    }
+
+    @Transactional
+    public ScheduledTaskDto updateMeta(Long operatorId, String taskKey, UpdateScheduledTaskMetaRequest req) {
+        if (req == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体不能为空");
+        }
+        return runWithAdminTaskLock(taskKey, () -> doUpdateMeta(operatorId, taskKey, req));
+    }
+
+    private ScheduledTaskDto doUpdateMeta(Long operatorId, String taskKey, UpdateScheduledTaskMetaRequest req) {
+        ScheduledTask row = requireTaskForUpdate(taskKey);
+        row.setTaskName(req.taskName().trim());
+        row.setTaskGroup(normalizeGroup(req.taskGroup()));
+        row.setScheduleDesc(blankToNull(req.scheduleDesc()));
+        row.setRemark(blankToNull(req.remark()));
+        row.setUpdatedAt(Instant.now());
+        taskRepository.save(row);
+        auditService.record(operatorId, "SCHEDULED_TASK_UPDATE", "SCHEDULED_TASK", taskKey, row.getTaskName());
+        return toDto(row);
+    }
+
+    @Transactional
+    public void delete(Long operatorId, String taskKey) {
+        runWithAdminTaskLock(taskKey, () -> {
+            doDelete(operatorId, taskKey);
+            return null;
+        });
+    }
+
+    private void doDelete(Long operatorId, String taskKey) {
+        if (registry.get(taskKey).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "内置任务不可删除，请停用");
+        }
+        ScheduledTask row = requireTaskForUpdate(taskKey);
+        taskRepository.deleteById(taskKey);
+        auditService.record(operatorId, "SCHEDULED_TASK_DELETE", "SCHEDULED_TASK", taskKey, row.getTaskName());
     }
 
     @Transactional(readOnly = true)
@@ -198,7 +275,34 @@ public class ScheduledTaskService {
         return s.length() <= max ? s : s.substring(0, max);
     }
 
-    private static ScheduledTaskDto toDto(ScheduledTask row) {
+    private static String normalizeTaskKey(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "任务标识不能为空");
+        }
+        String key = raw.trim().toLowerCase(Locale.ROOT);
+        if (!TASK_KEY_PATTERN.matcher(key).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "任务标识须为小写字母开头，仅含字母数字_-，长度 2–63");
+        }
+        return key;
+    }
+
+    private static String normalizeGroup(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "任务分组不能为空");
+        }
+        return raw.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static String blankToNull(String s) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    private ScheduledTaskDto toDto(ScheduledTask row) {
         return new ScheduledTaskDto(
                 row.getTaskKey(),
                 row.getTaskName(),
@@ -209,6 +313,7 @@ public class ScheduledTaskService {
                 row.getLastResult(),
                 row.getLastMessage(),
                 row.getLastDurationMs(),
-                row.getRemark());
+                row.getRemark(),
+                registry.get(row.getTaskKey()).isPresent());
     }
 }

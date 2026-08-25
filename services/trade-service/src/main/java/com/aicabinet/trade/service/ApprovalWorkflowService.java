@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.ApprovalDefinitionDto;
 import com.aicabinet.common.dto.ApprovalInboxDto;
 import com.aicabinet.common.dto.ApprovalNodeDto;
 import com.aicabinet.common.dto.ApprovalTaskDto;
+import com.aicabinet.common.dto.CreateApprovalDefinitionRequest;
 import com.aicabinet.common.dto.NotificationDto;
 import com.aicabinet.common.dto.UpsertApprovalDefinitionRequest;
 import com.aicabinet.trade.domain.ApprovalDefinition;
@@ -298,6 +299,37 @@ public class ApprovalWorkflowService {
     }
 
     @Transactional
+    public ApprovalDefinitionDto createDefinition(Long operatorId, CreateApprovalDefinitionRequest req) {
+        permissionService.requirePermission(operatorId, "ops:approval:config");
+        if (req == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体不能为空");
+        }
+        String bizType = req.bizType() == null ? "" : req.bizType().trim().toUpperCase(Locale.ROOT);
+        if (bizType.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "业务类型不能为空");
+        }
+        if (definitionRepository.findByBizType(bizType).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "业务类型已存在审批流: " + bizType);
+        }
+        ApprovalDefinition def = new ApprovalDefinition();
+        def.setBizType(bizType);
+        def.setDefName(req.defName().trim());
+        def.setEnabled(req.enabled() == null || Boolean.TRUE.equals(req.enabled()));
+        def.setRemark(trim(req.remark()));
+        def.setCreatedAt(Instant.now());
+        definitionRepository.insert(def);
+
+        List<ApprovalNodeDto> nodes = req.nodes();
+        if (nodes == null || nodes.isEmpty()) {
+            nodes = List.of(new ApprovalNodeDto(null, 1, "运营审核", "PERM", "ops:approval:list", "ANY"));
+        }
+        replaceNodes(def.getDefId(), nodes);
+        auditService.record(operatorId, "APPROVAL_DEF_CREATE", "APPROVAL_DEF",
+                String.valueOf(def.getDefId()), bizType);
+        return toDefinitionDto(definitionRepository.selectById(def.getDefId()));
+    }
+
+    @Transactional
     public ApprovalDefinitionDto updateDefinition(Long operatorId, Long defId,
                                                     UpsertApprovalDefinitionRequest req) {
         permissionService.requirePermission(operatorId, "ops:approval:config");
@@ -320,47 +352,67 @@ public class ApprovalWorkflowService {
         definitionRepository.updateById(def);
 
         if (req.nodes() != null) {
-            if (req.nodes().isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "至少配置一个审批节点");
-            }
-            List<ApprovalNodeDto> sorted = new ArrayList<>(req.nodes());
-            sorted.sort(Comparator.comparing(n -> n.seq() == null ? Integer.MAX_VALUE : n.seq()));
-            nodeRepository.deleteByDefId(defId);
-            int autoSeq = 1;
-            for (ApprovalNodeDto n : sorted) {
-                if (n == null || n.nodeName() == null || n.nodeName().isBlank()) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "节点名称不能为空");
-                }
-                String assigneeType = n.assigneeType() == null ? "" : n.assigneeType().trim().toUpperCase(Locale.ROOT);
-                if (!ASSIGNEE_TYPES.contains(assigneeType)) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                            "assigneeType 仅支持 PERM/ROLE/DEPT/USER");
-                }
-                String assigneeValue = n.assigneeValue() == null ? "" : n.assigneeValue().trim();
-                if (assigneeValue.isBlank()) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "审批人取值不能为空");
-                }
-                String passRule = n.passRule() == null || n.passRule().isBlank()
-                        ? "ANY" : n.passRule().trim().toUpperCase(Locale.ROOT);
-                if (!PASS_RULES.contains(passRule)) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "passRule 仅支持 ANY/ALL");
-                }
-                ApprovalNode node = new ApprovalNode();
-                node.setDefId(defId);
-                node.setSeq(n.seq() == null ? autoSeq : n.seq());
-                node.setNodeName(n.nodeName().trim());
-                node.setAssigneeType(assigneeType);
-                node.setAssigneeValue("DEPT".equals(assigneeType) || "ROLE".equals(assigneeType) || "PERM".equals(assigneeType)
-                        ? assigneeValue.toUpperCase(Locale.ROOT)
-                        : assigneeValue);
-                node.setPassRule(passRule);
-                nodeRepository.insert(node);
-                autoSeq = Math.max(autoSeq, node.getSeq()) + 1;
-            }
+            replaceNodes(defId, req.nodes());
         }
         auditService.record(operatorId, "APPROVAL_DEF_UPDATE", "APPROVAL_DEF",
                 String.valueOf(defId), def.getBizType());
         return toDefinitionDto(definitionRepository.selectById(defId));
+    }
+
+    @Transactional
+    public void deleteDefinition(Long operatorId, Long defId) {
+        permissionService.requirePermission(operatorId, "ops:approval:config");
+        ApprovalDefinition def = definitionRepository.selectById(defId);
+        if (def == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "审批定义不存在");
+        }
+        if (instanceRepository.countByDefId(defId) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "已有审批实例，不可删除");
+        }
+        nodeRepository.deleteByDefId(defId);
+        definitionRepository.deleteById(defId);
+        auditService.record(operatorId, "APPROVAL_DEF_DELETE", "APPROVAL_DEF",
+                String.valueOf(defId), def.getBizType());
+    }
+
+    private void replaceNodes(Long defId, List<ApprovalNodeDto> nodes) {
+        if (nodes == null || nodes.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "至少配置一个审批节点");
+        }
+        List<ApprovalNodeDto> sorted = new ArrayList<>(nodes);
+        sorted.sort(Comparator.comparing(n -> n.seq() == null ? Integer.MAX_VALUE : n.seq()));
+        nodeRepository.deleteByDefId(defId);
+        int autoSeq = 1;
+        for (ApprovalNodeDto n : sorted) {
+            if (n == null || n.nodeName() == null || n.nodeName().isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "节点名称不能为空");
+            }
+            String assigneeType = n.assigneeType() == null ? "" : n.assigneeType().trim().toUpperCase(Locale.ROOT);
+            if (!ASSIGNEE_TYPES.contains(assigneeType)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "assigneeType 仅支持 PERM/ROLE/DEPT/USER");
+            }
+            String assigneeValue = n.assigneeValue() == null ? "" : n.assigneeValue().trim();
+            if (assigneeValue.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "审批人取值不能为空");
+            }
+            String passRule = n.passRule() == null || n.passRule().isBlank()
+                    ? "ANY" : n.passRule().trim().toUpperCase(Locale.ROOT);
+            if (!PASS_RULES.contains(passRule)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "passRule 仅支持 ANY/ALL");
+            }
+            ApprovalNode node = new ApprovalNode();
+            node.setDefId(defId);
+            node.setSeq(n.seq() == null ? autoSeq : n.seq());
+            node.setNodeName(n.nodeName().trim());
+            node.setAssigneeType(assigneeType);
+            node.setAssigneeValue("DEPT".equals(assigneeType) || "ROLE".equals(assigneeType) || "PERM".equals(assigneeType)
+                    ? assigneeValue.toUpperCase(Locale.ROOT)
+                    : assigneeValue);
+            node.setPassRule(passRule);
+            nodeRepository.insert(node);
+            autoSeq = Math.max(autoSeq, node.getSeq()) + 1;
+        }
     }
 
     private ApprovalDefinitionDto toDefinitionDto(ApprovalDefinition def) {

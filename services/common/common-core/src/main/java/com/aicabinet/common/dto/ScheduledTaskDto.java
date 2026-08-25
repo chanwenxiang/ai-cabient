@@ -15,6 +15,7 @@ import java.time.Instant;
  * @param lastMessage    最近一次结果说明
  * @param lastDurationMs 最近一次执行耗时（毫秒）
  * @param remark         备注
+ * @param registryBound  是否代码注册（内置，不可删除；可立即执行）
  */
 public record ScheduledTaskDto(
         String taskKey,
@@ -26,5 +27,6 @@ public record ScheduledTaskDto(
         String lastResult,
         String lastMessage,
         Long lastDurationMs,
-        String remark
+        String remark,
+        boolean registryBound
 ) {}

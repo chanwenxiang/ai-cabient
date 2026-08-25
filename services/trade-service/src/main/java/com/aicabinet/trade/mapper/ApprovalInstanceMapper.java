@@ -29,4 +29,9 @@ public interface ApprovalInstanceMapper extends BaseTradeMapper<ApprovalInstance
                 .eq(ApprovalInstance::getStatus, "PENDING")
                 .last("LIMIT 1")).stream().findFirst();
     }
+
+    default long countByDefId(Long defId) {
+        return selectCount(Wrappers.<ApprovalInstance>lambdaQuery()
+                .eq(ApprovalInstance::getDefId, defId));
+    }
 }

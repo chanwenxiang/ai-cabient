@@ -16,6 +16,9 @@
           <el-button v-if="canAccessPath('/sku-vision')" @click="goPath('/sku-vision')"
             >识别入驻</el-button
           >
+          <el-button v-hasPermi="['ops:vision:edit']" type="primary" @click="openCreate"
+            >新增映射</el-button
+          >
           <el-button v-hasPermi="['ops:vision:export']" @click="onExport">{{
             exportButtonLabel
           }}</el-button>
@@ -206,10 +209,19 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="dialogVisible" title="编辑识别映射" width="480px" destroy-on-close>
+    <el-dialog
+      v-model="dialogVisible"
+      :title="creating ? '新增识别映射' : '编辑识别映射'"
+      width="480px"
+      destroy-on-close
+    >
       <el-form label-width="100px">
-        <el-form-item label="类别">
-          <el-input :model-value="editForm.className" disabled />
+        <el-form-item label="类别" required>
+          <el-input
+            v-model="editForm.className"
+            :disabled="!creating"
+            placeholder="端侧类名，如 milk_box"
+          />
         </el-form-item>
         <el-form-item label="商品" required>
           <el-select
@@ -299,6 +311,7 @@ const yoloMappings = ref<YoloMappingRow[]>([]);
 const aliyunMappings = ref<AliyunMappingRow[]>([]);
 const skuOptions = ref<SkuOption[]>([]);
 const dialogVisible = ref(false);
+const creating = ref(false);
 const aliyunVisible = ref(false);
 const aliyunForm = ref<AliyunMappingRow>({
   categoryId: '',
@@ -429,7 +442,17 @@ async function load() {
   }
 }
 
+function openCreate() {
+  creating.value = true;
+  editForm.className = '';
+  editForm.skuId = '';
+  editForm.minConfidence = 0.72;
+  editForm.mappingSource = undefined;
+  dialogVisible.value = true;
+}
+
 function openEdit(row: YoloMappingRow) {
+  creating.value = false;
   editForm.className = row.className || '';
   editForm.skuId = row.skuId || '';
   const conf = Number(row.minConfidence);
@@ -492,19 +515,20 @@ async function deleteAliyun(row: AliyunMappingRow) {
 }
 
 async function saveEdit() {
-  if (!editForm.className || !editForm.skuId) {
-    ElMessage.warning('请选择商品');
+  const className = String(editForm.className || '').trim();
+  if (!className || !editForm.skuId) {
+    ElMessage.warning(creating.value ? '请填写类别并选择商品' : '请选择商品');
     return;
   }
   saving.value = true;
   try {
     await api.request('/api/v2/ops/admin/vision-mappings/yolo', 'POST', {
-      className: editForm.className,
+      className,
       skuId: editForm.skuId,
       minConfidence: editForm.minConfidence,
       mappingSource: editForm.mappingSource || undefined
     });
-    ElMessage.success('已保存');
+    ElMessage.success(creating.value ? '已新增' : '已保存');
     dialogVisible.value = false;
     await load();
   } catch (e) {
