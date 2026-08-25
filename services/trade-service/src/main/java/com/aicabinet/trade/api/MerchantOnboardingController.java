@@ -56,6 +56,19 @@ public class MerchantOnboardingController {
         return ApiResponse.ok(onboardingService.upsert(operatorId(request), onboardingId, body));
     }
 
+    @RequiresPermissions(value = {"ops:merchant:onboard:list", "ops:merchant:onboard:edit"},
+            logical = RequiresPermissions.Logical.OR)
+    @PostMapping("/{onboardingId}/review")
+    public ApiResponse<MerchantPaymentOnboardingDto> review(
+            HttpServletRequest request,
+            @PathVariable Long onboardingId,
+            @RequestBody Map<String, Object> body) {
+        boolean approve = body != null && Boolean.TRUE.equals(body.get("approve"))
+                || "true".equalsIgnoreCase(String.valueOf(body != null ? body.get("approve") : ""));
+        String remark = body != null && body.get("remark") != null ? String.valueOf(body.get("remark")) : null;
+        return ApiResponse.ok(onboardingService.review(operatorId(request), onboardingId, approve, remark));
+    }
+
     private static Long operatorId(HttpServletRequest request) {
         return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
     }

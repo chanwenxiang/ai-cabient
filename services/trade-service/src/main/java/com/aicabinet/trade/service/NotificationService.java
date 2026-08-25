@@ -65,6 +65,42 @@ public class NotificationService {
         send("MERCHANT", null, merchantId, templateCode, params, bizType, bizId);
     }
 
+    /** 运营后台站内信：不依赖消费者偏好开关，直接落库。 */
+    @Transactional
+    public void notifyOpsInApp(Long userId, String title, String body, String bizType, String bizId) {
+        if (userId == null || userId < com.aicabinet.common.constants.CabinetConstants.OPERATOR_USER_ID_START) {
+            return;
+        }
+        saveLog("OPS_INBOX", "IN_APP", "OPS", userId, null, title, body, bizType, bizId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<NotificationDto> opsNotifications(Long userId, int limit) {
+        return logRepository.findOpsRecent(userId, limit).stream().map(this::toDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public long opsUnreadCount(Long userId) {
+        return logRepository.countUnreadOps(userId);
+    }
+
+    @Transactional
+    public void markOpsRead(Long userId, Long id) {
+        runWithNotificationLogLock(id, () -> {
+            NotificationLog record = logRepository.findByIdForUpdate(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "消息不存在"));
+            if (record.getUserId() == null || !record.getUserId().equals(userId)
+                    || !"OPS".equals(record.getAudience())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权操作该消息");
+            }
+            if (record.getReadAt() == null) {
+                record.setReadAt(Instant.now());
+                logRepository.save(record);
+            }
+            return null;
+        });
+    }
+
     @Transactional
     public void send(String audience, Long userId, String merchantId, String templateCode,
                      Map<String, String> params, String bizType, String bizId) {

@@ -85,13 +85,17 @@ public class OpsCsvExportService {
 
     public byte[] exportReplenishmentRequestsCsv(Long operatorId) {
         permissionService.requirePermission(operatorId, "ops:replenishment:export");
-        StringBuilder sb = new StringBuilder("requestId,merchantId,merchantName,deviceId,status,rejectReason,submittedAt\n");
+        StringBuilder sb = new StringBuilder(
+                "requestId,merchantId,merchantName,deviceId,status,reviewerId,reviewerName,reviewedAt,rejectReason,submittedAt\n");
         for (MerchantReplenishmentRequestDto r : merchantReplenishmentService.listRequestsForOps(operatorId, "ALL")) {
             sb.append(csv(String.valueOf(r.requestId()))).append(',')
                     .append(csv(r.merchantId())).append(',')
                     .append(csv(r.merchantName())).append(',')
                     .append(csv(r.deviceId())).append(',')
                     .append(csv(r.status())).append(',')
+                    .append(csv(r.reviewerId() == null ? "" : String.valueOf(r.reviewerId()))).append(',')
+                    .append(csv(r.reviewerName())).append(',')
+                    .append(csv(r.reviewedAt() == null ? "" : String.valueOf(r.reviewedAt()))).append(',')
                     .append(csv(r.rejectReason())).append(',')
                     .append(csv(String.valueOf(r.submittedAt()))).append('\n');
         }

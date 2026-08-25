@@ -18,4 +18,33 @@
     ]]>
   </select>
 
+  <select id="_findUserIdsByPermCode" resultType="long">
+    <![CDATA[
+    SELECT DISTINCT ur.user_id
+    FROM ops_user_role ur
+    JOIN ops_role_permission rp ON rp.role_id = ur.role_id
+    JOIN ops_permission p ON p.permission_id = rp.permission_id
+    JOIN user_info u ON u.user_id = ur.user_id
+    WHERE p.perm_code = #{permCode}
+      AND p.status = 'ACTIVE'
+      AND u.status = 'ACTIVE'
+      AND ur.user_id >= 100000001
+    ORDER BY ur.user_id
+    ]]>
+  </select>
+
+  <select id="_findUserIdsByRoleKey" resultType="long">
+    <![CDATA[
+    SELECT DISTINCT ur.user_id
+    FROM ops_user_role ur
+    JOIN ops_role r ON r.role_id = ur.role_id
+    JOIN user_info u ON u.user_id = ur.user_id
+    WHERE r.role_key = #{roleKey}
+      AND r.status = 'ACTIVE'
+      AND u.status = 'ACTIVE'
+      AND ur.user_id >= 100000001
+    ORDER BY ur.user_id
+    ]]>
+  </select>
+
 </mapper>

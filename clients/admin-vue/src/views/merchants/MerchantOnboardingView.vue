@@ -73,6 +73,7 @@
       <el-table-column prop="status" label="状态" width="110">
         <template #default="{ row }">
           <el-tag :type="statusTag(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
+          <div v-if="row.approvalStatus === 'PENDING'" class="muted">审批中</div>
         </template>
       </el-table-column>
       <el-table-column label="外部商户号" min-width="140" show-overflow-tooltip>
@@ -102,9 +103,15 @@
       <el-table-column label="更新时间" width="160">
         <template #default="{ row }">{{ formatDateTime(row.updatedAt) || '' }}</template>
       </el-table-column>
-      <el-table-column v-if="canEdit" label="操作" width="100" fixed="right">
+      <el-table-column label="操作" width="180" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+          <el-button v-if="canEdit && row.status !== 'SUBMITTED'" link type="primary" @click="openEdit(row)">
+            编辑
+          </el-button>
+          <template v-if="row.status === 'SUBMITTED' && row.approvalStatus === 'PENDING'">
+            <el-button link type="success" @click="review(row, true)">通过</el-button>
+            <el-button link type="danger" @click="review(row, false)">驳回</el-button>
+          </template>
         </template>
       </el-table-column>
     </el-table>
@@ -130,9 +137,9 @@
       <el-form-item label="状态">
         <el-select v-model="form.status" style="width: 100%">
           <el-option value="DRAFT" label="草稿" />
-          <el-option value="SUBMITTED" label="已提交" />
-          <el-option value="ACTIVE" label="已生效" />
-          <el-option value="REJECTED" label="已驳回" />
+          <el-option value="SUBMITTED" label="提交审批" />
+          <el-option v-if="form.onboardingId && form.status === 'ACTIVE'" value="ACTIVE" label="已生效" disabled />
+          <el-option value="REJECTED" label="已驳回" disabled />
         </el-select>
       </el-form-item>
       <el-form-item label="外部商户号">
@@ -154,7 +161,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
@@ -173,6 +180,7 @@ interface OnboardRow {
   createdAt?: string;
   updatedAt?: string;
   payLiveHint?: boolean;
+  approvalStatus?: string;
 }
 
 const auth = useAuthStore();
@@ -299,13 +307,35 @@ async function save() {
     } else {
       await api.request('/api/v2/ops/admin/merchant-onboarding', 'POST', body);
     }
-    ElMessage.success('已保存');
+    ElMessage.success(form.status === 'SUBMITTED' ? '已提交审批' : '已保存');
     dlg.value = false;
     await load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
     saving.value = false;
+  }
+}
+
+async function review(row: OnboardRow, approve: boolean) {
+  try {
+    await ElMessageBox.confirm(
+      approve ? `确认通过进件 ${row.merchantName || row.merchantId} · ${channelLabel(row.channel)}？` : '确认驳回该进件？',
+      approve ? '审批通过' : '审批驳回',
+      { type: approve ? 'info' : 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/merchant-onboarding/${row.onboardingId}/review`, 'POST', {
+      approve,
+      remark: approve ? '审批通过' : '审批驳回'
+    });
+    ElMessage.success(approve ? '已通过' : '已驳回');
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '审批失败');
   }
 }
 

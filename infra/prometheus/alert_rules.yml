@@ -1,160 +1,203 @@
-﻿# Prometheus 告警规则
+﻿# Prometheus 告警规则（与 CabinetMetrics / DeviceMqttMetrics 指标名一致）
 
 groups:
-  - name: ai-cabinet-alerts
+  - name: ai-cabinet-service
     rules:
-      # ==================== 服务健康告警 ====================
-      
       - alert: ServiceDown
         expr: up == 0
-        for: 1m
+        for: 2m
         labels:
           severity: critical
+          team: ops
         annotations:
           summary: "服务实例下线"
-          description: "服务 instance 已下线超过1分钟"
+          description: "job={{ $labels.job }} instance={{ $labels.instance }} 已下线超过 2 分钟"
 
       - alert: HighErrorRate
-        expr: rate(http_server_requests_seconds_count{status=~"5.."}[5m]) > 0.05
+        expr: |
+          sum by (job, instance) (rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+          /
+          sum by (job, instance) (rate(http_server_requests_seconds_count[5m])) > 0.05
         for: 5m
         labels:
           severity: warning
+          team: backend
         annotations:
-          summary: "高错误率告警"
-          description: "服务 5xx错误率超过5%"
+          summary: "HTTP 5xx 错误率过高"
+          description: "{{ $labels.job }} 5xx 占比超过 5%"
 
       - alert: SlowResponseTime
-        expr: histogram_quantile(0.95, rate(http_server_requests_seconds_bucket[5m])) > 2
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, job) (rate(http_server_requests_seconds_bucket[5m]))
+          ) > 2
         for: 5m
         labels:
           severity: warning
+          team: backend
         annotations:
-          summary: "响应时间过慢"
-          description: "服务 P95响应时间超过2秒"
+          summary: "API P95 响应过慢"
+          description: "{{ $labels.job }} P95 超过 2 秒"
 
-      # ==================== JVM 告警 ====================
-      
       - alert: HighMemoryUsage
-        expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.85
+        expr: |
+          jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"} > 0.85
         for: 5m
         labels:
           severity: warning
+          team: backend
         annotations:
-          summary: "JVM堆内存使用率高"
-          description: "堆内存使用率超过85%"
+          summary: "JVM 堆内存使用率过高"
+          description: "{{ $labels.job }} 堆内存超过 85%"
 
-      - alert: HighGCOverhead
-        expr: rate(jvm_gc_pause_seconds_sum[5m]) / rate(jvm_gc_pause_seconds_count[5m]) > 0.5
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "GC开销过高"
-          description: "GC平均耗时超过500ms"
-
-      # ==================== 数据库告警 ====================
-      
       - alert: DatabaseConnectionPoolExhausted
         expr: hikaricp_connections_active / hikaricp_connections_max > 0.9
         for: 5m
         labels:
           severity: critical
+          team: backend
         annotations:
           summary: "数据库连接池接近耗尽"
-          description: "连接池使用率超过90%"
-
-      # ==================== Redis 告警 ====================
-      
-      - alert: RedisConnectionFailed
-        expr: redis_up == 0
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Redis连接失败"
-          description: "Redis已断开连接超过1分钟"
-
-      # ==================== 业务告警 ====================
-      
-      - alert: HighOrderFailureRate
-        expr: rate(aicabinet_orders_total{status="failed"}[5m]) / rate(aicabinet_orders_total[5m]) > 0.1
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "订单失败率过高"
-          description: "订单失败率超过10%"
-
-      - alert: PaymentFailureRate
-        expr: rate(aicabinet_payments_total{status="failed"}[5m]) / rate(aicabinet_payments_total[5m]) > 0.05
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "支付失败率过高"
-          description: "支付失败率超过5%"
-
-      - alert: DeviceOfflineRate
-        expr: (count(aicabinet_device_status{status="offline"}) / count(aicabinet_device_status)) > 0.2
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "设备离线率过高"
-          description: "设备离线率超过20%"
-
-      # ==================== 安全告警 ====================
-      
-      - alert: HighFailedLoginAttempts
-        expr: rate(aicabinet_auth_failures_total[5m]) > 10
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "登录失败次数异常"
-          description: "过去5分钟登录失败次数超过10次/分钟"
-
-      - alert: SuspectedBruteForceAttack
-        expr: sum(rate(aicabinet_auth_failures_total[1m])) by (ip) > 5
-        for: 2m
-        labels:
-          severity: critical
-        annotations:
-          summary: "疑似暴力破解攻击"
-          description: "IP在1分钟内登录失败超过5次"
-
-      # ==================== 系统资源告警 ====================
-      
-      - alert: HighCPUUsage
-        expr: process_cpu_usage > 0.8
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "CPU使用率高"
-          description: "CPU使用率超过80%"
-
-      - alert: DiskSpaceLow
-        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.1
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "磁盘空间不足"
-          description: "磁盘剩余空间不足10%"
-
-      # ==================== 权限安全告警 ====================
+          description: "连接池使用率超过 90%"
 
       - alert: HighPermissionDeniedRate
         expr: sum(rate(cabinet_permission_denied_total[5m])) > 2
         for: 5m
         labels:
           severity: warning
+          team: security
         annotations:
           summary: "权限拒绝频率异常"
-          description: "5分钟内权限拒绝速率超过 2 次/秒，可能存在越权尝试或账号异常（可按 realm 标签细分）"
+          description: "可能存在越权尝试，请检查审计日志"
 
-  # ==================== MinIO 对象存储告警 ====================
+  - name: ai-cabinet-business
+    rules:
+      # ── 开门履约（与运营工作台 / Grafana 看板一致）──
+      - alert: DoorOpenSuccessRateLow
+        expr: |
+          sum(rate(cabinet_door_open_total{result="success"}[5m]))
+          /
+          (sum(rate(cabinet_door_open_total[5m])) > 0) < 0.95
+        for: 5m
+        labels:
+          severity: warning
+          team: ops
+          biz: door
+        annotations:
+          summary: "开门成功率低于 95%"
+          description: "近 5 分钟开门成功率 {{ $value | humanizePercentage }}，请检查设备 MQTT / 门锁"
+
+      - alert: DoorOpenSuccessRateCritical
+        expr: |
+          sum(rate(cabinet_door_open_total{result="success"}[5m]))
+          /
+          (sum(rate(cabinet_door_open_total[5m])) > 0) < 0.90
+        for: 3m
+        labels:
+          severity: critical
+          team: ops
+          biz: door
+        annotations:
+          summary: "开门成功率低于 90%"
+          description: "履约核心指标恶化，建议立即排查离线柜与 EMQX"
+
+      - alert: DeviceOfflineRateHigh
+        expr: |
+          (cabinet_devices_total - cabinet_devices_online)
+          / (cabinet_devices_total > 0) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+          team: ops
+          biz: device
+        annotations:
+          summary: "设备离线率超过 20%"
+          description: "在线 {{ $value | humanizePercentage }} 离线，请查看设备运维"
+
+      - alert: DeviceAllOffline
+        expr: cabinet_devices_total > 0 and cabinet_devices_online == 0
+        for: 3m
+        labels:
+          severity: critical
+          team: ops
+          biz: device
+        annotations:
+          summary: "全部设备离线"
+          description: "无在线柜机，请检查 EMQX / device-service"
+
+      # ── 识别与结算 ──
+      - alert: RecognitionLatencyHigh
+        expr: |
+          rate(cabinet_recognize_duration_seconds_sum[5m])
+          / rate(cabinet_recognize_duration_seconds_count[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+          biz: vision
+        annotations:
+          summary: "视觉识别平均耗时超过 5 秒"
+          description: "请检查 vision-service 负载与模型"
+
+      - alert: SettlementFailureRateHigh
+        expr: |
+          sum(rate(cabinet_settlement_total{result="failure"}[5m]))
+          /
+          (sum(rate(cabinet_settlement_total[5m])) > 0) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          team: backend
+          biz: settlement
+        annotations:
+          summary: "结算失败率超过 10%"
+          description: "请检查支付通道、余额与订单状态机"
+
+      - alert: DisputeSessionRateHigh
+        expr: sum(rate(cabinet_session_transition_total{state="DISPUTED"}[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          team: ops
+          biz: dispute
+        annotations:
+          summary: "争议会话产生过快"
+          description: "争议 QPS 偏高，请关注识别准确率与客服 SLA"
+
+      # ── 对账与资金 ──
+      - alert: ReconciliationMismatch
+        expr: increase(cabinet_reconciliation_total{status="MISMATCH"}[1h]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: finance
+          biz: reconciliation
+        annotations:
+          summary: "对账出现 MISMATCH"
+          description: "近 1 小时新增对账差额，请进入对账中心处理"
+
+      # ── device-service MQTT ──
+      - alert: MqttTradeForwardFailures
+        expr: sum(rate(device_trade_forward_total{result="failure"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+          biz: mqtt
+        annotations:
+          summary: "MQTT 事件转发 trade 失败"
+          description: "device-service 向 trade-service 转发失败增多"
+
+      - alert: MqttCommandAckTimeout
+        expr: sum(rate(device_command_total{result="ack_timeout"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: ops
+          biz: mqtt
+        annotations:
+          summary: "设备指令 ACK 超时"
+          description: "柜机可能离线或固件无响应"
 
   - name: ai-cabinet-minio
     rules:
@@ -163,33 +206,16 @@ groups:
         for: 1m
         labels:
           severity: critical
+          team: ops
         annotations:
           summary: "MinIO 对象存储不可用"
-          description: "MinIO 指标抓取失败超过1分钟"
 
       - alert: MinioStorageUsageHigh
         expr: minio_cluster_usage_total_bytes > 50 * 1024^3
         for: 5m
         labels:
           severity: warning
+          team: ops
         annotations:
           summary: "MinIO 总容量超过 50GB"
-          description: "对象存储当前容量 {{ $value | humanize1024 }}B"
-
-      - alert: MinioStorageUsageCritical
-        expr: minio_cluster_usage_total_bytes > 200 * 1024^3
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "MinIO 总容量超过 200GB"
-          description: "对象存储当前容量 {{ $value | humanize1024 }}B"
-
-      - alert: MinioObjectCountHigh
-        expr: minio_cluster_usage_object_total > 5000000
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "MinIO 对象数量超过 500 万"
-          description: "当前对象总数 {{ $value }}，请检查生命周期与孤儿文件"
+          description: "当前 {{ $value | humanize1024 }}B"

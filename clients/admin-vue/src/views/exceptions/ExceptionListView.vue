@@ -271,11 +271,14 @@
       />
     </el-card>
 
-    <el-drawer
+    <ResizableDrawer
       v-if="drawer"
       v-model="drawer"
       title="异常审单工作台"
-      size="880px"
+      storage-key="admin.drawer.exceptions.workbench"
+      :default-width="880"
+      :min-width="560"
+      :max-width="1400"
       append-to-body
       destroy-on-close
       class="exception-workbench drawer-workbench"
@@ -535,7 +538,7 @@
           </el-timeline>
         </template>
       </div>
-    </el-drawer>
+    </ResizableDrawer>
   </div>
 </template>
 
@@ -555,6 +558,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
+import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';

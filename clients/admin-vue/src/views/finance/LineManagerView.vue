@@ -369,7 +369,13 @@
       </template>
     </el-dialog>
 
-    <el-drawer v-model="ledgerVisible" title="钱包流水" size="520px">
+    <ResizableDrawer
+      v-model="ledgerVisible"
+      title="钱包流水"
+      storage-key="admin.drawer.lineManager.ledger"
+      :default-width="520"
+      :min-width="420"
+    >
       <el-table v-loading="!ledgerHydrated" :data="ledgers" size="small" stripe empty-text=" ">
         <template #empty>
           <el-empty v-if="ledgerHydrated" description="暂无流水" :image-size="64" />
@@ -404,9 +410,15 @@
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
       </el-table>
-    </el-drawer>
+    </ResizableDrawer>
 
-    <el-drawer v-model="kpiVisible" :title="`线路业绩 · ${kpiTitle}`" size="560px">
+    <ResizableDrawer
+      v-model="kpiVisible"
+      :title="`线路业绩 · ${kpiTitle}`"
+      storage-key="admin.drawer.lineManager.kpi"
+      :default-width="560"
+      :min-width="420"
+    >
       <div v-loading="!kpiHydrated" class="kpi-box">
         <p>成交总额 ¥{{ yuan(kpi?.gmvCents) }} · 佣金 ¥{{ yuan(kpi?.commissionCents) }}</p>
         <p>绑柜 {{ kpi?.deviceCount ?? 0 }} · 有数天数 {{ kpi?.activeDays ?? 0 }}</p>
@@ -439,7 +451,7 @@
           </el-table-column>
         </el-table>
       </div>
-    </el-drawer>
+    </ResizableDrawer>
 
     <el-dialog v-model="promoVisible" title="新建地推任务" width="480px" destroy-on-close>
       <el-form label-width="100px">
@@ -470,6 +482,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import PagePager from '@/components/PagePager.vue';
+import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';

@@ -54,4 +54,20 @@ public interface NotificationLogMapper extends BaseTradeMapper<NotificationLog> 
                 .isNull(NotificationLog::getReadAt));
         return c == null ? 0L : c;
     }
+
+    default List<NotificationLog> findOpsRecent(Long userId, int limit) {
+        return selectList(Wrappers.<NotificationLog>lambdaQuery()
+                .eq(NotificationLog::getAudience, "OPS")
+                .eq(NotificationLog::getUserId, userId)
+                .orderByDesc(NotificationLog::getCreatedAt)
+                .last("LIMIT " + Math.min(Math.max(limit, 1), 100)));
+    }
+
+    default long countUnreadOps(Long userId) {
+        Long c = selectCount(Wrappers.<NotificationLog>lambdaQuery()
+                .eq(NotificationLog::getAudience, "OPS")
+                .eq(NotificationLog::getUserId, userId)
+                .isNull(NotificationLog::getReadAt));
+        return c == null ? 0L : c;
+    }
 }

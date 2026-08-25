@@ -11,5 +11,11 @@ public record OpsOperatorDto(
         List<Long> roleIds,
         /** 绑定商户；空列表表示全局数据范围（未限定设备） */
         List<String> merchantIds,
-        List<String> merchantNames
+        List<String> merchantNames,
+        /** 兼任/所属部门 ID（含主部门） */
+        List<Long> deptIds,
+        List<String> deptNames,
+        /** 主部门 ID；可空（尚未归属） */
+        Long primaryDeptId,
+        String primaryDeptName
 ) {}

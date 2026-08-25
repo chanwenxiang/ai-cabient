@@ -121,6 +121,31 @@
             </template>
           </el-table-column>
           <el-table-column
+            label="部门"
+            min-width="140"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">
+              <template v-if="row.primaryDeptName || (row.deptNames || []).length">
+                <el-tag v-if="row.primaryDeptName" size="small" type="primary" effect="plain" class="role-tag">
+                  主·{{ row.primaryDeptName }}
+                </el-tag>
+                <el-tag
+                  v-for="name in (row.deptNames || []).filter((n) => n !== row.primaryDeptName)"
+                  :key="name"
+                  size="small"
+                  effect="plain"
+                  class="role-tag"
+                >
+                  {{ name }}
+                </el-tag>
+              </template>
+              <span v-else class="muted">未归属</span>
+            </template>
+          </el-table-column>
+          <el-table-column
             label="数据范围"
             min-width="180"
             align="center"
@@ -170,7 +195,7 @@
     <el-dialog
       v-model="formDlg"
       :title="form.userId ? '编辑账号' : '新增账号'"
-      width="460px"
+      width="520px"
       destroy-on-close
     >
       <el-form label-width="88px">
@@ -215,6 +240,38 @@
               {{ r.roleName }}
             </el-checkbox>
           </el-checkbox-group>
+        </el-form-item>
+        <el-form-item label="所属部门">
+          <el-select
+            v-model="form.deptIds"
+            multiple
+            filterable
+            clearable
+            placeholder="可多选；审批按全部部门指派"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="d in activeDepartments"
+              :key="d.deptId"
+              :label="`${d.deptName} (${d.deptKey})`"
+              :value="d.deptId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="主部门">
+          <el-select
+            v-model="form.primaryDeptId"
+            clearable
+            placeholder="组织归属（若依式）"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="d in primaryDeptOptions"
+              :key="d.deptId"
+              :label="d.deptName"
+              :value="d.deptId"
+            />
+          </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -365,6 +422,17 @@ interface OperatorRow {
   roleIds?: number[];
   merchantIds?: string[];
   merchantNames?: string[];
+  deptIds?: number[];
+  deptNames?: string[];
+  primaryDeptId?: number | null;
+  primaryDeptName?: string | null;
+}
+
+interface DeptRow {
+  deptId: number;
+  deptKey: string;
+  deptName: string;
+  status?: string;
 }
 
 interface MerchantRow {
@@ -384,6 +452,7 @@ const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('userId', {
   }
 });
 const merchants = ref<MerchantRow[]>([]);
+const departments = ref<DeptRow[]>([]);
 const phone = ref('');
 const page = ref(1);
 const size = ref(20);
@@ -417,10 +486,18 @@ const form = ref({
   phoneNumber: '',
   password: '',
   status: 'ACTIVE',
-  roleIds: [] as number[]
+  roleIds: [] as number[],
+  deptIds: [] as number[],
+  primaryDeptId: null as number | null
 });
 
 const activeRoles = computed(() => roles.value.filter((r) => (r.status || 'ACTIVE') === 'ACTIVE'));
+const activeDepartments = computed(() =>
+  departments.value.filter((d) => (d.status || 'ACTIVE') === 'ACTIVE')
+);
+const primaryDeptOptions = computed(() =>
+  activeDepartments.value.filter((d) => form.value.deptIds.includes(d.deptId))
+);
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<OperatorRow>((r) => r.userId);
@@ -514,6 +591,15 @@ function onRowAction(key: string, row: OperatorRow) {
   else if (key === 'disable') onDisable(row);
 }
 
+async function loadDepartments() {
+  try {
+    departments.value =
+      (await api.request<DeptRow[]>('/api/v2/ops/admin/departments', 'GET').catch(() => [])) || [];
+  } catch {
+    departments.value = [];
+  }
+}
+
 async function loadRoles() {
   try {
     roles.value = await api.request<RoleRow[]>('/api/v2/ops/admin/rbac/roles', 'GET');
@@ -591,7 +677,9 @@ function openCreate() {
     phoneNumber: '',
     password: '',
     status: 'ACTIVE',
-    roleIds: []
+    roleIds: [],
+    deptIds: [],
+    primaryDeptId: null
   };
   formDlg.value = true;
 }
@@ -603,7 +691,9 @@ function openEdit(row: OperatorRow) {
     phoneNumber: row.phoneNumber || '',
     password: '',
     status: row.status || 'ACTIVE',
-    roleIds: []
+    roleIds: [],
+    deptIds: [...(row.deptIds || [])],
+    primaryDeptId: row.primaryDeptId ?? null
   };
   formDlg.value = true;
 }
@@ -613,6 +703,9 @@ async function saveForm() {
   if (!f.name.trim()) return ElMessage.warning('请填写姓名');
   if (!/^1\d{10}$/.test(f.phoneNumber.trim())) return ElMessage.warning('请填写正确手机号');
   if (!f.userId && (!f.password || f.password.length < 6)) return ElMessage.warning('密码至少6位');
+  if (f.primaryDeptId != null && !f.deptIds.includes(f.primaryDeptId)) {
+    return ElMessage.warning('主部门必须包含在所属部门中');
+  }
   saving.value = true;
   try {
     if (f.userId) {
@@ -620,7 +713,9 @@ async function saveForm() {
         name: f.name.trim(),
         phoneNumber: f.phoneNumber.trim(),
         password: f.password || null,
-        status: f.status
+        status: f.status,
+        deptIds: f.deptIds,
+        primaryDeptId: f.primaryDeptId
       });
       ElMessage.success('已更新');
     } else {
@@ -629,7 +724,9 @@ async function saveForm() {
         phoneNumber: f.phoneNumber.trim(),
         password: f.password,
         status: f.status,
-        roleIds: f.roleIds
+        roleIds: f.roleIds,
+        deptIds: f.deptIds,
+        primaryDeptId: f.primaryDeptId
       });
       ElMessage.success('已创建');
     }
@@ -788,7 +885,7 @@ async function saveDevices() {
 }
 
 async function reload() {
-  await Promise.all([loadRoles(), loadMerchants(), loadOperators()]);
+  await Promise.all([loadRoles(), loadMerchants(), loadDepartments(), loadOperators()]);
 }
 
 async function reloadFromRouteQuery() {
@@ -801,6 +898,15 @@ watch(
   () => route.query.phone,
   () => {
     void reloadFromRouteQuery();
+  }
+);
+
+watch(
+  () => [...form.value.deptIds],
+  (ids) => {
+    if (form.value.primaryDeptId != null && !ids.includes(form.value.primaryDeptId)) {
+      form.value.primaryDeptId = null;
+    }
   }
 );
 

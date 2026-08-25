@@ -30,6 +30,7 @@ class MerchantOnboardingConcurrencyTest {
     @Mock private MerchantScopeService merchantScopeService;
     @Mock private AdminAuditService auditService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private ApprovalWorkflowService approvalWorkflowService;
 
     private MerchantOnboardingService service;
 
@@ -40,7 +41,7 @@ class MerchantOnboardingConcurrencyTest {
                 new WeChatPayProperties(false, "", "", "", "", "", "", "", true),
                 new AlipayProperties(false, "", "", "", "", "", "", "", "", ""),
                 new PayScoreProperties(false, false, 550, false, "", ""),
-                distributedLockService);
+                distributedLockService, approvalWorkflowService);
     }
 
     @Test

@@ -26,6 +26,10 @@ public class ProcurementService {
     private final WarehouseService warehouseService;
     private final SupplierPayableService supplierPayableService;
     private final DistributedLockService distributedLockService;
+    private final ApprovalWorkflowService approvalWorkflowService;
+    private final AdminAuditService auditService;
+
+    private static final String BIZ_PURCHASE_ORDER = "PURCHASE_ORDER";
 
     public ProcurementService(PermissionService permissionService,
                               SupplierMapper supplierRepository,
@@ -37,7 +41,9 @@ public class ProcurementService {
                               SkuCatalogMapper skuCatalogRepository,
                               WarehouseService warehouseService,
                               SupplierPayableService supplierPayableService,
-                              DistributedLockService distributedLockService) {
+                              DistributedLockService distributedLockService,
+                              ApprovalWorkflowService approvalWorkflowService,
+                              AdminAuditService auditService) {
         this.permissionService = permissionService;
         this.supplierRepository = supplierRepository;
         this.purchaseOrderRepository = purchaseOrderRepository;
@@ -49,6 +55,8 @@ public class ProcurementService {
         this.warehouseService = warehouseService;
         this.supplierPayableService = supplierPayableService;
         this.distributedLockService = distributedLockService;
+        this.approvalWorkflowService = approvalWorkflowService;
+        this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
@@ -112,6 +120,7 @@ public class ProcurementService {
         order.setRefNo(trimToNull(request.refNo()));
         order.setNotes(trimToNull(request.notes()));
         order.setOperatorId(operatorId);
+        order.setStatus("PENDING_APPROVAL");
         order = purchaseOrderRepository.save(order);
         if (order.getRefNo() == null || order.getRefNo().isBlank()) {
             order.setRefNo("PO-" + order.getPurchaseOrderId());
@@ -132,7 +141,65 @@ public class ProcurementService {
             line.setUnitCostCents(lineDto.unitCostCents());
             purchaseOrderLineRepository.save(line);
         }
+        approvalWorkflowService.start(
+                BIZ_PURCHASE_ORDER,
+                String.valueOf(order.getPurchaseOrderId()),
+                operatorId,
+                "采购单 " + order.getRefNo());
         return toPurchaseDto(order);
+    }
+
+    @Transactional
+    public PurchaseOrderDto reviewPurchaseOrder(Long operatorId, Long purchaseOrderId,
+                                                boolean approve, String remark) {
+        requireWarehouseWrite(operatorId);
+        return runWithPurchaseOrderLock(purchaseOrderId,
+                () -> doReviewPurchaseOrder(operatorId, purchaseOrderId, approve, remark));
+    }
+
+    /** Demo / 内部编排：按当前节点待办人依次通过，直至可收货。 */
+    @Transactional
+    public void ensurePurchaseOrderApproved(Long operatorId, Long purchaseOrderId) {
+        runWithPurchaseOrderLock(purchaseOrderId, () -> {
+            for (int i = 0; i < 4; i++) {
+                PurchaseOrder order = purchaseOrderRepository.findById(purchaseOrderId).orElse(null);
+                if (order == null || !"PENDING_APPROVAL".equals(order.getStatus())) {
+                    break;
+                }
+                Long actorId = approvalWorkflowService.findAnyPendingAssignee(
+                        BIZ_PURCHASE_ORDER, String.valueOf(purchaseOrderId));
+                if (actorId == null) {
+                    actorId = operatorId;
+                }
+                doReviewPurchaseOrder(actorId, purchaseOrderId, true, "auto flow");
+            }
+            return null;
+        });
+    }
+
+    private PurchaseOrderDto doReviewPurchaseOrder(Long operatorId, Long purchaseOrderId,
+                                                   boolean approve, String remark) {
+        PurchaseOrder order = purchaseOrderRepository.findByIdForUpdate(purchaseOrderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "purchase order not found"));
+        if (!"PENDING_APPROVAL".equals(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅待审批采购单可审核");
+        }
+        String bizId = String.valueOf(purchaseOrderId);
+        if (!approve) {
+            approvalWorkflowService.completeRejected(operatorId, BIZ_PURCHASE_ORDER, bizId, trimToNull(remark));
+            order.setStatus("REJECTED");
+            purchaseOrderRepository.save(order);
+            auditService.record(operatorId, "PURCHASE_ORDER_REJECT", "PURCHASE_ORDER", bizId, trimToNull(remark));
+            return toPurchaseDto(order);
+        }
+        approvalWorkflowService.completeApproved(operatorId, BIZ_PURCHASE_ORDER, bizId, trimToNull(remark));
+        if (approvalWorkflowService.isInstanceApproved(BIZ_PURCHASE_ORDER, bizId)) {
+            order.setStatus("CREATED");
+            auditService.record(operatorId, "PURCHASE_ORDER_APPROVE", "PURCHASE_ORDER", bizId, "审批通过");
+        } else {
+            auditService.record(operatorId, "PURCHASE_ORDER_APPROVE", "PURCHASE_ORDER", bizId, "审批节点通过");
+        }
+        return toPurchaseDto(purchaseOrderRepository.save(order));
     }
 
     @Transactional(readOnly = true)

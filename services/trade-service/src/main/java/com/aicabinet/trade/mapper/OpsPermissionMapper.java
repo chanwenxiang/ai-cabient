@@ -18,6 +18,10 @@ public interface OpsPermissionMapper extends BaseTradeMapper<OpsPermission> {
 
     List<String> _findPermCodesByUserId(@Param("userId") Long userId);
 
+    List<Long> _findUserIdsByPermCode(@Param("permCode") String permCode);
+
+    List<Long> _findUserIdsByRoleKey(@Param("roleKey") String roleKey);
+
     default Set<String> findPermCodesByUserId(Long userId) {
         return new java.util.LinkedHashSet<>(_findPermCodesByUserId(userId));
     }

@@ -627,6 +627,20 @@
                     >打印收货单</el-button
                   >
                   <el-button
+                    v-if="row.status === 'PENDING_APPROVAL' && canReviewPurchase"
+                    link
+                    type="success"
+                    @click="reviewPurchase(row, true)"
+                    >通过</el-button
+                  >
+                  <el-button
+                    v-if="row.status === 'PENDING_APPROVAL' && canReviewPurchase"
+                    link
+                    type="danger"
+                    @click="reviewPurchase(row, false)"
+                    >驳回</el-button
+                  >
+                  <el-button
                     v-if="['CREATED', 'PARTIAL_RECEIVED'].includes(row.status)"
                     link
                     type="primary"
@@ -2132,6 +2146,9 @@ const canWarehouseEdit = computed(() => auth.hasPerm('ops:warehouse:edit'));
 const canWarehouseList = computed(() => auth.hasPerm('ops:warehouse:list'));
 const canProcurementEdit = computed(() => auth.hasPerm('ops:procurement:edit'));
 const canProcurementList = computed(() => auth.hasPerm('ops:procurement:list'));
+const canReviewPurchase = computed(
+  () => canProcurementEdit.value || auth.hasPerm('ops:finance:view')
+);
 const canEdit = computed(() => {
   if (['suppliers', 'purchase', 'returns', 'suggestions'].includes(tab.value))
     return canProcurementEdit.value;
@@ -3810,13 +3827,35 @@ async function savePurchase() {
     await api.request('/api/v2/ops/admin/purchase-orders', 'POST', body);
     purchaseDialog.value = false;
     tab.value = 'purchase';
-    ElMessage.success('采购单已创建');
+    ElMessage.success('采购单已提交审批');
     loadedTabs.value.delete('purchase');
     await loadTab('purchase', true);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '创建失败');
   } finally {
     saving.value = false;
+  }
+}
+async function reviewPurchase(row: Row, approve: boolean) {
+  try {
+    await ElMessageBox.confirm(
+      approve ? `确认通过采购单 ${row.refNo || row.purchaseOrderId}？` : `确认驳回该采购单？`,
+      approve ? '审批通过' : '审批驳回',
+      { type: approve ? 'info' : 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/purchase-orders/${row.purchaseOrderId}/review`, 'POST', {
+      approve,
+      remark: approve ? '审批通过' : '审批驳回'
+    });
+    ElMessage.success(approve ? '已通过' : '已驳回');
+    loadedTabs.value.delete('purchase');
+    await loadTab('purchase', true);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '审批失败');
   }
 }
 

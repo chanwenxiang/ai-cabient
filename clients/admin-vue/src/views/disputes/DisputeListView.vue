@@ -264,11 +264,14 @@
       @size-change="onSizeChange"
     />
 
-    <el-drawer
+    <ResizableDrawer
       v-if="detailVisible"
       v-model="detailVisible"
       title="争议审单工作台"
-      size="880px"
+      storage-key="admin.drawer.disputes.workbench"
+      :default-width="880"
+      :min-width="560"
+      :max-width="1400"
       append-to-body
       destroy-on-close
       class="dispute-workbench drawer-workbench"
@@ -546,7 +549,7 @@
           >免单并退款</el-button
         >
       </div>
-    </el-drawer>
+    </ResizableDrawer>
   </el-card>
 </template>
 
@@ -567,6 +570,7 @@ import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, authFetch } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
+import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';

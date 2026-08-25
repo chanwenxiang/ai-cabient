@@ -88,8 +88,12 @@ export type MerchantReplenishmentRequest = {
   deviceName?: string;
   status: string;
   notes?: string;
+  createdBy?: number;
+  createdByName?: string;
   submittedAt?: string;
   reviewedAt?: string;
+  reviewerId?: number;
+  reviewerName?: string;
   rejectReason?: string;
   replenishmentTaskId?: number;
   outboundId?: number;

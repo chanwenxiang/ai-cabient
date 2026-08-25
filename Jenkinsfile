@@ -1,11 +1,12 @@
 // 共用流水线：本机联调（挂载 /workspace）与服务器发布（GitHub checkout）同一份脚本
 //
-// 本机：任务带 USE_LOCAL_MOUNT=true（CasC *-local）
-// 服务器/正式：Pipeline from SCM，checkout GitHub；DEPLOY_MODE=compose-local|ssh
+// 本机：USE_LOCAL_MOUNT=true → 直接用 /workspace，禁止全仓 cp（OneDrive/Docker 挂载极慢）
+// 正式：checkout GitHub；DEPLOY_MODE=compose-local|ssh
 pipeline {
   agent any
 
   parameters {
+    booleanParam(name: 'USE_LOCAL_MOUNT', defaultValue: false, description: '本机：直接用 /workspace，不拷贝')
     choice(name: 'DEPLOY_MODE', choices: ['none', 'compose-local', 'ssh'], description: '部署：none=只构建；compose-local=本机/同机；ssh=远程服务器')
     string(name: 'DEPLOY_HOST', defaultValue: '', description: 'ssh：服务器地址')
     string(name: 'DEPLOY_USER', defaultValue: 'deploy', description: 'ssh：用户')
@@ -21,17 +22,14 @@ pipeline {
     stage('Source') {
       steps {
         script {
-          def useLocal = (params.USE_LOCAL_MOUNT == true) || (env.USE_LOCAL_MOUNT == 'true')
+          def useLocal = params.USE_LOCAL_MOUNT?.toString() == 'true' || env.USE_LOCAL_MOUNT == 'true'
           if (useLocal) {
-            echo '本机模式：同步 Compose 挂载的 /workspace'
-            sh '''
-              set -e
-              find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-              cp -a /workspace/. .
-            '''
+            echo '本机模式：直接使用 /workspace（跳过全仓拷贝）'
+            env.BUILD_DIR = '/workspace'
           } else {
             echo '正式模式：从 GitHub SCM checkout'
             checkout scm
+            env.BUILD_DIR = env.WORKSPACE
           }
         }
       }
@@ -49,7 +47,7 @@ pipeline {
             env.SONAR_PROJECT_KEY = 'ai-cabinet-dev'
             env.SONAR_PROJECT_NAME = 'AI Cabinet (dev)'
           }
-          echo "Sonar projectKey=${env.SONAR_PROJECT_KEY} branch=${branch}"
+          echo "Sonar projectKey=${env.SONAR_PROJECT_KEY} branch=${branch} BUILD_DIR=${env.BUILD_DIR}"
         }
       }
     }
@@ -58,10 +56,11 @@ pipeline {
       steps {
         sh '''
           set -e
+          BUILD_DIR="${BUILD_DIR:-$PWD}"
           NET=$(docker inspect -f "{{range \$k, \$v := .NetworkSettings.Networks}}{{\$k}}{{end}}" "$(hostname)" 2>/dev/null | awk "{print \$1}")
           if [ -z "$NET" ]; then NET=host; fi
           docker run --rm --network "$NET" \
-            -v "$PWD:/ws" -w /ws \
+            -v "$BUILD_DIR:/ws" -w /ws \
             -e SONAR_TOKEN \
             -e SONAR_HOST_URL \
             -e SONAR_PROJECT_KEY \
@@ -89,9 +88,8 @@ pipeline {
             branch 'main'
             branch pattern: 'release/.*', comparator: 'REGEXP'
             tag pattern: 'v.*', comparator: 'REGEXP'
-            // 本机无 SCM 分支信息时，允许手动选 compose-local / ssh 试部署
             expression {
-              def useLocal = (params.USE_LOCAL_MOUNT == true) || (env.USE_LOCAL_MOUNT == 'true')
+              def useLocal = params.USE_LOCAL_MOUNT?.toString() == 'true' || env.USE_LOCAL_MOUNT == 'true'
               return useLocal && params.DEPLOY_MODE != 'none'
             }
           }
@@ -101,10 +99,12 @@ pipeline {
       steps {
         script {
           if (params.DEPLOY_MODE == 'compose-local') {
-            sh '''
-              set -e
-              docker compose -f infra/docker-compose.full.yml up -d --build trade-service device-service
-            '''
+            dir(env.BUILD_DIR ?: env.WORKSPACE) {
+              sh '''
+                set -e
+                docker compose -f infra/docker-compose.full.yml up -d --build trade-service device-service
+              '''
+            }
           } else if (params.DEPLOY_MODE == 'ssh') {
             if (!params.DEPLOY_HOST?.trim()) {
               error('DEPLOY_MODE=ssh 时必须填写 DEPLOY_HOST')

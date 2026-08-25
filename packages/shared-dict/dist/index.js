@@ -319,9 +319,11 @@ export const DICT = {
     },
     supplier_status: { ACTIVE: '启用', INACTIVE: '停用' },
     purchase_order_status: {
+        PENDING_APPROVAL: '待审批',
         CREATED: '待收货',
         PARTIAL_RECEIVED: '部分收货',
         RECEIVED: '已收货',
+        REJECTED: '已驳回',
         CANCELLED: '已取消'
     },
     warehouse_status: { ACTIVE: '正常', INACTIVE: '停用' },
@@ -382,6 +384,10 @@ export const DICT = {
         NEAR_EXPIRY: '临期',
         BLOCKED: '已冻结',
         DEPLETED: '已耗尽'
+    },
+    pull_off_reason: {
+        EXPIRED: '已过期',
+        NEAR_EXPIRY: '临期'
     },
     exception_severity: { CRITICAL: '紧急', HIGH: '高', MEDIUM: '中', LOW: '低' },
     exception_status: { OPEN: '待处理', PROCESSING: '处理中', RESOLVED: '已解决', CLOSED: '已关闭' },

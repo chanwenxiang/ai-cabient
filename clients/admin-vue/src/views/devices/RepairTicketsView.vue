@@ -268,7 +268,13 @@
       </template>
     </el-dialog>
 
-    <el-drawer v-model="detailVisible" title="工单详情" size="480px">
+    <ResizableDrawer
+      v-model="detailVisible"
+      title="工单详情"
+      storage-key="admin.drawer.repair.detail"
+      :default-width="480"
+      :min-width="420"
+    >
       <div v-loading="!detailHydrated" class="repair-detail-pane">
         <template v-if="detail">
           <el-descriptions :column="1" border>
@@ -319,7 +325,7 @@
         </template>
         <el-empty v-else-if="detailHydrated" description="详情加载失败" :image-size="64" />
       </div>
-    </el-drawer>
+    </ResizableDrawer>
   </el-card>
 
   <el-dialog
@@ -351,6 +357,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import PagePager from '@/components/PagePager.vue';
+import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';

@@ -5,13 +5,17 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.OpsPermission;
 import com.aicabinet.trade.domain.OpsRole;
 import com.aicabinet.trade.domain.OpsRolePermission;
+import com.aicabinet.trade.domain.OpsDepartment;
+import com.aicabinet.trade.domain.OpsUserDepartment;
 import com.aicabinet.trade.domain.OpsUserMerchant;
 import com.aicabinet.trade.domain.OpsUserRole;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
+import com.aicabinet.trade.mapper.OpsDepartmentMapper;
 import com.aicabinet.trade.mapper.OpsPermissionMapper;
 import com.aicabinet.trade.mapper.OpsRolePermissionMapper;
 import com.aicabinet.trade.mapper.OpsRoleMapper;
+import com.aicabinet.trade.mapper.OpsUserDepartmentMapper;
 import com.aicabinet.trade.mapper.OpsUserMerchantMapper;
 import com.aicabinet.trade.mapper.OpsUserRoleMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
@@ -45,6 +49,9 @@ public class OpsRbacService {
     private final OperatorUserIdAllocator operatorUserIdAllocator;
     private final PasswordEncoder passwordEncoder;
     private final DistributedLockService distributedLockService;
+    private final DepartmentService departmentService;
+    private final OpsUserDepartmentMapper userDepartmentRepository;
+    private final OpsDepartmentMapper departmentRepository;
 
     public OpsRbacService(OpsRoleMapper roleRepository,
                           OpsPermissionMapper permissionRepository,
@@ -58,7 +65,10 @@ public class OpsRbacService {
                           UserAccountMapper userAccountRepository,
                           OperatorUserIdAllocator operatorUserIdAllocator,
                           PasswordEncoder passwordEncoder,
-                          DistributedLockService distributedLockService) {
+                          DistributedLockService distributedLockService,
+                          DepartmentService departmentService,
+                          OpsUserDepartmentMapper userDepartmentRepository,
+                          OpsDepartmentMapper departmentRepository) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
         this.rolePermissionRepository = rolePermissionRepository;
@@ -72,6 +82,9 @@ public class OpsRbacService {
         this.operatorUserIdAllocator = operatorUserIdAllocator;
         this.passwordEncoder = passwordEncoder;
         this.distributedLockService = distributedLockService;
+        this.departmentService = departmentService;
+        this.userDepartmentRepository = userDepartmentRepository;
+        this.departmentRepository = departmentRepository;
     }
 
     @Transactional
@@ -302,7 +315,7 @@ public class OpsRbacService {
 
     @Transactional(readOnly = true)
     public PageResult<OpsOperatorDto> listOperators(Long operatorId, int page, int size, String phone) {
-        permissionService.requirePermission(operatorId, "ops:rbac:assign");
+        permissionService.requireAnyPermission(operatorId, "ops:rbac:assign", "ops:replenishment:edit");
         var pageable = PageRequest.of(page, Math.min(size, 100));
         Page<UserInfo> users = (phone == null || phone.isBlank())
                 ? userInfoRepository.findByUserIdGreaterThanEqualOrderByUserIdDesc(
@@ -344,6 +357,9 @@ public class OpsRbacService {
         if (request.roleIds() != null && !request.roleIds().isEmpty()) {
             replaceUserRoles(newUserId, request.roleIds());
         }
+        if (request.deptIds() != null || request.primaryDeptId() != null) {
+            departmentService.replaceUserDepartments(newUserId, request.deptIds(), request.primaryDeptId());
+        }
         return toOperatorDto(user);
     }
 
@@ -376,6 +392,9 @@ public class OpsRbacService {
             user.setStatus(status);
         }
         userInfoRepository.save(user);
+        if (request.deptIds() != null || request.primaryDeptId() != null) {
+            departmentService.replaceUserDepartments(userId, request.deptIds(), request.primaryDeptId());
+        }
         return toOperatorDto(user);
     }
 
@@ -564,6 +583,20 @@ public class OpsRbacService {
                 .map(m -> m.getId().getMerchantId())
                 .toList();
         List<String> merchantNames = resolveMerchantNames(merchantIds);
+        List<OpsUserDepartment> deptLinks = userDepartmentRepository.findByUserId(user.getUserId());
+        List<Long> deptIds = deptLinks.stream().map(OpsUserDepartment::getDeptId).toList();
+        List<String> deptNames = deptIds.stream()
+                .map(id -> departmentRepository.findById(id)
+                        .map(OpsDepartment::getDeptName)
+                        .orElse(String.valueOf(id)))
+                .toList();
+        Long primaryDeptId = deptLinks.stream()
+                .filter(ud -> Boolean.TRUE.equals(ud.getIsPrimary()))
+                .map(OpsUserDepartment::getDeptId)
+                .findFirst()
+                .orElse(null);
+        String primaryDeptName = primaryDeptId == null ? null
+                : departmentRepository.findById(primaryDeptId).map(OpsDepartment::getDeptName).orElse(null);
         return new OpsOperatorDto(
                 user.getUserId(),
                 user.getPhoneNumber(),
@@ -572,7 +605,11 @@ public class OpsRbacService {
                 roleNames,
                 roleIds,
                 merchantIds,
-                merchantNames
+                merchantNames,
+                deptIds,
+                deptNames,
+                primaryDeptId,
+                primaryDeptName
         );
     }
 

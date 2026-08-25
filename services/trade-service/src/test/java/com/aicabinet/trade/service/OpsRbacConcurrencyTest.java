@@ -33,7 +33,7 @@ class OpsRbacConcurrencyTest {
         service = new OpsRbacService(
                 roleRepository, null, null, null, null, null,
                 permissionService, null, null, null, null, null,
-                distributedLockService);
+                distributedLockService, null, null, null);
     }
 
     @Test

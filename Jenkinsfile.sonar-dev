@@ -1,6 +1,9 @@
-// 仅 Sonar(dev)：本机挂载或 GitHub(dev) 共用
+// 仅 Sonar(dev)：本机直接用 /workspace；正式从 GitHub checkout
 pipeline {
   agent any
+  parameters {
+    booleanParam(name: 'USE_LOCAL_MOUNT', defaultValue: false, description: '本机：直接用 /workspace，不拷贝')
+  }
   environment {
     SONAR_HOST_URL = "${env.SONAR_HOST_URL ?: 'http://sonarqube:9000'}"
     SONAR_TOKEN = credentials('sonar-token')
@@ -9,15 +12,13 @@ pipeline {
     stage('Source') {
       steps {
         script {
-          def useLocal = (params.USE_LOCAL_MOUNT == true) || (env.USE_LOCAL_MOUNT == 'true')
+          def useLocal = params.USE_LOCAL_MOUNT?.toString() == 'true' || env.USE_LOCAL_MOUNT == 'true'
           if (useLocal) {
-            sh '''
-              set -e
-              find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-              cp -a /workspace/. .
-            '''
+            echo '本机模式：直接使用 /workspace（跳过全仓拷贝）'
+            env.BUILD_DIR = '/workspace'
           } else {
             checkout scm
+            env.BUILD_DIR = env.WORKSPACE
           }
         }
       }
@@ -26,10 +27,11 @@ pipeline {
       steps {
         sh '''
           set -e
+          BUILD_DIR="${BUILD_DIR:-$PWD}"
           NET=$(docker inspect -f "{{range \$k, \$v := .NetworkSettings.Networks}}{{\$k}}{{end}}" "$(hostname)" 2>/dev/null | awk "{print \$1}")
           if [ -z "$NET" ]; then NET=host; fi
           docker run --rm --network "$NET" \
-            -v "$PWD:/ws" -w /ws \
+            -v "$BUILD_DIR:/ws" -w /ws \
             -e SONAR_TOKEN \
             maven:3.9.9-eclipse-temurin-17 \
             bash -lc '

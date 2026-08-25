@@ -16,9 +16,10 @@ jenkins:
 unclassified:
   location:
     url: "${JENKINS_ROOT_URL:-http://localhost:19081/}"
-  locale:
-    systemLocale: "zh_CN"
-    ignoreAcceptLanguage: true
+  # locale 插件未就绪时勿写在此处，否则 CasC 启动失败；中文包装好后可再加：
+  # locale:
+  #   systemLocale: "zh_CN"
+  #   ignoreAcceptLanguage: true
   sonarGlobalConfiguration:
     installations:
       - name: "SonarQube"
@@ -50,7 +51,8 @@ jobs:
         }
         definition {
           cps {
-            script(new File('/workspace/Jenkinsfile').getText('UTF-8'))
+            // 强制本机挂载，避免 boolean 参数变成字符串后判断失败
+            script("env.USE_LOCAL_MOUNT='true'\n" + new File('/workspace/Jenkinsfile').getText('UTF-8'))
             sandbox(true)
           }
         }
@@ -63,7 +65,7 @@ jobs:
         }
         definition {
           cps {
-            script(new File('/workspace/Jenkinsfile.sonar-dev').getText('UTF-8'))
+            script("env.USE_LOCAL_MOUNT='true'\n" + new File('/workspace/Jenkinsfile.sonar-dev').getText('UTF-8'))
             sandbox(true)
           }
         }

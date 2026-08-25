@@ -46,7 +46,7 @@ class LineWithdrawConcurrencyTest {
         service = new LineWithdrawService(
                 withdrawMapper, managerMapper, deviceMapper, lineManagerService,
                 lineWalletService, payoutService, properties,
-                permissionService, auditService, distributedLockService);
+                permissionService, auditService, distributedLockService, null);
     }
 
     @Test

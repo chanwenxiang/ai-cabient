@@ -46,6 +46,10 @@ public class MerchantWithdrawService {
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
+    private final ApprovalWorkflowService approvalWorkflowService;
+
+    private static final String BIZ_MERCHANT_WITHDRAW = "MERCHANT_WITHDRAW";
+    private static final String BIZ_WALLET_ADJUST = "MERCHANT_WALLET_ADJUST";
 
     public MerchantWithdrawService(MerchantWithdrawRequestMapper withdrawMapper,
                                    MerchantMapper merchantMapper,
@@ -57,7 +61,8 @@ public class MerchantWithdrawService {
                                    MerchantFeaturePackService merchantFeaturePackService,
                                    PermissionService permissionService,
                                    AdminAuditService auditService,
-                                   DistributedLockService distributedLockService) {
+                                   DistributedLockService distributedLockService,
+                                   ApprovalWorkflowService approvalWorkflowService) {
         this.withdrawMapper = withdrawMapper;
         this.merchantMapper = merchantMapper;
         this.accountMapper = accountMapper;
@@ -69,6 +74,7 @@ public class MerchantWithdrawService {
         this.permissionService = permissionService;
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
+        this.approvalWorkflowService = approvalWorkflowService;
     }
 
     @Transactional(readOnly = true)
@@ -117,6 +123,13 @@ public class MerchantWithdrawService {
             }
             auditService.record(operatorId, "MERCHANT_WALLET_ADJUST", "MERCHANT_WALLET", merchantId,
                     "金额(分)=" + amountCents + "；备注=" + note);
+            if (Math.abs(amountCents) >= properties.reviewThresholdCents()) {
+                approvalWorkflowService.start(
+                        BIZ_WALLET_ADJUST,
+                        refId,
+                        operatorId,
+                        "商户调账 " + merchantId + " ¥" + String.format(Locale.ROOT, "%.2f", amountCents / 100.0));
+            }
             return toAccountDto(requireMerchant(merchantId));
         });
     }
@@ -144,13 +157,14 @@ public class MerchantWithdrawService {
     @Transactional
     public MerchantWithdrawRequestDto apply(String merchantId, long amountCents, String requestNo) {
         Merchant merchant = requireMerchant(merchantId);
-        return createWithdraw(merchant, amountCents, requestNo);
+        return createWithdraw(merchant, amountCents, requestNo, null);
     }
 
     @Transactional
     public MerchantWithdrawRequestDto merchantApply(Long userId, long amountCents, String requestNo) {
         String merchantId = resolveMerchantId(userId);
-        return apply(merchantId, amountCents, requestNo);
+        Merchant merchant = requireMerchant(merchantId);
+        return createWithdraw(merchant, amountCents, requestNo, userId);
     }
 
     @Transactional(readOnly = true)
@@ -204,6 +218,8 @@ public class MerchantWithdrawService {
         request.setReviewedAt(now);
         request.setUpdatedAt(now);
         if (!approve) {
+            approvalWorkflowService.completeRejected(
+                    operatorId, BIZ_MERCHANT_WITHDRAW, String.valueOf(request.getRequestId()), trim(remark));
             request.setStatus("REJECTED");
             withdrawMapper.updateById(request);
             merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
@@ -211,6 +227,14 @@ public class MerchantWithdrawService {
             auditService.record(operatorId, "MERCHANT_WITHDRAW_REVIEW", "MERCHANT_WITHDRAW",
                     String.valueOf(request.getRequestId()), "驳回；金额(分)=" + request.getAmountCents()
                             + "；备注=" + trim(remark));
+            return toDto(request);
+        }
+        approvalWorkflowService.completeApproved(
+                operatorId, BIZ_MERCHANT_WITHDRAW, String.valueOf(request.getRequestId()), trim(remark));
+        if (!approvalWorkflowService.isInstanceApproved(
+                BIZ_MERCHANT_WITHDRAW, String.valueOf(request.getRequestId()))) {
+            auditService.record(operatorId, "MERCHANT_WITHDRAW_REVIEW", "MERCHANT_WITHDRAW",
+                    String.valueOf(request.getRequestId()), "初审通过；金额(分)=" + request.getAmountCents());
             return toDto(request);
         }
         request.setStatus("APPROVED");
@@ -235,11 +259,14 @@ public class MerchantWithdrawService {
         });
     }
 
-    private MerchantWithdrawRequestDto createWithdraw(Merchant merchant, long amountCents, String requestNo) {
-        return runWithMerchantWalletLock(merchant.getMerchantId(), () -> doCreateWithdraw(merchant, amountCents, requestNo));
+    private MerchantWithdrawRequestDto createWithdraw(Merchant merchant, long amountCents, String requestNo,
+                                                      Long submitterUserId) {
+        return runWithMerchantWalletLock(merchant.getMerchantId(),
+                () -> doCreateWithdraw(merchant, amountCents, requestNo, submitterUserId));
     }
 
-    private MerchantWithdrawRequestDto doCreateWithdraw(Merchant merchant, long amountCents, String requestNo) {
+    private MerchantWithdrawRequestDto doCreateWithdraw(Merchant merchant, long amountCents, String requestNo,
+                                                        Long submitterUserId) {
         validateAmount(merchant.getMerchantId(), amountCents);
         String no = normalizeRequestNo(requestNo);
         var existing = withdrawMapper.findByRequestNo(no);
@@ -260,6 +287,12 @@ public class MerchantWithdrawService {
             withdrawMapper.insert(request);
             merchantWalletService.freezeForWithdraw(merchant.getMerchantId(), amountCents,
                     "WITHDRAW", String.valueOf(request.getRequestId()), "提现申请冻结");
+            approvalWorkflowService.start(
+                    BIZ_MERCHANT_WITHDRAW,
+                    String.valueOf(request.getRequestId()),
+                    submitterUserId,
+                    "商户提现 " + request.getRequestNo() + " ¥"
+                            + String.format(Locale.ROOT, "%.2f", amountCents / 100.0));
             return toDto(request);
         }
         request.setStatus("APPROVED");
