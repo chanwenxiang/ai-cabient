@@ -23,21 +23,23 @@ pipeline {
         }
       }
     }
-    stage('Compile + Sonar') {
+    stage('Test + Jacoco + Sonar') {
       steps {
         sh '''
           set -e
           BUILD_DIR="${BUILD_DIR:-$PWD}"
           command -v mvn >/dev/null || { echo "ERROR: Jenkins 镜像未安装 Maven"; exit 127; }
           cd "$BUILD_DIR"
-          mvn -B -DskipTests -Dmaven.test.skip=true install \
+          # 跑单测并生成 Jacoco（失败不阻断扫描上报，便于先看到覆盖率数字）
+          mvn -B -Dmaven.test.failure.ignore=true test jacoco:report \
             -pl services/trade-service,services/device-service,services/common/common-core -am
           # 与 sonar-project.properties 对齐：压制 uni-app rpx / Lombok 实体误报
-          mvn -B -DskipTests -Dmaven.test.skip=true sonar:sonar \
+          mvn -B -DskipTests sonar:sonar \
             -Dsonar.projectKey=ai-cabinet-dev \
             -Dsonar.projectName="AI Cabinet (dev)" \
             -Dsonar.host.url="$SONAR_HOST_URL" \
             -Dsonar.token="$SONAR_TOKEN" \
+            -Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml \
             -Dsonar.issue.ignore.multicriteria=rpxUnit,lombokEntityField \
             -Dsonar.issue.ignore.multicriteria.rpxUnit.ruleKey=css:S4653 \
             -Dsonar.issue.ignore.multicriteria.rpxUnit.resourceKey='**/*' \

@@ -34,13 +34,16 @@ $scanner = if (Test-Path "D:\devTools\sonar-scanner\bin\sonar-scanner.bat") {
   "sonar-scanner"
 }
 
-Write-Host "==> 1/2 Compile Java modules (skip tests)..." -ForegroundColor Cyan
-& $mvn -B "-DskipTests" "-Dmaven.test.skip=true" package `
+Write-Host "==> 1/3 Compile + unit tests + Jacoco..." -ForegroundColor Cyan
+& $mvn -B "-Dmaven.test.failure.ignore=true" test jacoco:report `
   "-pl" "services/trade-service,services/device-service,services/common/common-core" "-am"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # Maven sonar:sonar 只会扫 Maven 模块；admin-vue 需走 sonar-scanner + sonar-project.properties
-Write-Host "==> 2/2 Sonar scan (Java + admin-vue + consumer-mp + merchant-mp) key=$projectKey ..." -ForegroundColor Cyan
+Write-Host "==> 2/3 Ensure quality gate (AI Cabinet)..." -ForegroundColor Cyan
+& "$PSScriptRoot\setup-sonar-quality-gate.ps1" -SonarHostUrl $SonarHostUrl -SonarToken $SonarToken
+
+Write-Host "==> 3/3 Sonar scan (Java + admin-vue + consumer-mp + merchant-mp) key=$projectKey ..." -ForegroundColor Cyan
 if ($scmRevision) { Write-Host "scm.revision=$scmRevision" }
 
 $scannerArgs = @(
@@ -48,7 +51,8 @@ $scannerArgs = @(
   "-Dsonar.projectName=$projectName",
   "-Dsonar.host.url=$SonarHostUrl",
   "-Dsonar.token=$SonarToken",
-  "-Dsonar.sourceEncoding=UTF-8"
+  "-Dsonar.sourceEncoding=UTF-8",
+  "-Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml"
 )
 if ($scmRevision) {
   $scannerArgs += "-Dsonar.scm.revision=$scmRevision"
