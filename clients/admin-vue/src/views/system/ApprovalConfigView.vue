@@ -9,6 +9,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <el-button v-if="canEdit" type="primary" @click="openCreate">新增</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -71,15 +72,66 @@
             </template>
           </el-table-column>
           <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip align="center" />
-          <el-table-column label="操作" width="110" align="center" class-name="col-action">
+          <el-table-column
+            v-if="canEdit"
+            label="操作"
+            width="160"
+            align="center"
+            class-name="col-action"
+          >
             <template #default="{ row }">
-              <el-button v-if="canEdit" link type="primary" @click="openEdit(row)">编辑流程图</el-button>
+              <TableActions
+                :actions="rowActions()"
+                @action="(k) => onRowAction(String(k), row)"
+              />
             </template>
           </el-table-column>
         </el-table>
       </div>
     </div>
   </el-card>
+
+  <el-dialog
+    v-model="metaDlg"
+    :title="creating ? '新增审批流' : '编辑审批流'"
+    width="520px"
+    destroy-on-close
+  >
+    <el-form label-width="88px">
+      <el-form-item label="业务类型" required>
+        <el-select
+          v-if="creating"
+          v-model="metaForm.bizType"
+          filterable
+          allow-create
+          default-first-option
+          placeholder="选择或输入业务码"
+          style="width: 100%"
+        >
+          <el-option
+            v-for="opt in bizTypeOptions"
+            :key="opt.value"
+            :label="`${opt.label} (${opt.value})`"
+            :value="opt.value"
+          />
+        </el-select>
+        <el-input v-else :model-value="`${bizLabel(metaForm.bizType)} · ${metaForm.bizType}`" disabled />
+      </el-form-item>
+      <el-form-item label="名称" required>
+        <el-input v-model="metaForm.defName" placeholder="审批流名称" />
+      </el-form-item>
+      <el-form-item label="启用">
+        <el-switch v-model="metaForm.enabled" />
+      </el-form-item>
+      <el-form-item label="备注">
+        <el-input v-model="metaForm.remark" type="textarea" :rows="2" maxlength="256" show-word-limit />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="metaDlg = false">取消</el-button>
+      <el-button type="primary" :loading="metaSaving" @click="saveMeta">保存</el-button>
+    </template>
+  </el-dialog>
 
   <el-dialog
     v-model="dlg"
@@ -215,9 +267,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
-import { ElMessage } from 'element-plus';
-import { ArrowDown, ArrowUp, Delete, Refresh } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { ArrowDown, ArrowUp, Delete, EditPen, Refresh, Share } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 
@@ -256,9 +309,12 @@ const canEdit = computed(() => auth.hasPerm('ops:approval:config'));
 const loading = ref(false);
 const hydrated = ref(false);
 const saving = ref(false);
+const metaSaving = ref(false);
+const creating = ref(false);
 const rows = ref<ApprovalDef[]>([]);
 const departments = ref<DeptRow[]>([]);
 const dlg = ref(false);
+const metaDlg = ref(false);
 const activeIdx = ref(0);
 const editForm = reactive({
   defId: 0,
@@ -268,8 +324,30 @@ const editForm = reactive({
   remark: '',
   nodes: [] as ApprovalNode[]
 });
+const metaForm = reactive({
+  defId: 0,
+  bizType: '',
+  defName: '',
+  enabled: true,
+  remark: ''
+});
 
 const assigneeTypeOptions = computed(() => dictOptions('approval_assignee_type'));
+const bizTypeOptions = computed(() => dictOptions('approval_biz_type'));
+
+function rowActions(): TableAction[] {
+  return [
+    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' },
+    { key: 'flow', label: '编辑流程图', icon: Share, type: 'primary' },
+    { key: 'delete', label: '删除', icon: Delete, type: 'danger', overflow: true }
+  ];
+}
+
+function onRowAction(key: string, row: ApprovalDef) {
+  if (key === 'edit') openMetaEdit(row);
+  else if (key === 'flow') openFlowEdit(row);
+  else if (key === 'delete') void onDelete(row);
+}
 
 function bizLabel(bizType: string) {
   return dictLabel('approval_biz_type', bizType) || bizType;
@@ -328,7 +406,27 @@ async function load() {
   }
 }
 
-function openEdit(row: ApprovalDef) {
+function openCreate() {
+  creating.value = true;
+  metaForm.defId = 0;
+  metaForm.bizType = '';
+  metaForm.defName = '';
+  metaForm.enabled = true;
+  metaForm.remark = '';
+  metaDlg.value = true;
+}
+
+function openMetaEdit(row: ApprovalDef) {
+  creating.value = false;
+  metaForm.defId = row.defId;
+  metaForm.bizType = row.bizType;
+  metaForm.defName = row.defName;
+  metaForm.enabled = row.enabled;
+  metaForm.remark = row.remark || '';
+  metaDlg.value = true;
+}
+
+function openFlowEdit(row: ApprovalDef) {
   editForm.defId = row.defId;
   editForm.bizType = row.bizType;
   editForm.defName = row.defName;
@@ -338,6 +436,61 @@ function openEdit(row: ApprovalDef) {
   if (!editForm.nodes.length) insertNode(0);
   activeIdx.value = 0;
   dlg.value = true;
+}
+
+async function saveMeta() {
+  if (!metaForm.defName.trim()) {
+    ElMessage.warning('请填写名称');
+    return;
+  }
+  if (creating.value && !metaForm.bizType.trim()) {
+    ElMessage.warning('请填写业务类型');
+    return;
+  }
+  metaSaving.value = true;
+  try {
+    if (creating.value) {
+      await api.request('/api/v2/ops/admin/approvals/definitions', 'POST', {
+        bizType: metaForm.bizType.trim().toUpperCase(),
+        defName: metaForm.defName.trim(),
+        enabled: metaForm.enabled,
+        remark: metaForm.remark.trim() || null
+      });
+      ElMessage.success('已新增，可继续编辑流程图');
+    } else {
+      await api.request(`/api/v2/ops/admin/approvals/definitions/${metaForm.defId}`, 'PUT', {
+        defName: metaForm.defName.trim(),
+        enabled: metaForm.enabled,
+        remark: metaForm.remark.trim() || null
+      });
+      ElMessage.success('已保存');
+    }
+    metaDlg.value = false;
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+  } finally {
+    metaSaving.value = false;
+  }
+}
+
+async function onDelete(row: ApprovalDef) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除审批流「${row.defName}」？已有审批实例时将无法删除。`,
+      '删除',
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/approvals/definitions/${row.defId}`, 'DELETE');
+    ElMessage.success('已删除');
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '删除失败');
+  }
 }
 
 function blankNode(seq: number): ApprovalNode {

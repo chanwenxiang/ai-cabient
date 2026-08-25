@@ -125,7 +125,7 @@
           >
             <template #default="{ row }">{{ row.remark || '无' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="140" class-name="col-action" align="center">
+          <el-table-column label="操作" width="160" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions :actions="roleActions(row)" @action="(k) => onRoleAction(k, row)" />
             </template>
@@ -242,8 +242,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { EditPen, Key, Refresh } from '@element-plus/icons-vue';
-import { ElMessage, type ElTree } from 'element-plus';
+import { EditPen, Key, Refresh, SwitchButton } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox, type ElTree } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
@@ -280,12 +280,51 @@ function roleActions(row: RoleRow): TableAction[] {
       disabled: row.roleKey === 'admin'
     });
   }
+  if (auth.hasPerm('ops:rbac:role:edit') && row.roleKey !== 'admin') {
+    const isActive = (row.status || 'ACTIVE') === 'ACTIVE';
+    acts.push({
+      key: 'toggle',
+      label: isActive ? '停用' : '启用',
+      icon: SwitchButton,
+      type: isActive ? 'danger' : 'success',
+      overflow: true
+    });
+  }
   return acts;
 }
 
 function onRoleAction(key: string, row: RoleRow) {
   if (key === 'edit') openEdit(row);
   else if (key === 'perms') openPerms(row);
+  else if (key === 'toggle') void onToggleStatus(row);
+}
+
+async function onToggleStatus(row: RoleRow) {
+  if (row.roleKey === 'admin') {
+    ElMessage.warning('系统管理员角色不可停用');
+    return;
+  }
+  const isActive = (row.status || 'ACTIVE') === 'ACTIVE';
+  const next = isActive ? 'INACTIVE' : 'ACTIVE';
+  const label = isActive ? '停用' : '启用';
+  try {
+    await ElMessageBox.confirm(`确认${label}角色「${row.roleName}」？`, `${label}角色`, {
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/rbac/roles/${row.roleId}`, 'PUT', {
+      roleName: row.roleName,
+      remark: row.remark,
+      status: next
+    });
+    ElMessage.success(`已${label}`);
+    await loadRoles();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : `${label}失败`);
+  }
 }
 
 interface RoleRow {

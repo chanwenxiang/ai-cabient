@@ -49,6 +49,15 @@ public class SysDictController {
         return ApiResponse.ok(dictService.upsertType(operatorId(request), body));
     }
 
+    @RequiresPermissions("ops:dict:edit")
+    @DeleteMapping("/types/{dictType}")
+    public ApiResponse<Void> deleteType(
+            HttpServletRequest request,
+            @PathVariable String dictType) {
+        dictService.deleteType(operatorId(request), dictType);
+        return ApiResponse.ok(null);
+    }
+
     @RequiresPermissions(value = {"ops:dict:edit", "ops:dict:import"}, logical = RequiresPermissions.Logical.OR)
     @PostMapping("/{dictType}/items")
     public ApiResponse<DictDtos.DictDataDto> createItem(

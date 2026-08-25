@@ -188,6 +188,23 @@ public class SysDictService {
         });
     }
 
+    /** 删除字典类型及其全部字典项。 */
+    @Transactional
+    public void deleteType(Long operatorId, String dictType) {
+        permissionService.requirePermission(operatorId, "ops:dict:edit");
+        String type = requireText(dictType, "字典类型").trim();
+        runWithDictTypeLock(type, () -> {
+            SysDictType entity = typeRepository.findByIdForUpdate(type)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "字典类型不存在"));
+            long itemCount = dataRepository.countByDictType(type);
+            dataRepository.deleteByDictType(type);
+            typeRepository.deleteById(type);
+            auditService.record(operatorId, "DICT_TYPE_DELETE", "DICT_TYPE", type,
+                    entity.getDictName() + "（含 " + itemCount + " 项）");
+            return null;
+        });
+    }
+
     static String dictTypeLockKey(String dictType) {
         return "dict:type:" + dictType.trim().toLowerCase();
     }

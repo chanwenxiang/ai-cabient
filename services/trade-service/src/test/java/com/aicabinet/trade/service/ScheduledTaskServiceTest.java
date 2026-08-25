@@ -18,11 +18,13 @@ import static org.mockito.Mockito.when;
 class ScheduledTaskServiceTest {
 
     private final ScheduledTaskMapper mapper = mock(ScheduledTaskMapper.class);
+    private final ScheduledTaskRegistry registry = mock(ScheduledTaskRegistry.class);
     private final DistributedLockService locks = mock(DistributedLockService.class);
     private final AdminAuditService audit = mock(AdminAuditService.class);
 
     private ScheduledTaskService service(boolean xxlEnabled) {
-        return new ScheduledTaskService(mapper, locks, audit, xxlEnabled);
+        when(registry.get(anyString())).thenReturn(java.util.Optional.empty());
+        return new ScheduledTaskService(mapper, registry, locks, audit, xxlEnabled);
     }
 
     @Test

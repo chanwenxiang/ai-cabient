@@ -19,6 +19,7 @@ import static org.mockito.Mockito.when;
 class ScheduledTaskConcurrencyTest {
 
     @Mock private ScheduledTaskMapper taskRepository;
+    @Mock private ScheduledTaskRegistry registry;
     @Mock private DistributedLockService lockService;
     @Mock private AdminAuditService auditService;
 
@@ -26,7 +27,7 @@ class ScheduledTaskConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        service = new ScheduledTaskService(taskRepository, lockService, auditService, false);
+        service = new ScheduledTaskService(taskRepository, registry, lockService, auditService, false);
     }
 
     @Test
