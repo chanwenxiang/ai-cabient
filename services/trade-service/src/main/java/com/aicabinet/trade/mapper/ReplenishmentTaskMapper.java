@@ -12,6 +12,12 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTask> {
 
+    ReplenishmentTask _findByIdForUpdateRaw(@Param("taskId") Long taskId);
+
+    default Optional<ReplenishmentTask> findByIdForUpdate(Long taskId) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(taskId));
+    }
+
     default List<ReplenishmentTask> findByRouteId(Long routeId) {
     return selectList(
         Wrappers.<ReplenishmentTask>lambdaQuery()
@@ -33,6 +39,13 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
 
     default List<ReplenishmentTask> findByAssigneeUserIdAndStatusIn(Long assigneeUserId, List<String> statuses) {
     return selectList(Wrappers.<ReplenishmentTask>lambdaQuery().eq(ReplenishmentTask::getAssigneeUserId, assigneeUserId).in(ReplenishmentTask::getStatus, statuses));
+    }
+
+    default List<ReplenishmentTask> findByAssigneeUserIdAndCreatedAtSince(Long assigneeUserId, Instant since) {
+        return selectList(Wrappers.<ReplenishmentTask>lambdaQuery()
+                .eq(ReplenishmentTask::getAssigneeUserId, assigneeUserId)
+                .ge(ReplenishmentTask::getCreatedAt, since)
+                .orderByAsc(ReplenishmentTask::getTaskId));
     }
 
     default List<ReplenishmentTask> findByStatusIn(List<String> statuses) {
@@ -81,6 +94,17 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
 
     default Optional<Instant> findLastCompletedAtByDeviceId(String deviceId) {
         return Optional.ofNullable(_findLastCompletedAtByDeviceId(deviceId));
+    }
+
+    default List<ReplenishmentTask> findByCreatedAtAfter(Instant since) {
+        return selectList(Wrappers.<ReplenishmentTask>lambdaQuery()
+                .ge(ReplenishmentTask::getCreatedAt, since));
+    }
+
+    default List<ReplenishmentTask> findByCompletedAtAfter(Instant since) {
+        return selectList(Wrappers.<ReplenishmentTask>lambdaQuery()
+                .isNotNull(ReplenishmentTask::getCompletedAt)
+                .ge(ReplenishmentTask::getCompletedAt, since));
     }
 
 }

@@ -11,6 +11,10 @@
       "path": "pages/home/home",
       "style": {
         "navigationBarTitleText": "工作台",
+        "navigationStyle": "custom",
+        "navigationBarBackgroundColor": "#134e4a",
+        "navigationBarTextStyle": "white",
+        "backgroundColor": "#134e4a",
         "enablePullDownRefresh": true
       }
     },
@@ -18,130 +22,165 @@
       "path": "pages/devices/devices",
       "style": {
         "navigationBarTitleText": "柜机",
+        "navigationStyle": "custom",
+        "navigationBarBackgroundColor": "#134e4a",
+        "navigationBarTextStyle": "white",
+        "backgroundColor": "#ffffff",
         "enablePullDownRefresh": true
       }
     },
     {
       "path": "pages/device-detail/device-detail",
       "style": {
-        "navigationBarTitleText": "柜机详情"
+        "navigationBarTitleText": "柜机详情",
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/pricing/pricing",
       "style": {
-        "navigationBarTitleText": "点位定价"
+        "navigationBarTitleText": "点位定价",
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/replenishment/replenishment",
       "style": {
         "navigationBarTitleText": "补货任务",
-        "enablePullDownRefresh": true
+        "enablePullDownRefresh": true,
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/request/request",
       "style": {
         "navigationBarTitleText": "要货申请",
-        "enablePullDownRefresh": true
+        "enablePullDownRefresh": true,
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/business/business",
       "style": {
         "navigationBarTitleText": "经营分析",
-        "enablePullDownRefresh": true
+        "enablePullDownRefresh": true,
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/alerts/alerts",
       "style": {
         "navigationBarTitleText": "待办",
+        "navigationStyle": "custom",
+        "navigationBarBackgroundColor": "#134e4a",
+        "navigationBarTextStyle": "white",
+        "backgroundColor": "#ffffff",
         "enablePullDownRefresh": true
       }
     },
     {
       "path": "pages/mine/mine",
       "style": {
-        "navigationBarTitleText": "我的"
+        "navigationBarTitleText": "我的",
+        "navigationStyle": "custom",
+        "navigationBarBackgroundColor": "#134e4a",
+        "navigationBarTextStyle": "white",
+        "backgroundColor": "#ffffff"
       }
     },
     {
       "style": {
         "enablePullDownRefresh": true,
-        "navigationBarTitleText": "结算对账"
+        "navigationBarTitleText": "结算对账",
+        "navigationStyle": "custom"
       },
       "path": "pages/settlements/settlements"
     },
     {
       "style": {
         "enablePullDownRefresh": true,
-        "navigationBarTitleText": "争议处理"
+        "navigationBarTitleText": "争议处理",
+        "navigationStyle": "custom"
       },
       "path": "pages/disputes/disputes"
     },
     {
       "style": {
         "enablePullDownRefresh": true,
-        "navigationBarTitleText": "柜机订单"
+        "navigationBarTitleText": "柜机订单",
+        "navigationStyle": "custom"
       },
       "path": "pages/orders/orders"
     },
     {
       "style": {
         "enablePullDownRefresh": true,
-        "navigationBarTitleText": "订单详情"
+        "navigationBarTitleText": "订单详情",
+        "navigationStyle": "custom"
       },
       "path": "pages/order-detail/order-detail"
+    },
+    {
+      "path": "pages/messages/messages",
+      "style": {
+        "navigationBarTitleText": "消息中心",
+        "enablePullDownRefresh": true,
+        "navigationStyle": "custom"
+      }
     },
     {
       "path": "pages/announcements/announcements",
       "style": {
         "navigationBarTitleText": "通知公告",
-        "enablePullDownRefresh": true
+        "enablePullDownRefresh": true,
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/announcements/detail",
       "style": {
-        "navigationBarTitleText": "公告详情"
+        "navigationBarTitleText": "公告详情",
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/team/team",
       "style": {
         "navigationBarTitleText": "团队成员",
-        "enablePullDownRefresh": true
+        "enablePullDownRefresh": true,
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/splits/splits",
       "style": {
         "navigationBarTitleText": "分账明细",
-        "enablePullDownRefresh": true
+        "enablePullDownRefresh": true,
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/wallet/wallet",
       "style": {
         "navigationBarTitleText": "商户钱包",
-        "enablePullDownRefresh": true
+        "enablePullDownRefresh": true,
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/line-wallet/line-wallet",
       "style": {
         "navigationBarTitleText": "线长钱包",
-        "enablePullDownRefresh": true
+        "enablePullDownRefresh": true,
+        "navigationStyle": "custom"
       }
     }
   ],
   "tabBar": {
-    "color": "#94a3b8",
-    "selectedColor": "#0d9488",
-    "backgroundColor": "#ffffff",
-    "borderStyle": "black",
+    "color": "#64748b",
+    "selectedColor": "#0f766e",
+    "backgroundColor": "#f4faf7",
+    "borderStyle": "white",
     "list": [
       {
         "pagePath": "pages/home/home",
@@ -172,12 +211,13 @@
   "easycom": {
     "autoscan": true,
     "custom": {
-      "^empty-state$": "@/components/empty-state.vue"
+      "^empty-state$": "@/components/empty-state.vue",
+      "^app-nav-bar$": "@/components/app-nav-bar.vue"
     }
   },
   "globalStyle": {
     "navigationBarTextStyle": "white",
     "navigationBarBackgroundColor": "#134e4a",
-    "backgroundColor": "#f0fdfa"
+    "backgroundColor": "#ffffff"
   }
 }

@@ -53,28 +53,58 @@ function tryParseJson(text: string): string {
 }
 
 function extractFromUrl(raw: string): { deviceId: string; channel: string } {
-  try {
-    const url = new URL(raw);
-    const params = parseQueryString(url.search);
-    const fromQuery = pickDeviceIdFromParams(params);
-    const channel = pickChannelFromParams(params);
-    if (fromQuery) return { deviceId: fromQuery, channel };
-    const parts = url.pathname.split('/').filter(Boolean);
-    for (let i = parts.length - 1; i >= 0; i--) {
-      const id = normalizeDeviceId(parts[i]);
-      if (id) return { deviceId: id, channel };
-    }
-    if (url.hash?.includes('=')) {
-      const hashParams = parseQueryString(url.hash.replace(/^#/, ''));
-      const fromHash = pickDeviceIdFromParams(hashParams);
-      if (fromHash)
-        return { deviceId: fromHash, channel: channel || pickChannelFromParams(hashParams) };
-    }
-    return { deviceId: '', channel };
-  } catch {
-    /* not a url */
+  const text = String(raw || '').trim();
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(text) && !text.startsWith('/')) {
+    return { deviceId: '', channel: '' };
   }
-  return { deviceId: '', channel: '' };
+
+  let search = '';
+  let hash = '';
+  let pathname = text;
+
+  const hashIdx = text.indexOf('#');
+  if (hashIdx >= 0) {
+    hash = text.slice(hashIdx + 1);
+    pathname = text.slice(0, hashIdx);
+  }
+  const qIdx = pathname.indexOf('?');
+  if (qIdx >= 0) {
+    search = pathname.slice(qIdx + 1);
+    pathname = pathname.slice(0, qIdx);
+  }
+  const schemeIdx = pathname.indexOf('://');
+  if (schemeIdx >= 0) {
+    const pathStart = pathname.indexOf('/', schemeIdx + 3);
+    pathname = pathStart >= 0 ? pathname.slice(pathStart) : '/';
+  }
+
+  const params = parseQueryString(search);
+  const fromQuery = pickDeviceIdFromParams(params);
+  const channel = pickChannelFromParams(params);
+  if (fromQuery) return { deviceId: fromQuery, channel };
+
+  const parts = pathname.split('/').filter(Boolean);
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const id = normalizeDeviceId(decodeSafe(parts[i]));
+    if (id) return { deviceId: id, channel };
+  }
+
+  if (hash.includes('=')) {
+    const hashParams = parseQueryString(hash.replace(/^\//, ''));
+    const fromHash = pickDeviceIdFromParams(hashParams);
+    if (fromHash) {
+      return { deviceId: fromHash, channel: channel || pickChannelFromParams(hashParams) };
+    }
+  }
+  return { deviceId: '', channel };
+}
+
+function decodeSafe(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 export interface ScanResult {

@@ -31,10 +31,13 @@ class DeviceStableOnlineAutoUnlockServiceTest {
     private final DeviceSalesLockService salesLock = mock(DeviceSalesLockService.class);
     private final OpsExceptionService opsExceptionService = mock(OpsExceptionService.class);
     private final AdminAuditService audit = mock(AdminAuditService.class);
+    private final DistributedLockService distributedLockService = mock(DistributedLockService.class);
 
     private DeviceStableOnlineAutoUnlockService service() {
+        when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
         return new DeviceStableOnlineAutoUnlockService(
-                systemConfig, devices, sessions, tickets, exceptions, salesLock, opsExceptionService, audit);
+                systemConfig, devices, sessions, tickets, exceptions, salesLock, opsExceptionService, audit,
+                distributedLockService);
     }
 
     @Test
@@ -61,6 +64,7 @@ class DeviceStableOnlineAutoUnlockServiceTest {
                 .thenReturn(Optional.of(new OpsException()));
         when(tickets.selectCount(any())).thenReturn(0L);
         when(sessions.selectCount(any())).thenReturn(0L);
+        when(devices.findByIdForUpdate("CAB-001")).thenReturn(Optional.of(device));
         when(salesLock.applySalesLock(eq(0L), eq(device), eq(false), anyString(), eq(true)))
                 .thenReturn("LOCAL-test");
 

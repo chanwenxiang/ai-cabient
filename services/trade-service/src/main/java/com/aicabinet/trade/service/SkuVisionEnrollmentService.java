@@ -54,6 +54,8 @@ public class SkuVisionEnrollmentService {
     private final ObjectMapper objectMapper;
     private final VisionServiceClient visionServiceClient;
     private final UserInfoMapper userInfoRepository;
+    private final FileAttachmentService fileAttachmentService;
+    private final DistributedLockService distributedLockService;
 
     public SkuVisionEnrollmentService(SkuCatalogMapper skuCatalogRepository,
                                         SkuVisionMappingMapper yoloRepository,
@@ -63,7 +65,9 @@ public class SkuVisionEnrollmentService {
                                         StagingProperties stagingProperties,
                                         ObjectMapper objectMapper,
                                         VisionServiceClient visionServiceClient,
-                                        UserInfoMapper userInfoRepository) {
+                                        UserInfoMapper userInfoRepository,
+                                        FileAttachmentService fileAttachmentService,
+                                        DistributedLockService distributedLockService) {
         this.skuCatalogRepository = skuCatalogRepository;
         this.yoloRepository = yoloRepository;
         this.deviceSlotService = deviceSlotService;
@@ -73,6 +77,8 @@ public class SkuVisionEnrollmentService {
         this.objectMapper = objectMapper;
         this.visionServiceClient = visionServiceClient;
         this.userInfoRepository = userInfoRepository;
+        this.fileAttachmentService = fileAttachmentService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -118,9 +124,17 @@ public class SkuVisionEnrollmentService {
         permissionService.requirePermission(operatorId, "ops:vision:edit");
         UpsertSkuRequest skuReq = request.sku();
         String requestedId = skuReq.skuId() != null ? skuReq.skuId().trim() : "";
+        if (!requestedId.isEmpty()) {
+            return runWithSkuVisionLock(requestedId, () -> doEnrollSku(operatorId, request, requestedId));
+        }
+        return doEnrollSku(operatorId, request, requestedId);
+    }
+
+    private SkuCatalogDto doEnrollSku(Long operatorId, UpsertSkuVisionEnrollmentRequest request, String requestedId) {
+        UpsertSkuRequest skuReq = request.sku();
         SkuCatalog sku = requestedId.isEmpty()
                 ? new SkuCatalog()
-                : skuCatalogRepository.findById(requestedId).orElseGet(SkuCatalog::new);
+                : skuCatalogRepository.findByIdForUpdate(requestedId).orElseGet(SkuCatalog::new);
         boolean created = sku.getSkuId() == null;
         if (created) {
             long code = skuCatalogRepository.nextSkuCode();
@@ -140,13 +154,18 @@ public class SkuVisionEnrollmentService {
         if (skuCatalogRepository.existsBySkuName(skuReq.skuName(), sku.getSkuId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_NAME_EXISTS);
         }
+        String oldImageUrl = sku.getImageUrl();
         applySkuFields(sku, skuReq, request);
         touchSkuUpdater(sku, operatorId);
         skuCatalogRepository.save(sku);
+        String newImageUrl = trimToNull(skuReq.imageUrl());
+        if (oldImageUrl != null && !oldImageUrl.equals(newImageUrl)) {
+            fileAttachmentService.releaseSkuImageIfUnused(oldImageUrl, operatorId);
+        }
 
         String skuId = sku.getSkuId();
         String className = resolveClassName(request.yoloClassName(), sku);
-        SkuVisionMapping mapping = yoloRepository.findById(className).orElse(new SkuVisionMapping());
+        SkuVisionMapping mapping = yoloRepository.findByIdForUpdate(className).orElse(new SkuVisionMapping());
         mapping.setClassName(className);
         mapping.setSkuId(skuId);
         mapping.setMinConfidence(request.detectionMinConfidence());
@@ -161,7 +180,11 @@ public class SkuVisionEnrollmentService {
     @Transactional
     public SkuCatalogDto updateEnrollmentStatus(Long operatorId, String skuId, String status) {
         permissionService.requirePermission(operatorId, "ops:vision:edit");
-        SkuCatalog sku = requireSku(skuId);
+        return runWithSkuVisionLock(skuId, () -> doUpdateEnrollmentStatus(operatorId, skuId, status));
+    }
+
+    private SkuCatalogDto doUpdateEnrollmentStatus(Long operatorId, String skuId, String status) {
+        SkuCatalog sku = requireSkuForUpdate(skuId);
         String next = normalizeStatus(status);
         assertAllowedStatus(next);
         if ("PRODUCTION".equals(next) || "TESTED".equals(next) || "MAPPING".equals(next)) {
@@ -179,7 +202,11 @@ public class SkuVisionEnrollmentService {
     @Transactional
     public SkuVisionEnrollmentRowDto advanceEnrollment(Long operatorId, String skuId) {
         permissionService.requirePermission(operatorId, "ops:vision:edit");
-        SkuCatalog sku = requireSku(skuId);
+        return runWithSkuVisionLock(skuId, () -> doAdvanceEnrollment(operatorId, skuId));
+    }
+
+    private SkuVisionEnrollmentRowDto doAdvanceEnrollment(Long operatorId, String skuId) {
+        SkuCatalog sku = requireSkuForUpdate(skuId);
         String current = normalizeStatus(sku.getVisionEnrollmentStatus());
         String next = nextStatus(current);
         if (next == null) {
@@ -380,6 +407,27 @@ public class SkuVisionEnrollmentService {
     private SkuCatalog requireSku(String skuId) {
         return skuCatalogRepository.findById(skuId.trim())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SKU_NOT_FOUND));
+    }
+
+    private SkuCatalog requireSkuForUpdate(String skuId) {
+        return skuCatalogRepository.findByIdForUpdate(skuId.trim())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SKU_NOT_FOUND));
+    }
+
+    static String skuVisionLockKey(String skuId) {
+        return "sku:vision:" + skuId.trim();
+    }
+
+    private <T> T runWithSkuVisionLock(String skuId, java.util.function.Supplier<T> action) {
+        String key = skuVisionLockKey(skuId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "SKU 识别入驻处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
     }
 
     private static String normalizeStatus(String status) {

@@ -28,6 +28,7 @@ public class UserValidationService {
     private final DeviceInfoMapper deviceRepository;
     private final MerchantOpsConfigMapper opsConfigRepository;
     private final CabinetOrderMapper orderRepository;
+    private final SystemConfigService systemConfigService;
 
     public UserValidationService(UserInfoMapper userInfoRepository,
                                  UserAccountMapper userAccountRepository,
@@ -37,7 +38,8 @@ public class UserValidationService {
                                  ConsumerPreauthService consumerPreauthService,
                                  DeviceInfoMapper deviceRepository,
                                  MerchantOpsConfigMapper opsConfigRepository,
-                                 CabinetOrderMapper orderRepository) {
+                                 CabinetOrderMapper orderRepository,
+                                 SystemConfigService systemConfigService) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.riskControlService = riskControlService;
@@ -47,6 +49,7 @@ public class UserValidationService {
         this.deviceRepository = deviceRepository;
         this.opsConfigRepository = opsConfigRepository;
         this.orderRepository = orderRepository;
+        this.systemConfigService = systemConfigService;
     }
 
     /**
@@ -70,6 +73,7 @@ public class UserValidationService {
         }
 
         riskControlService.validateCanOpenDoor(userId, deviceId);
+        enforceUnpaidDebtBlock(userId);
         enforceMaxInflightOrders(userId, deviceId);
 
         UserInfo user = userInfoRepository.findById(userId)
@@ -92,6 +96,21 @@ public class UserValidationService {
             throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
                     "可用余额不足，开门需预授权冻结 ¥" + String.format("%.2f", need / 100.0)
                             + "（可用 ¥" + String.format("%.2f", available / 100.0) + "）");
+        }
+    }
+
+    /**
+     * 欠款闭环：有待支付订单时默认禁止开门（可通过 debt.block_open_on_pending=false 关闭）。
+     */
+    private void enforceUnpaidDebtBlock(Long userId) {
+        boolean block = systemConfigService.getBoolean("debt.block_open_on_pending", true);
+        if (!block) {
+            return;
+        }
+        long pending = orderRepository.countByUserIdAndStatus(userId, "PENDING");
+        if (pending > 0) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
+                    "您有 " + pending + " 笔待支付账单，请先补缴后再开门");
         }
     }
 

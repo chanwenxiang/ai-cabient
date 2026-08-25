@@ -1,81 +1,72 @@
 <template>
-  <view class="page">
-    <view class="page-nav">
-      <view
-        class="nav-back"
-        hover-class="nav-back-hover"
-        role="button"
-        aria-label="返回"
-        @click="goBack"
-      >
-        <image
-          class="nav-back-svg"
-          src="/static/nav-back.svg"
-          mode="aspectFit"
-          aria-hidden="true"
-        />
-      </view>
-      <text class="nav-title">我的订单</text>
-      <view class="nav-side" />
-    </view>
-    <view v-if="loading" class="state-wrap"><text class="meta">加载中…</text></view>
-    <view v-else-if="error" class="state-wrap">
-      <text class="empty-title">加载失败</text>
-      <text class="empty-desc">{{ error }}</text>
-      <button class="action-btn" hover-class="btn-hover" @click="load">重试</button>
-      <button class="ghost-btn" hover-class="btn-hover" @click="goShop">去扫码购物</button>
-    </view>
-    <view v-else-if="!authed" class="state-wrap">
-      <text class="empty-title">登录后查看订单</text>
-      <text class="empty-desc">登录后可查看购物账单与审核进度</text>
-      <button class="action-btn" hover-class="btn-hover" @click="onAuth">去登录</button>
-      <button class="ghost-btn" hover-class="btn-hover" @click="goShop">先去扫码购物</button>
-    </view>
-    <view v-else-if="!orders.length && !reviewingDisputes.length" class="state-wrap">
-      <text class="empty-title">暂无订单</text>
-      <text class="empty-desc">扫码开门购物后，账单会显示在这里</text>
-      <button class="action-btn" hover-class="btn-hover" @click="goShop">去扫码购物</button>
-    </view>
+  <view class="page page-fill">
+    <app-nav-bar title="我的订单" home-url="/pages/index/index" />
+    <view v-if="booting" class="state-wrap"><text class="meta">加载中…</text></view>
+    <empty-state
+      v-else-if="error && !orders.length"
+      class="state-wrap"
+      title="加载失败"
+      :hint="error"
+    >
+      <button class="empty-btn primary" hover-class="btn-hover" @click="load">重试</button>
+      <button class="empty-btn ghost" hover-class="btn-hover" @click="goShop">去扫码购物</button>
+    </empty-state>
+    <empty-state
+      v-else-if="!authed"
+      class="state-wrap"
+      title="登录后查看订单"
+      hint="登录后可查看购物账单与审核进度"
+    >
+      <button class="empty-btn primary" hover-class="btn-hover" @click="onAuth">去登录</button>
+      <button class="empty-btn ghost" hover-class="btn-hover" @click="goShop">先去扫码购物</button>
+    </empty-state>
     <view v-else class="orders-main">
-      <view v-if="reviewingDisputes.length" class="review-section">
-        <text class="section-label">需要关注</text>
-        <view
-          v-for="d in reviewingDisputes"
-          :key="d.ticketId"
-          class="review-card"
-          :class="'tone-' + reviewCopy(d).tone"
-          @click="goDisputeDetail(d)"
-        >
-          <view class="review-icon">{{ reviewCopy(d).icon }}</view>
-          <view class="review-body">
-            <view class="review-top">
-              <text class="review-title">{{ reviewCopy(d).title }}</text>
-              <text class="chip pending">审核中</text>
-            </view>
-            <text class="review-detail">{{ reviewCopy(d).detail }}</text>
-            <view class="review-foot">
-              <text class="review-time">{{ formatTime(d.createdAt) }}</text>
-              <text class="review-link">查看详情 ›</text>
+      <!-- 关注区 + 筛选 + 列表同一滚动，避免上半区固定挤占购买记录 -->
+      <scroll-view
+        scroll-y
+        class="main-scroll"
+        :show-scrollbar="false"
+        lower-threshold="120"
+        @scrolltolower="loadMore"
+      >
+        <view v-if="reviewingDisputes.length" class="review-section">
+          <text class="section-label">需要关注</text>
+          <view
+            v-for="d in reviewingDisputes"
+            :key="d.ticketId"
+            class="review-card"
+            :class="'tone-' + reviewCopy(d).tone"
+            @click="goDisputeDetail(d)"
+          >
+            <view class="review-icon">{{ reviewCopy(d).icon }}</view>
+            <view class="review-body">
+              <view class="review-top">
+                <text class="review-title">{{ reviewCopy(d).title }}</text>
+                <text class="chip pending">审核中</text>
+              </view>
+              <text class="review-detail">{{ reviewCopy(d).detail }}</text>
+              <view class="review-foot">
+                <text class="review-time">{{ formatTime(d.createdAt) }}</text>
+                <text class="review-link">查看详情 ›</text>
+              </view>
             </view>
           </view>
         </view>
-      </view>
 
-      <view class="filter-block">
-        <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false">
-          <view class="order-filters">
-            <text
-              v-for="f in filters"
-              :key="f.value"
-              class="filter-chip"
-              :class="{ active: filter === f.value }"
-              @click="filter = f.value"
-              >{{ f.label }}{{ filterCountSuffix(f.value) }}</text
-            >
-          </view>
-        </scroll-view>
-        <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false">
-          <view class="order-filters time-filters">
+        <view class="filter-block">
+          <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false" enable-flex>
+            <view class="order-filters">
+              <text
+                v-for="f in filters"
+                :key="f.value"
+                class="filter-chip"
+                :class="{ active: filter === f.value }"
+                @click="filter = f.value"
+                >{{ f.label }}{{ filterCountSuffix(f.value) }}</text
+              >
+            </view>
+          </scroll-view>
+          <view class="order-filters time-row">
             <text
               v-for="t in timeFilters"
               :key="t.value"
@@ -85,50 +76,106 @@
               >{{ t.label }}</text
             >
           </view>
-        </scroll-view>
-      </view>
+        </view>
 
-      <scroll-view
-        scroll-y
-        class="list"
-        :show-scrollbar="false"
-        lower-threshold="120"
-        @scrolltolower="loadMore"
-      >
-        <view v-for="o in visibleOrders" :key="o.orderId" class="order-card" @click="goDetail(o)">
-          <view class="order-top">
-            <view class="order-meta">
-              <text class="order-device-name">{{ deviceDisplay(o.deviceId) }}</text>
-              <text class="order-id">{{ shortId(o.orderId) }}</text>
-            </view>
-            <text class="chip" :class="chipClass(o.status)">{{ statusLabel(o.status) }}</text>
-          </view>
-          <view class="order-mid">
-            <text class="order-summary">{{ orderSummaryText(o) }}</text>
-            <text class="amt">{{ fmtMoney(o.totalAmountCents || 0) }}</text>
-          </view>
-          <view class="order-bottom">
-            <view class="order-bottom-left">
-              <text class="order-channel">{{ payChannelText(o.payChannel) }}</text>
-              <text class="order-time">{{ formatTime(o.createdAt) }}</text>
-            </view>
-            <text v-if="o.status === 'DISPUTED'" class="order-hint">审核中 ›</text>
-            <text v-else class="order-hint">查看详情 ›</text>
-          </view>
-        </view>
-        <view v-if="!visibleOrders.length" class="state-wrap compact">
-          <text class="empty-title">当前筛选暂无订单</text>
-          <text class="empty-desc">可切换时间或状态再试</text>
-        </view>
-        <view v-if="loadingMore" class="load-more">加载中…</view>
-        <view v-else-if="hasMore && orders.length" class="load-more hint" @click="loadMore"
-          >上拉加载更多</view
+        <view
+          v-if="loading && !orders.length && !reviewingDisputes.length"
+          class="state-wrap inline"
+          ><text class="meta">刷新中…</text></view
         >
-        <view v-else-if="orders.length && !hasMore" class="load-more hint">没有更多了</view>
-        <view class="list-foot">
-          <view class="foot-actions">
-            <text class="foot-btn" @click="goReport">故障报修</text>
-            <text class="foot-btn primary" @click="goHelp">帮助与客服</text>
+        <empty-state
+          v-else-if="!orders.length && !reviewingDisputes.length"
+          class="state-wrap"
+          title="暂无订单"
+          hint="扫码开门购物后，账单会显示在这里"
+        >
+          <button class="empty-btn primary" hover-class="btn-hover" @click="goShop">
+            去扫码购物
+          </button>
+        </empty-state>
+        <view v-else class="list-inner">
+          <view v-for="o in visibleOrders" :key="o.orderId" class="order-card" @click="goDetail(o)">
+            <view class="order-top">
+              <view class="order-meta">
+                <text class="order-device-name">{{ deviceDisplay(o.deviceId) }}</text>
+                <text class="order-id">{{ shortId(o.orderId) }}</text>
+              </view>
+              <text class="chip" :class="chipClass(o.status)">{{ statusLabel(o.status) }}</text>
+            </view>
+            <view class="order-mid">
+              <image
+                class="order-thumb"
+                :src="orderThumb(o)"
+                mode="aspectFill"
+                aria-hidden="true"
+              />
+              <view class="order-copy">
+                <view class="order-copy-main">
+                  <text class="order-summary">{{ orderSummaryText(o) }}</text>
+                  <view class="order-tags">
+                    <text v-if="Number(o.lineCount || 0) > 0" class="order-tag"
+                      >{{ o.lineCount }} 件</text
+                    >
+                    <text class="order-tag">{{ payChannelText(o.payChannel) }}</text>
+                    <text v-for="slot in slotTags(o)" :key="slot" class="order-tag slot">{{
+                      slot
+                    }}</text>
+                    <text v-if="Number(o.couponDiscountCents || 0) > 0" class="order-tag soft"
+                      >券减¥{{ (Number(o.couponDiscountCents) / 100).toFixed(2) }}</text
+                    >
+                    <text v-if="Number(o.memberDiscountCents || 0) > 0" class="order-tag soft"
+                      >会员减¥{{ (Number(o.memberDiscountCents) / 100).toFixed(2) }}</text
+                    >
+                    <text v-if="payTradeShort(o)" class="order-tag mono">{{
+                      payTradeShort(o)
+                    }}</text>
+                    <text v-if="canInvoiceHint(o)" class="order-tag soft">可开票</text>
+                  </view>
+                </view>
+                <view class="order-amt-block">
+                  <text v-if="showOriginal(o)" class="amt-origin">{{
+                    fmtMoney(Number(o.originalAmountCents))
+                  }}</text>
+                  <text class="amt">{{ fmtMoney(o.totalAmountCents || 0) }}</text>
+                  <text v-if="discountCents(o) > 0" class="discount"
+                    >优惠减¥{{ (discountCents(o) / 100).toFixed(2) }}</text
+                  >
+                </view>
+              </view>
+            </view>
+            <view class="order-bottom">
+              <view class="order-bottom-left">
+                <text class="order-time">{{ formatTime(o.createdAt) }}</text>
+                <text v-if="refundCents(o) > 0" class="order-refund-amt"
+                  >已退 {{ fmtMoney(refundCents(o)) }}</text
+                >
+              </view>
+              <text
+                v-if="o.status === 'REFUNDED' || o.status === 'PARTIAL_REFUNDED' || o.refundedAt"
+                class="order-hint refund"
+                >{{ o.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
+                }}{{ o.refundedAt ? ` · ${formatTime(o.refundedAt)}` : '' }} ›</text
+              >
+              <text v-else-if="o.status === 'DISPUTED'" class="order-hint">审核中 ›</text>
+              <text v-else class="order-hint">查看详情 ›</text>
+            </view>
+          </view>
+          <empty-state
+            v-if="!visibleOrders.length"
+            compact
+            title="当前筛选暂无订单"
+            hint="可切换时间或状态再试"
+          />
+          <view v-if="loadingMore" class="load-more">加载中…</view>
+          <view v-else-if="hasMore && orders.length" class="load-more hint" @click="loadMore"
+            >上拉加载更多</view
+          >
+          <view v-else-if="orders.length && !hasMore" class="load-more hint">没有更多了</view>
+          <view class="list-foot">
+            <view class="foot-actions">
+              <text class="foot-btn" @click="goReport">故障报修</text>
+              <text class="foot-btn primary" @click="goHelp">帮助与客服</text>
+            </view>
           </view>
         </view>
       </scroll-view>
@@ -140,13 +187,21 @@
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { consumerApi, ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
-import { orderStatusLabel, formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
+import {
+  shortBizNo,
+  formatDateTimeShort,
+  startOfTodayShanghaiMs,
+  orderStatusLabel,
+  fmtMoney
+} from '@aicabinet/shared-uni/format';
+import { cleanLineSummary, skuImageFor } from '@aicabinet/shared-uni/product-image';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { showDisputeResolvedToast } from '@/utils/notify';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import type { DisputeTicketDto, OrderSummary } from '@aicabinet/shared-types';
 
 const loading = ref(true);
+const booting = ref(true);
 const loadingMore = ref(false);
 const error = ref('');
 const authed = ref(false);
@@ -185,17 +240,7 @@ const visibleOrders = computed(() =>
 );
 
 function startOfTodayShanghai(): number {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(new Date());
-  const y = parts.find((p) => p.type === 'year')?.value;
-  const m = parts.find((p) => p.type === 'month')?.value;
-  const d = parts.find((p) => p.type === 'day')?.value;
-  // Asia/Shanghai 当天 00:00 对应的瞬时时间
-  return new Date(`${y}-${m}-${d}T00:00:00+08:00`).getTime();
+  return startOfTodayShanghaiMs();
 }
 
 function matchesTimeRange(createdAt: string | undefined, range: TimeRange) {
@@ -240,8 +285,7 @@ function filterCountSuffix(value: 'all' | 'paid' | 'pending' | 'issue' | 'refund
   return ` ${countBy(value)}`;
 }
 function shortId(id?: string) {
-  if (!id) return '暂无单号';
-  return id.length > 12 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id;
+  return shortBizNo(id, 12, '暂无单号');
 }
 function deviceDisplay(deviceId?: string) {
   if (!deviceId) return '无柜机';
@@ -252,9 +296,46 @@ function deviceDisplay(deviceId?: string) {
   return deviceId;
 }
 function orderSummaryText(o: OrderSummary) {
+  const summary = cleanLineSummary(o.lineSummary);
+  if (summary) return summary;
   const n = o.lineCount || 0;
   if (n > 0) return `共 ${n} 件商品`;
   return '购物账单';
+}
+function orderThumb(o: OrderSummary) {
+  return skuImageFor('', '', o.lineSummary);
+}
+function discountCents(o: OrderSummary) {
+  return Math.max(0, Number(o.couponDiscountCents || 0) + Number(o.memberDiscountCents || 0));
+}
+function showOriginal(o: OrderSummary) {
+  const origin = Number(o.originalAmountCents || 0);
+  const total = Number(o.totalAmountCents || 0);
+  return origin > total && origin > 0;
+}
+function refundCents(o: OrderSummary) {
+  const n = Number(o.refundedCents || 0);
+  if (n > 0) return n;
+  if (o.status === 'REFUNDED') return Number(o.totalAmountCents || 0);
+  return 0;
+}
+function slotTags(o: OrderSummary): string[] {
+  const raw = String(o.lineSummary || '');
+  const found = raw.match(/货道\s*([A-Za-z0-9_-]+)/g) || [];
+  const slots = found
+    .map((s) => s.replace(/^货道\s*/, '').trim())
+    .filter(Boolean)
+    .map((s) => `货道${s}`);
+  return [...new Set(slots)].slice(0, 3);
+}
+function canInvoiceHint(o: OrderSummary) {
+  const s = String(o.status || '');
+  return s === 'PAID' || s === 'COMPLETED' || s === 'PARTIAL_REFUNDED';
+}
+function payTradeShort(o: OrderSummary) {
+  const id = o.payTradeNo || o.paymentOperationId;
+  if (!id) return '';
+  return shortBizNo(id, 10);
 }
 function formatTime(value?: string) {
   return formatDateTimeShort(value);
@@ -277,23 +358,6 @@ function chipClass(status?: string) {
   return 'default';
 }
 
-function goBack() {
-  const pages = getCurrentPages();
-  if (pages.length > 1) {
-    uni.navigateBack({ delta: 1 });
-    return;
-  }
-  // #ifdef H5
-  if (typeof window !== 'undefined' && window.history.length > 1) {
-    window.history.back();
-    return;
-  }
-  // #endif
-  uni.navigateBack({
-    fail: () => uni.switchTab({ url: '/pages/mine/mine' })
-  });
-}
-
 function goShop() {
   uni.removeStorageSync('active_session_id');
   uni.switchTab({ url: '/pages/index/index' });
@@ -311,7 +375,7 @@ async function onAuth() {
 }
 
 async function load() {
-  loading.value = true;
+  if (!orders.value.length && !disputes.value.length) loading.value = true;
   error.value = '';
   pageIndex.value = 0;
   hasMore.value = false;
@@ -320,6 +384,7 @@ async function load() {
   authed.value = !!getConsumerToken();
   if (!authed.value) {
     loading.value = false;
+    booting.value = false;
     return;
   }
   try {
@@ -347,6 +412,7 @@ async function load() {
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     loading.value = false;
+    booting.value = false;
   }
 }
 
@@ -403,68 +469,38 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 </script>
 
 <style scoped>
+.discount {
+  font-size: 20rpx;
+  color: #ea580c;
+  font-weight: 600;
+}
+
 .page {
   height: 100%;
+  width: 100%;
+  max-width: 100%;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, #e9fbf3 0, #f5f7f8 280rpx, #f5f7f8 100%);
+  background: #ffffff;
   box-sizing: border-box;
-}
-.page-nav {
-  flex-shrink: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 44px;
-  padding: 0;
-  padding-top: env(safe-area-inset-top);
-  background: #fff;
-  color: #000;
-  box-sizing: content-box;
-}
-.nav-back,
-.nav-side {
-  width: 48px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.nav-back {
-  padding-left: 2px;
-}
-.nav-back-svg {
-  display: block;
-  width: 26px;
-  height: 26px;
-}
-.nav-back-hover {
-  opacity: 0.6;
-}
-.nav-title {
-  flex: 1;
-  text-align: center;
-  font-size: 16px;
-  font-weight: 500;
-  color: #000;
-  line-height: 44px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .state-wrap {
   flex: 1;
-  padding: 140rpx 48rpx 80rpx;
+  padding: 48rpx 40rpx 32rpx;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
+  min-height: 40vh;
+}
+.state-wrap.inline {
+  flex: 0;
+  padding: 24rpx 40rpx;
 }
 .state-wrap.compact {
-  padding: 80rpx 24rpx;
+  padding: 32rpx 24rpx;
 }
 .meta {
   color: #849087;
@@ -483,13 +519,19 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .action-btn {
   margin: 40rpx 0 0;
   width: 360rpx;
+  min-height: 88rpx;
   height: 88rpx;
-  line-height: 88rpx;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  line-height: 1.2;
+  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
   color: #fff;
   border-radius: 44rpx;
   font-size: 30rpx;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .action-btn::after,
 .ghost-btn::after {
@@ -498,13 +540,19 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .ghost-btn {
   margin: 20rpx 0 0;
   width: 360rpx;
+  min-height: 88rpx;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   background: #fff;
   color: #53645b;
   border-radius: 44rpx;
   font-size: 28rpx;
   border: 1rpx solid #e4ebe7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-hover {
   opacity: 0.88;
@@ -513,54 +561,62 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .orders-main {
   flex: 1;
   min-height: 0;
+  width: 100%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
-  padding-top: 12rpx;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.main-scroll {
+  flex: 1;
+  height: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 .section-label {
   display: block;
-  margin: 8rpx 28rpx 14rpx;
+  margin: 4rpx 4rpx 10rpx;
   font-size: 24rpx;
   font-weight: 650;
   color: #68766e;
   letter-spacing: 1rpx;
 }
 .review-section {
-  flex-shrink: 0;
-  padding: 0 24rpx;
+  padding: 8rpx 24rpx 0;
 }
 .review-card {
   display: flex;
-  gap: 18rpx;
-  padding: 24rpx;
-  margin-bottom: 16rpx;
-  border-radius: 22rpx;
+  gap: 14rpx;
+  padding: 18rpx 20rpx;
+  margin-bottom: 12rpx;
+  border-radius: 20rpx;
   background: #fff;
   border: 1rpx solid #edf1ef;
-  box-shadow: 0 10rpx 28rpx rgba(15, 23, 42, 0.05);
+  box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.04);
 }
 .review-card.tone-wait {
-  background: linear-gradient(135deg, #fff, #f0fdf7);
-  border-color: rgba(5, 150, 105, 0.22);
+  background: #fff;
+  border-color: #edf1ef;
 }
 .review-card.tone-warn {
-  background: linear-gradient(135deg, #fff, #fff7ed);
-  border-color: rgba(217, 119, 6, 0.25);
+  background: #fff;
+  border-color: #edf1ef;
 }
 .review-card.tone-success {
-  background: linear-gradient(135deg, #fff, #ecfdf5);
-  border-color: rgba(16, 185, 129, 0.28);
+  background: #fff;
+  border-color: #edf1ef;
 }
 .review-icon {
-  width: 64rpx;
-  height: 64rpx;
-  border-radius: 18rpx;
-  background: #ecfdf5;
-  color: #047857;
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 16rpx;
+  background: var(--brand-soft, #ecfdf5);
+  color: var(--brand, #047857);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 30rpx;
+  font-size: 28rpx;
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -579,22 +635,22 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   gap: 12rpx;
 }
 .review-title {
-  font-size: 28rpx;
+  font-size: 26rpx;
   font-weight: 700;
   color: #223029;
 }
 .review-detail {
   display: block;
-  margin-top: 10rpx;
-  font-size: 24rpx;
+  margin-top: 6rpx;
+  font-size: 22rpx;
   color: #68766e;
-  line-height: 1.55;
+  line-height: 1.45;
 }
 .review-foot {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 14rpx;
+  margin-top: 10rpx;
 }
 .review-time {
   font-size: 22rpx;
@@ -602,56 +658,80 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .review-link {
   font-size: 24rpx;
-  color: #059669;
+  color: var(--brand, #047857);
   font-weight: 600;
 }
 
 .filter-block {
-  flex-shrink: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: #fff;
+  padding: 8rpx 0 4rpx;
 }
 .filter-scroll {
+  width: 100%;
   white-space: nowrap;
 }
 .order-filters {
   display: inline-flex;
-  gap: 12rpx;
-  padding: 8rpx 24rpx 10rpx;
+  flex-wrap: nowrap;
+  padding: 8rpx 24rpx 4rpx;
+  align-items: center;
+  box-sizing: border-box;
 }
-.time-filters {
-  padding-top: 0;
-  padding-bottom: 16rpx;
+.order-filters .filter-chip {
+  margin-right: 12rpx;
+}
+.order-filters .filter-chip:last-child {
+  margin-right: 24rpx;
+}
+.order-filters.time-row {
+  display: flex;
+  flex-wrap: wrap;
+  white-space: normal;
+  padding: 12rpx 24rpx 8rpx;
+  margin-top: 0;
+}
+.order-filters.time-row .filter-chip {
+  margin-right: 12rpx;
+  margin-bottom: 4rpx;
+}
+.order-filters.time-row .filter-chip:last-child {
+  margin-right: 0;
 }
 .filter-chip {
+  flex-shrink: 0;
   white-space: nowrap;
-  padding: 12rpx 22rpx;
+  padding: 10rpx 20rpx;
   border-radius: 999rpx;
   border: 1rpx solid #e7eeea;
-  background: rgba(255, 255, 255, 0.92);
+  background: #fff;
   color: #68766e;
   font-size: 23rpx;
   box-shadow: 0 5rpx 16rpx rgba(15, 23, 42, 0.04);
 }
 .filter-chip.time {
-  padding: 10rpx 20rpx;
+  padding: 8rpx 18rpx;
   font-size: 22rpx;
-  background: #f3faf7;
+  background: #f7faf8;
   border-color: #dceee6;
 }
 .filter-chip.active {
-  border-color: #059669;
+  border-color: var(--brand, #047857);
   color: #fff;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
   box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.2);
 }
 .filter-chip.time.active {
-  background: #047857;
-  border-color: #047857;
+  background: var(--brand, #047857);
+  border-color: var(--brand, #047857);
   box-shadow: 0 6rpx 16rpx rgba(4, 120, 87, 0.18);
 }
 
-.list {
-  flex: 1;
-  min-height: 0;
+.list-inner {
+  padding: 4rpx 0 12rpx;
+  box-sizing: border-box;
 }
 .order-card {
   margin: 0 24rpx 16rpx;
@@ -691,7 +771,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .chip.paid {
   background: #e8f8ef;
-  color: #059669;
+  color: var(--brand, #047857);
 }
 .chip.pending {
   background: #fff8e6;
@@ -715,20 +795,84 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .order-mid {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   margin-top: 22rpx;
+  gap: 20rpx;
+}
+.order-thumb {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 18rpx;
+  background: var(--brand-soft, #ecfdf5);
+  flex-shrink: 0;
+}
+.order-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   gap: 16rpx;
 }
+.order-copy-main {
+  flex: 1;
+  min-width: 0;
+}
 .order-summary {
+  display: block;
   font-size: 26rpx;
   color: #53645b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.order-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  margin-top: 10rpx;
+}
+.order-tag {
+  font-size: 20rpx;
+  color: #576b95;
+  background: #f2f4f8;
+  padding: 2rpx 10rpx;
+  border-radius: 6rpx;
+  max-width: 220rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.order-tag.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #64748b;
+}
+.order-tag.slot {
+  color: #0f766e;
+  background: #ecfdf5;
+}
+.order-tag.soft {
+  color: #b45309;
+  background: #fffbeb;
+}
+.order-amt-block {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4rpx;
+}
+.amt-origin {
+  font-size: 22rpx;
+  color: #a1aaa5;
+  text-decoration: line-through;
 }
 .amt {
-  color: #047857;
+  color: var(--brand, #047857);
   font-weight: 800;
   font-size: 40rpx;
   letter-spacing: -1rpx;
+  line-height: 1.1;
 }
 .order-bottom {
   display: flex;
@@ -744,21 +888,22 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   gap: 12rpx;
   flex-wrap: wrap;
 }
-.order-channel {
-  font-size: 22rpx;
-  color: #576b95;
-  background: #f2f4f8;
-  padding: 2rpx 10rpx;
-  border-radius: 6rpx;
-}
 .order-time {
   font-size: 22rpx;
   color: #a1aaa5;
 }
+.order-refund-amt {
+  font-size: 22rpx;
+  color: #b45309;
+  font-weight: 600;
+}
 .order-hint {
   font-size: 24rpx;
-  color: #059669;
+  color: var(--brand, #047857);
   font-weight: 600;
+}
+.order-hint.refund {
+  color: #b45309;
 }
 .load-more {
   padding: 20rpx 0 8rpx;
@@ -770,7 +915,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: #64748b;
 }
 .list-foot {
-  padding: 28rpx 24rpx 60rpx;
+  padding: 28rpx 24rpx calc(160rpx + env(safe-area-inset-bottom));
   text-align: center;
 }
 .foot-link {
@@ -791,8 +936,23 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   background: #f3f4f6;
 }
 .foot-btn.primary {
-  color: #047857;
-  background: #ecfdf5;
+  color: var(--brand, #047857);
+  background: var(--brand-soft, #ecfdf5);
   font-weight: 600;
+}
+</style>
+
+<style>
+/* 非 scoped：确保列表滚动条不露出来 */
+.page .main-scroll,
+.page .filter-scroll {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.page .main-scroll::-webkit-scrollbar,
+.page .filter-scroll::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 </style>

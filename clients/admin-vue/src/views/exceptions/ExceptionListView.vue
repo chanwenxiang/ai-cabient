@@ -100,7 +100,7 @@
               sortable="custom"
             >
               <template #default="{ row }">
-                <span class="cell-id">{{ row.exceptionId }}</span>
+                <span class="cell-id">{{ displayBizNo(row.exceptionId) }}</span>
               </template>
             </el-table-column>
             <el-table-column
@@ -112,7 +112,7 @@
             >
               <template #default="{ row }">
                 <button type="button" class="link-cell" @click="openDetail(row)">
-                  {{ row.title || dictLabel('exception_type', row.exceptionType) || '无' }}
+                  {{ row.title || displayLabel('exception_type', row.exceptionType, '暂无') }}
                 </button>
               </template>
             </el-table-column>
@@ -167,7 +167,7 @@
                   class="link-cell mono"
                   @click="goSessions(row.deviceId, row.sessionId)"
                 >
-                  {{ row.sessionId }}
+                  {{ displayBizNo(row.sessionId) }}
                 </button>
                 <span v-else class="muted" :title="emptyRefHint(row)">{{
                   emptyRefLabel(row)
@@ -188,7 +188,7 @@
                   class="link-cell mono"
                   @click="goOrders(row.deviceId)"
                 >
-                  {{ row.orderId }}
+                  {{ displayBizNo(row.orderId) }}
                 </button>
                 <span v-else class="muted" :title="emptyRefHint(row)">{{
                   emptyRefLabel(row)
@@ -216,6 +216,13 @@
                 <div class="sla-cell">
                   <template v-if="row.slaOverdue">
                     <el-tag type="danger" size="small">已超时</el-tag>
+                    <small class="sla-meta danger"
+                      >超 {{ formatDurationSince(row.slaDueAt) }}</small
+                    >
+                  </template>
+                  <template v-else-if="isSlaPastDue(row.slaDueAt)">
+                    <el-tag type="info" size="small">时限已过</el-tag>
+                    <span class="cell-datetime">{{ formatDateTime(row.slaDueAt) }}</span>
                     <small class="sla-meta danger"
                       >超 {{ formatDurationSince(row.slaDueAt) }}</small
                     >
@@ -348,7 +355,7 @@
             <section class="workbench-meta">
               <el-descriptions :column="1" border size="small">
                 <el-descriptions-item label="异常编号">
-                  <span class="cell-id">{{ detail.exception.exceptionId }}</span>
+                  <span class="cell-id">{{ displayBizNo(detail.exception.exceptionId) }}</span>
                 </el-descriptions-item>
                 <el-descriptions-item label="异常类型">
                   <el-tag type="info" size="small">{{
@@ -369,7 +376,7 @@
                   detail.exception.title
                 }}</el-descriptions-item>
                 <el-descriptions-item label="详细信息">{{
-                  detail.exception.detail || '无'
+                  formatExceptionDetail(detail.exception.detail)
                 }}</el-descriptions-item>
                 <el-descriptions-item label="关联设备">
                   <button
@@ -380,7 +387,7 @@
                   >
                     {{ detail.exception.deviceId }}
                   </button>
-                  <span v-else>-</span>
+                  <span v-else class="muted">暂无</span>
                 </el-descriptions-item>
                 <el-descriptions-item label="关联会话">
                   <button
@@ -391,7 +398,7 @@
                   >
                     {{ detail.exception.sessionId }}
                   </button>
-                  <span v-else>-</span>
+                  <span v-else class="muted">暂无</span>
                 </el-descriptions-item>
                 <el-descriptions-item label="关联订单">
                   <button
@@ -402,12 +409,19 @@
                   >
                     {{ detail.exception.orderId }}
                   </button>
-                  <span v-else>-</span>
+                  <span v-else class="muted">暂无</span>
                 </el-descriptions-item>
                 <el-descriptions-item label="时限截止">
                   <div class="sla-cell">
                     <template v-if="detail.exception.slaOverdue">
                       <el-tag type="danger" size="small">已超时</el-tag>
+                      <small class="sla-meta danger"
+                        >超 {{ formatDurationSince(detail.exception.slaDueAt) }}</small
+                      >
+                    </template>
+                    <template v-else-if="isSlaPastDue(detail.exception.slaDueAt)">
+                      <el-tag type="info" size="small">时限已过</el-tag>
+                      <span>{{ formatDateTime(detail.exception.slaDueAt) }}</span>
                       <small class="sla-meta danger"
                         >超 {{ formatDurationSince(detail.exception.slaDueAt) }}</small
                       >
@@ -424,7 +438,7 @@
                         >剩 {{ formatDurationUntil(detail.exception.slaDueAt) }}</small
                       >
                     </template>
-                    <span v-else>-</span>
+                    <span v-else class="muted">暂无</span>
                   </div>
                 </el-descriptions-item>
               </el-descriptions>
@@ -552,10 +566,12 @@ import {
   dictLabel,
   dictOptions,
   dictTagType,
+  displayLabel,
+  formatExceptionDetail,
   formatOpsActionDetail
 } from '@aicabinet/shared-dict';
 import type { PageResult } from '@aicabinet/shared-types';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
@@ -685,13 +701,13 @@ const emptyHint = computed(() => {
 });
 
 function statusTabLabel(label: string, value: string) {
-  if (!listHydrated.value) return `${label} (—)`;
+  if (!listHydrated.value) return `${label} (…)`;
   const key = value as keyof typeof statusCounts;
   return `${label} (${statusCounts[key] || 0})`;
 }
 
 const archivedTabLabel = computed(() => {
-  if (!listHydrated.value) return '已归档 (—)';
+  if (!listHydrated.value) return '已归档 (…)';
   return `已归档 (${statusCounts.ARCHIVED || 0})`;
 });
 
@@ -703,6 +719,14 @@ function isSlaDueSoon(dueAt?: string) {
   if (Number.isNaN(due)) return false;
   const left = due - Date.now();
   return left > 0 && left <= DUE_SOON_MS;
+}
+
+/** 截止时间已过（含已结案：后端此时 slaOverdue=false，需前端单独识别） */
+function isSlaPastDue(dueAt?: string) {
+  if (!dueAt) return false;
+  const due = Date.parse(dueAt);
+  if (Number.isNaN(due)) return false;
+  return Date.now() > due;
 }
 
 function formatDurationParts(ms: number) {
@@ -719,7 +743,9 @@ function formatDurationUntil(dueAt?: string) {
   if (!dueAt) return '无';
   const due = Date.parse(dueAt);
   if (Number.isNaN(due)) return '无';
-  return formatDurationParts(due - Date.now());
+  const left = due - Date.now();
+  if (left <= 0) return '已过期';
+  return formatDurationParts(left);
 }
 
 function formatDurationSince(dueAt?: string) {
@@ -742,7 +768,7 @@ function isDeviceScopedException(row: OpsException) {
 }
 
 function emptyRefLabel(row: OpsException) {
-  return isDeviceScopedException(row) ? '无' : '无';
+  return '暂无';
 }
 
 function emptyRefHint(row: OpsException) {

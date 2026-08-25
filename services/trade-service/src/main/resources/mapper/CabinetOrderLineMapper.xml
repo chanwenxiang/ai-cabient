@@ -27,6 +27,39 @@
     ]]>
   </select>
 
+  <select id="_sumSoldQtyAllSince" resultType="java.util.LinkedHashMap">
+    <![CDATA[
+    SELECT l.sku_id AS c0, COALESCE(SUM(l.quantity), 0) AS c1
+    FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
+    WHERE o.created_at >= #{since}
+    GROUP BY l.sku_id
+    ]]>
+  </select>
+
+  <select id="_soldQtyDailySince" resultType="java.util.LinkedHashMap">
+    <![CDATA[
+    SELECT l.sku_id AS c0,
+           DATE(timezone('Asia/Shanghai', o.created_at)) AS c1,
+           COALESCE(SUM(l.quantity), 0) AS c2
+    FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
+    WHERE o.created_at >= #{since}
+    GROUP BY l.sku_id, DATE(timezone('Asia/Shanghai', o.created_at))
+    ]]>
+  </select>
+
+  <select id="_slotBreakdownByDeviceSince" resultType="java.util.LinkedHashMap">
+    <![CDATA[
+    SELECT l.slot_id AS c0, l.sku_id AS c1, l.sku_name AS c2,
+           COALESCE(SUM(l.quantity), 0) AS c3,
+           COALESCE(SUM(l.line_amount_cents), 0) AS c4
+    FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
+    WHERE o.device_id = #{deviceId}
+      AND o.created_at >= #{since}
+      AND l.slot_id IS NOT NULL AND l.slot_id <> ''
+    GROUP BY l.slot_id, l.sku_id, l.sku_name
+    ]]>
+  </select>
+
   <select id="sumCogsBetween" resultType="long">
     <![CDATA[
     SELECT COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0)
@@ -40,9 +73,24 @@
     SELECT l.sku_id AS c0, l.sku_name AS c1,
            COALESCE(SUM(l.quantity), 0) AS c2,
            COALESCE(SUM(l.line_amount_cents), 0) AS c3,
-           COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c4
+           COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c4,
+           COUNT(DISTINCT o.order_id) AS c5
     FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
     WHERE o.created_at >= #{since}
+    GROUP BY l.sku_id, l.sku_name
+    ORDER BY SUM(l.line_amount_cents) DESC
+    ]]>
+  </select>
+
+  <select id="_skuBreakdownBetween" resultType="java.util.LinkedHashMap">
+    <![CDATA[
+    SELECT l.sku_id AS c0, l.sku_name AS c1,
+           COALESCE(SUM(l.quantity), 0) AS c2,
+           COALESCE(SUM(l.line_amount_cents), 0) AS c3,
+           COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c4,
+           COUNT(DISTINCT o.order_id) AS c5
+    FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
+    WHERE o.created_at >= #{start} AND o.created_at < #{end}
     GROUP BY l.sku_id, l.sku_name
     ORDER BY SUM(l.line_amount_cents) DESC
     ]]>
@@ -52,12 +100,43 @@
     SELECT l.sku_id AS c0, l.sku_name AS c1,
            COALESCE(SUM(l.quantity), 0) AS c2,
            COALESCE(SUM(l.line_amount_cents), 0) AS c3,
-           COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c4
+           COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c4,
+           COUNT(DISTINCT o.order_id) AS c5
     FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
     WHERE o.device_id IN
     <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
     AND o.created_at &gt;= #{since}
     GROUP BY l.sku_id, l.sku_name
+    ORDER BY SUM(l.line_amount_cents) DESC
+  </select>
+
+  <select id="_skuBreakdownByDevicesBetween" resultType="java.util.LinkedHashMap">
+    SELECT l.sku_id AS c0, l.sku_name AS c1,
+           COALESCE(SUM(l.quantity), 0) AS c2,
+           COALESCE(SUM(l.line_amount_cents), 0) AS c3,
+           COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c4,
+           COUNT(DISTINCT o.order_id) AS c5
+    FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
+    WHERE o.device_id IN
+    <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    AND o.created_at &gt;= #{start} AND o.created_at &lt; #{end}
+    GROUP BY l.sku_id, l.sku_name
+    ORDER BY SUM(l.line_amount_cents) DESC
+  </select>
+
+  <select id="_deviceBreakdownBetween" resultType="java.util.LinkedHashMap">
+    SELECT o.device_id AS c0,
+           COALESCE(SUM(l.quantity), 0) AS c1,
+           COALESCE(SUM(l.line_amount_cents), 0) AS c2,
+           COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c3,
+           COUNT(DISTINCT o.order_id) AS c4
+    FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
+    WHERE o.created_at &gt;= #{start} AND o.created_at &lt; #{end}
+    <if test="deviceIds != null and deviceIds.size() &gt; 0">
+      AND o.device_id IN
+      <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    </if>
+    GROUP BY o.device_id
     ORDER BY SUM(l.line_amount_cents) DESC
   </select>
 
@@ -79,6 +158,14 @@
 
   <select id="sumCogsByDeviceIdsBetween" resultType="long">
     SELECT COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0)
+    FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
+    WHERE o.device_id IN
+    <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    AND o.created_at &gt;= #{start} AND o.created_at &lt; #{end}
+  </select>
+
+  <select id="sumRevenueByDeviceIdsBetween" resultType="long">
+    SELECT COALESCE(SUM(l.line_amount_cents), 0)
     FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
     WHERE o.device_id IN
     <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>

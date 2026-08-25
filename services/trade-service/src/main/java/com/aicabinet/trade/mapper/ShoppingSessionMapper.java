@@ -356,4 +356,11 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
         return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }
 
+    default long countByDeviceIdAndCreatedAtAfter(String deviceId, java.time.Instant since) {
+        Long c = selectCount(Wrappers.<ShoppingSession>lambdaQuery()
+                .eq(ShoppingSession::getDeviceId, deviceId)
+                .gt(ShoppingSession::getCreatedAt, since));
+        return c == null ? 0 : c;
+    }
+
 }

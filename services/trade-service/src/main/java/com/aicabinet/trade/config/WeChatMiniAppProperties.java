@@ -8,7 +8,9 @@ public record WeChatMiniAppProperties(
         String appId,
         String appSecret,
         String subscribeTemplateId,
-        String notifyPage
+        String notifyPage,
+        String consumerSubscribeTemplateId,
+        String consumerNotifyPage
 ) {
     public boolean isConfigured() {
         return enabled && appId != null && !appId.isBlank()
@@ -22,5 +24,17 @@ public record WeChatMiniAppProperties(
     public String resolveNotifyPage() {
         return notifyPage != null && !notifyPage.isBlank()
                 ? notifyPage : "pages/alerts/alerts";
+    }
+
+    /** 消费者订阅消息模板：独立配置，缺省回退商户模板。 */
+    public String resolveConsumerTemplateId() {
+        return consumerSubscribeTemplateId != null && !consumerSubscribeTemplateId.isBlank()
+                ? consumerSubscribeTemplateId
+                : subscribeTemplateId;
+    }
+
+    public String resolveConsumerNotifyPage() {
+        return consumerNotifyPage != null && !consumerNotifyPage.isBlank()
+                ? consumerNotifyPage : "pages/messages/messages";
     }
 }

@@ -265,7 +265,7 @@ const kpiTiles = computed(() => {
   return [
     {
       label: '设备数',
-      value: ready ? String(filtered.value.length) : '—',
+      value: ready ? String(filtered.value.length) : '…',
       accent: 'accent-teal',
       hint: ready
         ? onlineFilter.value
@@ -283,7 +283,7 @@ const kpiTiles = computed(() => {
     },
     {
       label: '离线设备',
-      value: ready ? String(offlineTotal.value) : '—',
+      value: ready ? String(offlineTotal.value) : '…',
       accent: 'accent-amber',
       hint: ready ? (offlineTotal.value ? '点击筛选离线' : '全部在线') : '加载中…',
       action: ready
@@ -295,13 +295,13 @@ const kpiTiles = computed(() => {
     },
     {
       label: '累计营收',
-      value: ready ? `¥${(sum.value.revenueTotal / 100).toFixed(2)}` : '—',
+      value: ready ? `¥${(sum.value.revenueTotal / 100).toFixed(2)}` : '…',
       accent: 'accent-violet',
       hint: ready ? `订单 ${sum.value.orderTotal}` : '加载中…'
     },
     {
       label: '今日营收',
-      value: ready ? `¥${(sum.value.revenueToday / 100).toFixed(2)}` : '—',
+      value: ready ? `¥${(sum.value.revenueToday / 100).toFixed(2)}` : '…',
       accent: 'accent-blue',
       hint: ready ? undefined : '加载中…'
     }

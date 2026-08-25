@@ -21,8 +21,8 @@ class ScheduledTaskServiceTest {
     private final DistributedLockService locks = mock(DistributedLockService.class);
     private final AdminAuditService audit = mock(AdminAuditService.class);
 
-    private ScheduledTaskService service() {
-        return new ScheduledTaskService(mapper, locks, audit);
+    private ScheduledTaskService service(boolean xxlEnabled) {
+        return new ScheduledTaskService(mapper, locks, audit, xxlEnabled);
     }
 
     @Test
@@ -30,13 +30,16 @@ class ScheduledTaskServiceTest {
         ScheduledTask row = new ScheduledTask();
         row.setTaskKey("unpaid-cancel");
         row.setTaskName("未付订单自动取消");
-        when(mapper.selectById("unpaid-cancel")).thenReturn(row);
+        when(locks.tryLock(ScheduledTaskService.scheduledTaskAdminLockKey("unpaid-cancel"), 60, 5))
+                .thenReturn(true);
+        when(mapper.findByIdForUpdate("unpaid-cancel")).thenReturn(java.util.Optional.of(row));
 
-        ScheduledTaskDto dto = service().setRemark(100L, "unpaid-cancel", " 超时关单并回滚库存 ");
+        ScheduledTaskDto dto = service(false).setRemark(100L, "unpaid-cancel", " 超时关单并回滚库存 ");
 
         assertEquals("超时关单并回滚库存", dto.remark());
         verify(audit).record(eq(100L), eq("SCHEDULED_TASK_REMARK"),
                 eq("SCHEDULED_TASK"), eq("unpaid-cancel"), anyString());
+        verify(locks).unlock(ScheduledTaskService.scheduledTaskAdminLockKey("unpaid-cancel"));
     }
 
     @Test
@@ -46,7 +49,7 @@ class ScheduledTaskServiceTest {
         row.setEnabled(false);
         when(mapper.selectById("x")).thenReturn(row);
 
-        assertFalse(service().tryBegin("x", 600));
+        assertFalse(service(false).tryBegin("x", 600));
         verifyNoInteractions(locks);
     }
 
@@ -58,6 +61,52 @@ class ScheduledTaskServiceTest {
         when(mapper.selectById("x")).thenReturn(row);
         when(locks.tryLock("job:x", 600, 0)).thenReturn(true);
 
-        assertTrue(service().tryBegin("x", 600));
+        assertTrue(service(false).tryBegin("x", 600));
+    }
+
+    @Test
+    void tryBegin_yieldsManagedTaskWhenXxlEnabled() {
+        assertFalse(service(true).tryBegin("unpaid-cancel", 600));
+        verifyNoInteractions(locks);
+    }
+
+    @Test
+    void tryBegin_allowsManagedTaskWhenForcedBuiltin() {
+        ScheduledTask row = new ScheduledTask();
+        row.setTaskKey("unpaid-cancel");
+        row.setEnabled(true);
+        when(mapper.selectById("unpaid-cancel")).thenReturn(row);
+        when(locks.tryLock("job:unpaid-cancel", 600, 0)).thenReturn(true);
+
+        ScheduledTaskService svc = service(true);
+        boolean[] began = {false};
+        svc.runAllowingBuiltin(() -> began[0] = svc.tryBegin("unpaid-cancel", 600));
+
+        assertTrue(began[0]);
+    }
+
+    @Test
+    void tryBegin_stillRunsUnmanagedWhenXxlEnabled() {
+        ScheduledTask row = new ScheduledTask();
+        row.setTaskKey("device-presence");
+        row.setEnabled(true);
+        when(mapper.selectById("device-presence")).thenReturn(row);
+        when(locks.tryLock("job:device-presence", 600, 0)).thenReturn(true);
+
+        assertTrue(service(true).tryBegin("device-presence", 600));
+    }
+
+    @Test
+    void finish_writesProvidedResultMessage() {
+        ScheduledTask row = new ScheduledTask();
+        row.setTaskKey("coupon-expire");
+        when(mapper.findByIdForUpdate("coupon-expire")).thenReturn(java.util.Optional.of(row));
+
+        service(false).finish("coupon-expire", "SUCCESS", "过期优惠券 3 张", System.nanoTime());
+
+        assertEquals("SUCCESS", row.getLastResult());
+        assertEquals("过期优惠券 3 张", row.getLastMessage());
+        verify(mapper).save(row);
+        verify(locks).unlock("job:coupon-expire");
     }
 }

@@ -40,19 +40,22 @@ public class RepairTicketService {
     private final PermissionService permissionService;
     private final DeviceSalesLockService salesLockService;
     private final OpsExceptionService opsExceptionService;
+    private final DistributedLockService distributedLockService;
 
     public RepairTicketService(RepairTicketMapper ticketMapper,
                                RepairTicketEventMapper eventMapper,
                                DeviceInfoMapper deviceInfoMapper,
                                PermissionService permissionService,
                                DeviceSalesLockService salesLockService,
-                               @Lazy OpsExceptionService opsExceptionService) {
+                               @Lazy OpsExceptionService opsExceptionService,
+                               DistributedLockService distributedLockService) {
         this.ticketMapper = ticketMapper;
         this.eventMapper = eventMapper;
         this.deviceInfoMapper = deviceInfoMapper;
         this.permissionService = permissionService;
         this.salesLockService = salesLockService;
         this.opsExceptionService = opsExceptionService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -109,12 +112,19 @@ public class RepairTicketService {
         if (title == null || title.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "标题必填");
         }
-        if (deviceInfoMapper.selectById(deviceId.trim()) == null) {
+        String trimmedDeviceId = deviceId.trim();
+        if (deviceInfoMapper.selectById(trimmedDeviceId) == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在");
         }
+        return runWithRepairDeviceLock(trimmedDeviceId,
+                () -> doCreate(operatorId, trimmedDeviceId, title, faultType, assignee, priority, remark));
+    }
+
+    private RepairTicketDto doCreate(Long operatorId, String deviceId, String title, String faultType,
+                                     String assignee, String priority, String remark) {
         Instant now = Instant.now();
         RepairTicket ticket = new RepairTicket();
-        ticket.setDeviceId(deviceId.trim());
+        ticket.setDeviceId(deviceId);
         ticket.setTitle(title.trim());
         ticket.setFaultType(trimToNull(faultType));
         ticket.setStatus("OPEN");
@@ -133,7 +143,12 @@ public class RepairTicketService {
     public RepairTicketDto update(Long operatorId, long ticketId, String title, String faultType,
                                   String assignee, String priority, String remark) {
         permissionService.requirePermission(operatorId, "ops:repair:edit");
-        RepairTicket ticket = requireTicket(ticketId);
+        return runWithTicketLock(ticketId, () -> doUpdate(operatorId, ticketId, title, faultType, assignee, priority, remark));
+    }
+
+    private RepairTicketDto doUpdate(Long operatorId, long ticketId, String title, String faultType,
+                                     String assignee, String priority, String remark) {
+        RepairTicket ticket = requireTicketForUpdate(ticketId);
         if ("DONE".equals(ticket.getStatus()) || "CANCELLED".equals(ticket.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "已关闭工单不可编辑");
         }
@@ -161,17 +176,21 @@ public class RepairTicketService {
         }
         int count = 0;
         for (Long ticketId : ticketIds) {
-            RepairTicket ticket = requireTicket(ticketId);
-            if ("DONE".equals(ticket.getStatus()) || "CANCELLED".equals(ticket.getStatus())) {
-                continue;
-            }
-            ticket.setAssignee(name);
-            ticket.setUpdatedAt(Instant.now());
-            ticketMapper.updateById(ticket);
-            appendEvent(ticketId, ticket.getStatus(), ticket.getStatus(), "ASSIGN", operatorId, "批量指派给 " + name);
-            count++;
+            count += runWithTicketLock(ticketId, () -> doAssignOne(operatorId, ticketId, name) ? 1 : 0);
         }
         return count;
+    }
+
+    private boolean doAssignOne(Long operatorId, Long ticketId, String name) {
+        RepairTicket ticket = requireTicketForUpdate(ticketId);
+        if ("DONE".equals(ticket.getStatus()) || "CANCELLED".equals(ticket.getStatus())) {
+            return false;
+        }
+        ticket.setAssignee(name);
+        ticket.setUpdatedAt(Instant.now());
+        ticketMapper.updateById(ticket);
+        appendEvent(ticketId, ticket.getStatus(), ticket.getStatus(), "ASSIGN", operatorId, "批量指派给 " + name);
+        return true;
     }
 
     @Transactional
@@ -183,7 +202,12 @@ public class RepairTicketService {
     public RepairTicketDto transition(Long operatorId, long ticketId, String toStatus, String remark,
                                       boolean unlockDevice) {
         permissionService.requirePermission(operatorId, "ops:repair:edit");
-        RepairTicket ticket = requireTicket(ticketId);
+        return runWithTicketLock(ticketId, () -> doTransition(operatorId, ticketId, toStatus, remark, unlockDevice));
+    }
+
+    private RepairTicketDto doTransition(Long operatorId, long ticketId, String toStatus, String remark,
+                                       boolean unlockDevice) {
+        RepairTicket ticket = requireTicketForUpdate(ticketId);
         String target = toStatus == null ? "" : toStatus.trim().toUpperCase(Locale.ROOT);
         if (!STATUSES.contains(target)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "无效状态");
@@ -231,6 +255,49 @@ public class RepairTicketService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "工单不存在");
         }
         return ticket;
+    }
+
+    private RepairTicket requireTicketForUpdate(long ticketId) {
+        return ticketMapper.findByIdForUpdate(ticketId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "工单不存在"));
+    }
+
+    static String ticketLockKey(long ticketId) {
+        return "repair:ticket:" + ticketId;
+    }
+
+    static String repairDeviceLockKey(String deviceId) {
+        return "repair:device:" + deviceId;
+    }
+
+    private <T> T runWithRepairDeviceLock(String deviceId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(repairDeviceLockKey(deviceId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该设备维修工单处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(repairDeviceLockKey(deviceId));
+        }
+    }
+
+    private <T> T runWithTicketLock(long ticketId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(ticketLockKey(ticketId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "维修工单处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(ticketLockKey(ticketId));
+        }
     }
 
     private void appendEvent(Long ticketId, String from, String to, String action, Long operatorId, String remark) {

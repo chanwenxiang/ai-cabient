@@ -21,7 +21,7 @@ export const MERCHANT_FIELD_NAV: MerchantNavItem[] = [
     url: '/pages/replenishment/replenishment',
     perm: 'merchant:replenishment:view',
     pack: 'field',
-    icon: '📦'
+    icon: 'replenish'
   },
   {
     key: 'devices',
@@ -31,7 +31,7 @@ export const MERCHANT_FIELD_NAV: MerchantNavItem[] = [
     tab: true,
     perm: 'merchant:devices:list',
     pack: 'field',
-    icon: '🗄️'
+    icon: 'cabinet'
   },
   {
     key: 'alerts',
@@ -41,11 +41,20 @@ export const MERCHANT_FIELD_NAV: MerchantNavItem[] = [
     tab: true,
     perm: 'merchant:alerts:view',
     pack: 'field',
-    icon: '🔔'
+    icon: 'pending'
   }
 ];
 
 export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
+  {
+    key: 'messages',
+    title: '消息中心',
+    desc: '补货任务 · 结算到账 · 系统通知',
+    url: '/pages/messages/messages',
+    perm: 'merchant:portal:access',
+    pack: 'biz',
+    icon: 'notice'
+  },
   {
     key: 'pricing',
     title: '点位定价',
@@ -53,7 +62,7 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     url: '/pages/pricing/pricing',
     perm: 'merchant:pricing:view',
     pack: 'biz',
-    icon: '¥'
+    icon: 'pricing'
   },
   {
     key: 'settlements',
@@ -62,7 +71,7 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     url: '/pages/settlements/settlements',
     perm: 'merchant:settlements:view',
     pack: 'biz',
-    icon: '📑'
+    icon: 'settlements'
   },
   {
     key: 'wallet',
@@ -71,7 +80,7 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     url: '/pages/wallet/wallet',
     perm: 'merchant:wallet:view',
     pack: 'biz',
-    icon: '💰'
+    icon: 'wallet'
   },
   {
     key: 'splits',
@@ -80,7 +89,7 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     url: '/pages/splits/splits',
     perm: 'merchant:splits:list',
     pack: 'biz',
-    icon: '💱'
+    icon: 'splits'
   },
   {
     key: 'line-wallet',
@@ -89,7 +98,7 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     url: '/pages/line-wallet/line-wallet',
     perm: 'merchant:line-wallet:view',
     pack: 'biz',
-    icon: '👛'
+    icon: 'line-wallet'
   },
   {
     key: 'orders',
@@ -98,7 +107,7 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     url: '/pages/orders/orders',
     perm: 'merchant:orders:list',
     pack: 'biz',
-    icon: '🧾'
+    icon: 'orders'
   },
   {
     key: 'disputes',
@@ -107,16 +116,17 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     url: '/pages/disputes/disputes',
     perm: 'merchant:disputes:list',
     pack: 'biz',
-    icon: '⚖️'
+    icon: 'disputes'
   },
   {
     key: 'business',
     title: '经营分析',
     desc: '营收、毛利与商品表现',
     url: '/pages/business/business',
-    perm: ['merchant:reports:view', 'merchant:analytics:view'],
+    // 页面主体为经营分析（analytics/*），入口权限与页面实际接口对齐，避免"能进但内容全 403"
+    perm: 'merchant:analytics:view',
     pack: 'biz',
-    icon: '📈'
+    icon: 'business'
   }
 ];
 
@@ -128,6 +138,6 @@ export const MERCHANT_TEAM_NAV: MerchantNavItem[] = [
     url: '/pages/team/team',
     perm: 'merchant:users:list',
     pack: 'team',
-    icon: '👥'
+    icon: 'team'
   }
 ];

@@ -13,6 +13,12 @@ import org.springframework.data.domain.Pageable;
 @Mapper
 public interface RechargeOrderMapper extends BaseTradeMapper<RechargeOrder> {
 
+    RechargeOrder _findByIdForUpdateRaw(@Param("orderId") String orderId);
+
+    default Optional<RechargeOrder> findByIdForUpdate(String orderId) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(orderId));
+    }
+
     default Optional<RechargeOrder> findByIdempotencyKey(String idempotencyKey) {
     return Optional.ofNullable(selectOne(Wrappers.<RechargeOrder>lambdaQuery().eq(RechargeOrder::getIdempotencyKey, idempotencyKey)));
     }
@@ -54,6 +60,15 @@ public interface RechargeOrderMapper extends BaseTradeMapper<RechargeOrder> {
                 .lt(RechargeOrder::getCreatedAt, cutoff)
                 .orderByAsc(RechargeOrder::getCreatedAt)
                 .last("LIMIT " + lim));
+    }
+
+    /** 可原路退的已支付充值单（FIFO）。 */
+    default List<RechargeOrder> findRefundablePaidByUser(Long userId) {
+        return selectList(Wrappers.<RechargeOrder>lambdaQuery()
+                .eq(RechargeOrder::getUserId, userId)
+                .eq(RechargeOrder::getStatus, "PAID")
+                .orderByAsc(RechargeOrder::getPaidAt)
+                .orderByAsc(RechargeOrder::getCreatedAt));
     }
 
 }

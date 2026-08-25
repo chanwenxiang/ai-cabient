@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Service
 public class InventoryOpsService {
@@ -29,21 +30,32 @@ public class InventoryOpsService {
     private final SkuCatalogMapper skuCatalogRepository;
     private final DeviceSkuInventoryMapper inventoryRepository;
     private final InventoryWriteOffMapper writeOffRepository;
+    private final MerchantOpsPolicyService opsPolicyService;
+    private final DistributedLockService distributedLockService;
 
     public InventoryOpsService(InventoryLotService lotService,
                                DeviceValidationService deviceValidationService,
                                SkuCatalogMapper skuCatalogRepository,
                                DeviceSkuInventoryMapper inventoryRepository,
-                               InventoryWriteOffMapper writeOffRepository) {
+                               InventoryWriteOffMapper writeOffRepository,
+                               MerchantOpsPolicyService opsPolicyService,
+                               DistributedLockService distributedLockService) {
         this.lotService = lotService;
         this.deviceValidationService = deviceValidationService;
         this.skuCatalogRepository = skuCatalogRepository;
         this.inventoryRepository = inventoryRepository;
         this.writeOffRepository = writeOffRepository;
+        this.opsPolicyService = opsPolicyService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
     public WriteOffDto writeOff(Long operatorId, WriteOffRequest request) {
+        return runWithDeviceInventoryLock(request.deviceId(),
+                () -> doWriteOff(operatorId, request));
+    }
+
+    private WriteOffDto doWriteOff(Long operatorId, WriteOffRequest request) {
         deviceValidationService.requireDevice(request.deviceId());
         skuCatalogRepository.findById(request.skuId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "sku not found"));
@@ -85,7 +97,13 @@ public class InventoryOpsService {
 
     @Transactional
     public DeviceSkuInventory stocktakeAdjust(Long operatorId, StocktakeAdjustRequest request) {
+        return runWithDeviceInventoryLock(request.deviceId(),
+                () -> doStocktakeAdjust(operatorId, request));
+    }
+
+    private DeviceSkuInventory doStocktakeAdjust(Long operatorId, StocktakeAdjustRequest request) {
         deviceValidationService.requireDevice(request.deviceId());
+        opsPolicyService.requirePhotoEvidence(request.deviceId(), true, request.photoEvidenceUrl());
         skuCatalogRepository.findById(request.skuId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "sku not found"));
 
@@ -99,9 +117,16 @@ public class InventoryOpsService {
             return created;
         });
 
-        int current = inv.getQuantity();
+        // 有批次账本时以可售为基准；即使 delta=0 也 sync，避免汇总表虚库存残留
+        int current = lotService.deviceUsesLotLedger(request.deviceId())
+                ? lotService.sellableQuantity(request.deviceId(), request.skuId())
+                : inv.getQuantity();
         int delta = request.countedQuantity() - current;
         if (delta == 0) {
+            if (lotService.deviceUsesLotLedger(request.deviceId())) {
+                lotService.syncAggregateInventory(request.deviceId(), request.skuId());
+                return inventoryRepository.findById(id).orElse(inv);
+            }
             return inv;
         }
 
@@ -110,5 +135,21 @@ public class InventoryOpsService {
                 request.countedQuantity(), operatorId, refId);
 
         return inventoryRepository.findById(id).orElseThrow();
+    }
+
+    private <T> T runWithDeviceInventoryLock(String deviceId, Supplier<T> action) {
+        String lockKey = InventoryService.deviceLockKey(deviceId);
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "库存处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
     }
 }

@@ -11,7 +11,7 @@ export function niceMax(val: number): number {
 }
 
 export function formatYuan(cents: number): string {
-  return '¥' + (cents / 100).toFixed(cents >= 10000 ? 0 : 2);
+  return '¥' + (cents / 100).toFixed(2);
 }
 
 export function formatPct(rate: number): string {
@@ -111,8 +111,9 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
 }
 
 function rgba(color: string, a: number): string {
-  const rgb = hexToRgb(color);
-  if (!rgb) return color;
+  const safe = safeCssColor(color);
+  const rgb = hexToRgb(safe);
+  if (!rgb) return safe;
   return `rgba(${rgb.r},${rgb.g},${rgb.b},${a})`;
 }
 
@@ -182,13 +183,8 @@ export function buildSeriesChart(opts: {
   height?: number;
   formatY?: (v: number) => string;
 }): string {
-  const {
-    labels,
-    series,
-    kind = 'line',
-    height = 240,
-    formatY = (v) => String(Math.round(v))
-  } = opts;
+  const { labels, kind = 'line', height = 240, formatY = (v) => String(Math.round(v)) } = opts;
+  const series = opts.series.map((s) => ({ ...s, color: safeCssColor(s.color) }));
   if (!labels.length || !series.length) return '';
 
   if (kind === 'bar') {
@@ -264,7 +260,8 @@ export function buildGroupedBarChart(opts: {
   height?: number;
   formatY?: (v: number) => string;
 }): string {
-  const { labels, series, height = 240, formatY = (v) => String(Math.round(v)) } = opts;
+  const { labels, height = 240, formatY = (v) => String(Math.round(v)) } = opts;
+  const series = opts.series.map((s) => ({ ...s, color: safeCssColor(s.color) }));
   if (!labels.length || !series.length) return '';
   const box = plotBox(labels, seriesMax(series), height, 52);
   const groupW = box.plotW / labels.length;
@@ -332,7 +329,8 @@ export function buildDonutChart(opts: {
   /** tip 数值列标题，默认「数值」 */
   valueLabel?: string;
 }): string {
-  const { parts, size = 200, formatCenter, formatValue, valueLabel = '数值' } = opts;
+  const { parts: rawParts, size = 200, formatCenter, formatValue, valueLabel = '数值' } = opts;
+  const parts = rawParts.map((p) => ({ ...p, color: safeCssColor(p.color) }));
   const total = parts.reduce((s, p) => s + Math.max(p.value, 0), 0);
   if (total <= 0) return '';
   const cx = size / 2;
@@ -374,5 +372,34 @@ function escapeXml(v: string | number): string {
   return String(v ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * ChartBox v-html 前的兜底清洗：图表 SVG 应由本模块生成，仍剥离常见 XSS 载体。
+ * 非 `<svg` 开头的内容直接丢弃。
+ */
+export function sanitizeChartSvg(raw: string): string {
+  const s = String(raw || '').trim();
+  if (!s.startsWith('<svg')) return '';
+  return (
+    s
+      .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+      .replace(/<\/?(?:foreignObject|iframe|object|embed|link|meta|base)\b[^>]*>/gi, '')
+      .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      // 仅保留页内锚点 href；外链 / javascript / data URI 一并去掉
+      .replace(/\s(?:href|xlink:href)\s*=\s*("(?!#)[^"]*"|'(?!#)[^']*')/gi, '')
+      .replace(/javascript:/gi, '')
+  );
+}
+
+/** 仅允许 CSS 颜色字面量进入 SVG 属性，防止色值里夹带引号/表达式。 */
+export function safeCssColor(color: string, fallback = '#64748b'): string {
+  const c = String(color || '').trim();
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(c)) return c;
+  if (/^rgba?\(\s*[\d.\s%,.]+\s*\)$/i.test(c)) return c;
+  if (/^hsla?\(\s*[\d.\s%,.]+\s*\)$/i.test(c)) return c;
+  if (/^var\(\s*--[a-z0-9_-]+\s*(,[^)]*)?\)$/i.test(c)) return c;
+  return fallback;
 }

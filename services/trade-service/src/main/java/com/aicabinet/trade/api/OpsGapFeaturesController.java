@@ -186,6 +186,22 @@ public class OpsGapFeaturesController {
         return ApiResponse.ok(gapService.salesReport(operatorId(request), dim, fromDate, toDate, deviceId));
     }
 
+    @RequiresPermissions("ops:sales-report:list")
+    @GetMapping(value = "/sales-reports/export", produces = "text/csv")
+    public ResponseEntity<byte[]> salesReportsExport(
+            HttpServletRequest request,
+            @RequestParam(defaultValue = "PRODUCT") String dim,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate,
+            @RequestParam(required = false) String deviceId) {
+        var rows = gapService.salesReport(operatorId(request), dim, fromDate, toDate, deviceId);
+        byte[] body = gapService.salesReportCsv(rows).getBytes(StandardCharsets.UTF_8);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"sales-reports.csv\"")
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .body(body);
+    }
+
     @RequiresPermissions("ops:phone-verify:list")
     @GetMapping("/phone-verify/logs")
     public ApiResponse<PageResult<PhoneVerifyLogDto>> phoneVerifyLogs(
@@ -203,6 +219,23 @@ public class OpsGapFeaturesController {
             HttpServletRequest request,
             @RequestBody PhoneVerifyLogDto body) {
         return ApiResponse.ok(gapService.recordPhoneVerify(operatorId(request), body));
+    }
+
+    @RequiresPermissions("ops:phone-verify:list")
+    @PutMapping("/phone-verify/logs/{logId}")
+    public ApiResponse<PhoneVerifyLogDto> updatePhoneVerify(
+            HttpServletRequest request,
+            @PathVariable Long logId,
+            @RequestBody PhoneVerifyLogDto body) {
+        return ApiResponse.ok(gapService.updatePhoneVerify(operatorId(request), logId, body));
+    }
+
+    @RequiresPermissions("ops:phone-verify:list")
+    @DeleteMapping("/phone-verify/logs/{logId}")
+    public ApiResponse<Void> deletePhoneVerify(
+            HttpServletRequest request, @PathVariable Long logId) {
+        gapService.deletePhoneVerify(operatorId(request), logId);
+        return ApiResponse.ok(null);
     }
 
     // ---- M6 stock health ----

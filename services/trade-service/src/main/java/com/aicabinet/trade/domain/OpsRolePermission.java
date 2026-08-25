@@ -2,8 +2,12 @@ package com.aicabinet.trade.domain;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableField;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("ops_role_permission")
+@Getter
+@Setter
 public class OpsRolePermission {
 
     @TableField(exist = false)
@@ -33,8 +37,4 @@ public class OpsRolePermission {
         }
     }
 
-    public Long getRoleId() { return roleId; }
-    public void setRoleId(Long roleId) { this.roleId = roleId; }
-    public Long getPermissionId() { return permissionId; }
-    public void setPermissionId(Long permissionId) { this.permissionId = permissionId; }
 }

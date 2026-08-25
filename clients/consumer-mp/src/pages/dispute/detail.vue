@@ -1,16 +1,24 @@
 <template>
   <view class="page-root">
-    <view v-if="loading" class="state"><text class="meta">加载中…</text></view>
-    <view v-else-if="error" class="state">
+    <app-nav-bar title="账单审核" />
+    <view v-if="loading && !ticket" class="state"><text class="meta">加载中…</text></view>
+    <view v-else-if="error && !ticket" class="state">
       <text class="err">{{ error }}</text>
       <button class="btn-primary" @click="bootstrap">重试</button>
     </view>
-    <empty-state v-else-if="!ticket" icon="审" title="未找到审核单" hint="可能已归档或尚未生成" />
+    <empty-state
+      v-else-if="!ticket"
+      icon="/static/menu/disputes.png"
+      title="未找到审核单"
+      hint="可能已归档或尚未生成"
+    />
     <view v-else-if="ticket">
-      <view class="hero" :class="'tone-' + copy.tone">
-        <text class="hero-icon">{{ copy.icon }}</text>
-        <text class="hero-title">{{ copy.title }}</text>
-        <text class="hero-status">{{ statusText }}</text>
+      <view class="status-header" :class="'tone-' + copy.tone">
+        <text class="status-icon">{{ copy.icon }}</text>
+        <view class="status-copy">
+          <text class="status-title">{{ copy.title }}</text>
+          <text class="status-detail">{{ statusText }}</text>
+        </view>
       </view>
 
       <view class="card">
@@ -31,6 +39,22 @@
         <view v-if="ticket.resolvedAt" class="info-row">
           <text class="info-label">处理时间</text>
           <text class="info-value">{{ formatTime(ticket.resolvedAt) }}</text>
+        </view>
+        <view v-if="refundChannelText" class="info-row">
+          <text class="info-label">退款渠道</text>
+          <text class="info-value">{{ refundChannelText }}</text>
+        </view>
+      </view>
+
+      <view class="card">
+        <text class="section-title">处理进度</text>
+        <view v-for="(step, i) in timeline" :key="i" class="tl-row">
+          <view class="tl-dot" :class="{ done: step.done, current: step.current }" />
+          <view class="tl-copy">
+            <text class="tl-title">{{ step.title }}</text>
+            <text v-if="step.time" class="tl-time">{{ step.time }}</text>
+            <text v-if="step.detail" class="tl-detail">{{ step.detail }}</text>
+          </view>
         </view>
       </view>
 
@@ -96,7 +120,13 @@ import { consumerApi, getConsumerToken, requireConsumerAuth } from '@/utils/cons
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import { fetchEvidenceLocalPath } from '@/utils/dispute-evidence';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { emptyDisplay, fmtMoney, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import {
+  emptyDisplay,
+  shortBizNo,
+  formatDateTimeMinute,
+  fmtMoney
+} from '@aicabinet/shared-uni/format';
+import { parseQuery } from '@aicabinet/shared-uni/query';
 import type { DisputeTicketDto, FileAttachmentDto, OrderLineDto } from '@aicabinet/shared-types';
 
 const loading = ref(true);
@@ -112,6 +142,7 @@ const copy = computed(() => consumerDisputeReviewCopy(ticket.value));
 const isResolved = computed(() => ticket.value?.status === 'RESOLVED');
 const suggestedLines = computed<OrderLineDto[]>(() => ticket.value?.suggestedItems || []);
 const resolutionLines = computed<OrderLineDto[]>(() => ticket.value?.resolutionItems || []);
+const refundChannelText = ref('');
 const statusText = computed(() => {
   const s = ticket.value?.status || '';
   if (s === 'OPEN') return '审核中 · 暂未扣款';
@@ -120,28 +151,76 @@ const statusText = computed(() => {
   return displayLabel('dispute_status', s, '处理中');
 });
 
+const timeline = computed(() => {
+  const t = ticket.value;
+  if (!t) return [];
+  const status = String(t.status || '').toUpperCase();
+  const resolved = status === 'RESOLVED' || status === 'CLOSED';
+  const steps = [
+    {
+      title: '已提交申诉',
+      time: t.createdAt ? formatTime(t.createdAt) : '',
+      detail: t.reason || '',
+      done: true,
+      current: status === 'OPEN' || status === 'PENDING'
+    },
+    {
+      title: status === 'OPEN' || status === 'PENDING' ? '运营审核中' : '运营已审核',
+      time: t.resolvedAt ? formatTime(t.resolvedAt) : '',
+      detail:
+        (t as { operatorNote?: string }).operatorNote ||
+        (resolved
+          ? '审核结论已生成'
+          : (t as { slaOverdue?: boolean }).slaOverdue
+            ? '已超时，加急处理中'
+            : '请耐心等待'),
+      done: resolved,
+      current: !resolved
+    },
+    {
+      title: status === 'RESOLVED' ? '已结案' : status === 'CLOSED' ? '已关闭' : '待结案',
+      time:
+        t.resolvedAt || (t as { closedAt?: string }).closedAt
+          ? formatTime(t.resolvedAt || (t as { closedAt?: string }).closedAt)
+          : '',
+      detail: resolved
+        ? `最终扣款 ${fmtMoney(t.billedAmountCents ?? 0)}`
+        : '结案后可在订单详情查看退款到账',
+      done: resolved,
+      current: false
+    }
+  ];
+  return steps;
+});
+
 onLoad((opts) => {
   applyQuery(opts as Record<string, string>);
+  void bootstrap();
 });
 
 onShow(() => {
-  // 同页不同 query 跳转时 onLoad 不一定重跑，从当前页 options / H5 hash 再读一遍
-  const pages = getCurrentPages();
-  const cur = pages[pages.length - 1] as { options?: Record<string, string> } | undefined;
-  applyQuery({ ...readHashQuery(), ...(cur?.options || {}) });
+  // 同页不同 query 跳转时 onLoad 不一定重跑；空 query 不得冲掉已有单号
+  applyQuery({ ...readHashQuery(), ...currentPageOptions() });
+  if (!ticketId.value && !sessionId.value) return;
   void bootstrap();
   loadServicePhone();
 });
+
+function currentPageOptions(): Record<string, string> {
+  const pages = getCurrentPages();
+  const cur = pages[pages.length - 1] as { options?: Record<string, string> } | undefined;
+  return cur?.options || {};
+}
 
 function readHashQuery(): Record<string, string> {
   // #ifdef H5
   try {
     const hash = window.location.hash || '';
     const q = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
-    const params = new URLSearchParams(q);
+    const params = parseQuery(q);
     return {
-      ticketId: params.get('ticketId') || '',
-      sessionId: params.get('sessionId') || ''
+      ticketId: params.ticketId || '',
+      sessionId: params.sessionId || ''
     };
   } catch {
     return {};
@@ -200,7 +279,7 @@ async function reload() {
     loading.value = false;
     return;
   }
-  loading.value = true;
+  if (!ticket.value) loading.value = true;
   error.value = '';
   try {
     const found = await consumerApi.getMyDispute({
@@ -211,6 +290,7 @@ async function reload() {
     sessionId.value = found.sessionId || sessionId.value;
     ticketId.value = found.ticketId || ticketId.value;
     void hydrateEvidencePreviews();
+    void loadRefundChannel(found.orderId);
   } catch (e) {
     // 旧后端无 detail 接口时回退列表查找
     try {
@@ -231,6 +311,7 @@ async function reload() {
       sessionId.value = found.sessionId || sessionId.value;
       ticketId.value = found.ticketId || ticketId.value;
       void hydrateEvidencePreviews();
+      void loadRefundChannel(found.orderId);
     } catch (e2) {
       error.value = e2 instanceof Error ? e2.message : '加载失败';
     }
@@ -272,8 +353,19 @@ function fmtLine(line: OrderLineDto) {
 }
 
 function shortId(id?: string) {
-  if (!id) return '暂无购物单号';
-  return id.length > 14 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id;
+  return shortBizNo(id, 12, '暂无');
+}
+
+async function loadRefundChannel(orderId?: string) {
+  refundChannelText.value = '';
+  if (!orderId) return;
+  try {
+    const order = await consumerApi.getOrder(orderId);
+    const ch = displayLabel('pay_channel', order?.payChannel, '');
+    refundChannelText.value = ch ? `原路退回 · ${ch}` : '原支付渠道 / 账户余额';
+  } catch {
+    refundChannelText.value = '原支付渠道 / 账户余额';
+  }
 }
 
 function formatTime(v?: string) {
@@ -307,7 +399,7 @@ function previewEvidence(img: FileAttachmentDto) {
 <style scoped>
 .page-root {
   min-height: 100vh;
-  background: #f7f7f7;
+  background: #ffffff;
   padding-bottom: 48rpx;
 }
 .state {
@@ -322,42 +414,56 @@ function previewEvidence(img: FileAttachmentDto) {
   color: #fa5151;
   margin-bottom: 24rpx;
 }
-.hero {
-  padding: 48rpx 40rpx 56rpx;
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  margin: 24rpx 24rpx 0;
+  padding: 30rpx;
+  border-radius: 20rpx;
+  background: linear-gradient(135deg, #e8f5e9, #fff);
+  box-sizing: border-box;
+}
+.status-header.tone-wait {
+  background: linear-gradient(135deg, #ecfdf5, #fff);
+}
+.status-header.tone-warn {
+  background: linear-gradient(135deg, #fff7ed, #fff);
+}
+.status-header.tone-success {
+  background: linear-gradient(135deg, #e8f5e9, #fff);
+}
+.status-icon {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 32rpx;
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
-  border-radius: 0 0 32rpx 32rpx;
-}
-.hero.tone-wait {
-  background: linear-gradient(145deg, #0f766e, #14b8a6);
-}
-.hero.tone-warn {
-  background: linear-gradient(145deg, #b45309, #f59e0b);
-}
-.hero.tone-success {
-  background: linear-gradient(145deg, #047857, #10b981);
-}
-.hero-icon {
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.22);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 36rpx;
+  font-size: 32rpx;
   font-weight: 700;
-  margin-bottom: 16rpx;
+  flex-shrink: 0;
 }
-.hero-title {
+.status-header.tone-warn .status-icon {
+  background: linear-gradient(135deg, #b45309, #f59e0b);
+}
+.status-copy {
+  flex: 1;
+  min-width: 0;
+}
+.status-title {
   display: block;
-  font-size: 36rpx;
+  font-size: 32rpx;
   font-weight: 700;
+  color: #191919;
 }
-.hero-status {
+.status-detail {
   display: block;
-  margin-top: 8rpx;
-  font-size: 26rpx;
-  opacity: 0.92;
+  margin-top: 4rpx;
+  font-size: 24rpx;
+  color: #666;
 }
 .card {
   margin: 20rpx 24rpx 0;
@@ -365,6 +471,44 @@ function previewEvidence(img: FileAttachmentDto) {
   background: #fff;
   border-radius: 20rpx;
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
+}
+.tl-row {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 18rpx;
+}
+.tl-dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  margin-top: 10rpx;
+  background: #cbd5e1;
+  flex-shrink: 0;
+}
+.tl-dot.done {
+  background: #059669;
+}
+.tl-dot.current {
+  background: #0f766e;
+  box-shadow: 0 0 0 6rpx rgba(15, 118, 110, 0.15);
+}
+.tl-copy {
+  flex: 1;
+  min-width: 0;
+}
+.tl-title {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #0f172a;
+}
+.tl-time,
+.tl-detail {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #64748b;
+  line-height: 1.4;
 }
 .section-title {
   display: block;
@@ -413,7 +557,7 @@ function previewEvidence(img: FileAttachmentDto) {
   text-align: right;
 }
 .info-value.mono {
-  font-family: ui-monospace, monospace;
+  font-family: var(--app-font-mono);
   font-size: 22rpx;
 }
 .line {
@@ -456,20 +600,29 @@ function previewEvidence(img: FileAttachmentDto) {
   padding: 28rpx 24rpx 8rpx;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 16rpx;
 }
 .btn-primary,
 .btn-ghost {
   margin: 0;
+  min-height: 88rpx;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   border-radius: 44rpx;
   font-size: 30rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
 }
 .btn-primary {
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   font-weight: 700;
+  border: none;
 }
 .btn-primary::after,
 .btn-ghost::after {

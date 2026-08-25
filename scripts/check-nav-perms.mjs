@@ -5,7 +5,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { merchantPackForPerm, permissionRealm } from '../packages/shared-rbac/dist/index.js';
+import {
+  merchantPackForPerm,
+  permissionRealm,
+  isMerchantPackAgnostic
+} from '../packages/shared-rbac/dist/index.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const errors = [];
@@ -93,7 +97,7 @@ for (const code of merchantPerms) {
     errors.push(`merchant-nav.ts perm missing from Flyway seeds: ${code}`);
   }
   const pack = merchantPackForPerm(code);
-  if (!pack) {
+  if (!pack && !isMerchantPackAgnostic(code)) {
     errors.push(`merchant-nav.ts perm has no pack mapping (unexpected agnostic?): ${code}`);
   }
 }

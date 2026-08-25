@@ -37,6 +37,8 @@ export declare class ApiClient {
         captchaId: string;
         captchaCode: string;
     }): Promise<LoginResponse>;
+    verifyTwoFactor(challengeToken: string, code: string): Promise<LoginResponse>;
+    recoveryTwoFactor(challengeToken: string, recoveryCode: string): Promise<LoginResponse>;
     fetchCaptcha(): Promise<{
         captchaId: string;
         imageBase64: string;

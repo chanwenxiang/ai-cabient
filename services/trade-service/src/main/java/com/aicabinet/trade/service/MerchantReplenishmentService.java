@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -34,6 +35,7 @@ public class MerchantReplenishmentService {
     private final ReplenishmentRouteMapper routeRepository;
     private final ReplenishmentTaskMapper taskRepository;
     private final FileAttachmentService fileAttachmentService;
+    private final DistributedLockService distributedLockService;
 
     public MerchantReplenishmentService(PermissionService permissionService,
                                         MerchantFeaturePackService merchantFeaturePackService,
@@ -50,7 +52,8 @@ public class MerchantReplenishmentService {
                                         MerchantReplenishmentRequestLineMapper requestLineRepository,
                                         ReplenishmentRouteMapper routeRepository,
                                         ReplenishmentTaskMapper taskRepository,
-                                        FileAttachmentService fileAttachmentService) {
+                                        FileAttachmentService fileAttachmentService,
+                                        DistributedLockService distributedLockService) {
         this.permissionService = permissionService;
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.merchantPortalGuard = merchantPortalGuard;
@@ -67,6 +70,7 @@ public class MerchantReplenishmentService {
         this.routeRepository = routeRepository;
         this.taskRepository = taskRepository;
         this.fileAttachmentService = fileAttachmentService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -78,6 +82,31 @@ public class MerchantReplenishmentService {
         }
         merchantFeaturePackService.requireDevicePack(userId, deviceId.trim(), MerchantFeaturePacks.FIELD);
         return replenishmentService.suggestForDevice(deviceId.trim());
+    }
+
+    /** 补货员今日运营执行情况：分配给本人的任务完成统计（对标友智慧「运营执行情况」）。 */
+    @Transactional(readOnly = true)
+    public MerchantReplenishmentEfficiencyDto myEfficiency(Long userId) {
+        permissionService.requirePermission(userId, "merchant:replenishment:view");
+        merchantPortalGuard.requireAccess(userId);
+        Instant since = LocalDate.now(ZoneId.of("Asia/Shanghai"))
+                .atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant();
+        List<ReplenishmentTask> tasks = taskRepository.findByAssigneeUserIdAndCreatedAtSince(userId, since);
+        int completed = 0;
+        int inProgress = 0;
+        int pending = 0;
+        for (ReplenishmentTask task : tasks) {
+            if ("COMPLETED".equals(task.getStatus())) {
+                completed++;
+            } else if ("IN_PROGRESS".equals(task.getStatus())) {
+                inProgress++;
+            } else if ("PENDING".equals(task.getStatus())) {
+                pending++;
+            }
+        }
+        int assigned = tasks.size();
+        double rate = assigned == 0 ? 0 : Math.round(completed * 10000.0 / assigned) / 100.0;
+        return new MerchantReplenishmentEfficiencyDto(assigned, completed, inProgress, pending, rate);
     }
 
     @Transactional
@@ -189,6 +218,12 @@ public class MerchantReplenishmentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择一种商品");
         }
         String deviceId = body.deviceId().trim();
+        return runWithDeviceLock(deviceId, () -> doSubmitRequest(userId, body, deviceId));
+    }
+
+    private MerchantReplenishmentRequestDto doSubmitRequest(Long userId,
+                                                          CreateMerchantReplenishmentRequest body,
+                                                          String deviceId) {
         merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
         DeviceInfo device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
@@ -260,7 +295,11 @@ public class MerchantReplenishmentService {
     @Transactional
     public MerchantReplenishmentRequestDto acceptRequest(Long operatorId, Long requestId) {
         permissionService.requirePermission(operatorId, "ops:replenishment:edit");
-        MerchantReplenishmentRequest request = requireRequest(requestId);
+        return runWithRequestLock(requestId, () -> doAcceptRequest(operatorId, requestId));
+    }
+
+    private MerchantReplenishmentRequestDto doAcceptRequest(Long operatorId, Long requestId) {
+        MerchantReplenishmentRequest request = requireRequestForUpdate(requestId);
         if (!"SUBMITTED".equals(request.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "仅待审核要货单可接单");
         }
@@ -316,7 +355,12 @@ public class MerchantReplenishmentService {
     public MerchantReplenishmentRequestDto rejectRequest(Long operatorId, Long requestId,
                                                          RejectMerchantReplenishmentRequest body) {
         permissionService.requirePermission(operatorId, "ops:replenishment:edit");
-        MerchantReplenishmentRequest request = requireRequest(requestId);
+        return runWithRequestLock(requestId, () -> doRejectRequest(operatorId, requestId, body));
+    }
+
+    private MerchantReplenishmentRequestDto doRejectRequest(Long operatorId, Long requestId,
+                                                            RejectMerchantReplenishmentRequest body) {
+        MerchantReplenishmentRequest request = requireRequestForUpdate(requestId);
         if (!"SUBMITTED".equals(request.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "仅待审核要货单可驳回");
         }
@@ -333,6 +377,49 @@ public class MerchantReplenishmentService {
     private MerchantReplenishmentRequest requireRequest(Long requestId) {
         return requestRepository.findById(requestId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "要货单不存在"));
+    }
+
+    private MerchantReplenishmentRequest requireRequestForUpdate(Long requestId) {
+        return requestRepository.findByIdForUpdate(requestId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "要货单不存在"));
+    }
+
+    static String replenishmentRequestLockKey(Long requestId) {
+        return "merchant:replen:request:" + requestId;
+    }
+
+    static String replenishmentDeviceLockKey(String deviceId) {
+        return "merchant:replen:device:" + deviceId;
+    }
+
+    private <T> T runWithDeviceLock(String deviceId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(replenishmentDeviceLockKey(deviceId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该设备要货处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(replenishmentDeviceLockKey(deviceId));
+        }
+    }
+
+    private <T> T runWithRequestLock(Long requestId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(replenishmentRequestLockKey(requestId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "要货单处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(replenishmentRequestLockKey(requestId));
+        }
     }
 
     private MerchantReplenishmentRequestDto toRequestDto(MerchantReplenishmentRequest request) {

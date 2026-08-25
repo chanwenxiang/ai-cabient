@@ -5,8 +5,12 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 import java.time.LocalDate;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("sla_daily_snapshot")
+@Getter
+@Setter
 public class SlaDailySnapshot {
 
     @TableId(type = IdType.INPUT)
@@ -30,23 +34,4 @@ public class SlaDailySnapshot {
 
     private Instant createdAt;
 
-public LocalDate getSnapshotDate() { return snapshotDate; }
-    public void setSnapshotDate(LocalDate snapshotDate) { this.snapshotDate = snapshotDate; }
-    public int getDoorOpenAttempts() { return doorOpenAttempts; }
-    public void setDoorOpenAttempts(int doorOpenAttempts) { this.doorOpenAttempts = doorOpenAttempts; }
-    public int getDoorOpenSuccess() { return doorOpenSuccess; }
-    public void setDoorOpenSuccess(int doorOpenSuccess) { this.doorOpenSuccess = doorOpenSuccess; }
-    public Float getDoorSuccessRate() { return doorSuccessRate; }
-    public void setDoorSuccessRate(Float doorSuccessRate) { this.doorSuccessRate = doorSuccessRate; }
-    public Long getAvgRecognizeMs() { return avgRecognizeMs; }
-    public void setAvgRecognizeMs(Long avgRecognizeMs) { this.avgRecognizeMs = avgRecognizeMs; }
-    public Long getP95RecognizeMs() { return p95RecognizeMs; }
-    public void setP95RecognizeMs(Long p95RecognizeMs) { this.p95RecognizeMs = p95RecognizeMs; }
-    public int getDeviceTotal() { return deviceTotal; }
-    public void setDeviceTotal(int deviceTotal) { this.deviceTotal = deviceTotal; }
-    public int getDeviceOnlinePeak() { return deviceOnlinePeak; }
-    public void setDeviceOnlinePeak(int deviceOnlinePeak) { this.deviceOnlinePeak = deviceOnlinePeak; }
-    public Float getDeviceOnlineRate() { return deviceOnlineRate; }
-    public void setDeviceOnlineRate(Float deviceOnlineRate) { this.deviceOnlineRate = deviceOnlineRate; }
-    public Instant getCreatedAt() { return createdAt; }
 }

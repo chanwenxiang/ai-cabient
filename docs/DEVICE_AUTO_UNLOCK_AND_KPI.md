@@ -29,58 +29,41 @@
 
 ## 四、XXL-JOB 接入
 
-### 默认开箱即用（不需要自己启动任何东西）
+### 分工（多实例推荐）
 
-不开启 XXL-JOB 时，两个功能由内置 Spring 定时任务兜底执行：
+- **资金 / 对账 / KPI / 自动解锁**：由 XXL-JOB 调度（见 `XxlJobManagedTasks`）
+- **高频会话 / 设备巡检**：继续 Spring `@Scheduled` + Redis 锁
 
-| 功能 | 内置兜底调度 | 频率 |
-|---|---|---|
-| 稳定在线自动解锁 | `DeviceAvailabilityJobScheduler` | 每 5 分钟扫描一次 |
-| 设备可用性 KPI 日快照 | `DeviceAvailabilityJobScheduler` | 每日 01:10 统计前一天 |
+Docker apps 默认 `XXL_JOB_ENABLED=true`；本地 IDEA 默认 `false`（无调度中心时资金任务仍由 Spring 跑）。
 
-开启 XXL-JOB（`aicabinet.xxljob.enabled=true`）后，内置兜底**自动让位**，由调度中心统一调度，避免双跑。
-
-### 可选：接入 XXL-JOB 调度中心
-
-执行器代码已接入（`xxl-job-core 3.4.2`，Spring Boot 3 / JDK 17 兼容），默认**关闭**：
-
-```yaml
-aicabinet:
-  xxljob:
-    enabled: ${XXL_JOB_ENABLED:false}
-xxl:
-  job:
-    admin:
-      addresses: ${XXL_JOB_ADMIN_ADDRESSES:}
-    access-token: ${XXL_JOB_ACCESS_TOKEN:}
-    executor:
-      appname: ${XXL_JOB_EXECUTOR_APPNAME:trade-service}
-      port: ${XXL_JOB_EXECUTOR_PORT:9999}
-```
-
-开启方式：`XXL_JOB_ENABLED=true`，并保证调度中心可达。
-
-### 调度中心部署（docker-compose 覆盖层）
+### 调度中心部署（仓库根目录）
 
 ```powershell
-cd infra
-copy .env.example .env
-docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.xxljob.yml `
-  --profile apps --profile xxljob up -d --build
+# 在 ai-cabinet 根目录，不要单独进 infra
+.\docker-up.ps1
 ```
 
-调度中心地址：`http://localhost:18080/xxl-job-admin`（默认账号 admin / 123456）。
-`infra/xxl-job/tables_xxl_job.sql` 为 3.4.2 官方初始化脚本，MySQL 首次启动自动导入。
-调度中心为独立系统，账号体系与运营后台分离，建议仅运维负责人持有登录权限。
+- 地址：`http://localhost:18090/xxl-job-admin`（默认账号 `admin` / `123456`）
+- 已随 `docker-compose.full.yml` 启动；种子见 `infra/xxl-job/seed_aicabinet_jobs.sql`
+- 执行器 AppName：`trade-service`
 
-### 需在调度中心注册的任务
+### 主要 JobHandler
 
 | JobHandler | 建议调度 | 说明 |
 |---|---|---|
-| `deviceStableOnlineAutoUnlockJob` | 每 5~10 分钟 | 稳定在线自动解锁（受系统参数控制） |
-| `deviceAvailabilityKpiDailyJob` | 每日 `0 10 1 * * ?` | 生成前一日设备可用性 KPI 快照 |
+| `unpaidCancelJob` | 每 15 分钟 | 未付订单取消 |
+| `rechargeCancelJob` | 每 5 分钟 | 充值单取消 |
+| `profitSharingRetryJob` | 每 15 分钟 | 分账重试 |
+| `reconciliationJob` | 每日 01:30 | 对账 |
+| `lineCommissionJob` | 每日 00:20 | 线长佣金 |
+| `financeMarginJob` | 每日 00:05 | 保证金固化 |
+| `dataConsistencyJob` | 每 5 分钟 | 数据一致性 |
+| `couponExpireJob` / `pointsExpiryJob` | 日/6h | 券与积分 |
+| `deviceStableOnlineAutoUnlockJob` | 每 5 分钟 | 稳定在线自动解锁 |
+| `deviceAvailabilityKpiDailyJob` | 每日 01:10 | KPI 快照 |
+| `runScheduledTask` | 自定义 | JobParam=taskKey 通用入口 |
 
-执行器 AppName 为 `trade-service`（可用 `XXL_JOB_EXECUTOR_APPNAME` 覆盖）。
+开启 XXL 后内置兜底经 `tryBegin` **自动让位**，避免双跑。运营后台「立即执行」仍可本进程强制跑一遍。
 
 ## 五、设备可用性 KPI
 

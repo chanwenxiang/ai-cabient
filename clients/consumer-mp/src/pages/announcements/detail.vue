@@ -1,82 +1,65 @@
 <template>
   <view class="page">
-    <view v-if="loading" class="state">加载中…</view>
-    <view v-else-if="error" class="state">
+    <app-nav-bar title="公告详情" />
+    <view v-if="loading && !item" class="state">加载中…</view>
+    <view v-else-if="error && !item" class="state">
       <text class="err">{{ error }}</text>
-      <button class="retry" size="mini" @click="load">重试</button>
+      <button class="retry" size="mini" @click="() => load()">重试</button>
     </view>
     <view v-else-if="item" class="article">
       <view class="meta">
         <text v-if="priorityLabel(item.priority)" class="tag" :class="priorityClass(item.priority)">
           {{ priorityLabel(item.priority) }}
         </text>
+        <text v-if="typeLabel(item.announceType)" class="tag type">{{
+          typeLabel(item.announceType)
+        }}</text>
         <text class="time">{{ formatTime(item.publishAt) }}</text>
       </view>
       <text class="title">{{ item.title }}</text>
+      <text v-if="item.expireAt" class="expire">展示至 {{ formatTime(item.expireAt) }}</text>
+      <text v-if="scopeText(item.targetScope)" class="scope">{{
+        scopeText(item.targetScope)
+      }}</text>
       <text class="content">{{ item.content }}</text>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
+import { useAnnouncementDetail } from '@aicabinet/shared-uni/announcements';
 import { consumerApi } from '@/utils/consumer-api';
-import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
-import { markAnnouncementRead } from '@aicabinet/shared-uni/announcement-read';
-import type { AnnouncementDto } from '@aicabinet/shared-types';
 
-const loading = ref(true);
-const error = ref('');
-const item = ref<AnnouncementDto | null>(null);
-let announceId = 0;
+const { loading, error, item, load, formatTime, priorityLabel, priorityClass } =
+  useAnnouncementDetail((id) => consumerApi.getAnnouncement(id));
+
+function typeLabel(t?: string) {
+  const v = String(t || '').toUpperCase();
+  if (v === 'MAINTENANCE') return '维护';
+  if (v === 'ACTIVITY' || v === 'CAMPAIGN') return '活动';
+  if (v === 'RULE' || v === 'POLICY') return '规则';
+  if (v === 'SYSTEM') return '系统';
+  return t ? String(t) : '';
+}
+
+function scopeText(scope?: string) {
+  const s = String(scope || '').toUpperCase();
+  if (!s || s === 'ALL' || s === 'CONSUMER') return '';
+  if (s === 'MERCHANT') return '面向商户（本页仅作同步查阅）';
+  return `适用范围：${scope}`;
+}
 
 onLoad((query) => {
-  announceId = Number(query?.id || 0);
-  void load();
+  load(Number(query?.id || 0));
 });
-
-async function load() {
-  if (!announceId) {
-    loading.value = false;
-    error.value = '公告不存在';
-    return;
-  }
-  loading.value = true;
-  error.value = '';
-  try {
-    item.value = await consumerApi.getAnnouncement(announceId);
-    markAnnouncementRead(item.value?.announceId);
-  } catch (e) {
-    item.value = null;
-    error.value = e instanceof Error ? e.message : '加载失败';
-  } finally {
-    loading.value = false;
-  }
-}
-
-function formatTime(t?: string) {
-  return formatDateTimeMinute(t, '暂无');
-}
-
-function priorityLabel(p?: string) {
-  if (p === 'URGENT') return '紧急';
-  if (p === 'HIGH') return '重要';
-  return '';
-}
-
-function priorityClass(p?: string) {
-  if (p === 'URGENT') return 'urgent';
-  if (p === 'HIGH') return 'high';
-  return '';
-}
 </script>
 
 <style scoped>
 .page {
-  min-height: 100vh;
-  padding: 28rpx 28rpx 64rpx;
-  background: #f7f7f7;
+  min-height: 100%;
+  padding: 0 0 64rpx;
+  background: #ffffff;
   box-sizing: border-box;
 }
 .state {
@@ -93,15 +76,15 @@ function priorityClass(p?: string) {
   text-align: center;
 }
 .retry {
-  background: #059669;
+  background: var(--brand, #047857);
   color: #fff;
   border: none;
 }
 .article {
+  margin: 20rpx 24rpx 0;
   background: #fff;
-  border-radius: 20rpx;
-  padding: 32rpx 28rpx;
-  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
+  border-radius: 16rpx;
+  padding: 28rpx 24rpx;
 }
 .meta {
   display: flex;
@@ -115,6 +98,10 @@ function priorityClass(p?: string) {
   padding: 8rpx 12rpx;
   border-radius: 999rpx;
   font-weight: 600;
+}
+.tag.type {
+  color: #047857;
+  background: #ecfdf5;
 }
 .tag.high {
   color: #b45309;
@@ -134,7 +121,17 @@ function priorityClass(p?: string) {
   font-weight: 700;
   color: #0f172a;
   line-height: 1.35;
-  margin-bottom: 24rpx;
+  margin-bottom: 16rpx;
+}
+.expire,
+.scope {
+  display: block;
+  margin-bottom: 12rpx;
+  font-size: 24rpx;
+  color: #b45309;
+}
+.scope {
+  color: #64748b;
 }
 .content {
   display: block;

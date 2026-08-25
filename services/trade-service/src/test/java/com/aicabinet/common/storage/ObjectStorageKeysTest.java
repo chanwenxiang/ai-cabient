@@ -25,10 +25,10 @@ class ObjectStorageKeysTest {
     }
 
     @Test
-    void archiveVideoKey_usesSkuAndUserFolder() {
+    void archiveVideoKey_usesSessionAndUserFolder() {
         String key = ObjectStorageKeys.archiveVideoKey(
-                "SKU-WATER-001", 10086L, "sess-abc", "top", ".mp4", AT);
-        assertEquals("archive/2026/07/13/SKU-WATER-001/user-10086/sess-abc-top.mp4", key);
+                10086L, "sess-abc", "top", ".mp4", AT);
+        assertEquals("archive/2026/07/13/session-sess-abc/user-10086/sess-abc-top.mp4", key);
     }
 
     @Test

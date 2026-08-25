@@ -120,6 +120,27 @@ export const DICT = {
     URGENT: '紧急'
   },
   pay_channel: { WECHAT: '微信', ALIPAY: '支付宝', MOCK: '其他', BALANCE: '余额', UNKNOWN: '未知' },
+  /** 手机验证流水 · 验证渠道（与 pay_channel 不同，含 SMS 等） */
+  verify_channel: {
+    SMS: '短信验证码',
+    SMS_RESET: '短信重置密码',
+    WECHAT: '微信',
+    ALIPAY: '支付宝'
+  },
+  /** 站内信 / notification_log.biz_type */
+  notification_biz_type: {
+    ORDER: '订单',
+    RECHARGE: '充值',
+    REPLENISHMENT: '补货',
+    DISPUTE: '争议/售后',
+    COUPON: '优惠券',
+    POINTS: '积分',
+    RECALL: '用户召回',
+    MERCHANT: '商户通知',
+    SETTLEMENT: '结算',
+    SESSION: '购物会话',
+    OPS_MANUAL: '运营手工'
+  },
   recharge_status: {
     CREATED: '已创建',
     PENDING: '待支付',
@@ -156,6 +177,16 @@ export const DICT = {
     SUGGESTION: '建议',
     BUG: '缺陷',
     PRAISE: '表扬'
+  },
+  /** 消费者故障报修 · 问题类型（运营可在字典管理调整文案/增删选项） */
+  device_fault_issue: {
+    DOOR_OPEN: '打不开门',
+    DOOR_WONT_OPEN: '打不开门',
+    DOOR_CLOSE: '门关不上',
+    DOOR_WONT_CLOSE: '门关不上',
+    PRODUCT: '商品异常',
+    PAYMENT: '扣款问题',
+    OTHER: '其他'
   },
   feedback_status: {
     PENDING: '待处理',
@@ -202,18 +233,26 @@ export const DICT = {
   announcement_status: {
     DRAFT: '草稿',
     PUBLISHED: '已发布',
-    ARCHIVED: '存档'
+    ARCHIVED: '已归档'
   },
   announcement_audience: {
     ALL: '全部用户',
     MERCHANT: '商户',
     CONSUMER: '消费者'
   },
+  user_role: {
+    CONSUMER: '消费者',
+    OPERATOR: '运营账号',
+    MERCHANT: '商户',
+    OPS: '运营'
+  },
   promotion_type: {
     FULL_REDUCE: '满减',
     DISCOUNT: '折扣',
     BUY_GIFT: '买赠',
-    SECOND_HALF: '第二件半价'
+    SECOND_HALF: '第二件半价',
+    NEW_USER: '新客',
+    POINTS: '积分'
   },
   coupon_type: {
     AMOUNT_OFF: '满减券',
@@ -226,7 +265,22 @@ export const DICT = {
     ACTIVE: '启用',
     INACTIVE: '停用',
     DISABLED: '停用',
-    ENDED: '已结束'
+    ENDED: '已结束',
+    DRAFT: '草稿',
+    STOPPED: '已停止'
+  },
+  /** 商户/线长钱包流水 · 关联业务类型 */
+  wallet_ref_type: {
+    ORDER: '订单',
+    WITHDRAW: '提现',
+    OPS_ADJUST: '运营调账',
+    COMMISSION_DAILY: '日结佣金',
+    SPLIT: '分账',
+    SPLIT_PARTIAL: '分账增额',
+    SPLIT_PARTIAL_REV: '分账冲正',
+    RECHARGE: '充值',
+    REFUND: '退款',
+    SEED: '演示初始'
   },
   sku_enrollment_status: {
     DRAFT: '草稿',
@@ -373,7 +427,8 @@ export const DICT = {
     SETTLEMENT_FAILED: '结算失败',
     SETTLEMENT_STUCK: '结算滞留',
     INVENTORY_MISMATCH: '库存差异',
-    SLOT_DISCREPANCY: '货道账实差异'
+    SLOT_DISCREPANCY: '货道账实差异',
+    VISION_ANOMALY: '视觉异常（端侧）'
   },
   ops_exception_action: {
     OPS_EXCEPTION_CLAIM: '领取异常',
@@ -419,6 +474,129 @@ export const DICT = {
     'R-DEMO-01': '演示路线 01',
     'R-DEMO-02': '演示路线 02',
     'R-DEMO-X': '演示路线 X'
+  },
+  scheduled_task_group: {
+    DEVICE: '设备',
+    TRADE: '交易',
+    OPS: '运维',
+    SYSTEM: '系统',
+    WAREHOUSE: '仓储',
+    MERCHANT: '商户',
+    FINANCE: '财务',
+    MARKETING: '营销'
+  },
+  wallet_entry_type: {
+    ADJUST: '运营调整',
+    COMMISSION: '佣金入账',
+    COMMISSION_DAILY: '日结佣金',
+    WITHDRAW_FREEZE: '提现冻结',
+    WITHDRAW_RELEASE: '提现解冻',
+    WITHDRAW_PAID: '提现打款',
+    SPLIT_CREDIT: '分账入账',
+    SPLIT_REVERSE: '分账退回',
+    RECHARGE: '充值',
+    RECHARGE_REFUND: '充值退款',
+    BALANCE_REFUND: '余额退款',
+    BALANCE_REFUND_FREEZE: '退款申请冻结',
+    BALANCE_REFUND_RELEASE: '退款申请解冻',
+    REFUND: '退款',
+    SETTLE: '结算入账',
+    PAYOUT: '打款',
+    FEE: '手续费'
+  },
+  session_kind: {
+    CONSUMER: '消费',
+    RESTOCK: '补货',
+    OPS: '运维',
+    /** 历史值，与 CONSUMER 同义 */
+    SHOPPING: '消费'
+  },
+  restock_line_type: {
+    RESTOCK: '上架',
+    PULL_OFF: '下架',
+    REMOVE: '下架',
+    PULL: '下架'
+  },
+  ops_alert_type: {
+    DISPUTE: '账单争议',
+    DEVICE_OFFLINE: '设备离线',
+    UPLOAD_STUCK: '录像滞留',
+    SESSION_STALE: '会话超时',
+    LOW_STOCK: '库存不足',
+    REPLENISHMENT: '补货任务',
+    RECON_MISMATCH: '对账差异',
+    RECONCILIATION_MISMATCH: '对账差异',
+    SPLIT_EXCEPTION: '分账异常',
+    IN_TRANSIT_OVERDUE: '签收超时'
+  },
+  ad_asset_type: { IMAGE: '图片', VIDEO: '视频', H5: 'H5' },
+  ad_campaign_status: { DRAFT: '草稿', RUNNING: '投放中', STOPPED: '已停止' },
+  consistency_check_type: {
+    ORDER_AMOUNT: '订单金额',
+    PAYMENT_AMOUNT: '支付净额',
+    INVENTORY_MISMATCH: '库存汇总',
+    POINTS_BALANCE: '积分余额',
+    COUPON_ISSUED: '发券数量',
+    WALLET_BALANCE: '钱包余额',
+    REFUND_AMOUNT: '退款金额',
+    ORDER_LINE_SUM: '订单行金额',
+    COUPON_USED_LINK: '券核销关联'
+  },
+  sku_perf_level: {
+    BEST_SELLER: '畅销',
+    NORMAL: '正常',
+    SLOW_MOVER: '慢销',
+    NO_SALES: '无销量'
+  },
+  sku_review_status: {
+    PENDING: '待评审',
+    RECOMMEND_DELIST: '建议下架',
+    DELISTED: '已下架',
+    KEPT: '已保留'
+  },
+  member_level: {
+    NORMAL: '普通',
+    SILVER: '白银',
+    GOLD: '黄金',
+    PLATINUM: '铂金',
+    DIAMOND: '钻石'
+  },
+  site_contract_status: { ACTIVE: '有效', EXPIRING: '临期', EXPIRED: '已到期' },
+  device_env_type: { HUMIDITY: '湿度', VOLTAGE: '电压', POWER: '功耗' },
+  device_lifecycle_action: {
+    BIND: '绑定商户',
+    UNBIND: '解绑',
+    DEPLOY: '投放',
+    UNDEPLOY: '撤回未投放',
+    RETURN: '返厂',
+    RETIRE: '退役',
+    INBOUND: '入库'
+  },
+  stock_health_dim: { STOCKOUT: '断货', LOW: '低库存', NEAR_EXPIRY: '临期' },
+  purchase_suggestion_reason: {
+    SALES_DRIVEN: '销量驱动',
+    TREND_FORECAST: '趋势预测',
+    LOW_STOCK: '库存不足'
+  },
+  supplier_payable_status: { UNPAID: '未付', PARTIAL: '部分付款', PAID: '已付', CLOSED: '已关闭' },
+  stocktake_mode: { BLIND: '盲盘', VISIBLE: '明盘' },
+  stocktake_status: {
+    DRAFT: '草稿',
+    IN_PROGRESS: '盘点中',
+    COMPLETED: '已完成',
+    ADJUSTED: '已调整',
+    CANCELLED: '已取消'
+  },
+  stocktake_line_status: { PENDING: '未盘', MATCHED: '相符', DIFF: '有差异', ADJUSTED: '已调整' },
+  merchant_alert_type: {
+    LOW_STOCK: '低库存',
+    EXPIRY: '临期',
+    REPLENISHMENT_REQUIRED: '需补货',
+    REPLENISHMENT: '补货任务',
+    DEVICE_OFFLINE: '柜机离线',
+    DEVICE_FAULT: '柜机故障',
+    DISPUTE: '消费争议',
+    SETTLEMENT_FAILED: '结算失败'
   },
   /** 商品类目：运营在字典管理维护；runtime 为准 */
   category_code: {} as Record<string, string>
@@ -473,12 +651,12 @@ export function dictLabel(type: DictType | string, code: string | null | undefin
   if (!map) {
     // 无字典类型时，避免把 SCREAMING_SNAKE 英文码直接露出给用户
     if (code && /^[A-Z][A-Z0-9_]*$/.test(String(code))) return '未知';
-    return code || '-';
+    return code || '暂无';
   }
   const hit = map[key] ?? map[code as string];
   if (hit) return hit;
   if (code && /^[A-Z][A-Z0-9_]*$/.test(String(code))) return '未知';
-  return code ?? '-';
+  return code ?? '暂无';
 }
 
 /**
@@ -487,12 +665,12 @@ export function dictLabel(type: DictType | string, code: string | null | undefin
 export function displayLabel(
   type: DictType | string,
   code: string | null | undefined,
-  empty = '-'
+  empty = '暂无'
 ): string {
   if (code == null || String(code).trim() === '') return empty;
   const label = dictLabel(type, code);
-  if (!label || label === '-') return empty;
-  if (/^[A-Z][A-Z0-9_]*$/.test(label)) return empty === '-' ? '未知' : empty;
+  if (!label || label === '-' || label === '—') return empty;
+  if (/^[A-Z][A-Z0-9_]*$/.test(label)) return empty === '暂无' || empty === '-' ? '未知' : empty;
   return label;
 }
 
@@ -545,6 +723,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   USER_VERIFY: '用户实名通过',
   USER_UNVERIFY: '撤销用户实名',
   RECHARGE_REFUND: '充值退款',
+  BALANCE_REFUND_APPROVE: '余额退款通过',
+  BALANCE_REFUND_REJECT: '余额退款驳回',
   SKU_CREATE: '新建商品',
   SKU_UPDATE: '更新商品',
   DEVICE_CREATE: '新建设备',
@@ -655,32 +835,132 @@ const AUDIT_DETAIL_KEY_LABELS: Record<string, string> = {
   name: '名称',
   idempotencykey: '幂等键',
   from: '原状态',
-  to: '新状态'
+  to: '新状态',
+  provider: '识别来源',
+  confidence: '置信度',
+  taskid: '任务编号',
+  splitid: '分账单号',
+  merchantid: '商户',
+  outreturnno: '回退单号',
+  repairticketid: '维修工单',
+  pendingreturncents: '待回退金额',
+  retrycount: '重试次数',
+  onlinestatus: '在线状态',
+  lifecycle: '生命周期',
+  lifecyclestatus: '生命周期',
+  issuetype: '问题类型'
 };
 
+const DEVICE_FAULT_ISSUE_ALIASES: Record<string, string> = {
+  DOOR_WONT_OPEN: 'DOOR_OPEN',
+  DOOR_WONT_CLOSE: 'DOOR_CLOSE',
+  DOOR: 'DOOR_OPEN'
+};
+
+function faultIssueLabel(code: string): string {
+  const upper = code.trim().toUpperCase();
+  const key = DEVICE_FAULT_ISSUE_ALIASES[upper] ?? upper;
+  return displayLabel('device_fault_issue', key, '其他');
+}
+
 export function auditActionLabel(action?: string | null): string {
-  if (!action) return '-';
+  if (!action) return '暂无';
   const hit = AUDIT_ACTION_LABELS[action];
   if (hit) return hit;
   const ops = (DICT.ops_exception_action as Record<string, string>)[action];
   if (ops) return ops;
-  if (/^[A-Z][A-Z0-9_]*$/.test(action)) return `其他操作（${action}）`;
+  if (/^[A-Z][A-Z0-9_]*$/.test(action)) return '其他操作';
   return action;
 }
 
 export function auditTargetLabel(type?: string | null): string {
-  if (!type) return '-';
+  if (!type) return '暂无';
   const hit = AUDIT_TARGET_LABELS[type];
   if (hit) return hit;
-  if (/^[A-Z][A-Z0-9_]*$/.test(type)) return `其他对象（${type}）`;
+  if (/^[A-Z][A-Z0-9_]*$/.test(type)) return '其他对象';
   return type;
+}
+
+/** 运营异常 detail：兼容历史枚举码与英文键值，转为中文说明 */
+export function formatExceptionDetail(detail: string | null | undefined): string {
+  if (!detail) return '暂无';
+  let text = detail.trim();
+  if (!text) return '暂无';
+
+  const faultLegacy = text.match(/^问题类型\s*=\s*([A-Za-z_]+)\s*[,;]\s*(.*)$/s);
+  if (faultLegacy) {
+    const label = faultIssueLabel(faultLegacy[1]);
+    const rest = faultLegacy[2]?.trim();
+    text = rest ? `问题类型：${label}；补充说明：${rest}` : `问题类型：${label}`;
+  } else {
+    text = text.replace(/问题类型\s*=\s*([A-Za-z_]+)/g, (_, code: string) => {
+      return `问题类型：${faultIssueLabel(code)}`;
+    });
+  }
+  text = text.replace(/补充说明\s*=/g, '补充说明：');
+
+  text = text.replace(
+    /^provider\s*=\s*(\S+)\s+confidence\s*=\s*([\d.]+)(?:\s*\|\s*(.*))?$/i,
+    (_full, provider: string, conf: string, extra?: string) => {
+      const prov = provider.toLowerCase() === 'unknown' ? '未知' : provider;
+      let s = `识别来源：${prov}；置信度：${conf}`;
+      if (extra?.trim()) s += `；补充说明：${extra.trim()}`;
+      return s;
+    }
+  );
+
+  text = text.replace(/故障码\s+OFFLINE_TIMEOUT/g, '故障码：离线超时');
+
+  if (/^[a-zA-Z]+\s*=\s*[A-Z0-9_]+$/.test(text)) {
+    const eq = text.indexOf('=');
+    const key = text.slice(0, eq).trim();
+    const val = text.slice(eq + 1).trim();
+    const keyLabels: Record<string, string> = {
+      onlineStatus: '在线状态',
+      lifecycle: '生命周期',
+      lifecycleStatus: '生命周期'
+    };
+    const keyLabel = keyLabels[key] || key;
+    let valLabel = val;
+    if (key === 'onlineStatus') valLabel = dictLabel('online_status', val) || val;
+    else if (key === 'lifecycle' || key === 'lifecycleStatus')
+      valLabel = dictLabel('device_lifecycle', val) || val;
+    text = `${keyLabel}：${valLabel}`;
+  }
+
+  return formatOpsActionDetail(text);
+}
+
+/** 风控事件 detail：JSON 或键值对 → 中文说明 */
+export function formatRiskEventDetail(detail: string | null | undefined): string {
+  if (!detail) return '暂无';
+  const text = detail.trim();
+  if (!text) return '暂无';
+  if (text.startsWith('{')) {
+    try {
+      const obj = JSON.parse(text) as Record<string, unknown>;
+      const parts: string[] = [];
+      if (obj.reason != null && String(obj.reason).trim()) {
+        parts.push(`原因：${String(obj.reason).trim()}`);
+      }
+      if (obj.count != null) parts.push(`次数：${obj.count}`);
+      if (obj.sessionId != null && String(obj.sessionId).trim()) {
+        parts.push(`会话：${String(obj.sessionId).trim()}`);
+      }
+      if (obj.by != null) parts.push(`操作人：${obj.by}`);
+      if (parts.length) return parts.join('；');
+    } catch {
+      /* fall through */
+    }
+  }
+  return formatExceptionDetail(text);
 }
 
 /** 审计/异常操作 detail：英文键值对 → 中文说明 */
 export function formatOpsActionDetail(detail: string | null | undefined): string {
-  if (!detail) return '-';
+  if (!detail) return '暂无';
   let text = detail.trim();
-  if (!text) return '-';
+  if (!text) return '暂无';
 
   text = text.replace(/\bsales-lock\b/gi, '营业锁');
   text = text.replace(/\bops collect\b/gi, '运营代收');
@@ -713,6 +993,12 @@ export function formatOpsActionDetail(detail: string | null | undefined): string
         return `${label}：${on ? '是' : '否'}`;
       }
       if (k === 'targettempc') return `${label}：${value}℃`;
+      if (k === 'onlinestatus') return `${label}：${dictLabel('online_status', value) || value}`;
+      if (k === 'lifecycle' || k === 'lifecyclestatus') {
+        return `${label}：${dictLabel('device_lifecycle', value) || value}`;
+      }
+      if (k === 'issuetype') return `${label}：${faultIssueLabel(value)}`;
+      if (k === 'provider' && value.toLowerCase() === 'unknown') return `${label}：未知`;
       return `${label}：${value}`;
     }
   );

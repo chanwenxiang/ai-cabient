@@ -71,4 +71,9 @@ public class CabinetMetrics {
     public void recordMerchantScopeDenied(String reason) {
         meterRegistry.counter("cabinet.merchant.scope_denied", "reason", reason != null ? reason : "unknown").increment();
     }
+
+    /** 权限拒绝计数（realm=merchant / ops / unknown），与 AccessDeniedAudit 配合定位越权。 */
+    public void recordPermissionDenied(String realm) {
+        meterRegistry.counter("cabinet.permission.denied", "realm", realm != null ? realm : "unknown").increment();
+    }
 }

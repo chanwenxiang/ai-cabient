@@ -32,8 +32,8 @@ public final class WeChatBillCsvParser {
             }
             Instant tradeTime = billDate.atStartOfDay(zone).toInstant();
             try {
-                String merchantOrderNo = cols.length > 6 ? cols[6].trim() : "";
-                String platformTradeNo = cols.length > 5 ? cols[5].trim() : merchantOrderNo;
+                String merchantOrderNo = cols[6].trim();
+                String platformTradeNo = cols[5].trim();
                 long amountCents = Math.round(Double.parseDouble(cols[12].trim()) * 100);
                 result.add(new PlatformBillLine(
                         platformTradeNo, merchantOrderNo, amountCents, tradeTime, "WECHAT", line

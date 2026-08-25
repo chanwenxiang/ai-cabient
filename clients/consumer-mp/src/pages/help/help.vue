@@ -1,6 +1,8 @@
-<template>
+﻿<template>
   <view class="page">
+    <app-nav-bar title="帮助中心" />
     <view class="hero">
+      <text class="hero-title">帮助中心</text>
       <text class="hero-sub">常见问题与客服入口，快速解决购物疑问</text>
     </view>
 
@@ -33,6 +35,20 @@
           <text class="support-value">打不开门、关不上门等</text>
         </view>
         <text class="support-action">去报修</text>
+      </view>
+      <view class="support-row" @click="goMessages">
+        <view>
+          <text class="support-label">消息中心</text>
+          <text class="support-value">订单、售后与优惠提醒</text>
+        </view>
+        <text class="support-action">去查看</text>
+      </view>
+      <view class="support-row" @click="goNearby">
+        <view>
+          <text class="support-label">附近柜机</text>
+          <text class="support-value">按距离找可开门的柜</text>
+        </view>
+        <text class="support-action">去找柜</text>
       </view>
     </view>
 
@@ -90,7 +106,15 @@ const faqs = [
   },
   {
     q: '优惠券怎么用？',
-    a: '购物结算时系统会自动选用可用优惠券。具体规则以活动页说明为准。'
+    a: '购物结算时系统会自动选用可用优惠券。券面会标注门槛、有效期与适用柜范围；即将过期的券会在「我的优惠券」中提示。'
+  },
+  {
+    q: '积分怎么获得和兑换？',
+    a: '支付成功后按会员等级倍率返积分。可在「积分明细」查看有效期，在「积分兑换」换券时注意门槛与适用柜说明。'
+  },
+  {
+    q: '附近没有柜机怎么办？',
+    a: '可在「附近柜机」扩大搜索半径，或直接扫描柜门二维码；离线/停售柜会标注状态，请选择在线可开门的柜。'
   }
 ];
 
@@ -130,6 +154,14 @@ function goReport() {
   uni.navigateTo({ url: '/pages/report/report' });
 }
 
+function goMessages() {
+  uni.navigateTo({ url: '/pages/messages/messages' });
+}
+
+function goNearby() {
+  uni.navigateTo({ url: '/pages/nearby/nearby' });
+}
+
 function goOrders() {
   uni.switchTab({ url: '/pages/orders/orders' });
 }
@@ -137,16 +169,23 @@ function goOrders() {
 
 <style scoped>
 .page {
-  min-height: 100vh;
-  padding: 24rpx 24rpx 48rpx;
+  min-height: 100%;
+  padding: 0 0 48rpx;
   box-sizing: border-box;
-  background: linear-gradient(180deg, #ecfdf5 0%, #f7f7f7 28%);
+  background: #ffffff;
 }
 .hero {
-  padding: 8rpx 8rpx 20rpx;
+  padding: 16rpx 32rpx 20rpx;
+}
+.hero-title {
+  display: block;
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #191919;
 }
 .hero-sub {
   display: block;
+  margin-top: 8rpx;
   font-size: 26rpx;
   color: #6b7280;
   line-height: 1.5;
@@ -155,7 +194,7 @@ function goOrders() {
   background: #fff;
   border-radius: 20rpx;
   padding: 24rpx;
-  margin-bottom: 20rpx;
+  margin: 0 24rpx 20rpx;
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
 }
 .card-title {
@@ -247,15 +286,21 @@ function goOrders() {
 }
 .tip-btn {
   margin-top: 20rpx;
+  min-height: 80rpx;
   height: 80rpx;
-  line-height: 80rpx;
+  line-height: 1.2;
   border-radius: 44rpx;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   font-size: 28rpx;
   font-weight: 600;
   border: none;
   box-shadow: 0 8rpx 20rpx rgba(5, 150, 105, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .tip-btn::after {
   border: none;

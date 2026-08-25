@@ -26,17 +26,20 @@ public class VisionMappingService {
     private final SkuCatalogMapper skuCatalogRepository;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    private final DistributedLockService distributedLockService;
 
     public VisionMappingService(SkuVisionMappingMapper yoloRepository,
                                 AliyunCategoryMappingMapper aliyunRepository,
                                 SkuCatalogMapper skuCatalogRepository,
                                 PermissionService permissionService,
-                                AdminAuditService auditService) {
+                                AdminAuditService auditService,
+                                DistributedLockService distributedLockService) {
         this.yoloRepository = yoloRepository;
         this.aliyunRepository = aliyunRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -53,9 +56,13 @@ public class VisionMappingService {
     @Transactional
     public YoloMappingDto upsertYolo(Long operatorId, UpsertYoloMappingRequest request) {
         permissionService.requirePermission(operatorId, "ops:vision:edit");
-        requireSku(request.skuId());
         String className = request.className().trim();
-        SkuVisionMapping mapping = yoloRepository.findById(className).orElse(new SkuVisionMapping());
+        return runWithYoloLock(className, () -> doUpsertYolo(operatorId, request, className));
+    }
+
+    private YoloMappingDto doUpsertYolo(Long operatorId, UpsertYoloMappingRequest request, String className) {
+        requireSku(request.skuId());
+        SkuVisionMapping mapping = yoloRepository.findByIdForUpdate(className).orElse(new SkuVisionMapping());
         mapping.setClassName(className);
         mapping.setSkuId(request.skuId().trim());
         mapping.setMinConfidence(request.minConfidence());
@@ -71,19 +78,27 @@ public class VisionMappingService {
     @Transactional
     public void deleteYolo(Long operatorId, String className) {
         permissionService.requirePermission(operatorId, "ops:vision:edit");
-        if (!yoloRepository.existsById(className)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST);
-        }
-        yoloRepository.deleteById(className);
-        auditService.record(operatorId, "VISION_YOLO_DELETE", "VISION", className, null);
+        String key = className.trim();
+        runWithYoloLock(key, () -> {
+            if (yoloRepository.findByIdForUpdate(key).isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST);
+            }
+            yoloRepository.deleteById(key);
+            auditService.record(operatorId, "VISION_YOLO_DELETE", "VISION", key, null);
+            return null;
+        });
     }
 
     @Transactional
     public AliyunMappingDto upsertAliyun(Long operatorId, UpsertAliyunMappingRequest request) {
         permissionService.requirePermission(operatorId, "ops:vision:edit");
-        requireSku(request.skuId());
         String categoryId = request.categoryId().trim();
-        AliyunCategoryMapping mapping = aliyunRepository.findById(categoryId).orElse(new AliyunCategoryMapping());
+        return runWithAliyunLock(categoryId, () -> doUpsertAliyun(operatorId, request, categoryId));
+    }
+
+    private AliyunMappingDto doUpsertAliyun(Long operatorId, UpsertAliyunMappingRequest request, String categoryId) {
+        requireSku(request.skuId());
+        AliyunCategoryMapping mapping = aliyunRepository.findByIdForUpdate(categoryId).orElse(new AliyunCategoryMapping());
         mapping.setCategoryId(categoryId);
         mapping.setCategoryName(request.categoryName());
         mapping.setSkuId(request.skuId().trim());
@@ -98,11 +113,47 @@ public class VisionMappingService {
     @Transactional
     public void deleteAliyun(Long operatorId, String categoryId) {
         permissionService.requirePermission(operatorId, "ops:vision:edit");
-        if (!aliyunRepository.existsById(categoryId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST);
+        String key = categoryId.trim();
+        runWithAliyunLock(key, () -> {
+            if (aliyunRepository.findByIdForUpdate(key).isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST);
+            }
+            aliyunRepository.deleteById(key);
+            auditService.record(operatorId, "VISION_ALIYUN_DELETE", "VISION", key, null);
+            return null;
+        });
+    }
+
+    static String yoloMappingLockKey(String className) {
+        return "vision:yolo:" + className.trim();
+    }
+
+    static String aliyunMappingLockKey(String categoryId) {
+        return "vision:aliyun:" + categoryId.trim();
+    }
+
+    private <T> T runWithYoloLock(String className, java.util.function.Supplier<T> action) {
+        String key = yoloMappingLockKey(className);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "识别映射处理中，请稍后重试");
         }
-        aliyunRepository.deleteById(categoryId);
-        auditService.record(operatorId, "VISION_ALIYUN_DELETE", "VISION", categoryId, null);
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
+    }
+
+    private <T> T runWithAliyunLock(String categoryId, java.util.function.Supplier<T> action) {
+        String key = aliyunMappingLockKey(categoryId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "阿里云类目映射处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
     }
 
     private void requireSku(String skuId) {

@@ -22,10 +22,14 @@ public class UserFeedbackService {
 
     private final UserFeedbackMapper repository;
     private final PermissionService permissionService;
+    private final DistributedLockService distributedLockService;
 
-    public UserFeedbackService(UserFeedbackMapper repository, PermissionService permissionService) {
+    public UserFeedbackService(UserFeedbackMapper repository,
+                               PermissionService permissionService,
+                               DistributedLockService distributedLockService) {
         this.repository = repository;
         this.permissionService = permissionService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
@@ -48,13 +52,13 @@ public class UserFeedbackService {
         row.setUserId(userId);
         row.setFeedbackType(type);
         row.setContent(content);
-        row.setContactInfo(blankToNull(body.contactInfo()));
+        row.setContactInfo(sanitizeContactInfo(body.contactInfo()));
         row.setDeviceId(blankToNull(body.deviceId()));
         row.setSessionId(blankToNull(body.sessionId()));
         row.setRating(body.rating());
         row.setStatus("PENDING");
         row.setCreatedAt(Instant.now());
-        return toDto(repository.save(row));
+        return toDto(repository.save(row), true);
     }
 
     @Transactional(readOnly = true)
@@ -62,7 +66,9 @@ public class UserFeedbackService {
         if (userId == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录");
         }
-        return repository.findByUserIdOrderByCreatedAtDesc(userId).stream().map(this::toDto).toList();
+        return repository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                .map(f -> toDto(f, true))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -71,7 +77,8 @@ public class UserFeedbackService {
         List<UserFeedback> rows = status == null || status.isBlank()
                 ? repository.findAllOrderByCreatedAtDesc()
                 : repository.findByStatusOrderByCreatedAtDesc(status.trim().toUpperCase());
-        return rows.stream().map(this::toDto).toList();
+        // 运营列表不回传 contactInfo，避免历史 XSS 样例进入浏览器
+        return rows.stream().map(f -> toDto(f, false)).toList();
     }
 
     @Transactional
@@ -80,26 +87,61 @@ public class UserFeedbackService {
         if (feedbackId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "feedbackId required");
         }
+        return runWithFeedbackLock(feedbackId, () -> doReply(operatorId, feedbackId, body));
+    }
+
+    private UserFeedbackDto doReply(Long operatorId, Long feedbackId, ReplyFeedbackRequest body) {
         String reply = body == null || body.reply() == null ? "" : body.reply().trim();
         if (reply.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "回复内容不能为空");
         }
-        UserFeedback item = repository.findById(feedbackId)
+        UserFeedback item = repository.findByIdForUpdate(feedbackId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "反馈不存在"));
         item.setReply(reply);
         item.setHandlerId(operatorId);
         item.setStatus("HANDLED");
         item.setHandledAt(Instant.now());
-        return toDto(repository.save(item));
+        return toDto(repository.save(item), false);
     }
 
-    private UserFeedbackDto toDto(UserFeedback f) {
+    @Transactional
+    public void delete(Long operatorId, Long feedbackId) {
+        permissionService.requireAnyPermission(operatorId, "ops:feedback", "ops:feedback:reply");
+        if (feedbackId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "feedbackId required");
+        }
+        runWithFeedbackLock(feedbackId, () -> {
+            if (repository.findByIdForUpdate(feedbackId).isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "反馈不存在");
+            }
+            repository.deleteById(feedbackId);
+            return null;
+        });
+    }
+
+    static String feedbackLockKey(Long feedbackId) {
+        return "feedback:" + feedbackId;
+    }
+
+    private <T> T runWithFeedbackLock(Long feedbackId, java.util.function.Supplier<T> action) {
+        String key = feedbackLockKey(feedbackId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "用户反馈处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
+    }
+
+    private UserFeedbackDto toDto(UserFeedback f, boolean includeContact) {
         return new UserFeedbackDto(
                 f.getFeedbackId(),
                 f.getUserId(),
                 f.getFeedbackType(),
                 f.getContent(),
-                f.getContactInfo(),
+                includeContact ? sanitizeContactInfo(f.getContactInfo()) : null,
                 f.getDeviceId(),
                 f.getSessionId(),
                 f.getRating(),
@@ -115,5 +157,22 @@ public class UserFeedbackService {
         if (value == null) return null;
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    /** 拒绝明显脚本/事件载荷，避免入库与回传（OBS-020）。 */
+    private static String sanitizeContactInfo(String value) {
+        String v = blankToNull(value);
+        if (v == null) {
+            return null;
+        }
+        String lower = v.toLowerCase(Locale.ROOT);
+        if (lower.contains("<") || lower.contains(">")
+                || lower.contains("javascript:")
+                || lower.contains("onerror")
+                || lower.contains("onload")
+                || lower.contains("<script")) {
+            return null;
+        }
+        return v;
     }
 }

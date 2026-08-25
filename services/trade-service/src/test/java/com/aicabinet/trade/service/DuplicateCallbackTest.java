@@ -51,6 +51,9 @@ class DuplicateCallbackTest {
     @Mock PermissionService permissionService;
     @Mock RiskControlService riskControlService;
     @Mock CabinetOrderMapper orderRepository;
+    @Mock VideoArchiveService videoArchiveService;
+    @Mock OrderPaymentService orderPaymentService;
+    @Mock DistributedLockService distributedLockService;
 
     private SessionService sessionService;
     private DisputeService disputeService;
@@ -59,11 +62,17 @@ class DuplicateCallbackTest {
     void setUp() {
         sessionService = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
-                gravityHelper, restockSnapshotService, null, opsExceptionService, null, orderRepository, null, null);
+                gravityHelper, restockSnapshotService, null, opsExceptionService, null, orderRepository,
+                null, null, null, null, distributedLockService);
+        org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
         disputeService = new DisputeService(
                 disputeRepository, null, repository, null, null, null, null, null,
                 riskControlService, permissionService, null, null, null, null,
-                new DisputeSlaProperties(24, 12, "", false), null, opsExceptionService, null, null);
+                new DisputeSlaProperties(24, 12, "", false), null, opsExceptionService, null, null,
+                videoArchiveService, orderPaymentService, null);
     }
 
     @Test
@@ -137,7 +146,7 @@ class DuplicateCallbackTest {
             }
             return Optional.of(second);
         };
-        when(repository.findById(sessionId)).thenAnswer(answer);
+        when(repository.findByIdForUpdate(sessionId)).thenAnswer(answer);
     }
 
     private static VisionServiceClient.RecognitionResult sampleRecognition() {

@@ -32,21 +32,19 @@ public class FinanceMarginLockScheduler {
             return;
         }
         boolean failed = false;
+        String summary = "本次未固化毛利快照";
         try {
             LocalDate yesterday = LocalDate.now(ZONE).minusDays(1);
-            try {
-                fundBillService.solidifyMargin(null, yesterday);
-                log.info("finance margin solidified for {}", yesterday);
-            } catch (Exception e) {
-                log.warn("finance margin solidify failed for {}: {}", yesterday, e.getMessage());
-            }
+            var dto = fundBillService.solidifyMargin(null, yesterday);
+            summary = "已固化 " + yesterday + " 毛利快照，订单 " + dto.orderCount() + " 笔";
+            log.info("finance margin solidified for {}", yesterday);
         } catch (Exception e) {
             failed = true;
             taskService.finish("finance-margin", "FAILED", e.getMessage(), start);
-            throw e;
+            log.warn("finance margin solidify failed: {}", e.getMessage());
         } finally {
             if (!failed) {
-                taskService.finish("finance-margin", "SUCCESS", null, start);
+                taskService.finish("finance-margin", "SUCCESS", summary, start);
             }
         }
     }

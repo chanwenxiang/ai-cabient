@@ -24,6 +24,8 @@ public class ProcurementService {
     private final WarehouseMapper warehouseRepository;
     private final SkuCatalogMapper skuCatalogRepository;
     private final WarehouseService warehouseService;
+    private final SupplierPayableService supplierPayableService;
+    private final DistributedLockService distributedLockService;
 
     public ProcurementService(PermissionService permissionService,
                               SupplierMapper supplierRepository,
@@ -33,7 +35,9 @@ public class ProcurementService {
                               PurchaseReturnLineMapper purchaseReturnLineRepository,
                               WarehouseMapper warehouseRepository,
                               SkuCatalogMapper skuCatalogRepository,
-                              WarehouseService warehouseService) {
+                              WarehouseService warehouseService,
+                              SupplierPayableService supplierPayableService,
+                              DistributedLockService distributedLockService) {
         this.permissionService = permissionService;
         this.supplierRepository = supplierRepository;
         this.purchaseOrderRepository = purchaseOrderRepository;
@@ -43,6 +47,8 @@ public class ProcurementService {
         this.warehouseRepository = warehouseRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.warehouseService = warehouseService;
+        this.supplierPayableService = supplierPayableService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -64,6 +70,8 @@ public class ProcurementService {
         supplier.setContactPhone(trimToNull(request.contactPhone()));
         supplier.setStatus(request.status() != null && !request.status().isBlank()
                 ? request.status().trim().toUpperCase() : "ACTIVE");
+        supplier.setPaymentTermsDays(request.paymentTermsDays() != null ? request.paymentTermsDays() : 30);
+        supplier.setCreditLimitCents(request.creditLimitCents());
         return toSupplierDto(supplierRepository.save(supplier));
     }
 
@@ -71,6 +79,14 @@ public class ProcurementService {
     public List<PurchaseOrderDto> listPurchaseOrders(Long operatorId) {
         requireWarehouseRead(operatorId);
         return purchaseOrderRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toPurchaseDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PurchaseOrderDto getPurchaseOrder(Long operatorId, Long purchaseOrderId) {
+        requireWarehouseRead(operatorId);
+        PurchaseOrder order = purchaseOrderRepository.findById(purchaseOrderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "purchase order not found"));
+        return toPurchaseDto(order);
     }
 
     @Transactional
@@ -97,6 +113,10 @@ public class ProcurementService {
         order.setNotes(trimToNull(request.notes()));
         order.setOperatorId(operatorId);
         order = purchaseOrderRepository.save(order);
+        if (order.getRefNo() == null || order.getRefNo().isBlank()) {
+            order.setRefNo("PO-" + order.getPurchaseOrderId());
+            order = purchaseOrderRepository.save(order);
+        }
 
         for (PurchaseOrderLineDto lineDto : request.lines()) {
             validatePurchaseLine(lineDto, false);
@@ -132,7 +152,12 @@ public class ProcurementService {
         if (request.lines() == null || request.lines().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "return lines required");
         }
-        PurchaseOrder order = purchaseOrderRepository.findById(request.purchaseOrderId())
+        return runWithPurchaseOrderLock(request.purchaseOrderId(),
+                () -> doCreatePurchaseReturn(operatorId, request));
+    }
+
+    private PurchaseReturnDto doCreatePurchaseReturn(Long operatorId, CreatePurchaseReturnRequest request) {
+        PurchaseOrder order = purchaseOrderRepository.findByIdForUpdate(request.purchaseOrderId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "purchase order not found"));
         if (!"RECEIVED".equals(order.getStatus()) && !"PARTIAL_RECEIVED".equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "purchase order has no receivable stock to return");
@@ -149,6 +174,7 @@ public class ProcurementService {
         ret.setOperatorId(operatorId);
         ret.setCreatedAt(Instant.now());
         ret = purchaseReturnRepository.save(ret);
+        long returnedValueCents = 0L;
 
         for (CreatePurchaseReturnRequest.PurchaseReturnLineRequest lineReq : request.lines()) {
             if (lineReq.purchaseLineId() == null) {
@@ -176,6 +202,7 @@ public class ProcurementService {
                     "PURCHASE_RETURN",
                     String.valueOf(ret.getReturnId())
             );
+            returnedValueCents += (long) lineReq.quantity() * poLine.getUnitCostCents();
             poLine.setReturnedQty(poLine.getReturnedQty() + lineReq.quantity());
             purchaseOrderLineRepository.save(poLine);
 
@@ -187,6 +214,7 @@ public class ProcurementService {
             retLine.setQuantity(lineReq.quantity());
             purchaseReturnLineRepository.save(retLine);
         }
+        supplierPayableService.recordReturn(operatorId, order, returnedValueCents);
         return toPurchaseReturnDto(ret);
     }
 
@@ -194,7 +222,13 @@ public class ProcurementService {
     public PurchaseOrderDto receivePurchaseOrder(Long operatorId, Long purchaseOrderId,
                                                  ReceivePurchaseOrderRequest request) {
         requireWarehouseWrite(operatorId);
-        PurchaseOrder order = purchaseOrderRepository.findById(purchaseOrderId)
+        return runWithPurchaseOrderLock(purchaseOrderId,
+                () -> doReceivePurchaseOrder(operatorId, purchaseOrderId, request));
+    }
+
+    private PurchaseOrderDto doReceivePurchaseOrder(Long operatorId, Long purchaseOrderId,
+                                                    ReceivePurchaseOrderRequest request) {
+        PurchaseOrder order = purchaseOrderRepository.findByIdForUpdate(purchaseOrderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "purchase order not found"));
         if (!"CREATED".equals(order.getStatus()) && !"PARTIAL_RECEIVED".equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "purchase order state invalid");
@@ -204,6 +238,7 @@ public class ProcurementService {
         List<PurchaseOrderLineDto> received = request.lines() != null && !request.lines().isEmpty()
                 ? request.lines()
                 : existing.stream().map(this::toPurchaseLineDto).toList();
+        long receivedValueCents = 0L;
 
         for (PurchaseOrderLineDto receiveLine : received) {
             PurchaseOrderLine line = matchLine(existing, receiveLine);
@@ -230,7 +265,7 @@ public class ProcurementService {
             line.setRejectedQty(0);
             purchaseOrderLineRepository.save(line);
             warehouseService.receivePurchaseStock(
-                    order.getWarehouseId(),
+                    resolveReceiveWarehouse(order, request),
                     line.getSkuId(),
                     line.getBatchNo(),
                     line.getProductionDate(),
@@ -241,6 +276,7 @@ public class ProcurementService {
                     "PURCHASE_ORDER",
                     String.valueOf(order.getPurchaseOrderId())
             );
+            receivedValueCents += (long) deltaQty * line.getUnitCostCents();
         }
         boolean allReceived = purchaseOrderLineRepository.findByPurchaseOrderIdOrderByLineIdAsc(purchaseOrderId)
                 .stream()
@@ -252,7 +288,18 @@ public class ProcurementService {
         if (request.notes() != null && !request.notes().isBlank()) {
             order.setNotes(request.notes().trim());
         }
+        supplierPayableService.recordReceive(operatorId, order, receivedValueCents);
         return toPurchaseDto(purchaseOrderRepository.save(order));
+    }
+
+    private String resolveReceiveWarehouse(PurchaseOrder order, ReceivePurchaseOrderRequest request) {
+        String target = request.receiveWarehouseId() == null || request.receiveWarehouseId().isBlank()
+                ? order.getWarehouseId()
+                : request.receiveWarehouseId().trim();
+        if (target == null || target.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "收货仓库未指定");
+        }
+        return target;
     }
 
     private PurchaseOrderLine matchLine(List<PurchaseOrderLine> existing, PurchaseOrderLineDto dto) {
@@ -355,7 +402,8 @@ public class ProcurementService {
     private SupplierDto toSupplierDto(Supplier supplier) {
         return new SupplierDto(
                 supplier.getSupplierId(), supplier.getSupplierName(), supplier.getContactName(),
-                supplier.getContactPhone(), supplier.getStatus(), supplier.getCreatedAt()
+                supplier.getContactPhone(), supplier.getStatus(),
+                supplier.getPaymentTermsDays(), supplier.getCreditLimitCents(), supplier.getCreatedAt()
         );
     }
 
@@ -378,5 +426,24 @@ public class ProcurementService {
 
     private void requireWarehouseWrite(Long operatorId) {
         permissionService.requirePermission(operatorId, "ops:procurement:edit");
+    }
+
+    static String purchaseOrderLockKey(Long purchaseOrderId) {
+        return "procurement:po:" + purchaseOrderId;
+    }
+
+    private <T> T runWithPurchaseOrderLock(Long purchaseOrderId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(purchaseOrderLockKey(purchaseOrderId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "采购单处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(purchaseOrderLockKey(purchaseOrderId));
+        }
     }
 }

@@ -138,6 +138,7 @@ import { computed, onBeforeUnmount, ref } from 'vue';
 import { UploadFilled } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import type { DevRecognitionPreviewDto } from '@aicabinet/shared-types';
+import { authFetch } from '@/api/client';
 import { useNavAccess } from '@/composables/useNavAccess';
 
 const { canAccessPath, goPath } = useNavAccess();
@@ -187,14 +188,12 @@ async function runRecognize() {
   if (!imageFile.value) return;
   recognizing.value = true;
   try {
-    const token = localStorage.getItem('admin_token');
     const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin;
     const form = new FormData();
     form.append('image', imageFile.value);
     form.append('deviceId', 'CAB-001');
-    const res = await fetch(`${base}/api/v2/ops/recognition-preview`, {
+    const res = await authFetch(`${base}/api/v2/ops/recognition-preview`, {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: form
     });
     const json = await res.json().catch(() => ({}));

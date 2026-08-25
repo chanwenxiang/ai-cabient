@@ -13,11 +13,13 @@ import java.util.List;
  *   <li>KEEP — 维持原账单（items 可为空）</li>
  * </ul>
  * {@code action} 为 {@code resolutionType} 的兼容别名（历史客户端/脚本）。
+ * {@code restoreInventory} 仅 WAIVE 有意义：true=回库，false=仅退款不回库，null=默认回库（兼容历史免单）。
  */
 public record ResolveDisputeRequest(
         List<ManualLineItem> items,
         String resolutionType,
-        String action
+        String action,
+        Boolean restoreInventory
 ) {
     public record ManualLineItem(
             @NotBlank String skuId,
@@ -32,7 +34,11 @@ public record ResolveDisputeRequest(
 
     /** 兼容仅传 items + resolutionType 的两参构造（单测/内部调用）。 */
     public ResolveDisputeRequest(List<ManualLineItem> items, String resolutionType) {
-        this(items, resolutionType, null);
+        this(items, resolutionType, null, null);
+    }
+
+    public ResolveDisputeRequest(List<ManualLineItem> items, String resolutionType, String action) {
+        this(items, resolutionType, action, null);
     }
 
     /** 优先 resolutionType，否则回落 action。 */

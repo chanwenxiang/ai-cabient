@@ -27,14 +27,15 @@ export class ApiClient {
                 method,
                 headers,
                 body: body != null ? JSON.stringify(body) : undefined,
+                credentials: 'same-origin',
                 signal: controller.signal
             });
         }
-        catch (e) {
+        catch {
             if (controller.signal.aborted) {
                 throw new Error('请求超时，请稍后重试');
             }
-            throw e;
+            throw new Error('网络错误，请稍后重试');
         }
         finally {
             clearTimeout(timer);
@@ -86,6 +87,18 @@ export class ApiClient {
             captchaId: captcha?.captchaId,
             captchaCode: captcha?.captchaCode
         }, false);
+    }
+    verifyTwoFactor(challengeToken, code) {
+        return this.request('/api/v2/auth/admin-2fa/verify', 'POST', {
+            challengeToken,
+            code
+        });
+    }
+    recoveryTwoFactor(challengeToken, recoveryCode) {
+        return this.request('/api/v2/auth/admin-2fa/recovery', 'POST', {
+            challengeToken,
+            recoveryCode
+        });
     }
     fetchCaptcha() {
         return this.request('/api/v2/auth/captcha', 'GET', undefined, false);

@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
  * <pre>
  * videos/{yyyy}/{MM}/{dd}/{deviceId}/user-{userId}/{sessionId}-{camera}.{ext}
  * sim/{yyyy}/{MM}/{dd}/{deviceId}/user-{userId}/{sessionId}-{camera}.{ext}   // 开发/模拟
- * archive/{yyyy}/{MM}/{dd}/{skuId}/user-{userId}/{sessionId}-{camera}.{ext}  // 结算后按 SKU 归档
+ * archive/{yyyy}/{MM}/{dd}/session-{sessionId}/user-{userId}/{sessionId}-{camera}.{ext}  // 结算后归档（单副本）
  * </pre>
  */
 public final class ObjectStorageKeys {
@@ -42,17 +42,17 @@ public final class ObjectStorageKeys {
         return prefix("videos", deviceId, userId, sessionId, camera, extension, at);
     }
 
-    /** 结算完成后按 SKU 归档（每个订单行 SKU 各复制一份，便于按商品检索录像）。 */
+    /** 结算完成后按会话归档（每段视频只保留一份归档副本，容量可控；按商品检索可走 DB 索引）。 */
     public static String archiveVideoKey(
-            String skuId, long userId, String sessionId, String camera, String extension, Instant at) {
+            long userId, String sessionId, String camera, String extension, Instant at) {
         ZonedDateTime zdt = at.atZone(ZONE);
         String date = String.format(
                 Locale.ROOT, "%04d/%02d/%02d", zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
-        String safeSku = sanitize(skuId, "unknown-sku");
         String safeSession = sanitize(sessionId, "session");
         String cam = normalizeCamera(camera);
         String ext = normalizeExtension(extension);
-        return String.format(Locale.ROOT, "archive/%s/%s/user-%d/%s-%s%s", date, safeSku, userId, safeSession, cam, ext);
+        return String.format(Locale.ROOT,
+                "archive/%s/session-%s/user-%d/%s-%s%s", date, safeSession, userId, safeSession, cam, ext);
     }
 
     /** 消费者申诉证据图。 */

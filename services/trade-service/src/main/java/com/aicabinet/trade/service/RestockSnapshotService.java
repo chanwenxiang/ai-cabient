@@ -5,8 +5,10 @@ import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.domain.ShoppingSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
 import java.util.List;
@@ -24,17 +26,24 @@ public class RestockSnapshotService {
     private final GravitySettlementHelper gravityHelper;
     private final DeviceSlotService deviceSlotService;
     private final VisionServiceClient visionClient;
+    private final DistributedLockService distributedLockService;
 
     public RestockSnapshotService(GravitySettlementHelper gravityHelper,
                                   DeviceSlotService deviceSlotService,
-                                  VisionServiceClient visionClient) {
+                                  VisionServiceClient visionClient,
+                                  DistributedLockService distributedLockService) {
         this.gravityHelper = gravityHelper;
         this.deviceSlotService = deviceSlotService;
         this.visionClient = visionClient;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
     public int applySnapshot(ShoppingSession session) {
+        return runWithRestockSnapshotLock(session.getSessionId(), () -> doApplySnapshot(session));
+    }
+
+    private int doApplySnapshot(ShoppingSession session) {
         String deviceId = session.getDeviceId();
         String refId = session.getSessionId();
         List<GravityDeltaRequest.GravityDeltaItem> deltas = gravityHelper.parse(session.getGravityDeltas());
@@ -151,5 +160,17 @@ public class RestockSnapshotService {
 
     private static boolean hasRecognizableVideo(ShoppingSession session) {
         return session.getVideoUri() != null && !session.getVideoUri().isBlank();
+    }
+
+    private <T> T runWithRestockSnapshotLock(String sessionId, java.util.function.Supplier<T> action) {
+        String key = SessionService.sessionLifeLockKey(sessionId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "补货快照处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
     }
 }

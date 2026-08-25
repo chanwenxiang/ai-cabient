@@ -37,6 +37,45 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 防止真实密钥/私钥被提交进仓库（测试用的动态生成密钥不含固定 PEM 内容）
+      - name: Secret scan (tracked files only)
+        run: |
+          set -euo pipefail
+          hits=$(git ls-files -z ':!.github/workflows/ci.yml' | xargs -0 grep -Il \
+            -e 'AKIA[0-9A-Z]\{16\}' \
+            -e '-----BEGIN RSA PRIVATE KEY-----' \
+            -e '-----BEGIN EC PRIVATE KEY-----' \
+            -e '-----BEGIN OPENSSH PRIVATE KEY-----' \
+            -e 'ghp_[A-Za-z0-9]\{20,\}' \
+            -e 'sk_live_[A-Za-z0-9]\{20,\}' 2>/dev/null || true)
+          if [ -n "$hits" ]; then
+            echo "possible secret(s) in tracked files:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "secret scan: no matches"
+
+      # 生产模板门禁：模板内不允许出现真实密钥/弱默认值，mock 必须关闭
+      - name: Production env template gate
+        run: |
+          set -euo pipefail
+          env_file="infra/.env.production.example"
+          test -f "$env_file" || { echo "missing $env_file"; exit 1; }
+          grep -q '^AICABINET_MOCK_ENABLED=false$' "$env_file" \
+            || { echo "AICABINET_MOCK_ENABLED must be false in production template"; exit 1; }
+          grep -q '^VISION_MOCK_ENABLED=false$' "$env_file" \
+            || { echo "VISION_MOCK_ENABLED must be false in production template"; exit 1; }
+          grep -q '^RECON_MOCK_ENABLED=false$' "$env_file" \
+            || { echo "RECON_MOCK_ENABLED must be false in production template"; exit 1; }
+          grep -q '^AUTH_COOKIE_SECURE=true$' "$env_file" \
+            || { echo "AUTH_COOKIE_SECURE must be true in production template"; exit 1; }
+          grep -q '^MQTT_BROKER=ssl://' "$env_file" \
+            || { echo "MQTT_BROKER must be ssl:// in production template"; exit 1; }
+          grep -q '^WECHAT_APP_ID=wxYOUR_APP_ID$' "$env_file" \
+            || { echo "WECHAT_APP_ID must stay as placeholder in production template"; exit 1; }
+          grep -q '^JWT_SECRET=CHANGE-ME-production-jwt-secret-32bytes-min$' "$env_file" \
+            || { echo "JWT_SECRET must stay as CHANGE-ME placeholder in production template"; exit 1; }
+
       - uses: actions/setup-java@v4
         with:
           java-version: '17'
@@ -56,6 +95,22 @@ jobs:
           SPRING_DATASOURCE_PASSWORD: aicabinet
           REDIS_HOST: localhost
           REDIS_PORT: "6379"
+
+      # 三端 RBAC E2E 与权限漂移测试依赖 Docker（Testcontainers），缺 Docker 时会被静默跳过；
+      # 这里显式校验 surefire 报告存在且全绿，让"跳过"变成构建失败。
+      - name: Verify RBAC E2E ran (no silent skip)
+        run: |
+          set -euo pipefail
+          for cls in \
+            com.aicabinet.trade.auth.PermissionCodeDriftTest \
+            com.aicabinet.trade.e2e.AdminE2ETest \
+            com.aicabinet.trade.e2e.ConsumerE2ETest \
+            com.aicabinet.trade.e2e.MerchantE2ETest; do
+            report="services/trade-service/target/surefire-reports/$cls.txt"
+            test -s "$report" || { echo "missing surefire report: $report"; exit 1; }
+            grep -q "Failures: 0, Errors: 0, Skipped: 0" "$report" \
+              || { echo "RBAC test not fully green: $report"; exit 1; }
+          done
 
       # Maven 构建会重新生成 static/admin；若与提交的产物不一致说明前端改了没同步产物
       - name: Verify admin UI artifacts are up-to-date

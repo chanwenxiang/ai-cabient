@@ -2,10 +2,13 @@ package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.AccountDto;
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.InvoiceRequestDto;
+import com.aicabinet.common.dto.SetPayPreferredChannelRequest;
 import com.aicabinet.common.dto.VerifyIdentityRequest;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.service.AccountService;
+import com.aicabinet.trade.service.InvoiceService;
 import com.aicabinet.trade.support.ApiMessages;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -13,16 +16,22 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v2/account")
 public class AccountController {
 
     private final AccountService accountService;
     private final SecurityProperties securityProperties;
+    private final InvoiceService invoiceService;
 
-    public AccountController(AccountService accountService, SecurityProperties securityProperties) {
+    public AccountController(AccountService accountService,
+                             SecurityProperties securityProperties,
+                             InvoiceService invoiceService) {
         this.accountService = accountService;
         this.securityProperties = securityProperties;
+        this.invoiceService = invoiceService;
     }
 
     @GetMapping
@@ -48,6 +57,15 @@ public class AccountController {
         return ApiResponse.ok(accountService.verifyIdentity(userId, body));
     }
 
+    /** 设置结算优先支付方式：BALANCE / WECHAT / ALIPAY */
+    @PutMapping("/pay-preferred")
+    public ApiResponse<AccountDto> setPayPreferred(
+            HttpServletRequest request,
+            @Valid @RequestBody SetPayPreferredChannelRequest body) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(accountService.setPayPreferredChannel(userId, body.channel()));
+    }
+
     /** 仅开发环境：生产环境应通过微信 code2session 绑定 openId */
     @PostMapping("/bind-openid")
     public ApiResponse<Void> bindOpenId(HttpServletRequest request, @RequestParam("openId") String openId) {
@@ -71,5 +89,11 @@ public class AccountController {
     public ApiResponse<com.aicabinet.common.dto.PayContractDto> signAlipayAgreement(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return ApiResponse.ok(accountService.signAlipayAgreement(userId));
+    }
+
+    @GetMapping("/invoices")
+    public ApiResponse<List<InvoiceRequestDto>> myInvoices(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(invoiceService.listMine(userId));
     }
 }

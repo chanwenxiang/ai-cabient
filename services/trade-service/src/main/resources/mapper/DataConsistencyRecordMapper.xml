@@ -8,4 +8,11 @@
     SELECT r.* FROM data_consistency_record r WHERE r.checked_at >= #{start} AND r.checked_at < #{end}
     ]]>
   </select>
+
+  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.DataConsistencyRecord">
+    <![CDATA[
+    SELECT r.* FROM data_consistency_record r WHERE r.id = #{id} FOR UPDATE
+    ]]>
+  </select>
+
 </mapper>

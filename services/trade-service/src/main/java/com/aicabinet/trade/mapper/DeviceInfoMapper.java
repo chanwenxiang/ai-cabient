@@ -4,10 +4,23 @@ import com.aicabinet.trade.domain.DeviceInfo;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
+
+    DeviceInfo _findByIdForUpdateRaw(@Param("deviceId") String deviceId);
+
+    default Optional<DeviceInfo> findByIdForUpdate(String deviceId) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(deviceId));
+    }
+
+    default List<DeviceInfo> findAllOrderByDeviceIdAsc() {
+        return selectList(Wrappers.<DeviceInfo>lambdaQuery()
+                .orderByAsc(DeviceInfo::getDeviceId));
+    }
 
     default long countByMerchantId(String merchantId) {
     Long c = selectCount(Wrappers.<DeviceInfo>lambdaQuery().eq(DeviceInfo::getMerchantId, merchantId));
@@ -64,6 +77,13 @@ public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
         update(null, Wrappers.<DeviceInfo>lambdaUpdate()
                 .eq(DeviceInfo::getDeviceId, deviceId)
                 .set(DeviceInfo::getOnlineSince, null));
+    }
+
+    /** 锁机时清空解锁宽限时间戳。 */
+    default void clearSalesUnlockedAt(String deviceId) {
+        update(null, Wrappers.<DeviceInfo>lambdaUpdate()
+                .eq(DeviceInfo::getDeviceId, deviceId)
+                .set(DeviceInfo::getSalesUnlockedAt, null));
     }
 
     /** 锁机中且已稳定在线超过 cutff 的设备（用于稳定在线自动解锁）。 */

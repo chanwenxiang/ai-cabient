@@ -46,8 +46,10 @@ public class DisputeSlaScheduler {
             return;
         }
         boolean failed = false;
+        String summary = "争议 SLA 扫描未启用";
         try {
         if (!disputeSlaProperties.schedulerEnabled()) {
+            summary = "争议 SLA 调度未启用";
             return;
         }
         Instant now = Instant.now();
@@ -86,6 +88,7 @@ public class DisputeSlaScheduler {
                 disputeRepository.save(ticket);
             }
         }
+        summary = "扫描 " + openTickets.size() + " 张，提醒 " + reminders + "，逾期 " + overdue;
         if (reminders > 0 || overdue > 0) {
             log.info("dispute sla scan reminders={} overdue={} scanned={}", reminders, overdue, openTickets.size());
         }
@@ -95,7 +98,7 @@ public class DisputeSlaScheduler {
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("dispute-sla", "SUCCESS", null, start);
+                taskService.finish("dispute-sla", "SUCCESS", summary, start);
             }
         }
     }

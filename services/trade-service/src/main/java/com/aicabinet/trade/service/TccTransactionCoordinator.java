@@ -16,8 +16,12 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
+import lombok.Getter;
+import lombok.Setter;
 
 @Service
+@Getter
+@Setter
 public class TccTransactionCoordinator {
     private static final Logger log = LoggerFactory.getLogger(TccTransactionCoordinator.class);
     

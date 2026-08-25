@@ -1,4 +1,4 @@
-# Shared E2E helpers: API client, device cleanup, MQTT shopping flow
+﻿# Shared E2E helpers: API client, device cleanup, MQTT shopping flow
 
 function Get-E2eLockPath {
     return (Join-Path $env:TEMP "ai-cabinet-e2e.lock")
@@ -146,6 +146,26 @@ function Invoke-E2eApi {
         [hashtable]$Headers = @{},
         $Body = $null
     )
+    # 运营后台密码登录需要图形验证码：自动从 /captcha 领取并把 Redis 中的答案附到请求体，
+    # 让既有 e2e 脚本在 captcha-enabled 环境下无需改造。
+    if ($Path -eq '/api/v2/auth/admin-password-login') {
+        $needCaptcha = ($null -eq $Body) -or (-not ($Body -is [hashtable])) -or
+            ([string]::IsNullOrWhiteSpace([string]$Body.captchaId))
+        if ($needCaptcha) {
+            $capResp = Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v2/auth/captcha" -ContentType "application/json"
+            if ($capResp.code -ne 0 -or [string]::IsNullOrWhiteSpace($capResp.data.captchaId)) {
+                throw "captcha fetch failed: $($capResp.message)"
+            }
+            $capId = $capResp.data.captchaId
+            $code = (docker exec ai-cabinet-redis-1 redis-cli GET "aicabinet:captcha:$capId" 2>&1).Trim()
+            if ([string]::IsNullOrWhiteSpace($code)) {
+                throw "captcha code not found in redis for id=$capId"
+            }
+            if ($null -eq $Body -or -not ($Body -is [hashtable])) { $Body = @{} }
+            $Body.captchaId = $capId
+            $Body.captchaCode = $code
+        }
+    }
     $uri = "$BaseUrl$Path"
     $params = @{
         Method      = $Method
@@ -153,7 +173,7 @@ function Invoke-E2eApi {
         ContentType = "application/json"
     }
     if ($Headers.Count -gt 0) { $params.Headers = $Headers }
-    if ($null -ne $Body) { $params.Body = ($Body | ConvertTo-Json -Compress) }
+    if ($null -ne $Body) { $params.Body = ($Body | ConvertTo-Json -Depth 8 -Compress) }
     try {
         $resp = Invoke-RestMethod @params
     } catch {
@@ -535,7 +555,7 @@ function Set-E2eConsumerBalance {
     )
     $userId = Get-E2eConsumerUserId -Phone $Phone -PostgresContainer $PostgresContainer
     $sql = @"
-UPDATE user_account SET balance_cents = $BalanceCents, updated_at = NOW()
+UPDATE user_account SET balance_cents = $BalanceCents, frozen_cents = 0, updated_at = NOW()
 WHERE user_id = $userId;
 "@
     docker exec $PostgresContainer psql -U aicabinet -d aicabinet -c $sql | Out-Null
@@ -555,12 +575,14 @@ function Invoke-E2eInternalDoorClose {
         [string]$VideoUri = "",
         [string]$InternalApiKey = "dev-internal-key-change-me"
     )
+    # Gateway blocks /internal/* — always hit trade-service directly.
+    $internalBase = Resolve-E2eBaseUrl $BaseUrl
     $headers = @{ "X-Internal-Api-Key" = $InternalApiKey }
     $gravity = ConvertTo-Json @(@{ skuId = $SkuId; delta = -$Quantity; slotId = "SIM-1" }) -Compress
     if ([string]::IsNullOrWhiteSpace($VideoUri)) {
         $VideoUri = "minio://cabinet-videos/$(Get-E2eSimVideoKey -SessionId $SessionId -DeviceId $DeviceId -UserId $UserId)"
     }
-    Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/internal/v1/sessions/door-event" -Headers $headers -Body @{
+    Invoke-E2eApi -BaseUrl $internalBase -Method POST -Path "/internal/v1/sessions/door-event" -Headers $headers -Body @{
         sessionId         = $SessionId
         deviceId          = $DeviceId
         doorState         = "CLOSED"
@@ -579,6 +601,91 @@ function Restart-E2eDeviceSimulator {
     Write-Host "    waiting 12s for MQTT warmup after simulator restart"
     Start-Sleep -Seconds 12
 }
+
+# plan 按设备全缺口生成出库；若某 SKU 有建议量但仓库无货会导致整单 400
+function Prepare-E2eReplenishmentPlan {
+    param(
+        [string]$BaseUrl,
+        [hashtable]$OpsAuth,
+        [string]$DeviceId,
+        [string]$WarehouseId = "WH-DEMO-001"
+    )
+    $suggestions = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
+        -Path "/api/v2/ops/admin/replenishment/suggest?deviceId=$DeviceId" -Headers $OpsAuth)
+    if ($suggestions.Count -eq 0) {
+        Write-Host "    Prepare-E2eReplenishmentPlan: no gaps on $DeviceId"
+        return
+    }
+    $whInv = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
+        -Path "/api/v2/ops/admin/warehouse/inventory?warehouseId=$WarehouseId" -Headers $OpsAuth)
+    $stockBySku = @{}
+    $batchBySku = @{}
+    foreach ($row in $whInv) {
+        $sku = [string]$row.skuId
+        if (-not $stockBySku.ContainsKey($sku)) { $stockBySku[$sku] = 0 }
+        $stockBySku[$sku] += [int]$row.quantity
+        if (-not $batchBySku.ContainsKey($sku) -and $row.batchNo) {
+            $batchBySku[$sku] = [string]$row.batchNo
+        }
+    }
+    $defaultBatch = @{
+        "SKU-MILK-001"   = "B-WH-MILK-01"
+        "SKU-SNACK-001"  = "B-WH-CHIPS-01"
+        "SKU-DEMO-001"   = "B-DEMO-01"
+        "SKU-SODA-001"   = "B-WH-SODA-01"
+        "SKU-WATER-001"  = "B-WH-WATER-01"
+        "SKU-NOODLE-001" = "B-WH-NOODLE-01"
+    }
+    $inboundLines = @()
+    foreach ($s in $suggestions) {
+        $sku = [string]$s.skuId
+        $need = [int]$s.suggestQty
+        if ($need -le 0) { continue }
+        $have = if ($stockBySku.ContainsKey($sku)) { [int]$stockBySku[$sku] } else { 0 }
+        if ($have -ge $need) { continue }
+        $gap = $need - $have + 2
+        $batch = $batchBySku[$sku]
+        if (-not $batch) { $batch = $defaultBatch[$sku] }
+        if (-not $batch) { $batch = "E2E-$sku" }
+        Write-Host "    replenishment prep: sku=$sku suggest=$need warehouse=$have inbound=$gap batch=$batch"
+        $inboundLines += @{
+            skuId          = $sku
+            batchNo        = $batch
+            productionDate = "2026-08-01"
+            expiryDate     = "2026-12-31"
+            quantity       = $gap
+        }
+    }
+    if ($inboundLines.Count -eq 0) {
+        Write-Host "    Prepare-E2eReplenishmentPlan: warehouse stock sufficient"
+        return
+    }
+    $ref = "E2E-PREP-$(Get-Date -Format 'yyyyMMddHHmmss')"
+    Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/ops/admin/warehouse/inbound" -Headers $OpsAuth -Body @{
+        warehouseId = $WarehouseId
+        refNo       = $ref
+        notes       = "e2e replenishment warehouse prep"
+        lines       = $inboundLines
+    } | Out-Null
+    Write-Host "    inbound ref=$ref lines=$($inboundLines.Count)"
+}
+
+function Get-E2eAdminCaptchaCode {
+    param(
+        [string]$CaptchaId,
+        [string]$RedisContainer = "ai-cabinet-redis-1"
+    )
+    if ([string]::IsNullOrWhiteSpace($CaptchaId)) {
+        throw "CaptchaId required"
+    }
+    $raw = docker exec $RedisContainer redis-cli GET "aicabinet:captcha:$CaptchaId" 2>&1
+    $code = [string]$raw
+    if ($code -match '^\s*$' -or $code -match 'nil|ERR') {
+        throw "Captcha not found in redis for id=$CaptchaId"
+    }
+    return $code.Trim().ToUpper()
+}
+
 function Get-E2eDbSnapshot {
     param(
         [string]$SessionId = "",

@@ -283,14 +283,15 @@
           show-icon
           class="scope-alert"
           title="人员货柜范围"
-          description="全部货柜 = 商户范围内所有柜；部分货柜 = 仅勾选柜机可见（理货员常用）。"
+          description="全部 = 商户范围内所有柜；勾选柜机 = 仅选中设备；线路 = 按设备 route_code 过滤。"
         />
         <el-radio-group v-model="deviceScopeMode" style="margin: 12px 0">
           <el-radio value="ALL">全部货柜</el-radio>
-          <el-radio value="PARTIAL">部分货柜</el-radio>
+          <el-radio value="DEVICE_IDS">勾选柜机</el-radio>
+          <el-radio value="ROUTE">线路</el-radio>
         </el-radio-group>
         <el-checkbox-group
-          v-if="deviceScopeMode === 'PARTIAL' && allDevices.length"
+          v-if="deviceScopeMode === 'DEVICE_IDS' && allDevices.length"
           v-model="deviceIds"
           class="merchant-group"
         >
@@ -299,10 +300,22 @@
           </el-checkbox>
         </el-checkbox-group>
         <el-empty
-          v-else-if="deviceScopeMode === 'PARTIAL' && !deviceScopeLoading && !allDevices.length"
+          v-else-if="deviceScopeMode === 'DEVICE_IDS' && !deviceScopeLoading && !allDevices.length"
           description="暂无货柜可分配"
           :image-size="64"
         />
+        <el-select
+          v-if="deviceScopeMode === 'ROUTE'"
+          v-model="routeCodes"
+          multiple
+          filterable
+          allow-create
+          default-first-option
+          placeholder="选择或输入线路编码"
+          style="width: 100%"
+        >
+          <el-option v-for="r in availableRoutes" :key="r" :label="r" :value="r" />
+        </el-select>
       </div>
       <template #footer>
         <el-button @click="deviceDlg = false">取消</el-button>
@@ -383,8 +396,19 @@ const merchantScopeLoading = ref(false);
 const deviceScopeLoading = ref(false);
 const merchantIds = ref<string[]>([]);
 const deviceIds = ref<string[]>([]);
+const routeCodes = ref<string[]>([]);
 const deviceScopeMode = ref('ALL');
-const allDevices = ref<{ deviceId: string; deviceName?: string }[]>([]);
+const allDevices = ref<{ deviceId: string; deviceName?: string; routeCode?: string }[]>([]);
+const availableRoutes = computed(() => {
+  const set = new Set<string>();
+  for (const d of allDevices.value) {
+    if (d.routeCode && d.routeCode.trim()) set.add(d.routeCode.trim());
+  }
+  for (const r of routeCodes.value) {
+    if (r && r.trim()) set.add(r.trim());
+  }
+  return [...set].sort();
+});
 const currentUserId = ref<number | null>(null);
 const roleIds = ref<number[]>([]);
 const form = ref({
@@ -704,12 +728,14 @@ async function openDevices(row: OperatorRow) {
   currentUserId.value = row.userId;
   deviceScopeMode.value = 'ALL';
   deviceIds.value = [];
+  routeCodes.value = [];
   deviceDlg.value = true;
   deviceScopeLoading.value = true;
   try {
     if (!auth.hasPerm('ops:device:list')) {
       allDevices.value = [];
       deviceIds.value = [];
+      routeCodes.value = [];
       deviceScopeMode.value = 'ALL';
       ElMessage.warning('当前账号无设备列表权限，无法配置柜机范围');
       return;
@@ -721,15 +747,20 @@ async function openDevices(row: OperatorRow) {
       );
       allDevices.value = (list.items || []).map((d: any) => ({
         deviceId: d.deviceId,
-        deviceName: d.deviceName
+        deviceName: d.deviceName,
+        routeCode: d.routeCode
       }));
     }
-    const data = await api.request<{ scopeMode: string; deviceIds: string[] }>(
-      `/api/v2/ops/admin/rbac/users/${row.userId}/devices`,
-      'GET'
-    );
-    deviceScopeMode.value = data.scopeMode || 'ALL';
+    const data = await api.request<{
+      scopeMode: string;
+      deviceIds: string[];
+      routeCodes?: string[];
+    }>(`/api/v2/ops/admin/rbac/users/${row.userId}/devices`, 'GET');
+    let mode = data.scopeMode || 'ALL';
+    if (mode === 'PARTIAL') mode = 'DEVICE_IDS';
+    deviceScopeMode.value = mode;
     deviceIds.value = [...(data.deviceIds || [])];
+    routeCodes.value = [...(data.routeCodes || [])];
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载货柜范围失败');
   } finally {
@@ -744,7 +775,8 @@ async function saveDevices() {
     await api.request(`/api/v2/ops/admin/rbac/users/${currentUserId.value}/devices`, 'PUT', {
       userId: currentUserId.value,
       scopeMode: deviceScopeMode.value,
-      deviceIds: deviceScopeMode.value === 'PARTIAL' ? deviceIds.value : []
+      deviceIds: deviceScopeMode.value === 'DEVICE_IDS' ? deviceIds.value : [],
+      routeCodes: deviceScopeMode.value === 'ROUTE' ? routeCodes.value : []
     });
     ElMessage.success('货柜范围已更新');
     deviceDlg.value = false;

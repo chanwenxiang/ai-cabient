@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.MerchantTaxProfileMapper">
+
+  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.MerchantTaxProfile">
+    <![CDATA[
+    SELECT p.* FROM merchant_tax_profile p WHERE p.merchant_id = #{merchantId} FOR UPDATE
+    ]]>
+  </select>
+
+</mapper>

@@ -9,18 +9,23 @@ alwaysApply: true
 
 ## 1. 开工前必检（每次相关任务）
 
-1. **Skills**：查看当前可用 skills（会话里的 `available_skills`，以及 `~/.cursor/skills/`）。按任务关键词匹配 `description`，命中则先 `Read` 其 `SKILL.md` 并严格按步骤执行。
+1. **Skills**：先看本仓库 `.cursor/skills/`（含 `ai-cabinet-dev-test` 路由），再看会话 `available_skills` 与 `~/.cursor/skills/`。按任务关键词匹配 `description`，命中则先 `Read` 其 `SKILL.md` 并严格按步骤执行。
 2. **MCP**：查看当前已启用 MCP 与工具。能用工具完成的（查文档、查库、浏览器验证、错误追踪等）优先走 MCP，不要用猜测替代。
+3. **本仓快捷入口**：涉及写代码 / 测试 / 联调时，优先 `Read` `.cursor/skills/ai-cabinet-dev-test/SKILL.md`。
 
 ## 2. 常见匹配（示例，非穷尽）
 
 | 场景 | 优先 |
 |------|------|
+| **本仓开发/测试总路由** | `ai-cabinet-dev-test`（`.cursor/skills/`） |
+| **安全扫描** | `security-scan` → `security-best-practices` |
+| **代码质量审查** | `code-review` |
+| **UI 规范/a11y** | `web-design-guidelines` |
 | 库/框架 API、版本差异、用法不确定 | Context7（`resolve-library-id` → `query-docs`） |
 | UI / 页面 / 联调 / 验收 / 冒烟（有条件必测，见 browser-real-testing） | **仅** Cursor 自带 Browser（禁止 Playwright / browser-use / 第三方浏览器 MCP） |
 | 生产/线上报错、issue、trace | Sentry MCP 或 `sentry` skill |
 | DB schema / 数据核对 | Postgres 等数据库 MCP |
-| 前端视觉与页面设计 | `frontend-design` skill |
+| 前端视觉与页面设计 | `frontend-design` + `ui-implementation` skill |
 | 复杂功能规划 / TDD / 调试流程 | Superpowers（如 `brainstorming`、`test-driven-development`、`systematic-debugging`） |
 | 安全分析 / 威胁建模 / 合规 | Cybersecurity skills（按名称点名加载） |
 | Sanity / CMS | Sanity MCP + 对应 sanity skills |

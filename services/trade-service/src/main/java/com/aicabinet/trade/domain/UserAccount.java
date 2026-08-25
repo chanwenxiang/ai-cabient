@@ -4,8 +4,12 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("user_account")
+@Getter
+@Setter
 public class UserAccount {
 
     @TableId(type = IdType.INPUT)
@@ -17,11 +21,4 @@ public class UserAccount {
 
     private Instant updatedAt;
 
-public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
-    public int getBalanceCents() { return balanceCents; }
-    public void setBalanceCents(int balanceCents) { this.balanceCents = balanceCents; }
-    public int getFrozenCents() { return frozenCents; }
-    public void setFrozenCents(int frozenCents) { this.frozenCents = frozenCents; }
-    public Instant getUpdatedAt() { return updatedAt; }
 }

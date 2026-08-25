@@ -24,6 +24,11 @@ withDefaults(
   justify-content: flex-end;
   align-items: center;
   min-height: 32px;
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  isolation: isolate;
+  background: var(--layout-card, var(--el-bg-color, #fff));
 }
 .page-pager__hint {
   color: var(--layout-muted, var(--el-text-color-secondary));

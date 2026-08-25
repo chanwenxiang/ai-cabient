@@ -55,13 +55,11 @@ public class ReplenishmentTimeoutScheduler {
             return;
         }
         boolean failed = false;
+        String summary = "本次无超时补货任务";
         try {
         Instant cutoff = Instant.now().minus(STALE_CHECK_IN_HOURS, ChronoUnit.HOURS);
         List<ReplenishmentTask> stale = taskRepository.findByStatusAndCheckInAtBefore(
                 "IN_PROGRESS", cutoff, 100);
-        if (stale.isEmpty()) {
-            return;
-        }
         int n = 0;
         for (ReplenishmentTask task : stale) {
             try {
@@ -71,6 +69,7 @@ public class ReplenishmentTimeoutScheduler {
                 log.warn("expire stale replenishment task failed taskId={}", task.getTaskId(), e);
             }
         }
+        summary = n <= 0 ? "本次无超时补货任务" : "超时取消补货任务 " + n + " 条";
         if (n > 0) {
             log.info("expired stale checked-in replenishment tasks count={}", n);
         }
@@ -80,7 +79,7 @@ public class ReplenishmentTimeoutScheduler {
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("replenishment-timeout", "SUCCESS", null, start);
+                taskService.finish("replenishment-timeout", "SUCCESS", summary, start);
             }
         }
     }

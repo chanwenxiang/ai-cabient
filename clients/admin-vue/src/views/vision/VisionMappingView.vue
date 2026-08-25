@@ -132,6 +132,80 @@
       background
     />
 
+    <el-card class="aliyun-card" shadow="never">
+      <template #header>
+        <div class="page-card-head">
+          <div class="page-card-head__meta">
+            <div class="page-card-head__title">
+              <span class="title">阿里云类目映射</span>
+              <span class="hint">阿里云商品类目 → SKU（categoryId 为类目 ID）</span>
+            </div>
+          </div>
+          <div class="page-card-head__actions">
+            <el-button v-hasPermi="['ops:vision:edit']" type="primary" @click="openAliyunCreate"
+              >新增映射</el-button
+            >
+          </div>
+        </div>
+      </template>
+      <el-table :data="aliyunMappings" stripe border size="small">
+        <el-table-column prop="categoryId" label="类目ID" width="150" class-name="col-text" />
+        <el-table-column prop="categoryName" label="类目名" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="skuId" label="SKU" width="130" class-name="col-text" />
+        <el-table-column label="最低置信度" width="110" align="center">
+          <template #default="{ row }">{{ row.minConfidence }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="150" align="center">
+          <template #default="{ row }">
+            <el-button v-hasPermi="['ops:vision:edit']" size="small" @click="openAliyunEdit(row)"
+              >编辑</el-button
+            >
+            <el-button
+              v-hasPermi="['ops:vision:edit']"
+              size="small"
+              type="danger"
+              @click="deleteAliyun(row)"
+              >删除</el-button
+            >
+          </template>
+        </el-table-column>
+        <template #empty><el-empty description="暂无阿里云类目映射" /></template>
+      </el-table>
+    </el-card>
+
+    <el-dialog
+      v-model="aliyunVisible"
+      :title="aliyunForm.categoryId ? '编辑阿里云映射' : '新增阿里云映射'"
+      width="440px"
+      destroy-on-close
+    >
+      <el-form label-position="top">
+        <el-form-item label="类目ID">
+          <el-input v-model="aliyunForm.categoryId" placeholder="阿里云类目 ID" />
+        </el-form-item>
+        <el-form-item label="类目名">
+          <el-input v-model="aliyunForm.categoryName" />
+        </el-form-item>
+        <el-form-item label="SKU">
+          <el-select v-model="aliyunForm.skuId" filterable style="width: 100%">
+            <el-option
+              v-for="s in skuOptions"
+              :key="s.skuId"
+              :label="`${s.skuName}（${s.skuId}）`"
+              :value="s.skuId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="最低置信度">
+          <el-input-number v-model="aliyunForm.minConfidence" :min="0" :max="1" :step="0.05" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="aliyunVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveAliyun">保存</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="dialogVisible" title="编辑识别映射" width="480px" destroy-on-close>
       <el-form label-width="100px">
         <el-form-item label="类别">
@@ -199,6 +273,13 @@ interface YoloMappingRow {
   mappingSource?: string;
 }
 
+interface AliyunMappingRow {
+  categoryId: string;
+  categoryName?: string;
+  skuId: string;
+  minConfidence: number;
+}
+
 interface SkuOption {
   skuId: string;
   skuName?: string;
@@ -215,8 +296,16 @@ const keyword = ref('');
 const page = ref(1);
 const size = ref(20);
 const yoloMappings = ref<YoloMappingRow[]>([]);
+const aliyunMappings = ref<AliyunMappingRow[]>([]);
 const skuOptions = ref<SkuOption[]>([]);
 const dialogVisible = ref(false);
+const aliyunVisible = ref(false);
+const aliyunForm = ref<AliyunMappingRow>({
+  categoryId: '',
+  categoryName: '',
+  skuId: '',
+  minConfidence: 0.8
+});
 const editForm = reactive({
   className: '',
   skuId: '',
@@ -321,14 +410,15 @@ async function loadSkus() {
 async function load() {
   loading.value = true;
   try {
-    const data = await api.request<{ yolo?: YoloMappingRow[] } | YoloMappingRow[]>(
-      '/api/v2/ops/admin/vision-mappings',
-      'GET'
-    );
+    const data = await api.request<
+      { yolo?: YoloMappingRow[]; aliyun?: AliyunMappingRow[] } | YoloMappingRow[]
+    >('/api/v2/ops/admin/vision-mappings', 'GET');
     if (Array.isArray(data)) {
       yoloMappings.value = data;
+      aliyunMappings.value = [];
     } else {
       yoloMappings.value = data.yolo || [];
+      aliyunMappings.value = data.aliyun || [];
     }
     clearSelection();
   } catch (e) {
@@ -346,6 +436,59 @@ function openEdit(row: YoloMappingRow) {
   editForm.minConfidence = Number.isFinite(conf) ? (conf > 1 ? conf / 100 : conf) : 0.72;
   editForm.mappingSource = row.mappingSource;
   dialogVisible.value = true;
+}
+
+function openAliyunCreate() {
+  aliyunForm.value = { categoryId: '', categoryName: '', skuId: '', minConfidence: 0.8 };
+  aliyunVisible.value = true;
+}
+
+function openAliyunEdit(row: AliyunMappingRow) {
+  aliyunForm.value = { ...row };
+  aliyunVisible.value = true;
+}
+
+async function saveAliyun() {
+  if (!aliyunForm.value.categoryId.trim() || !aliyunForm.value.skuId) {
+    ElMessage.warning('请填写类目ID并选择SKU');
+    return;
+  }
+  saving.value = true;
+  try {
+    await api.request('/api/v2/ops/admin/vision-mappings/aliyun', 'POST', {
+      categoryId: aliyunForm.value.categoryId.trim(),
+      categoryName: aliyunForm.value.categoryName || undefined,
+      skuId: aliyunForm.value.skuId,
+      minConfidence: aliyunForm.value.minConfidence
+    });
+    ElMessage.success('已保存');
+    aliyunVisible.value = false;
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function deleteAliyun(row: AliyunMappingRow) {
+  try {
+    await ElMessageBox.confirm(`确认删除阿里云映射「${row.categoryId}」？`, '删除映射', {
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+  try {
+    await api.request(
+      `/api/v2/ops/admin/vision-mappings/aliyun/${encodeURIComponent(row.categoryId)}`,
+      'DELETE'
+    );
+    ElMessage.success('已删除');
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '删除失败');
+  }
 }
 
 async function saveEdit() {
@@ -419,6 +562,10 @@ onActivated(() => {
 </script>
 
 <style scoped>
+.aliyun-card {
+  margin-top: 16px;
+}
+
 .page-card-head {
   display: flex;
   justify-content: space-between;

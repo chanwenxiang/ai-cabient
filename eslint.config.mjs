@@ -12,6 +12,7 @@ import tseslint from 'typescript-eslint';
 export default tseslint.config(
   {
     ignores: [
+      '**/.cursor/**',
       '**/node_modules/**',
       '**/dist/**',
       '**/bin/**',

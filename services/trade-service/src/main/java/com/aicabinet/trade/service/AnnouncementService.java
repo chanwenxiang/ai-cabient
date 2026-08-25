@@ -23,9 +23,12 @@ public class AnnouncementService {
     private static final Set<String> AUDIENCES = Set.of("CONSUMER", "MERCHANT");
 
     private final AnnouncementMapper repository;
+    private final DistributedLockService distributedLockService;
 
-    public AnnouncementService(AnnouncementMapper repository) {
+    public AnnouncementService(AnnouncementMapper repository,
+                               DistributedLockService distributedLockService) {
         this.repository = repository;
+        this.distributedLockService = distributedLockService;
     }
 
     public List<Announcement> listAll() {
@@ -121,7 +124,11 @@ public class AnnouncementService {
 
     @Transactional
     public Announcement update(Long announceId, String title, String content, String targetScope, String priority) {
-        Announcement a = repository.findById(announceId)
+        return runWithAnnouncementLock(announceId, () -> doUpdate(announceId, title, content, targetScope, priority));
+    }
+
+    private Announcement doUpdate(Long announceId, String title, String content, String targetScope, String priority) {
+        Announcement a = repository.findByIdForUpdate(announceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在"));
         if ("ARCHIVED".equals(a.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "已归档公告不可编辑");
@@ -148,23 +155,42 @@ public class AnnouncementService {
 
     @Transactional
     public Announcement publish(Long announceId) {
-        Announcement a = repository.findById(announceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在"));
-        a.setStatus("PUBLISHED");
-        a.setPublishAt(Instant.now());
-        a.setUpdatedAt(Instant.now());
-        repository.save(a);
-        log.info("announcement published id={} title={}", announceId, a.getTitle());
-        return a;
+        return runWithAnnouncementLock(announceId, () -> {
+            Announcement a = repository.findByIdForUpdate(announceId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在"));
+            a.setStatus("PUBLISHED");
+            a.setPublishAt(Instant.now());
+            a.setUpdatedAt(Instant.now());
+            repository.save(a);
+            log.info("announcement published id={} title={}", announceId, a.getTitle());
+            return a;
+        });
     }
 
     @Transactional
     public Announcement archive(Long announceId) {
-        Announcement a = repository.findById(announceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在"));
-        a.setStatus("ARCHIVED");
-        a.setUpdatedAt(Instant.now());
-        repository.save(a);
-        return a;
+        return runWithAnnouncementLock(announceId, () -> {
+            Announcement a = repository.findByIdForUpdate(announceId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在"));
+            a.setStatus("ARCHIVED");
+            a.setUpdatedAt(Instant.now());
+            repository.save(a);
+            return a;
+        });
+    }
+
+    static String announcementLockKey(Long announceId) {
+        return "announcement:" + announceId;
+    }
+
+    private <T> T runWithAnnouncementLock(Long announceId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(announcementLockKey(announceId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "公告处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(announcementLockKey(announceId));
+        }
     }
 }

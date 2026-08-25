@@ -31,6 +31,8 @@ public class MerchantSkuPricingService {
     private final AdminAuditLogMapper auditLogRepository;
     private final MerchantSelfServiceGate merchantSelfServiceGate;
     private final MerchantFeaturePackService merchantFeaturePackService;
+    private final InventoryLotService inventoryLotService;
+    private final DistributedLockService distributedLockService;
 
     public MerchantSkuPricingService(DeviceSkuPriceMapper priceRepository,
                                      DeviceSkuInventoryMapper inventoryRepository,
@@ -41,7 +43,9 @@ public class MerchantSkuPricingService {
                                      AdminAuditService auditService,
                                      AdminAuditLogMapper auditLogRepository,
                                      MerchantSelfServiceGate merchantSelfServiceGate,
-                                     MerchantFeaturePackService merchantFeaturePackService) {
+                                     MerchantFeaturePackService merchantFeaturePackService,
+                                     InventoryLotService inventoryLotService,
+                                     DistributedLockService distributedLockService) {
         this.priceRepository = priceRepository;
         this.inventoryRepository = inventoryRepository;
         this.skuCatalogRepository = skuCatalogRepository;
@@ -52,6 +56,8 @@ public class MerchantSkuPricingService {
         this.auditLogRepository = auditLogRepository;
         this.merchantSelfServiceGate = merchantSelfServiceGate;
         this.merchantFeaturePackService = merchantFeaturePackService;
+        this.inventoryLotService = inventoryLotService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -100,8 +106,16 @@ public class MerchantSkuPricingService {
             Map<String, SkuCatalog> skuMap = skuCatalogRepository.findAllById(skuIds).stream()
                     .filter(s -> "ACTIVE".equalsIgnoreCase(s.getStatus()))
                     .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s));
-            Map<String, Integer> qtyBySku = invRows.stream()
-                    .collect(Collectors.toMap(r -> r.getId().getSkuId(), DeviceSkuInventory::getQuantity, Integer::sum));
+            Map<String, Integer> qtyBySku;
+            if (inventoryLotService.deviceUsesLotLedger(devId)) {
+                qtyBySku = new HashMap<>(inventoryLotService.sellableQtyBySku(devId));
+                for (String skuId : skuIds) {
+                    qtyBySku.putIfAbsent(skuId, 0);
+                }
+            } else {
+                qtyBySku = invRows.stream()
+                        .collect(Collectors.toMap(r -> r.getId().getSkuId(), DeviceSkuInventory::getQuantity, Integer::sum));
+            }
             Map<String, DeviceSkuPrice> overrides = overrideByDevice.getOrDefault(devId, Map.of());
             for (String skuId : skuIds) {
                 SkuCatalog sku = skuMap.get(skuId);
@@ -121,7 +135,9 @@ public class MerchantSkuPricingService {
                         minAllowedPrice(sku),
                         maxAllowedPrice(sku),
                         qtyBySku.getOrDefault(skuId, 0),
-                        override != null ? override.getUpdatedAt() : null
+                        override != null ? override.getUpdatedAt() : null,
+                        sku.getImageUrl(),
+                        sku.getBarcode()
                 ));
             }
         }
@@ -141,6 +157,11 @@ public class MerchantSkuPricingService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备 ID 不能为空");
         }
         String deviceId = request.deviceId().trim();
+        return runWithSkuPriceLock(deviceId, skuId, () -> doUpdatePricing(userId, skuId, deviceId, request));
+    }
+
+    private MerchantSkuPricingDto doUpdatePricing(Long userId, String skuId, String deviceId,
+                                                  UpdateMerchantSkuPriceRequest request) {
         merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.BIZ);
         SkuCatalog sku = skuCatalogRepository.findById(skuId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SKU_NOT_FOUND));
@@ -149,7 +170,7 @@ public class MerchantSkuPricingService {
 
         Integer newPrice = request.priceCents();
         DeviceSkuPriceId priceId = new DeviceSkuPriceId(deviceId, skuId);
-        Optional<DeviceSkuPrice> existing = priceRepository.findByDeviceIdAndSkuId(deviceId, skuId);
+        Optional<DeviceSkuPrice> existing = priceRepository.findByDeviceIdAndSkuIdForUpdate(deviceId, skuId);
         Integer oldOverride = existing.map(DeviceSkuPrice::getPriceCents).orElse(null);
 
         if (newPrice == null) {
@@ -167,10 +188,12 @@ public class MerchantSkuPricingService {
                     "base=" + sku.getPriceCents() + " override " + oldOverride + " -> " + newPrice);
         }
 
-        int qty = inventoryRepository.findByIdDeviceId(deviceId).stream()
-                .filter(r -> skuId.equals(r.getId().getSkuId()))
-                .mapToInt(DeviceSkuInventory::getQuantity)
-                .sum();
+        int qty = inventoryLotService.deviceUsesLotLedger(deviceId)
+                ? inventoryLotService.sellableQuantity(deviceId, skuId)
+                : inventoryRepository.findByIdDeviceId(deviceId).stream()
+                        .filter(r -> skuId.equals(r.getId().getSkuId()))
+                        .mapToInt(DeviceSkuInventory::getQuantity)
+                        .sum();
         Optional<DeviceSkuPrice> saved = priceRepository.findByDeviceIdAndSkuId(deviceId, skuId);
         return new MerchantSkuPricingDto(
                 deviceId,
@@ -183,7 +206,9 @@ public class MerchantSkuPricingService {
                 minAllowedPrice(sku),
                 maxAllowedPrice(sku),
                 qty,
-                saved.map(DeviceSkuPrice::getUpdatedAt).orElse(null)
+                saved.map(DeviceSkuPrice::getUpdatedAt).orElse(null),
+                sku.getImageUrl(),
+                sku.getBarcode()
         );
     }
 
@@ -271,6 +296,21 @@ public class MerchantSkuPricingService {
             return sku.getMaxPriceCents();
         }
         return Math.max(sku.getPriceCents() * DEFAULT_MAX_MULTIPLIER, sku.getPriceCents());
+    }
+
+    static String skuPriceLockKey(String deviceId, String skuId) {
+        return "merchant:sku-price:" + deviceId + ":" + skuId;
+    }
+
+    private <T> T runWithSkuPriceLock(String deviceId, String skuId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(skuPriceLockKey(deviceId, skuId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "商品价格调整处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(skuPriceLockKey(deviceId, skuId));
+        }
     }
 
 }

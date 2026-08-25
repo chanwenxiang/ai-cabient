@@ -1,11 +1,20 @@
 /**
  * 三端统一字体与移动端壳层令牌。
  * 运营后台、商户 H5、消费者 H5 共用；各端可在 page 上覆盖 --brand。
+ *
+ * 字体约定：
+ * - 正文：var(--app-font)
+ * - 等宽（单号/代码）：var(--app-font-mono)
+ * - Element Plus：--el-font-family 与 --app-font 对齐（运营后台 main.css 再声明一次以防被覆盖）
  */
 :root {
   --app-font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei",
     "Noto Sans SC", "Source Han Sans SC", sans-serif;
   --app-font-mono: "SF Mono", "Cascadia Mono", "Consolas", "Sarasa Mono SC", ui-monospace, monospace;
+  /* 与正文栈对齐，避免 Element 默认 Helvetica Neue 抢先 */
+  --el-font-family: var(--app-font);
+  /* H5 根字号（px）：对齐 page 的 28rpx @ 375 设计宽 */
+  --app-font-size-root: 14px;
 
   --text-primary: #0f172a;
   --text-muted: #64748b;
@@ -17,4 +26,22 @@
   --section-gap: 20rpx;
   --mask-bg: rgba(15, 23, 42, 0.62);
   --danger: #b91c1c;
+}
+
+/* 等宽工具类：三端单号/代码统一引用 */
+.app-mono {
+  font-family: var(--app-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 列表底栏 / 分页 / 粘性操作条：防止上方内容溢出盖住（含浏览器缩放）。
+ * 运营 PagePager、H5 sticky dock / cart-bar 可复用。
+ */
+.app-footer-bar {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  isolation: isolate;
+  background: var(--card-bg, #fff);
 }

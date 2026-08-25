@@ -4,8 +4,12 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("sms_verification_code")
+@Getter
+@Setter
 public class SmsVerificationCode {
 
     @TableId(type = IdType.AUTO)
@@ -21,14 +25,4 @@ public class SmsVerificationCode {
 
     private Instant createdAt;
 
-public Long getId() { return id; }
-    public String getPhoneNumber() { return phoneNumber; }
-    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
-    public String getCode() { return code; }
-    public void setCode(String code) { this.code = code; }
-    public Instant getExpiresAt() { return expiresAt; }
-    public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
-    public Instant getUsedAt() { return usedAt; }
-    public void setUsedAt(Instant usedAt) { this.usedAt = usedAt; }
-    public Instant getCreatedAt() { return createdAt; }
 }

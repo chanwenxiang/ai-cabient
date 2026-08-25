@@ -302,6 +302,10 @@ cd ai-cabinet
 
 > 2026-08-04：层 C 全量浏览器复测通过；缺陷 UI-01 复测通过；API-01 关闭为控制台编码问题（非产品缺陷）。
 
+**2026-08-23 回归**：层 C L-07～L-10 浏览器复验 PASS；层 A `e2e-full-flow-milk.ps1` **12/12 PASS**（日志 `.cursor/full-flow-milk-regression-20260823.log`、**r2** `.cursor/full-flow-milk-regression-20260823-r2.log`）；`cleanup-test-data.ps1` 已清残留；`run-api-tests.ps1` TC-AUTH-004 根因为运营登录需图形验证码，已改为走 `Invoke-E2eApi` 自动补 captcha。
+
+**2026-08-23 第三轮**：识别争议 E2E + 争议免单浏览器闭环 PASS；全量 UAT 营销（promotions/coupons/ad-campaigns）PASS；viewer 权限 API 矩阵 PASS；**BUG-008 UI** 修复：`ConsistencyView`「立即巡检」仅 `ops:consistency:run` 可见。
+
 ---
 
 ## 层 A：脚本门禁
@@ -312,7 +316,7 @@ cd ai-cabinet
 | S-02 | **PASS** | `e2e-fund-safety.ps1` 全 TC PASS |
 | S-03 | **PASS** | `e2e-shopping.ps1` COMPLETED+PAID；前提 mock + cart |
 | S-04 | **PASS** | **复测** vision `:18082/health` → `recognizer_available=true` |
-| S-05 | **PASS** | API smoke；PayScore 409 为 dev 预期 |
+| S-05 | **PASS** | API smoke **13/13**（2026-08-23：TC-AUTH-004 captcha 修复）；PayScore 409 为 dev 预期 |
 | S-06 | **PASS** | cleanup 已执行 |
 
 ---
@@ -378,7 +382,7 @@ cd ai-cabinet
 
 # MIN-UAT-28 执行跟踪表
 
-执行日期：2026-07-12（基线） / **2026-08-04 复测（层 C + 缺陷）**  
+执行日期：2026-07-12（基线） / **2026-08-04 复测（层 C + 缺陷）** / **2026-08-23 回归（层 C L-07～L-10 + 层 A 全链路）**  
 执行人：Agent  
 截图目录：`archive/uat-screenshots/2026-07-12/` · 复测：`archive/uat-screenshots/2026-08-04/`
 
@@ -390,7 +394,7 @@ cd ai-cabinet
 | S-02 | PASS | e2e-fund-safety 全 TC PASS |
 | S-03 | PASS | e2e-shopping COMPLETED+PAID；需 mock-enabled + cart 预设 |
 | S-04 | PASS | **2026-08-04 复测**：`http://127.0.0.1:18082/health` → `recognizer_available=true`（端口由 8082 变更） |
-| S-05 | PASS | API 12/13（PayScore 409 预期） |
+| S-05 | PASS | API 12/13（PayScore 409 预期）→ **2026-08-23**：TC-AUTH-004 已修复（captcha），回归 **13/13** |
 | S-06 | PASS | cleanup 完成 |
 
 ## 层 B：单端抽检
@@ -426,10 +430,10 @@ cd ai-cabinet
 | L-04 | PASS | | **2026-08-04**：消费者报修→异常 `DEVICE_FAULT` HIGH→建工单结案 |
 | L-05 | PASS | ¥ 格式 | **2026-08-04**：运营调余额 +¥5；消费者「我的」¥198.00；可再开门 |
 | L-06 | PASS | 按钮 | **2026-08-04**：低库存待办→**要货申请页**（目标柜「测试柜-001」）；产品路径已从柜机详情调整为要货 |
-| L-07 | PASS | 中文 | **2026-08-04**：采购收货「可口可乐 330ml」→仓库↓柜机↑ |
-| L-08 | PASS | 错误 | **2026-08-04**：三端 invalid token/退出→登录或未登录中文态 | `L-08-*.png` / `L-08-results.json` |
-| L-09 | PASS | 体验 | **2026-08-04**：开门中刷新→同 session 恢复「门已开 · 购物中」 | `L-09-*.png` / `L-09-results.json` |
-| L-10 | PASS | UI | **2026-08-04**：1366×768 三端 14 页无严重横向溢出 | `L-10-*.png` / `L-10-results.json` |
+| L-07 | PASS | 中文 | **2026-08-04**：采购收货「可口可乐 330ml」→仓库↓柜机↑ · **2026-08-23**：PO#13 `L07-UAT-EXT-001`、批次 `L07-UAT-COLA` 12→8，补货任务 #46/#47、出库 #28 |
+| L-08 | PASS | 错误 | **2026-08-04**：三端 invalid token/退出→登录或未登录中文态 | `L-08-*.png` / `L-08-results.json` · **2026-08-23**：API 401 + 三端浏览器复验 PASS |
+| L-09 | PASS | 体验 | **2026-08-04**：开门中刷新→同 session 恢复「门已开 · 购物中」 | `L-09-*.png` / `L-09-results.json` · **2026-08-23**：session `1787481785164481178` CDP 注入 token 后刷新保持 |
+| L-10 | PASS | UI | **2026-08-04**：1366×768 三端 14 页无严重横向溢出 | `L-10-*.png` / `L-10-results.json` · **2026-08-23**：14 页 `scrollWidth−clientWidth=0` |
 
 ## 缺陷汇总（含 2026-08-04 复测）
 
@@ -440,6 +444,8 @@ cd ai-cabinet
 | API-01 | P3 | 中文 | PowerShell 控制台看 API 中文乱码 | **CLOSED / 非产品缺陷** | HTTP 响应体 UTF-8 正确（`测试柜-001`）；乱码仅 Windows PowerShell 默认解码；前端正常 |
 | UI-01 | P3 | 中文 | 设备名 `???-001` | **FIXED（复测通过）** | 运营/商户/消费者 UI 均显示「测试柜-001」；DB 同 |
 | TOOL-01 | P3 | 体验 | Cursor H5 snapshot 对 uni-app refs 较少 | DOCUMENTED | 关键步骤辅以 Playwright headed + 截图留证 |
+| API-02 | P3 | 脚本 | `run-api-tests.ps1` TC-AUTH-004 运营登录 400 | **FIXED** | **2026-08-23**：`admin-password-login` 需 captcha；`OpsLogin` 改走 `Invoke-E2eApi`；回归 13/13 |
+| BUG-008 | P1 | 权限 | viewer 可见「立即巡检」但 API 403 | **FIXED（UI）** | **2026-08-23**：`canRun` 收紧为仅 `ops:consistency:run`；viewer 仅「刷新」 |
 
 ## 统计
 
@@ -447,4 +453,6 @@ cd ai-cabinet
 |------|------|-------|------|
 | 34 | 0 | 0 | 0 |
 
-**层 C + 缺陷复测日期：2026-08-04**（证据目录 `archive/uat-screenshots/2026-08-04/`）。
+**层 C + 缺陷复测日期：2026-08-04**（证据目录 `archive/uat-screenshots/2026-08-04/`）。  
+**层 C L-07～L-10 + 层 A 全链路回归：2026-08-23**（日志 `.cursor/full-flow-milk-regression-20260823.log`、r2 `.cursor/full-flow-milk-regression-20260823-r2.log`；E2E BaseUrl `http://localhost:18080`）。  
+**识别争议 E2E**：`.cursor/e2e-dispute-recognition-20260823.log`。

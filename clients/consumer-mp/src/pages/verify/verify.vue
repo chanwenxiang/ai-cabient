@@ -1,98 +1,128 @@
-<template>
-  <view class="page">
-    <view class="hero">
-      <text class="hero-title">开通免密支付</text>
-      <text class="hero-sub">完成后即可扫码开门，关门自动扣款</text>
-    </view>
+﻿<template>
+  <view class="page-root">
+    <app-nav-bar title="开通支付" />
+    <view class="page-body">
+      <view class="hero">
+        <text class="hero-title">开通免密支付</text>
+        <text class="hero-sub">完成后即可扫码开门，关门自动扣款</text>
+      </view>
 
-    <view class="steps">
-      <view class="step" :class="{ done: account?.verified }">
-        <view class="step-dot">{{ account?.verified ? '✓' : '1' }}</view>
-        <text class="step-label">实名</text>
+      <view class="steps">
+        <view class="step" :class="{ done: account?.verified, active: !account?.verified }">
+          <view class="step-dot">{{ account?.verified ? '✓' : '1' }}</view>
+          <text class="step-label">实名</text>
+        </view>
+        <view class="step-line" :class="{ done: account?.verified }" />
+        <view class="step" :class="{ done: payReady, active: !!account?.verified && !payReady }">
+          <view class="step-dot">{{ payReady ? '✓' : '2' }}</view>
+          <text class="step-label">免密支付</text>
+        </view>
       </view>
-      <view class="step-line" :class="{ done: account?.verified }" />
-      <view class="step" :class="{ done: payReady }">
-        <view class="step-dot">{{ payReady ? '✓' : '2' }}</view>
-        <text class="step-label">免密支付</text>
-      </view>
-    </view>
 
-    <view v-if="!account?.verified" class="card">
-      <text class="card-title">实名认证</text>
-      <text class="card-desc">用于保障交易安全，信息仅用于本柜购物核验</text>
-      <text class="field-label">真实姓名</text>
-      <input
-        v-model="realName"
-        class="input"
-        aria-label="真实姓名"
-        placeholder="真实姓名…"
-        maxlength="32"
-      />
-      <text class="field-label">身份证后四位</text>
-      <input
-        v-model="idCardLast4"
-        class="input"
-        type="number"
-        maxlength="4"
-        aria-label="身份证后四位"
-        placeholder="后四位…"
-      />
-      <button class="btn-primary" hover-class="btn-hover" :loading="verifying" @click="onVerify">
-        {{ verifying ? '提交中…' : '下一步' }}
-      </button>
-      <text v-if="devTools" class="hint">开发环境仅做格式校验，上线需对接实名核验。</text>
-      <text v-if="err" class="err">{{ err }}</text>
-    </view>
+      <view v-if="!account?.verified" class="card">
+        <text class="card-title">实名认证</text>
+        <text class="card-desc">用于保障交易安全，信息仅用于本柜购物核验</text>
+        <text class="field-label">真实姓名</text>
+        <input
+          v-model="realName"
+          class="input"
+          aria-label="真实姓名"
+          placeholder="真实姓名…"
+          maxlength="32"
+        />
+        <text class="field-label">身份证后四位</text>
+        <input
+          v-model="idCardLast4"
+          class="input"
+          type="number"
+          maxlength="4"
+          aria-label="身份证后四位"
+          placeholder="后四位…"
+        />
+        <button
+          class="btn-primary btn-block"
+          hover-class="btn-hover"
+          :loading="verifying"
+          @click="onVerify"
+        >
+          {{ verifying ? '提交中…' : '下一步' }}
+        </button>
+        <text v-if="devTools" class="hint">开发环境仅做格式校验，上线需对接实名核验。</text>
+        <text v-if="err" class="err">{{ err }}</text>
+      </view>
 
-    <view v-else-if="!payReady" class="card">
-      <text class="card-title">开通免密支付</text>
-      <text class="card-desc"
-        >推荐开通支付分 / 免密代扣；可用余额 ≥ ¥{{ needYuan }} 也可临时开门。</text
-      >
-      <view class="status-row">
-        <text class="status-label">可用余额</text>
-        <text class="status-val">{{ balanceYuan }}</text>
+      <view v-else-if="!payReady" class="card btn-stack">
+        <text class="card-title">开通免密支付</text>
+        <text class="card-desc"
+          >推荐开通支付分 / 免密代扣；可用余额 ≥ ¥{{ needYuan }} 也可临时开门。</text
+        >
+        <view v-if="maskedName || account?.phoneNumber" class="status-row">
+          <text class="status-label">已实名</text>
+          <text class="status-val"
+            >{{ maskedName || '已认证'
+            }}{{ account?.phoneNumber ? ` · ${maskPhone(account.phoneNumber)}` : '' }}</text
+          >
+        </view>
+        <view class="status-row">
+          <text class="status-label">可用余额</text>
+          <text class="status-val">{{ balanceYuan }}</text>
+        </view>
+        <view v-if="frozenYuan !== '¥0.00'" class="status-row">
+          <text class="status-label">冻结中</text>
+          <text class="status-val">{{ frozenYuan }}</text>
+        </view>
+        <view class="status-row">
+          <text class="status-label">优先支付</text>
+          <text class="status-val">{{ preferredPayText }}</text>
+        </view>
+        <view class="status-row">
+          <text class="status-label">开门预授权</text>
+          <text class="status-val">约 ¥{{ needYuan }}</text>
+        </view>
+        <view class="status-row">
+          <text class="status-label">微信支付分</text>
+          <text class="status-val">{{ wechatReady ? '已开通' : '未开通' }}</text>
+        </view>
+        <view class="status-row">
+          <text class="status-label">支付宝免密</text>
+          <text class="status-val">{{ alipayReady ? '已开通' : '未开通' }}</text>
+        </view>
+        <button
+          class="btn-primary btn-block"
+          hover-class="btn-hover"
+          :loading="signing"
+          @click="onSignPayScore"
+        >
+          {{ signing ? '开通中…' : '开通微信支付分' }}
+        </button>
+        <button
+          class="btn-alipay btn-block"
+          hover-class="btn-hover"
+          :loading="signingAlipay"
+          @click="onSignAlipay"
+        >
+          {{ signingAlipay ? '开通中…' : '开通支付宝免密' }}
+        </button>
+        <view class="link" @click="goRecharge">余额不足？去充值 ›</view>
+        <text v-if="devTools" class="hint"
+          >开发环境为模拟开通；正式环境将跳转微信/支付宝签约页。</text
+        >
+        <text v-if="err" class="err">{{ err }}</text>
       </view>
-      <view v-if="frozenYuan !== '¥0.00'" class="status-row">
-        <text class="status-label">冻结中</text>
-        <text class="status-val">{{ frozenYuan }}</text>
-      </view>
-      <view class="status-row">
-        <text class="status-label">微信支付分</text>
-        <text class="status-val">{{ wechatReady ? '已开通' : '未开通' }}</text>
-      </view>
-      <view class="status-row">
-        <text class="status-label">支付宝免密</text>
-        <text class="status-val">{{ alipayReady ? '已开通' : '未开通' }}</text>
-      </view>
-      <button
-        class="btn-primary"
-        hover-class="btn-hover"
-        :loading="signing"
-        @click="onSignPayScore"
-      >
-        {{ signing ? '开通中…' : '开通微信支付分' }}
-      </button>
-      <button
-        class="btn-alipay"
-        hover-class="btn-hover"
-        :loading="signingAlipay"
-        @click="onSignAlipay"
-      >
-        {{ signingAlipay ? '开通中…' : '开通支付宝免密' }}
-      </button>
-      <view class="link" @click="goRecharge">余额不足？去充值 ›</view>
-      <text v-if="devTools" class="hint"
-        >开发环境为模拟开通；正式环境将跳转微信/支付宝签约页。</text
-      >
-      <text v-if="err" class="err">{{ err }}</text>
-    </view>
 
-    <view v-else class="card done-card">
-      <text class="done-icon">✓</text>
-      <text class="done-title">可以开门购物了</text>
-      <text class="done-desc">扫柜门二维码即可开门取货</text>
-      <button class="btn-primary" hover-class="btn-hover" @click="goShop">去扫码开门</button>
+      <view v-else class="card done-card">
+        <text class="done-icon">✓</text>
+        <text class="done-title">可以开门购物了</text>
+        <text class="done-desc">扫柜门二维码即可开门取货</text>
+        <view class="done-meta">
+          <text>优先支付：{{ preferredPayText }}</text>
+          <text v-if="maskedName">实名：{{ maskedName }}</text>
+          <text>可用余额 {{ balanceYuan }}</text>
+        </view>
+        <button class="btn-primary btn-block" hover-class="btn-hover" @click="goShop">
+          去扫码开门
+        </button>
+      </view>
     </view>
   </view>
 </template>
@@ -131,6 +161,30 @@ const frozenYuan = computed(() => fmtMoney(Math.max(0, account.value?.frozenCent
 const payReady = computed(() => isPayReady(account.value, null, preauthCents.value));
 const wechatReady = computed(() => !!account.value?.payscoreEnabled);
 const alipayReady = computed(() => !!account.value?.alipayAgreementEnabled);
+const maskedName = computed(() => maskRealName(account.value?.realName));
+const preferredPayText = computed(() => {
+  const ch = String(account.value?.payPreferredChannel || '').toUpperCase();
+  if (ch === 'WECHAT' || ch === 'WECHAT_PAYSCORE') return '微信支付分';
+  if (ch === 'ALIPAY') return '支付宝免密';
+  if (ch === 'BALANCE') return '账户余额';
+  if (wechatReady.value) return '微信支付分';
+  if (alipayReady.value) return '支付宝免密';
+  return '余额兜底';
+});
+
+function maskRealName(name?: string) {
+  const n = String(name || '').trim();
+  if (!n) return '';
+  if (n.length === 1) return n;
+  if (n.length === 2) return n[0] + '*';
+  return n[0] + '*'.repeat(n.length - 2) + n[n.length - 1];
+}
+
+function maskPhone(phone?: string | number) {
+  const p = String(phone || '').replace(/\D/g, '');
+  if (p.length < 7) return String(phone || '');
+  return p.slice(0, 3) + '****' + p.slice(-4);
+}
 
 onLoad((opts) => {
   fromOpen.value = opts?.from === 'open';
@@ -206,6 +260,26 @@ async function onSignAlipay() {
   err.value = '';
   try {
     const res = await consumerApi.signAlipayAgreement();
+    if (res.pending && res.signFormHtml) {
+      // 生产：支付宝内 H5 自动提交签约表单；微信小程序不内嵌支付宝签约
+      const platform = String((import.meta as any).env?.UNI_PLATFORM || '').toLowerCase();
+      const isH5 =
+        platform === 'h5' || (typeof window !== 'undefined' && !!(window as any).document);
+      if (isH5 && typeof document !== 'undefined') {
+        const blob = new Blob([res.signFormHtml], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        window.location.href = url;
+        return;
+      }
+      uni.showModal({
+        title: '请在支付宝内开通',
+        content:
+          '支付宝免密需在支付宝扫柜码进入后开通（不做支付宝小程序）。当前环境无法跳转签约页。',
+        showCancel: false
+      });
+      account.value = await consumerApi.account();
+      return;
+    }
     account.value = await consumerApi.account();
     uni.showToast({ title: res.message || '开通成功', icon: 'success' });
     if (fromOpen.value) {
@@ -228,28 +302,28 @@ function goShop() {
 </script>
 
 <style scoped>
-.page {
-  padding: 24rpx 24rpx 48rpx;
-  min-height: 100vh;
-  background: linear-gradient(180deg, #ecfdf5, #f5f7f8 340rpx);
+.page-root {
+  min-height: 100%;
+  background: #ffffff;
+  padding: 0;
+  box-sizing: border-box;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .hero {
-  margin: 0 -24rpx;
-  padding: 42rpx 34rpx 78rpx;
-  border-radius: 0 0 38rpx 38rpx;
-  color: #fff;
-  background: linear-gradient(145deg, #064e3b, #059669 58%, #14b8a6);
+  padding: 16rpx 8rpx 24rpx;
 }
 .hero-title {
-  font-size: 44rpx;
+  font-size: 40rpx;
   font-weight: 700;
-  color: #fff;
+  color: #191919;
   display: block;
 }
 .hero-sub {
   font-size: 26rpx;
-  color: rgba(255, 255, 255, 0.78);
+  color: #888;
   margin-top: 8rpx;
   display: block;
 }
@@ -257,12 +331,11 @@ function goShop() {
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
-  margin: -45rpx 0 22rpx;
+  margin: 0 0 20rpx;
   padding: 24rpx 22rpx;
   border-radius: 24rpx;
-  background: #fff;
-  box-shadow: 0 14rpx 34rpx rgba(15, 23, 42, 0.09);
+  background: #f8faf9;
+  border: 1rpx solid #edf1ef;
 }
 .step {
   display: flex;
@@ -281,19 +354,20 @@ function goShop() {
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  box-shadow: 0 0 0 7rpx #f4f7f5;
 }
+.step.active .step-dot,
 .step.done .step-dot {
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
-  box-shadow: 0 0 0 7rpx #d1fae5;
 }
 .step-label {
   font-size: 24rpx;
   color: #888;
 }
+.step.active .step-label,
 .step.done .step-label {
-  color: #07c160;
+  color: #047857;
+  font-weight: 600;
 }
 .step-line {
   width: 120rpx;
@@ -302,15 +376,15 @@ function goShop() {
   margin: 0 16rpx 28rpx;
 }
 .step-line.done {
-  background: #07c160;
+  background: #059669;
 }
 .card {
   background: #fff;
-  border-radius: 26rpx;
-  padding: 34rpx;
-  margin-bottom: 24rpx;
-  border: 1rpx solid #edf1ef;
-  box-shadow: 0 12rpx 34rpx rgba(15, 23, 42, 0.06);
+  border-radius: 24rpx;
+  padding: 32rpx;
+  margin: 0;
+  border: none;
+  box-shadow: none;
 }
 .card-title {
   font-size: 32rpx;
@@ -327,37 +401,61 @@ function goShop() {
 }
 .field-label {
   display: block;
-  font-size: 24rpx;
-  color: #64748b;
-  margin-bottom: 8rpx;
+  font-size: 26rpx;
+  color: #666;
+  margin-bottom: 12rpx;
+  margin-top: 8rpx;
 }
 .input {
-  background: #f8faf9;
-  border: 1rpx solid #e3eae6;
-  border-radius: 17rpx;
-  padding: 24rpx;
-  margin-bottom: 20rpx;
+  width: 100%;
+  min-height: 88rpx;
+  height: 88rpx;
+  line-height: 1.4;
+  background: #f5f7f8;
+  border: 1rpx solid #e8eeeb;
+  border-radius: 16rpx;
+  padding: 0 24rpx;
+  margin-bottom: 16rpx;
   font-size: 30rpx;
+  color: #191919;
+  box-sizing: border-box;
 }
 .btn-primary {
-  background: linear-gradient(135deg, #059669, #0d9488);
+  margin: 16rpx 0 0;
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
   font-size: 32rpx;
   font-weight: 600;
   border: none;
-  margin-top: 8rpx;
-  box-shadow: 0 9rpx 24rpx rgba(5, 150, 105, 0.2);
+  min-height: 88rpx;
+  height: 88rpx;
+  line-height: 1.2;
+  box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-alipay {
+  margin: 16rpx 0 0;
   background: #1677ff;
   color: #fff;
-  border-radius: 12rpx;
-  font-size: 32rpx;
+  border-radius: 44rpx;
+  font-size: 30rpx;
   font-weight: 600;
   border: none;
-  margin-top: 16rpx;
+  min-height: 88rpx;
+  height: 88rpx;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
+.btn-primary::after,
 .btn-alipay::after {
   border: none;
 }
@@ -404,6 +502,7 @@ function goShop() {
   font-size: 88rpx;
   display: block;
   margin-bottom: 16rpx;
+  color: #059669;
 }
 .done-title {
   font-size: 34rpx;
@@ -414,7 +513,15 @@ function goShop() {
 .done-desc {
   font-size: 26rpx;
   color: #888;
-  margin: 12rpx 0 32rpx;
+  margin: 12rpx 0 16rpx;
   display: block;
+}
+.done-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  margin-bottom: 28rpx;
+  font-size: 24rpx;
+  color: #64748b;
 }
 </style>

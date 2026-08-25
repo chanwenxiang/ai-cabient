@@ -4,6 +4,7 @@
       <div class="bs-title">
         <span class="bs-logo">AI 开门柜</span>
         <span class="bs-sub">运营大屏 · 自动刷新 30s</span>
+        <span v-if="demoBanner" class="bs-demo-tag">{{ demoBanner }}</span>
       </div>
       <div class="bs-actions">
         <span class="bs-clock">{{ clock }}</span>
@@ -18,17 +19,17 @@
     <section class="bs-kpis">
       <div class="bs-kpi">
         <div class="bs-kpi-label">在售柜</div>
-        <div class="bs-kpi-value">{{ workbench?.devicesOnSale ?? '—' }}</div>
+        <div class="bs-kpi-value">{{ workbench?.devicesOnSale ?? '暂无' }}</div>
         <div class="bs-kpi-hint">锁机 {{ workbench?.devicesSalesLocked ?? 0 }}</div>
       </div>
       <div class="bs-kpi">
         <div class="bs-kpi-label">离线柜</div>
-        <div class="bs-kpi-value warn">{{ workbench?.offlineDevices ?? '—' }}</div>
+        <div class="bs-kpi-value warn">{{ workbench?.offlineDevices ?? '暂无' }}</div>
         <div class="bs-kpi-hint">在线率 {{ pct(sla?.deviceOnlineRate) }}</div>
       </div>
       <div class="bs-kpi">
         <div class="bs-kpi-label">今日订单</div>
-        <div class="bs-kpi-value">{{ stats?.orderToday ?? '—' }}</div>
+        <div class="bs-kpi-value">{{ stats?.orderToday ?? '暂无' }}</div>
         <div class="bs-kpi-hint">累计 {{ stats?.orderTotal ?? 0 }}</div>
       </div>
       <div class="bs-kpi">
@@ -49,14 +50,11 @@
       <div class="bs-kpi">
         <div class="bs-kpi-label">识别自动结算</div>
         <div class="bs-kpi-value">{{ pct(stats?.recognitionAutoRate24h) }}</div>
-        <div class="bs-kpi-hint">
-          平均 {{ stats?.doorSuccessRate24h != null ? '—' : ''
-          }}{{ ms(sla?.realtime?.avgRecognizeMs24h) }}
-        </div>
+        <div class="bs-kpi-hint">开门时长 {{ ms(sla?.realtime?.avgRecognizeMs24h) }}</div>
       </div>
       <div class="bs-kpi">
         <div class="bs-kpi-label">待处理争议</div>
-        <div class="bs-kpi-value warn">{{ workbench?.openDisputes ?? '—' }}</div>
+        <div class="bs-kpi-value warn">{{ workbench?.openDisputes ?? '暂无' }}</div>
         <div class="bs-kpi-hint">逾期 {{ workbench?.overdueDisputes ?? 0 }}</div>
       </div>
     </section>
@@ -97,9 +95,9 @@
           </svg>
           <div v-else class="bs-empty">暂无趋势数据</div>
           <div class="bs-line-labels">
-            <span>{{ trendDates[0] || '—' }}</span>
+            <span>{{ trendDates[0] || '暂无' }}</span>
             <span>{{ trendDates[Math.floor(trendDates.length / 2)] || '' }}</span>
-            <span>{{ trendDates[trendDates.length - 1] || '—' }}</span>
+            <span>{{ trendDates[trendDates.length - 1] || '暂无' }}</span>
           </div>
         </div>
       </div>
@@ -112,7 +110,7 @@
             <div class="bs-action-main">
               <div class="bs-action-title">{{ item.title }}</div>
               <div class="bs-action-sub">
-                {{ item.deviceId || item.sessionId || item.detail || '—' }}
+                {{ item.deviceId || displayBizNo(item.sessionId, '') || item.detail || '暂无' }}
               </div>
             </div>
           </div>
@@ -196,7 +194,12 @@
             <span>人工解锁</span><b>{{ kpi?.manualUnlockCount ?? 0 }}</b>
           </div>
           <div class="bs-row">
-            <span>人工介入率</span><b>{{ pct(kpi?.manualInterventionRate) }}</b>
+            <span>人工介入率</span>
+            <b>{{
+              (kpi?.autoUnlockCount ?? 0) + (kpi?.manualUnlockCount ?? 0) > 0
+                ? pct(kpi?.manualInterventionRate ?? 0)
+                : '无解锁'
+            }}</b>
           </div>
           <div class="bs-row">
             <span>平均恢复时长</span><b>{{ hours(kpi?.avgRecoverHours) }}</b>
@@ -208,10 +211,10 @@
         <div class="bs-panel-title">识别与 SLA</div>
         <div class="bs-panel-body">
           <div class="bs-row">
-            <span>平均识别耗时</span><b>{{ ms(sla?.avgRecognizeMs) }}</b>
+            <span>平均开门时长</span><b>{{ ms(sla?.avgRecognizeMs) }}</b>
           </div>
           <div class="bs-row">
-            <span>95 分位耗时</span><b>{{ ms(sla?.p95RecognizeMs) }}</b>
+            <span>开门时长 P95</span><b>{{ ms(sla?.p95RecognizeMs) }}</b>
           </div>
           <div class="bs-row">
             <span>争议 SLA 合规率</span><b>{{ pct(sla?.realtime?.disputeSlaCompliance24h) }}</b>
@@ -244,7 +247,7 @@
         <div class="bs-panel-title">支付渠道（近 7 天）</div>
         <div class="bs-panel-body">
           <div v-for="ch in channels" :key="ch.channel" class="bs-bar-row">
-            <span class="bs-bar-label">{{ ch.channel }}</span>
+            <span class="bs-bar-label">{{ dictLabel('pay_channel', ch.channel) }}</span>
             <div class="bs-bar">
               <div class="bs-bar-fill" :style="{ width: barWidth(ch) }" />
             </div>
@@ -267,6 +270,8 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { FullScreen, Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import { dictLabel } from '@aicabinet/shared-dict';
+import { displayBizNo } from '@aicabinet/shared-uni/format';
 
 interface AdminStats {
   deviceTotal: number;
@@ -349,6 +354,7 @@ interface ChannelStat {
 const loading = ref(false);
 const clock = ref('');
 const isFullscreen = ref(false);
+const demoBanner = ref('');
 const stats = ref<AdminStats | null>(null);
 const workbench = ref<Workbench | null>(null);
 const sla = ref<SlaMetrics | null>(null);
@@ -447,19 +453,19 @@ const risks = computed(() => [
 ]);
 
 function yuan(cents?: number | null) {
-  if (cents == null) return '—';
-  return `¥${(cents / 100).toFixed(0)}`;
+  if (cents == null) return '暂无';
+  return `¥${(cents / 100).toFixed(2)}`;
 }
 function pct(v?: number | null) {
-  if (v == null) return '—';
+  if (v == null) return '未统计';
   return `${(v * 100).toFixed(1)}%`;
 }
 function ms(v?: number | null) {
-  if (v == null) return '—';
+  if (v == null) return '未统计';
   return `${v}ms`;
 }
 function hours(v?: number | null) {
-  if (v == null) return '—';
+  if (v == null) return '未统计';
   return `${v.toFixed(1)}h`;
 }
 function barWidth(ch: ChannelStat) {
@@ -470,7 +476,7 @@ function barWidth(ch: ChannelStat) {
 async function load() {
   loading.value = true;
   const today = todayStr();
-  const [s, w, sl, f, k, ch, t, dr, pr] = await Promise.all([
+  const [s, w, sl, f, k, ch, t, dr, pr, scope] = await Promise.all([
     api.request<AdminStats>('/api/v2/ops/admin/stats', 'GET').catch(() => null),
     api.request<Workbench>('/api/v2/ops/admin/workbench', 'GET').catch(() => null),
     api.request<SlaMetrics>('/api/v2/ops/admin/sla', 'GET').catch(() => null),
@@ -491,6 +497,9 @@ async function load() {
         `/api/v2/ops/admin/sales-reports?dim=PRODUCT&fromDate=${today}&toDate=${today}`,
         'GET'
       )
+      .catch(() => null),
+    api
+      .request<{ demoData?: boolean; label?: string }>('/api/v2/ops/admin/data-scope', 'GET')
       .catch(() => null)
   ]);
   stats.value = s;
@@ -502,6 +511,7 @@ async function load() {
   trend.value = t?.last7Days ?? [];
   deviceRanks.value = dr ?? [];
   productRanks.value = pr ?? [];
+  demoBanner.value = scope?.demoData ? scope.label || '演示数据' : '';
   loading.value = false;
 }
 
@@ -577,6 +587,15 @@ onBeforeUnmount(() => {
 .bs-sub {
   font-size: 13px;
   color: var(--layout-muted);
+}
+.bs-demo-tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 4px;
+  padding: 2px 8px;
 }
 .bs-actions {
   display: flex;
@@ -659,6 +678,7 @@ onBeforeUnmount(() => {
 }
 .bs-row b {
   color: var(--layout-text);
+  font-variant-numeric: tabular-nums;
 }
 .bs-row b.good {
   color: var(--app-primary, #0f766e);

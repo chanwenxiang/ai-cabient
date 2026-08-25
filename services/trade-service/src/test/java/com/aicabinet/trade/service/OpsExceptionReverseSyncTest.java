@@ -30,13 +30,18 @@ class OpsExceptionReverseSyncTest {
     @Mock SettlementService settlementService;
     @Mock DisputeService disputeService;
     @Mock RepairTicketService repairTicketService;
+    @Mock DistributedLockService distributedLockService;
 
     private OpsExceptionService service;
 
     @BeforeEach
     void setUp() {
         service = new OpsExceptionService(repository, permissionService, auditService, auditRepository,
-                sessionRepository, settlementService, disputeService, repairTicketService);
+                sessionRepository, settlementService, disputeService, repairTicketService, distributedLockService);
+        org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
     }
 
     @Test
@@ -53,6 +58,8 @@ class OpsExceptionReverseSyncTest {
 
         when(repository.findBySessionIdAndStatusIn(eq("S-TEST-001"), any()))
                 .thenReturn(List.of(open, processing));
+        when(repository.findByIdForUpdate("EX-OPEN-001")).thenReturn(java.util.Optional.of(open));
+        when(repository.findByIdForUpdate("EX-PROC-001")).thenReturn(java.util.Optional.of(processing));
 
         service.resolveOpenForSession(10001L, "S-TEST-001", "争议结案(WAIVE)同步关闭异常");
 

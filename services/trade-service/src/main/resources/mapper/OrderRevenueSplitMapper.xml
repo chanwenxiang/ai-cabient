@@ -80,4 +80,10 @@
     GROUP BY s.settlement_batch_no, s.merchant_id
     ORDER BY MIN(s.created_at) DESC
   </select>
+
+  <select id="_findByOrderIdForUpdateRaw" resultType="com.aicabinet.trade.domain.OrderRevenueSplit">
+    <![CDATA[
+    SELECT s.* FROM order_revenue_split s WHERE s.order_id = #{orderId} FOR UPDATE
+    ]]>
+  </select>
 </mapper>

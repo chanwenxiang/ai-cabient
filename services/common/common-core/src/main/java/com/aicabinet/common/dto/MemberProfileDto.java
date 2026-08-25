@@ -10,6 +10,8 @@ public record MemberProfileDto(
         String levelCode,
         String levelName,
         BigDecimal totalSpent,
+        int availablePoints,
+        int totalPoints,
         int orderCount,
         int spentToNextLevel,
         String nextLevelName,

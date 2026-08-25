@@ -14,6 +14,18 @@ import org.springframework.data.domain.Pageable;
 @Mapper
 public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
 
+    CabinetOrder _findByIdForUpdateRaw(@Param("orderId") String orderId);
+
+    default Optional<CabinetOrder> findByIdForUpdate(String orderId) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(orderId));
+    }
+
+    /** 仅当 pay_trade_no 为空时写入，避免并发回填覆盖。 */
+    int backfillPayTradeNoIfAbsent(@Param("orderId") String orderId, @Param("tradeNo") String tradeNo);
+
+    /** 仅当 payment_operation_id 为空时写入，避免并发回填覆盖。 */
+    int backfillPaymentOperationIdIfAbsent(@Param("orderId") String orderId, @Param("operationId") String operationId);
+
     default Optional<CabinetOrder> findBySessionId(String sessionId) {
     return Optional.ofNullable(selectOne(Wrappers.<CabinetOrder>lambdaQuery().eq(CabinetOrder::getSessionId, sessionId)));
     }
@@ -99,6 +111,18 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
     default long countByDeviceIdInAndCreatedAtAfter(Collection<String> deviceIds, Instant since) {
     Long c = selectCount(Wrappers.<CabinetOrder>lambdaQuery().in(CabinetOrder::getDeviceId, deviceIds).gt(CabinetOrder::getCreatedAt, since));
     return c == null ? 0 : c;
+    }
+
+    default long countByDeviceIdInAndCreatedAtBetween(
+            Collection<String> deviceIds, Instant start, Instant end) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return 0;
+        }
+        Long c = selectCount(Wrappers.<CabinetOrder>lambdaQuery()
+                .in(CabinetOrder::getDeviceId, deviceIds)
+                .ge(CabinetOrder::getCreatedAt, start)
+                .lt(CabinetOrder::getCreatedAt, end));
+        return c == null ? 0 : c;
     }
 
     default List<CabinetOrder> findByDeviceIdInAndCreatedAtAfter(Collection<String> deviceIds, Instant since) {
@@ -235,5 +259,22 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
     long sumTotalAmountByDeviceIdInBetween(@Param("deviceIds") Collection<String> deviceIds,
                                            @Param("start") Instant start,
                                            @Param("end") Instant end);
+
+    default List<CabinetOrder> findByCouponIdInAndCreatedAtAfter(
+            Collection<Long> couponIds, Instant since) {
+        if (couponIds == null || couponIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<CabinetOrder>lambdaQuery()
+                .in(CabinetOrder::getCouponId, couponIds)
+                .ge(CabinetOrder::getCreatedAt, since)
+                .orderByDesc(CabinetOrder::getCreatedAt));
+    }
+
+    default List<CabinetOrder> findByStatusAndCreatedAtAfter(String status, Instant since) {
+        return selectList(Wrappers.<CabinetOrder>lambdaQuery()
+                .eq(CabinetOrder::getStatus, status)
+                .gt(CabinetOrder::getCreatedAt, since));
+    }
 
 }

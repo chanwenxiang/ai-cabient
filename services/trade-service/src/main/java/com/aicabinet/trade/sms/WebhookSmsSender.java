@@ -26,12 +26,24 @@ public class WebhookSmsSender implements SmsSender {
 
     @Override
     public void send(String phoneNumber, String code) {
+        dispatch(phoneNumber, Map.of("code", code), "SMS code");
+    }
+
+    /** 通知类短信：webhook 载荷为 phoneNumber + message。 */
+    public void sendMessage(String phoneNumber, String message) {
+        dispatch(phoneNumber, Map.of("message", message), "SMS message");
+    }
+
+    private void dispatch(String phoneNumber, Map<String, String> payload, String kind) {
         String url = authProperties.sms().webhookUrl();
         if (url == null || url.isBlank()) {
             throw new IllegalStateException("SMS webhook URL not configured");
         }
         try {
-            byte[] body = objectMapper.writeValueAsBytes(Map.of("phoneNumber", phoneNumber, "code", code));
+            Map<String, String> bodyMap = new java.util.LinkedHashMap<>();
+            bodyMap.put("phoneNumber", phoneNumber);
+            bodyMap.putAll(payload);
+            byte[] body = objectMapper.writeValueAsBytes(bodyMap);
             HttpURLConnection conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
             conn.setRequestMethod("POST");
             conn.setConnectTimeout(10_000);
@@ -46,7 +58,7 @@ public class WebhookSmsSender implements SmsSender {
             if (status >= 400) {
                 throw new IllegalStateException("SMS webhook returned HTTP " + status);
             }
-            log.info("SMS dispatched via webhook phone={}", maskPhone(phoneNumber));
+            log.info("{} dispatched via webhook phone={}", kind, maskPhone(phoneNumber));
         } catch (Exception e) {
             throw new IllegalStateException("SMS webhook dispatch failed", e);
         }

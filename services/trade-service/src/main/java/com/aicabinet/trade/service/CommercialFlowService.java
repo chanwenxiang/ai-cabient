@@ -74,7 +74,8 @@ public class CommercialFlowService {
 
         String batchNo = "FLOW-" + LocalDate.now() + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
         procurementService.upsertSupplier(operatorId, new SupplierDto(
-                "SUP-DEMO-001", "Demo Beverage Supplier", "Demo Buyer", "13800138001", "ACTIVE", null));
+                "SUP-DEMO-001", "Demo Beverage Supplier", "Demo Buyer", "13800138001",
+                "ACTIVE", 30, null, null));
         PurchaseOrderDto purchase = procurementService.createPurchaseOrder(operatorId, new CreatePurchaseOrderRequest(
                 "SUP-DEMO-001",
                 DemoDataService.DEMO_WAREHOUSE_ID,

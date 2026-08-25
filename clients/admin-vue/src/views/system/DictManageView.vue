@@ -411,6 +411,17 @@ const filteredTypes = computed(() => {
 });
 const displayItems = computed(() => sortItemsById(items.value));
 
+/** OBS-009：左侧搜索后若当前选中不在结果中，自动切到首项 */
+watch(filteredTypes, async (list) => {
+  if (!typesHydrated.value || !typeQuery.value.trim() || !list.length) return;
+  const cur = selected.value?.dictType;
+  if (cur && list.some((t) => t.dictType === cur)) return;
+  const first = list[0];
+  onSelectType(first);
+  await nextTick();
+  typeTableRef.value?.setCurrentRow?.(first);
+});
+
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<DictItemRow>((r) => r.dictDataId);
 

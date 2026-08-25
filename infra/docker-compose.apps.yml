@@ -30,13 +30,20 @@ services:
           sleep 2
         done
         mc mb --ignore-existing "local/$$MINIO_BUCKET"
+        mc ilm add --prefix 'sim/' --expire-days "$${MINIO_SIM_RETENTION_DAYS:-7}" "local/$$MINIO_BUCKET" || true
+        mc ilm add --prefix 'videos/' --expire-days "$${MINIO_VIDEO_RETENTION_DAYS:-30}" "local/$$MINIO_BUCKET" || true
+        mc ilm add --prefix 'archive/' --expire-days "$${MINIO_ARCHIVE_RETENTION_DAYS:-180}" "local/$$MINIO_BUCKET" || true
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: ${MINIO_BUCKET:-cabinet-videos}
+      MINIO_SIM_RETENTION_DAYS: ${MINIO_SIM_RETENTION_DAYS:-7}
+      MINIO_VIDEO_RETENTION_DAYS: ${MINIO_VIDEO_RETENTION_DAYS:-30}
+      MINIO_ARCHIVE_RETENTION_DAYS: ${MINIO_ARCHIVE_RETENTION_DAYS:-180}
     profiles: ["apps"]
 
   trade-service:
+    restart: unless-stopped
     build:
       context: ..
       dockerfile: infra/docker/trade-service.Dockerfile
@@ -88,9 +95,12 @@ services:
       PROFIT_SHARING_MOCK_ENABLED: ${PROFIT_SHARING_MOCK_ENABLED:-false}
       PROFIT_SHARING_RETRY_ENABLED: ${PROFIT_SHARING_RETRY_ENABLED:-true}
       PROFIT_SHARING_RETRY_BATCH_SIZE: ${PROFIT_SHARING_RETRY_BATCH_SIZE:-20}
+      # Spring 绑定 aicabinet.security.mock-enabled ← AICABINET_MOCK_ENABLED
+      AICABINET_MOCK_ENABLED: ${AICABINET_MOCK_ENABLED:-true}
       AICABINET_SECURITY_MOCK_ENABLED: ${AICABINET_MOCK_ENABLED:-true}
       RECON_MOCK_ENABLED: ${RECON_MOCK_ENABLED:-true}
-      XXL_JOB_ENABLED: ${XXL_JOB_ENABLED:-false}
+      # 多实例默认开 XXL：资金/对账类由调度中心触发；本地 IDEA 仍可用 XXL_JOB_ENABLED=false
+      XXL_JOB_ENABLED: ${XXL_JOB_ENABLED:-true}
       XXL_JOB_ADMIN_ADDRESSES: ${XXL_JOB_ADMIN_ADDRESSES:-http://xxl-job-admin:8080/xxl-job-admin}
       XXL_JOB_ACCESS_TOKEN: ${XXL_JOB_ACCESS_TOKEN:-}
       XXL_JOB_EXECUTOR_PORT: ${XXL_JOB_EXECUTOR_PORT:-9999}
@@ -107,9 +117,12 @@ services:
       timeout: 10s
       retries: 12
       start_period: 90s
+    mem_limit: 1024m
+    cpus: 1.5
     profiles: ["apps"]
 
   device-service:
+    restart: unless-stopped
     build:
       context: ..
       dockerfile: infra/docker/device-service.Dockerfile
@@ -134,9 +147,12 @@ services:
       timeout: 10s
       retries: 8
       start_period: 45s
+    mem_limit: 768m
+    cpus: 1.0
     profiles: ["apps"]
 
   vision-service:
+    restart: unless-stopped
     build:
       context: ..
       dockerfile: infra/docker/vision-service.Dockerfile
@@ -182,6 +198,8 @@ services:
       timeout: 10s
       retries: 8
       start_period: 60s
+    mem_limit: 2g
+    cpus: 2.0
     profiles: ["apps"]
 
   redpanda:
@@ -214,6 +232,7 @@ services:
   prometheus:
     volumes:
       - ./monitoring/prometheus.compose.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
     depends_on:
       trade-service:
         condition: service_started

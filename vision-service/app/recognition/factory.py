@@ -6,6 +6,7 @@ import logging
 import os
 
 from app.recognition.deepseek_recognizer import DeepSeekRecognizer
+from app.recognition.quectel_recognizer import QuectelRecognizer
 from app.recognition.yolo_deepseek_recognizer import YoloDeepSeekRecognizer
 from app.recognition.yolo_recognizer import YoloRecognizer
 
@@ -16,6 +17,9 @@ _DEPRECATED_BACKENDS = frozenset({"hybrid"})
 
 
 def create_recognizer():
+    if RECOGNIZER_BACKEND == "quectel":
+        # 移远端侧识别：端侧结果直通平台；此处保留云端占位，SDK 就绪前不可用
+        return QuectelRecognizer()
     yolo = YoloRecognizer()
     if RECOGNIZER_BACKEND in _DEPRECATED_BACKENDS:
         log.warning(

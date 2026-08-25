@@ -45,6 +45,15 @@
             @click="batchLifecycle('UNDEPLOY')"
             >批量未投放</el-button
           >
+          <el-button
+            v-hasPermi="['ops:device:edit']"
+            type="warning"
+            plain
+            :disabled="!selectedKeys.length"
+            :loading="batchCmdLoading === 'RETIRE'"
+            @click="batchRetire"
+            >批量退役</el-button
+          >
           <el-button v-hasPermi="['ops:device:export']" @click="onExport">{{
             exportButtonLabel
           }}</el-button>
@@ -192,7 +201,13 @@
           <el-table-column label="设备" min-width="140" align="center" class-name="col-text">
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="goDetail(row)">
-                {{ row.deviceName || '无' }}
+                <img
+                  class="device-thumb"
+                  :src="'/admin/device-default.png'"
+                  alt=""
+                  aria-hidden="true"
+                />
+                <span>{{ row.deviceName || '无' }}</span>
               </button>
             </template>
           </el-table-column>
@@ -223,6 +238,29 @@
             <template #default="{ row }">
               <el-tag size="small" effect="plain">{{ lifecycleLabel(row.lifecycleStatus) }}</el-tag>
             </template>
+          </el-table-column>
+          <el-table-column label="柜内温度" width="90" align="center">
+            <template #default="{ row }">
+              <span
+                :class="
+                  row.currentTempC != null &&
+                  row.targetTempC != null &&
+                  Math.abs(row.currentTempC - row.targetTempC) > 2
+                    ? 'temp-warn'
+                    : ''
+                "
+                >{{ row.currentTempC != null ? `${row.currentTempC}°C` : '暂无' }}</span
+              >
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="地址"
+            min-width="160"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">{{ row.address || '暂无' }}</template>
           </el-table-column>
           <el-table-column
             label="IMEI"
@@ -285,7 +323,9 @@
             show-overflow-tooltip
           >
             <template #default="{ row }">
-              <span v-if="row.activeSessionId" class="mono">{{ row.activeSessionId }}</span>
+              <span v-if="row.activeSessionId" class="mono">{{
+                displayBizNo(row.activeSessionId)
+              }}</span>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
@@ -437,7 +477,7 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { DeviceInfo, PageResult } from '@aicabinet/shared-types';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 type BoardTab = 'ALL' | 'ONLINE' | 'OFFLINE' | 'ON_SALE' | 'LOCKED';
@@ -503,11 +543,11 @@ const policyForm = reactive({
 const attentionCount = computed(() => boardCounts.OFFLINE + boardCounts.LOCKED);
 
 function formatBoardCount(key: BoardTab) {
-  return boardHydrated.value ? String(boardCounts[key]) : '—';
+  return boardHydrated.value ? String(boardCounts[key]) : '暂无';
 }
 
 function boardTabLabel(key: BoardTab, label: string) {
-  return boardHydrated.value ? `${label} (${boardCounts[key]})` : `${label} (—)`;
+  return boardHydrated.value ? `${label} (${boardCounts[key]})` : `${label} (…)`;
 }
 
 function boardQuery(tab: BoardTab): { online?: string; salesLocked?: string } {
@@ -649,6 +689,53 @@ async function batchLifecycle(action: 'DEPLOY' | 'UNDEPLOY') {
     }
     if (fail === 0) ElMessage.success(`已${label} ${ok} 台`);
     else ElMessage.warning(`${label}完成：成功 ${ok}，失败 ${fail}`);
+    clearSelection();
+    await load(false);
+  } finally {
+    batchCmdLoading.value = '';
+  }
+}
+
+async function batchRetire() {
+  const targets = devices.value.filter((d) => selectedKeys.value.map(String).includes(d.deviceId));
+  if (!targets.length) {
+    ElMessage.warning('请先勾选设备');
+    return;
+  }
+  let remark = '';
+  try {
+    const res = await ElMessageBox.prompt(
+      `将对 ${targets.length} 台执行退役（需填写备注），确认？`,
+      '批量退役',
+      {
+        type: 'warning',
+        inputPlaceholder: '退役原因（必填）',
+        confirmButtonText: '确认退役',
+        inputValidator: (v) => (!!v && v.trim().length >= 2) || '请填写至少2字备注'
+      }
+    );
+    remark = String(res.value || '').trim();
+  } catch {
+    return;
+  }
+  batchCmdLoading.value = 'RETIRE';
+  let ok = 0;
+  let fail = 0;
+  try {
+    for (const row of targets) {
+      try {
+        await api.request(
+          `/api/v2/ops/admin/devices/${encodeURIComponent(row.deviceId)}/lifecycle`,
+          'POST',
+          { action: 'RETIRE', remark }
+        );
+        ok += 1;
+      } catch {
+        fail += 1;
+      }
+    }
+    if (fail === 0) ElMessage.success(`已退役 ${ok} 台`);
+    else ElMessage.warning(`退役完成：成功 ${ok}，失败 ${fail}`);
     clearSelection();
     await load(false);
   } finally {
@@ -967,6 +1054,11 @@ onActivated(() => {
 </script>
 
 <style scoped>
+.temp-warn {
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
+
 .page-card-head {
   display: flex;
   justify-content: space-between;
@@ -1068,6 +1160,17 @@ onActivated(() => {
   cursor: pointer;
   font: inherit;
   font-weight: 650;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.device-thumb {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #ecfdf5;
+  flex: 0 0 auto;
 }
 .link-cell:hover {
   text-decoration: underline;

@@ -53,7 +53,20 @@ function Invoke-EnvCheck([hashtable]$Env, [string]$Mode) {
     $warnings = @()
 
     foreach ($key in @("JWT_SECRET", "INTERNAL_API_KEY", "VISION_API_KEY")) {
-        $errors += Test-StrongSecret $key $Env[$key] @($DevDefaults[$key])
+        if ($Mode -eq "dev") {
+            $val = $Env[$key]
+            if (-not $val -or $DevDefaults[$key] -eq $val) {
+                $warnings += "$key uses demo default — localhost only; use strong secrets before any public exposure"
+            }
+        } else {
+            $errors += Test-StrongSecret $key $Env[$key] @($DevDefaults[$key])
+        }
+    }
+
+    if ($Mode -eq "dev") {
+        if ($Env["SPRING_PROFILES_ACTIVE"] -in @("prod", "staging")) {
+            $errors += "SPRING_PROFILES_ACTIVE=$($Env['SPRING_PROFILES_ACTIVE']) with dev secrets — copy infra/.env.production.example or .env.staging.example"
+        }
     }
 
     if (-not $Env["SMS_WEBHOOK_URL"]) {
@@ -61,7 +74,7 @@ function Invoke-EnvCheck([hashtable]$Env, [string]$Mode) {
         else { $warnings += "SMS_WEBHOOK_URL empty (staging compose provides sms-webhook-mock)" }
     }
 
-    if ($Env["AICABINET_MOCK_ENABLED"] -eq "true") {
+    if ($Env["AICABINET_MOCK_ENABLED"] -eq "true" -and $Mode -ne "dev") {
         $errors += "AICABINET_MOCK_ENABLED must be false for prod/staging"
     }
 

@@ -126,6 +126,17 @@
           <el-table-column label="已使用" width="110" align="center" class-name="col-money">
             <template #default="{ row }">¥{{ yuan(row.usedCents) }}</template>
           </el-table-column>
+          <el-table-column label="剩余预算" width="110" align="center" class-name="col-money">
+            <template #default="{ row }">
+              ¥{{ yuan(Math.max(0, Number(row.budgetCents || 0) - Number(row.usedCents || 0))) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="每人限次" width="90" align="center">
+            <template #default="{ row }">{{ row.userLimit || '不限' }}</template>
+          </el-table-column>
+          <el-table-column label="适用柜" min-width="120" align="center" show-overflow-tooltip>
+            <template #default="{ row }">{{ deviceScopeLabel(row) }}</template>
+          </el-table-column>
           <el-table-column label="状态" width="88" align="center">
             <template #default="{ row }">
               <el-tag :type="isEnabled(row.status) ? 'success' : 'info'" size="small">
@@ -166,13 +177,17 @@
       :title="editingId ? '编辑活动' : '新建活动'"
       width="560px"
       destroy-on-close
+      append-to-body
+      align-center
+      :close-on-click-modal="false"
+      class="promo-dialog"
     >
       <el-form :model="form" label-width="96px">
         <el-form-item label="活动名称" required
           ><el-input v-model="form.activityName" maxlength="80"
         /></el-form-item>
         <el-form-item label="活动类型">
-          <el-select v-model="form.activityType" style="width: 100%">
+          <el-select v-model="form.activityType" style="width: 100%" teleported>
             <el-option
               v-for="item in dictOptions('promotion_type')"
               :key="item.value"
@@ -182,10 +197,24 @@
           </el-select>
         </el-form-item>
         <el-form-item label="开始时间"
-          ><el-date-picker v-model="form.startTime" type="datetime" style="width: 100%"
+          ><el-date-picker
+            v-model="form.startTime"
+            type="datetime"
+            teleported
+            placement="bottom-start"
+            :z-index="5000"
+            :popper-options="{ strategy: 'fixed' }"
+            style="width: 100%"
         /></el-form-item>
         <el-form-item label="结束时间"
-          ><el-date-picker v-model="form.endTime" type="datetime" style="width: 100%"
+          ><el-date-picker
+            v-model="form.endTime"
+            type="datetime"
+            teleported
+            placement="bottom-start"
+            :z-index="5000"
+            :popper-options="{ strategy: 'fixed' }"
+            style="width: 100%"
         /></el-form-item>
         <el-form-item label="预算(元)">
           <el-input-number
@@ -205,6 +234,30 @@
             controls-position="right"
             style="width: 100%"
         /></el-form-item>
+        <el-form-item label="适用柜">
+          <el-radio-group v-model="form.deviceScope">
+            <el-radio value="ALL">全部设备</el-radio>
+            <el-radio value="SPECIFIC">指定设备</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="form.deviceScope === 'SPECIFIC'" label="选择设备">
+          <el-select
+            v-model="form.deviceIds"
+            multiple
+            filterable
+            collapse-tags
+            collapse-tags-tooltip
+            placeholder="选择柜机"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="d in deviceOptions"
+              :key="d.deviceId"
+              :label="d.deviceName || d.deviceId"
+              :value="d.deviceId"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="描述"
           ><el-input v-model="form.description" type="textarea"
         /></el-form-item>
@@ -247,6 +300,7 @@ const selectedIds = ref<number[]>([]);
 const showDialog = ref(false);
 const editingId = ref<number | null>(null);
 const importInput = ref<HTMLInputElement | null>(null);
+const deviceOptions = ref<{ deviceId: string; deviceName?: string }[]>([]);
 
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase();
@@ -293,6 +347,8 @@ const emptyForm = () => ({
   endTime: '' as string | Date,
   budgetYuan: 0,
   userLimit: 1,
+  deviceScope: 'ALL',
+  deviceIds: [] as string[],
   description: ''
 });
 const form = ref(emptyForm());
@@ -321,7 +377,42 @@ function isEnabled(status?: string) {
   return status === 'ACTIVE';
 }
 function statusLabel(status?: string) {
-  return displayLabel('enable_status', status, '停用');
+  return displayLabel('enable_status', status, '暂无');
+}
+
+function parseRuleDeviceIds(ruleConfig?: string | Record<string, unknown> | null): string[] {
+  if (!ruleConfig) return [];
+  try {
+    const obj =
+      typeof ruleConfig === 'string'
+        ? (JSON.parse(ruleConfig) as Record<string, unknown>)
+        : ruleConfig;
+    const ids = obj.deviceIds;
+    return Array.isArray(ids) ? ids.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function deviceScopeLabel(row: { deviceScope?: string; ruleConfig?: string }) {
+  if (!row.deviceScope || row.deviceScope === 'ALL') return '全部';
+  if (row.deviceScope === 'SPECIFIC') {
+    const n = parseRuleDeviceIds(row.ruleConfig).length;
+    return n ? `${n} 台定向` : '指定设备';
+  }
+  return row.deviceScope;
+}
+
+async function loadDevices() {
+  try {
+    deviceOptions.value =
+      (await api.request<{ deviceId: string; deviceName?: string }[]>(
+        '/api/v2/ops/admin/devices/ref',
+        'GET'
+      )) || [];
+  } catch {
+    deviceOptions.value = [];
+  }
 }
 
 function rowActions(row: any): TableAction[] {
@@ -372,6 +463,7 @@ function openCreate() {
 
 function openEdit(row: any) {
   editingId.value = row.activityId;
+  const deviceIds = parseRuleDeviceIds(row.ruleConfig);
   form.value = {
     activityName: row.activityName,
     activityType: row.activityType,
@@ -379,6 +471,12 @@ function openEdit(row: any) {
     endTime: row.endTime ? new Date(row.endTime) : '',
     budgetYuan: (Number(row.budgetCents) || 0) / 100,
     userLimit: row.userLimit ?? 1,
+    deviceScope: row.deviceScope === 'SPECIFIC' ? 'SPECIFIC' : 'ALL',
+    deviceIds: deviceIds.length
+      ? deviceIds
+      : row.deviceScope && row.deviceScope !== 'ALL' && row.deviceScope !== 'SPECIFIC'
+        ? [row.deviceScope]
+        : [],
     description: row.description || ''
   };
   showDialog.value = true;
@@ -393,6 +491,9 @@ async function onSubmit() {
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()))
     return ElMessage.warning('活动时间无效');
   if (end <= start) return ElMessage.warning('结束时间需晚于开始时间');
+  if (f.deviceScope === 'SPECIFIC' && !f.deviceIds.length) {
+    return ElMessage.warning('指定设备时请至少选择一台柜机');
+  }
   const body = {
     activityName: f.activityName.trim(),
     activityType: f.activityType,
@@ -400,6 +501,10 @@ async function onSubmit() {
     endTime: end.toISOString(),
     budgetCents: Math.round((Number(f.budgetYuan) || 0) * 100),
     userLimit: f.userLimit,
+    deviceScope: f.deviceScope,
+    ruleConfig: JSON.stringify({
+      deviceIds: f.deviceScope === 'SPECIFIC' ? f.deviceIds : []
+    }),
     description: f.description
   };
   saving.value = true;
@@ -604,6 +709,7 @@ watch(
 
 onMounted(() => {
   applyRouteQuery();
+  void loadDevices();
   load();
 });
 onActivated(() => {
@@ -647,5 +753,8 @@ onActivated(() => {
 }
 .hidden-input {
   display: none;
+}
+:global(.promo-dialog .el-dialog__body) {
+  overflow: visible;
 }
 </style>

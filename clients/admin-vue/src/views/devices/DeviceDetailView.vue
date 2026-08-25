@@ -54,8 +54,9 @@
         <div v-else class="qr-empty">
           {{ qrHydrated ? (qrLoading ? '加载中…' : '暂无二维码') : '加载中…' }}
         </div>
-        <div class="qr-meta">
-          <div class="qr-url mono">{{ qrUrl || '—' }}</div>
+        <div class="qr-tips">
+          <p>消费者微信扫码即可开门购物；打印后贴于柜门显眼位置。</p>
+          <p>链接变更或柜机换码后，请重新下载打印；也可用右上角「复制链接」发给现场同事。</p>
         </div>
       </div>
     </el-card>
@@ -65,13 +66,11 @@
         <button
           type="button"
           class="stat-tile"
-          :aria-label="
-            metricsHydrated ? `填充率 ${metrics?.fillRatePct ?? 0}%` : '填充率 — 加载中…'
-          "
+          :aria-label="metricsHydrated ? `填充率 ${metrics?.fillRatePct ?? 0}%` : '填充率 加载中…'"
         >
           <div class="stat-label">填充率</div>
           <div class="stat-value">
-            {{ metricsHydrated ? `${metrics?.fillRatePct ?? 0}%` : '—' }}
+            {{ metricsHydrated ? `${metrics?.fillRatePct ?? 0}%` : '暂无' }}
           </div>
           <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
         </button>
@@ -82,11 +81,13 @@
           class="stat-tile"
           :class="{ warn: metricsHydrated && (metrics?.oosSlotCount || 0) > 0 }"
           :aria-label="
-            metricsHydrated ? `缺货货道 ${metrics?.oosSlotCount ?? 0}` : '缺货货道 — 加载中…'
+            metricsHydrated ? `缺货货道 ${metrics?.oosSlotCount ?? 0}` : '缺货货道 加载中…'
           "
         >
           <div class="stat-label">缺货货道</div>
-          <div class="stat-value">{{ metricsHydrated ? (metrics?.oosSlotCount ?? 0) : '—' }}</div>
+          <div class="stat-value">
+            {{ metricsHydrated ? (metrics?.oosSlotCount ?? 0) : '暂无' }}
+          </div>
           <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
         </button>
       </el-col>
@@ -96,14 +97,12 @@
           class="stat-tile"
           :class="{ warn: metricsHydrated && (metrics?.lowStockSlotCount || 0) > 0 }"
           :aria-label="
-            metricsHydrated
-              ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}`
-              : '低库存货道 — 加载中…'
+            metricsHydrated ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}` : '低库存货道 加载中…'
           "
         >
           <div class="stat-label">低库存货道</div>
           <div class="stat-value">
-            {{ metricsHydrated ? (metrics?.lowStockSlotCount ?? 0) : '—' }}
+            {{ metricsHydrated ? (metrics?.lowStockSlotCount ?? 0) : '暂无' }}
           </div>
           <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
         </button>
@@ -114,12 +113,12 @@
           class="stat-tile"
           :class="{ warn: metricsHydrated && (metrics?.nearExpiryLotCount || 0) > 0 }"
           :aria-label="
-            metricsHydrated ? `临期批次 ${metrics?.nearExpiryLotCount ?? 0}` : '临期批次 — 加载中…'
+            metricsHydrated ? `临期批次 ${metrics?.nearExpiryLotCount ?? 0}` : '临期批次 加载中…'
           "
         >
           <div class="stat-label">临期批次</div>
           <div class="stat-value">
-            {{ metricsHydrated ? (metrics?.nearExpiryLotCount ?? 0) : '—' }}
+            {{ metricsHydrated ? (metrics?.nearExpiryLotCount ?? 0) : '暂无' }}
           </div>
           <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
         </button>
@@ -131,7 +130,7 @@
           :aria-label="
             metricsHydrated
               ? `柜内温度 ${metrics?.currentTempC != null ? metrics.currentTempC + '°C' : '无'}`
-              : '柜内温度 — 加载中…'
+              : '柜内温度 加载中…'
           "
         >
           <div class="stat-label">柜内温度</div>
@@ -141,7 +140,7 @@
                 ? metrics?.currentTempC != null
                   ? `${metrics.currentTempC}°C`
                   : '无'
-                : '—'
+                : '暂无'
             }}
           </div>
           <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
@@ -444,6 +443,53 @@
         >
       </div>
 
+      <div class="cmd-section-label">退款规则</div>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        class="policy-lock-alert"
+        title="柜机规则优先于全局"
+        :description="refundPriorityHint"
+      />
+      <el-form label-width="120px" class="policy-form" @submit.prevent>
+        <el-form-item label="本柜策略">
+          <el-select
+            v-model="refundPolicyDraft"
+            :disabled="!canEditDevice"
+            placeholder="请选择"
+            style="width: 280px"
+          >
+            <el-option
+              :label="`跟随全局默认（${policyLabel(globalRefundPolicy)}）`"
+              value="INHERIT"
+            />
+            <el-option label="消费者可自助退款" value="AUTO_REFUND" />
+            <el-option label="仅可申诉，运营审核后退款" value="DISPUTE_ONLY" />
+          </el-select>
+          <el-button
+            v-hasPermi="['ops:device:edit']"
+            type="primary"
+            class="refund-save-btn"
+            :disabled="!canEditDevice"
+            :loading="refundPolicySaving"
+            @click="saveRefundPolicy"
+            >保存退款规则</el-button
+          >
+          <div class="field-hint">{{ refundDraftHint }}</div>
+          <div class="field-hint">
+            当前生效：
+            <el-tag
+              size="small"
+              :type="effectiveRefundPolicy === 'DISPUTE_ONLY' ? 'warning' : 'success'"
+            >
+              {{ policyLabel(effectiveRefundPolicy) }}
+            </el-tag>
+            <span v-if="!device?.refundPolicy" class="inherit-hint">（跟随全局）</span>
+          </div>
+        </el-form-item>
+      </el-form>
+
       <div class="cmd-section-label">柜机策略锁</div>
       <el-alert
         type="info"
@@ -535,7 +581,7 @@
         size="small"
         class="repair-mini-table"
       >
-        <el-table-column prop="ticketId" label="#" width="70" align="center" />
+        <el-table-column prop="ticketId" label="单号" width="70" align="center" />
         <el-table-column
           prop="title"
           label="标题"
@@ -546,8 +592,16 @@
         <el-table-column prop="status" label="状态" width="100" align="center">
           <template #default="{ row }">{{ repairStatusLabel(row.status) }}</template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="创建" width="160" align="center">
+        <el-table-column label="优先级" width="88" align="center">
+          <template #default="{ row }">{{ priorityLabel(row.priority) }}</template>
+        </el-table-column>
+        <el-table-column prop="createdAt" label="创建" width="150" align="center">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+        </el-table-column>
+        <el-table-column label="更新" width="150" align="center">
+          <template #default="{ row }">{{
+            row.updatedAt ? formatDateTime(row.updatedAt) : '暂无'
+          }}</template>
         </el-table-column>
       </el-table>
       <div v-else class="muted">{{ repairHydrated ? '暂无最近工单' : '加载中…' }}</div>
@@ -563,7 +617,7 @@
             <el-descriptions-item label="商户">
               <div class="name-cell inline">
                 <strong>{{
-                  metricsHydrated ? device?.merchantName || device?.merchantId || '无' : '—'
+                  metricsHydrated ? device?.merchantName || device?.merchantId || '无' : '暂无'
                 }}</strong>
                 <small
                   v-if="metricsHydrated && device?.merchantId && device?.merchantName"
@@ -573,13 +627,13 @@
               </div>
             </el-descriptions-item>
             <el-descriptions-item label="地址">{{
-              metricsHydrated ? metrics?.address || '无' : '—'
+              metricsHydrated ? metrics?.address || '无' : '暂无'
             }}</el-descriptions-item>
             <el-descriptions-item label="App 版本">{{
-              metricsHydrated ? metrics?.appVersion || '无' : '—'
+              metricsHydrated ? metrics?.appVersion || '无' : '暂无'
             }}</el-descriptions-item>
             <el-descriptions-item label="固件版本">{{
-              metricsHydrated ? metrics?.firmwareVersion || '无' : '—'
+              metricsHydrated ? metrics?.firmwareVersion || '无' : '暂无'
             }}</el-descriptions-item>
             <el-descriptions-item label="目标温度">
               <div class="temp-set-row">
@@ -605,18 +659,18 @@
             </el-descriptions-item>
             <el-descriptions-item label="温度上报">
               <span class="cell-datetime">{{
-                metricsHydrated ? formatDateTime(metrics?.tempReportedAt) || '无' : '—'
+                metricsHydrated ? formatDateTime(metrics?.tempReportedAt) || '无' : '暂无'
               }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="告警联系人">{{
-              metricsHydrated ? metrics?.alertContactName || '无' : '—'
+              metricsHydrated ? metrics?.alertContactName || '无' : '暂无'
             }}</el-descriptions-item>
             <el-descriptions-item label="联系电话">{{
-              metricsHydrated ? metrics?.alertContactPhone || '无' : '—'
+              metricsHydrated ? metrics?.alertContactPhone || '无' : '暂无'
             }}</el-descriptions-item>
             <el-descriptions-item label="最近会话">
               <span class="cell-id">{{
-                metricsHydrated ? device?.activeSessionId || '无' : '—'
+                metricsHydrated ? device?.activeSessionId || '无' : '暂无'
               }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="会话状态">
@@ -624,13 +678,23 @@
                 <el-tag v-if="device?.activeSessionState" size="small" effect="plain">
                   {{ dictLabel('session_state', device.activeSessionState) }}
                 </el-tag>
-                <span v-else>-</span>
+                <span v-else class="muted">暂无</span>
               </template>
-              <span v-else>—</span>
+              <span v-else>暂无</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="退款规则">
+              <el-tag
+                size="small"
+                :type="effectiveRefundPolicy === 'DISPUTE_ONLY' ? 'warning' : 'success'"
+              >
+                {{ policyLabel(effectiveRefundPolicy) }}
+              </el-tag>
+              <span v-if="!device?.refundPolicy" class="inherit-hint">跟随全局</span>
+              <span v-else class="inherit-hint">本柜覆盖</span>
             </el-descriptions-item>
             <el-descriptions-item label="最近补货">
               <span class="cell-datetime">{{
-                metricsHydrated ? formatDateTime(metrics?.lastRestockAt) || '无' : '—'
+                metricsHydrated ? formatDateTime(metrics?.lastRestockAt) || '无' : '暂无'
               }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="库存准确率">
@@ -639,10 +703,93 @@
                   ? metrics?.inventoryAccuracyPct != null
                     ? `${metrics.inventoryAccuracyPct}%`
                     : '无'
-                  : '—'
+                  : '暂无'
               }}
             </el-descriptions-item>
           </el-descriptions>
+        </el-tab-pane>
+
+        <el-tab-pane label="温控与环境" name="temp-env">
+          <div class="temp-plan-box">
+            <div class="pane-head">
+              <h4>温控计划（分时目标温度）</h4>
+              <el-switch
+                v-model="tempPlanEnabled"
+                :disabled="!canEditTempPlan"
+                aria-label="启用温控计划"
+              />
+            </div>
+            <p class="muted">
+              按当日分钟排程，调度器每分钟把当前时段目标温度下发到柜机；00:00
+              未设置时沿用前一日最后时段。
+            </p>
+            <div v-for="(e, i) in tempPlanEntries" :key="i" class="temp-plan-row">
+              <el-time-select
+                v-model="e.time"
+                start="00:00"
+                step="00:30"
+                end="23:59"
+                :disabled="!canEditTempPlan"
+                placeholder="开始时间"
+                style="width: 130px"
+              />
+              <el-input-number
+                v-model="e.target"
+                :min="-30"
+                :max="30"
+                :step="1"
+                :disabled="!canEditTempPlan"
+                size="small"
+                controls-position="right"
+              />
+              <span class="muted">°C</span>
+              <el-button
+                v-if="canEditTempPlan"
+                size="small"
+                text
+                type="danger"
+                @click="tempPlanEntries.splice(i, 1)"
+                >删除</el-button
+              >
+            </div>
+            <div class="pane-actions">
+              <el-button v-if="canEditTempPlan" size="small" @click="addTempPlanEntry"
+                >+ 添加时间点</el-button
+              >
+              <el-button
+                v-if="canEditTempPlan"
+                type="primary"
+                size="small"
+                :loading="tempPlanSaving"
+                @click="saveTempPlan"
+                >保存并应用</el-button
+              >
+              <el-button size="small" :loading="tempPlanSaving" @click="applyTempPlanNow"
+                >立即应用</el-button
+              >
+            </div>
+          </div>
+
+          <div class="env-box">
+            <div class="pane-head">
+              <h4>环境监控（近 24h）</h4>
+              <el-button size="small" :icon="Refresh" @click="loadEnvReadings">刷新</el-button>
+            </div>
+            <el-table :data="envRows" size="small" border stripe>
+              <el-table-column label="指标" width="110">
+                <template #default="{ row }">{{ envTypeLabel(row.metricType) }}</template>
+              </el-table-column>
+              <el-table-column label="数值">
+                <template #default="{ row }">{{ row.value }}{{ envUnit(row.metricType) }}</template>
+              </el-table-column>
+              <el-table-column label="上报时间" width="190">
+                <template #default="{ row }">{{ formatDateTime(row.reportedAt) }}</template>
+              </el-table-column>
+            </el-table>
+            <p v-if="!envRows.length" class="muted">
+              暂无环境读数（设备心跳需携带湿度/电压/功耗字段）
+            </p>
+          </div>
         </el-tab-pane>
 
         <el-tab-pane label="货道陈列" name="slots">
@@ -711,7 +858,7 @@
               show-overflow-tooltip
             >
               <template #default="{ row }">
-                <span class="cell-id">{{ row.sessionId }}</span>
+                <span class="cell-id">{{ displayBizNo(row.sessionId) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="状态" width="100" align="center">
@@ -719,6 +866,27 @@
                 <el-tag size="small" effect="plain">{{
                   dictLabel('session_state', row.state)
                 }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="类型" width="88" align="center">
+              <template #default="{ row }">
+                {{
+                  row.sessionKind === 'RESTOCK'
+                    ? '补货'
+                    : row.sessionKind === 'OPS'
+                      ? '运维'
+                      : '消费'
+                }}
+              </template>
+            </el-table-column>
+            <el-table-column label="入口" width="88" align="center">
+              <template #default="{ row }">
+                {{ displayLabel('pay_channel', row.entryChannel || row.payChannel, '暂无') }}
+              </template>
+            </el-table-column>
+            <el-table-column label="录像" width="72" align="center">
+              <template #default="{ row }">
+                {{ row.videoUri || row.uploadStatus === 'UPLOADED' ? '有' : '无' }}
               </template>
             </el-table-column>
             <el-table-column
@@ -729,7 +897,12 @@
               show-overflow-tooltip
             >
               <template #default="{ row }">
-                <span class="cell-id">{{ row.orderId || '无' }}</span>
+                <span class="cell-id">{{ displayBizNo(row.orderId, '无') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="失败原因" min-width="120" align="center" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ row.failReason || row.failureReason || '暂无' }}
               </template>
             </el-table-column>
             <el-table-column label="时间" width="168" align="center" class-name="col-text">
@@ -750,7 +923,7 @@
                       )
                   "
                 />
-                <span v-else class="muted">—</span>
+                <span v-else class="muted">暂无</span>
               </template>
             </el-table-column>
           </el-table>
@@ -776,7 +949,7 @@
               show-overflow-tooltip
             >
               <template #default="{ row }">
-                <span class="cell-id">{{ row.orderId }}</span>
+                <span class="cell-id">{{ displayBizNo(row.orderId) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="状态" width="100" align="center">
@@ -786,10 +959,33 @@
                 }}</el-tag>
               </template>
             </el-table-column>
+            <el-table-column label="渠道" width="88" align="center">
+              <template #default="{ row }">
+                {{ displayLabel('pay_channel', row.payChannel, '暂无') }}
+              </template>
+            </el-table-column>
             <el-table-column label="金额" width="100" align="center" class-name="col-money">
               <template #default="{ row }"
                 >¥{{ ((row.totalAmountCents || 0) / 100).toFixed(2) }}</template
               >
+            </el-table-column>
+            <el-table-column label="优惠" width="88" align="center">
+              <template #default="{ row }">
+                <span
+                  v-if="
+                    Number(row.couponDiscountCents || 0) + Number(row.memberDiscountCents || 0) > 0
+                  "
+                >
+                  -¥{{
+                    (
+                      (Number(row.couponDiscountCents || 0) +
+                        Number(row.memberDiscountCents || 0)) /
+                      100
+                    ).toFixed(2)
+                  }}
+                </span>
+                <span v-else class="muted">暂无</span>
+              </template>
             </el-table-column>
             <el-table-column label="时间" width="168" align="center" class-name="col-text">
               <template #default="{ row }">
@@ -803,7 +999,7 @@
                   :actions="[{ key: 'orders', label: '查看', icon: View, type: 'primary' }]"
                   @action="() => goPath('/orders', { deviceId })"
                 />
-                <span v-else class="muted">—</span>
+                <span v-else class="muted">暂无</span>
               </template>
             </el-table-column>
           </el-table>
@@ -879,16 +1075,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
-import { api, downloadAuthFile } from '@/api/client';
+import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
+import { api, authFetch, downloadAuthFile } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import SlotGrid from '@/components/SlotGrid.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
+import type { DeviceEnvReading, DeviceTempPlan } from '@aicabinet/shared-types';
 import type {
   DeviceInfo,
   DeviceSlot,
@@ -896,7 +1093,7 @@ import type {
   SkuCatalog,
   UpsertDeviceSlotRequest
 } from '@aicabinet/shared-types';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface DeviceRow {
   deviceId: string;
@@ -906,6 +1103,10 @@ interface DeviceRow {
   merchantName?: string;
   activeSessionId?: string;
   activeSessionState?: string;
+  /** 设备覆盖：AUTO_REFUND | DISPUTE_ONLY | null=继承全局 */
+  refundPolicy?: string | null;
+  /** 已解析的生效策略 */
+  effectiveRefundPolicy?: string;
 }
 
 interface LifecycleEventRow {
@@ -947,8 +1148,133 @@ const route = useRoute();
 const auth = useAuthStore();
 const { canAccessPath, goPath } = useNavAccess();
 const deviceId = route.params.id as string;
+
+const canEditTempPlan = computed(() => auth.hasPerm('ops:device:edit'));
+const tempPlanEnabled = ref(false);
+const tempPlanEntries = ref<{ time: string; target: number }[]>([]);
+const tempPlanSaving = ref(false);
+const envRows = ref<DeviceEnvReading[]>([]);
+
+function toHHMM(minute: number) {
+  return `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+}
+
+function fromHHMM(time: string) {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function addTempPlanEntry() {
+  tempPlanEntries.value.push({ time: '09:00', target: 5 });
+}
+
+async function loadTempPlan() {
+  try {
+    const dto = await api.request<DeviceTempPlan>(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/temp-plan`,
+      'GET'
+    );
+    tempPlanEnabled.value = !!dto?.enabled;
+    tempPlanEntries.value = (dto?.entries || []).map((e) => ({
+      time: toHHMM(e.startMinute),
+      target: e.targetTempC
+    }));
+  } catch {
+    // 静默：无排程或未授权时保持空态
+  }
+}
+
+async function saveTempPlan() {
+  tempPlanSaving.value = true;
+  try {
+    await api.request(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/temp-plan`,
+      'PUT',
+      {
+        enabled: tempPlanEnabled.value,
+        entries: tempPlanEntries.value.map((e) => ({
+          startMinute: fromHHMM(e.time),
+          targetTempC: e.target
+        }))
+      }
+    );
+    ElMessage.success('温控计划已保存并应用');
+    await loadTempPlan();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+  } finally {
+    tempPlanSaving.value = false;
+  }
+}
+
+async function applyTempPlanNow() {
+  tempPlanSaving.value = true;
+  try {
+    await api.request(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/temp-plan/apply`,
+      'POST'
+    );
+    ElMessage.success('已按当前时段下发目标温度');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '下发失败');
+  } finally {
+    tempPlanSaving.value = false;
+  }
+}
+
+async function loadEnvReadings() {
+  try {
+    envRows.value =
+      (await api.request<DeviceEnvReading[]>(
+        `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/env-readings?hours=24&limit=200`,
+        'GET'
+      )) || [];
+  } catch {
+    envRows.value = [];
+  }
+}
+
+function envTypeLabel(type: string) {
+  return displayLabel('device_env_type', type, '未知');
+}
+
+function envUnit(type: string) {
+  return ({ HUMIDITY: '%', VOLTAGE: 'V', POWER: 'W' } as Record<string, string>)[type] || '';
+}
 const canEditSlots = computed(() => auth.hasPerm('ops:device:edit'));
 const canEditDevice = computed(() => auth.hasPerm('ops:device:edit'));
+const refundPolicyDraft = ref('INHERIT');
+const refundPolicySaving = ref(false);
+const globalRefundPolicy = ref('AUTO_REFUND');
+
+const effectiveRefundPolicy = computed(
+  () =>
+    device.value?.effectiveRefundPolicy ||
+    device.value?.refundPolicy ||
+    globalRefundPolicy.value ||
+    'AUTO_REFUND'
+);
+
+const refundDraftHint = computed(() => {
+  switch (refundPolicyDraft.value) {
+    case 'AUTO_REFUND':
+      return '本柜覆盖全局：消费者可在订单页一键退款，资金即时原路退回。';
+    case 'DISPUTE_ONLY':
+      return '本柜覆盖全局：消费者只能提交申诉，需运营核对录像后再退款。';
+    default:
+      return `不单独设置本柜，沿用参数配置「refund.default_policy」：${policyLabel(globalRefundPolicy.value)}。`;
+  }
+});
+
+const refundPriorityHint = computed(
+  () =>
+    `全局默认「${policyLabel(globalRefundPolicy.value)}」。若本柜选择自助退款或仅申诉，则以本柜为准；选「跟随全局」则继承参数配置。`
+);
+
+function policyLabel(policy?: string | null) {
+  if (policy === 'DISPUTE_ONLY') return '仅申诉审核';
+  return '自助退款';
+}
 const loading = ref(true);
 const metricsHydrated = ref(false);
 const relatedHydrated = ref(false);
@@ -965,6 +1291,13 @@ const lifeLoading = ref('');
 const cmdLoading = ref('');
 const tempDraft = ref<number | undefined>(undefined);
 const tab = ref('overview');
+
+watch(tab, (v) => {
+  if (v === 'temp-env') {
+    void loadTempPlan();
+    void loadEnvReadings();
+  }
+});
 const device = ref<DeviceRow | null>(null);
 const metrics = ref<Metrics | null>(null);
 const policy = ref<{
@@ -992,7 +1325,14 @@ const asset = reactive({
 });
 const lifecycleEvents = ref<LifecycleEventRow[]>([]);
 const repairTickets = ref<
-  Array<{ ticketId: number; title: string; status: string; createdAt?: string }>
+  Array<{
+    ticketId: number;
+    title: string;
+    status: string;
+    priority?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  }>
 >([]);
 const slots = ref<DeviceSlot[]>([]);
 const skus = ref<SkuCatalog[]>([]);
@@ -1007,41 +1347,11 @@ const qrDownloading = ref(false);
 let qrObjectUrl: string | null = null;
 
 function lifecycleLabel(status?: string | null) {
-  switch ((status || '').toUpperCase()) {
-    case 'INBOUND':
-      return '入库';
-    case 'IDLE':
-      return '未投放';
-    case 'DEPLOYED':
-      return '投放';
-    case 'RETURNING':
-      return '返厂中';
-    case 'RETIRED':
-      return '退役';
-    default:
-      return status || '未知状态';
-  }
+  return displayLabel('device_lifecycle', status || 'DEPLOYED', '未知状态');
 }
 
 function lifecycleActionLabel(action?: string | null) {
-  switch ((action || '').toUpperCase()) {
-    case 'BIND':
-      return '绑定商户';
-    case 'UNBIND':
-      return '解绑';
-    case 'DEPLOY':
-      return '投放';
-    case 'UNDEPLOY':
-      return '撤回未投放';
-    case 'RETURN':
-      return '返厂';
-    case 'RETIRE':
-      return '退役';
-    case 'INBOUND':
-      return '入库';
-    default:
-      return action || '未知';
-  }
+  return displayLabel('device_lifecycle_action', action, '未知');
 }
 
 function revokeQrPreview() {
@@ -1061,10 +1371,8 @@ async function loadQr() {
     );
     qrUrl.value = link.url || '';
     revokeQrPreview();
-    const token = localStorage.getItem('admin_token');
-    const res = await fetch(
-      `${(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin}/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/qr.png`,
-      { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+    const res = await authFetch(
+      `${(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin}/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/qr.png`
     );
     if (!res.ok) throw new Error('二维码图片加载失败');
     const blob = await res.blob();
@@ -1178,7 +1486,11 @@ async function loadRepairTickets() {
 }
 
 function repairStatusLabel(s?: string) {
-  return dictLabel('repair_ticket_status', s) || s || '未知状态';
+  return displayLabel('repair_ticket_status', s, '未知状态');
+}
+
+function priorityLabel(p?: string) {
+  return displayLabel('dispute_priority', p, '暂无');
 }
 
 async function createRepair() {
@@ -1207,11 +1519,17 @@ async function loadDetail() {
     'GET'
   );
   device.value = detail.device;
+  refundPolicyDraft.value = detail.device?.refundPolicy || 'INHERIT';
   metrics.value = detail.metrics;
   slots.value = detail.slots || [];
   slotsHydrated.value = true;
   tempDraft.value = detail.metrics?.targetTempC != null ? detail.metrics.targetTempC : undefined;
-  await Promise.all([loadAsset(), loadLifecycleEvents(), loadRepairTickets()]);
+  await Promise.all([
+    loadAsset(),
+    loadLifecycleEvents(),
+    loadRepairTickets(),
+    loadGlobalRefundPolicy()
+  ]);
   try {
     policy.value = await api.request(
       `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/policy`,
@@ -1225,6 +1543,51 @@ async function loadDetail() {
       skuEditForbidden: false,
       saleForbidden: false
     };
+  }
+}
+
+async function loadGlobalRefundPolicy() {
+  try {
+    const rows = await api.request<Array<{ configKey: string; configValue?: string }>>(
+      '/api/v2/ops/admin/system-configs',
+      'GET'
+    );
+    const hit = rows.find((r) => r.configKey === 'refund.default_policy');
+    const v = String(hit?.configValue || '')
+      .trim()
+      .toUpperCase();
+    if (v === 'DISPUTE_ONLY' || v === 'AUTO_REFUND') {
+      globalRefundPolicy.value = v;
+    }
+  } catch {
+    /* 无权限或失败时沿用默认 AUTO_REFUND */
+  }
+}
+
+async function saveRefundPolicy() {
+  if (!canEditDevice.value) return;
+  refundPolicySaving.value = true;
+  try {
+    const updated = await api.request<DeviceInfo>(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}`,
+      'PATCH',
+      { refundPolicy: refundPolicyDraft.value }
+    );
+    device.value = {
+      ...(device.value || { deviceId }),
+      refundPolicy: updated.refundPolicy ?? null,
+      effectiveRefundPolicy: updated.effectiveRefundPolicy
+    };
+    refundPolicyDraft.value = updated.refundPolicy || 'INHERIT';
+    ElMessage.success(
+      `已保存：${policyLabel(updated.effectiveRefundPolicy || updated.refundPolicy)}${
+        updated.refundPolicy ? '（本柜覆盖）' : '（跟随全局）'
+      }`
+    );
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '退款规则保存失败');
+  } finally {
+    refundPolicySaving.value = false;
   }
 }
 
@@ -1640,6 +2003,39 @@ onActivated(() => {
 </script>
 
 <style scoped>
+.temp-plan-box,
+.env-box {
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+}
+.pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.pane-head h4 {
+  margin: 0;
+  font-size: 15px;
+}
+.temp-plan-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+}
+.pane-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+.muted {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
 .device-ops {
   display: flex;
   flex-direction: column;
@@ -1675,13 +2071,15 @@ onActivated(() => {
 }
 .qr-body {
   display: flex;
-  gap: 20px;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  padding: 8px 0 4px;
 }
 .qr-preview {
-  width: 180px;
-  height: 180px;
+  width: 200px;
+  height: 200px;
   border: 1px solid var(--el-border-color);
   border-radius: 8px;
   overflow: hidden;
@@ -1694,8 +2092,8 @@ onActivated(() => {
   display: block;
 }
 .qr-empty {
-  width: 180px;
-  height: 180px;
+  width: 200px;
+  height: 200px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1703,14 +2101,18 @@ onActivated(() => {
   border: 1px dashed var(--el-border-color);
   border-radius: 8px;
 }
-.qr-meta {
-  flex: 1;
-  min-width: 220px;
-}
-.qr-url {
+.qr-tips {
+  max-width: 420px;
+  margin: 0;
+  color: var(--el-text-color-secondary);
   font-size: 13px;
-  word-break: break-all;
-  margin-bottom: 8px;
+  line-height: 1.6;
+}
+.qr-tips p {
+  margin: 0 0 6px;
+}
+.qr-tips p:last-child {
+  margin-bottom: 0;
 }
 .stat-tile {
   display: block;
@@ -1786,6 +2188,14 @@ onActivated(() => {
 }
 .policy-lock-alert {
   margin-bottom: 12px;
+}
+.refund-save-btn {
+  margin-left: 10px;
+}
+.inherit-hint {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 .field-hint {
   font-size: 12px;

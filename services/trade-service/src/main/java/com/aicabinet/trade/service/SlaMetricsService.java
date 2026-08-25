@@ -9,6 +9,8 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DisputeTicketMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.SlaDailySnapshotMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,8 @@ import java.util.Set;
 @Service
 public class SlaMetricsService {
 
+    private static final Logger log = LoggerFactory.getLogger(SlaMetricsService.class);
+
     private static final List<SessionState> DOOR_SUCCESS_STATES =
             List.of(SessionState.COMPLETED, SessionState.DISPUTED);
 
@@ -33,6 +37,7 @@ public class SlaMetricsService {
     private final MerchantScopeService merchantScopeService;
     private final DisputeTicketMapper disputeRepository;
     private final DisputeSlaService disputeSlaService;
+    private final DistributedLockService distributedLockService;
 
     @Autowired
     private ScheduledTaskService taskService;
@@ -42,34 +47,45 @@ public class SlaMetricsService {
                              SlaDailySnapshotMapper snapshotRepository,
                              MerchantScopeService merchantScopeService,
                              DisputeTicketMapper disputeRepository,
-                             DisputeSlaService disputeSlaService) {
+                             DisputeSlaService disputeSlaService,
+                             DistributedLockService distributedLockService) {
         this.sessionRepository = sessionRepository;
         this.deviceRepository = deviceRepository;
         this.snapshotRepository = snapshotRepository;
         this.merchantScopeService = merchantScopeService;
         this.disputeRepository = disputeRepository;
         this.disputeSlaService = disputeSlaService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
     public SlaMetricsDto current(Long operatorId) {
         SlaRealtimeDto realtime = realtimeMetrics(operatorId);
+        int currentOnline = (int) deviceRepository.countByOnlineStatus("ONLINE");
+        int deviceTotal = (int) deviceRepository.count();
         return snapshotRepository.findFirstByOrderBySnapshotDateDesc()
-                .map(s -> new SlaMetricsDto(
-                        s.getSnapshotDate(),
-                        s.getDoorOpenAttempts(),
-                        s.getDoorOpenSuccess(),
-                        s.getDoorSuccessRate() != null ? s.getDoorSuccessRate() : 0,
-                        s.getAvgRecognizeMs() != null ? s.getAvgRecognizeMs() : 0,
-                        s.getP95RecognizeMs() != null ? s.getP95RecognizeMs() : 0,
-                        s.getDeviceTotal(),
-                        s.getDeviceOnlinePeak(),
-                        s.getDeviceOnlineRate() != null ? s.getDeviceOnlineRate() : 0,
-                        realtime
-                ))
+                .map(s -> {
+                    int snapPeak = s.getDeviceOnlinePeak();
+                    // OBS-011：峰值至少不低于当前在线，避免快照 0 与在线率矛盾
+                    int peak = Math.max(snapPeak, currentOnline);
+                    int total = s.getDeviceTotal() > 0 ? s.getDeviceTotal() : deviceTotal;
+                    return new SlaMetricsDto(
+                            s.getSnapshotDate(),
+                            s.getDoorOpenAttempts(),
+                            s.getDoorOpenSuccess(),
+                            s.getDoorSuccessRate() != null ? s.getDoorSuccessRate() : 0,
+                            s.getAvgRecognizeMs() != null ? s.getAvgRecognizeMs() : 0,
+                            s.getP95RecognizeMs() != null ? s.getP95RecognizeMs() : 0,
+                            total,
+                            peak,
+                            s.getDeviceOnlineRate() != null ? s.getDeviceOnlineRate() : 0,
+                            realtime
+                    );
+                })
                 .orElseGet(() -> new SlaMetricsDto(
-                        LocalDate.now(), 0, 0, realtime.doorSuccessRate24h(), 0, 0,
-                        (int) deviceRepository.count(), 0, realtime.deviceOnlineRateNow(), realtime
+                        // 无快照时 KPI 卡用 0/0 + 成功率 0，峰值用当前在线
+                        LocalDate.now(), 0, 0, 0f, 0, 0,
+                        deviceTotal, currentOnline, realtime.deviceOnlineRateNow(), realtime
                 ));
     }
 
@@ -81,17 +97,20 @@ public class SlaMetricsService {
             return;
         }
         boolean failed = false;
+        String summary = "本次无 SLA 快照";
         try {
             LocalDate yesterday = LocalDate.now().minusDays(1);
             SlaDailySnapshot snap = buildSnapshot(yesterday);
-            snapshotRepository.save(snap);
+            persistSnapshot(yesterday, snap);
+            summary = "已写入 " + yesterday + " SLA 快照，开门成功 "
+                    + snap.getDoorOpenSuccess() + "/" + snap.getDoorOpenAttempts();
         } catch (Exception e) {
             failed = true;
             taskService.finish("sla-snapshot", "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("sla-snapshot", "SUCCESS", null, start);
+                taskService.finish("sla-snapshot", "SUCCESS", summary, start);
             }
         }
     }
@@ -123,6 +142,40 @@ public class SlaMetricsService {
         return snap;
     }
 
+    static String slaSnapshotDailyLockKey(LocalDate date) {
+        return "sla:snapshot:daily:" + date;
+    }
+
+    private void persistSnapshot(LocalDate date, SlaDailySnapshot snap) {
+        if (!distributedLockService.tryLock(slaSnapshotDailyLockKey(date), 60, 5)) {
+            log.warn("sla snapshot lock busy date={}", date);
+            return;
+        }
+        try {
+            SlaDailySnapshot row = snapshotRepository.findByIdForUpdate(date).orElseGet(() -> {
+                SlaDailySnapshot fresh = new SlaDailySnapshot();
+                fresh.setSnapshotDate(date);
+                return fresh;
+            });
+            row.setDoorOpenAttempts(snap.getDoorOpenAttempts());
+            row.setDoorOpenSuccess(snap.getDoorOpenSuccess());
+            row.setDoorSuccessRate(snap.getDoorSuccessRate());
+            row.setAvgRecognizeMs(snap.getAvgRecognizeMs());
+            row.setP95RecognizeMs(snap.getP95RecognizeMs());
+            row.setDeviceTotal(snap.getDeviceTotal());
+            row.setDeviceOnlinePeak(snap.getDeviceOnlinePeak());
+            row.setDeviceOnlineRate(snap.getDeviceOnlineRate());
+            row.setCreatedAt(Instant.now());
+            if (snapshotRepository.selectById(date) == null) {
+                snapshotRepository.insert(row);
+            } else {
+                snapshotRepository.updateById(row);
+            }
+        } finally {
+            distributedLockService.unlock(slaSnapshotDailyLockKey(date));
+        }
+    }
+
     @Transactional(readOnly = true)
     public SlaRealtimeDto realtimeMetrics() {
         return computeRealtime(null, null);
@@ -132,7 +185,7 @@ public class SlaMetricsService {
     public SlaRealtimeDto realtimeMetrics(Long operatorId) {
         Set<String> scopedDevices = merchantScopeService.allowedDeviceIds(operatorId);
         if (scopedDevices != null && scopedDevices.isEmpty()) {
-            return new SlaRealtimeDto(1.0, 0, 0, 0, 0, 0, 1.0);
+            return new SlaRealtimeDto(0.0, 0, 0, 0, 0, 0, 0.0);
         }
         List<DeviceInfo> devices = scopedDevices == null
                 ? null
@@ -157,7 +210,8 @@ public class SlaMetricsService {
             avg = nz(sessionRepository.avgDoorOpenMsCreatedAfterForDevices(since24h, scopedDevices));
         }
 
-        double doorRate = attempts > 0 ? (double) success / attempts : 1.0;
+        // OBS-011：无开门尝试时返回 0，避免 0/0 被展示成 100%
+        double doorRate = attempts > 0 ? (double) success / attempts : 0.0;
 
         long online;
         long totalDevices;

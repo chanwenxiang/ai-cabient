@@ -132,19 +132,17 @@
             </template>
           </el-table-column>
           <el-table-column
-            v-if="canReply"
+            v-if="canReply || canDelete"
             label="操作"
-            width="88"
+            width="140"
             class-name="col-action"
             align="center"
           >
             <template #default="{ row }">
               <TableActions
-                v-if="row.status === 'PENDING'"
-                :actions="[{ key: 'reply', label: '回复', icon: ChatDotRound, type: 'primary' }]"
-                @action="() => openReply(row)"
+                :actions="feedbackActions(row)"
+                @action="(key) => onFeedbackAction(key, row)"
               />
-              <span v-else class="muted">已处理</span>
             </template>
           </el-table-column>
         </el-table>
@@ -172,8 +170,8 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { ChatDotRound, Refresh } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ChatDotRound, Delete, Refresh } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -190,6 +188,9 @@ const { router, goPath } = useNavAccess();
 const auth = useAuthStore();
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('feedbackId');
 const canReply = computed(() => auth.hasPerm('ops:feedback:reply'));
+const canDelete = computed(
+  () => auth.hasPerm('ops:feedback') || auth.hasPerm('ops:feedback:reply')
+);
 
 const loading = ref(false);
 const listHydrated = ref(false);
@@ -265,6 +266,44 @@ function openReply(row: Row) {
   current.value = row;
   replyText.value = '';
   replyDialog.value = true;
+}
+
+function feedbackActions(row: Row) {
+  const acts: {
+    key: string;
+    label: string;
+    icon: any;
+    type?: 'primary' | 'success' | 'warning' | 'danger' | 'info';
+  }[] = [];
+  if (canReply.value && row.status === 'PENDING') {
+    acts.push({ key: 'reply', label: '回复', icon: ChatDotRound, type: 'primary' });
+  }
+  if (canDelete.value) {
+    acts.push({ key: 'delete', label: '删除', icon: Delete, type: 'danger' });
+  }
+  return acts;
+}
+
+async function onFeedbackAction(key: string, row: Row) {
+  if (key === 'reply') openReply(row);
+  else if (key === 'delete') await removeFeedback(row);
+}
+
+async function removeFeedback(row: Row) {
+  try {
+    await ElMessageBox.confirm(`确认删除反馈 #${row.feedbackId}？`, '删除反馈', {
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/feedback/${row.feedbackId}`, 'DELETE');
+    ElMessage.success('已删除');
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '删除失败');
+  }
 }
 
 async function submitReply() {

@@ -115,7 +115,7 @@
           >
             <template #default="{ row }">
               <button type="button" class="link-cell mono" @click="openTimeline(row)">
-                <span class="cell-id">{{ row.sessionId }}</span>
+                <span class="cell-id">{{ displayBizNo(row.sessionId) }}</span>
               </button>
             </template>
           </el-table-column>
@@ -123,6 +123,43 @@
             <template #default="{ row }">
               <el-tag size="small" :type="sessionKindType(row.sessionKind)" effect="plain">
                 {{ sessionKindLabel(row.sessionKind) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="入口渠道" width="96" align="center">
+            <template #default="{ row }">
+              <el-tag v-if="row.entryChannel || row.payChannel" size="small" effect="plain">
+                {{ displayLabel('pay_channel', row.entryChannel || row.payChannel, '未知渠道') }}
+              </el-tag>
+              <span v-else class="muted">无</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="预授权" width="110" align="center">
+            <template #default="{ row }">
+              <span v-if="row.preauthCents"
+                >¥{{ (Number(row.preauthCents) / 100).toFixed(2) }}</span
+              >
+              <div v-if="preauthStatusLabel(row.preauthStatus)" class="muted tiny">
+                {{ preauthStatusLabel(row.preauthStatus) }}
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="购物/识别" width="120" align="center">
+            <template #default="{ row }">
+              <div>{{ formatDurationMs(row.shoppingDurationMs) }}</div>
+              <div v-if="formatDurationMs(row.recognitionDurationMs)" class="muted tiny">
+                识 {{ formatDurationMs(row.recognitionDurationMs) }}
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="录像" width="88" align="center">
+            <template #default="{ row }">
+              <el-tag
+                size="small"
+                :type="row.videoUri || row.videoPreviewUrl ? 'success' : 'info'"
+                effect="plain"
+              >
+                {{ uploadStatusShort(row) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -156,7 +193,7 @@
                 class="link-cell mono"
                 @click="goOrders(row.deviceId)"
               >
-                {{ row.orderId }}
+                {{ displayBizNo(row.orderId) }}
               </button>
               <span v-else class="muted">无</span>
             </template>
@@ -164,7 +201,7 @@
           <el-table-column label="状态" width="110" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="sessionStateType(row.state)">
-                {{ dictLabel('session_state', row.state) || row.state || '未知状态' }}
+                {{ displayLabel('session_state', row.state, '未知状态') }}
               </el-tag>
             </template>
           </el-table-column>
@@ -216,6 +253,9 @@
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
           </el-table-column>
+          <el-table-column label="时长" width="110" align="center">
+            <template #default="{ row }">{{ formatDuration(row) }}</template>
+          </el-table-column>
           <el-table-column label="操作" width="220" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
@@ -244,7 +284,7 @@
       <template v-if="timelineRow">
         <el-descriptions :column="1" border size="small" class="mb12">
           <el-descriptions-item label="会话">
-            <span class="cell-id">{{ timelineRow.sessionId }}</span>
+            <span class="cell-id">{{ displayBizNo(timelineRow.sessionId) }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="设备">
             <button
@@ -255,7 +295,7 @@
             >
               {{ timelineRow.deviceId }}
             </button>
-            <span v-else>-</span>
+            <span v-else class="muted">暂无</span>
           </el-descriptions-item>
           <el-descriptions-item label="订单">
             <button
@@ -266,10 +306,32 @@
             >
               {{ timelineRow.orderId }}
             </button>
-            <span v-else>-</span>
+            <span v-else class="muted">暂无</span>
           </el-descriptions-item>
           <el-descriptions-item label="状态">
-            {{ dictLabel('session_state', timelineRow.state) }}
+            {{ displayLabel('session_state', timelineRow.state, '未知状态') }}
+          </el-descriptions-item>
+          <el-descriptions-item label="入口渠道">
+            {{
+              displayLabel(
+                'pay_channel',
+                timelineRow.entryChannel || timelineRow.payChannel,
+                '暂无'
+              )
+            }}
+          </el-descriptions-item>
+          <el-descriptions-item label="录像">
+            {{ uploadStatusShort(timelineRow) }}
+            <span v-if="timelineRow.videoUri" class="muted"> · 有文件</span>
+          </el-descriptions-item>
+          <el-descriptions-item v-if="failReasonText(timelineRow) !== '无'" label="失败原因">
+            {{ failReasonText(timelineRow) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="开门">
+            {{ formatDateTime(timelineRow.openTime || timelineRow.createdAt) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="关门">
+            {{ timelineRow.closeTime ? formatDateTime(timelineRow.closeTime) : '暂无' }}
           </el-descriptions-item>
         </el-descriptions>
         <el-timeline>
@@ -323,7 +385,7 @@ import {
   VideoCamera
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
@@ -334,7 +396,7 @@ import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
 import { comparePrimaryKey } from '@/utils/sort-by-pk';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
@@ -350,6 +412,14 @@ interface SessionRow {
   openTime?: string;
   closeTime?: string;
   uploadStatus?: string;
+  videoUri?: string;
+  videoPreviewUrl?: string;
+  entryChannel?: string;
+  payChannel?: string;
+  preauthCents?: number;
+  preauthStatus?: string;
+  shoppingDurationMs?: number;
+  recognitionDurationMs?: number;
   createdAt?: string;
   updatedAt?: string;
   /** CONSUMER / RESTOCK / OPS */
@@ -526,9 +596,53 @@ function formatAge(ms: number) {
   return '不到 1 分钟';
 }
 
+function formatDuration(row: SessionRow) {
+  const start = row.openTime || row.createdAt;
+  const end = row.closeTime || row.updatedAt;
+  if (!start || !end) return '';
+  const sec = Math.max(0, Math.floor((new Date(end).getTime() - new Date(start).getTime()) / 1000));
+  if (sec < 60) return `${sec}s`;
+  return `${Math.floor(sec / 60)}m${sec % 60}s`;
+}
+
 function failReasonText(row: SessionRow) {
   const text = String(row.failureReason || row.failReason || '').trim();
   return text || '无';
+}
+
+function preauthStatusLabel(status?: string) {
+  const s = String(status || '').toUpperCase();
+  if (!s || s === 'NONE') return '';
+  return (
+    (
+      {
+        PENDING: '待确认',
+        AUTHORIZED: '已授权',
+        CAPTURED: '已扣款',
+        RELEASED: '已释放',
+        FAILED: '失败'
+      } as Record<string, string>
+    )[s] || s
+  );
+}
+
+function formatDurationMs(ms?: number | null) {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return '';
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  const sec = ms / 1000;
+  if (sec < 60) return `${sec.toFixed(1)}s`;
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return `${m}m${s}s`;
+}
+
+function uploadStatusShort(row: SessionRow) {
+  const st = String(row.uploadStatus || '').toUpperCase();
+  if (row.videoUri || row.videoPreviewUrl || st === 'UPLOADED') return '有录像';
+  if (st === 'UPLOADING' || st === 'LOCAL_QUEUED') return '上传中';
+  if (st.includes('FAIL')) return '失败';
+  if (st && st !== 'NONE') return displayLabel('upload_status', row.uploadStatus, '未知');
+  return '无';
 }
 
 function sessionDurationMs(row: SessionRow) {
@@ -577,9 +691,7 @@ function canCancel(s?: string) {
 }
 
 function sessionKindLabel(kind?: string) {
-  if (kind === 'RESTOCK') return '补货';
-  if (kind === 'OPS') return '运维';
-  return '消费';
+  return displayLabel('session_kind', kind, '消费');
 }
 
 function sessionKindType(kind?: string) {
@@ -644,7 +756,7 @@ function sessionTimeline(row: SessionRow) {
       label: '录像上传',
       time: formatDateTime(row.updatedAt),
       type: String(row.uploadStatus).includes('FAIL') ? 'danger' : 'warning',
-      detail: dictLabel('upload_status', row.uploadStatus) || row.uploadStatus
+      detail: displayLabel('upload_status', row.uploadStatus, '未知')
     });
   }
   if (row.orderId) {
@@ -985,6 +1097,11 @@ onActivated(() => {
 }
 .muted {
   color: var(--el-text-color-secondary);
+}
+.muted.tiny {
+  font-size: 12px;
+  line-height: 1.2;
+  margin-top: 2px;
 }
 .mb12 {
   margin-bottom: 12px;

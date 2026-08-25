@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.PointsRedeemItemMapper">
+
+  <update id="tryClaimStock">
+    <![CDATA[
+    UPDATE points_redeem_item
+    SET redeemed_count = COALESCE(redeemed_count, 0) + 1,
+        updated_at = NOW()
+    WHERE item_id = #{itemId}
+      AND status = 'ACTIVE'
+      AND COALESCE(redeemed_count, 0) < COALESCE(stock_total, 0)
+    ]]>
+  </update>
+</mapper>

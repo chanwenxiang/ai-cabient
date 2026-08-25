@@ -13,6 +13,7 @@ import com.aicabinet.trade.service.MerchantReplenishmentService;
 import com.aicabinet.trade.service.MerchantSkuPricingService;
 import com.aicabinet.trade.service.LineWithdrawService;
 import com.aicabinet.trade.service.MerchantWithdrawService;
+import com.aicabinet.trade.service.InvoiceService;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
@@ -38,6 +39,7 @@ public class MerchantPortalController {
     private final MerchantAiInsightService merchantAiInsightService;
     private final LineWithdrawService lineWithdrawService;
     private final MerchantWithdrawService merchantWithdrawService;
+    private final InvoiceService invoiceService;
 
     public MerchantPortalController(MerchantFinanceService merchantFinanceService,
                                     MerchantPortalService merchantPortalService,
@@ -48,7 +50,8 @@ public class MerchantPortalController {
                                     MerchantNotifyService merchantNotifyService,
                                     MerchantAiInsightService merchantAiInsightService,
                                     LineWithdrawService lineWithdrawService,
-                                    MerchantWithdrawService merchantWithdrawService) {
+                                    MerchantWithdrawService merchantWithdrawService,
+                                    InvoiceService invoiceService) {
         this.merchantFinanceService = merchantFinanceService;
         this.merchantPortalService = merchantPortalService;
         this.skuPricingService = skuPricingService;
@@ -59,6 +62,7 @@ public class MerchantPortalController {
         this.merchantAiInsightService = merchantAiInsightService;
         this.lineWithdrawService = lineWithdrawService;
         this.merchantWithdrawService = merchantWithdrawService;
+        this.invoiceService = invoiceService;
     }
 
     @GetMapping("/me")
@@ -143,8 +147,13 @@ public class MerchantPortalController {
             HttpServletRequest request,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size,
-            @RequestParam(name = "deviceId", required = false) String deviceId) {
-        return ApiResponse.ok(merchantFinanceService.listOrders(userId(request), page, size, deviceId));
+            @RequestParam(name = "deviceId", required = false) String deviceId,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "from", required = false) String from,
+            @RequestParam(name = "to", required = false) String to,
+            @RequestParam(name = "keyword", required = false) String keyword) {
+        return ApiResponse.ok(merchantFinanceService.listOrders(
+                userId(request), page, size, deviceId, status, from, to, keyword));
     }
 
     @RequiresPermissions("merchant:orders:list")
@@ -180,6 +189,15 @@ public class MerchantPortalController {
             @PathVariable String ticketId,
             @RequestBody MerchantReplyDisputeRequest body) {
         return ApiResponse.ok(disputeService.replyAsMerchant(userId(request), ticketId, body));
+    }
+
+    @RequiresPermissions("merchant:disputes:resolve")
+    @PostMapping("/disputes/{ticketId}/resolve")
+    public ApiResponse<ResolveDisputeResultDto> disputeResolve(
+            HttpServletRequest request,
+            @PathVariable String ticketId,
+            @Valid @RequestBody ResolveDisputeRequest body) {
+        return ApiResponse.ok(disputeService.resolveAsMerchant(userId(request), ticketId, body));
     }
 
     @RequiresPermissions("merchant:inventory:view")
@@ -293,6 +311,22 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantPortalService.updateProfile(userId(request), body));
     }
 
+    @RequiresPermissions("merchant:portal:access")
+    @GetMapping("/tax-profile")
+    public ApiResponse<MerchantTaxProfileDto> getTaxProfile(
+            HttpServletRequest request,
+            @RequestParam String merchantId) {
+        return ApiResponse.ok(invoiceService.getTaxProfile(userId(request), merchantId));
+    }
+
+    @RequiresPermissions("merchant:profile:edit")
+    @PutMapping("/tax-profile")
+    public ApiResponse<MerchantTaxProfileDto> saveTaxProfile(
+            HttpServletRequest request,
+            @Valid @RequestBody MerchantTaxProfileDto body) {
+        return ApiResponse.ok(invoiceService.saveTaxProfile(userId(request), body));
+    }
+
     @RequiresPermissions("merchant:reports:export")
     @GetMapping(value = "/orders/export", produces = "text/csv")
     public ResponseEntity<byte[]> exportOrders(
@@ -327,6 +361,13 @@ public class MerchantPortalController {
             @RequestParam(name = "status", required = false) String status,
             @RequestParam(name = "deviceId", required = false) String deviceId) {
         return ApiResponse.ok(merchantPortalService.listReplenishmentTasks(userId(request), status, deviceId));
+    }
+
+    @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/replenishment/my-efficiency")
+    public ApiResponse<MerchantReplenishmentEfficiencyDto> myReplenishmentEfficiency(
+            HttpServletRequest request) {
+        return ApiResponse.ok(merchantReplenishmentService.myEfficiency(userId(request)));
     }
 
     @RequiresPermissions("merchant:replenishment:view")
@@ -446,6 +487,27 @@ public class MerchantPortalController {
     }
 
     @RequiresPermissions("merchant:analytics:view")
+    @GetMapping("/analytics/sales-reports")
+    public ApiResponse<List<SalesReportRowDto>> salesReports(
+            HttpServletRequest request,
+            @RequestParam(defaultValue = "PRODUCT") String dim,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate) {
+        return ApiResponse.ok(merchantAnalyticsService.salesReports(userId(request), dim, fromDate, toDate));
+    }
+
+    @RequiresPermissions("merchant:reports:export")
+    @GetMapping(value = "/analytics/sales-reports/export", produces = "text/csv")
+    public ResponseEntity<byte[]> salesReportsExport(
+            HttpServletRequest request,
+            @RequestParam(defaultValue = "PRODUCT") String dim,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate) {
+        String csv = merchantAnalyticsService.salesReportsCsv(userId(request), dim, fromDate, toDate);
+        return csvAttachment("merchant-sales-reports.csv", csv.getBytes(StandardCharsets.UTF_8));
+    }
+
+    @RequiresPermissions("merchant:analytics:view")
     @GetMapping("/analytics/sku-sales")
     public ApiResponse<List<MerchantSkuSalesDto>> analyticsSkuSales(
             HttpServletRequest request,
@@ -550,12 +612,13 @@ public class MerchantPortalController {
     }
 
     /** 线长钱包：有绑定身份才返回 bound=true；与商户平台分账结算解耦，线长可自主提现。 */
+    @RequiresPermissions("merchant:line-wallet:view")
     @GetMapping("/line-wallet")
     public ApiResponse<LineWalletOverviewDto> lineWallet(HttpServletRequest request) {
         return ApiResponse.ok(lineWithdrawService.merchantOverview(userId(request)));
     }
 
-    @RequiresPermissions("merchant:line-wallet:view")
+    @RequiresPermissions("merchant:line-wallet:withdraw")
     @PostMapping("/line-wallet/withdraw")
     public ApiResponse<LineWithdrawRequestDto> lineWalletWithdraw(
             HttpServletRequest request, @RequestBody Map<String, Object> body) {

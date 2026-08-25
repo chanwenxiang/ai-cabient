@@ -114,7 +114,7 @@
           >
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="goSession(row.sessionId)">
-                <span class="cell-id">{{ row.sessionId }}</span>
+                <span class="cell-id">{{ displayBizNo(row.sessionId) }}</span>
               </button>
             </template>
           </el-table-column>
@@ -151,7 +151,7 @@
           <el-table-column label="上传状态" width="110" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="dictTagType(String(row.uploadStatus || ''))">
-                {{ dictLabel('upload_status', row.uploadStatus) || row.uploadStatus || '未知状态' }}
+                {{ displayLabel('upload_status', row.uploadStatus, '未知状态') }}
               </el-tag>
             </template>
           </el-table-column>
@@ -228,7 +228,7 @@ import PagePager from '@/components/PagePager.vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { dictLabel, dictTagType } from '@aicabinet/shared-dict';
+import { dictLabel, dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useListCsv } from '@/composables/useListCsv';
@@ -237,7 +237,7 @@ import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import type { PageResult } from '@aicabinet/shared-types';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface SessionRow {
   sessionId: string;
@@ -331,7 +331,7 @@ const { onExport } = useListCsv({
       row.sessionId,
       row.userId ?? '',
       row.deviceId ?? '',
-      dictLabel('upload_status', row.uploadStatus) || row.uploadStatus || '',
+      displayLabel('upload_status', row.uploadStatus, '未知'),
       waitReason(row),
       String(Math.floor(ageMs(row) / 60000)),
       isStuck(row) ? '是' : '否',

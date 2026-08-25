@@ -14,4 +14,11 @@
                         WHERE user_id < #{operatorStart}
     ]]>
   </select>
+
+  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.UserInfo">
+    <![CDATA[
+    SELECT u.* FROM user_info u WHERE u.user_id = #{userId} FOR UPDATE
+    ]]>
+  </select>
+
 </mapper>

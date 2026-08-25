@@ -22,15 +22,18 @@ public class AccountService {
     private final UserAccountMapper userAccountRepository;
     private final PayScoreService payScoreService;
     private final BalanceLedgerService balanceLedgerService;
+    private final DistributedLockService distributedLockService;
 
     public AccountService(UserInfoMapper userInfoRepository,
                           UserAccountMapper userAccountRepository,
                           PayScoreService payScoreService,
-                          BalanceLedgerService balanceLedgerService) {
+                          BalanceLedgerService balanceLedgerService,
+                          DistributedLockService distributedLockService) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.payScoreService = payScoreService;
         this.balanceLedgerService = balanceLedgerService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -45,7 +48,7 @@ public class AccountService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
         UserAccount account = userAccountRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ACCOUNT_NOT_FOUND));
-        boolean alipayReady = user.getAlipayAgreementId() != null && !user.getAlipayAgreementId().isBlank();
+        boolean alipayReady = PayScoreService.isActiveAlipayAgreementId(user.getAlipayAgreementId());
         int frozen = Math.max(0, account.getFrozenCents());
         int available = Math.max(0, account.getBalanceCents() - frozen);
         return new AccountDto(
@@ -65,22 +68,43 @@ public class AccountService {
 
     @Transactional
     public PayContractDto signWeChatPayScore(Long userId) {
-        String contractId = payScoreService.signWeChatPayScore(userId);
-        return new PayContractDto(PayChannels.WECHAT, true, contractId, "微信支付分免密已开通，购物将优先免密扣款");
+        return runWithUserAccountLock(userId, () -> {
+            String contractId = payScoreService.signWeChatPayScore(userId);
+            return new PayContractDto(PayChannels.WECHAT, true, contractId, "微信支付分免密已开通，购物将优先免密扣款");
+        });
     }
 
     @Transactional
     public PayContractDto signAlipayAgreement(Long userId) {
-        String agreementId = payScoreService.signAlipayAgreement(userId);
-        return new PayContractDto(PayChannels.ALIPAY, true, agreementId, "支付宝免密代扣已开通");
+        return runWithUserAccountLock(userId, () -> {
+            var result = payScoreService.signAlipayAgreement(userId);
+            if (result.pending()) {
+                return new PayContractDto(
+                        PayChannels.ALIPAY,
+                        false,
+                        result.contractId(),
+                        "请在支付宝内完成免密签约，签约成功后自动生效",
+                        true,
+                        result.signFormHtml());
+            }
+            return new PayContractDto(
+                    PayChannels.ALIPAY,
+                    result.active(),
+                    result.contractId(),
+                    "支付宝免密代扣已开通",
+                    false,
+                    null);
+        });
     }
 
     @Transactional
     public void bindWxOpenId(Long userId, String openId) {
-        UserInfo user = userInfoRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
-        user.setWxOpenId(openId);
-        userInfoRepository.save(user);
+        runWithUserAccountLock(userId, () -> {
+            UserInfo user = requireUserForUpdate(userId);
+            user.setWxOpenId(openId);
+            userInfoRepository.save(user);
+            return null;
+        });
     }
 
     @Transactional
@@ -88,8 +112,11 @@ public class AccountService {
         if (userId >= CabinetConstants.OPERATOR_USER_ID_START) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
         }
-        UserInfo user = userInfoRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        return runWithUserAccountLock(userId, () -> doVerifyIdentity(userId, request));
+    }
+
+    private AccountDto doVerifyIdentity(Long userId, VerifyIdentityRequest request) {
+        UserInfo user = requireUserForUpdate(userId);
         if (user.isVerified()) {
             return getAccount(userId);
         }
@@ -97,5 +124,54 @@ public class AccountService {
         user.setVerified(true);
         userInfoRepository.save(user);
         return getAccount(userId);
+    }
+
+    @Transactional
+    public AccountDto setPayPreferredChannel(Long userId, String channel) {
+        return runWithUserAccountLock(userId, () -> doSetPayPreferredChannel(userId, channel));
+    }
+
+    private AccountDto doSetPayPreferredChannel(Long userId, String channel) {
+        UserInfo user = requireUserForUpdate(userId);
+        String normalized = channel == null ? "" : channel.trim().toUpperCase();
+        if (!PayChannels.BALANCE.equals(normalized)
+                && !PayChannels.WECHAT.equals(normalized)
+                && !PayChannels.ALIPAY.equals(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
+        }
+        if (PayChannels.WECHAT.equals(normalized)
+                && !(user.isPayscoreEnabled()
+                && user.getPayscoreContractId() != null
+                && !user.getPayscoreContractId().isBlank())) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "请先开通微信支付分后再设为优先");
+        }
+        if (PayChannels.ALIPAY.equals(normalized)
+                && (user.getAlipayAgreementId() == null || user.getAlipayAgreementId().isBlank())) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "请先开通支付宝免密后再设为优先");
+        }
+        user.setPayPreferredChannel(normalized);
+        userInfoRepository.save(user);
+        return getAccount(userId);
+    }
+
+    static String userAccountLockKey(Long userId) {
+        return "user:account:" + userId;
+    }
+
+    private UserInfo requireUserForUpdate(Long userId) {
+        return userInfoRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+    }
+
+    private <T> T runWithUserAccountLock(Long userId, java.util.function.Supplier<T> action) {
+        String key = userAccountLockKey(userId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "账户处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
     }
 }

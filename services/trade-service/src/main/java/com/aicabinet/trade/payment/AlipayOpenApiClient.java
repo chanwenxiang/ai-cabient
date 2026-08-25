@@ -38,7 +38,7 @@ public class AlipayOpenApiClient {
         if (!properties.isConfigured()) {
             throw new IllegalStateException("alipay not configured");
         }
-        Map<String, String> params = buildCommonParams(method, bizContent, properties.returnUrl());
+        Map<String, String> params = buildCommonParams(method, bizContent, properties.returnUrl(), null);
         params.put("sign", signUtil.signRsa2(params, properties.privateKey()));
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
@@ -132,10 +132,16 @@ public class AlipayOpenApiClient {
 
     /** 构建 WAP/页面支付 POST 表单（支付宝推荐方式） */
     public String buildPagePayFormHtml(String method, Map<String, Object> bizContent, String returnUrl) {
+        return buildPagePayFormHtml(method, bizContent, returnUrl, null);
+    }
+
+    /** @param notifyUrlOverride 非空时覆盖默认 notify_url（协议签约用） */
+    public String buildPagePayFormHtml(String method, Map<String, Object> bizContent,
+                                       String returnUrl, String notifyUrlOverride) {
         if (!properties.isConfigured()) {
             throw new IllegalStateException("alipay not configured");
         }
-        Map<String, String> params = buildCommonParams(method, bizContent, returnUrl);
+        Map<String, String> params = buildCommonParams(method, bizContent, returnUrl, notifyUrlOverride);
         params.put("sign", signUtil.signRsa2(params, properties.privateKey()));
         StringBuilder inputs = new StringBuilder();
         for (Map.Entry<String, String> entry : params.entrySet()) {
@@ -154,11 +160,12 @@ public class AlipayOpenApiClient {
     }
 
     /** @deprecated 保留兼容；新流程请用 {@link #buildPagePayFormHtml} */
+    @Deprecated
     public String buildPagePayUrl(String method, Map<String, Object> bizContent) {
         if (!properties.isConfigured()) {
             throw new IllegalStateException("alipay not configured");
         }
-        Map<String, String> params = buildCommonParams(method, bizContent, properties.returnUrl());
+        Map<String, String> params = buildCommonParams(method, bizContent, properties.returnUrl(), null);
         params.put("sign", signUtil.signRsa2(params, properties.privateKey()));
         String query = params.entrySet().stream()
                 .map(e -> e.getKey() + "=" + urlEncode(e.getValue()))
@@ -166,7 +173,8 @@ public class AlipayOpenApiClient {
         return properties.gatewayUrl() + "?" + query;
     }
 
-    private Map<String, String> buildCommonParams(String method, Map<String, Object> bizContent, String returnUrl) {
+    private Map<String, String> buildCommonParams(String method, Map<String, Object> bizContent,
+                                                  String returnUrl, String notifyUrlOverride) {
         Map<String, String> params = new TreeMap<>();
         params.put("app_id", properties.appId());
         params.put("method", method);
@@ -180,8 +188,11 @@ public class AlipayOpenApiClient {
         } catch (Exception e) {
             throw new IllegalStateException("alipay biz_content serialize failed", e);
         }
-        if (properties.notifyUrl() != null && !properties.notifyUrl().isBlank()) {
-            params.put("notify_url", properties.notifyUrl());
+        String notify = notifyUrlOverride != null && !notifyUrlOverride.isBlank()
+                ? notifyUrlOverride.trim()
+                : properties.notifyUrl();
+        if (notify != null && !notify.isBlank()) {
+            params.put("notify_url", notify);
         }
         String resolvedReturnUrl = returnUrl != null && !returnUrl.isBlank()
                 ? returnUrl

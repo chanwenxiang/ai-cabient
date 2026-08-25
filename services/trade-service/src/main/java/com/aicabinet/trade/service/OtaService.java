@@ -21,15 +21,18 @@ public class OtaService {
     private final DeviceInfoMapper deviceRepository;
     private final OtaCdnService otaCdnService;
     private final ObjectMapper objectMapper;
+    private final DistributedLockService distributedLockService;
 
     public OtaService(OtaReleaseMapper releaseRepository,
                       DeviceInfoMapper deviceRepository,
                       OtaCdnService otaCdnService,
-                      ObjectMapper objectMapper) {
+                      ObjectMapper objectMapper,
+                      DistributedLockService distributedLockService) {
         this.releaseRepository = releaseRepository;
         this.deviceRepository = deviceRepository;
         this.otaCdnService = otaCdnService;
         this.objectMapper = objectMapper;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -66,7 +69,11 @@ public class OtaService {
     /** 下架（回滚）：停止向设备推送该版本，设备端 check 将回落到更早的已发布版本。 */
     @Transactional
     public OtaReleaseDto unpublishRelease(Long operatorId, Long releaseId) {
-        OtaRelease release = releaseRepository.findById(releaseId)
+        return runWithReleaseLock(releaseId, () -> doUnpublishRelease(releaseId));
+    }
+
+    private OtaReleaseDto doUnpublishRelease(Long releaseId) {
+        OtaRelease release = releaseRepository.findByIdForUpdate(releaseId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "发布版本不存在"));
         if (!"PUBLISHED".equalsIgnoreCase(release.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅已发布版本可下架");
@@ -104,10 +111,45 @@ public class OtaService {
 
     @Transactional
     public void reportVersion(String deviceId, String appVersion) {
-        deviceRepository.findById(deviceId).ifPresent(d -> {
-            d.setAppVersion(appVersion);
-            deviceRepository.save(d);
+        runWithDeviceVersionLock(deviceId, () -> {
+            deviceRepository.findByIdForUpdate(deviceId).ifPresent(d -> {
+                d.setAppVersion(appVersion);
+                deviceRepository.save(d);
+            });
+            return null;
         });
+    }
+
+    static String otaReleaseLockKey(Long releaseId) {
+        return "ota:release:" + releaseId;
+    }
+
+    static String otaDeviceVersionLockKey(String deviceId) {
+        return "ota:device-version:" + deviceId.trim();
+    }
+
+    private <T> T runWithReleaseLock(Long releaseId, java.util.function.Supplier<T> action) {
+        String key = otaReleaseLockKey(releaseId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "OTA 版本处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
+    }
+
+    private <T> T runWithDeviceVersionLock(String deviceId, java.util.function.Supplier<T> action) {
+        String key = otaDeviceVersionLockKey(deviceId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备版本上报处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
     }
 
     private int compareVersion(String a, String b) {

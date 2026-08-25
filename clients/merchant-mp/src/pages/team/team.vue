@@ -1,131 +1,144 @@
 <template>
   <view class="page">
-    <view class="toolbar">
-      <button v-if="canInvite" class="invite-btn" size="mini" :loading="saving" @click="openInvite">
-        邀请成员
-      </button>
-    </view>
-
-    <view v-if="loading" class="card state">加载中…</view>
-    <view v-else-if="error" class="card state">
-      <text class="err">{{ error }}</text>
-      <button class="retry" size="mini" @click="load">重试</button>
-    </view>
-    <empty-state
-      v-else-if="!list.length"
-      icon="👥"
-      title="暂无团队成员"
-      hint="可邀请同事登录商户端协同补货与经营"
-    >
-      <button v-if="canInvite" class="empty-btn" @click="openInvite">邀请成员</button>
-    </empty-state>
-    <view v-else>
-      <view v-for="u in list" :key="u.userId" class="card row" @click="openManage(u)">
-        <view class="avatar">{{ (u.displayName || u.phoneNumber || '员').slice(0, 1) }}</view>
-        <view class="meta">
-          <text class="name">{{ u.displayName || u.phoneNumber || '用户 ' + u.userId }}</text>
-          <text class="sub"
-            >{{ u.phoneNumber || '无手机号' }} · {{ u.roleName || roleLabel(u.roleKey) }}</text
-          >
-          <text v-if="u.status === 'INACTIVE'" class="inactive">已停用</text>
-        </view>
-        <text v-if="u.self" class="self-tag">我</text>
-        <text v-else-if="canManage" class="more">管理</text>
-      </view>
-    </view>
-
-    <view v-if="inviteVisible" class="mask" @click="inviteVisible = false">
-      <view class="dialog" @click.stop>
-        <text class="dialog-title">邀请成员</text>
-        <input
-          class="input"
-          type="number"
-          maxlength="11"
-          placeholder="手机号"
-          :value="form.phoneNumber"
-          @input="form.phoneNumber = eventInput($event)"
-        />
-        <input
-          class="input"
-          password
-          placeholder="初始密码（至少 6 位）"
-          :value="form.password"
-          @input="form.password = eventInput($event)"
-        />
-        <input
-          class="input"
-          placeholder="显示名（选填）"
-          :value="form.displayName"
-          @input="form.displayName = eventInput($event)"
-        />
-        <view class="role-row wrap">
-          <text
-            v-for="r in roles"
-            :key="r.roleKey"
-            class="role-chip"
-            :class="{ active: form.roleKey === r.roleKey }"
-            @click="form.roleKey = r.roleKey"
-            >{{ r.roleName }}</text
-          >
-        </view>
-        <view class="dialog-actions">
-          <button class="btn ghost" @click="inviteVisible = false">取消</button>
-          <button class="btn" :loading="saving" @click="onInvite">确认邀请</button>
-        </view>
-      </view>
-    </view>
-
-    <view v-if="manageVisible && manageUser" class="mask" @click="manageVisible = false">
-      <view class="dialog" @click.stop>
-        <text class="dialog-title">{{ manageUser.displayName || manageUser.phoneNumber }}</text>
-        <text class="hint"
-          >{{ manageUser.phoneNumber }} ·
-          {{ manageUser.roleName || roleLabel(manageUser.roleKey) }}</text
+    <app-nav-bar title="团队成员" />
+    <view class="page-body">
+      <view class="toolbar">
+        <button
+          v-if="canInvite"
+          class="invite-btn"
+          size="mini"
+          :loading="saving"
+          @click="openInvite"
         >
+          邀请成员
+        </button>
+      </view>
 
-        <view v-if="canEdit" class="section">
-          <text class="section-title">角色</text>
-          <view class="role-row wrap">
-            <text
-              v-for="r in roles"
-              :key="'m-' + r.roleKey"
-              class="role-chip"
-              :class="{ active: manageRoleKey === r.roleKey }"
-              @click="manageRoleKey = r.roleKey"
-              >{{ r.roleName }}</text
+      <view v-if="loading && !list.length" class="card state">加载中…</view>
+      <view v-else-if="error && !list.length" class="card state">
+        <text class="err">{{ error }}</text>
+        <button class="retry" size="mini" @click="load">重试</button>
+      </view>
+      <empty-state
+        v-else-if="!list.length"
+        icon="/static/menu/team.png"
+        title="暂无团队成员"
+        hint="可邀请同事登录商户端协同补货与经营"
+      >
+        <button v-if="canInvite" class="empty-btn" @click="openInvite">邀请成员</button>
+      </empty-state>
+      <view v-else>
+        <view v-for="u in list" :key="u.userId" class="card row" @click="openManage(u)">
+          <view class="avatar">{{ (u.displayName || u.phoneNumber || '员').slice(0, 1) }}</view>
+          <view class="meta">
+            <text class="name">{{ u.displayName || u.phoneNumber || '用户 ' + u.userId }}</text>
+            <text class="sub"
+              >{{ u.phoneNumber || '无手机号' }} · {{ u.roleName || roleLabel(u.roleKey) }}</text
             >
+            <text class="sub status-line"
+              >{{ u.status === 'INACTIVE' ? '已停用' : '启用中'
+              }}{{ u.roleKey ? ` · ${u.roleKey}` : '' }}</text
+            >
+            <text v-if="u.status === 'INACTIVE'" class="inactive">点击可重新启用</text>
           </view>
-          <button class="btn block" :loading="saving" @click="onSaveRole">保存角色</button>
+          <text v-if="u.self" class="self-tag">我</text>
+          <text v-else-if="canManage" class="more">管理</text>
         </view>
+      </view>
 
-        <view v-if="canReset" class="section">
-          <text class="section-title">重置密码</text>
+      <view v-if="inviteVisible" class="mask" @click="inviteVisible = false">
+        <view class="dialog" @click.stop>
+          <text class="dialog-title">邀请成员</text>
+          <input
+            class="input"
+            type="number"
+            maxlength="11"
+            placeholder="手机号"
+            :value="form.phoneNumber"
+            @input="form.phoneNumber = eventInput($event)"
+          />
           <input
             class="input"
             password
-            placeholder="新密码（至少 6 位）"
-            :value="resetPassword"
-            @input="resetPassword = eventInput($event)"
+            placeholder="初始密码（至少 6 位）"
+            :value="form.password"
+            @input="form.password = eventInput($event)"
           />
-          <button class="btn block" :loading="saving" @click="onResetPassword">确认重置</button>
+          <input
+            class="input"
+            placeholder="显示名（选填）"
+            :value="form.displayName"
+            @input="form.displayName = eventInput($event)"
+          />
+          <view class="role-row wrap">
+            <text
+              v-for="r in roles"
+              :key="r.roleKey"
+              class="role-chip"
+              :class="{ active: form.roleKey === r.roleKey }"
+              @click="form.roleKey = r.roleKey"
+              >{{ r.roleName }}</text
+            >
+          </view>
+          <view class="dialog-actions">
+            <button class="btn ghost" @click="inviteVisible = false">取消</button>
+            <button class="btn" :loading="saving" @click="onInvite">确认邀请</button>
+          </view>
         </view>
-
-        <view v-if="canDisable && !manageUser.self" class="section">
-          <button
-            v-if="manageUser.status !== 'INACTIVE'"
-            class="btn danger block"
-            :loading="saving"
-            @click="onDisable"
-          >
-            停用该成员
-          </button>
-          <button v-else class="btn block" :loading="saving" @click="onEnable">重新启用</button>
-        </view>
-
-        <button class="btn ghost block" @click="manageVisible = false">关闭</button>
       </view>
-    </view>
-  </view>
+
+      <view v-if="manageVisible && manageUser" class="mask" @click="manageVisible = false">
+        <view class="dialog" @click.stop>
+          <text class="dialog-title">{{ manageUser.displayName || manageUser.phoneNumber }}</text>
+          <text class="hint"
+            >{{ manageUser.phoneNumber }} ·
+            {{ manageUser.roleName || roleLabel(manageUser.roleKey) }}</text
+          >
+
+          <view v-if="canEdit" class="section">
+            <text class="section-title">角色</text>
+            <view class="role-row wrap">
+              <text
+                v-for="r in roles"
+                :key="'m-' + r.roleKey"
+                class="role-chip"
+                :class="{ active: manageRoleKey === r.roleKey }"
+                @click="manageRoleKey = r.roleKey"
+                >{{ r.roleName }}</text
+              >
+            </view>
+            <button class="btn block" :loading="saving" @click="onSaveRole">保存角色</button>
+          </view>
+
+          <view v-if="canReset" class="section">
+            <text class="section-title">重置密码</text>
+            <input
+              class="input"
+              password
+              placeholder="新密码（至少 6 位）"
+              :value="resetPassword"
+              @input="resetPassword = eventInput($event)"
+            />
+            <button class="btn block" :loading="saving" @click="onResetPassword">确认重置</button>
+          </view>
+
+          <view v-if="canDisable && !manageUser.self" class="section">
+            <button
+              v-if="manageUser.status !== 'INACTIVE'"
+              class="btn danger block"
+              :loading="saving"
+              @click="onDisable"
+            >
+              停用该成员
+            </button>
+            <button v-else class="btn block" :loading="saving" @click="onEnable">重新启用</button>
+          </view>
+
+          <button class="btn ghost block" @click="manageVisible = false">关闭</button>
+        </view>
+      </view>
+    </view></view
+  >
 </template>
 
 <script setup lang="ts">
@@ -181,8 +194,9 @@ onPullDownRefresh(async () => {
   }
 });
 
-function eventInput(e: { detail?: { value?: unknown }; target?: { value?: unknown } }) {
-  return String(e?.detail?.value ?? '');
+function eventInput(e: unknown) {
+  const ev = e as { detail?: { value?: unknown }; target?: { value?: unknown } };
+  return String(ev?.detail?.value ?? ev?.target?.value ?? '');
 }
 
 function roleLabel(roleKey?: string) {
@@ -210,7 +224,7 @@ function openManage(u: MerchantUserDto) {
 }
 
 async function load() {
-  loading.value = true;
+  if (!list.value.length) loading.value = true;
   error.value = '';
   try {
     await refreshMe();
@@ -231,8 +245,10 @@ async function load() {
   } catch (e) {
     if (!uni.getStorageSync('merchant_token')) return;
     me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
-    list.value = [];
-    error.value = e instanceof Error ? e.message : '加载失败';
+    if (!list.value.length) {
+      list.value = [];
+      error.value = e instanceof Error ? e.message : '加载失败';
+    }
   } finally {
     loading.value = false;
   }
@@ -334,7 +350,7 @@ async function onEnable() {
 
 <style scoped>
 .page {
-  padding: 24rpx;
+  padding: 0;
   min-height: 100vh;
   box-sizing: border-box;
 }
@@ -404,6 +420,9 @@ async function onEnable() {
   font-size: 24rpx;
   color: #64748b;
 }
+.status-line {
+  color: #94a3b8;
+}
 .inactive {
   display: block;
   margin-top: 4rpx;
@@ -460,11 +479,19 @@ async function onEnable() {
   margin-bottom: 20rpx;
 }
 .input {
+  display: block;
+  width: 100%;
+  height: 80rpx;
+  min-height: 80rpx;
+  line-height: 80rpx;
+  box-sizing: border-box;
   background: #f8fafc;
+  border: 1rpx solid #e2e8f0;
   border-radius: 14rpx;
-  padding: 22rpx 20rpx;
+  padding: 0 20rpx;
   margin-bottom: 16rpx;
   font-size: 28rpx;
+  color: #0f172a;
 }
 .role-row {
   display: flex;
@@ -507,6 +534,13 @@ async function onEnable() {
   border: none;
   border-radius: 999rpx;
   font-size: 28rpx;
+  min-height: 80rpx;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn.block {
   width: 100%;
@@ -519,5 +553,9 @@ async function onEnable() {
 }
 .btn.danger {
   background: #b91c1c;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

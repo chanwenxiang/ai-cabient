@@ -28,6 +28,7 @@ public class AdminDeviceOpsService {
     private final MerchantScopeService merchantScopeService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    private final DistributedLockService distributedLockService;
 
     public AdminDeviceOpsService(DeviceInfoMapper deviceRepository,
                                  ShoppingSessionMapper sessionRepository,
@@ -36,7 +37,8 @@ public class AdminDeviceOpsService {
                                  DeviceServiceClient deviceClient,
                                  MerchantScopeService merchantScopeService,
                                  PermissionService permissionService,
-                                 AdminAuditService auditService) {
+                                 AdminAuditService auditService,
+                                 DistributedLockService distributedLockService) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.deviceValidationService = deviceValidationService;
@@ -45,6 +47,7 @@ public class AdminDeviceOpsService {
         this.merchantScopeService = merchantScopeService;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
@@ -73,6 +76,10 @@ public class AdminDeviceOpsService {
      * 不结算、不出消费订单。与补货开门（RESTOCK）分离。
      */
     private DeviceOpsCommandResultDto remoteOpen(Long operatorId, DeviceInfo device, String reason) {
+        return runWithDeviceOpenLock(device.getDeviceId(), () -> doRemoteOpen(operatorId, device, reason));
+    }
+
+    private DeviceOpsCommandResultDto doRemoteOpen(Long operatorId, DeviceInfo device, String reason) {
         deviceValidationService.ensureOpsRemoteDoorAllowed(device.getDeviceId());
 
         String sessionId = "ADM" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase();
@@ -97,6 +104,22 @@ public class AdminDeviceOpsService {
                 "设备：" + device.getDeviceId() + "；" + reason);
         return new DeviceOpsCommandResultDto(device.getDeviceId(), "OPEN_DOOR", sessionId,
                 "运维开门会话已创建并下发：" + sessionId, device.salesLockedEnabled());
+    }
+
+    private <T> T runWithDeviceOpenLock(String deviceId, java.util.function.Supplier<T> action) {
+        String lockKey = SessionService.sessionOpenLockKey(deviceId);
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备开门处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
     }
 
     private DeviceOpsCommandResultDto lock(Long operatorId, DeviceInfo device, String reason, boolean locked) {

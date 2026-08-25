@@ -146,14 +146,16 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("device_coop_mode", t("设备合作方式", m(
                 "SELF", "自营", "FRANCHISE", "加盟", "CONSIGN", "联营")));
         map.put("repair_ticket_status", t("维修工单状态", m(
-                "OPEN", "待处理", "IN_PROGRESS", "处理中", "DONE", "已完成", "CANCELLED", "已取消")));
+                "OPEN", "待处理", "IN_PROGRESS", "处理中", "DONE", "已完成",
+                "CANCELLED", "已取消", "CLOSED", "已关闭")));
         map.put("line_manager_status", t("线长状态", m("ACTIVE", "启用", "DISABLED", "停用")));
         map.put("announcement_status", t("公告状态", m(
-                "DRAFT", "草稿", "PUBLISHED", "已发布", "ARCHIVED", "存档")));
+                "DRAFT", "草稿", "PUBLISHED", "已发布", "ARCHIVED", "已归档")));
         map.put("announcement_audience", t("公告受众", m(
                 "ALL", "全部用户", "MERCHANT", "商户", "CONSUMER", "消费者")));
         map.put("promotion_type", t("营销活动类型", m(
-                "FULL_REDUCE", "满减", "DISCOUNT", "折扣", "BUY_GIFT", "买赠", "SECOND_HALF", "第二件半价")));
+                "FULL_REDUCE", "满减", "DISCOUNT", "折扣", "BUY_GIFT", "买赠", "SECOND_HALF", "第二件半价",
+                "NEW_USER", "新客", "POINTS", "积分")));
         map.put("coupon_type", t("优惠券类型", m(
                 "AMOUNT_OFF", "满减券", "PERCENT_OFF", "折扣券",
                 "FREE_SHIPPING", "免运费", "EXCHANGE", "兑换券")));
@@ -165,12 +167,79 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "ORDER_PAYMENT", "订单支付", "PLATFORM_FEE", "平台抽成",
                 "CHANNEL_FEE", "通道费", "MERCHANT_CREDIT", "商户入账")));
         map.put("fund_direction", t("资金收支方向", m("IN", "收入", "OUT", "支出")));
+        map.put("scheduled_task_group", t("定时任务分组", m(
+                "DEVICE", "设备", "TRADE", "交易", "OPS", "运维", "SYSTEM", "系统",
+                "WAREHOUSE", "仓储", "MERCHANT", "商户", "FINANCE", "财务", "MARKETING", "营销")));
+        map.put("wallet_entry_type", t("钱包流水类型", m(
+                "ADJUST", "运营调整", "COMMISSION", "佣金入账", "COMMISSION_DAILY", "日结佣金",
+                "WITHDRAW_FREEZE", "提现冻结", "WITHDRAW_RELEASE", "提现解冻", "WITHDRAW_PAID", "提现打款",
+                "SPLIT_CREDIT", "分账入账", "SPLIT_REVERSE", "分账退回",
+                "RECHARGE", "充值", "RECHARGE_REFUND", "充值退款", "REFUND", "退款",
+                "SETTLE", "结算入账", "PAYOUT", "打款", "FEE", "手续费")));
+        map.put("session_kind", t("会话类型", m(
+                "CONSUMER", "消费", "RESTOCK", "补货", "OPS", "运维", "SHOPPING", "消费")));
+        map.put("restock_line_type", t("补货行类型", m(
+                "RESTOCK", "上架", "PULL_OFF", "下架", "REMOVE", "下架", "PULL", "下架")));
+        map.put("ops_alert_type", t("运维告警类型", m(
+                "DISPUTE", "账单争议", "DEVICE_OFFLINE", "设备离线",
+                "UPLOAD_STUCK", "录像滞留", "SESSION_STALE", "会话超时",
+                "LOW_STOCK", "库存不足", "REPLENISHMENT", "补货任务",
+                "RECON_MISMATCH", "对账差异", "RECONCILIATION_MISMATCH", "对账差异",
+                "SPLIT_EXCEPTION", "分账异常", "PROFIT_SHARING_RETURN_FAILED", "分账回退失败",
+                "PROFIT_SHARING_MANUAL_SUPPLEMENT", "分账需人工补账",
+                "IN_TRANSIT_OVERDUE", "签收超时")));
+        map.put("ad_asset_type", t("广告素材类型", m(
+                "IMAGE", "图片", "VIDEO", "视频", "H5", "H5")));
+        map.put("ad_campaign_status", t("投放计划状态", m(
+                "DRAFT", "草稿", "RUNNING", "投放中", "STOPPED", "已停止")));
+        map.put("consistency_check_type", t("一致性检查类型", m(
+                "ORDER_AMOUNT", "订单金额", "PAYMENT_AMOUNT", "支付净额",
+                "INVENTORY_MISMATCH", "库存汇总",
+                "POINTS_BALANCE", "积分余额", "COUPON_ISSUED", "发券数量",
+                "WALLET_BALANCE", "钱包余额", "REFUND_AMOUNT", "退款金额",
+                "ORDER_LINE_SUM", "订单行金额", "COUPON_USED_LINK", "券核销关联")));
+        map.put("sku_perf_level", t("选品表现等级", m(
+                "BEST_SELLER", "畅销", "NORMAL", "正常", "SLOW_MOVER", "慢销", "NO_SALES", "无销量")));
+        map.put("sku_review_status", t("选品评审状态", m(
+                "PENDING", "待评审", "RECOMMEND_DELIST", "建议下架",
+                "DELISTED", "已下架", "KEPT", "已保留")));
+        map.put("member_level", t("会员等级", m(
+                "NORMAL", "普通", "SILVER", "白银", "GOLD", "黄金",
+                "PLATINUM", "铂金", "DIAMOND", "钻石")));
+        map.put("site_contract_status", t("点位合同状态", m(
+                "ACTIVE", "有效", "EXPIRING", "临期", "EXPIRED", "已到期")));
+        map.put("device_env_type", t("设备环境指标类型", m(
+                "HUMIDITY", "湿度", "VOLTAGE", "电压", "POWER", "功耗")));
+        map.put("device_lifecycle_action", t("设备生命周期操作", m(
+                "BIND", "绑定商户", "UNBIND", "解绑", "DEPLOY", "投放",
+                "UNDEPLOY", "撤回未投放", "RETURN", "返厂", "RETIRE", "退役", "INBOUND", "入库")));
+        map.put("stock_health_dim", t("库存健康维度", m(
+                "STOCKOUT", "断货", "LOW", "低库存", "NEAR_EXPIRY", "临期")));
+        map.put("purchase_suggestion_reason", t("补货建议原因", m(
+                "SALES_DRIVEN", "销量驱动", "TREND_FORECAST", "趋势预测", "LOW_STOCK", "库存不足")));
+        map.put("supplier_payable_status", t("供应商应付状态", m(
+                "UNPAID", "未付", "PARTIAL", "部分付款", "PAID", "已付", "CLOSED", "已关闭")));
+        map.put("stocktake_mode", t("盘点方式", m(
+                "BLIND", "盲盘", "VISIBLE", "明盘")));
+        map.put("stocktake_status", t("盘点单状态", m(
+                "DRAFT", "草稿", "IN_PROGRESS", "盘点中", "COMPLETED", "已完成",
+                "ADJUSTED", "已调整", "CANCELLED", "已取消")));
+        map.put("stocktake_line_status", t("盘点行状态", m(
+                "PENDING", "未盘", "MATCHED", "相符", "DIFF", "有差异", "ADJUSTED", "已调整")));
+        map.put("merchant_alert_type", t("商户告警类型", m(
+                "LOW_STOCK", "低库存", "EXPIRY", "临期", "REPLENISHMENT_REQUIRED", "需补货",
+                "REPLENISHMENT", "补货任务",
+                "DEVICE_OFFLINE", "柜机离线", "DEVICE_FAULT", "柜机故障",
+                "DISPUTE", "消费争议", "SETTLEMENT_FAILED", "结算失败")));
         map.put("device_ops_event", t("设备运维事件", m(
                 "OFFLINE", "离线", "NO_SALES", "无销售", "UNLOCK", "开锁",
                 "FAULT", "故障/锁机", "AISLE_AUDIT", "货道巡检", "MAINBOARD", "主板")));
         map.put("repair_fault_type", t("维修故障类型", m(
                 "DOOR", "门锁", "COOLING", "制冷", "NETWORK", "网络",
                 "PAYMENT", "支付", "VISION", "识别", "POWER", "供电", "OTHER", "其他")));
+        map.put("device_fault_issue", t("报修问题类型", m(
+                "DOOR_OPEN", "打不开门", "DOOR_CLOSE", "门关不上",
+                "PRODUCT", "商品异常", "PAYMENT", "扣款问题", "OTHER", "其他")));
         map.put("line_withdraw_status", t("线长提现状态", m(
                 "PENDING_REVIEW", "待审核", "APPROVED", "已通过", "PAYING", "打款中",
                 "PAID", "已打款", "REJECTED", "已驳回", "FAILED", "失败")));
@@ -249,6 +318,8 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "FRAUD", "欺诈嫌疑", "ABNORMAL", "异常行为")));
         map.put("risk_severity", t("风控处置", m(
                 "INFO", "提示", "WARN", "警告", "BLOCK", "已拦截", "HIGH", "高风险", "CRITICAL", "严重")));
+        map.put("risk_disposition_status", t("风控处置状态", m(
+                "OPEN", "待处置", "AUTO_CLEARED", "自动结清", "ACKED", "已确认")));
         map.put("settlement_batch_status", t("结算批次状态", m(
                 "PENDING", "待结算", "PROCESSING", "结算中", "SETTLED", "已结算", "PAID", "已支付",
                 "FAILED", "失败", "PARTIAL_FAILED", "部分失败", "COMPLETED", "已完成")));

@@ -27,6 +27,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Service
@@ -73,6 +74,7 @@ public class MerchantPortalService {
     private final DeviceSkuInventoryMapper inventoryRepository;
     private final PullOffTaskMapper pullOffTaskRepository;
     private final DeviceSlotService deviceSlotService;
+    private final InventoryLotService inventoryLotService;
     private final AdminAuditService auditService;
     private final PasswordEncoder passwordEncoder;
     private final DeviceTemperatureReadingMapper temperatureReadingRepository;
@@ -83,6 +85,7 @@ public class MerchantPortalService {
     private final OperatorUserIdAllocator operatorUserIdAllocator;
     private final MerchantSelfServiceGate merchantSelfServiceGate;
     private final MerchantFeaturePackService merchantFeaturePackService;
+    private final DistributedLockService distributedLockService;
 
     public MerchantPortalService(MerchantFinanceService merchantFinanceService,
                                  PermissionService permissionService,
@@ -105,6 +108,7 @@ public class MerchantPortalService {
                                  DeviceSkuInventoryMapper inventoryRepository,
                                  PullOffTaskMapper pullOffTaskRepository,
                                  DeviceSlotService deviceSlotService,
+                                 InventoryLotService inventoryLotService,
                                  AdminAuditService auditService,
                                  PasswordEncoder passwordEncoder,
                                  DeviceTemperatureReadingMapper temperatureReadingRepository,
@@ -114,7 +118,8 @@ public class MerchantPortalService {
                                  WeChatPayProperties weChatPayProperties,
                                  OperatorUserIdAllocator operatorUserIdAllocator,
                                  MerchantSelfServiceGate merchantSelfServiceGate,
-                                 MerchantFeaturePackService merchantFeaturePackService) {
+                                 MerchantFeaturePackService merchantFeaturePackService,
+                                 DistributedLockService distributedLockService) {
         this.merchantFinanceService = merchantFinanceService;
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
@@ -136,6 +141,7 @@ public class MerchantPortalService {
         this.inventoryRepository = inventoryRepository;
         this.pullOffTaskRepository = pullOffTaskRepository;
         this.deviceSlotService = deviceSlotService;
+        this.inventoryLotService = inventoryLotService;
         this.auditService = auditService;
         this.passwordEncoder = passwordEncoder;
         this.temperatureReadingRepository = temperatureReadingRepository;
@@ -146,6 +152,7 @@ public class MerchantPortalService {
         this.operatorUserIdAllocator = operatorUserIdAllocator;
         this.merchantSelfServiceGate = merchantSelfServiceGate;
         this.merchantFeaturePackService = merchantFeaturePackService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -334,7 +341,6 @@ public class MerchantPortalService {
                                 + " / 阈值 " + inv.getLowThreshold(),
                         inv.getId().getDeviceId(), null, null, inv.getId().getSkuId(),
                         null, inv.getUpdatedAt(), null)));
-
         long expiry = deviceIds == null
                 ? pullOffTaskRepository.countByStatus("OPEN")
                 : (deviceIds.isEmpty() ? 0
@@ -362,7 +368,8 @@ public class MerchantPortalService {
                 .filter(t -> inDeviceScope(deviceIds, t.getDeviceId()))
                 .forEach(t -> items.add(new OpsActionItemDto(
                         "REPLENISHMENT", "MEDIUM", "补货任务进行中",
-                        "状态 " + t.getStatus() + (t.getNotes() != null ? " · " + t.getNotes() : ""),
+                        "状态 " + replenishmentStatusLabel(t.getStatus())
+                                + (t.getNotes() != null ? " · " + t.getNotes() : ""),
                         t.getDeviceId(), null, null, null, t.getTaskId(), t.getCreatedAt(), null)));
 
         long pendingSplits = merchantIds == null ? 0
@@ -410,7 +417,12 @@ public class MerchantPortalService {
         permissionService.requirePermission(userId, "merchant:devices:edit");
         merchantPortalGuard.requireAccess(userId);
         merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
-        DeviceInfo device = deviceRepository.findById(deviceId)
+        return runWithDeviceSettingsLock(deviceId, () -> doUpdateDeviceSettings(userId, deviceId, request));
+    }
+
+    private MerchantDeviceSettingsDto doUpdateDeviceSettings(Long userId, String deviceId,
+                                                           UpdateMerchantDeviceSettingsRequest request) {
+        DeviceInfo device = deviceRepository.findByIdForUpdate(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
 
         if (request.deviceName() != null && !request.deviceName().isBlank()) {
@@ -479,14 +491,24 @@ public class MerchantPortalService {
         return merchantFeaturePackService.allowedDevicesForPack(userId, MerchantFeaturePacks.BIZ).stream()
                 .map(d -> {
                     String id = d.getDeviceId();
+                    long orderTotal = orderRepository.countByDeviceId(id);
+                    long revenueTotal = orderRepository.sumAmountByDeviceId(id);
+                    long orderToday = orderRepository.countByDeviceIdAndCreatedAtAfter(id, todayStart);
+                    long revenueToday = orderRepository.sumAmountByDeviceIdSince(id, todayStart);
                     return new MerchantDeviceReportDto(
-                            id, d.getDeviceName(), d.getOnlineStatus(),
-                            orderRepository.countByDeviceId(id),
-                            orderRepository.sumAmountByDeviceId(id),
-                            orderRepository.countByDeviceIdAndCreatedAtAfter(id, todayStart),
-                            orderRepository.sumAmountByDeviceIdSince(id, todayStart),
+                            id,
+                            DeviceNameSupport.resolve(id, d.getDeviceName()),
+                            d.getOnlineStatus(),
+                            orderTotal,
+                            revenueTotal,
+                            orderToday,
+                            revenueToday,
                             sessionRepository.countByDeviceId(id),
-                            activeByDevice.containsKey(id) ? 1 : 0
+                            activeByDevice.containsKey(id) ? 1 : 0,
+                            orderToday > 0 ? revenueToday / orderToday : 0,
+                            orderTotal > 0 ? revenueTotal / orderTotal : 0,
+                            d.getRouteCode(),
+                            d.getAddress()
                     );
                 })
                 .toList();
@@ -494,7 +516,7 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public PageResult<MerchantOrderSummaryDto> listOrders(Long userId, int page, int size, String deviceId) {
-        return merchantFinanceService.listOrders(userId, page, size, deviceId);
+        return merchantFinanceService.listOrders(userId, page, size, deviceId, null, null, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -542,11 +564,6 @@ public class MerchantPortalService {
                 return List.of();
             }
             rows = inventoryRepository.findByIdDeviceId(dev);
-            if (lowStockOnly) {
-                rows = rows.stream()
-                        .filter(i -> i.getQuantity() <= i.getLowThreshold())
-                        .toList();
-            }
         } else if (lowStockOnly) {
             rows = inventoryRepository.findLowStockLimit(500);
         } else if (allowed != null) {
@@ -555,11 +572,23 @@ public class MerchantPortalService {
             rows = inventoryRepository.findAllLimit(2000);
         }
 
+        Map<String, Boolean> ledgerByDevice = new HashMap<>();
+        Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
         return rows.stream()
                 .filter(i -> inDeviceScope(allowed, i.getId().getDeviceId()))
-                .map(i -> new DeviceInventoryDto(
-                        i.getId().getDeviceId(), i.getId().getSkuId(),
-                        i.getQuantity(), i.getCapacity(), i.getLowThreshold(), i.getUpdatedAt()))
+                .map(i -> {
+                    String dev = i.getId().getDeviceId();
+                    String skuId = i.getId().getSkuId();
+                    boolean ledger = ledgerByDevice.computeIfAbsent(dev, inventoryLotService::deviceUsesLotLedger);
+                    int qty = i.getQuantity();
+                    if (ledger) {
+                        qty = sellableByDevice.computeIfAbsent(dev, inventoryLotService::sellableQtyBySku)
+                                .getOrDefault(skuId, 0);
+                    }
+                    return new DeviceInventoryDto(
+                            dev, skuId, qty, i.getCapacity(), i.getLowThreshold(), i.getUpdatedAt());
+                })
+                .filter(d -> !lowStockOnly || d.quantity() <= d.lowThreshold())
                 .toList();
     }
 
@@ -601,6 +630,10 @@ public class MerchantPortalService {
     public List<MerchantDto> updateProfile(Long userId, UpdateMerchantProfileRequest request) {
         permissionService.requirePermission(userId, "merchant:profile:edit");
         merchantPortalGuard.requireAccess(userId);
+        return runWithMerchantProfileLock(userId, () -> doUpdateProfile(userId, request));
+    }
+
+    private List<MerchantDto> doUpdateProfile(Long userId, UpdateMerchantProfileRequest request) {
         Set<String> allowed = merchantFeaturePackService.allowedMerchantIdsForPack(
                 userId, MerchantFeaturePacks.TEAM);
         if (allowed == null || allowed.isEmpty()) {
@@ -610,16 +643,17 @@ public class MerchantPortalService {
                 .filter(m -> allowed.contains(m.getMerchantId()))
                 .toList();
         for (Merchant m : merchants) {
+            Merchant locked = merchantRepository.findByIdForUpdate(m.getMerchantId()).orElse(m);
             if (request.contactPhone() != null) {
-                m.setContactPhone(blankToNull(request.contactPhone()));
+                locked.setContactPhone(blankToNull(request.contactPhone()));
             }
             if (request.alertContactName() != null) {
-                m.setAlertContactName(blankToNull(request.alertContactName()));
+                locked.setAlertContactName(blankToNull(request.alertContactName()));
             }
             if (request.alertContactPhone() != null) {
-                m.setAlertContactPhone(blankToNull(request.alertContactPhone()));
+                locked.setAlertContactPhone(blankToNull(request.alertContactPhone()));
             }
-            merchantRepository.save(m);
+            merchantRepository.save(locked);
         }
         auditService.record(userId, "MERCHANT_PROFILE_UPDATE", "MERCHANT",
                 String.join(",", allowed), "profile updated");
@@ -813,15 +847,19 @@ public class MerchantPortalService {
         permissionService.requirePermission(userId, "merchant:reports:export");
         merchantPortalGuard.requireAccess(userId);
         StringBuilder sb = new StringBuilder(
-                "deviceId,deviceName,onlineStatus,orderTotal,revenueTotalCents,orderToday,revenueTodayCents,sessionTotal,sessionActive\n");
+                "deviceId,deviceName,onlineStatus,routeCode,address,orderTotal,revenueTotalCents,avgOrderValueTotalCents,orderToday,revenueTodayCents,avgOrderValueTodayCents,sessionTotal,sessionActive\n");
         for (MerchantDeviceReportDto r : deviceReports(userId)) {
             sb.append(csv(r.deviceId())).append(',')
                     .append(csv(r.deviceName())).append(',')
                     .append(csv(r.onlineStatus())).append(',')
+                    .append(csv(r.routeCode())).append(',')
+                    .append(csv(r.address())).append(',')
                     .append(r.orderTotal()).append(',')
                     .append(r.revenueTotalCents()).append(',')
+                    .append(r.avgOrderValueTotalCents()).append(',')
                     .append(r.orderToday()).append(',')
                     .append(r.revenueTodayCents()).append(',')
+                    .append(r.avgOrderValueTodayCents()).append(',')
                     .append(r.sessionTotal()).append(',')
                     .append(r.sessionActive()).append('\n');
         }
@@ -904,7 +942,13 @@ public class MerchantPortalService {
     public MerchantUserDto updateTeamUser(Long operatorId, Long targetUserId, UpdateMerchantUserRequest request) {
         permissionService.requirePermission(operatorId, "merchant:users:edit");
         merchantPortalGuard.requireAccess(operatorId);
-        UserInfo target = requireTeamMember(operatorId, targetUserId);
+        return runWithTeamUserLock(targetUserId, () -> doUpdateTeamUser(operatorId, targetUserId, request));
+    }
+
+    private MerchantUserDto doUpdateTeamUser(Long operatorId, Long targetUserId, UpdateMerchantUserRequest request) {
+        UserInfo target = userInfoRepository.findByIdForUpdate(targetUserId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "成员不存在"));
+        requireTeamMember(operatorId, targetUserId, target);
         if (request.displayName() != null && !request.displayName().isBlank()) {
             target.setName(request.displayName().trim());
         }
@@ -929,7 +973,13 @@ public class MerchantPortalService {
         if (targetUserId.equals(operatorId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能停用自己");
         }
-        UserInfo target = requireTeamMember(operatorId, targetUserId);
+        return runWithTeamUserLock(targetUserId, () -> doDisableTeamUser(operatorId, targetUserId));
+    }
+
+    private MerchantUserDto doDisableTeamUser(Long operatorId, Long targetUserId) {
+        UserInfo target = userInfoRepository.findByIdForUpdate(targetUserId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "成员不存在"));
+        requireTeamMember(operatorId, targetUserId, target);
         target.setStatus("INACTIVE");
         userInfoRepository.save(target);
         auditService.record(operatorId, "MERCHANT_USER_DISABLE", "USER", String.valueOf(targetUserId), null);
@@ -940,7 +990,13 @@ public class MerchantPortalService {
     public MerchantUserDto enableTeamUser(Long operatorId, Long targetUserId) {
         permissionService.requirePermission(operatorId, "merchant:users:edit");
         merchantPortalGuard.requireAccess(operatorId);
-        UserInfo target = requireTeamMember(operatorId, targetUserId);
+        return runWithTeamUserLock(targetUserId, () -> doEnableTeamUser(operatorId, targetUserId));
+    }
+
+    private MerchantUserDto doEnableTeamUser(Long operatorId, Long targetUserId) {
+        UserInfo target = userInfoRepository.findByIdForUpdate(targetUserId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "成员不存在"));
+        requireTeamMember(operatorId, targetUserId, target);
         target.setStatus("ACTIVE");
         userInfoRepository.save(target);
         auditService.record(operatorId, "MERCHANT_USER_ENABLE", "USER", String.valueOf(targetUserId), null);
@@ -955,7 +1011,14 @@ public class MerchantPortalService {
         if (request == null || request.password() == null || request.password().length() < 6) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "密码至少 6 位");
         }
-        UserInfo target = requireTeamMember(operatorId, targetUserId);
+        return runWithTeamUserLock(targetUserId, () -> doResetTeamUserPassword(operatorId, targetUserId, request));
+    }
+
+    private MerchantUserDto doResetTeamUserPassword(Long operatorId, Long targetUserId,
+                                                    ResetMerchantUserPasswordRequest request) {
+        UserInfo target = userInfoRepository.findByIdForUpdate(targetUserId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "成员不存在"));
+        requireTeamMember(operatorId, targetUserId, target);
         target.setPasswordHash(passwordEncoder.encode(request.password()));
         userInfoRepository.save(target);
         auditService.record(operatorId, "MERCHANT_USER_RESET_PASSWORD", "USER", String.valueOf(targetUserId), null);
@@ -973,6 +1036,10 @@ public class MerchantPortalService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "密码至少 6 位");
         }
         String phone = request.phoneNumber().trim();
+        return runWithTeamPhoneLock(phone, () -> doCreateTeamUser(userId, request, phone));
+    }
+
+    private MerchantUserDto doCreateTeamUser(Long userId, CreateMerchantUserRequest request, String phone) {
         if (userInfoRepository.findByPhoneNumber(phone).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该手机号已注册");
         }
@@ -1009,13 +1076,18 @@ public class MerchantPortalService {
     }
 
     private UserInfo requireTeamMember(Long operatorId, Long targetUserId) {
+        UserInfo target = userInfoRepository.findById(targetUserId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "成员不存在"));
+        requireTeamMember(operatorId, targetUserId, target);
+        return target;
+    }
+
+    private void requireTeamMember(Long operatorId, Long targetUserId, UserInfo target) {
         Set<String> merchants = merchantFeaturePackService.allowedMerchantIdsForPack(
                 operatorId, MerchantFeaturePacks.TEAM);
         if (merchants == null || merchants.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "该商户未开通对应功能包");
         }
-        UserInfo target = userInfoRepository.findById(targetUserId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "成员不存在"));
         Set<String> targetMerchants = userMerchantRepository.findByIdUserId(targetUserId).stream()
                 .map(m -> m.getId().getMerchantId())
                 .collect(Collectors.toSet());
@@ -1023,7 +1095,6 @@ public class MerchantPortalService {
         if (!overlap) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权管理该成员");
         }
-        return target;
     }
 
     private MerchantUserDto toMerchantUserDto(UserInfo user, boolean self) {
@@ -1093,7 +1164,15 @@ public class MerchantPortalService {
                 active != null ? active.getSessionId() : null,
                 active != null ? active.getState().name() : null,
                 d.getUpdatedAt(), replenishmentInProgress,
-                d.salesLockedEnabled()
+                d.salesLockedEnabled(),
+                d.getAddress(),
+                d.getRouteCode(),
+                d.getCurrentTempC(),
+                d.getTargetTempC(),
+                d.getLifecycleStatus(),
+                null,
+                null,
+                d.getSalesLockReason()
         );
     }
 
@@ -1107,7 +1186,10 @@ public class MerchantPortalService {
                 d.getAddress(), d.getAlertContactName(), d.getAlertContactPhone(),
                 d.getTargetTempC(), d.getCurrentTempC(), d.getTempReportedAt(),
                 isTempOutOfRange(d), d.getOpsRemark(), tempCommandSent, tempCommandMessage,
-                d.salesLockedEnabled()
+                d.salesLockedEnabled(),
+                d.getRouteCode(),
+                d.getLifecycleStatus(),
+                d.getSalesLockReason()
         );
     }
 
@@ -1187,6 +1269,15 @@ public class MerchantPortalService {
                 .filter(o -> !"REFUNDED".equals(o.getStatus()))
                 .map(CabinetOrder::getTotalAmountCents)
                 .orElse(null);
+        Integer refundedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
+                .map(o -> {
+                    int r = Math.max(0, o.getRefundedCents());
+                    if (r <= 0 && "REFUNDED".equals(o.getStatus())) {
+                        return o.getTotalAmountCents();
+                    }
+                    return r > 0 ? r : null;
+                })
+                .orElse(null);
         Instant now = Instant.now();
         boolean slaOverdue = "OPEN".equals(ticket.getStatus())
                 && ticket.getSlaDueAt() != null
@@ -1200,7 +1291,8 @@ public class MerchantPortalService {
                 ticket.getStatus(), ticket.getCreatedAt(), ticket.getResolvedAt(),
                 orderId, billedAmountCents,
                 ticket.getSlaDueAt(), slaOverdue, slaHoursRemaining,
-                ticket.getCategory()
+                ticket.getCategory(),
+                refundedAmountCents
         );
     }
 
@@ -1403,6 +1495,19 @@ public class MerchantPortalService {
         return reason.trim();
     }
 
+    private static String replenishmentStatusLabel(String status) {
+        if (status == null || status.isBlank()) {
+            return "未知";
+        }
+        return switch (status.toUpperCase()) {
+            case "PENDING" -> "待处理";
+            case "IN_PROGRESS" -> "进行中";
+            case "COMPLETED" -> "已完成";
+            case "CANCELLED" -> "已取消";
+            default -> status;
+        };
+    }
+
     private static String csv(String value) {
         if (value == null) return "";
         if (value.matches("^[=+\\-@].*")) {
@@ -1429,5 +1534,43 @@ public class MerchantPortalService {
         merchantSelfServiceGate.requirePlanogramEdit(userId, deviceId);
         return deviceSlotService.upsertSlots(userId, deviceId, body);
     }
-}
 
+    static String merchantProfileLockKey(long userId) {
+        return "merchant:portal:profile:" + userId;
+    }
+
+    static String merchantTeamPhoneLockKey(String phone) {
+        return "merchant:team-phone:" + phone;
+    }
+
+    private <T> T runWithDeviceSettingsLock(String deviceId, Supplier<T> action) {
+        return runWithLock(DeviceAssetService.deviceAssetLockKey(deviceId), "设备设置处理中，请稍后重试", action);
+    }
+
+    private <T> T runWithMerchantProfileLock(long userId, Supplier<T> action) {
+        return runWithLock(merchantProfileLockKey(userId), "商户资料处理中，请稍后重试", action);
+    }
+
+    private <T> T runWithTeamUserLock(long targetUserId, Supplier<T> action) {
+        return runWithLock(AccountService.userAccountLockKey(targetUserId), "成员处理中，请稍后重试", action);
+    }
+
+    private <T> T runWithTeamPhoneLock(String phone, Supplier<T> action) {
+        return runWithLock(merchantTeamPhoneLockKey(phone), "成员邀请处理中，请稍后重试", action);
+    }
+
+    private <T> T runWithLock(String lockKey, String busyMessage, Supplier<T> action) {
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, busyMessage);
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
+    }
+}

@@ -44,7 +44,8 @@ public class DisputeSlaService {
         Instant since = Instant.now().minus(24, ChronoUnit.HOURS);
         long resolved = disputeRepository.countResolvedSince(since);
         if (resolved == 0) {
-            return 1.0;
+            // 无已解决争议时不展示 100%，避免空样本误导（与开门成功率口径一致）
+            return 0.0;
         }
         long within = disputeRepository.countResolvedWithinSlaSince(since);
         return (double) within / resolved;

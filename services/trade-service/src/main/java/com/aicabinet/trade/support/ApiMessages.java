@@ -60,6 +60,8 @@ public final class ApiMessages {
             "签到位置距柜机约 %d 米，超出 500 米范围，请到柜前再签到";
     public static final String REPLENISHMENT_SLOT_CAPACITY =
             "货道 %s 容量不足（上限 %d，已有 %d，本次再补 %d），请调低数量或换货道";
+    public static final String SLOT_QTY_OVER_CAPACITY =
+            "货道 %s 不能超过容量上限 %d（当前 %d）";
     public static final String DEVICE_MISMATCH = "设备与会话不匹配";
     public static final String SESSION_NOT_FOUND = "购物会话不存在";
     public static final String SESSION_FINISHED = "会话已结束，无法取消";

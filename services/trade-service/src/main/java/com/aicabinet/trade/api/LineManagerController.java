@@ -3,11 +3,14 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.LineManagerKpiService;
 import com.aicabinet.trade.service.LineManagerService;
 import com.aicabinet.trade.service.LineWithdrawService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -17,10 +20,14 @@ public class LineManagerController {
 
     private final LineManagerService lineManagerService;
     private final LineWithdrawService lineWithdrawService;
+    private final LineManagerKpiService kpiService;
 
-    public LineManagerController(LineManagerService lineManagerService, LineWithdrawService lineWithdrawService) {
+    public LineManagerController(LineManagerService lineManagerService,
+                                 LineWithdrawService lineWithdrawService,
+                                 LineManagerKpiService kpiService) {
         this.lineManagerService = lineManagerService;
         this.lineWithdrawService = lineWithdrawService;
+        this.kpiService = kpiService;
     }
 
     @RequiresPermissions(value = {"ops:line-manager:list", "ops:finance:view"}, logical = RequiresPermissions.Logical.OR)
@@ -93,6 +100,16 @@ public class LineManagerController {
                 : Long.parseLong(String.valueOf(body.get("amountCents")));
         String requestNo = body.get("requestNo") == null ? null : String.valueOf(body.get("requestNo"));
         return ApiResponse.ok(lineWithdrawService.apply(managerId, amount, requestNo));
+    }
+
+    @RequiresPermissions(value = {"ops:line-manager:list", "ops:finance:view"}, logical = RequiresPermissions.Logical.OR)
+    @GetMapping("/{managerId}/kpi")
+    public ApiResponse<LineManagerKpiDto> kpi(
+            HttpServletRequest request,
+            @PathVariable long managerId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ApiResponse.ok(kpiService.kpi(operator(request), managerId, from, to));
     }
 
     private Long operator(HttpServletRequest request) {

@@ -93,6 +93,13 @@
           @click="batchDelist"
           >批量下架</el-button
         >
+        <el-button
+          type="primary"
+          plain
+          :disabled="!selectedKeys.length"
+          @click="printSelectedLabels"
+          >打印标签</el-button
+        >
       </el-form-item>
     </el-form>
 
@@ -123,7 +130,7 @@
             sortable="custom"
           >
             <template #default="{ row }">
-              <span class="cell-id">{{ row.skuCode ?? '—' }}</span>
+              <span class="cell-id">{{ row.skuCode ?? '暂无' }}</span>
             </template>
           </el-table-column>
           <el-table-column label="主图" width="60" align="center">
@@ -335,11 +342,11 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { EditPen, Refresh } from '@element-plus/icons-vue';
+import { EditPen, Printer, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type UploadRequestOptions } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { api } from '@/api/client';
+import { api, authFetch } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useDictOptions } from '@/composables/useDictOptions';
@@ -369,9 +376,9 @@ const categoryOptions = useDictOptions('category_code');
 const saleTab = ref('ACTIVE');
 
 function categoryLabel(code?: string | null) {
-  if (!code) return '无';
+  if (!code) return '暂无';
   void dictRuntimeEpoch.value;
-  return dictLabel('category_code', code) || code;
+  return displayLabel('category_code', code, '未分类');
 }
 
 /** 下拉值为字典键值（如 FRESH_PRODUCE）；历史数据可能存中文标签「生鲜」 */
@@ -507,13 +514,11 @@ async function onImageUpload(options: UploadRequestOptions) {
   }
   imageUploading.value = true;
   try {
-    const token = localStorage.getItem('admin_token');
     const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin;
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch(`${base}/api/v2/ops/admin/skus/image`, {
+    const res = await authFetch(`${base}/api/v2/ops/admin/skus/image`, {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData
     });
     const json = await res.json().catch(() => ({}));
@@ -542,8 +547,6 @@ function onSaleTab() {
 }
 
 function skuStatusLabel(status?: string) {
-  if (status === 'ACTIVE') return '上架';
-  if (status === 'INACTIVE') return '下架';
   return displayLabel('sku_status', status, '未知状态');
 }
 
@@ -718,11 +721,29 @@ function skuActions(_row: SkuCatalog): TableAction[] {
   if (canEdit.value) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
   }
+  acts.push({ key: 'print-label', label: '打印标签', icon: Printer, type: 'primary' });
   return acts;
 }
 
 function onSkuAction(key: string, row: SkuCatalog) {
   if (key === 'edit') openEdit(row);
+  if (key === 'print-label') openPrintLabels([row.skuId]);
+}
+
+function openPrintLabels(ids: Array<string | number>) {
+  const list = ids.map(String).filter(Boolean);
+  if (!list.length) {
+    ElMessage.warning('请先选择要打印标签的商品');
+    return;
+  }
+  const url = router.resolve({
+    name: 'print',
+    query: { type: 'labels', ids: list.join(',') }
+  }).href;
+  window.open(url, '_blank');
+}
+function printSelectedLabels() {
+  openPrintLabels(selectedKeys.value);
 }
 
 function openEdit(row?: SkuCatalog) {

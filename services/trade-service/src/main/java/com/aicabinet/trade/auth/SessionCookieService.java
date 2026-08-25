@@ -5,12 +5,16 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Component;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 运营控制台等浏览器端会话 Cookie（HttpOnly + SameSite=Strict）。
  * 小程序/App 不走 Cookie，仍使用 Bearer token；两者互不干扰。
  */
 @Component
+@Getter
+@Setter
 public class SessionCookieService {
 
     public static final String SESSION_COOKIE_NAME = "aicabinet_session";

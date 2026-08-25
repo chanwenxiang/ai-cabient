@@ -11,6 +11,16 @@
     ]]>
   </select>
 
+  <select id="_sumSellableBySku" resultType="java.util.LinkedHashMap">
+    <![CDATA[
+    SELECT l.sku_id AS c0, COALESCE(SUM(l.quantity), 0) AS c1
+    FROM device_sku_lot l
+    WHERE l.device_id = #{deviceId}
+      AND l.status IN ('ON_SALE', 'NEAR_EXPIRY') AND l.quantity > 0
+    GROUP BY l.sku_id
+    ]]>
+  </select>
+
   <select id="countNearExpiry" resultType="long">
     <![CDATA[
     SELECT COUNT(*) FROM device_sku_lot l
