@@ -1,0 +1,48 @@
+// 仅 Sonar(dev)：本机挂载或 GitHub(dev) 共用
+pipeline {
+  agent any
+  environment {
+    SONAR_HOST_URL = "${env.SONAR_HOST_URL ?: 'http://sonarqube:9000'}"
+    SONAR_TOKEN = credentials('sonar-token')
+  }
+  stages {
+    stage('Source') {
+      steps {
+        script {
+          def useLocal = (params.USE_LOCAL_MOUNT == true) || (env.USE_LOCAL_MOUNT == 'true')
+          if (useLocal) {
+            sh '''
+              set -e
+              find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+              cp -a /workspace/. .
+            '''
+          } else {
+            checkout scm
+          }
+        }
+      }
+    }
+    stage('Compile + Sonar') {
+      steps {
+        sh '''
+          set -e
+          NET=$(docker inspect -f "{{range \$k, \$v := .NetworkSettings.Networks}}{{\$k}}{{end}}" "$(hostname)" 2>/dev/null | awk "{print \$1}")
+          if [ -z "$NET" ]; then NET=host; fi
+          docker run --rm --network "$NET" \
+            -v "$PWD:/ws" -w /ws \
+            -e SONAR_TOKEN \
+            maven:3.9.9-eclipse-temurin-17 \
+            bash -lc '
+              mvn -B -DskipTests -Dmaven.test.skip=true package \
+                -pl services/trade-service,services/device-service,services/common/common-core -am
+              mvn -B -DskipTests -Dmaven.test.skip=true sonar:sonar \
+                -Dsonar.projectKey=ai-cabinet-dev \
+                -Dsonar.projectName="AI Cabinet (dev)" \
+                -Dsonar.host.url=http://sonarqube:9000 \
+                -Dsonar.token="$SONAR_TOKEN"
+            '
+        '''
+      }
+    }
+  }
+}
