@@ -54,6 +54,18 @@ services:
     ports:
       - "${JENKINS_PORT:-19081}:8080"
       - "${JENKINS_AGENT_PORT:-50000}:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./jenkins/casc.yaml:/var/jenkins_config/casc.yaml:ro
+      - ./jenkins/plugins.txt:/usr/share/jenkins/ref/plugins.txt:ro
+      - ..:/workspace
+      # 本机已有 Maven（避免容器内 apt / docker run maven）
+      - ${HOST_MAVEN_HOME:-D:/devTools/apache-maven-3.9.16}:/opt/maven:ro
+      # 复用本机依赖仓（需可写：Maven/Sonar 会写 resolver-status 等跟踪文件）
+      - ${HOST_MAVEN_REPO:-D:/devTools/repository}:/root/.m2/repository
+      # 覆盖本机 settings（其中 localRepository 是 Windows 路径，容器内不可用）
+      - ./jenkins/maven-settings.xml:/root/.m2/settings.xml:ro
     environment:
       SONAR_HOST_URL: http://sonarqube:9000
       SONAR_TOKEN: ${SONAR_TOKEN:-}
@@ -62,12 +74,8 @@ services:
       CASC_JENKINS_CONFIG: /var/jenkins_config/casc.yaml
       JENKINS_UC: https://updates.jenkins.io
       JENKINS_UC_DOWNLOAD: https://updates.jenkins.io/download
-    volumes:
-      - jenkins_home:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./jenkins/casc.yaml:/var/jenkins_config/casc.yaml:ro
-      - ./jenkins/plugins.txt:/usr/share/jenkins/ref/plugins.txt:ro
-      - ..:/workspace
+      MAVEN_HOME: /opt/maven
+      PATH: /opt/maven/bin:/opt/java/openjdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     depends_on:
       sonarqube:
         condition: service_healthy
