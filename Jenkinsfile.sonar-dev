@@ -39,7 +39,7 @@ pipeline {
             -Dsonar.projectName="AI Cabinet (dev)" \
             -Dsonar.host.url="$SONAR_HOST_URL" \
             -Dsonar.token="$SONAR_TOKEN" \
-            -Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml \
+            -Dsonar.coverage.jacoco.xmlReportPaths=services/trade-service/target/site/jacoco/jacoco.xml,services/device-service/target/site/jacoco/jacoco.xml,services/common/common-core/target/site/jacoco/jacoco.xml \
             -Dsonar.issue.ignore.multicriteria=rpxUnit,lombokEntityField \
             -Dsonar.issue.ignore.multicriteria.rpxUnit.ruleKey=css:S4653 \
             -Dsonar.issue.ignore.multicriteria.rpxUnit.resourceKey='**/*' \

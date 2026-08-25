@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ObjectStorageKeysTest {
 
@@ -20,8 +21,8 @@ class ObjectStorageKeysTest {
     @Test
     void simMediaKey_normalizesCameraAndExtension() {
         String key = ObjectStorageKeys.simMediaKey("sim-device", 0L, "S-TEST", "SIDE", "jpg");
-        assert key.startsWith("sim/");
-        assert key.contains("/sim-device/user-0/S-TEST-side.jpg");
+        assertTrue(key.startsWith("sim/"));
+        assertTrue(key.contains("/sim-device/user-0/S-TEST-side.jpg"));
     }
 
     @Test

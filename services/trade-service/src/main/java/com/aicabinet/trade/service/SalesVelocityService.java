@@ -46,6 +46,7 @@ public class SalesVelocityService {
         return out;
     }
 
+    @Transactional(readOnly = true)
     public SkuVelocity velocityFor(String deviceId, String skuId) {
         return velocityBySku(deviceId).getOrDefault(skuId, new SkuVelocity(0, 0, 0, 0));
     }

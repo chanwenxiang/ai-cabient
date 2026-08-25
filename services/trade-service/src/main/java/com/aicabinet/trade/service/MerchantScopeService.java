@@ -190,6 +190,7 @@ public class MerchantScopeService {
         return deviceRepository.findByDeviceIdIn(deviceIds);
     }
 
+    @Transactional(readOnly = true)
     public void requireMerchantAccess(Long operatorId, String merchantId) {
         Set<String> allowed = allowedMerchantIds(operatorId);
         if (allowed == null) {
@@ -201,6 +202,7 @@ public class MerchantScopeService {
         }
     }
 
+    @Transactional(readOnly = true)
     public void requireDeviceAccess(Long operatorId, String deviceId) {
         Set<String> allowedDevices = allowedDeviceIds(operatorId);
         if (allowedDevices == null) {
@@ -212,6 +214,7 @@ public class MerchantScopeService {
         }
     }
 
+    @Transactional(readOnly = true)
     public void requireDeviceFilter(Long operatorId, String deviceId) {
         if (deviceId == null || deviceId.isBlank()) {
             return;
@@ -219,6 +222,7 @@ public class MerchantScopeService {
         requireDeviceAccess(operatorId, deviceId.trim());
     }
 
+    @Transactional(readOnly = true)
     public Collection<String> intersectDeviceFilter(Long operatorId, String requestedDeviceId) {
         Set<String> allowed = allowedDeviceIds(operatorId);
         if (requestedDeviceId != null && !requestedDeviceId.isBlank()) {

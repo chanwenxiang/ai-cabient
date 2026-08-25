@@ -13,6 +13,7 @@ import org.redisson.api.RLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,6 +54,11 @@ public class CompensationTaskScheduler {
 
     @Autowired
     private ProfitSharingReturnAlertService profitSharingReturnAlertService;
+
+    /** 自注入：保证 processTask 上的 @Transactional 经 Spring 代理生效。 */
+    @Autowired
+    @Lazy
+    private CompensationTaskScheduler self;
     
     @Scheduled(fixedDelay = 30000)
     public void processCompensationTasks() {
@@ -71,7 +77,7 @@ public class CompensationTaskScheduler {
             
             for (CompensationTask task : tasks) {
                 try {
-                    processTask(task);
+                    self.processTask(task);
                 } catch (Exception e) {
                     log.error("Failed to process compensation task: {}", task.getTaskId(), e);
                 }
@@ -106,14 +112,14 @@ public class CompensationTaskScheduler {
                 return;
             }
             
-            boolean success = executeCompensation(tx);
-            
-            task.setStatus(success ? "COMPLETED" : "FAILED");
-            task.setResult(success ? "Compensation executed successfully" : "Compensation failed");
+            executeCompensation(tx);
+
+            task.setStatus("COMPLETED");
+            task.setResult("Compensation executed successfully");
             task.setExecutedAt(Instant.now());
             taskRepository.save(task);
-            
-            log.info("Compensation task completed: taskId={}, success={}", task.getTaskId(), success);
+
+            log.info("Compensation task completed: taskId={}", task.getTaskId());
         } catch (Exception e) {
             task.setStatus("FAILED");
             task.setResult("Error: " + e.getMessage());
@@ -202,13 +208,10 @@ public class CompensationTaskScheduler {
         log.info("profit sharing return compensation finished taskId={} status={}", task.getTaskId(), status);
     }
     
-    private boolean executeCompensation(DistributedTransaction tx) {
+    private void executeCompensation(DistributedTransaction tx) {
         if ("CANCEL".equals(tx.getCompensationSql())) {
             txCoordinator.cancelTransaction(tx.getTxId());
-            return true;
         }
-        
-        return true;
     }
     
     public void scheduleCompensation(String txId, String taskType, int delaySeconds) {
