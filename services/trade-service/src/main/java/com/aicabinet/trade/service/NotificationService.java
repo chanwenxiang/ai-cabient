@@ -55,11 +55,13 @@ public class NotificationService {
         this.distributedLockService = distributedLockService;
     }
 
+    @Transactional
     public void notifyConsumer(Long userId, String templateCode, Map<String, String> params,
                                String bizType, String bizId) {
         send("CONSUMER", userId, null, templateCode, params, bizType, bizId);
     }
 
+    @Transactional
     public void notifyMerchant(String merchantId, String templateCode, Map<String, String> params,
                                String bizType, String bizId) {
         send("MERCHANT", null, merchantId, templateCode, params, bizType, bizId);

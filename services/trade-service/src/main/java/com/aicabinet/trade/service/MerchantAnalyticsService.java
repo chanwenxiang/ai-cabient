@@ -175,6 +175,7 @@ public class MerchantAnalyticsService {
         return competitiveGapService.salesReportForDevices(deviceIds, dim, fromDate, toDate);
     }
 
+    @Transactional(readOnly = true)
     public String salesReportsCsv(Long userId, String dim, String fromDate, String toDate) {
         return competitiveGapService.salesReportCsv(salesReports(userId, dim, fromDate, toDate));
     }

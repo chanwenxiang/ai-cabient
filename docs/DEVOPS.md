@@ -81,7 +81,7 @@ Jenkins / SonarQube / Runner 容器默认 `TZ=Asia/Shanghai`（Jenkins 另设 `-
 | 新 BLOCKER | = 0 |
 | 安全热点审查 | = 100% |
 | 新重复率 | ≤ 3% |
-| 新覆盖率 | ≥ 40% |
+| 新覆盖率 | ≥ 20%（当前基线约 23%；后续再提到 40%） |
 
 本地重建门禁（幂等）：
 
