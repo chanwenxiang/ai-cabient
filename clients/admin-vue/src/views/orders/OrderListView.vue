@@ -607,23 +607,32 @@ function goodsThumb(title: string) {
 
 function parseGoodsLines(summary: string | null | undefined): GoodsLine[] {
   if (!summary?.trim()) return [];
-  const base = summary.replace(/\s*等\d+种\s*$/, '').trim();
+  const trimmed = summary.trim();
+  const extraSuffix = /等\d{1,4}种\s*$/.exec(trimmed);
+  const base = (extraSuffix ? trimmed.slice(0, extraSuffix.index) : trimmed).trim();
   if (!base) return [];
   return base
     .split('、')
     .map((part) => {
       const raw = part.trim();
       // 后端摘要形如：可口可乐 330ml x1 @L07-...；列表只展示名称与数量
-      const m = raw.match(/^(.*?)\s+x(\d+)(?:\s+@\S+)?$/i);
-      if (m) return { title: m[1].trim(), qty: m[2] };
-      return { title: raw.replace(/\s+@\S+$/, '').trim(), qty: '' };
+      const atIdx = raw.lastIndexOf(' @');
+      const withoutLoc = atIdx > 0 ? raw.slice(0, atIdx).trim() : raw;
+      const xIdx = withoutLoc.lastIndexOf(' x');
+      if (xIdx > 0) {
+        const qtyPart = withoutLoc.slice(xIdx + 2);
+        if (/^\d{1,6}$/.test(qtyPart)) {
+          return { title: withoutLoc.slice(0, xIdx).trim(), qty: qtyPart };
+        }
+      }
+      return { title: withoutLoc.trim(), qty: '' };
     })
     .filter((g) => g.title);
 }
 
 function goodsDisplay(row: OrderSummary) {
   const summary = row.lineSummary || '';
-  const extraMatch = summary.match(/等(\d+)种\s*$/);
+  const extraMatch = /等(\d{1,4})种\s*$/.exec(summary);
   return {
     lines: parseGoodsLines(summary),
     extraKinds: extraMatch ? Number(extraMatch[1]) : null,

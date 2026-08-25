@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
+import java.security.SecureRandom;
 
 /**
  * 整仓盘点流程：新建盘点单（明盘/盲盘）→ 录入实盘 → 完成 → 复盘调整 → 差异落库。
@@ -39,6 +39,8 @@ public class WarehouseStocktakeService {
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private static final float MIN_VISION_CONFIDENCE = 0.50f;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final String STOCKTAKE_SUFFIX_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     private final PermissionService permissionService;
     private final WarehouseStocktakeMapper stocktakeRepository;
@@ -407,9 +409,10 @@ public class WarehouseStocktakeService {
 
     private static String generateNo() {
         String date = LocalDate.now(ZONE).format(DateTimeFormatter.BASIC_ISO_DATE);
-        String suffix = ThreadLocalRandom.current().ints(6, 0, 36)
-                .mapToObj(i -> Character.toString("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".charAt(i)))
-                .reduce("", (a, b) -> a + b);
+        StringBuilder suffix = new StringBuilder(6);
+        for (int i = 0; i < 6; i++) {
+            suffix.append(STOCKTAKE_SUFFIX_ALPHABET.charAt(SECURE_RANDOM.nextInt(STOCKTAKE_SUFFIX_ALPHABET.length())));
+        }
         return "STK" + date + "-" + suffix;
     }
 

@@ -275,10 +275,10 @@ public class AuthService {
     private void verifyPassword(UserInfo user, String rawPassword) {
         String hash = user.getPasswordHash();
         if (hash == null || hash.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.PASSWORD_NOT_SET);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.CREDENTIAL_NOT_SET);
         }
         if (rawPassword == null || !passwordEncoder.matches(rawPassword, hash)) {
-            throwLockedOr(user.getPhoneNumber(), ApiMessages.INVALID_PASSWORD);
+            throwLockedOr(user.getPhoneNumber(), ApiMessages.INVALID_CREDENTIALS);
         }
     }
 

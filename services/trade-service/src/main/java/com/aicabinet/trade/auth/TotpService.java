@@ -67,6 +67,7 @@ public class TotpService {
 
     private static byte[] hmacSha1(byte[] key, byte[] msg) {
         try {
+            // RFC 6238 / Google Authenticator 要求 HMAC-SHA1；非通用口令哈希
             Mac mac = Mac.getInstance("HmacSHA1");
             mac.init(new SecretKeySpec(key, "HmacSHA1"));
             return mac.doFinal(msg);

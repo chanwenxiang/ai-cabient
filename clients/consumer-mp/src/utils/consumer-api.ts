@@ -11,6 +11,7 @@ import {
 } from '@aicabinet/shared-uni/request';
 import { API_BASE_URL } from '@/config/api';
 import { isDevBuild } from '@/utils/runtime-flags';
+import { secureRandomToken } from '@/utils/secure-id';
 
 const BASE_URL = API_BASE_URL;
 
@@ -55,7 +56,7 @@ export function clearConsumerSession() {
 type OpenAttempt = { deviceId: string; idempotencyKey: string; createdAt: number };
 
 function randomId() {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+  return `${Date.now().toString(36)}-${secureRandomToken(6)}-${secureRandomToken(6)}`;
 }
 
 export function getOrCreateOpenAttempt(deviceId: string): OpenAttempt {

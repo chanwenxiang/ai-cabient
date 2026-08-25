@@ -11,6 +11,8 @@ services:
       POSTGRES_USER: ${SONAR_DB_USER:-sonar}
       POSTGRES_PASSWORD: ${SONAR_DB_PASSWORD:-sonar}
       POSTGRES_DB: ${SONAR_DB_NAME:-sonar}
+      TZ: Asia/Shanghai
+      PGTZ: Asia/Shanghai
     volumes:
       - sonarqube_pg:/var/lib/postgresql/data
     healthcheck:
@@ -33,6 +35,7 @@ services:
       SONAR_JDBC_USERNAME: ${SONAR_DB_USER:-sonar}
       SONAR_JDBC_PASSWORD: ${SONAR_DB_PASSWORD:-sonar}
       SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+      TZ: Asia/Shanghai
     volumes:
       - sonarqube_data:/opt/sonarqube/data
       - sonarqube_extensions:/opt/sonarqube/extensions
@@ -67,10 +70,11 @@ services:
       # 覆盖本机 settings（其中 localRepository 是 Windows 路径，容器内不可用）
       - ./jenkins/maven-settings.xml:/root/.m2/settings.xml:ro
     environment:
+      TZ: Asia/Shanghai
       SONAR_HOST_URL: http://sonarqube:9000
       SONAR_TOKEN: ${SONAR_TOKEN:-}
       JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:-changeme}
-      JAVA_OPTS: "-Djenkins.install.runSetupWizard=false -Djava.awt.headless=true"
+      JAVA_OPTS: "-Djenkins.install.runSetupWizard=false -Djava.awt.headless=true -Duser.timezone=Asia/Shanghai"
       CASC_JENKINS_CONFIG: /var/jenkins_config/casc.yaml
       JENKINS_UC: https://updates.jenkins.io
       JENKINS_UC_DOWNLOAD: https://updates.jenkins.io/download
@@ -92,6 +96,7 @@ services:
     profiles: ["devops"]
     restart: unless-stopped
     environment:
+      TZ: Asia/Shanghai
       REPO_URL: ${GITHUB_REPO_URL:-https://github.com/example/ai-cabinet}
       RUNNER_NAME: ${GITHUB_RUNNER_NAME:-ai-cabinet-local}
       ACCESS_TOKEN: ${GITHUB_RUNNER_TOKEN:-}

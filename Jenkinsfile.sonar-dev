@@ -32,11 +32,17 @@ pipeline {
           cd "$BUILD_DIR"
           mvn -B -DskipTests -Dmaven.test.skip=true install \
             -pl services/trade-service,services/device-service,services/common/common-core -am
+          # 与 sonar-project.properties 对齐：压制 uni-app rpx / Lombok 实体误报
           mvn -B -DskipTests -Dmaven.test.skip=true sonar:sonar \
             -Dsonar.projectKey=ai-cabinet-dev \
             -Dsonar.projectName="AI Cabinet (dev)" \
             -Dsonar.host.url="$SONAR_HOST_URL" \
-            -Dsonar.token="$SONAR_TOKEN"
+            -Dsonar.token="$SONAR_TOKEN" \
+            -Dsonar.issue.ignore.multicriteria=rpxUnit,lombokEntityField \
+            -Dsonar.issue.ignore.multicriteria.rpxUnit.ruleKey=css:S4653 \
+            -Dsonar.issue.ignore.multicriteria.rpxUnit.resourceKey='**/*' \
+            -Dsonar.issue.ignore.multicriteria.lombokEntityField.ruleKey=java:S1068 \
+            -Dsonar.issue.ignore.multicriteria.lombokEntityField.resourceKey='**/domain/**/*'
         '''
       }
     }
