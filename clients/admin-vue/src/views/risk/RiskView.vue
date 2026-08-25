@@ -261,7 +261,7 @@ function dispositionLabel(s?: string) {
     AUTO_CLEARED: '自动结清',
     ACKED: '已确认'
   };
-  return (s && m[s]) || s || '待处置';
+  return (s && m[s]) || (s ? '未知' : '待处置');
 }
 function dispositionTag(s?: string) {
   if (s === 'AUTO_CLEARED') return 'success';

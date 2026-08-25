@@ -88,7 +88,7 @@
           <el-table-column label="渠道" width="100" align="center">
             <template #default="{ row }">
               <el-tag size="small" effect="plain">
-                {{ dictLabel('pay_channel', String(row.channel || '')) || row.channel || '未知' }}
+                {{ displayLabel('pay_channel', String(row.channel || ''), '未知') }}
               </el-tag>
             </template>
           </el-table-column>
@@ -109,7 +109,7 @@
             <template #default="{ row }">
               <el-tag :type="dictTagType(String(row.status || ''))" size="small">
                 {{
-                  dictLabel('recharge_status', String(row.status || '')) || row.status || '未知状态'
+                  displayLabel('recharge_status', String(row.status || ''), '未知状态')
                 }}
               </el-tag>
             </template>
@@ -173,7 +173,7 @@ import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh, RefreshLeft } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
@@ -215,8 +215,8 @@ const { onExport } = useListCsv({
       row.orderId,
       row.userId,
       money(row.amountCents),
-      dictLabel('pay_channel', String(row.channel || '')),
-      dictLabel('recharge_status', String(row.status || '')),
+      displayLabel('pay_channel', String(row.channel || ''), '未知'),
+      displayLabel('recharge_status', String(row.status || ''), '未知状态'),
       formatDateTime(String(row.createdAt || ''))
     ])
 });

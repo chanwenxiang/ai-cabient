@@ -244,7 +244,9 @@
               >
             </el-table-column>
             <el-table-column label="交易类型" width="100" align="center">
-              <template #default="{ row }">{{ row.tradeType || '暂无' }}</template>
+              <template #default="{ row }">{{
+                row.tradeType ? dictLabel('platform_bill_trade_type', row.tradeType) : '暂无'
+              }}</template>
             </el-table-column>
             <el-table-column label="交易时间" width="160" align="center" class-name="col-text">
               <template #default="{ row }">

@@ -424,6 +424,14 @@ export const DICT = {
         PENDING: '待处理',
         FAILED: '失败'
     },
+    /** 对账平台账单行 trade_type（mock 为 PAY/RECHARGE；渠道账单偶发写入渠道码） */
+    platform_bill_trade_type: {
+        PAY: '支付',
+        RECHARGE: '充值',
+        REFUND: '退款',
+        WECHAT: '微信支付',
+        ALIPAY: '支付宝支付'
+    },
     settlement_batch_status: {
         PENDING: '待结算',
         PROCESSING: '结算中',

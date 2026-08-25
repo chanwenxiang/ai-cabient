@@ -141,7 +141,7 @@ async function load() {
 }
 
 function typeLabel(t: string) {
-  return displayLabel('promotion_type', t, t || '活动');
+  return displayLabel('promotion_type', t, '活动');
 }
 function yuan(cents?: number) {
   return cents == null ? '暂无' : (cents / 100).toFixed(2);

@@ -810,7 +810,9 @@
               </el-table-column>
               <el-table-column label="状态" width="100" align="center">
                 <template #default="{ row }">
-                  <el-tag size="small" type="warning">{{ row.status || 'OPEN' }}</el-tag>
+                  <el-tag size="small" type="warning">{{
+                    displayLabel('exception_status', row.status, '待处理')
+                  }}</el-tag>
                 </template>
               </el-table-column>
               <el-table-column label="创建时间" width="168" align="center" class-name="col-text">
