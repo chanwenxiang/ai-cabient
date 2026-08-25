@@ -290,11 +290,7 @@ function yuan(cents?: number) {
   if (cents == null) return '暂无';
   return `¥${(cents / 100).toFixed(2)}`;
 }
-function avgTicket(row: {
-  orderCount?: number;
-  totalSpentCents?: number;
-  totalSpent?: number;
-}) {
+function avgTicket(row: { orderCount?: number; totalSpentCents?: number; totalSpent?: number }) {
   const n = Number(row.orderCount || 0);
   if (n <= 0) return '暂无';
   const cents =

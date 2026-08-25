@@ -359,7 +359,12 @@
                   description="暂无调拨单"
                 />
               </template>
-              <el-table-column prop="transferNo" label="调拨单号" min-width="160" show-overflow-tooltip />
+              <el-table-column
+                prop="transferNo"
+                label="调拨单号"
+                min-width="160"
+                show-overflow-tooltip
+              />
               <el-table-column label="调出仓" min-width="120" show-overflow-tooltip>
                 <template #default="{ row }">{{
                   warehouseName(row.fromWarehouseId) || row.fromWarehouseId
@@ -372,9 +377,7 @@
               </el-table-column>
               <el-table-column label="状态" width="100" align="center">
                 <template #default="{ row }">
-                  <el-tag size="small" effect="plain">{{
-                    transferStatusLabel(row.status)
-                  }}</el-tag>
+                  <el-tag size="small" effect="plain">{{ transferStatusLabel(row.status) }}</el-tag>
                 </template>
               </el-table-column>
               <el-table-column label="明细" min-width="180" show-overflow-tooltip>
@@ -2903,13 +2906,15 @@ function warehouseName(id: string) {
 function transferStatusLabel(status?: string) {
   if (!status) return '';
   return (
-    {
-      DRAFT: '草稿',
-      SHIPPED: '已发运',
-      RECEIVED: '已收货',
-      CANCELLED: '已取消'
-    } as Record<string, string>
-  )[String(status).toUpperCase()] || status;
+    (
+      {
+        DRAFT: '草稿',
+        SHIPPED: '已发运',
+        RECEIVED: '已收货',
+        CANCELLED: '已取消'
+      } as Record<string, string>
+    )[String(status).toUpperCase()] || status
+  );
 }
 function deviceName(id: string) {
   return devices.value.find((d) => d.deviceId === id)?.deviceName || id || '无';
@@ -3238,7 +3243,7 @@ async function loadTab(name: string, force = false) {
       await Promise.all([loadBins(), loadBinStock(), loadWarehousesSoft()]);
     } else if (name === 'outbounds') {
       await Promise.all([loadOutbounds(), loadWarehousesSoft()]);
-    }     else if (name === 'transit') await loadTransit();
+    } else if (name === 'transit') await loadTransit();
     else if (name === 'transfers') {
       await Promise.all([loadTransfers(), loadWarehousesSoft()]);
     } else if (name === 'inventory') {

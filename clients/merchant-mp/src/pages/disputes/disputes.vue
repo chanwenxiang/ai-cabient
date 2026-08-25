@@ -50,8 +50,13 @@
                   : '处理中'
             }}</text>
           </view>
-          <view v-if="item.billedAmountCents != null || item.refundedAmountCents != null" class="card-amount-line">
-            <text v-if="item.billedAmountCents != null">已扣 {{ fmtMoney(item.billedAmountCents) }}</text>
+          <view
+            v-if="item.billedAmountCents != null || item.refundedAmountCents != null"
+            class="card-amount-line"
+          >
+            <text v-if="item.billedAmountCents != null"
+              >已扣 {{ fmtMoney(item.billedAmountCents) }}</text
+            >
             <text v-if="item.refundedAmountCents != null"
               >已退 {{ fmtMoney(item.refundedAmountCents) }}</text
             >
@@ -139,16 +144,9 @@
                 ><text class="detail-val">{{ detail.lastMessage }}</text></view
               >
             </view>
-            <view
-              v-if="(detail?.suggestedItems || []).length"
-              class="suggest-block"
-            >
+            <view v-if="(detail?.suggestedItems || []).length" class="suggest-block">
               <text class="detail-lbl">建议明细</text>
-              <view
-                v-for="(it, i) in detail?.suggestedItems || []"
-                :key="i"
-                class="suggest-row"
-              >
+              <view v-for="(it, i) in detail?.suggestedItems || []" :key="i" class="suggest-row">
                 <text>{{ it.skuName || it.skuId || '商品' }} ×{{ it.quantity || 0 }}</text>
               </view>
             </view>
@@ -170,22 +168,25 @@
               class="primary-btn waive"
               :loading="resolving"
               @click="resolveFromDetail('WAIVE')"
-              >同意免单</button
             >
+              同意免单
+            </button>
             <button
               v-if="canResolveDetail"
               class="btn-outline"
               :loading="resolving"
               @click="resolveFromDetail('KEEP')"
-              >维持原单</button
             >
+              维持原单
+            </button>
             <button
               v-if="canResolveDetail"
               class="btn-outline"
               :loading="resolving"
               @click="resolveFromDetail('CONFIRM')"
-              >按识别结案</button
             >
+              按识别结案
+            </button>
             <button v-if="detail?.orderId" class="btn-outline" @click="goOrderFromDetail">
               查看订单
             </button>

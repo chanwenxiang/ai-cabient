@@ -386,14 +386,23 @@ function typeTag(t: string) {
 }
 
 function isFixable(t: string) {
-  return t === 'ORDER_AMOUNT' || t === 'INVENTORY_MISMATCH'
-    || t === 'ORDER_LINE_SUM' || t === 'COUPON_USED_LINK' || t === 'PAYMENT_AMOUNT';
+  return (
+    t === 'ORDER_AMOUNT' ||
+    t === 'INVENTORY_MISMATCH' ||
+    t === 'ORDER_LINE_SUM' ||
+    t === 'COUPON_USED_LINK' ||
+    t === 'PAYMENT_AMOUNT'
+  );
 }
 
 function keyLink(row: Row): 'order' | 'device' | 'member' | 'coupon' | null {
   if (!row.checkKey) return null;
-  if (row.checkType === 'ORDER_AMOUNT' || row.checkType === 'PAYMENT_AMOUNT'
-      || row.checkType === 'REFUND_AMOUNT' || row.checkType === 'COUPON_USED_LINK') {
+  if (
+    row.checkType === 'ORDER_AMOUNT' ||
+    row.checkType === 'PAYMENT_AMOUNT' ||
+    row.checkType === 'REFUND_AMOUNT' ||
+    row.checkType === 'COUPON_USED_LINK'
+  ) {
     return 'order';
   }
   if (row.checkType === 'ORDER_LINE_SUM' && row.checkKey.includes('|')) {
@@ -408,9 +417,8 @@ function keyLink(row: Row): 'order' | 'device' | 'member' | 'coupon' | null {
 function openKey(row: Row) {
   const kind = keyLink(row);
   if (kind === 'order') {
-    const orderId = row.checkType === 'ORDER_LINE_SUM'
-      ? row.checkKey.split('|', 2)[0]
-      : row.checkKey;
+    const orderId =
+      row.checkType === 'ORDER_LINE_SUM' ? row.checkKey.split('|', 2)[0] : row.checkKey;
     void router.push({ path: '/orders', query: { orderId } });
     return;
   }

@@ -10,7 +10,8 @@
       <view class="refund-entry">
         <text class="refund-title">申请退余额</text>
         <text class="refund-hint"
-          >仅可退回仍对应微信/支付宝充值的可用余额；审核通过后原路退回，一般 1–7 个工作日到账。</text
+          >仅可退回仍对应微信/支付宝充值的可用余额；审核通过后原路退回，一般 1–7
+          个工作日到账。</text
         >
         <view class="refund-row">
           <input
@@ -195,7 +196,11 @@ import { consumerApi, ensureConsumerAuth, get } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
 import { shortBizNo, formatDateTimeMinute, fmtMoney } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
-import type { PageResult, RechargeOrderDto, BalanceRefundRequestDto } from '@aicabinet/shared-types';
+import type {
+  PageResult,
+  RechargeOrderDto,
+  BalanceRefundRequestDto
+} from '@aicabinet/shared-types';
 import {
   resolveMockEnabled,
   resolveSandboxRecharge,

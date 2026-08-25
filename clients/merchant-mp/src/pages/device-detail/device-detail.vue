@@ -55,12 +55,7 @@
           </view>
           <view class="field">
             <text class="field-label">目标温度(°C)</text>
-            <input
-              v-model="formTargetTemp"
-              class="input"
-              type="number"
-              placeholder="例如 5"
-            />
+            <input v-model="formTargetTemp" class="input" type="number" placeholder="例如 5" />
           </view>
           <view class="field">
             <text class="field-label">备注</text>
@@ -185,7 +180,9 @@ const velocity = ref<MerchantSkuVelocity[]>([]);
 const isPreferred = ref(false);
 
 const lifecycleLabel = computed(() =>
-  lifecycleStatus.value ? dictLabel('device_lifecycle', lifecycleStatus.value) || lifecycleStatus.value : ''
+  lifecycleStatus.value
+    ? dictLabel('device_lifecycle', lifecycleStatus.value) || lifecycleStatus.value
+    : ''
 );
 const slotStockHint = computed(() => {
   const oos = slots.value.filter((s) => Number(s.bookQty || 0) <= 0 && !!s.assignedSkuId).length;
@@ -272,7 +269,9 @@ async function loadDetail() {
     );
     address.value = String((settings as { address?: string }).address || '');
     routeCode.value = String((settings as { routeCode?: string }).routeCode || '');
-    lifecycleStatus.value = String((settings as { lifecycleStatus?: string }).lifecycleStatus || '');
+    lifecycleStatus.value = String(
+      (settings as { lifecycleStatus?: string }).lifecycleStatus || ''
+    );
     currentTemp.value = settings.currentTempC != null ? settings.currentTempC + '°C' : '暂无';
     targetTemp.value = settings.targetTempC != null ? settings.targetTempC + '°C' : '未设置';
     formName.value = (settings.deviceName as string) || '';

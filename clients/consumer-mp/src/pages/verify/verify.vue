@@ -13,10 +13,7 @@
           <text class="step-label">实名</text>
         </view>
         <view class="step-line" :class="{ done: account?.verified }" />
-        <view
-          class="step"
-          :class="{ done: payReady, active: !!account?.verified && !payReady }"
-        >
+        <view class="step" :class="{ done: payReady, active: !!account?.verified && !payReady }">
           <view class="step-dot">{{ payReady ? '✓' : '2' }}</view>
           <text class="step-label">免密支付</text>
         </view>
@@ -266,7 +263,8 @@ async function onSignAlipay() {
     if (res.pending && res.signFormHtml) {
       // 生产：支付宝内 H5 自动提交签约表单；微信小程序不内嵌支付宝签约
       const platform = String((import.meta as any).env?.UNI_PLATFORM || '').toLowerCase();
-      const isH5 = platform === 'h5' || (typeof window !== 'undefined' && !!(window as any).document);
+      const isH5 =
+        platform === 'h5' || (typeof window !== 'undefined' && !!(window as any).document);
       if (isH5 && typeof document !== 'undefined') {
         const blob = new Blob([res.signFormHtml], { type: 'text/html;charset=utf-8' });
         const url = URL.createObjectURL(blob);
@@ -275,7 +273,8 @@ async function onSignAlipay() {
       }
       uni.showModal({
         title: '请在支付宝内开通',
-        content: '支付宝免密需在支付宝扫柜码进入后开通（不做支付宝小程序）。当前环境无法跳转签约页。',
+        content:
+          '支付宝免密需在支付宝扫柜码进入后开通（不做支付宝小程序）。当前环境无法跳转签约页。',
         showCancel: false
       });
       account.value = await consumerApi.account();

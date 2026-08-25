@@ -59,7 +59,9 @@
             </view>
             <text class="row-sub"
               >{{ emptyDisplay(w.requestNo, 'order')
-              }}{{ w.payChannel ? ` · ${displayLabel('pay_channel', w.payChannel, w.payChannel)}` : '' }}</text
+              }}{{
+                w.payChannel ? ` · ${displayLabel('pay_channel', w.payChannel, w.payChannel)}` : ''
+              }}</text
             >
             <text class="row-sub"
               >手续费 ¥{{ yuan(w.feeCents || 0)
@@ -96,9 +98,7 @@
               </text>
             </view>
             <text class="row-sub">{{ emptyDisplay(l.remark, 'text') }}</text>
-            <text v-if="l.refId" class="row-sub"
-              >关联 {{ l.refType || 'REF' }} {{ l.refId }}</text
-            >
+            <text v-if="l.refId" class="row-sub">关联 {{ l.refType || 'REF' }} {{ l.refId }}</text>
             <text v-if="l.balanceAfter != null" class="row-sub"
               >余额后 ¥{{ yuan(l.balanceAfter) }} · 冻结后 ¥{{ yuan(l.frozenAfter) }}</text
             >

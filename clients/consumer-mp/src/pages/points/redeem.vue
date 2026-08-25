@@ -29,8 +29,7 @@
                 }}</text
               >
               <text v-if="item.validityDays" class="item-coupon"
-                >领后 {{ item.validityDays }} 天有效 ·
-                {{ deviceScopeText(item.deviceScope) }}</text
+                >领后 {{ item.validityDays }} 天有效 · {{ deviceScopeText(item.deviceScope) }}</text
               >
               <text class="item-stock">{{
                 item.availableStock > 0 ? `剩余 ${item.availableStock} 份` : '已兑完'

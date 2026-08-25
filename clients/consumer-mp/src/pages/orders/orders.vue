@@ -2,7 +2,12 @@
   <view class="page page-fill">
     <app-nav-bar title="我的订单" home-url="/pages/index/index" />
     <view v-if="booting" class="state-wrap"><text class="meta">加载中…</text></view>
-    <empty-state v-else-if="error && !orders.length" class="state-wrap" title="加载失败" :hint="error">
+    <empty-state
+      v-else-if="error && !orders.length"
+      class="state-wrap"
+      title="加载失败"
+      :hint="error"
+    >
       <button class="empty-btn primary" hover-class="btn-hover" @click="load">重试</button>
       <button class="empty-btn ghost" hover-class="btn-hover" @click="goShop">去扫码购物</button>
     </empty-state>
@@ -73,7 +78,9 @@
           </view>
         </view>
 
-        <view v-if="loading && !orders.length && !reviewingDisputes.length" class="state-wrap inline"
+        <view
+          v-if="loading && !orders.length && !reviewingDisputes.length"
+          class="state-wrap inline"
           ><text class="meta">刷新中…</text></view
         >
         <empty-state
@@ -82,15 +89,12 @@
           title="暂无订单"
           hint="扫码开门购物后，账单会显示在这里"
         >
-          <button class="empty-btn primary" hover-class="btn-hover" @click="goShop">去扫码购物</button>
+          <button class="empty-btn primary" hover-class="btn-hover" @click="goShop">
+            去扫码购物
+          </button>
         </empty-state>
         <view v-else class="list-inner">
-          <view
-            v-for="o in visibleOrders"
-            :key="o.orderId"
-            class="order-card"
-            @click="goDetail(o)"
-          >
+          <view v-for="o in visibleOrders" :key="o.orderId" class="order-card" @click="goDetail(o)">
             <view class="order-top">
               <view class="order-meta">
                 <text class="order-device-name">{{ deviceDisplay(o.deviceId) }}</text>
@@ -129,11 +133,9 @@
                   </view>
                 </view>
                 <view class="order-amt-block">
-                  <text
-                    v-if="showOriginal(o)"
-                    class="amt-origin"
-                    >{{ fmtMoney(Number(o.originalAmountCents)) }}</text
-                  >
+                  <text v-if="showOriginal(o)" class="amt-origin">{{
+                    fmtMoney(Number(o.originalAmountCents))
+                  }}</text>
                   <text class="amt">{{ fmtMoney(o.totalAmountCents || 0) }}</text>
                   <text v-if="discountCents(o) > 0" class="discount"
                     >优惠减¥{{ (discountCents(o) / 100).toFixed(2) }}</text
@@ -144,17 +146,14 @@
             <view class="order-bottom">
               <view class="order-bottom-left">
                 <text class="order-time">{{ formatTime(o.createdAt) }}</text>
-                <text
-                  v-if="refundCents(o) > 0"
-                  class="order-refund-amt"
+                <text v-if="refundCents(o) > 0" class="order-refund-amt"
                   >已退 {{ fmtMoney(refundCents(o)) }}</text
                 >
               </view>
               <text
                 v-if="o.status === 'REFUNDED' || o.status === 'PARTIAL_REFUNDED' || o.refundedAt"
                 class="order-hint refund"
-                >{{
-                  o.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
+                >{{ o.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
                 }}{{ o.refundedAt ? ` · ${formatTime(o.refundedAt)}` : '' }} ›</text
               >
               <text v-else-if="o.status === 'DISPUTED'" class="order-hint">审核中 ›</text>

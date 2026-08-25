@@ -48,11 +48,7 @@
             </view>
             <view class="price-col">
               <text class="effective">{{ money(p.effectivePriceCents) }}</text>
-              <text
-                v-if="p.overridePriceCents != null"
-                class="override-tag"
-                >已覆盖</text
-              >
+              <text v-if="p.overridePriceCents != null" class="override-tag">已覆盖</text>
               <input
                 v-if="canEdit"
                 v-model="draft[draftKey(p)]"

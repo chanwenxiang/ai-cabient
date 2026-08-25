@@ -41,15 +41,9 @@
       <view class="card">
         <text class="section-title">商品明细</text>
         <view v-if="order.lines?.length">
-          <view
-            v-for="(line, i) in order.lines"
-            :key="i"
-            class="line"
-          >
+          <view v-for="(line, i) in order.lines" :key="i" class="line">
             <view class="line-main">
-              <text class="line-name"
-                >{{ line.skuName || line.skuId }} × {{ line.quantity }}</text
-              >
+              <text class="line-name">{{ line.skuName || line.skuId }} × {{ line.quantity }}</text>
               <text v-if="lineMeta(line)" class="line-meta">{{ lineMeta(line) }}</text>
               <text v-if="line.unitPriceCents != null" class="line-unit"
                 >单价 {{ fmtMoney(line.unitPriceCents) }}</text

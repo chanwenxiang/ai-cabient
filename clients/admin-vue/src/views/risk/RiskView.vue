@@ -46,9 +46,7 @@
               <el-table-column label="事件" min-width="140" align="center" class-name="col-text">
                 <template #default="{ row }">
                   <div class="id-cell">
-                    <strong>{{
-                      displayLabel('risk_event_type', row.eventType, '未知')
-                    }}</strong>
+                    <strong>{{ displayLabel('risk_event_type', row.eventType, '未知') }}</strong>
                     <small>{{ row.eventId }}</small>
                   </div>
                 </template>
@@ -249,7 +247,12 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
 import type { PageResult } from '@aicabinet/shared-types';
-import { dictLabel, dictTagType, displayLabel, formatRiskEventDetail } from '@aicabinet/shared-dict';
+import {
+  dictLabel,
+  dictTagType,
+  displayLabel,
+  formatRiskEventDetail
+} from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 function dispositionLabel(s?: string) {

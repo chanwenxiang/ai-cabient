@@ -66,9 +66,7 @@
         <button
           type="button"
           class="stat-tile"
-          :aria-label="
-            metricsHydrated ? `填充率 ${metrics?.fillRatePct ?? 0}%` : '填充率 加载中…'
-          "
+          :aria-label="metricsHydrated ? `填充率 ${metrics?.fillRatePct ?? 0}%` : '填充率 加载中…'"
         >
           <div class="stat-label">填充率</div>
           <div class="stat-value">
@@ -87,7 +85,9 @@
           "
         >
           <div class="stat-label">缺货货道</div>
-          <div class="stat-value">{{ metricsHydrated ? (metrics?.oosSlotCount ?? 0) : '暂无' }}</div>
+          <div class="stat-value">
+            {{ metricsHydrated ? (metrics?.oosSlotCount ?? 0) : '暂无' }}
+          </div>
           <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
         </button>
       </el-col>
@@ -97,9 +97,7 @@
           class="stat-tile"
           :class="{ warn: metricsHydrated && (metrics?.lowStockSlotCount || 0) > 0 }"
           :aria-label="
-            metricsHydrated
-              ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}`
-              : '低库存货道 加载中…'
+            metricsHydrated ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}` : '低库存货道 加载中…'
           "
         >
           <div class="stat-label">低库存货道</div>
@@ -883,9 +881,7 @@
             </el-table-column>
             <el-table-column label="入口" width="88" align="center">
               <template #default="{ row }">
-                {{
-                  displayLabel('pay_channel', row.entryChannel || row.payChannel, '暂无')
-                }}
+                {{ displayLabel('pay_channel', row.entryChannel || row.payChannel, '暂无') }}
               </template>
             </el-table-column>
             <el-table-column label="录像" width="72" align="center">
@@ -1252,7 +1248,11 @@ const refundPolicySaving = ref(false);
 const globalRefundPolicy = ref('AUTO_REFUND');
 
 const effectiveRefundPolicy = computed(
-  () => device.value?.effectiveRefundPolicy || device.value?.refundPolicy || globalRefundPolicy.value || 'AUTO_REFUND'
+  () =>
+    device.value?.effectiveRefundPolicy ||
+    device.value?.refundPolicy ||
+    globalRefundPolicy.value ||
+    'AUTO_REFUND'
 );
 
 const refundDraftHint = computed(() => {
@@ -1553,7 +1553,9 @@ async function loadGlobalRefundPolicy() {
       'GET'
     );
     const hit = rows.find((r) => r.configKey === 'refund.default_policy');
-    const v = String(hit?.configValue || '').trim().toUpperCase();
+    const v = String(hit?.configValue || '')
+      .trim()
+      .toUpperCase();
     if (v === 'DISPUTE_ONLY' || v === 'AUTO_REFUND') {
       globalRefundPolicy.value = v;
     }

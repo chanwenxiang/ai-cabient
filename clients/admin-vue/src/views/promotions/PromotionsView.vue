@@ -472,7 +472,11 @@ function openEdit(row: any) {
     budgetYuan: (Number(row.budgetCents) || 0) / 100,
     userLimit: row.userLimit ?? 1,
     deviceScope: row.deviceScope === 'SPECIFIC' ? 'SPECIFIC' : 'ALL',
-    deviceIds: deviceIds.length ? deviceIds : row.deviceScope && row.deviceScope !== 'ALL' && row.deviceScope !== 'SPECIFIC' ? [row.deviceScope] : [],
+    deviceIds: deviceIds.length
+      ? deviceIds
+      : row.deviceScope && row.deviceScope !== 'ALL' && row.deviceScope !== 'SPECIFIC'
+        ? [row.deviceScope]
+        : [],
     description: row.description || ''
   };
   showDialog.value = true;

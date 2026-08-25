@@ -140,9 +140,11 @@
                 }}</text
               >
               <text v-if="b.failedCount" class="device-fail">失败 {{ b.failedCount }} 笔</text>
-              <text v-if="b.settleAfter || b.settledAt" class="device-orders"
-                >{{ b.settledAt ? `入账 ${formatBatchTime(b.settledAt)}` : `计划 ${formatBatchTime(b.settleAfter)}` }}</text
-              >
+              <text v-if="b.settleAfter || b.settledAt" class="device-orders">{{
+                b.settledAt
+                  ? `入账 ${formatBatchTime(b.settledAt)}`
+                  : `计划 ${formatBatchTime(b.settleAfter)}`
+              }}</text>
             </view>
             <text class="device-amount">¥{{ (b.merchantCents / 100).toFixed(2) }}</text>
           </view>

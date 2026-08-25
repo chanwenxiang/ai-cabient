@@ -436,7 +436,12 @@ function onLogout() {
   align-items: stretch;
   width: 100%;
   box-sizing: border-box;
-  background: linear-gradient(145deg, var(--brand-deep, #134e4a), var(--brand, #0f766e) 60%, var(--brand, #0f766e));
+  background: linear-gradient(
+    145deg,
+    var(--brand-deep, #134e4a),
+    var(--brand, #0f766e) 60%,
+    var(--brand, #0f766e)
+  );
   box-shadow: none;
   color: #fff;
 }

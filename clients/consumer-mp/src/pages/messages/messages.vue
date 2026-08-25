@@ -102,7 +102,8 @@ const subscribeEnabled = ref(false);
 const subscribeTemplateId = ref('');
 const subscribing = ref(false);
 const pendingCount = ref(0);
-type MsgFilter = 'all' | 'unread' | 'ORDER' | 'DISPUTE' | 'COUPON' | 'POINTS' | 'RECHARGE' | 'OTHER';
+type MsgFilter =
+  'all' | 'unread' | 'ORDER' | 'DISPUTE' | 'COUPON' | 'POINTS' | 'RECHARGE' | 'OTHER';
 const filter = ref<MsgFilter>('all');
 const filters: Array<{ key: MsgFilter; label: string }> = [
   { key: 'all', label: '全部' },
@@ -248,9 +249,7 @@ function goByBiz(m: NotificationDto) {
       break;
     case 'DISPUTE':
       uni.navigateTo({
-        url: id
-          ? `/pages/dispute/detail?ticketId=${id}`
-          : '/pages/orders/orders'
+        url: id ? `/pages/dispute/detail?ticketId=${id}` : '/pages/orders/orders'
       });
       break;
     case 'RECHARGE':
@@ -269,9 +268,7 @@ function goByBiz(m: NotificationDto) {
       break;
     case 'ANNOUNCEMENT':
       uni.navigateTo({
-        url: id
-          ? `/pages/announcements/detail?id=${id}`
-          : '/pages/announcements/announcements'
+        url: id ? `/pages/announcements/detail?id=${id}` : '/pages/announcements/announcements'
       });
       break;
     default:

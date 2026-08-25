@@ -61,8 +61,7 @@
                   {{ ((data.platformRateBps || 0) / 100).toFixed(1) }}%</small
                 >
                 <small v-if="data.parentMerchantId" class="org-cascade"
-                  >上级 {{ data.parentMerchantId }} · 级联保留
-                  {{ cascadeKeepPct(data) }}%</small
+                  >上级 {{ data.parentMerchantId }} · 级联保留 {{ cascadeKeepPct(data) }}%</small
                 >
               </div>
               <div class="org-node__actions">
@@ -352,7 +351,7 @@
               {{
                 Array.isArray(row.permissions)
                   ? row.permissions.length
-                  : row.permissionCount ?? '暂无'
+                  : (row.permissionCount ?? '暂无')
               }}
             </template>
           </el-table-column>
@@ -488,7 +487,12 @@
               <el-table-column label="设备" min-width="100" align="center" show-overflow-tooltip>
                 <template #default="{ row }">{{ row.deviceId || '暂无' }}</template>
               </el-table-column>
-              <el-table-column label="结算批次" min-width="110" align="center" show-overflow-tooltip>
+              <el-table-column
+                label="结算批次"
+                min-width="110"
+                align="center"
+                show-overflow-tooltip
+              >
                 <template #default="{ row }">{{ row.settlementBatchNo || '暂无' }}</template>
               </el-table-column>
               <el-table-column label="状态" width="120" align="center">

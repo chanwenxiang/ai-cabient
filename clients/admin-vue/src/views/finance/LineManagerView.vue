@@ -759,10 +759,7 @@ async function showKpi(row: Manager) {
   kpiVisible.value = true;
   kpiHydrated.value = false;
   try {
-    kpi.value = await api.request(
-      `/api/v2/ops/admin/line-managers/${row.managerId}/kpi`,
-      'GET'
-    );
+    kpi.value = await api.request(`/api/v2/ops/admin/line-managers/${row.managerId}/kpi`, 'GET');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载 KPI 失败');
   } finally {

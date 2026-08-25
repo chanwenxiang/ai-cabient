@@ -11,9 +11,7 @@
             <text class="summary-sub"
               >累计 {{ summary?.totalPoints ?? 0 }} · 已用 {{ summary?.usedPoints ?? 0
               }}{{
-                summary && summary.expiredPoints > 0
-                  ? ` · 已过期 ${summary.expiredPoints}`
-                  : ''
+                summary && summary.expiredPoints > 0 ? ` · 已过期 ${summary.expiredPoints}` : ''
               }}</text
             >
           </view>

@@ -37,7 +37,9 @@
           </view>
           <text class="title">{{ item.title }}</text>
           <text class="preview">{{ previewText(item.content) }}</text>
-          <text v-if="expireHint(item.expireAt)" class="expire">{{ expireHint(item.expireAt) }}</text>
+          <text v-if="expireHint(item.expireAt)" class="expire">{{
+            expireHint(item.expireAt)
+          }}</text>
         </view>
       </view>
     </view>

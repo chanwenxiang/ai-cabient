@@ -193,10 +193,7 @@
             <text v-if="searchKeyword" class="search-clear" @click="clearSearchKeyword">×</text>
           </view>
           <scroll-view scroll-x class="category-row" :show-scrollbar="false">
-            <view
-              class="category-chip"
-              :class="{ active: !activeCategory }"
-              @click="clearCategory"
+            <view class="category-chip" :class="{ active: !activeCategory }" @click="clearCategory"
               >全部</view
             >
             <view
@@ -229,65 +226,65 @@
           </view>
         </view>
         <view v-else class="product-grid">
-            <view
-              v-for="p in filteredProducts"
-              :key="p.skuId"
-              class="product-cell"
-              :class="{ selected: (selected[p.skuId] || 0) > 0 }"
-              role="button"
-              :aria-label="`选择 ${p.skuName}`"
-              :data-sku-id="p.skuId"
-              @click="onProductCellTap"
-            >
+          <view
+            v-for="p in filteredProducts"
+            :key="p.skuId"
+            class="product-cell"
+            :class="{ selected: (selected[p.skuId] || 0) > 0 }"
+            role="button"
+            :aria-label="`选择 ${p.skuName}`"
+            :data-sku-id="p.skuId"
+            @click="onProductCellTap"
+          >
             <view class="product-cell-inner">
-            <view class="product-thumb" :class="'cat-' + thumbTone(p)">
-              <image
-                v-if="showThumb(p)"
-                class="product-img"
-                :src="productThumb(p)"
-                mode="aspectFill"
-                @error="onThumbError(p.skuId)"
-              />
-              <text v-else class="product-mark">{{ productGlyph(p) }}</text>
+              <view class="product-thumb" :class="'cat-' + thumbTone(p)">
+                <image
+                  v-if="showThumb(p)"
+                  class="product-img"
+                  :src="productThumb(p)"
+                  mode="aspectFill"
+                  @error="onThumbError(p.skuId)"
+                />
+                <text v-else class="product-mark">{{ productGlyph(p) }}</text>
+                <text
+                  v-if="sessionActive && state === 'SHOPPING' && mockEnabled && selectedQty(p) > 0"
+                  class="product-badge"
+                  >{{ selectedQty(p) }}</text
+                >
+              </view>
+              <text class="product-name">{{ p.skuName }}</text>
+              <text class="product-price">{{ fmtMoney(p.priceCents) }}</text>
+              <text v-if="p.category" class="product-cat">{{ p.category }}</text>
               <text
-                v-if="sessionActive && state === 'SHOPPING' && mockEnabled && selectedQty(p) > 0"
-                class="product-badge"
-                >{{ selectedQty(p) }}</text
+                v-if="sessionActive && state === 'SHOPPING' && (mockEnabled || stockOf(p) > 0)"
+                class="product-stock"
+                >{{ stockLabel(p) }}</text
               >
-            </view>
-            <text class="product-name">{{ p.skuName }}</text>
-            <text class="product-price">{{ fmtMoney(p.priceCents) }}</text>
-            <text v-if="p.category" class="product-cat">{{ p.category }}</text>
-            <text
-              v-if="sessionActive && state === 'SHOPPING' && (mockEnabled || stockOf(p) > 0)"
-              class="product-stock"
-              >{{ stockLabel(p) }}</text
-            >
-            <view
-              v-if="sessionActive && state === 'SHOPPING' && mockEnabled"
-              class="product-stepper"
-              @click.stop="noop"
-            >
-              <text
-                class="stepper-btn"
-                role="button"
-                :aria-label="`减少 ${p.skuName}`"
-                :data-sku-id="p.skuId"
-                @click.stop="onRemoveProductTap"
-                >−</text
+              <view
+                v-if="sessionActive && state === 'SHOPPING' && mockEnabled"
+                class="product-stepper"
+                @click.stop="noop"
               >
-              <text class="stepper-qty">{{ selectedQty(p) }}/{{ stockOf(p) }}</text>
-              <text
-                class="stepper-btn plus"
-                :class="{ disabled: !canAddProduct(p) }"
-                role="button"
-                :aria-disabled="(!canAddProduct(p)).toString()"
-                :aria-label="`增加 ${p.skuName}`"
-                :data-sku-id="p.skuId"
-                @click.stop="onAddProductTap"
-                >+</text
-              >
-            </view>
+                <text
+                  class="stepper-btn"
+                  role="button"
+                  :aria-label="`减少 ${p.skuName}`"
+                  :data-sku-id="p.skuId"
+                  @click.stop="onRemoveProductTap"
+                  >−</text
+                >
+                <text class="stepper-qty">{{ selectedQty(p) }}/{{ stockOf(p) }}</text>
+                <text
+                  class="stepper-btn plus"
+                  :class="{ disabled: !canAddProduct(p) }"
+                  role="button"
+                  :aria-disabled="(!canAddProduct(p)).toString()"
+                  :aria-label="`增加 ${p.skuName}`"
+                  :data-sku-id="p.skuId"
+                  @click.stop="onAddProductTap"
+                  >+</text
+                >
+              </view>
             </view>
           </view>
         </view>

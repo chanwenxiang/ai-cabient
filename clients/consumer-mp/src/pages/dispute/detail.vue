@@ -169,15 +169,20 @@ const timeline = computed(() => {
       time: t.resolvedAt ? formatTime(t.resolvedAt) : '',
       detail:
         (t as { operatorNote?: string }).operatorNote ||
-        (resolved ? '审核结论已生成' : (t as { slaOverdue?: boolean }).slaOverdue ? '已超时，加急处理中' : '请耐心等待'),
+        (resolved
+          ? '审核结论已生成'
+          : (t as { slaOverdue?: boolean }).slaOverdue
+            ? '已超时，加急处理中'
+            : '请耐心等待'),
       done: resolved,
       current: !resolved
     },
     {
       title: status === 'RESOLVED' ? '已结案' : status === 'CLOSED' ? '已关闭' : '待结案',
-      time: t.resolvedAt || (t as { closedAt?: string }).closedAt
-        ? formatTime(t.resolvedAt || (t as { closedAt?: string }).closedAt)
-        : '',
+      time:
+        t.resolvedAt || (t as { closedAt?: string }).closedAt
+          ? formatTime(t.resolvedAt || (t as { closedAt?: string }).closedAt)
+          : '',
       detail: resolved
         ? `最终扣款 ${fmtMoney(t.billedAmountCents ?? 0)}`
         : '结案后可在订单详情查看退款到账',

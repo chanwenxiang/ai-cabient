@@ -25,8 +25,7 @@
             <view class="line-info">
               <text class="line-name">{{ line.skuName || line.skuId || '商品' }}</text>
               <text class="line-qty"
-                >x{{ line.quantity
-                }}{{ line.slotId ? ` · 货道 ${line.slotId}` : ''
+                >x{{ line.quantity }}{{ line.slotId ? ` · 货道 ${line.slotId}` : ''
                 }}{{ line.batchNo ? ` · 批次 ${line.batchNo}` : '' }}</text
               >
               <text v-if="line.unitPriceCents != null" class="line-unit"
