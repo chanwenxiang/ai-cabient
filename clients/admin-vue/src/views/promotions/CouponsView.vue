@@ -123,7 +123,7 @@
           <el-table-column label="类型" width="100" align="center">
             <template #default="{ row }">
               <el-tag size="small" effect="plain">{{
-                typeMap[row.couponType] || row.couponType
+                displayLabel('coupon_type', row.couponType, '未知类型')
               }}</el-tag>
             </template>
           </el-table-column>
@@ -461,7 +461,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
     toRows: () =>
       pickSelected(filtered.value).map((row) => [
         row.couponName,
-        typeMap[row.couponType] || row.couponType,
+        displayLabel('coupon_type', row.couponType, '未知类型'),
         yuan(row.denominationCents),
         yuan(row.minSpendCents),
         row.discountPercent ?? '',

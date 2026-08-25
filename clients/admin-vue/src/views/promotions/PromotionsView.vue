@@ -109,7 +109,7 @@
           <el-table-column label="类型" width="120" align="center">
             <template #default="{ row }">
               <el-tag size="small" effect="plain">{{
-                typeMap[row.activityType] || row.activityType
+                displayLabel('promotion_type', row.activityType, '未知类型')
               }}</el-tag>
             </template>
           </el-table-column>
@@ -568,7 +568,7 @@ async function batchDisable() {
 function toExportRows(items: any[]) {
   return items.map((row) => [
     row.activityName,
-    typeMap[row.activityType] || row.activityType,
+    displayLabel('promotion_type', row.activityType, '未知类型'),
     formatTime(row.startTime),
     formatTime(row.endTime),
     yuan(row.budgetCents),

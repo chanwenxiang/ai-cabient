@@ -447,6 +447,14 @@ export declare const DICT: {
         readonly PENDING: "待处理";
         readonly FAILED: "失败";
     };
+    /** 对账平台账单行 trade_type（mock 为 PAY/RECHARGE；渠道账单偶发写入渠道码） */
+    readonly platform_bill_trade_type: {
+        readonly PAY: "支付";
+        readonly RECHARGE: "充值";
+        readonly REFUND: "退款";
+        readonly WECHAT: "微信支付";
+        readonly ALIPAY: "支付宝支付";
+    };
     readonly settlement_batch_status: {
         readonly PENDING: "待结算";
         readonly PROCESSING: "结算中";
