@@ -467,12 +467,7 @@
                   <span v-else class="muted">暂无</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="备注"
-                min-width="120"
-                align="center"
-                show-overflow-tooltip
-              >
+              <el-table-column label="备注" min-width="120" align="center" show-overflow-tooltip>
                 <template #default="{ row }">{{ row.notes || '暂无' }}</template>
               </el-table-column>
               <el-table-column label="操作" width="120" align="center" class-name="col-action">

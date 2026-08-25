@@ -310,7 +310,8 @@
               :key="e.eventId"
               :timestamp="formatDateTime(e.createdAt)"
             >
-              {{ eventActionLabel(e.action) }}：{{ eventStatusLabel(e.fromStatus) }} → {{ eventStatusLabel(e.toStatus) }}
+              {{ eventActionLabel(e.action) }}：{{ eventStatusLabel(e.fromStatus) }} →
+              {{ eventStatusLabel(e.toStatus) }}
               <span v-if="e.remark">（{{ e.remark }}）</span>
             </el-timeline-item>
           </el-timeline>

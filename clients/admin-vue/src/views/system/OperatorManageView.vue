@@ -751,10 +751,11 @@ async function openDevices(row: OperatorRow) {
         routeCode: d.routeCode
       }));
     }
-    const data = await api.request<{ scopeMode: string; deviceIds: string[]; routeCodes?: string[] }>(
-      `/api/v2/ops/admin/rbac/users/${row.userId}/devices`,
-      'GET'
-    );
+    const data = await api.request<{
+      scopeMode: string;
+      deviceIds: string[];
+      routeCodes?: string[];
+    }>(`/api/v2/ops/admin/rbac/users/${row.userId}/devices`, 'GET');
     let mode = data.scopeMode || 'ALL';
     if (mode === 'PARTIAL') mode = 'DEVICE_IDS';
     deviceScopeMode.value = mode;

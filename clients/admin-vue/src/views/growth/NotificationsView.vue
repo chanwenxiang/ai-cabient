@@ -52,7 +52,9 @@
         <template #default="{ row }">{{ rewriteBizNosInText(row.body) }}</template>
       </el-table-column>
       <el-table-column label="业务" width="100" align="center" show-overflow-tooltip>
-        <template #default="{ row }">{{ dictLabel('notification_biz_type', row.bizType) }}</template>
+        <template #default="{ row }">{{
+          dictLabel('notification_biz_type', row.bizType)
+        }}</template>
       </el-table-column>
       <el-table-column label="关联单号" width="150" align="center" class-name="col-text">
         <template #default="{ row }">{{ displayBizNo(row.bizId, '无') }}</template>

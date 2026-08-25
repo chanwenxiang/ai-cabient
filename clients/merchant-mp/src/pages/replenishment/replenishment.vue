@@ -152,14 +152,10 @@
           <text v-if="task.routeId">线路 #{{ task.routeId }}</text>
           <text v-if="task.checkInAt">已签到</text>
           <text v-if="task.outboundId">出库 #{{ task.outboundId }}</text>
-          <text
-            v-if="evidenceCountOf(task.taskId) > 0"
-            class="evidence-badge"
+          <text v-if="evidenceCountOf(task.taskId) > 0" class="evidence-badge"
             >凭证 {{ evidenceCountOf(task.taskId) }} 张</text
           >
-          <text
-            v-else-if="task.status === 'COMPLETED'"
-            class="evidence-badge muted"
+          <text v-else-if="task.status === 'COMPLETED'" class="evidence-badge muted"
             >无现场照片</text
           >
         </view>
@@ -251,7 +247,10 @@
                   : '签到后可拍照留存，最多 5 张'
               }}</text>
             </view>
-            <text class="line-count" :class="{ warn: evidenceItems.length === 0 && !!selected?.checkInAt }">
+            <text
+              class="line-count"
+              :class="{ warn: evidenceItems.length === 0 && !!selected?.checkInAt }"
+            >
               {{ evidenceItems.length }} 张
             </text>
           </view>
@@ -291,9 +290,7 @@
               role="button"
               :aria-label="selected?.checkInAt ? '添加现场照片' : '请先签到'"
               @click="
-                selected?.checkInAt &&
-                canRequest &&
-                selected?.status !== 'COMPLETED'
+                selected?.checkInAt && canRequest && selected?.status !== 'COMPLETED'
                   ? addEvidence()
                   : undefined
               "
@@ -1297,7 +1294,9 @@ function formatLineSummary(rows: Line[]): string {
   const pull = rows.filter((l) => isPullOffType(l.lineType)).length;
   const restock = rows.length - pull;
   const noExpiry = rows.filter((l) => !String(l.expiryDate || '').trim()).length;
-  const noSlot = rows.filter((l) => !String(l.slotId || '').trim() && !isPullOffType(l.lineType)).length;
+  const noSlot = rows.filter(
+    (l) => !String(l.slotId || '').trim() && !isPullOffType(l.lineType)
+  ).length;
   const parts = [`${rows.length} 行`, `共 ${qty} 件`];
   if (restock > 0) parts.push(`补货 ${restock}`);
   if (pull > 0) parts.push(`下架 ${pull}`);
@@ -1319,9 +1318,7 @@ function stockDeltaText(line: Line): string {
     }`;
   }
   const after = cap.bookQty + qty;
-  return `账面 ${cap.bookQty} → 补后 ${after}${
-    cap.maxLevel > 0 ? ` / 容量 ${cap.maxLevel}` : ''
-  }`;
+  return `账面 ${cap.bookQty} → 补后 ${after}${cap.maxLevel > 0 ? ` / 容量 ${cap.maxLevel}` : ''}`;
 }
 
 async function refreshLineSummaries(taskRows: Task[]) {

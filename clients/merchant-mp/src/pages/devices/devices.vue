@@ -59,11 +59,7 @@
             <text class="meta">{{ d.deviceId }}</text>
             <text v-if="d.address" class="meta addr">{{ d.address }}</text>
             <text
-              v-if="
-                d.routeCode ||
-                lifecycleText(d.lifecycleStatus) ||
-                d.currentTempC != null
-              "
+              v-if="d.routeCode || lifecycleText(d.lifecycleStatus) || d.currentTempC != null"
               class="meta"
             >
               <template v-if="d.routeCode">线路 {{ d.routeCode }}</template>
@@ -72,9 +68,7 @@
                 lifecycleText(d.lifecycleStatus)
               }}</template>
               <template
-                v-if="
-                  (d.routeCode || lifecycleText(d.lifecycleStatus)) && d.currentTempC != null
-                "
+                v-if="(d.routeCode || lifecycleText(d.lifecycleStatus)) && d.currentTempC != null"
               >
                 ·
               </template>
@@ -294,10 +288,7 @@ function lifecycleText(status?: string) {
   return dictLabel('device_lifecycle', status) || '';
 }
 
-function stockSummary(d: {
-  oosSlotCount?: number | null;
-  lowStockSlotCount?: number | null;
-}) {
+function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: number | null }) {
   const oos = Number(d.oosSlotCount || 0);
   const low = Number(d.lowStockSlotCount || 0);
   if (oos > 0 && low > 0) return `缺货 ${oos} · 低库存 ${low}`;

@@ -5,7 +5,9 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">进件工作台</span>
-            <span class="hint">微信 / 支付宝 / 支付分进件状态登记（本波不强制打通生产进件 API）</span>
+            <span class="hint"
+              >微信 / 支付宝 / 支付分进件状态登记（本波不强制打通生产进件 API）</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -108,7 +110,12 @@
     </el-table>
   </el-card>
 
-  <el-dialog v-model="dlg" :title="form.onboardingId ? '编辑进件' : '新建进件'" width="520px" destroy-on-close>
+  <el-dialog
+    v-model="dlg"
+    :title="form.onboardingId ? '编辑进件' : '新建进件'"
+    width="520px"
+    destroy-on-close
+  >
     <el-form label-width="110px">
       <el-form-item label="商户编号" required>
         <el-input v-model="form.merchantId" :disabled="!!form.onboardingId" />
@@ -146,39 +153,39 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Refresh } from '@element-plus/icons-vue'
-import { api } from '@/api/client'
-import { useAuthStore } from '@/stores/auth'
-import { formatDateTime } from '@aicabinet/shared-uni/format'
+import { computed, onMounted, reactive, ref } from 'vue';
+import { ElMessage } from 'element-plus';
+import { Refresh } from '@element-plus/icons-vue';
+import { api } from '@/api/client';
+import { useAuthStore } from '@/stores/auth';
+import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface OnboardRow {
-  onboardingId: number
-  merchantId: string
-  merchantName?: string
-  channel: string
-  status: string
-  externalMchId?: string
-  externalRef?: string
-  note?: string
-  lastSyncedAt?: string
-  createdAt?: string
-  updatedAt?: string
-  payLiveHint?: boolean
+  onboardingId: number;
+  merchantId: string;
+  merchantName?: string;
+  channel: string;
+  status: string;
+  externalMchId?: string;
+  externalRef?: string;
+  note?: string;
+  lastSyncedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  payLiveHint?: boolean;
 }
 
-const auth = useAuthStore()
-const canEdit = computed(() => auth.hasPerm('ops:merchant:onboard:edit'))
-const loading = ref(false)
-const hydrated = ref(false)
-const saving = ref(false)
-const rows = ref<OnboardRow[]>([])
-const merchantId = ref('')
-const channel = ref('')
-const status = ref('')
-const hints = ref<Record<string, any> | null>(null)
-const dlg = ref(false)
+const auth = useAuthStore();
+const canEdit = computed(() => auth.hasPerm('ops:merchant:onboard:edit'));
+const loading = ref(false);
+const hydrated = ref(false);
+const saving = ref(false);
+const rows = ref<OnboardRow[]>([]);
+const merchantId = ref('');
+const channel = ref('');
+const status = ref('');
+const hints = ref<Record<string, any> | null>(null);
+const dlg = ref(false);
 const form = reactive({
   onboardingId: null as number | null,
   merchantId: '',
@@ -187,7 +194,7 @@ const form = reactive({
   externalMchId: '',
   externalRef: '',
   note: ''
-})
+});
 
 function channelLabel(c?: string) {
   return (
@@ -196,51 +203,53 @@ function channelLabel(c?: string) {
     ] ||
     c ||
     ''
-  )
+  );
 }
 function statusLabel(s?: string) {
   return (
-    ({ DRAFT: '草稿', SUBMITTED: '已提交', ACTIVE: '已生效', REJECTED: '已驳回' } as Record<
-      string,
-      string
-    >)[String(s || '')] ||
+    (
+      { DRAFT: '草稿', SUBMITTED: '已提交', ACTIVE: '已生效', REJECTED: '已驳回' } as Record<
+        string,
+        string
+      >
+    )[String(s || '')] ||
     s ||
     ''
-  )
+  );
 }
 function statusTag(s?: string): 'info' | 'warning' | 'success' | 'danger' {
   switch (String(s || '')) {
     case 'ACTIVE':
-      return 'success'
+      return 'success';
     case 'SUBMITTED':
-      return 'warning'
+      return 'warning';
     case 'REJECTED':
-      return 'danger'
+      return 'danger';
     default:
-      return 'info'
+      return 'info';
   }
 }
 
 async function load() {
-  loading.value = true
+  loading.value = true;
   try {
-    const q = new URLSearchParams()
-    if (merchantId.value.trim()) q.set('merchantId', merchantId.value.trim())
-    if (channel.value) q.set('channel', channel.value)
-    if (status.value) q.set('status', status.value)
+    const q = new URLSearchParams();
+    if (merchantId.value.trim()) q.set('merchantId', merchantId.value.trim());
+    if (channel.value) q.set('channel', channel.value);
+    if (status.value) q.set('status', status.value);
     const [list, h] = await Promise.all([
       api.request<OnboardRow[]>(`/api/v2/ops/admin/merchant-onboarding?${q}`, 'GET'),
       api
         .request<Record<string, any>>('/api/v2/ops/admin/merchant-onboarding/live-hints', 'GET')
         .catch(() => null)
-    ])
-    rows.value = list || []
-    hints.value = h
+    ]);
+    rows.value = list || [];
+    hints.value = h;
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败')
+    ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
-    loading.value = false
-    hydrated.value = true
+    loading.value = false;
+    hydrated.value = true;
   }
 }
 
@@ -253,8 +262,8 @@ function openCreate() {
     externalMchId: '',
     externalRef: '',
     note: ''
-  })
-  dlg.value = true
+  });
+  dlg.value = true;
 }
 
 function openEdit(row: OnboardRow) {
@@ -266,16 +275,16 @@ function openEdit(row: OnboardRow) {
     externalMchId: row.externalMchId || '',
     externalRef: row.externalRef || '',
     note: row.note || ''
-  })
-  dlg.value = true
+  });
+  dlg.value = true;
 }
 
 async function save() {
   if (!form.merchantId.trim() || !form.channel) {
-    ElMessage.warning('请填写商户与渠道')
-    return
+    ElMessage.warning('请填写商户与渠道');
+    return;
   }
-  saving.value = true
+  saving.value = true;
   try {
     const body = {
       merchantId: form.merchantId.trim(),
@@ -284,23 +293,23 @@ async function save() {
       externalMchId: form.externalMchId,
       externalRef: form.externalRef,
       note: form.note
-    }
+    };
     if (form.onboardingId) {
-      await api.request(`/api/v2/ops/admin/merchant-onboarding/${form.onboardingId}`, 'PUT', body)
+      await api.request(`/api/v2/ops/admin/merchant-onboarding/${form.onboardingId}`, 'PUT', body);
     } else {
-      await api.request('/api/v2/ops/admin/merchant-onboarding', 'POST', body)
+      await api.request('/api/v2/ops/admin/merchant-onboarding', 'POST', body);
     }
-    ElMessage.success('已保存')
-    dlg.value = false
-    await load()
+    ElMessage.success('已保存');
+    dlg.value = false;
+    await load();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '保存失败')
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
-onMounted(load)
+onMounted(load);
 </script>
 
 <style scoped>

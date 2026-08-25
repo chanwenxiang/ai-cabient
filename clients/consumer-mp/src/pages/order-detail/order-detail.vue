@@ -18,7 +18,11 @@
 
         <view class="section">
           <text class="section-title">商品清单</text>
-          <view v-for="item in order?.lines || []" :key="item.skuId + '-' + (item.slotId || '')" class="item-row">
+          <view
+            v-for="item in order?.lines || []"
+            :key="item.skuId + '-' + (item.slotId || '')"
+            class="item-row"
+          >
             <image
               class="item-thumb"
               :src="skuImageFor(item.skuId, item.skuName)"
@@ -28,8 +32,7 @@
             <view class="item-info">
               <text class="item-name">{{ item.skuName || item.skuId || '商品' }}</text>
               <text class="item-qty"
-                >x{{ item.quantity
-                }}{{ item.slotId ? ` · 货道 ${item.slotId}` : ''
+                >x{{ item.quantity }}{{ item.slotId ? ` · 货道 ${item.slotId}` : ''
                 }}{{ item.batchNo ? ` · 批次 ${item.batchNo}` : '' }}</text
               >
               <text v-if="item.unitPriceCents != null" class="item-unit"
@@ -366,7 +369,8 @@ function resolveOrderId(opt?: Record<string, string | undefined>): string {
       const hash = String(window.location.hash || '');
       const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
       const search = String(window.location.search || '').replace(/^\?/, '');
-      const fromUrl = queryGet(hashQuery || search, 'orderId') || queryGet(hashQuery || search, 'id');
+      const fromUrl =
+        queryGet(hashQuery || search, 'orderId') || queryGet(hashQuery || search, 'id');
       if (fromUrl.trim()) return fromUrl.trim();
     } catch {
       /* keep fallback */
@@ -579,7 +583,10 @@ function syncRefundLines() {
 }
 
 function onPartialQty(row: RefundLineRow, e: any) {
-  const n = Math.max(0, Math.min(row.maxQty, parseInt(String(e?.detail?.value ?? e?.target?.value ?? 0), 10) || 0));
+  const n = Math.max(
+    0,
+    Math.min(row.maxQty, parseInt(String(e?.detail?.value ?? e?.target?.value ?? 0), 10) || 0)
+  );
   row.qty = n;
 }
 

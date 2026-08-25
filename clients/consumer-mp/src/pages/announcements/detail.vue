@@ -18,7 +18,9 @@
       </view>
       <text class="title">{{ item.title }}</text>
       <text v-if="item.expireAt" class="expire">展示至 {{ formatTime(item.expireAt) }}</text>
-      <text v-if="scopeText(item.targetScope)" class="scope">{{ scopeText(item.targetScope) }}</text>
+      <text v-if="scopeText(item.targetScope)" class="scope">{{
+        scopeText(item.targetScope)
+      }}</text>
       <text class="content">{{ item.content }}</text>
     </view>
   </view>

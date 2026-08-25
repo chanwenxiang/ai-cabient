@@ -53,8 +53,7 @@
             >
             <text v-else class="coupon-limit">无门槛</text>
             <text class="coupon-expire"
-              >有效期至 {{ formatTime(c.expireAt)
-              }}{{ expireSoon(c) ? ' · 即将过期' : '' }}</text
+              >有效期至 {{ formatTime(c.expireAt) }}{{ expireSoon(c) ? ' · 即将过期' : '' }}</text
             >
             <text class="coupon-scope">{{ deviceScopeText(c.deviceScope) }}</text>
             <text v-if="c.description" class="coupon-desc">{{ c.description }}</text>

@@ -482,11 +482,9 @@ export const consumerApi = {
       'POST'
     ),
   setPayPreferred: (channel: 'BALANCE' | 'WECHAT' | 'ALIPAY') =>
-    request<import('@aicabinet/shared-types').AccountDto>(
-      '/api/v2/account/pay-preferred',
-      'PUT',
-      { channel }
-    ),
+    request<import('@aicabinet/shared-types').AccountDto>('/api/v2/account/pay-preferred', 'PUT', {
+      channel
+    }),
   listBalanceRefunds: () =>
     request<import('@aicabinet/shared-types').BalanceRefundRequestDto[]>(
       '/api/v2/account/balance-refunds'
@@ -646,10 +644,7 @@ export const consumerApi = {
       'POST',
       body
     ),
-  applyInvoice: (
-    orderId: string,
-    body: { title: string; taxNo?: string; email?: string }
-  ) =>
+  applyInvoice: (orderId: string, body: { title: string; taxNo?: string; email?: string }) =>
     request<{ invoiceId: number; status: string }>(
       `/api/v2/orders/${encodeURIComponent(orderId)}/invoice`,
       'POST',

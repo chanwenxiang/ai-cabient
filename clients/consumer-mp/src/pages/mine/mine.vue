@@ -146,9 +146,7 @@
             <text v-if="item.businessId" class="transaction-biz"
               >单号 {{ shortBizNo(item.businessId) }}</text
             >
-            <text
-              v-if="item.balanceAfterCents != null"
-              class="transaction-balance"
+            <text v-if="item.balanceAfterCents != null" class="transaction-balance"
               >余额 {{ fmtMoney(item.balanceAfterCents) }}</text
             >
           </view>
@@ -386,8 +384,7 @@ async function onSetPayPreferred(channel: 'BALANCE' | 'WECHAT' | 'ALIPAY') {
   try {
     account.value = await consumerApi.setPayPreferred(channel);
     syncBalanceDisplay(account.value);
-    const label =
-      channel === 'BALANCE' ? '余额' : channel === 'WECHAT' ? '微信免密' : '支付宝免密';
+    const label = channel === 'BALANCE' ? '余额' : channel === 'WECHAT' ? '微信免密' : '支付宝免密';
     uni.showToast({ title: `已优先${label}`, icon: 'success' });
   } catch (e) {
     uni.showToast({

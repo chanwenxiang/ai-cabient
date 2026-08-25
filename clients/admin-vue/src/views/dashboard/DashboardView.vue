@@ -6,7 +6,9 @@
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
               <span class="title">运营工作台</span>
-              <span class="hint">今日快照；分区对齐资金 / 履约 / 设备 / 进件；补货开门请在「补货调度」操作</span>
+              <span class="hint"
+                >今日快照；分区对齐资金 / 履约 / 设备 / 进件；补货开门请在「补货调度」操作</span
+              >
             </div>
           </div>
           <div class="page-card-head__actions">
@@ -139,10 +141,17 @@
                 <div class="zone-title">{{ zone.title }}</div>
                 <div class="zone-hint">{{ zone.hint }}</div>
               </div>
-              <el-tag v-if="listHydrated && zone.total > 0" type="danger" size="small" effect="light">
+              <el-tag
+                v-if="listHydrated && zone.total > 0"
+                type="danger"
+                size="small"
+                effect="light"
+              >
                 {{ zone.total }}
               </el-tag>
-              <el-tag v-else-if="listHydrated" type="success" size="small" effect="plain">正常</el-tag>
+              <el-tag v-else-if="listHydrated" type="success" size="small" effect="plain"
+                >正常</el-tag
+              >
             </div>
           </template>
           <div class="zone-links">
@@ -425,7 +434,14 @@ function filterZone(labels: string[]) {
 
 const workZones = computed(() => {
   const fund = filterZone(['超时待支付', '对账差异', '分账异常']);
-  const fulfill = filterZone(['待审争议', '异常中心', '待上传', '异常会话', '补货任务', '签收超时']);
+  const fulfill = filterZone([
+    '待审争议',
+    '异常中心',
+    '待上传',
+    '异常会话',
+    '补货任务',
+    '签收超时'
+  ]);
   const device = filterZone(['停售货柜', '离线设备', '缺货柜/SKU', '临期批次']);
   const onboard: QuickLink[] = canAccessPath('/merchant-onboarding')
     ? [

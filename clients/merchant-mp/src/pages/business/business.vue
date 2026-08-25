@@ -82,8 +82,8 @@
             <view class="sku-main"
               ><text class="sku-name">{{ sku.skuName }}</text
               ><text class="sku-rec"
-                >毛利 {{ money(sku.grossMarginCents) }} · 毛利率 {{ skuMarginRate(sku)
-                }} · 件均 {{ money(skuUnitPrice(sku)) }}</text
+                >毛利 {{ money(sku.grossMarginCents) }} · 毛利率 {{ skuMarginRate(sku) }} · 件均
+                {{ money(skuUnitPrice(sku)) }}</text
               ></view
             >
             <view class="sku-data"
@@ -131,7 +131,9 @@
           <text class="insight-text">{{ aiInsight.insight }}</text>
           <view v-for="p in aiInsight.skuPerformance || []" :key="p.skuId" class="insight-sku">
             <text class="sku-name">{{ p.skuName }}</text>
-            <text class="meta">{{ performanceLabel(p.performanceLevel) }} · {{ p.recommendation || '' }}</text>
+            <text class="meta"
+              >{{ performanceLabel(p.performanceLevel) }} · {{ p.recommendation || '' }}</text
+            >
           </view>
         </view>
         <view
@@ -456,8 +458,7 @@ function reportDateRange() {
   const from = new Date();
   from.setDate(to.getDate() - (days.value - 1));
   const pad = (n: number) => String(n).padStart(2, '0');
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   return { fromDate: fmt(from), toDate: fmt(to) };
 }
 

@@ -101,7 +101,9 @@ export async function refreshTokenSilently(opts: MpApiSession): Promise<boolean>
         reject(new Error('登录已失效'));
       },
       fail(err) {
-        reject(new Error(formatMpRequestError(err.errMsg, refreshPath, opts.isDevBuild, opts.baseUrl)));
+        reject(
+          new Error(formatMpRequestError(err.errMsg, refreshPath, opts.isDevBuild, opts.baseUrl))
+        );
       }
     });
   }).finally(() => {

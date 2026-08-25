@@ -9,10 +9,7 @@ const roots = process.argv.slice(2);
 const targets =
   roots.length > 0
     ? roots
-    : [
-        join(process.cwd(), 'dist/dev/mp-weixin'),
-        join(process.cwd(), 'dist/build/mp-weixin')
-      ];
+    : [join(process.cwd(), 'dist/dev/mp-weixin'), join(process.cwd(), 'dist/build/mp-weixin')];
 
 let patched = 0;
 for (const dir of targets) {

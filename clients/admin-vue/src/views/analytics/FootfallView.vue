@@ -137,7 +137,9 @@
             />
           </el-select>
           <span class="legend"
-            ><i class="dot h3" />热 <i class="dot h2" /><i class="dot h1" /><i class="dot h0" />冷</span
+            ><i class="dot h3" />热 <i class="dot h2" /><i class="dot h1" /><i
+              class="dot h0"
+            />冷</span
           >
         </div>
       </div>

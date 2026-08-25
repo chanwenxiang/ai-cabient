@@ -23,7 +23,12 @@
         <input v-model="realName" class="input" placeholder="与身份证一致" maxlength="32" />
         <text class="field-label">身份证后四位</text>
         <input v-model="idCardLast4" class="input" type="number" maxlength="4" placeholder="0000" />
-        <button class="btn-primary btn-block" hover-class="btn-hover" :loading="busy" @click="onVerify">
+        <button
+          class="btn-primary btn-block"
+          hover-class="btn-hover"
+          :loading="busy"
+          @click="onVerify"
+        >
           {{ busy ? '提交中…' : '下一步' }}
         </button>
       </view>

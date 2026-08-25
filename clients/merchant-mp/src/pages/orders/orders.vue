@@ -122,9 +122,7 @@
               <view class="card-amount-col">
                 <text class="card-amount">{{ money(item.totalAmountCents) }}</text>
                 <text
-                  v-if="
-                    Number(item.originalAmountCents || 0) > Number(item.totalAmountCents || 0)
-                  "
+                  v-if="Number(item.originalAmountCents || 0) > Number(item.totalAmountCents || 0)"
                   class="card-origin"
                   >原价 {{ money(item.originalAmountCents) }}</text
                 >
@@ -216,10 +214,7 @@ const timeRange = ref('all');
 const filterDeviceId = ref('');
 const filtersActive = computed(
   () =>
-    !!status.value ||
-    timeRange.value !== 'all' ||
-    !!filterDeviceId.value ||
-    !!keyword.value.trim()
+    !!status.value || timeRange.value !== 'all' || !!filterDeviceId.value || !!keyword.value.trim()
 );
 const deviceOptions = ref<{ label: string; value: string }[]>([]);
 const statusOptions = [

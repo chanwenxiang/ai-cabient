@@ -157,10 +157,7 @@
               <div class="amount-cell">
                 <span>¥{{ money(row.totalAmountCents) }}</span>
                 <small
-                  v-if="
-                    Number(row.originalAmountCents || 0) >
-                    Number(row.totalAmountCents || 0)
-                  "
+                  v-if="Number(row.originalAmountCents || 0) > Number(row.totalAmountCents || 0)"
                   class="muted"
                   >原 ¥{{ money(row.originalAmountCents) }}</small
                 >
@@ -171,9 +168,7 @@
             <template #default="{ row }">
               <template v-if="orderDiscountCents(row) > 0">
                 <span class="discount">-¥{{ money(orderDiscountCents(row)) }}</span>
-                <small v-if="Number(row.memberDiscountCents || 0) > 0" class="muted"
-                  >含会员</small
-                >
+                <small v-if="Number(row.memberDiscountCents || 0) > 0" class="muted">含会员</small>
               </template>
               <span v-else class="muted">暂无</span>
             </template>
@@ -266,9 +261,7 @@
           </el-table-column>
           <el-table-column label="退款策略" width="100" align="center">
             <template #default="{ row }">
-              <el-tag size="small" effect="plain">{{
-                refundPolicyLabel(row.refundPolicy)
-              }}</el-tag>
+              <el-tag size="small" effect="plain">{{ refundPolicyLabel(row.refundPolicy) }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="退款时间" width="140" align="center" show-overflow-tooltip>
@@ -355,9 +348,7 @@
             <el-descriptions-item v-if="Number(detail.originalAmountCents || 0) > 0" label="原价"
               >¥{{ money(detail.originalAmountCents) }}</el-descriptions-item
             >
-            <el-descriptions-item
-              v-if="Number(detail.couponDiscountCents || 0) > 0"
-              label="券优惠"
+            <el-descriptions-item v-if="Number(detail.couponDiscountCents || 0) > 0" label="券优惠"
               >-¥{{ money(detail.couponDiscountCents) }}</el-descriptions-item
             >
             <el-descriptions-item
@@ -373,7 +364,9 @@
                 displayBizNo(detail.payTradeNo || detail.paymentOperationId, '无')
               }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="商户">{{ detail.merchantId || '无' }}</el-descriptions-item>
+            <el-descriptions-item label="商户">{{
+              detail.merchantId || '无'
+            }}</el-descriptions-item>
             <el-descriptions-item label="退款策略">{{
               refundPolicyLabel(detail.refundPolicy)
             }}</el-descriptions-item>
@@ -471,14 +464,18 @@
             <el-table-column prop="slotId" label="货道" width="80" align="center">
               <template #default="{ row }">{{ row.slotId || '暂无' }}</template>
             </el-table-column>
-            <el-table-column prop="batchNo" label="批次" width="100" align="center" show-overflow-tooltip>
+            <el-table-column
+              prop="batchNo"
+              label="批次"
+              width="100"
+              align="center"
+              show-overflow-tooltip
+            >
               <template #default="{ row }">{{ row.batchNo || '暂无' }}</template>
             </el-table-column>
             <el-table-column prop="quantity" label="数量" width="70" align="center" />
             <el-table-column label="单价" width="90" align="center">
-              <template #default="{ row }">
-                ¥{{ money(row.unitPriceCents || 0) }}
-              </template>
+              <template #default="{ row }"> ¥{{ money(row.unitPriceCents || 0) }} </template>
             </el-table-column>
             <el-table-column label="小计" width="90" align="center">
               <template #default="{ row }">
@@ -500,11 +497,7 @@
             >
             <el-timeline-item
               v-if="detail.status === 'REFUNDED' || detail.status === 'PARTIAL_REFUNDED'"
-              :timestamp="
-                detail.refundedAt
-                  ? formatDateTime(detail.refundedAt)
-                  : '暂无'
-              "
+              :timestamp="detail.refundedAt ? formatDateTime(detail.refundedAt) : '暂无'"
               type="warning"
               >{{ detail.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款' }}</el-timeline-item
             >
@@ -549,7 +542,9 @@
       </el-table>
       <template #footer>
         <el-button @click="partialOpen = false">取消</el-button>
-        <el-button type="danger" :loading="!!refundingId" @click="submitPartialRefund">确认按行退款</el-button>
+        <el-button type="danger" :loading="!!refundingId" @click="submitPartialRefund"
+          >确认按行退款</el-button
+        >
       </template>
     </el-dialog>
   </el-card>
@@ -740,10 +735,7 @@ function money(cents?: number) {
   return ((cents || 0) / 100).toFixed(2);
 }
 
-function orderDiscountCents(row: {
-  couponDiscountCents?: number;
-  memberDiscountCents?: number;
-}) {
+function orderDiscountCents(row: { couponDiscountCents?: number; memberDiscountCents?: number }) {
   return Number(row.couponDiscountCents || 0) + Number(row.memberDiscountCents || 0);
 }
 
@@ -998,7 +990,11 @@ type PartialRow = {
 const partialRows = ref<PartialRow[]>([]);
 
 function openPartialRefund(row: OrderSummary & { lines?: any[]; items?: any[] }) {
-  const lines = (row.lines || row.items || detail.value?.lines || detail.value?.items || []) as any[];
+  const lines = (row.lines ||
+    row.items ||
+    detail.value?.lines ||
+    detail.value?.items ||
+    []) as any[];
   if (!lines.length) {
     ElMessage.warning('无商品行，无法按行退款');
     return;

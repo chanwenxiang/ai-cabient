@@ -101,10 +101,7 @@
           >
             <template #default="{ row }">
               <span class="mono">{{
-                displayBizNo(
-                  row.wxTransactionId || row.alipayTradeNo || row.wxPrepayId,
-                  '无'
-                )
+                displayBizNo(row.wxTransactionId || row.alipayTradeNo || row.wxPrepayId, '无')
               }}</span>
             </template>
           </el-table-column>

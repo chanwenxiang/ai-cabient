@@ -53,7 +53,13 @@
       <el-table-column prop="channel" label="渠道" width="120" align="center">
         <template #default="{ row }">{{ dictLabel('verify_channel', row.channel) }}</template>
       </el-table-column>
-      <el-table-column prop="merchantId" label="商户" min-width="160" align="center" show-overflow-tooltip>
+      <el-table-column
+        prop="merchantId"
+        label="商户"
+        min-width="160"
+        align="center"
+        show-overflow-tooltip
+      >
         <template #default="{ row }">{{
           row.merchantId
             ? row.merchantName

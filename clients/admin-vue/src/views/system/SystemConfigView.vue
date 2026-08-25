@@ -142,7 +142,12 @@
             style="width: 100%"
             placeholder="选择或输入"
           >
-            <el-option v-for="opt in valueOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+            <el-option
+              v-for="opt in valueOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
           </el-select>
           <el-input v-else v-model="form.configValue" type="textarea" :rows="3" />
         </el-form-item>

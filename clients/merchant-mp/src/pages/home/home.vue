@@ -108,7 +108,9 @@
         </view>
         <text v-if="preferredId" class="pref-tip">常驻柜 {{ preferredId }} 优先置顶</text>
         <!-- 仅首次进入显示加载；之后切回工作台保留上次列表/空态，避免「任务加载中」闪一下 -->
-        <view v-if="taskPreviewLoading && !taskPreviewBooted" class="empty-inline">任务加载中…</view>
+        <view v-if="taskPreviewLoading && !taskPreviewBooted" class="empty-inline"
+          >任务加载中…</view
+        >
         <empty-state
           v-else-if="!taskPreview.length"
           compact
@@ -410,48 +412,55 @@ async function load() {
     meName.value = profile.displayName || profile.phoneNumber || '同事';
     merchantNames.value = formatMerchantNames(profile.merchants);
 
-    const [s, trend, workbench, exceptionPage, expiryRows, devices, tasks, announcements, analytics] =
-      await Promise.all([
-        merchantApi.stats().catch(() => ({}) as Record<string, number>),
-        canTrend.value
-          ? (
-              merchantApi.trend(7) as Promise<{
-                last7Days?: { date: string; revenueCents: number }[];
-              }>
-            ).catch(() => ({ last7Days: [] }))
-          : Promise.resolve({ last7Days: [] }),
-        canAlerts.value
-          ? merchantApi.workbench().catch(() => ({
-              offlineDevices: 0,
-              openDisputes: 0,
-              lowStockItems: 0,
-              expiryAlerts: 0,
-              slotDiscrepancies: 0,
-              actionItems: []
-            }))
-          : Promise.resolve({
-              offlineDevices: 0,
-              openDisputes: 0,
-              lowStockItems: 0,
-              expiryAlerts: 0,
-              slotDiscrepancies: 0,
-              actionItems: []
-            }),
-        canAlerts.value
-          ? merchantApi.openExceptions(100).catch(() => ({ items: [], total: 0 }))
-          : Promise.resolve({ items: [], total: 0 }),
-        canAlerts.value ? merchantApi.expiryAlerts().catch(() => []) : Promise.resolve([]),
-        canDevices.value || canReplenishment.value
-          ? merchantApi.devices().catch(() => [])
-          : Promise.resolve([]),
-        canReplenishment.value
-          ? merchantApi.replenishmentTasks().catch(() => [])
-          : Promise.resolve([]),
-        merchantApi.listAnnouncements().catch(() => []),
-        canBusiness.value
-          ? merchantApi.analytics(7).catch(() => null)
-          : Promise.resolve(null)
-      ]);
+    const [
+      s,
+      trend,
+      workbench,
+      exceptionPage,
+      expiryRows,
+      devices,
+      tasks,
+      announcements,
+      analytics
+    ] = await Promise.all([
+      merchantApi.stats().catch(() => ({}) as Record<string, number>),
+      canTrend.value
+        ? (
+            merchantApi.trend(7) as Promise<{
+              last7Days?: { date: string; revenueCents: number }[];
+            }>
+          ).catch(() => ({ last7Days: [] }))
+        : Promise.resolve({ last7Days: [] }),
+      canAlerts.value
+        ? merchantApi.workbench().catch(() => ({
+            offlineDevices: 0,
+            openDisputes: 0,
+            lowStockItems: 0,
+            expiryAlerts: 0,
+            slotDiscrepancies: 0,
+            actionItems: []
+          }))
+        : Promise.resolve({
+            offlineDevices: 0,
+            openDisputes: 0,
+            lowStockItems: 0,
+            expiryAlerts: 0,
+            slotDiscrepancies: 0,
+            actionItems: []
+          }),
+      canAlerts.value
+        ? merchantApi.openExceptions(100).catch(() => ({ items: [], total: 0 }))
+        : Promise.resolve({ items: [], total: 0 }),
+      canAlerts.value ? merchantApi.expiryAlerts().catch(() => []) : Promise.resolve([]),
+      canDevices.value || canReplenishment.value
+        ? merchantApi.devices().catch(() => [])
+        : Promise.resolve([]),
+      canReplenishment.value
+        ? merchantApi.replenishmentTasks().catch(() => [])
+        : Promise.resolve([]),
+      merchantApi.listAnnouncements().catch(() => []),
+      canBusiness.value ? merchantApi.analytics(7).catch(() => null) : Promise.resolve(null)
+    ]);
     if (seq !== loadSeq) return;
     latestAnnouncement.value = announcements?.[0] || null;
 
@@ -548,7 +557,12 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   background: #ffffff;
 }
 .dash-header {
-  background: linear-gradient(165deg, var(--brand-deep, #134e4a) 0%, var(--brand, #0f766e) 55%, var(--brand, #0f766e) 100%);
+  background: linear-gradient(
+    165deg,
+    var(--brand-deep, #134e4a) 0%,
+    var(--brand, #0f766e) 55%,
+    var(--brand, #0f766e) 100%
+  );
   padding: 12rpx 24rpx 28rpx;
   color: #fff;
   border-radius: 0;

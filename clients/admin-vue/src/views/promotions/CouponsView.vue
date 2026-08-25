@@ -149,15 +149,12 @@
           <el-table-column label="剩余" width="88" align="center">
             <template #default="{ row }">
               <span v-if="!row.maxIssueCount">不限</span>
-              <span v-else>{{ Math.max(0, Number(row.maxIssueCount) - Number(row.issuedCount || 0)) }}</span>
+              <span v-else>{{
+                Math.max(0, Number(row.maxIssueCount) - Number(row.issuedCount || 0))
+              }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="说明"
-            min-width="140"
-            align="center"
-            show-overflow-tooltip
-          >
+          <el-table-column label="说明" min-width="140" align="center" show-overflow-tooltip>
             <template #default="{ row }">{{ row.description || '暂无' }}</template>
           </el-table-column>
           <el-table-column label="状态" width="88" align="center">

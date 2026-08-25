@@ -59,7 +59,9 @@
             </view>
             <text class="row-sub"
               >{{ emptyDisplay(w.requestNo, 'order')
-              }}{{ w.payChannel ? ` · ${displayLabel('pay_channel', w.payChannel, w.payChannel)}` : '' }}</text
+              }}{{
+                w.payChannel ? ` · ${displayLabel('pay_channel', w.payChannel, w.payChannel)}` : ''
+              }}</text
             >
             <text class="row-sub"
               >手续费 ¥{{ yuan(w.feeCents || 0)

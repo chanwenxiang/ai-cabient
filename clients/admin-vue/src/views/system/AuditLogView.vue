@@ -93,12 +93,7 @@
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="操作人ID"
-            width="100"
-            align="center"
-            class-name="col-text"
-          >
+          <el-table-column label="操作人ID" width="100" align="center" class-name="col-text">
             <template #default="{ row }">{{ row.operatorId ?? '暂无' }}</template>
           </el-table-column>
           <el-table-column

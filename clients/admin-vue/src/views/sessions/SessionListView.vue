@@ -129,20 +129,17 @@
           <el-table-column label="入口渠道" width="96" align="center">
             <template #default="{ row }">
               <el-tag v-if="row.entryChannel || row.payChannel" size="small" effect="plain">
-                {{
-                  displayLabel('pay_channel', row.entryChannel || row.payChannel, '未知渠道')
-                }}
+                {{ displayLabel('pay_channel', row.entryChannel || row.payChannel, '未知渠道') }}
               </el-tag>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
           <el-table-column label="预授权" width="110" align="center">
             <template #default="{ row }">
-              <span v-if="row.preauthCents">¥{{ (Number(row.preauthCents) / 100).toFixed(2) }}</span>
-              <div
-                v-if="preauthStatusLabel(row.preauthStatus)"
-                class="muted tiny"
+              <span v-if="row.preauthCents"
+                >¥{{ (Number(row.preauthCents) / 100).toFixed(2) }}</span
               >
+              <div v-if="preauthStatusLabel(row.preauthStatus)" class="muted tiny">
                 {{ preauthStatusLabel(row.preauthStatus) }}
               </div>
             </template>
@@ -315,7 +312,13 @@
             {{ displayLabel('session_state', timelineRow.state, '未知状态') }}
           </el-descriptions-item>
           <el-descriptions-item label="入口渠道">
-            {{ displayLabel('pay_channel', timelineRow.entryChannel || timelineRow.payChannel, '暂无') }}
+            {{
+              displayLabel(
+                'pay_channel',
+                timelineRow.entryChannel || timelineRow.payChannel,
+                '暂无'
+              )
+            }}
           </el-descriptions-item>
           <el-descriptions-item label="录像">
             {{ uploadStatusShort(timelineRow) }}

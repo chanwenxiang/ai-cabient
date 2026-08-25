@@ -336,7 +336,8 @@ const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
 const totalCount = computed(() => filtered.value.length);
 const mismatchBatchCount = computed(
   () =>
-    filtered.value.filter((row) => (row.unmatchedCount ?? 0) > 0 || row.status === 'MISMATCH').length
+    filtered.value.filter((row) => (row.unmatchedCount ?? 0) > 0 || row.status === 'MISMATCH')
+      .length
 );
 const matchedBatchCount = computed(() => totalCount.value - mismatchBatchCount.value);
 
