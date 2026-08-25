@@ -41,7 +41,7 @@ jobs:
       - name: Secret scan (tracked files only)
         run: |
           set -euo pipefail
-          hits=$(git ls-files -z | xargs -0 grep -Il \
+          hits=$(git ls-files -z ':!.github/workflows/ci.yml' | xargs -0 grep -Il \
             -e 'AKIA[0-9A-Z]\{16\}' \
             -e '-----BEGIN RSA PRIVATE KEY-----' \
             -e '-----BEGIN EC PRIVATE KEY-----' \
