@@ -139,3 +139,16 @@ edge/device-simulator/sim-*/
 tmp-tsc-out.txt
 BOOT-INF/
 clients/admin-vue/eyJhbGciOiJIUzI1NiJ9.*
+
+# Sonar local analysis output
+.scannerwork/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Accidental CLI build log dumps
+**/build-err.txt
+**/build-out.txt
+
+# Windows absolute path accidentally materialized as a directory name (D:\...)
+/D*devTools*

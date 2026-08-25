@@ -1,4 +1,4 @@
-// 仅 Sonar(dev)：本机直接用 /workspace；正式从 GitHub checkout
+// 仅 Sonar(dev)：本机直接用 /workspace；正式从 GitHub checkout；容器内直接 mvn
 pipeline {
   agent any
   parameters {
@@ -28,21 +28,15 @@ pipeline {
         sh '''
           set -e
           BUILD_DIR="${BUILD_DIR:-$PWD}"
-          NET=$(docker inspect -f "{{range \$k, \$v := .NetworkSettings.Networks}}{{\$k}}{{end}}" "$(hostname)" 2>/dev/null | awk "{print \$1}")
-          if [ -z "$NET" ]; then NET=host; fi
-          docker run --rm --network "$NET" \
-            -v "$BUILD_DIR:/ws" -w /ws \
-            -e SONAR_TOKEN \
-            maven:3.9.9-eclipse-temurin-17 \
-            bash -lc '
-              mvn -B -DskipTests -Dmaven.test.skip=true package \
-                -pl services/trade-service,services/device-service,services/common/common-core -am
-              mvn -B -DskipTests -Dmaven.test.skip=true sonar:sonar \
-                -Dsonar.projectKey=ai-cabinet-dev \
-                -Dsonar.projectName="AI Cabinet (dev)" \
-                -Dsonar.host.url=http://sonarqube:9000 \
-                -Dsonar.token="$SONAR_TOKEN"
-            '
+          command -v mvn >/dev/null || { echo "ERROR: Jenkins 镜像未安装 Maven"; exit 127; }
+          cd "$BUILD_DIR"
+          mvn -B -DskipTests -Dmaven.test.skip=true install \
+            -pl services/trade-service,services/device-service,services/common/common-core -am
+          mvn -B -DskipTests -Dmaven.test.skip=true sonar:sonar \
+            -Dsonar.projectKey=ai-cabinet-dev \
+            -Dsonar.projectName="AI Cabinet (dev)" \
+            -Dsonar.host.url="$SONAR_HOST_URL" \
+            -Dsonar.token="$SONAR_TOKEN"
         '''
       }
     }

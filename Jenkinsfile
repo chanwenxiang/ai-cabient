@@ -1,7 +1,7 @@
 // 共用流水线：本机联调（挂载 /workspace）与服务器发布（GitHub checkout）同一份脚本
 //
-// 本机：USE_LOCAL_MOUNT=true → 直接用 /workspace，禁止全仓 cp（OneDrive/Docker 挂载极慢）
-// 正式：checkout GitHub；DEPLOY_MODE=compose-local|ssh
+// 本机：USE_LOCAL_MOUNT=true → 直接用 /workspace，禁止全仓 cp
+// 构建：容器内直接 mvn（需 Jenkins 镜像含 Maven）；不再 docker run maven
 pipeline {
   agent any
 
@@ -57,26 +57,17 @@ pipeline {
         sh '''
           set -e
           BUILD_DIR="${BUILD_DIR:-$PWD}"
-          NET=$(docker inspect -f "{{range \$k, \$v := .NetworkSettings.Networks}}{{\$k}}{{end}}" "$(hostname)" 2>/dev/null | awk "{print \$1}")
-          if [ -z "$NET" ]; then NET=host; fi
-          docker run --rm --network "$NET" \
-            -v "$BUILD_DIR:/ws" -w /ws \
-            -e SONAR_TOKEN \
-            -e SONAR_HOST_URL \
-            -e SONAR_PROJECT_KEY \
-            -e SONAR_PROJECT_NAME \
-            -e GIT_COMMIT \
-            maven:3.9.9-eclipse-temurin-17 \
-            bash -lc '
-              mvn -B -DskipTests -Dmaven.test.skip=true package \
-                -pl services/trade-service,services/device-service,services/common/common-core -am
-              mvn -B -DskipTests -Dmaven.test.skip=true sonar:sonar \
-                -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
-                -Dsonar.projectName="$SONAR_PROJECT_NAME" \
-                -Dsonar.host.url="$SONAR_HOST_URL" \
-                -Dsonar.token="$SONAR_TOKEN" \
-                -Dsonar.scm.revision="${GIT_COMMIT:-}"
-            '
+          command -v mvn >/dev/null || { echo "ERROR: Jenkins 镜像未安装 Maven"; exit 127; }
+          cd "$BUILD_DIR"
+          echo "Building in $(pwd) with $(mvn -version | head -1)"
+          mvn -B -DskipTests -Dmaven.test.skip=true install \
+            -pl services/trade-service,services/device-service,services/common/common-core -am
+          mvn -B -DskipTests -Dmaven.test.skip=true sonar:sonar \
+            -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
+            -Dsonar.projectName="$SONAR_PROJECT_NAME" \
+            -Dsonar.host.url="$SONAR_HOST_URL" \
+            -Dsonar.token="$SONAR_TOKEN" \
+            -Dsonar.scm.revision="${GIT_COMMIT:-}"
         '''
       }
     }
@@ -102,6 +93,7 @@ pipeline {
             dir(env.BUILD_DIR ?: env.WORKSPACE) {
               sh '''
                 set -e
+                command -v docker >/dev/null || { echo "ERROR: 未安装 docker CLI"; exit 127; }
                 docker compose -f infra/docker-compose.full.yml up -d --build trade-service device-service
               '''
             }
