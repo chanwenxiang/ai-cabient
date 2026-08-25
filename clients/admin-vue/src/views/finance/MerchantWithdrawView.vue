@@ -231,7 +231,13 @@
       </el-tab-pane>
     </el-tabs>
 
-    <el-drawer v-model="ledgerVisible" title="钱包流水" size="520px">
+    <ResizableDrawer
+      v-model="ledgerVisible"
+      title="钱包流水"
+      storage-key="admin.drawer.withdraw.ledger"
+      :default-width="520"
+      :min-width="420"
+    >
       <el-table v-loading="!ledgerHydrated" :data="ledgers" size="small" stripe empty-text=" ">
         <template #empty>
           <el-empty v-if="ledgerHydrated" description="暂无流水" :image-size="64" />
@@ -272,7 +278,7 @@
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
       </el-table>
-    </el-drawer>
+    </ResizableDrawer>
 
     <el-dialog
       v-model="adjustVisible"
@@ -366,6 +372,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import PagePager from '@/components/PagePager.vue';
+import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';

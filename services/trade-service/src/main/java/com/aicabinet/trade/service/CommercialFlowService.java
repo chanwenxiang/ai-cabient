@@ -93,6 +93,7 @@ public class CommercialFlowService {
                         0
                 ))
         ));
+        procurementService.ensurePurchaseOrderApproved(operatorId, purchase.purchaseOrderId());
         procurementService.receivePurchaseOrder(operatorId, purchase.purchaseOrderId(), new ReceivePurchaseOrderRequest(
                 purchase.lines().stream()
                         .map(l -> new PurchaseOrderLineDto(

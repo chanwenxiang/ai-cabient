@@ -399,6 +399,18 @@ public class OpsCommercialController {
         return ApiResponse.ok(procurementService.createPurchaseOrder(operatorId(request), body));
     }
 
+    @RequiresPermissions(value = {"ops:procurement:edit", "ops:finance:view"}, logical = RequiresPermissions.Logical.OR)
+    @PostMapping("/purchase-orders/{purchaseOrderId}/review")
+    public ApiResponse<PurchaseOrderDto> reviewPurchaseOrder(
+            HttpServletRequest request,
+            @PathVariable Long purchaseOrderId,
+            @RequestBody java.util.Map<String, Object> body) {
+        boolean approve = body != null && Boolean.TRUE.equals(body.get("approve"));
+        String remark = body != null && body.get("remark") != null ? String.valueOf(body.get("remark")) : null;
+        return ApiResponse.ok(procurementService.reviewPurchaseOrder(
+                operatorId(request), purchaseOrderId, approve, remark));
+    }
+
     @RequiresPermissions("ops:procurement:edit")
     @PostMapping("/purchase-orders/{purchaseOrderId}/receive")
     public ApiResponse<PurchaseOrderDto> receivePurchaseOrder(
@@ -1146,7 +1158,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.assignRolePermissions(operatorId(request), roleId, permissionIds));
     }
 
-    @RequiresPermissions("ops:rbac:assign")
+    @RequiresPermissions(value = {"ops:rbac:assign", "ops:replenishment:edit"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/rbac/operators")
     public ApiResponse<PageResult<OpsOperatorDto>> operators(
             HttpServletRequest request,

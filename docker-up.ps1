@@ -1,4 +1,4 @@
-param([switch]$NoBuild)
+param([switch]$NoBuild, [switch]$DevOps)
 $ErrorActionPreference = "Stop"
 $Root = $PSScriptRoot
 $Infra = Join-Path $Root "infra"
@@ -7,7 +7,16 @@ if (-not (Test-Path $EnvFile)) { Copy-Item (Join-Path $Infra ".env.example") $En
 # Stop the legacy infrastructure-only compose project so host ports can be reused.
 & docker compose --env-file $EnvFile -f (Join-Path $Infra "docker-compose.yml") down --remove-orphans
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-$args = @("compose", "--env-file", $EnvFile, "-f", (Join-Path $Infra "docker-compose.full.yml"), "up", "-d")
+$composeFiles = @(
+  (Join-Path $Infra "docker-compose.full.yml")
+)
+if ($DevOps) {
+  $composeFiles += (Join-Path $Infra "docker-compose.devops.yml")
+}
+$args = @("compose", "--env-file", $EnvFile)
+foreach ($f in $composeFiles) { $args += @("-f", $f) }
+$args += @("up", "-d")
+if ($DevOps) { $args += "--profile"; $args += "devops" }
 if (-not $NoBuild) { $args += "--build" }
 & docker @args
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -35,5 +44,10 @@ Write-Host "AI Cabinet full stack is ready" -ForegroundColor Green
 Write-Host "Admin:    http://localhost/admin/index.html"
 Write-Host "API:      http://localhost:18080  (trade; gateway http://localhost)"
 Write-Host "XXL-JOB:  http://localhost:18090/xxl-job-admin  (admin / 123456)"
-Write-Host "Grafana:  http://localhost:13000"
+Write-Host "Grafana:  http://localhost/devops/grafana/  (embedded in admin DevOps hub)"
+Write-Host "DevOps:   http://localhost/admin/index.html#/devops"
+if ($DevOps) {
+  Write-Host "SonarQube: http://localhost:19002"
+  Write-Host "Jenkins:   http://localhost:19081"
+}
 Write-Host "MinIO:    http://localhost:9001"

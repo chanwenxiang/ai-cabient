@@ -1,4 +1,4 @@
-﻿# 模块索引
+# 模块索引
 
 本文档列出仓库各模块的**路径（不变）**、中文产品名、职责与启动方式。详细联调见 [LOCAL_SETUP.md](LOCAL_SETUP.md)，生产部署见 [PRODUCTION.md](PRODUCTION.md)。
 
@@ -95,7 +95,7 @@ demo/
 
 | 受众 | 机制 | 怎么改权限 |
 |------|------|-----------|
-| **运营后台** | 若依式 M/C/F + 角色勾选；前端 `v-hasPermi` / `auth.hasPerm`；后端 `@RequiresPermissions`（AOP） | 角色管理勾选按钮码；新接口在 Controller 方法上加/删注解即可 |
+| 运营后台 | 若依式 M/C/F + 角色勾选；前端 `v-hasPermi` / `auth.hasPerm`；后端 `@RequiresPermissions`（AOP）；部门为组织+审批指派，交易数据范围仍用商户/设备（见 [RBAC_VS_RUOYI.md](RBAC_VS_RUOYI.md)、[APPROVAL_DEPARTMENT_FLOW.md](APPROVAL_DEPARTMENT_FLOW.md)） | 角色管理勾选按钮码；部门管理维护树与成员；新接口加注解 |
 | **补货员 / 商户** | 同一 RBAC 表的 `merchant:*` 码 + 商户范围；API 注解如 `merchant:replenishment:view` | 运营给账号分配商户角色/权限；前端 `hasPerm(me, code)` |
 | **消费者** | 非菜单 RBAC：登录态、实名/风控黑名单、支付渠道能力（env + `PayChannels`） | 后台用户/风控操作；部署环境开关；不按「按钮权限树」建模 |
 

@@ -1,0 +1,109 @@
+# DevOps overlay: SonarQube + Jenkins + GitHub Actions self-hosted runner
+# Usage:
+#   docker compose -f docker-compose.full.yml -f docker-compose.devops.yml --profile devops up -d
+
+services:
+  sonarqube-db:
+    image: postgres:16-alpine
+    profiles: ["devops"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${SONAR_DB_USER:-sonar}
+      POSTGRES_PASSWORD: ${SONAR_DB_PASSWORD:-sonar}
+      POSTGRES_DB: ${SONAR_DB_NAME:-sonar}
+    volumes:
+      - sonarqube_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  sonarqube:
+    image: sonarqube:10.4-community
+    profiles: ["devops"]
+    restart: unless-stopped
+    depends_on:
+      sonarqube-db:
+        condition: service_healthy
+    ports:
+      - "${SONAR_PORT:-19002}:9000"
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonarqube-db:5432/${SONAR_DB_NAME:-sonar}
+      SONAR_JDBC_USERNAME: ${SONAR_DB_USER:-sonar}
+      SONAR_JDBC_PASSWORD: ${SONAR_DB_PASSWORD:-sonar}
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+      - ./sonarqube/plugins:/opt/sonarqube/extensions/plugins:ro
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/api/system/status | grep -q UP || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 12
+      start_period: 120s
+
+  jenkins:
+    image: jenkins/jenkins:lts-jdk17
+    profiles: ["devops"]
+    restart: unless-stopped
+    user: root
+    ports:
+      - "${JENKINS_PORT:-19081}:8080"
+      - "${JENKINS_AGENT_PORT:-50000}:50000"
+    environment:
+      SONAR_HOST_URL: http://sonarqube:9000
+      SONAR_TOKEN: ${SONAR_TOKEN:-}
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:-changeme}
+      JAVA_OPTS: "-Djenkins.install.runSetupWizard=false -Djava.awt.headless=true"
+      CASC_JENKINS_CONFIG: /var/jenkins_config/casc.yaml
+      JENKINS_UC: https://updates.jenkins.io
+      JENKINS_UC_DOWNLOAD: https://updates.jenkins.io/download
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./jenkins/casc.yaml:/var/jenkins_config/casc.yaml:ro
+      - ./jenkins/plugins.txt:/usr/share/jenkins/ref/plugins.txt:ro
+      - ..:/workspace
+    depends_on:
+      sonarqube:
+        condition: service_healthy
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/login || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 240s
+
+  github-runner:
+    image: myoung34/github-runner:2.321.0
+    profiles: ["devops"]
+    restart: unless-stopped
+    environment:
+      REPO_URL: ${GITHUB_REPO_URL:-https://github.com/example/ai-cabinet}
+      RUNNER_NAME: ${GITHUB_RUNNER_NAME:-ai-cabinet-local}
+      ACCESS_TOKEN: ${GITHUB_RUNNER_TOKEN:-}
+      RUNNER_WORKDIR: /tmp/runner/work
+      LABELS: self-hosted,linux,ai-cabinet
+      RUNNER_SCOPE: repo
+      ORG_NAME: ""
+      ENTERPRISE_NAME: ""
+    volumes:
+      - runner_work:/tmp/runner/work
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ..:/workspace
+    depends_on:
+      sonarqube:
+        condition: service_healthy
+
+volumes:
+  sonarqube_pg:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  jenkins_home:
+  runner_work:

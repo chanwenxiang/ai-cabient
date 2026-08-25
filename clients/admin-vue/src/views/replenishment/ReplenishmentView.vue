@@ -104,7 +104,7 @@
                   <div class="route-detail">
                     <div class="route-meta">
                       <span>计划日期：{{ row.plannedDate || '无' }}</span>
-                      <span>负责人：{{ row.assigneeUserId || '未分配' }}</span>
+                      <span>负责人：{{ assigneeLabel(row.assigneeUserId) }}</span>
                       <span
                         >预计里程：{{
                           row.totalDistanceM ? `${row.totalDistanceM} 米` : '未计算'
@@ -145,10 +145,13 @@
                           </el-tag>
                         </template>
                       </el-table-column>
-                      <el-table-column label="人员" width="70" align="center">
+                      <el-table-column label="人员" min-width="120" align="center">
                         <template #default="scope">
-                          <span class="mono">{{
-                            scope.row.assigneeUserId || row.assigneeUserId || '无'
+                          <span>{{
+                            assigneeLabel(
+                              scope.row.assigneeUserId || row.assigneeUserId,
+                              '无'
+                            )
                           }}</span>
                         </template>
                       </el-table-column>
@@ -422,9 +425,9 @@
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column label="人员" width="88" align="center">
+              <el-table-column label="人员" min-width="120" align="center">
                 <template #default="{ row }">
-                  <span class="mono">{{ row.assigneeUserId || '无' }}</span>
+                  <span>{{ assigneeLabel(row.assigneeUserId, '无') }}</span>
                 </template>
               </el-table-column>
               <el-table-column label="签到 / GPS" min-width="160" align="center">
@@ -467,8 +470,8 @@
                   <span v-else class="muted">暂无</span>
                 </template>
               </el-table-column>
-              <el-table-column label="备注" min-width="120" align="center" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.notes || '暂无' }}</template>
+              <el-table-column label="备注" min-width="140" align="center" show-overflow-tooltip>
+                <template #default="{ row }">{{ formatTaskNotesBrief(row.notes) }}</template>
               </el-table-column>
               <el-table-column label="操作" width="120" align="center" class-name="col-action">
                 <template #default="{ row }">
@@ -576,6 +579,28 @@
                 </template>
               </el-table-column>
               <el-table-column
+                label="审核人"
+                min-width="120"
+                align="center"
+                class-name="col-text"
+                show-overflow-tooltip
+              >
+                <template #default="{ row }">
+                  <span v-if="row.reviewerName || row.reviewerId">{{
+                    row.reviewerName || row.reviewerId
+                  }}</span>
+                  <span v-else class="muted">待审核</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="审核时间" width="168" align="center" class-name="col-text">
+                <template #default="{ row }">
+                  <span v-if="row.reviewedAt" class="cell-datetime">{{
+                    formatDateTime(row.reviewedAt)
+                  }}</span>
+                  <span v-else class="muted">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column
                 label="驳回原因"
                 min-width="160"
                 align="center"
@@ -609,7 +634,7 @@
               <el-table-column
                 v-if="showRequestActionColumn"
                 label="操作"
-                width="160"
+                width="200"
                 class-name="col-action"
                 align="center"
               >
@@ -806,7 +831,9 @@
                 class-name="col-text"
                 show-overflow-tooltip
               >
-                <template #default="{ row }">{{ row.reason || '临期' }}</template>
+                <template #default="{ row }">{{
+                  displayLabel('pull_off_reason', row.reason, '临期')
+                }}</template>
               </el-table-column>
               <el-table-column label="状态" width="100" align="center">
                 <template #default="{ row }">
@@ -865,10 +892,13 @@
       background
     />
 
-    <el-drawer
+    <ResizableDrawer
       v-model="linesDrawer"
       :title="linesDrawerTitle"
-      size="520px"
+      storage-key="admin.drawer.replenishment.lines"
+      :default-width="720"
+      :min-width="480"
+      :max-width="1200"
       destroy-on-close
       append-to-body
     >
@@ -878,7 +908,7 @@
             >{{ deviceName(linesTask.deviceId) }}（{{ linesTask.deviceId }}）</el-descriptions-item
           >
           <el-descriptions-item label="人员">{{
-            linesTask.assigneeUserId || '无'
+            assigneeLabel(linesTask.assigneeUserId, '无')
           }}</el-descriptions-item>
           <el-descriptions-item label="签到">
             {{ linesTask.checkInAt ? formatDateTime(linesTask.checkInAt) : '未签到' }}
@@ -899,8 +929,17 @@
           <el-descriptions-item label="完成">
             {{ linesTask.completedAt ? formatDateTime(linesTask.completedAt) : '无' }}
           </el-descriptions-item>
-          <el-descriptions-item v-if="linesTask.notes" label="说明">{{
-            linesTask.notes
+          <el-descriptions-item v-if="routePlanMeta(linesTask.notes).sequence != null" label="路线顺序">
+            第 {{ routePlanMeta(linesTask.notes).sequence }} 站
+          </el-descriptions-item>
+          <el-descriptions-item
+            v-if="routePlanMeta(linesTask.notes).distanceM != null"
+            label="路段距离"
+          >
+            {{ formatRouteLegDistance(routePlanMeta(linesTask.notes).distanceM!) }}
+          </el-descriptions-item>
+          <el-descriptions-item v-if="formatTaskNotes(linesTask.notes)" label="说明">{{
+            formatTaskNotes(linesTask.notes)
           }}</el-descriptions-item>
         </el-descriptions>
         <el-alert
@@ -941,17 +980,17 @@
                 :image-size="48"
               />
             </template>
-            <el-table-column label="类型" width="88" align="center">
+            <el-table-column label="类型" width="72" align="center">
               <template #default="{ row }">{{ lineTypeLabel(row.lineType) }}</template>
             </el-table-column>
-            <el-table-column label="商品" min-width="140" show-overflow-tooltip align="center">
+            <el-table-column label="商品" min-width="120" show-overflow-tooltip align="center">
               <template #default="{ row }">
                 <div>{{ row.skuName || row.skuId || '无' }}</div>
                 <small v-if="row.skuName && row.skuId" class="muted mono">{{ row.skuId }}</small>
               </template>
             </el-table-column>
-            <el-table-column prop="quantity" label="数量" width="72" align="center" />
-            <el-table-column label="货道" min-width="150" align="center">
+            <el-table-column prop="quantity" label="数量" width="64" align="center" />
+            <el-table-column label="货道" min-width="120" align="center">
               <template #default="{ row }">
                 <el-select
                   v-if="canAssignSlot(row)"
@@ -960,7 +999,7 @@
                   filterable
                   size="small"
                   placeholder="待分配"
-                  style="width: 130px"
+                  style="width: 110px"
                   @change="(v: string | null) => onSlotAssign(row, v)"
                 >
                   <el-option
@@ -979,13 +1018,13 @@
                 </template>
               </template>
             </el-table-column>
-            <el-table-column label="批次" min-width="100" show-overflow-tooltip align="center">
+            <el-table-column label="批次" min-width="90" show-overflow-tooltip align="center">
               <template #default="{ row }">{{ row.batchNo || '无' }}</template>
             </el-table-column>
-            <el-table-column label="效期" width="110" align="center">
+            <el-table-column label="效期" width="100" align="center">
               <template #default="{ row }">{{ row.expiryDate || '无' }}</template>
             </el-table-column>
-            <el-table-column label="已入账" width="80" align="center">
+            <el-table-column label="已入账" width="72" align="center">
               <template #default="{ row }">
                 <el-tag :type="row.applied ? 'success' : 'info'" size="small">
                   {{ row.applied ? '是' : '否' }}
@@ -1026,7 +1065,67 @@
           >
         </div>
       </div>
-    </el-drawer>
+    </ResizableDrawer>
+
+    <ResizableDrawer
+      v-model="requestFlowDrawer"
+      :title="requestFlowTitle"
+      storage-key="admin.drawer.replenishment.requestFlow"
+      :default-width="520"
+      :min-width="420"
+      :max-width="900"
+      destroy-on-close
+      append-to-body
+    >
+      <div v-if="requestFlowRow" class="request-flow">
+        <el-steps
+          :active="requestFlowActiveStep"
+          :process-status="requestFlowProcessStatus"
+          finish-status="success"
+          align-center
+        >
+          <el-step title="商户提交" :description="requestFlowSubmitDesc" />
+          <el-step title="运营审核" :description="requestFlowReviewDesc" />
+          <el-step title="履约补货" :description="requestFlowFulfillDesc" />
+        </el-steps>
+        <el-descriptions :column="1" border size="small" class="request-flow-meta">
+          <el-descriptions-item label="要货单">{{
+            requestFlowRow.requestId
+          }}</el-descriptions-item>
+          <el-descriptions-item label="商户">{{
+            requestFlowRow.merchantName || requestFlowRow.merchantId || '—'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="设备"
+            >{{ deviceName(requestFlowRow.deviceId) }}（{{
+              requestFlowRow.deviceId
+            }}）</el-descriptions-item
+          >
+          <el-descriptions-item label="明细">{{
+            formatRequestLines(requestFlowRow)
+          }}</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="dictTagType(requestFlowRow.status)" size="small">
+              {{ dictLabel('replenishment_request_status', requestFlowRow.status) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item v-if="requestFlowRow.rejectReason" label="驳回原因">
+            <span class="reject-reason">{{ requestFlowRow.rejectReason }}</span>
+          </el-descriptions-item>
+        </el-descriptions>
+        <div v-if="canEdit && requestFlowRow.status === 'SUBMITTED'" class="request-flow-actions">
+          <el-button type="primary" @click="onRequestAction(requestFlowRow, 'accept')">接单</el-button>
+          <el-button type="danger" plain @click="onRequestAction(requestFlowRow, 'reject')"
+            >驳回</el-button
+          >
+        </div>
+        <div
+          v-else-if="requestFlowRow.replenishmentTaskId"
+          class="request-flow-actions"
+        >
+          <el-button type="primary" @click="goRequestTask(requestFlowRow)">查看补货任务</el-button>
+        </div>
+      </div>
+    </ResizableDrawer>
 
     <el-dialog
       v-model="planDialog"
@@ -1054,12 +1153,22 @@
           />
         </el-form-item>
         <el-form-item label="负责人">
-          <el-input-number
+          <el-select
             v-model="planForm.assigneeUserId"
-            :min="1"
-            :precision="0"
-            controls-position="right"
-          />
+            filterable
+            clearable
+            placeholder="选择负责人"
+            style="width: 100%"
+            :loading="assigneeLoading"
+            data-testid="plan-assignee-select"
+          >
+            <el-option
+              v-for="op in assigneeOptions"
+              :key="op.userId"
+              :label="assigneeOptionLabel(op)"
+              :value="op.userId"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="目标设备" required>
           <!-- 勾选列表替代下拉：热区更大，Browser 不易难点选 -->
@@ -1115,6 +1224,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, authFetch, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
+import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -1123,9 +1233,17 @@ import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
 import { sortByPrimaryKey } from '@/utils/sort-by-pk';
 import { dictLabel, dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
+import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 type Row = Record<string, any>;
+
+interface AssigneeOption {
+  userId: number;
+  name?: string;
+  phoneNumber?: string;
+  status?: string;
+}
 const route = useRoute();
 const router = useRouter();
 const { goPath } = useNavAccess();
@@ -1208,6 +1326,8 @@ const devices = ref<Row[]>([]);
 const shortages = ref<Row[]>([]);
 const expiryAlerts = ref<Row[]>([]);
 const linesDrawer = ref(false);
+const requestFlowDrawer = ref(false);
+const requestFlowRow = ref<Row | null>(null);
 const linesLoading = ref(false);
 const slotSaving = ref(false);
 const linesTask = ref<Row | null>(null);
@@ -1229,10 +1349,12 @@ const shortageDevices = computed(() => [
   ...new Set(shortages.value.map((s) => s.deviceId).filter(Boolean))
 ]);
 const planDialog = ref(false);
+const assigneeOptions = ref<AssigneeOption[]>([]);
+const assigneeLoading = ref(false);
 const planForm = reactive({
   routeName: '',
   plannedDate: '',
-  assigneeUserId: currentAssigneeId(),
+  assigneeUserId: currentAssigneeId() as number | undefined,
   deviceIds: [] as string[]
 });
 const selectedDevicesWithoutShortage = computed(() =>
@@ -1422,15 +1544,20 @@ const requestActions: TableAction[] = [
 ];
 
 function requestActionsFor(row: Row): TableAction[] {
-  if (row.status === 'SUBMITTED') return requestActions;
-  if (row.replenishmentTaskId && (row.status === 'ACCEPTED' || row.status === 'COMPLETED')) {
-    return [{ key: 'view-task', label: '查看任务', icon: View, type: 'primary' }];
+  const acts: TableAction[] = [
+    { key: 'flow', label: '审批流', icon: View, type: 'info' }
+  ];
+  if (canEdit.value && row.status === 'SUBMITTED') {
+    acts.push(...requestActions);
   }
-  return [];
+  if (row.replenishmentTaskId && (row.status === 'ACCEPTED' || row.status === 'COMPLETED')) {
+    acts.push({ key: 'view-task', label: '查看任务', icon: View, type: 'primary' });
+  }
+  return acts;
 }
 
-const showRequestActionColumn = computed(
-  () => canEdit.value && requests.value.some((row) => requestActionsFor(row).length > 0)
+const showRequestActionColumn = computed(() =>
+  requests.value.some((row) => requestActionsFor(row).length > 0)
 );
 
 const {
@@ -1515,13 +1642,15 @@ const { onExport: exportFulfillment } = useListCsv({
 
 const { onExport: exportRequests } = useListCsv({
   filePrefix: '商户要货',
-  headers: ['要货单', '商户', '目标设备', '状态', '驳回原因', '提交时间'],
+  headers: ['要货单', '商户', '目标设备', '状态', '审核人', '审核时间', '驳回原因', '提交时间'],
   toRows: () =>
     pickRequests(requests.value).map((row) => [
       row.requestId,
       row.merchantName || '',
       deviceName(row.deviceId),
       dictLabel('replenishment_request_status', row.status),
+      row.reviewerName || row.reviewerId || '',
+      row.reviewedAt ? formatDateTime(row.reviewedAt) : '',
       row.rejectReason || '',
       formatDateTime(row.submittedAt || row.createdAt)
     ])
@@ -1553,7 +1682,7 @@ const { onExport: exportExpiry } = useListCsv({
       row.batchNo || '',
       row.lotId || '',
       row.quantity,
-      row.reason || '临期',
+      displayLabel('pull_off_reason', row.reason, '临期'),
       row.status || '',
       formatDateTime(row.createdAt)
     ])
@@ -1609,6 +1738,55 @@ function currentAssigneeId() {
   const id = Number(auth.userId || localStorage.getItem('admin_userId') || 0);
   return Number.isFinite(id) && id > 0 ? id : 1;
 }
+
+function assigneeOptionLabel(op: AssigneeOption) {
+  const name = (op.name || '').trim() || '未命名';
+  const phone = (op.phoneNumber || '').trim();
+  return phone ? `${name}（${phone}）` : `${name}（${op.userId}）`;
+}
+
+function assigneeLabel(userId?: number | string | null, empty = '未分配') {
+  if (userId == null || userId === '') return empty;
+  const id = Number(userId);
+  if (!Number.isFinite(id) || id <= 0) return empty;
+  const op = assigneeOptions.value.find((item) => item.userId === id);
+  if (op) return assigneeOptionLabel(op);
+  return String(id);
+}
+
+function ensureAssigneeOption(userId: number, name?: string) {
+  if (!userId || assigneeOptions.value.some((item) => item.userId === userId)) return;
+  assigneeOptions.value = [
+    { userId, name: name || '当前账号' },
+    ...assigneeOptions.value
+  ];
+}
+
+async function loadAssignees() {
+  if (assigneeLoading.value) return;
+  assigneeLoading.value = true;
+  try {
+    const data = await api.request<PageResult<AssigneeOption>>(
+      '/api/v2/ops/admin/rbac/operators?page=0&size=100',
+      'GET'
+    );
+    const items = (data.items || []).filter(
+      (item) => !item.status || item.status === 'ACTIVE'
+    );
+    assigneeOptions.value = items;
+    ensureAssigneeOption(currentAssigneeId(), auth.displayName);
+  } catch {
+    ensureAssigneeOption(currentAssigneeId(), auth.displayName);
+    if (!assigneeOptions.value.length) {
+      assigneeOptions.value = [
+        { userId: currentAssigneeId(), name: auth.displayName || '当前账号' }
+      ];
+    }
+  } finally {
+    assigneeLoading.value = false;
+  }
+}
+
 function deviceName(deviceId: string) {
   return devices.value.find((item) => item.deviceId === deviceId)?.deviceName || deviceId || '无';
 }
@@ -1643,6 +1821,7 @@ function openPlan() {
     assigneeUserId: currentAssigneeId(),
     deviceIds: focusDeviceId.value.trim() ? [focusDeviceId.value.trim()] : []
   });
+  void loadAssignees();
   planDialog.value = true;
 }
 
@@ -1705,6 +1884,7 @@ async function maybeAutoPlanFromQuery() {
     assigneeUserId: currentAssigneeId(),
     deviceIds: target
   });
+  void loadAssignees();
   planDialog.value = true;
   clearPlanQuery();
 }
@@ -1725,6 +1905,7 @@ async function planFromShortage() {
     deviceIds:
       focusDeviceId.value && ids.includes(focusDeviceId.value) ? [focusDeviceId.value] : ids
   });
+  void loadAssignees();
   planDialog.value = true;
 }
 
@@ -1736,6 +1917,7 @@ function planSingleDevice(deviceId: string) {
     assigneeUserId: currentAssigneeId(),
     deviceIds: [deviceId]
   });
+  void loadAssignees();
   planDialog.value = true;
 }
 
@@ -1826,6 +2008,61 @@ function formatTaskDuration(row: Row) {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return m ? `${h} 时 ${m} 分` : `${h} 时`;
+}
+
+function routePlanMeta(notes?: string) {
+  const raw = String(notes || '').trim();
+  if (!raw) return {} as { sequence?: number; distanceM?: number };
+  const seqMatch = raw.match(/\bseq\s*=\s*(\d+)\b/i);
+  const distMatch = raw.match(/\bdist\s*=\s*(\d+)\s*m?\b/i);
+  return {
+    sequence: seqMatch ? Number(seqMatch[1]) : undefined,
+    distanceM: distMatch ? Number(distMatch[1]) : undefined,
+  };
+}
+
+function formatRouteLegDistance(meters: number) {
+  const m = Math.max(0, Math.round(meters));
+  if (m < 1000) return `距上一站 ${m} 米`;
+  return `距上一站 ${(m / 1000).toFixed(1)} 公里`;
+}
+
+/** 任务备注：过滤路线规划内部字段，保留业务说明 */
+function formatTaskNotes(notes?: string) {
+  const raw = String(notes || '').trim();
+  if (!raw) return '';
+  if (/from-expiry/i.test(raw)) {
+    if (/\bEXPIRED\b/i.test(raw)) return '已过期下架';
+    return '临期商品下架';
+  }
+  if (/NEAR_EXPIRY/i.test(raw) && !/[\u4e00-\u9fff]/.test(raw)) return '临期商品下架';
+  if (/PULL_OFF/i.test(raw) && !/[\u4e00-\u9fff]/.test(raw)) return '下架任务';
+  if (/^merchant request\s+\d+$/i.test(raw)) {
+    return `商户要货单 ${raw.replace(/^\D+/, '')}`;
+  }
+  const cleaned = raw
+    .replace(/from-expiry:\d+/gi, '')
+    .replace(/\bNEAR_EXPIRY\b/gi, '')
+    .replace(/\bEXPIRED\b/gi, '')
+    .replace(/\bPULL_OFF\b/gi, '')
+    .replace(/\bseq\s*=\s*\d+\b/gi, '')
+    .replace(/\bdist\s*=\s*\d+\s*m?\b/gi, '')
+    .replace(/[|;,]+/g, ' ')
+    .trim();
+  if (!cleaned) return '';
+  if (!/[\u4e00-\u9fff]/.test(cleaned) && /^[\w:=\-.\s]+$/.test(cleaned)) return '';
+  return cleaned;
+}
+
+/** 列表备注：路线顺序/距离用中文，否则业务说明 */
+function formatTaskNotesBrief(notes?: string) {
+  const meta = routePlanMeta(notes);
+  const human = formatTaskNotes(notes);
+  const parts: string[] = [];
+  if (meta.sequence != null) parts.push(`第 ${meta.sequence} 站`);
+  if (meta.distanceM != null) parts.push(formatRouteLegDistance(meta.distanceM));
+  if (human) parts.push(human);
+  return parts.length ? parts.join(' · ') : '暂无';
 }
 
 function lineTypeLabel(type?: string) {
@@ -2189,6 +2426,7 @@ async function completeRestockTask(task: Row) {
 
 async function createPlan() {
   if (!planForm.routeName.trim()) return ElMessage.warning('请填写路线名称');
+  if (!planForm.assigneeUserId) return ElMessage.warning('请选择负责人');
   if (!planForm.deviceIds.length) return ElMessage.warning('请至少选择一台设备');
   saving.value = true;
   try {
@@ -2228,6 +2466,10 @@ async function createPlan() {
 
 async function onRequestAction(row: Row, key: string) {
   try {
+    if (key === 'flow') {
+      openRequestFlow(row);
+      return;
+    }
     if (key === 'view-task') {
       await goRequestTask(row);
       return;
@@ -2243,6 +2485,10 @@ async function onRequestAction(row: Row, key: string) {
         requestId?: number;
         outboundId?: number | null;
         replenishmentTaskId?: number | null;
+        reviewerId?: number;
+        reviewerName?: string;
+        reviewedAt?: string;
+        status?: string;
       }>(`/api/v2/ops/admin/replenishment/requests/${row.requestId}/accept`, 'POST');
       if (accepted?.outboundId) {
         ElMessage.success(
@@ -2269,6 +2515,11 @@ async function onRequestAction(row: Row, key: string) {
       ElMessage.success('已驳回');
     }
     await load();
+    if (requestFlowDrawer.value && requestFlowRow.value?.requestId === row.requestId) {
+      const updated = allRequests.value.find((r) => r.requestId === row.requestId);
+      if (updated) requestFlowRow.value = updated;
+      else requestFlowDrawer.value = false;
+    }
   } catch (e: any) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '操作失败');
@@ -2320,6 +2571,63 @@ function formatRequestLines(row: Row) {
   const lines = (row.lines || []) as { skuName?: string; skuId?: string; requestedQty?: number }[];
   if (!lines.length) return '无明细';
   return lines.map((l) => `${l.skuName || l.skuId || '无'}×${l.requestedQty ?? 0}`).join('、');
+}
+
+const requestFlowTitle = computed(() =>
+  requestFlowRow.value?.requestId
+    ? `审批流 · 要货 ${requestFlowRow.value.requestId}`
+    : '审批流'
+);
+
+const requestFlowActiveStep = computed(() => {
+  const status = String(requestFlowRow.value?.status || '');
+  if (status === 'SUBMITTED') return 0;
+  if (status === 'REJECTED') return 1;
+  if (status === 'ACCEPTED') return 2;
+  if (status === 'COMPLETED') return 3;
+  return 0;
+});
+
+const requestFlowProcessStatus = computed(() =>
+  String(requestFlowRow.value?.status || '') === 'REJECTED' ? 'error' : 'process'
+);
+
+const requestFlowSubmitDesc = computed(() => {
+  const row = requestFlowRow.value;
+  if (!row) return '';
+  const who = row.createdByName || row.createdBy || '商户';
+  const when = row.submittedAt || row.createdAt;
+  return when ? `${who}\n${formatDateTime(when)}` : String(who);
+});
+
+const requestFlowReviewDesc = computed(() => {
+  const row = requestFlowRow.value;
+  if (!row) return '';
+  const status = String(row.status || '');
+  if (status === 'SUBMITTED') return '等待运营接单/驳回';
+  const who = row.reviewerName || row.reviewerId || '审核人';
+  const result = status === 'REJECTED' ? '已驳回' : '已接单';
+  const when = row.reviewedAt ? formatDateTime(row.reviewedAt) : '';
+  return when ? `${who} · ${result}\n${when}` : `${who} · ${result}`;
+});
+
+const requestFlowFulfillDesc = computed(() => {
+  const row = requestFlowRow.value;
+  if (!row) return '';
+  const status = String(row.status || '');
+  if (status === 'REJECTED') return '已终止';
+  if (status === 'SUBMITTED') return '审核通过后生成补货任务';
+  if (row.replenishmentTaskId) {
+    return status === 'COMPLETED'
+      ? `任务 ${row.replenishmentTaskId} · 已完成`
+      : `任务 ${row.replenishmentTaskId} · 履约中`;
+  }
+  return '待生成补货任务';
+});
+
+function openRequestFlow(row: Row) {
+  requestFlowRow.value = row;
+  requestFlowDrawer.value = true;
 }
 
 async function load() {
@@ -2436,6 +2744,7 @@ watch(
 onMounted(async () => {
   applyRouteQuery();
   syncRouteQuery();
+  void loadAssignees();
   await load();
   await maybeAutoPlanFromQuery();
 });
@@ -2557,6 +2866,21 @@ onActivated(() => {
 .lines-drawer {
   display: grid;
   gap: 12px;
+  min-width: 0;
+}
+.lines-drawer .table-scroll {
+  overflow-x: auto;
+  min-width: 0;
+  /* 预留滚动条槽，避免拖宽时滚动条出现/消失导致合计行上下跳 */
+  scrollbar-gutter: stable;
+}
+.lines-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 24px;
+  color: var(--layout-muted);
+  font-size: 13px;
 }
 .lines-meta {
   margin-bottom: 0;
@@ -2605,13 +2929,6 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
   font-size: 12px;
 }
-.lines-summary {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--layout-muted);
-  font-size: 13px;
-}
 .reject-reason {
   color: var(--el-color-danger);
   font-size: 13px;
@@ -2628,6 +2945,24 @@ onActivated(() => {
 .lines-action-hint {
   font-size: 12px;
   color: var(--el-color-warning);
+}
+.request-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 4px 0 12px;
+}
+.request-flow :deep(.el-step__description) {
+  white-space: pre-line;
+  line-height: 1.4;
+}
+.request-flow-meta {
+  margin-top: 4px;
+}
+.request-flow-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 .lines-dot {
   margin-left: 4px;

@@ -54,6 +54,7 @@
         </div>
         <div class="topbar-right">
           <GlobalSearch />
+          <OpsApprovalInbox />
           <el-dropdown trigger="click" @command="onSettingCommand">
             <el-button text title="外观设置" aria-label="外观设置">
               <el-icon><Brush /></el-icon>
@@ -178,6 +179,7 @@ import { PRIMARY_OPTIONS, useSettingsStore } from '@/stores/settings';
 import { observeTableScrollFit, stopTableScrollFit } from '@/utils/table-scroll-fit';
 import AppBreadcrumb from '@/components/AppBreadcrumb.vue';
 import GlobalSearch from '@/components/GlobalSearch.vue';
+import OpsApprovalInbox from '@/components/OpsApprovalInbox.vue';
 import SidebarMenuTree from '@/components/SidebarMenuTree.vue';
 
 const route = useRoute();

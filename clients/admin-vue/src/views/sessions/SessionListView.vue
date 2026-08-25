@@ -280,7 +280,14 @@
       @size-change="onSizeChange"
     />
 
-    <el-drawer v-model="timelineOpen" title="会话时间线" size="420px" destroy-on-close>
+    <ResizableDrawer
+      v-model="timelineOpen"
+      title="会话时间线"
+      storage-key="admin.drawer.sessions.timeline"
+      :default-width="420"
+      :min-width="380"
+      destroy-on-close
+    >
       <template v-if="timelineRow">
         <el-descriptions :column="1" border size="small" class="mb12">
           <el-descriptions-item label="会话">
@@ -369,7 +376,7 @@
           >
         </div>
       </template>
-    </el-drawer>
+    </ResizableDrawer>
   </el-card>
 </template>
 
@@ -389,6 +396,7 @@ import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
+import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';

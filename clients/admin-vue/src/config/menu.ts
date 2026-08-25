@@ -393,6 +393,20 @@ const BASE_NAV: NavItem[] = [
     keywords: ['角色', '权限字符', '分配权限', 'rbac', 'role']
   },
   {
+    path: '/departments',
+    title: '部门管理',
+    group: '系统',
+    perm: 'ops:dept:list',
+    keywords: ['部门', '财务', '总部', '采购', '经理', 'department']
+  },
+  {
+    path: '/approvals',
+    title: '审批流配置',
+    group: '系统',
+    perm: 'ops:approval:config',
+    keywords: ['审批', '流程', '节点', '部门', 'approval']
+  },
+  {
     path: '/menus',
     title: '菜单管理',
     group: '系统',
@@ -447,6 +461,13 @@ const BASE_NAV: NavItem[] = [
     group: '系统',
     perm: 'ops:audit:list',
     keywords: ['审计', '日志', 'audit']
+  },
+  {
+    path: '/devops',
+    title: 'DevOps 中心',
+    group: '系统',
+    perm: 'ops:devops:view',
+    keywords: ['devops', 'grafana', 'prometheus', 'jenkins', 'sonar', 'github', '监控', 'CI']
   },
   { path: '/profile', title: '个人中心', group: '系统', keywords: ['账号', 'profile', '我'] }
 ];

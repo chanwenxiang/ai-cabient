@@ -36,6 +36,7 @@ public class MerchantReplenishmentService {
     private final ReplenishmentTaskMapper taskRepository;
     private final FileAttachmentService fileAttachmentService;
     private final DistributedLockService distributedLockService;
+    private final ApprovalWorkflowService approvalWorkflowService;
 
     public MerchantReplenishmentService(PermissionService permissionService,
                                         MerchantFeaturePackService merchantFeaturePackService,
@@ -53,7 +54,8 @@ public class MerchantReplenishmentService {
                                         ReplenishmentRouteMapper routeRepository,
                                         ReplenishmentTaskMapper taskRepository,
                                         FileAttachmentService fileAttachmentService,
-                                        DistributedLockService distributedLockService) {
+                                        DistributedLockService distributedLockService,
+                                        ApprovalWorkflowService approvalWorkflowService) {
         this.permissionService = permissionService;
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.merchantPortalGuard = merchantPortalGuard;
@@ -71,6 +73,7 @@ public class MerchantReplenishmentService {
         this.taskRepository = taskRepository;
         this.fileAttachmentService = fileAttachmentService;
         this.distributedLockService = distributedLockService;
+        this.approvalWorkflowService = approvalWorkflowService;
     }
 
     @Transactional(readOnly = true)
@@ -267,6 +270,11 @@ public class MerchantReplenishmentService {
         }
         auditService.record(userId, "MERCHANT_REPLEN_REQUEST", "REPLEN_REQUEST",
                 String.valueOf(request.getRequestId()), "device=" + deviceId);
+        approvalWorkflowService.start(
+                "MERCHANT_REPLEN_REQUEST",
+                String.valueOf(request.getRequestId()),
+                userId,
+                "商户要货 #" + request.getRequestId() + " · " + deviceId);
         return toRequestDto(request);
     }
 
@@ -348,6 +356,8 @@ public class MerchantReplenishmentService {
         auditService.record(operatorId, "MERCHANT_REPLEN_ACCEPT", "REPLEN_REQUEST",
                 String.valueOf(requestId),
                 "task=" + task.getTaskId() + (outboundId != null ? ",outbound=" + outboundId : ",outbound=none"));
+        approvalWorkflowService.completeApproved(
+                operatorId, "MERCHANT_REPLEN_REQUEST", String.valueOf(requestId), null);
         return toRequestDto(request);
     }
 
@@ -371,6 +381,11 @@ public class MerchantReplenishmentService {
         requestRepository.save(request);
         auditService.record(operatorId, "MERCHANT_REPLEN_REJECT", "REPLEN_REQUEST",
                 String.valueOf(requestId), request.getRejectReason());
+        approvalWorkflowService.completeRejected(
+                operatorId,
+                "MERCHANT_REPLEN_REQUEST",
+                String.valueOf(requestId),
+                request.getRejectReason());
         return toRequestDto(request);
     }
 
@@ -426,6 +441,9 @@ public class MerchantReplenishmentService {
         DeviceInfo device = deviceRepository.findById(request.getDeviceId()).orElse(null);
         Merchant merchant = merchantRepository.findById(request.getMerchantId()).orElse(null);
         UserInfo creator = userInfoRepository.findById(request.getCreatedBy()).orElse(null);
+        UserInfo reviewer = request.getReviewerId() != null
+                ? userInfoRepository.findById(request.getReviewerId()).orElse(null)
+                : null;
         List<MerchantReplenishmentRequestLineDto> lines = requestLineRepository
                 .findByRequestIdOrderByLineIdAsc(request.getRequestId()).stream()
                 .map(l -> new MerchantReplenishmentRequestLineDto(
@@ -440,14 +458,23 @@ public class MerchantReplenishmentService {
                 request.getStatus(),
                 request.getNotes(),
                 request.getCreatedBy(),
-                creator != null ? (creator.getName() != null ? creator.getName() : creator.getPhoneNumber()) : null,
+                displayUserName(creator),
                 request.getSubmittedAt() != null ? request.getSubmittedAt() : request.getCreatedAt(),
                 request.getReviewedAt(),
+                request.getReviewerId(),
+                displayUserName(reviewer),
                 request.getRejectReason(),
                 request.getReplenishmentTaskId(),
                 request.getOutboundId(),
                 lines
         );
+    }
+
+    private static String displayUserName(UserInfo user) {
+        if (user == null) return null;
+        if (user.getName() != null && !user.getName().isBlank()) return user.getName().trim();
+        if (user.getPhoneNumber() != null && !user.getPhoneNumber().isBlank()) return user.getPhoneNumber().trim();
+        return user.getUserId() != null ? String.valueOf(user.getUserId()) : null;
     }
 
     @Transactional

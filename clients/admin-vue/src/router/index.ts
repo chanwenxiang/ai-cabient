@@ -255,6 +255,18 @@ const bizChildren: any[] = [
     meta: { title: '角色管理', group: '系统' }
   },
   {
+    path: 'departments',
+    name: 'departments',
+    component: () => import('@/views/system/DepartmentManageView.vue'),
+    meta: { title: '部门管理', group: '系统' }
+  },
+  {
+    path: 'approvals',
+    name: 'approvals',
+    component: () => import('@/views/system/ApprovalConfigView.vue'),
+    meta: { title: '审批流配置', group: '系统' }
+  },
+  {
     path: 'menus',
     name: 'menus',
     component: () => import('@/views/system/MenuManageView.vue'),
@@ -302,6 +314,12 @@ const bizChildren: any[] = [
     name: 'audit',
     component: () => import('@/views/system/AuditLogView.vue'),
     meta: { title: '审计日志', group: '系统' }
+  },
+  {
+    path: 'devops',
+    name: 'devops',
+    component: () => import('@/views/system/DevOpsHubView.vue'),
+    meta: { title: 'DevOps 中心', group: '系统' }
   },
   { path: 'oper-logs', redirect: '/audit' },
   {

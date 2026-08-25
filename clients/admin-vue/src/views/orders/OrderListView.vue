@@ -310,7 +310,14 @@
       @size-change="onSizeChange"
     />
 
-    <el-drawer v-model="detailOpen" title="订单详情" size="480px" destroy-on-close>
+    <ResizableDrawer
+      v-model="detailOpen"
+      title="订单详情"
+      storage-key="admin.drawer.orders.detail"
+      :default-width="480"
+      :min-width="420"
+      destroy-on-close
+    >
       <div v-loading="detailLoading">
         <template v-if="detail">
           <el-descriptions :column="1" border size="small">
@@ -510,7 +517,7 @@
           </el-timeline>
         </template>
       </div>
-    </el-drawer>
+    </ResizableDrawer>
 
     <el-dialog v-model="partialOpen" title="按行部分退款" width="640px" destroy-on-close>
       <p class="partial-hint">
@@ -569,6 +576,7 @@ import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
+import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';

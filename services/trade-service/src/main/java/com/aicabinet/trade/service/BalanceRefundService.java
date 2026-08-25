@@ -45,6 +45,9 @@ public class BalanceRefundService {
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
+    private final ApprovalWorkflowService approvalWorkflowService;
+
+    private static final String BIZ_BALANCE_REFUND = "BALANCE_REFUND";
 
     public BalanceRefundService(BalanceRefundRequestMapper requestMapper,
                                 BalanceRefundAllocationMapper allocationMapper,
@@ -54,7 +57,8 @@ public class BalanceRefundService {
                                 BalanceLedgerService balanceLedgerService,
                                 PermissionService permissionService,
                                 AdminAuditService auditService,
-                                DistributedLockService distributedLockService) {
+                                DistributedLockService distributedLockService,
+                                ApprovalWorkflowService approvalWorkflowService) {
         this.requestMapper = requestMapper;
         this.allocationMapper = allocationMapper;
         this.accountMapper = accountMapper;
@@ -64,6 +68,7 @@ public class BalanceRefundService {
         this.permissionService = permissionService;
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
+        this.approvalWorkflowService = approvalWorkflowService;
     }
 
     @Transactional(readOnly = true)
@@ -115,6 +120,12 @@ public class BalanceRefundService {
         req.setCreatedAt(now);
         req.setUpdatedAt(now);
         requestMapper.insert(req);
+        approvalWorkflowService.start(
+                BIZ_BALANCE_REFUND,
+                String.valueOf(req.getRequestId()),
+                userId,
+                "余额退款 " + req.getRequestNo() + " ¥"
+                        + String.format(Locale.ROOT, "%.2f", amountCents / 100.0));
         log.info("balance refund applied user={} amount={} request={}", userId, amountCents, req.getRequestNo());
         return toDto(req);
     }
@@ -161,11 +172,22 @@ public class BalanceRefundService {
         req.setUpdatedAt(now);
 
         if (!approve) {
+            approvalWorkflowService.completeRejected(
+                    operatorId, BIZ_BALANCE_REFUND, String.valueOf(req.getRequestId()), trim(remark));
             releaseFreeze(req.getUserId(), req.getAmountCents(), req.getRequestNo());
             req.setStatus(STATUS_REJECTED);
             requestMapper.updateById(req);
             auditService.record(operatorId, "BALANCE_REFUND_REJECT", "BALANCE_REFUND",
                     String.valueOf(req.getRequestId()), "驳回 " + req.getRequestNo());
+            return toDto(req);
+        }
+
+        approvalWorkflowService.completeApproved(
+                operatorId, BIZ_BALANCE_REFUND, String.valueOf(req.getRequestId()), trim(remark));
+        if (!approvalWorkflowService.isInstanceApproved(
+                BIZ_BALANCE_REFUND, String.valueOf(req.getRequestId()))) {
+            auditService.record(operatorId, "BALANCE_REFUND_APPROVE", "BALANCE_REFUND",
+                    String.valueOf(req.getRequestId()), "初审通过 " + req.getRequestNo());
             return toDto(req);
         }
 

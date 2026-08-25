@@ -1,0 +1,22 @@
+---
+description: 单元测试、日志上下文与 Conventional Commits 提交规范
+alwaysApply: true
+---
+
+# 测试与提交规范
+
+## 单元测试
+
+- 核心业务（订单计算、状态机流转）必须有单元测试
+- 覆盖正常路径与异常边界（并发冲突、超时等）
+
+## 日志
+
+- 关键节点打 INFO，上下文须含 `traceId`、`deviceId`、`orderId`（有则带）
+- 异常打 ERROR，并输出完整堆栈
+
+## Commit
+
+- 遵循 Conventional Commits
+- 示例：`fix(door): 修复开门指令下发超时未触发重试的问题`
+- 常用 type：`feat` / `fix` / `refactor` / `test` / `docs` / `chore`

@@ -15,6 +15,8 @@ public record MerchantReplenishmentRequestDto(
         String createdByName,
         Instant submittedAt,
         Instant reviewedAt,
+        Long reviewerId,
+        String reviewerName,
         String rejectReason,
         Long replenishmentTaskId,
         Long outboundId,

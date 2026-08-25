@@ -16,5 +16,7 @@ public record CreateOpsOperatorRequest(
         @Size(min = 6, max = 64)
         String password,
         String status,
-        List<Long> roleIds
+        List<Long> roleIds,
+        List<Long> deptIds,
+        Long primaryDeptId
 ) {}

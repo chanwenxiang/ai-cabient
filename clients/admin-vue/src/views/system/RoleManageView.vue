@@ -168,10 +168,12 @@
       </template>
     </el-dialog>
 
-    <el-drawer
+    <ResizableDrawer
       v-model="permDlg"
       :title="`分配权限 · ${permRole?.roleName || ''}`"
-      size="420px"
+      storage-key="admin.drawer.roles.perms"
+      :default-width="420"
+      :min-width="380"
       destroy-on-close
     >
       <el-alert
@@ -233,7 +235,7 @@
           保存
         </el-button>
       </template>
-    </el-drawer>
+    </ResizableDrawer>
   </el-card>
 </template>
 
@@ -244,6 +246,7 @@ import { EditPen, Key, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, type ElTree } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';

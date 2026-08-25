@@ -14,5 +14,6 @@ public record MerchantPaymentOnboardingDto(
         Instant lastSyncedAt,
         Instant createdAt,
         Instant updatedAt,
-        boolean payLiveHint
+        boolean payLiveHint,
+        String approvalStatus
 ) {}

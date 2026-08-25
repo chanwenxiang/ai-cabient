@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 @Service
 public class MerchantOnboardingService {
 
+    private static final String BIZ_MERCHANT_ONBOARD = "MERCHANT_ONBOARD";
     private static final Set<String> CHANNELS = Set.of("WECHAT", "ALIPAY", "PAYSCORE");
     private static final Set<String> STATUSES = Set.of("DRAFT", "SUBMITTED", "ACTIVE", "REJECTED");
 
@@ -37,6 +38,7 @@ public class MerchantOnboardingService {
     private final AlipayProperties alipayProperties;
     private final PayScoreProperties payScoreProperties;
     private final DistributedLockService distributedLockService;
+    private final ApprovalWorkflowService approvalWorkflowService;
 
     public MerchantOnboardingService(MerchantPaymentOnboardingMapper onboardingMapper,
                                      MerchantMapper merchantMapper,
@@ -47,7 +49,8 @@ public class MerchantOnboardingService {
                                      WeChatPayProperties weChatPayProperties,
                                      AlipayProperties alipayProperties,
                                      PayScoreProperties payScoreProperties,
-                                     DistributedLockService distributedLockService) {
+                                     DistributedLockService distributedLockService,
+                                     ApprovalWorkflowService approvalWorkflowService) {
         this.onboardingMapper = onboardingMapper;
         this.merchantMapper = merchantMapper;
         this.permissionService = permissionService;
@@ -58,6 +61,7 @@ public class MerchantOnboardingService {
         this.alipayProperties = alipayProperties;
         this.payScoreProperties = payScoreProperties;
         this.distributedLockService = distributedLockService;
+        this.approvalWorkflowService = approvalWorkflowService;
     }
 
     @Transactional(readOnly = true)
@@ -83,6 +87,49 @@ public class MerchantOnboardingService {
         String mid = req.merchantId().trim();
         String channel = req.channel().trim().toUpperCase();
         return runWithOnboardingLock(mid, channel, () -> doUpsert(operatorId, onboardingId, req, mid, channel));
+    }
+
+    @Transactional
+    public MerchantPaymentOnboardingDto review(Long operatorId, long onboardingId, boolean approve, String remark) {
+        permissionService.requireAnyPermission(operatorId, "ops:merchant:onboard:list", "ops:merchant:onboard:edit");
+        MerchantPaymentOnboarding row = onboardingMapper.findByIdForUpdate(onboardingId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "进件记录不存在"));
+        merchantScopeService.requireMerchantAccess(operatorId, row.getMerchantId());
+        return runWithOnboardingLock(row.getMerchantId(), row.getChannel(),
+                () -> doReview(operatorId, row, approve, remark));
+    }
+
+    private MerchantPaymentOnboardingDto doReview(Long operatorId, MerchantPaymentOnboarding row,
+                                                  boolean approve, String remark) {
+        if (!"SUBMITTED".equals(row.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅已提交进件可审批");
+        }
+        String bizId = String.valueOf(row.getOnboardingId());
+        if (approvalWorkflowService.instanceStatus(BIZ_MERCHANT_ONBOARD, bizId).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "审批流尚未发起，请重新提交进件");
+        }
+        if (!approve) {
+            approvalWorkflowService.completeRejected(operatorId, BIZ_MERCHANT_ONBOARD, bizId, trim(remark));
+            row.setStatus("REJECTED");
+            row.setUpdatedAt(Instant.now());
+            onboardingMapper.updateById(row);
+            auditService.record(operatorId, "MERCHANT_ONBOARD_REVIEW", "MERCHANT",
+                    row.getMerchantId(), row.getChannel() + ":REJECTED");
+            return toDto(row, merchantName(row.getMerchantId()));
+        }
+        approvalWorkflowService.completeApproved(operatorId, BIZ_MERCHANT_ONBOARD, bizId, trim(remark));
+        if (approvalWorkflowService.isInstanceApproved(BIZ_MERCHANT_ONBOARD, bizId)) {
+            row.setStatus("ACTIVE");
+            row.setLastSyncedAt(Instant.now());
+            row.setUpdatedAt(Instant.now());
+            onboardingMapper.updateById(row);
+            auditService.record(operatorId, "MERCHANT_ONBOARD_REVIEW", "MERCHANT",
+                    row.getMerchantId(), row.getChannel() + ":ACTIVE");
+        } else {
+            auditService.record(operatorId, "MERCHANT_ONBOARD_REVIEW", "MERCHANT",
+                    row.getMerchantId(), row.getChannel() + ":NODE_APPROVED");
+        }
+        return toDto(row, merchantName(row.getMerchantId()));
     }
 
     private MerchantPaymentOnboardingDto doUpsert(Long operatorId, Long onboardingId,
@@ -111,6 +158,18 @@ public class MerchantOnboardingService {
                 row.setCreatedAt(Instant.now());
             }
         }
+        String previousStatus = row.getStatus();
+        if ("SUBMITTED".equals(previousStatus) && !"SUBMITTED".equals(status)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "审批中的进件请通过审批操作处理");
+        }
+        boolean approvalEnabled = approvalWorkflowService.isDefinitionEnabled(BIZ_MERCHANT_ONBOARD);
+        if ("ACTIVE".equals(status) && approvalEnabled) {
+            String bizId = row.getOnboardingId() == null ? null : String.valueOf(row.getOnboardingId());
+            if (bizId == null || !approvalWorkflowService.isInstanceApproved(BIZ_MERCHANT_ONBOARD, bizId)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "进件须审批通过后方可生效");
+            }
+        }
+
         row.setMerchantId(mid);
         row.setChannel(channel);
         row.setStatus(status);
@@ -126,9 +185,26 @@ public class MerchantOnboardingService {
         } else {
             onboardingMapper.updateById(row);
         }
+
+        if ("SUBMITTED".equals(status)) {
+            String bizId = String.valueOf(row.getOnboardingId());
+            String approvalStatus = approvalWorkflowService.instanceStatus(BIZ_MERCHANT_ONBOARD, bizId).orElse(null);
+            boolean canRestart = previousStatus == null
+                    || "DRAFT".equals(previousStatus)
+                    || "REJECTED".equals(previousStatus)
+                    || ("SUBMITTED".equals(previousStatus) && approvalStatus == null);
+            if (canRestart && !"PENDING".equals(approvalStatus) && !"APPROVED".equals(approvalStatus)) {
+                String merchantName = merchantName(mid);
+                approvalWorkflowService.start(
+                        BIZ_MERCHANT_ONBOARD,
+                        bizId,
+                        operatorId,
+                        "商户进件 " + merchantName + " · " + channelLabel(channel));
+            }
+        }
+
         auditService.record(operatorId, "MERCHANT_ONBOARD_UPSERT", "MERCHANT", mid, channel + ":" + status);
-        String name = merchantMapper.findById(mid).map(Merchant::getMerchantName).orElse(mid);
-        return toDto(row, name);
+        return toDto(row, merchantName(mid));
     }
 
     @Transactional(readOnly = true)
@@ -151,14 +227,36 @@ public class MerchantOnboardingService {
             case "PAYSCORE" -> payScoreProperties.liveChargeEnabled() && !securityProperties.mockEnabled();
             default -> false;
         };
+        String approvalStatus = o.getOnboardingId() == null ? null
+                : approvalWorkflowService.instanceStatus(BIZ_MERCHANT_ONBOARD, String.valueOf(o.getOnboardingId()))
+                .orElse(null);
         return new MerchantPaymentOnboardingDto(
                 o.getOnboardingId(), o.getMerchantId(), merchantName, o.getChannel(), o.getStatus(),
                 o.getExternalMchId(), o.getExternalRef(), o.getNote(), o.getLastSyncedAt(),
-                o.getCreatedAt(), o.getUpdatedAt(), live);
+                o.getCreatedAt(), o.getUpdatedAt(), live, approvalStatus);
+    }
+
+    private String merchantName(String merchantId) {
+        return merchantMapper.findById(merchantId).map(Merchant::getMerchantName).orElse(merchantId);
+    }
+
+    private static String channelLabel(String channel) {
+        return switch (channel) {
+            case "WECHAT" -> "微信";
+            case "ALIPAY" -> "支付宝";
+            case "PAYSCORE" -> "支付分";
+            default -> channel;
+        };
     }
 
     private static String blankToNull(String v) {
         return v == null || v.isBlank() ? null : v.trim();
+    }
+
+    private static String trim(String v) {
+        if (v == null) return null;
+        String t = v.trim();
+        return t.isEmpty() ? null : t;
     }
 
     static String onboardingLockKey(String merchantId, String channel) {

@@ -120,6 +120,15 @@ services:
       VISION_API_KEY: ${VISION_API_KEY:-dev-vision-key-change-me}
       AMAP_WEB_KEY: ${AMAP_WEB_KEY:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      DEVOPS_GRAFANA_URL: ${DEVOPS_GRAFANA_URL:-http://localhost/devops/grafana}
+      DEVOPS_GRAFANA_HEALTH_URL: http://grafana:3000
+      DEVOPS_PROMETHEUS_URL: ${DEVOPS_PROMETHEUS_URL:-http://localhost:9090}
+      DEVOPS_PROMETHEUS_HEALTH_URL: http://prometheus:9090
+      DEVOPS_JENKINS_URL: ${DEVOPS_JENKINS_URL:-http://localhost:19081}
+      DEVOPS_JENKINS_HEALTH_URL: http://jenkins:8080
+      DEVOPS_SONAR_URL: ${DEVOPS_SONAR_URL:-http://localhost:19002}
+      DEVOPS_SONAR_HEALTH_URL: http://sonarqube:9000
+      DEVOPS_GITHUB_URL: ${DEVOPS_GITHUB_URL:-https://github.com}
       AICABINET_STAGING_MODE: ${AICABINET_STAGING_MODE:-false}
       AICABINET_GRAVITY_FALLBACK_SETTLE: ${AICABINET_GRAVITY_FALLBACK_SETTLE:-false}
       AICABINET_MOCK_ENABLED: ${AICABINET_MOCK_ENABLED:-true}
@@ -279,6 +288,13 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SERVER_ROOT_URL: ${DEVOPS_GRAFANA_ROOT_URL:-http://localhost/devops/grafana/}
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      # 看板默认中文（Prometheus 原生 UI 无官方中文，日常请用 Grafana）
+      GF_USERS_DEFAULT_LANGUAGE: zh-Hans
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/provisioning/dashboards/json:/etc/grafana/provisioning/dashboards/json:ro

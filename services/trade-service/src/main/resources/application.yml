@@ -185,6 +185,18 @@ aicabinet:
   xxljob:
     # Docker apps 默认 true；本地 IDEA 默认 false，避免无调度中心时资金任务停跑
     enabled: ${XXL_JOB_ENABLED:false}
+  devops:
+    enabled: ${DEVOPS_HUB_ENABLED:true}
+    grafana-url: ${DEVOPS_GRAFANA_URL:http://localhost:13000}
+    grafana-health-url: ${DEVOPS_GRAFANA_HEALTH_URL:${DEVOPS_GRAFANA_URL:http://localhost:13000}}
+    prometheus-url: ${DEVOPS_PROMETHEUS_URL:http://localhost:9090}
+    prometheus-health-url: ${DEVOPS_PROMETHEUS_HEALTH_URL:${DEVOPS_PROMETHEUS_URL:http://localhost:9090}}
+    jenkins-url: ${DEVOPS_JENKINS_URL:http://localhost:19081}
+    jenkins-health-url: ${DEVOPS_JENKINS_HEALTH_URL:${DEVOPS_JENKINS_URL:http://localhost:19081}}
+    sonar-url: ${DEVOPS_SONAR_URL:http://localhost:19002}
+    sonar-health-url: ${DEVOPS_SONAR_HEALTH_URL:${DEVOPS_SONAR_URL:http://localhost:19002}}
+    github-url: ${DEVOPS_GITHUB_URL:https://github.com}
+    grafana-embed-path: ${DEVOPS_GRAFANA_EMBED_PATH:/devops/grafana/d/ai-cabinet-overview/ai-cabinet-overview?orgId=1&kiosk=tv&theme=light}
 
 app:
   storage:

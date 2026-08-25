@@ -183,7 +183,14 @@
       </template>
     </el-dialog>
 
-    <el-drawer v-model="detailOpen" title="对账详情" size="520px" destroy-on-close>
+    <ResizableDrawer
+      v-model="detailOpen"
+      title="对账详情"
+      storage-key="admin.drawer.recon.detail"
+      :default-width="520"
+      :min-width="420"
+      destroy-on-close
+    >
       <div v-loading="!detailHydrated" class="recon-detail-pane">
         <template v-if="detail">
           <el-descriptions :column="1" border size="small">
@@ -269,7 +276,7 @@
         </template>
         <el-empty v-else-if="detailHydrated" description="详情加载失败" :image-size="64" />
       </div>
-    </el-drawer>
+    </ResizableDrawer>
   </el-card>
 </template>
 
@@ -281,6 +288,7 @@ import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
+import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
@@ -540,6 +548,8 @@ onActivated(() => {
   margin: 0;
   background: transparent;
   display: grid;
+  width: 100%;
+  justify-items: center;
   gap: 2px;
   text-align: center;
   cursor: pointer;

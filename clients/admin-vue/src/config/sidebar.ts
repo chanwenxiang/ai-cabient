@@ -80,6 +80,8 @@ const PATH_ICONS: Record<string, Component> = {
   '/risk': Lock,
   '/operators': User,
   '/roles': UserFilled,
+  '/departments': UserFilled,
+  '/approvals': Document,
   '/menus': Menu,
   '/dicts': Collection,
   '/system-configs': Tools,
@@ -90,6 +92,7 @@ const PATH_ICONS: Record<string, Component> = {
   '/feedback': Warning,
   '/announcements': Document,
   '/audit': Notebook,
+  '/devops': Setting,
   '/profile': UserFilled
 };
 

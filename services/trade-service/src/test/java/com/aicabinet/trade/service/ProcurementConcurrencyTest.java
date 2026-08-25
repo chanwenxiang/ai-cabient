@@ -44,7 +44,7 @@ class ProcurementConcurrencyTest {
         service = new ProcurementService(permissionService, supplierRepository,
                 purchaseOrderRepository, purchaseOrderLineRepository, purchaseReturnRepository,
                 purchaseReturnLineRepository, warehouseRepository, skuCatalogRepository,
-                warehouseService, supplierPayableService, distributedLockService);
+                warehouseService, supplierPayableService, distributedLockService, null, null);
     }
 
     @Test

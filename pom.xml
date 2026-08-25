@@ -31,6 +31,7 @@
         <resilience4j.version>2.2.0</resilience4j.version>
         <xxl-job.version>3.4.2</xxl-job.version>
         <lombok.version>1.18.38</lombok.version>
+        <sonar.maven.plugin.version>4.0.0.4121</sonar.maven.plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -118,6 +119,11 @@
                     <groupId>com.github.eirslett</groupId>
                     <artifactId>frontend-maven-plugin</artifactId>
                     <version>${frontend-maven-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.sonarsource.scanner.maven</groupId>
+                    <artifactId>sonar-maven-plugin</artifactId>
+                    <version>${sonar.maven.plugin.version}</version>
                 </plugin>
             </plugins>
         </pluginManagement>

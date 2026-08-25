@@ -324,9 +324,11 @@ export declare const DICT: {
         readonly INACTIVE: "停用";
     };
     readonly purchase_order_status: {
+        readonly PENDING_APPROVAL: "待审批";
         readonly CREATED: "待收货";
         readonly PARTIAL_RECEIVED: "部分收货";
         readonly RECEIVED: "已收货";
+        readonly REJECTED: "已驳回";
         readonly CANCELLED: "已取消";
     };
     readonly warehouse_status: {
@@ -395,6 +397,10 @@ export declare const DICT: {
         readonly NEAR_EXPIRY: "临期";
         readonly BLOCKED: "已冻结";
         readonly DEPLETED: "已耗尽";
+    };
+    readonly pull_off_reason: {
+        readonly EXPIRED: "已过期";
+        readonly NEAR_EXPIRY: "临期";
     };
     readonly exception_severity: {
         readonly CRITICAL: "紧急";

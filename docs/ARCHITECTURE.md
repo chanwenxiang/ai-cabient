@@ -57,7 +57,7 @@ demo/
 | 支付 | 微信 V3；dev mock 分支与 prod 共用代码 |
 | 短信 | Webhook 模式；预发可用 `sms-webhook-mock` |
 | 多租户 | 商户数据隔离 via `MerchantScopeService` |
-| 运营能力 | OTA、风控、对账、补货、RBAC（admin-vue） |
+| 运营能力 | OTA、风控、对账、补货、RBAC（admin-vue）；部门与审批见 [APPROVAL_DEPARTMENT_FLOW.md](APPROVAL_DEPARTMENT_FLOW.md)；与若依对比见 [RBAC_VS_RUOYI.md](RBAC_VS_RUOYI.md) |
 
 ## API 版本
 

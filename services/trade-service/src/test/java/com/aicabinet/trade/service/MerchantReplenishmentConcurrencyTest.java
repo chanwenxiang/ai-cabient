@@ -31,7 +31,7 @@ class MerchantReplenishmentConcurrencyTest {
         service = new MerchantReplenishmentService(
                 permissionService, null, merchantPortalGuard, null, null, null, null,
                 null, null, null, null, requestRepository, null, null, null,
-                null, distributedLockService);
+                null, distributedLockService, null);
     }
 
     @Test

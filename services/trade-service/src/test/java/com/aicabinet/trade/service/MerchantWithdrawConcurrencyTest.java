@@ -49,7 +49,7 @@ class MerchantWithdrawConcurrencyTest {
                 withdrawMapper, merchantMapper, accountMapper, ledgerMapper,
                 merchantWalletService, payoutService, properties,
                 merchantFeaturePackService, permissionService, auditService,
-                distributedLockService);
+                distributedLockService, null);
     }
 
     @Test

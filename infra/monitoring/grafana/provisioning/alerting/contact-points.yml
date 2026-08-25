@@ -1,0 +1,10 @@
+apiVersion: 1
+contactPoints:
+  - orgId: 1
+    name: ai-cabinet-ops
+    receivers:
+      - uid: ai-cabinet-ops-default
+        type: email
+        settings:
+          addresses: ops@aicabinet.local
+        disableResolveMessage: false

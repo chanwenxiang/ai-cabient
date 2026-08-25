@@ -147,7 +147,7 @@ Docker 镜像构建见 [`infra/docker/README.md`](infra/docker/README.md)。
 ## 后续规划
 
 - 消费者 uni-app 页面对齐完整开门购物流程
-- 可观测性增强（Prometheus + Grafana）
+- 可观测性增强（Prometheus + Grafana）；DevOps 工具链见 [docs/DEVOPS.md](docs/DEVOPS.md)
 
 ## 与旧系统关系
 
