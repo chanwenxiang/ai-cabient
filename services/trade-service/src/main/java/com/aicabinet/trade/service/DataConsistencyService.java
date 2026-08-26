@@ -86,6 +86,19 @@ private CabinetOrderMapper cabinetOrderRepository;
 @Autowired
 private OrderPaymentService orderPaymentService;
 
+    private JdbcTemplate requireJdbc() {
+        return java.util.Objects.requireNonNull(jdbcTemplate, "jdbcTemplate");
+    }
+
+    private int queryInt(String sql, Object... args) {
+        Integer value = requireJdbc().query(sql, rs -> rs.next() ? rs.getInt(1) : 0, args);
+        return value != null ? value : 0;
+    }
+
+    private Integer queryNullableInt(String sql, Object... args) {
+        return requireJdbc().query(sql, rs -> rs.next() ? rs.getInt(1) : null, args);
+    }
+
     /** 记录业务变更（可选审计）；失败不影响主流程。 */
     public void logChange(String tableName, String recordId, String operation,
                           Object oldValue, Object newValue, String changedBy) {
@@ -629,14 +642,13 @@ private OrderPaymentService orderPaymentService;
 
     private FixOutcome fixOrderAmount(DataConsistencyRecord record) {
         String orderId = record.getCheckKey();
-        Integer header = jdbcTemplate.query(
+        Integer header = queryNullableInt(
                 "SELECT total_amount_cents FROM cabinet_order WHERE order_id = ?",
-                rs -> rs.next() ? rs.getInt(1) : null,
                 orderId);
         if (header == null) {
             return FixOutcome.fail("订单不存在");
         }
-        Integer paid = jdbcTemplate.query(
+        int paid = queryInt(
                 "SELECT COALESCE(SUM(CASE "
                         + "WHEN operation_type IN ('CHARGE', 'ADJUST_CHARGE') THEN amount_cents "
                         + "WHEN operation_type = 'REFUND' THEN -amount_cents "
@@ -644,36 +656,31 @@ private OrderPaymentService orderPaymentService;
                         + "FROM payment_operation "
                         + "WHERE order_id = ? AND status = 'COMPLETED' "
                         + "AND operation_type IN ('CHARGE', 'ADJUST_CHARGE', 'REFUND')",
-                rs -> rs.next() ? rs.getInt(1) : 0,
                 orderId);
-        int lineSum = jdbcTemplate.query(
+        int lineSum = queryInt(
                 "SELECT COALESCE(SUM(line_amount_cents), 0) FROM cabinet_order_line WHERE order_id = ?",
-                rs -> rs.next() ? rs.getInt(1) : 0,
                 orderId);
-        int couponDiscountCents = jdbcTemplate.query(
+        int couponDiscountCents = queryInt(
                 "SELECT COALESCE(coupon_discount_cents, 0) FROM cabinet_order WHERE order_id = ?",
-                rs -> rs.next() ? rs.getInt(1) : 0,
                 orderId);
-        int memberDiscountCents = jdbcTemplate.query(
+        int memberDiscountCents = queryInt(
                 "SELECT COALESCE(member_discount_cents, 0) FROM cabinet_order WHERE order_id = ?",
-                rs -> rs.next() ? rs.getInt(1) : 0,
                 orderId);
         int payableFromLines = lineSum - couponDiscountCents - memberDiscountCents;
-        int lineCount = jdbcTemplate.query(
+        int lineCount = queryInt(
                 "SELECT COUNT(*) FROM cabinet_order_line WHERE order_id = ?",
-                rs -> rs.next() ? rs.getInt(1) : 0,
                 orderId);
 
         if (header == payableFromLines) {
             return FixOutcome.ok("头金额已与明细折后一致");
         }
 
-        if (paid != null && paid.equals(header) && paid.equals(lineSum)
+        if (paid == header && paid == lineSum
                 && (couponDiscountCents > 0 || memberDiscountCents > 0) && payableFromLines != header) {
             return clearStaleCouponFields(orderId, couponDiscountCents, memberDiscountCents);
         }
 
-        if (paid != null && paid.equals(header)) {
+        if (paid == header) {
             if (lineCount == 1 && couponDiscountCents == 0 && memberDiscountCents == 0
                     && lineSum != header) {
                 return alignSingleLineToHeader(orderId, header);
@@ -684,13 +691,13 @@ private OrderPaymentService orderPaymentService;
             return FixOutcome.fail("多行明细与头金额不一致，需人工拆分/改价");
         }
 
-        if (lineSum > 0 && paid != null && paid == 0) {
+        if (lineSum > 0 && paid == 0) {
             jdbcTemplate.update(
                     "UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?",
                     payableFromLines, orderId);
             return FixOutcome.ok("无匹配入账流水，已把头金额改为明细折后 " + payableFromLines);
         }
-        if (lineSum > 0 && paid != null && paid.equals(payableFromLines) && !paid.equals(header)) {
+        if (lineSum > 0 && paid == payableFromLines && paid != header) {
             jdbcTemplate.update(
                     "UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?",
                     payableFromLines, orderId);
