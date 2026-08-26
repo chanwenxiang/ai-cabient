@@ -4,17 +4,19 @@ $Root = $PSScriptRoot
 $Infra = Join-Path $Root "infra"
 $EnvFile = Join-Path $Infra ".env"
 if (-not (Test-Path $EnvFile)) { Copy-Item (Join-Path $Infra ".env.example") $EnvFile }
-$composeFiles = @(  (Join-Path $Infra "docker-compose.full.yml")
+
+$composeArgs = @(
+  "compose",
+  "--env-file", $EnvFile,
+  "-f", (Join-Path $Infra "docker-compose.full.yml")
 )
 if ($DevOps) {
-  $composeFiles += (Join-Path $Infra "docker-compose.devops.yml")
+  $composeArgs += @("-f", (Join-Path $Infra "docker-compose.devops.yml"), "--profile", "devops")
 }
-$args = @("compose", "--env-file", $EnvFile)
-foreach ($f in $composeFiles) { $args += @("-f", $f) }
-$args += @("up", "-d")
-if ($DevOps) { $args += "--profile"; $args += "devops" }
-if (-not $NoBuild) { $args += "--build" }
-& docker @args
+$composeArgs += @("up", "-d")
+if (-not $NoBuild) { $composeArgs += "--build" }
+
+& docker @composeArgs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "Waiting for trade-service..."
@@ -34,7 +36,10 @@ do {
     if ($health.status -eq "UP") { break }
     Start-Sleep -Seconds 3
 } while ((Get-Date) -lt $deadline)
-if ($health.status -ne "UP") { docker compose --env-file $EnvFile -f (Join-Path $Infra "docker-compose.full.yml") ps; throw "trade-service did not become healthy" }
+if ($health.status -ne "UP") {
+  docker compose --env-file $EnvFile -f (Join-Path $Infra "docker-compose.full.yml") ps
+  throw "trade-service did not become healthy"
+}
 
 Write-Host "AI Cabinet full stack is ready" -ForegroundColor Green
 Write-Host "Admin:    http://localhost/admin/index.html"
