@@ -52,7 +52,10 @@ services:
       start_period: 180s
 
   github-runner:
-    image: myoung34/github-runner:2.321.0
+    build:
+      context: ..
+      dockerfile: infra/docker/github-runner.Dockerfile
+    image: ai-cabinet/github-runner:${GITHUB_RUNNER_IMAGE_TAG:-2.321.0}
     profiles: ["devops"]
     restart: unless-stopped
     environment:
@@ -69,7 +72,7 @@ services:
       - runner_work:/tmp/runner/work
       - /var/run/docker.sock:/var/run/docker.sock
       - ..:/workspace
-    # sonar.yml 使用 Docker Maven/Scanner，首次启动前建议：.\scripts\devops\pull-gha-images.ps1
+    # 预装 Java/Maven/Sonar Scanner；重建：docker compose ... build github-runner --no-cache
     depends_on:
       sonarqube:
         condition: service_healthy

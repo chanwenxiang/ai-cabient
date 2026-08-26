@@ -1,12 +1,12 @@
-# 预拉 GHA self-hosted runner 用到的 Docker 镜像（避免 workflow 内 pull 超时）
+# 重建带 Java/Maven/Sonar Scanner 的 self-hosted runner 镜像
 # 用法：.\scripts\devops\pull-gha-images.ps1
 $ErrorActionPreference = "Stop"
-$images = @(
-  "maven:3.9-eclipse-temurin-17",
-  "sonarsource/sonar-scanner-cli:11.1"
-)
-foreach ($img in $images) {
-  Write-Host "Pulling $img ..." -ForegroundColor Cyan
-  docker pull $img
+$Root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+Push-Location (Join-Path $Root "infra")
+try {
+  docker compose -p ai-cabinet -f docker-compose.full.yml -f docker-compose.devops.yml --profile devops build github-runner
+  docker compose -p ai-cabinet -f docker-compose.full.yml -f docker-compose.devops.yml --profile devops up -d --force-recreate github-runner
+  Write-Host "OK: github-runner rebuilt and restarted" -ForegroundColor Green
+} finally {
+  Pop-Location
 }
-Write-Host "OK: GHA images ready" -ForegroundColor Green
