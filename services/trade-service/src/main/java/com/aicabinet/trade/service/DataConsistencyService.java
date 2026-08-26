@@ -658,8 +658,10 @@ private OrderPaymentService orderPaymentService;
                 "SELECT COALESCE(member_discount_cents, 0) FROM cabinet_order WHERE order_id = ?",
                 rs -> rs.next() ? rs.getInt(1) : 0,
                 orderId);
-        int payableFromLines = lineSum - couponDiscount - memberDiscount;
-        Integer lineCount = jdbcTemplate.query(
+        int couponDiscountCents = couponDiscount != null ? couponDiscount : 0;
+        int memberDiscountCents = memberDiscount != null ? memberDiscount : 0;
+        int payableFromLines = lineSum - couponDiscountCents - memberDiscountCents;
+        int lineCount = jdbcTemplate.query(
                 "SELECT COUNT(*) FROM cabinet_order_line WHERE order_id = ?",
                 rs -> rs.next() ? rs.getInt(1) : 0,
                 orderId);
@@ -669,17 +671,17 @@ private OrderPaymentService orderPaymentService;
         }
 
         if (paid != null && paid.equals(header) && lineSum != null && paid.equals(lineSum)
-                && (couponDiscount > 0 || memberDiscount > 0) && payableFromLines != header) {
-            return clearStaleCouponFields(orderId, couponDiscount, memberDiscount);
+                && (couponDiscountCents > 0 || memberDiscountCents > 0) && payableFromLines != header) {
+            return clearStaleCouponFields(orderId, couponDiscountCents, memberDiscountCents);
         }
 
         if (paid != null && paid.equals(header)) {
-            if (lineCount != null && lineCount == 1 && lineSum != null
-                    && couponDiscount == 0 && memberDiscount == 0
+            if (lineCount == 1 && lineSum != null
+                    && couponDiscountCents == 0 && memberDiscountCents == 0
                     && lineSum != header) {
                 return alignSingleLineToHeader(orderId, header);
             }
-            if (lineCount != null && lineCount == 0) {
+            if (lineCount == 0) {
                 return FixOutcome.fail("无明细行，无法自动补 SKU，请人工补行");
             }
             return FixOutcome.fail("多行明细与头金额不一致，需人工拆分/改价");

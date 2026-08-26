@@ -100,6 +100,9 @@ public class RoutePlanningService {
                 }
             }
             remaining.remove(nearest);
+            if (nearest == null) {
+                break;
+            }
             int legM = (int) Math.round(nearestDist);
             totalDistance += legM;
             double destLat = nearest.getLatitude() != null ? nearest.getLatitude() : curLat;
@@ -163,6 +166,9 @@ public class RoutePlanningService {
             }
 
             remaining.remove(nearest);
+            if (nearest == null) {
+                break;
+            }
             int legM = (int) Math.round(nearestDist);
             totalDistance += legM;
             double destLat = nearest.getLatitude() != null ? nearest.getLatitude() : curLat;

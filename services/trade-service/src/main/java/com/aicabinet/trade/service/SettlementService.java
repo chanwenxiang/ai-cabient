@@ -173,8 +173,9 @@ public class SettlementService {
     private OrderDto processRecognitionResultUnlocked(ShoppingSession session,
                                                       VisionServiceClient.RecognitionResult recognition,
                                                       boolean allowDevFallback) {
-        if (orderRepository.findBySessionId(session.getSessionId()).isPresent()) {
-            return toDto(orderRepository.findBySessionId(session.getSessionId()).get());
+        var existingOrder = orderRepository.findBySessionId(session.getSessionId());
+        if (existingOrder.isPresent()) {
+            return toDto(existingOrder.get());
         }
 
         session.setRecognitionTaskId(recognition.taskId());
@@ -182,6 +183,9 @@ public class SettlementService {
 
         recognition = withGravityFallback(session, recognition);
         recognition = forceReviewIfMockOrMismatch(recognition);
+        if (recognition == null) {
+            throw new IllegalStateException("recognition result is null after gravity/review normalize");
+        }
 
         // Honor explicit vision need_review even in local mock mode (dispute E2E toggle).
         // Previously mock cart settle short-circuited before this check, so force-review never fired.

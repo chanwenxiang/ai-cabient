@@ -184,7 +184,7 @@ public class DeviceCommandTracker {
         recent.entrySet().stream()
                 .sorted(Map.Entry.comparingByValue((a, b) ->
                         Long.compare(nullToZero(a.updatedAtMs()), nullToZero(b.updatedAtMs()))))
-                .limit(recent.size() - MAX_RECENT_COMMANDS)
+                .limit((long) recent.size() - MAX_RECENT_COMMANDS)
                 .map(Map.Entry::getKey)
                 .toList()
                 .forEach(recent::remove);

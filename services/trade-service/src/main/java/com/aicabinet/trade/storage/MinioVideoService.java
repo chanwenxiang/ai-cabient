@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 public class MinioVideoService {
@@ -35,9 +36,9 @@ public class MinioVideoService {
     private static final Logger log = LoggerFactory.getLogger(MinioVideoService.class);
 
     private final MinioProperties properties;
-    private volatile MinioClient client;
+    private final AtomicReference<MinioClient> clientRef = new AtomicReference<>();
     /** 仅用于预签名：按 public-endpoint 签名，避免改写 Host 导致 SignatureDoesNotMatch。 */
-    private volatile MinioClient presignClient;
+    private final AtomicReference<MinioClient> presignClientRef = new AtomicReference<>();
 
     public MinioVideoService(MinioProperties properties) {
         this.properties = properties;
@@ -389,17 +390,21 @@ public class MinioVideoService {
     private record Range(long start, long end) {}
 
     private MinioClient client() {
-        if (client == null) {
-            synchronized (this) {
-                if (client == null) {
-                    client = MinioClient.builder()
-                            .endpoint(properties.endpoint())
-                            .credentials(properties.accessKey(), properties.secretKey())
-                            .build();
-                }
-            }
+        MinioClient existing = clientRef.get();
+        if (existing != null) {
+            return existing;
         }
-        return client;
+        synchronized (this) {
+            existing = clientRef.get();
+            if (existing == null) {
+                existing = MinioClient.builder()
+                        .endpoint(properties.endpoint())
+                        .credentials(properties.accessKey(), properties.secretKey())
+                        .build();
+                clientRef.set(existing);
+            }
+            return existing;
+        }
     }
 
     /**
@@ -411,22 +416,26 @@ public class MinioVideoService {
         if (publicEndpoint == null || publicEndpoint.isBlank()) {
             return client();
         }
-        if (presignClient == null) {
-            synchronized (this) {
-                if (presignClient == null) {
-                    String endpoint = publicEndpoint.endsWith("/")
-                            ? publicEndpoint.substring(0, publicEndpoint.length() - 1)
-                            : publicEndpoint;
-                    // 指定 region，避免 SDK 为查 region 去连 public host（容器内 localhost 不可达）
-                    presignClient = MinioClient.builder()
-                            .endpoint(endpoint)
-                            .credentials(properties.accessKey(), properties.secretKey())
-                            .region("us-east-1")
-                            .build();
-                }
-            }
+        MinioClient existing = presignClientRef.get();
+        if (existing != null) {
+            return existing;
         }
-        return presignClient;
+        synchronized (this) {
+            existing = presignClientRef.get();
+            if (existing == null) {
+                String endpoint = publicEndpoint.endsWith("/")
+                        ? publicEndpoint.substring(0, publicEndpoint.length() - 1)
+                        : publicEndpoint;
+                // 指定 region，避免 SDK 为查 region 去连 public host（容器内 localhost 不可达）
+                existing = MinioClient.builder()
+                        .endpoint(endpoint)
+                        .credentials(properties.accessKey(), properties.secretKey())
+                        .region("us-east-1")
+                        .build();
+                presignClientRef.set(existing);
+            }
+            return existing;
+        }
     }
 
     private ParsedUri parseUri(String videoUri) {

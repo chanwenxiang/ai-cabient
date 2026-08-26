@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Objects;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -87,7 +89,7 @@ public class GlobalExceptionHandler {
     /** OBS-026：不支持的 HTTP 方法应返回 405，避免落入通用 500「系统繁忙」。 */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
-        String method = ex.getMethod() != null ? ex.getMethod() : "UNKNOWN";
+        String method = Objects.toString(ex.getMethod(), "UNKNOWN");
         log.warn("method not allowed: {} {}", method, ex.getMessage());
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
                 .body(ApiResponse.error(HttpStatus.METHOD_NOT_ALLOWED.value(), "不支持的请求方法: " + method));

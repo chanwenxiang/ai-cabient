@@ -43,7 +43,8 @@ public class DistributedLockService {
         RLock lock = redissonClient.getLock(fullKey);
 
         try {
-            boolean acquired = lock.tryLock(waitTime, leaseTime, TimeUnit.SECONDS);
+            // 锁由调用方 unlock；租约到期会自动释放。非本方法内临界区模式。
+            boolean acquired = lock.tryLock(waitTime, leaseTime, TimeUnit.SECONDS); // NOSONAR java:S2222
 
             if (acquired) {
                 log.debug("加锁成功 key={} leaseSeconds={}", fullKey, leaseTime);
@@ -109,7 +110,8 @@ public class DistributedLockService {
         String fullKey = LOCK_PREFIX + lockKey;
         RLock lock = redissonClient.getLock(fullKey);
         try {
-            boolean acquired = lock.tryLock(0, leaseTime, TimeUnit.SECONDS);
+            // 返回 RLock 给调用方，由 releaseLock 释放；见 acquireLock/releaseLock 成对使用。
+            boolean acquired = lock.tryLock(0, leaseTime, TimeUnit.SECONDS); // NOSONAR java:S2222
             if (acquired) {
                 return lock;
             }

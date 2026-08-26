@@ -213,9 +213,6 @@ public class ProcurementService {
     @Transactional
     public PurchaseReturnDto createPurchaseReturn(Long operatorId, CreatePurchaseReturnRequest request) {
         requireWarehouseWrite(operatorId);
-        if (request.purchaseOrderId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "purchaseOrderId required");
-        }
         if (request.lines() == null || request.lines().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "return lines required");
         }
@@ -244,9 +241,6 @@ public class ProcurementService {
         long returnedValueCents = 0L;
 
         for (CreatePurchaseReturnRequest.PurchaseReturnLineRequest lineReq : request.lines()) {
-            if (lineReq.purchaseLineId() == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "purchaseLineId required");
-            }
             if (lineReq.quantity() <= 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "return quantity must be positive");
             }

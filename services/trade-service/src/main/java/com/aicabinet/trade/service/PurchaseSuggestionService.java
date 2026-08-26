@@ -250,7 +250,7 @@ public class PurchaseSuggestionService {
         }
         double sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
         for (int i = series.length - n; i < series.length; i++) {
-            double x = i - (series.length - n);
+            double x = (double) i - (series.length - n);
             double y = series[i];
             sumX += x;
             sumY += y;

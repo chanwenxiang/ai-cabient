@@ -88,6 +88,9 @@ public class AmapGeocodeService {
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "地理编码请求失败：" + e.getMessage());
         }
     }
