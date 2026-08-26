@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 幂等创建/更新 Sonar「AI Cabinet」质量门禁（GHA self-hosted runner / Linux CI 用）
+# 幂等创建/更新 Sonar「AI Cabinet」质量门禁（GHA self-hosted runner / Linux CI）
 set -euo pipefail
 
 SONAR_HOST_URL="${SONAR_HOST_URL:-http://sonarqube:9000}"
@@ -19,10 +19,17 @@ if ! curl -sfS -H "$AUTH" "$BASE/api/qualitygates/list" | grep -q '"name":"AI Ca
   post_form "/api/qualitygates/create" -d "name=AI Cabinet"
 fi
 
-while read -r id; do
-  [ -n "$id" ] && post_form "/api/qualitygates/delete_condition" -d "id=$id" || true
-done < <(curl -sfS -H "$AUTH" "$BASE/api/qualitygates/show?name=AI%20Cabinet" \
-  | grep -o '"id":[0-9]*' | cut -d: -f2)
+# 只删 conditions[].id，不要误删质量门禁自身的 id（否则 delete_condition 会 400）
+show_json=$(curl -sfS -H "$AUTH" "$BASE/api/qualitygates/show?name=AI%20Cabinet")
+if command -v jq >/dev/null 2>&1; then
+  echo "$show_json" | jq -r '.conditions[]?.id // empty' | while read -r id; do
+    [ -n "$id" ] && post_form "/api/qualitygates/delete_condition" -d "id=$id" || true
+  done
+else
+  echo "$show_json" | grep -oE '"conditions":\[[^]]*\]' | grep -oE '"id":[0-9]+' | cut -d: -f2 | while read -r id; do
+    [ -n "$id" ] && post_form "/api/qualitygates/delete_condition" -d "id=$id" || true
+  done
+fi
 
 post_form "/api/qualitygates/create_condition" -d "gateName=AI Cabinet" -d "metric=new_vulnerabilities" -d "op=GT" -d "error=0"
 post_form "/api/qualitygates/create_condition" -d "gateName=AI Cabinet" -d "metric=new_blocker_violations" -d "op=GT" -d "error=0"
