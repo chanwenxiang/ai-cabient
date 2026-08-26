@@ -20,6 +20,7 @@ import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -99,6 +100,7 @@ public class AdminDashboardService {
     private final UserBlacklistMapper blacklistRepository;
     private final DistributedLockService distributedLockService;
     private final AliyunCategoryMappingMapper aliyunCategoryMappingRepository;
+    private final AdminDashboardService self;
 
     public AdminDashboardService(DeviceInfoMapper deviceRepository,
                                  ShoppingSessionMapper sessionRepository,
@@ -133,7 +135,8 @@ public class AdminDashboardService {
                                  MemberMapper memberRepository,
                                  UserBlacklistMapper blacklistRepository,
                                  DistributedLockService distributedLockService,
-                                 AliyunCategoryMappingMapper aliyunCategoryMappingRepository) {
+                                 AliyunCategoryMappingMapper aliyunCategoryMappingRepository,
+                                 @Lazy AdminDashboardService self) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -168,6 +171,7 @@ public class AdminDashboardService {
         this.blacklistRepository = blacklistRepository;
         this.distributedLockService = distributedLockService;
         this.aliyunCategoryMappingRepository = aliyunCategoryMappingRepository;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -184,7 +188,7 @@ public class AdminDashboardService {
     public OpsDashboardBundleDto dashboardBundle(Long operatorId) {
         permissionService.requirePermission(operatorId, "ops:dashboard:view");
         AdminStatsDto stats = stats(operatorId);
-        OpsWorkbenchDto wb = workbench(operatorId);
+        OpsWorkbenchDto wb = self.workbench(operatorId);
         long open = exceptionRepository
                 .findByStatusOrderByCreatedAtDesc("OPEN", PageRequest.of(0, 1))
                 .getTotalElements();
@@ -759,21 +763,21 @@ public class AdminDashboardService {
 
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(Long operatorId, int page, int size, String deviceId) {
-        return listOrders(operatorId, page, size, deviceId, null, false,
+        return self.listOrders(operatorId, page, size, deviceId, null, false,
                 null, null, null, null, null, null, null, null);
     }
 
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(
             Long operatorId, int page, int size, String deviceId, String status) {
-        return listOrders(operatorId, page, size, deviceId, status, false,
+        return self.listOrders(operatorId, page, size, deviceId, status, false,
                 null, null, null, null, null, null, null, null);
     }
 
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(
             Long operatorId, int page, int size, String deviceId, String status, boolean overdueOnly) {
-        return listOrders(operatorId, page, size, deviceId, status, overdueOnly,
+        return self.listOrders(operatorId, page, size, deviceId, status, overdueOnly,
                 null, null, null, null, null, null, null, null);
     }
 
@@ -1260,13 +1264,13 @@ public class AdminDashboardService {
 
     @Transactional(readOnly = true)
     public byte[] exportOrdersCsv(Long operatorId, String deviceId) {
-        return exportOrdersCsv(operatorId, deviceId, null, "orders",
+        return self.exportOrdersCsv(operatorId, deviceId, null, "orders",
                 null, null, null, null, null, null, null, null);
     }
 
     @Transactional(readOnly = true)
     public byte[] exportOrdersCsv(Long operatorId, String deviceId, String status, String mode) {
-        return exportOrdersCsv(operatorId, deviceId, status, mode,
+        return self.exportOrdersCsv(operatorId, deviceId, status, mode,
                 null, null, null, null, null, null, null, null);
     }
 

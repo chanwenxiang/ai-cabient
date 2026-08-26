@@ -15,6 +15,7 @@ import com.aicabinet.trade.mapper.OpsUserRouteScopeMapper;
 import com.aicabinet.trade.domain.OpsUserRouteScope;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.support.ApiMessages;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +48,7 @@ public class MerchantScopeService {
     private final OpsUserDeviceScopePrefMapper deviceScopePrefMapper;
     private final OpsUserRouteScopeMapper routeScopeMapper;
     private final CabinetMetrics cabinetMetrics;
+    private final MerchantScopeService self;
 
     public MerchantScopeService(OpsUserMerchantMapper userMerchantRepository,
                                 OpsUserRoleMapper userRoleRepository,
@@ -56,7 +58,8 @@ public class MerchantScopeService {
                                 OpsUserDeviceScopeMapper deviceScopeMapper,
                                 OpsUserDeviceScopePrefMapper deviceScopePrefMapper,
                                 OpsUserRouteScopeMapper routeScopeMapper,
-                                CabinetMetrics cabinetMetrics) {
+                                CabinetMetrics cabinetMetrics,
+                                @Lazy MerchantScopeService self) {
         this.userMerchantRepository = userMerchantRepository;
         this.userRoleRepository = userRoleRepository;
         this.roleRepository = roleRepository;
@@ -66,6 +69,7 @@ public class MerchantScopeService {
         this.deviceScopePrefMapper = deviceScopePrefMapper;
         this.routeScopeMapper = routeScopeMapper;
         this.cabinetMetrics = cabinetMetrics;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -78,13 +82,13 @@ public class MerchantScopeService {
 
     @Transactional(readOnly = true)
     public Set<String> allowedMerchantIds(Long operatorId) {
-        if (isGlobalScope(operatorId)) {
+        if (self.isGlobalScope(operatorId)) {
             return null;
         }
         Set<String> roots = userMerchantRepository.findByIdUserId(operatorId).stream()
                 .map(m -> m.getId().getMerchantId())
                 .collect(Collectors.toCollection(HashSet::new));
-        return expandWithDescendants(roots);
+        return self.expandWithDescendants(roots);
     }
 
     /** 绑定商户 + 全部下级（parent_merchant_id 树） */
@@ -117,7 +121,7 @@ public class MerchantScopeService {
     /** null = 全部设备；空集 = 无权限；非空 = 限定设备（商户范围 ∩ 货柜范围） */
     @Transactional(readOnly = true)
     public Set<String> allowedDeviceIds(Long operatorId) {
-        Set<String> merchantIds = allowedMerchantIds(operatorId);
+        Set<String> merchantIds = self.allowedMerchantIds(operatorId);
         Set<String> byMerchant;
         if (merchantIds == null) {
             byMerchant = null;
@@ -128,7 +132,7 @@ public class MerchantScopeService {
                     .map(DeviceInfo::getDeviceId)
                     .collect(Collectors.toSet());
         }
-        return intersectDeviceCabinetScope(operatorId, byMerchant);
+        return self.intersectDeviceCabinetScope(operatorId, byMerchant);
     }
 
     /**
@@ -180,7 +184,7 @@ public class MerchantScopeService {
 
     @Transactional(readOnly = true)
     public List<DeviceInfo> allowedDevices(Long operatorId) {
-        Set<String> deviceIds = allowedDeviceIds(operatorId);
+        Set<String> deviceIds = self.allowedDeviceIds(operatorId);
         if (deviceIds == null) {
             return deviceRepository.findAll();
         }
@@ -192,7 +196,7 @@ public class MerchantScopeService {
 
     @Transactional(readOnly = true)
     public void requireMerchantAccess(Long operatorId, String merchantId) {
-        Set<String> allowed = allowedMerchantIds(operatorId);
+        Set<String> allowed = self.allowedMerchantIds(operatorId);
         if (allowed == null) {
             return;
         }
@@ -204,7 +208,7 @@ public class MerchantScopeService {
 
     @Transactional(readOnly = true)
     public void requireDeviceAccess(Long operatorId, String deviceId) {
-        Set<String> allowedDevices = allowedDeviceIds(operatorId);
+        Set<String> allowedDevices = self.allowedDeviceIds(operatorId);
         if (allowedDevices == null) {
             return;
         }
@@ -219,15 +223,15 @@ public class MerchantScopeService {
         if (deviceId == null || deviceId.isBlank()) {
             return;
         }
-        requireDeviceAccess(operatorId, deviceId.trim());
+        self.requireDeviceAccess(operatorId, deviceId.trim());
     }
 
     @Transactional(readOnly = true)
     public Collection<String> intersectDeviceFilter(Long operatorId, String requestedDeviceId) {
-        Set<String> allowed = allowedDeviceIds(operatorId);
+        Set<String> allowed = self.allowedDeviceIds(operatorId);
         if (requestedDeviceId != null && !requestedDeviceId.isBlank()) {
             String dev = requestedDeviceId.trim();
-            requireDeviceAccess(operatorId, dev);
+            self.requireDeviceAccess(operatorId, dev);
             return List.of(dev);
         }
         if (allowed == null) {

@@ -11,6 +11,7 @@ import com.aicabinet.trade.config.WeChatWebProperties;
 import com.aicabinet.trade.config.WeChatMiniAppProperties;
 import com.aicabinet.trade.domain.SystemConfig;
 import com.aicabinet.trade.mapper.SystemConfigMapper;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -77,6 +78,7 @@ public class SystemConfigService {
     private final WeChatMiniAppProperties weChatMiniAppProperties;
     private final QrProperties qrProperties;
     private final DistributedLockService distributedLockService;
+    private final SystemConfigService self;
 
     public SystemConfigService(SystemConfigMapper repository,
                                SecurityProperties securityProperties,
@@ -86,7 +88,8 @@ public class SystemConfigService {
                                WeChatWebProperties weChatWebProperties,
                                WeChatMiniAppProperties weChatMiniAppProperties,
                                QrProperties qrProperties,
-                               DistributedLockService distributedLockService) {
+                               DistributedLockService distributedLockService,
+                               @Lazy SystemConfigService self) {
         this.repository = repository;
         this.securityProperties = securityProperties;
         this.alipayProperties = alipayProperties;
@@ -96,6 +99,7 @@ public class SystemConfigService {
         this.weChatMiniAppProperties = weChatMiniAppProperties;
         this.qrProperties = qrProperties;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -109,13 +113,13 @@ public class SystemConfigService {
     /** 是否在结算中融合重力（仅 VISION_GRAVITY）。默认 VISION=否。 */
     @Transactional(readOnly = true)
     public boolean usesGravityFusion() {
-        String mode = getValue(SETTLEMENT_RECOGNITION_MODE, RECOGNITION_MODE_VISION);
+        String mode = self.getValue(SETTLEMENT_RECOGNITION_MODE, RECOGNITION_MODE_VISION);
         return RECOGNITION_MODE_VISION_GRAVITY.equalsIgnoreCase(mode.trim());
     }
 
     @Transactional(readOnly = true)
     public int getInt(String key, int defaultValue) {
-        String raw = getValue(key, null);
+        String raw = self.getValue(key, null);
         if (raw == null || raw.isBlank()) {
             return defaultValue;
         }
@@ -128,7 +132,7 @@ public class SystemConfigService {
 
     @Transactional(readOnly = true)
     public boolean getBoolean(String key, boolean defaultValue) {
-        String raw = getValue(key, null);
+        String raw = self.getValue(key, null);
         if (raw == null || raw.isBlank()) {
             return defaultValue;
         }
@@ -138,7 +142,7 @@ public class SystemConfigService {
     @Transactional(readOnly = true)
     public Map<String, String> consumerPublicConfig() {
         Map<String, String> map = new LinkedHashMap<>();
-        map.put("servicePhone", getValue(CONSUMER_SERVICE_PHONE, "400-888-0018"));
+        map.put("servicePhone", self.getValue(CONSUMER_SERVICE_PHONE, "400-888-0018"));
         boolean wechatSubscribeOk = weChatMiniAppProperties.isConfigured()
                 && weChatMiniAppProperties.resolveConsumerTemplateId() != null
                 && !weChatMiniAppProperties.resolveConsumerTemplateId().isBlank();
@@ -158,7 +162,7 @@ public class SystemConfigService {
         // 支付分开门: 显式开启或 mock 时前端展示一键开通
         map.put("payScoreSignEnabled",
                 String.valueOf(payScoreProperties.enabled() || securityProperties.mockEnabled()));
-        map.put("refundDefaultPolicy", getValue(REFUND_DEFAULT_POLICY, "AUTO_REFUND"));
+        map.put("refundDefaultPolicy", self.getValue(REFUND_DEFAULT_POLICY, "AUTO_REFUND"));
         map.put("paymentModeHint", securityProperties.mockEnabled()
                 ? "模拟支付(无真实进件), 充值可一键到账, 订单退款退回余额"
                 : "真实/沙箱支付");
@@ -170,7 +174,7 @@ public class SystemConfigService {
         if (webOauthConfigured) {
             map.put("wechatH5OauthUrl", buildWechatH5OauthUrl());
         }
-        map.put("preauthCents", getValue(CHECKOUT_PREAUTH_CENTS,
+        map.put("preauthCents", self.getValue(CHECKOUT_PREAUTH_CENTS,
                 String.valueOf(com.aicabinet.common.constants.CabinetConstants.MIN_BALANCE_CENTS)));
         return map;
     }
@@ -202,7 +206,7 @@ public class SystemConfigService {
 
     @Transactional
     public SystemConfigDto upsert(UpsertSystemConfigRequest request) {
-        return upsert(request.configKey(), request.configValue(), request.description());
+        return self.upsert(request.configKey(), request.configValue(), request.description());
     }
 
     @Transactional

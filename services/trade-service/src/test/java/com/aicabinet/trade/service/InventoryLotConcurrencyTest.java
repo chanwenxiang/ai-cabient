@@ -30,7 +30,7 @@ class InventoryLotConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new InventoryLotService(lotRepository, movementRepository, inventoryRepository,
-                skuCatalogRepository, pullOffTaskRepository, slotRepository, distributedLockService);
+                skuCatalogRepository, pullOffTaskRepository, slotRepository, distributedLockService, null);
     }
 
     @Test
@@ -40,7 +40,7 @@ class InventoryLotConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.deductFefo("DEV-LOT-1", "SKU-1", 1, "ORDER", "O-1"));
+                () -> service.deductFefo("DEV-LOT-1", "SKU-1", 1, "ORDER", "O-1", null));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }

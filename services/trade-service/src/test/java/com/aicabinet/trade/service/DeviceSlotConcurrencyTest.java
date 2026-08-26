@@ -27,7 +27,8 @@ class DeviceSlotConcurrencyTest {
     void setUp() {
         service = new DeviceSlotService(
                 slotRepository, lotRepository, null, null, null, null, null, null,
-                null, null, null, null, distributedLockService);
+                null, null, null, null, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

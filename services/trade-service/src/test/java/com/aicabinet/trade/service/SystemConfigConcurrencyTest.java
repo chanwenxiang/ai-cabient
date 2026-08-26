@@ -41,7 +41,8 @@ class SystemConfigConcurrencyTest {
                 new WeChatWebProperties(false, "", ""),
                 new WeChatMiniAppProperties(false, "", "", "", "", "", ""),
                 new QrProperties("", "", "", "", ""),
-                distributedLockService);
+                distributedLockService,
+                null);
     }
 
     @Test

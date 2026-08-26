@@ -10,6 +10,7 @@ import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,17 +24,20 @@ public class AccountService {
     private final PayScoreService payScoreService;
     private final BalanceLedgerService balanceLedgerService;
     private final DistributedLockService distributedLockService;
+    private final AccountService self;
 
     public AccountService(UserInfoMapper userInfoRepository,
                           UserAccountMapper userAccountRepository,
                           PayScoreService payScoreService,
                           BalanceLedgerService balanceLedgerService,
-                          DistributedLockService distributedLockService) {
+                          DistributedLockService distributedLockService,
+                          @Lazy AccountService self) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.payScoreService = payScoreService;
         this.balanceLedgerService = balanceLedgerService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -118,12 +122,12 @@ public class AccountService {
     private AccountDto doVerifyIdentity(Long userId, VerifyIdentityRequest request) {
         UserInfo user = requireUserForUpdate(userId);
         if (user.isVerified()) {
-            return getAccount(userId);
+            return self.getAccount(userId);
         }
         user.setName(request.realName().trim());
         user.setVerified(true);
         userInfoRepository.save(user);
-        return getAccount(userId);
+        return self.getAccount(userId);
     }
 
     @Transactional
@@ -151,7 +155,7 @@ public class AccountService {
         }
         user.setPayPreferredChannel(normalized);
         userInfoRepository.save(user);
-        return getAccount(userId);
+        return self.getAccount(userId);
     }
 
     static String userAccountLockKey(Long userId) {

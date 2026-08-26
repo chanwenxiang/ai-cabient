@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,7 @@ public class WarehouseService {
     private final InTransitService inTransitService;
     private final InventoryLotService inventoryLotService;
     private final DistributedLockService distributedLockService;
+    private final WarehouseService self;
 
     public WarehouseService(WarehouseMapper warehouseRepository,
                             WarehouseInventoryMapper inventoryRepository,
@@ -55,7 +57,8 @@ public class WarehouseService {
                             SalesVelocityService salesVelocityService,
                             InTransitService inTransitService,
                             InventoryLotService inventoryLotService,
-                            DistributedLockService distributedLockService) {
+                            DistributedLockService distributedLockService,
+                            @Lazy WarehouseService self) {
         this.warehouseRepository = warehouseRepository;
         this.inventoryRepository = inventoryRepository;
         this.inboundRepository = inboundRepository;
@@ -72,6 +75,7 @@ public class WarehouseService {
         this.inTransitService = inTransitService;
         this.inventoryLotService = inventoryLotService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -213,7 +217,7 @@ public class WarehouseService {
 
     @Transactional(readOnly = true)
     public List<ReplenishmentSuggestDto> suggestForDevice(String deviceId) {
-        return suggestForDevice(deviceId, false);
+        return self.suggestForDevice(deviceId, false);
     }
 
     /**
@@ -264,7 +268,7 @@ public class WarehouseService {
         }
         if (fillToPar) {
             // 货道已满 PAR / 在途抵消后，再回退常规低库存/ROP 建议
-            return suggestForDevice(deviceId, false);
+            return self.suggestForDevice(deviceId, false);
         }
         List<ReplenishmentSuggestDto> lowStock = deviceInventoryRepository.findByIdDeviceId(dev).stream()
                 .map(i -> {
@@ -345,11 +349,11 @@ public class WarehouseService {
     @Transactional
     public WarehouseOutboundDto createOutboundFromLines(Long routeId, String deviceId, Long assigneeUserId,
                                                         java.util.Map<String, Integer> skuQty, String warehouseId) {
-        Long outboundId = tryCreateOutboundFromLines(routeId, deviceId, assigneeUserId, skuQty, warehouseId);
+        Long outboundId = self.tryCreateOutboundFromLines(routeId, deviceId, assigneeUserId, skuQty, warehouseId);
         if (outboundId == null) {
             throw badRequest("outbound lines required");
         }
-        return getOutbound(outboundId);
+        return self.getOutbound(outboundId);
     }
 
     /**
@@ -422,7 +426,7 @@ public class WarehouseService {
         boolean hadSuggestQty = false;
         for (ReplenishmentTask task : tasks) {
             // 规划出库按补到 PAR，避免仅 minLevel 触发导致出库单无行
-            List<ReplenishmentSuggestDto> suggestions = suggestForDevice(task.getDeviceId(), true);
+            List<ReplenishmentSuggestDto> suggestions = self.suggestForDevice(task.getDeviceId(), true);
             for (ReplenishmentSuggestDto s : suggestions) {
                 if (s.suggestQty() <= 0) continue;
                 hadSuggestQty = true;
@@ -445,13 +449,13 @@ public class WarehouseService {
                     ? ApiMessages.REPLENISHMENT_WAREHOUSE_STOCK_INSUFFICIENT
                     : ApiMessages.REPLENISHMENT_NO_GAP);
         }
-        return getOutbound(outbound.getOutboundId());
+        return self.getOutbound(outbound.getOutboundId());
     }
 
     @Transactional(readOnly = true)
     public List<WarehouseOutboundDto> listOutbounds() {
         return outboundRepository.findAllByOrderByCreatedAtDesc().stream()
-                .map(o -> getOutbound(o.getOutboundId()))
+                .map(o -> self.getOutbound(o.getOutboundId()))
                 .toList();
     }
 
@@ -500,7 +504,7 @@ public class WarehouseService {
         outbound.setStatus("PICKED");
         outbound.setHandoverStatus("READY");
         outboundRepository.save(outbound);
-        return getOutbound(outboundId);
+        return self.getOutbound(outboundId);
     }
 
     @Transactional
@@ -511,7 +515,7 @@ public class WarehouseService {
     private WarehouseOutboundDto doShipOutbound(Long operatorId, Long outboundId) {
         WarehouseOutbound outbound = requireOutboundForUpdate(outboundId);
         if ("SHIPPED".equals(outbound.getStatus())) {
-            return getOutbound(outboundId);
+            return self.getOutbound(outboundId);
         }
         List<WarehouseOutboundLine> lines = outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
         if (lines.isEmpty()) {
@@ -540,7 +544,7 @@ public class WarehouseService {
         outbound.setHandedOverAt(Instant.now());
         outboundRepository.save(outbound);
         inTransitService.recordFromOutbound(outboundId, lines);
-        return getOutbound(outboundId);
+        return self.getOutbound(outboundId);
     }
 
     @Transactional(readOnly = true)
@@ -565,7 +569,7 @@ public class WarehouseService {
     private WarehouseOutboundDto doCancelUnreceivedOutbound(Long outboundId, Long operatorId) {
         WarehouseOutbound outbound = requireOutboundForUpdate(outboundId);
         if ("CANCELLED".equals(outbound.getStatus())) {
-            return getOutbound(outboundId);
+            return self.getOutbound(outboundId);
         }
         List<WarehouseOutboundLine> allLines =
                 outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
@@ -586,12 +590,12 @@ public class WarehouseService {
             outbound.setStatus("CANCELLED");
             outbound.setHandoverStatus("CANCELLED");
             outboundRepository.save(outbound);
-            return getOutbound(outboundId);
+            return self.getOutbound(outboundId);
         }
         for (String device : devices) {
             doCancelUnreceivedOutboundForDevice(outboundId, device, operatorId);
         }
-        return getOutbound(outboundId);
+        return self.getOutbound(outboundId);
     }
 
     /**
@@ -715,7 +719,7 @@ public class WarehouseService {
                 continue;
             }
             try {
-                cancelUnreceivedOutbound(outboundId, operatorId);
+                self.cancelUnreceivedOutbound(outboundId, operatorId);
                 cancelledIds.add(outboundId);
                 switch (bucket) {
                     case "empty" -> cancelledEmptyDrafts++;
@@ -742,7 +746,7 @@ public class WarehouseService {
 
     @Transactional
     public void markDeviceHandoverReceived(Long outboundId, String deviceId) {
-        markDeviceHandoverReceived(outboundId, deviceId, Integer.MAX_VALUE);
+        self.markDeviceHandoverReceived(outboundId, deviceId, Integer.MAX_VALUE);
     }
 
     /**

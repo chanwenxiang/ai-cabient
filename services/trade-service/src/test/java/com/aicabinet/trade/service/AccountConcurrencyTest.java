@@ -30,7 +30,7 @@ class AccountConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new AccountService(userInfoRepository, userAccountRepository,
-                payScoreService, balanceLedgerService, distributedLockService);
+                payScoreService, balanceLedgerService, distributedLockService, null);
     }
 
     @Test

@@ -36,7 +36,8 @@ class DeviceSlotServiceTest {
     void setUp() {
         deviceSlotService = new DeviceSlotService(
                 slotRepository, lotRepository, null, null, null, null, null, null,
-                salesVelocityService, null, null, null, null);
+                salesVelocityService, null, null, null, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(deviceSlotService, "self", deviceSlotService);
     }
 
     @Test
