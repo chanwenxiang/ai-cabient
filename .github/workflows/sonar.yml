@@ -37,6 +37,11 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      - name: Setup Maven
+        uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.9.9
+
       - name: Resolve Sonar project (dev / main)
         id: sonar_proj
         shell: bash
