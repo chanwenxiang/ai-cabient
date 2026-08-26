@@ -87,10 +87,10 @@ public class AmapGeocodeService {
             return new GeocodeResponse(lng, lat, formatted);
         } catch (ResponseStatusException e) {
             throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "地理编码请求失败：" + e.getMessage());
         } catch (Exception e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "地理编码请求失败：" + e.getMessage());
         }
     }

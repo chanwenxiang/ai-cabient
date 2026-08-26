@@ -272,7 +272,7 @@ public class DeviceCommandTracker {
 
     private CommandStatus readStatusByKey(String key) {
         Map<Object, Object> hash = redis.opsForHash().entries(key);
-        if (hash == null || hash.isEmpty()) {
+        if (hash.isEmpty()) {
             return null;
         }
         String commandId = (String) hash.get("commandId");

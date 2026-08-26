@@ -244,11 +244,11 @@ private final UserInfoMapper userInfoRepository;
         if (!Set.of("PAID", "COMPLETED", "DISPUTED", "PARTIAL_REFUNDED").contains(String.valueOf(order.getStatus()))) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前订单状态不可退款");
         }
-        String reason = request != null && request.reason() != null ? request.reason().trim() : "";
+        String reason = request.reason() != null ? request.reason().trim() : "";
         if (reason.length() < 4) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写至少 4 字退款原因");
         }
-        if (request == null || request.lines() == null || request.lines().isEmpty()) {
+        if (request.lines() == null || request.lines().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请指定退款明细行");
         }
         boolean defaultRestore = RefundInventoryPolicy.resolve(
@@ -485,9 +485,10 @@ private final UserInfoMapper userInfoRepository;
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
 
-        String resolutionType = requireResolutionType(request == null ? null : request.effectiveResolutionType());
+        ResolveDisputeRequest body = requireResolveRequest(request);
+        String resolutionType = requireResolutionType(body.effectiveResolutionType());
         if (("ADJUST".equals(resolutionType) || "CONFIRM".equals(resolutionType))
-                && (request == null || request.items() == null || request.items().isEmpty())) {
+                && (body.items() == null || body.items().isEmpty())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_ITEMS_REQUIRED);
         }
         orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
@@ -497,9 +498,8 @@ private final UserInfoMapper userInfoRepository;
         });
         ResolveDisputeResultDto result = switch (resolutionType) {
             case "KEEP" -> resolveKeep(operatorId, ticket, session);
-            case "WAIVE" -> resolveWaive(operatorId, ticket, session,
-                    request != null ? request.restoreInventory() : null);
-            case "ADJUST", "CONFIRM" -> resolveConfirm(operatorId, ticket, session, request, resolutionType);
+            case "WAIVE" -> resolveWaive(operatorId, ticket, session, body.restoreInventory());
+            case "ADJUST", "CONFIRM" -> resolveConfirm(operatorId, ticket, session, body, resolutionType);
             default -> throw new IllegalStateException("unexpected resolution: " + resolutionType); // NOSONAR java:S2583
         };
 
@@ -719,6 +719,13 @@ private final UserInfoMapper userInfoRepository;
     }
 
     /** 结案类型必填；兼容历史脚本把字段写成 action（由 DTO @JsonAlias 映射）。 */
+    private static ResolveDisputeRequest requireResolveRequest(ResolveDisputeRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
+        }
+        return request;
+    }
+
     private static String requireResolutionType(String raw) {
         if (raw == null || raw.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_RESOLUTION_TYPE_REQUIRED);
@@ -824,11 +831,12 @@ private final UserInfoMapper userInfoRepository;
         ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
 
-        String resolutionType = requireResolutionType(request == null ? null : request.effectiveResolutionType());
+        ResolveDisputeRequest body = requireResolveRequest(request);
+        String resolutionType = requireResolutionType(body.effectiveResolutionType());
         if (!Set.of("KEEP", "WAIVE", "CONFIRM").contains(resolutionType)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商户结案仅支持：维持原单 / 免单退款 / 按确认清单");
         }
-        if ("CONFIRM".equals(resolutionType) && (request == null || request.items() == null || request.items().isEmpty())) {
+        if ("CONFIRM".equals(resolutionType) && (body.items() == null || body.items().isEmpty())) {
             // 默认用工单建议行，避免商户端无商品选择器时无法结案
             List<ResolveDisputeRequest.ManualLineItem> suggested = parseItems(ticket.getItems()).stream()
                     .filter(i -> i != null && i.skuId() != null && i.quantity() > 0)
@@ -837,8 +845,8 @@ private final UserInfoMapper userInfoRepository;
             if (suggested.isEmpty()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_ITEMS_REQUIRED);
             }
-            request = new ResolveDisputeRequest(
-                    suggested, "CONFIRM", null, request != null ? request.restoreInventory() : null);
+            body = new ResolveDisputeRequest(
+                    suggested, "CONFIRM", null, body.restoreInventory());
         }
         orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
             if ("REFUNDED".equals(order.getStatus()) && !"WAIVE".equals(resolutionType) && !"KEEP".equals(resolutionType)) {
@@ -847,9 +855,8 @@ private final UserInfoMapper userInfoRepository;
         });
         ResolveDisputeResultDto result = switch (resolutionType) {
             case "KEEP" -> resolveKeep(userId, ticket, session);
-            case "WAIVE" -> resolveWaive(userId, ticket, session,
-                    request != null ? request.restoreInventory() : null);
-            case "CONFIRM" -> resolveConfirm(userId, ticket, session, request, "CONFIRM");
+            case "WAIVE" -> resolveWaive(userId, ticket, session, body.restoreInventory());
+            case "CONFIRM" -> resolveConfirm(userId, ticket, session, body, "CONFIRM");
             default -> throw new IllegalStateException("unexpected resolution: " + resolutionType); // NOSONAR java:S2583
         };
         opsExceptionService.resolveOpenForSession(userId, session.getSessionId(),

@@ -254,9 +254,7 @@ public class InventoryService {
             if (delta > 0) {
                 Map<String, String> deducted = doDeductForOrder(
                         deviceId, List.of(new VisionServiceClient.RecognizedItem(skuId, delta, 1f)), null, null);
-                if (deducted != null) {
-                    deducted.forEach(resultBatches::putIfAbsent);
-                }
+                deducted.forEach(resultBatches::putIfAbsent);
             } else {
                 Map<String, String> restoreBatch = Map.of();
                 if (batchBySku != null) {
