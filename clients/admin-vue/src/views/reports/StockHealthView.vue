@@ -254,7 +254,7 @@ import { onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Box, Delete, Refresh, Remove, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
+import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
