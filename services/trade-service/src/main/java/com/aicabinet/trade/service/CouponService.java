@@ -101,6 +101,14 @@ public class CouponService {
         return definitionRepository.findAll().stream().map(this::toDefDto).toList();
     }
 
+    public PageResult<CouponDefinitionDto> listDefinitionsPage(String q, String status, int page, int size) {
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = definitionRepository.searchPage(q, status, p, s);
+        List<CouponDefinitionDto> items = result.getRecords().stream().map(this::toDefDto).toList();
+        return new PageResult<>(items, p, s, result.getTotal());
+    }
+
     public List<CouponDefinitionDto> listActiveDefinitions() {
         return definitionRepository.findByStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE).stream().map(this::toDefDto).toList();
     }
@@ -192,53 +200,12 @@ public class CouponService {
     }
 
     private CouponDto doUseCoupon(Long userId, Long couponId, String orderId, String deviceId) {
-        UserCoupon uc = userCouponRepository.findByIdForUpdate(couponId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券不存在"));
-        if (!uc.getUserId().equals(userId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权使用该优惠券");
-        }
-        if (!CabinetConstants.COUPON_STATUS_UNUSED.equals(uc.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已使用或已过期");
-        }
-        if (uc.getExpireAt().isBefore(Instant.now())) {
-            uc.setStatus(CabinetConstants.COUPON_STATUS_EXPIRED);
-            userCouponRepository.save(uc);
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已过期");
-        }
-        if (orderId == null || orderId.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少订单号");
-        }
-
-        CabinetOrder order = orderRepository.findByIdForUpdate(orderId.trim())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在"));
-        if (!Objects.equals(order.getUserId(), userId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "订单不属于当前用户");
-        }
-        // 仅允许未支付/争议中订单手动词核销；已支付不可再核销改额（BUG-018）
-        String status = order.getStatus() == null ? "" : order.getStatus().toUpperCase(Locale.ROOT);
-        if (!Set.of("PENDING", "UNPAID", "DISPUTED", "CREATED").contains(status)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单当前状态不可用券");
-        }
-        if (order.getCouponId() != null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单已使用优惠券");
-        }
-        for (UserCoupon existing : userCouponRepository.findByOrderIdAndStatus(order.getOrderId(), "USED")) {
-            if (!existing.getCouponId().equals(couponId)) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "订单已核销其他优惠券");
-            }
-        }
-
+        UserCoupon uc = requireValidUserCoupon(userId, couponId);
+        CabinetOrder order = requireOrderEligibleForCoupon(userId, orderId, couponId);
         CouponDefinition def = definitionRepository.findById(uc.getCouponDefId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
+        int discount = requireApplicableDiscount(def, order);
         int subtotal = resolveOrderLineSubtotal(order);
-        int minSpend = Math.max(0, def.getMinSpendCents());
-        if (subtotal < minSpend) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "未满足满减门槛");
-        }
-        int discount = resolveDiscount(def, subtotal);
-        if (discount <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "优惠券不可用于该订单");
-        }
 
         uc.setStatus("USED");
         uc.setUsedAt(Instant.now());
@@ -256,6 +223,61 @@ public class CouponService {
 
         log.info("coupon used userId={} couponId={} order={} discount={}", userId, couponId, orderId, discount);
         return toDto(uc, def);
+    }
+
+    private UserCoupon requireValidUserCoupon(Long userId, Long couponId) {
+        UserCoupon uc = userCouponRepository.findByIdForUpdate(couponId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券不存在"));
+        if (!uc.getUserId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权使用该优惠券");
+        }
+        if (!CabinetConstants.COUPON_STATUS_UNUSED.equals(uc.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已使用或已过期");
+        }
+        if (uc.getExpireAt().isBefore(Instant.now())) {
+            uc.setStatus(CabinetConstants.COUPON_STATUS_EXPIRED);
+            userCouponRepository.save(uc);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已过期");
+        }
+        return uc;
+    }
+
+    private CabinetOrder requireOrderEligibleForCoupon(Long userId, String orderId, Long couponId) {
+        if (orderId == null || orderId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少订单号");
+        }
+        CabinetOrder order = orderRepository.findByIdForUpdate(orderId.trim())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在"));
+        if (!Objects.equals(order.getUserId(), userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "订单不属于当前用户");
+        }
+        // 仅允许未支付/争议中订单手动核销；已支付不可再核销改额（BUG-018）
+        String status = order.getStatus() == null ? "" : order.getStatus().toUpperCase(Locale.ROOT);
+        if (!Set.of("PENDING", "UNPAID", "DISPUTED", "CREATED").contains(status)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单当前状态不可用券");
+        }
+        if (order.getCouponId() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单已使用优惠券");
+        }
+        for (UserCoupon existing : userCouponRepository.findByOrderIdAndStatus(order.getOrderId(), "USED")) {
+            if (!existing.getCouponId().equals(couponId)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "订单已核销其他优惠券");
+            }
+        }
+        return order;
+    }
+
+    private int requireApplicableDiscount(CouponDefinition def, CabinetOrder order) {
+        int subtotal = resolveOrderLineSubtotal(order);
+        int minSpend = Math.max(0, def.getMinSpendCents());
+        if (subtotal < minSpend) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "未满足满减门槛");
+        }
+        int discount = resolveDiscount(def, subtotal);
+        if (discount <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "优惠券不可用于该订单");
+        }
+        return discount;
     }
 
     public int resolveDiscount(CouponDefinition def) {

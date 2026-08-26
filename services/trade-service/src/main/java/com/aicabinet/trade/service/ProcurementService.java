@@ -95,6 +95,17 @@ public class ProcurementService {
     }
 
     @Transactional(readOnly = true)
+    public PageResult<PurchaseOrderDto> listPurchaseOrdersPage(
+            Long operatorId, String keyword, String warehouseId, boolean returnableOnly, int page, int size) {
+        requireWarehouseRead(operatorId);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = purchaseOrderRepository.searchPage(keyword, warehouseId, returnableOnly, p, s);
+        List<PurchaseOrderDto> items = result.getRecords().stream().map(this::toPurchaseDto).toList();
+        return new PageResult<>(items, p, s, result.getTotal());
+    }
+
+    @Transactional(readOnly = true)
     public PurchaseOrderDto getPurchaseOrder(Long operatorId, Long purchaseOrderId) {
         requireWarehouseRead(operatorId);
         PurchaseOrder order = purchaseOrderRepository.findById(purchaseOrderId)
@@ -202,7 +213,7 @@ public class ProcurementService {
             order.setStatus("CREATED");
             auditService.record(operatorId, "PURCHASE_ORDER_APPROVE", BIZ_PURCHASE_ORDER, bizId, "审批通过");
         } else {
-            auditService.record(operatorId, "PURCHASE_ORDER_APPROVE", "PURCHASE_ORDER", bizId, "审批节点通过");
+            auditService.record(operatorId, "PURCHASE_ORDER_APPROVE", BIZ_PURCHASE_ORDER, bizId, "审批节点通过");
         }
         return toPurchaseDto(purchaseOrderRepository.save(order));
     }
