@@ -148,6 +148,18 @@
         </el-table>
       </div>
     </div>
+
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next, jumper"
+      background
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
   </el-card>
 
   <el-dialog v-model="replyDialog" title="回复反馈" width="480px" destroy-on-close>
@@ -173,6 +185,7 @@ import { useRoute } from 'vue-router';
 import { ChatDotRound, Delete, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import PagePager from '@/components/PagePager.vue';
 import TableActions from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -196,6 +209,9 @@ const loading = ref(false);
 const listHydrated = ref(false);
 const saving = ref(false);
 const status = ref('');
+const page = ref(1);
+const size = ref(20);
+const total = ref(0);
 const list = ref<Row[]>([]);
 const replyDialog = ref(false);
 const replyText = ref('');
@@ -240,8 +256,17 @@ function applyRouteQuery() {
 async function load() {
   loading.value = true;
   try {
-    const q = status.value ? `?status=${encodeURIComponent(status.value)}` : '';
-    list.value = await api.request<Row[]>(`/api/v2/ops/feedback${q}`, 'GET');
+    const q = new URLSearchParams({
+      page: String(page.value - 1),
+      size: String(size.value)
+    });
+    if (status.value) q.set('status', status.value);
+    const data = await api.request<{ items: Row[]; total: number }>(
+      `/api/v2/ops/feedback?${q}`,
+      'GET'
+    );
+    list.value = data.items || [];
+    total.value = Number(data.total) || 0;
     clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -251,13 +276,20 @@ async function load() {
   }
 }
 
+function onSizeChange() {
+  page.value = 1;
+  load();
+}
+
 function search() {
+  page.value = 1;
   syncRouteQuery();
   load();
 }
 
 function reset() {
   status.value = '';
+  page.value = 1;
   syncRouteQuery();
   load();
 }
@@ -331,6 +363,7 @@ onMounted(() => {
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
+  page.value = 1;
   await load();
 }
 

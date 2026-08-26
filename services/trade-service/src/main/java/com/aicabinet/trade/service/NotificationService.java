@@ -3,12 +3,14 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.AdminManualNotificationRequest;
 import com.aicabinet.common.dto.NotificationDto;
 import com.aicabinet.common.dto.NotificationDispatchMessage;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.domain.NotificationLog;
 import com.aicabinet.trade.domain.NotificationTemplate;
 import com.aicabinet.trade.config.NotificationProperties;
 import com.aicabinet.trade.messaging.NotificationDispatchProducer;
 import com.aicabinet.trade.mapper.NotificationLogMapper;
 import com.aicabinet.trade.mapper.NotificationTemplateMapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -251,6 +253,14 @@ public class NotificationService {
     @Transactional(readOnly = true)
     public List<NotificationDto> adminRecent(int limit) {
         return logRepository.findRecent(limit).stream().map(this::toDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<NotificationDto> adminPage(int page, int size) {
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        Page<NotificationLog> result = logRepository.searchRecent(p, s);
+        return new PageResult<>(result.getRecords().stream().map(this::toDto).toList(), p, s, result.getTotal());
     }
 
     /** 运营手动发站内信（不依赖模板）。 */

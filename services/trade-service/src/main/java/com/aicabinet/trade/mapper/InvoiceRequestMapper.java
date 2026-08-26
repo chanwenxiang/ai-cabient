@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.InvoiceRequest;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
@@ -42,5 +43,14 @@ public interface InvoiceRequestMapper extends BaseTradeMapper<InvoiceRequest> {
             q.eq(InvoiceRequest::getStatus, status.trim().toUpperCase());
         }
         return selectList(q.last("LIMIT " + Math.max(1, Math.min(limit, 200))));
+    }
+
+    /** page 为 0-based。 */
+    default Page<InvoiceRequest> search(String status, int page, int size) {
+        var q = Wrappers.<InvoiceRequest>lambdaQuery().orderByDesc(InvoiceRequest::getCreatedAt);
+        if (status != null && !status.isBlank()) {
+            q.eq(InvoiceRequest::getStatus, status.trim().toUpperCase());
+        }
+        return selectPage(new Page<>(page + 1L, size), q);
     }
 }

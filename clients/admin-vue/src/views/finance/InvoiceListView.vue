@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { CircleCheck, CircleClose, Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
+import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
@@ -25,6 +26,9 @@ const auth = useAuthStore();
 const loading = ref(false);
 const hydrated = ref(false);
 const rows = ref<InvoiceRow[]>([]);
+const page = ref(1);
+const size = ref(20);
+const total = ref(0);
 const statusTab = ref(localStorage.getItem('ops_invoice_status_tab') ?? '');
 const canEdit = computed(() => auth.hasPerm('ops:invoice:edit'));
 
@@ -105,16 +109,30 @@ async function onRowAction(key: string, row: InvoiceRow) {
 async function load() {
   loading.value = true;
   try {
-    const q = statusTab.value ? `?status=${encodeURIComponent(statusTab.value)}` : '';
-    rows.value = await api.request<InvoiceRow[]>(`/api/v2/ops/admin/invoices${q}`);
+    const q = new URLSearchParams({
+      page: String(page.value - 1),
+      size: String(size.value)
+    });
+    if (statusTab.value) q.set('status', statusTab.value);
+    const data = await api.request<{ items: InvoiceRow[]; total: number }>(
+      `/api/v2/ops/admin/invoices?${q}`
+    );
+    rows.value = data.items || [];
+    total.value = Number(data.total) || 0;
   } finally {
     loading.value = false;
     hydrated.value = true;
   }
 }
 
+function onSizeChange() {
+  page.value = 1;
+  load();
+}
+
 function onStatusChange() {
   localStorage.setItem('ops_invoice_status_tab', statusTab.value);
+  page.value = 1;
   load();
 }
 
@@ -195,5 +213,17 @@ onMounted(load);
         </template>
       </el-table-column>
     </el-table>
+
+    <PagePager
+      :hydrated="hydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next, jumper"
+      background
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
   </el-card>
 </template>

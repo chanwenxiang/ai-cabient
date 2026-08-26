@@ -1,6 +1,7 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.ReplyFeedbackRequest;
 import com.aicabinet.common.dto.UserFeedbackDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
@@ -9,8 +10,6 @@ import com.aicabinet.trade.service.UserFeedbackService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/v2/ops/feedback")
@@ -24,10 +23,12 @@ public class UserFeedbackController {
 
     @RequiresPermissions(value = {"ops:feedback", "ops:feedback:reply"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping
-    public ApiResponse<List<UserFeedbackDto>> list(
+    public ApiResponse<PageResult<UserFeedbackDto>> list(
             HttpServletRequest request,
-            @RequestParam(required = false) String status) {
-        return ApiResponse.ok(feedbackService.list(operatorId(request), status));
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(feedbackService.listPage(operatorId(request), status, page, size));
     }
 
     @RequiresPermissions("ops:feedback:reply")

@@ -23,9 +23,9 @@
       </div>
     </template>
 
-    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="load">
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="维度">
-        <el-radio-group v-model="dimension" @change="load">
+        <el-radio-group v-model="dimension" @change="search">
           <el-radio-button value="ALL">全部</el-radio-button>
           <el-radio-button value="STOCKOUT">断货</el-radio-button>
           <el-radio-button value="LOW">低库存</el-radio-button>
@@ -39,7 +39,7 @@
           filterable
           placeholder="全部柜机"
           style="width: 200px"
-          @change="load"
+          @change="search"
         >
           <el-option
             v-for="d in deviceOptions"
@@ -55,7 +55,7 @@
           clearable
           placeholder="商户编号"
           style="width: 140px"
-          @keyup.enter="load"
+          @keyup.enter="search"
         />
       </el-form-item>
       <el-form-item label="路线">
@@ -64,7 +64,7 @@
           clearable
           placeholder="路线编码"
           style="width: 120px"
-          @keyup.enter="load"
+          @keyup.enter="search"
         />
       </el-form-item>
       <el-form-item label="生命周期">
@@ -73,7 +73,7 @@
           clearable
           placeholder="默认投放"
           style="width: 130px"
-          @change="load"
+          @change="search"
         >
           <el-option
             v-for="item in dictOptions('device_lifecycle')"
@@ -85,7 +85,7 @@
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="load">查询</el-button>
+        <el-button type="primary" @click="search">查询</el-button>
       </el-form-item>
     </el-form>
 
@@ -234,16 +234,29 @@
         </el-table>
       </div>
     </div>
+
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next, jumper"
+      background
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref, watch } from 'vue';
+import { onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Box, Delete, Refresh, Remove, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
+import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
@@ -280,23 +293,16 @@ const deviceId = ref('');
 const merchantId = ref('');
 const routeCode = ref('');
 const lifecycleStatus = ref('DEPLOYED');
+const page = ref(1);
+const size = ref(20);
+const total = ref(0);
 const rows = ref<StockHealthRow[]>([]);
+const stockoutCount = ref(0);
+const lowCount = ref(0);
+const nearExpiryCount = ref(0);
+const deviceCount = ref(0);
+const planDeviceIds = ref<string[]>([]);
 const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
-
-const deviceCount = computed(() => new Set(rows.value.map((r) => r.deviceId).filter(Boolean)).size);
-
-/** 断货/低库存柜机（临期不进一键补货） */
-const planDeviceIds = computed(
-  () =>
-    [
-      ...new Set(
-        rows.value
-          .filter((r) => r.dimension === 'STOCKOUT' || r.dimension === 'LOW')
-          .map((r) => r.deviceId)
-          .filter(Boolean)
-      )
-    ] as string[]
-);
 
 function rowActions(row: StockHealthRow): TableAction[] {
   const actions: TableAction[] = [];
@@ -397,7 +403,10 @@ function goPlanReplenishment(ids?: string[]) {
 }
 
 function countBy(dim: string) {
-  return rows.value.filter((r) => r.dimension === dim).length;
+  if (dim === 'STOCKOUT') return stockoutCount.value;
+  if (dim === 'LOW') return lowCount.value;
+  if (dim === 'NEAR_EXPIRY') return nearExpiryCount.value;
+  return 0;
 }
 
 function dimLabel(dim?: string) {
@@ -410,7 +419,7 @@ function dimTag(dim?: string): 'danger' | 'warning' | 'info' {
   return 'info';
 }
 
-function queryString() {
+function queryString(includePage = false) {
   const q = new URLSearchParams();
   q.set('dimension', dimension.value || 'ALL');
   if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
@@ -421,22 +430,48 @@ function queryString() {
   } else if (lifecycleStatus.value === 'ALL') {
     q.set('lifecycleStatus', '');
   }
+  if (includePage) {
+    q.set('page', String(page.value - 1));
+    q.set('size', String(size.value));
+  }
   return q.toString();
 }
 
 async function load() {
   loading.value = true;
   try {
-    rows.value = await api.request<StockHealthRow[]>(
-      `/api/v2/ops/admin/reports/stock-health?${queryString()}`,
-      'GET'
-    );
+    const data = await api.request<{
+      items: StockHealthRow[];
+      total: number;
+      stockoutCount: number;
+      lowCount: number;
+      nearExpiryCount: number;
+      deviceCount: number;
+      planDeviceIds: string[];
+    }>(`/api/v2/ops/admin/reports/stock-health?${queryString(true)}`, 'GET');
+    rows.value = data.items || [];
+    total.value = Number(data.total) || 0;
+    stockoutCount.value = Number(data.stockoutCount) || 0;
+    lowCount.value = Number(data.lowCount) || 0;
+    nearExpiryCount.value = Number(data.nearExpiryCount) || 0;
+    deviceCount.value = Number(data.deviceCount) || 0;
+    planDeviceIds.value = data.planDeviceIds || [];
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
     listHydrated.value = true;
     loading.value = false;
   }
+}
+
+function onSizeChange() {
+  page.value = 1;
+  load();
+}
+
+function search() {
+  page.value = 1;
+  load();
 }
 
 async function onExport() {
@@ -496,12 +531,14 @@ function applyRouteQuery() {
 onMounted(async () => {
   applyRouteQuery();
   await loadDeviceOptions();
+  page.value = 1;
   await load();
 });
 
 onActivated(() => {
   // keep-alive 复用时 onMounted 不重跑；须按本次路由 query 同步维度
   applyRouteQuery();
+  page.value = 1;
   void load();
 });
 
@@ -516,6 +553,7 @@ watch(
     ] as const,
   () => {
     if (applyRouteQuery()) {
+      page.value = 1;
       void load();
     }
   }

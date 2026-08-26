@@ -5,6 +5,7 @@ import com.aicabinet.common.dto.AdminManualNotificationRequest;
 import com.aicabinet.common.dto.MemberLevelRuleDto;
 import com.aicabinet.common.dto.MarketingRoiRowDto;
 import com.aicabinet.common.dto.NotificationDto;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.PointsRedeemItemDto;
 import com.aicabinet.common.dto.SkuDelistReviewDto;
 import com.aicabinet.common.dto.UserBehaviorSummaryDto;
@@ -149,9 +150,10 @@ public class AdminGrowthController {
 
     @RequiresPermissions("ops:notify:list")
     @GetMapping("/notifications")
-    public ApiResponse<List<NotificationDto>> notifications(
-            @RequestParam(defaultValue = "100") int limit) {
-        return ApiResponse.ok(notificationService.adminRecent(limit));
+    public ApiResponse<PageResult<NotificationDto>> notifications(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(notificationService.adminPage(page, size));
     }
 
     @RequiresPermissions("ops:notify:list")

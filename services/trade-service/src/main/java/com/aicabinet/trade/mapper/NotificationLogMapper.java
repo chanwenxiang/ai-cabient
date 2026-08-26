@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.NotificationLog;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -37,6 +38,12 @@ public interface NotificationLogMapper extends BaseTradeMapper<NotificationLog> 
         return selectList(Wrappers.<NotificationLog>lambdaQuery()
                 .orderByDesc(NotificationLog::getCreatedAt)
                 .last("LIMIT " + Math.min(Math.max(limit, 1), 200)));
+    }
+
+    /** page 为 0-based。 */
+    default Page<NotificationLog> searchRecent(int page, int size) {
+        return selectPage(new Page<>(page + 1L, size),
+                Wrappers.<NotificationLog>lambdaQuery().orderByDesc(NotificationLog::getCreatedAt));
     }
 
     default long countUnreadConsumer(Long userId) {

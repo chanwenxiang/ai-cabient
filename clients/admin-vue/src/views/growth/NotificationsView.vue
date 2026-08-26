@@ -28,7 +28,7 @@
       :default-sort="idDefaultSort"
       @sort-change="onIdSortChange"
     >
-      <template #empty><el-empty v-if="!loading" description="暂无消息记录" /></template>
+      <template #empty><el-empty v-if="listHydrated && !loading" description="暂无消息记录" /></template>
       <el-table-column
         prop="id"
         label="ID"
@@ -60,6 +60,18 @@
         <template #default="{ row }">{{ displayBizNo(row.bizId, '无') }}</template>
       </el-table-column>
     </el-table>
+
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next, jumper"
+      background
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
 
     <el-dialog v-model="sendVisible" title="发送站内信" width="520px" destroy-on-close>
       <el-form label-width="96px">
@@ -102,6 +114,7 @@ import { ElMessage } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import PagePager from '@/components/PagePager.vue';
 import { displayBizNo, rewriteBizNosInText } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
@@ -116,7 +129,11 @@ type NotificationRow = {
 };
 
 const loading = ref(false);
+const listHydrated = ref(false);
 const sending = ref(false);
+const page = ref(1);
+const size = ref(20);
+const total = ref(0);
 const list = ref<NotificationRow[]>([]);
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort<NotificationRow>('id');
 const displayList = computed(() => sortById(list.value));
@@ -134,14 +151,26 @@ onMounted(load);
 async function load() {
   loading.value = true;
   try {
-    list.value = await api.request<NotificationRow[]>(
-      '/api/v2/ops/admin/growth/notifications?limit=200'
+    const q = new URLSearchParams({
+      page: String(page.value - 1),
+      size: String(size.value)
+    });
+    const data = await api.request<{ items: NotificationRow[]; total: number }>(
+      `/api/v2/ops/admin/growth/notifications?${q}`
     );
+    list.value = data.items || [];
+    total.value = Number(data.total) || 0;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
+}
+
+function onSizeChange() {
+  page.value = 1;
+  load();
 }
 
 function openSend() {
