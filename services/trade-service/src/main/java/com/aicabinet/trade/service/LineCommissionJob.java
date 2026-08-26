@@ -23,6 +23,8 @@ import java.util.Set;
 
 @Service
 public class LineCommissionJob {
+    private static final String LINE_COMMISSION = "line-commission";
+
 
     private static final Logger log = LoggerFactory.getLogger(LineCommissionJob.class);
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
@@ -56,7 +58,7 @@ public class LineCommissionJob {
     @Transactional
     public void postDailyCommission() {
         long taskStart = System.nanoTime();
-        if (!taskService.tryBegin("line-commission", 1800)) {
+        if (!taskService.tryBegin(LINE_COMMISSION, 1800)) {
             return;
         }
         boolean failed = false;
@@ -84,11 +86,11 @@ public class LineCommissionJob {
             }
         } catch (Exception e) {
             failed = true;
-            taskService.finish("line-commission", "FAILED", e.getMessage(), taskStart);
+            taskService.finish(LINE_COMMISSION, "FAILED", e.getMessage(), taskStart);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("line-commission", "SUCCESS", summary, taskStart);
+                taskService.finish(LINE_COMMISSION, "SUCCESS", summary, taskStart);
             }
         }
     }

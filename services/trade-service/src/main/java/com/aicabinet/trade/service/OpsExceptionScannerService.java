@@ -13,6 +13,8 @@ import java.time.temporal.ChronoUnit;
 
 @Service
 public class OpsExceptionScannerService {
+    private static final String OPS_EXCEPTION_SCANNER = "ops-exception-scanner";
+
     /** 单次扫描每种状态最多处理条数，避免积压时一次打爆库。 */
     private static final int SCAN_BATCH = 500;
 
@@ -37,7 +39,7 @@ public class OpsExceptionScannerService {
     @Scheduled(fixedDelayString = "${aicabinet.ops-monitoring.scan-interval-ms:30000}")
     public void scan() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("ops-exception-scanner", 600)) {
+        if (!taskService.tryBegin(OPS_EXCEPTION_SCANNER, 600)) {
             return;
         }
         boolean failed = false;
@@ -63,11 +65,11 @@ public class OpsExceptionScannerService {
             summary = "开门滞留 " + door + "，上传 " + upload + "，识别 " + recognizing + "，结算 " + settling;
     } catch (Exception e) {
         failed = true;
-        taskService.finish("ops-exception-scanner", "FAILED", e.getMessage(), start);
+        taskService.finish(OPS_EXCEPTION_SCANNER, "FAILED", e.getMessage(), start);
         throw e;
     } finally {
         if (!failed) {
-            taskService.finish("ops-exception-scanner", "SUCCESS", summary, start);
+            taskService.finish(OPS_EXCEPTION_SCANNER, "SUCCESS", summary, start);
         }
     }
     }

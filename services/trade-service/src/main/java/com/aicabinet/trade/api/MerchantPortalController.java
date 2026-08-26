@@ -28,6 +28,9 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v2/merchant")
 public class MerchantPortalController {
+    private static final String AMOUNTCENTS = "amountCents";
+    private static final String REQUESTNO = "requestNo";
+
 
     private final MerchantFinanceService merchantFinanceService;
     private final MerchantPortalService merchantPortalService;
@@ -622,9 +625,9 @@ public class MerchantPortalController {
     @PostMapping("/line-wallet/withdraw")
     public ApiResponse<LineWithdrawRequestDto> lineWalletWithdraw(
             HttpServletRequest request, @RequestBody Map<String, Object> body) {
-        long amount = body.get("amountCents") instanceof Number n ? n.longValue()
-                : Long.parseLong(String.valueOf(body.get("amountCents")));
-        String requestNo = body.get("requestNo") == null ? null : String.valueOf(body.get("requestNo"));
+        long amount = body.get(AMOUNTCENTS) instanceof Number n ? n.longValue()
+                : Long.parseLong(String.valueOf(body.get(AMOUNTCENTS)));
+        String requestNo = body.get(REQUESTNO) == null ? null : String.valueOf(body.get(REQUESTNO));
         return ApiResponse.ok(lineWithdrawService.merchantApply(userId(request), amount, requestNo));
     }
 
@@ -639,9 +642,9 @@ public class MerchantPortalController {
     @PostMapping("/wallet/withdraw")
     public ApiResponse<MerchantWithdrawRequestDto> walletWithdraw(
             HttpServletRequest request, @RequestBody Map<String, Object> body) {
-        long amount = body.get("amountCents") instanceof Number n ? n.longValue()
-                : Long.parseLong(String.valueOf(body.get("amountCents")));
-        String requestNo = body.get("requestNo") == null ? null : String.valueOf(body.get("requestNo"));
+        long amount = body.get(AMOUNTCENTS) instanceof Number n ? n.longValue()
+                : Long.parseLong(String.valueOf(body.get(AMOUNTCENTS)));
+        String requestNo = body.get(REQUESTNO) == null ? null : String.valueOf(body.get(REQUESTNO));
         return ApiResponse.ok(merchantWithdrawService.merchantApply(userId(request), amount, requestNo));
     }
 

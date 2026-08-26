@@ -1,4 +1,5 @@
 package com.aicabinet.trade.api;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.trade.config.QrProperties;
 import com.aicabinet.trade.service.DeviceQrService;
@@ -69,18 +70,18 @@ public class CabinetOpenLandingController {
             return "ALIPAY";
         }
         if (ua.contains("MicroMessenger")) {
-            return "WECHAT";
+            return CabinetConstants.PAY_CHANNEL_WECHAT;
         }
         // 桌面/其它浏览器：展示引导页，避免误跳到本机 H5 开发端口
         return "OTHER";
     }
 
     String resolveTargetUrl(String deviceId, String channel) {
-        if ("WECHAT".equals(channel)) {
+        if (CabinetConstants.PAY_CHANNEL_WECHAT.equals(channel)) {
             String query = "deviceId=" + deviceId + "&channel=WECHAT&autoOpen=1";
             return weChatMiniAppClient
                     .generateUrlLink(qrProperties.wechatPath(), query, qrProperties.wechatEnvVersion())
-                    .orElseGet(() -> buildH5OpenUrl(deviceId, "WECHAT"));
+                    .orElseGet(() -> buildH5OpenUrl(deviceId, CabinetConstants.PAY_CHANNEL_WECHAT));
         }
         return buildH5OpenUrl(deviceId, channel);
     }

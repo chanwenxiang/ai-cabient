@@ -34,6 +34,10 @@ import java.util.stream.Collectors;
 
 @Service
 public class UnpaidOrderService {
+    private static final String STATUS_CANCELLED = "CANCELLED";
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String ORDER = "ORDER";
+
 
     private static final Logger log = LoggerFactory.getLogger(UnpaidOrderService.class);
     private static final DateTimeFormatter TIME_FMT =
@@ -133,7 +137,7 @@ public class UnpaidOrderService {
                     ));
             message = sent ? "催付订阅消息已发送" : "催付发送失败（请检查小程序订阅配置），已记审计";
         }
-        auditService.record(operatorId, "ORDER_REMIND", "ORDER", orderId, message);
+        auditService.record(operatorId, "ORDER_REMIND", ORDER, orderId, message);
         return new UnpaidOrderActionResultDto(orderId, order.getStatus(), message, sent, false);
     }
 
@@ -144,7 +148,7 @@ public class UnpaidOrderService {
             CabinetOrder order = requirePendingScoped(operatorId, orderId);
             String reason = request.reason().trim();
             restoreInventory(order);
-            order.setStatus("CANCELLED");
+            order.setStatus(STATUS_CANCELLED);
             orderRepository.save(order);
             consumerPreauthService.releaseBySessionId(order.getSessionId());
 
@@ -154,10 +158,10 @@ public class UnpaidOrderService {
                 riskControlService.addBlacklist(operatorId, order.getUserId(),
                         "待支付关单：" + reason, expires);
             }
-            auditService.record(operatorId, "ORDER_CANCEL_UNPAID", "ORDER", orderId,
+            auditService.record(operatorId, "ORDER_CANCEL_UNPAID", ORDER, orderId,
                     reason + (blacklist ? "；已拉黑用户 30 天" : ""));
             log.info("unpaid order cancelled order={} by={} blacklist={}", orderId, operatorId, blacklist);
-            return new UnpaidOrderActionResultDto(orderId, "CANCELLED",
+            return new UnpaidOrderActionResultDto(orderId, STATUS_CANCELLED,
                     blacklist ? "已关单并拉黑用户 30 天" : "待支付订单已关闭，库存已回滚", false, blacklist);
         });
     }
@@ -168,7 +172,7 @@ public class UnpaidOrderService {
         return runWithOrderPaymentLock(orderId, () -> {
             CabinetOrder order = requirePendingScoped(operatorId, orderId);
             markPaid(order);
-            auditService.record(operatorId, "ORDER_COLLECT_UNPAID", "ORDER", orderId, "运营代收");
+            auditService.record(operatorId, "ORDER_COLLECT_UNPAID", ORDER, orderId, "运营代收");
             return settlementService.getOrderBySession(order.getSessionId());
         });
     }
@@ -181,7 +185,7 @@ public class UnpaidOrderService {
             if (!order.getUserId().equals(userId)) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND);
             }
-            if (!"PENDING".equals(order.getStatus())) {
+            if (!STATUS_PENDING.equals(order.getStatus())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PENDING);
             }
             markPaid(order);
@@ -196,25 +200,25 @@ public class UnpaidOrderService {
             return 0;
         }
         Instant cutoff = Instant.now().minus(hours, ChronoUnit.HOURS);
-        List<CabinetOrder> expired = orderRepository.findByStatusAndCreatedAtBefore("PENDING", cutoff, 500);
+        List<CabinetOrder> expired = orderRepository.findByStatusAndCreatedAtBefore(STATUS_PENDING, cutoff, 500);
         boolean autoBlacklist = systemConfigService.getBoolean(SystemConfigService.UNPAID_AUTO_BLACKLIST, false);
         int n = 0;
         for (CabinetOrder order : expired) {
             try {
                 CabinetOrder cancelled = runWithOrderPaymentLock(order.getOrderId(), () -> {
                     CabinetOrder locked = orderRepository.findByIdForUpdate(order.getOrderId()).orElse(null);
-                    if (locked == null || !"PENDING".equals(locked.getStatus())) {
+                    if (locked == null || !STATUS_PENDING.equals(locked.getStatus())) {
                         return null;
                     }
                     restoreInventory(locked);
-                    locked.setStatus("CANCELLED");
+                    locked.setStatus(STATUS_CANCELLED);
                     orderRepository.save(locked);
                     consumerPreauthService.releaseBySessionId(locked.getSessionId());
                     if (autoBlacklist && locked.getUserId() != null) {
                         riskControlService.addBlacklist(0L, locked.getUserId(),
                                 "待支付超时自动关单", Instant.now().plus(7, ChronoUnit.DAYS));
                     }
-                    auditService.record(0L, "ORDER_AUTO_CANCEL_UNPAID", "ORDER", locked.getOrderId(),
+                    auditService.record(0L, "ORDER_AUTO_CANCEL_UNPAID", ORDER, locked.getOrderId(),
                             "超时 " + hours + " 小时自动关单；是否拉黑=" + (autoBlacklist ? "是" : "否"));
                     return locked;
                 });
@@ -261,7 +265,7 @@ public class UnpaidOrderService {
                     order.getUserId(),
                     "order_paid",
                     Map.of("orderId", order.getOrderId(), "amount", yuan(order.getTotalAmountCents())),
-                    "ORDER",
+                    ORDER,
                     order.getOrderId());
         } catch (Exception ex) {
             log.warn("order paid notification on collect failed order={}", order.getOrderId(), ex);
@@ -330,7 +334,7 @@ public class UnpaidOrderService {
         CabinetOrder order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         merchantScopeService.requireDeviceAccess(operatorId, order.getDeviceId());
-        if (!"PENDING".equals(order.getStatus())) {
+        if (!STATUS_PENDING.equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PENDING);
         }
         return order;
@@ -345,7 +349,7 @@ public class UnpaidOrderService {
     private boolean recentlyReminded(String orderId) {
         Instant since = Instant.now().minus(REMIND_COOLDOWN_MINUTES, ChronoUnit.MINUTES);
         List<AdminAuditLog> logs = auditLogRepository
-                .findByTargetTypeAndTargetIdOrderByCreatedAtAsc("ORDER", orderId);
+                .findByTargetTypeAndTargetIdOrderByCreatedAtAsc(ORDER, orderId);
         for (int i = logs.size() - 1; i >= 0; i--) {
             AdminAuditLog row = logs.get(i);
             if ("ORDER_REMIND".equals(row.getAction())

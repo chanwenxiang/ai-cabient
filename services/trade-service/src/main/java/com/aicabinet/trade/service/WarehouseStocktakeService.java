@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.AdjustStocktakeRequest;
 import com.aicabinet.common.dto.CreateStocktakeRequest;
@@ -36,6 +37,11 @@ import java.security.SecureRandom;
  */
 @Service
 public class WarehouseStocktakeService {
+    private static final String PERM_OPS_WAREHOUSE_EDIT = "ops:warehouse:edit";
+    private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
+    private static final String ADJUSTED = "ADJUSTED";
+    private static final String MATCHED = "MATCHED";
+
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private static final float MIN_VISION_CONFIDENCE = 0.50f;
@@ -74,7 +80,7 @@ public class WarehouseStocktakeService {
 
     @Transactional
     public StocktakeDto create(Long operatorId, CreateStocktakeRequest request) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         String wh = required(request.warehouseId(), "warehouseId").trim();
         warehouseRepository.findById(wh).orElseThrow(() -> notFound("warehouse"));
 
@@ -83,7 +89,7 @@ public class WarehouseStocktakeService {
         st.setStocktakeNo(generateNo());
         st.setWarehouseId(wh);
         st.setMode(blind ? "BLIND" : "OPEN");
-        st.setStatus("DRAFT");
+        st.setStatus(CabinetConstants.PROMOTION_STATUS_DRAFT);
         st.setOperatorId(operatorId);
         st.setNotes(trimToNull(request.notes()));
         st.setCreatedAt(Instant.now());
@@ -136,14 +142,14 @@ public class WarehouseStocktakeService {
     @Transactional
     public StocktakeLineDto updateLine(Long operatorId, Long stocktakeId, Long lineId,
                                        UpdateStocktakeLineRequest request) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         return runWithStocktakeLock(stocktakeId,
                 () -> doUpdateLine(stocktakeId, lineId, request));
     }
 
     private StocktakeLineDto doUpdateLine(Long stocktakeId, Long lineId, UpdateStocktakeLineRequest request) {
         WarehouseStocktake st = requireStocktakeForUpdate(stocktakeId);
-        if (!"DRAFT".equals(st.getStatus()) && !"IN_PROGRESS".equals(st.getStatus())) {
+        if (!CabinetConstants.PROMOTION_STATUS_DRAFT.equals(st.getStatus()) && !STATUS_IN_PROGRESS.equals(st.getStatus())) {
             throw conflict("stocktake not editable");
         }
         WarehouseStocktakeLine line = lineRepository.findById(lineId)
@@ -157,12 +163,12 @@ public class WarehouseStocktakeService {
         }
         line.setCountedQty(counted);
         line.setDiffQty(counted - line.getBookQty());
-        line.setStatus(line.getDiffQty() == 0 ? "MATCHED" : "DIFF");
+        line.setStatus(line.getDiffQty() == 0 ? MATCHED : "DIFF");
         line.setNotes(trimToNull(request.notes()));
         lineRepository.save(line);
 
-        if ("DRAFT".equals(st.getStatus())) {
-            st.setStatus("IN_PROGRESS");
+        if (CabinetConstants.PROMOTION_STATUS_DRAFT.equals(st.getStatus())) {
+            st.setStatus(STATUS_IN_PROGRESS);
             st.setStartedAt(Instant.now());
         }
         refreshTotals(st);
@@ -172,13 +178,13 @@ public class WarehouseStocktakeService {
 
     @Transactional
     public StocktakeDto complete(Long operatorId, Long stocktakeId) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         return runWithStocktakeLock(stocktakeId, () -> doComplete(stocktakeId));
     }
 
     private StocktakeDto doComplete(Long stocktakeId) {
         WarehouseStocktake st = requireStocktakeForUpdate(stocktakeId);
-        if (!"DRAFT".equals(st.getStatus()) && !"IN_PROGRESS".equals(st.getStatus())) {
+        if (!CabinetConstants.PROMOTION_STATUS_DRAFT.equals(st.getStatus()) && !STATUS_IN_PROGRESS.equals(st.getStatus())) {
             throw conflict("stocktake cannot be completed");
         }
         for (WarehouseStocktakeLine line : lineRepository.findByStocktakeIdOrderByLineIdAsc(stocktakeId)) {
@@ -187,7 +193,7 @@ public class WarehouseStocktakeService {
                         + line.getSkuId() + "/" + line.getBatchNo());
             }
             line.setDiffQty(line.getCountedQty() - line.getBookQty());
-            line.setStatus(line.getDiffQty() == 0 ? "MATCHED" : "DIFF");
+            line.setStatus(line.getDiffQty() == 0 ? MATCHED : "DIFF");
             lineRepository.save(line);
         }
         st.setStatus("COMPLETED");
@@ -199,7 +205,7 @@ public class WarehouseStocktakeService {
 
     @Transactional
     public StocktakeDto adjust(Long operatorId, Long stocktakeId, AdjustStocktakeRequest request) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         return runWithStocktakeLock(stocktakeId, () -> doAdjust(operatorId, stocktakeId, request));
     }
 
@@ -214,7 +220,7 @@ public class WarehouseStocktakeService {
         List<WarehouseStocktakeLine> lines = lineRepository.findByStocktakeIdOrderByLineIdAsc(stocktakeId);
         for (WarehouseStocktakeLine line : lines) {
             if (line.getCountedQty() == null || line.getDiffQty() == 0
-                    || "ADJUSTED".equals(line.getStatus())) {
+                    || ADJUSTED.equals(line.getStatus())) {
                 continue;
             }
             if (selected != null && !selected.contains(line.getLineId())) {
@@ -224,15 +230,15 @@ public class WarehouseStocktakeService {
                     st.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
                     line.getProductionDate(), line.getExpiryDate(),
                     line.getBookQty(), line.getCountedQty(), operatorId, st.getStocktakeId());
-            line.setStatus("ADJUSTED");
+            line.setStatus(ADJUSTED);
             line.setAdjustedAt(Instant.now());
             lineRepository.save(line);
         }
         refreshTotals(st);
         boolean anyDiffLeft = lines.stream().anyMatch(l -> l.getCountedQty() != null
-                && l.getDiffQty() != 0 && !"ADJUSTED".equals(l.getStatus()));
+                && l.getDiffQty() != 0 && !ADJUSTED.equals(l.getStatus()));
         if (!anyDiffLeft) {
-            st.setStatus("ADJUSTED");
+            st.setStatus(ADJUSTED);
         }
         stocktakeRepository.save(st);
         return toDto(st);
@@ -240,13 +246,13 @@ public class WarehouseStocktakeService {
 
     @Transactional
     public StocktakeDto cancel(Long operatorId, Long stocktakeId) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         return runWithStocktakeLock(stocktakeId, () -> doCancel(stocktakeId));
     }
 
     private StocktakeDto doCancel(Long stocktakeId) {
         WarehouseStocktake st = requireStocktakeForUpdate(stocktakeId);
-        if (!"DRAFT".equals(st.getStatus())) {
+        if (!CabinetConstants.PROMOTION_STATUS_DRAFT.equals(st.getStatus())) {
             throw conflict("only draft stocktake can be cancelled");
         }
         st.setStatus("CANCELLED");
@@ -261,13 +267,13 @@ public class WarehouseStocktakeService {
     @Transactional
     public StocktakeDto applyVisionCounts(Long operatorId, Long stocktakeId,
                                           byte[] image, String filename) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         return runWithStocktakeLock(stocktakeId, () -> doApplyVisionCounts(stocktakeId, image, filename));
     }
 
     private StocktakeDto doApplyVisionCounts(Long stocktakeId, byte[] image, String filename) {
         WarehouseStocktake st = requireStocktakeForUpdate(stocktakeId);
-        if (!"DRAFT".equals(st.getStatus()) && !"IN_PROGRESS".equals(st.getStatus())) {
+        if (!CabinetConstants.PROMOTION_STATUS_DRAFT.equals(st.getStatus()) && !STATUS_IN_PROGRESS.equals(st.getStatus())) {
             throw conflict("stocktake not editable");
         }
         VisionServiceClient.RecognitionResult result;
@@ -296,11 +302,11 @@ public class WarehouseStocktakeService {
             int counted = Math.max(0, item.quantity());
             line.setCountedQty(counted);
             line.setDiffQty(counted - line.getBookQty());
-            line.setStatus(line.getDiffQty() == 0 ? "MATCHED" : "DIFF");
+            line.setStatus(line.getDiffQty() == 0 ? MATCHED : "DIFF");
             lineRepository.save(line);
         }
-        if ("DRAFT".equals(st.getStatus())) {
-            st.setStatus("IN_PROGRESS");
+        if (CabinetConstants.PROMOTION_STATUS_DRAFT.equals(st.getStatus())) {
+            st.setStatus(STATUS_IN_PROGRESS);
             st.setStartedAt(Instant.now());
         }
         refreshTotals(st);
@@ -319,7 +325,7 @@ public class WarehouseStocktakeService {
             if (line.getCountedQty() != null) {
                 counted += line.getCountedQty();
             }
-            if ("ADJUSTED".equals(line.getStatus())) {
+            if (ADJUSTED.equals(line.getStatus())) {
                 continue;
             }
             diff += line.getDiffQty();

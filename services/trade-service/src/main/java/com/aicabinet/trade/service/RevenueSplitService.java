@@ -22,6 +22,13 @@ import java.time.LocalDate;
 import java.util.Optional;
 @Service
 public class RevenueSplitService {
+    private static final String WECHAT_SUBMITTED = "WECHAT_SUBMITTED";
+    private static final String LEDGER_ONLY = "LEDGER_ONLY";
+    private static final String STATUS_SUCCESS = "SUCCESS";
+    private static final String SETTLED = "SETTLED";
+    private static final String ACCRUED = "ACCRUED";
+    private static final String VOIDED = "VOIDED";
+
 
     private static final Logger log = LoggerFactory.getLogger(RevenueSplitService.class);
 
@@ -91,11 +98,11 @@ public class RevenueSplitService {
         split.setSettleAfter(LocalDate.now().plusDays(1));
         split.setSettlementBatchNo("MS-" + LocalDate.now() + "-" + merchant.getMerchantId());
         if (merchant.getWechatReceiverId() == null || merchant.getWechatReceiverId().isBlank()) {
-            split.setStatus("LEDGER_ONLY");
+            split.setStatus(LEDGER_ONLY);
         } else if (!profitSharingService.isApiReady()) {
-            split.setStatus("ACCRUED");
+            split.setStatus(ACCRUED);
         } else {
-            split.setStatus("ACCRUED");
+            split.setStatus(ACCRUED);
         }
         try {
             splitRepository.save(split);
@@ -123,12 +130,12 @@ public class RevenueSplitService {
 
     private void doVoidSplitOnFullRefund(String orderId) {
         splitRepository.findByOrderIdForUpdate(orderId).ifPresent(split -> {
-            if ("VOIDED".equalsIgnoreCase(split.getStatus()) || "REVERSED".equalsIgnoreCase(split.getStatus())) {
+            if (VOIDED.equalsIgnoreCase(split.getStatus()) || "REVERSED".equalsIgnoreCase(split.getStatus())) {
                 return;
             }
             attemptWeChatReturnOnVoid(split);
             reverseWalletCredit(split);
-            split.setStatus("VOIDED");
+            split.setStatus(VOIDED);
             split.setFailureReason(null);
             splitRepository.save(split);
             log.info("分账已冲正（全额退款） order={} splitId={}", orderId, split.getSplitId());
@@ -167,7 +174,7 @@ public class RevenueSplitService {
             return;
         }
         String status = split.getStatus() == null ? "" : split.getStatus().toUpperCase();
-        if (!"LEDGER_ONLY".equals(status) && !"SETTLED".equals(status)) {
+        if (!LEDGER_ONLY.equals(status) && !SETTLED.equals(status)) {
             return;
         }
         long delta = oldMerchantCents - newMerchantCents;
@@ -210,7 +217,7 @@ public class RevenueSplitService {
         }
         OrderRevenueSplit split = existing.get();
         String status = split.getStatus() == null ? "" : split.getStatus().toUpperCase();
-        if ("WECHAT_SUBMITTED".equals(status) || "SUCCESS".equals(status)) {
+        if (WECHAT_SUBMITTED.equals(status) || STATUS_SUCCESS.equals(status)) {
             resyncSubmittedSplitAfterPartialRefund(order, split);
             return;
         }
@@ -236,7 +243,7 @@ public class RevenueSplitService {
         split.setPlatformCents(platform);
         split.setMerchantCents(merchantShare);
         if (gross <= 0) {
-            split.setStatus("VOIDED");
+            split.setStatus(VOIDED);
             split.setFailureReason("全额退款后分账作废");
         } else if (returnCents > 0 && split.getFailureReason() != null) {
             // failureReason 已由 applyWeChatReturnOutcome 设置
@@ -277,7 +284,7 @@ public class RevenueSplitService {
             return;
         }
         String status = split.getStatus() == null ? "" : split.getStatus().toUpperCase();
-        if (!"WECHAT_SUBMITTED".equals(status) && !"SUCCESS".equals(status)) {
+        if (!WECHAT_SUBMITTED.equals(status) && !STATUS_SUCCESS.equals(status)) {
             return;
         }
         long amount = Math.max(0, split.getMerchantCents());
@@ -350,14 +357,14 @@ public class RevenueSplitService {
             throw new IllegalStateException("分账记录已变更");
         }
         String status = split.getStatus() == null ? "" : split.getStatus().toUpperCase();
-        if ("SETTLED".equals(status) || "SUCCESS".equals(status)) {
+        if (SETTLED.equals(status) || STATUS_SUCCESS.equals(status)) {
             return split;
         }
-        if (!"LEDGER_ONLY".equals(status)) {
+        if (!LEDGER_ONLY.equals(status)) {
             throw new IllegalStateException("仅 LEDGER_ONLY 可确认完结，当前=" + split.getStatus());
         }
         creditWalletIfLedgerOnly(split);
-        split.setStatus("SETTLED");
+        split.setStatus(SETTLED);
         split.setSettledAt(java.time.Instant.now());
         split.setFailureReason(null);
         return splitRepository.save(split);
@@ -365,7 +372,7 @@ public class RevenueSplitService {
 
     /** 账本型分账（无微信分账接收方）同步入商户可提现钱包，幂等按 splitId。 */
     private void creditWalletIfLedgerOnly(OrderRevenueSplit split) {
-        if (split == null || !"LEDGER_ONLY".equalsIgnoreCase(split.getStatus())) {
+        if (split == null || !LEDGER_ONLY.equalsIgnoreCase(split.getStatus())) {
             return;
         }
         long amount = Math.max(0, split.getMerchantCents());
@@ -429,11 +436,11 @@ public class RevenueSplitService {
         }
         OrderRevenueSplit split = existing.get();
         String status = split.getStatus() == null ? "" : split.getStatus().toUpperCase();
-        if ("VOIDED".equals(status) || "REVERSED".equals(status)) {
+        if (VOIDED.equals(status) || "REVERSED".equals(status)) {
             log.info("skip split resync order={} status={}", order.getOrderId(), split.getStatus());
             return;
         }
-        if ("WECHAT_SUBMITTED".equals(status) || "SUCCESS".equals(status)) {
+        if (WECHAT_SUBMITTED.equals(status) || STATUS_SUCCESS.equals(status)) {
             resyncSubmittedSplitAfterIncrease(order, split);
             return;
         }
@@ -449,7 +456,7 @@ public class RevenueSplitService {
         split.setPlatformCents(platform);
         split.setMerchantCents(merchantShare);
         if (gross <= 0) {
-            split.setStatus("VOIDED");
+            split.setStatus(VOIDED);
         }
         splitRepository.save(split);
         maybeAutoSubmitAccruedSplit(order, split, merchant, oldMerchantCents);
@@ -462,7 +469,7 @@ public class RevenueSplitService {
             return;
         }
         String status = split.getStatus() == null ? "" : split.getStatus().toUpperCase();
-        if (!"LEDGER_ONLY".equals(status) && !"SETTLED".equals(status)) {
+        if (!LEDGER_ONLY.equals(status) && !SETTLED.equals(status)) {
             return;
         }
         long delta = newMerchantCents - oldMerchantCents;
@@ -494,7 +501,7 @@ public class RevenueSplitService {
             return;
         }
         String status = split.getStatus() == null ? "" : split.getStatus().toUpperCase();
-        if (!"ACCRUED".equals(status) || split.getMerchantCents() <= 0) {
+        if (!ACCRUED.equals(status) || split.getMerchantCents() <= 0) {
             return;
         }
         if (split.getMerchantCents() <= oldMerchantCents) {

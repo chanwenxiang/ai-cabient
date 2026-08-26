@@ -19,6 +19,9 @@ import java.util.Set;
 
 @Service
 public class UserFeedbackService {
+    private static final String PERM_OPS_FEEDBACK_REPLY = "ops:feedback:reply";
+    private static final String PERM_OPS_FEEDBACK = "ops:feedback";
+
 
     private static final Set<String> FEEDBACK_TYPES = Set.of("COMPLAINT", "SUGGESTION", "BUG", "PRAISE");
 
@@ -75,7 +78,7 @@ public class UserFeedbackService {
 
     @Transactional(readOnly = true)
     public List<UserFeedbackDto> list(Long operatorId, String status) {
-        permissionService.requireAnyPermission(operatorId, "ops:feedback", "ops:feedback:reply");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_FEEDBACK, PERM_OPS_FEEDBACK_REPLY);
         List<UserFeedback> rows = status == null || status.isBlank()
                 ? repository.findAllOrderByCreatedAtDesc()
                 : repository.findByStatusOrderByCreatedAtDesc(status.trim().toUpperCase());
@@ -85,7 +88,7 @@ public class UserFeedbackService {
 
     @Transactional(readOnly = true)
     public PageResult<UserFeedbackDto> listPage(Long operatorId, String status, int page, int size) {
-        permissionService.requireAnyPermission(operatorId, "ops:feedback", "ops:feedback:reply");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_FEEDBACK, PERM_OPS_FEEDBACK_REPLY);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
         String statusFilter = status == null || status.isBlank() ? null : status.trim().toUpperCase(Locale.ROOT);
@@ -96,7 +99,7 @@ public class UserFeedbackService {
 
     @Transactional
     public UserFeedbackDto reply(Long operatorId, Long feedbackId, ReplyFeedbackRequest body) {
-        permissionService.requirePermission(operatorId, "ops:feedback:reply");
+        permissionService.requirePermission(operatorId, PERM_OPS_FEEDBACK_REPLY);
         if (feedbackId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "feedbackId required");
         }
@@ -119,7 +122,7 @@ public class UserFeedbackService {
 
     @Transactional
     public void delete(Long operatorId, Long feedbackId) {
-        permissionService.requireAnyPermission(operatorId, "ops:feedback", "ops:feedback:reply");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_FEEDBACK, PERM_OPS_FEEDBACK_REPLY);
         if (feedbackId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "feedbackId required");
         }

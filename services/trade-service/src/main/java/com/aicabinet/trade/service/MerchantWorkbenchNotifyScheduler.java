@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class MerchantWorkbenchNotifyScheduler {
+    private static final String MERCHANT_NOTIFY = "merchant-notify";
+
 
     private static final Logger log = LoggerFactory.getLogger(MerchantWorkbenchNotifyScheduler.class);
 
@@ -24,7 +26,7 @@ public class MerchantWorkbenchNotifyScheduler {
     @Scheduled(fixedRate = 900_000, initialDelay = 120_000)
     public void pushWorkbenchAlerts() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("merchant-notify", 600)) {
+        if (!taskService.tryBegin(MERCHANT_NOTIFY, 600)) {
             return;
         }
         boolean failed = false;
@@ -34,11 +36,11 @@ public class MerchantWorkbenchNotifyScheduler {
             summary = sent <= 0 ? "本次无商户待办推送" : "推送商户待办 " + sent + " 条";
         } catch (Exception e) {
             failed = true;
-            taskService.finish("merchant-notify", "FAILED", e.getMessage(), start);
+            taskService.finish(MERCHANT_NOTIFY, "FAILED", e.getMessage(), start);
             log.warn("merchant workbench notify scheduler failed", e);
         } finally {
             if (!failed) {
-                taskService.finish("merchant-notify", "SUCCESS", summary, start);
+                taskService.finish(MERCHANT_NOTIFY, "SUCCESS", summary, start);
             }
         }
     }

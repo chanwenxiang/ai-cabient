@@ -25,6 +25,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class MerchantFinanceService {
+    private static final String MERCHANT_SETTLEMENTS_VIEW = "merchant:settlements:view";
+
 
     private static final int EXPORT_LIMIT = 5000;
     private static final List<String> PENDING_SPLIT_STATUSES = List.of(
@@ -128,7 +130,7 @@ public class MerchantFinanceService {
 
     @Transactional(readOnly = true)
     public MerchantSettlementOverviewDto getSettlementOverview(Long userId) {
-        permissionService.requirePermission(userId, "merchant:settlements:view");
+        permissionService.requirePermission(userId, MERCHANT_SETTLEMENTS_VIEW);
         merchantPortalGuard.requireAccess(userId);
         Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
                 userId, MerchantFeaturePacks.BIZ);
@@ -157,7 +159,7 @@ public class MerchantFinanceService {
 
     @Transactional(readOnly = true)
     public List<MerchantDailySettlementDto> listDailySettlements(Long userId, String fromDate, String toDate) {
-        permissionService.requirePermission(userId, "merchant:settlements:view");
+        permissionService.requirePermission(userId, MERCHANT_SETTLEMENTS_VIEW);
         merchantPortalGuard.requireAccess(userId);
         Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
                 userId, MerchantFeaturePacks.BIZ);
@@ -173,7 +175,7 @@ public class MerchantFinanceService {
 
     @Transactional(readOnly = true)
     public List<MerchantSettlementBatchDto> listSettlementBatches(Long userId, String fromDate, String toDate) {
-        permissionService.requirePermission(userId, "merchant:settlements:view");
+        permissionService.requirePermission(userId, MERCHANT_SETTLEMENTS_VIEW);
         merchantPortalGuard.requireAccess(userId);
         Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
                 userId, MerchantFeaturePacks.BIZ);
@@ -192,7 +194,7 @@ public class MerchantFinanceService {
 
     @Transactional(readOnly = true)
     public List<RevenueSplitDto> getSettlementBatchDetail(Long userId, String batchNo) {
-        permissionService.requirePermission(userId, "merchant:settlements:view");
+        permissionService.requirePermission(userId, MERCHANT_SETTLEMENTS_VIEW);
         merchantPortalGuard.requireAccess(userId);
         if (batchNo == null || batchNo.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "批次号不能为空");

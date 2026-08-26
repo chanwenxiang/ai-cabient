@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.CouponDto;
 import com.aicabinet.common.dto.MemberLevelRuleDto;
@@ -127,7 +128,7 @@ public class PointsRedeemService {
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "会员不存在"));
             PointsRedeemItem item = redeemItemRepository.findById(itemId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "兑换商品不存在"));
-            if (!"ACTIVE".equalsIgnoreCase(item.getStatus())) {
+            if (!CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(item.getStatus())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "该兑换已下架");
             }
             int cost = item.getPointsCost() == null ? 0 : item.getPointsCost();
@@ -174,7 +175,7 @@ public class PointsRedeemService {
         item.setCouponDefId(dto.couponDefId());
         item.setStockTotal(dto.stockTotal());
         item.setSortOrder(dto.sortOrder());
-        item.setStatus(dto.status() == null ? "ACTIVE" : dto.status());
+        item.setStatus(dto.status() == null ? CabinetConstants.PROMOTION_STATUS_ACTIVE : dto.status());
         item.setUpdatedAt(Instant.now());
         return toDto(redeemItemRepository.save(item));
     }
@@ -183,7 +184,7 @@ public class PointsRedeemService {
     public PointsRedeemItemDto adminSetStatus(Long itemId, String status) {
         PointsRedeemItem item = redeemItemRepository.findById(itemId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "兑换项不存在"));
-        item.setStatus("ACTIVE".equalsIgnoreCase(status) ? "ACTIVE" : "INACTIVE");
+        item.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(status) ? CabinetConstants.PROMOTION_STATUS_ACTIVE : "INACTIVE");
         item.setUpdatedAt(Instant.now());
         return toDto(redeemItemRepository.save(item));
     }

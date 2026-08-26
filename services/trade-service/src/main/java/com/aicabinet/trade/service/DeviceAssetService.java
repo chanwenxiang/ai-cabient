@@ -39,9 +39,16 @@ import java.util.stream.Collectors;
 
 @Service
 public class DeviceAssetService {
+    private static final String NEAR_EXPIRY = "NEAR_EXPIRY";
+    private static final String RETURNING = "RETURNING";
+    private static final String STOCKOUT = "STOCKOUT";
+    private static final String DEPLOYED = "DEPLOYED";
+    private static final String INBOUND = "INBOUND";
+    private static final String RETIRED = "RETIRED";
+
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
-    private static final Set<String> LIFECYCLE = Set.of("INBOUND", "IDLE", "DEPLOYED", "RETURNING", "RETIRED");
+    private static final Set<String> LIFECYCLE = Set.of(INBOUND, "IDLE", DEPLOYED, RETURNING, RETIRED);
     private static final Set<String> COOP = Set.of("SELF", "FRANCHISE", "CONSIGN");
 
     private final DeviceInfoMapper deviceInfoMapper;
@@ -99,9 +106,9 @@ public class DeviceAssetService {
         String remark = blankToNull(request.remark());
 
         switch (action) {
-            case "INBOUND" -> {
+            case INBOUND -> {
                 requireNotRetired(from);
-                to = "INBOUND";
+                to = INBOUND;
             }
             case "UNDEPLOY", "IDLE" -> {
                 requireNotRetired(from);
@@ -109,24 +116,24 @@ public class DeviceAssetService {
             }
             case "DEPLOY" -> {
                 requireNotRetired(from);
-                if ("RETURNING".equals(from) || "RETIRED".equals(from)) {
+                if (RETURNING.equals(from) || RETIRED.equals(from)) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "返厂/退役柜不可直接投放");
                 }
-                to = "DEPLOYED";
+                to = DEPLOYED;
                 device.setDeployedAt(Instant.now());
             }
             case "RETURN" -> {
                 requireNotRetired(from);
-                to = "RETURNING";
+                to = RETURNING;
             }
             case "RETIRE" -> {
-                if ("RETIRED".equals(from)) {
+                if (RETIRED.equals(from)) {
                     return device;
                 }
                 if (remark == null) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退役需填写备注");
                 }
-                to = "RETIRED";
+                to = RETIRED;
             }
             case "BIND" -> {
                 requireNotRetired(from);
@@ -139,8 +146,8 @@ public class DeviceAssetService {
                 }
                 merchantScopeService.requireMerchantAccess(operatorId, merchantId);
                 device.setMerchantId(merchantId);
-                if ("INBOUND".equals(from) || "IDLE".equals(from)) {
-                    to = "DEPLOYED";
+                if (INBOUND.equals(from) || "IDLE".equals(from)) {
+                    to = DEPLOYED;
                     device.setDeployedAt(Instant.now());
                 }
             }
@@ -193,7 +200,7 @@ public class DeviceAssetService {
         permissionService.requireAnyPermission(operatorId, "ops:stock-health:list", "ops:device:list", "ops:replenishment:list");
         Set<String> allowed = merchantScopeService.allowedDeviceIds(operatorId);
         String dim = dimension == null || dimension.isBlank() ? "ALL" : dimension.trim().toUpperCase(Locale.ROOT);
-        if (!Set.of("ALL", "STOCKOUT", "LOW", "NEAR_EXPIRY").contains(dim)) {
+        if (!Set.of("ALL", STOCKOUT, "LOW", NEAR_EXPIRY).contains(dim)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "dimension 仅支持 ALL/STOCKOUT/LOW/NEAR_EXPIRY");
         }
@@ -220,7 +227,7 @@ public class DeviceAssetService {
         List<StockHealthRowDto> rows = new ArrayList<>();
         Map<String, Boolean> ledgerByDevice = new HashMap<>();
         Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
-        if (!"NEAR_EXPIRY".equals(dim)) {
+        if (!NEAR_EXPIRY.equals(dim)) {
             List<DeviceSkuInventory> inv = inventoryMapper.selectList(Wrappers.<DeviceSkuInventory>lambdaQuery()
                     .in(DeviceSkuInventory::getDeviceId, devices.keySet()));
             for (DeviceSkuInventory row : inv) {
@@ -229,10 +236,10 @@ public class DeviceAssetService {
                 int qty = effectiveSellableQty(row, ledgerByDevice, sellableByDevice);
                 boolean stockout = qty <= 0;
                 boolean low = !stockout && qty <= Math.max(row.getLowThreshold(), 0);
-                if ("STOCKOUT".equals(dim) && !stockout) continue;
+                if (STOCKOUT.equals(dim) && !stockout) continue;
                 if ("LOW".equals(dim) && !low) continue;
                 if ("ALL".equals(dim) && !stockout && !low) continue;
-                String kind = stockout ? "STOCKOUT" : "LOW";
+                String kind = stockout ? STOCKOUT : "LOW";
                 int capacity = Math.max(row.getCapacity(), 0);
                 double rate = capacity <= 0 ? (stockout ? 100d : 0d)
                         : Math.max(0d, (1d - (qty * 1d / capacity)) * 100d);
@@ -260,14 +267,14 @@ public class DeviceAssetService {
             }
         }
         Map<String, Integer> capacityByDeviceSku = new HashMap<>();
-        if ("NEAR_EXPIRY".equals(dim) || "ALL".equals(dim)) {
+        if (NEAR_EXPIRY.equals(dim) || "ALL".equals(dim)) {
             List<DeviceSkuInventory> caps = inventoryMapper.selectList(Wrappers.<DeviceSkuInventory>lambdaQuery()
                     .in(DeviceSkuInventory::getDeviceId, devices.keySet()));
             for (DeviceSkuInventory inv : caps) {
                 capacityByDeviceSku.put(inv.getDeviceId() + "\0" + inv.getSkuId(), Math.max(inv.getCapacity(), 0));
             }
         }
-        if ("NEAR_EXPIRY".equals(dim) || "ALL".equals(dim)) {
+        if (NEAR_EXPIRY.equals(dim) || "ALL".equals(dim)) {
             LocalDate today = LocalDate.now(ZONE);
             List<DeviceSkuLot> lots = lotMapper.selectList(Wrappers.<DeviceSkuLot>lambdaQuery()
                     .in(DeviceSkuLot::getDeviceId, devices.keySet())
@@ -282,7 +289,7 @@ public class DeviceAssetService {
                 if (daysLeft > nearDays) continue;
                 int capacity = capacityByDeviceSku.getOrDefault(lot.getDeviceId() + "\0" + lot.getSkuId(), 0);
                 rows.add(new StockHealthRowDto(
-                        "NEAR_EXPIRY",
+                        NEAR_EXPIRY,
                         d.getDeviceId(),
                         d.getDeviceName(),
                         d.getMerchantId(),
@@ -320,12 +327,12 @@ public class DeviceAssetService {
                 operatorId, dimension, merchantId, routeCode, lifecycleStatus, deviceId);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
-        long stockoutCount = all.stream().filter(r -> "STOCKOUT".equals(r.dimension())).count();
+        long stockoutCount = all.stream().filter(r -> STOCKOUT.equals(r.dimension())).count();
         long lowCount = all.stream().filter(r -> "LOW".equals(r.dimension())).count();
-        long nearExpiryCount = all.stream().filter(r -> "NEAR_EXPIRY".equals(r.dimension())).count();
+        long nearExpiryCount = all.stream().filter(r -> NEAR_EXPIRY.equals(r.dimension())).count();
         long deviceCount = all.stream().map(StockHealthRowDto::deviceId).filter(id -> id != null && !id.isBlank()).distinct().count();
         List<String> planDeviceIds = all.stream()
-                .filter(r -> "STOCKOUT".equals(r.dimension()) || "LOW".equals(r.dimension()))
+                .filter(r -> STOCKOUT.equals(r.dimension()) || "LOW".equals(r.dimension()))
                 .map(StockHealthRowDto::deviceId)
                 .filter(id -> id != null && !id.isBlank())
                 .collect(Collectors.collectingAndThen(Collectors.toCollection(LinkedHashSet::new), ArrayList::new));
@@ -337,10 +344,10 @@ public class DeviceAssetService {
 
     public static String normalizeLifecycle(String status) {
         if (status == null || status.isBlank()) {
-            return "DEPLOYED";
+            return DEPLOYED;
         }
         String s = status.trim().toUpperCase(Locale.ROOT);
-        return LIFECYCLE.contains(s) ? s : "DEPLOYED";
+        return LIFECYCLE.contains(s) ? s : DEPLOYED;
     }
 
     public static String normalizeCoop(String mode) {
@@ -380,7 +387,7 @@ public class DeviceAssetService {
     }
 
     private void requireNotRetired(String from) {
-        if ("RETIRED".equals(from)) {
+        if (RETIRED.equals(from)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "已退役设备不可操作");
         }
     }

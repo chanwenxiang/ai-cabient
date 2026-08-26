@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 /** 选品诊断每日自动刷新：近 30 天动销/库存表现写入评审表，供运营台查看与决策。 */
 @Service
 public class SkuReviewScheduler {
+    private static final String SKU_REVIEW_DAILY = "sku-review-daily";
+
 
     private static final Logger log = LoggerFactory.getLogger(SkuReviewScheduler.class);
 
@@ -26,7 +28,7 @@ public class SkuReviewScheduler {
     @Transactional
     public void scan() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("sku-review-daily", 600)) {
+        if (!taskService.tryBegin(SKU_REVIEW_DAILY, 600)) {
             return;
         }
         boolean failed = false;
@@ -39,11 +41,11 @@ public class SkuReviewScheduler {
             }
         } catch (Exception e) {
             failed = true;
-            taskService.finish("sku-review-daily", "FAILED", e.getMessage(), start);
+            taskService.finish(SKU_REVIEW_DAILY, "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("sku-review-daily", "SUCCESS", summary, start);
+                taskService.finish(SKU_REVIEW_DAILY, "SUCCESS", summary, start);
             }
         }
     }

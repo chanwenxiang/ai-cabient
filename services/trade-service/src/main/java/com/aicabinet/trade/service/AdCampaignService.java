@@ -28,6 +28,11 @@ import java.util.List;
  */
 @Service
 public class AdCampaignService {
+    private static final String AD_CAMPAIGN = "AD_CAMPAIGN";
+    private static final String SPECIFIC = "SPECIFIC";
+    private static final String LITERAL = "投放计划不存在";
+    private static final String NAME = "name=";
+
 
     private final AdCampaignMapper campaignRepository;
     private final AdCampaignItemMapper itemRepository;
@@ -79,7 +84,7 @@ public class AdCampaignService {
         }
         String scope = request.deviceScope() == null || request.deviceScope().isBlank()
                 ? "ALL" : request.deviceScope().trim().toUpperCase();
-        if (scope.equals("SPECIFIC")
+        if (scope.equals(SPECIFIC)
                 && (request.deviceIds() == null || request.deviceIds().isEmpty())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "指定设备投放需要选择设备");
         }
@@ -102,7 +107,7 @@ public class AdCampaignService {
             campaignRepository.insert(campaign);
         } else {
             campaign = campaignRepository.findByIdForUpdate(campaignId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "投放计划不存在"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
             campaign.setName(request.name().trim());
             campaign.setDeviceScope(scope);
             campaign.setStartAt(request.startAt());
@@ -112,8 +117,8 @@ public class AdCampaignService {
         }
         replaceItems(campaign.getCampaignId(), request.assetIds());
         replaceDevices(campaign.getCampaignId(), scope, request.deviceIds());
-        auditService.record(operatorId, "AD_CAMPAIGN_UPSERT", "AD_CAMPAIGN",
-                String.valueOf(campaign.getCampaignId()), "name=" + campaign.getName());
+        auditService.record(operatorId, "AD_CAMPAIGN_UPSERT", AD_CAMPAIGN,
+                String.valueOf(campaign.getCampaignId()), NAME + campaign.getName());
         return toDto(campaign);
     }
 
@@ -127,8 +132,8 @@ public class AdCampaignService {
             campaign.setStatus("RUNNING");
             campaign.setUpdatedAt(Instant.now());
             campaignRepository.updateById(campaign);
-            auditService.record(operatorId, "AD_CAMPAIGN_LAUNCH", "AD_CAMPAIGN",
-                    String.valueOf(campaignId), "name=" + campaign.getName());
+            auditService.record(operatorId, "AD_CAMPAIGN_LAUNCH", AD_CAMPAIGN,
+                    String.valueOf(campaignId), NAME + campaign.getName());
             return toDto(campaign);
         });
     }
@@ -140,8 +145,8 @@ public class AdCampaignService {
             campaign.setStatus("STOPPED");
             campaign.setUpdatedAt(Instant.now());
             campaignRepository.updateById(campaign);
-            auditService.record(operatorId, "AD_CAMPAIGN_STOP", "AD_CAMPAIGN",
-                    String.valueOf(campaignId), "name=" + campaign.getName());
+            auditService.record(operatorId, "AD_CAMPAIGN_STOP", AD_CAMPAIGN,
+                    String.valueOf(campaignId), NAME + campaign.getName());
             return toDto(campaign);
         });
     }
@@ -156,8 +161,8 @@ public class AdCampaignService {
             itemRepository.deleteByCampaignId(campaignId);
             deviceRepository.deleteByCampaignId(campaignId);
             campaignRepository.deleteById(campaignId);
-            auditService.record(operatorId, "AD_CAMPAIGN_DELETE", "AD_CAMPAIGN",
-                    String.valueOf(campaignId), "name=" + campaign.getName());
+            auditService.record(operatorId, "AD_CAMPAIGN_DELETE", AD_CAMPAIGN,
+                    String.valueOf(campaignId), NAME + campaign.getName());
             return null;
         });
     }
@@ -167,7 +172,7 @@ public class AdCampaignService {
     public ScreenContentDto screenContent(String deviceId) {
         Instant now = Instant.now();
         for (AdCampaign campaign : campaignRepository.findRunningInWindow(now)) {
-            if ("SPECIFIC".equals(campaign.getDeviceScope())
+            if (SPECIFIC.equals(campaign.getDeviceScope())
                     && deviceRepository.findByCampaignId(campaign.getCampaignId()).stream()
                     .noneMatch(d -> d.getDeviceId().equalsIgnoreCase(deviceId))) {
                 continue;
@@ -222,7 +227,7 @@ public class AdCampaignService {
 
     private void replaceDevices(Long campaignId, String scope, List<String> deviceIds) {
         deviceRepository.deleteByCampaignId(campaignId);
-        if (!scope.equals("SPECIFIC") || deviceIds == null) {
+        if (!scope.equals(SPECIFIC) || deviceIds == null) {
             return;
         }
         for (String deviceId : deviceIds) {
@@ -251,12 +256,12 @@ public class AdCampaignService {
 
     private AdCampaign requireCampaign(Long campaignId) {
         return campaignRepository.findById(campaignId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "投放计划不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
     }
 
     private AdCampaign requireCampaignForUpdate(Long campaignId) {
         return campaignRepository.findByIdForUpdate(campaignId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "投放计划不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
     }
 
     static String campaignLockKey(Long campaignId) {

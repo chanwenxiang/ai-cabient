@@ -26,6 +26,8 @@ import java.util.Map;
 
 @Service
 public class SystemConfigService {
+    private static final String FALSE = "false";
+
 
     public static final String CONSUMER_SERVICE_PHONE = "consumer.service_phone";
     public static final String OPS_SUPPORT_EMAIL = "ops.support_email";
@@ -263,7 +265,7 @@ public class SystemConfigService {
         upsertIfAbsent(SETTLEMENT_MIN_CONFIDENCE, "0.72", "自动结算最低识别置信度");
         upsertIfAbsent(SETTLEMENT_RECOGNITION_MODE, RECOGNITION_MODE_VISION,
                 "结算识别方式: VISION=纯视觉(忽略重力), VISION_GRAVITY=视觉+重力融合");
-        upsertIfAbsent(SETTLEMENT_EMPTY_AUTO_NO_GRAVITY, "false",
+        upsertIfAbsent(SETTLEMENT_EMPTY_AUTO_NO_GRAVITY, FALSE,
                 "纯视觉柜空车是否自动零结（无重力字段时）；默认 false 进争议");
         upsertIfAbsent(DISPUTE_AUTO_OPEN, "true", "识别低置信是否自动开争议工单");
         upsertIfAbsent(REFUND_DEFAULT_POLICY, "AUTO_REFUND",
@@ -274,12 +276,12 @@ public class SystemConfigService {
         upsertIfAbsent(REFUND_SELF_PARTIAL_ENABLED, "true", "是否允许消费者按行自助部分退");
         upsertIfAbsent("debt.block_open_on_pending", "true", "有待支付订单时是否禁止开门");
         upsertIfAbsent(UNPAID_AUTO_CANCEL_HOURS, "48", "待支付订单超时自动关单小时数, 0=关闭");
-        upsertIfAbsent(UNPAID_AUTO_BLACKLIST, "false", "待支付超时关单时是否自动拉黑用户");
+        upsertIfAbsent(UNPAID_AUTO_BLACKLIST, FALSE, "待支付超时关单时是否自动拉黑用户");
         upsertIfAbsent(RECHARGE_AUTO_CANCEL_MINUTES, "30", "待支付充值单超时自动取消分钟数, 0=关闭");
         upsertIfAbsent(DEVICE_OFFLINE_AUTO_LOCK_MINUTES, "10", "设备离线超时自动锁机分钟数, 0=关闭");
         upsertIfAbsent(DEVICE_OFFLINE_MANUAL_UNLOCK_GRACE_MINUTES, "45",
                 "人工解锁后离线自动锁机宽限分钟数, 0=无宽限");
-        upsertIfAbsent(DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED, "false",
+        upsertIfAbsent(DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED, FALSE,
                 "设备恢复稳定在线后是否自动解锁起售（默认关闭）");
         upsertIfAbsent(DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, "15",
                 "自动解锁前需保持稳定在线分钟数, 0=关闭");

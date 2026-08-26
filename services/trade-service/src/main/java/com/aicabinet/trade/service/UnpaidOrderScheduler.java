@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class UnpaidOrderScheduler {
+    private static final String UNPAID_CANCEL = "unpaid-cancel";
+
 
     private static final Logger log = LoggerFactory.getLogger(UnpaidOrderScheduler.class);
 
@@ -23,7 +25,7 @@ public class UnpaidOrderScheduler {
     @Scheduled(fixedDelayString = "${aicabinet.unpaid.auto-cancel-interval-ms:900000}", initialDelay = 180_000)
     public void autoCancelExpired() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("unpaid-cancel", 600)) {
+        if (!taskService.tryBegin(UNPAID_CANCEL, 600)) {
             return;
         }
         boolean failed = false;
@@ -36,11 +38,11 @@ public class UnpaidOrderScheduler {
             }
         } catch (Exception e) {
             failed = true;
-            taskService.finish("unpaid-cancel", "FAILED", e.getMessage(), start);
+            taskService.finish(UNPAID_CANCEL, "FAILED", e.getMessage(), start);
             log.warn("unpaid auto-cancel failed", e);
         } finally {
             if (!failed) {
-                taskService.finish("unpaid-cancel", "SUCCESS", summary, start);
+                taskService.finish(UNPAID_CANCEL, "SUCCESS", summary, start);
             }
         }
     }

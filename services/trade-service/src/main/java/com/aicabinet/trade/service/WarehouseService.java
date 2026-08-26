@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
@@ -21,6 +22,16 @@ import java.util.stream.Collectors;
 
 @Service
 public class WarehouseService {
+    private static final String QUANTITY_MUST_BE_POSITIVE = "quantity must be positive";
+    private static final String IN_TRANSIT = "IN_TRANSIT";
+    private static final String STATUS_CANCELLED = "CANCELLED";
+    private static final String WAREHOUSE = "warehouse";
+    private static final String RECEIVED = "RECEIVED";
+    private static final String SHIPPED = "SHIPPED";
+    private static final String PARTIAL = "PARTIAL";
+    private static final String PICKED = "PICKED";
+    private static final String READY = "READY";
+
 
     public static final String DEFAULT_WAREHOUSE_ID = "WH-DEMO-001";
 
@@ -103,7 +114,7 @@ public class WarehouseService {
     @Transactional
     public WarehouseInboundRequest inbound(Long operatorId, WarehouseInboundRequest request) {
         String wh = resolveWarehouseId(request.warehouseId());
-        warehouseRepository.findById(wh).orElseThrow(() -> notFound("warehouse"));
+        warehouseRepository.findById(wh).orElseThrow(() -> notFound(WAREHOUSE));
         if (request.lines() == null || request.lines().isEmpty()) {
             throw badRequest("lines required");
         }
@@ -137,10 +148,10 @@ public class WarehouseService {
                                      int qty, int unitCostCents, Long operatorId,
                                      String refType, String refId) {
         if (qty <= 0) {
-            throw badRequest("quantity must be positive");
+            throw badRequest(QUANTITY_MUST_BE_POSITIVE);
         }
         String wh = resolveWarehouseId(warehouseId);
-        warehouseRepository.findById(wh).orElseThrow(() -> notFound("warehouse"));
+        warehouseRepository.findById(wh).orElseThrow(() -> notFound(WAREHOUSE));
         WarehouseInbound inbound = new WarehouseInbound();
         inbound.setWarehouseId(wh);
         inbound.setRefNo(refType + "-" + refId);
@@ -169,10 +180,10 @@ public class WarehouseService {
     public void returnPurchaseStock(String warehouseId, String skuId, String batchNo, int qty,
                                     Long operatorId, String refType, String refId) {
         if (qty <= 0) {
-            throw badRequest("quantity must be positive");
+            throw badRequest(QUANTITY_MUST_BE_POSITIVE);
         }
         String wh = resolveWarehouseId(warehouseId);
-        warehouseRepository.findById(wh).orElseThrow(() -> notFound("warehouse"));
+        warehouseRepository.findById(wh).orElseThrow(() -> notFound(WAREHOUSE));
         deductWarehouseStock(wh, skuId, batchNo, qty);
         recordWarehouseMovement(wh, skuId, batchNo, "PURCHASE_RETURN", -qty, refType, refId, operatorId);
     }
@@ -187,7 +198,7 @@ public class WarehouseService {
             return;
         }
         String wh = resolveWarehouseId(warehouseId);
-        warehouseRepository.findById(wh).orElseThrow(() -> notFound("warehouse"));
+        warehouseRepository.findById(wh).orElseThrow(() -> notFound(WAREHOUSE));
         if (delta > 0) {
             addWarehouseStock(wh, skuId, batchNo, productionDate, expiryDate, delta);
         } else {
@@ -206,7 +217,7 @@ public class WarehouseService {
             return;
         }
         String wh = resolveWarehouseId(warehouseId);
-        warehouseRepository.findById(wh).orElseThrow(() -> notFound("warehouse"));
+        warehouseRepository.findById(wh).orElseThrow(() -> notFound(WAREHOUSE));
         if (deltaQty > 0) {
             addWarehouseStock(wh, skuId, batchNo, productionDate, expiryDate, deltaQty);
         } else {
@@ -371,7 +382,7 @@ public class WarehouseService {
         outbound.setWarehouseId(wh);
         outbound.setRouteId(routeId);
         outbound.setAssigneeUserId(assigneeUserId);
-        outbound.setStatus("DRAFT");
+        outbound.setStatus(CabinetConstants.PROMOTION_STATUS_DRAFT);
         outbound.setNotes("merchant replenishment request");
         outbound = outboundRepository.save(outbound);
         int allocatedLines = 0;
@@ -395,7 +406,7 @@ public class WarehouseService {
         Optional<WarehouseOutbound> existing = outboundRepository.findByRouteId(routeId);
         if (existing.isPresent()) {
             WarehouseOutbound o = existing.get();
-            boolean emptyDraft = "DRAFT".equals(o.getStatus())
+            boolean emptyDraft = CabinetConstants.PROMOTION_STATUS_DRAFT.equals(o.getStatus())
                     && outboundLineRepository.findByOutboundIdOrderByLineIdAsc(o.getOutboundId()).isEmpty();
             if (!emptyDraft) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "outbound already exists for route");
@@ -418,7 +429,7 @@ public class WarehouseService {
         outbound.setWarehouseId(wh);
         outbound.setRouteId(routeId);
         outbound.setAssigneeUserId(assigneeUserId);
-        outbound.setStatus("DRAFT");
+        outbound.setStatus(CabinetConstants.PROMOTION_STATUS_DRAFT);
         outbound.setNotes("auto from route " + routeId);
         outbound = outboundRepository.save(outbound);
 
@@ -484,7 +495,7 @@ public class WarehouseService {
 
     private WarehouseOutboundDto doMarkPicked(Long outboundId) {
         WarehouseOutbound outbound = requireOutboundForUpdate(outboundId);
-        if ("SHIPPED".equals(outbound.getStatus())) {
+        if (SHIPPED.equals(outbound.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "already shipped");
         }
         List<WarehouseOutboundLine> lines = outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
@@ -498,11 +509,11 @@ public class WarehouseService {
         }
         lines.forEach(line -> {
                     line.setPicked(true);
-                    line.setHandoverStatus("READY");
+                    line.setHandoverStatus(READY);
                     outboundLineRepository.save(line);
                 });
-        outbound.setStatus("PICKED");
-        outbound.setHandoverStatus("READY");
+        outbound.setStatus(PICKED);
+        outbound.setHandoverStatus(READY);
         outboundRepository.save(outbound);
         return self.getOutbound(outboundId);
     }
@@ -514,7 +525,7 @@ public class WarehouseService {
 
     private WarehouseOutboundDto doShipOutbound(Long operatorId, Long outboundId) {
         WarehouseOutbound outbound = requireOutboundForUpdate(outboundId);
-        if ("SHIPPED".equals(outbound.getStatus())) {
+        if (SHIPPED.equals(outbound.getStatus())) {
             return self.getOutbound(outboundId);
         }
         List<WarehouseOutboundLine> lines = outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
@@ -534,12 +545,12 @@ public class WarehouseService {
             recordWarehouseMovement(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
                     "OUTBOUND_SHIP", -line.getQuantity(), "WAREHOUSE_OUTBOUND",
                     String.valueOf(outboundId), operatorId);
-            line.setHandoverStatus("IN_TRANSIT");
+            line.setHandoverStatus(IN_TRANSIT);
             outboundLineRepository.save(line);
         }
-        outbound.setStatus("SHIPPED");
+        outbound.setStatus(SHIPPED);
         outbound.setShippedAt(Instant.now());
-        outbound.setHandoverStatus("IN_TRANSIT");
+        outbound.setHandoverStatus(IN_TRANSIT);
         outbound.setHandoverOperatorId(operatorId);
         outbound.setHandedOverAt(Instant.now());
         outboundRepository.save(outbound);
@@ -568,14 +579,14 @@ public class WarehouseService {
 
     private WarehouseOutboundDto doCancelUnreceivedOutbound(Long outboundId, Long operatorId) {
         WarehouseOutbound outbound = requireOutboundForUpdate(outboundId);
-        if ("CANCELLED".equals(outbound.getStatus())) {
+        if (STATUS_CANCELLED.equals(outbound.getStatus())) {
             return self.getOutbound(outboundId);
         }
         List<WarehouseOutboundLine> allLines =
                 outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
         boolean handedOver = allLines.stream().anyMatch(line -> {
             String hs = line.getHandoverStatus();
-            return "RECEIVED".equals(hs) || "PARTIAL".equals(hs);
+            return RECEIVED.equals(hs) || PARTIAL.equals(hs);
         });
         if (handedOver) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.WAREHOUSE_OUTBOUND_CANCEL_BLOCKED);
@@ -587,8 +598,8 @@ public class WarehouseService {
             }
         }
         if (devices.isEmpty()) {
-            outbound.setStatus("CANCELLED");
-            outbound.setHandoverStatus("CANCELLED");
+            outbound.setStatus(STATUS_CANCELLED);
+            outbound.setHandoverStatus(STATUS_CANCELLED);
             outboundRepository.save(outbound);
             return self.getOutbound(outboundId);
         }
@@ -615,7 +626,7 @@ public class WarehouseService {
 
     private void doCancelUnreceivedOutboundForDevice(Long outboundId, String deviceId, Long operatorId) {
         WarehouseOutbound outbound = requireOutboundForUpdate(outboundId);
-        if ("CANCELLED".equals(outbound.getStatus())) {
+        if (STATUS_CANCELLED.equals(outbound.getStatus())) {
             return;
         }
         String device = deviceId.trim();
@@ -623,13 +634,13 @@ public class WarehouseService {
                 outboundLineRepository.findByOutboundIdAndDeviceIdOrderByLineIdAsc(outboundId, device);
         boolean handedOver = deviceLines.stream().anyMatch(line -> {
             String hs = line.getHandoverStatus();
-            return "RECEIVED".equals(hs) || "PARTIAL".equals(hs);
+            return RECEIVED.equals(hs) || PARTIAL.equals(hs);
         });
         if (handedOver) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_CANCEL_NOT_EMPTY);
         }
         String status = outbound.getStatus();
-        if ("SHIPPED".equals(status)) {
+        if (SHIPPED.equals(status)) {
             for (WarehouseOutboundLine line : deviceLines) {
                 if (line.getQuantity() > 0) {
                     addWarehouseStock(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
@@ -638,29 +649,29 @@ public class WarehouseService {
                             "OUTBOUND_CANCEL", line.getQuantity(), "WAREHOUSE_OUTBOUND",
                             String.valueOf(outboundId), operatorId);
                 }
-                line.setHandoverStatus("CANCELLED");
+                line.setHandoverStatus(STATUS_CANCELLED);
                 outboundLineRepository.save(line);
             }
             inTransitService.cancelOpenForDevice(outboundId, device);
         } else {
             // DRAFT / PICKED：未扣仓，仅标记明细与单据
             for (WarehouseOutboundLine line : deviceLines) {
-                line.setHandoverStatus("CANCELLED");
+                line.setHandoverStatus(STATUS_CANCELLED);
                 outboundLineRepository.save(line);
             }
         }
         List<WarehouseOutboundLine> allLines = outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
         boolean allDeviceCancelled = allLines.stream().allMatch(line ->
-                "CANCELLED".equals(line.getHandoverStatus())
+                STATUS_CANCELLED.equals(line.getHandoverStatus())
                         || line.getDeviceId() == null
                         || line.getDeviceId().isBlank());
         boolean noOpenHandover = allLines.stream().noneMatch(line -> {
             String hs = line.getHandoverStatus();
-            return hs == null || "READY".equals(hs) || "IN_TRANSIT".equals(hs);
+            return hs == null || READY.equals(hs) || IN_TRANSIT.equals(hs);
         });
         if (allDeviceCancelled || noOpenHandover || deviceLines.size() == allLines.size()) {
-            outbound.setStatus("CANCELLED");
-            outbound.setHandoverStatus("CANCELLED");
+            outbound.setStatus(STATUS_CANCELLED);
+            outbound.setHandoverStatus(STATUS_CANCELLED);
             outboundRepository.save(outbound);
         }
     }
@@ -686,7 +697,7 @@ public class WarehouseService {
         int skipped = 0;
         List<Long> cancelledIds = new ArrayList<>();
         for (WarehouseOutbound outbound : outboundRepository.findAllByOrderByCreatedAtDesc()) {
-            if ("CANCELLED".equals(outbound.getStatus())) {
+            if (STATUS_CANCELLED.equals(outbound.getStatus())) {
                 continue;
             }
             Long outboundId = outbound.getOutboundId();
@@ -694,7 +705,7 @@ public class WarehouseService {
                     outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
             boolean handedOver = lines.stream().anyMatch(line -> {
                 String hs = line.getHandoverStatus();
-                return "RECEIVED".equals(hs) || "PARTIAL".equals(hs);
+                return RECEIVED.equals(hs) || PARTIAL.equals(hs);
             });
             if (handedOver) {
                 skipped++;
@@ -703,14 +714,14 @@ public class WarehouseService {
             String status = outbound.getStatus();
             boolean empty = lines.isEmpty();
             String routeStatus = outbound.getRouteId() == null ? null : routeStatusById.get(outbound.getRouteId());
-            boolean terminalRoute = "CANCELLED".equals(routeStatus) || "COMPLETED".equals(routeStatus);
+            boolean terminalRoute = STATUS_CANCELLED.equals(routeStatus) || "COMPLETED".equals(routeStatus);
 
             String bucket = null;
-            if (("DRAFT".equals(status) || "PICKED".equals(status)) && empty) {
+            if ((CabinetConstants.PROMOTION_STATUS_DRAFT.equals(status) || PICKED.equals(status)) && empty) {
                 bucket = "empty";
-            } else if (("DRAFT".equals(status) || "PICKED".equals(status)) && terminalRoute) {
+            } else if ((CabinetConstants.PROMOTION_STATUS_DRAFT.equals(status) || PICKED.equals(status)) && terminalRoute) {
                 bucket = "terminal-draft";
-            } else if ("SHIPPED".equals(status) && terminalRoute && !hasCompletedTaskLinked(outboundId)) {
+            } else if (SHIPPED.equals(status) && terminalRoute && !hasCompletedTaskLinked(outboundId)) {
                 // 终态路线 + 未签收 + 无已完成任务：与 cancel-empty 孤儿收口同安全边界
                 bucket = "orphan-shipped";
             }
@@ -776,14 +787,14 @@ public class WarehouseService {
         int remaining = Math.min(appliedQty, shipped);
         for (WarehouseOutboundLine line : deviceLines) {
             if (full) {
-                line.setHandoverStatus("RECEIVED");
+                line.setHandoverStatus(RECEIVED);
             } else if (remaining <= 0) {
-                line.setHandoverStatus("PARTIAL");
+                line.setHandoverStatus(PARTIAL);
             } else if (remaining >= line.getQuantity()) {
-                line.setHandoverStatus("RECEIVED");
+                line.setHandoverStatus(RECEIVED);
                 remaining -= line.getQuantity();
             } else {
-                line.setHandoverStatus("PARTIAL");
+                line.setHandoverStatus(PARTIAL);
                 remaining = 0;
             }
             outboundLineRepository.save(line);
@@ -793,11 +804,11 @@ public class WarehouseService {
             return;
         }
         List<WarehouseOutboundLine> allLines = outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
-        boolean allReceived = allLines.stream().allMatch(line -> "RECEIVED".equals(line.getHandoverStatus()));
+        boolean allReceived = allLines.stream().allMatch(line -> RECEIVED.equals(line.getHandoverStatus()));
         if (allReceived) {
-            outbound.setHandoverStatus("RECEIVED");
+            outbound.setHandoverStatus(RECEIVED);
         } else {
-            outbound.setHandoverStatus("PARTIAL");
+            outbound.setHandoverStatus(PARTIAL);
         }
         outboundRepository.save(outbound);
     }
@@ -1011,7 +1022,7 @@ public class WarehouseService {
         if (dto.skuId() == null || dto.skuId().isBlank()) throw badRequest("skuId required");
         if (dto.batchNo() == null || dto.batchNo().isBlank()) throw badRequest("batchNo required");
         if (dto.expiryDate() == null) throw badRequest("expiryDate required");
-        if (dto.quantity() <= 0) throw badRequest("quantity must be positive");
+        if (dto.quantity() <= 0) throw badRequest(QUANTITY_MUST_BE_POSITIVE);
         if (!skuCatalogRepository.existsById(dto.skuId())) {
             throw badRequest("sku not found: " + dto.skuId());
         }

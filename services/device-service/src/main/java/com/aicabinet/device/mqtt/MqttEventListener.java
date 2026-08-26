@@ -24,6 +24,9 @@ import java.util.UUID;
 
 @Component
 public class MqttEventListener implements MqttCallbackExtended {
+    private static final String CURRENT_TEMP_C = "current_temp_c";
+    private static final String CURRENTTEMPC = "currentTempC";
+
 
     private static final Logger log = LoggerFactory.getLogger(MqttEventListener.class);
 
@@ -145,11 +148,11 @@ public class MqttEventListener implements MqttCallbackExtended {
     }
 
     private static Integer parseTemp(JsonNode node) {
-        if (node.has("currentTempC") && !node.get("currentTempC").isNull()) {
-            return node.path("currentTempC").asInt();
+        if (node.has(CURRENTTEMPC) && !node.get(CURRENTTEMPC).isNull()) {
+            return node.path(CURRENTTEMPC).asInt();
         }
-        if (node.has("current_temp_c") && !node.get("current_temp_c").isNull()) {
-            return node.path("current_temp_c").asInt();
+        if (node.has(CURRENT_TEMP_C) && !node.get(CURRENT_TEMP_C).isNull()) {
+            return node.path(CURRENT_TEMP_C).asInt();
         }
         return null;
     }

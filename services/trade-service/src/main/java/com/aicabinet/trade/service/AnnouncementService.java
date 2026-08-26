@@ -18,6 +18,9 @@ import java.util.Set;
 
 @Service
 public class AnnouncementService {
+    private static final String STATUS_PUBLISHED = "PUBLISHED";
+    private static final String LITERAL = "公告不存在";
+
 
     private static final Logger log = LoggerFactory.getLogger(AnnouncementService.class);
     private static final Set<String> AUDIENCES = Set.of("CONSUMER", "MERCHANT");
@@ -36,11 +39,11 @@ public class AnnouncementService {
     }
 
     public List<Announcement> listPublished() {
-        return repository.findByStatusOrderByPublishAtDesc("PUBLISHED");
+        return repository.findByStatusOrderByPublishAtDesc(STATUS_PUBLISHED);
     }
 
     public List<Announcement> listByScope(String scope) {
-        return repository.findByTargetScopeAndStatusOrderByPublishAtDesc(scope, "PUBLISHED");
+        return repository.findByTargetScopeAndStatusOrderByPublishAtDesc(scope, STATUS_PUBLISHED);
     }
 
     public List<AnnouncementDto> listPublishedForAudience(String audience) {
@@ -55,13 +58,13 @@ public class AnnouncementService {
     public AnnouncementDto getPublishedForAudience(Long announceId, String audience) {
         String scope = normalizeAudience(audience);
         Announcement a = repository.findById(announceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在"));
-        if (!"PUBLISHED".equals(a.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在");
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
+        if (!STATUS_PUBLISHED.equals(a.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL);
         }
         String target = a.getTargetScope() != null ? a.getTargetScope() : "ALL";
         if (!"ALL".equals(target) && !scope.equals(target)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL);
         }
         if (a.getExpireAt() != null && !a.getExpireAt().isAfter(Instant.now())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "公告已过期");
@@ -129,7 +132,7 @@ public class AnnouncementService {
 
     private Announcement doUpdate(Long announceId, String title, String content, String targetScope, String priority) {
         Announcement a = repository.findByIdForUpdate(announceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         if ("ARCHIVED".equals(a.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "已归档公告不可编辑");
         }
@@ -157,8 +160,8 @@ public class AnnouncementService {
     public Announcement publish(Long announceId) {
         return runWithAnnouncementLock(announceId, () -> {
             Announcement a = repository.findByIdForUpdate(announceId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在"));
-            a.setStatus("PUBLISHED");
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
+            a.setStatus(STATUS_PUBLISHED);
             a.setPublishAt(Instant.now());
             a.setUpdatedAt(Instant.now());
             repository.save(a);
@@ -171,7 +174,7 @@ public class AnnouncementService {
     public Announcement archive(Long announceId) {
         return runWithAnnouncementLock(announceId, () -> {
             Announcement a = repository.findByIdForUpdate(announceId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
             a.setStatus("ARCHIVED");
             a.setUpdatedAt(Instant.now());
             repository.save(a);

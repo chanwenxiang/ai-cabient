@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.CreateWarehouseTransferRequest;
 import com.aicabinet.common.dto.WarehouseTransferDto;
@@ -18,6 +19,9 @@ import java.util.List;
 
 @Service
 public class WarehouseTransferService {
+    private static final String PERM_OPS_WAREHOUSE_EDIT = "ops:warehouse:edit";
+    private static final String TRANSFER = "TRANSFER";
+
 
     private final WarehouseTransferOrderMapper orderMapper;
     private final WarehouseTransferLineMapper lineMapper;
@@ -45,19 +49,19 @@ public class WarehouseTransferService {
 
     @Transactional(readOnly = true)
     public List<WarehouseTransferDto> list(Long operatorId, String status) {
-        permissionService.requireAnyPermission(operatorId, "ops:warehouse:list", "ops:warehouse:edit");
+        permissionService.requireAnyPermission(operatorId, "ops:warehouse:list", PERM_OPS_WAREHOUSE_EDIT);
         return orderMapper.findRecent(status).stream().map(this::toDto).toList();
     }
 
     @Transactional(readOnly = true)
     public WarehouseTransferDto get(Long operatorId, Long transferId) {
-        permissionService.requireAnyPermission(operatorId, "ops:warehouse:list", "ops:warehouse:edit");
+        permissionService.requireAnyPermission(operatorId, "ops:warehouse:list", PERM_OPS_WAREHOUSE_EDIT);
         return toDto(requireOrder(transferId));
     }
 
     @Transactional
     public WarehouseTransferDto create(Long operatorId, CreateWarehouseTransferRequest req) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         String from = req.fromWarehouseId().trim();
         String to = req.toWarehouseId().trim();
         if (from.equalsIgnoreCase(to)) {
@@ -70,7 +74,7 @@ public class WarehouseTransferService {
         order.setTransferNo("WTF" + BizIds.nextNumeric());
         order.setFromWarehouseId(from);
         order.setToWarehouseId(to);
-        order.setStatus("DRAFT");
+        order.setStatus(CabinetConstants.PROMOTION_STATUS_DRAFT);
         order.setOperatorId(operatorId);
         order.setNotes(blankToNull(req.notes()));
         order.setCreatedAt(Instant.now());
@@ -86,19 +90,19 @@ public class WarehouseTransferService {
             row.setQuantity(line.quantity());
             lineMapper.insert(row);
         }
-        auditService.record(operatorId, "WH_TRANSFER_CREATE", "TRANSFER", order.getTransferNo(), from + "->" + to);
+        auditService.record(operatorId, "WH_TRANSFER_CREATE", TRANSFER, order.getTransferNo(), from + "->" + to);
         return toDto(order);
     }
 
     @Transactional
     public WarehouseTransferDto ship(Long operatorId, Long transferId) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         return runWithTransferLock(transferId, () -> doShip(operatorId, transferId));
     }
 
     private WarehouseTransferDto doShip(Long operatorId, Long transferId) {
         WarehouseTransferOrder order = requireOrderForUpdate(transferId);
-        if (!"DRAFT".equals(order.getStatus())) {
+        if (!CabinetConstants.PROMOTION_STATUS_DRAFT.equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "仅草稿可发运");
         }
         List<WarehouseTransferLine> lines = lineMapper.findByTransferId(transferId);
@@ -115,13 +119,13 @@ public class WarehouseTransferService {
         order.setShippedAt(Instant.now());
         order.setUpdatedAt(Instant.now());
         orderMapper.updateById(order);
-        auditService.record(operatorId, "WH_TRANSFER_SHIP", "TRANSFER", order.getTransferNo(), null);
+        auditService.record(operatorId, "WH_TRANSFER_SHIP", TRANSFER, order.getTransferNo(), null);
         return toDto(order);
     }
 
     @Transactional
     public WarehouseTransferDto receive(Long operatorId, Long transferId) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         return runWithTransferLock(transferId, () -> doReceive(operatorId, transferId));
     }
 
@@ -140,19 +144,19 @@ public class WarehouseTransferService {
         order.setReceivedAt(Instant.now());
         order.setUpdatedAt(Instant.now());
         orderMapper.updateById(order);
-        auditService.record(operatorId, "WH_TRANSFER_RECEIVE", "TRANSFER", order.getTransferNo(), null);
+        auditService.record(operatorId, "WH_TRANSFER_RECEIVE", TRANSFER, order.getTransferNo(), null);
         return toDto(order);
     }
 
     @Transactional
     public WarehouseTransferDto cancel(Long operatorId, Long transferId) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         return runWithTransferLock(transferId, () -> doCancel(operatorId, transferId));
     }
 
     private WarehouseTransferDto doCancel(Long operatorId, Long transferId) {
         WarehouseTransferOrder order = requireOrderForUpdate(transferId);
-        if (!"DRAFT".equals(order.getStatus())) {
+        if (!CabinetConstants.PROMOTION_STATUS_DRAFT.equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "仅草稿可取消");
         }
         order.setStatus("CANCELLED");

@@ -35,6 +35,12 @@ import java.util.Set;
 
 @Service
 public class ApprovalWorkflowService {
+    private static final String PERM_OPS_APPROVAL_CONFIG = "ops:approval:config";
+    private static final String APPROVAL_DEF = "APPROVAL_DEF";
+    private static final String STATUS_APPROVED = "APPROVED";
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String STATUS_SKIPPED = "SKIPPED";
+
 
     private static final Logger log = LoggerFactory.getLogger(ApprovalWorkflowService.class);
     private static final Set<String> ASSIGNEE_TYPES = Set.of("PERM", "ROLE", "DEPT", "USER");
@@ -95,7 +101,7 @@ public class ApprovalWorkflowService {
 
         ApprovalInstance existing = instanceRepository.findByBizTypeAndBizId(type, id).orElse(null);
         if (existing != null) {
-            if ("PENDING".equals(existing.getStatus()) || "APPROVED".equals(existing.getStatus())) {
+            if (STATUS_PENDING.equals(existing.getStatus()) || STATUS_APPROVED.equals(existing.getStatus())) {
                 return;
             }
             // REJECTED / CANCELLED → restart for resubmit
@@ -103,7 +109,7 @@ public class ApprovalWorkflowService {
             skipOpenTasks(locked.getInstanceId());
             locked.setDefId(def.getDefId());
             locked.setTitle(resolvedTitle);
-            locked.setStatus("PENDING");
+            locked.setStatus(STATUS_PENDING);
             locked.setSubmitterId(submitterId);
             locked.setCurrentNodeSeq(first.getSeq());
             locked.setRemark(null);
@@ -118,7 +124,7 @@ public class ApprovalWorkflowService {
         instance.setBizType(type);
         instance.setBizId(id);
         instance.setTitle(resolvedTitle);
-        instance.setStatus("PENDING");
+        instance.setStatus(STATUS_PENDING);
         instance.setSubmitterId(submitterId);
         instance.setCurrentNodeSeq(first.getSeq());
         instance = instanceRepository.save(instance);
@@ -134,7 +140,7 @@ public class ApprovalWorkflowService {
             return;
         }
         ApprovalInstance instance = instanceRepository.findByIdForUpdate(pending.getInstanceId()).orElseThrow();
-        if (!"PENDING".equals(instance.getStatus())) {
+        if (!STATUS_PENDING.equals(instance.getStatus())) {
             return;
         }
         List<ApprovalNode> nodes = nodeRepository.findByDefIdOrderBySeqAsc(instance.getDefId());
@@ -147,7 +153,7 @@ public class ApprovalWorkflowService {
         List<ApprovalTask> currentTasks = taskRepository.findByInstanceIdAndNodeSeq(
                 instance.getInstanceId(), current.getSeq());
         boolean actorHasPending = currentTasks.stream()
-                .anyMatch(t -> "PENDING".equals(t.getStatus())
+                .anyMatch(t -> STATUS_PENDING.equals(t.getStatus())
                         && actorUserId != null
                         && actorUserId.equals(t.getAssigneeUserId()));
         if (!actorHasPending) {
@@ -156,13 +162,13 @@ public class ApprovalWorkflowService {
 
         Instant now = Instant.now();
         for (ApprovalTask task : currentTasks) {
-            if ("PENDING".equals(task.getStatus())) {
+            if (STATUS_PENDING.equals(task.getStatus())) {
                 if (actorUserId.equals(task.getAssigneeUserId())) {
-                    task.setStatus("APPROVED");
+                    task.setStatus(STATUS_APPROVED);
                     task.setActedAt(now);
                     task.setRemark(trim(remark));
                 } else {
-                    task.setStatus("SKIPPED");
+                    task.setStatus(STATUS_SKIPPED);
                     task.setActedAt(now);
                 }
                 taskRepository.save(task);
@@ -178,7 +184,7 @@ public class ApprovalWorkflowService {
             return;
         }
 
-        instance.setStatus("APPROVED");
+        instance.setStatus(STATUS_APPROVED);
         instance.setRemark(trim(remark));
         instance.setFinishedAt(now);
         instanceRepository.save(instance);
@@ -192,13 +198,13 @@ public class ApprovalWorkflowService {
             return;
         }
         ApprovalInstance instance = instanceRepository.findByIdForUpdate(pending.getInstanceId()).orElseThrow();
-        if (!"PENDING".equals(instance.getStatus())) {
+        if (!STATUS_PENDING.equals(instance.getStatus())) {
             return;
         }
         List<ApprovalTask> currentTasks = taskRepository.findByInstanceIdAndNodeSeq(
                 instance.getInstanceId(), instance.getCurrentNodeSeq());
         boolean actorHasPending = currentTasks.stream()
-                .anyMatch(t -> "PENDING".equals(t.getStatus())
+                .anyMatch(t -> STATUS_PENDING.equals(t.getStatus())
                         && actorUserId != null
                         && actorUserId.equals(t.getAssigneeUserId()));
         if (!actorHasPending) {
@@ -206,13 +212,13 @@ public class ApprovalWorkflowService {
         }
         Instant now = Instant.now();
         for (ApprovalTask task : currentTasks) {
-            if ("PENDING".equals(task.getStatus())) {
+            if (STATUS_PENDING.equals(task.getStatus())) {
                 if (actorUserId.equals(task.getAssigneeUserId())) {
                     task.setStatus("REJECTED");
                     task.setActedAt(now);
                     task.setRemark(trim(remark));
                 } else {
-                    task.setStatus("SKIPPED");
+                    task.setStatus(STATUS_SKIPPED);
                     task.setActedAt(now);
                 }
                 taskRepository.save(task);
@@ -254,7 +260,7 @@ public class ApprovalWorkflowService {
         }
         return taskRepository.findByInstanceIdAndNodeSeq(instance.getInstanceId(), instance.getCurrentNodeSeq())
                 .stream()
-                .filter(t -> "PENDING".equals(t.getStatus()))
+                .filter(t -> STATUS_PENDING.equals(t.getStatus()))
                 .map(ApprovalTask::getAssigneeUserId)
                 .findFirst()
                 .orElse(null);
@@ -268,7 +274,7 @@ public class ApprovalWorkflowService {
 
     @Transactional(readOnly = true)
     public boolean isInstanceApproved(String bizType, String bizId) {
-        return self.instanceStatus(bizType, bizId).map("APPROVED"::equals).orElse(false);
+        return self.instanceStatus(bizType, bizId).map(STATUS_APPROVED::equals).orElse(false);
     }
 
     @Transactional(readOnly = true)
@@ -296,7 +302,7 @@ public class ApprovalWorkflowService {
 
     @Transactional(readOnly = true)
     public List<ApprovalDefinitionDto> listDefinitions(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:approval:config");
+        permissionService.requirePermission(operatorId, PERM_OPS_APPROVAL_CONFIG);
         return definitionRepository.findAllOrderByBizType().stream()
                 .map(this::toDefinitionDto)
                 .toList();
@@ -304,7 +310,7 @@ public class ApprovalWorkflowService {
 
     @Transactional
     public ApprovalDefinitionDto createDefinition(Long operatorId, CreateApprovalDefinitionRequest req) {
-        permissionService.requirePermission(operatorId, "ops:approval:config");
+        permissionService.requirePermission(operatorId, PERM_OPS_APPROVAL_CONFIG);
         if (req == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体不能为空");
         }
@@ -328,7 +334,7 @@ public class ApprovalWorkflowService {
             nodes = List.of(new ApprovalNodeDto(null, 1, "运营审核", "PERM", "ops:approval:list", "ANY"));
         }
         replaceNodes(def.getDefId(), nodes);
-        auditService.record(operatorId, "APPROVAL_DEF_CREATE", "APPROVAL_DEF",
+        auditService.record(operatorId, "APPROVAL_DEF_CREATE", APPROVAL_DEF,
                 String.valueOf(def.getDefId()), bizType);
         return toDefinitionDto(definitionRepository.selectById(def.getDefId()));
     }
@@ -336,7 +342,7 @@ public class ApprovalWorkflowService {
     @Transactional
     public ApprovalDefinitionDto updateDefinition(Long operatorId, Long defId,
                                                     UpsertApprovalDefinitionRequest req) {
-        permissionService.requirePermission(operatorId, "ops:approval:config");
+        permissionService.requirePermission(operatorId, PERM_OPS_APPROVAL_CONFIG);
         if (req == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体不能为空");
         }
@@ -358,14 +364,14 @@ public class ApprovalWorkflowService {
         if (req.nodes() != null) {
             replaceNodes(defId, req.nodes());
         }
-        auditService.record(operatorId, "APPROVAL_DEF_UPDATE", "APPROVAL_DEF",
+        auditService.record(operatorId, "APPROVAL_DEF_UPDATE", APPROVAL_DEF,
                 String.valueOf(defId), def.getBizType());
         return toDefinitionDto(definitionRepository.selectById(defId));
     }
 
     @Transactional
     public void deleteDefinition(Long operatorId, Long defId) {
-        permissionService.requirePermission(operatorId, "ops:approval:config");
+        permissionService.requirePermission(operatorId, PERM_OPS_APPROVAL_CONFIG);
         ApprovalDefinition def = definitionRepository.selectById(defId);
         if (def == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "审批定义不存在");
@@ -375,7 +381,7 @@ public class ApprovalWorkflowService {
         }
         nodeRepository.deleteByDefId(defId);
         definitionRepository.deleteById(defId);
-        auditService.record(operatorId, "APPROVAL_DEF_DELETE", "APPROVAL_DEF",
+        auditService.record(operatorId, "APPROVAL_DEF_DELETE", APPROVAL_DEF,
                 String.valueOf(defId), def.getBizType());
     }
 
@@ -451,7 +457,7 @@ public class ApprovalWorkflowService {
             task.setNodeSeq(node.getSeq());
             task.setNodeName(node.getNodeName());
             task.setAssigneeUserId(assigneeId);
-            task.setStatus("PENDING");
+            task.setStatus(STATUS_PENDING);
             taskRepository.save(task);
             notificationService.notifyOpsInApp(
                     assigneeId,
@@ -489,10 +495,10 @@ public class ApprovalWorkflowService {
         List<ApprovalTask> tasks = taskRepository.selectList(
                 com.baomidou.mybatisplus.core.toolkit.Wrappers.<ApprovalTask>lambdaQuery()
                         .eq(ApprovalTask::getInstanceId, instanceId)
-                        .eq(ApprovalTask::getStatus, "PENDING"));
+                        .eq(ApprovalTask::getStatus, STATUS_PENDING));
         Instant now = Instant.now();
         for (ApprovalTask task : tasks) {
-            task.setStatus("SKIPPED");
+            task.setStatus(STATUS_SKIPPED);
             task.setActedAt(now);
             taskRepository.save(task);
         }

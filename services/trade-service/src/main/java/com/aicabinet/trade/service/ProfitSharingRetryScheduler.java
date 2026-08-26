@@ -19,6 +19,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class ProfitSharingRetryScheduler {
+    private static final String PROFIT_SHARING_RETRY = "profit-sharing-retry";
+
 
     private static final Logger log = LoggerFactory.getLogger(ProfitSharingRetryScheduler.class);
 
@@ -44,7 +46,7 @@ public class ProfitSharingRetryScheduler {
     @Transactional
     public void retryFailedSplits() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("profit-sharing-retry", 600)) {
+        if (!taskService.tryBegin(PROFIT_SHARING_RETRY, 600)) {
             return;
         }
         boolean failed = false;
@@ -99,11 +101,11 @@ public class ProfitSharingRetryScheduler {
             }
         } catch (Exception e) {
             failed = true;
-            taskService.finish("profit-sharing-retry", "FAILED", e.getMessage(), start);
+            taskService.finish(PROFIT_SHARING_RETRY, "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("profit-sharing-retry", "SUCCESS", summary, start);
+                taskService.finish(PROFIT_SHARING_RETRY, "SUCCESS", summary, start);
             }
         }
     }

@@ -9,6 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ExpiryAlertScheduler {
+    private static final String EXPIRY_ALERT = "expiry-alert";
+
 
     private static final Logger log = LoggerFactory.getLogger(ExpiryAlertScheduler.class);
 
@@ -25,7 +27,7 @@ public class ExpiryAlertScheduler {
     @Transactional
     public void scanExpiry() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("expiry-alert", 600)) {
+        if (!taskService.tryBegin(EXPIRY_ALERT, 600)) {
             return;
         }
         boolean failed = false;
@@ -38,11 +40,11 @@ public class ExpiryAlertScheduler {
             }
         } catch (Exception e) {
             failed = true;
-            taskService.finish("expiry-alert", "FAILED", e.getMessage(), start);
+            taskService.finish(EXPIRY_ALERT, "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("expiry-alert", "SUCCESS", summary, start);
+                taskService.finish(EXPIRY_ALERT, "SUCCESS", summary, start);
             }
         }
     }

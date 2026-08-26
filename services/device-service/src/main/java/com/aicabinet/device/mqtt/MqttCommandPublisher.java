@@ -19,6 +19,9 @@ import java.util.UUID;
 
 @Component
 public class MqttCommandPublisher {
+    private static final String COMMANDID = "commandId";
+    private static final String EXPIREAT = "expireAt";
+
 
     private static final Logger log = LoggerFactory.getLogger(MqttCommandPublisher.class);
 
@@ -63,12 +66,12 @@ public class MqttCommandPublisher {
             ensureConnected();
             String commandId = UUID.randomUUID().toString();
             Map<String, Object> payload = Map.of(
-                    "commandId", commandId,
+                    COMMANDID, commandId,
                     "type", CabinetConstants.MQTT_CMD_OPEN_DOOR,
                     "sessionId", sessionId,
                     "userId", userId,
                     "operatorMode", operatorMode,
-                    "expireAt", System.currentTimeMillis() + 60_000
+                    EXPIREAT, System.currentTimeMillis() + 60_000
             );
             publish(deviceId, payload);
             log.info("published OPEN_DOOR to {} commandId={}", deviceId, commandId);
@@ -83,10 +86,10 @@ public class MqttCommandPublisher {
             ensureConnected();
             String commandId = UUID.randomUUID().toString();
             Map<String, Object> payload = Map.of(
-                    "commandId", commandId,
+                    COMMANDID, commandId,
                     "type", CabinetConstants.MQTT_CMD_SET_TARGET_TEMP,
                     "targetTempC", targetTempC,
-                    "expireAt", System.currentTimeMillis() + 60_000
+                    EXPIREAT, System.currentTimeMillis() + 60_000
             );
             publish(deviceId, payload);
             log.info("published SET_TARGET_TEMP to {} commandId={} target={}", deviceId, commandId, targetTempC);
@@ -102,9 +105,9 @@ public class MqttCommandPublisher {
             ensureConnected();
             String commandId = UUID.randomUUID().toString();
             Map<String, Object> payload = Map.of(
-                    "commandId", commandId,
+                    COMMANDID, commandId,
                     "type", commandType,
-                    "expireAt", System.currentTimeMillis() + 60_000
+                    EXPIREAT, System.currentTimeMillis() + 60_000
             );
             publish(deviceId, payload);
             log.info("published {} to {} commandId={}", commandType, deviceId, commandId);

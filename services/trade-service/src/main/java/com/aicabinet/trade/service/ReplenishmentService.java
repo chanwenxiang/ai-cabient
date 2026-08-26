@@ -71,6 +71,13 @@ import java.util.Map;
 @Service
 
 public class ReplenishmentService {
+    private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
+    private static final String STATUS_COMPLETED = "COMPLETED";
+    private static final String STATUS_CANCELLED = "CANCELLED";
+    private static final String RESTOCK = "RESTOCK";
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String PLANNED = "PLANNED";
+
 
     private static final Logger log = LoggerFactory.getLogger(ReplenishmentService.class);
 
@@ -270,7 +277,7 @@ public class ReplenishmentService {
 
         route.setPlannedDate(request.plannedDate() != null ? request.plannedDate() : LocalDate.now());
 
-        route.setStatus("PLANNED");
+        route.setStatus(PLANNED);
 
         route.setTotalDistanceM(planned.totalDistanceM());
 
@@ -300,7 +307,7 @@ public class ReplenishmentService {
 
             task.setAssigneeUserId(route.getAssigneeUserId());
 
-            task.setStatus("PENDING");
+            task.setStatus(STATUS_PENDING);
 
             task.setNotes("seq=" + wp.sequence() + " dist=" + wp.distanceFromPrevM() + "m");
 
@@ -401,7 +408,7 @@ public class ReplenishmentService {
             for (DeviceSlotService.SlotRestockAllocation alloc : allocations) {
                 ReplenishmentTaskLine line = new ReplenishmentTaskLine();
                 line.setTaskId(taskId);
-                line.setLineType("RESTOCK");
+                line.setLineType(RESTOCK);
                 line.setSkuId(skuId);
                 line.setQuantity(alloc.quantity());
                 line.setSlotId(alloc.slotCode());
@@ -414,7 +421,7 @@ public class ReplenishmentService {
             if (remain > 0) {
                 ReplenishmentTaskLine line = new ReplenishmentTaskLine();
                 line.setTaskId(taskId);
-                line.setLineType("RESTOCK");
+                line.setLineType(RESTOCK);
                 line.setSkuId(skuId);
                 line.setQuantity(remain);
                 line.setApplied(false);
@@ -432,7 +439,7 @@ public class ReplenishmentService {
     public void generateLinesFromOutbound(Long outboundId) {
         List<ReplenishmentTask> tasks = taskRepository.findByOutboundId(outboundId);
         for (ReplenishmentTask task : tasks) {
-            if ("COMPLETED".equals(task.getStatus())) {
+            if (STATUS_COMPLETED.equals(task.getStatus())) {
                 continue;
             }
             if (!taskLineRepository.findByTaskIdAndAppliedFalse(task.getTaskId()).isEmpty()) {
@@ -450,7 +457,7 @@ public class ReplenishmentService {
                 for (DeviceSlotService.SlotRestockAllocation alloc : allocations) {
                     ReplenishmentTaskLine line = new ReplenishmentTaskLine();
                     line.setTaskId(task.getTaskId());
-                    line.setLineType("RESTOCK");
+                    line.setLineType(RESTOCK);
                     line.setSkuId(ol.getSkuId());
                     line.setBatchNo(ol.getBatchNo());
                     line.setExpiryDate(ol.getExpiryDate());
@@ -467,8 +474,8 @@ public class ReplenishmentService {
                             remain, task.getTaskId(), ol.getSkuId(), ol.getSlotId(), allocated);
                 }
             }
-            if (!"IN_PROGRESS".equals(task.getStatus())) {
-                task.setStatus("IN_PROGRESS");
+            if (!STATUS_IN_PROGRESS.equals(task.getStatus())) {
+                task.setStatus(STATUS_IN_PROGRESS);
                 taskRepository.save(task);
             }
         }
@@ -487,8 +494,8 @@ public class ReplenishmentService {
             task.setCheckInLng(request.longitude());
         }
         task.setCheckInAt(Instant.now());
-        if (!"IN_PROGRESS".equals(task.getStatus()) && !"COMPLETED".equals(task.getStatus())) {
-            task.setStatus("IN_PROGRESS");
+        if (!STATUS_IN_PROGRESS.equals(task.getStatus()) && !STATUS_COMPLETED.equals(task.getStatus())) {
+            task.setStatus(STATUS_IN_PROGRESS);
         }
         task = taskRepository.save(task);
         reopenRouteIfActive(task.getRouteId());
@@ -529,7 +536,7 @@ public class ReplenishmentService {
 
         route.setPlannedDate(body.plannedDate() != null ? body.plannedDate() : LocalDate.now());
 
-        route.setStatus("PLANNED");
+        route.setStatus(PLANNED);
 
         route = routeRepository.save(route);
 
@@ -547,7 +554,7 @@ public class ReplenishmentService {
 
                 task.setAssigneeUserId(t.assigneeUserId() != null ? t.assigneeUserId() : route.getAssigneeUserId());
 
-                task.setStatus("PENDING");
+                task.setStatus(STATUS_PENDING);
 
                 task.setNotes(t.notes());
 
@@ -578,7 +585,7 @@ public class ReplenishmentService {
 
         ReplenishmentTask task = requireTaskForUpdate(taskId);
 
-        if ("COMPLETED".equals(task.getStatus())) {
+        if (STATUS_COMPLETED.equals(task.getStatus())) {
 
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_TASK_ALREADY_COMPLETED);
 
@@ -592,9 +599,9 @@ public class ReplenishmentService {
 
                 // 小程序/联调常省略 lineType，默认按上架（RESTOCK）处理
                 String lineType = (dto.lineType() == null || dto.lineType().isBlank())
-                        ? "RESTOCK"
+                        ? RESTOCK
                         : dto.lineType().trim().toUpperCase();
-                if ("RESTOCK".equals(lineType)) {
+                if (RESTOCK.equals(lineType)) {
                     persistRestockLines(task, taskId, dto);
                 } else {
                     ReplenishmentTaskLine line = new ReplenishmentTaskLine();
@@ -615,9 +622,9 @@ public class ReplenishmentService {
 
         }
 
-        if (!"IN_PROGRESS".equals(task.getStatus())) {
+        if (!STATUS_IN_PROGRESS.equals(task.getStatus())) {
 
-            task.setStatus("IN_PROGRESS");
+            task.setStatus(STATUS_IN_PROGRESS);
 
             taskRepository.save(task);
 
@@ -657,12 +664,12 @@ public class ReplenishmentService {
         ReplenishmentTask task = requireTaskForUpdate(taskId);
 
         // 未完成任务必须先签到，避免远程误点完成导致库存虚增
-        if (!"COMPLETED".equals(task.getStatus()) && task.getCheckInAt() == null) {
+        if (!STATUS_COMPLETED.equals(task.getStatus()) && task.getCheckInAt() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     ApiMessages.REPLENISHMENT_COMPLETE_CHECK_IN_REQUIRED);
         }
 
-        if ("COMPLETED".equals(task.getStatus())) {
+        if (STATUS_COMPLETED.equals(task.getStatus())) {
             // 任务已完成但出库仍在途（先完成任务、后发运的联调顺序）时，补签收；
             // 仅当任务本身无明细时按出库行回写，避免与已上架任务行重复加库存
             if (task.getOutboundId() != null
@@ -675,7 +682,7 @@ public class ReplenishmentService {
                             task, operatorId, "OB-" + task.getOutboundId());
                 } else {
                     appliedQty = existingLines.stream()
-                            .filter(l -> "RESTOCK".equalsIgnoreCase(l.getLineType()))
+                            .filter(l -> RESTOCK.equalsIgnoreCase(l.getLineType()))
                             .filter(ReplenishmentTaskLine::isApplied)
                             .mapToInt(ReplenishmentTaskLine::getQuantity)
                             .sum();
@@ -715,7 +722,7 @@ public class ReplenishmentService {
 
             inventoryLotService.applyReplenishmentLine(task.getDeviceId(), line, operatorId, refId);
 
-            if ("RESTOCK".equalsIgnoreCase(line.getLineType())) {
+            if (RESTOCK.equalsIgnoreCase(line.getLineType())) {
                 deviceSlotService.recordRestock(task.getDeviceId(), line.getSlotId());
                 appliedRestockQty += line.getQuantity();
             }
@@ -728,7 +735,7 @@ public class ReplenishmentService {
 
         deviceSlotService.clampDeviceOverCapacity(task.getDeviceId());
 
-        task.setStatus("COMPLETED");
+        task.setStatus(STATUS_COMPLETED);
 
         task.setCompletedAt(Instant.now());
 
@@ -736,7 +743,7 @@ public class ReplenishmentService {
             // 仓配在途签收：按出库行上架；若已有现场 RESTOCK 行，则只补「SKU 差额」，避免重复加可乐又漏掉水。
             Map<String, Integer> appliedBySku = new HashMap<>();
             for (ReplenishmentTaskLine line : taskLineRepository.findByTaskIdOrderByLineIdAsc(taskId)) {
-                if (!"RESTOCK".equalsIgnoreCase(line.getLineType()) || !line.isApplied()) {
+                if (!RESTOCK.equalsIgnoreCase(line.getLineType()) || !line.isApplied()) {
                     continue;
                 }
                 appliedBySku.merge(line.getSkuId(), line.getQuantity(), Integer::sum);
@@ -774,7 +781,7 @@ public class ReplenishmentService {
             if (!"ACCEPTED".equalsIgnoreCase(req.getStatus())) {
                 return;
             }
-            req.setStatus("COMPLETED");
+            req.setStatus(STATUS_COMPLETED);
             merchantRequestRepository.save(req);
         });
     }
@@ -887,7 +894,7 @@ public class ReplenishmentService {
     private void saveRestockLine(Long taskId, ReplenishmentTaskLineDto dto, String slotId, int qty) {
         ReplenishmentTaskLine line = new ReplenishmentTaskLine();
         line.setTaskId(taskId);
-        line.setLineType("RESTOCK");
+        line.setLineType(RESTOCK);
         line.setSkuId(dto.skuId());
         line.setBatchNo(dto.batchNo());
         line.setProductionDate(dto.productionDate());
@@ -911,8 +918,8 @@ public class ReplenishmentService {
     public ReplenishmentTaskDto cancelEmptyTask(Long operatorId, Long taskId) {
         ReplenishmentTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.REPLENISHMENT_TASK_NOT_FOUND));
-        boolean alreadyCancelled = "CANCELLED".equals(task.getStatus());
-        if ("COMPLETED".equals(task.getStatus())) {
+        boolean alreadyCancelled = STATUS_CANCELLED.equals(task.getStatus());
+        if (STATUS_COMPLETED.equals(task.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_TASK_ALREADY_COMPLETED);
         }
         if (!alreadyCancelled) {
@@ -922,7 +929,7 @@ public class ReplenishmentService {
             warehouseService.cancelUnreceivedOutboundForDevice(task.getOutboundId(), task.getDeviceId(), operatorId);
         }
         if (!alreadyCancelled) {
-            task.setStatus("CANCELLED");
+            task.setStatus(STATUS_CANCELLED);
             task = taskRepository.save(task);
             if (sessionService != null) {
                 sessionService.closeRestockSessionsForTask(taskId, "补货任务已取消，自动关闭开门会话");
@@ -948,9 +955,9 @@ public class ReplenishmentService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.REPLENISHMENT_ROUTE_NOT_FOUND));
         List<ReplenishmentTask> tasks = taskRepository.findByRouteId(routeId);
         // 终态路线仍允许幂等收口脏出库（如历史 SHIPPED + 任务已取消）
-        if ("CANCELLED".equals(route.getStatus()) || "COMPLETED".equals(route.getStatus())) {
+        if (STATUS_CANCELLED.equals(route.getStatus()) || STATUS_COMPLETED.equals(route.getStatus())) {
             for (ReplenishmentTask task : tasks) {
-                if (task.getOutboundId() != null && !"COMPLETED".equals(task.getStatus())) {
+                if (task.getOutboundId() != null && !STATUS_COMPLETED.equals(task.getStatus())) {
                     warehouseService.cancelUnreceivedOutboundForDevice(
                             task.getOutboundId(), task.getDeviceId(), operatorId);
                 }
@@ -960,10 +967,10 @@ public class ReplenishmentService {
             return toRouteDto(route);
         }
         for (ReplenishmentTask task : tasks) {
-            if ("COMPLETED".equals(task.getStatus())) {
+            if (STATUS_COMPLETED.equals(task.getStatus())) {
                 continue;
             }
-            if ("CANCELLED".equals(task.getStatus())) {
+            if (STATUS_CANCELLED.equals(task.getStatus())) {
                 if (task.getOutboundId() != null) {
                     warehouseService.cancelUnreceivedOutboundForDevice(
                             task.getOutboundId(), task.getDeviceId(), operatorId);
@@ -978,7 +985,7 @@ public class ReplenishmentService {
             if (task.getOutboundId() != null) {
                 warehouseService.cancelUnreceivedOutboundForDevice(task.getOutboundId(), task.getDeviceId(), operatorId);
             }
-            task.setStatus("CANCELLED");
+            task.setStatus(STATUS_CANCELLED);
             taskRepository.save(task);
             if (sessionService != null) {
                 sessionService.closeRestockSessionsForTask(task.getTaskId(), "补货任务已取消，自动关闭开门会话");
@@ -987,8 +994,8 @@ public class ReplenishmentService {
         finalizeRouteIfReady(routeId);
         route = routeRepository.findById(routeId).orElse(route);
         // 仍开放则强制标 CANCELLED（任务已全部取消）
-        if (!"CANCELLED".equals(route.getStatus()) && !"COMPLETED".equals(route.getStatus())) {
-            route.setStatus("CANCELLED");
+        if (!STATUS_CANCELLED.equals(route.getStatus()) && !STATUS_COMPLETED.equals(route.getStatus())) {
+            route.setStatus(STATUS_CANCELLED);
             route = routeRepository.save(route);
         }
         log.info("cancelEmptyRoute routeId={} operatorId={} status={}", routeId, operatorId, route.getStatus());
@@ -1021,21 +1028,21 @@ public class ReplenishmentService {
         List<ReplenishmentTask> routeTasks = taskRepository.findByRouteId(routeId);
         if (routeTasks.isEmpty()) {
             routeRepository.findByIdForUpdate(routeId).ifPresent(route -> {
-                if (!"CANCELLED".equals(route.getStatus()) && !"COMPLETED".equals(route.getStatus())) {
-                    route.setStatus("CANCELLED");
+                if (!STATUS_CANCELLED.equals(route.getStatus()) && !STATUS_COMPLETED.equals(route.getStatus())) {
+                    route.setStatus(STATUS_CANCELLED);
                     routeRepository.save(route);
                 }
             });
             return;
         }
         boolean allTerminal = routeTasks.stream()
-                .allMatch(item -> "COMPLETED".equals(item.getStatus()) || "CANCELLED".equals(item.getStatus()));
+                .allMatch(item -> STATUS_COMPLETED.equals(item.getStatus()) || STATUS_CANCELLED.equals(item.getStatus()));
         if (!allTerminal) {
             return;
         }
-        boolean anyCompleted = routeTasks.stream().anyMatch(item -> "COMPLETED".equals(item.getStatus()));
+        boolean anyCompleted = routeTasks.stream().anyMatch(item -> STATUS_COMPLETED.equals(item.getStatus()));
         routeRepository.findByIdForUpdate(routeId).ifPresent(route -> {
-            route.setStatus(anyCompleted ? "COMPLETED" : "CANCELLED");
+            route.setStatus(anyCompleted ? STATUS_COMPLETED : STATUS_CANCELLED);
             routeRepository.save(route);
         });
     }
@@ -1054,13 +1061,13 @@ public class ReplenishmentService {
     private void doReopenRouteIfActive(Long routeId) {
         List<ReplenishmentTask> routeTasks = taskRepository.findByRouteId(routeId);
         boolean hasOpen = routeTasks.stream()
-                .anyMatch(item -> !"COMPLETED".equals(item.getStatus()) && !"CANCELLED".equals(item.getStatus()));
+                .anyMatch(item -> !STATUS_COMPLETED.equals(item.getStatus()) && !STATUS_CANCELLED.equals(item.getStatus()));
         if (!hasOpen) {
             return;
         }
         routeRepository.findByIdForUpdate(routeId).ifPresent(route -> {
-            if ("COMPLETED".equals(route.getStatus()) || "CANCELLED".equals(route.getStatus())) {
-                route.setStatus("IN_PROGRESS");
+            if (STATUS_COMPLETED.equals(route.getStatus()) || STATUS_CANCELLED.equals(route.getStatus())) {
+                route.setStatus(STATUS_IN_PROGRESS);
                 routeRepository.save(route);
             }
         });
@@ -1071,7 +1078,7 @@ public class ReplenishmentService {
     @Transactional(readOnly = true)
 
     public List<ReplenishmentTaskDto> myTasks(Long assigneeUserId) {
-        return taskRepository.findByAssigneeUserIdAndStatusIn(assigneeUserId, List.of("PENDING", "IN_PROGRESS")).stream()
+        return taskRepository.findByAssigneeUserIdAndStatusIn(assigneeUserId, List.of(STATUS_PENDING, STATUS_IN_PROGRESS)).stream()
                 .map(this::toTaskDto)
                 .toList();
     }
@@ -1123,14 +1130,14 @@ public class ReplenishmentService {
         String lineType = request != null && request.lineType() != null
                 ? request.lineType().trim().toUpperCase(java.util.Locale.ROOT)
                 : "PULL_OFF";
-        if (!"PULL_OFF".equals(lineType) && !"RESTOCK".equals(lineType)) {
+        if (!"PULL_OFF".equals(lineType) && !RESTOCK.equals(lineType)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "lineType 仅支持 PULL_OFF 或 RESTOCK");
         }
         Long assignee = request != null ? request.assigneeUserId() : null;
 
         int qty = Math.max(1, pull.getQuantity());
         List<DeviceSlotService.SlotRestockAllocation> restockAllocs = List.of();
-        if ("RESTOCK".equals(lineType)) {
+        if (RESTOCK.equals(lineType)) {
             if (!deviceSlotService.hasSkuSlots(pull.getDeviceId(), pull.getSkuId())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "该商品未绑定货道，无法创建补货任务；请先在货道配置中绑定 SKU");
@@ -1154,20 +1161,20 @@ public class ReplenishmentService {
         route.setRouteName("临期-" + pull.getDeviceId() + "-" + pull.getSkuId());
         route.setAssigneeUserId(assignee != null ? assignee : operatorId);
         route.setPlannedDate(LocalDate.now());
-        route.setStatus("PLANNED");
+        route.setStatus(PLANNED);
         route = routeRepository.save(route);
 
         ReplenishmentTask task = new ReplenishmentTask();
         task.setRouteId(route.getRouteId());
         task.setDeviceId(pull.getDeviceId());
         task.setAssigneeUserId(route.getAssigneeUserId());
-        task.setStatus("PENDING");
+        task.setStatus(STATUS_PENDING);
         task.setNotes("from-expiry:" + pull.getTaskId()
                 + (pull.getReason() != null ? " " + pull.getReason() : ""));
         task = taskRepository.save(task);
         notifyTaskAssigned(task);
 
-        if ("RESTOCK".equals(lineType)) {
+        if (RESTOCK.equals(lineType)) {
             // 与 seedDraftRestockLines 一致：每个货道分配单独一行，避免把总量写进首槽导致超填
             for (DeviceSlotService.SlotRestockAllocation alloc : restockAllocs) {
                 ReplenishmentTaskLine line = new ReplenishmentTaskLine();

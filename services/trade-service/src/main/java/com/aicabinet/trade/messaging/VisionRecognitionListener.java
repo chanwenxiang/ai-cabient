@@ -17,6 +17,8 @@ import java.util.List;
 @Component
 @ConditionalOnProperty(prefix = "aicabinet.vision-async", name = "enabled", havingValue = "true")
 public class VisionRecognitionListener {
+    private static final String ITEMS = "items";
+
 
     private static final Logger log = LoggerFactory.getLogger(VisionRecognitionListener.class);
 
@@ -38,8 +40,8 @@ public class VisionRecognitionListener {
             boolean needReview = node.path("needReview").asBoolean(false);
 
             List<VisionServiceClient.RecognizedItem> items = new ArrayList<>();
-            if (node.has("items") && node.get("items").isArray()) {
-                for (JsonNode item : node.get("items")) {
+            if (node.has(ITEMS) && node.get(ITEMS).isArray()) {
+                for (JsonNode item : node.get(ITEMS)) {
                     items.add(new VisionServiceClient.RecognizedItem(
                             item.path("skuId").asText(),
                             item.path("quantity").asInt(1),

@@ -20,6 +20,8 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v2/marketing")
 public class MarketingController {
+    private static final String BEARER = "Bearer ";
+
 
     private final ConsumerMarketingService marketingService;
     private final JwtService jwtService;
@@ -57,13 +59,13 @@ public class MarketingController {
     /** 公开接口上的可选登录：有 token 则解析；无效/缺失则按游客，不 401。 */
     private Long resolveOptionalUserId(HttpServletRequest request) {
         String auth = request.getHeader("Authorization");
-        if (auth == null || !auth.startsWith("Bearer ")) {
+        if (auth == null || !auth.startsWith(BEARER)) {
             String cookieToken = sessionCookieService.resolveToken(request);
             if (cookieToken != null && !cookieToken.isBlank()) {
-                auth = "Bearer " + cookieToken;
+                auth = BEARER + cookieToken;
             }
         }
-        if (auth == null || !auth.startsWith("Bearer ")) {
+        if (auth == null || !auth.startsWith(BEARER)) {
             return null;
         }
         try {

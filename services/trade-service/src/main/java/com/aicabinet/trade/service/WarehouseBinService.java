@@ -28,6 +28,8 @@ import java.util.List;
  */
 @Service
 public class WarehouseBinService {
+    private static final String PERM_OPS_WAREHOUSE_EDIT = "ops:warehouse:edit";
+
 
     private final PermissionService permissionService;
     private final WarehouseBinMapper binRepository;
@@ -67,7 +69,7 @@ public class WarehouseBinService {
 
     @Transactional
     public WarehouseBinDto upsertBin(Long operatorId, UpsertWarehouseBinRequest request) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         String wh = required(request.warehouseId(), "warehouseId").trim();
         String binCode = required(request.binCode(), "binCode").trim();
         warehouseRepository.findById(wh).orElseThrow(() -> notFound("warehouse"));
@@ -108,7 +110,7 @@ public class WarehouseBinService {
 
     @Transactional
     public void inboundToBin(Long operatorId, BinInboundRequest request) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         String wh = required(request.warehouseId(), "warehouseId").trim();
         String binCode = required(request.binCode(), "binCode").trim();
         int qty = request.quantity();
@@ -139,7 +141,7 @@ public class WarehouseBinService {
 
     @Transactional
     public void moveBetweenBins(Long operatorId, BinMoveRequest request) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
         if (request.fromBinId().equals(request.toBinId())) {
             throw badRequest("from and to bin must differ");
         }

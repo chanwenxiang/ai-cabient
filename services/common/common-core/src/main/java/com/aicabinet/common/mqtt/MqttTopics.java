@@ -5,19 +5,21 @@ package com.aicabinet.common.mqtt;
  * 参考旧系统 M8 Socket.IO 消息，统一为 MQTT 5.0。
  */
 public final class MqttTopics {
+    private static final String CABINET = "cabinet/";
+
 
     private MqttTopics() {}
 
     public static String command(String deviceId) {
-        return "cabinet/" + deviceId + "/cmd";
+        return CABINET + deviceId + "/cmd";
     }
 
     public static String event(String deviceId) {
-        return "cabinet/" + deviceId + "/evt";
+        return CABINET + deviceId + "/evt";
     }
 
     public static String videoChunk(String deviceId) {
-        return "cabinet/" + deviceId + "/data/video-chunk";
+        return CABINET + deviceId + "/data/video-chunk";
     }
 
     /** 设备订阅：接收下行指令 */

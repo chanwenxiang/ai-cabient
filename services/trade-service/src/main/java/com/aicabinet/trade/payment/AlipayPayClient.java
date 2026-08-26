@@ -11,6 +11,8 @@ import java.util.Map;
 
 @Component
 public class AlipayPayClient {
+    private static final String OUT_TRADE_NO = "out_trade_no";
+
 
     private final AlipayProperties properties;
     private final AlipayOpenApiClient openApiClient;
@@ -26,7 +28,7 @@ public class AlipayPayClient {
 
     public AlipayPrepayResult createWapPay(String outTradeNo, int amountCents, String subject) {
         Map<String, Object> biz = new LinkedHashMap<>();
-        biz.put("out_trade_no", outTradeNo);
+        biz.put(OUT_TRADE_NO, outTradeNo);
         biz.put("total_amount", formatAmount(amountCents));
         biz.put("subject", subject);
         biz.put("product_code", "QUICK_WAP_WAY");
@@ -63,7 +65,7 @@ public class AlipayPayClient {
      */
     public String payWithAgreement(String outTradeNo, String agreementNo, int amountCents, String subject) {
         Map<String, Object> biz = new LinkedHashMap<>();
-        biz.put("out_trade_no", outTradeNo);
+        biz.put(OUT_TRADE_NO, outTradeNo);
         biz.put("total_amount", formatAmount(amountCents));
         biz.put("subject", subject == null || subject.isBlank() ? "AI开门柜购物" : subject);
         biz.put("product_code", "GENERAL_WITHHOLDING");
@@ -79,16 +81,16 @@ public class AlipayPayClient {
     }
 
     public JsonNode queryByOutTradeNo(String outTradeNo) {
-        return openApiClient.execute("alipay.trade.query", Map.of("out_trade_no", outTradeNo));
+        return openApiClient.execute("alipay.trade.query", Map.of(OUT_TRADE_NO, outTradeNo));
     }
 
     public void closeOrder(String outTradeNo) {
-        openApiClient.execute("alipay.trade.close", Map.of("out_trade_no", outTradeNo));
+        openApiClient.execute("alipay.trade.close", Map.of(OUT_TRADE_NO, outTradeNo));
     }
 
     public void refund(String outTradeNo, String outRefundNo, int refundCents, String reason) {
         Map<String, Object> biz = new LinkedHashMap<>();
-        biz.put("out_trade_no", outTradeNo);
+        biz.put(OUT_TRADE_NO, outTradeNo);
         biz.put("out_request_no", outRefundNo);
         biz.put("refund_amount", formatAmount(refundCents));
         biz.put("refund_reason", reason != null ? reason : "用户退款");

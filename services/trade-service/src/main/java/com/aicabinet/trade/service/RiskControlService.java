@@ -23,6 +23,8 @@ import java.util.Map;
 
 @Service
 public class RiskControlService {
+    private static final String REASON = "reason";
+
 
     private static final Logger log = LoggerFactory.getLogger(RiskControlService.class);
 
@@ -54,7 +56,7 @@ public class RiskControlService {
         Instant now = Instant.now();
         blacklistRepository.findById(userId).ifPresent(bl -> {
             if (bl.getExpiresAt() == null || bl.getExpiresAt().isAfter(now)) {
-                recordEvent(userId, deviceId, "BLACKLIST_HIT", "BLOCK", Map.of("reason", bl.getReason()));
+                recordEvent(userId, deviceId, "BLACKLIST_HIT", "BLOCK", Map.of(REASON, bl.getReason()));
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                         ApiMessages.USER_BLACKLISTED + (bl.getReason() == null || bl.getReason().isBlank()
                                 ? "" : "：" + bl.getReason()));
@@ -90,7 +92,7 @@ public class RiskControlService {
             bl.setSource("MANUAL");
             bl.setExpiresAt(expiresAt);
             blacklistRepository.save(bl);
-            recordEvent(userId, null, "BLACKLIST_ADD", "INFO", Map.of("reason", reason, "by", operatorId));
+            recordEvent(userId, null, "BLACKLIST_ADD", "INFO", Map.of(REASON, reason, "by", operatorId));
             log.info("user blacklisted userId={} by={}", userId, operatorId);
             return null;
         });
@@ -119,7 +121,7 @@ public class RiskControlService {
             bl.setSource("AUTO");
             bl.setExpiresAt(Instant.now().plus(30, ChronoUnit.DAYS));
             blacklistRepository.save(bl);
-            recordEvent(userId, null, "BLACKLIST_AUTO", "BLOCK", Map.of("reason", reason));
+            recordEvent(userId, null, "BLACKLIST_AUTO", "BLOCK", Map.of(REASON, reason));
         } finally {
             distributedLockService.unlock(blacklistLockKey(userId));
         }

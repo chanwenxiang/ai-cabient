@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.trade.config.LineWithdrawProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
@@ -31,15 +32,15 @@ public class LineWithdrawPayoutService {
             return PayoutResult.success("MOCK", ref, "Mock 打款成功");
         }
         if (manager.getWxOpenid() == null || manager.getWxOpenid().isBlank()) {
-            return PayoutResult.failure("WECHAT", null, "缺少 wx_openid，无法打款到零钱");
+            return PayoutResult.failure(CabinetConstants.PAY_CHANNEL_WECHAT, null, "缺少 wx_openid，无法打款到零钱");
         }
         if (!weChatPayProperties.isConfigured()) {
-            return PayoutResult.failure("WECHAT", null, "微信支付未配置，无法发起转账");
+            return PayoutResult.failure(CabinetConstants.PAY_CHANNEL_WECHAT, null, "微信支付未配置，无法发起转账");
         }
         // 骨架：生产需对接商家转账到零钱 API（/v3/transfer/batches 或新版单笔接口）
         log.warn("WeChat transfer skeleton hit: requestId={}, openid={}, amountCents={}",
                 request.getRequestId(), manager.getWxOpenid(), request.getAmountCents());
-        return PayoutResult.failure("WECHAT", null, "微信转账接口尚未接入");
+        return PayoutResult.failure(CabinetConstants.PAY_CHANNEL_WECHAT, null, "微信转账接口尚未接入");
     }
 
     public record PayoutResult(

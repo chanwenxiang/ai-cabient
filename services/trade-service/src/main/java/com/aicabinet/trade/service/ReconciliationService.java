@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.PaymentPlatformBillLineDto;
 import com.aicabinet.common.dto.PaymentReconciliationDetailDto;
@@ -86,7 +87,7 @@ public class ReconciliationService {
 
     @Transactional
     public PaymentReconciliationDto runDaily(Long operatorId, LocalDate date, String channel) {
-        String ch = channel != null ? channel.toUpperCase() : "WECHAT";
+        String ch = channel != null ? channel.toUpperCase() : CabinetConstants.PAY_CHANNEL_WECHAT;
         return runWithDailyLock(date, ch, () -> {
             reconRepository.findByReconDateAndChannel(date, ch).ifPresent(existing -> {
                 billLineRepository.deleteByReconId(existing.getReconId());
@@ -210,7 +211,7 @@ public class ReconciliationService {
 
     private long sumLedger(Instant start, Instant end, String channel) {
         long total = paymentOperationRepository.sumNetCashflowBetween(start, end, channel);
-        if ("WECHAT".equals(channel) || "MOCK".equals(channel) || "ALIPAY".equals(channel)) {
+        if (CabinetConstants.PAY_CHANNEL_WECHAT.equals(channel) || "MOCK".equals(channel) || "ALIPAY".equals(channel)) {
             total += rechargeRepository.sumPaidAmountBetween(start, end);
         }
         return total;
@@ -219,7 +220,7 @@ public class ReconciliationService {
     private Set<String> collectLedgerOrderIds(Instant start, Instant end, String channel) {
         Set<String> ids = new HashSet<>(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(
                 start, end, channel));
-        if ("WECHAT".equals(channel) || "MOCK".equals(channel) || "ALIPAY".equals(channel)) {
+        if (CabinetConstants.PAY_CHANNEL_WECHAT.equals(channel) || "MOCK".equals(channel) || "ALIPAY".equals(channel)) {
             ids.addAll(rechargeRepository.findPaidOrderIdsBetween(start, end));
         }
         return ids;

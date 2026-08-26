@@ -32,6 +32,9 @@ import java.util.stream.Collectors;
 
 @Service
 public class FundBillService {
+    private static final String PERM_OPS_FINANCE_VIEW = "ops:finance:view";
+    private static final String PERM_OPS_FUND_LIST = "ops:fund:list";
+
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     /** 通道费按实付约 0.6% 估算展示（微信/支付宝常见费率量级） */
@@ -72,7 +75,7 @@ public class FundBillService {
 
     @Transactional(readOnly = true)
     public List<FundDailyBillDto> listDailyBills(Long operatorId, String fromDate, String toDate) {
-        permissionService.requireAnyPermission(operatorId, "ops:fund:list", "ops:finance:view");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_FUND_LIST, PERM_OPS_FINANCE_VIEW);
         LocalDate from = parseDate(fromDate, LocalDate.now(ZONE).minusDays(30));
         LocalDate to = parseDate(toDate, LocalDate.now(ZONE));
         Instant start = from.atStartOfDay(ZONE).toInstant();
@@ -143,7 +146,7 @@ public class FundBillService {
     public PageResult<FundLedgerEntryDto> listLedger(Long operatorId, String fromDate, String toDate,
                                                      String financialType, String direction,
                                                      int page, int size) {
-        permissionService.requireAnyPermission(operatorId, "ops:fund:list", "ops:finance:view");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_FUND_LIST, PERM_OPS_FINANCE_VIEW);
         LocalDate from = parseDate(fromDate, LocalDate.now(ZONE).minusDays(7));
         LocalDate to = parseDate(toDate, LocalDate.now(ZONE));
         Instant start = from.atStartOfDay(ZONE).toInstant();
@@ -192,7 +195,7 @@ public class FundBillService {
 
     @Transactional(readOnly = true)
     public byte[] exportDailyBillsCsv(Long operatorId, String fromDate, String toDate) {
-        permissionService.requireAnyPermission(operatorId, "ops:fund:export", "ops:fund:list", "ops:finance:view");
+        permissionService.requireAnyPermission(operatorId, "ops:fund:export", PERM_OPS_FUND_LIST, PERM_OPS_FINANCE_VIEW);
         StringBuilder sb = new StringBuilder(
                 "bizDate,merchantId,merchantName,orderPaidCents,platformFeeCents,channelFeeCents,creditedCents,pendingCents,orderCount,solidified\n");
         for (FundDailyBillDto d : self.listDailyBills(operatorId, fromDate, toDate)) {
@@ -213,7 +216,7 @@ public class FundBillService {
     @Transactional
     public FinanceMarginLockDto solidifyMargin(Long operatorId, LocalDate bizDate) {
         if (operatorId != null) {
-            permissionService.requireAnyPermission(operatorId, "ops:finance:view", "ops:fund:list");
+            permissionService.requireAnyPermission(operatorId, PERM_OPS_FINANCE_VIEW, PERM_OPS_FUND_LIST);
         }
         LocalDate day = bizDate != null ? bizDate : LocalDate.now(ZONE).minusDays(1);
         if (!day.isBefore(LocalDate.now(ZONE))) {
@@ -253,7 +256,7 @@ public class FundBillService {
 
     @Transactional(readOnly = true)
     public List<FinanceMarginLockDto> listMarginLocks(Long operatorId, String fromDate, String toDate) {
-        permissionService.requireAnyPermission(operatorId, "ops:finance:view", "ops:fund:list");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_FINANCE_VIEW, PERM_OPS_FUND_LIST);
         LocalDate from = parseDate(fromDate, LocalDate.now(ZONE).minusDays(30));
         LocalDate to = parseDate(toDate, LocalDate.now(ZONE));
         Map<LocalDate, FinanceMarginDailyLock> locked = marginLockMapper.findByBizDateBetween(from, to).stream()

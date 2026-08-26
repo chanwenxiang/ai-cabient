@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.MemberLevelRuleDto;
 import com.aicabinet.trade.domain.MemberLevelRule;
@@ -59,7 +60,7 @@ public class MemberLevelAdminService {
         rule.setMaxPoints(dto.maxPoints());
         rule.setPointsRate(dto.pointsRate() == null ? BigDecimal.ONE : dto.pointsRate());
         rule.setSortorder(dto.sortOrder());
-        rule.setStatus(dto.status() == null ? "ACTIVE" : dto.status());
+        rule.setStatus(dto.status() == null ? CabinetConstants.PROMOTION_STATUS_ACTIVE : dto.status());
         rule.setUpdatedAt(Instant.now());
         return toDto(levelRuleRepository.save(rule));
     }
@@ -69,7 +70,7 @@ public class MemberLevelAdminService {
         return runWithLevelIdLock(id, () -> {
             MemberLevelRule rule = levelRuleRepository.findByIdForUpdate(id)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "等级不存在"));
-            rule.setStatus("ACTIVE".equalsIgnoreCase(status) ? "ACTIVE" : "INACTIVE");
+            rule.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(status) ? CabinetConstants.PROMOTION_STATUS_ACTIVE : "INACTIVE");
             rule.setUpdatedAt(Instant.now());
             return toDto(levelRuleRepository.save(rule));
         });

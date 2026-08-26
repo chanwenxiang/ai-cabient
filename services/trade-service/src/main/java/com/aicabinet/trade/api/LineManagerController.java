@@ -17,6 +17,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v2/ops/admin/line-managers")
 public class LineManagerController {
+    private static final String AMOUNTCENTS = "amountCents";
+
 
     private final LineManagerService lineManagerService;
     private final LineWithdrawService lineWithdrawService;
@@ -78,8 +80,8 @@ public class LineManagerController {
     @PostMapping("/{managerId}/adjust")
     public ApiResponse<LineManagerDto> adjust(
             HttpServletRequest request, @PathVariable long managerId, @RequestBody Map<String, Object> body) {
-        long amount = body.get("amountCents") instanceof Number n ? n.longValue()
-                : Long.parseLong(String.valueOf(body.get("amountCents")));
+        long amount = body.get(AMOUNTCENTS) instanceof Number n ? n.longValue()
+                : Long.parseLong(String.valueOf(body.get(AMOUNTCENTS)));
         String remark = body.get("remark") == null ? null : String.valueOf(body.get("remark"));
         return ApiResponse.ok(lineManagerService.adjust(operator(request), managerId, amount, remark));
     }
@@ -96,8 +98,8 @@ public class LineManagerController {
     @PostMapping("/{managerId}/withdraw")
     public ApiResponse<LineWithdrawRequestDto> withdraw(
             HttpServletRequest request, @PathVariable long managerId, @RequestBody Map<String, Object> body) {
-        long amount = body.get("amountCents") instanceof Number n ? n.longValue()
-                : Long.parseLong(String.valueOf(body.get("amountCents")));
+        long amount = body.get(AMOUNTCENTS) instanceof Number n ? n.longValue()
+                : Long.parseLong(String.valueOf(body.get(AMOUNTCENTS)));
         String requestNo = body.get("requestNo") == null ? null : String.valueOf(body.get("requestNo"));
         return ApiResponse.ok(lineWithdrawService.apply(managerId, amount, requestNo));
     }

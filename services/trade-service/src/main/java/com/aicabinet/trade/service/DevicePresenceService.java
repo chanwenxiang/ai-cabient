@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.DeviceTemperatureReading;
@@ -21,6 +22,8 @@ import java.util.function.Supplier;
 
 @Service
 public class DevicePresenceService {
+    private static final String DEVICE_PRESENCE = "device-presence";
+
 
     private static final Logger log = LoggerFactory.getLogger(DevicePresenceService.class);
     private static final long OFFLINE_AFTER_MINUTES = 2;
@@ -76,8 +79,8 @@ public class DevicePresenceService {
 
     private void doHeartbeat(String deviceId, String appVersion, String firmwareVersion, Integer currentTempC) {
         DeviceInfo device = deviceRepository.findByIdForUpdate(deviceId).orElseGet(() -> registerUnknown(deviceId));
-        boolean wasOnline = "ONLINE".equalsIgnoreCase(device.getOnlineStatus());
-        device.setOnlineStatus("ONLINE");
+        boolean wasOnline = CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(device.getOnlineStatus());
+        device.setOnlineStatus(CabinetConstants.DEVICE_ONLINE);
         if (!wasOnline || device.getOnlineSince() == null) {
             device.setOnlineSince(Instant.now());
         }
@@ -107,14 +110,14 @@ public class DevicePresenceService {
     @Transactional
     public void markStaleDevicesOffline() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("device-presence", 600)) {
+        if (!taskService.tryBegin(DEVICE_PRESENCE, 600)) {
             return;
         }
         boolean failed = false;
         String summary = "本次无设备状态变更";
         try {
         Instant cutoff = Instant.now().minus(OFFLINE_AFTER_MINUTES, ChronoUnit.MINUTES);
-        var stale = deviceRepository.findByOnlineStatusAndUpdatedAtBefore("ONLINE", cutoff);
+        var stale = deviceRepository.findByOnlineStatusAndUpdatedAtBefore(CabinetConstants.DEVICE_ONLINE, cutoff);
         stale.forEach(d -> runWithPresenceLock(d.getDeviceId(), () -> {
             markDeviceOffline(d.getDeviceId());
             return null;
@@ -124,18 +127,18 @@ public class DevicePresenceService {
         summary = "标记离线 " + stale.size() + " 台，自动锁机 " + locked + " 台";
         } catch (Exception e) {
             failed = true;
-            taskService.finish("device-presence", "FAILED", e.getMessage(), start);
+            taskService.finish(DEVICE_PRESENCE, "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("device-presence", "SUCCESS", summary, start);
+                taskService.finish(DEVICE_PRESENCE, "SUCCESS", summary, start);
             }
         }
     }
 
     private void markDeviceOffline(String deviceId) {
         DeviceInfo d = deviceRepository.findByIdForUpdate(deviceId).orElse(null);
-        if (d == null || !"ONLINE".equalsIgnoreCase(d.getOnlineStatus())) {
+        if (d == null || !CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(d.getOnlineStatus())) {
             return;
         }
         d.setOnlineStatus("OFFLINE");
@@ -200,7 +203,7 @@ public class DevicePresenceService {
         device.setDeviceId(deviceId);
         device.setDeviceName(deviceId);
         device.setDeviceType("AI_CABINET_V1");
-        device.setOnlineStatus("ONLINE");
+        device.setOnlineStatus(CabinetConstants.DEVICE_ONLINE);
         device.setOnlineSince(Instant.now());
         return deviceRepository.save(device);
     }

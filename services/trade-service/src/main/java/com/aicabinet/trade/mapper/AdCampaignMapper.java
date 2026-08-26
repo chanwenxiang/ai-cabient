@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.AdCampaign;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.time.Instant;
@@ -21,6 +22,12 @@ public interface AdCampaignMapper extends BaseTradeMapper<AdCampaign> {
     default List<AdCampaign> findAllOrderByCreatedDesc() {
         return selectList(Wrappers.<AdCampaign>lambdaQuery()
                 .orderByDesc(AdCampaign::getCreatedAt));
+    }
+
+    /** page 为 0-based。 */
+    default Page<AdCampaign> searchPage(int page, int size) {
+        return selectPage(new Page<>(page + 1L, size),
+                Wrappers.<AdCampaign>lambdaQuery().orderByDesc(AdCampaign::getCreatedAt));
     }
 
     default List<AdCampaign> findRunningInWindow(Instant now) {

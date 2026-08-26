@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.trade.domain.SysDictData;
 import com.aicabinet.trade.domain.SysDictType;
@@ -19,6 +20,23 @@ import java.util.Map;
  */
 @Component
 public class SysDictBootstrap implements ApplicationRunner {
+    private static final String DEVICE_OFFLINE = "DEVICE_OFFLINE";
+    private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
+    private static final String PROCESSING = "PROCESSING";
+    private static final String STATUS_COMPLETED = "COMPLETED";
+    private static final String STATUS_CANCELLED = "CANCELLED";
+    private static final String LOW_STOCK = "LOW_STOCK";
+    private static final String INACTIVE = "INACTIVE";
+    private static final String RECEIVED = "RECEIVED";
+    private static final String STATUS_REJECTED = "REJECTED";
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String CREATED = "CREATED";
+    private static final String DISPUTE = "DISPUTE";
+    private static final String PAYMENT = "PAYMENT";
+    private static final String STATUS_CLOSED = "CLOSED";
+    private static final String STATUS_NORMAL = "NORMAL";
+    private static final String OTHER = "OTHER";
+
 
     private static final Logger log = LoggerFactory.getLogger(SysDictBootstrap.class);
 
@@ -39,7 +57,7 @@ public class SysDictBootstrap implements ApplicationRunner {
                 SysDictType type = new SysDictType();
                 type.setDictType(entry.getKey());
                 type.setDictName(entry.getValue().name());
-                type.setStatus("ACTIVE");
+                type.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
                 type.setSortOrder(sort++);
                 typeRepository.save(type);
                 int itemSort = 1;
@@ -49,7 +67,7 @@ public class SysDictBootstrap implements ApplicationRunner {
                     data.setDictValue(item.getKey());
                     data.setDictLabel(item.getValue());
                     data.setSortOrder(itemSort++);
-                    data.setStatus("ACTIVE");
+                    data.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
                     dataRepository.save(data);
                 }
             }
@@ -74,7 +92,7 @@ public class SysDictBootstrap implements ApplicationRunner {
         SysDictType type = new SysDictType();
         type.setDictType(dictType);
         type.setDictName(seed.name());
-        type.setStatus("ACTIVE");
+        type.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
         type.setSortOrder(sort);
         typeRepository.save(type);
         int itemSort = 1;
@@ -84,7 +102,7 @@ public class SysDictBootstrap implements ApplicationRunner {
             data.setDictValue(item.getKey());
             data.setDictLabel(item.getValue());
             data.setSortOrder(itemSort++);
-            data.setStatus("ACTIVE");
+            data.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
             dataRepository.save(data);
         }
         log.info("Seeded missing dict type {}", dictType);
@@ -106,7 +124,7 @@ public class SysDictBootstrap implements ApplicationRunner {
             data.setDictValue(item.getKey());
             data.setDictLabel(item.getValue());
             data.setSortOrder(sort++);
-            data.setStatus("ACTIVE");
+            data.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
             dataRepository.save(data);
             added++;
         }
@@ -121,36 +139,36 @@ public class SysDictBootstrap implements ApplicationRunner {
         Map<String, SeedType> map = new LinkedHashMap<>();
         map.put("device_type", t("设备类型", m("AI_CABINET_V1", "AI智能柜 V1")));
         map.put("session_state", t("会话状态", m(
-                "CREATED", "已创建", "OPENING", "开门中", "SHOPPING", "购物中",
+                CREATED, "已创建", "OPENING", "开门中", "SHOPPING", "购物中",
                 "RECOGNIZING", "识别商品中", "WAITING_UPLOAD", "录像上传中", "SETTLING", "结算中",
-                "COMPLETED", "已完成", "DISPUTED", "待审核", "FAILED", "失败", "CANCELLED", "已取消")));
+                STATUS_COMPLETED, "已完成", "DISPUTED", "待审核", CabinetConstants.ORDER_STATUS_FAILED, "失败", STATUS_CANCELLED, "已取消")));
         map.put("upload_status", t("上传状态", m(
                 "NONE", "无需上传", "LOCAL_QUEUED", "待上传", "UPLOADING", "上传中",
-                "UPLOADED", "已上传", "FAILED", "上传失败")));
-        map.put("dispute_status", t("争议状态", m("OPEN", "待审核", "RESOLVED", "已结案", "CLOSED", "已关闭")));
+                "UPLOADED", "已上传", CabinetConstants.ORDER_STATUS_FAILED, "上传失败")));
+        map.put("dispute_status", t("争议状态", m("OPEN", "待审核", "RESOLVED", "已结案", STATUS_CLOSED, "已关闭")));
         map.put("dispute_category", t("争议分类", m(
                 "USER_APPEAL", "用户申诉", "RECOGNITION", "识别争议", "VIDEO_MISSING", "录像缺失",
-                "PAYMENT", "支付相关", "INVENTORY", "库存相关", "BILL", "账单争议", "OTHER", "其他")));
+                PAYMENT, "支付相关", "INVENTORY", "库存相关", "BILL", "账单争议", OTHER, "其他")));
         map.put("dispute_priority", t("争议优先级", m(
-                "LOW", "低", "NORMAL", "普通", "HIGH", "高", "URGENT", "紧急")));
+                "LOW", "低", STATUS_NORMAL, "普通", "HIGH", "高", "URGENT", "紧急")));
         map.put("pay_channel", t("支付渠道", m(
                 "WECHAT", "微信", "ALIPAY", "支付宝", "MOCK", "其他", "BALANCE", "余额", "UNKNOWN", "未知")));
         map.put("split_status", t("分账状态", m(
-                "PENDING", "待处理", "LEDGER_ONLY", "仅记账", "ACCRUED", "待分账",
+                STATUS_PENDING, "待处理", "LEDGER_ONLY", "仅记账", "ACCRUED", "待分账",
                 "WECHAT_SUBMITTED", "已提交", "WECHAT_FAILED", "失败", "SUBMITTED", "已提交",
-                "SUCCESS", "成功", "FAILED", "失败", "SETTLED", "已完结", "VOIDED", "已冲正")));
-        map.put("merchant_status", t("商户状态", m("ACTIVE", "正常", "INACTIVE", "停用", "PENDING", "待审核")));
+                "SUCCESS", "成功", CabinetConstants.ORDER_STATUS_FAILED, "失败", "SETTLED", "已完结", "VOIDED", "已冲正")));
+        map.put("merchant_status", t("商户状态", m(CabinetConstants.PROMOTION_STATUS_ACTIVE, "正常", INACTIVE, "停用", STATUS_PENDING, "待审核")));
         map.put("online_status", t("在线状态", m("ONLINE", "在线", "OFFLINE", "离线", "UNKNOWN", "未知")));
         map.put("device_lifecycle", t("设备生命周期", m(
                 "IDLE", "未投放", "INBOUND", "入库", "DEPLOYED", "投放", "RETURNING", "返厂中", "RETIRED", "退役")));
         map.put("device_coop_mode", t("设备合作方式", m(
                 "SELF", "自营", "FRANCHISE", "加盟", "CONSIGN", "联营")));
         map.put("repair_ticket_status", t("维修工单状态", m(
-                "OPEN", "待处理", "IN_PROGRESS", "处理中", "DONE", "已完成",
-                "CANCELLED", "已取消", "CLOSED", "已关闭")));
-        map.put("line_manager_status", t("线长状态", m("ACTIVE", "启用", "DISABLED", "停用")));
+                "OPEN", "待处理", STATUS_IN_PROGRESS, "处理中", "DONE", "已完成",
+                STATUS_CANCELLED, "已取消", STATUS_CLOSED, "已关闭")));
+        map.put("line_manager_status", t("线长状态", m(CabinetConstants.PROMOTION_STATUS_ACTIVE, "启用", CabinetConstants.SKU_STATUS_DISABLED, "停用")));
         map.put("announcement_status", t("公告状态", m(
-                "DRAFT", "草稿", "PUBLISHED", "已发布", "ARCHIVED", "已归档")));
+                CabinetConstants.PROMOTION_STATUS_DRAFT, "草稿", "PUBLISHED", "已发布", "ARCHIVED", "已归档")));
         map.put("announcement_audience", t("公告受众", m(
                 "ALL", "全部用户", "MERCHANT", "商户", "CONSUMER", "消费者")));
         map.put("promotion_type", t("营销活动类型", m(
@@ -160,9 +178,9 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "AMOUNT_OFF", "满减券", "PERCENT_OFF", "折扣券",
                 "FREE_SHIPPING", "免运费", "EXCHANGE", "兑换券")));
         map.put("enable_status", t("启用状态", m(
-                "ACTIVE", "启用", "INACTIVE", "停用", "DISABLED", "停用", "ENDED", "已结束")));
+                CabinetConstants.PROMOTION_STATUS_ACTIVE, "启用", INACTIVE, "停用", CabinetConstants.SKU_STATUS_DISABLED, "停用", "ENDED", "已结束")));
         map.put("sku_enrollment_status", t("商品识别入驻状态", m(
-                "DRAFT", "草稿", "MAPPING", "映射中", "TESTED", "已测试", "PRODUCTION", "生产")));
+                CabinetConstants.PROMOTION_STATUS_DRAFT, "草稿", "MAPPING", "映射中", "TESTED", "已测试", "PRODUCTION", "生产")));
         map.put("fund_ledger_type", t("资金账务类型", m(
                 "ORDER_PAYMENT", "订单支付", "PLATFORM_FEE", "平台抽成",
                 "CHANNEL_FEE", "通道费", "MERCHANT_CREDIT", "商户入账")));
@@ -181,9 +199,9 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("restock_line_type", t("补货行类型", m(
                 "RESTOCK", "上架", "PULL_OFF", "下架", "REMOVE", "下架", "PULL", "下架")));
         map.put("ops_alert_type", t("运维告警类型", m(
-                "DISPUTE", "账单争议", "DEVICE_OFFLINE", "设备离线",
+                DISPUTE, "账单争议", DEVICE_OFFLINE, "设备离线",
                 "UPLOAD_STUCK", "录像滞留", "SESSION_STALE", "会话超时",
-                "LOW_STOCK", "库存不足", "REPLENISHMENT", "补货任务",
+                LOW_STOCK, "库存不足", "REPLENISHMENT", "补货任务",
                 "RECON_MISMATCH", "对账差异", "RECONCILIATION_MISMATCH", "对账差异",
                 "SPLIT_EXCEPTION", "分账异常", "PROFIT_SHARING_RETURN_FAILED", "分账回退失败",
                 "PROFIT_SHARING_MANUAL_SUPPLEMENT", "分账需人工补账",
@@ -191,7 +209,7 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("ad_asset_type", t("广告素材类型", m(
                 "IMAGE", "图片", "VIDEO", "视频", "H5", "H5")));
         map.put("ad_campaign_status", t("投放计划状态", m(
-                "DRAFT", "草稿", "RUNNING", "投放中", "STOPPED", "已停止")));
+                CabinetConstants.PROMOTION_STATUS_DRAFT, "草稿", "RUNNING", "投放中", "STOPPED", "已停止")));
         map.put("consistency_check_type", t("一致性检查类型", m(
                 "ORDER_AMOUNT", "订单金额", "PAYMENT_AMOUNT", "支付净额",
                 "INVENTORY_MISMATCH", "库存汇总",
@@ -199,15 +217,15 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "WALLET_BALANCE", "钱包余额", "REFUND_AMOUNT", "退款金额",
                 "ORDER_LINE_SUM", "订单行金额", "COUPON_USED_LINK", "券核销关联")));
         map.put("sku_perf_level", t("选品表现等级", m(
-                "BEST_SELLER", "畅销", "NORMAL", "正常", "SLOW_MOVER", "慢销", "NO_SALES", "无销量")));
+                "BEST_SELLER", "畅销", STATUS_NORMAL, "正常", "SLOW_MOVER", "慢销", "NO_SALES", "无销量")));
         map.put("sku_review_status", t("选品评审状态", m(
-                "PENDING", "待评审", "RECOMMEND_DELIST", "建议下架",
+                STATUS_PENDING, "待评审", "RECOMMEND_DELIST", "建议下架",
                 "DELISTED", "已下架", "KEPT", "已保留")));
         map.put("member_level", t("会员等级", m(
-                "NORMAL", "普通", "SILVER", "白银", "GOLD", "黄金",
+                STATUS_NORMAL, "普通", "SILVER", "白银", "GOLD", "黄金",
                 "PLATINUM", "铂金", "DIAMOND", "钻石")));
         map.put("site_contract_status", t("点位合同状态", m(
-                "ACTIVE", "有效", "EXPIRING", "临期", "EXPIRED", "已到期")));
+                CabinetConstants.PROMOTION_STATUS_ACTIVE, "有效", "EXPIRING", "临期", "EXPIRED", "已到期")));
         map.put("device_env_type", t("设备环境指标类型", m(
                 "HUMIDITY", "湿度", "VOLTAGE", "电压", "POWER", "功耗")));
         map.put("device_lifecycle_action", t("设备生命周期操作", m(
@@ -216,46 +234,46 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("stock_health_dim", t("库存健康维度", m(
                 "STOCKOUT", "断货", "LOW", "低库存", "NEAR_EXPIRY", "临期")));
         map.put("purchase_suggestion_reason", t("补货建议原因", m(
-                "SALES_DRIVEN", "销量驱动", "TREND_FORECAST", "趋势预测", "LOW_STOCK", "库存不足")));
+                "SALES_DRIVEN", "销量驱动", "TREND_FORECAST", "趋势预测", LOW_STOCK, "库存不足")));
         map.put("supplier_payable_status", t("供应商应付状态", m(
-                "UNPAID", "未付", "PARTIAL", "部分付款", "PAID", "已付", "CLOSED", "已关闭")));
+                "UNPAID", "未付", "PARTIAL", "部分付款", "PAID", "已付", STATUS_CLOSED, "已关闭")));
         map.put("stocktake_mode", t("盘点方式", m(
                 "BLIND", "盲盘", "VISIBLE", "明盘")));
         map.put("stocktake_status", t("盘点单状态", m(
-                "DRAFT", "草稿", "IN_PROGRESS", "盘点中", "COMPLETED", "已完成",
-                "ADJUSTED", "已调整", "CANCELLED", "已取消")));
+                CabinetConstants.PROMOTION_STATUS_DRAFT, "草稿", STATUS_IN_PROGRESS, "盘点中", STATUS_COMPLETED, "已完成",
+                "ADJUSTED", "已调整", STATUS_CANCELLED, "已取消")));
         map.put("stocktake_line_status", t("盘点行状态", m(
-                "PENDING", "未盘", "MATCHED", "相符", "DIFF", "有差异", "ADJUSTED", "已调整")));
+                STATUS_PENDING, "未盘", "MATCHED", "相符", "DIFF", "有差异", "ADJUSTED", "已调整")));
         map.put("merchant_alert_type", t("商户告警类型", m(
-                "LOW_STOCK", "低库存", "EXPIRY", "临期", "REPLENISHMENT_REQUIRED", "需补货",
+                LOW_STOCK, "低库存", "EXPIRY", "临期", "REPLENISHMENT_REQUIRED", "需补货",
                 "REPLENISHMENT", "补货任务",
-                "DEVICE_OFFLINE", "柜机离线", "DEVICE_FAULT", "柜机故障",
-                "DISPUTE", "消费争议", "SETTLEMENT_FAILED", "结算失败")));
+                DEVICE_OFFLINE, "柜机离线", "DEVICE_FAULT", "柜机故障",
+                DISPUTE, "消费争议", "SETTLEMENT_FAILED", "结算失败")));
         map.put("device_ops_event", t("设备运维事件", m(
                 "OFFLINE", "离线", "NO_SALES", "无销售", "UNLOCK", "开锁",
                 "FAULT", "故障/锁机", "AISLE_AUDIT", "货道巡检", "MAINBOARD", "主板")));
         map.put("repair_fault_type", t("维修故障类型", m(
                 "DOOR", "门锁", "COOLING", "制冷", "NETWORK", "网络",
-                "PAYMENT", "支付", "VISION", "识别", "POWER", "供电", "OTHER", "其他")));
+                PAYMENT, "支付", "VISION", "识别", "POWER", "供电", OTHER, "其他")));
         map.put("device_fault_issue", t("报修问题类型", m(
                 "DOOR_OPEN", "打不开门", "DOOR_CLOSE", "门关不上",
-                "PRODUCT", "商品异常", "PAYMENT", "扣款问题", "OTHER", "其他")));
+                "PRODUCT", "商品异常", PAYMENT, "扣款问题", OTHER, "其他")));
         map.put("line_withdraw_status", t("线长提现状态", m(
                 "PENDING_REVIEW", "待审核", "APPROVED", "已通过", "PAYING", "打款中",
-                "PAID", "已打款", "REJECTED", "已驳回", "FAILED", "失败")));
+                "PAID", "已打款", STATUS_REJECTED, "已驳回", CabinetConstants.ORDER_STATUS_FAILED, "失败")));
         map.put("merchant_withdraw_status", t("商户提现状态", m(
                 "PENDING_REVIEW", "待审核", "APPROVED", "已通过", "PAYING", "打款中",
-                "PAID", "已打款", "REJECTED", "已驳回", "FAILED", "失败")));
-        map.put("supplier_status", t("供应商状态", m("ACTIVE", "启用", "INACTIVE", "停用")));
+                "PAID", "已打款", STATUS_REJECTED, "已驳回", CabinetConstants.ORDER_STATUS_FAILED, "失败")));
+        map.put("supplier_status", t("供应商状态", m(CabinetConstants.PROMOTION_STATUS_ACTIVE, "启用", INACTIVE, "停用")));
         map.put("purchase_order_status", t("采购单状态", m(
-                "CREATED", "待收货", "PARTIAL_RECEIVED", "部分收货", "RECEIVED", "已收货", "CANCELLED", "已取消")));
-        map.put("warehouse_status", t("仓库状态", m("ACTIVE", "正常", "INACTIVE", "停用")));
+                CREATED, "待收货", "PARTIAL_RECEIVED", "部分收货", RECEIVED, "已收货", STATUS_CANCELLED, "已取消")));
+        map.put("warehouse_status", t("仓库状态", m(CabinetConstants.PROMOTION_STATUS_ACTIVE, "正常", INACTIVE, "停用")));
         map.put("warehouse_outbound_status", t("出库单状态", m(
-                "DRAFT", "待拣货", "PICKED", "已拣货", "SHIPPED", "已发运", "CANCELLED", "已取消")));
+                CabinetConstants.PROMOTION_STATUS_DRAFT, "待拣货", "PICKED", "已拣货", "SHIPPED", "已发运", STATUS_CANCELLED, "已取消")));
         map.put("handover_status", t("交接状态", m(
-                "PENDING", "待备货", "READY", "待发运", "IN_TRANSIT", "在途", "PARTIAL", "部分签收", "RECEIVED", "已签收")));
+                STATUS_PENDING, "待备货", "READY", "待发运", "IN_TRANSIT", "在途", "PARTIAL", "部分签收", RECEIVED, "已签收")));
         map.put("in_transit_status", t("在途状态", m(
-                "IN_TRANSIT", "在途", "RECEIVED", "已签收", "LOST", "丢失", "DAMAGED", "破损")));
+                "IN_TRANSIT", "在途", RECEIVED, "已签收", "LOST", "丢失", "DAMAGED", "破损")));
         map.put("warehouse_movement_type", t("库存变动类型", m(
                 "PURCHASE_RECEIVE", "采购收货", "PURCHASE_RETURN", "采购退货",
                 "MANUAL_INBOUND", "手工入库", "INBOUND_MANUAL", "手工入库",
@@ -266,24 +284,24 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "REPLENISHMENT_TASK", "补货任务",
                 "INVENTORY_ADJUSTMENT", "库存调整", "MANUAL", "人工操作")));
         map.put("replenishment_route_status", t("补货路线状态", m(
-                "PLANNED", "待执行", "IN_PROGRESS", "执行中", "COMPLETED", "已完成", "CANCELLED", "已取消")));
+                "PLANNED", "待执行", STATUS_IN_PROGRESS, "执行中", STATUS_COMPLETED, "已完成", STATUS_CANCELLED, "已取消")));
         map.put("replenishment_task_status", t("补货任务状态", m(
-                "PENDING", "待处理", "IN_PROGRESS", "进行中", "COMPLETED", "已完成", "CANCELLED", "已取消")));
+                STATUS_PENDING, "待处理", STATUS_IN_PROGRESS, "进行中", STATUS_COMPLETED, "已完成", STATUS_CANCELLED, "已取消")));
         map.put("replenishment_request_status", t("补货申请状态", m(
-                "SUBMITTED", "待审核", "ACCEPTED", "已接单", "REJECTED", "已驳回", "COMPLETED", "已完成")));
+                "SUBMITTED", "待审核", "ACCEPTED", "已接单", STATUS_REJECTED, "已驳回", STATUS_COMPLETED, "已完成")));
         map.put("inventory_lot_status", t("批次状态", m(
                 "ON_SALE", "在售", "NEAR_EXPIRY", "临期", "BLOCKED", "已冻结", "DEPLETED", "已耗尽")));
         map.put("exception_severity", t("异常级别", m(
                 "CRITICAL", "紧急", "HIGH", "高", "MEDIUM", "中", "LOW", "低")));
         map.put("exception_status", t("异常状态", m(
-                "OPEN", "待处理", "PROCESSING", "处理中", "RESOLVED", "已解决", "CLOSED", "已关闭")));
+                "OPEN", "待处理", PROCESSING, "处理中", "RESOLVED", "已解决", STATUS_CLOSED, "已关闭")));
         map.put("feedback_type", t("反馈类型", m(
                 "COMPLAINT", "投诉", "SUGGESTION", "建议", "BUG", "缺陷", "PRAISE", "表扬")));
         map.put("feedback_status", t("反馈状态", m(
-                "PENDING", "待处理", "HANDLED", "已回复", "REPLIED", "已回复", "CLOSED", "已关闭")));
+                STATUS_PENDING, "待处理", "HANDLED", "已回复", "REPLIED", "已回复", STATUS_CLOSED, "已关闭")));
         map.put("exception_type", t("异常类型", m(
-                "DISPUTE", "消费争议", "LOW_STOCK", "低库存", "EXPIRY", "临期商品",
-                "REPLENISHMENT_REQUIRED", "待补货", "DEVICE_OFFLINE", "设备离线", "DEVICE_FAULT", "设备故障",
+                DISPUTE, "消费争议", LOW_STOCK, "低库存", "EXPIRY", "临期商品",
+                "REPLENISHMENT_REQUIRED", "待补货", DEVICE_OFFLINE, "设备离线", "DEVICE_FAULT", "设备故障",
                 "DOOR_OPEN_TOO_LONG", "长时间未关门", "OPEN_TIMEOUT", "开门超时", "UPLOAD_STUCK", "录像上传滞留",
                 "RECOGNITION_STUCK", "识别滞留", "RECOGNITION_TIMEOUT", "识别超时",
                 "RECOGNITION_FAILED", "识别存疑需人工审核",
@@ -301,15 +319,15 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "OPS_EXCEPTION_MANUAL_RESOLVE", "人工处置（确认商品/免单）", "OPS_EXCEPTION_RESOLVE", "标记已解决",
                 "OPS_EXCEPTION_AUTO_RESOLVE", "系统自动解决", "MERCHANT_OPS_EXCEPTION_RESOLVE", "商家处理异常")));
         map.put("reconciliation_status", t("对账状态", m(
-                "MATCHED", "已平账", "MISMATCH", "存在差异", "PENDING", "待处理", "FAILED", "失败")));
-        map.put("sku_status", t("商品状态", m("ACTIVE", "在售", "INACTIVE", "停用", "DISABLED", "禁售")));
+                "MATCHED", "已平账", "MISMATCH", "存在差异", STATUS_PENDING, "待处理", CabinetConstants.ORDER_STATUS_FAILED, "失败")));
+        map.put("sku_status", t("商品状态", m(CabinetConstants.PROMOTION_STATUS_ACTIVE, "在售", INACTIVE, "停用", CabinetConstants.SKU_STATUS_DISABLED, "禁售")));
         map.put("order_status", t("订单状态", m(
-                "PENDING", "待支付", "PROCESSING", "处理中", "PAID", "已支付", "COMPLETED", "已完成",
+                STATUS_PENDING, "待支付", PROCESSING, "处理中", "PAID", "已支付", STATUS_COMPLETED, "已完成",
                 "DISPUTED", "争议中", "REFUNDED", "已退款", "PARTIAL_REFUNDED", "部分退款",
-                "FAILED", "处理失败", "CANCELLED", "已取消")));
+                CabinetConstants.ORDER_STATUS_FAILED, "处理失败", STATUS_CANCELLED, "已取消")));
         map.put("recharge_status", t("充值状态", m(
-                "CREATED", "已创建", "PENDING", "待支付", "PAID", "已支付", "SUCCESS", "成功",
-                "FAILED", "失败", "REFUNDED", "已退款", "CANCELLED", "已取消", "CLOSED", "已关闭")));
+                CREATED, "已创建", STATUS_PENDING, "待支付", "PAID", "已支付", "SUCCESS", "成功",
+                CabinetConstants.ORDER_STATUS_FAILED, "失败", "REFUNDED", "已退款", STATUS_CANCELLED, "已取消", STATUS_CLOSED, "已关闭")));
         map.put("risk_event_type", t("风控事件类型", m(
                 "MULTI_DEVICE", "多设备异常", "HIGH_FREQUENCY", "高频开门", "DISPUTE_SPIKE", "争议激增",
                 "PAYMENT_FAIL", "支付失败聚集", "BLACKLIST_HIT", "黑名单命中", "MALICIOUS_OPEN", "高频恶意开门",
@@ -321,8 +339,8 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("risk_disposition_status", t("风控处置状态", m(
                 "OPEN", "待处置", "AUTO_CLEARED", "自动结清", "ACKED", "已确认")));
         map.put("settlement_batch_status", t("结算批次状态", m(
-                "PENDING", "待结算", "PROCESSING", "结算中", "SETTLED", "已结算", "PAID", "已支付",
-                "FAILED", "失败", "PARTIAL_FAILED", "部分失败", "COMPLETED", "已完成")));
+                STATUS_PENDING, "待结算", PROCESSING, "结算中", "SETTLED", "已结算", "PAID", "已支付",
+                CabinetConstants.ORDER_STATUS_FAILED, "失败", "PARTIAL_FAILED", "部分失败", STATUS_COMPLETED, "已完成")));
         map.put("route_code", t("路线编码", m(
                 "R01", "路线 R01", "R-DEMO-01", "演示路线 01", "R-DEMO-02", "演示路线 02", "R-DEMO-X", "演示路线 X")));
         // 类目以运营字典为准；种子仅保证类型存在（项由运营后台维护）

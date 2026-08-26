@@ -18,6 +18,15 @@ import java.util.stream.Collectors;
 
 @Service
 public class MerchantReplenishmentService {
+    private static final String MERCHANT_REPLENISHMENT_REQUEST = "merchant:replenishment:request";
+    private static final String MERCHANT_REPLENISHMENT_VIEW = "merchant:replenishment:view";
+    private static final String MERCHANT_REPLEN_REQUEST = "MERCHANT_REPLEN_REQUEST";
+    private static final String REPLENISHMENT_TASK = "REPLENISHMENT_TASK";
+    private static final String REPLEN_REQUEST = "REPLEN_REQUEST";
+    private static final String DEVICEID = "deviceId=";
+    private static final String SUBMITTED = "SUBMITTED";
+    private static final String LITERAL = "补货任务不存在";
+
 
     private final PermissionService permissionService;
     private final MerchantFeaturePackService merchantFeaturePackService;
@@ -78,7 +87,7 @@ public class MerchantReplenishmentService {
 
     @Transactional(readOnly = true)
     public List<ReplenishmentSuggestDto> listSuggestions(Long userId, String deviceId) {
-        permissionService.requirePermission(userId, "merchant:replenishment:view");
+        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
         merchantPortalGuard.requireAccess(userId);
         if (deviceId == null || deviceId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备 ID 不能为空");
@@ -90,7 +99,7 @@ public class MerchantReplenishmentService {
     /** 补货员今日运营执行情况：分配给本人的任务完成统计（对标友智慧「运营执行情况」）。 */
     @Transactional(readOnly = true)
     public MerchantReplenishmentEfficiencyDto myEfficiency(Long userId) {
-        permissionService.requirePermission(userId, "merchant:replenishment:view");
+        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
         merchantPortalGuard.requireAccess(userId);
         Instant since = LocalDate.now(ZoneId.of("Asia/Shanghai"))
                 .atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant();
@@ -116,17 +125,17 @@ public class MerchantReplenishmentService {
     public ReplenishmentTaskDto checkInTask(Long userId, Long taskId, ReplenishmentCheckInRequest body) {
         ReplenishmentTask task = requireScopedTask(userId, taskId);
         ReplenishmentTaskDto result = replenishmentService.checkInTask(userId, taskId, body);
-        auditService.record(userId, "MERCHANT_REPLENISHMENT_CHECK_IN", "REPLENISHMENT_TASK",
-                String.valueOf(taskId), "deviceId=" + task.getDeviceId());
+        auditService.record(userId, "MERCHANT_REPLENISHMENT_CHECK_IN", REPLENISHMENT_TASK,
+                String.valueOf(taskId), DEVICEID + task.getDeviceId());
         return result;
     }
 
     @Transactional
     public List<ReplenishmentTaskLineDto> getTaskLines(Long userId, Long taskId) {
-        permissionService.requirePermission(userId, "merchant:replenishment:view");
+        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
         merchantPortalGuard.requireAccess(userId);
         ReplenishmentTask task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         merchantFeaturePackService.requireDevicePack(userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
         replenishmentService.ensureSeededFromLinkedRequest(taskId);
         return replenishmentService.listTaskLines(taskId);
@@ -137,8 +146,8 @@ public class MerchantReplenishmentService {
                                                            SubmitReplenishmentLinesRequest body) {
         ReplenishmentTask task = requireScopedTask(userId, taskId);
         List<ReplenishmentTaskLineDto> result = replenishmentService.submitTaskLines(userId, taskId, body);
-        auditService.record(userId, "MERCHANT_REPLENISHMENT_CONFIRM_LINES", "REPLENISHMENT_TASK",
-                String.valueOf(taskId), "deviceId=" + task.getDeviceId() + ",lines=" + result.size());
+        auditService.record(userId, "MERCHANT_REPLENISHMENT_CONFIRM_LINES", REPLENISHMENT_TASK,
+                String.valueOf(taskId), DEVICEID + task.getDeviceId() + ",lines=" + result.size());
         return result;
     }
 
@@ -146,8 +155,8 @@ public class MerchantReplenishmentService {
     public ReplenishmentTaskDto completeTask(Long userId, Long taskId) {
         ReplenishmentTask task = requireScopedTask(userId, taskId);
         ReplenishmentTaskDto result = replenishmentService.completeTask(userId, taskId);
-        auditService.record(userId, "MERCHANT_REPLENISHMENT_COMPLETE", "REPLENISHMENT_TASK",
-                String.valueOf(taskId), "deviceId=" + task.getDeviceId());
+        auditService.record(userId, "MERCHANT_REPLENISHMENT_COMPLETE", REPLENISHMENT_TASK,
+                String.valueOf(taskId), DEVICEID + task.getDeviceId());
         return result;
     }
 
@@ -158,25 +167,25 @@ public class MerchantReplenishmentService {
     public SessionDto openDoorForTask(Long userId, Long taskId) {
         ReplenishmentTask task = requireScopedTask(userId, taskId);
         SessionDto session = opsService.openDoorForRestockAsUser(userId, task.getDeviceId(), taskId);
-        auditService.record(userId, "MERCHANT_REPLENISHMENT_OPEN_DOOR", "REPLENISHMENT_TASK",
+        auditService.record(userId, "MERCHANT_REPLENISHMENT_OPEN_DOOR", REPLENISHMENT_TASK,
                 String.valueOf(taskId),
-                "deviceId=" + task.getDeviceId() + ",sessionId=" + session.sessionId());
+                DEVICEID + task.getDeviceId() + ",sessionId=" + session.sessionId());
         return session;
     }
 
     /** 签到/开门/确认上架/完成：与前端一致，需补货操作权（request） */
     private ReplenishmentTask requireScopedTask(Long userId, Long taskId) {
-        permissionService.requirePermission(userId, "merchant:replenishment:request");
+        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_REQUEST);
         merchantPortalGuard.requireAccess(userId);
         ReplenishmentTask task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         merchantFeaturePackService.requireDevicePack(userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
         return task;
     }
 
     @Transactional(readOnly = true)
     public List<MerchantReplenishmentRequestDto> listRequests(Long userId, String status, String deviceId) {
-        permissionService.requirePermission(userId, "merchant:replenishment:view");
+        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
         merchantPortalGuard.requireAccess(userId);
         Set<String> allowedDevices = merchantFeaturePackService.allowedDeviceIdsForPack(userId, MerchantFeaturePacks.FIELD);
         if (allowedDevices != null && allowedDevices.isEmpty()) {
@@ -203,7 +212,7 @@ public class MerchantReplenishmentService {
 
     @Transactional(readOnly = true)
     public MerchantReplenishmentRequestDto getRequest(Long userId, Long requestId) {
-        permissionService.requirePermission(userId, "merchant:replenishment:view");
+        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
         merchantPortalGuard.requireAccess(userId);
         MerchantReplenishmentRequest request = requireRequest(requestId);
         merchantFeaturePackService.requireDevicePack(userId, request.getDeviceId(), MerchantFeaturePacks.FIELD);
@@ -212,7 +221,7 @@ public class MerchantReplenishmentService {
 
     @Transactional
     public MerchantReplenishmentRequestDto submitRequest(Long userId, CreateMerchantReplenishmentRequest body) {
-        permissionService.requirePermission(userId, "merchant:replenishment:request");
+        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_REQUEST);
         merchantPortalGuard.requireAccess(userId);
         if (body == null || body.deviceId() == null || body.deviceId().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备 ID 不能为空");
@@ -240,7 +249,7 @@ public class MerchantReplenishmentService {
         MerchantReplenishmentRequest request = new MerchantReplenishmentRequest();
         request.setMerchantId(device.getMerchantId());
         request.setDeviceId(deviceId);
-        request.setStatus("SUBMITTED");
+        request.setStatus(SUBMITTED);
         request.setNotes(trimToNull(body.notes()));
         request.setCreatedBy(userId);
         Instant now = Instant.now();
@@ -268,10 +277,10 @@ public class MerchantReplenishmentService {
         if (requestLineRepository.findByRequestIdOrderByLineIdAsc(request.getRequestId()).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择一种有效商品");
         }
-        auditService.record(userId, "MERCHANT_REPLEN_REQUEST", "REPLEN_REQUEST",
+        auditService.record(userId, MERCHANT_REPLEN_REQUEST, REPLEN_REQUEST,
                 String.valueOf(request.getRequestId()), "device=" + deviceId);
         approvalWorkflowService.start(
-                "MERCHANT_REPLEN_REQUEST",
+                MERCHANT_REPLEN_REQUEST,
                 String.valueOf(request.getRequestId()),
                 userId,
                 "商户要货 #" + request.getRequestId() + " · " + deviceId);
@@ -288,7 +297,7 @@ public class MerchantReplenishmentService {
         List<MerchantReplenishmentRequest> rows;
         if (statusFilter == null) {
             rows = requestRepository.findAllOrderBySubmittedAtDesc();
-        } else if ("SUBMITTED".equalsIgnoreCase(statusFilter)) {
+        } else if (SUBMITTED.equalsIgnoreCase(statusFilter)) {
             // 待审核保持 FIFO，方便按提交顺序接单
             rows = requestRepository.findByStatusOrderBySubmittedAtAsc(statusFilter);
         } else {
@@ -308,7 +317,7 @@ public class MerchantReplenishmentService {
 
     private MerchantReplenishmentRequestDto doAcceptRequest(Long operatorId, Long requestId) {
         MerchantReplenishmentRequest request = requireRequestForUpdate(requestId);
-        if (!"SUBMITTED".equals(request.getStatus())) {
+        if (!SUBMITTED.equals(request.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "仅待审核要货单可接单");
         }
         List<MerchantReplenishmentRequestLine> lines = requestLineRepository.findByRequestIdOrderByLineIdAsc(requestId);
@@ -353,11 +362,11 @@ public class MerchantReplenishmentService {
         request.setReviewerId(operatorId);
         request.setReplenishmentTaskId(task.getTaskId());
         requestRepository.save(request);
-        auditService.record(operatorId, "MERCHANT_REPLEN_ACCEPT", "REPLEN_REQUEST",
+        auditService.record(operatorId, "MERCHANT_REPLEN_ACCEPT", REPLEN_REQUEST,
                 String.valueOf(requestId),
                 "task=" + task.getTaskId() + (outboundId != null ? ",outbound=" + outboundId : ",outbound=none"));
         approvalWorkflowService.completeApproved(
-                operatorId, "MERCHANT_REPLEN_REQUEST", String.valueOf(requestId), null);
+                operatorId, MERCHANT_REPLEN_REQUEST, String.valueOf(requestId), null);
         return toRequestDto(request);
     }
 
@@ -371,7 +380,7 @@ public class MerchantReplenishmentService {
     private MerchantReplenishmentRequestDto doRejectRequest(Long operatorId, Long requestId,
                                                             RejectMerchantReplenishmentRequest body) {
         MerchantReplenishmentRequest request = requireRequestForUpdate(requestId);
-        if (!"SUBMITTED".equals(request.getStatus())) {
+        if (!SUBMITTED.equals(request.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "仅待审核要货单可驳回");
         }
         request.setStatus("REJECTED");
@@ -379,11 +388,11 @@ public class MerchantReplenishmentService {
         request.setReviewerId(operatorId);
         request.setRejectReason(body != null ? trimToNull(body.reason()) : null);
         requestRepository.save(request);
-        auditService.record(operatorId, "MERCHANT_REPLEN_REJECT", "REPLEN_REQUEST",
+        auditService.record(operatorId, "MERCHANT_REPLEN_REJECT", REPLEN_REQUEST,
                 String.valueOf(requestId), request.getRejectReason());
         approvalWorkflowService.completeRejected(
                 operatorId,
-                "MERCHANT_REPLEN_REQUEST",
+                MERCHANT_REPLEN_REQUEST,
                 String.valueOf(requestId),
                 request.getRejectReason());
         return toRequestDto(request);
@@ -479,20 +488,20 @@ public class MerchantReplenishmentService {
 
     @Transactional
     public FileAttachmentDto uploadTaskEvidence(Long userId, Long taskId, org.springframework.web.multipart.MultipartFile file) {
-        permissionService.requirePermission(userId, "merchant:replenishment:request");
+        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_REQUEST);
         merchantPortalGuard.requireAccess(userId);
         ReplenishmentTask task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         merchantFeaturePackService.requireDevicePack(userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
         return fileAttachmentService.uploadReplenishmentEvidence(userId, taskId, file);
     }
 
     @Transactional(readOnly = true)
     public List<FileAttachmentDto> listTaskEvidence(Long userId, Long taskId) {
-        permissionService.requirePermission(userId, "merchant:replenishment:view");
+        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
         merchantPortalGuard.requireAccess(userId);
         ReplenishmentTask task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         merchantFeaturePackService.requireDevicePack(userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
         return fileAttachmentService.listReplenishmentEvidence(taskId);
     }
@@ -500,10 +509,10 @@ public class MerchantReplenishmentService {
     @Transactional(readOnly = true)
     public void streamTaskEvidence(Long userId, Long taskId, Long fileId, jakarta.servlet.http.HttpServletResponse response)
             throws java.io.IOException {
-        permissionService.requirePermission(userId, "merchant:replenishment:view");
+        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
         merchantPortalGuard.requireAccess(userId);
         ReplenishmentTask task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         merchantFeaturePackService.requireDevicePack(userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
         FileAttachment row = fileAttachmentService.requireReplenishmentEvidence(taskId, fileId);
         fileAttachmentService.stream(row, response);

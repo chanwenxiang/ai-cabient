@@ -8,6 +8,9 @@ import java.util.List;
  * 设备类型 → 默认货道陈列模板（planogram）。
  */
 public final class PlanogramTemplateService {
+    private static final String SKU_NOODLE_001 = "SKU-NOODLE-001";
+    private static final String SKU_WATER_001 = "SKU-WATER-001";
+
 
     public static final String DEFAULT_DEVICE_TYPE = "AI_CABINET_V1";
     public static final String COMPACT_DEVICE_TYPE = "AI_CABINET_COMPACT";
@@ -30,12 +33,12 @@ public final class PlanogramTemplateService {
         return List.of(
                 slot("A1", 1, 1, "SKU-DEMO-001", 8, 2),
                 slot("A2", 1, 2, "SKU-SODA-001", 8, 2),
-                slot("A3", 1, 3, "SKU-WATER-001", 6, 2),
-                slot("A4", 1, 4, "SKU-WATER-001", 6, 2),
+                slot("A3", 1, 3, SKU_WATER_001, 6, 2),
+                slot("A4", 1, 4, SKU_WATER_001, 6, 2),
                 slot("B1", 2, 1, "SKU-SNACK-001", 8, 2),
                 slot("B2", 2, 2, "SKU-MILK-001", 6, 2),
-                slot("B3", 2, 3, "SKU-NOODLE-001", 8, 2),
-                slot("B4", 2, 4, "SKU-NOODLE-001", 4, 1)
+                slot("B3", 2, 3, SKU_NOODLE_001, 8, 2),
+                slot("B4", 2, 4, SKU_NOODLE_001, 4, 1)
         );
     }
 
@@ -44,10 +47,10 @@ public final class PlanogramTemplateService {
         return List.of(
                 slot("A1", 1, 1, "SKU-DEMO-001", 6, 2),
                 slot("A2", 1, 2, "SKU-SODA-001", 6, 2),
-                slot("A3", 1, 3, "SKU-WATER-001", 5, 2),
+                slot("A3", 1, 3, SKU_WATER_001, 5, 2),
                 slot("B1", 2, 1, "SKU-SNACK-001", 6, 2),
                 slot("B2", 2, 2, "SKU-MILK-001", 5, 2),
-                slot("B3", 2, 3, "SKU-NOODLE-001", 6, 2)
+                slot("B3", 2, 3, SKU_NOODLE_001, 6, 2)
         );
     }
 

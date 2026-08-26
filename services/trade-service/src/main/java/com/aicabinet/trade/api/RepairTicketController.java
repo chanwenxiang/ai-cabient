@@ -16,6 +16,9 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v2/ops/admin/repair-tickets")
 public class RepairTicketController {
+    private static final String ASSIGNEE = "assignee";
+    private static final String REMARK = "remark";
+
 
     private final RepairTicketService repairTicketService;
 
@@ -58,9 +61,9 @@ public class RepairTicketController {
                 body.get("deviceId"),
                 body.get("title"),
                 body.get("faultType"),
-                body.get("assignee"),
+                body.get(ASSIGNEE),
                 body.get("priority"),
-                body.get("remark")));
+                body.get(REMARK)));
     }
 
     @RequiresPermissions("ops:repair:edit")
@@ -74,9 +77,9 @@ public class RepairTicketController {
                 ticketId,
                 body.get("title"),
                 body.get("faultType"),
-                body.get("assignee"),
+                body.get(ASSIGNEE),
                 body.get("priority"),
-                body.get("remark")));
+                body.get(REMARK)));
     }
 
     @RequiresPermissions("ops:repair:edit")
@@ -92,7 +95,7 @@ public class RepairTicketController {
         return ApiResponse.ok(repairTicketService.batchAssign(
                 operator(request),
                 ids,
-                String.valueOf(body.getOrDefault("assignee", ""))));
+                String.valueOf(body.getOrDefault(ASSIGNEE, ""))));
     }
 
     @RequiresPermissions("ops:repair:edit")
@@ -102,7 +105,7 @@ public class RepairTicketController {
             @PathVariable long ticketId,
             @RequestBody Map<String, String> body) {
         return ApiResponse.ok(repairTicketService.transition(
-                operator(request), ticketId, body.get("status"), body.get("remark"),
+                operator(request), ticketId, body.get("status"), body.get(REMARK),
                 "true".equalsIgnoreCase(String.valueOf(body.getOrDefault("unlockDevice", "false")))));
     }
 

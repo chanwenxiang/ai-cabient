@@ -31,6 +31,11 @@ import java.util.UUID;
 
 @Service
 public class OrderPaymentService {
+    private static final String LITERAL = "（模拟支付退回余额）";
+    private static final String STATUS_COMPLETED = "COMPLETED";
+    private static final String REFUND = "REFUND";
+    private static final String CHARGE = "CHARGE";
+
 
     private static final Logger log = LoggerFactory.getLogger(OrderPaymentService.class);
 
@@ -124,7 +129,7 @@ public class OrderPaymentService {
             if (!PayChannels.BALANCE.equals(charge.channel())) {
                 order.setPayChannel(charge.channel());
                 order.setPayTradeNo(charge.tradeNo());
-                recordOperation(order, "CHARGE", order.getTotalAmountCents(), charge.channel(), idemKey,
+                recordOperation(order, CHARGE, order.getTotalAmountCents(), charge.channel(), idemKey,
                         charge.tradeNo(), "order charge");
                 if (session != null) {
                     consumerPreauthService.releaseIfFrozen(session);
@@ -145,12 +150,12 @@ public class OrderPaymentService {
         if (capturedViaPreauth > 0 && remainDebit > 0) {
             String preauthChargeKey = "CHARGE:PREAUTH:" + order.getOrderId() + ":" + order.getTotalAmountCents();
             if (!isCompleted(preauthChargeKey)) {
-                recordOperation(order, "CHARGE", capturedViaPreauth, PayChannels.BALANCE, preauthChargeKey,
+                recordOperation(order, CHARGE, capturedViaPreauth, PayChannels.BALANCE, preauthChargeKey,
                         null, "order charge via preauth capture");
             }
         }
         if (remainDebit > 0) {
-            var operation = balanceLedgerService.change(order.getUserId(), -remainDebit, "CHARGE",
+            var operation = balanceLedgerService.change(order.getUserId(), -remainDebit, CHARGE,
                     order.getOrderId(), idemKey, "order charge");
             order.setPaymentOperationId(operation.getOperationId());
             order.setBalanceBeforeCents(operation.getBalanceBeforeCents());
@@ -158,7 +163,7 @@ public class OrderPaymentService {
         } else {
             // 全额由预授权冲抵：仍记一条零侧审计用的 CHARGE 幂等键，防止重复扣
             if (!isCompleted(idemKey)) {
-                recordOperation(order, "CHARGE", order.getTotalAmountCents(), PayChannels.BALANCE, idemKey,
+                recordOperation(order, CHARGE, order.getTotalAmountCents(), PayChannels.BALANCE, idemKey,
                         null, "order charge via preauth");
             }
         }
@@ -256,7 +261,7 @@ public class OrderPaymentService {
             refundAlipay(order, amountCents, reason, idemKey);
             return;
         }
-        balanceLedgerService.change(order.getUserId(), amountCents, "REFUND",
+        balanceLedgerService.change(order.getUserId(), amountCents, REFUND,
                 order.getOrderId(), idemKey, reason);
     }
 
@@ -271,17 +276,17 @@ public class OrderPaymentService {
             // 微信退款 total 必须是原支付单金额；改单后 order.total 可能已变，不能直接用
             int totalCents = resolveOriginalChargeTotalCents(order, amountCents);
             weChatPayClient.createRefund(order.getOrderId(), outRefundNo, amountCents, totalCents, reasonOrDefault(reason));
-            recordOperation(order, "REFUND", amountCents, PayChannels.WECHAT, idemKey, outRefundNo, reason);
+            recordOperation(order, REFUND, amountCents, PayChannels.WECHAT, idemKey, outRefundNo, reason);
             log.info("wechat order refund order={} amount={} total={} (原路退回零钱)",
                     order.getOrderId(), amountCents, totalCents);
             return;
         }
         if (securityProperties.mockEnabled()) {
             // Mock 支付分未真实扣款时，退款记入余额（balanceLedgerService 已写 payment_operation）
-            balanceLedgerService.change(order.getUserId(), amountCents, "REFUND",
-                    order.getOrderId(), idemKey, reasonOrDefault(reason) + "（模拟支付退回余额）");
-            recordOperation(order, "REFUND", amountCents, PayChannels.WECHAT, idemKey, null,
-                    reasonOrDefault(reason) + "（模拟支付退回余额）");
+            balanceLedgerService.change(order.getUserId(), amountCents, REFUND,
+                    order.getOrderId(), idemKey, reasonOrDefault(reason) + LITERAL);
+            recordOperation(order, REFUND, amountCents, PayChannels.WECHAT, idemKey, null,
+                    reasonOrDefault(reason) + LITERAL);
             log.info("wechat mock order refund order={} amount={} credited to wallet", order.getOrderId(), amountCents);
             return;
         }
@@ -297,15 +302,15 @@ public class OrderPaymentService {
             }
             String outRefundNo = deterministicRefundNo(idemKey);
             alipayPayClient.refund(order.getOrderId(), outRefundNo, amountCents, reasonOrDefault(reason));
-            recordOperation(order, "REFUND", amountCents, PayChannels.ALIPAY, idemKey, outRefundNo, reason);
+            recordOperation(order, REFUND, amountCents, PayChannels.ALIPAY, idemKey, outRefundNo, reason);
             log.info("alipay order refund order={} amount={}", order.getOrderId(), amountCents);
             return;
         }
         if (securityProperties.mockEnabled()) {
-            balanceLedgerService.change(order.getUserId(), amountCents, "REFUND",
-                    order.getOrderId(), idemKey, reasonOrDefault(reason) + "（模拟支付退回余额）");
-            recordOperation(order, "REFUND", amountCents, PayChannels.ALIPAY, idemKey, null,
-                    reasonOrDefault(reason) + "（模拟支付退回余额）");
+            balanceLedgerService.change(order.getUserId(), amountCents, REFUND,
+                    order.getOrderId(), idemKey, reasonOrDefault(reason) + LITERAL);
+            recordOperation(order, REFUND, amountCents, PayChannels.ALIPAY, idemKey, null,
+                    reasonOrDefault(reason) + LITERAL);
             log.info("alipay mock order refund order={} amount={} credited to wallet", order.getOrderId(), amountCents);
             return;
         }
@@ -318,7 +323,7 @@ public class OrderPaymentService {
 
     private boolean isCompleted(String idempotencyKey) {
         return paymentOperationRepository.findByIdempotencyKey(idempotencyKey)
-                .map(op -> "COMPLETED".equals(op.getStatus()))
+                .map(op -> STATUS_COMPLETED.equals(op.getStatus()))
                 .orElse(false);
     }
 
@@ -333,7 +338,7 @@ public class OrderPaymentService {
         op.setOperationType(type);
         op.setAmountCents(amountCents);
         op.setChannel(channel);
-        op.setStatus("COMPLETED");
+        op.setStatus(STATUS_COMPLETED);
         op.setIdempotencyKey(idempotencyKey);
         op.setGatewayTradeNo(gatewayTradeNo);
         op.setReason(reason != null && reason.length() > 128 ? reason.substring(0, 128) : reason);
@@ -453,8 +458,8 @@ public class OrderPaymentService {
         int charged = paymentOperationRepository.selectList(
                         Wrappers.<PaymentOperation>lambdaQuery()
                                 .eq(PaymentOperation::getOrderId, order.getOrderId())
-                                .eq(PaymentOperation::getStatus, "COMPLETED")
-                                .eq(PaymentOperation::getOperationType, "CHARGE"))
+                                .eq(PaymentOperation::getStatus, STATUS_COMPLETED)
+                                .eq(PaymentOperation::getOperationType, CHARGE))
                 .stream()
                 .mapToInt(PaymentOperation::getAmountCents)
                 .sum();

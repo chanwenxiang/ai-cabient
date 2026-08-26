@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.constants.PayChannels;
 import com.aicabinet.common.dto.CreateSessionRequest;
@@ -46,6 +47,14 @@ import java.util.List;
 import java.util.Map;
 @Service
 public class SessionService {
+    private static final String SESSION_RECOGNIZING_EXPIRE = "session-recognizing-expire";
+    private static final String SESSION_OPENING_EXPIRE = "session-opening-expire";
+    private static final String SESSION_RESTOCK_EXPIRE = "session-restock-expire";
+    private static final String BALANCE_INSUFFICIENT = "BALANCE_INSUFFICIENT";
+    private static final String DEVICEID = "deviceId";
+    private static final String STATUS_SUCCESS = "SUCCESS";
+    private static final String LITERAL = "结算余额不足";
+
 
     private static final Logger log = LoggerFactory.getLogger(SessionService.class);
 
@@ -570,7 +579,7 @@ public class SessionService {
             transition(session, SessionState.SHOPPING);
             cabinetMetrics.recordDoorOpen(true);
             domainEventPublisher.publish("DoorOpened", session.getSessionId(),
-                    Map.of("deviceId", session.getDeviceId(), "userId", session.getUserId()));
+                    Map.of(DEVICEID, session.getDeviceId(), "userId", session.getUserId()));
             log.info("door opened session={}", session.getSessionId());
         }
         return toDto(session);
@@ -661,7 +670,7 @@ public class SessionService {
             log.info("session completed session={} order={}", session.getSessionId(), order.orderId());
             cabinetMetrics.recordSettlementSuccess();
             if ("PENDING".equalsIgnoreCase(order.status())) {
-                opsExceptionService.report("BALANCE_INSUFFICIENT", "HIGH", session.getDeviceId(),
+                opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", session.getDeviceId(),
                         session.getSessionId(), order.orderId(), session.getUserId(),
                         "订单待支付", "余额不足，已生成待支付订单，可催付或关单");
             }
@@ -677,9 +686,9 @@ public class SessionService {
             // 兼容旧路径：若结算仍抛余额不足且未落单，则进争议
             session.setFailReason(e.getMessage());
             transition(session, SessionState.DISPUTED);
-            opsExceptionService.report("BALANCE_INSUFFICIENT", "HIGH", session.getDeviceId(),
+            opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", session.getDeviceId(),
                     session.getSessionId(), session.getOrderId(), session.getUserId(),
-                    "结算余额不足", e.getMessage());
+                    LITERAL, e.getMessage());
             log.warn("session balance insufficient session={}", session.getSessionId());
             cabinetMetrics.recordSettlementFailure();
             return toDto(session);
@@ -687,9 +696,9 @@ public class SessionService {
             if (e.getStatusCode() == HttpStatus.PRECONDITION_FAILED) {
                 session.setFailReason(e.getReason());
                 transition(session, SessionState.DISPUTED);
-                opsExceptionService.report("BALANCE_INSUFFICIENT", "HIGH", session.getDeviceId(),
+                opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", session.getDeviceId(),
                         session.getSessionId(), session.getOrderId(), session.getUserId(),
-                        "结算余额不足", e.getReason());
+                        LITERAL, e.getReason());
                 return toDto(session);
             }
             session.setFailReason(e.getReason());
@@ -743,7 +752,7 @@ public class SessionService {
             transition(session, SessionState.COMPLETED);
             log.info("async session completed session={} order={}", sessionId, order.orderId());
             if ("PENDING".equalsIgnoreCase(order.status())) {
-                opsExceptionService.report("BALANCE_INSUFFICIENT", "HIGH", session.getDeviceId(),
+                opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", session.getDeviceId(),
                         session.getSessionId(), order.orderId(), session.getUserId(),
                         "订单待支付", "余额不足，已生成待支付订单，可催付或关单");
             }
@@ -757,9 +766,9 @@ public class SessionService {
         } catch (BalanceInsufficientException e) {
             session.setFailReason(e.getMessage());
             transition(session, SessionState.DISPUTED);
-            opsExceptionService.report("BALANCE_INSUFFICIENT", "HIGH", session.getDeviceId(),
+            opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", session.getDeviceId(),
                     session.getSessionId(), session.getOrderId(), session.getUserId(),
-                    "结算余额不足", e.getMessage());
+                    LITERAL, e.getMessage());
             log.warn("async session balance insufficient session={}", sessionId);
             return;
         } catch (ResponseStatusException e) {
@@ -771,9 +780,9 @@ public class SessionService {
             if (e.getStatusCode() == HttpStatus.PRECONDITION_FAILED) {
                 session.setFailReason(e.getReason());
                 transition(session, SessionState.DISPUTED);
-                opsExceptionService.report("BALANCE_INSUFFICIENT", "HIGH", session.getDeviceId(),
+                opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", session.getDeviceId(),
                         session.getSessionId(), session.getOrderId(), session.getUserId(),
-                        "结算余额不足", e.getReason());
+                        LITERAL, e.getReason());
                 log.warn("async session balance insufficient session={}", sessionId);
                 return;
             }
@@ -885,7 +894,7 @@ public class SessionService {
             repository.save(session);
             cabinetMetrics.recordSessionState(SessionState.COMPLETED);
             domainEventPublisher.publish("RestockSessionAutoClosed", session.getSessionId(),
-                    Map.of("deviceId", session.getDeviceId(), "taskId", String.valueOf(taskId),
+                    Map.of(DEVICEID, session.getDeviceId(), "taskId", String.valueOf(taskId),
                             "reason", failReason));
             log.info("restock session auto-closed session={} task={} reason={}",
                     session.getSessionId(), taskId, failReason);
@@ -909,7 +918,7 @@ public class SessionService {
         repository.save(session);
         cabinetMetrics.recordSessionState(SessionState.CANCELLED);
         domainEventPublisher.publish("SessionForceCancelled", sessionId,
-                Map.of("deviceId", session.getDeviceId(), "reason", session.getFailReason()));
+                Map.of(DEVICEID, session.getDeviceId(), "reason", session.getFailReason()));
         log.warn("operations force cancelled session={} device={} reason={}",
                 sessionId, session.getDeviceId(), session.getFailReason());
         return toDto(session);
@@ -952,7 +961,7 @@ public class SessionService {
     @Transactional
     public void expireStaleOpeningSessions() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("session-opening-expire", 600)) {
+        if (!taskService.tryBegin(SESSION_OPENING_EXPIRE, 600)) {
             return;
         }
         boolean failed = false;
@@ -975,11 +984,11 @@ public class SessionService {
         }
         } catch (Exception e) {
             failed = true;
-            taskService.finish("session-opening-expire", "FAILED", e.getMessage(), start);
+            taskService.finish(SESSION_OPENING_EXPIRE, CabinetConstants.ORDER_STATUS_FAILED, e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("session-opening-expire", "SUCCESS", summary, start);
+                taskService.finish(SESSION_OPENING_EXPIRE, STATUS_SUCCESS, summary, start);
             }
         }
     }
@@ -989,7 +998,7 @@ public class SessionService {
     @Transactional
     public void expireStaleRestockShoppingSessions() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("session-restock-expire", 600)) {
+        if (!taskService.tryBegin(SESSION_RESTOCK_EXPIRE, 600)) {
             return;
         }
         boolean failed = false;
@@ -1020,11 +1029,11 @@ public class SessionService {
         }
         } catch (Exception e) {
             failed = true;
-            taskService.finish("session-restock-expire", "FAILED", e.getMessage(), start);
+            taskService.finish(SESSION_RESTOCK_EXPIRE, CabinetConstants.ORDER_STATUS_FAILED, e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("session-restock-expire", "SUCCESS", summary, start);
+                taskService.finish(SESSION_RESTOCK_EXPIRE, STATUS_SUCCESS, summary, start);
             }
         }
     }
@@ -1034,7 +1043,7 @@ public class SessionService {
     @Transactional
     public void expireStaleRecognizingSessions() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("session-recognizing-expire", 600)) {
+        if (!taskService.tryBegin(SESSION_RECOGNIZING_EXPIRE, 600)) {
             return;
         }
         boolean failed = false;
@@ -1091,11 +1100,11 @@ public class SessionService {
         }
         } catch (Exception e) {
             failed = true;
-            taskService.finish("session-recognizing-expire", "FAILED", e.getMessage(), start);
+            taskService.finish(SESSION_RECOGNIZING_EXPIRE, CabinetConstants.ORDER_STATUS_FAILED, e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("session-recognizing-expire", "SUCCESS", summary, start);
+                taskService.finish(SESSION_RECOGNIZING_EXPIRE, STATUS_SUCCESS, summary, start);
             }
         }
     }
@@ -1147,7 +1156,7 @@ public class SessionService {
         repository.save(session);
         cabinetMetrics.recordSessionState(target);
         domainEventPublisher.publish("SessionStateChanged", session.getSessionId(),
-                Map.of("state", target.name(), "deviceId", session.getDeviceId()));
+                Map.of("state", target.name(), DEVICEID, session.getDeviceId()));
         if (target == SessionState.COMPLETED && session.getCloseTime() != null) {
             long ms = ChronoUnit.MILLIS.between(session.getCloseTime(), Instant.now());
             cabinetMetrics.recordRecognizeMs(ms);

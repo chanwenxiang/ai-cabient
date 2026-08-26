@@ -6,6 +6,9 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class DeviceMqttMetrics {
+    private static final String DEVICE_COMMAND = "device.command";
+    private static final String RESULT = "result";
+
 
     private final Counter mqttMessagesIn;
     private final Counter doorEventsForwarded;
@@ -22,17 +25,17 @@ public class DeviceMqttMetrics {
 
     public DeviceMqttMetrics(MeterRegistry registry) {
         this.mqttMessagesIn = registry.counter("device.mqtt.messages.in");
-        this.doorEventsForwarded = registry.counter("device.mqtt.door", "result", "forwarded");
-        this.doorEventsDeduped = registry.counter("device.mqtt.door", "result", "deduped");
-        this.heartbeatsForwarded = registry.counter("device.mqtt.heartbeat", "result", "forwarded");
-        this.heartbeatsDropped = registry.counter("device.mqtt.heartbeat", "result", "dropped");
+        this.doorEventsForwarded = registry.counter("device.mqtt.door", RESULT, "forwarded");
+        this.doorEventsDeduped = registry.counter("device.mqtt.door", RESULT, "deduped");
+        this.heartbeatsForwarded = registry.counter("device.mqtt.heartbeat", RESULT, "forwarded");
+        this.heartbeatsDropped = registry.counter("device.mqtt.heartbeat", RESULT, "dropped");
         this.acksReceived = registry.counter("device.mqtt.ack");
-        this.tradeForwardFailures = registry.counter("device.trade.forward", "result", "failure");
-        this.commandPublished = registry.counter("device.command", "result", "published");
-        this.commandAckSuccess = registry.counter("device.command", "result", "ack_success");
-        this.commandAckFailure = registry.counter("device.command", "result", "ack_failure");
-        this.commandAckTimeout = registry.counter("device.command", "result", "ack_timeout");
-        this.commandAckUnknown = registry.counter("device.command", "result", "ack_unknown");
+        this.tradeForwardFailures = registry.counter("device.trade.forward", RESULT, "failure");
+        this.commandPublished = registry.counter(DEVICE_COMMAND, RESULT, "published");
+        this.commandAckSuccess = registry.counter(DEVICE_COMMAND, RESULT, "ack_success");
+        this.commandAckFailure = registry.counter(DEVICE_COMMAND, RESULT, "ack_failure");
+        this.commandAckTimeout = registry.counter(DEVICE_COMMAND, RESULT, "ack_timeout");
+        this.commandAckUnknown = registry.counter(DEVICE_COMMAND, RESULT, "ack_unknown");
     }
 
     public void recordMessageIn() { mqttMessagesIn.increment(); }

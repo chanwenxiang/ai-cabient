@@ -19,6 +19,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class MerchantSkuPricingService {
+    private static final String MERCHANT_SKU_PRICE = "MERCHANT_SKU_PRICE";
+
 
     private static final int DEFAULT_MAX_MULTIPLIER = 2;
 
@@ -179,7 +181,7 @@ public class MerchantSkuPricingService {
 
         if (newPrice == null) {
             existing.ifPresent(priceRepository::delete);
-            auditService.record(userId, "MERCHANT_SKU_PRICE", "SKU_PRICE", deviceId + ":" + skuId,
+            auditService.record(userId, MERCHANT_SKU_PRICE, "SKU_PRICE", deviceId + ":" + skuId,
                     "reset to base " + sku.getPriceCents() + " (was override " + oldOverride + ")");
         } else {
             validatePrice(sku, newPrice);
@@ -188,7 +190,7 @@ public class MerchantSkuPricingService {
             row.setPriceCents(newPrice);
             row.setUpdatedByUserId(userId);
             priceRepository.save(row);
-            auditService.record(userId, "MERCHANT_SKU_PRICE", "SKU_PRICE", deviceId + ":" + skuId,
+            auditService.record(userId, MERCHANT_SKU_PRICE, "SKU_PRICE", deviceId + ":" + skuId,
                     "base=" + sku.getPriceCents() + " override " + oldOverride + " -> " + newPrice);
         }
 
@@ -229,7 +231,7 @@ public class MerchantSkuPricingService {
                     userId, requestedDeviceId, MerchantFeaturePacks.BIZ);
         }
         return auditLogRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, 200)).stream()
-                .filter(l -> "MERCHANT_SKU_PRICE".equals(l.getAction()))
+                .filter(l -> MERCHANT_SKU_PRICE.equals(l.getAction()))
                 .filter(l -> priceHistoryTargetMatches(
                         l.getTargetId(), requestedDeviceId, requestedSkuId, allowedDeviceIds))
                 .limit(50)

@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class RechargeOrderScheduler {
+    private static final String RECHARGE_CANCEL = "recharge-cancel";
+
 
     private static final Logger log = LoggerFactory.getLogger(RechargeOrderScheduler.class);
 
@@ -23,7 +25,7 @@ public class RechargeOrderScheduler {
     @Scheduled(fixedDelayString = "${aicabinet.recharge.auto-cancel-interval-ms:300000}", initialDelay = 120_000)
     public void autoCancelExpired() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("recharge-cancel", 600)) {
+        if (!taskService.tryBegin(RECHARGE_CANCEL, 600)) {
             return;
         }
         boolean failed = false;
@@ -36,11 +38,11 @@ public class RechargeOrderScheduler {
             }
         } catch (Exception e) {
             failed = true;
-            taskService.finish("recharge-cancel", "FAILED", e.getMessage(), start);
+            taskService.finish(RECHARGE_CANCEL, "FAILED", e.getMessage(), start);
             log.warn("recharge auto-cancel failed", e);
         } finally {
             if (!failed) {
-                taskService.finish("recharge-cancel", "SUCCESS", summary, start);
+                taskService.finish(RECHARGE_CANCEL, "SUCCESS", summary, start);
             }
         }
     }

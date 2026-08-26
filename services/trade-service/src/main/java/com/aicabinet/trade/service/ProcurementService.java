@@ -14,6 +14,11 @@ import java.util.List;
 
 @Service
 public class ProcurementService {
+    private static final String PURCHASE_ORDER_NOT_FOUND = "purchase order not found";
+    private static final String PURCHASE_LINE_NOT_FOUND = "purchase line not found";
+    private static final String PENDING_APPROVAL = "PENDING_APPROVAL";
+    private static final String PARTIAL_RECEIVED = "PARTIAL_RECEIVED";
+
 
     private final PermissionService permissionService;
     private final SupplierMapper supplierRepository;
@@ -93,7 +98,7 @@ public class ProcurementService {
     public PurchaseOrderDto getPurchaseOrder(Long operatorId, Long purchaseOrderId) {
         requireWarehouseRead(operatorId);
         PurchaseOrder order = purchaseOrderRepository.findById(purchaseOrderId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "purchase order not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, PURCHASE_ORDER_NOT_FOUND));
         return toPurchaseDto(order);
     }
 
@@ -120,7 +125,7 @@ public class ProcurementService {
         order.setRefNo(trimToNull(request.refNo()));
         order.setNotes(trimToNull(request.notes()));
         order.setOperatorId(operatorId);
-        order.setStatus("PENDING_APPROVAL");
+        order.setStatus(PENDING_APPROVAL);
         order = purchaseOrderRepository.save(order);
         if (order.getRefNo() == null || order.getRefNo().isBlank()) {
             order.setRefNo("PO-" + order.getPurchaseOrderId());
@@ -163,7 +168,7 @@ public class ProcurementService {
         runWithPurchaseOrderLock(purchaseOrderId, () -> {
             for (int i = 0; i < 4; i++) {
                 PurchaseOrder order = purchaseOrderRepository.findById(purchaseOrderId).orElse(null);
-                if (order == null || !"PENDING_APPROVAL".equals(order.getStatus())) {
+                if (order == null || !PENDING_APPROVAL.equals(order.getStatus())) {
                     break;
                 }
                 Long actorId = approvalWorkflowService.findAnyPendingAssignee(
@@ -180,8 +185,8 @@ public class ProcurementService {
     private PurchaseOrderDto doReviewPurchaseOrder(Long operatorId, Long purchaseOrderId,
                                                    boolean approve, String remark) {
         PurchaseOrder order = purchaseOrderRepository.findByIdForUpdate(purchaseOrderId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "purchase order not found"));
-        if (!"PENDING_APPROVAL".equals(order.getStatus())) {
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, PURCHASE_ORDER_NOT_FOUND));
+        if (!PENDING_APPROVAL.equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "仅待审批采购单可审核");
         }
         String bizId = String.valueOf(purchaseOrderId);
@@ -222,8 +227,8 @@ public class ProcurementService {
 
     private PurchaseReturnDto doCreatePurchaseReturn(Long operatorId, CreatePurchaseReturnRequest request) {
         PurchaseOrder order = purchaseOrderRepository.findByIdForUpdate(request.purchaseOrderId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "purchase order not found"));
-        if (!"RECEIVED".equals(order.getStatus()) && !"PARTIAL_RECEIVED".equals(order.getStatus())) {
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, PURCHASE_ORDER_NOT_FOUND));
+        if (!"RECEIVED".equals(order.getStatus()) && !PARTIAL_RECEIVED.equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "purchase order has no receivable stock to return");
         }
         List<PurchaseOrderLine> existing = purchaseOrderLineRepository
@@ -247,7 +252,7 @@ public class ProcurementService {
             PurchaseOrderLine poLine = existing.stream()
                     .filter(l -> lineReq.purchaseLineId().equals(l.getLineId()))
                     .findFirst()
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "purchase line not found"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, PURCHASE_LINE_NOT_FOUND));
             int returnable = poLine.getReceivedQty() - poLine.getReturnedQty();
             if (lineReq.quantity() > returnable) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -290,8 +295,8 @@ public class ProcurementService {
     private PurchaseOrderDto doReceivePurchaseOrder(Long operatorId, Long purchaseOrderId,
                                                     ReceivePurchaseOrderRequest request) {
         PurchaseOrder order = purchaseOrderRepository.findByIdForUpdate(purchaseOrderId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "purchase order not found"));
-        if (!"CREATED".equals(order.getStatus()) && !"PARTIAL_RECEIVED".equals(order.getStatus())) {
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, PURCHASE_ORDER_NOT_FOUND));
+        if (!"CREATED".equals(order.getStatus()) && !PARTIAL_RECEIVED.equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "purchase order state invalid");
         }
         List<PurchaseOrderLine> existing = purchaseOrderLineRepository
@@ -342,7 +347,7 @@ public class ProcurementService {
         boolean allReceived = purchaseOrderLineRepository.findByPurchaseOrderIdOrderByLineIdAsc(purchaseOrderId)
                 .stream()
                 .allMatch(line -> line.getReceivedQty() >= line.getOrderedQty());
-        order.setStatus(allReceived ? "RECEIVED" : "PARTIAL_RECEIVED");
+        order.setStatus(allReceived ? "RECEIVED" : PARTIAL_RECEIVED);
         if (allReceived) {
             order.setReceivedAt(Instant.now());
         }
@@ -368,12 +373,12 @@ public class ProcurementService {
             return existing.stream()
                     .filter(l -> dto.lineId().equals(l.getLineId()))
                     .findFirst()
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "purchase line not found"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, PURCHASE_LINE_NOT_FOUND));
         }
         return existing.stream()
                 .filter(l -> l.getSkuId().equals(dto.skuId()) && l.getBatchNo().equals(dto.batchNo()))
                 .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "purchase line not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, PURCHASE_LINE_NOT_FOUND));
     }
 
     private void validatePurchaseLine(PurchaseOrderLineDto dto, boolean receiving) {

@@ -18,6 +18,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @Component
 public class WeChatMiniAppClient {
+    private static final String ERRCODE = "errcode";
+
 
     private static final Logger log = LoggerFactory.getLogger(WeChatMiniAppClient.class);
     private static final String CODE2SESSION_URL =
@@ -60,7 +62,7 @@ public class WeChatMiniAppClient {
                 .body(String.class);
         try {
             JsonNode node = objectMapper.readTree(body);
-            if (node.has("errcode") && node.get("errcode").asInt() != 0) {
+            if (node.has(ERRCODE) && node.get(ERRCODE).asInt() != 0) {
                 throw new IllegalStateException("code2session failed: " + body);
             }
             return new Code2SessionResult(node.get("openid").asText(), node.path("session_key").asText());
@@ -101,7 +103,7 @@ public class WeChatMiniAppClient {
                     .retrieve()
                     .body(String.class);
             JsonNode node = objectMapper.readTree(response);
-            int err = node.path("errcode").asInt(0);
+            int err = node.path(ERRCODE).asInt(0);
             if (err != 0) {
                 log.warn("subscribe send failed openId={} err={} msg={}", openId, err, node.path("errmsg").asText());
                 return false;
@@ -143,7 +145,7 @@ public class WeChatMiniAppClient {
                     .retrieve()
                     .body(String.class);
             JsonNode node = objectMapper.readTree(response);
-            int err = node.path("errcode").asInt(0);
+            int err = node.path(ERRCODE).asInt(0);
             if (err != 0) {
                 log.warn("generate_urllink failed err={} msg={}", err, node.path("errmsg").asText());
                 return java.util.Optional.empty();
@@ -170,7 +172,7 @@ public class WeChatMiniAppClient {
                 .retrieve()
                 .body(String.class);
         JsonNode node = objectMapper.readTree(body);
-        if (node.has("errcode") && node.get("errcode").asInt() != 0) {
+        if (node.has(ERRCODE) && node.get(ERRCODE).asInt() != 0) {
             throw new IllegalStateException("access_token failed: " + body);
         }
         String token = node.get("access_token").asText();

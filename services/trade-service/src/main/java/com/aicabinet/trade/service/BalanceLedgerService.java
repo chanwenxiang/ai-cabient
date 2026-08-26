@@ -17,6 +17,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class BalanceLedgerService {
+    private static final String ADJUST_CHARGE = "ADJUST_CHARGE";
+    private static final String CHARGE = "CHARGE";
+
     private final UserAccountMapper accountRepository;
     private final PaymentOperationMapper operationRepository;
     private final DistributedLockService distributedLockService;
@@ -139,7 +142,7 @@ public class BalanceLedgerService {
     private static String resolveCabinetOrderId(String businessType, String businessId) {
         if (businessId == null || businessId.isBlank()) return null;
         return switch (businessType) {
-            case "CHARGE", "REFUND", "ADJUST_CHARGE" -> businessId;
+            case CHARGE, "REFUND", ADJUST_CHARGE -> businessId;
             default -> null;
         };
     }
@@ -147,7 +150,7 @@ public class BalanceLedgerService {
     private static String buildReason(String businessType, String businessId, String reason) {
         String base = trim(reason);
         if (businessId == null || businessId.isBlank()) return base;
-        if ("CHARGE".equals(businessType) || "REFUND".equals(businessType) || "ADJUST_CHARGE".equals(businessType)) {
+        if (CHARGE.equals(businessType) || "REFUND".equals(businessType) || ADJUST_CHARGE.equals(businessType)) {
             return base;
         }
         String suffix = "#" + businessId;
@@ -168,7 +171,7 @@ public class BalanceLedgerService {
         int signedAmount = operation.getBalanceBeforeCents() != null && operation.getBalanceAfterCents() != null
                 ? operation.getBalanceAfterCents() - operation.getBalanceBeforeCents()
                 : switch (operation.getOperationType()) {
-                    case "CHARGE", "ADJUST_CHARGE" -> -operation.getAmountCents();
+                    case CHARGE, ADJUST_CHARGE -> -operation.getAmountCents();
                     default -> operation.getAmountCents();
                 };
         return new BalanceTransactionDto(operation.getOperationId(), operation.getUserId(),

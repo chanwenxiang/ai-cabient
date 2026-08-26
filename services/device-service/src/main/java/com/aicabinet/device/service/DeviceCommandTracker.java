@@ -1,4 +1,5 @@
 package com.aicabinet.device.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.device.metrics.DeviceMqttMetrics;
 import jakarta.annotation.PreDestroy;
@@ -20,6 +21,13 @@ import java.util.concurrent.TimeUnit;
 
 @Component
 public class DeviceCommandTracker {
+    private static final String LATE_FAILED_ACK = "LATE_FAILED_ACK";
+    private static final String DUPLICATE_ACK = "DUPLICATE_ACK";
+    private static final String LATE_ACK = "LATE_ACK";
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String TIMEOUT = "TIMEOUT";
+    private static final String ACKED = "ACKED";
+
 
     private static final Logger log = LoggerFactory.getLogger(DeviceCommandTracker.class);
     private static final long ACK_TIMEOUT_MS = 15_000L;
@@ -52,7 +60,7 @@ public class DeviceCommandTracker {
 
     public void recordPublished(String commandId, String deviceId, String sessionId) {
         long now = Instant.now().toEpochMilli();
-        CommandStatus status = new CommandStatus(commandId, deviceId, sessionId, "PENDING", null, now, null);
+        CommandStatus status = new CommandStatus(commandId, deviceId, sessionId, STATUS_PENDING, null, now, null);
         if (redis != null) {
             try {
                 writeStatus(status);
@@ -85,9 +93,9 @@ public class DeviceCommandTracker {
         if (command == null) {
             CommandStatus existing = recent.get(commandId);
             if (existing != null && isTerminal(existing.status())) {
-                String status = "TIMEOUT".equals(existing.status())
-                        ? (success ? "LATE_ACK" : "LATE_FAILED_ACK")
-                        : "DUPLICATE_ACK";
+                String status = TIMEOUT.equals(existing.status())
+                        ? (success ? LATE_ACK : LATE_FAILED_ACK)
+                        : DUPLICATE_ACK;
                 recent.put(commandId, new CommandStatus(commandId, existing.deviceId(), existing.sessionId(),
                         status, success, existing.publishedAtMs(), Instant.now().toEpochMilli()));
                 trimRecent();
@@ -103,7 +111,7 @@ public class DeviceCommandTracker {
             return;
         }
         recent.put(commandId, new CommandStatus(commandId, command.deviceId(), command.sessionId(),
-                success ? "ACKED" : "FAILED", success, command.createdAtMs(), Instant.now().toEpochMilli()));
+                success ? ACKED : CabinetConstants.ORDER_STATUS_FAILED, success, command.createdAtMs(), Instant.now().toEpochMilli()));
         trimRecent();
         if (success) {
             metrics.recordCommandAckSuccess();
@@ -136,7 +144,7 @@ public class DeviceCommandTracker {
                 it.remove();
                 metrics.recordCommandAckTimeout();
                 recent.put(entry.getKey(), new CommandStatus(entry.getKey(), command.deviceId(), command.sessionId(),
-                        "TIMEOUT", false, command.createdAtMs(), now));
+                        TIMEOUT, false, command.createdAtMs(), now));
                 trimRecent();
                 log.warn("device command ACK timeout commandId={} device={} session={}",
                         entry.getKey(), command.deviceId(), command.sessionId());
@@ -151,7 +159,7 @@ public class DeviceCommandTracker {
         }
         long now = Instant.now().toEpochMilli();
         recent.put(commandId, new CommandStatus(commandId, command.deviceId(), command.sessionId(),
-                "TIMEOUT", false, command.createdAtMs(), now));
+                TIMEOUT, false, command.createdAtMs(), now));
     }
 
     public CommandStatus getStatus(String commandId) {
@@ -174,7 +182,7 @@ public class DeviceCommandTracker {
             return null;
         }
         return new CommandStatus(commandId, command.deviceId(), command.sessionId(),
-                "PENDING", null, command.createdAtMs(), null);
+                STATUS_PENDING, null, command.createdAtMs(), null);
     }
 
     private void trimRecent() {
@@ -195,12 +203,12 @@ public class DeviceCommandTracker {
     }
 
     private static boolean isTerminal(String status) {
-        return "ACKED".equals(status)
-                || "FAILED".equals(status)
-                || "TIMEOUT".equals(status)
-                || "DUPLICATE_ACK".equals(status)
-                || "LATE_ACK".equals(status)
-                || "LATE_FAILED_ACK".equals(status);
+        return ACKED.equals(status)
+                || CabinetConstants.ORDER_STATUS_FAILED.equals(status)
+                || TIMEOUT.equals(status)
+                || DUPLICATE_ACK.equals(status)
+                || LATE_ACK.equals(status)
+                || LATE_FAILED_ACK.equals(status);
     }
 
     private void recordAckRedis(String commandId, boolean success) {
@@ -213,16 +221,16 @@ public class DeviceCommandTracker {
             next = new CommandStatus(commandId, null, null,
                     success ? "ACKED_UNKNOWN" : "FAILED_UNKNOWN", success, null, now);
         } else if (isTerminal(existing.status())) {
-            String status = "TIMEOUT".equals(existing.status())
-                    ? (success ? "LATE_ACK" : "LATE_FAILED_ACK")
-                    : "DUPLICATE_ACK";
+            String status = TIMEOUT.equals(existing.status())
+                    ? (success ? LATE_ACK : LATE_FAILED_ACK)
+                    : DUPLICATE_ACK;
             log.info("received repeated ACK commandId={} previousStatus={} success={}",
                     commandId, existing.status(), success);
             next = new CommandStatus(commandId, existing.deviceId(), existing.sessionId(),
                     status, success, existing.publishedAtMs(), now);
         } else {
             next = new CommandStatus(commandId, existing.deviceId(), existing.sessionId(),
-                    success ? "ACKED" : "FAILED", success, existing.publishedAtMs(), now);
+                    success ? ACKED : CabinetConstants.ORDER_STATUS_FAILED, success, existing.publishedAtMs(), now);
             if (success) {
                 metrics.recordCommandAckSuccess();
             } else {
@@ -239,12 +247,12 @@ public class DeviceCommandTracker {
         try (var cursor = redis.scan(ScanOptions.scanOptions().match(KEY_PREFIX + "*").count(100).build())) {
             while (cursor.hasNext()) {
                 CommandStatus status = readStatusByKey(cursor.next());
-                if (status == null || !"PENDING".equals(status.status())) {
+                if (status == null || !STATUS_PENDING.equals(status.status())) {
                     continue;
                 }
                 if (now - status.publishedAtMs() >= ACK_TIMEOUT_MS) {
                     writeStatus(new CommandStatus(status.commandId(), status.deviceId(), status.sessionId(),
-                            "TIMEOUT", false, status.publishedAtMs(), now));
+                            TIMEOUT, false, status.publishedAtMs(), now));
                     metrics.recordCommandAckTimeout();
                     log.warn("device command ACK timeout commandId={} device={} session={}",
                             status.commandId(), status.deviceId(), status.sessionId());

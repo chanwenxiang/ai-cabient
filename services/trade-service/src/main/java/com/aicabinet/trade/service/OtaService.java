@@ -16,6 +16,8 @@ import java.util.List;
 
 @Service
 public class OtaService {
+    private static final String STATUS_PUBLISHED = "PUBLISHED";
+
 
     private final OtaReleaseMapper releaseRepository;
     private final DeviceInfoMapper deviceRepository;
@@ -37,7 +39,7 @@ public class OtaService {
 
     @Transactional(readOnly = true)
     public List<OtaReleaseDto> listReleases(Long operatorId) {
-        return releaseRepository.findByStatusOrderByPublishedAtDesc("PUBLISHED").stream()
+        return releaseRepository.findByStatusOrderByPublishedAtDesc(STATUS_PUBLISHED).stream()
                 .map(this::toDto)
                 .toList();
     }
@@ -61,7 +63,7 @@ public class OtaService {
             } catch (Exception ignored) {
             }
         }
-        release.setStatus("PUBLISHED");
+        release.setStatus(STATUS_PUBLISHED);
         release.setPublishedAt(Instant.now());
         return toDto(releaseRepository.save(release));
     }
@@ -75,7 +77,7 @@ public class OtaService {
     private OtaReleaseDto doUnpublishRelease(Long releaseId) {
         OtaRelease release = releaseRepository.findByIdForUpdate(releaseId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "发布版本不存在"));
-        if (!"PUBLISHED".equalsIgnoreCase(release.getStatus())) {
+        if (!STATUS_PUBLISHED.equalsIgnoreCase(release.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅已发布版本可下架");
         }
         release.setStatus("UNPUBLISHED");
@@ -87,7 +89,7 @@ public class OtaService {
     public OtaCheckResponse checkUpdate(String deviceId, String currentVersion, String channel) {
         String ch = channel != null ? channel : "stable";
         OtaRelease latest = releaseRepository
-                .findFirstByChannelAndStatusOrderByPublishedAtDesc(ch, "PUBLISHED")
+                .findFirstByChannelAndStatusOrderByPublishedAtDesc(ch, STATUS_PUBLISHED)
                 .orElse(null);
         if (latest == null || latest.getAppVersion().equals(currentVersion)) {
             return new OtaCheckResponse(false, null, null, null, false, null);
