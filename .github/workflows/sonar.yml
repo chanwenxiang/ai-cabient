@@ -104,11 +104,14 @@ jobs:
           set -euo pipefail
           KEY="${{ steps.sonar_proj.outputs.project_key }}"
           NAME="${{ steps.sonar_proj.outputs.project_name }}"
-          sonar-scanner \
+          # 用 Maven 插件扫描 Java（自动 classpath + Jacoco）；前端模块仍由 sonar-project.properties 提供
+          mvn -B sonar:sonar \
+            -DskipTests \
             -Dsonar.projectKey="$KEY" \
             -Dsonar.projectName="$NAME" \
             -Dsonar.host.url="${SONAR_HOST_URL}" \
             -Dsonar.token="${SONAR_TOKEN}" \
             -Dsonar.scm.revision="${{ github.sha }}" \
             -Dsonar.qualitygate.wait=true \
-            -Dsonar.qualitygate.timeout=600
+            -Dsonar.qualitygate.timeout=600 \
+            -pl services/trade-service,services/device-service,services/common/common-core -am

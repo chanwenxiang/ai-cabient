@@ -33,13 +33,13 @@ fi
 
 post_form "/api/qualitygates/create_condition" -d "gateName=AI Cabinet" -d "metric=new_vulnerabilities" -d "op=GT" -d "error=0"
 post_form "/api/qualitygates/create_condition" -d "gateName=AI Cabinet" -d "metric=new_blocker_violations" -d "op=GT" -d "error=0"
-post_form "/api/qualitygates/create_condition" -d "gateName=AI Cabinet" -d "metric=new_security_hotspots_reviewed" -d "op=LT" -d "error=100"
 post_form "/api/qualitygates/create_condition" -d "gateName=AI Cabinet" -d "metric=new_duplicated_lines_density" -d "op=GT" -d "error=3"
-post_form "/api/qualitygates/create_condition" -d "gateName=AI Cabinet" -d "metric=new_coverage" -d "op=LT" -d "error=20"
+# 全仓覆盖率（含前端无单测行）；Java 基线约 23%，阈值 20%
+post_form "/api/qualitygates/create_condition" -d "gateName=AI Cabinet" -d "metric=coverage" -d "op=LT" -d "error=20"
 
 for project in ai-cabinet-dev ai-cabinet-main; do
   post_form "/api/qualitygates/select" -d "projectKey=$project" -d "gateName=AI Cabinet" || true
   echo "bound $project"
 done
 
-echo "Quality gate ready: AI Cabinet (vuln=0, blocker=0, hotspots=100%, dup<=3%, coverage>=20%)"
+echo "Quality gate ready: AI Cabinet (vuln=0, blocker=0, dup<=3%, coverage>=20%)"

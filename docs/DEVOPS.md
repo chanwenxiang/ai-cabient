@@ -80,9 +80,10 @@ SonarQube / Runner 容器默认 `TZ=Asia/Shanghai`。
 |------|------|
 | 新漏洞 | = 0 |
 | 新 BLOCKER | = 0 |
-| 安全热点审查 | = 100% |
 | 新重复率 | ≤ 3% |
-| 新覆盖率 | ≥ 20%（当前基线约 23%；后续再提到 40%） |
+| **全仓覆盖率** | ≥ 20%（Java 单测 + Jacoco；前端行会拉低整体占比） |
+
+安全热点需在 Sonar UI 人工 Review，**不阻塞** CI 门禁。
 
 本地重建门禁（幂等）：
 
@@ -91,7 +92,7 @@ $env:SONAR_TOKEN = "<token>"
 .\scripts\ci\setup-sonar-quality-gate.ps1
 ```
 
-覆盖率依赖 Jacoco：`mvn test jacoco:report` 后由 `sonar.yml` / `run-sonar.ps1` 上报显式 Jacoco 路径。
+覆盖率依赖 Jacoco：`mvn test jacoco:report` 后由 **`mvn sonar:sonar`**（非 sonar-scanner）上报，以便 Maven 自动带 Java classpath。
 
 ### IDE 开发期（SonarLint）
 

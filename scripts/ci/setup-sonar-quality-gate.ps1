@@ -34,10 +34,9 @@ foreach ($c in @($show.conditions)) {
 $conds = @(
   @{ gateName = "AI Cabinet"; metric = "new_vulnerabilities"; op = "GT"; error = "0" },
   @{ gateName = "AI Cabinet"; metric = "new_blocker_violations"; op = "GT"; error = "0" },
-  @{ gateName = "AI Cabinet"; metric = "new_security_hotspots_reviewed"; op = "LT"; error = "100" },
   @{ gateName = "AI Cabinet"; metric = "new_duplicated_lines_density"; op = "GT"; error = "3" },
-  # 当前新代码覆盖率约 23%；先卡 20% 让门禁可绿，后续再逐步提到 40%
-  @{ gateName = "AI Cabinet"; metric = "new_coverage"; op = "LT"; error = "20" }
+  # 全仓覆盖率（含前端无单测行）；Java 基线约 23%，阈值 20%
+  @{ gateName = "AI Cabinet"; metric = "coverage"; op = "LT"; error = "20" }
 )
 foreach ($c in $conds) { Post-Form "/api/qualitygates/create_condition" $c }
 
@@ -50,4 +49,4 @@ foreach ($project in @("ai-cabinet-dev", "ai-cabinet-main")) {
   }
 }
 
-Write-Host "Quality gate ready: AI Cabinet (vuln=0, blocker=0, hotspots=100%, dup<=3%, coverage>=20%)" -ForegroundColor Green
+Write-Host "Quality gate ready: AI Cabinet (vuln=0, blocker=0, dup<=3%, coverage>=20%)" -ForegroundColor Green

@@ -33,6 +33,11 @@
         <lombok.version>1.18.38</lombok.version>
         <sonar.maven.plugin.version>4.0.0.4121</sonar.maven.plugin.version>
         <jacoco.version>0.8.12</jacoco.version>
+        <!-- Maven Sonar 插件自动带 classpath；Jacoco 默认 target/site/jacoco/jacoco.xml -->
+        <sonar.coverage.jacoco.xmlReportPaths>
+            ${maven.multiModuleProjectDirectory}/services/trade-service/target/site/jacoco/jacoco.xml,
+            ${maven.multiModuleProjectDirectory}/services/device-service/target/site/jacoco/jacoco.xml
+        </sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
     <dependencyManagement>
@@ -132,6 +137,10 @@
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
             </plugin>
             <plugin>
                 <groupId>org.jacoco</groupId>

@@ -28,37 +28,33 @@ $mvn = if (Test-Path "D:\devTools\apache-maven-3.9.16\bin\mvn.cmd") {
   "mvn"
 }
 
-$scanner = if (Test-Path "D:\devTools\sonar-scanner\bin\sonar-scanner.bat") {
-  "D:\devTools\sonar-scanner\bin\sonar-scanner.bat"
-} else {
-  "sonar-scanner"
-}
-
 Write-Host "==> 1/3 Compile + unit tests + Jacoco..." -ForegroundColor Cyan
 & $mvn -B "-Dmaven.test.failure.ignore=true" test jacoco:report `
   "-pl" "services/trade-service,services/device-service,services/common/common-core" "-am"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-# Maven sonar:sonar 只会扫 Maven 模块；admin-vue 需走 sonar-scanner + sonar-project.properties
+# mvn sonar:sonar 会读 sonar-project.properties，一并扫描三个前端模块
 Write-Host "==> 2/3 Ensure quality gate (AI Cabinet)..." -ForegroundColor Cyan
 & "$PSScriptRoot\setup-sonar-quality-gate.ps1" -SonarHostUrl $SonarHostUrl -SonarToken $SonarToken
 
-Write-Host "==> 3/3 Sonar scan (Java + admin-vue + consumer-mp + merchant-mp) key=$projectKey ..." -ForegroundColor Cyan
+Write-Host "==> 3/3 Sonar scan (mvn sonar:sonar, Java + admin-vue + consumer-mp + merchant-mp) key=$projectKey ..." -ForegroundColor Cyan
 if ($scmRevision) { Write-Host "scm.revision=$scmRevision" }
 
-$scannerArgs = @(
+$mvnArgs = @(
+  "-B", "sonar:sonar",
+  "-DskipTests",
   "-Dsonar.projectKey=$projectKey",
   "-Dsonar.projectName=$projectName",
   "-Dsonar.host.url=$SonarHostUrl",
   "-Dsonar.token=$SonarToken",
-  "-Dsonar.sourceEncoding=UTF-8",
-  "-Dsonar.java.coveragePlugin=jacoco"
+  "-Dsonar.qualitygate.wait=true",
+  "-pl", "services/trade-service,services/device-service,services/common/common-core", "-am"
 )
 if ($scmRevision) {
-  $scannerArgs += "-Dsonar.scm.revision=$scmRevision"
+  $mvnArgs += "-Dsonar.scm.revision=$scmRevision"
 }
 
-& $scanner @scannerArgs
+& $mvn @mvnArgs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "Sonar scan submitted: http://localhost:19002/dashboard?id=$projectKey" -ForegroundColor Green
