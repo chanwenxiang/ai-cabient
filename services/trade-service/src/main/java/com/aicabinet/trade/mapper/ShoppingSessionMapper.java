@@ -296,7 +296,7 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
             @Param("since") java.time.Instant since,
             @Param("deviceIds") Collection<String> deviceIds);
 
-    /** 运营会话列表筛选：设备范围 + 状态 + 会话/用户/时间 + 关键词。 */
+    /** 运营会话列表筛选：设备范围 + 状态 + 会话/用户/时间 + 关键词 + 上传状态/滞留。 */
     default Page<ShoppingSession> findByFiltersOrderByCreatedAtDesc(
             String deviceId,
             Collection<String> deviceIds,
@@ -306,6 +306,8 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
             java.time.Instant createdFrom,
             java.time.Instant createdTo,
             String keyword,
+            String uploadStatus,
+            java.time.Instant updatedBefore,
             Pageable pageable) {
         var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<ShoppingSession>(
                 pageable.getPageNumber() + 1L, pageable.getPageSize());
@@ -333,6 +335,12 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
         if (createdTo != null) {
             q.le(ShoppingSession::getCreatedAt, createdTo);
         }
+        if (uploadStatus != null && !uploadStatus.isBlank()) {
+            q.eq(ShoppingSession::getUploadStatus, uploadStatus.trim());
+        }
+        if (updatedBefore != null) {
+            q.le(ShoppingSession::getUpdatedAt, updatedBefore);
+        }
         if (keyword != null && !keyword.isBlank()) {
             String kw = keyword.trim();
             Long kwUserId = null;
@@ -354,6 +362,22 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
         q.orderByDesc(ShoppingSession::getCreatedAt);
         var result = selectPage(mpPage, q);
         return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
+    }
+
+    /** @deprecated use overload with uploadStatus/updatedBefore */
+    default Page<ShoppingSession> findByFiltersOrderByCreatedAtDesc(
+            String deviceId,
+            Collection<String> deviceIds,
+            SessionState state,
+            String sessionId,
+            Long userId,
+            java.time.Instant createdFrom,
+            java.time.Instant createdTo,
+            String keyword,
+            Pageable pageable) {
+        return findByFiltersOrderByCreatedAtDesc(
+                deviceId, deviceIds, state, sessionId, userId, createdFrom, createdTo,
+                keyword, null, null, pageable);
     }
 
     default long countByDeviceIdAndCreatedAtAfter(String deviceId, java.time.Instant since) {

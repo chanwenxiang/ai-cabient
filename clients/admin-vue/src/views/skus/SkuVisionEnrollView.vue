@@ -152,7 +152,7 @@
       <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
-          :data="paged"
+          :data="displayList"
           stripe
           border
           row-key="skuId"
@@ -285,10 +285,12 @@
       :hydrated="listHydrated"
       v-model:current-page="page"
       v-model:page-size="size"
-      :total="filtered.length"
+      :total="total"
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next"
       background
+      @current-change="load"
+      @size-change="onSizeChange"
     />
 
     <el-dialog
@@ -534,6 +536,8 @@ const suggestingImage = ref(false);
 const imageUploading = ref(false);
 const batchDelisting = ref(false);
 const items = ref<SkuCatalog[]>([]);
+const total = ref(0);
+const catalogOptions = ref<SkuCatalog[]>([]);
 const rowBySku = ref<Record<string, SkuVisionEnrollmentRow>>({});
 const pipelineHint = ref(
   '流程：草稿/映射中 → 识别测试 → 转生产。转生产只表示进入结算白名单；可对接任意端侧识别算法。端侧若回传 mock/fallback 或低于扣款阈值，仍会进争议审单，不会静默扣款。'
@@ -564,32 +568,36 @@ const helpOpen = ref(false);
 const saleTab = ref('ACTIVE');
 const page = ref(1);
 const size = ref(20);
-const filtered = computed(() => {
-  const q = keyword.value.trim().toLowerCase();
-  const rows = items.value.filter((row) => {
-    if (saleTab.value === 'ACTIVE' && row.status !== 'ACTIVE') return false;
-    if (enrollmentFilter.value && row.visionEnrollmentStatus !== enrollmentFilter.value)
-      return false;
-    if (!q) return true;
-    return [
-      row.skuCode,
-      row.skuId,
-      row.skuName,
-      row.barcode,
-      row.brand,
-      row.yoloClassName,
-      categoryLabel(row.category),
-      row.status
-    ].some((x) =>
-      String(x || '')
-        .toLowerCase()
-        .includes(q)
-    );
-  });
-  return sortById(rows, (r) => r.skuCode ?? r.skuId);
-});
+const displayList = computed(() => sortById(items.value, (r) => r.skuCode ?? r.skuId));
 
-const catalogOptions = computed(() => items.value);
+function queryParams() {
+  const q = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
+  });
+  if (keyword.value.trim()) q.set('q', keyword.value.trim());
+  if (saleTab.value === 'ACTIVE') q.set('status', 'ACTIVE');
+  else q.set('status', 'ALL');
+  if (enrollmentFilter.value) q.set('enrollment', enrollmentFilter.value);
+  return q;
+}
+
+function onSizeChange() {
+  page.value = 1;
+  load();
+}
+
+async function loadCatalogOptions() {
+  try {
+    const data = await api.request<{ items: SkuVisionEnrollmentRow[] }>(
+      '/api/v2/ops/admin/sku-vision/rows?status=ALL&page=0&size=500',
+      'GET'
+    );
+    catalogOptions.value = (data.items || []).map((r) => r.sku);
+  } catch {
+    catalogOptions.value = [];
+  }
+}
 const skuEmptyText = computed(() => {
   if (saleTab.value === 'ACTIVE') {
     if (keyword.value.trim() || enrollmentFilter.value)
@@ -599,20 +607,14 @@ const skuEmptyText = computed(() => {
   if (keyword.value.trim() || enrollmentFilter.value) return '无匹配商品';
   return '暂无商品';
 });
-const paged = computed(() => {
-  const start = (page.value - 1) * size.value;
-  return filtered.value.slice(start, start + size.value);
-});
-watch([keyword, enrollmentFilter, saleTab], () => {
-  page.value = 1;
-});
-
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection, selectedKeys } =
   useTableSelection<SkuCatalog>((r) => r.skuId);
 
 function onSaleTab() {
   clearSelection();
+  page.value = 1;
   syncRouteQuery();
+  load();
 }
 
 function toUpsertBody(row: SkuCatalog, status: string): UpsertSkuRequest {
@@ -737,7 +739,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
       '检测阈值'
     ],
     toRows: () =>
-      pickSelected(filtered.value).map((row) => [
+      pickSelected(displayList.value).map((row) => [
         row.skuId,
         row.skuName,
         ((row.priceCents || 0) / 100).toFixed(2),
@@ -1314,6 +1316,7 @@ function syncRouteQuery() {
 function search() {
   page.value = 1;
   syncRouteQuery();
+  load();
 }
 
 function resetFilters() {
@@ -1322,6 +1325,7 @@ function resetFilters() {
   saleTab.value = 'ACTIVE';
   page.value = 1;
   syncRouteQuery();
+  load();
 }
 
 function applyRouteQuery() {
@@ -1348,15 +1352,19 @@ function applyRouteQuery() {
 async function load() {
   loading.value = true;
   try {
-    const [rows, pipeline] = await Promise.all([
-      api.request<SkuVisionEnrollmentRow[]>('/api/v2/ops/admin/sku-vision/rows', 'GET'),
+    const [rowsRes, pipeline] = await Promise.all([
+      api.request<{ items: SkuVisionEnrollmentRow[]; total: number }>(
+        `/api/v2/ops/admin/sku-vision/rows?${queryParams()}`,
+        'GET'
+      ),
       api
         .request<SkuVisionEnrollmentPipeline>('/api/v2/ops/admin/sku-vision/pipeline', 'GET')
         .catch(() => null)
     ]);
-    items.value = rows.map((r) => r.sku);
+    items.value = (rowsRes.items || []).map((r) => r.sku);
+    total.value = Number(rowsRes.total) || 0;
     const map: Record<string, SkuVisionEnrollmentRow> = {};
-    for (const r of rows) map[r.sku.skuId] = r;
+    for (const r of rowsRes.items || []) map[r.sku.skuId] = r;
     rowBySku.value = map;
     if (pipeline) {
       pipelineHint.value = pipeline.modelPipelineHint || pipelineHint.value;
@@ -1374,6 +1382,7 @@ async function load() {
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
   page.value = 1;
+  await load();
 }
 
 watch(
@@ -1385,6 +1394,7 @@ watch(
 
 onMounted(() => {
   applyRouteQuery();
+  void loadCatalogOptions();
   load();
 });
 onActivated(() => {

@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.DeviceVisionContextDto;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.SkuCatalogDto;
 import com.aicabinet.common.dto.SkuVisionContextItemDto;
 import com.aicabinet.common.dto.SkuVisionEnrollmentPipelineDto;
@@ -106,6 +107,20 @@ public class SkuVisionEnrollmentService {
         return skuCatalogRepository.findAllByOrderBySkuCodeAsc().stream()
                 .map(this::toEnrollmentRow)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<SkuVisionEnrollmentRowDto> listEnrollmentRowsPage(
+            Long operatorId, String q, String status, String enrollmentStatus, int page, int size) {
+        permissionService.requirePermission(operatorId, PERM_OPS_SKU_LIST);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        String saleStatus = status == null || status.isBlank() ? "ALL" : status.trim();
+        var result = skuCatalogRepository.search(q, saleStatus, null, enrollmentStatus, p, s);
+        List<SkuVisionEnrollmentRowDto> items = result.getRecords().stream()
+                .map(this::toEnrollmentRow)
+                .toList();
+        return new PageResult<>(items, p, s, result.getTotal());
     }
 
     @Transactional(readOnly = true)

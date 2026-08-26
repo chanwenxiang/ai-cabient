@@ -86,7 +86,7 @@
       <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
-          :data="paged"
+          :data="items"
           stripe
           border
           class="report-table"
@@ -148,10 +148,12 @@
       :hydrated="listHydrated"
       v-model:current-page="page"
       v-model:page-size="size"
-      :total="filtered.length"
+      :total="total"
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next"
       background
+      @current-change="load"
+      @size-change="onSizeChange"
     />
 
     <el-dialog v-model="runDialog" title="执行对账" width="480px" destroy-on-close>
@@ -309,47 +311,27 @@ const statusFilter = ref('');
 const keyword = ref('');
 const page = ref(1);
 const size = ref(20);
-const allItems = ref<Row[]>([]);
+const total = ref(0);
+const items = ref<Row[]>([]);
 const runDialog = ref(false);
 const detailOpen = ref(false);
 const detailHydrated = ref(false);
 const detail = ref<Row | null>(null);
 const runForm = reactive({ date: '', channel: 'WECHAT' });
 
-const filtered = computed(() => {
-  const q = keyword.value.trim().toLowerCase();
-  let rows = allItems.value;
-  if (statusFilter.value) rows = rows.filter((r) => r.status === statusFilter.value);
-  if (q) {
-    rows = rows.filter(
-      (r) =>
-        String(r.reconId || '')
-          .toLowerCase()
-          .includes(q) ||
-        String(r.reconDate || '')
-          .toLowerCase()
-          .includes(q) ||
-        dictLabel('pay_channel', r.channel).toLowerCase().includes(q)
-    );
-  }
-  return rows;
-});
+const filtered = computed(() => items.value);
 
-const paged = computed(() => {
-  const start = (page.value - 1) * size.value;
-  return filtered.value.slice(start, start + size.value);
-});
+const paged = computed(() => items.value);
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<Row>((r) => r.reconId);
 
-const totalCount = computed(() => filtered.value.length);
+const totalCount = computed(() => total.value);
 const mismatchBatchCount = computed(
   () =>
-    filtered.value.filter((row) => (row.unmatchedCount ?? 0) > 0 || row.status === 'MISMATCH')
-      .length
+    items.value.filter((row) => (row.unmatchedCount ?? 0) > 0 || row.status === 'MISMATCH').length
 );
-const matchedBatchCount = computed(() => totalCount.value - mismatchBatchCount.value);
+const matchedBatchCount = computed(() => items.value.length - mismatchBatchCount.value);
 
 const { onExport } = useListCsv({
   filePrefix: '对账',
@@ -384,14 +366,19 @@ function syncRouteQuery() {
 async function load() {
   loading.value = true;
   try {
-    const q = new URLSearchParams();
+    const q = new URLSearchParams({
+      page: String(page.value - 1),
+      size: String(size.value)
+    });
     if (channel.value) q.set('channel', channel.value);
-    const qs = q.toString();
-    const rows = await api.request<Row[]>(
-      `/api/v2/ops/admin/reconciliation${qs ? `?${qs}` : ''}`,
+    if (statusFilter.value) q.set('status', statusFilter.value);
+    if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
+    const data = await api.request<{ items: Row[]; total: number }>(
+      `/api/v2/ops/admin/reconciliation?${q}`,
       'GET'
     );
-    allItems.value = rows || [];
+    items.value = data.items || [];
+    total.value = Number(data.total) || 0;
     clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -399,6 +386,11 @@ async function load() {
     listHydrated.value = true;
     loading.value = false;
   }
+}
+
+function onSizeChange() {
+  page.value = 1;
+  load();
 }
 
 function search() {

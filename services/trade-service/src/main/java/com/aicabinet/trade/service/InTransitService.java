@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.domain.WarehouseInTransit;
 import com.aicabinet.trade.domain.WarehouseOutboundLine;
 import com.aicabinet.trade.mapper.WarehouseInTransitMapper;
@@ -142,14 +143,19 @@ public class InTransitService {
 
     @Transactional(readOnly = true)
     public List<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransit(String deviceId) {
-        if (deviceId == null || deviceId.isBlank()) {
-            return transitRepository.findByStatusOrderByCreatedAtAsc(STATUS_IN_TRANSIT).stream()
-                    .map(this::toDto)
-                    .toList();
-        }
-        return transitRepository.findByDeviceIdAndStatus(deviceId.trim(), STATUS_IN_TRANSIT).stream()
+        return listInTransitPage(deviceId, 0, 500).items();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransitPage(
+            String deviceId, int page, int size) {
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = transitRepository.searchPage(deviceId, STATUS_IN_TRANSIT, p, s);
+        List<com.aicabinet.common.dto.WarehouseInTransitDto> items = result.getRecords().stream()
                 .map(this::toDto)
                 .toList();
+        return new PageResult<>(items, p, s, result.getTotal());
     }
 
     static String inTransitLockKey(Long outboundId, String deviceId) {

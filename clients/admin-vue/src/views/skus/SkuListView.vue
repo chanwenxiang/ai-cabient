@@ -107,7 +107,7 @@
       <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
-          :data="paged"
+          :data="displayRows"
           stripe
           border
           row-key="skuId"
@@ -247,10 +247,12 @@
       :hydrated="listHydrated"
       v-model:current-page="page"
       v-model:page-size="size"
-      :total="filtered.length"
+      :total="total"
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next"
       background
+      @current-change="load"
+      @size-change="onSizeChange"
     />
 
     <el-dialog v-model="editDialog" :title="form.existing ? '编辑商品' : '新建商品'" width="640px">
@@ -370,6 +372,7 @@ const saving = ref(false);
 const imageUploading = ref(false);
 const batchDelisting = ref(false);
 const items = ref<SkuCatalog[]>([]);
+const total = ref(0);
 const keyword = ref('');
 const categoryFilter = ref('');
 const categoryOptions = useDictOptions('category_code');
@@ -440,28 +443,7 @@ const form = reactive({
   nearExpiryPriceCents: undefined as number | undefined
 });
 
-const filtered = computed(() => {
-  const q = keyword.value.trim().toLowerCase();
-  const cat = categoryFilter.value.trim();
-  const rows = items.value.filter((row) => {
-    if (saleTab.value === 'ACTIVE' && row.status !== 'ACTIVE') return false;
-    if (cat && !categoryMatches(row.category, cat)) return false;
-    if (!q) return true;
-    return [
-      row.skuCode,
-      row.skuId,
-      row.skuName,
-      row.barcode,
-      row.brand,
-      categoryLabel(row.category)
-    ].some((x) =>
-      String(x || '')
-        .toLowerCase()
-        .includes(q)
-    );
-  });
-  return sortById(rows, (r) => r.skuCode ?? r.skuId);
-});
+const displayRows = computed(() => sortById(items.value, (r) => r.skuCode ?? r.skuId));
 
 const skuEmptyText = computed(() => {
   if (saleTab.value === 'ACTIVE') {
@@ -471,15 +453,6 @@ const skuEmptyText = computed(() => {
   }
   if (keyword.value.trim() || categoryFilter.value.trim()) return '无匹配商品';
   return '暂无商品';
-});
-
-const paged = computed(() => {
-  const start = (page.value - 1) * size.value;
-  return filtered.value.slice(start, start + size.value);
-});
-
-watch([keyword, categoryFilter, saleTab], () => {
-  page.value = 1;
 });
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection, selectedKeys } =
@@ -543,7 +516,9 @@ async function onImageUpload(options: UploadRequestOptions) {
 
 function onSaleTab() {
   clearSelection();
+  page.value = 1;
   syncRouteQuery();
+  load();
 }
 
 function skuStatusLabel(status?: string) {
@@ -650,7 +625,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
       '操作人'
     ],
     toRows: () =>
-      pickSelected(filtered.value).map((row) => [
+      pickSelected(displayRows.value).map((row) => [
         row.skuCode != null ? String(row.skuCode) : '',
         row.barcode || '',
         row.skuName,
@@ -882,6 +857,7 @@ function syncRouteQuery() {
 function search() {
   page.value = 1;
   syncRouteQuery();
+  load();
 }
 
 function resetFilters() {
@@ -890,6 +866,25 @@ function resetFilters() {
   saleTab.value = 'ACTIVE';
   page.value = 1;
   syncRouteQuery();
+  load();
+}
+
+function onSizeChange() {
+  page.value = 1;
+  load();
+}
+
+function skuQueryParams() {
+  const q = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
+  });
+  const kw = keyword.value.trim();
+  if (kw) q.set('q', kw);
+  if (categoryFilter.value.trim()) q.set('category', categoryFilter.value.trim());
+  if (saleTab.value === 'ACTIVE') q.set('status', 'ACTIVE');
+  else q.set('status', 'ALL');
+  return q;
 }
 
 function applyRouteQuery() {
@@ -916,7 +911,12 @@ function applyRouteQuery() {
 async function load() {
   loading.value = true;
   try {
-    items.value = await api.request<SkuCatalog[]>('/api/v2/ops/admin/skus', 'GET');
+    const data = await api.request<{ items: SkuCatalog[]; total: number }>(
+      `/api/v2/ops/admin/skus?${skuQueryParams()}`,
+      'GET'
+    );
+    items.value = data.items || [];
+    total.value = Number(data.total) || 0;
     clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -929,6 +929,7 @@ async function load() {
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
   page.value = 1;
+  await load();
 }
 
 watch(

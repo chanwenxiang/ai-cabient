@@ -253,7 +253,13 @@ async function load() {
 
 async function loadCouponDefs() {
   try {
-    couponDefs.value = await api.request<CouponDef[]>('/api/v2/coupons/definitions');
+    couponDefs.value =
+      (
+        await api.request<{ items: CouponDef[] }>(
+          '/api/v2/coupons/definitions?page=0&size=500',
+          'GET'
+        )
+      ).items || [];
   } catch {
     couponDefs.value = [];
   }

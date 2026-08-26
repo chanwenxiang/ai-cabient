@@ -161,9 +161,15 @@ async function load() {
     if (mode.value === 'picking') {
       const [ob, whs, devs, skuRows] = await Promise.all([
         api.request<Row>(`/api/v2/ops/admin/warehouse/outbounds/${route.query.outboundId}`, 'GET'),
-        api.request<Row[]>('/api/v2/ops/admin/warehouse/list', 'GET').catch(() => []),
+        api
+          .request<{ items: Row[] }>('/api/v2/ops/admin/warehouse/list?page=0&size=500', 'GET')
+          .catch(() => ({ items: [] as Row[] }))
+          .then((r) => r.items || []),
         api.request<Row[]>('/api/v2/ops/admin/devices/ref', 'GET').catch(() => []),
-        api.request<Row[]>('/api/v2/ops/admin/skus', 'GET').catch(() => [])
+        api
+          .request<{ items: Row[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET')
+          .catch(() => ({ items: [] as Row[] }))
+          .then((r) => r.items || [])
       ]);
       outbound.value = ob;
       warehouses.value = whs;
@@ -172,9 +178,18 @@ async function load() {
     } else if (mode.value === 'purchase') {
       const [po, sups, whs, skuRows] = await Promise.all([
         api.request<Row>(`/api/v2/ops/admin/purchase-orders/${route.query.purchaseOrderId}`, 'GET'),
-        api.request<Row[]>('/api/v2/ops/admin/suppliers', 'GET').catch(() => []),
-        api.request<Row[]>('/api/v2/ops/admin/warehouse/list', 'GET').catch(() => []),
-        api.request<Row[]>('/api/v2/ops/admin/skus', 'GET').catch(() => [])
+        api
+          .request<{ items: Row[] }>('/api/v2/ops/admin/suppliers?page=0&size=500', 'GET')
+          .catch(() => ({ items: [] as Row[] }))
+          .then((r) => r.items || []),
+        api
+          .request<{ items: Row[] }>('/api/v2/ops/admin/warehouse/list?page=0&size=500', 'GET')
+          .catch(() => ({ items: [] as Row[] }))
+          .then((r) => r.items || []),
+        api
+          .request<{ items: Row[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET')
+          .catch(() => ({ items: [] as Row[] }))
+          .then((r) => r.items || [])
       ]);
       purchase.value = po;
       suppliers.value = sups;
@@ -185,7 +200,12 @@ async function load() {
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean);
-      const rows = await api.request<Row[]>('/api/v2/ops/admin/skus', 'GET').catch(() => []);
+      const rows =
+        (
+          await api
+            .request<{ items: Row[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET')
+            .catch(() => ({ items: [] as Row[] }))
+        ).items || [];
       labels.value = rows.filter((r) => ids.includes(String(r.skuId)));
     }
   } catch (e) {

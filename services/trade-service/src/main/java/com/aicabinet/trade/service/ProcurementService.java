@@ -67,7 +67,18 @@ public class ProcurementService {
     @Transactional(readOnly = true)
     public List<SupplierDto> listSuppliers(Long operatorId) {
         requireWarehouseRead(operatorId);
-        return supplierRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toSupplierDto).toList();
+        return listSuppliersPage(operatorId, null, 0, 500).items();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<SupplierDto> listSuppliersPage(
+            Long operatorId, String keyword, int page, int size) {
+        requireWarehouseRead(operatorId);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = supplierRepository.searchPage(keyword, p, s);
+        List<SupplierDto> items = result.getRecords().stream().map(this::toSupplierDto).toList();
+        return new PageResult<>(items, p, s, result.getTotal());
     }
 
     @Transactional
@@ -221,9 +232,20 @@ public class ProcurementService {
     @Transactional(readOnly = true)
     public List<PurchaseReturnDto> listPurchaseReturns(Long operatorId) {
         requireWarehouseRead(operatorId);
-        return purchaseReturnRepository.findAllByOrderByCreatedAtDesc().stream()
+        return listPurchaseReturnsPage(operatorId, null, null, 0, 500).items();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<PurchaseReturnDto> listPurchaseReturnsPage(
+            Long operatorId, String keyword, String warehouseId, int page, int size) {
+        requireWarehouseRead(operatorId);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = purchaseReturnRepository.searchPage(keyword, warehouseId, p, s);
+        List<PurchaseReturnDto> items = result.getRecords().stream()
                 .map(this::toPurchaseReturnDto)
                 .toList();
+        return new PageResult<>(items, p, s, result.getTotal());
     }
 
     @Transactional

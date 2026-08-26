@@ -491,12 +491,19 @@ async function load() {
     api
       .request<{ last7Days: DailyStat[] }>('/api/v2/ops/admin/trend?days=7', 'GET')
       .catch(() => null),
-    api.request<DeviceRank[]>('/api/v2/ops/admin/reports/devices', 'GET').catch(() => null),
     api
-      .request<ProductRank[]>(
-        `/api/v2/ops/admin/sales-reports?dim=PRODUCT&fromDate=${today}&toDate=${today}`,
+      .request<{ items: DeviceRank[]; total: number }>(
+        '/api/v2/ops/admin/reports/devices?page=0&size=20',
         'GET'
       )
+      .then((r) => r?.items ?? [])
+      .catch(() => null),
+    api
+      .request<{ items: ProductRank[]; total: number }>(
+        `/api/v2/ops/admin/sales-reports?dim=PRODUCT&fromDate=${today}&toDate=${today}&page=0&size=20`,
+        'GET'
+      )
+      .then((r) => r?.items ?? [])
       .catch(() => null),
     api
       .request<{ demoData?: boolean; label?: string }>('/api/v2/ops/admin/data-scope', 'GET')

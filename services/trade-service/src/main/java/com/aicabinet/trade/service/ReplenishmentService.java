@@ -16,6 +16,8 @@ import com.aicabinet.trade.domain.DeviceSkuLot;
 
 import com.aicabinet.trade.domain.MerchantReplenishmentRequestLine;
 
+import com.aicabinet.trade.domain.MerchantReplenishmentRequest;
+
 import com.aicabinet.trade.domain.PullOffTask;
 
 import com.aicabinet.trade.domain.ReplenishmentRoute;
@@ -44,6 +46,8 @@ import com.aicabinet.trade.mapper.ReplenishmentTaskLineMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 
 import org.springframework.http.HttpStatus;
 
@@ -255,6 +259,64 @@ public class ReplenishmentService {
 
                 .toList();
 
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<ReplenishmentRouteDto> listRoutesPage(String deviceId, int page, int size) {
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        java.util.Collection<Long> routeIds = null;
+        if (deviceId != null && !deviceId.isBlank()) {
+            routeIds = taskRepository.findDistinctRouteIdsByDeviceId(deviceId.trim());
+            if (routeIds.isEmpty()) {
+                return new PageResult<>(List.of(), p, s, 0);
+            }
+        }
+        var result = routeRepository.searchPage(routeIds, p, s);
+        List<ReplenishmentRouteDto> items = result.getRecords().stream().map(this::toRouteDto).toList();
+        return new PageResult<>(items, p, s, result.getTotal());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<PullOffTaskDto> listOpenPullOffTasksPage(int page, int size) {
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = pullOffTaskRepository.searchPage("OPEN", p, s);
+        List<PullOffTaskDto> items = result.getRecords().stream().map(this::toPullOffDto).toList();
+        return new PageResult<>(items, p, s, result.getTotal());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<ReplenishmentFulfillmentTaskDto> listFulfillmentTasksPage(
+            String deviceId, String status, int page, int size) {
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = taskRepository.searchPage(deviceId, status, p, s);
+        Map<Long, ReplenishmentRoute> routeById = new HashMap<>();
+        for (ReplenishmentTask task : result.getRecords()) {
+            Long routeId = task.getRouteId();
+            if (routeId != null && !routeById.containsKey(routeId)) {
+                routeRepository.findById(routeId).ifPresent(r -> routeById.put(routeId, r));
+            }
+        }
+        List<ReplenishmentFulfillmentTaskDto> items = result.getRecords().stream()
+                .map(task -> toFulfillmentTaskDto(task, routeById.get(task.getRouteId())))
+                .toList();
+        return new PageResult<>(items, p, s, result.getTotal());
+    }
+
+    @Transactional(readOnly = true)
+    public ReplenishmentOpsSummaryDto opsSummary() {
+        long pending = taskRepository.countByStatusIn(List.of(STATUS_PENDING, STATUS_IN_PROGRESS));
+        long fulfilled = taskRepository.countByStatusIn(List.of(STATUS_COMPLETED));
+        Long planned = routeRepository.selectCount(Wrappers.<ReplenishmentRoute>lambdaQuery()
+                .in(ReplenishmentRoute::getStatus, PLANNED, STATUS_IN_PROGRESS));
+        long plannedRoutes = planned == null ? 0 : planned;
+        Long pendingReq = merchantRequestRepository.selectCount(
+                Wrappers.<MerchantReplenishmentRequest>lambdaQuery()
+                        .eq(MerchantReplenishmentRequest::getStatus, "SUBMITTED"));
+        long pendingRequests = pendingReq == null ? 0 : pendingReq;
+        return new ReplenishmentOpsSummaryDto(pending, fulfilled, plannedRoutes, pendingRequests);
     }
 
 
@@ -1343,6 +1405,32 @@ public class ReplenishmentService {
                 t.getCheckInAt(), t.getCheckInLat(), t.getCheckInLng(),
                 resolveCheckInDistanceM(t),
                 t.getRequestId(), t.getOutboundId(), t.getCreatedAt()
+        );
+    }
+
+    private ReplenishmentFulfillmentTaskDto toFulfillmentTaskDto(
+            ReplenishmentTask task, ReplenishmentRoute route) {
+        ReplenishmentTaskDto base = toTaskDto(task);
+        String routeName = route != null ? route.getRouteName() : null;
+        Long assignee = base.assigneeUserId() != null
+                ? base.assigneeUserId()
+                : route != null ? route.getAssigneeUserId() : null;
+        return new ReplenishmentFulfillmentTaskDto(
+                base.taskId(),
+                base.routeId(),
+                routeName,
+                base.deviceId(),
+                assignee,
+                base.status(),
+                base.notes(),
+                base.completedAt(),
+                base.checkInAt(),
+                base.checkInLat(),
+                base.checkInLng(),
+                base.checkInDistanceM(),
+                base.requestId(),
+                base.outboundId(),
+                base.createdAt()
         );
     }
 

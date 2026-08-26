@@ -55,11 +55,15 @@ public class OpsGapFeaturesController {
 
     @RequiresPermissions("ops:fund:list")
     @GetMapping("/fund/daily-bills")
-    public ApiResponse<List<FundDailyBillDto>> dailyBills(
+    public ApiResponse<PageResult<FundDailyBillDto>> dailyBills(
             HttpServletRequest request,
             @RequestParam(required = false) String fromDate,
-            @RequestParam(required = false) String toDate) {
-        return ApiResponse.ok(fundBillService.listDailyBills(operatorId(request), fromDate, toDate));
+            @RequestParam(required = false) String toDate,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(fundBillService.listDailyBillsPage(
+                operatorId(request), fromDate, toDate, keyword, page, size));
     }
 
     @RequiresPermissions("ops:fund:list")
@@ -151,11 +155,14 @@ public class OpsGapFeaturesController {
     public ApiResponse<PageResult<DeviceOpsEventDto>> deviceOpsEvents(
             HttpServletRequest request,
             @RequestParam(required = false) String eventType,
+            @RequestParam(required = false) String severity,
+            @RequestParam(required = false) String deviceId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "asc") String sortDir) {
         boolean eventIdAsc = !"desc".equalsIgnoreCase(sortDir);
-        return ApiResponse.ok(gapService.listDeviceOpsEvents(operatorId(request), eventType, page, size, eventIdAsc));
+        return ApiResponse.ok(gapService.listDeviceOpsEvents(
+                operatorId(request), eventType, severity, deviceId, page, size, eventIdAsc));
     }
 
     @RequiresPermissions("ops:device:list")

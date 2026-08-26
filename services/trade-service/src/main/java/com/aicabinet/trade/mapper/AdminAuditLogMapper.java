@@ -60,4 +60,36 @@ public interface AdminAuditLogMapper extends BaseTradeMapper<AdminAuditLog> {
         return c == null ? 0 : c;
     }
 
+    /** page 为 0-based。 */
+    default Page<AdminAuditLog> searchPage(
+            Long operatorId,
+            String action,
+            String targetType,
+            boolean logIdAsc,
+            int page,
+            int size) {
+        var q = Wrappers.<AdminAuditLog>lambdaQuery();
+        if (operatorId != null) {
+            q.eq(AdminAuditLog::getOperatorId, operatorId);
+        }
+        if (action != null && !action.isBlank()) {
+            q.eq(AdminAuditLog::getAction, action.trim());
+        }
+        if (targetType != null && !targetType.isBlank()) {
+            q.eq(AdminAuditLog::getTargetType, targetType.trim());
+        }
+        if (logIdAsc) {
+            q.orderByAsc(AdminAuditLog::getLogId);
+        } else {
+            q.orderByDesc(AdminAuditLog::getLogId);
+        }
+        var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<AdminAuditLog>(
+                page + 1L, size);
+        var result = selectPage(mpPage, q);
+        return new org.springframework.data.domain.PageImpl<>(
+                result.getRecords(),
+                org.springframework.data.domain.PageRequest.of(page, size),
+                result.getTotal());
+    }
+
 }

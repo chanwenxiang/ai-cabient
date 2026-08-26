@@ -140,8 +140,11 @@ public class OpsCommercialController {
 
     @RequiresPermissions("ops:org:list")
     @GetMapping("/site-contracts")
-    public ApiResponse<List<SiteContractDto>> siteContracts(HttpServletRequest request) {
-        return ApiResponse.ok(siteContractService.list(operatorId(request)));
+    public ApiResponse<PageResult<SiteContractDto>> siteContracts(
+            HttpServletRequest request,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(siteContractService.listPage(operatorId(request), page, size));
     }
 
     @RequiresPermissions("ops:org:edit")
@@ -340,8 +343,12 @@ public class OpsCommercialController {
 
     @RequiresPermissions("ops:procurement:list")
     @GetMapping("/suppliers")
-    public ApiResponse<List<SupplierDto>> suppliers(HttpServletRequest request) {
-        return ApiResponse.ok(procurementService.listSuppliers(operatorId(request)));
+    public ApiResponse<PageResult<SupplierDto>> suppliers(
+            HttpServletRequest request,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(procurementService.listSuppliersPage(operatorId(request), q, page, size));
     }
 
     @RequiresPermissions("ops:procurement:edit")
@@ -365,8 +372,15 @@ public class OpsCommercialController {
 
     @RequiresPermissions("ops:procurement:list")
     @GetMapping("/purchase-orders")
-    public ApiResponse<List<PurchaseOrderDto>> purchaseOrders(HttpServletRequest request) {
-        return ApiResponse.ok(procurementService.listPurchaseOrders(operatorId(request)));
+    public ApiResponse<PageResult<PurchaseOrderDto>> purchaseOrders(
+            HttpServletRequest request,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "warehouseId", required = false) String warehouseId,
+            @RequestParam(name = "returnableOnly", defaultValue = "false") boolean returnableOnly,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(procurementService.listPurchaseOrdersPage(
+                operatorId(request), q, warehouseId, returnableOnly, page, size));
     }
 
     @RequiresPermissions("ops:procurement:list")
@@ -379,16 +393,20 @@ public class OpsCommercialController {
 
     @RequiresPermissions("ops:procurement:list")
     @GetMapping("/procurement/suggestions")
-    public ApiResponse<List<PurchaseSuggestionDto>> purchaseSuggestions(
+    public ApiResponse<PageResult<PurchaseSuggestionDto>> purchaseSuggestions(
             HttpServletRequest request,
             @RequestParam(required = false) String warehouseId,
             @RequestParam(required = false) Integer leadTimeDays,
-            @RequestParam(required = false) Integer coverageDays) {
-        return ApiResponse.ok(purchaseSuggestionService.suggest(
+            @RequestParam(required = false) Integer coverageDays,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(purchaseSuggestionService.suggestPage(
                 operatorId(request),
                 warehouseId,
                 leadTimeDays == null ? 0 : leadTimeDays,
-                coverageDays == null ? 0 : coverageDays));
+                coverageDays == null ? 0 : coverageDays,
+                page,
+                size));
     }
 
     @RequiresPermissions("ops:procurement:edit")
@@ -422,8 +440,14 @@ public class OpsCommercialController {
 
     @RequiresPermissions("ops:procurement:list")
     @GetMapping("/purchase-returns")
-    public ApiResponse<List<PurchaseReturnDto>> purchaseReturns(HttpServletRequest request) {
-        return ApiResponse.ok(procurementService.listPurchaseReturns(operatorId(request)));
+    public ApiResponse<PageResult<PurchaseReturnDto>> purchaseReturns(
+            HttpServletRequest request,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "warehouseId", required = false) String warehouseId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(procurementService.listPurchaseReturnsPage(
+                operatorId(request), q, warehouseId, page, size));
     }
 
     @RequiresPermissions("ops:procurement:edit")
@@ -436,13 +460,15 @@ public class OpsCommercialController {
 
     @RequiresPermissions("ops:procurement:list")
     @GetMapping("/suppliers/payables")
-    public ApiResponse<List<SupplierPayableDto>> payables(
+    public ApiResponse<PageResult<SupplierPayableDto>> payables(
             HttpServletRequest request,
             @RequestParam(required = false) String supplierId,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false, defaultValue = "false") boolean overdueOnly) {
-        return ApiResponse.ok(supplierPayableService.listPayables(
-                operatorId(request), supplierId, status, overdueOnly));
+            @RequestParam(required = false, defaultValue = "false") boolean overdueOnly,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(supplierPayableService.listPayablesPage(
+                operatorId(request), supplierId, status, overdueOnly, page, size));
     }
 
     @RequiresPermissions("ops:procurement:list")
@@ -465,10 +491,14 @@ public class OpsCommercialController {
     // --- 整仓盘点 ---
     @RequiresPermissions("ops:warehouse:list")
     @GetMapping("/warehouse/stocktakes")
-    public ApiResponse<List<StocktakeDto>> stocktakes(
+    public ApiResponse<PageResult<StocktakeDto>> stocktakes(
             HttpServletRequest request,
-            @RequestParam(required = false) String status) {
-        return ApiResponse.ok(warehouseStocktakeService.list(operatorId(request), status));
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String warehouseId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(warehouseStocktakeService.listPage(
+                operatorId(request), status, warehouseId, page, size));
     }
 
     @RequiresPermissions("ops:warehouse:edit")
@@ -553,11 +583,14 @@ public class OpsCommercialController {
 
     @RequiresPermissions("ops:warehouse:list")
     @GetMapping("/warehouse/bins/stock")
-    public ApiResponse<List<WarehouseBinStockDto>> binStock(
+    public ApiResponse<PageResult<WarehouseBinStockDto>> binStock(
             HttpServletRequest request,
             @RequestParam(required = false) String warehouseId,
-            @RequestParam(required = false) Long binId) {
-        return ApiResponse.ok(warehouseBinService.listBinStock(operatorId(request), warehouseId, binId));
+            @RequestParam(required = false) Long binId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(warehouseBinService.listBinStockPage(
+                operatorId(request), warehouseId, binId, page, size));
     }
 
     @RequiresPermissions("ops:warehouse:edit")
@@ -698,8 +731,30 @@ public class OpsCommercialController {
 
     @RequiresPermissions("ops:replenishment:list")
     @GetMapping("/replenishment/routes")
-    public ApiResponse<List<ReplenishmentRouteDto>> routes(HttpServletRequest request) {
-        return ApiResponse.ok(facade.listRoutes(operatorId(request)));
+    public ApiResponse<PageResult<ReplenishmentRouteDto>> routes(
+            HttpServletRequest request,
+            @RequestParam(name = "deviceId", required = false) String deviceId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(facade.listRoutesPage(operatorId(request), deviceId, page, size));
+    }
+
+    @RequiresPermissions("ops:replenishment:list")
+    @GetMapping("/replenishment/summary")
+    public ApiResponse<ReplenishmentOpsSummaryDto> replenishmentSummary(HttpServletRequest request) {
+        return ApiResponse.ok(facade.replenishmentSummary(operatorId(request)));
+    }
+
+    @RequiresPermissions("ops:replenishment:list")
+    @GetMapping("/replenishment/fulfillment-tasks")
+    public ApiResponse<PageResult<ReplenishmentFulfillmentTaskDto>> fulfillmentTasks(
+            HttpServletRequest request,
+            @RequestParam(name = "deviceId", required = false) String deviceId,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(facade.listFulfillmentTasksPage(
+                operatorId(request), deviceId, status, page, size));
     }
 
     @RequiresPermissions("ops:replenishment:export")
@@ -858,8 +913,11 @@ public class OpsCommercialController {
 
     @RequiresPermissions("ops:replenishment:list")
     @GetMapping("/expiry/alerts")
-    public ApiResponse<List<PullOffTaskDto>> expiryAlerts(HttpServletRequest request) {
-        return ApiResponse.ok(facade.listExpiryAlerts(operatorId(request)));
+    public ApiResponse<PageResult<PullOffTaskDto>> expiryAlerts(
+            HttpServletRequest request,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(facade.listExpiryAlertsPage(operatorId(request), page, size));
     }
 
     @RequiresPermissions("ops:replenishment:edit")
@@ -907,10 +965,13 @@ public class OpsCommercialController {
 
     @RequiresPermissions("ops:replenishment:list")
     @GetMapping("/replenishment/requests")
-    public ApiResponse<List<MerchantReplenishmentRequestDto>> merchantReplenishmentRequests(
+    public ApiResponse<PageResult<MerchantReplenishmentRequestDto>> merchantReplenishmentRequests(
             HttpServletRequest request,
-            @RequestParam(name = "status", required = false) String status) {
-        return ApiResponse.ok(facade.listMerchantReplenishmentRequests(operatorId(request), status));
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(facade.listMerchantReplenishmentRequestsPage(
+                operatorId(request), status, page, size));
     }
 
     @RequiresPermissions("ops:replenishment:edit")
@@ -969,8 +1030,12 @@ public class OpsCommercialController {
 
     @RequiresPermissions(value = {"ops:warehouse:list", "ops:replenishment:list"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/warehouse/list")
-    public ApiResponse<List<WarehouseDto>> warehouses(HttpServletRequest request) {
-        return ApiResponse.ok(facade.listWarehouses(operatorId(request)));
+    public ApiResponse<PageResult<WarehouseDto>> warehouses(
+            HttpServletRequest request,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(facade.listWarehousesPage(operatorId(request), q, page, size));
     }
 
     @RequiresPermissions("ops:warehouse:export")
@@ -996,18 +1061,24 @@ public class OpsCommercialController {
 
     @RequiresPermissions(value = {"ops:warehouse:list", "ops:replenishment:list"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/warehouse/inventory")
-    public ApiResponse<List<WarehouseInventoryDto>> warehouseInventory(
+    public ApiResponse<PageResult<WarehouseInventoryDto>> warehouseInventory(
             HttpServletRequest request,
-            @RequestParam(required = false) String warehouseId) {
-        return ApiResponse.ok(facade.warehouseInventory(operatorId(request), warehouseId));
+            @RequestParam(required = false) String warehouseId,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(facade.warehouseInventoryPage(operatorId(request), warehouseId, q, page, size));
     }
 
     @RequiresPermissions(value = {"ops:warehouse:list", "ops:replenishment:list"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/warehouse/movements")
-    public ApiResponse<List<WarehouseMovementDto>> warehouseMovements(
+    public ApiResponse<PageResult<WarehouseMovementDto>> warehouseMovements(
             HttpServletRequest request,
-            @RequestParam(required = false) String warehouseId) {
-        return ApiResponse.ok(facade.warehouseMovements(operatorId(request), warehouseId));
+            @RequestParam(required = false) String warehouseId,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(facade.warehouseMovementsPage(operatorId(request), warehouseId, q, page, size));
     }
 
     @RequiresPermissions(value = {"ops:warehouse:edit", "ops:warehouse:import", "ops:replenishment:edit"}, logical = RequiresPermissions.Logical.OR)
@@ -1020,8 +1091,14 @@ public class OpsCommercialController {
 
     @RequiresPermissions(value = {"ops:warehouse:list", "ops:replenishment:list"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/warehouse/outbounds")
-    public ApiResponse<List<WarehouseOutboundDto>> warehouseOutbounds(HttpServletRequest request) {
-        return ApiResponse.ok(facade.listWarehouseOutbounds(operatorId(request)));
+    public ApiResponse<PageResult<WarehouseOutboundDto>> warehouseOutbounds(
+            HttpServletRequest request,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "warehouseId", required = false) String warehouseId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(facade.listWarehouseOutboundsPage(
+                operatorId(request), q, warehouseId, page, size));
     }
 
     @RequiresPermissions(value = {"ops:warehouse:list", "ops:replenishment:list"}, logical = RequiresPermissions.Logical.OR)
@@ -1065,10 +1142,12 @@ public class OpsCommercialController {
 
     @RequiresPermissions(value = {"ops:warehouse:list", "ops:replenishment:list"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/warehouse/in-transit")
-    public ApiResponse<List<WarehouseInTransitDto>> warehouseInTransit(
+    public ApiResponse<PageResult<WarehouseInTransitDto>> warehouseInTransit(
             HttpServletRequest request,
-            @RequestParam(name = "deviceId", required = false) String deviceId) {
-        return ApiResponse.ok(facade.listInTransit(operatorId(request), deviceId));
+            @RequestParam(name = "deviceId", required = false) String deviceId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(facade.listInTransitPage(operatorId(request), deviceId, page, size));
     }
 
     @GetMapping("/replenishment/my-tasks")

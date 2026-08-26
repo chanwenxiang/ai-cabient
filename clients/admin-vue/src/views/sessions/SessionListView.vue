@@ -538,6 +538,10 @@ function appendSessionFilters(q: URLSearchParams) {
     if (Number.isFinite(fromMs)) q.set('from', new Date(fromMs).toISOString());
     if (Number.isFinite(toMs)) q.set('to', new Date(toMs).toISOString());
   }
+  if (stuckOnly.value) {
+    q.set('stuckOnly', 'true');
+    q.set('stuckMinutes', String(STALE_MINUTES));
+  }
 }
 
 async function onExport() {
@@ -864,42 +868,30 @@ async function maybeOpenFocusedSession() {
 async function load() {
   loading.value = true;
   try {
-    if (stuckOnly.value) {
-      // No server-side stuck filter yet: scan recent pages then paginate locally.
-      const pageSize = 100;
-      const maxScan = 500;
-      const stuck: SessionRow[] = [];
-      let apiPage = 0;
-      let scanned = 0;
-      let serverTotal = Number.POSITIVE_INFINITY;
-      while (scanned < maxScan && scanned < serverTotal) {
-        const q = new URLSearchParams({ page: String(apiPage), size: String(pageSize) });
-        appendSessionFilters(q);
-        const data = await api.request<PageResult<SessionRow>>(
-          `/api/v2/ops/admin/sessions?${q}`,
-          'GET'
-        );
-        const batch = data.items || [];
-        serverTotal = data.total ?? batch.length;
-        stuck.push(...batch.filter((r) => isStuck(r)));
-        scanned += batch.length;
-        if (!batch.length || batch.length < pageSize) break;
-        apiPage += 1;
-      }
-      stuck.sort((a, b) => ageMs(b) - ageMs(a));
-      total.value = stuck.length;
-      const start = (page.value - 1) * size.value;
-      items.value = stuck.slice(start, start + size.value);
-    } else {
-      const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
-      appendSessionFilters(q);
-      const data = await api.request<PageResult<SessionRow>>(
-        `/api/v2/ops/admin/sessions?${q}`,
+    const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
+    appendSessionFilters(q);
+    const data = await api.request<PageResult<SessionRow>>(
+      `/api/v2/ops/admin/sessions?${q}`,
+      'GET'
+    );
+    items.value = data.items || [];
+    total.value = data.total ?? 0;
+
+    const sid = focusSessionId.value.trim();
+    if (sid && !items.value.some((r) => r.sessionId === sid)) {
+      const focusQ = new URLSearchParams({ page: '0', size: '1', sessionId: sid });
+      if (keyword.value.trim()) focusQ.set('q', keyword.value.trim());
+      if (stateFilter.value) focusQ.set('state', stateFilter.value);
+      const focusData = await api.request<PageResult<SessionRow>>(
+        `/api/v2/ops/admin/sessions?${focusQ}`,
         'GET'
       );
-      items.value = data.items;
-      total.value = data.total;
+      const found = focusData.items?.[0];
+      if (found) {
+        items.value = [found, ...items.value.filter((r) => r.sessionId !== found.sessionId)];
+      }
     }
+
     clearSelection();
     await maybeOpenFocusedSession();
   } catch (e) {

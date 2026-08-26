@@ -712,7 +712,9 @@ async function removeDraftLine(index: number) {
 async function ensureSkusLoaded() {
   if (skus.value.length) return;
   try {
-    skus.value = await api.request<SkuOption[]>('/api/v2/ops/admin/skus', 'GET');
+    skus.value =
+      (await api.request<{ items: SkuOption[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET'))
+        .items || [];
   } catch {
     skus.value = [];
   }
