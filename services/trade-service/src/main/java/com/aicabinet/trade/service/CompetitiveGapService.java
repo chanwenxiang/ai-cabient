@@ -257,11 +257,11 @@ public class CompetitiveGapService {
         deviceInfoMapper.save(d);
 
         if (wantLocked != wasLocked) {
-            String reason = wantForbidden && wantLocked
+            String reason = wantForbidden
                     ? "policy:saleForbidden→lock"
                     : (wantLocked ? "policy:salesLocked=on" : "policy:salesLocked=off");
             salesLockService.applySalesLock(operatorId, d, wantLocked, reason, true);
-            if (wantLocked && wantForbidden) {
+            if (wantForbidden) {
                 // 解锁逻辑会清禁售；此处锁机+禁售需保持禁售标记
                 d.setSaleForbidden(true);
                 deviceInfoMapper.save(d);

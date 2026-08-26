@@ -644,22 +644,20 @@ private OrderPaymentService orderPaymentService;
                         + "FROM payment_operation "
                         + "WHERE order_id = ? AND status = 'COMPLETED' "
                         + "AND operation_type IN ('CHARGE', 'ADJUST_CHARGE', 'REFUND')",
-                rs -> rs.next() ? rs.getInt(1) : null,
+                rs -> rs.next() ? rs.getInt(1) : 0,
                 orderId);
-        Integer lineSum = jdbcTemplate.query(
+        int lineSum = jdbcTemplate.query(
                 "SELECT COALESCE(SUM(line_amount_cents), 0) FROM cabinet_order_line WHERE order_id = ?",
                 rs -> rs.next() ? rs.getInt(1) : 0,
                 orderId);
-        Integer couponDiscount = jdbcTemplate.query(
+        int couponDiscountCents = jdbcTemplate.query(
                 "SELECT COALESCE(coupon_discount_cents, 0) FROM cabinet_order WHERE order_id = ?",
                 rs -> rs.next() ? rs.getInt(1) : 0,
                 orderId);
-        Integer memberDiscount = jdbcTemplate.query(
+        int memberDiscountCents = jdbcTemplate.query(
                 "SELECT COALESCE(member_discount_cents, 0) FROM cabinet_order WHERE order_id = ?",
                 rs -> rs.next() ? rs.getInt(1) : 0,
                 orderId);
-        int couponDiscountCents = couponDiscount != null ? couponDiscount : 0;
-        int memberDiscountCents = memberDiscount != null ? memberDiscount : 0;
         int payableFromLines = lineSum - couponDiscountCents - memberDiscountCents;
         int lineCount = jdbcTemplate.query(
                 "SELECT COUNT(*) FROM cabinet_order_line WHERE order_id = ?",
@@ -670,14 +668,13 @@ private OrderPaymentService orderPaymentService;
             return FixOutcome.ok("头金额已与明细折后一致");
         }
 
-        if (paid != null && paid.equals(header) && lineSum != null && paid.equals(lineSum)
+        if (paid != null && paid.equals(header) && paid.equals(lineSum)
                 && (couponDiscountCents > 0 || memberDiscountCents > 0) && payableFromLines != header) {
             return clearStaleCouponFields(orderId, couponDiscountCents, memberDiscountCents);
         }
 
         if (paid != null && paid.equals(header)) {
-            if (lineCount == 1 && lineSum != null
-                    && couponDiscountCents == 0 && memberDiscountCents == 0
+            if (lineCount == 1 && couponDiscountCents == 0 && memberDiscountCents == 0
                     && lineSum != header) {
                 return alignSingleLineToHeader(orderId, header);
             }
@@ -687,13 +684,13 @@ private OrderPaymentService orderPaymentService;
             return FixOutcome.fail("多行明细与头金额不一致，需人工拆分/改价");
         }
 
-        if (lineSum != null && lineSum > 0 && paid != null && paid == 0) {
+        if (lineSum > 0 && paid != null && paid == 0) {
             jdbcTemplate.update(
                     "UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?",
                     payableFromLines, orderId);
             return FixOutcome.ok("无匹配入账流水，已把头金额改为明细折后 " + payableFromLines);
         }
-        if (lineSum != null && lineSum > 0 && paid != null && paid.equals(payableFromLines) && !paid.equals(header)) {
+        if (lineSum > 0 && paid != null && paid.equals(payableFromLines) && !paid.equals(header)) {
             jdbcTemplate.update(
                     "UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?",
                     payableFromLines, orderId);

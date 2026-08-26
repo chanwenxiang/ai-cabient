@@ -2,6 +2,7 @@ package com.aicabinet.device.mqtt;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -30,6 +31,8 @@ public class DoorEventDeduplicator {
         this(null);
     }
 
+    /** 生产环境：Spring 注入 Redis。 */
+    @Autowired
     public DoorEventDeduplicator(StringRedisTemplate redis) {
         this.redis = redis;
     }

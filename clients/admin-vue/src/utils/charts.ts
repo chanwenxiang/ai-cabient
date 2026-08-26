@@ -401,7 +401,7 @@ export function safeCssColor(color: string, fallback = '#64748b'): string {
   if (/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(c)) return c;
   // 固定上限的通道数，避免 [\d.\s%,.]+ 类开放量词触发 ReDoS
   // 分段匹配，避免单一长正则回溯（Sonar typescript:S5852 ReDoS）
-  if (/^rgba?\(/i.test(c) && /\)$/.test(c)) {
+  if (/^rgba?\(/i.test(c) && c.endsWith(')')) {
     const inner = c.slice(c.indexOf('(') + 1, c.lastIndexOf(')')).trim();
     const parts = inner.split(',').map((p) => p.trim());
     if (
@@ -412,7 +412,7 @@ export function safeCssColor(color: string, fallback = '#64748b'): string {
       return c;
     }
   }
-  if (/^hsla?\(/i.test(c) && /\)$/.test(c)) {
+  if (/^hsla?\(/i.test(c) && c.endsWith(')')) {
     const inner = c.slice(c.indexOf('(') + 1, c.lastIndexOf(')')).trim();
     const parts = inner.split(',').map((p) => p.trim());
     if (
@@ -425,7 +425,7 @@ export function safeCssColor(color: string, fallback = '#64748b'): string {
     }
   }
   if (/^var\(--[a-z0-9_-]{1,40}\)$/i.test(c)) return c;
-  const varWithFallback = c.match(/^var\((--[a-z0-9_-]{1,40})\s*,\s*([^)]{1,40})\)$/i);
+  const varWithFallback = /^var\((--[a-z0-9_-]{1,40})\s*,\s*([^)]{1,40})\)$/i.exec(c);
   if (varWithFallback) return c;
   return fallback;
 }
