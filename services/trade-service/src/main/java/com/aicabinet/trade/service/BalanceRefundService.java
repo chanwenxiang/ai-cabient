@@ -177,7 +177,7 @@ public class BalanceRefundService {
             releaseFreeze(req.getUserId(), req.getAmountCents(), req.getRequestNo());
             req.setStatus(STATUS_REJECTED);
             requestMapper.updateById(req);
-            auditService.record(operatorId, "BALANCE_REFUND_REJECT", "BALANCE_REFUND",
+            auditService.record(operatorId, "BALANCE_REFUND_REJECT", BIZ_BALANCE_REFUND,
                     String.valueOf(req.getRequestId()), "驳回 " + req.getRequestNo());
             return toDto(req);
         }

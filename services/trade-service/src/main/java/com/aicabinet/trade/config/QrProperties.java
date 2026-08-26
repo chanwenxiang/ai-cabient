@@ -16,6 +16,8 @@ public record QrProperties(
         /** release / trial / develop，仅 URL Link 使用 */
         String wechatMpEnv
 ) {
+    private static final String WECHAT_ENV_RELEASE = "release";
+
     public String normalizedPublicHost() {
         String host = publicHost == null ? "" : publicHost.trim();
         if (host.isEmpty() || "auto".equalsIgnoreCase(host)) {
@@ -55,10 +57,10 @@ public record QrProperties(
     }
 
     public String wechatEnvVersion() {
-        String env = wechatMpEnv == null || wechatMpEnv.isBlank() ? "release" : wechatMpEnv.trim();
+        String env = wechatMpEnv == null || wechatMpEnv.isBlank() ? WECHAT_ENV_RELEASE : wechatMpEnv.trim();
         return switch (env.toLowerCase()) {
-            case "trial", "develop", "release" -> env.toLowerCase();
-            default -> "release";
+            case "trial", "develop", WECHAT_ENV_RELEASE -> env.toLowerCase();
+            default -> WECHAT_ENV_RELEASE;
         };
     }
 
