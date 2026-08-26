@@ -199,7 +199,6 @@ aicabinet:
     github-actions-url: ${DEVOPS_GITHUB_ACTIONS_URL:https://github.com/chanwenxiang/ai-cabient/actions/workflows/sonar.yml}
     sonar-url: ${DEVOPS_SONAR_URL:http://localhost:19002}
     sonar-health-url: ${DEVOPS_SONAR_HEALTH_URL:${DEVOPS_SONAR_URL:http://localhost:19002}}
-    github-url: ${DEVOPS_GITHUB_URL:https://github.com}
     grafana-embed-path: ${DEVOPS_GRAFANA_EMBED_PATH:/devops/grafana/d/ai-cabinet-overview/ai-cabinet-overview?orgId=1&kiosk=tv&theme=light}
 
 app:
