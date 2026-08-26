@@ -47,7 +47,8 @@ class DevicePresenceServiceTest {
         when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DevicePresenceService service = new DevicePresenceService(
-                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService());
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         service.heartbeat("CAB-002", "0.9.0", null, null);
 
         assertNotNull(device.getOnlineSince());
@@ -71,7 +72,8 @@ class DevicePresenceServiceTest {
         when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DevicePresenceService service = new DevicePresenceService(
-                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService());
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         service.heartbeat("CAB-003", "0.9.0", null, null);
 
         assertEquals(since, device.getOnlineSince());
@@ -95,7 +97,8 @@ class DevicePresenceServiceTest {
         when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DevicePresenceService service = new DevicePresenceService(
-                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService());
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         service.heartbeat("CAB-001", "0.9.0", null, null);
 
         assertTrue(device.getUpdatedAt() != null && !device.getUpdatedAt().isBefore(before));

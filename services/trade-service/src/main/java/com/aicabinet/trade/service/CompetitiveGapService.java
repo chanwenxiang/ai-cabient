@@ -322,7 +322,7 @@ public class CompetitiveGapService {
     @Transactional(readOnly = true)
     public PageResult<SalesReportRowDto> salesReportPage(Long operatorId, String dim, String fromDate,
                                                          String toDate, String deviceId, int page, int size) {
-        List<SalesReportRowDto> all = salesReport(operatorId, dim, fromDate, toDate, deviceId);
+        List<SalesReportRowDto> all = self.salesReport(operatorId, dim, fromDate, toDate, deviceId);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
         int from = p * s;

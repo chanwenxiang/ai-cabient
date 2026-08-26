@@ -33,7 +33,8 @@ class DevicePresenceConcurrencyTest {
     void setUp() {
         service = new DevicePresenceService(deviceRepository, temperatureReadingRepository,
                 cabinetMetrics, opsExceptionService, systemConfigService, auditService,
-                distributedLockService);
+                distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test
