@@ -1,0 +1,99 @@
+# SonarQube 全仓扫描（Java + 前端），由 self-hosted runner 连内网 Sonar。
+# 触发：push/PR、运营后台「重跑 Sonar」（workflow_dispatch）、手动在 GitHub Actions 页运行。
+name: SonarQube
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '扫描分支（dev / main）'
+        required: false
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - main
+  push:
+    branches: [main, develop, dev]
+  pull_request:
+    branches: [main, develop, dev]
+
+concurrency:
+  group: sonar-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sonar:
+    runs-on: [self-hosted, linux, ai-cabinet]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Resolve Sonar project (dev / main)
+        id: sonar_proj
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BRANCH="${{ inputs.ref }}"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            BRANCH="${GITHUB_BASE_REF:-dev}"
+          else
+            BRANCH="${GITHUB_REF#refs/heads/}"
+          fi
+          case "$BRANCH" in
+            main)
+              echo "project_key=ai-cabinet-main" >> "$GITHUB_OUTPUT"
+              echo "project_name=AI Cabinet (main)" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "project_key=ai-cabinet-dev" >> "$GITHUB_OUTPUT"
+              echo "project_name=AI Cabinet (dev)" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Unit tests + Jacoco
+        run: |
+          mvn -B -Dmaven.test.failure.ignore=true test jacoco:report \
+            -pl services/trade-service,services/device-service,services/common/common-core -am
+
+      - name: Ensure quality gate (AI Cabinet)
+        run: bash scripts/ci/setup-sonar-quality-gate.sh
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Sonar scan (Java + admin-vue + mini-programs)
+        run: |
+          set -euo pipefail
+          KEY="${{ steps.sonar_proj.outputs.project_key }}"
+          NAME="${{ steps.sonar_proj.outputs.project_name }}"
+          JACOCO_PATHS="services/trade-service/target/site/jacoco/jacoco.xml,services/device-service/target/site/jacoco/jacoco.xml,services/common/common-core/target/site/jacoco/jacoco.xml"
+          docker run --rm --network host \
+            -v "$PWD:/usr/src" -w /usr/src \
+            sonarsource/sonar-scanner-cli:11.1 \
+            -Dsonar.projectKey="$KEY" \
+            -Dsonar.projectName="$NAME" \
+            -Dsonar.host.url="${SONAR_HOST_URL}" \
+            -Dsonar.token="${SONAR_TOKEN}" \
+            -Dsonar.scm.revision="${{ github.sha }}" \
+            -Dsonar.coverage.jacoco.xmlReportPaths="$JACOCO_PATHS"
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      - name: Quality Gate
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        timeout-minutes: 10
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}

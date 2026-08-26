@@ -1,3 +1,8 @@
+name: ai-cabinet
+
+# 基础设施层（生产/预发与 docker-compose.apps.yml 叠加使用）。
+# 本地开发请只用仓库根目录 .\docker-up.ps1（docker-compose.full.yml），勿单独 up 本文件。
+
 services:
   postgres:
     image: postgres:16-alpine

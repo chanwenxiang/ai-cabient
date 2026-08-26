@@ -41,7 +41,7 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps u
 | Grafana | http://localhost:13000 (admin/admin，可通过 GRAFANA_PORT 修改) |
 | Prometheus | http://localhost:9090 |
 | DevOps 中心（后台） | http://localhost/admin/index.html#/devops |
-| SonarQube / Jenkins | 见 [docs/DEVOPS.md](../docs/DEVOPS.md)（`--profile devops`） |
+| SonarQube / GHA Runner | 见 [docs/DEVOPS.md](../docs/DEVOPS.md)（`--profile devops`） |
 | MinIO 控制台 | http://localhost:9001 (minioadmin/minioadmin) |
 | EMQX 控制台 | http://localhost:28083 |
 
@@ -294,7 +294,7 @@ VISION_INSTALL_ML=true
 |------|------|
 | `docker-compose.yml` | PostgreSQL、Redis、EMQX、MinIO、Redpanda、Gateway、监控 |
 | `docker-compose.apps.yml` | trade / device / vision 应用服务（profile: `apps`）、healthcheck、depends_on |
-| `docker-compose.devops.yml` | SonarQube、Jenkins、GHA Runner（profile: `devops`），详见 [docs/DEVOPS.md](../docs/DEVOPS.md) |
+| `docker-compose.devops.yml` | SonarQube、GHA Runner（profile: `devops`），详见 [docs/DEVOPS.md](../docs/DEVOPS.md) |
 | `docker-compose.vision-local.yml` | Phase 1 Retail-OS 本地 YOLO 叠加（INSTALL_ML + FORCE_REAL） |
 | `.env.example` | 环境变量模板 |
 | `.env.vision-dev.example` | 宿主机真实 YOLO 环境模板 |

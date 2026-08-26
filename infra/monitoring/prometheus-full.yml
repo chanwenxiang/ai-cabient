@@ -17,7 +17,4 @@ scrape_configs:
     metrics_path: /minio/v2/metrics/cluster
     static_configs: [{ targets: ["minio:9000"] }]
 
-  # Jenkins 构建指标（profile devops 启动 jenkins 后可用）
-  - job_name: jenkins
-    metrics_path: /prometheus
-    static_configs: [{ targets: ["jenkins:8080"] }]
+  # GitHub Actions self-hosted runner 指标（profile devops 启动 runner 后可用，按需扩展）

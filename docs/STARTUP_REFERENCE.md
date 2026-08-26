@@ -8,7 +8,7 @@
 
 | 顺序 | 组件 | 如何启动 |
 |------|------|----------|
-| 1 | Docker 基础设施 | `cd infra && docker compose up -d` |
+| 1 | Docker 全栈 | 仓库根目录 `.\docker-up.ps1`（**不要** `cd infra && docker compose up`） |
 | 2 | vision-service | `cd vision-service && uvicorn app.main:app --reload --port 8082` |
 | 3 | trade-service | IDEA Run `TradeServiceApplication`（:8080） |
 | 4 | device-service | IDEA Run `DeviceServiceApplication`（:8081） |
@@ -53,9 +53,10 @@
 解决：
 
 ```powershell
-cd infra
-# .env 使用 MINIO_PUBLIC_ENDPOINT=http://localhost:19000 与 MINIO_API_PORT=19000：
-docker compose -f docker-compose.full.yml -f docker-compose.win-ports.yml up -d
+# 仓库根目录（推荐）
+.\docker-up.ps1
+# Windows MinIO 端口冲突时：
+docker compose --env-file infra\.env -f infra\docker-compose.full.yml -f infra\docker-compose.win-ports.yml up -d
 ```
 
 | 项 | URL |

@@ -29,7 +29,7 @@ public class OpsDevOpsController {
     }
 
     /**
-     * 触发 Jenkins「本机 Sonar」任务（异步排队）。
+     * 触发 GitHub Actions Sonar 工作流（异步排队）。
      */
     @RequiresPermissions("ops:devops:scan")
     @PostMapping("/sonar/scan")
