@@ -96,6 +96,14 @@ jobs:
           done
           echo "Jacoco reports OK"
 
+      - name: Prepare Sonar Java classpaths
+        run: |
+          set -euo pipefail
+          for mod in services/trade-service services/device-service services/common/common-core; do
+            mvn -B -q -f "$mod/pom.xml" dependency:copy-dependencies \
+              -DincludeScope=compile -DoutputDirectory=target/dependency
+          done
+
       - name: Ensure quality gate (AI Cabinet)
         run: bash scripts/ci/setup-sonar-quality-gate.sh
 
@@ -104,14 +112,11 @@ jobs:
           set -euo pipefail
           KEY="${{ steps.sonar_proj.outputs.project_key }}"
           NAME="${{ steps.sonar_proj.outputs.project_name }}"
-          # 用 Maven 插件扫描 Java（自动 classpath + Jacoco）；前端模块仍由 sonar-project.properties 提供
-          mvn -B sonar:sonar \
-            -DskipTests \
+          sonar-scanner \
             -Dsonar.projectKey="$KEY" \
             -Dsonar.projectName="$NAME" \
             -Dsonar.host.url="${SONAR_HOST_URL}" \
             -Dsonar.token="${SONAR_TOKEN}" \
             -Dsonar.scm.revision="${{ github.sha }}" \
             -Dsonar.qualitygate.wait=true \
-            -Dsonar.qualitygate.timeout=600 \
-            -pl services/trade-service,services/device-service,services/common/common-core -am
+            -Dsonar.qualitygate.timeout=600
