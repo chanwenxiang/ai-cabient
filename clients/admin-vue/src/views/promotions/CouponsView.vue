@@ -91,7 +91,7 @@
       <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
-          :data="paged"
+          :data="displayList"
           stripe
           border
           class="report-table"
@@ -186,10 +186,12 @@
       :hydrated="listHydrated"
       v-model:current-page="page"
       v-model:page-size="size"
-      :total="filtered.length"
+      :total="total"
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next"
       background
+      @current-change="load"
+      @size-change="onSizeChange"
     />
 
     <el-dialog
@@ -346,33 +348,44 @@ const loading = ref(false);
 const listHydrated = ref(false);
 const saving = ref(false);
 const list = ref<any[]>([]);
+const total = ref(0);
 const keyword = ref('');
 const statusFilter = ref('');
 const page = ref(1);
 const size = ref(20);
+const activeCoupons = ref<any[]>([]);
 const showCreate = ref(false);
 const editingId = ref<number | null>(null);
-const filtered = computed(() => {
-  const q = keyword.value.trim().toLowerCase();
-  const rows = list.value.filter((row) => {
-    if (statusFilter.value === 'ACTIVE' && row.status !== 'ACTIVE') return false;
-    if (statusFilter.value === 'INACTIVE' && row.status === 'ACTIVE') return false;
-    if (!q) return true;
-    return [row.couponDefId, row.couponName, row.couponType].some((x) =>
-      String(x || '')
-        .toLowerCase()
-        .includes(q)
-    );
+const displayList = computed(() => sortById(list.value));
+
+async function loadActiveCoupons() {
+  try {
+    activeCoupons.value =
+      (
+        await api.request<{ items: any[] }>(
+          '/api/v2/coupons/definitions?status=ACTIVE&page=0&size=500',
+          'GET'
+        )
+      ).items || [];
+  } catch {
+    activeCoupons.value = [];
+  }
+}
+
+function queryParams() {
+  const q = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
   });
-  return sortById(rows);
-});
-const paged = computed(() => {
-  const start = (page.value - 1) * size.value;
-  return filtered.value.slice(start, start + size.value);
-});
-watch([keyword, statusFilter], () => {
+  if (keyword.value.trim()) q.set('q', keyword.value.trim());
+  if (statusFilter.value) q.set('status', statusFilter.value);
+  return q;
+}
+
+function onSizeChange() {
   page.value = 1;
-});
+  load();
+}
 const showIssue = ref(false);
 const batchVisible = ref(false);
 const batchForm = ref<{ couponDefId: number | null; userIdsText: string }>({
@@ -406,6 +419,7 @@ async function batchDisable() {
     ElMessage.success(`已停用 ${targets.length} 张优惠券`);
     clearSelection();
     await load();
+    await loadActiveCoupons();
   } catch (e: any) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '批量停用失败');
@@ -440,8 +454,6 @@ const typeCodeByLabel: Record<string, string> = Object.fromEntries(
       ] as [string, string][]
   )
 );
-const activeCoupons = computed(() => list.value.filter((d) => d.status === 'ACTIVE'));
-
 const CSV_HEADERS = [
   '名称',
   '类型',
@@ -459,7 +471,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
     filePrefix: '优惠券',
     headers: CSV_HEADERS,
     toRows: () =>
-      pickSelected(filtered.value).map((row) => [
+      pickSelected(displayList.value).map((row) => [
         row.couponName,
         displayLabel('coupon_type', row.couponType, '未知类型'),
         yuan(row.denominationCents),
@@ -498,6 +510,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         ok++;
       }
       await load();
+      await loadActiveCoupons();
       return ok;
     }
   });
@@ -525,7 +538,9 @@ function rowActions(row: any): TableAction[] {
   return acts;
 }
 
-const showActionColumn = computed(() => paged.value.some((row) => rowActions(row).length > 0));
+const showActionColumn = computed(() =>
+  displayList.value.some((row) => rowActions(row).length > 0)
+);
 
 async function onAction(key: string, row: any) {
   if (key === 'edit') {
@@ -571,7 +586,13 @@ function openEdit(row: any) {
 async function load() {
   loading.value = true;
   try {
-    list.value = await api.request<any[]>('/api/v2/coupons/definitions', 'GET');
+    const data = await api.request<{ items: any[]; total: number }>(
+      `/api/v2/coupons/definitions?${queryParams()}`,
+      'GET'
+    );
+    list.value = data.items || [];
+    total.value = Number(data.total) || 0;
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -604,6 +625,7 @@ async function onCreateSubmit() {
     showCreate.value = false;
     editingId.value = null;
     await load();
+    await loadActiveCoupons();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -674,6 +696,7 @@ async function onToggleStatus(row: any) {
     );
     ElMessage.success(`已${action}`);
     await load();
+    await loadActiveCoupons();
   } catch (e: any) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : `${action}失败`);
@@ -691,6 +714,7 @@ function syncRouteQuery() {
 function search() {
   page.value = 1;
   syncRouteQuery();
+  load();
 }
 
 function resetFilters() {
@@ -698,6 +722,7 @@ function resetFilters() {
   statusFilter.value = '';
   page.value = 1;
   syncRouteQuery();
+  load();
 }
 
 function applyRouteQuery() {
@@ -718,6 +743,7 @@ function applyRouteQuery() {
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
   page.value = 1;
+  await load();
 }
 
 watch(
@@ -729,6 +755,7 @@ watch(
 
 onMounted(() => {
   applyRouteQuery();
+  void loadActiveCoupons();
   load();
 });
 onActivated(() => {

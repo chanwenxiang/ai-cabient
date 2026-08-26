@@ -196,12 +196,7 @@ const severityOptions = computed(() =>
   riskSeverityDict.value.filter((o) => ['INFO', 'WARN', 'CRITICAL', 'HIGH'].includes(o.value))
 );
 
-const displayItems = computed(() => {
-  let list = items.value;
-  if (severity.value) list = list.filter((e) => e.severity === severity.value);
-  if (deviceFilter.value) list = list.filter((e) => e.deviceId === deviceFilter.value);
-  return list;
-});
+const displayItems = computed(() => items.value);
 
 function eventTypeLabel(t?: string) {
   return displayLabel('device_ops_event', t, '未知');
@@ -274,6 +269,8 @@ async function load() {
       sortDir: sortDir.value
     });
     if (eventType.value) q.set('eventType', eventType.value);
+    if (severity.value) q.set('severity', severity.value);
+    if (deviceFilter.value) q.set('deviceId', deviceFilter.value);
     const data = await api.request<{ items: OpsEvent[]; total?: number }>(
       `/api/v2/ops/admin/device-ops/events?${q}`,
       'GET'

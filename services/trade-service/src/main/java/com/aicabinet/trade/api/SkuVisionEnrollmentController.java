@@ -1,6 +1,7 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.SkuCatalogDto;
 import com.aicabinet.common.dto.SkuVisionEnrollmentPipelineDto;
 import com.aicabinet.common.dto.SkuVisionEnrollmentRowDto;
@@ -31,8 +32,15 @@ public class SkuVisionEnrollmentController {
     /** 入驻列表（含映射是否生效、模型管线 stub 状态、下一步动作）。 */
     @RequiresPermissions("ops:sku:list")
     @GetMapping("/rows")
-    public ApiResponse<java.util.List<SkuVisionEnrollmentRowDto>> listRows(HttpServletRequest request) {
-        return ApiResponse.ok(enrollmentService.listEnrollmentRows(operatorId(request)));
+    public ApiResponse<PageResult<SkuVisionEnrollmentRowDto>> listRows(
+            HttpServletRequest request,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "enrollment", required = false) String enrollment,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(enrollmentService.listEnrollmentRowsPage(
+                operatorId(request), q, status, enrollment, page, size));
     }
 
     @RequiresPermissions("ops:sku:list")

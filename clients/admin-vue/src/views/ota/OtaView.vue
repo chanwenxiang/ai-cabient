@@ -98,6 +98,18 @@
         </el-table>
       </div>
     </div>
+
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
   </el-card>
 
   <el-dialog v-model="dialog" title="发布固件版本" width="520px" destroy-on-close>
@@ -157,6 +169,7 @@ import { onMounted, reactive, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import PagePager from '@/components/PagePager.vue';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
@@ -198,6 +211,9 @@ interface OtaRelease {
 const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 const loading = ref(false);
 const listHydrated = ref(false);
+const page = ref(1);
+const size = ref(20);
+const total = ref(0);
 const saving = ref(false);
 const items = ref<OtaRelease[]>([]);
 const dialog = ref(false);
@@ -216,13 +232,27 @@ const form = reactive({
 async function load() {
   loading.value = true;
   try {
-    items.value = await api.request<OtaRelease[]>('/api/v2/ops/admin/ota/releases', 'GET');
+    const q = new URLSearchParams({
+      page: String(page.value - 1),
+      size: String(size.value)
+    });
+    const data = await api.request<{ items: OtaRelease[]; total: number }>(
+      `/api/v2/ops/admin/ota/releases?${q}`,
+      'GET'
+    );
+    items.value = data.items || [];
+    total.value = Number(data.total) || 0;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
     listHydrated.value = true;
     loading.value = false;
   }
+}
+
+function onSizeChange() {
+  page.value = 1;
+  load();
 }
 
 function openPublish() {

@@ -4,6 +4,7 @@ import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.PaymentPlatformBillLineDto;
 import com.aicabinet.common.dto.PaymentReconciliationDetailDto;
 import com.aicabinet.common.dto.PaymentReconciliationDto;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.domain.PaymentPlatformBillLine;
 import com.aicabinet.trade.domain.PaymentReconciliation;
 import com.aicabinet.trade.reconciliation.PlatformBillLine;
@@ -65,13 +66,45 @@ public class ReconciliationService {
 
     @Transactional(readOnly = true)
     public List<PaymentReconciliationDto> list(Long operatorId, LocalDate from, LocalDate to, String channel) {
+        return list(operatorId, from, to, channel, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PaymentReconciliationDto> list(Long operatorId, LocalDate from, LocalDate to,
+                                             String channel, String status, String keyword) {
         LocalDate end = to != null ? to : LocalDate.now();
         LocalDate start = from != null ? from : end.minusDays(30);
         String ch = channel != null && !channel.isBlank() ? channel.trim().toUpperCase() : null;
         return reconRepository.findByReconDateBetweenOrderByReconDateDesc(start, end).stream()
                 .filter(r -> ch == null || ch.equalsIgnoreCase(r.getChannel()))
+                .filter(r -> status == null || status.isBlank()
+                        || status.trim().equalsIgnoreCase(r.getStatus()))
+                .filter(r -> matchesReconKeyword(r, keyword))
                 .map(this::toDto)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<PaymentReconciliationDto> listPage(Long operatorId, LocalDate from, LocalDate to,
+                                                         String channel, String status, String keyword,
+                                                         int page, int size) {
+        LocalDate end = to != null ? to : LocalDate.now();
+        LocalDate start = from != null ? from : end.minusDays(30);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = reconRepository.searchPage(start, end, channel, status, keyword, p, s);
+        List<PaymentReconciliationDto> items = result.getRecords().stream().map(this::toDto).toList();
+        return new PageResult<>(items, p, s, result.getTotal());
+    }
+
+    private static boolean matchesReconKeyword(PaymentReconciliation r, String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return true;
+        }
+        String kw = keyword.trim().toLowerCase();
+        return String.valueOf(r.getReconId()).contains(kw)
+                || (r.getReconDate() != null && r.getReconDate().toString().contains(kw))
+                || (r.getChannel() != null && r.getChannel().toLowerCase().contains(kw));
     }
 
     @Transactional(readOnly = true)

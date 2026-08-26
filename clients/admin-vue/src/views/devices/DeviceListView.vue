@@ -948,10 +948,11 @@ async function load(showToast = false) {
 
 async function loadMerchants() {
   try {
-    merchantOptions.value = await api.request<MerchantOption[]>(
-      '/api/v2/ops/admin/merchants',
+    const data = await api.request<{ items?: MerchantOption[] }>(
+      '/api/v2/ops/admin/merchants?page=0&size=500',
       'GET'
     );
+    merchantOptions.value = data.items || [];
   } catch {
     merchantOptions.value = [];
   }

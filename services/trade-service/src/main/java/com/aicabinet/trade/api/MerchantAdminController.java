@@ -33,8 +33,12 @@ public class MerchantAdminController {
 
     @RequiresPermissions("ops:merchant:list")
     @GetMapping
-    public ApiResponse<List<MerchantDto>> list(HttpServletRequest request) {
-        return ApiResponse.ok(merchantService.listMerchants(operatorId(request)));
+    public ApiResponse<PageResult<MerchantDto>> list(
+            HttpServletRequest request,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(merchantService.listMerchantsPage(operatorId(request), page, size, q));
     }
 
     @RequiresPermissions("ops:merchant:edit")

@@ -278,64 +278,23 @@ function applyRouteQuery() {
   return changed;
 }
 
-async function scanAuditPages(): Promise<AuditRow[]> {
-  const pageSize = 100;
-  const maxScan = 500;
-  const all: AuditRow[] = [];
-  let apiPage = 0;
-  let scanned = 0;
-  let serverTotal = Number.POSITIVE_INFINITY;
-  while (scanned < maxScan && scanned < serverTotal) {
+async function load() {
+  loading.value = true;
+  try {
     const q = new URLSearchParams({
-      page: String(apiPage),
-      size: String(pageSize),
+      page: String(page.value - 1),
+      size: String(size.value),
       sortDir: idSortDir.value
     });
+    if (mineOnly.value) q.set('mine', 'true');
+    if (actionFilter.value) q.set('action', actionFilter.value);
+    if (targetFilter.value) q.set('target', targetFilter.value);
     const data = await api.request<PageResult<AuditRow>>(
       `/api/v2/ops/admin/audit-logs?${q}`,
       'GET'
     );
-    const batch = data.items || [];
-    serverTotal = data.total ?? batch.length;
-    all.push(...batch);
-    scanned += batch.length;
-    if (!batch.length || batch.length < pageSize) break;
-    apiPage += 1;
-  }
-  return all;
-}
-
-async function load() {
-  loading.value = true;
-  try {
-    const needScan = mineOnly.value || !!actionFilter.value || !!targetFilter.value;
-    if (needScan) {
-      let rows: AuditRow[] = [];
-      if (mineOnly.value) {
-        rows = await api.request<AuditRow[]>(
-          '/api/v2/ops/admin/audit-logs/recent?size=100&mine=true',
-          'GET'
-        );
-      } else {
-        rows = await scanAuditPages();
-      }
-      const filtered = sortById(rows.filter(matchFilters), 'logId');
-      total.value = filtered.length;
-      const start = (page.value - 1) * size.value;
-      items.value = filtered.slice(start, start + size.value);
-    } else {
-      const q = new URLSearchParams({
-        page: String(page.value - 1),
-        size: String(size.value),
-        sortDir: idSortDir.value
-      });
-      const data = await api.request<PageResult<AuditRow>>(
-        `/api/v2/ops/admin/audit-logs?${q}`,
-        'GET'
-      );
-      items.value = data.items || [];
-      total.value = data.total || 0;
-    }
+    items.value = data.items || [];
+    total.value = data.total || 0;
     clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');

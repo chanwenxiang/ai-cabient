@@ -91,7 +91,16 @@ public class WarehouseService {
 
     @Transactional(readOnly = true)
     public List<WarehouseDto> listWarehouses() {
-        return warehouseRepository.findAll().stream().map(this::toWarehouseDto).toList();
+        return listWarehousesPage(null, 0, 500).items();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<WarehouseDto> listWarehousesPage(String keyword, int page, int size) {
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 500);
+        var result = warehouseRepository.searchPage(keyword, p, s);
+        List<WarehouseDto> items = result.getRecords().stream().map(this::toWarehouseDto).toList();
+        return new PageResult<>(items, p, s, result.getTotal());
     }
 
     @Transactional(readOnly = true)

@@ -103,6 +103,18 @@
       </el-table-column>
     </el-table>
 
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
+
     <el-dialog v-model="editVisible" title="编辑素材" width="420px">
       <el-form label-position="top">
         <el-form-item label="标题">
@@ -128,11 +140,16 @@ import { computed, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, authFetch } from '@/api/client';
+import PagePager from '@/components/PagePager.vue';
 import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import type { MediaAssetDto } from '@aicabinet/shared-types';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const loading = ref(false);
+const listHydrated = ref(false);
+const page = ref(1);
+const size = ref(20);
+const total = ref(0);
 const uploading = ref(false);
 const saving = ref(false);
 const rows = ref<MediaAssetDto[]>([]);
@@ -149,12 +166,27 @@ onMounted(load);
 async function load() {
   loading.value = true;
   try {
-    rows.value = (await api.request<MediaAssetDto[]>('/api/v2/ops/admin/ad/assets', 'GET')) || [];
+    const q = new URLSearchParams({
+      page: String(page.value - 1),
+      size: String(size.value)
+    });
+    const data = await api.request<{ items: MediaAssetDto[]; total: number }>(
+      `/api/v2/ops/admin/ad/assets?${q}`,
+      'GET'
+    );
+    rows.value = data.items || [];
+    total.value = Number(data.total) || 0;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
+}
+
+function onSizeChange() {
+  page.value = 1;
+  load();
 }
 
 function openUpload() {

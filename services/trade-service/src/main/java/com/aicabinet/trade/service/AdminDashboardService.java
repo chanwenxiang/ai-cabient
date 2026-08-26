@@ -762,10 +762,32 @@ public class AdminDashboardService {
             Instant from,
             Instant to,
             String keyword) {
+        return listSessions(operatorId, page, size, deviceId, state, sessionId, userId, from, to, keyword,
+                null, false, 30);
+    }
+
+    public PageResult<AdminSessionDto> listSessions(
+            Long operatorId,
+            int page,
+            int size,
+            String deviceId,
+            SessionState state,
+            String sessionId,
+            Long userId,
+            Instant from,
+            Instant to,
+            String keyword,
+            String uploadStatus,
+            boolean stuckOnly,
+            int stuckMinutes) {
         permissionService.requireAnyPermission(operatorId, "ops:session:list", "ops:session:upload");
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
+        Instant updatedBefore = stuckOnly
+                ? Instant.now().minus(Math.max(stuckMinutes, 1), ChronoUnit.MINUTES)
+                : null;
         Page<ShoppingSession> result = querySessions(
-                operatorId, deviceId, state, sessionId, userId, from, to, keyword, pageable);
+                operatorId, deviceId, state, sessionId, userId, from, to, keyword,
+                blankToNull(uploadStatus), updatedBefore, pageable);
         return new PageResult<>(
                 result.getContent().stream().map(this::toSessionDto).toList(),
                 result.getNumber(),
@@ -916,10 +938,23 @@ public class AdminDashboardService {
     }
 
     public PageResult<AdminAuditLogDto> listAuditLogs(Long operatorId, int page, int size, boolean logIdAsc) {
+        return listAuditLogs(operatorId, page, size, logIdAsc, null, null, false);
+    }
+
+    public PageResult<AdminAuditLogDto> listAuditLogs(
+            Long operatorId,
+            int page,
+            int size,
+            boolean logIdAsc,
+            String action,
+            String targetType,
+            boolean mineOnly) {
         permissionService.requirePermission(operatorId, "ops:audit:list");
-        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
-        Page<com.aicabinet.trade.domain.AdminAuditLog> result =
-                auditLogRepository.findAllByOrderByLogId(pageable, logIdAsc);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        Long operatorFilter = mineOnly ? operatorId : null;
+        Page<com.aicabinet.trade.domain.AdminAuditLog> result = auditLogRepository.searchPage(
+                operatorFilter, blankToNull(action), blankToNull(targetType), logIdAsc, p, s);
         return toAuditPage(result);
     }
 
@@ -1002,31 +1037,18 @@ public class AdminDashboardService {
 
     public List<SkuCatalogDto> listSkus(Long operatorId, String q, String status, String category) {
         permissionService.requireAnyPermission(operatorId, "ops:sku:list", "ops:replenishment:list", "ops:warehouse:list");
-        var query = Wrappers.<SkuCatalog>lambdaQuery().orderByAsc(SkuCatalog::getSkuCode).orderByAsc(SkuCatalog::getSkuId);
-        if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status.trim())) {
-            query.eq(SkuCatalog::getStatus, status.trim().toUpperCase());
-        }
-        if (category != null && !category.isBlank()) {
-            query.eq(SkuCatalog::getCategory, category.trim());
-        }
-        if (q != null && !q.isBlank()) {
-            String kw = q.trim();
-            query.and(w -> {
-                w.like(SkuCatalog::getSkuId, kw)
-                        .or().like(SkuCatalog::getSkuName, kw)
-                        .or().like(SkuCatalog::getBarcode, kw)
-                        .or().like(SkuCatalog::getBrand, kw);
-                try {
-                    long code = Long.parseLong(kw);
-                    w.or().eq(SkuCatalog::getSkuCode, code);
-                } catch (NumberFormatException ignored) {
-                    // not a numeric code
-                }
-            });
-        }
-        return skuCatalogRepository.selectList(query).stream()
-                .map(SkuCatalog::toDto)
-                .toList();
+        return listSkusPage(operatorId, q, status, category, 0, 500).items();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<SkuCatalogDto> listSkusPage(
+            Long operatorId, String q, String status, String category, int page, int size) {
+        permissionService.requireAnyPermission(operatorId, "ops:sku:list", "ops:replenishment:list", "ops:warehouse:list");
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 500);
+        var result = skuCatalogRepository.search(q, status, category, p, s);
+        List<SkuCatalogDto> items = result.getRecords().stream().map(SkuCatalog::toDto).toList();
+        return new PageResult<>(items, p, s, result.getTotal());
     }
 
     @Transactional
@@ -1370,7 +1392,7 @@ public class AdminDashboardService {
     }
 
     public byte[] exportSessionsCsv(Long operatorId, String deviceId, SessionState state) {
-        return exportSessionsCsv(operatorId, deviceId, state, null, null, null, null, null);
+        return exportSessionsCsv(operatorId, deviceId, state, null, null, null, null, null, false, 30);
     }
 
     public byte[] exportSessionsCsv(
@@ -1382,10 +1404,28 @@ public class AdminDashboardService {
             Instant from,
             Instant to,
             String keyword) {
+        return exportSessionsCsv(operatorId, deviceId, state, sessionId, userId, from, to, keyword, false, 30);
+    }
+
+    public byte[] exportSessionsCsv(
+            Long operatorId,
+            String deviceId,
+            SessionState state,
+            String sessionId,
+            Long userId,
+            Instant from,
+            Instant to,
+            String keyword,
+            boolean stuckOnly,
+            int stuckMinutes) {
         permissionService.requirePermission(operatorId, "ops:session:export");
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, CREATEDAT));
+        Instant updatedBefore = stuckOnly
+                ? Instant.now().minus(Math.max(stuckMinutes, 1), ChronoUnit.MINUTES)
+                : null;
         Page<ShoppingSession> page = querySessions(
-                operatorId, deviceId, state, sessionId, userId, from, to, keyword, pageable);
+                operatorId, deviceId, state, sessionId, userId, from, to, keyword,
+                null, updatedBefore, pageable);
         StringBuilder sb = new StringBuilder(
                 "sessionId,userId,deviceId,state,sessionKind,entryChannel,orderId,uploadStatus,failReason,"
                         + "openTime,closeTime,createdAt,updatedAt\n");
@@ -1717,6 +1757,22 @@ public class AdminDashboardService {
             Instant to,
             String keyword,
             Pageable pageable) {
+        return querySessions(operatorId, deviceId, state, sessionId, userId, from, to, keyword,
+                null, null, pageable);
+    }
+
+    private Page<ShoppingSession> querySessions(
+            Long operatorId,
+            String deviceId,
+            SessionState state,
+            String sessionId,
+            Long userId,
+            Instant from,
+            Instant to,
+            String keyword,
+            String uploadStatus,
+            Instant updatedBefore,
+            Pageable pageable) {
         Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(operatorId, deviceId);
         if (deviceScope != null && deviceScope.isEmpty()) {
             return Page.empty(pageable);
@@ -1732,6 +1788,8 @@ public class AdminDashboardService {
                 from,
                 to,
                 blankToNull(keyword),
+                uploadStatus,
+                updatedBefore,
                 pageable);
     }
 

@@ -2,6 +2,7 @@ package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.CreateWarehouseTransferRequest;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.WarehouseTransferDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
@@ -24,10 +25,12 @@ public class WarehouseTransferController {
 
     @RequiresPermissions(value = {"ops:warehouse:list", "ops:warehouse:edit"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping
-    public ApiResponse<List<WarehouseTransferDto>> list(
+    public ApiResponse<PageResult<WarehouseTransferDto>> list(
             HttpServletRequest request,
-            @RequestParam(required = false) String status) {
-        return ApiResponse.ok(transferService.list(operatorId(request), status));
+            @RequestParam(required = false) String status,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(transferService.listPage(operatorId(request), status, page, size));
     }
 
     @RequiresPermissions(value = {"ops:warehouse:list", "ops:warehouse:edit"}, logical = RequiresPermissions.Logical.OR)

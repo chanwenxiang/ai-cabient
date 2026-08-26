@@ -529,29 +529,23 @@ async function maybeScrollToFocus() {
 async function load() {
   loading.value = true;
   try {
-    // Soft stuck / uploadStatus filters are client-side; scan recent waiting pages.
-    if (stuckOnly.value || uploadStatus.value) {
-      const { matched } = await scanWaitingPages(
-        (r) => (!stuckOnly.value || isStuck(r)) && matchUploadStatus(r)
-      );
-      matched.sort((a, b) => ageMs(b) - ageMs(a));
-      total.value = matched.length;
-      const start = (page.value - 1) * size.value;
-      items.value = matched.slice(start, start + size.value);
-    } else {
-      const q = new URLSearchParams({
-        page: String(page.value - 1),
-        size: String(size.value),
-        state: 'WAITING_UPLOAD'
-      });
-      if (keyword.value.trim()) q.set('q', keyword.value.trim());
-      const data = await api.request<PageResult<SessionRow>>(
-        `/api/v2/ops/admin/sessions?${q}`,
-        'GET'
-      );
-      items.value = data.items || [];
-      total.value = data.total ?? 0;
+    const q = new URLSearchParams({
+      page: String(page.value - 1),
+      size: String(size.value),
+      state: 'WAITING_UPLOAD'
+    });
+    if (keyword.value.trim()) q.set('q', keyword.value.trim());
+    if (uploadStatus.value) q.set('uploadStatus', uploadStatus.value);
+    if (stuckOnly.value) {
+      q.set('stuckOnly', 'true');
+      q.set('stuckMinutes', String(SLA_MINUTES));
     }
+    const data = await api.request<PageResult<SessionRow>>(
+      `/api/v2/ops/admin/sessions?${q}`,
+      'GET'
+    );
+    items.value = data.items || [];
+    total.value = data.total ?? 0;
     const sid = focusSessionId.value.trim();
     if (sid && !items.value.some((r) => r.sessionId === sid)) {
       const { found } = await scanWaitingPages(() => false, { findFirst: sid });

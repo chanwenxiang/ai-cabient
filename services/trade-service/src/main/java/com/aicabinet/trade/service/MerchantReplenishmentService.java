@@ -290,23 +290,24 @@ public class MerchantReplenishmentService {
     @Transactional(readOnly = true)
     public List<MerchantReplenishmentRequestDto> listRequestsForOps(Long operatorId, String status) {
         permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        return listRequestsForOpsPage(operatorId, status, 0, 200).items();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<MerchantReplenishmentRequestDto> listRequestsForOpsPage(
+            Long operatorId, String status, int page, int size) {
+        permissionService.requirePermission(operatorId, "ops:replenishment:list");
         String statusFilter = blankToNull(status);
         if (statusFilter != null && "ALL".equalsIgnoreCase(statusFilter)) {
             statusFilter = null;
         }
-        List<MerchantReplenishmentRequest> rows;
-        if (statusFilter == null) {
-            rows = requestRepository.findAllOrderBySubmittedAtDesc();
-        } else if (SUBMITTED.equalsIgnoreCase(statusFilter)) {
-            // 待审核保持 FIFO，方便按提交顺序接单
-            rows = requestRepository.findByStatusOrderBySubmittedAtAsc(statusFilter);
-        } else {
-            rows = requestRepository.findByStatusOrderBySubmittedAtDesc(statusFilter);
-        }
-        return rows.stream()
-                .limit(200)
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = requestRepository.searchPage(statusFilter != null ? statusFilter : "ALL", p, s);
+        List<MerchantReplenishmentRequestDto> items = result.getRecords().stream()
                 .map(this::toRequestDto)
                 .toList();
+        return new PageResult<>(items, p, s, result.getTotal());
     }
 
     @Transactional

@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.WarehouseInTransit;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -61,6 +62,18 @@ public interface WarehouseInTransitMapper extends BaseTradeMapper<WarehouseInTra
 
     default boolean existsByOutboundIdAndDeviceIdAndStatus(Long outboundId, String deviceId, String status) {
     return selectCount(Wrappers.<WarehouseInTransit>lambdaQuery().eq(WarehouseInTransit::getOutboundId, outboundId).eq(WarehouseInTransit::getDeviceId, deviceId).eq(WarehouseInTransit::getStatus, status)) > 0;
+    }
+
+    /** page 为 0-based。 */
+    default Page<WarehouseInTransit> searchPage(String deviceId, String status, int page, int size) {
+        String st = status != null && !status.isBlank() ? status.trim().toUpperCase() : "IN_TRANSIT";
+        var query = Wrappers.<WarehouseInTransit>lambdaQuery()
+                .eq(WarehouseInTransit::getStatus, st)
+                .orderByAsc(WarehouseInTransit::getCreatedAt);
+        if (deviceId != null && !deviceId.isBlank()) {
+            query.eq(WarehouseInTransit::getDeviceId, deviceId.trim());
+        }
+        return selectPage(new Page<>(page + 1L, size), query);
     }
 
 }

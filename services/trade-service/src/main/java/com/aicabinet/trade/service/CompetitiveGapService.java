@@ -211,19 +211,37 @@ public class CompetitiveGapService {
     @Transactional
     public PageResult<DeviceOpsEventDto> listDeviceOpsEvents(Long operatorId, String eventType,
                                                              int page, int size, boolean eventIdAsc) {
+        return listDeviceOpsEvents(operatorId, eventType, null, null, page, size, eventIdAsc);
+    }
+
+    @Transactional
+    public PageResult<DeviceOpsEventDto> listDeviceOpsEvents(
+            Long operatorId,
+            String eventType,
+            String severity,
+            String deviceId,
+            int page,
+            int size,
+            boolean eventIdAsc) {
         permissionService.requireAnyPermission(operatorId, "ops:device-ops:list", "ops:device:list", "ops:sla");
         Set<String> allowed = merchantScopeService.allowedDeviceIds(operatorId);
         if (allowed != null && allowed.isEmpty()) {
             return new PageResult<>(List.of(), page, size, 0);
+        }
+        if (deviceId != null && !deviceId.isBlank()) {
+            merchantScopeService.requireDeviceAccess(operatorId, deviceId.trim());
         }
         // 仅本地 mock：列表为空时补演示事件；生产应由真实心跳/扫描任务写事件，禁止读接口写库
         if (securityProperties.mockEnabled()) {
             ensureSyntheticOfflineEvents(allowed);
             ensureNoSalesEvents(allowed);
         }
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
         var result = deviceOpsEventMapper.search(
-                allowed, eventType, Instant.now().minusSeconds(86400L * 14), Instant.now(),
-                page, Math.min(size, 100), eventIdAsc);
+                allowed, eventType, severity, deviceId,
+                Instant.now().minusSeconds(86400L * 14), Instant.now(),
+                p, s, eventIdAsc);
         Set<String> nameIds = result.getRecords().stream()
                 .map(DeviceOpsEvent::getDeviceId)
                 .filter(Objects::nonNull)
@@ -235,7 +253,7 @@ public class CompetitiveGapService {
                         e.getEventId(), e.getDeviceId(), names.get(e.getDeviceId()),
                         e.getEventType(), e.getSeverity(), e.getTitle(), e.getDetail(), e.getCreatedAt()))
                 .toList();
-        return new PageResult<>(items, page, size, result.getTotal());
+        return new PageResult<>(items, p, s, result.getTotal());
     }
 
     @Transactional(readOnly = true)

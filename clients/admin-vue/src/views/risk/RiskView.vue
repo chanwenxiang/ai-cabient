@@ -207,6 +207,17 @@
             </el-table>
           </div>
         </div>
+        <PagePager
+          :hydrated="blacklistHydrated"
+          v-model:current-page="blacklistPage"
+          v-model:page-size="blacklistSize"
+          :total="blacklistTotal"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next"
+          background
+          @current-change="loadBlacklist"
+          @size-change="onBlacklistSizeChange"
+        />
       </el-tab-pane>
     </el-tabs>
 
@@ -286,6 +297,9 @@ const blacklist = ref<Row[]>([]);
 const eventPage = ref(1);
 const eventSize = ref(20);
 const eventTotal = ref(0);
+const blacklistPage = ref(1);
+const blacklistSize = ref(20);
+const blacklistTotal = ref(0);
 const loaded = ref(new Set<string>(['events']));
 const addDialog = ref(false);
 const addForm = reactive({ userId: 1, reason: '' });
@@ -418,7 +432,21 @@ async function loadBlacklist() {
   }
   blacklistLoading.value = true;
   try {
-    blacklist.value = await api.request<Row[]>('/api/v2/ops/admin/risk/blacklist', 'GET');
+    const q = new URLSearchParams({
+      page: String(blacklistPage.value - 1),
+      size: String(blacklistSize.value)
+    });
+    const data = await api.request<PageResult<Row> | Row[]>(
+      `/api/v2/ops/admin/risk/blacklist?${q}`,
+      'GET'
+    );
+    if (Array.isArray(data)) {
+      blacklist.value = data;
+      blacklistTotal.value = data.length;
+    } else {
+      blacklist.value = data?.items || [];
+      blacklistTotal.value = data?.total ?? blacklist.value.length;
+    }
     clearBlacklistSelection();
     loaded.value.add('blacklist');
   } catch (e) {
@@ -427,6 +455,11 @@ async function loadBlacklist() {
     blacklistHydrated.value = true;
     blacklistLoading.value = false;
   }
+}
+
+function onBlacklistSizeChange() {
+  blacklistPage.value = 1;
+  loadBlacklist();
 }
 
 function onTabChange(name: string | number) {

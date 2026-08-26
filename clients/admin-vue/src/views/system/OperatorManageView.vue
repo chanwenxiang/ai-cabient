@@ -619,7 +619,11 @@ async function loadRoles() {
 
 async function loadMerchants() {
   try {
-    merchants.value = await api.request<MerchantRow[]>('/api/v2/ops/admin/merchants', 'GET');
+    const data = await api.request<{ items?: MerchantRow[] }>(
+      '/api/v2/ops/admin/merchants?page=0&size=500',
+      'GET'
+    );
+    merchants.value = data.items || [];
   } catch {
     merchants.value = [];
   }

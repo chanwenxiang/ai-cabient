@@ -235,10 +235,12 @@
           :hydrated="merchantsHydrated"
           v-model:current-page="merchantPage"
           v-model:page-size="merchantSize"
-          :total="filteredMerchants.length"
+          :total="merchantTotal"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next"
           background
+          @current-change="onMerchantPageChange"
+          @size-change="onMerchantSizeChange"
         />
       </el-tab-pane>
 
@@ -720,38 +722,30 @@ const splitTotal = ref(0);
 const merchantKeyword = ref('');
 const merchantPage = ref(1);
 const merchantSize = ref(20);
+const merchantTotal = ref(0);
+const merchantTabItems = ref<MerchantDto[]>([]);
 
-const filteredMerchants = computed(() => {
-  const q = merchantKeyword.value.trim().toLowerCase();
-  if (!q) return merchants.value;
-  return merchants.value.filter(
-    (m) =>
-      String(m.merchantId || '')
-        .toLowerCase()
-        .includes(q) ||
-      String(m.merchantName || '')
-        .toLowerCase()
-        .includes(q)
-  );
-});
-
-const pagedMerchants = computed(() => {
-  const start = (merchantPage.value - 1) * merchantSize.value;
-  return filteredMerchants.value.slice(start, start + merchantSize.value);
-});
+const pagedMerchants = computed(() => merchantTabItems.value);
 
 function searchMerchants() {
   merchantPage.value = 1;
+  void loadMerchantsTab();
 }
 
 function resetMerchantFilters() {
   merchantKeyword.value = '';
   merchantPage.value = 1;
+  void loadMerchantsTab();
 }
 
-watch(merchantKeyword, () => {
+function onMerchantPageChange() {
+  void loadMerchantsTab();
+}
+
+function onMerchantSizeChange() {
   merchantPage.value = 1;
-});
+  void loadMerchantsTab();
+}
 const psStatus = ref<ProfitSharingStatus | null>(null);
 const opsConfigMerchantId = ref('');
 const opsConfig = ref<any>(null);
@@ -857,8 +851,9 @@ const { onExport: exportMerchants } = useListCsv({
     '商户改价',
     '设备数'
   ],
-  toRows: () =>
-    pickMerchants(filteredMerchants.value).map((row) => [
+  toRows: () => {
+    const source = tab.value === 'merchants' ? merchantTabItems.value : merchants.value;
+    return pickMerchants(source).map((row) => [
       row.merchantId,
       row.merchantName,
       `${(row.platformRateBps / 100).toFixed(1)}%`,
@@ -868,7 +863,8 @@ const { onExport: exportMerchants } = useListCsv({
       row.allowMerchantPlanogramEdit ? '是' : '否',
       row.allowMerchantPricingEdit ? '是' : '否',
       row.deviceCount ?? 0
-    ])
+    ]);
+  }
 });
 
 const { onExport: exportSplits } = useListCsv({
@@ -932,13 +928,53 @@ function syncRouteQuery() {
   router.replace({ query });
 }
 
+async function fetchAllMerchants(): Promise<MerchantDto[]> {
+  const pageSize = 500;
+  const all: MerchantDto[] = [];
+  let apiPage = 0;
+  let serverTotal = Number.POSITIVE_INFINITY;
+  while (all.length < serverTotal) {
+    const q = new URLSearchParams({ page: String(apiPage), size: String(pageSize) });
+    const data = await api.request<PageResult<MerchantDto>>(
+      `/api/v2/ops/admin/merchants?${q}`,
+      'GET'
+    );
+    const batch = data.items || [];
+    serverTotal = data.total ?? batch.length;
+    all.push(...batch);
+    if (!batch.length || batch.length < pageSize) break;
+    apiPage += 1;
+  }
+  return sortById(all, 'merchantId');
+}
+
+async function loadMerchantsTab() {
+  loadingMerchants.value = true;
+  try {
+    const q = new URLSearchParams({
+      page: String(merchantPage.value - 1),
+      size: String(merchantSize.value)
+    });
+    if (merchantKeyword.value.trim()) q.set('q', merchantKeyword.value.trim());
+    const data = await api.request<PageResult<MerchantDto>>(
+      `/api/v2/ops/admin/merchants?${q}`,
+      'GET'
+    );
+    merchantTabItems.value = sortById(data.items || [], 'merchantId');
+    merchantTotal.value = data.total ?? 0;
+    clearMerchantsSelection();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '商户列表加载失败');
+  } finally {
+    merchantsHydrated.value = true;
+    loadingMerchants.value = false;
+  }
+}
+
 async function loadMerchants() {
   loadingMerchants.value = true;
   try {
-    merchants.value = sortById(
-      await api.request<MerchantDto[]>('/api/v2/ops/admin/merchants', 'GET'),
-      'merchantId'
-    );
+    merchants.value = await fetchAllMerchants();
     clearMerchantsSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '商户加载失败');
@@ -1014,6 +1050,9 @@ function onTabChange(name: string | number) {
   const next = String(name);
   tab.value = next;
   syncRouteQuery();
+  if (next === 'merchants') {
+    void loadMerchantsTab();
+  }
   if (next === 'splits') {
     if (!splitsLoaded.value) loadSplits();
     if (!psStatus.value) loadStatus();
@@ -1073,6 +1112,9 @@ async function saveOpsConfig() {
 
 function refresh() {
   loadMerchants();
+  if (tab.value === 'merchants') {
+    void loadMerchantsTab();
+  }
   if (tab.value === 'splits') {
     loadSplits();
     loadStatus();
@@ -1393,6 +1435,9 @@ onMounted(() => {
   applyRouteQuery();
   syncRouteQuery();
   loadMerchants();
+  if (tab.value === 'merchants') {
+    void loadMerchantsTab();
+  }
   if (tab.value === 'splits') {
     loadSplits();
     loadStatus();

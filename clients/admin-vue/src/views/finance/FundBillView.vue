@@ -62,7 +62,7 @@
           <div class="table-scroll-inner">
             <el-table
               v-loading="loading"
-              :data="pagedBills"
+              :data="displayBills"
               :default-sort="billIdDefaultSort"
               @sort-change="onBillIdSortChange"
               stripe
@@ -129,10 +129,12 @@
           :hydrated="listHydrated"
           v-model:current-page="billPage"
           v-model:page-size="billSize"
-          :total="filteredBills.length"
+          :total="billTotal"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next"
           background
+          @current-change="loadBills"
+          @size-change="onBillSizeChange"
         />
       </el-tab-pane>
 
@@ -299,6 +301,7 @@ const listHydrated = ref(false);
 const ledgerLoading = ref(false);
 const ledgerHydrated = ref(false);
 const bills = ref<BillRow[]>([]);
+const billTotal = ref(0);
 const ledger = ref<LedgerRow[]>([]);
 const keyword = ref('');
 const billPage = ref(1);
@@ -316,28 +319,6 @@ const {
 } = useIdColumnSort<LedgerRow>('entryId');
 const displayBills = computed(() => sortBillsById(bills.value));
 const displayLedger = computed(() => sortLedgerById(ledger.value));
-
-const filteredBills = computed(() => {
-  const q = keyword.value.trim().toLowerCase();
-  let rows = displayBills.value;
-  if (q) {
-    rows = rows.filter(
-      (r) =>
-        String(r.merchantId || '')
-          .toLowerCase()
-          .includes(q) ||
-        String(r.merchantName || '')
-          .toLowerCase()
-          .includes(q)
-    );
-  }
-  return rows;
-});
-
-const pagedBills = computed(() => {
-  const start = (billPage.value - 1) * billSize.value;
-  return filteredBills.value.slice(start, start + billSize.value);
-});
 
 const filteredLedger = computed(() => {
   const q = keyword.value.trim().toLowerCase();
@@ -421,7 +402,7 @@ const { onExport: exportBillsCsv } = useListCsv({
     '固化'
   ],
   toRows: () =>
-    pickBills(filteredBills.value).map((row) => [
+    pickBills(displayBills.value).map((row) => [
       row.bizDate,
       row.merchantId,
       row.merchantName,
@@ -485,6 +466,11 @@ function onLedgerSizeChange() {
   loadLedger();
 }
 
+function onBillSizeChange() {
+  billPage.value = 1;
+  loadBills();
+}
+
 function reloadCurrent() {
   if (tab.value === 'ledger') loadLedger();
   else loadBills();
@@ -495,11 +481,18 @@ async function loadBills() {
   loading.value = true;
   try {
     const q = queryDates();
-    const rows = await api.request<BillRow[]>(`/api/v2/ops/admin/fund/daily-bills?${q}`, 'GET');
-    bills.value = (rows || []).map((r) => ({
+    q.set('page', String(Math.max(0, billPage.value - 1)));
+    q.set('size', String(billSize.value));
+    if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
+    const data = await api.request<{ items: BillRow[]; total: number }>(
+      `/api/v2/ops/admin/fund/daily-bills?${q}`,
+      'GET'
+    );
+    bills.value = (data.items || []).map((r) => ({
       ...r,
       rowKey: `${r.bizDate}|${r.merchantId}`
     }));
+    billTotal.value = Number(data.total) || 0;
     clearBillSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
