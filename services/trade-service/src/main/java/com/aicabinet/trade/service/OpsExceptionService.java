@@ -36,19 +36,22 @@ public class OpsExceptionService {
     private final DisputeService disputeService;
     private final RepairTicketService repairTicketService;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final OpsExceptionService self;
 
     public OpsExceptionService(OpsExceptionMapper repository, PermissionService permissionService,
                                AdminAuditService auditService, AdminAuditLogMapper auditRepository,
                                ShoppingSessionMapper sessionRepository,
                                @Lazy SettlementService settlementService,
                                @Lazy DisputeService disputeService, RepairTicketService repairTicketService,
-                               DistributedLockService distributedLockService) {
+                               DistributedLockService distributedLockService, @Lazy OpsExceptionService self) {
         this.repository = repository; this.permissionService = permissionService; this.auditService = auditService;
         this.auditRepository = auditRepository;
         this.sessionRepository = sessionRepository; this.settlementService = settlementService;
         this.disputeService = disputeService;
         this.repairTicketService = repairTicketService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -101,19 +104,19 @@ public class OpsExceptionService {
     @Transactional(readOnly = true)
     public PageResult<OpsExceptionDto> list(Long operatorId, String status, String severity,
                                             boolean overdueOnly, int page, int size) {
-        return list(operatorId, status, severity, overdueOnly, null, page, size);
+        return self.list(operatorId, status, severity, overdueOnly, null, page, size);
     }
 
     @Transactional(readOnly = true)
     public PageResult<OpsExceptionDto> list(Long operatorId, String status, String severity, int page, int size) {
-        return list(operatorId, status, severity, false, page, size);
+        return self.list(operatorId, status, severity, false, page, size);
     }
 
     /** @deprecated Prefer {@link #list(Long, String, String, boolean, int, int)} with severity/overdue. */
     @Deprecated
     @Transactional(readOnly = true)
     public PageResult<OpsExceptionDto> list(Long operatorId, String status, int page, int size) {
-        return list(operatorId, status, null, false, page, size);
+        return self.list(operatorId, status, null, false, page, size);
     }
 
     @Transactional(readOnly = true)

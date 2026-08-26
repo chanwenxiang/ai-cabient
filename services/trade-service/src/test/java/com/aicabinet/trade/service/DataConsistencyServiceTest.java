@@ -59,6 +59,7 @@ class DataConsistencyServiceTest {
         ReflectionTestUtils.setField(service, "couponService", couponService);
         ReflectionTestUtils.setField(service, "cabinetOrderRepository", cabinetOrderRepository);
         ReflectionTestUtils.setField(service, "orderPaymentService", orderPaymentService);
+        ReflectionTestUtils.setField(service, "self", service);
         when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }
 

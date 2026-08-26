@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,16 +32,19 @@ public class CouponExpiryReminderScheduler {
     private final UserCouponMapper couponRepository;
     private final CouponDefinitionMapper definitionRepository;
     private final NotificationService notificationService;
+        /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final CouponExpiryReminderScheduler self;
 
     @Autowired
     private ScheduledTaskService taskService;
 
     public CouponExpiryReminderScheduler(UserCouponMapper couponRepository,
                                          CouponDefinitionMapper definitionRepository,
-                                         NotificationService notificationService) {
+                                         NotificationService notificationService, @Lazy CouponExpiryReminderScheduler self) {
         this.couponRepository = couponRepository;
         this.definitionRepository = definitionRepository;
         this.notificationService = notificationService;
+        this.self = self;
     }
 
     @Scheduled(fixedRate = 6 * 3_600_000L)
@@ -53,7 +57,7 @@ public class CouponExpiryReminderScheduler {
         boolean failed = false;
         String summary = "本次无临期优惠券";
         try {
-            int reminded = remind(3);
+            int reminded = self.remind(3);
             summary = reminded <= 0 ? "本次无临期优惠券" : "临期提醒 " + reminded + " 人";
             if (reminded > 0) {
                 log.info("coupon expiry remind users={}", reminded);

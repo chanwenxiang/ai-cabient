@@ -16,6 +16,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -86,6 +87,8 @@ public class MerchantPortalService {
     private final MerchantSelfServiceGate merchantSelfServiceGate;
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final MerchantPortalService self;
 
     public MerchantPortalService(MerchantFinanceService merchantFinanceService,
                                  PermissionService permissionService,
@@ -119,7 +122,7 @@ public class MerchantPortalService {
                                  OperatorUserIdAllocator operatorUserIdAllocator,
                                  MerchantSelfServiceGate merchantSelfServiceGate,
                                  MerchantFeaturePackService merchantFeaturePackService,
-                                 DistributedLockService distributedLockService) {
+                                 DistributedLockService distributedLockService, @Lazy MerchantPortalService self) {
         this.merchantFinanceService = merchantFinanceService;
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
@@ -153,6 +156,7 @@ public class MerchantPortalService {
         this.merchantSelfServiceGate = merchantSelfServiceGate;
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -758,7 +762,7 @@ public class MerchantPortalService {
     public byte[] exportSettlementsCsv(Long userId, String fromDate, String toDate) {
         permissionService.requirePermission(userId, "merchant:settlements:export");
         merchantPortalGuard.requireAccess(userId);
-        List<MerchantDailySettlementDto> days = listDailySettlements(userId, fromDate, toDate);
+        List<MerchantDailySettlementDto> days = self.listDailySettlements(userId, fromDate, toDate);
         StringBuilder sb = new StringBuilder();
         sb.append("date,orderCount,grossCents,platformCents,merchantCents,settledCents,pendingCents,failedCount\n");
         for (MerchantDailySettlementDto d : days) {
@@ -848,7 +852,7 @@ public class MerchantPortalService {
         merchantPortalGuard.requireAccess(userId);
         StringBuilder sb = new StringBuilder(
                 "deviceId,deviceName,onlineStatus,routeCode,address,orderTotal,revenueTotalCents,avgOrderValueTotalCents,orderToday,revenueTodayCents,avgOrderValueTodayCents,sessionTotal,sessionActive\n");
-        for (MerchantDeviceReportDto r : deviceReports(userId)) {
+        for (MerchantDeviceReportDto r : self.deviceReports(userId)) {
             sb.append(csv(r.deviceId())).append(',')
                     .append(csv(r.deviceName())).append(',')
                     .append(csv(r.onlineStatus())).append(',')

@@ -33,7 +33,8 @@ class OpsServiceConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new OpsService(sessionService, deviceValidationService, deviceClient,
-                sessionRepository, taskRepository, distributedLockService);
+                sessionRepository, taskRepository, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

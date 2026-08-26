@@ -40,7 +40,8 @@ class MerchantNotifyConcurrencyTest {
     void setUp() {
         service = new MerchantNotifyService(merchantPortalGuard, permissionService, merchantPortalService,
                 merchantFeaturePackService, opsExceptionService, userInfoRepository, subscribePrefRepository,
-                notifyLogRepository, weChatMiniAppClient, weChatMiniAppProperties, distributedLockService);
+                notifyLogRepository, weChatMiniAppClient, weChatMiniAppProperties, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

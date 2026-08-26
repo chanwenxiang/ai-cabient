@@ -31,6 +31,7 @@ class InventoryLotConcurrencyTest {
     void setUp() {
         service = new InventoryLotService(lotRepository, movementRepository, inventoryRepository,
                 skuCatalogRepository, pullOffTaskRepository, slotRepository, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

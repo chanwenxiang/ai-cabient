@@ -34,7 +34,7 @@ class FinanceReportServiceTest {
         when(orders.countByDeviceIdInAndCreatedAtAfter(any(), any())).thenReturn(4L);
         when(orders.sumTotalAmountByDeviceIdIn(devices)).thenReturn(10_000L);
 
-        FinanceStatsDto result = new FinanceReportService(orders, lines, writeOffs, scope, fundBill).stats(7L);
+        FinanceStatsDto result = new FinanceReportService(orders, lines, writeOffs, scope, fundBill, null).stats(7L);
 
         assertEquals(1_000L, result.revenueTodayCents());
         assertEquals(400L, result.grossMarginTodayCents());
@@ -52,7 +52,7 @@ class FinanceReportServiceTest {
         FundBillService fundBill = mock(FundBillService.class);
         when(scope.allowedDeviceIds(8L)).thenReturn(Set.of());
 
-        FinanceStatsDto result = new FinanceReportService(orders, lines, writeOffs, scope, fundBill).stats(8L);
+        FinanceStatsDto result = new FinanceReportService(orders, lines, writeOffs, scope, fundBill, null).stats(8L);
 
         assertEquals(0L, result.revenueTodayCents());
         assertEquals(0L, result.orderToday());

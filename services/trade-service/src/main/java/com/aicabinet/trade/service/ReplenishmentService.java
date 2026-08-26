@@ -47,6 +47,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.springframework.http.HttpStatus;
 
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -74,6 +75,8 @@ public class ReplenishmentService {
     private static final Logger log = LoggerFactory.getLogger(ReplenishmentService.class);
 
     private final DeviceSkuInventoryMapper inventoryRepository;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final ReplenishmentService self;
 
     private final ReplenishmentRouteMapper routeRepository;
 
@@ -135,7 +138,7 @@ public class ReplenishmentService {
                                 MerchantReplenishmentRequestMapper merchantRequestRepository,
                                 MerchantReplenishmentRequestLineMapper merchantRequestLineRepository,
                                 NotificationService notificationService,
-                                DistributedLockService distributedLockService) {
+                                DistributedLockService distributedLockService, @Lazy ReplenishmentService self) {
 
         this.inventoryRepository = inventoryRepository;
 
@@ -165,6 +168,7 @@ public class ReplenishmentService {
         this.notificationService = notificationService;
         this.distributedLockService = distributedLockService;
 
+        this.self = self;
     }
 
 
@@ -369,7 +373,7 @@ public class ReplenishmentService {
             }
             skuQty.merge(line.getSkuId(), Math.max(0, line.getRequestedQty()), Integer::sum);
         }
-        return seedDraftRestockLines(taskId, task.getDeviceId(), skuQty);
+        return self.seedDraftRestockLines(taskId, task.getDeviceId(), skuQty);
     }
 
     /**
@@ -620,7 +624,7 @@ public class ReplenishmentService {
         }
         reopenRouteIfActive(task.getRouteId());
 
-        return listTaskLines(taskId);
+        return self.listTaskLines(taskId);
 
     }
 

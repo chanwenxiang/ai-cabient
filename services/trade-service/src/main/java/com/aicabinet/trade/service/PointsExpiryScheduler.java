@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,16 +34,19 @@ public class PointsExpiryScheduler {
     private final MemberPointsLogMapper pointsLogRepository;
     private final MemberMapper memberRepository;
     private final NotificationService notificationService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final PointsExpiryScheduler self;
 
     @Autowired
     private ScheduledTaskService taskService;
 
     public PointsExpiryScheduler(MemberPointsLogMapper pointsLogRepository,
                                  MemberMapper memberRepository,
-                                 NotificationService notificationService) {
+                                 NotificationService notificationService, @Lazy PointsExpiryScheduler self) {
         this.pointsLogRepository = pointsLogRepository;
         this.memberRepository = memberRepository;
         this.notificationService = notificationService;
+        this.self = self;
     }
 
     @Scheduled(fixedRate = 6 * 3_600_000L)
@@ -55,8 +59,8 @@ public class PointsExpiryScheduler {
         boolean failed = false;
         String summary = "本次无积分提醒或过期";
         try {
-            int reminded = remind(7);
-            int expired = expire();
+            int reminded = self.remind(7);
+            int expired = self.expire();
             summary = "提醒 " + reminded + " 人，过期结转 " + expired + " 人";
             if (reminded > 0 || expired > 0) {
                 log.info("points expiry scan reminded={} expired={}", reminded, expired);

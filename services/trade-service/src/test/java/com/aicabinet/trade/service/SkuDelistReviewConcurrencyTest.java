@@ -33,7 +33,8 @@ class SkuDelistReviewConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new SkuDelistReviewService(lineRepository, inventoryRepository,
-                skuCatalogRepository, reviewRepository, inventoryLotService, distributedLockService);
+                skuCatalogRepository, reviewRepository, inventoryLotService, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

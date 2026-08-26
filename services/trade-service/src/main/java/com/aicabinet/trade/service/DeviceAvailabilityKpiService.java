@@ -8,6 +8,7 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.OpsExceptionMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,22 +32,25 @@ public class DeviceAvailabilityKpiService {
     private final AdminAuditLogMapper auditRepository;
     private final DeviceAvailabilityKpiDailyMapper kpiRepository;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final DeviceAvailabilityKpiService self;
 
     public DeviceAvailabilityKpiService(DeviceInfoMapper deviceRepository,
                                         OpsExceptionMapper exceptionRepository,
                                         AdminAuditLogMapper auditRepository,
                                         DeviceAvailabilityKpiDailyMapper kpiRepository,
-                                        DistributedLockService distributedLockService) {
+                                        DistributedLockService distributedLockService, @Lazy DeviceAvailabilityKpiService self) {
         this.deviceRepository = deviceRepository;
         this.exceptionRepository = exceptionRepository;
         this.auditRepository = auditRepository;
         this.kpiRepository = kpiRepository;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional
     public DeviceAvailabilityKpiDto snapshotYesterday() {
-        return snapshotDaily(LocalDate.now(ZONE).minusDays(1));
+        return self.snapshotDaily(LocalDate.now(ZONE).minusDays(1));
     }
 
     /** 默认口径：当天实时 KPI（不落库，随业务实时变化）。 */
@@ -66,7 +70,7 @@ public class DeviceAvailabilityKpiService {
     public DeviceAvailabilityKpiDto snapshotDaily(LocalDate date) {
         if (!distributedLockService.tryLock(deviceKpiDailyLockKey(date), 60, 5)) {
             log.warn("device kpi snapshot lock busy date={}", date);
-            return getByDate(date);
+            return self.getByDate(date);
         }
         try {
             return doSnapshotDaily(date);

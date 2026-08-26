@@ -39,7 +39,8 @@ class MerchantSkuPricingConcurrencyTest {
     void setUp() {
         service = new MerchantSkuPricingService(priceRepository, inventoryRepository, skuCatalogRepository,
                 deviceRepository, permissionService, merchantPortalGuard, auditService, auditLogRepository,
-                merchantSelfServiceGate, merchantFeaturePackService, inventoryLotService, distributedLockService);
+                merchantSelfServiceGate, merchantFeaturePackService, inventoryLotService, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

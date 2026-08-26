@@ -17,6 +17,7 @@ import com.aicabinet.trade.support.ApiMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -42,24 +43,27 @@ public class RecognitionTestService {
     private final VisionServiceClient visionClient;
     private final SkuCatalogMapper skuCatalogRepository;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final RecognitionTestService self;
 
     public RecognitionTestService(SessionService sessionService,
                                    ShoppingSessionMapper sessionRepository,
                                    SettlementService settlementService,
                                    VisionServiceClient visionClient,
                                    SkuCatalogMapper skuCatalogRepository,
-                                   DistributedLockService distributedLockService) {
+                                   DistributedLockService distributedLockService, @Lazy RecognitionTestService self) {
         this.sessionService = sessionService;
         this.sessionRepository = sessionRepository;
         this.settlementService = settlementService;
         this.visionClient = visionClient;
         this.skuCatalogRepository = skuCatalogRepository;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
     public DevRecognitionPreviewDto previewUpload(byte[] imageBytes, String filename) {
-        return previewUpload(imageBytes, filename, null);
+        return self.previewUpload(imageBytes, filename, null);
     }
 
     @Transactional(readOnly = true)

@@ -46,6 +46,8 @@ public class MerchantNotifyService {
     private final WeChatMiniAppClient weChatMiniAppClient;
     private final WeChatMiniAppProperties weChatMiniAppProperties;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final MerchantNotifyService self;
 
     public MerchantNotifyService(MerchantPortalGuard merchantPortalGuard,
                                  PermissionService permissionService,
@@ -57,7 +59,7 @@ public class MerchantNotifyService {
                                  MerchantNotifyLogMapper notifyLogRepository,
                                  WeChatMiniAppClient weChatMiniAppClient,
                                  WeChatMiniAppProperties weChatMiniAppProperties,
-                                 DistributedLockService distributedLockService) {
+                                 DistributedLockService distributedLockService, @Lazy MerchantNotifyService self) {
         this.merchantPortalGuard = merchantPortalGuard;
         this.permissionService = permissionService;
         this.merchantPortalService = merchantPortalService;
@@ -69,6 +71,7 @@ public class MerchantNotifyService {
         this.weChatMiniAppClient = weChatMiniAppClient;
         this.weChatMiniAppProperties = weChatMiniAppProperties;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -92,7 +95,7 @@ public class MerchantNotifyService {
             var session = weChatMiniAppClient.code2Session(wxCode);
             user.setWxOpenId(session.openId());
             userInfoRepository.save(user);
-            return getPrefs(userId);
+            return self.getPrefs(userId);
         });
     }
 
@@ -120,7 +123,7 @@ public class MerchantNotifyService {
             pref.setEnabled(true);
             subscribePrefRepository.save(pref);
         }
-        return getPrefs(userId);
+        return self.getPrefs(userId);
     }
 
     @Transactional
@@ -133,7 +136,7 @@ public class MerchantNotifyService {
         int sent = 0;
         for (Long userId : userIds) {
             try {
-                if (maybeNotifyUser(userId)) {
+                if (self.maybeNotifyUser(userId)) {
                     sent++;
                 }
             } catch (Exception ex) {

@@ -7,6 +7,7 @@ import com.aicabinet.trade.mapper.PromotionActivityMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -21,11 +22,14 @@ public class PromotionService {
 
     private final PromotionActivityMapper repository;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final PromotionService self;
 
     public PromotionService(PromotionActivityMapper repository,
-                            DistributedLockService distributedLockService) {
+                            DistributedLockService distributedLockService, @Lazy PromotionService self) {
         this.repository = repository;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional
@@ -101,12 +105,12 @@ public class PromotionService {
 
     @Transactional
     public PromotionActivityDto launch(Long activityId) {
-        return updateStatus(activityId, "ACTIVE");
+        return self.updateStatus(activityId, "ACTIVE");
     }
 
     @Transactional
     public PromotionActivityDto stop(Long activityId) {
-        return updateStatus(activityId, "STOPPED");
+        return self.updateStatus(activityId, "STOPPED");
     }
 
     @Transactional

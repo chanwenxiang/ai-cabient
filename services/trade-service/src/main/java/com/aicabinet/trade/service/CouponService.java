@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -36,6 +37,8 @@ public class CouponService {
     private final CabinetOrderLineMapper orderLineRepository;
     private final DistributedLockService distributedLockService;
     private final PromotionService promotionService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final CouponService self;
 
     public CouponService(CouponDefinitionMapper definitionRepository,
                          UserCouponMapper userCouponRepository,
@@ -43,7 +46,7 @@ public class CouponService {
                          CabinetOrderMapper orderRepository,
                          CabinetOrderLineMapper orderLineRepository,
                          DistributedLockService distributedLockService,
-                         PromotionService promotionService) {
+                         PromotionService promotionService, @Lazy CouponService self) {
         this.definitionRepository = definitionRepository;
         this.userCouponRepository = userCouponRepository;
         this.userInfoRepository = userInfoRepository;
@@ -51,6 +54,7 @@ public class CouponService {
         this.orderLineRepository = orderLineRepository;
         this.distributedLockService = distributedLockService;
         this.promotionService = promotionService;
+        this.self = self;
     }
 
     // ── 优惠券定义管理 ─────────────────────────────────
@@ -156,7 +160,7 @@ public class CouponService {
 
     @Transactional
     public List<CouponDto> batchIssue(Long couponDefId, List<Long> userIds) {
-        return userIds.stream().map(uid -> issueToUser(uid, couponDefId)).toList();
+        return userIds.stream().map(uid -> self.issueToUser(uid, couponDefId)).toList();
     }
 
     // ── 用户查询 ────────────────────────────────────────

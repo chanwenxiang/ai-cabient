@@ -86,6 +86,7 @@ class AdminDashboardBalanceAdjustTest {
                 reconciliationRepository, inTransitRepository, balanceLedgerService, refundPolicyService,
                 exceptionRepository, fileAttachmentService, memberRepository, blacklistRepository,
                 distributedLockService, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +41,10 @@ public class IdempotencyService {
 
     @Autowired
     private DistributedLockService distributedLockService;
+
+    @Autowired
+    @Lazy
+    private IdempotencyService self;
 
     private static final int DEFAULT_EXPIRE_HOURS = 24;
 
@@ -110,7 +115,7 @@ public class IdempotencyService {
 
     @Transactional
     public void saveIdempotency(String idempotencyKey, String businessType, String businessId) {
-        saveIdempotency(idempotencyKey, businessType, businessId, null);
+        self.saveIdempotency(idempotencyKey, businessType, businessId, null);
     }
 
     @Transactional

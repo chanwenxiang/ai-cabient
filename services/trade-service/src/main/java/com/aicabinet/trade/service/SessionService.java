@@ -372,7 +372,7 @@ public class SessionService {
                 return toDto(session);
             }
             if (isRestockSession(session)) {
-                return finishRestockSnapshot(session.getSessionId());
+                return self.finishRestockSnapshot(session.getSessionId());
             }
             return settleSession(session);
         }
@@ -943,7 +943,7 @@ public class SessionService {
 
     @Transactional(readOnly = true)
     public OrderDto getSessionOrder(Long userId, String sessionId) {
-        getSession(userId, sessionId);
+        self.getSession(userId, sessionId);
         return settlementService.getOrderBySession(sessionId);
     }
 

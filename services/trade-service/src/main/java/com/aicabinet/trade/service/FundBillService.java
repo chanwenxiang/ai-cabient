@@ -14,6 +14,7 @@ import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +46,8 @@ public class FundBillService {
     private final MerchantScopeService merchantScopeService;
     private final PermissionService permissionService;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final FundBillService self;
 
     public FundBillService(OrderRevenueSplitMapper splitMapper,
                            MerchantMapper merchantMapper,
@@ -54,7 +57,7 @@ public class FundBillService {
                            InventoryWriteOffMapper writeOffMapper,
                            MerchantScopeService merchantScopeService,
                            PermissionService permissionService,
-                           DistributedLockService distributedLockService) {
+                           DistributedLockService distributedLockService, @Lazy FundBillService self) {
         this.splitMapper = splitMapper;
         this.merchantMapper = merchantMapper;
         this.marginLockMapper = marginLockMapper;
@@ -64,6 +67,7 @@ public class FundBillService {
         this.merchantScopeService = merchantScopeService;
         this.permissionService = permissionService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -191,7 +195,7 @@ public class FundBillService {
         permissionService.requireAnyPermission(operatorId, "ops:fund:export", "ops:fund:list", "ops:finance:view");
         StringBuilder sb = new StringBuilder(
                 "bizDate,merchantId,merchantName,orderPaidCents,platformFeeCents,channelFeeCents,creditedCents,pendingCents,orderCount,solidified\n");
-        for (FundDailyBillDto d : listDailyBills(operatorId, fromDate, toDate)) {
+        for (FundDailyBillDto d : self.listDailyBills(operatorId, fromDate, toDate)) {
             sb.append(d.bizDate()).append(',')
                     .append(csv(d.merchantId())).append(',')
                     .append(csv(d.merchantName())).append(',')

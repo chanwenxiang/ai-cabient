@@ -31,6 +31,7 @@ class AccountConcurrencyTest {
     void setUp() {
         service = new AccountService(userInfoRepository, userAccountRepository,
                 payScoreService, balanceLedgerService, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

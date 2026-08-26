@@ -68,6 +68,8 @@ public class DisputeService {
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final MerchantPortalGuard merchantPortalGuard;
     private final SkuCatalogMapper skuCatalogRepository;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final DisputeService self;
 private final DisputeSlaProperties disputeSlaProperties;
 @Autowired
 private SystemConfigService systemConfigService;
@@ -100,7 +102,7 @@ private final UserInfoMapper userInfoRepository;
                           RefundPolicyService refundPolicyService,
                           VideoArchiveService videoArchiveService,
                           OrderPaymentService orderPaymentService,
-                          DistributedLockService distributedLockService) {
+                          DistributedLockService distributedLockService, @Lazy DisputeService self) {
         this.disputeRepository = disputeRepository;
         this.disputeMessageRepository = disputeMessageRepository;
         this.sessionRepository = sessionRepository;
@@ -123,6 +125,7 @@ private final UserInfoMapper userInfoRepository;
         this.videoArchiveService = videoArchiveService;
         this.orderPaymentService = orderPaymentService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional
@@ -154,7 +157,7 @@ private final UserInfoMapper userInfoRepository;
         String safeReason = reason != null && !reason.isBlank()
                 ? reason
                 : "识别超时，已转人工审核，本次暂未扣款";
-        return createTicket(session,
+        return self.createTicket(session,
                 new VisionServiceClient.RecognitionResult(
                         session.getRecognitionTaskId(),
                         List.of(),
@@ -427,7 +430,7 @@ private final UserInfoMapper userInfoRepository;
     public PageResult<DisputeTicketDto> listTickets(Long operatorId, int page, int size,
                                                     String status, String sessionId, String deviceId,
                                                     String category, String reviewCode) {
-        return listTickets(operatorId, page, size, status, sessionId, deviceId, null, category, reviewCode);
+        return self.listTickets(operatorId, page, size, status, sessionId, deviceId, null, category, reviewCode);
     }
 
     @Transactional(readOnly = true)
@@ -895,7 +898,7 @@ private final UserInfoMapper userInfoRepository;
         message.setBody(body);
         disputeMessageRepository.save(message);
         auditService.record(userId, "MERCHANT_DISPUTE_REPLY", "DISPUTE", ticket.getTicketId(), body);
-        return getMerchantDetail(userId, ticketId);
+        return self.getMerchantDetail(userId, ticketId);
     }
 
     private DisputeTicketDto toMerchantDto(DisputeTicket ticket) {

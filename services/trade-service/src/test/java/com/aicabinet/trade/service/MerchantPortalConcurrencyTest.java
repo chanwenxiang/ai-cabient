@@ -63,7 +63,8 @@ class MerchantPortalConcurrencyTest {
                 replenishmentTaskLineRepository, disputeRepository, inventoryRepository, pullOffTaskRepository,
                 deviceSlotService, inventoryLotService, auditService, passwordEncoder, temperatureReadingRepository,
                 deviceServiceClient, profitSharingService, profitSharingProperties, weChatPayProperties,
-                operatorUserIdAllocator, merchantSelfServiceGate, merchantFeaturePackService, distributedLockService);
+                operatorUserIdAllocator, merchantSelfServiceGate, merchantFeaturePackService, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

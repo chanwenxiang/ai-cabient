@@ -55,6 +55,8 @@ public class SettlementService {
     private final ConsumerPreauthService consumerPreauthService;
     private final SystemConfigService systemConfigService;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final SettlementService self;
 
     public SettlementService(ShoppingSessionMapper sessionRepository,
                              SkuCatalogMapper skuCatalogRepository,
@@ -82,7 +84,7 @@ public class SettlementService {
                              DeviceSlotMapper slotRepository,
                              ConsumerPreauthService consumerPreauthService,
                              SystemConfigService systemConfigService,
-                             DistributedLockService distributedLockService) {
+                             DistributedLockService distributedLockService, @Lazy SettlementService self) {
         this.sessionRepository = sessionRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.orderRepository = orderRepository;
@@ -110,6 +112,7 @@ public class SettlementService {
         this.consumerPreauthService = consumerPreauthService;
         this.systemConfigService = systemConfigService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     /** 人工审核后确认清单：无订单则首次扣款；有订单则按差额退/补。 */
@@ -147,7 +150,7 @@ public class SettlementService {
     @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
     public OrderDto processRecognitionResult(ShoppingSession session,
                                              VisionServiceClient.RecognitionResult recognition) {
-        return processRecognitionResult(session, recognition, true);
+        return self.processRecognitionResult(session, recognition, true);
     }
 
     /**
@@ -520,7 +523,7 @@ public class SettlementService {
     /** 免单：退还该会话已扣款项（原路退回）；默认回库（兼容历史免单=误识别）。 */
     @Transactional
     public int waiveAndRefund(ShoppingSession session) {
-        return waiveAndRefund(session, true);
+        return self.waiveAndRefund(session, true);
     }
 
     /**

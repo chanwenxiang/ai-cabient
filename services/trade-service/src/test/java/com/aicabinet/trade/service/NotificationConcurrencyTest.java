@@ -35,7 +35,8 @@ class NotificationConcurrencyTest {
     void setUp() {
         service = new NotificationService(templateRepository, logRepository,
                 new NotificationProperties(false, false, false), notifyPrefService,
-                externalDispatcher, producerProvider, distributedLockService);
+                externalDispatcher, producerProvider, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

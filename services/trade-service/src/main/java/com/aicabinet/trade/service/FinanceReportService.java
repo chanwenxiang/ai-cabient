@@ -25,17 +25,20 @@ public class FinanceReportService {
     private final InventoryWriteOffMapper writeOffRepository;
     private final MerchantScopeService merchantScopeService;
     private final FundBillService fundBillService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final FinanceReportService self;
 
     public FinanceReportService(CabinetOrderMapper orderRepository,
                                 CabinetOrderLineMapper lineRepository,
                                 InventoryWriteOffMapper writeOffRepository,
                                 MerchantScopeService merchantScopeService,
-                                @Lazy FundBillService fundBillService) {
+                                @Lazy FundBillService fundBillService, @Lazy FinanceReportService self) {
         this.orderRepository = orderRepository;
         this.lineRepository = lineRepository;
         this.writeOffRepository = writeOffRepository;
         this.merchantScopeService = merchantScopeService;
         this.fundBillService = fundBillService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -85,7 +88,7 @@ public class FinanceReportService {
     @Transactional(readOnly = true)
     public FinanceReportDto report(Long operatorId, int days) {
         int window = Math.min(Math.max(days, 1), 90);
-        FinanceStatsDto summary = stats(operatorId);
+        FinanceStatsDto summary = self.stats(operatorId);
         Set<String> deviceIds = merchantScopeService.allowedDeviceIds(operatorId);
         List<FinanceDailyDto> daily = new ArrayList<>();
         LocalDate today = LocalDate.now(ZONE);

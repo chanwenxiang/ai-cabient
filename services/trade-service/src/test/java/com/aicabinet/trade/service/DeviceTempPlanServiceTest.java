@@ -52,7 +52,8 @@ class DeviceTempPlanServiceTest {
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
         service = new DeviceTempPlanService(permissionService, planRepository, entryRepository,
-                deviceRepository, deviceClient, auditService, distributedLockService);
+                deviceRepository, deviceClient, auditService, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

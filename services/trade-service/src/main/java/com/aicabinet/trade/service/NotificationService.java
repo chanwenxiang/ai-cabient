@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -40,6 +41,8 @@ public class NotificationService {
     private final ExternalNotificationDispatcher externalDispatcher;
     private final ObjectProvider<NotificationDispatchProducer> producerProvider;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final NotificationService self;
 
     public NotificationService(NotificationTemplateMapper templateRepository,
                                NotificationLogMapper logRepository,
@@ -47,7 +50,7 @@ public class NotificationService {
                                ConsumerNotifyPrefService notifyPrefService,
                                ExternalNotificationDispatcher externalDispatcher,
                                ObjectProvider<NotificationDispatchProducer> producerProvider,
-                               DistributedLockService distributedLockService) {
+                               DistributedLockService distributedLockService, @Lazy NotificationService self) {
         this.templateRepository = templateRepository;
         this.logRepository = logRepository;
         this.notificationProperties = notificationProperties;
@@ -55,18 +58,19 @@ public class NotificationService {
         this.externalDispatcher = externalDispatcher;
         this.producerProvider = producerProvider;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional
     public void notifyConsumer(Long userId, String templateCode, Map<String, String> params,
                                String bizType, String bizId) {
-        send("CONSUMER", userId, null, templateCode, params, bizType, bizId);
+        self.send("CONSUMER", userId, null, templateCode, params, bizType, bizId);
     }
 
     @Transactional
     public void notifyMerchant(String merchantId, String templateCode, Map<String, String> params,
                                String bizType, String bizId) {
-        send("MERCHANT", null, merchantId, templateCode, params, bizType, bizId);
+        self.send("MERCHANT", null, merchantId, templateCode, params, bizType, bizId);
     }
 
     /** 运营后台站内信：不依赖消费者偏好开关，直接落库。 */

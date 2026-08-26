@@ -36,7 +36,8 @@ class RepairTicketConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new RepairTicketService(ticketMapper, eventMapper, deviceInfoMapper,
-                permissionService, salesLockService, opsExceptionService, distributedLockService);
+                permissionService, salesLockService, opsExceptionService, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

@@ -34,7 +34,8 @@ class SettlementSessionSettleConcurrencyTest {
                 null, null, null, null,
                 null, null, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, distributedLockService);
+                null, null, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(settlementService, "self", settlementService);
     }
 
     @Test

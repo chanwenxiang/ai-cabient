@@ -6,6 +6,7 @@ import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -44,6 +45,8 @@ public class CompetitiveGapService {
     private final SecurityProperties securityProperties;
     private final OpsUserRouteScopeMapper routeScopeMapper;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final CompetitiveGapService self;
 
     public CompetitiveGapService(OpsUserDeviceScopeMapper deviceScopeMapper,
                                  OpsUserDeviceScopePrefMapper deviceScopePrefMapper,
@@ -61,7 +64,7 @@ public class CompetitiveGapService {
                                  DeviceSalesLockService salesLockService,
                                  SecurityProperties securityProperties,
                                  OpsUserRouteScopeMapper routeScopeMapper,
-                                 DistributedLockService distributedLockService) {
+                                 DistributedLockService distributedLockService, @Lazy CompetitiveGapService self) {
         this.deviceScopeMapper = deviceScopeMapper;
         this.deviceScopePrefMapper = deviceScopePrefMapper;
         this.opsConfigMapper = opsConfigMapper;
@@ -79,6 +82,7 @@ public class CompetitiveGapService {
         this.securityProperties = securityProperties;
         this.routeScopeMapper = routeScopeMapper;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     // ---- M2 device scope ----
@@ -147,7 +151,7 @@ public class CompetitiveGapService {
             }
         }
         auditService.record(operatorId, "OPS_USER_DEVICE_SCOPE", "USER", String.valueOf(userId), mode);
-        return getUserDeviceScope(operatorId, userId);
+        return self.getUserDeviceScope(operatorId, userId);
     }
 
     // ---- M2 org ops config + role templates ----
@@ -284,7 +288,7 @@ public class CompetitiveGapService {
 
     @Transactional(readOnly = true)
     public List<SalesReportRowDto> salesReport(Long operatorId, String dim, String fromDate, String toDate) {
-        return salesReport(operatorId, dim, fromDate, toDate, null);
+        return self.salesReport(operatorId, dim, fromDate, toDate, null);
     }
 
     @Transactional(readOnly = true)
@@ -313,6 +317,20 @@ public class CompetitiveGapService {
             case "MARGIN", "PRODUCT", "SKU" -> aggregateByProduct(deviceIds, start, end);
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dim 支持 PRODUCT/SKU/CABINET/MERCHANT/MARGIN");
         };
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<SalesReportRowDto> salesReportPage(Long operatorId, String dim, String fromDate,
+                                                         String toDate, String deviceId, int page, int size) {
+        List<SalesReportRowDto> all = salesReport(operatorId, dim, fromDate, toDate, deviceId);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        int from = p * s;
+        if (from >= all.size()) {
+            return new PageResult<>(List.of(), p, s, all.size());
+        }
+        int to = Math.min(from + s, all.size());
+        return new PageResult<>(all.subList(from, to), p, s, all.size());
     }
 
     /** 商户可读子集：商品 / 货柜 / 毛利（不含跨商户 MERCHANT 维）。 */

@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.SiteRentSplitRule;
 import com.aicabinet.trade.mapper.SiteContractMapper;
 import com.aicabinet.trade.mapper.SiteRentSplitRuleMapper;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,17 +26,20 @@ public class SiteRentSplitService {
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final SiteRentSplitService self;
 
     public SiteRentSplitService(SiteRentSplitRuleMapper ruleMapper,
                                 SiteContractMapper contractMapper,
                                 PermissionService permissionService,
                                 AdminAuditService auditService,
-                                DistributedLockService distributedLockService) {
+                                DistributedLockService distributedLockService, @Lazy SiteRentSplitService self) {
         this.ruleMapper = ruleMapper;
         this.contractMapper = contractMapper;
         this.permissionService = permissionService;
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -88,7 +92,7 @@ public class SiteRentSplitService {
         }
         auditService.record(operatorId, "SITE_RENT_SPLIT", "CONTRACT", String.valueOf(contractId),
                 "rules=" + request.rules().size());
-        return listByContract(operatorId, contractId);
+        return self.listByContract(operatorId, contractId);
     }
 
     private SiteContract requireContract(Long contractId) {

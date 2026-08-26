@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +39,8 @@ public class SlaMetricsService {
     private final DisputeTicketMapper disputeRepository;
     private final DisputeSlaService disputeSlaService;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final SlaMetricsService self;
 
     @Autowired
     private ScheduledTaskService taskService;
@@ -48,7 +51,7 @@ public class SlaMetricsService {
                              MerchantScopeService merchantScopeService,
                              DisputeTicketMapper disputeRepository,
                              DisputeSlaService disputeSlaService,
-                             DistributedLockService distributedLockService) {
+                             DistributedLockService distributedLockService, @Lazy SlaMetricsService self) {
         this.sessionRepository = sessionRepository;
         this.deviceRepository = deviceRepository;
         this.snapshotRepository = snapshotRepository;
@@ -56,11 +59,12 @@ public class SlaMetricsService {
         this.disputeRepository = disputeRepository;
         this.disputeSlaService = disputeSlaService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
     public SlaMetricsDto current(Long operatorId) {
-        SlaRealtimeDto realtime = realtimeMetrics(operatorId);
+        SlaRealtimeDto realtime = self.realtimeMetrics(operatorId);
         int currentOnline = (int) deviceRepository.countByOnlineStatus("ONLINE");
         int deviceTotal = (int) deviceRepository.count();
         return snapshotRepository.findFirstByOrderBySnapshotDateDesc()
@@ -100,7 +104,7 @@ public class SlaMetricsService {
         String summary = "本次无 SLA 快照";
         try {
             LocalDate yesterday = LocalDate.now().minusDays(1);
-            SlaDailySnapshot snap = buildSnapshot(yesterday);
+            SlaDailySnapshot snap = self.buildSnapshot(yesterday);
             persistSnapshot(yesterday, snap);
             summary = "已写入 " + yesterday + " SLA 快照，开门成功 "
                     + snap.getDoorOpenSuccess() + "/" + snap.getDoorOpenAttempts();

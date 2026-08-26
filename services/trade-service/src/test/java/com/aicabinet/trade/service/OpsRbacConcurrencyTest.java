@@ -33,7 +33,8 @@ class OpsRbacConcurrencyTest {
         service = new OpsRbacService(
                 roleRepository, null, null, null, null, null,
                 permissionService, null, null, null, null, null,
-                distributedLockService, null, null, null);
+                distributedLockService, null, null, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

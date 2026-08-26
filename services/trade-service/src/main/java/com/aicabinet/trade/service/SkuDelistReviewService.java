@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.SkuDelistReviewDto;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.domain.DeviceSkuInventory;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.domain.SkuDelistReview;
@@ -8,9 +9,11 @@ import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.SkuDelistReviewMapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -39,19 +42,22 @@ public class SkuDelistReviewService {
     private final SkuDelistReviewMapper reviewRepository;
     private final InventoryLotService inventoryLotService;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final SkuDelistReviewService self;
 
     public SkuDelistReviewService(CabinetOrderLineMapper lineRepository,
                                   DeviceSkuInventoryMapper inventoryRepository,
                                   SkuCatalogMapper skuCatalogRepository,
                                   SkuDelistReviewMapper reviewRepository,
                                   InventoryLotService inventoryLotService,
-                                  DistributedLockService distributedLockService) {
+                                  DistributedLockService distributedLockService, @Lazy SkuDelistReviewService self) {
         this.lineRepository = lineRepository;
         this.inventoryRepository = inventoryRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.reviewRepository = reviewRepository;
         this.inventoryLotService = inventoryLotService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     /** 基于近 N 天订单生成/刷新全量 SKU 评审行。 */
@@ -144,7 +150,7 @@ public class SkuDelistReviewService {
             }
         }
         log.info("sku review refreshed window={}d skus={}", window, skus.size());
-        return list();
+        return self.list();
     }
 
     @Transactional(readOnly = true)
@@ -154,6 +160,19 @@ public class SkuDelistReviewService {
         return reviewRepository.findAll().stream()
                 .map(r -> toDto(r, skus.get(r.getSkuId()), skus))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<SkuDelistReviewDto> listPage(int page, int size) {
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        Page<SkuDelistReview> result = reviewRepository.searchPage(p, s);
+        Map<String, SkuCatalog> skus = skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()
+                .collect(LinkedHashMap::new, (m, e) -> m.put(e.getSkuId(), e), LinkedHashMap::putAll);
+        List<SkuDelistReviewDto> items = result.getRecords().stream()
+                .map(r -> toDto(r, skus.get(r.getSkuId()), skus))
+                .toList();
+        return new PageResult<>(items, p, s, result.getTotal());
     }
 
     /**

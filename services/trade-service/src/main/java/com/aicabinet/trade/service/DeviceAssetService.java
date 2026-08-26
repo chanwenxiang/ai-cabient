@@ -18,6 +18,7 @@ import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -53,6 +54,8 @@ public class DeviceAssetService {
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
+        /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final DeviceAssetService self;
 
     public DeviceAssetService(DeviceInfoMapper deviceInfoMapper,
                               DeviceLifecycleEventMapper lifecycleEventMapper,
@@ -63,7 +66,7 @@ public class DeviceAssetService {
                               MerchantScopeService merchantScopeService,
                               PermissionService permissionService,
                               AdminAuditService auditService,
-                              DistributedLockService distributedLockService) {
+                              DistributedLockService distributedLockService, @Lazy DeviceAssetService self) {
         this.deviceInfoMapper = deviceInfoMapper;
         this.lifecycleEventMapper = lifecycleEventMapper;
         this.inventoryMapper = inventoryMapper;
@@ -74,6 +77,7 @@ public class DeviceAssetService {
         this.permissionService = permissionService;
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional
@@ -179,7 +183,7 @@ public class DeviceAssetService {
     @Transactional(readOnly = true)
     public List<StockHealthRowDto> stockHealth(Long operatorId, String dimension,
                                                String merchantId, String routeCode, String lifecycleStatus) {
-        return stockHealth(operatorId, dimension, merchantId, routeCode, lifecycleStatus, null);
+        return self.stockHealth(operatorId, dimension, merchantId, routeCode, lifecycleStatus, null);
     }
 
     @Transactional(readOnly = true)
@@ -312,7 +316,7 @@ public class DeviceAssetService {
     public StockHealthPageDto stockHealthPage(Long operatorId, String dimension,
                                               String merchantId, String routeCode, String lifecycleStatus,
                                               String deviceId, int page, int size) {
-        List<StockHealthRowDto> all = stockHealth(
+        List<StockHealthRowDto> all = self.stockHealth(
                 operatorId, dimension, merchantId, routeCode, lifecycleStatus, deviceId);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);

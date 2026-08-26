@@ -8,6 +8,7 @@ import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
 import com.aicabinet.trade.mapper.PullOffTaskMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.support.MerchantPortalGuard;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +35,8 @@ public class MerchantAnalyticsService {
     private final DeviceSkuInventoryMapper inventoryRepository;
     private final InventoryLotService inventoryLotService;
     private final CompetitiveGapService competitiveGapService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final MerchantAnalyticsService self;
 
     public MerchantAnalyticsService(PermissionService permissionService,
                                     MerchantPortalGuard merchantPortalGuard,
@@ -46,7 +49,7 @@ public class MerchantAnalyticsService {
                                     SkuCatalogMapper skuCatalogRepository,
                                     DeviceSkuInventoryMapper inventoryRepository,
                                     InventoryLotService inventoryLotService,
-                                    CompetitiveGapService competitiveGapService) {
+                                    CompetitiveGapService competitiveGapService, @Lazy MerchantAnalyticsService self) {
         this.permissionService = permissionService;
         this.merchantPortalGuard = merchantPortalGuard;
         this.merchantFeaturePackService = merchantFeaturePackService;
@@ -59,6 +62,7 @@ public class MerchantAnalyticsService {
         this.inventoryRepository = inventoryRepository;
         this.inventoryLotService = inventoryLotService;
         this.competitiveGapService = competitiveGapService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -177,7 +181,7 @@ public class MerchantAnalyticsService {
 
     @Transactional(readOnly = true)
     public String salesReportsCsv(Long userId, String dim, String fromDate, String toDate) {
-        return competitiveGapService.salesReportCsv(salesReports(userId, dim, fromDate, toDate));
+        return competitiveGapService.salesReportCsv(self.salesReports(userId, dim, fromDate, toDate));
     }
 
     @Transactional(readOnly = true)

@@ -39,6 +39,7 @@ class MemberOnOrderPaidConcurrencyTest {
         ReflectionTestUtils.setField(memberService, "levelRuleRepository", levelRuleRepository);
         ReflectionTestUtils.setField(memberService, "pointsLogRepository", pointsLogRepository);
         ReflectionTestUtils.setField(memberService, "distributedLockService", distributedLockService);
+        ReflectionTestUtils.setField(memberService, "self", memberService);
     }
 
     @Test
