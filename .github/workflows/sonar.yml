@@ -1,6 +1,6 @@
 # SonarQube 全仓扫描（Java + 前端），由 self-hosted runner 连内网 Sonar。
-# Runner 无宿主机 Java/Maven，且拉取 setup-maven 等 Action 易超时 → 全程 Docker 执行。
-# 触发：push/PR、运营后台「重跑 Sonar」（workflow_dispatch）、GitHub Actions 手动运行。
+# Runner 镜像预装 Java/Maven/Sonar Scanner（见 infra/docker/github-runner.Dockerfile），
+# 避免 Windows Docker Desktop 下 DinD 卷挂载导致 Maven 找不到模块。
 name: SonarQube
 
 on:
@@ -22,12 +22,6 @@ on:
 concurrency:
   group: sonar-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
-env:
-  MAVEN_IMAGE: maven:3.9-eclipse-temurin-17
-  SCANNER_IMAGE: sonarsource/sonar-scanner-cli:11.1
-  # compose -p ai-cabinet 默认网络；Secret SONAR_HOST_URL 应为 http://sonarqube:9000
-  DOCKER_NETWORK: ai-cabinet_default
 
 jobs:
   sonar:
@@ -56,10 +50,12 @@ jobs:
           fi
           echo "SONAR_HOST_URL=${SONAR_HOST_URL}"
 
-      - name: Pull CI images
+      - name: Verify runner toolchain
         run: |
-          docker pull "$MAVEN_IMAGE"
-          docker pull "$SCANNER_IMAGE"
+          set -euo pipefail
+          java -version
+          mvn -version
+          sonar-scanner --version
 
       - name: Resolve Sonar project (dev / main)
         id: sonar_proj
@@ -85,16 +81,10 @@ jobs:
           esac
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
-      - name: Unit tests + Jacoco (Docker Maven)
+      - name: Unit tests + Jacoco
         run: |
-          set -euo pipefail
-          mkdir -p "${HOME}/.m2"
-          docker run --rm \
-            -v "$PWD:/workspace" -w /workspace \
-            -v "${HOME}/.m2:/root/.m2" \
-            "$MAVEN_IMAGE" \
-            mvn -B -Dmaven.test.failure.ignore=true test jacoco:report \
-              -pl services/trade-service,services/device-service,services/common/common-core -am
+          mvn -B -Dmaven.test.failure.ignore=true test jacoco:report \
+            -pl services/trade-service,services/device-service,services/common/common-core -am
 
       - name: Ensure quality gate (AI Cabinet)
         run: bash scripts/ci/setup-sonar-quality-gate.sh
@@ -105,11 +95,7 @@ jobs:
           KEY="${{ steps.sonar_proj.outputs.project_key }}"
           NAME="${{ steps.sonar_proj.outputs.project_name }}"
           JACOCO_PATHS="services/trade-service/target/site/jacoco/jacoco.xml,services/device-service/target/site/jacoco/jacoco.xml,services/common/common-core/target/site/jacoco/jacoco.xml"
-          docker run --rm \
-            --network "${DOCKER_NETWORK}" \
-            -v "$PWD:/usr/src" -w /usr/src \
-            -e SONAR_TOKEN -e SONAR_HOST_URL \
-            "$SCANNER_IMAGE" \
+          sonar-scanner \
             -Dsonar.projectKey="$KEY" \
             -Dsonar.projectName="$NAME" \
             -Dsonar.host.url="${SONAR_HOST_URL}" \
