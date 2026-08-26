@@ -1,4 +1,5 @@
 # Start full-stack Docker Compose (infra + app services).
+# 项目名固定为 ai-cabinet（见 docker-compose.yml 顶部 name:），勿在 Docker Desktop 里再建 infra 项目。
 
 param(
     [switch]$Prod,

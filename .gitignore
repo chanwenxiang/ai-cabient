@@ -42,7 +42,7 @@ infra/.env
 # Local IDE / editor
 .idea/
 *.iml
-.vscode/
+.vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
 **/.settings/

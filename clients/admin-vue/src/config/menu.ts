@@ -467,7 +467,7 @@ const BASE_NAV: NavItem[] = [
     title: 'DevOps 中心',
     group: '系统',
     perm: 'ops:devops:view',
-    keywords: ['devops', 'grafana', 'prometheus', 'jenkins', 'sonar', 'github', '监控', 'CI']
+    keywords: ['devops', 'grafana', 'prometheus', 'actions', 'sonar', 'github', '监控', 'CI']
   },
   { path: '/profile', title: '个人中心', group: '系统', keywords: ['账号', 'profile', '我'] }
 ];

@@ -10,8 +10,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.net.CookieManager;
-import java.net.CookiePolicy;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -20,7 +18,6 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 
 @Service
@@ -28,14 +25,12 @@ public class DevOpsHubService {
 
     private static final Logger log = LoggerFactory.getLogger(DevOpsHubService.class);
     private static final Duration TIMEOUT = Duration.ofSeconds(3);
-    private static final Duration JENKINS_TIMEOUT = Duration.ofSeconds(15);
+    private static final Duration GITHUB_TIMEOUT = Duration.ofSeconds(20);
     private static final String SONAR_SCAN_LOCK = "devops:sonar:scan";
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(TIMEOUT)
             .followRedirects(HttpClient.Redirect.NORMAL)
-            // Jenkins CSRF：crumb 必须与会话 Cookie 一起提交
-            .cookieHandler(new CookieManager(null, CookiePolicy.ACCEPT_ALL))
             .build();
 
     private final DistributedLockService distributedLockService;
@@ -55,32 +50,29 @@ public class DevOpsHubService {
     @Value("${aicabinet.devops.prometheus-health-url:http://localhost:9090}")
     private String prometheusHealthUrl;
 
-    @Value("${aicabinet.devops.jenkins-url:http://localhost:19081}")
-    private String jenkinsUrl;
+    @Value("${aicabinet.devops.github-url:https://github.com}")
+    private String githubUrl;
 
-    @Value("${aicabinet.devops.jenkins-health-url:http://localhost:19081}")
-    private String jenkinsHealthUrl;
+    @Value("${aicabinet.devops.github-repo:chanwenxiang/ai-cabient}")
+    private String githubRepo;
 
-    @Value("${aicabinet.devops.jenkins-api-url:}")
-    private String jenkinsApiUrl;
+    @Value("${aicabinet.devops.github-token:}")
+    private String githubToken;
 
-    @Value("${aicabinet.devops.jenkins-user:admin}")
-    private String jenkinsUser;
+    @Value("${aicabinet.devops.github-actions-workflow:sonar.yml}")
+    private String githubActionsWorkflow;
 
-    @Value("${aicabinet.devops.jenkins-password:changeme}")
-    private String jenkinsPassword;
+    @Value("${aicabinet.devops.github-actions-ref:dev}")
+    private String githubActionsRef;
 
-    @Value("${aicabinet.devops.sonar-jenkins-job:ai-cabinet-sonar-dev-local}")
-    private String sonarJenkinsJob;
+    @Value("${aicabinet.devops.github-actions-url:}")
+    private String githubActionsUrl;
 
     @Value("${aicabinet.devops.sonar-url:http://localhost:19002}")
     private String sonarUrl;
 
     @Value("${aicabinet.devops.sonar-health-url:http://localhost:19002}")
     private String sonarHealthUrl;
-
-    @Value("${aicabinet.devops.github-url:https://github.com}")
-    private String githubUrl;
 
     @Value("${aicabinet.devops.grafana-embed-path:/devops/grafana/d/ai-cabinet-overview/ai-cabinet-overview?orgId=1&kiosk=tv&theme=light}")
     private String grafanaEmbedPath;
@@ -96,115 +88,89 @@ public class DevOpsHubService {
         List<DevOpsToolDto> tools = new ArrayList<>();
         tools.add(tool("grafana", "Grafana", "业务指标与告警看板", grafanaUrl, grafanaEmbedPath, grafanaHealthUrl, "/api/health"));
         tools.add(tool("prometheus", "Prometheus", "指标采集与查询", prometheusUrl, null, prometheusHealthUrl, "/-/ready"));
-        tools.add(tool("jenkins", "Jenkins", "本地发布流水线", jenkinsUrl, null, jenkinsHealthUrl, "/login"));
         tools.add(tool("sonarqube", "SonarQube", "代码质量与覆盖率", sonarUrl, null, sonarHealthUrl, "/api/system/status"));
-        tools.add(tool("github", "GitHub", "源码与 Pull Request", githubUrl, null, null, null));
+        tools.add(tool("github", "GitHub Actions", "CI 测试与 Sonar 扫描", resolveGithubActionsUrl(), null, null, null));
         return new DevOpsHubDto(tools, githubUrl, grafanaEmbedPath);
     }
 
     /**
-     * 通过 Jenkins 任务排队一次 Sonar 扫描（异步，立即返回）。
+     * 通过 GitHub Actions workflow_dispatch 排队一次 Sonar 全量扫描（异步，立即返回）。
      */
     public DevOpsSonarScanDto triggerSonarScan(Long operatorId) {
         if (!enabled) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "DevOps hub disabled");
         }
-        String job = blankToDefault(sonarJenkinsJob, "ai-cabinet-sonar-dev-local");
+        if (githubToken == null || githubToken.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "GitHub token not configured; set DEVOPS_GITHUB_TOKEN with actions:write");
+        }
+        String workflow = blankToDefault(githubActionsWorkflow, "sonar.yml");
+        String ref = blankToDefault(githubActionsRef, "dev");
         if (!distributedLockService.tryLock(SONAR_SCAN_LOCK, 90, 0)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Sonar scan already queued; retry later");
         }
         try {
-            String apiBase = resolveJenkinsApiBase();
-            Crumb crumb = fetchCrumb(apiBase);
-            String queueUrl = enqueueJenkinsBuild(apiBase, job, crumb);
+            String actionsUrl = resolveGithubActionsUrl();
+            dispatchGithubWorkflow(workflow, ref);
             String dashboard = trimSlash(sonarUrl) + "/dashboard?id=ai-cabinet-dev";
-            String jobUi = trimSlash(jenkinsUrl) + "/job/" + urlEncodePath(job) + "/";
-            log.info("DevOps Sonar scan queued operatorId={} job={} queueUrl={} traceId=n/a",
-                    operatorId, job, queueUrl);
+            log.info("DevOps Sonar scan queued via GitHub Actions operatorId={} workflow={} ref={} traceId=n/a",
+                    operatorId, workflow, ref);
             return new DevOpsSonarScanDto(
                     true,
-                    job,
-                    queueUrl,
-                    jobUi,
+                    workflow,
+                    actionsUrl,
+                    actionsUrl,
                     dashboard,
-                    "Queued Jenkins job '" + job + "'. Check SonarQube when finished.");
+                    "Queued GitHub Actions workflow '" + workflow + "' on ref '" + ref
+                            + "'. Check Actions tab when finished.");
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {
-            log.error("DevOps Sonar scan trigger failed operatorId={} job={}", operatorId, job, ex);
+            log.error("DevOps Sonar scan trigger failed operatorId={} workflow={}", operatorId, workflow, ex);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "Failed to trigger Jenkins scan: " + safeMessage(ex));
+                    "Failed to trigger GitHub Actions: " + safeMessage(ex));
         } finally {
             distributedLockService.unlock(SONAR_SCAN_LOCK);
         }
     }
 
-    private String resolveJenkinsApiBase() {
-        if (jenkinsApiUrl != null && !jenkinsApiUrl.isBlank()) {
-            return trimSlash(jenkinsApiUrl);
-        }
-        if (jenkinsHealthUrl != null && !jenkinsHealthUrl.isBlank()) {
-            return trimSlash(jenkinsHealthUrl);
-        }
-        return trimSlash(jenkinsUrl);
-    }
-
-    private Crumb fetchCrumb(String apiBase) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(apiBase + "/crumbIssuer/api/json"))
-                .timeout(JENKINS_TIMEOUT)
-                .header("Authorization", basicAuthHeader())
-                .GET()
-                .build();
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() == 401 || response.statusCode() == 403) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Jenkins auth failed; check DEVOPS_JENKINS_USER/PASSWORD");
-        }
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "Jenkins crumb HTTP " + response.statusCode());
-        }
-        String body = response.body() == null ? "" : response.body();
-        String field = jsonString(body, "crumbRequestField");
-        String crumb = jsonString(body, "crumb");
-        if (field.isBlank() || crumb.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Invalid Jenkins crumb response");
-        }
-        return new Crumb(field, crumb);
-    }
-
-    private String enqueueJenkinsBuild(String apiBase, String job, Crumb crumb) throws Exception {
-        String path = apiBase + "/job/" + urlEncodePath(job)
-                + "/buildWithParameters?USE_LOCAL_MOUNT=true";
+    private void dispatchGithubWorkflow(String workflow, String ref) throws Exception {
+        String repo = blankToDefault(githubRepo, "chanwenxiang/ai-cabient");
+        String encodedWorkflow = URLEncoder.encode(workflow, StandardCharsets.UTF_8).replace("+", "%20");
+        String path = "https://api.github.com/repos/" + repo + "/actions/workflows/" + encodedWorkflow + "/dispatches";
+        String body = "{\"ref\":\"" + escapeJson(ref) + "\",\"inputs\":{\"ref\":\"" + escapeJson(ref) + "\"}}";
         HttpRequest request = HttpRequest.newBuilder(URI.create(path))
-                .timeout(JENKINS_TIMEOUT)
-                .header("Authorization", basicAuthHeader())
-                .header(crumb.field(), crumb.value())
-                .POST(HttpRequest.BodyPublishers.noBody())
+                .timeout(GITHUB_TIMEOUT)
+                .header("Authorization", "Bearer " + githubToken.trim())
+                .header("Accept", "application/vnd.github+json")
+                .header("X-GitHub-Api-Version", "2022-11-28")
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         int code = response.statusCode();
+        if (code == 401 || code == 403) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "GitHub auth failed; check DEVOPS_GITHUB_TOKEN (needs actions:write)");
+        }
         if (code == 404) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "Jenkins job not found: " + job + " (is devops profile up?)");
+                    "GitHub workflow not found: " + workflow + " in " + repo);
         }
-        if (code == 401 || code == 403) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Jenkins rejected build (auth/CSRF)");
-        }
-        // Jenkins 成功排队通常返回 201，Location 指向 queue item
-        if (code != 201 && code != 200 && code != 302) {
+        if (code != 204) {
+            String hint = response.body() == null ? "" : response.body();
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "Jenkins trigger failed HTTP " + code);
+                    "GitHub dispatch failed HTTP " + code + (hint.isBlank() ? "" : ": " + truncate(hint, 120)));
         }
-        String location = response.headers().firstValue("Location").orElse("");
-        if (!location.isBlank()) {
-            return location;
-        }
-        return trimSlash(jenkinsUrl) + "/job/" + urlEncodePath(job) + "/";
     }
 
-    private String basicAuthHeader() {
-        String raw = blankToDefault(jenkinsUser, "admin") + ":" + (jenkinsPassword == null ? "" : jenkinsPassword);
-        return "Basic " + Base64.getEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+    private String resolveGithubActionsUrl() {
+        if (githubActionsUrl != null && !githubActionsUrl.isBlank()) {
+            return githubActionsUrl.trim();
+        }
+        String repo = blankToDefault(githubRepo, "chanwenxiang/ai-cabient");
+        String workflow = blankToDefault(githubActionsWorkflow, "sonar.yml");
+        return "https://github.com/" + repo + "/actions/workflows/" + workflow;
     }
 
     private DevOpsToolDto tool(
@@ -250,10 +216,6 @@ public class DevOpsHubService {
         return value == null || value.isBlank() ? def : value.trim();
     }
 
-    private static String urlEncodePath(String job) {
-        return URLEncoder.encode(job, StandardCharsets.UTF_8).replace("+", "%20");
-    }
-
     private static String safeMessage(Exception ex) {
         String msg = ex.getMessage();
         if (msg == null || msg.isBlank()) {
@@ -262,34 +224,11 @@ public class DevOpsHubService {
         return msg.length() > 180 ? msg.substring(0, 180) + "…" : msg;
     }
 
-    /** 极简 JSON 字符串字段提取（避免为 DevOps 引入额外依赖）。 */
-    private static String jsonString(String json, String key) {
-        String needle = "\"" + key + "\"";
-        int idx = json.indexOf(needle);
-        if (idx < 0) {
-            return "";
-        }
-        int colon = json.indexOf(':', idx + needle.length());
-        if (colon < 0) {
-            return "";
-        }
-        int startQuote = json.indexOf('"', colon + 1);
-        if (startQuote < 0) {
-            return "";
-        }
-        int endQuote = startQuote + 1;
-        while (endQuote < json.length()) {
-            char c = json.charAt(endQuote);
-            if (c == '"' && json.charAt(endQuote - 1) != '\\') {
-                break;
-            }
-            endQuote++;
-        }
-        if (endQuote >= json.length()) {
-            return "";
-        }
-        return json.substring(startQuote + 1, endQuote);
+    private static String escapeJson(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
-    private record Crumb(String field, String value) {}
+    private static String truncate(String value, int max) {
+        return value.length() <= max ? value : value.substring(0, max) + "…";
+    }
 }

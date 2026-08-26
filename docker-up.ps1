@@ -4,11 +4,7 @@ $Root = $PSScriptRoot
 $Infra = Join-Path $Root "infra"
 $EnvFile = Join-Path $Infra ".env"
 if (-not (Test-Path $EnvFile)) { Copy-Item (Join-Path $Infra ".env.example") $EnvFile }
-# Stop the legacy infrastructure-only compose project so host ports can be reused.
-& docker compose --env-file $EnvFile -f (Join-Path $Infra "docker-compose.yml") down --remove-orphans
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-$composeFiles = @(
-  (Join-Path $Infra "docker-compose.full.yml")
+$composeFiles = @(  (Join-Path $Infra "docker-compose.full.yml")
 )
 if ($DevOps) {
   $composeFiles += (Join-Path $Infra "docker-compose.devops.yml")
@@ -48,6 +44,6 @@ Write-Host "Grafana:  http://localhost/devops/grafana/  (embedded in admin DevOp
 Write-Host "DevOps:   http://localhost/admin/index.html#/devops"
 if ($DevOps) {
   Write-Host "SonarQube: http://localhost:19002"
-  Write-Host "Jenkins:   http://localhost:19081"
+  Write-Host "GHA:       https://github.com/chanwenxiang/ai-cabient/actions"
 }
 Write-Host "MinIO:    http://localhost:9001"

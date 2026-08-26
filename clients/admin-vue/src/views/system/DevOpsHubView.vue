@@ -116,7 +116,7 @@ interface SonarScanResult {
   accepted: boolean;
   jobName: string;
   queueUrl?: string | null;
-  jenkinsUrl?: string | null;
+  actionsUrl?: string | null;
   sonarDashboardUrl?: string | null;
   message: string;
 }
@@ -124,9 +124,8 @@ interface SonarScanResult {
 const NAME_ZH: Record<string, string> = {
   grafana: 'Grafana 看板',
   prometheus: 'Prometheus 指标',
-  jenkins: 'Jenkins 流水线',
   sonarqube: 'SonarQube 代码质量',
-  github: 'GitHub 源码',
+  github: 'GitHub Actions',
 };
 
 const promQueries = [
@@ -166,7 +165,7 @@ async function load() {
 async function triggerSonarScan() {
   try {
     await ElMessageBox.confirm(
-      '将通过 Jenkins 任务排队一次本机 Sonar 扫描（ai-cabinet-dev）。扫描需数分钟，期间可继续使用后台。',
+      '将通过 GitHub Actions 排队一次 Sonar 全量扫描（ai-cabinet-dev）。扫描需数分钟，期间可继续使用后台。',
       '重跑 Sonar 扫描',
       { type: 'warning', confirmButtonText: '开始扫描', cancelButtonText: '取消' }
     );
@@ -178,16 +177,17 @@ async function triggerSonarScan() {
     const result = await api.request<SonarScanResult>('/api/v2/ops/admin/devops/sonar/scan', 'POST');
     ElMessage.success(
       result.accepted
-        ? `已提交 Jenkins 任务「${result.jobName || 'ai-cabinet-sonar-dev-local'}」，完成后可在 SonarQube 查看`
+        ? `已提交 GitHub Actions「${result.jobName || 'sonar.yml'}」，完成后可在 SonarQube 查看`
         : result.message || '已提交扫描任务'
     );
-    if (result.jenkinsUrl) {
-      await ElMessageBox.confirm('是否打开 Jenkins 任务页查看进度？', '已提交', {
-        confirmButtonText: '打开 Jenkins',
+    const actionsUrl = result.actionsUrl || result.queueUrl;
+    if (actionsUrl) {
+      await ElMessageBox.confirm('是否打开 GitHub Actions 查看进度？', '已提交', {
+        confirmButtonText: '打开 Actions',
         cancelButtonText: '稍后再看',
         type: 'success'
       })
-        .then(() => openExternal(result.jenkinsUrl!))
+        .then(() => openExternal(actionsUrl))
         .catch(() => undefined);
     }
   } catch (e) {

@@ -1,53 +1,14 @@
 {
-  "files.encoding": "utf8",
-  "files.autoGuessEncoding": false,
-  "[java]": {
-    "files.encoding": "utf8"
+  "sonarlint.connectedMode.project": {
+    "connectionId": "ai-cabinet-local",
+    "projectKey": "ai-cabinet-dev"
   },
-  "java.home": "C:\\Program Files\\Java\\jdk-17.0.17",
-  "java.jdt.ls.java.home": "C:\\Program Files\\Java\\jdk-17.0.17",
-  "java.configuration.runtimes": [
-    {
-      "name": "JavaSE-17",
-      "path": "C:\\Program Files\\Java\\jdk-17.0.17",
-      "default": true
+  "sonarlint.rules": {
+    "java:S1068": {
+      "level": "off"
     },
-    {
-      "name": "JavaSE-21",
-      "path": "C:\\Program Files\\Java\\jdk-21.0.9"
+    "css:S4653": {
+      "level": "off"
     }
-  ],
-  "java.configuration.updateBuildConfiguration": "automatic",
-  "java.configuration.maven.userSettings": "C:\\Users\\cwx\\.m2\\settings.xml",
-  "java.configuration.maven.globalSettings": "D:\\devTools\\apache-maven-3.9.11\\conf\\settings.xml",
-  "java.import.maven.enabled": true,
-  "java.import.gradle.enabled": false,
-  "java.gradle.buildServer.enabled": "off",
-  "java.maven.downloadSources": true,
-  "java.eclipse.downloadSources": true,
-  "java.jdt.ls.lombokSupport.enabled": true,
-  "java.errors.incompleteClasspath.severity": "ignore",
-  "java.server.launchMode": "Standard",
-  "java.project.importOnFirstTimeStartup": "automatic",
-  "maven.executable.path": "D:\\devTools\\apache-maven-3.9.11\\bin\\mvn.cmd",
-  "maven.terminal.useJavaHome": true,
-  "java.import.exclusions": [
-    "**/node_modules/**",
-    "**/.git/**",
-    "**/edge/android-app/**",
-    "**/.gradle/**",
-    "**/clients/**",
-    "**/docs/**",
-    "**/.playwright-mcp/**",
-    "**/scripts/**",
-    "**/services/*/src/main/resources/static/**",
-    "**/vision-service/**"
-  ],
-  "files.watcherExclude": {
-    "**/edge/android-app/**": true,
-    "**/.gradle/**": true,
-    "**/node_modules/**": true,
-    "**/target/**": true
-  },
-  "java.compile.nullAnalysis.mode": "disabled"
+  }
 }

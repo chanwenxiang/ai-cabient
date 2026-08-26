@@ -1,6 +1,6 @@
-# 启动 DevOps 栈并校验 Prometheus 业务告警规则
+# 启动 DevOps 栈（SonarQube + GHA self-hosted runner）
 param(
-    [switch]$SkipBuild
+    [switch]$WithRunner
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,13 +9,13 @@ $Infra = Join-Path $Root "infra"
 
 Push-Location $Infra
 try {
-    if (-not $SkipBuild) {
-        Write-Host "Building Jenkins image..."
-        docker compose -f docker-compose.full.yml -f docker-compose.devops.yml --profile devops build jenkins
+    $services = @("sonarqube-db", "sonarqube")
+    if ($WithRunner) {
+        $services += "github-runner"
     }
 
-    Write-Host "Starting DevOps profile (SonarQube + Jenkins)..."
-    docker compose -f docker-compose.full.yml -f docker-compose.devops.yml --profile devops up -d sonarqube-db sonarqube jenkins
+    Write-Host "Starting DevOps profile (SonarQube$(if ($WithRunner) { ' + GitHub Runner' }))..."
+    docker compose -f docker-compose.full.yml -f docker-compose.devops.yml --profile devops up -d @services
 
     Write-Host "Reloading Prometheus alert rules..."
     docker compose -f docker-compose.full.yml exec -T prometheus kill -HUP 1 2>$null
@@ -25,10 +25,14 @@ try {
 
     Write-Host ""
     Write-Host "DevOps URLs:"
-    Write-Host "  Jenkins:    http://localhost:19081  (admin / changeme)"
     Write-Host "  SonarQube:  http://localhost:19002  (admin / admin, first login change pwd)"
+    Write-Host "  GitHub Actions: https://github.com/chanwenxiang/ai-cabient/actions/workflows/sonar.yml"
     Write-Host "  Prometheus: http://localhost:9090/alerts"
     Write-Host "  Grafana:    http://localhost/devops/grafana/"
+    if (-not $WithRunner) {
+        Write-Host ""
+        Write-Host "Tip: register self-hosted runner with scripts/devops/register-github-runner.ps1, then re-run -WithRunner"
+    }
 }
 finally {
     Pop-Location

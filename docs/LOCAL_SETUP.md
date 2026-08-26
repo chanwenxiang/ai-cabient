@@ -119,15 +119,15 @@ java -version
 
 1. 安装 **Docker** 插件（Settings → Plugins → Docker）  
 2. **Settings → Build, Execution, Deployment → Docker**，连接本机 Docker  
-3. 打开 `infra/docker-compose.yml` → 编辑器左侧 **Run** 图标，或右键 **Compose Up**  
+3. 或在仓库根目录执行：`.\docker-up.ps1`（**不要**单独 `infra/docker-compose.yml` Compose Up，否则会多出一个 `infra` 项目）  
 4. 在 **Services** 窗口查看 postgres / emqx / minio 是否 Running  
 
 **方式 B — 命令行**
 
 ```powershell
-cd ai-cabinet\infra
-docker compose up -d
-docker compose ps
+cd ai-cabinet
+.\docker-up.ps1
+docker compose -f infra/docker-compose.full.yml ps
 ```
 
 | 服务 | 端口 | 说明 |
@@ -492,7 +492,7 @@ IDEA 连 `localhost:5432` 实际连的是**本机 PostgreSQL**，不是 Docker �
 
 **本项目已把 Docker 映射改为宿主机 `15433` → 容器 5432。**
 
-1. 重新启动 compose：`cd infra && docker compose up -d`
+1. 重新启动全栈：`.\docker-up.ps1`（仓库根目录）
 2. IDEA Database / trade-service 使用：
    - Host: `localhost`
    - Port: **`15433`**
@@ -548,7 +548,7 @@ Gateway 转发到 `host.docker.internal:8080`，需宿主机上 trade-service �
 
 | 步骤 | 在 IDEA / 其他工具里做什么 |
 |------|---------------------------|
-| 1 | Docker：`infra/docker-compose.yml` → Compose Up |
+| 1 | Docker：仓库根目录 `.\docker-up.ps1` |
 | 2 | Maven：根项目 **install**（Skip Tests） |
 | 3 | Run `TradeServiceApplication` |
 | 4 | Run `DeviceServiceApplication` |

@@ -42,7 +42,8 @@
 
 | 脚本 | 用途 |
 |------|------|
-| `scripts/start-infra.ps1` | 启动 Docker 基础设施 |
+| `docker-up.ps1`（仓库根） | 启动 Docker 全栈（`ai-cabinet` 项目） |
+| `scripts/start-infra.ps1` | **已转发**到 `docker-up.ps1`（勿单独起 infra 项目） |
 | `scripts/start-local.ps1` | 本地启动 Java / Python 服务 |
 | `scripts/stop-apps.ps1` | 停止应用进程 |
 | `scripts/check-ports.ps1` | 端口占用检查 |

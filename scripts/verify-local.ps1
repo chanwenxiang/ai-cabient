@@ -40,7 +40,7 @@ Write-Host "========================================"
 Write-Host ""
 
 if ($StartInfra) {
-    & (Join-Path $Root "scripts\start-infra.ps1")
+    & (Join-Path $Root "docker-up.ps1")
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
@@ -60,7 +60,7 @@ if (-not $tradeOk -or -not $deviceOk) {
     Write-Host "  FAIL: trade=$tradeOk ($BaseUrl) device=$deviceOk ($DeviceUrl)" -ForegroundColor Red
     Write-Host ""
     Write-Host "Start local stack:" -ForegroundColor Yellow
-    Write-Host "  .\scripts\start-infra.ps1"
+    Write-Host "  .\docker-up.ps1"
     Write-Host "  .\scripts\start-local.ps1"
     exit 1
 }
