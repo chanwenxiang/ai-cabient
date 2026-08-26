@@ -6,7 +6,8 @@
           <div class="page-card-head__title">
             <span class="title">定时任务</span>
             <span class="hint"
-              >启停即时生效；内置任务不可删除。自定义任务可登记元数据（无代码 runner 时不可立即执行）</span
+              >启停即时生效；内置任务不可删除。自定义任务可登记元数据（无代码 runner
+              时不可立即执行）</span
             >
           </div>
         </div>
@@ -182,42 +183,42 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
-import { Delete, EditPen, Refresh, VideoPlay } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { api } from '@/api/client'
-import PagePager from '@/components/PagePager.vue'
-import TableActions, { type TableAction } from '@/components/TableActions.vue'
-import { useAuthStore } from '@/stores/auth'
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict'
-import { formatDateTime } from '@aicabinet/shared-uni/format'
+import { computed, onMounted, reactive, ref } from 'vue';
+import { Delete, EditPen, Refresh, VideoPlay } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { api } from '@/api/client';
+import PagePager from '@/components/PagePager.vue';
+import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import { useAuthStore } from '@/stores/auth';
+import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface ScheduledTaskRow {
-  taskKey: string
-  taskName: string
-  taskGroup: string
-  scheduleDesc?: string
-  enabled: boolean
-  lastRunAt?: string
-  lastResult?: string
-  lastMessage?: string
-  lastDurationMs?: number
-  remark?: string
-  registryBound?: boolean
+  taskKey: string;
+  taskName: string;
+  taskGroup: string;
+  scheduleDesc?: string;
+  enabled: boolean;
+  lastRunAt?: string;
+  lastResult?: string;
+  lastMessage?: string;
+  lastDurationMs?: number;
+  remark?: string;
+  registryBound?: boolean;
 }
 
-const auth = useAuthStore()
-const loading = ref(false)
-const listHydrated = ref(false)
-const keyword = ref('')
-const page = ref(1)
-const size = ref(20)
-const items = ref<ScheduledTaskRow[]>([])
-const togglingKey = ref('')
-const runningKey = ref('')
-const editVisible = ref(false)
-const editSaving = ref(false)
-const creating = ref(false)
+const auth = useAuthStore();
+const loading = ref(false);
+const listHydrated = ref(false);
+const keyword = ref('');
+const page = ref(1);
+const size = ref(20);
+const items = ref<ScheduledTaskRow[]>([]);
+const togglingKey = ref('');
+const runningKey = ref('');
+const editVisible = ref(false);
+const editSaving = ref(false);
+const creating = ref(false);
 const editForm = reactive({
   taskKey: '',
   taskName: '',
@@ -225,57 +226,57 @@ const editForm = reactive({
   scheduleDesc: '',
   enabled: true,
   remark: ''
-})
+});
 
-const canEdit = computed(() => auth.hasPerm('ops:task:edit'))
-const canRun = computed(() => auth.hasPerm('ops:task:run'))
-const showActionColumn = computed(() => canEdit.value || canRun.value)
-const groupOptions = computed(() => dictOptions('scheduled_task_group'))
+const canEdit = computed(() => auth.hasPerm('ops:task:edit'));
+const canRun = computed(() => auth.hasPerm('ops:task:run'));
+const showActionColumn = computed(() => canEdit.value || canRun.value);
+const groupOptions = computed(() => dictOptions('scheduled_task_group'));
 
 const filtered = computed(() => {
-  const q = keyword.value.trim().toLowerCase()
-  if (!q) return items.value
+  const q = keyword.value.trim().toLowerCase();
+  if (!q) return items.value;
   return items.value.filter((row) =>
     [row.taskName, row.taskKey, row.taskGroup, row.scheduleDesc].some((x) =>
       String(x || '')
         .toLowerCase()
         .includes(q)
     )
-  )
-})
+  );
+});
 
 const paged = computed(() => {
-  const start = (page.value - 1) * size.value
-  return filtered.value.slice(start, start + size.value)
-})
+  const start = (page.value - 1) * size.value;
+  return filtered.value.slice(start, start + size.value);
+});
 
 function resultType(result?: string) {
-  if (result === 'SUCCESS') return 'success'
-  if (result === 'FAILED') return 'danger'
-  if (result === 'SKIPPED') return 'warning'
-  return 'info'
+  if (result === 'SUCCESS') return 'success';
+  if (result === 'FAILED') return 'danger';
+  if (result === 'SKIPPED') return 'warning';
+  return 'info';
 }
 
 function resultLabel(result?: string) {
-  return { SUCCESS: '成功', FAILED: '失败', SKIPPED: '跳过' }[result || ''] || '未知'
+  return { SUCCESS: '成功', FAILED: '失败', SKIPPED: '跳过' }[result || ''] || '未知';
 }
 
 function formatDuration(ms: number) {
-  if (ms < 1000) return `${ms} 毫秒`
-  return `${(ms / 1000).toFixed(1)} 秒`
+  if (ms < 1000) return `${ms} 毫秒`;
+  return `${(ms / 1000).toFixed(1)} 秒`;
 }
 
 function search() {
-  page.value = 1
+  page.value = 1;
 }
 
 function reset() {
-  keyword.value = ''
-  page.value = 1
+  keyword.value = '';
+  page.value = 1;
 }
 
 function rowActions(row: ScheduledTaskRow): TableAction[] {
-  const actions: TableAction[] = []
+  const actions: TableAction[] = [];
   if (canRun.value && row.registryBound) {
     actions.push({
       key: 'run',
@@ -283,49 +284,49 @@ function rowActions(row: ScheduledTaskRow): TableAction[] {
       icon: VideoPlay,
       type: 'primary',
       disabled: runningKey.value === row.taskKey
-    })
+    });
   }
   if (canEdit.value) {
-    actions.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' })
+    actions.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
     if (!row.registryBound) {
-      actions.push({ key: 'delete', label: '删除', icon: Delete, type: 'danger', overflow: true })
+      actions.push({ key: 'delete', label: '删除', icon: Delete, type: 'danger', overflow: true });
     }
   }
-  return actions
+  return actions;
 }
 
 function onRowAction(key: string, row: ScheduledTaskRow) {
-  if (key === 'run') void onRun(row)
-  else if (key === 'edit') openEdit(row)
-  else if (key === 'delete') void onDelete(row)
+  if (key === 'run') void onRun(row);
+  else if (key === 'edit') openEdit(row);
+  else if (key === 'delete') void onDelete(row);
 }
 
 async function load() {
-  loading.value = true
+  loading.value = true;
   try {
-    items.value = await api.request<ScheduledTaskRow[]>('/api/v2/ops/admin/scheduled-tasks', 'GET')
-    listHydrated.value = true
+    items.value = await api.request<ScheduledTaskRow[]>('/api/v2/ops/admin/scheduled-tasks', 'GET');
+    listHydrated.value = true;
   } catch (e: unknown) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败')
+    ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 async function onToggle(row: ScheduledTaskRow, enabled: boolean) {
-  togglingKey.value = row.taskKey
+  togglingKey.value = row.taskKey;
   try {
     await api.request(
       `/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}/enabled`,
       'PUT',
       { enabled }
-    )
-    row.enabled = enabled
-    ElMessage.success(enabled ? `已启用「${row.taskName}」` : `已停用「${row.taskName}」`)
+    );
+    row.enabled = enabled;
+    ElMessage.success(enabled ? `已启用「${row.taskName}」` : `已停用「${row.taskName}」`);
   } catch (e: unknown) {
-    ElMessage.error(e instanceof Error ? e.message : '操作失败')
+    ElMessage.error(e instanceof Error ? e.message : '操作失败');
   } finally {
-    togglingKey.value = ''
+    togglingKey.value = '';
   }
 }
 
@@ -333,63 +334,63 @@ async function onRun(row: ScheduledTaskRow) {
   try {
     await ElMessageBox.confirm(`确认立即执行「${row.taskName}」？`, '立即执行', {
       type: 'warning'
-    })
+    });
   } catch {
-    return
+    return;
   }
-  runningKey.value = row.taskKey
+  runningKey.value = row.taskKey;
   try {
     const res = await api.request<{
-      result: string
-      message: string
-      lastMessage?: string
-      lastDurationMs?: number
-    }>(`/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}/run`, 'POST')
+      result: string;
+      message: string;
+      lastMessage?: string;
+      lastDurationMs?: number;
+    }>(`/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}/run`, 'POST');
     if (res?.result === 'SKIPPED') {
-      ElMessage.warning(res.message || '任务已跳过')
+      ElMessage.warning(res.message || '任务已跳过');
     } else {
-      ElMessage.success(res?.message || '已执行，请看「最近执行 / 最近结果说明」列')
+      ElMessage.success(res?.message || '已执行，请看「最近执行 / 最近结果说明」列');
     }
-    await load()
+    await load();
   } catch (e: unknown) {
-    ElMessage.error(e instanceof Error ? e.message : '执行失败')
+    ElMessage.error(e instanceof Error ? e.message : '执行失败');
   } finally {
-    runningKey.value = ''
+    runningKey.value = '';
   }
 }
 
 function openCreate() {
-  creating.value = true
-  editForm.taskKey = ''
-  editForm.taskName = ''
-  editForm.taskGroup = 'OPS'
-  editForm.scheduleDesc = ''
-  editForm.enabled = true
-  editForm.remark = ''
-  editVisible.value = true
+  creating.value = true;
+  editForm.taskKey = '';
+  editForm.taskName = '';
+  editForm.taskGroup = 'OPS';
+  editForm.scheduleDesc = '';
+  editForm.enabled = true;
+  editForm.remark = '';
+  editVisible.value = true;
 }
 
 function openEdit(row: ScheduledTaskRow) {
-  creating.value = false
-  editForm.taskKey = row.taskKey
-  editForm.taskName = row.taskName
-  editForm.taskGroup = row.taskGroup
-  editForm.scheduleDesc = row.scheduleDesc || ''
-  editForm.enabled = row.enabled
-  editForm.remark = row.remark || ''
-  editVisible.value = true
+  creating.value = false;
+  editForm.taskKey = row.taskKey;
+  editForm.taskName = row.taskName;
+  editForm.taskGroup = row.taskGroup;
+  editForm.scheduleDesc = row.scheduleDesc || '';
+  editForm.enabled = row.enabled;
+  editForm.remark = row.remark || '';
+  editVisible.value = true;
 }
 
 async function saveEdit() {
   if (!editForm.taskName.trim() || !editForm.taskGroup.trim()) {
-    ElMessage.warning('请填写任务名称与分组')
-    return
+    ElMessage.warning('请填写任务名称与分组');
+    return;
   }
   if (creating.value && !editForm.taskKey.trim()) {
-    ElMessage.warning('请填写任务标识')
-    return
+    ElMessage.warning('请填写任务标识');
+    return;
   }
-  editSaving.value = true
+  editSaving.value = true;
   try {
     if (creating.value) {
       await api.request('/api/v2/ops/admin/scheduled-tasks', 'POST', {
@@ -399,8 +400,8 @@ async function saveEdit() {
         scheduleDesc: editForm.scheduleDesc.trim() || null,
         enabled: editForm.enabled,
         remark: editForm.remark.trim() || null
-      })
-      ElMessage.success('已新增')
+      });
+      ElMessage.success('已新增');
     } else {
       await api.request(
         `/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(editForm.taskKey)}`,
@@ -411,15 +412,15 @@ async function saveEdit() {
           scheduleDesc: editForm.scheduleDesc.trim() || null,
           remark: editForm.remark.trim() || null
         }
-      )
-      ElMessage.success('已保存')
+      );
+      ElMessage.success('已保存');
     }
-    editVisible.value = false
-    await load()
+    editVisible.value = false;
+    await load();
   } catch (e: unknown) {
-    ElMessage.error(e instanceof Error ? e.message : '保存失败')
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
-    editSaving.value = false
+    editSaving.value = false;
   }
 }
 
@@ -427,21 +428,21 @@ async function onDelete(row: ScheduledTaskRow) {
   try {
     await ElMessageBox.confirm(`确认删除自定义任务「${row.taskName}」？`, '删除', {
       type: 'warning'
-    })
+    });
   } catch {
-    return
+    return;
   }
   try {
     await api.request(
       `/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}`,
       'DELETE'
-    )
-    ElMessage.success('已删除')
-    await load()
+    );
+    ElMessage.success('已删除');
+    await load();
   } catch (e: unknown) {
-    ElMessage.error(e instanceof Error ? e.message : '删除失败')
+    ElMessage.error(e instanceof Error ? e.message : '删除失败');
   }
 }
 
-onMounted(load)
+onMounted(load);
 </script>

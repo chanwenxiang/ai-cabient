@@ -5,7 +5,9 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">告警规则</span>
-            <span class="hint">集中配置告警与自动处置阈值（与「参数配置」同源）；可新增自定义键</span>
+            <span class="hint"
+              >集中配置告警与自动处置阈值（与「参数配置」同源）；可新增自定义键</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -17,7 +19,14 @@
 
     <div v-loading="loading" class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table :data="rows" stripe border class="report-table" row-key="configKey" empty-text=" ">
+        <el-table
+          :data="rows"
+          stripe
+          border
+          class="report-table"
+          row-key="configKey"
+          empty-text=" "
+        >
           <template #empty>
             <el-empty description="暂无告警规则" />
           </template>
@@ -76,7 +85,13 @@
     >
       <el-form label-width="88px">
         <el-form-item label="分组" required>
-          <el-select v-model="form.group" filterable allow-create default-first-option style="width: 100%">
+          <el-select
+            v-model="form.group"
+            filterable
+            allow-create
+            default-first-option
+            style="width: 100%"
+          >
             <el-option v-for="g in groupOptions" :key="g" :label="g" :value="g" />
           </el-select>
         </el-form-item>
@@ -94,7 +109,13 @@
             active-text="开"
             inactive-text="关"
           />
-          <el-input v-else v-model="form.configValue" type="textarea" :rows="3" placeholder="请输入" />
+          <el-input
+            v-else
+            v-model="form.configValue"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入"
+          />
         </el-form-item>
         <el-form-item label="规则说明">
           <el-input v-model="form.description" placeholder="展示在列表中的说明" />
@@ -313,7 +334,11 @@ async function save() {
     ElMessage.warning('请填写当前值');
     return;
   }
-  const value = configKey.endsWith('_enabled') ? (configValue === 'true' ? 'true' : 'false') : configValue;
+  const value = configKey.endsWith('_enabled')
+    ? configValue === 'true'
+      ? 'true'
+      : 'false'
+    : configValue;
   saving.value = true;
   try {
     await api.request('/api/v2/ops/admin/system-configs', 'PUT', {

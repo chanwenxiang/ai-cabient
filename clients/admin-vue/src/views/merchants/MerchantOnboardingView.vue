@@ -105,7 +105,12 @@
       </el-table-column>
       <el-table-column label="操作" width="180" fixed="right">
         <template #default="{ row }">
-          <el-button v-if="canEdit && row.status !== 'SUBMITTED'" link type="primary" @click="openEdit(row)">
+          <el-button
+            v-if="canEdit && row.status !== 'SUBMITTED'"
+            link
+            type="primary"
+            @click="openEdit(row)"
+          >
             编辑
           </el-button>
           <template v-if="row.status === 'SUBMITTED' && row.approvalStatus === 'PENDING'">
@@ -138,7 +143,12 @@
         <el-select v-model="form.status" style="width: 100%">
           <el-option value="DRAFT" label="草稿" />
           <el-option value="SUBMITTED" label="提交审批" />
-          <el-option v-if="form.onboardingId && form.status === 'ACTIVE'" value="ACTIVE" label="已生效" disabled />
+          <el-option
+            v-if="form.onboardingId && form.status === 'ACTIVE'"
+            value="ACTIVE"
+            label="已生效"
+            disabled
+          />
           <el-option value="REJECTED" label="已驳回" disabled />
         </el-select>
       </el-form-item>
@@ -320,7 +330,9 @@ async function save() {
 async function review(row: OnboardRow, approve: boolean) {
   try {
     await ElMessageBox.confirm(
-      approve ? `确认通过进件 ${row.merchantName || row.merchantId} · ${channelLabel(row.channel)}？` : '确认驳回该进件？',
+      approve
+        ? `确认通过进件 ${row.merchantName || row.merchantId} · ${channelLabel(row.channel)}？`
+        : '确认驳回该进件？',
       approve ? '审批通过' : '审批驳回',
       { type: approve ? 'info' : 'warning' }
     );

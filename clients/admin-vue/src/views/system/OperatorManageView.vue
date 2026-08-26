@@ -129,11 +129,19 @@
           >
             <template #default="{ row }">
               <template v-if="row.primaryDeptName || (row.deptNames || []).length">
-                <el-tag v-if="row.primaryDeptName" size="small" type="primary" effect="plain" class="role-tag">
+                <el-tag
+                  v-if="row.primaryDeptName"
+                  size="small"
+                  type="primary"
+                  effect="plain"
+                  class="role-tag"
+                >
                   主·{{ row.primaryDeptName }}
                 </el-tag>
                 <el-tag
-                  v-for="name in (row.deptNames || []).filter((n: string) => n !== row.primaryDeptName)"
+                  v-for="name in (row.deptNames || []).filter(
+                    (n: string) => n !== row.primaryDeptName
+                  )"
                   :key="name"
                   size="small"
                   effect="plain"

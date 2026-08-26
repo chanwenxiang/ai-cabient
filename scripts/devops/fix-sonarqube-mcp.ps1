@@ -29,28 +29,15 @@ $mcp.mcpServers | Add-Member -NotePropertyName sonarqube -NotePropertyValue ([ps
   }
 }) -Force
 
+# SonarLint Connected Mode 勿写入 settings：Cursor 密钥库常失败 → verify token 死循环
+if ($mcp.mcpServers.sonarqube.env.PSObject.Properties.Name -contains 'SONARQUBE_IDE_PORT') {
+  $mcp.mcpServers.sonarqube.env.PSObject.Properties.Remove('SONARQUBE_IDE_PORT')
+}
+
 $utf8 = New-Object System.Text.UTF8Encoding $false
 [System.IO.File]::WriteAllText($McpPath, ($mcp | ConvertTo-Json -Depth 12), $utf8)
 
-# 同步用户 settings 里的连接（供 SonarLint 提示 Migrate 到密钥库）
-$appData = if ($env:APPDATA) { $env:APPDATA } else { Join-Path $userHome "AppData\Roaming" }
-$settingsPath = if ($appData) { Join-Path $appData "Cursor\User\settings.json" } else { $null }
-if ($settingsPath -and (Test-Path -LiteralPath $settingsPath)) {
-  $settings = Get-Content $settingsPath -Raw -Encoding UTF8
-  if ($settings[0] -eq [char]0xFEFF) { $settings = $settings.Substring(1) }
-  $obj = $settings | ConvertFrom-Json
-  $conn = @(
-    [pscustomobject]@{
-      connectionId = "ai-cabinet-local"
-      serverUrl = "http://localhost:19002"
-      token = $token
-    }
-  )
-  $obj | Add-Member -NotePropertyName "sonarlint.connectedMode.connections.sonarqube" -NotePropertyValue $conn -Force
-  [System.IO.File]::WriteAllText($settingsPath, ($obj | ConvertTo-Json -Depth 12), $utf8)
-}
-
 Write-Host "OK: wrote SonarQube MCP token (len=$($token.Length)) -> $McpPath" -ForegroundColor Green
-Write-Host "Next: Ctrl+Shift+P -> Developer: Reload Window" -ForegroundColor Cyan
-Write-Host "If SonarLint asks to Migrate tokens to secure storage -> click Migrate" -ForegroundColor Cyan
-Write-Host "Do NOT click SonarLint sidebar 'Configure SonarQube MCP' again (it overwrites token with null)." -ForegroundColor Yellow
+Write-Host "IDE 波浪线用 SonarLint 本地分析；若仍弹 token 错误请运行:" -ForegroundColor Cyan
+Write-Host "  .\scripts\devops\reset-sonarlint-standalone.ps1" -ForegroundColor Cyan
+Write-Host "Do NOT click SonarLint sidebar 'Configure SonarQube MCP' (overwrites mcp.json / token)." -ForegroundColor Yellow

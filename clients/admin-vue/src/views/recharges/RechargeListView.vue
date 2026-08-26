@@ -108,9 +108,7 @@
           <el-table-column label="状态" width="110" align="center">
             <template #default="{ row }">
               <el-tag :type="dictTagType(String(row.status || ''))" size="small">
-                {{
-                  displayLabel('recharge_status', String(row.status || ''), '未知状态')
-                }}
+                {{ displayLabel('recharge_status', String(row.status || ''), '未知状态') }}
               </el-tag>
             </template>
           </el-table-column>

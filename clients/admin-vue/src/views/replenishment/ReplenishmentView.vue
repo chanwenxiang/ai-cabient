@@ -148,10 +148,7 @@
                       <el-table-column label="人员" min-width="120" align="center">
                         <template #default="scope">
                           <span>{{
-                            assigneeLabel(
-                              scope.row.assigneeUserId || row.assigneeUserId,
-                              '无'
-                            )
+                            assigneeLabel(scope.row.assigneeUserId || row.assigneeUserId, '无')
                           }}</span>
                         </template>
                       </el-table-column>
@@ -929,7 +926,10 @@
           <el-descriptions-item label="完成">
             {{ linesTask.completedAt ? formatDateTime(linesTask.completedAt) : '无' }}
           </el-descriptions-item>
-          <el-descriptions-item v-if="routePlanMeta(linesTask.notes).sequence != null" label="路线顺序">
+          <el-descriptions-item
+            v-if="routePlanMeta(linesTask.notes).sequence != null"
+            label="路线顺序"
+          >
             第 {{ routePlanMeta(linesTask.notes).sequence }} 站
           </el-descriptions-item>
           <el-descriptions-item
@@ -1089,9 +1089,7 @@
           <el-step title="履约补货" :description="requestFlowFulfillDesc" />
         </el-steps>
         <el-descriptions :column="1" border size="small" class="request-flow-meta">
-          <el-descriptions-item label="要货单">{{
-            requestFlowRow.requestId
-          }}</el-descriptions-item>
+          <el-descriptions-item label="要货单">{{ requestFlowRow.requestId }}</el-descriptions-item>
           <el-descriptions-item label="商户">{{
             requestFlowRow.merchantName || requestFlowRow.merchantId || '—'
           }}</el-descriptions-item>
@@ -1113,15 +1111,14 @@
           </el-descriptions-item>
         </el-descriptions>
         <div v-if="canEdit && requestFlowRow.status === 'SUBMITTED'" class="request-flow-actions">
-          <el-button type="primary" @click="onRequestAction(requestFlowRow, 'accept')">接单</el-button>
+          <el-button type="primary" @click="onRequestAction(requestFlowRow, 'accept')"
+            >接单</el-button
+          >
           <el-button type="danger" plain @click="onRequestAction(requestFlowRow, 'reject')"
             >驳回</el-button
           >
         </div>
-        <div
-          v-else-if="requestFlowRow.replenishmentTaskId"
-          class="request-flow-actions"
-        >
+        <div v-else-if="requestFlowRow.replenishmentTaskId" class="request-flow-actions">
           <el-button type="primary" @click="goRequestTask(requestFlowRow)">查看补货任务</el-button>
         </div>
       </div>
@@ -1544,9 +1541,7 @@ const requestActions: TableAction[] = [
 ];
 
 function requestActionsFor(row: Row): TableAction[] {
-  const acts: TableAction[] = [
-    { key: 'flow', label: '审批流', icon: View, type: 'info' }
-  ];
+  const acts: TableAction[] = [{ key: 'flow', label: '审批流', icon: View, type: 'info' }];
   if (canEdit.value && row.status === 'SUBMITTED') {
     acts.push(...requestActions);
   }
@@ -1756,10 +1751,7 @@ function assigneeLabel(userId?: number | string | null, empty = '未分配') {
 
 function ensureAssigneeOption(userId: number, name?: string) {
   if (!userId || assigneeOptions.value.some((item) => item.userId === userId)) return;
-  assigneeOptions.value = [
-    { userId, name: name || '当前账号' },
-    ...assigneeOptions.value
-  ];
+  assigneeOptions.value = [{ userId, name: name || '当前账号' }, ...assigneeOptions.value];
 }
 
 async function loadAssignees() {
@@ -1770,9 +1762,7 @@ async function loadAssignees() {
       '/api/v2/ops/admin/rbac/operators?page=0&size=100',
       'GET'
     );
-    const items = (data.items || []).filter(
-      (item) => !item.status || item.status === 'ACTIVE'
-    );
+    const items = (data.items || []).filter((item) => !item.status || item.status === 'ACTIVE');
     assigneeOptions.value = items;
     ensureAssigneeOption(currentAssigneeId(), auth.displayName);
   } catch {
@@ -2017,7 +2007,7 @@ function routePlanMeta(notes?: string) {
   const distMatch = raw.match(/\bdist\s*=\s*(\d+)\s*m?\b/i);
   return {
     sequence: seqMatch ? Number(seqMatch[1]) : undefined,
-    distanceM: distMatch ? Number(distMatch[1]) : undefined,
+    distanceM: distMatch ? Number(distMatch[1]) : undefined
   };
 }
 
@@ -2574,9 +2564,7 @@ function formatRequestLines(row: Row) {
 }
 
 const requestFlowTitle = computed(() =>
-  requestFlowRow.value?.requestId
-    ? `审批流 · 要货 ${requestFlowRow.value.requestId}`
-    : '审批流'
+  requestFlowRow.value?.requestId ? `审批流 · 要货 ${requestFlowRow.value.requestId}` : '审批流'
 );
 
 const requestFlowActiveStep = computed(() => {
