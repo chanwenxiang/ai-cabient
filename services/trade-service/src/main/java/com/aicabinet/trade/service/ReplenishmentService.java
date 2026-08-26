@@ -287,6 +287,24 @@ public class ReplenishmentService {
     }
 
     @Transactional(readOnly = true)
+    public ReplenishmentShortagePageDto listShortagePage(
+            Long operatorId, String deviceId, int page, int size) {
+        List<ReplenishmentShortageRowDto> all = deviceSlotService.listShortageRows(operatorId, deviceId);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        int from = Math.min(p * s, all.size());
+        int to = Math.min(from + s, all.size());
+        List<ReplenishmentShortageRowDto> items = all.subList(from, to);
+        List<String> deviceIds = all.stream()
+                .map(ReplenishmentShortageRowDto::deviceId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .sorted()
+                .toList();
+        return new ReplenishmentShortagePageDto(items, p, s, all.size(), deviceIds);
+    }
+
+    @Transactional(readOnly = true)
     public PageResult<ReplenishmentFulfillmentTaskDto> listFulfillmentTasksPage(
             String deviceId, String status, int page, int size) {
         int p = Math.max(page, 0);

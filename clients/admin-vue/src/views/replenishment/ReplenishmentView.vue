@@ -662,14 +662,14 @@
           >
             一键规划补货（{{ shortageDevices.length }} 台）
           </el-button>
-          <el-button :icon="Refresh" :loading="shortageLoading" @click="loadShortage"
+          <el-button :icon="Refresh" :loading="isTabLoading('shortage')" @click="reloadCurrent"
             >刷新缺货</el-button
           >
         </div>
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
-              v-loading="isTabLoading('shortage') || shortageLoading"
+              v-loading="isTabLoading('shortage')"
               :data="pagedShortages"
               stripe
               border
@@ -679,7 +679,7 @@
             >
               <template #empty
                 ><el-empty
-                  v-if="listHydrated && !isTabLoading('shortage') && !shortageLoading"
+                  v-if="listHydrated && !isTabLoading('shortage')"
                   description="当前无缺货/低库存货道"
               /></template>
               <el-table-column type="selection" width="48" align="center" />
@@ -1278,7 +1278,6 @@ function isTabLoading(name: string) {
 }
 
 const headerRefreshing = computed(() => {
-  if (tab.value === 'shortage') return isTabLoading('shortage') || shortageLoading.value;
   if (tab.value === 'expiry') return isTabLoading('expiry') || expiryLoading.value;
   return isTabLoading(tab.value);
 });
@@ -1293,15 +1292,10 @@ function markTabsLoading(names: string[], on: boolean) {
 }
 
 function reloadCurrent() {
-  if (tab.value === 'shortage') {
-    void loadShortage();
-    return;
-  }
   void loadTab(tab.value, true);
 }
 
 const saving = ref(false);
-const shortageLoading = ref(false);
 const expiryLoading = ref(false);
 const expiryActingId = ref<number | null>(null);
 const openDoorLoading = ref<number | null>(null);
@@ -1309,7 +1303,7 @@ const checkInLoading = ref<number | null>(null);
 const completeLoading = ref<number | null>(null);
 const cancelRouteLoading = ref<number | null>(null);
 const tab = ref('routes');
-const SERVER_PAGINATED_TABS = new Set(['routes', 'fulfillment', 'requests', 'expiry']);
+const SERVER_PAGINATED_TABS = new Set(['routes', 'fulfillment', 'requests', 'expiry', 'shortage']);
 const tabTotals = ref<Record<string, number>>({});
 const summary = ref({
   pendingTaskCount: 0,
@@ -1328,6 +1322,7 @@ const allRequests = ref<Row[]>([]);
 const fulfillmentTasksList = ref<Row[]>([]);
 const devices = ref<Row[]>([]);
 const shortages = ref<Row[]>([]);
+const shortageDeviceIds = ref<string[]>([]);
 const expiryAlerts = ref<Row[]>([]);
 const linesDrawer = ref(false);
 const requestFlowDrawer = ref(false);
@@ -1349,9 +1344,7 @@ const taskEvidence = ref<
 >([]);
 const evidenceObjectUrls = ref<string[]>([]);
 
-const shortageDevices = computed(() => [
-  ...new Set(shortages.value.map((s) => s.deviceId).filter(Boolean))
-]);
+const shortageDevices = computed(() => shortageDeviceIds.value);
 const planDialog = ref(false);
 const assigneeOptions = ref<AssigneeOption[]>([]);
 const assigneeLoading = ref(false);
@@ -1404,11 +1397,9 @@ const routesEmptyText = computed(() =>
   focusDeviceId.value.trim() ? `设备 ${focusDeviceId.value} 暂无关联补货路线` : '暂无补货路线'
 );
 
-function slicePage<T>(rows: T[]) {
-  const start = (page.value - 1) * size.value;
-  return rows.slice(start, page.value * size.value);
-}
-
+const pagedRoutes = computed(() => filteredRoutes.value);
+const pagedRequests = computed(() => sortedRequests.value);
+const pagedShortages = computed(() => shortages.value);
 const tabTotal = computed(() => {
   if (SERVER_PAGINATED_TABS.has(tab.value)) {
     if (tab.value === 'fulfillment' && fulfillmentUnassignedOnly.value) {
@@ -1416,12 +1407,9 @@ const tabTotal = computed(() => {
     }
     return tabTotals.value[tab.value] || 0;
   }
-  if (tab.value === 'shortage') return shortages.value.length;
   return 0;
 });
-const pagedRoutes = computed(() => filteredRoutes.value);
-const pagedRequests = computed(() => sortedRequests.value);
-const pagedShortages = computed(() => slicePage(shortages.value));
+
 const pagedExpiry = computed(() => expiryAlerts.value);
 const pagedFulfillment = computed(() => sortTasksById(fulfillmentTasks.value));
 const linesDrawerTitle = computed(() =>
@@ -1626,7 +1614,7 @@ const { onExport: exportShortages } = useListCsv({
   headers: ['设备', '货道', '商品', '账面', '最低', '目标', '状态'],
   toRows: () =>
     pickShortages(shortages.value).map((row) => [
-      row.deviceId,
+      row.deviceName || row.deviceId,
       row.slotCode,
       row.assignedSkuName || '',
       row.bookQty,
@@ -1748,6 +1736,8 @@ async function loadAssignees() {
 }
 
 function deviceName(deviceId: string) {
+  const fromShortage = shortages.value.find((item) => item.deviceId === deviceId)?.deviceName;
+  if (fromShortage) return fromShortage;
   return devices.value.find((item) => item.deviceId === deviceId)?.deviceName || deviceId || '无';
 }
 function localDate() {
@@ -1775,6 +1765,7 @@ function goDevice(deviceId?: string) {
 }
 
 function openPlan() {
+  void loadDeviceRefs();
   Object.assign(planForm, {
     routeName: `${new Date().toLocaleDateString('zh-CN')} 补货路线`,
     plannedDate: localDate(),
@@ -1878,50 +1869,33 @@ async function loadRequests() {
   clearRequestsSelection();
 }
 
-async function loadShortageData() {
-  const [devicePage, disc] = await Promise.all([
-    api.request<Row[]>('/api/v2/ops/admin/devices/ref', 'GET').catch(() => [] as Row[]),
-    api.request<Row[]>('/api/v2/ops/admin/slots/discrepancies', 'GET').catch(() => [])
-  ]);
-  devices.value = devicePage || [];
-  const lowStock: Row[] = [];
-  for (const d of devices.value) {
-    try {
-      const suggest = await api.request<Row[]>(
-        `/api/v2/ops/admin/replenishment/suggest/slots?deviceId=${encodeURIComponent(d.deviceId)}`,
-        'GET'
-      );
-      for (const s of suggest || []) {
-        if (
-          (s.bookQty ?? 0) <= (s.minLevel ?? 0) ||
-          s.stockStatus === 'OOS' ||
-          s.stockStatus === 'LOW'
-        ) {
-          lowStock.push({ ...s, deviceId: d.deviceId });
-        }
-      }
-    } catch {
-      /* ignore per-device */
-    }
+async function loadDeviceRefs() {
+  if (devices.value.length) return;
+  try {
+    devices.value = await api.request<Row[]>('/api/v2/ops/admin/devices/ref', 'GET');
+  } catch {
+    devices.value = [];
   }
-  const byKey = new Map<string, Row>();
-  for (const row of [...(disc || []), ...lowStock]) {
-    const key = `${row.deviceId}:${row.slotCode || row.skuId || ''}`;
-    if (!byKey.has(key)) byKey.set(key, { ...row, slotKey: key });
-  }
-  let list = [...byKey.values()];
-  if (focusDeviceId.value.trim()) {
-    list = list.filter((x) => x.deviceId === focusDeviceId.value.trim());
-  }
-  shortages.value = list;
+}
+
+async function loadShortages() {
+  const extra: Record<string, string> = {};
+  if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
+  const data = await api.request<{
+    items: Row[];
+    total: number;
+    shortageDeviceIds: string[];
+  }>(`/api/v2/ops/admin/replenishment/shortage?${replenishmentListParams(extra)}`, 'GET');
+  shortages.value = (data.items || []).map((row) => ({
+    ...row,
+    slotKey: row.slotKey || `${row.deviceId}:${row.slotCode || row.skuId || ''}`
+  }));
+  tabTotals.value = { ...tabTotals.value, shortage: Number(data.total) || 0 };
+  shortageDeviceIds.value = data.shortageDeviceIds || [];
   clearShortageSelection();
 }
 
 async function loadTab(name: string, force = false) {
-  if (name === 'shortage') {
-    await loadShortage();
-    return;
-  }
   if (!force && !SERVER_PAGINATED_TABS.has(name)) return;
   markTabsLoading([name], true);
   loading.value = true;
@@ -1930,7 +1904,10 @@ async function loadTab(name: string, force = false) {
     if (name === 'routes') await loadRoutes();
     else if (name === 'fulfillment') await loadFulfillment();
     else if (name === 'requests') await loadRequests();
-    else if (name === 'expiry') await loadExpiryAlerts();
+    else if (name === 'shortage') {
+      await loadDeviceRefs();
+      await loadShortages();
+    } else if (name === 'expiry') await loadExpiryAlerts();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '补货数据加载失败');
   } finally {
@@ -2002,6 +1979,7 @@ function clearPlanQuery() {
 async function planFromShortage() {
   const ids = shortageDevices.value;
   if (!ids.length) return ElMessage.warning('当前无缺货设备');
+  await loadDeviceRefs();
   Object.assign(planForm, {
     routeName: `${new Date().toLocaleDateString('zh-CN')} 缺货补货`,
     plannedDate: localDate(),
@@ -2015,6 +1993,7 @@ async function planFromShortage() {
 
 function planSingleDevice(deviceId: string) {
   if (!deviceId) return;
+  void loadDeviceRefs();
   Object.assign(planForm, {
     routeName: `${new Date().toLocaleDateString('zh-CN')} ${deviceId} 补货`,
     plannedDate: localDate(),
@@ -2023,15 +2002,6 @@ function planSingleDevice(deviceId: string) {
   });
   void loadAssignees();
   planDialog.value = true;
-}
-
-async function loadShortage() {
-  shortageLoading.value = true;
-  try {
-    await loadShortageData();
-  } finally {
-    shortageLoading.value = false;
-  }
 }
 
 async function loadExpiryAlerts() {
