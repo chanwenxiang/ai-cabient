@@ -114,7 +114,9 @@ Gateway 已配置 `/devops/grafana/` 反代；Grafana 开启匿名 Viewer + 允�
 | Secret | 值 |
 |--------|-----|
 | `SONAR_TOKEN` | SonarQube User Token |
-| `SONAR_HOST_URL` | Runner 内网地址：`http://sonarqube:9000` |
+| `SONAR_HOST_URL` | Runner 内网地址：`http://sonarqube:9000`（**勿用** `localhost:19002`，scanner 在 Docker 网络内） |
+
+`sonar.yml` 在 self-hosted runner 内用 **Docker** 跑 Maven 测试与 `sonar-scanner`（不依赖 `setup-maven` 等易超时的 Action）。首次可执行 `.\scripts\devops\pull-gha-images.ps1` 预拉镜像。
 
 ### 运营后台「重跑 Sonar」
 
