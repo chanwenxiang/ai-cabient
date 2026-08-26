@@ -40,7 +40,8 @@ class SkuVisionEnrollmentConcurrencyTest {
                 null,
                 null,
                 null,
-                distributedLockService);
+                distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

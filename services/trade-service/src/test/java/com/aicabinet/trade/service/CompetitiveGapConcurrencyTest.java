@@ -47,7 +47,8 @@ class CompetitiveGapConcurrencyTest {
                 roleTemplateMapper, deviceOpsEventMapper, deviceInfoMapper, phoneVerifyLogMapper,
                 merchantMapper, orderMapper, lineMapper, merchantScopeService, permissionService,
                 auditService, salesLockService, new SecurityProperties(false),
-                routeScopeMapper, distributedLockService);
+                routeScopeMapper, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

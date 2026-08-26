@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -44,6 +45,8 @@ public class DeviceTempPlanService {
     private final DeviceServiceClient deviceClient;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final DeviceTempPlanService self;
 
     @Autowired
     private ScheduledTaskService taskService;
@@ -54,7 +57,7 @@ public class DeviceTempPlanService {
                                  DeviceInfoMapper deviceRepository,
                                  DeviceServiceClient deviceClient,
                                  AdminAuditService auditService,
-                                 DistributedLockService distributedLockService) {
+                                 DistributedLockService distributedLockService, @Lazy DeviceTempPlanService self) {
         this.permissionService = permissionService;
         this.planRepository = planRepository;
         this.entryRepository = entryRepository;
@@ -62,6 +65,7 @@ public class DeviceTempPlanService {
         this.deviceClient = deviceClient;
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -198,7 +202,7 @@ public class DeviceTempPlanService {
         }
         for (DeviceTempPlan plan : planRepository.findAllEnabled()) {
             try {
-                applyNow(plan.getDeviceId());
+                self.applyNow(plan.getDeviceId());
             } catch (Exception e) {
                 log.warn("temp plan scheduled apply failed device={}: {}", plan.getDeviceId(), e.getMessage());
             }

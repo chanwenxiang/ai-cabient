@@ -10,6 +10,7 @@ import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import org.springframework.data.domain.*;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -41,6 +42,8 @@ public class MerchantFinanceService {
     private final WeChatProfitSharingService profitSharingService;
     private final ProfitSharingProperties profitSharingProperties;
     private final WeChatPayProperties weChatPayProperties;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final MerchantFinanceService self;
 
     public MerchantFinanceService(PermissionService permissionService,
                                   MerchantFeaturePackService merchantFeaturePackService,
@@ -52,7 +55,7 @@ public class MerchantFinanceService {
                                   SettlementService settlementService,
                                   WeChatProfitSharingService profitSharingService,
                                   ProfitSharingProperties profitSharingProperties,
-                                  WeChatPayProperties weChatPayProperties) {
+                                  WeChatPayProperties weChatPayProperties, @Lazy MerchantFinanceService self) {
         this.permissionService = permissionService;
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.merchantPortalGuard = merchantPortalGuard;
@@ -64,6 +67,7 @@ public class MerchantFinanceService {
         this.profitSharingService = profitSharingService;
         this.profitSharingProperties = profitSharingProperties;
         this.weChatPayProperties = weChatPayProperties;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -208,7 +212,7 @@ public class MerchantFinanceService {
     public byte[] exportSettlementsCsv(Long userId, String fromDate, String toDate) {
         permissionService.requirePermission(userId, "merchant:settlements:export");
         merchantPortalGuard.requireAccess(userId);
-        List<MerchantDailySettlementDto> days = listDailySettlements(userId, fromDate, toDate);
+        List<MerchantDailySettlementDto> days = self.listDailySettlements(userId, fromDate, toDate);
         StringBuilder sb = new StringBuilder();
         sb.append("date,orderCount,grossCents,platformCents,merchantCents,settledCents,pendingCents,failedCount\n");
         for (MerchantDailySettlementDto d : days) {

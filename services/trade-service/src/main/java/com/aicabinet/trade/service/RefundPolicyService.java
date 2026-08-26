@@ -6,6 +6,7 @@ import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -23,13 +24,16 @@ public class RefundPolicyService {
     private final DeviceInfoMapper deviceRepository;
     private final SystemConfigService systemConfigService;
     private final PaymentOperationMapper paymentOperationMapper;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final RefundPolicyService self;
 
     public RefundPolicyService(DeviceInfoMapper deviceRepository,
                                SystemConfigService systemConfigService,
-                               PaymentOperationMapper paymentOperationMapper) {
+                               PaymentOperationMapper paymentOperationMapper, @Lazy RefundPolicyService self) {
         this.deviceRepository = deviceRepository;
         this.systemConfigService = systemConfigService;
         this.paymentOperationMapper = paymentOperationMapper;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -50,12 +54,12 @@ public class RefundPolicyService {
                 }
             }
         }
-        return globalDefault();
+        return self.globalDefault();
     }
 
     @Transactional(readOnly = true)
     public boolean allowsAutoRefund(String deviceId) {
-        return resolveForDevice(deviceId) == RefundPolicy.AUTO_REFUND;
+        return self.resolveForDevice(deviceId) == RefundPolicy.AUTO_REFUND;
     }
 
     @Transactional(readOnly = true)
@@ -71,11 +75,11 @@ public class RefundPolicyService {
         if (order == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "订单无效");
         }
-        if (!allowsAutoRefund(order.getDeviceId())) {
+        if (!self.allowsAutoRefund(order.getDeviceId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "该柜机未开启自助退款，请提交账单申诉，由运营审核后处理");
         }
-        if (partial && !allowsConsumerPartialRefund()) {
+        if (partial && !self.allowsConsumerPartialRefund()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "暂未开放按行自助退款，请全额退款或联系客服");
         }
         int maxHours = systemConfigService.getInt(SystemConfigService.REFUND_SELF_MAX_HOURS, 24);

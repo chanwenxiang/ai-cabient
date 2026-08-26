@@ -14,6 +14,7 @@ import com.aicabinet.trade.mapper.LineWalletLedgerMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -37,6 +38,8 @@ public class LineManagerService {
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final LineManagerService self;
 
     public LineManagerService(LineManagerMapper managerMapper,
                               LineDeviceMapper deviceMapper,
@@ -45,7 +48,7 @@ public class LineManagerService {
                               LineWalletService lineWalletService,
                               PermissionService permissionService,
                               AdminAuditService auditService,
-                              DistributedLockService distributedLockService) {
+                              DistributedLockService distributedLockService, @Lazy LineManagerService self) {
         this.managerMapper = managerMapper;
         this.deviceMapper = deviceMapper;
         this.ledgerMapper = ledgerMapper;
@@ -54,6 +57,7 @@ public class LineManagerService {
         this.permissionService = permissionService;
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -227,7 +231,7 @@ public class LineManagerService {
     @Transactional(readOnly = true)
     public List<LineWalletLedgerDto> ledgers(Long operatorId, long managerId, int limit) {
         permissionService.requireAnyPermission(operatorId, "ops:line-manager:list", "ops:finance:view");
-        return ledgersForManager(managerId, limit);
+        return self.ledgersForManager(managerId, limit);
     }
 
     @Transactional(readOnly = true)

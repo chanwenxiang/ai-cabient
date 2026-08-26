@@ -10,6 +10,7 @@ import com.aicabinet.common.dto.MemberLevelRuleDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +43,10 @@ public class MemberService {
 
     @Autowired
     private DistributedLockService distributedLockService;
+
+    @Autowired
+    @Lazy
+    private MemberService self;
 
     @Transactional
     public Member createMember(Long userId) {
@@ -130,7 +135,7 @@ public class MemberService {
                     .orElseGet(() -> createMemberIfAbsent(userId));
             applyMemberStatsDelta(member, BigDecimal.valueOf(paidAmountCents, 2));
             memberRepository.save(member);
-            earnPoints(member, paidAmountCents, orderId);
+            self.earnPoints(member, paidAmountCents, orderId);
             return null;
         });
     }

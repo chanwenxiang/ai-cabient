@@ -53,6 +53,7 @@ class WarehouseServiceTest {
                 inboundRepository, inboundLineRepository, outboundRepository, outboundLineRepository,
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
                 deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(warehouseService, "self", warehouseService);
     }
 
     @Test

@@ -7,6 +7,7 @@ import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.DeviceNameSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +39,8 @@ public class DemoDataService {
     private final UserAccountMapper userAccountRepository;
     private final DeviceSlotService deviceSlotService;
     private final InventoryLotService inventoryLotService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final DemoDataService self;
 
     public DemoDataService(SecurityProperties securityProperties,
                            SkuCatalogMapper skuCatalogRepository,
@@ -49,7 +52,7 @@ public class DemoDataService {
                            UserInfoMapper userInfoRepository,
                            UserAccountMapper userAccountRepository,
                            DeviceSlotService deviceSlotService,
-                           InventoryLotService inventoryLotService) {
+                           InventoryLotService inventoryLotService, @Lazy DemoDataService self) {
         this.securityProperties = securityProperties;
         this.skuCatalogRepository = skuCatalogRepository;
         this.deviceInfoRepository = deviceInfoRepository;
@@ -61,6 +64,7 @@ public class DemoDataService {
         this.userAccountRepository = userAccountRepository;
         this.deviceSlotService = deviceSlotService;
         this.inventoryLotService = inventoryLotService;
+        this.self = self;
     }
 
     @Transactional
@@ -115,7 +119,7 @@ public class DemoDataService {
     }
 
     private DemoContext buildContext() {
-        String fallback = resolveFallbackSku(DEMO_DEVICE_ID);
+        String fallback = self.resolveFallbackSku(DEMO_DEVICE_ID);
         long skuCount = skuCatalogRepository.count();
         long invLines = deviceSkuInventoryRepository.findByIdDeviceId(DEMO_DEVICE_ID).size();
         long warehouseLots = warehouseInventoryRepository.findByWarehouseIdOrderByExpiryDateAsc(DEMO_WAREHOUSE_ID).size();

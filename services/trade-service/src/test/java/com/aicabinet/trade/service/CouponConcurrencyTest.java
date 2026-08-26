@@ -36,7 +36,8 @@ class CouponConcurrencyTest {
     void setUp() {
         couponService = new CouponService(
                 definitionRepository, userCouponRepository, userInfoRepository, orderRepository,
-                orderLineRepository, distributedLockService, promotionService);
+                orderLineRepository, distributedLockService, promotionService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(couponService, "self", couponService);
     }
 
     @Test

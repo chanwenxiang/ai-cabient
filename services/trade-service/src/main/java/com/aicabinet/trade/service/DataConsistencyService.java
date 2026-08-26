@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -85,6 +86,10 @@ private CabinetOrderMapper cabinetOrderRepository;
 
 @Autowired
 private OrderPaymentService orderPaymentService;
+
+@Autowired
+@Lazy
+private DataConsistencyService self;
 
     private JdbcTemplate requireJdbc() {
         return java.util.Objects.requireNonNull(jdbcTemplate, "jdbcTemplate");
@@ -578,7 +583,7 @@ private OrderPaymentService orderPaymentService;
     /** 人工修复入口：默认仅 ORDER_AMOUNT / INVENTORY_MISMATCH 可修。 */
     @Transactional
     public boolean fixInconsistency(Long recordId) {
-        return fixInconsistencyDetailed(recordId).fixed();
+        return self.fixInconsistencyDetailed(recordId).fixed();
     }
 
     /** 带说明的修复入口（运营控制台）。 */

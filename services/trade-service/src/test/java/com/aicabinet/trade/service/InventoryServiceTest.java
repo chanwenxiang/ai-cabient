@@ -36,7 +36,8 @@ class InventoryServiceTest {
     void setUp() {
         inventoryService = new InventoryService(
                 inventoryRepository, inventoryLotService, deviceSlotService,
-                gravityHelper, deviceValidationService, lockService);
+                gravityHelper, deviceValidationService, lockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(inventoryService, "self", inventoryService);
         lenient().when(lockService.tryLock(eq(InventoryService.deviceLockKey("CAB-001")), anyLong(), anyLong())).thenReturn(true);
         lenient().when(gravityHelper.parse(any())).thenReturn(List.of());
         lenient().when(gravityHelper.hasSlotSpecificDeltas(any())).thenReturn(false);

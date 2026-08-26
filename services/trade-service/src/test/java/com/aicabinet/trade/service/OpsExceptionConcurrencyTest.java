@@ -29,7 +29,8 @@ class OpsExceptionConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new OpsExceptionService(repository, permissionService, null, null,
-                null, null, null, null, distributedLockService);
+                null, null, null, null, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

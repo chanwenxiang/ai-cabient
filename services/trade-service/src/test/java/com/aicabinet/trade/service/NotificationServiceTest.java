@@ -41,9 +41,11 @@ class NotificationServiceTest {
         when(distributedLockService.tryLock(org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.eq(60L), org.mockito.ArgumentMatchers.eq(5L)))
                 .thenReturn(true);
-        return new NotificationService(templateRepository, logRepository,
+        NotificationService svc = new NotificationService(templateRepository, logRepository,
                 new NotificationProperties(false, false, async), notifyPrefService,
-                externalDispatcher, producerProvider, distributedLockService);
+                externalDispatcher, producerProvider, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
+        return svc;
     }
 
     private static NotificationTemplate template(String channels, String category) {

@@ -41,6 +41,8 @@ public class RepairTicketService {
     private final DeviceSalesLockService salesLockService;
     private final OpsExceptionService opsExceptionService;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final RepairTicketService self;
 
     public RepairTicketService(RepairTicketMapper ticketMapper,
                                RepairTicketEventMapper eventMapper,
@@ -48,7 +50,7 @@ public class RepairTicketService {
                                PermissionService permissionService,
                                DeviceSalesLockService salesLockService,
                                @Lazy OpsExceptionService opsExceptionService,
-                               DistributedLockService distributedLockService) {
+                               DistributedLockService distributedLockService, @Lazy RepairTicketService self) {
         this.ticketMapper = ticketMapper;
         this.eventMapper = eventMapper;
         this.deviceInfoMapper = deviceInfoMapper;
@@ -56,6 +58,7 @@ public class RepairTicketService {
         this.salesLockService = salesLockService;
         this.opsExceptionService = opsExceptionService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -195,7 +198,7 @@ public class RepairTicketService {
 
     @Transactional
     public RepairTicketDto transition(Long operatorId, long ticketId, String toStatus, String remark) {
-        return transition(operatorId, ticketId, toStatus, remark, false);
+        return self.transition(operatorId, ticketId, toStatus, remark, false);
     }
 
     @Transactional

@@ -33,7 +33,8 @@ class DeviceAvailabilityKpiConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new DeviceAvailabilityKpiService(deviceRepository, exceptionRepository,
-                auditRepository, kpiRepository, distributedLockService);
+                auditRepository, kpiRepository, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

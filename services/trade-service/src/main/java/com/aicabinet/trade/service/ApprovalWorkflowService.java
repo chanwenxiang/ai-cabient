@@ -20,6 +20,7 @@ import com.aicabinet.trade.mapper.OpsUserDepartmentMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -48,6 +49,8 @@ public class ApprovalWorkflowService {
     private final NotificationService notificationService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final ApprovalWorkflowService self;
 
     public ApprovalWorkflowService(ApprovalDefinitionMapper definitionRepository,
                                      ApprovalNodeMapper nodeRepository,
@@ -57,7 +60,7 @@ public class ApprovalWorkflowService {
                                      OpsUserDepartmentMapper userDepartmentRepository,
                                      NotificationService notificationService,
                                      PermissionService permissionService,
-                                     AdminAuditService auditService) {
+                                     AdminAuditService auditService, @Lazy ApprovalWorkflowService self) {
         this.definitionRepository = definitionRepository;
         this.nodeRepository = nodeRepository;
         this.instanceRepository = instanceRepository;
@@ -67,6 +70,7 @@ public class ApprovalWorkflowService {
         this.notificationService = notificationService;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.self = self;
     }
 
     @Transactional
@@ -222,7 +226,7 @@ public class ApprovalWorkflowService {
 
     @Transactional(readOnly = true)
     public ApprovalInboxDto inbox(Long userId, int limit) {
-        List<ApprovalTaskDto> tasks = listPendingTasks(userId, limit);
+        List<ApprovalTaskDto> tasks = self.listPendingTasks(userId, limit);
         long pendingCount = taskRepository.countPendingByAssigneeUserId(userId);
         List<NotificationDto> messages = notificationService.opsNotifications(userId, limit);
         long unreadMessages = notificationService.opsUnreadCount(userId);
@@ -264,7 +268,7 @@ public class ApprovalWorkflowService {
 
     @Transactional(readOnly = true)
     public boolean isInstanceApproved(String bizType, String bizId) {
-        return instanceStatus(bizType, bizId).map("APPROVED"::equals).orElse(false);
+        return self.instanceStatus(bizType, bizId).map("APPROVED"::equals).orElse(false);
     }
 
     @Transactional(readOnly = true)

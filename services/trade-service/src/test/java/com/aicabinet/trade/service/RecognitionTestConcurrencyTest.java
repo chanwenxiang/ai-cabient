@@ -32,7 +32,8 @@ class RecognitionTestConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new RecognitionTestService(sessionService, sessionRepository, settlementService,
-                visionClient, skuCatalogRepository, distributedLockService);
+                visionClient, skuCatalogRepository, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

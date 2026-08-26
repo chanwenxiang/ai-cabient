@@ -33,7 +33,8 @@ class SiteRentSplitConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new SiteRentSplitService(ruleMapper, contractMapper, permissionService,
-                auditService, distributedLockService);
+                auditService, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

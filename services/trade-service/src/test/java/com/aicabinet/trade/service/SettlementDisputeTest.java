@@ -71,7 +71,8 @@ class SettlementDisputeTest {
                 securityProperties, stagingProperties, inventoryService, orderPaymentService, confidenceService, gravityHelper,
                 deviceValidationService, skuPricingService, userValidationService, videoArchiveService,
                 skuVisionEnrollmentService, couponService, memberService, null, notificationService, slotRepository,
-                consumerPreauthService, systemConfigService, distributedLockService);
+                consumerPreauthService, systemConfigService, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(settlementService, "self", settlementService);
         lenient().when(systemConfigService.getBoolean(anyString(), anyBoolean()))
                 .thenAnswer(inv -> inv.getArgument(1));
         // 既有重力用例默认按融合模式；纯视觉用例单独 stub usesGravityFusion=false

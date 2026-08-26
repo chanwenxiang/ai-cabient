@@ -37,7 +37,8 @@ class OpsExceptionManualResolveTest {
     @BeforeEach
     void setUp() {
         service = new OpsExceptionService(repository, permissionService, auditService, auditRepository,
-                sessionRepository, settlementService, disputeService, repairTicketService, distributedLockService);
+                sessionRepository, settlementService, disputeService, repairTicketService, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyLong(),

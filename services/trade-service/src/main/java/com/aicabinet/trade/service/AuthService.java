@@ -24,6 +24,7 @@ import com.aicabinet.trade.wechat.WeChatMiniAppClient;
 import com.aicabinet.trade.wechat.WeChatWebOAuthClient;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -46,6 +47,8 @@ public class AuthService {
     private final LoginThrottleService loginThrottleService;
     private final PhoneVerifyLogMapper phoneVerifyLogMapper;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final AuthService self;
 
     public AuthService(UserInfoMapper userInfoRepository,
                        UserAccountMapper userAccountRepository,
@@ -59,7 +62,7 @@ public class AuthService {
                        AuthProperties authProperties,
                        LoginThrottleService loginThrottleService,
                        PhoneVerifyLogMapper phoneVerifyLogMapper,
-                       DistributedLockService distributedLockService) {
+                       DistributedLockService distributedLockService, @Lazy AuthService self) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.jwtService = jwtService;
@@ -73,6 +76,7 @@ public class AuthService {
         this.loginThrottleService = loginThrottleService;
         this.phoneVerifyLogMapper = phoneVerifyLogMapper;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     public void sendSmsCode(String phoneNumber) {
@@ -115,7 +119,7 @@ public class AuthService {
     /** 运营后台登录：拒绝消费者账号 */
     @Transactional
     public LoginResponse adminLogin(LoginRequest request) {
-        LoginResponse response = login(request);
+        LoginResponse response = self.login(request);
         requireOperator(response.userId());
         requireActiveAccount(response.userId());
         return response;

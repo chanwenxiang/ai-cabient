@@ -26,6 +26,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -52,6 +53,8 @@ public class OpsRbacService {
     private final DepartmentService departmentService;
     private final OpsUserDepartmentMapper userDepartmentRepository;
     private final OpsDepartmentMapper departmentRepository;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final OpsRbacService self;
 
     public OpsRbacService(OpsRoleMapper roleRepository,
                           OpsPermissionMapper permissionRepository,
@@ -68,7 +71,7 @@ public class OpsRbacService {
                           DistributedLockService distributedLockService,
                           DepartmentService departmentService,
                           OpsUserDepartmentMapper userDepartmentRepository,
-                          OpsDepartmentMapper departmentRepository) {
+                          OpsDepartmentMapper departmentRepository, @Lazy OpsRbacService self) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
         this.rolePermissionRepository = rolePermissionRepository;
@@ -85,6 +88,7 @@ public class OpsRbacService {
         this.departmentService = departmentService;
         this.userDepartmentRepository = userDepartmentRepository;
         this.departmentRepository = departmentRepository;
+        this.self = self;
     }
 
     @Transactional
@@ -310,7 +314,7 @@ public class OpsRbacService {
                 rolePermissionRepository.insert(new OpsRolePermission(roleId, permissionId));
             }
         }
-        return getRolePermissions(operatorId, roleId);
+        return self.getRolePermissions(operatorId, roleId);
     }
 
     @Transactional(readOnly = true)
@@ -459,7 +463,7 @@ public class OpsRbacService {
         return runWithOperatorLock(userId, () -> {
             ensureOperatorAccount(userId);
             replaceUserRoles(userId, roleIds);
-            return getUserRoles(operatorId, userId);
+            return self.getUserRoles(operatorId, userId);
         });
     }
 
@@ -513,7 +517,7 @@ public class OpsRbacService {
                 userMerchantRepository.insert(new OpsUserMerchant(userId, id));
             }
         }
-        return getUserMerchants(operatorId, userId);
+        return self.getUserMerchants(operatorId, userId);
     }
 
     @Transactional(readOnly = true)

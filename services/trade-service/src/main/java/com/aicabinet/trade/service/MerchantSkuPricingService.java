@@ -9,6 +9,7 @@ import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -33,6 +34,8 @@ public class MerchantSkuPricingService {
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final InventoryLotService inventoryLotService;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final MerchantSkuPricingService self;
 
     public MerchantSkuPricingService(DeviceSkuPriceMapper priceRepository,
                                      DeviceSkuInventoryMapper inventoryRepository,
@@ -45,7 +48,7 @@ public class MerchantSkuPricingService {
                                      MerchantSelfServiceGate merchantSelfServiceGate,
                                      MerchantFeaturePackService merchantFeaturePackService,
                                      InventoryLotService inventoryLotService,
-                                     DistributedLockService distributedLockService) {
+                                     DistributedLockService distributedLockService, @Lazy MerchantSkuPricingService self) {
         this.priceRepository = priceRepository;
         this.inventoryRepository = inventoryRepository;
         this.skuCatalogRepository = skuCatalogRepository;
@@ -58,6 +61,7 @@ public class MerchantSkuPricingService {
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.inventoryLotService = inventoryLotService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -202,7 +206,7 @@ public class MerchantSkuPricingService {
                 sku.getSkuName(),
                 sku.getPriceCents(),
                 saved.map(DeviceSkuPrice::getPriceCents).orElse(null),
-                resolveUnitPriceCents(deviceId, sku),
+                self.resolveUnitPriceCents(deviceId, sku),
                 minAllowedPrice(sku),
                 maxAllowedPrice(sku),
                 qty,

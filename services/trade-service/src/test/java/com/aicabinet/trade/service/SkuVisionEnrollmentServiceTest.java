@@ -59,7 +59,8 @@ class SkuVisionEnrollmentServiceTest {
                 visionServiceClient,
                 userInfoRepository,
                 fileAttachmentService,
-                distributedLockService);
+                distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

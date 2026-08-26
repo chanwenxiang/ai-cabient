@@ -40,7 +40,8 @@ class SlaMetricsConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new SlaMetricsService(sessionRepository, deviceRepository, snapshotRepository,
-                merchantScopeService, disputeRepository, disputeSlaService, distributedLockService);
+                merchantScopeService, disputeRepository, disputeSlaService, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         ReflectionTestUtils.setField(service, "taskService", taskService);
         when(taskService.tryBegin(eq("sla-snapshot"), eq(600L))).thenReturn(true);
         when(sessionRepository.countCreatedBetween(any(), any())).thenReturn(0L);

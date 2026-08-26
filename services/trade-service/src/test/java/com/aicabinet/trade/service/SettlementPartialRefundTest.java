@@ -51,7 +51,8 @@ class SettlementPartialRefundTest {
                 null, null, inventoryService, orderPaymentService,
                 null, null, null, null, null, null,
                 null, couponService, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(settlementService, "self", settlementService);
         lenient().doNothing().when(couponService).recalcOrRestoreAfterPartialRefund(any(), anyInt());
     }
 

@@ -56,7 +56,8 @@ class AuthConcurrencyTest {
                 weChatMiniAppClient, weChatWebOAuthClient, alipayOauthClient, smsCodeService,
                 passwordEncoder, serverBootMarker,
                 new AuthProperties("test-secret", 3600L, false, false, 5, 15, null),
-                loginThrottleService, phoneVerifyLogMapper, distributedLockService);
+                loginThrottleService, phoneVerifyLogMapper, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

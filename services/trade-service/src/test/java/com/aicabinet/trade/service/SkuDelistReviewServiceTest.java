@@ -40,8 +40,10 @@ class SkuDelistReviewServiceTest {
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
-        return new SkuDelistReviewService(lineRepository, inventoryRepository,
-                skuCatalogRepository, reviewRepository, inventoryLotService, distributedLockService);
+        SkuDelistReviewService svc = new SkuDelistReviewService(lineRepository, inventoryRepository,
+                skuCatalogRepository, reviewRepository, inventoryLotService, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
+        return svc;
     }
 
     private static SkuCatalog sku(String id, String name, String status) {

@@ -19,6 +19,7 @@ import com.aicabinet.trade.support.ApiMessages;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -56,6 +57,8 @@ public class SkuVisionEnrollmentService {
     private final UserInfoMapper userInfoRepository;
     private final FileAttachmentService fileAttachmentService;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final SkuVisionEnrollmentService self;
 
     public SkuVisionEnrollmentService(SkuCatalogMapper skuCatalogRepository,
                                         SkuVisionMappingMapper yoloRepository,
@@ -67,7 +70,7 @@ public class SkuVisionEnrollmentService {
                                         VisionServiceClient visionServiceClient,
                                         UserInfoMapper userInfoRepository,
                                         FileAttachmentService fileAttachmentService,
-                                        DistributedLockService distributedLockService) {
+                                        DistributedLockService distributedLockService, @Lazy SkuVisionEnrollmentService self) {
         this.skuCatalogRepository = skuCatalogRepository;
         this.yoloRepository = yoloRepository;
         this.deviceSlotService = deviceSlotService;
@@ -79,6 +82,7 @@ public class SkuVisionEnrollmentService {
         this.userInfoRepository = userInfoRepository;
         this.fileAttachmentService = fileAttachmentService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -269,7 +273,7 @@ public class SkuVisionEnrollmentService {
         if (stagingProperties.stagingMode() || stagingProperties.gravityFallbackSettle()) {
             return Optional.empty();
         }
-        DeviceVisionContextDto ctx = deviceVisionContext(deviceId);
+        DeviceVisionContextDto ctx = self.deviceVisionContext(deviceId);
         Map<String, SkuVisionContextItemDto> allowed = ctx.skus().stream()
                 .collect(Collectors.toMap(SkuVisionContextItemDto::skuId, s -> s, (a, b) -> a));
         Map<String, SkuCatalog> skuById = skuCatalogRepository.findAllById(

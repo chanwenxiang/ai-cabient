@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.DeviceSkuInventoryId;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
@@ -31,31 +32,34 @@ public class InventoryService {
     private final GravitySettlementHelper gravityHelper;
     private final DeviceValidationService deviceValidationService;
     private final DistributedLockService lockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final InventoryService self;
 
     public InventoryService(DeviceSkuInventoryMapper inventoryRepository,
                             InventoryLotService inventoryLotService,
                             DeviceSlotService deviceSlotService,
                             GravitySettlementHelper gravityHelper,
                             DeviceValidationService deviceValidationService,
-                            DistributedLockService lockService) {
+                            DistributedLockService lockService, @Lazy InventoryService self) {
         this.inventoryRepository = inventoryRepository;
         this.inventoryLotService = inventoryLotService;
         this.deviceSlotService = deviceSlotService;
         this.gravityHelper = gravityHelper;
         this.deviceValidationService = deviceValidationService;
         this.lockService = lockService;
+        this.self = self;
     }
 
     /** 扣减库存，有批次时 FEFO；返回 skuId -> 主批次号。 */
     @Transactional
     public Map<String, String> deductForOrder(String deviceId, List<VisionServiceClient.RecognizedItem> items) {
-        return deductForOrder(deviceId, items, null, null);
+        return self.deductForOrder(deviceId, items, null, null);
     }
 
     @Transactional
     public Map<String, String> deductForOrder(String deviceId, List<VisionServiceClient.RecognizedItem> items,
                                               String refId) {
-        return deductForOrder(deviceId, items, refId, null);
+        return self.deductForOrder(deviceId, items, refId, null);
     }
 
     @Transactional
@@ -217,7 +221,7 @@ public class InventoryService {
     public Map<String, String> adjustForOrder(String deviceId,
                                List<VisionServiceClient.RecognizedItem> oldItems,
                                List<VisionServiceClient.RecognizedItem> newItems) {
-        return adjustForOrder(deviceId, oldItems, newItems, Map.of());
+        return self.adjustForOrder(deviceId, oldItems, newItems, Map.of());
     }
 
     /**

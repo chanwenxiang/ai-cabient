@@ -12,6 +12,7 @@ import com.aicabinet.trade.mapper.OpsUserDepartmentMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -35,17 +36,20 @@ public class DepartmentService {
     private final UserInfoMapper userInfoRepository;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final DepartmentService self;
 
     public DepartmentService(OpsDepartmentMapper departmentRepository,
                              OpsUserDepartmentMapper userDepartmentRepository,
                              UserInfoMapper userInfoRepository,
                              PermissionService permissionService,
-                             AdminAuditService auditService) {
+                             AdminAuditService auditService, @Lazy DepartmentService self) {
         this.departmentRepository = departmentRepository;
         this.userDepartmentRepository = userDepartmentRepository;
         this.userInfoRepository = userInfoRepository;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -163,7 +167,7 @@ public class DepartmentService {
         }
         auditService.record(operatorId, "OPS_DEPT_MEMBERS", "OPS_DEPT",
                 String.valueOf(deptId), "members=" + next.size());
-        return members(operatorId, dept.getDeptId());
+        return self.members(operatorId, dept.getDeptId());
     }
 
     /**

@@ -43,7 +43,8 @@ class DeviceAssetConcurrencyTest {
     void setUp() {
         service = new DeviceAssetService(deviceInfoMapper, lifecycleEventMapper, inventoryMapper, lotMapper,
                 skuCatalogMapper, merchantMapper, merchantScopeService, permissionService, auditService,
-                distributedLockService);
+                distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

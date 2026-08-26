@@ -9,6 +9,7 @@ import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -22,26 +23,29 @@ public class OpsService {
     private final ShoppingSessionMapper sessionRepository;
     private final ReplenishmentTaskMapper taskRepository;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final OpsService self;
 
     public OpsService(SessionService sessionService,
                       DeviceValidationService deviceValidationService,
                       DeviceServiceClient deviceClient,
                       ShoppingSessionMapper sessionRepository,
                       ReplenishmentTaskMapper taskRepository,
-                      DistributedLockService distributedLockService) {
+                      DistributedLockService distributedLockService, @Lazy OpsService self) {
         this.sessionService = sessionService;
         this.deviceValidationService = deviceValidationService;
         this.deviceClient = deviceClient;
         this.sessionRepository = sessionRepository;
         this.taskRepository = taskRepository;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     /** 运营账号补货开门（需 userId ≥ 100000000）。 */
     @Transactional
     public SessionDto openDoorForRestock(Long operatorUserId, OpsOpenDoorRequest request) {
         requireOperator(operatorUserId);
-        return openDoorForRestockAsUser(operatorUserId, request.deviceId(), request.taskId());
+        return self.openDoorForRestockAsUser(operatorUserId, request.deviceId(), request.taskId());
     }
 
     /**

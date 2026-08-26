@@ -43,6 +43,7 @@ class SystemConfigConcurrencyTest {
                 new QrProperties("", "", "", "", ""),
                 distributedLockService,
                 null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.config.RopProperties;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,10 +20,13 @@ public class SalesVelocityService {
 
     private final CabinetOrderLineMapper lineRepository;
     private final RopProperties ropProperties;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final SalesVelocityService self;
 
-    public SalesVelocityService(CabinetOrderLineMapper lineRepository, RopProperties ropProperties) {
+    public SalesVelocityService(CabinetOrderLineMapper lineRepository, RopProperties ropProperties, @Lazy SalesVelocityService self) {
         this.lineRepository = lineRepository;
         this.ropProperties = ropProperties;
+        this.self = self;
     }
 
     public record SkuVelocity(int soldQty7d, int soldQty14d, double avgDailySales, int ropPoint) {}
@@ -48,7 +52,7 @@ public class SalesVelocityService {
 
     @Transactional(readOnly = true)
     public SkuVelocity velocityFor(String deviceId, String skuId) {
-        return velocityBySku(deviceId).getOrDefault(skuId, new SkuVelocity(0, 0, 0, 0));
+        return self.velocityBySku(deviceId).getOrDefault(skuId, new SkuVelocity(0, 0, 0, 0));
     }
 
     private SkuVelocity toVelocity(int qty7, int qty14) {

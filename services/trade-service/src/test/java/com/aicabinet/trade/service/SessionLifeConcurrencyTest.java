@@ -32,6 +32,7 @@ class SessionLifeConcurrencyTest {
         service = new SessionService(
                 repository, null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, distributedLockService);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

@@ -25,7 +25,8 @@ class PromotionBudgetConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        promotionService = new PromotionService(repository, distributedLockService);
+        promotionService = new PromotionService(repository, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(promotionService, "self", promotionService);
     }
 
     @Test

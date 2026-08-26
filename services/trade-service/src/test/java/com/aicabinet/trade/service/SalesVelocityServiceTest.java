@@ -26,7 +26,8 @@ class SalesVelocityServiceTest {
 
     @BeforeEach
     void setUp() {
-        salesVelocityService = new SalesVelocityService(lineRepository, new RopProperties());
+        salesVelocityService = new SalesVelocityService(lineRepository, new RopProperties(), null);
+        org.springframework.test.util.ReflectionTestUtils.setField(salesVelocityService, "self", salesVelocityService);
     }
 
     @Test

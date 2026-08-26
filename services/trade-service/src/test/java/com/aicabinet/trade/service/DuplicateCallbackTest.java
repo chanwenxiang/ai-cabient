@@ -64,6 +64,7 @@ class DuplicateCallbackTest {
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
                 gravityHelper, restockSnapshotService, null, opsExceptionService, null, orderRepository,
                 null, null, null, null, distributedLockService);
+        org.springframework.test.util.ReflectionTestUtils.setField(sessionService, "self", sessionService);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyLong(),
@@ -72,7 +73,8 @@ class DuplicateCallbackTest {
                 disputeRepository, null, repository, null, null, null, null, null,
                 riskControlService, permissionService, null, null, null, null,
                 new DisputeSlaProperties(24, 12, "", false), null, opsExceptionService, null, null,
-                videoArchiveService, orderPaymentService, null);
+                videoArchiveService, orderPaymentService, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(disputeService, "self", disputeService);
     }
 
     @Test
