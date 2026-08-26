@@ -200,6 +200,9 @@ public class DevOpsHubService {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             return response.statusCode() >= 200 && response.statusCode() < 400;
         } catch (Exception ex) {
+            if (ex instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
             log.debug("DevOps health check failed for {}: {}", baseUrl, ex.getMessage());
             return false;
         }

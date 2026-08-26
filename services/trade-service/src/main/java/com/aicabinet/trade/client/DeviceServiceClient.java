@@ -41,24 +41,30 @@ public class DeviceServiceClient {
 
     public String requestSetTargetTemp(String deviceId, int targetTempC) {
         log.info("request set target temp: device={}, target={}", deviceId, targetTempC);
-        return restClient.post()
+        SetTargetTempResponse body = restClient.post()
                 .uri("/internal/v1/devices/{deviceId}/set-target-temp", deviceId)
                 .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
                 .body(new SetTargetTempRequest(targetTempC))
                 .retrieve()
-                .body(SetTargetTempResponse.class)
-                .commandId();
+                .body(SetTargetTempResponse.class);
+        if (body == null || body.commandId() == null) {
+            throw new IllegalStateException("device-service set-target-temp returned empty body");
+        }
+        return body.commandId();
     }
 
     public String requestOpsCommand(String deviceId, String command) {
         log.info("request ops command: device={}, command={}", deviceId, command);
-        return restClient.post()
+        OpsCommandResponse body = restClient.post()
                 .uri("/internal/v1/devices/{deviceId}/ops-command", deviceId)
                 .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
                 .body(new OpsCommandRequest(command))
                 .retrieve()
-                .body(OpsCommandResponse.class)
-                .commandId();
+                .body(OpsCommandResponse.class);
+        if (body == null || body.commandId() == null) {
+            throw new IllegalStateException("device-service ops-command returned empty body");
+        }
+        return body.commandId();
     }
 
     record OpenDoorRequest(String sessionId, Long userId, boolean operatorMode) {}

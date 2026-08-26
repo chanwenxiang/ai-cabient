@@ -225,18 +225,18 @@ public class DemoDataService {
         }
         LocalDate today = LocalDate.now();
         for (DemoWhSeed seed : DEMO_WAREHOUSE_LOTS) {
-            warehouseInventoryRepository
+            if (warehouseInventoryRepository
                     .findByWarehouseIdAndSkuIdAndBatchNo(DEMO_WAREHOUSE_ID, seed.skuId(), seed.batchNo())
-                    .orElseGet(() -> {
-                        WarehouseInventory lot = new WarehouseInventory();
-                        lot.setWarehouseId(DEMO_WAREHOUSE_ID);
-                        lot.setSkuId(seed.skuId());
-                        lot.setBatchNo(seed.batchNo());
-                        lot.setProductionDate(today.minusDays(seed.productionDaysAgo()));
-                        lot.setExpiryDate(today.plusDays(seed.expiryDaysAhead()));
-                        lot.setQuantity(seed.quantity());
-                        return warehouseInventoryRepository.save(lot);
-                    });
+                    .isEmpty()) {
+                WarehouseInventory lot = new WarehouseInventory();
+                lot.setWarehouseId(DEMO_WAREHOUSE_ID);
+                lot.setSkuId(seed.skuId());
+                lot.setBatchNo(seed.batchNo());
+                lot.setProductionDate(today.minusDays(seed.productionDaysAgo()));
+                lot.setExpiryDate(today.plusDays(seed.expiryDaysAhead()));
+                lot.setQuantity(seed.quantity());
+                warehouseInventoryRepository.save(lot);
+            }
         }
     }
 

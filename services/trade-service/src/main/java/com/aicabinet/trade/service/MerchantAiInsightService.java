@@ -61,6 +61,9 @@ public class MerchantAiInsightService {
             if (response.statusCode() / 100 != 2 || text.isBlank()) throw new IllegalStateException("empty Ollama response");
             return new MerchantAiInsightDto("OLLAMA", model, text, Instant.now(), rows);
         } catch (Exception ignored) {
+            if (ignored instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
             return new MerchantAiInsightDto("RULE", null, fallback, Instant.now(), rows);
         }
     }

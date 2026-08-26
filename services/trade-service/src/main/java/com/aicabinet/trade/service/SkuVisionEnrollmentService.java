@@ -310,10 +310,14 @@ public class SkuVisionEnrollmentService {
         if (skuName == null || skuName.isBlank()) {
             return "sku_unknown";
         }
-        String slug = skuName.trim().toLowerCase(Locale.ROOT)
-                .replaceAll("[^a-z0-9\\u4e00-\\u9fff]+", "_")
-                .replaceAll("_+", "_")
-                .replaceAll("^_|_$", "");
+        String slug = collapseSlugUnderscores(
+                skuName.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9\\u4e00-\\u9fff]+", "_"));
+        while (slug.startsWith("_")) {
+            slug = slug.substring(1);
+        }
+        while (slug.endsWith("_")) {
+            slug = slug.substring(0, slug.length() - 1);
+        }
         if (slug.isBlank()) {
             return "sku_unknown";
         }
@@ -321,6 +325,28 @@ public class SkuVisionEnrollmentService {
             slug = slug.substring(0, 48);
         }
         return slug;
+    }
+
+    /** 合并连续下划线，避免 ReDoS 敏感的正则 `_+`。 */
+    private static String collapseSlugUnderscores(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder(raw.length());
+        boolean prevUnderscore = false;
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            if (c == '_') {
+                if (!prevUnderscore) {
+                    out.append('_');
+                }
+                prevUnderscore = true;
+            } else {
+                out.append(c);
+                prevUnderscore = false;
+            }
+        }
+        return out.toString();
     }
 
     private SkuVisionContextItemDto toContextItem(SkuCatalog sku, int qty) {

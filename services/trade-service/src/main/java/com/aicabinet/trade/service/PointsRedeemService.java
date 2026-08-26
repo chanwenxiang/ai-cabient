@@ -120,8 +120,9 @@ public class PointsRedeemService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "兑换繁忙，请稍后重试");
         }
         try {
-            memberService.getMemberByUserId(userId)
-                    .orElseGet(() -> memberService.createMember(userId));
+            if (memberService.getMemberByUserId(userId).isEmpty()) {
+                memberService.createMember(userId);
+            }
             Member member = memberRepository.findByUserIdForUpdate(userId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "会员不存在"));
             PointsRedeemItem item = redeemItemRepository.findById(itemId)

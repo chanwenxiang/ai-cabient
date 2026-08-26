@@ -111,7 +111,7 @@ public class WarehouseBinService {
         permissionService.requirePermission(operatorId, "ops:warehouse:edit");
         String wh = required(request.warehouseId(), "warehouseId").trim();
         String binCode = required(request.binCode(), "binCode").trim();
-        int qty = request.quantity() != null ? request.quantity() : 0;
+        int qty = request.quantity();
         if (qty <= 0) {
             throw badRequest("quantity must be positive");
         }
@@ -143,7 +143,7 @@ public class WarehouseBinService {
         if (request.fromBinId().equals(request.toBinId())) {
             throw badRequest("from and to bin must differ");
         }
-        int qty = request.quantity() != null ? request.quantity() : 0;
+        int qty = request.quantity();
         if (qty <= 0) {
             throw badRequest("quantity must be positive");
         }

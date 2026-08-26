@@ -248,6 +248,9 @@ private final UserInfoMapper userInfoRepository;
         if (reason.length() < 4) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写至少 4 字退款原因");
         }
+        if (request == null || request.lines() == null || request.lines().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请指定退款明细行");
+        }
         boolean defaultRestore = RefundInventoryPolicy.resolve(
                 request.restoreInventory(), reason, !operator);
         var outcome = settlementService.partialRefund(order, request.lines(), defaultRestore, reason);
@@ -497,7 +500,7 @@ private final UserInfoMapper userInfoRepository;
             case "WAIVE" -> resolveWaive(operatorId, ticket, session,
                     request != null ? request.restoreInventory() : null);
             case "ADJUST", "CONFIRM" -> resolveConfirm(operatorId, ticket, session, request, resolutionType);
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
+            default -> throw new IllegalStateException("unexpected resolution: " + resolutionType); // NOSONAR java:S2583
         };
 
         opsExceptionService.resolveOpenForSession(operatorId, session.getSessionId(),
@@ -847,7 +850,7 @@ private final UserInfoMapper userInfoRepository;
             case "WAIVE" -> resolveWaive(userId, ticket, session,
                     request != null ? request.restoreInventory() : null);
             case "CONFIRM" -> resolveConfirm(userId, ticket, session, request, "CONFIRM");
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
+            default -> throw new IllegalStateException("unexpected resolution: " + resolutionType); // NOSONAR java:S2583
         };
         opsExceptionService.resolveOpenForSession(userId, session.getSessionId(),
                 "商户争议结案(" + resolutionType + ")同步关闭异常");

@@ -151,7 +151,7 @@ public class WarehouseStocktakeService {
         if (!line.getStocktakeId().equals(stocktakeId)) {
             throw badRequest("line does not belong to stocktake");
         }
-        int counted = request.countedQty() != null ? request.countedQty() : 0;
+        int counted = request.countedQty();
         if (counted < 0) {
             throw badRequest("countedQty must be >= 0");
         }

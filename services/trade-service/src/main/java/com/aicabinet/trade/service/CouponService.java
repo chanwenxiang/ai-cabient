@@ -461,12 +461,13 @@ public class CouponService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权使用该优惠券");
         }
         if (orderId != null && !orderId.isBlank()) {
-            for (UserCoupon existing : userCouponRepository.findByOrderIdAndStatus(orderId, "USED")) {
-                if (existing.getCouponId().equals(couponId)) {
-                    log.info("coupon already marked used userId={} couponId={} order={}",
-                            userId, couponId, orderId);
-                    return;
-                }
+            var usedOnOrder = userCouponRepository.findByOrderIdAndStatus(orderId, "USED");
+            if (usedOnOrder.stream().anyMatch(existing -> existing.getCouponId().equals(couponId))) {
+                log.info("coupon already marked used userId={} couponId={} order={}",
+                        userId, couponId, orderId);
+                return;
+            }
+            if (!usedOnOrder.isEmpty()) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "订单已核销其他优惠券");
             }
         }
