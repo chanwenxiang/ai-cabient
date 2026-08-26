@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.PaymentReconciliation;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +26,27 @@ public interface PaymentReconciliationMapper extends BaseTradeMapper<PaymentReco
     default long countByStatus(String status) {
     Long c = selectCount(Wrappers.<PaymentReconciliation>lambdaQuery().eq(PaymentReconciliation::getStatus, status));
     return c == null ? 0 : c;
+    }
+
+    /** page 为 0-based。 */
+    default Page<PaymentReconciliation> searchPage(LocalDate from, LocalDate to, String channel,
+                                                     String status, String keyword, int page, int size) {
+        var q = Wrappers.<PaymentReconciliation>lambdaQuery()
+                .between(PaymentReconciliation::getReconDate, from, to)
+                .orderByDesc(PaymentReconciliation::getReconDate);
+        if (channel != null && !channel.isBlank()) {
+            q.eq(PaymentReconciliation::getChannel, channel.trim().toUpperCase());
+        }
+        if (status != null && !status.isBlank()) {
+            q.eq(PaymentReconciliation::getStatus, status.trim().toUpperCase());
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            String kw = keyword.trim();
+            q.and(w -> w.apply("CAST(recon_id AS TEXT) LIKE {0}", "%" + kw + "%")
+                    .or().apply("recon_date::text LIKE {0}", "%" + kw + "%")
+                    .or().like(PaymentReconciliation::getChannel, kw));
+        }
+        return selectPage(new Page<>(page + 1L, size), q);
     }
 
 }
