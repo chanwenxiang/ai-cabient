@@ -14,7 +14,6 @@ if (-not $SonarToken) {
   Write-Error "SONAR_TOKEN is required. Create a token in SonarQube UI and set env SONAR_TOKEN."
 }
 
-# Community Edition 不支持多分支：用两个项目分别跟踪 dev / main
 $projectKey = if ($Branch -eq "main") { "ai-cabinet-main" } else { "ai-cabinet-dev" }
 $projectName = if ($Branch -eq "main") { "AI Cabinet (main)" } else { "AI Cabinet (dev)" }
 
@@ -28,33 +27,46 @@ $mvn = if (Test-Path "D:\devTools\apache-maven-3.9.16\bin\mvn.cmd") {
   "mvn"
 }
 
-Write-Host "==> 1/3 Compile + unit tests + Jacoco..." -ForegroundColor Cyan
+$scanner = if (Test-Path "D:\devTools\sonar-scanner\bin\sonar-scanner.bat") {
+  "D:\devTools\sonar-scanner\bin\sonar-scanner.bat"
+} else {
+  "sonar-scanner"
+}
+
+Write-Host "==> 1/4 Compile + unit tests + Jacoco..." -ForegroundColor Cyan
 & $mvn -B "-Dmaven.test.failure.ignore=true" test jacoco:report `
   "-pl" "services/trade-service,services/device-service,services/common/common-core" "-am"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-# mvn sonar:sonar 会读 sonar-project.properties，一并扫描三个前端模块
-Write-Host "==> 2/3 Ensure quality gate (AI Cabinet)..." -ForegroundColor Cyan
+Write-Host "==> 2/4 Copy compile deps for Sonar java.libraries..." -ForegroundColor Cyan
+foreach ($mod in @(
+    "services/trade-service",
+    "services/device-service",
+    "services/common/common-core"
+  )) {
+  & $mvn -B -q -f "$mod/pom.xml" dependency:copy-dependencies `
+    "-DincludeScope=compile" "-DoutputDirectory=target/dependency"
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
+Write-Host "==> 3/4 Ensure quality gate (AI Cabinet)..." -ForegroundColor Cyan
 & "$PSScriptRoot\setup-sonar-quality-gate.ps1" -SonarHostUrl $SonarHostUrl -SonarToken $SonarToken
 
-Write-Host "==> 3/3 Sonar scan (mvn sonar:sonar, Java + admin-vue + consumer-mp + merchant-mp) key=$projectKey ..." -ForegroundColor Cyan
+Write-Host "==> 4/4 Sonar scan (sonar-scanner + sonar-project.properties) key=$projectKey ..." -ForegroundColor Cyan
 if ($scmRevision) { Write-Host "scm.revision=$scmRevision" }
 
-$mvnArgs = @(
-  "-B", "sonar:sonar",
-  "-DskipTests",
+$scannerArgs = @(
   "-Dsonar.projectKey=$projectKey",
   "-Dsonar.projectName=$projectName",
   "-Dsonar.host.url=$SonarHostUrl",
   "-Dsonar.token=$SonarToken",
-  "-Dsonar.qualitygate.wait=true",
-  "-pl", "services/trade-service,services/device-service,services/common/common-core", "-am"
+  "-Dsonar.qualitygate.wait=true"
 )
 if ($scmRevision) {
-  $mvnArgs += "-Dsonar.scm.revision=$scmRevision"
+  $scannerArgs += "-Dsonar.scm.revision=$scmRevision"
 }
 
-& $mvn @mvnArgs
+& $scanner @scannerArgs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "Sonar scan submitted: http://localhost:19002/dashboard?id=$projectKey" -ForegroundColor Green
