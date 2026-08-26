@@ -194,13 +194,13 @@ public class ProcurementService {
             approvalWorkflowService.completeRejected(operatorId, BIZ_PURCHASE_ORDER, bizId, trimToNull(remark));
             order.setStatus("REJECTED");
             purchaseOrderRepository.save(order);
-            auditService.record(operatorId, "PURCHASE_ORDER_REJECT", "PURCHASE_ORDER", bizId, trimToNull(remark));
+            auditService.record(operatorId, "PURCHASE_ORDER_REJECT", BIZ_PURCHASE_ORDER, bizId, trimToNull(remark));
             return toPurchaseDto(order);
         }
         approvalWorkflowService.completeApproved(operatorId, BIZ_PURCHASE_ORDER, bizId, trimToNull(remark));
         if (approvalWorkflowService.isInstanceApproved(BIZ_PURCHASE_ORDER, bizId)) {
             order.setStatus("CREATED");
-            auditService.record(operatorId, "PURCHASE_ORDER_APPROVE", "PURCHASE_ORDER", bizId, "审批通过");
+            auditService.record(operatorId, "PURCHASE_ORDER_APPROVE", BIZ_PURCHASE_ORDER, bizId, "审批通过");
         } else {
             auditService.record(operatorId, "PURCHASE_ORDER_APPROVE", "PURCHASE_ORDER", bizId, "审批节点通过");
         }

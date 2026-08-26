@@ -128,7 +128,7 @@ public class MerchantWithdrawService {
             } else {
                 merchantWalletService.debit(merchantId, -amountCents, "ADJUST", "OPS_ADJUST", refId, note);
             }
-            auditService.record(operatorId, "MERCHANT_WALLET_ADJUST", "MERCHANT_WALLET", merchantId,
+            auditService.record(operatorId, BIZ_WALLET_ADJUST, "MERCHANT_WALLET", merchantId,
                     "金额(分)=" + amountCents + "；备注=" + note);
             if (Math.abs(amountCents) >= properties.reviewThresholdCents()) {
                 approvalWorkflowService.start(
@@ -231,7 +231,7 @@ public class MerchantWithdrawService {
             withdrawMapper.updateById(request);
             merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
                     WITHDRAW, String.valueOf(request.getRequestId()), "提现驳回释放");
-            auditService.record(operatorId, MERCHANT_WITHDRAW_REVIEW, "MERCHANT_WITHDRAW",
+            auditService.record(operatorId, MERCHANT_WITHDRAW_REVIEW, BIZ_MERCHANT_WITHDRAW,
                     String.valueOf(request.getRequestId()), "驳回；金额(分)=" + request.getAmountCents()
                             + "；备注=" + trim(remark));
             return toDto(request);
@@ -240,13 +240,13 @@ public class MerchantWithdrawService {
                 operatorId, BIZ_MERCHANT_WITHDRAW, String.valueOf(request.getRequestId()), trim(remark));
         if (!approvalWorkflowService.isInstanceApproved(
                 BIZ_MERCHANT_WITHDRAW, String.valueOf(request.getRequestId()))) {
-            auditService.record(operatorId, MERCHANT_WITHDRAW_REVIEW, "MERCHANT_WITHDRAW",
+            auditService.record(operatorId, MERCHANT_WITHDRAW_REVIEW, BIZ_MERCHANT_WITHDRAW,
                     String.valueOf(request.getRequestId()), "初审通过；金额(分)=" + request.getAmountCents());
             return toDto(request);
         }
         request.setStatus(STATUS_APPROVED);
         withdrawMapper.updateById(request);
-        auditService.record(operatorId, MERCHANT_WITHDRAW_REVIEW, "MERCHANT_WITHDRAW",
+        auditService.record(operatorId, MERCHANT_WITHDRAW_REVIEW, BIZ_MERCHANT_WITHDRAW,
                 String.valueOf(request.getRequestId()), "通过；金额(分)=" + request.getAmountCents()
                         + "；备注=" + trim(remark));
         return attemptPayout(request, operatorId);
@@ -260,7 +260,7 @@ public class MerchantWithdrawService {
             if (!Set.of(STATUS_APPROVED, "FAILED").contains(request.getStatus())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可打款");
             }
-            auditService.record(operatorId, "MERCHANT_WITHDRAW_PAYOUT", "MERCHANT_WITHDRAW",
+            auditService.record(operatorId, "MERCHANT_WITHDRAW_PAYOUT", BIZ_MERCHANT_WITHDRAW,
                     String.valueOf(requestId), "打款金额(分)=" + request.getAmountCents());
             return attemptPayout(request, operatorId);
         });

@@ -135,7 +135,7 @@ public class LineWithdrawService {
             withdrawMapper.updateById(request);
             lineWalletService.releaseFrozen(request.getManagerId(), request.getAmountCents(),
                     WITHDRAW, String.valueOf(request.getRequestId()), "提现驳回释放");
-            auditService.record(operatorId, LINE_WITHDRAW_REVIEW, "LINE_WITHDRAW",
+            auditService.record(operatorId, LINE_WITHDRAW_REVIEW, BIZ_LINE_WITHDRAW,
                     String.valueOf(request.getRequestId()), "驳回；金额(分)=" + request.getAmountCents()
                             + "；备注=" + trim(remark));
             return toDto(request);
@@ -144,13 +144,13 @@ public class LineWithdrawService {
                 operatorId, BIZ_LINE_WITHDRAW, String.valueOf(request.getRequestId()), trim(remark));
         if (!approvalWorkflowService.isInstanceApproved(
                 BIZ_LINE_WITHDRAW, String.valueOf(request.getRequestId()))) {
-            auditService.record(operatorId, LINE_WITHDRAW_REVIEW, "LINE_WITHDRAW",
+            auditService.record(operatorId, LINE_WITHDRAW_REVIEW, BIZ_LINE_WITHDRAW,
                     String.valueOf(request.getRequestId()), "初审通过；金额(分)=" + request.getAmountCents());
             return toDto(request);
         }
         request.setStatus(STATUS_APPROVED);
         withdrawMapper.updateById(request);
-        auditService.record(operatorId, LINE_WITHDRAW_REVIEW, "LINE_WITHDRAW",
+        auditService.record(operatorId, LINE_WITHDRAW_REVIEW, BIZ_LINE_WITHDRAW,
                 String.valueOf(request.getRequestId()), "通过；金额(分)=" + request.getAmountCents()
                         + "；备注=" + trim(remark));
         return attemptPayout(request, operatorId);
@@ -164,7 +164,7 @@ public class LineWithdrawService {
             if (!Set.of(STATUS_APPROVED, "FAILED").contains(request.getStatus())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可打款");
             }
-            auditService.record(operatorId, "LINE_WITHDRAW_PAYOUT", "LINE_WITHDRAW",
+            auditService.record(operatorId, "LINE_WITHDRAW_PAYOUT", BIZ_LINE_WITHDRAW,
                     String.valueOf(requestId), "打款金额(分)=" + request.getAmountCents());
             return attemptPayout(request, operatorId);
         });

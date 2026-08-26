@@ -26,7 +26,7 @@ public class SessionMdcFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String sessionId = request.getHeader(HEADER_SESSION_ID);
         if (sessionId == null || sessionId.isBlank()) {
-            sessionId = request.getParameter("sessionId");
+            sessionId = request.getParameter(MDC_SESSION_ID);
         }
         if (sessionId != null && !sessionId.isBlank()) {
             MDC.put(MDC_SESSION_ID, sessionId);
