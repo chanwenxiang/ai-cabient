@@ -11,30 +11,49 @@
 
 本仓库已在 `.vscode/extensions.json` 里推荐该扩展，Cursor 会提示安装。
 
-## 2. 连接本机 SonarQube（Connected Mode）
+## 2. 连接本机 SonarQube（Connected Mode + MCP）
 
-先确保 SonarQube 已启动（`.\docker-up.ps1 -DevOps`），并在 Sonar 生成 **User Token**（My Account → Security）。
+先确保 SonarQube 已启动：`.\docker-up.ps1 -DevOps`。  
+官方 `mcp/sonarqube` 要求 **Community Build ≥ 25.1**（本仓 `infra/docker-compose.devops.yml` 使用 `sonarqube:25.12.0.117093-community`）。
 
-在 **用户设置**（不要提交 Token）里加入：
+### 2.1 给 AI 用的 SonarQube MCP（推荐，避开 Webview）
+
+Cursor 侧栏「Configure SonarQube MCP」容易触发 Webview / Service Worker 报错。**不要点那个按钮**，直接改用户级 MCP 配置：
+
+文件：`%USERPROFILE%\.cursor\mcp.json`
 
 ```json
-{
-  "sonarlint.connectedMode.connections.sonarqube": [
-    {
-      "connectionId": "ai-cabinet-local",
-      "serverUrl": "http://localhost:19002",
-      "token": "<你的 SONAR_TOKEN>"
-    }
-  ]
+"sonarqube": {
+  "command": "docker",
+  "args": ["run", "-i", "--rm", "--init", "--pull=always", "-e", "SONARQUBE_TOKEN", "-e", "SONARQUBE_URL", "mcp/sonarqube"],
+  "env": {
+    "SONARQUBE_TOKEN": "<infra/.env 里的 SONAR_TOKEN>",
+    "SONARQUBE_URL": "http://host.docker.internal:19002"
+  }
 }
 ```
 
-工作区已配置项目绑定（见 `.vscode/settings.json`）：
+注意：Token **不要**写成字符串 `"null"`；Docker 访问本机 Sonar 须用 `host.docker.internal`，不能用容器内的 `localhost`。
+
+若误点侧栏「Configure SonarQube MCP」并出现 *doesn't have a token configured*：
+
+1. 弹窗选 **Cancel**（不要 Proceed Anyway），或已经写坏了就跑：
+   ```powershell
+   .\scripts\devops\fix-sonarqube-mcp.ps1
+   ```
+2. `Ctrl+Shift+P` → **Developer: Reload Window**
+3. 若弹出 *Migrate tokens to secure storage* → 点 **Migrate**
+
+改完后也可在 **Cursor Settings → MCP** 刷新 `sonarqube`。
+
+### 2.2 IDE 波浪线（SonarLint Connected Mode）
+
+工作区已绑定（`.vscode/settings.json` + `.sonarlint/connectedMode.json`）：
 
 - 连接 ID：`ai-cabinet-local`
-- 项目 Key：`ai-cabinet-dev`（main 分支可改为 `ai-cabinet-main`）
+- 项目 Key：`ai-cabinet-dev`
 
-保存后 SonarLint 会同步服务端规则与质量配置，打开 Java/Vue/TS 文件即可看到波浪线提示。
+用户设置里保留连接（Token 用 `infra/.env` 的 `SONAR_TOKEN`）。若侧栏 Webview 报错，忽略 UI，以文件配置为准。
 
 ## 3. 和全量扫描的分工
 

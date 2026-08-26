@@ -138,9 +138,14 @@ $env:GITHUB_RUNNER_TOKEN = "<一次性 registration token>"
 
 Runner 标签：`self-hosted`, `linux`, `ai-cabinet`（与 `sonar.yml` 中 `runs-on` 一致）。
 
+## SonarQube 版本（MCP）
+
+镜像：`sonarqube:25.12.0.117093-community`（Community Build 25.x）。  
+官方 `mcp/sonarqube` 要求 **≥ 25.1**；从旧版 10.x 升级需清空 `sonarqube_*` / `sonarqube_pg` 卷后重建（本地 DevOps 可接受，项目数据靠重新扫描恢复）。
+
 ## SonarQube 中文界面
 
-已内置中文包插件：`infra/sonarqube/plugins/sonar-l10n-zh-plugin-10.4.jar`（compose 自动挂载）。
+已内置中文包插件：`infra/sonarqube/plugins/sonar-l10n-zh-plugin-25.12.jar`（与 Community Build 25.12 对齐，compose 自动挂载）。
 
 1. 打开 http://localhost:19002 ，登录 admin
 2. 右上角 **A → My Account（我的账户）→ Preferences（偏好设置）**
