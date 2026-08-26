@@ -28,7 +28,9 @@
       :default-sort="idDefaultSort"
       @sort-change="onIdSortChange"
     >
-      <template #empty><el-empty v-if="listHydrated && !loading" description="暂无消息记录" /></template>
+      <template #empty
+        ><el-empty v-if="listHydrated && !loading" description="暂无消息记录"
+      /></template>
       <el-table-column
         prop="id"
         label="ID"
