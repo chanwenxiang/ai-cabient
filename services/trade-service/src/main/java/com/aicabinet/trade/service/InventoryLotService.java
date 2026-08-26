@@ -17,6 +17,7 @@ import com.aicabinet.trade.mapper.PullOffTaskMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +41,7 @@ public class InventoryLotService {
     private final PullOffTaskMapper pullOffTaskRepository;
     private final DeviceSlotMapper slotRepository;
     private final DistributedLockService distributedLockService;
+    private final InventoryLotService self;
 
     public InventoryLotService(DeviceSkuLotMapper lotRepository,
                                InventoryMovementMapper movementRepository,
@@ -47,7 +49,8 @@ public class InventoryLotService {
                                SkuCatalogMapper skuCatalogRepository,
                                PullOffTaskMapper pullOffTaskRepository,
                                DeviceSlotMapper slotRepository,
-                               DistributedLockService distributedLockService) {
+                               DistributedLockService distributedLockService,
+                               @Lazy InventoryLotService self) {
         this.lotRepository = lotRepository;
         this.movementRepository = movementRepository;
         this.inventoryRepository = inventoryRepository;
@@ -55,6 +58,7 @@ public class InventoryLotService {
         this.pullOffTaskRepository = pullOffTaskRepository;
         this.slotRepository = slotRepository;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     public boolean hasSellableLots(String deviceId, String skuId) {
@@ -105,7 +109,7 @@ public class InventoryLotService {
     /** FEFO 扣减，返回主批次号与按货道扣减数量。 */
     @Transactional
     public FefoDeductResult deductFefo(String deviceId, String skuId, int quantity, String refType, String refId) {
-        return deductFefo(deviceId, skuId, quantity, refType, refId, null);
+        return self.deductFefo(deviceId, skuId, quantity, refType, refId, null);
     }
 
     @Transactional
@@ -163,7 +167,7 @@ public class InventoryLotService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "sellable lot inventory insufficient for sku=" + skuId + " need=" + quantity);
         }
-        syncAggregateInventory(deviceId, skuId);
+        self.syncAggregateInventory(deviceId, skuId);
         return new FefoDeductResult(primaryBatch, slotQty);
     }
 
@@ -260,7 +264,7 @@ public class InventoryLotService {
         }
         lotRepository.save(lot);
         recordMovement(deviceId, skuId, batchNo, "REFUND", quantity, refType, refId, null);
-        syncAggregateInventory(deviceId, skuId);
+        self.syncAggregateInventory(deviceId, skuId);
         return lot.getSlotId();
     }
 
@@ -312,7 +316,7 @@ public class InventoryLotService {
         }
         lotRepository.save(lot);
         recordMovement(deviceId, skuId, resolvedBatch, "RESTOCK", quantity, "REPLENISH", refId, operatorId);
-        syncAggregateInventory(deviceId, skuId);
+        self.syncAggregateInventory(deviceId, skuId);
         log.info("restock lot device={} sku={} batch={} qty={}", deviceId, skuId, resolvedBatch, quantity);
     }
 
@@ -335,7 +339,7 @@ public class InventoryLotService {
         } else {
             deductFefoForRef(deviceId, skuId, quantity, "PULL_OFF", "REPLENISH", refId, operatorId);
         }
-        syncAggregateInventory(deviceId, skuId);
+        self.syncAggregateInventory(deviceId, skuId);
     }
 
     @Transactional
@@ -357,7 +361,7 @@ public class InventoryLotService {
         } else {
             deductFefoForRef(deviceId, skuId, quantity, "WRITE_OFF", "WRITE_OFF", refId, operatorId);
         }
-        syncAggregateInventory(deviceId, skuId);
+        self.syncAggregateInventory(deviceId, skuId);
     }
 
     /**
@@ -394,7 +398,7 @@ public class InventoryLotService {
                 : inventoryRepository.findById(id).map(DeviceSkuInventory::getQuantity).orElse(0);
         int delta = countedQuantity - current;
         if (delta == 0) {
-            syncAggregateInventory(deviceId, skuId);
+            self.syncAggregateInventory(deviceId, skuId);
             return;
         }
         if (delta > 0) {
@@ -406,7 +410,7 @@ public class InventoryLotService {
         } else {
             deductFefoForRef(deviceId, skuId, -delta, "ADJ", "STOCKTAKE", refId, operatorId);
         }
-        syncAggregateInventory(deviceId, skuId);
+        self.syncAggregateInventory(deviceId, skuId);
     }
 
     /**
@@ -465,7 +469,7 @@ public class InventoryLotService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "货道 " + slot + " 账面不足以盘亏，差额 " + remaining);
         }
-        syncAggregateInventory(deviceId, skuId);
+        self.syncAggregateInventory(deviceId, skuId);
     }
 
     @Transactional
@@ -666,7 +670,7 @@ public class InventoryLotService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "货道 " + from + " 可挪库存不足，还差 " + remaining);
         }
-        syncAggregateInventory(deviceId, skuId);
+        self.syncAggregateInventory(deviceId, skuId);
     }
 
     /** 盘点/实盘目标数量不得超过货道容量。 */

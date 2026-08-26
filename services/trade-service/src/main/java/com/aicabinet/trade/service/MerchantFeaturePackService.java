@@ -6,6 +6,7 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,13 +28,16 @@ public class MerchantFeaturePackService {
     private final MerchantMapper merchantRepository;
     private final DeviceInfoMapper deviceRepository;
     private final MerchantScopeService merchantScopeService;
+    private final MerchantFeaturePackService self;
 
     public MerchantFeaturePackService(MerchantMapper merchantRepository,
                                       DeviceInfoMapper deviceRepository,
-                                      MerchantScopeService merchantScopeService) {
+                                      MerchantScopeService merchantScopeService,
+                                      @Lazy MerchantFeaturePackService self) {
         this.merchantRepository = merchantRepository;
         this.deviceRepository = deviceRepository;
         this.merchantScopeService = merchantScopeService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -69,7 +73,7 @@ public class MerchantFeaturePackService {
         if (pack == null) {
             return true;
         }
-        return enabledPacksForUser(userId).contains(pack);
+        return self.enabledPacksForUser(userId).contains(pack);
     }
 
     @Transactional(readOnly = true)
@@ -77,7 +81,7 @@ public class MerchantFeaturePackService {
         if (permissions == null || permissions.isEmpty()) {
             return List.of();
         }
-        Set<String> packs = enabledPacksForUser(userId);
+        Set<String> packs = self.enabledPacksForUser(userId);
         List<String> out = new ArrayList<>(permissions.size());
         for (String p : permissions) {
             if (MerchantFeaturePacks.isPackAgnostic(p)) {
@@ -94,14 +98,14 @@ public class MerchantFeaturePackService {
 
     @Transactional(readOnly = true)
     public List<String> enabledPacksList(Long userId) {
-        return enabledPacksForUser(userId).stream().sorted().collect(Collectors.toList());
+        return self.enabledPacksForUser(userId).stream().sorted().collect(Collectors.toList());
     }
 
     /** 数据范围 ∩ 开了指定功能包的商户；null 表示全局（运营）。 */
     @Transactional(readOnly = true)
     public Set<String> allowedMerchantIdsForPack(Long userId, String pack) {
         Set<String> allowed = merchantScopeService.allowedMerchantIds(userId);
-        return filterMerchantIdsByPack(allowed, pack);
+        return self.filterMerchantIdsByPack(allowed, pack);
     }
 
     @Transactional(readOnly = true)
@@ -123,7 +127,7 @@ public class MerchantFeaturePackService {
 
     @Transactional(readOnly = true)
     public List<DeviceInfo> allowedDevicesForPack(Long userId, String pack) {
-        Set<String> merchantIds = allowedMerchantIdsForPack(userId, pack);
+        Set<String> merchantIds = self.allowedMerchantIdsForPack(userId, pack);
         Set<String> byMerchant;
         if (merchantIds == null) {
             byMerchant = null;
@@ -146,7 +150,7 @@ public class MerchantFeaturePackService {
 
     @Transactional(readOnly = true)
     public Set<String> allowedDeviceIdsForPack(Long userId, String pack) {
-        Set<String> merchantIds = allowedMerchantIdsForPack(userId, pack);
+        Set<String> merchantIds = self.allowedMerchantIdsForPack(userId, pack);
         Set<String> byMerchant;
         if (merchantIds == null) {
             byMerchant = null;
@@ -164,10 +168,10 @@ public class MerchantFeaturePackService {
     /** 与 {@link MerchantScopeService#intersectDeviceFilter} 相同语义，但限制在功能包内。 */
     @Transactional(readOnly = true)
     public Collection<String> intersectDeviceFilterForPack(Long userId, String requestedDeviceId, String pack) {
-        Set<String> allowed = allowedDeviceIdsForPack(userId, pack);
+        Set<String> allowed = self.allowedDeviceIdsForPack(userId, pack);
         if (requestedDeviceId != null && !requestedDeviceId.isBlank()) {
             String dev = requestedDeviceId.trim();
-            requireDevicePack(userId, dev, pack);
+            self.requireDevicePack(userId, dev, pack);
             return List.of(dev);
         }
         if (allowed == null) {
@@ -183,7 +187,7 @@ public class MerchantFeaturePackService {
         if (device == null || device.getMerchantId() == null || device.getMerchantId().isBlank()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED);
         }
-        Set<String> packMerchants = allowedMerchantIdsForPack(userId, pack);
+        Set<String> packMerchants = self.allowedMerchantIdsForPack(userId, pack);
         if (packMerchants != null && !packMerchants.contains(device.getMerchantId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "该商户未开通对应功能包");
         }
@@ -192,7 +196,7 @@ public class MerchantFeaturePackService {
     @Transactional(readOnly = true)
     public void requireMerchantPack(Long userId, String merchantId, String pack) {
         merchantScopeService.requireMerchantAccess(userId, merchantId);
-        Set<String> packMerchants = allowedMerchantIdsForPack(userId, pack);
+        Set<String> packMerchants = self.allowedMerchantIdsForPack(userId, pack);
         if (packMerchants != null && (merchantId == null || !packMerchants.contains(merchantId))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "该商户未开通对应功能包");
         }

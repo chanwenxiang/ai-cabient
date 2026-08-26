@@ -46,7 +46,7 @@ class WarehouseStockConcurrencyTest {
         service = new WarehouseService(warehouseRepository, inventoryRepository,
                 inboundRepository, inboundLineRepository, outboundRepository, outboundLineRepository,
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
-                deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService);
+                deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService, null);
     }
 
     @Test

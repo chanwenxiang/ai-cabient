@@ -5,6 +5,7 @@ import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,8 @@ public class DeviceSlotService {
     private final InventoryLotService inventoryLotService;
     private final MerchantOpsPolicyService opsPolicyService;
     private final DistributedLockService distributedLockService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final DeviceSlotService self;
 
     public DeviceSlotService(DeviceSlotMapper slotRepository,
                              DeviceSkuLotMapper lotRepository,
@@ -46,7 +49,8 @@ public class DeviceSlotService {
                              RefundPolicyService refundPolicyService,
                              InventoryLotService inventoryLotService,
                              MerchantOpsPolicyService opsPolicyService,
-                             DistributedLockService distributedLockService) {
+                             DistributedLockService distributedLockService,
+                             @Lazy DeviceSlotService self) {
         this.slotRepository = slotRepository;
         this.lotRepository = lotRepository;
         this.deviceRepository = deviceRepository;
@@ -60,13 +64,14 @@ public class DeviceSlotService {
         this.inventoryLotService = inventoryLotService;
         this.opsPolicyService = opsPolicyService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
     public DeviceDetailDto getDeviceDetail(Long operatorId, String deviceId) {
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         DeviceInfo device = requireDevice(deviceId);
-        Map<String, Integer> bookBySlot = loadBookQtyBySlot(deviceId);
+        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
         List<DeviceSlot> slots = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId);
         List<DeviceSlotDto> slotDtos = slots.stream()
                 .map(s -> toSlotDto(s, bookBySlot.getOrDefault(s.getId().getSlotCode(), 0)))
@@ -85,7 +90,7 @@ public class DeviceSlotService {
     public List<DeviceSlotDto> listSlots(Long operatorId, String deviceId) {
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         requireDevice(deviceId);
-        Map<String, Integer> bookBySlot = loadBookQtyBySlot(deviceId);
+        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
         return slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
                 .map(s -> toSlotDto(s, bookBySlot.getOrDefault(s.getId().getSlotCode(), 0)))
                 .toList();
@@ -105,7 +110,7 @@ public class DeviceSlotService {
         String normalized = slotCode.trim().toUpperCase();
         DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, normalized))
                 .orElseThrow(() -> notFound("slot"));
-        int bookQty = loadBookQtyBySlot(deviceId).getOrDefault(normalized, 0);
+        int bookQty = self.loadBookQtyBySlot(deviceId).getOrDefault(normalized, 0);
         if (bookQty > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "slot has book inventory, disable instead of delete");
@@ -115,7 +120,7 @@ public class DeviceSlotService {
 
     @Transactional(readOnly = true)
     public long countDiscrepancies(Long operatorId) {
-        return listDiscrepancyAlerts(operatorId, null).size();
+        return self.listDiscrepancyAlerts(operatorId, null).size();
     }
 
     @Transactional(readOnly = true)
@@ -140,7 +145,7 @@ public class DeviceSlotService {
             if (!deviceRepository.existsById(deviceId)) {
                 continue;
             }
-            alerts.addAll(buildDiscrepancyForSlot(slot, loadBookQtyBySlot(deviceId), deviceNames));
+            alerts.addAll(buildDiscrepancyForSlot(slot, self.loadBookQtyBySlot(deviceId), deviceNames));
         }
         alerts.sort(Comparator
                 .comparing(SlotDiscrepancyAlertDto::deviceId)
@@ -150,7 +155,7 @@ public class DeviceSlotService {
 
     private List<SlotDiscrepancyAlertDto> buildDiscrepanciesForDevice(String deviceId) {
         requireDevice(deviceId);
-        Map<String, Integer> bookBySlot = loadBookQtyBySlot(deviceId);
+        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
         Map<String, String> deviceNames = new HashMap<>();
         return slotRepository.findByIdDeviceId(deviceId).stream()
                 .flatMap(slot -> buildDiscrepancyForSlot(slot, bookBySlot, deviceNames).stream())
@@ -216,7 +221,7 @@ public class DeviceSlotService {
     @Transactional
     public int syncPhysicalFromBook(String deviceId, String refId) {
         return runWithDeviceSlotLock(deviceId, () -> {
-            Map<String, Integer> bookBySlot = loadBookQtyBySlot(deviceId);
+            Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
             if (bookBySlot.isEmpty()) {
                 return 0;
             }
@@ -261,7 +266,7 @@ public class DeviceSlotService {
         if (skuQtySold == null || skuQtySold.isEmpty()) {
             return;
         }
-        Map<String, Integer> bookBySlot = loadBookQtyBySlot(deviceId);
+        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
         Map<String, Integer> slotQtySold = new LinkedHashMap<>();
         for (Map.Entry<String, Integer> entry : skuQtySold.entrySet()) {
             int remaining = entry.getValue() != null ? entry.getValue() : 0;
@@ -291,7 +296,7 @@ public class DeviceSlotService {
                 slotQtySold.merge(slots.get(0).getId().getSlotCode(), remaining, Integer::sum);
             }
         }
-        applyPhysicalAfterSale(deviceId, slotQtySold, refId);
+        self.applyPhysicalAfterSale(deviceId, slotQtySold, refId);
     }
 
     /** 退货/免单回库后同步货道实测（已有实测值则加回）。 */
@@ -330,7 +335,7 @@ public class DeviceSlotService {
         if (skuQtyRestored == null || skuQtyRestored.isEmpty()) {
             return;
         }
-        Map<String, Integer> bookBySlot = loadBookQtyBySlot(deviceId);
+        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
         Map<String, Integer> slotQty = new LinkedHashMap<>();
         for (Map.Entry<String, Integer> entry : skuQtyRestored.entrySet()) {
             int remaining = entry.getValue() != null ? entry.getValue() : 0;
@@ -349,7 +354,7 @@ public class DeviceSlotService {
             String code = slots.get(0).getId().getSlotCode();
             slotQty.merge(code, remaining, Integer::sum);
         }
-        applyPhysicalAfterRestore(deviceId, slotQty, refId);
+        self.applyPhysicalAfterRestore(deviceId, slotQty, refId);
     }
 
     /** 视觉 SKU 总量按货道账面比例分摊到各货道实测。 */
@@ -362,12 +367,12 @@ public class DeviceSlotService {
     private int doAllocateSkuCountsToSlots(String deviceId, Map<String, Integer> skuTotals,
                                            String source, String refId) {
         requireDevice(deviceId);
-        Map<String, Integer> bookBySlot = loadBookQtyBySlot(deviceId);
+        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
         Map<String, Integer> physical = new HashMap<>();
         for (Map.Entry<String, Integer> skuEntry : skuTotals.entrySet()) {
             String skuId = skuEntry.getKey();
             int skuTotal = skuEntry.getValue();
-            List<SlotBookView> slots = listEnabledSlotsForSku(deviceId, skuId);
+            List<SlotBookView> slots = self.listEnabledSlotsForSku(deviceId, skuId);
             if (slots.isEmpty()) {
                 continue;
             }
@@ -435,7 +440,7 @@ public class DeviceSlotService {
         if (totalQty <= 0 || skuId == null || skuId.isBlank()) {
             return List.of();
         }
-        Map<String, Integer> bookBySlot = loadBookQtyBySlot(deviceId);
+        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
         record Candidate(String slotCode, int book, int headroom) {}
         List<Candidate> candidates = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
                 .filter(s -> s.isEnabled() && skuId.equals(s.getAssignedSkuId()))
@@ -488,7 +493,7 @@ public class DeviceSlotService {
     /** 该 SKU 在柜机上的可补总容量（各货道 headroom 之和）。 */
     @Transactional(readOnly = true)
     public int totalHeadroomForSku(String deviceId, String skuId) {
-        return allocateRestockQuantity(deviceId, skuId, Integer.MAX_VALUE / 4).stream()
+        return self.allocateRestockQuantity(deviceId, skuId, Integer.MAX_VALUE / 4).stream()
                 .mapToInt(SlotRestockAllocation::quantity)
                 .sum();
     }
@@ -509,7 +514,7 @@ public class DeviceSlotService {
         if (cap <= 0) {
             return Integer.MAX_VALUE / 4;
         }
-        int book = loadBookQtyBySlot(deviceId).getOrDefault(normalized, 0);
+        int book = self.loadBookQtyBySlot(deviceId).getOrDefault(normalized, 0);
         return Math.max(0, cap - book);
     }
 
@@ -517,7 +522,7 @@ public class DeviceSlotService {
     @Transactional(readOnly = true)
     public List<SlotReplenishmentSuggestDto> suggestSlotsForDevice(String deviceId) {
         requireDevice(deviceId);
-        Map<String, Integer> bookBySlot = loadBookQtyBySlot(deviceId);
+        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
         Map<String, SalesVelocityService.SkuVelocity> velocityBySku = salesVelocityService.velocityBySku(deviceId);
         return slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
                 .filter(DeviceSlot::isEnabled)
@@ -534,7 +539,7 @@ public class DeviceSlotService {
     @Transactional(readOnly = true)
     public List<SlotReplenishmentSuggestDto> suggestSlotsForOutboundFill(String deviceId) {
         requireDevice(deviceId);
-        Map<String, Integer> bookBySlot = loadBookQtyBySlot(deviceId);
+        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
         Map<String, SalesVelocityService.SkuVelocity> velocityBySku = salesVelocityService.velocityBySku(deviceId);
         return slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
                 .filter(DeviceSlot::isEnabled)
@@ -625,7 +630,7 @@ public class DeviceSlotService {
             }
             slotRepository.save(slot);
         }
-        return listSlots(operatorId, deviceId);
+        return self.listSlots(operatorId, deviceId);
     }
 
     @Transactional
@@ -657,7 +662,7 @@ public class DeviceSlotService {
                     deviceId, slotCode, skuId, request.physicalQty(), refId);
         }
 
-        int bookQty = loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
+        int bookQty = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
         return toSlotDto(slot, bookQty);
     }
 
@@ -698,17 +703,17 @@ public class DeviceSlotService {
             if (skuId == null || skuId.isBlank()) {
                 continue;
             }
-            int book = loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
+            int book = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
             if (book <= cap) {
                 continue;
             }
             int surplus = book - cap;
-            for (SlotRestockAllocation alloc : allocateRestockQuantity(deviceId, skuId, surplus)) {
+            for (SlotRestockAllocation alloc : self.allocateRestockQuantity(deviceId, skuId, surplus)) {
                 inventoryLotService.transferBetweenSlots(
                         deviceId, skuId, slotCode, alloc.slotCode(), alloc.quantity(), null, refId);
                 surplus -= alloc.quantity();
             }
-            book = loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
+            book = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
             if (book > cap) {
                 inventoryLotService.stocktakeAdjustForSlot(deviceId, skuId, slotCode, cap, null, refId);
             }
@@ -716,7 +721,7 @@ public class DeviceSlotService {
             log.warn("clamp over-capacity slot device={} slot={} cap={} ref={}", deviceId, slotCode, cap, refId);
         }
         if (slotsFixed > 0) {
-            syncPhysicalFromBook(deviceId, refId);
+            self.syncPhysicalFromBook(deviceId, refId);
         }
         return slotsFixed;
     }
@@ -739,7 +744,7 @@ public class DeviceSlotService {
     private void doRecordRestock(String deviceId, String slotCode) {
         String normalized = slotCode.trim().toUpperCase();
         slotRepository.findById(new DeviceSlotId(deviceId, normalized)).ifPresent(slot -> {
-            int bookQty = loadBookQtyBySlot(deviceId).getOrDefault(normalized, 0);
+            int bookQty = self.loadBookQtyBySlot(deviceId).getOrDefault(normalized, 0);
             slot.setLastRestockAt(Instant.now());
             slot.setLastPhysicalQty(bookQty);
             slot.setLastPhysicalAt(Instant.now());
@@ -770,7 +775,7 @@ public class DeviceSlotService {
         int cap = slot.getMaxLevel() > 0 ? slot.getMaxLevel()
                 : (slot.getParLevel() > 0 ? slot.getParLevel() : 0);
         if (cap > 0) {
-            int book = loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
+            int book = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
             if (book + quantity > cap) {
                 throw badRequest(String.format(
                         com.aicabinet.trade.support.ApiMessages.REPLENISHMENT_SLOT_CAPACITY,
@@ -781,7 +786,7 @@ public class DeviceSlotService {
 
     @Transactional
     public void ensureDefaultSlots(String deviceId) {
-        ensureDefaultSlots(deviceId, PlanogramTemplateService.DEFAULT_DEVICE_TYPE);
+        self.ensureDefaultSlots(deviceId, PlanogramTemplateService.DEFAULT_DEVICE_TYPE);
     }
 
     /** 新设备无货道时按设备类型套用默认 planogram。 */

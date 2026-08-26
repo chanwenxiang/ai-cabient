@@ -8,6 +8,7 @@ import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,15 +35,18 @@ public class WeChatProfitSharingService {
     private final WeChatPayProperties weChatPayProperties;
     private final WeChatPayV3Client weChatPayV3Client;
     private final OrderRevenueSplitMapper splitRepository;
+    private final WeChatProfitSharingService self;
 
     public WeChatProfitSharingService(ProfitSharingProperties profitSharingProperties,
                                       WeChatPayProperties weChatPayProperties,
                                       WeChatPayV3Client weChatPayV3Client,
-                                      OrderRevenueSplitMapper splitRepository) {
+                                      OrderRevenueSplitMapper splitRepository,
+                                      @Lazy WeChatProfitSharingService self) {
         this.profitSharingProperties = profitSharingProperties;
         this.weChatPayProperties = weChatPayProperties;
         this.weChatPayV3Client = weChatPayV3Client;
         this.splitRepository = splitRepository;
+        this.self = self;
     }
 
     public boolean isApiReady() {
@@ -219,7 +223,7 @@ public class WeChatProfitSharingService {
         }
         int updated = 0;
         for (OrderRevenueSplit split : splits) {
-            if (refreshPendingReturn(split)) {
+            if (self.refreshPendingReturn(split)) {
                 updated++;
             }
         }
@@ -247,7 +251,7 @@ public class WeChatProfitSharingService {
             if (merchant == null) {
                 continue;
             }
-            ReturnSubmitOutcome outcome = returnMerchantShare(
+            ReturnSubmitOutcome outcome = self.returnMerchantShare(
                     split,
                     merchant,
                     returnCents,
@@ -354,7 +358,7 @@ public class WeChatProfitSharingService {
             if (wxTxn == null || wxTxn.isBlank()) {
                 continue;
             }
-            submitSplit(split, merchant, wxTxn);
+            self.submitSplit(split, merchant, wxTxn);
             retried++;
         }
         return retried;

@@ -62,7 +62,8 @@ class MerchantScopeServiceTest {
         merchantScopeService = new MerchantScopeService(
                 userMerchantRepository, userRoleRepository, roleRepository,
                 deviceRepository, merchantRepository, deviceScopeMapper, deviceScopePrefMapper,
-                null, cabinetMetrics);
+                null, cabinetMetrics, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(merchantScopeService, "self", merchantScopeService);
         lenient().when(merchantRepository.findAll()).thenReturn(List.of());
         lenient().when(deviceScopePrefMapper.findById(org.mockito.ArgumentMatchers.anyLong())).thenReturn(Optional.empty());
     }
