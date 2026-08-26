@@ -99,10 +99,12 @@ jobs:
       - name: Prepare Sonar Java classpaths
         run: |
           set -euo pipefail
-          for mod in services/trade-service services/device-service services/common/common-core; do
-            mvn -B -q -f "$mod/pom.xml" dependency:copy-dependencies \
-              -DincludeScope=compile -DoutputDirectory=target/dependency
-          done
+          # 先 install 到本地仓库：单模块 -f 会找不到 sibling common-core:0.1.0-SNAPSHOT
+          mvn -B -q install -DskipTests \
+            -pl services/trade-service,services/device-service,services/common/common-core -am
+          mvn -B -q dependency:copy-dependencies \
+            -DincludeScope=compile -DoutputDirectory=target/dependency \
+            -pl services/trade-service,services/device-service,services/common/common-core
 
       - name: Ensure quality gate (AI Cabinet)
         run: bash scripts/ci/setup-sonar-quality-gate.sh

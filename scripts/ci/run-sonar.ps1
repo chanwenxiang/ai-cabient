@@ -39,15 +39,14 @@ Write-Host "==> 1/4 Compile + unit tests + Jacoco..." -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "==> 2/4 Copy compile deps for Sonar java.libraries..." -ForegroundColor Cyan
-foreach ($mod in @(
-    "services/trade-service",
-    "services/device-service",
-    "services/common/common-core"
-  )) {
-  & $mvn -B -q -f "$mod/pom.xml" dependency:copy-dependencies `
-    "-DincludeScope=compile" "-DoutputDirectory=target/dependency"
-  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-}
+# 先 install：否则单模块解析不到 sibling common-core:0.1.0-SNAPSHOT
+& $mvn -B -q install "-DskipTests" `
+  "-pl" "services/trade-service,services/device-service,services/common/common-core" "-am"
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& $mvn -B -q dependency:copy-dependencies `
+  "-DincludeScope=compile" "-DoutputDirectory=target/dependency" `
+  "-pl" "services/trade-service,services/device-service,services/common/common-core"
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "==> 3/4 Ensure quality gate (AI Cabinet)..." -ForegroundColor Cyan
 & "$PSScriptRoot\setup-sonar-quality-gate.ps1" -SonarHostUrl $SonarHostUrl -SonarToken $SonarToken
