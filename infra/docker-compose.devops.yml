@@ -69,6 +69,7 @@ services:
       - runner_work:/tmp/runner/work
       - /var/run/docker.sock:/var/run/docker.sock
       - ..:/workspace
+    # sonar.yml 使用 Docker Maven/Scanner，首次启动前建议：.\scripts\devops\pull-gha-images.ps1
     depends_on:
       sonarqube:
         condition: service_healthy

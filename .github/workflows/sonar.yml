@@ -1,5 +1,6 @@
 # SonarQube 全仓扫描（Java + 前端），由 self-hosted runner 连内网 Sonar。
-# 触发：push/PR、运营后台「重跑 Sonar」（workflow_dispatch）、手动在 GitHub Actions 页运行。
+# Runner 无宿主机 Java/Maven，且拉取 setup-maven 等 Action 易超时 → 全程 Docker 执行。
+# 触发：push/PR、运营后台「重跑 Sonar」（workflow_dispatch）、GitHub Actions 手动运行。
 name: SonarQube
 
 on:
@@ -22,25 +23,43 @@ concurrency:
   group: sonar-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  MAVEN_IMAGE: maven:3.9-eclipse-temurin-17
+  SCANNER_IMAGE: sonarsource/sonar-scanner-cli:11.1
+  # compose -p ai-cabinet 默认网络；Secret SONAR_HOST_URL 应为 http://sonarqube:9000
+  DOCKER_NETWORK: ai-cabinet_default
+
 jobs:
   sonar:
     runs-on: [self-hosted, linux, ai-cabinet]
+    timeout-minutes: 90
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
 
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: maven
+      - name: Validate Sonar secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${SONAR_TOKEN:-}" ]; then
+            echo "SONAR_TOKEN secret is missing"
+            exit 1
+          fi
+          if [ -z "${SONAR_HOST_URL:-}" ]; then
+            echo "SONAR_HOST_URL secret is missing (use http://sonarqube:9000 for self-hosted runner)"
+            exit 1
+          fi
+          echo "SONAR_HOST_URL=${SONAR_HOST_URL}"
 
-      - name: Setup Maven
-        uses: stCarolas/setup-maven@v5
-        with:
-          maven-version: 3.9.9
+      - name: Pull CI images
+        run: |
+          docker pull "$MAVEN_IMAGE"
+          docker pull "$SCANNER_IMAGE"
 
       - name: Resolve Sonar project (dev / main)
         id: sonar_proj
@@ -66,39 +85,36 @@ jobs:
           esac
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
-      - name: Unit tests + Jacoco
+      - name: Unit tests + Jacoco (Docker Maven)
         run: |
-          mvn -B -Dmaven.test.failure.ignore=true test jacoco:report \
-            -pl services/trade-service,services/device-service,services/common/common-core -am
+          set -euo pipefail
+          mkdir -p "${HOME}/.m2"
+          docker run --rm \
+            -v "$PWD:/workspace" -w /workspace \
+            -v "${HOME}/.m2:/root/.m2" \
+            "$MAVEN_IMAGE" \
+            mvn -B -Dmaven.test.failure.ignore=true test jacoco:report \
+              -pl services/trade-service,services/device-service,services/common/common-core -am
 
       - name: Ensure quality gate (AI Cabinet)
         run: bash scripts/ci/setup-sonar-quality-gate.sh
-        env:
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-      - name: Sonar scan (Java + admin-vue + mini-programs)
+      - name: Sonar scan + wait quality gate
         run: |
           set -euo pipefail
           KEY="${{ steps.sonar_proj.outputs.project_key }}"
           NAME="${{ steps.sonar_proj.outputs.project_name }}"
           JACOCO_PATHS="services/trade-service/target/site/jacoco/jacoco.xml,services/device-service/target/site/jacoco/jacoco.xml,services/common/common-core/target/site/jacoco/jacoco.xml"
-          docker run --rm --network host \
+          docker run --rm \
+            --network "${DOCKER_NETWORK}" \
             -v "$PWD:/usr/src" -w /usr/src \
-            sonarsource/sonar-scanner-cli:11.1 \
+            -e SONAR_TOKEN -e SONAR_HOST_URL \
+            "$SCANNER_IMAGE" \
             -Dsonar.projectKey="$KEY" \
             -Dsonar.projectName="$NAME" \
             -Dsonar.host.url="${SONAR_HOST_URL}" \
             -Dsonar.token="${SONAR_TOKEN}" \
             -Dsonar.scm.revision="${{ github.sha }}" \
-            -Dsonar.coverage.jacoco.xmlReportPaths="$JACOCO_PATHS"
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-
-      - name: Quality Gate
-        uses: sonarsource/sonarqube-quality-gate-action@master
-        timeout-minutes: 10
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+            -Dsonar.coverage.jacoco.xmlReportPaths="$JACOCO_PATHS" \
+            -Dsonar.qualitygate.wait=true \
+            -Dsonar.qualitygate.timeout=600
