@@ -64,29 +64,10 @@ public class DisputeSlaScheduler {
         int reminders = 0;
         int overdue = 0;
         for (DisputeTicket ticket : openTickets) {
-            boolean dirty = false;
-            if (ticket.getSlaDueAt() == null) {
-                ticket.setSlaDueAt(ticket.getCreatedAt().plus(
-                        systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_HOURS,
-                                disputeSlaProperties.hours()),
-                        ChronoUnit.HOURS));
-                dirty = true;
-            }
-            if (ticket.getSlaReminderAt() == null
-                    && !ticket.getSlaDueAt().isAfter(reminderThreshold)
-                    && ticket.getSlaDueAt().isAfter(now)) {
-                alertService.sendReminder(ticket);
-                ticket.setSlaReminderAt(now);
-                dirty = true;
-                reminders++;
-            }
-            if (ticket.getSlaAlertedAt() == null && !ticket.getSlaDueAt().isAfter(now)) {
-                alertService.sendOverdue(ticket);
-                ticket.setSlaAlertedAt(now);
-                dirty = true;
-                overdue++;
-            }
-            if (dirty) {
+            SlaScanResult result = processTicketSla(ticket, now, reminderThreshold);
+            reminders += result.reminders();
+            overdue += result.overdue();
+            if (result.dirty()) {
                 disputeRepository.save(ticket);
             }
         }
@@ -104,4 +85,34 @@ public class DisputeSlaScheduler {
             }
         }
     }
+
+    private SlaScanResult processTicketSla(DisputeTicket ticket, Instant now, Instant reminderThreshold) {
+        boolean dirty = false;
+        int reminders = 0;
+        int overdue = 0;
+        if (ticket.getSlaDueAt() == null) {
+            ticket.setSlaDueAt(ticket.getCreatedAt().plus(
+                    systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_HOURS,
+                            disputeSlaProperties.hours()),
+                    ChronoUnit.HOURS));
+            dirty = true;
+        }
+        if (ticket.getSlaReminderAt() == null
+                && !ticket.getSlaDueAt().isAfter(reminderThreshold)
+                && ticket.getSlaDueAt().isAfter(now)) {
+            alertService.sendReminder(ticket);
+            ticket.setSlaReminderAt(now);
+            dirty = true;
+            reminders = 1;
+        }
+        if (ticket.getSlaAlertedAt() == null && !ticket.getSlaDueAt().isAfter(now)) {
+            alertService.sendOverdue(ticket);
+            ticket.setSlaAlertedAt(now);
+            dirty = true;
+            overdue = 1;
+        }
+        return new SlaScanResult(dirty, reminders, overdue);
+    }
+
+    private record SlaScanResult(boolean dirty, int reminders, int overdue) {}
 }

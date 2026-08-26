@@ -32,22 +32,13 @@ public class NearbyDeviceService {
 
     @Transactional(readOnly = true)
     public List<NearbyDeviceDto> listNearby(double latitude, double longitude, double radiusKm, int limit) {
-        if (Double.isNaN(latitude) || Double.isNaN(longitude)
-                || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "定位坐标无效");
-        }
-        double radius = radiusKm <= 0 ? 5.0 : Math.min(radiusKm, 50.0);
-        int max = limit <= 0 ? 20 : Math.min(limit, 50);
-        double radiusM = radius * 1000.0;
+        validateCoordinates(latitude, longitude);
+        double radiusM = resolveRadiusMeters(radiusKm);
+        int max = resolveResultLimit(limit);
 
         List<NearbyDeviceDto> out = new ArrayList<>();
         for (DeviceInfo d : deviceRepository.findAllOrderByDeviceIdAsc()) {
-            if (d.getLatitude() == null || d.getLongitude() == null) {
-                continue;
-            }
-            String life = d.getLifecycleStatus() == null ? "" : d.getLifecycleStatus().trim().toUpperCase();
-            if (life.equals("RETIRED") || life.equals("WAREHOUSE") || life.equals("SCRAPPED")
-                    || life.equals("DECOMMISSIONED")) {
+            if (!hasCoordinates(d) || isExcludedLifecycle(d.getLifecycleStatus())) {
                 continue;
             }
             double dist = haversineMeters(latitude, longitude, d.getLatitude(), d.getLongitude());
@@ -57,10 +48,33 @@ public class NearbyDeviceService {
             out.add(toDto(d, dist));
         }
         out.sort(Comparator.comparingDouble(NearbyDeviceDto::distanceMeters));
-        if (out.size() > max) {
-            return out.subList(0, max);
+        return out.size() > max ? out.subList(0, max) : out;
+    }
+
+    private static void validateCoordinates(double latitude, double longitude) {
+        if (Double.isNaN(latitude) || Double.isNaN(longitude)
+                || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "定位坐标无效");
         }
-        return out;
+    }
+
+    private static double resolveRadiusMeters(double radiusKm) {
+        double radius = radiusKm <= 0 ? 5.0 : Math.min(radiusKm, 50.0);
+        return radius * 1000.0;
+    }
+
+    private static int resolveResultLimit(int limit) {
+        return limit <= 0 ? 20 : Math.min(limit, 50);
+    }
+
+    private static boolean hasCoordinates(DeviceInfo device) {
+        return device.getLatitude() != null && device.getLongitude() != null;
+    }
+
+    private static boolean isExcludedLifecycle(String lifecycleStatus) {
+        String life = lifecycleStatus == null ? "" : lifecycleStatus.trim().toUpperCase();
+        return life.equals("RETIRED") || life.equals("WAREHOUSE") || life.equals("SCRAPPED")
+                || life.equals("DECOMMISSIONED");
     }
 
     private NearbyDeviceDto toDto(DeviceInfo d, double distanceMeters) {

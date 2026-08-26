@@ -91,27 +91,45 @@ public class DeviceCommandTracker {
     private void recordAckLocal(String commandId, boolean success) {
         PendingCommand command = pending.remove(commandId);
         if (command == null) {
-            CommandStatus existing = recent.get(commandId);
-            if (existing != null && isTerminal(existing.status())) {
-                String status = TIMEOUT.equals(existing.status())
-                        ? (success ? LATE_ACK : LATE_FAILED_ACK)
-                        : DUPLICATE_ACK;
-                recent.put(commandId, new CommandStatus(commandId, existing.deviceId(), existing.sessionId(),
-                        status, success, existing.publishedAtMs(), Instant.now().toEpochMilli()));
-                trimRecent();
-                log.info("received repeated ACK commandId={} previousStatus={} success={}",
-                        commandId, existing.status(), success);
-                return;
-            }
-            metrics.recordCommandAckUnknown();
-            log.warn("received ACK for unknown commandId={} success={}", commandId, success);
-            recent.put(commandId, new CommandStatus(commandId, null, null,
-                    success ? "ACKED_UNKNOWN" : "FAILED_UNKNOWN", success, null, Instant.now().toEpochMilli()));
-            trimRecent();
+            handleMissingPendingAck(commandId, success);
             return;
         }
+        recordPendingAck(commandId, command, success);
+    }
+
+    private void handleMissingPendingAck(String commandId, boolean success) {
+        CommandStatus existing = recent.get(commandId);
+        if (existing != null && isTerminal(existing.status())) {
+            recordRepeatedAck(commandId, existing, success);
+            return;
+        }
+        metrics.recordCommandAckUnknown();
+        log.warn("received ACK for unknown commandId={} success={}", commandId, success);
+        recent.put(commandId, new CommandStatus(commandId, null, null,
+                success ? "ACKED_UNKNOWN" : "FAILED_UNKNOWN", success, null, Instant.now().toEpochMilli()));
+        trimRecent();
+    }
+
+    private void recordRepeatedAck(String commandId, CommandStatus existing, boolean success) {
+        String status = resolveRepeatedAckStatus(existing.status(), success);
+        recent.put(commandId, new CommandStatus(commandId, existing.deviceId(), existing.sessionId(),
+                status, success, existing.publishedAtMs(), Instant.now().toEpochMilli()));
+        trimRecent();
+        log.info("received repeated ACK commandId={} previousStatus={} success={}",
+                commandId, existing.status(), success);
+    }
+
+    private static String resolveRepeatedAckStatus(String previousStatus, boolean success) {
+        if (TIMEOUT.equals(previousStatus)) {
+            return success ? LATE_ACK : LATE_FAILED_ACK;
+        }
+        return DUPLICATE_ACK;
+    }
+
+    private void recordPendingAck(String commandId, PendingCommand command, boolean success) {
         recent.put(commandId, new CommandStatus(commandId, command.deviceId(), command.sessionId(),
-                success ? ACKED : CabinetConstants.ORDER_STATUS_FAILED, success, command.createdAtMs(), Instant.now().toEpochMilli()));
+                success ? ACKED : CabinetConstants.ORDER_STATUS_FAILED, success, command.createdAtMs(),
+                Instant.now().toEpochMilli()));
         trimRecent();
         if (success) {
             metrics.recordCommandAckSuccess();
@@ -221,9 +239,7 @@ public class DeviceCommandTracker {
             next = new CommandStatus(commandId, null, null,
                     success ? "ACKED_UNKNOWN" : "FAILED_UNKNOWN", success, null, now);
         } else if (isTerminal(existing.status())) {
-            String status = TIMEOUT.equals(existing.status())
-                    ? (success ? LATE_ACK : LATE_FAILED_ACK)
-                    : DUPLICATE_ACK;
+            String status = resolveRepeatedAckStatus(existing.status(), success);
             log.info("received repeated ACK commandId={} previousStatus={} success={}",
                     commandId, existing.status(), success);
             next = new CommandStatus(commandId, existing.deviceId(), existing.sessionId(),
