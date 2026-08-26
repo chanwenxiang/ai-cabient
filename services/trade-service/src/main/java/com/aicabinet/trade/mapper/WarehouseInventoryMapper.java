@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.WarehouseInventory;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
@@ -18,6 +19,22 @@ public interface WarehouseInventoryMapper extends BaseTradeMapper<WarehouseInven
 
     default List<WarehouseInventory> findByWarehouseIdOrderByExpiryDateAsc(String warehouseId) {
     return selectList(Wrappers.<WarehouseInventory>lambdaQuery().eq(WarehouseInventory::getWarehouseId, warehouseId).orderByAsc(WarehouseInventory::getExpiryDate));
+    }
+
+    /** page 为 0-based；仅返回 quantity &gt; 0 的批次。 */
+    default Page<WarehouseInventory> searchPage(String warehouseId, String keyword, int page, int size) {
+        var query = Wrappers.<WarehouseInventory>lambdaQuery()
+                .gt(WarehouseInventory::getQuantity, 0)
+                .orderByAsc(WarehouseInventory::getExpiryDate);
+        if (warehouseId != null && !warehouseId.isBlank()) {
+            query.eq(WarehouseInventory::getWarehouseId, warehouseId.trim());
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            String kw = keyword.trim();
+            query.and(w -> w.like(WarehouseInventory::getSkuId, kw)
+                    .or().like(WarehouseInventory::getBatchNo, kw));
+        }
+        return selectPage(new Page<>(page + 1L, size), query);
     }
 
     WarehouseInventory _findByWarehouseSkuBatchForUpdateRaw(@Param("warehouseId") String warehouseId,
