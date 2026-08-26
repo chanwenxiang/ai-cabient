@@ -104,11 +104,37 @@ public class WarehouseService {
     }
 
     @Transactional(readOnly = true)
+    public PageResult<WarehouseInventoryDto> listInventoryPage(
+            String warehouseId, String keyword, int page, int size) {
+        String wh = resolveWarehouseId(warehouseId);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = inventoryRepository.searchPage(wh, keyword, p, s);
+        List<WarehouseInventoryDto> items = result.getRecords().stream()
+                .map(this::toInventoryDto)
+                .toList();
+        return new PageResult<>(items, p, s, result.getTotal());
+    }
+
+    @Transactional(readOnly = true)
     public List<WarehouseMovementDto> listMovements(String warehouseId) {
         String wh = resolveWarehouseId(warehouseId);
         return movementRepository.findTop100ByWarehouseIdOrderByCreatedAtDesc(wh).stream()
                 .map(this::toMovementDto)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<WarehouseMovementDto> listMovementsPage(
+            String warehouseId, String keyword, int page, int size) {
+        String wh = resolveWarehouseId(warehouseId);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = movementRepository.searchPage(wh, keyword, p, s);
+        List<WarehouseMovementDto> items = result.getRecords().stream()
+                .map(this::toMovementDto)
+                .toList();
+        return new PageResult<>(items, p, s, result.getTotal());
     }
 
     @Transactional
@@ -471,6 +497,17 @@ public class WarehouseService {
     }
 
     @Transactional(readOnly = true)
+    public PageResult<WarehouseOutboundDto> listOutboundsPage(String keyword, String warehouseId, int page, int size) {
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = outboundRepository.searchPage(keyword, warehouseId, p, s);
+        List<WarehouseOutboundDto> items = result.getRecords().stream()
+                .map(o -> self.getOutbound(o.getOutboundId()))
+                .toList();
+        return new PageResult<>(items, p, s, result.getTotal());
+    }
+
+    @Transactional(readOnly = true)
     public List<WarehouseOutboundLine> outboundLinesForDevice(Long outboundId, String deviceId) {
         return outboundLineRepository.findByOutboundIdAndDeviceIdOrderByLineIdAsc(outboundId, deviceId);
     }
@@ -584,19 +621,10 @@ public class WarehouseService {
         }
         List<WarehouseOutboundLine> allLines =
                 outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
-        boolean handedOver = allLines.stream().anyMatch(line -> {
-            String hs = line.getHandoverStatus();
-            return RECEIVED.equals(hs) || PARTIAL.equals(hs);
-        });
-        if (handedOver) {
+        if (hasHandedOverOutboundLines(allLines)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.WAREHOUSE_OUTBOUND_CANCEL_BLOCKED);
         }
-        java.util.LinkedHashSet<String> devices = new java.util.LinkedHashSet<>();
-        for (WarehouseOutboundLine line : allLines) {
-            if (line.getDeviceId() != null && !line.getDeviceId().isBlank()) {
-                devices.add(line.getDeviceId().trim());
-            }
-        }
+        java.util.LinkedHashSet<String> devices = distinctOutboundDevices(allLines);
         if (devices.isEmpty()) {
             outbound.setStatus(STATUS_CANCELLED);
             outbound.setHandoverStatus(STATUS_CANCELLED);
@@ -1059,6 +1087,23 @@ public class WarehouseService {
 
     private WarehouseOutbound requireOutboundForUpdate(Long outboundId) {
         return outboundRepository.findByIdForUpdate(outboundId).orElseThrow(() -> notFound("outbound"));
+    }
+
+    private static boolean hasHandedOverOutboundLines(List<WarehouseOutboundLine> lines) {
+        return lines.stream().anyMatch(line -> {
+            String hs = line.getHandoverStatus();
+            return RECEIVED.equals(hs) || PARTIAL.equals(hs);
+        });
+    }
+
+    private static java.util.LinkedHashSet<String> distinctOutboundDevices(List<WarehouseOutboundLine> lines) {
+        java.util.LinkedHashSet<String> devices = new java.util.LinkedHashSet<>();
+        for (WarehouseOutboundLine line : lines) {
+            if (line.getDeviceId() != null && !line.getDeviceId().isBlank()) {
+                devices.add(line.getDeviceId().trim());
+            }
+        }
+        return devices;
     }
 
     private <T> T runWithOutboundLock(Long outboundId, java.util.function.Supplier<T> action) {

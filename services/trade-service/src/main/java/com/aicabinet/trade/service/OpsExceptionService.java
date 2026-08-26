@@ -389,12 +389,20 @@ public class OpsExceptionService {
         }
         var session = sessionRepository.findById(item.getSessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        String result = applyManualResolution(session, item, resolutionType, lines, reason);
         String type = resolutionType == null ? "" : resolutionType.trim().toUpperCase();
-        String result;
+        finalizeManualResolve(operatorId, exceptionId, item, session, type, lines, marker, result);
+        return toDto(item);
+    }
+
+    private String applyManualResolution(ShoppingSession session, OpsException item, String resolutionType,
+                                         List<ResolveDisputeRequest.ManualLineItem> lines, String reason) {
+        String type = resolutionType == null ? "" : resolutionType.trim().toUpperCase();
         if ("WAIVE".equals(type)) {
             int refunded = settlementService.waiveAndRefund(session);
-            result = "人工免单，退回余额 " + refunded + " 分；原因=" + reason;
-        } else if ("CONFIRM".equals(type) || "ADJUST".equals(type)) {
+            return "人工免单，退回余额 " + refunded + " 分；原因=" + reason;
+        }
+        if ("CONFIRM".equals(type) || "ADJUST".equals(type)) {
             var recognized = (lines == null ? List.<ResolveDisputeRequest.ManualLineItem>of() : lines).stream()
                     .filter(line -> line.quantity() > 0)
                     .map(line -> new VisionServiceClient.RecognizedItem(line.skuId(), line.quantity(), 1.0f))
@@ -402,16 +410,21 @@ public class OpsExceptionService {
             var settled = settlementService.confirmDisputedItems(session, recognized);
             session.setOrderId(settled.order().orderId());
             item.setOrderId(settled.order().orderId());
-            result = "人工确认商品，原金额=" + settled.originalAmountCents()
+            return "人工确认商品，原金额=" + settled.originalAmountCents()
                     + " 分，最终金额=" + settled.finalAmountCents()
                     + " 分，差额=" + settled.adjustmentCents() + " 分；原因=" + reason;
-        } else {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "resolutionType 仅支持 CONFIRM、ADJUST、WAIVE");
         }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "resolutionType 仅支持 CONFIRM、ADJUST、WAIVE");
+    }
+
+    private void finalizeManualResolve(Long operatorId, String exceptionId, OpsException item,
+                                       ShoppingSession session, String resolutionType,
+                                       List<ResolveDisputeRequest.ManualLineItem> lines,
+                                       String marker, String result) {
         session.setState(SessionState.COMPLETED);
         session.setFailReason(null);
         sessionRepository.save(session);
-        disputeService.closeOpenTicketForSession(operatorId, session.getSessionId(), type, lines);
+        disputeService.closeOpenTicketForSession(operatorId, session.getSessionId(), resolutionType, lines);
         if ((item.getOrderId() == null || item.getOrderId().isBlank())
                 && session.getOrderId() != null && !session.getOrderId().isBlank()) {
             item.setOrderId(session.getOrderId());
@@ -423,7 +436,6 @@ public class OpsExceptionService {
         repository.save(item);
         auditService.record(operatorId, "OPS_EXCEPTION_MANUAL_RESOLVE", OPS_EXCEPTION, exceptionId,
                 marker + "; " + result);
-        return toDto(item);
     }
 
     private OpsException require(String id) { return repository.findById(id).orElseThrow(() ->

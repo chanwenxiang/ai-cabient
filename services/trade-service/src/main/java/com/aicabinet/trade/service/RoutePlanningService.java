@@ -88,34 +88,41 @@ public class RoutePlanningService {
         int seq = 1;
 
         while (!remaining.isEmpty()) {
-            DeviceInfo nearest = null;
-            double nearestDist = Double.MAX_VALUE;
-            for (DeviceInfo device : remaining) {
-                double lat = device.getLatitude() != null ? device.getLatitude() : curLat;
-                double lng = device.getLongitude() != null ? device.getLongitude() : curLng;
-                double dist = haversineMeters(curLat, curLng, lat, lng);
-                if (dist < nearestDist) {
-                    nearestDist = dist;
-                    nearest = device;
-                }
-            }
-            remaining.remove(nearest);
-            if (nearest == null) {
+            NearestDevicePick pick = findNearestDevice(remaining, curLat, curLng);
+            remaining.remove(pick.device());
+            if (pick.device() == null) {
                 break;
             }
-            int legM = (int) Math.round(nearestDist);
+            int legM = (int) Math.round(pick.distanceMeters());
             totalDistance += legM;
-            double destLat = nearest.getLatitude() != null ? nearest.getLatitude() : curLat;
-            double destLng = nearest.getLongitude() != null ? nearest.getLongitude() : curLng;
+            double destLat = pick.device().getLatitude() != null ? pick.device().getLatitude() : curLat;
+            double destLng = pick.device().getLongitude() != null ? pick.device().getLongitude() : curLng;
             waypoints.add(new RouteWaypointDto(
-                    seq++, nearest.getDeviceId(), destLat, destLng,
-                    address(nearest), legM
+                    seq++, pick.device().getDeviceId(), destLat, destLng,
+                    address(pick.device()), legM
             ));
             curLat = destLat;
             curLng = destLng;
         }
         return new PlannedRoute(waypoints, totalDistance);
     }
+
+    private static NearestDevicePick findNearestDevice(List<DeviceInfo> devices, double curLat, double curLng) {
+        DeviceInfo nearest = null;
+        double nearestDist = Double.MAX_VALUE;
+        for (DeviceInfo device : devices) {
+            double lat = device.getLatitude() != null ? device.getLatitude() : curLat;
+            double lng = device.getLongitude() != null ? device.getLongitude() : curLng;
+            double dist = haversineMeters(curLat, curLng, lat, lng);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearest = device;
+            }
+        }
+        return new NearestDevicePick(nearest, nearestDist);
+    }
+
+    private record NearestDevicePick(DeviceInfo device, double distanceMeters) {}
 
     /** 高德驾车距离矩阵 + 最近邻；任一步失败抛出异常由调用方回退。 */
     private PlannedRoute planWithGaode(List<DeviceInfo> devices, double startLat, double startLng) {
