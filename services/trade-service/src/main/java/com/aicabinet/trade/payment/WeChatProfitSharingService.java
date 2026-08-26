@@ -243,29 +243,33 @@ public class WeChatProfitSharingService {
         }
         int retried = 0;
         for (OrderRevenueSplit split : splits) {
-            if (split.getWechatPendingReturnNo() == null || split.getWechatPendingReturnNo().isBlank()) {
-                continue;
-            }
-            long returnCents = split.getWechatPendingReturnCents() != null ? split.getWechatPendingReturnCents() : 0;
-            if (returnCents <= 0) {
-                continue;
-            }
-            Merchant merchant = merchantsById.get(split.getMerchantId());
-            if (merchant == null) {
-                continue;
-            }
-            ReturnSubmitOutcome outcome = self.returnMerchantShare(
-                    split,
-                    merchant,
-                    returnCents,
-                    split.getWechatPendingReturnNo(),
-                    split.getFailureReason() != null ? split.getFailureReason() : "分账回退重试");
-            applyReturnOutcome(split, outcome);
-            if (outcome != ReturnSubmitOutcome.FAILED) {
+            if (retrySingleFailedReturn(split, merchantsById)) {
                 retried++;
             }
         }
         return retried;
+    }
+
+    private boolean retrySingleFailedReturn(OrderRevenueSplit split, Map<String, Merchant> merchantsById) {
+        if (split.getWechatPendingReturnNo() == null || split.getWechatPendingReturnNo().isBlank()) {
+            return false;
+        }
+        long returnCents = split.getWechatPendingReturnCents() != null ? split.getWechatPendingReturnCents() : 0;
+        if (returnCents <= 0) {
+            return false;
+        }
+        Merchant merchant = merchantsById.get(split.getMerchantId());
+        if (merchant == null) {
+            return false;
+        }
+        ReturnSubmitOutcome outcome = self.returnMerchantShare(
+                split,
+                merchant,
+                returnCents,
+                split.getWechatPendingReturnNo(),
+                split.getFailureReason() != null ? split.getFailureReason() : "分账回退重试");
+        applyReturnOutcome(split, outcome);
+        return outcome != ReturnSubmitOutcome.FAILED;
     }
 
     private boolean applyReturnOutcome(OrderRevenueSplit split, ReturnSubmitOutcome outcome) {

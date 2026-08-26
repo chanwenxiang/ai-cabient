@@ -166,22 +166,31 @@ public class InventoryService {
                 continue;
             }
             skuQtyRestored.merge(item.skuId(), item.quantity(), Integer::sum);
-            String batch = batchBySku != null ? batchBySku.get(item.skuId()) : null;
-            String slotId;
-            if (batch != null && !batch.isBlank()) {
-                slotId = inventoryLotService.restoreToBatch(
-                        deviceId, item.skuId(), batch, item.quantity(), ORDER, null);
-            } else if (lotLedger || inventoryLotService.hasSellableLots(deviceId, item.skuId())) {
-                slotId = inventoryLotService.restoreToBatch(deviceId, item.skuId(),
-                        "ADJ-" + item.skuId(), item.quantity(), ORDER, null);
-            } else {
-                applyDelta(deviceId, item.skuId(), item.quantity());
-                slotId = null;
-            }
+            String slotId = restoreSingleItem(deviceId, item, batchBySku, lotLedger);
             if (slotId != null && !slotId.isBlank()) {
                 slotQtyRestored.merge(slotId.trim().toUpperCase(), item.quantity(), Integer::sum);
             }
         }
+        applyPhysicalRestore(deviceId, slotQtyRestored, skuQtyRestored);
+    }
+
+    private String restoreSingleItem(String deviceId, VisionServiceClient.RecognizedItem item,
+                                     Map<String, String> batchBySku, boolean lotLedger) {
+        String batch = batchBySku != null ? batchBySku.get(item.skuId()) : null;
+        if (batch != null && !batch.isBlank()) {
+            return inventoryLotService.restoreToBatch(
+                    deviceId, item.skuId(), batch, item.quantity(), ORDER, null);
+        }
+        if (lotLedger || inventoryLotService.hasSellableLots(deviceId, item.skuId())) {
+            return inventoryLotService.restoreToBatch(deviceId, item.skuId(),
+                    "ADJ-" + item.skuId(), item.quantity(), ORDER, null);
+        }
+        applyDelta(deviceId, item.skuId(), item.quantity());
+        return null;
+    }
+
+    private void applyPhysicalRestore(String deviceId, Map<String, Integer> slotQtyRestored,
+                                      Map<String, Integer> skuQtyRestored) {
         if (!slotQtyRestored.isEmpty()) {
             deviceSlotService.applyPhysicalAfterRestore(deviceId, slotQtyRestored, "REFUND");
         } else {

@@ -205,24 +205,7 @@ public class UnpaidOrderService {
         int n = 0;
         for (CabinetOrder order : expired) {
             try {
-                CabinetOrder cancelled = runWithOrderPaymentLock(order.getOrderId(), () -> {
-                    CabinetOrder locked = orderRepository.findByIdForUpdate(order.getOrderId()).orElse(null);
-                    if (locked == null || !STATUS_PENDING.equals(locked.getStatus())) {
-                        return null;
-                    }
-                    restoreInventory(locked);
-                    locked.setStatus(STATUS_CANCELLED);
-                    orderRepository.save(locked);
-                    consumerPreauthService.releaseBySessionId(locked.getSessionId());
-                    if (autoBlacklist && locked.getUserId() != null) {
-                        riskControlService.addBlacklist(0L, locked.getUserId(),
-                                "待支付超时自动关单", Instant.now().plus(7, ChronoUnit.DAYS));
-                    }
-                    auditService.record(0L, "ORDER_AUTO_CANCEL_UNPAID", ORDER, locked.getOrderId(),
-                            "超时 " + hours + " 小时自动关单；是否拉黑=" + (autoBlacklist ? "是" : "否"));
-                    return locked;
-                });
-                if (cancelled != null) {
+                if (cancelSingleExpiredOrder(order, hours, autoBlacklist)) {
                     n++;
                 }
             } catch (Exception ex) {
@@ -233,6 +216,27 @@ public class UnpaidOrderService {
             log.info("auto cancelled unpaid orders count={} hours={}", n, hours);
         }
         return n;
+    }
+
+    private boolean cancelSingleExpiredOrder(CabinetOrder order, int hours, boolean autoBlacklist) {
+        CabinetOrder cancelled = runWithOrderPaymentLock(order.getOrderId(), () -> {
+            CabinetOrder locked = orderRepository.findByIdForUpdate(order.getOrderId()).orElse(null);
+            if (locked == null || !STATUS_PENDING.equals(locked.getStatus())) {
+                return null;
+            }
+            restoreInventory(locked);
+            locked.setStatus(STATUS_CANCELLED);
+            orderRepository.save(locked);
+            consumerPreauthService.releaseBySessionId(locked.getSessionId());
+            if (autoBlacklist && locked.getUserId() != null) {
+                riskControlService.addBlacklist(0L, locked.getUserId(),
+                        "待支付超时自动关单", Instant.now().plus(7, ChronoUnit.DAYS));
+            }
+            auditService.record(0L, "ORDER_AUTO_CANCEL_UNPAID", ORDER, locked.getOrderId(),
+                    "超时 " + hours + " 小时自动关单；是否拉黑=" + (autoBlacklist ? "是" : "否"));
+            return locked;
+        });
+        return cancelled != null;
     }
 
     private void markPaid(CabinetOrder order) {

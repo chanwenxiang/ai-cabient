@@ -444,6 +444,15 @@ public class MerchantPortalService {
         DeviceInfo device = deviceRepository.findByIdForUpdate(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
 
+        applyDeviceSettingFields(device, request);
+        deviceRepository.save(device);
+        TempCommandResult tempResult = dispatchTargetTempIfRequested(device, request.targetTempC());
+        auditService.record(userId, "MERCHANT_DEVICE_SETTINGS", "DEVICE", deviceId,
+                "名称：" + device.getDeviceName());
+        return toDeviceSettings(device, tempResult.sent(), tempResult.message());
+    }
+
+    private void applyDeviceSettingFields(DeviceInfo device, UpdateMerchantDeviceSettingsRequest request) {
         if (request.deviceName() != null && !request.deviceName().isBlank()) {
             device.setDeviceName(request.deviceName().trim());
         }
@@ -463,27 +472,27 @@ public class MerchantPortalService {
         if (request.opsRemark() != null) {
             device.setOpsRemark(blankToNull(request.opsRemark()));
         }
-        deviceRepository.save(device);
-        Boolean tempCommandSent = null;
-        String tempCommandMessage = null;
-        if (request.targetTempC() != null) {
-            if (CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(device.getOnlineStatus())) {
-                try {
-                    deviceServiceClient.requestSetTargetTemp(deviceId, request.targetTempC());
-                    tempCommandSent = true;
-                    tempCommandMessage = "已向柜机下发目标温度 " + request.targetTempC() + "°C";
-                } catch (Exception ex) {
-                    tempCommandSent = false;
-                    tempCommandMessage = "设置已保存，柜机指令下发失败（请确认 device-service 在线）";
-                }
-            } else {
-                tempCommandSent = false;
-                tempCommandMessage = "设置已保存，柜机离线时将在上线后手动同步";
+    }
+
+    private TempCommandResult dispatchTargetTempIfRequested(DeviceInfo device, Integer targetTempC) {
+        if (targetTempC == null) {
+            return TempCommandResult.none();
+        }
+        if (CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(device.getOnlineStatus())) {
+            try {
+                deviceServiceClient.requestSetTargetTemp(device.getDeviceId(), targetTempC);
+                return new TempCommandResult(true, "已向柜机下发目标温度 " + targetTempC + "°C");
+            } catch (Exception ex) {
+                return new TempCommandResult(false, "设置已保存，柜机指令下发失败（请确认 device-service 在线）");
             }
         }
-        auditService.record(userId, "MERCHANT_DEVICE_SETTINGS", "DEVICE", deviceId,
-                "名称：" + device.getDeviceName());
-        return toDeviceSettings(device, tempCommandSent, tempCommandMessage);
+        return new TempCommandResult(false, "设置已保存，柜机离线时将在上线后手动同步");
+    }
+
+    private record TempCommandResult(Boolean sent, String message) {
+        static TempCommandResult none() {
+            return new TempCommandResult(null, null);
+        }
     }
 
     @Transactional(readOnly = true)
