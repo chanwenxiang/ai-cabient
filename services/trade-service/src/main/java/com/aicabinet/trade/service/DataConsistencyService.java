@@ -40,6 +40,21 @@ import java.util.Set;
  */
 @Service
 public class DataConsistencyService {
+    private static final String UPDATE_CABINET_ORDER_SET_TOTAL_AMOUNT_CENTS_WHERE_ORDER_ID = "UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?";
+    private static final String INVENTORY_MISMATCH = "INVENTORY_MISMATCH";
+    private static final String TOTAL_AMOUNT_CENTS = "total_amount_cents";
+    private static final String DATA_CONSISTENCY = "data-consistency";
+    private static final String COUPON_USED_LINK = "COUPON_USED_LINK";
+    private static final String COUPON_DISCOUNT = "coupon_discount";
+    private static final String PAYMENT_AMOUNT = "PAYMENT_AMOUNT";
+    private static final String ORDER_LINE_SUM = "ORDER_LINE_SUM";
+    private static final String WALLET_BALANCE = "WALLET_BALANCE";
+    private static final String REFUND_AMOUNT = "REFUND_AMOUNT";
+    private static final String ORDER_AMOUNT = "ORDER_AMOUNT";
+    private static final String EXPECTED = "expected";
+    private static final String ORDER_ID = "order_id";
+    private static final String ACTUAL = "actual";
+
     private static final Logger log = LoggerFactory.getLogger(DataConsistencyService.class);
 
     public static final String STATUS_PASS = "PASS";
@@ -124,7 +139,7 @@ private DataConsistencyService self;
     @Scheduled(fixedDelay = 300000)
     public void performConsistencyCheck() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("data-consistency", 900)) {
+        if (!taskService.tryBegin(DATA_CONSISTENCY, 900)) {
             return;
         }
         boolean failed = false;
@@ -136,11 +151,11 @@ private DataConsistencyService self;
                     : "巡检完成，仍有不一致 " + failCount + " 条";
         } catch (Exception e) {
             failed = true;
-            taskService.finish("data-consistency", "FAILED", e.getMessage(), start);
+            taskService.finish(DATA_CONSISTENCY, "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("data-consistency", "SUCCESS", summary, start);
+                taskService.finish(DATA_CONSISTENCY, "SUCCESS", summary, start);
             }
         }
     }
@@ -190,23 +205,23 @@ private DataConsistencyService self;
         Set<String> failing = new HashSet<>();
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
         for (Map<String, Object> row : rows) {
-            String orderId = String.valueOf(row.get("order_id"));
+            String orderId = String.valueOf(row.get(ORDER_ID));
             failing.add(orderId);
-            String header = String.valueOf(row.get("total_amount_cents"));
+            String header = String.valueOf(row.get(TOTAL_AMOUNT_CENTS));
             String payable = String.valueOf(row.get("payable_from_lines"));
-            recordInconsistency("ORDER_AMOUNT", "cabinet_order",
+            recordInconsistency(ORDER_AMOUNT, "cabinet_order",
                     orderId,
                     header,
                     payable,
                     buildOrderAmountErrorMessage(row));
         }
-        resolveStaleFailuresIfComplete("ORDER_AMOUNT", failing, rows.size());
+        resolveStaleFailuresIfComplete(ORDER_AMOUNT, failing, rows.size());
     }
 
     static String buildOrderAmountErrorMessage(Map<String, Object> row) {
-        int header = toInt(row.get("total_amount_cents"));
+        int header = toInt(row.get(TOTAL_AMOUNT_CENTS));
         int lineSubtotal = toInt(row.get("line_subtotal"));
-        int couponDiscount = toInt(row.get("coupon_discount"));
+        int couponDiscount = toInt(row.get(COUPON_DISCOUNT));
         int memberDiscount = toInt(row.get("member_discount"));
         int payable = toInt(row.get("payable_from_lines"));
         int netPaid = toInt(row.get("net_paid"));
@@ -269,17 +284,17 @@ private DataConsistencyService self;
         Set<String> failing = new HashSet<>();
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
         for (Map<String, Object> row : rows) {
-            String orderId = String.valueOf(row.get("order_id"));
+            String orderId = String.valueOf(row.get(ORDER_ID));
             failing.add(orderId);
             String expected = String.valueOf(row.get("expected_cents"));
             String actual = String.valueOf(row.get("net_paid"));
-            recordInconsistency("PAYMENT_AMOUNT", "payment_operation",
+            recordInconsistency(PAYMENT_AMOUNT, "payment_operation",
                     orderId,
                     expected,
                     actual,
                     "期望净入账 " + expected + " ≠ 实际净入账 " + actual + "（请走退款/调账）");
         }
-        resolveStaleFailuresIfComplete("PAYMENT_AMOUNT", failing, rows.size());
+        resolveStaleFailuresIfComplete(PAYMENT_AMOUNT, failing, rows.size());
     }
 
     /**
@@ -303,13 +318,13 @@ private DataConsistencyService self;
             failing.add(key);
             String expected = String.valueOf(row.get("expected_qty"));
             String actual = String.valueOf(row.get("lot_qty"));
-            recordInconsistency("INVENTORY_MISMATCH", "device_sku_inventory",
+            recordInconsistency(INVENTORY_MISMATCH, "device_sku_inventory",
                     key,
                     expected,
                     actual,
                     "汇总库存 " + expected + " ≠ 在架批次合计 " + actual);
         }
-        resolveStaleFailuresIfComplete("INVENTORY_MISMATCH", failing, rows.size());
+        resolveStaleFailuresIfComplete(INVENTORY_MISMATCH, failing, rows.size());
     }
 
     /**
@@ -329,7 +344,7 @@ private DataConsistencyService self;
         for (Map<String, Object> row : rows) {
             String memberId = String.valueOf(row.get("member_id"));
             failing.add(memberId);
-            String expected = String.valueOf(row.get("expected"));
+            String expected = String.valueOf(row.get(EXPECTED));
             String actual = String.valueOf(row.get("calculated"));
             recordInconsistency("POINTS_BALANCE", "member",
                     memberId, expected, actual,
@@ -353,8 +368,8 @@ private DataConsistencyService self;
         for (Map<String, Object> row : rows) {
             String defId = String.valueOf(row.get("coupon_def_id"));
             failing.add(defId);
-            String expected = String.valueOf(row.get("expected"));
-            String actual = String.valueOf(row.get("actual"));
+            String expected = String.valueOf(row.get(EXPECTED));
+            String actual = String.valueOf(row.get(ACTUAL));
             recordInconsistency("COUPON_ISSUED", "coupon_definition",
                     defId, expected, actual,
                     "券定义已发数 " + expected + " ≠ 实际发放 " + actual);
@@ -385,14 +400,14 @@ private DataConsistencyService self;
         for (Map<String, Object> row : rows) {
             String userId = String.valueOf(row.get("user_id"));
             failing.add(userId);
-            recordInconsistency("WALLET_BALANCE", "user_account",
+            recordInconsistency(WALLET_BALANCE, "user_account",
                     userId,
-                    String.valueOf(row.get("expected")),
-                    String.valueOf(row.get("actual")),
-                    "账户余额 " + row.get("expected") + " ≠ 最近流水余额 "
-                            + row.get("actual") + "（请人工核对充值/退款/调账）");
+                    String.valueOf(row.get(EXPECTED)),
+                    String.valueOf(row.get(ACTUAL)),
+                    "账户余额 " + row.get(EXPECTED) + " ≠ 最近流水余额 "
+                            + row.get(ACTUAL) + "（请人工核对充值/退款/调账）");
         }
-        resolveStaleFailuresIfComplete("WALLET_BALANCE", failing, rows.size());
+        resolveStaleFailuresIfComplete(WALLET_BALANCE, failing, rows.size());
     }
 
     /**
@@ -412,16 +427,16 @@ private DataConsistencyService self;
         Set<String> failing = new HashSet<>();
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
         for (Map<String, Object> row : rows) {
-            String orderId = String.valueOf(row.get("order_id"));
+            String orderId = String.valueOf(row.get(ORDER_ID));
             failing.add(orderId);
-            recordInconsistency("REFUND_AMOUNT", "cabinet_order",
+            recordInconsistency(REFUND_AMOUNT, "cabinet_order",
                     orderId,
-                    String.valueOf(row.get("expected")),
-                    String.valueOf(row.get("actual")),
-                    "订单已退字段 " + row.get("expected") + " ≠ 退款流水合计 "
-                            + row.get("actual") + "（请走退款/调账）");
+                    String.valueOf(row.get(EXPECTED)),
+                    String.valueOf(row.get(ACTUAL)),
+                    "订单已退字段 " + row.get(EXPECTED) + " ≠ 退款流水合计 "
+                            + row.get(ACTUAL) + "（请走退款/调账）");
         }
-        resolveStaleFailuresIfComplete("REFUND_AMOUNT", failing, rows.size());
+        resolveStaleFailuresIfComplete(REFUND_AMOUNT, failing, rows.size());
     }
 
     /**
@@ -442,13 +457,13 @@ private DataConsistencyService self;
         for (Map<String, Object> row : rows) {
             String key = String.valueOf(row.get("line_key"));
             failing.add(key);
-            recordInconsistency("ORDER_LINE_SUM", "cabinet_order_line",
+            recordInconsistency(ORDER_LINE_SUM, "cabinet_order_line",
                     key,
-                    String.valueOf(row.get("expected")),
-                    String.valueOf(row.get("actual")),
-                    "行金额 " + row.get("expected") + " ≠ 单价×数量 " + row.get("actual"));
+                    String.valueOf(row.get(EXPECTED)),
+                    String.valueOf(row.get(ACTUAL)),
+                    "行金额 " + row.get(EXPECTED) + " ≠ 单价×数量 " + row.get(ACTUAL));
         }
-        resolveStaleFailuresIfComplete("ORDER_LINE_SUM", failing, rows.size());
+        resolveStaleFailuresIfComplete(ORDER_LINE_SUM, failing, rows.size());
     }
 
     /**
@@ -470,17 +485,17 @@ private DataConsistencyService self;
         Set<String> failing = new HashSet<>();
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
         for (Map<String, Object> row : rows) {
-            String orderId = String.valueOf(row.get("order_id"));
+            String orderId = String.valueOf(row.get(ORDER_ID));
             failing.add(orderId);
-            recordInconsistency("COUPON_USED_LINK", "user_coupon",
+            recordInconsistency(COUPON_USED_LINK, "user_coupon",
                     orderId,
                     String.valueOf(row.get("order_discount")),
-                    String.valueOf(row.get("coupon_discount")),
+                    String.valueOf(row.get(COUPON_DISCOUNT)),
                     "订单券抵扣 " + row.get("order_discount") + " / 券ID "
                             + row.get("order_coupon_id") + " ≠ 核销券 "
-                            + row.get("coupon_discount") + " / ID " + row.get("user_coupon_id"));
+                            + row.get(COUPON_DISCOUNT) + " / ID " + row.get("user_coupon_id"));
         }
-        resolveStaleFailuresIfComplete("COUPON_USED_LINK", failing, rows.size());
+        resolveStaleFailuresIfComplete(COUPON_USED_LINK, failing, rows.size());
     }
 
     /**
@@ -634,12 +649,12 @@ private DataConsistencyService self;
 
     private FixOutcome applyFix(DataConsistencyRecord record) {
         return switch (record.getCheckType()) {
-            case "ORDER_AMOUNT" -> fixOrderAmount(record);
-            case "INVENTORY_MISMATCH" -> fixInventoryMismatch(record);
-            case "ORDER_LINE_SUM" -> fixOrderLineSum(record);
-            case "COUPON_USED_LINK" -> fixCouponUsedLink(record);
-            case "PAYMENT_AMOUNT" -> fixPaymentAmount(record);
-            case "REFUND_AMOUNT", "WALLET_BALANCE" ->
+            case ORDER_AMOUNT -> fixOrderAmount(record);
+            case INVENTORY_MISMATCH -> fixInventoryMismatch(record);
+            case ORDER_LINE_SUM -> fixOrderLineSum(record);
+            case COUPON_USED_LINK -> fixCouponUsedLink(record);
+            case PAYMENT_AMOUNT -> fixPaymentAmount(record);
+            case REFUND_AMOUNT, WALLET_BALANCE ->
                     FixOutcome.fail("该类仅巡检记录，请人工核对处理");
             default -> FixOutcome.fail("不支持自动修复的类型: " + record.getCheckType());
         };
@@ -698,13 +713,13 @@ private DataConsistencyService self;
 
         if (lineSum > 0 && paid == 0) {
             jdbcTemplate.update(
-                    "UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?",
+                    UPDATE_CABINET_ORDER_SET_TOTAL_AMOUNT_CENTS_WHERE_ORDER_ID,
                     payableFromLines, orderId);
             return FixOutcome.ok("无匹配入账流水，已把头金额改为明细折后 " + payableFromLines);
         }
         if (lineSum > 0 && paid == payableFromLines && paid != header) {
             jdbcTemplate.update(
-                    "UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?",
+                    UPDATE_CABINET_ORDER_SET_TOTAL_AMOUNT_CENTS_WHERE_ORDER_ID,
                     payableFromLines, orderId);
             return FixOutcome.ok("实付已与折后一致，已同步订单头为 " + payableFromLines);
         }
@@ -737,7 +752,7 @@ private DataConsistencyService self;
                 line, unit, orderId);
         if (line != header) {
             jdbcTemplate.update(
-                    "UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?",
+                    UPDATE_CABINET_ORDER_SET_TOTAL_AMOUNT_CENTS_WHERE_ORDER_ID,
                     line, orderId);
             String refundMsg = refundOverchargeIfNeeded(orderId, line);
             return FixOutcome.ok("已按单价×数量对齐明细 " + line + "（原头金额 " + header
@@ -797,7 +812,7 @@ private DataConsistencyService self;
         }
         int unit = ((Number) row.get("unit_price_cents")).intValue();
         int line = ((Number) row.get("line_amount_cents")).intValue();
-        int header = ((Number) row.get("total_amount_cents")).intValue();
+        int header = ((Number) row.get(TOTAL_AMOUNT_CENTS)).intValue();
         int computed = unit * qty;
         if (line == computed) {
             return FixOutcome.ok("行金额已与单价×数量一致");
@@ -821,7 +836,7 @@ private DataConsistencyService self;
                 orderId);
         if (lineCount != null && lineCount == 1 && header != alignedLine) {
             jdbcTemplate.update(
-                    "UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?",
+                    UPDATE_CABINET_ORDER_SET_TOTAL_AMOUNT_CENTS_WHERE_ORDER_ID,
                     alignedLine, orderId);
             String refundMsg = refundOverchargeIfNeeded(orderId, alignedLine);
             return FixOutcome.ok("已对齐行金额 " + alignedLine + "（原 " + line + "），并同步订单头" + refundMsg);

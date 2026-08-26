@@ -28,6 +28,8 @@ import java.util.Set;
 
 @Service
 public class DepartmentService {
+    private static final String PERM_OPS_DEPT_EDIT = "ops:dept:edit";
+
 
     private static final Set<String> STATUSES = Set.of("ACTIVE", "INACTIVE");
 
@@ -60,7 +62,7 @@ public class DepartmentService {
 
     @Transactional
     public OpsDepartmentDto upsert(Long operatorId, Long deptId, UpsertOpsDepartmentRequest req) {
-        permissionService.requirePermission(operatorId, "ops:dept:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_DEPT_EDIT);
         if (req == null || req.deptName() == null || req.deptName().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "部门名称不能为空");
         }
@@ -114,7 +116,7 @@ public class DepartmentService {
 
     @Transactional(readOnly = true)
     public OpsDepartmentMembersDto members(Long operatorId, Long deptId) {
-        permissionService.requireAnyPermission(operatorId, "ops:dept:list", "ops:dept:edit");
+        permissionService.requireAnyPermission(operatorId, "ops:dept:list", PERM_OPS_DEPT_EDIT);
         OpsDepartment dept = requireDept(deptId);
         List<Long> userIds = new ArrayList<>();
         List<String> names = new ArrayList<>();
@@ -129,7 +131,7 @@ public class DepartmentService {
 
     @Transactional
     public OpsDepartmentMembersDto assignMembers(Long operatorId, Long deptId, AssignDepartmentMembersRequest req) {
-        permissionService.requirePermission(operatorId, "ops:dept:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_DEPT_EDIT);
         OpsDepartment dept = requireDept(deptId);
         Set<Long> next = new LinkedHashSet<>();
         if (req != null && req.userIds() != null) {

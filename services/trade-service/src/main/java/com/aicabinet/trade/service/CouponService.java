@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 import org.springframework.scheduling.annotation.Scheduled;
 
 import com.aicabinet.common.dto.*;
@@ -23,6 +24,9 @@ import java.util.Set;
 
 @Service
 public class CouponService {
+    private static final String COUPON_EXPIRE = "coupon-expire";
+    private static final String LITERAL = "优惠券定义不存在";
+
     @Autowired
     private ScheduledTaskService taskService;
 
@@ -70,7 +74,7 @@ public class CouponService {
         def.setValidityDays(request.validityDays());
         def.setMaxIssueCount(request.maxIssueCount());
         def.setDescription(request.description());
-        def.setStatus("ACTIVE");
+        def.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
         definitionRepository.save(def);
         log.info("coupon definition created id={} name={}", def.getCouponDefId(), def.getCouponName());
         return toDefDto(def);
@@ -79,7 +83,7 @@ public class CouponService {
     @Transactional
     public CouponDefinitionDto updateDefinition(Long couponDefId, UpdateCouponRequest request) {
         CouponDefinition def = definitionRepository.findById(couponDefId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券定义不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         def.setCouponName(request.couponName());
         def.setCouponType(request.couponType());
         def.setDenominationCents(request.denominationCents());
@@ -98,17 +102,17 @@ public class CouponService {
     }
 
     public List<CouponDefinitionDto> listActiveDefinitions() {
-        return definitionRepository.findByStatus("ACTIVE").stream().map(this::toDefDto).toList();
+        return definitionRepository.findByStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE).stream().map(this::toDefDto).toList();
     }
 
     @Transactional
     public CouponDefinitionDto setDefinitionStatus(Long couponDefId, String status) {
         String normalized = status == null ? "" : status.trim().toUpperCase();
-        if (!"ACTIVE".equals(normalized) && !"INACTIVE".equals(normalized)) {
+        if (!CabinetConstants.PROMOTION_STATUS_ACTIVE.equals(normalized) && !"INACTIVE".equals(normalized)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "状态仅支持 ACTIVE 或 INACTIVE");
         }
         CouponDefinition def = definitionRepository.findById(couponDefId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券定义不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         def.setStatus(normalized);
         definitionRepository.save(def);
         log.info("coupon definition status id={} status={}", couponDefId, normalized);
@@ -125,8 +129,8 @@ public class CouponService {
         }
         try {
             CouponDefinition def = definitionRepository.findByIdForUpdate(couponDefId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券定义不存在"));
-            if (!"ACTIVE".equals(def.getStatus())) {
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
+            if (!CabinetConstants.PROMOTION_STATUS_ACTIVE.equals(def.getStatus())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "优惠券已停用");
             }
             if (def.getMaxIssueCount() > 0 && userCouponRepository.countByCouponDefId(couponDefId) >= def.getMaxIssueCount()) {
@@ -144,7 +148,7 @@ public class CouponService {
             uc.setCouponDefId(couponDefId);
             uc.setCouponCode(generateCouponCode());
             uc.setExpireAt(Instant.now().plus(def.getValidityDays(), ChronoUnit.DAYS));
-            uc.setStatus("UNUSED");
+            uc.setStatus(CabinetConstants.COUPON_STATUS_UNUSED);
             userCouponRepository.save(uc);
 
             long issued = userCouponRepository.countByCouponDefId(couponDefId);
@@ -176,7 +180,7 @@ public class CouponService {
     }
 
     public long countAvailable(Long userId) {
-        return userCouponRepository.countByUserIdAndStatus(userId, "UNUSED");
+        return userCouponRepository.countByUserIdAndStatus(userId, CabinetConstants.COUPON_STATUS_UNUSED);
     }
 
     // ── 核销 ────────────────────────────────────────────
@@ -193,11 +197,11 @@ public class CouponService {
         if (!uc.getUserId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权使用该优惠券");
         }
-        if (!"UNUSED".equals(uc.getStatus())) {
+        if (!CabinetConstants.COUPON_STATUS_UNUSED.equals(uc.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已使用或已过期");
         }
         if (uc.getExpireAt().isBefore(Instant.now())) {
-            uc.setStatus("EXPIRED");
+            uc.setStatus(CabinetConstants.COUPON_STATUS_EXPIRED);
             userCouponRepository.save(uc);
             throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已过期");
         }
@@ -225,7 +229,7 @@ public class CouponService {
         }
 
         CouponDefinition def = definitionRepository.findById(uc.getCouponDefId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券定义不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         int subtotal = resolveOrderLineSubtotal(order);
         int minSpend = Math.max(0, def.getMinSpendCents());
         if (subtotal < minSpend) {
@@ -302,7 +306,7 @@ public class CouponService {
         }
         Instant now = Instant.now();
         BestCoupon best = null;
-        for (UserCoupon uc : userCouponRepository.findByUserIdAndStatus(userId, "UNUSED")) {
+        for (UserCoupon uc : userCouponRepository.findByUserIdAndStatus(userId, CabinetConstants.COUPON_STATUS_UNUSED)) {
             Optional<BestCoupon> cand = evaluateCoupon(uc, subtotalCents, now);
             if (cand.isEmpty()) {
                 continue;
@@ -319,7 +323,7 @@ public class CouponService {
     public Optional<BestCoupon> selectPreferredOrBest(Long userId, Long preferredCouponId, int subtotalCents) {
         if (preferredCouponId != null && userId != null && subtotalCents > 0) {
             UserCoupon uc = userCouponRepository.findById(preferredCouponId).orElse(null);
-            if (uc != null && userId.equals(uc.getUserId()) && "UNUSED".equalsIgnoreCase(uc.getStatus())) {
+            if (uc != null && userId.equals(uc.getUserId()) && CabinetConstants.COUPON_STATUS_UNUSED.equalsIgnoreCase(uc.getStatus())) {
                 Optional<BestCoupon> preferred = evaluateCoupon(uc, subtotalCents, Instant.now());
                 if (preferred.isPresent()) {
                     return preferred;
@@ -334,7 +338,7 @@ public class CouponService {
             return Optional.empty();
         }
         CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
-        if (def == null || !"ACTIVE".equalsIgnoreCase(def.getStatus())) {
+        if (def == null || !CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(def.getStatus())) {
             return Optional.empty();
         }
         if (subtotalCents < def.getMinSpendCents()) {
@@ -370,7 +374,7 @@ public class CouponService {
                 && remainingSubtotalCents >= def.getMinSpendCents();
         if (!keep) {
             if ("USED".equalsIgnoreCase(uc.getStatus())) {
-                uc.setStatus("UNUSED");
+                uc.setStatus(CabinetConstants.COUPON_STATUS_UNUSED);
                 uc.setUsedAt(null);
                 uc.setOrderId(null);
                 uc.setDeviceId(null);
@@ -423,7 +427,7 @@ public class CouponService {
     }
 
     private void releaseUsedCouponToUnused(UserCoupon uc) {
-        uc.setStatus("UNUSED");
+        uc.setStatus(CabinetConstants.COUPON_STATUS_UNUSED);
         uc.setUsedAt(null);
         uc.setOrderId(null);
         uc.setDeviceId(null);
@@ -475,11 +479,11 @@ public class CouponService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "订单已核销其他优惠券");
             }
         }
-        if (!"UNUSED".equals(uc.getStatus())) {
+        if (!CabinetConstants.COUPON_STATUS_UNUSED.equals(uc.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已使用或已过期");
         }
         if (uc.getExpireAt() != null && uc.getExpireAt().isBefore(Instant.now())) {
-            uc.setStatus("EXPIRED");
+            uc.setStatus(CabinetConstants.COUPON_STATUS_EXPIRED);
             userCouponRepository.save(uc);
             throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已过期");
         }
@@ -517,15 +521,15 @@ public class CouponService {
     @Transactional
     public void expireOverdueCoupons() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("coupon-expire", 600)) {
+        if (!taskService.tryBegin(COUPON_EXPIRE, 600)) {
             return;
         }
         boolean failed = false;
         String summary = "本次无过期优惠券";
         try {
-            List<UserCoupon> expired = userCouponRepository.findByStatusAndExpireAtBefore("UNUSED", Instant.now());
+            List<UserCoupon> expired = userCouponRepository.findByStatusAndExpireAtBefore(CabinetConstants.COUPON_STATUS_UNUSED, Instant.now());
             for (UserCoupon uc : expired) {
-                uc.setStatus("EXPIRED");
+                uc.setStatus(CabinetConstants.COUPON_STATUS_EXPIRED);
                 CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
                 releasePromotionBudgetIfAny(def);
             }
@@ -536,11 +540,11 @@ public class CouponService {
             }
         } catch (Exception e) {
             failed = true;
-            taskService.finish("coupon-expire", "FAILED", e.getMessage(), start);
+            taskService.finish(COUPON_EXPIRE, "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("coupon-expire", "SUCCESS", summary, start);
+                taskService.finish(COUPON_EXPIRE, "SUCCESS", summary, start);
             }
         }
     }

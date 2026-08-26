@@ -31,6 +31,14 @@ import java.util.UUID;
 
 @Service
 public class InventoryLotService {
+    private static final String NEAR_EXPIRY = "NEAR_EXPIRY";
+    private static final String REPLENISH = "REPLENISH";
+    private static final String WRITE_OFF = "WRITE_OFF";
+    private static final String PULL_OFF = "PULL_OFF";
+    private static final String DEPLETED = "DEPLETED";
+    private static final String BLOCKED = "BLOCKED";
+    private static final String ON_SALE = "ON_SALE";
+
 
     private static final Logger log = LoggerFactory.getLogger(InventoryLotService.class);
 
@@ -152,7 +160,7 @@ public class InventoryLotService {
             }
             lot.setQuantity(lot.getQuantity() - take);
             if (lot.getQuantity() == 0) {
-                lot.setStatus("DEPLETED");
+                lot.setStatus(DEPLETED);
             }
             lotRepository.save(lot);
             recordMovement(deviceId, skuId, lot.getBatchNo(), "SALE", -take, refType, refId, null);
@@ -192,7 +200,7 @@ public class InventoryLotService {
             int take = Math.min(lot.getQuantity(), remaining);
             lot.setQuantity(lot.getQuantity() - take);
             if (lot.getQuantity() == 0) {
-                lot.setStatus("DEPLETED");
+                lot.setStatus(DEPLETED);
             }
             lotRepository.save(lot);
             remaining -= take;
@@ -220,7 +228,7 @@ public class InventoryLotService {
             if (lot.getQuantity() <= 0) {
                 continue;
             }
-            if ("WRITE_OFF".equals(movementType) || "ADJ".equals(movementType) || "PULL_OFF".equals(movementType)) {
+            if (WRITE_OFF.equals(movementType) || "ADJ".equals(movementType) || PULL_OFF.equals(movementType)) {
                 // allow blocked lots for write-off/pull-off/stocktake shrink
             } else if (!isSellable(lot, minExpiry)) {
                 continue;
@@ -228,7 +236,7 @@ public class InventoryLotService {
             int take = Math.min(lot.getQuantity(), remaining);
             lot.setQuantity(lot.getQuantity() - take);
             if (lot.getQuantity() == 0) {
-                lot.setStatus("DEPLETED");
+                lot.setStatus(DEPLETED);
             }
             lotRepository.save(lot);
             recordMovement(deviceId, skuId, lot.getBatchNo(), movementType, -take, refType, refId, operatorId);
@@ -259,7 +267,7 @@ public class InventoryLotService {
             }
         }
         lot.setQuantity(lot.getQuantity() + quantity);
-        if ("DEPLETED".equals(lot.getStatus()) || "BLOCKED".equals(lot.getStatus())) {
+        if (DEPLETED.equals(lot.getStatus()) || BLOCKED.equals(lot.getStatus())) {
             lot.setStatus(resolveLotStatus(lot));
         }
         lotRepository.save(lot);
@@ -306,7 +314,7 @@ public class InventoryLotService {
             lot.setProductionDate(productionDate);
             lot.setExpiryDate(expiryDate);
             lot.setSlotId(slotCode);
-            lot.setStatus("ON_SALE");
+            lot.setStatus(ON_SALE);
             lot.setQuantity(0);
         }
         lot.setQuantity(lot.getQuantity() + quantity);
@@ -315,7 +323,7 @@ public class InventoryLotService {
             lot.setSlotId(slotCode);
         }
         lotRepository.save(lot);
-        recordMovement(deviceId, skuId, resolvedBatch, "RESTOCK", quantity, "REPLENISH", refId, operatorId);
+        recordMovement(deviceId, skuId, resolvedBatch, "RESTOCK", quantity, REPLENISH, refId, operatorId);
         self.syncAggregateInventory(deviceId, skuId);
         log.info("restock lot device={} sku={} batch={} qty={}", deviceId, skuId, resolvedBatch, quantity);
     }
@@ -335,9 +343,9 @@ public class InventoryLotService {
             return;
         }
         if (batchNo != null && !batchNo.isBlank()) {
-            deductBatchAcrossLots(deviceId, skuId, batchNo, quantity, "PULL_OFF", "REPLENISH", refId, operatorId);
+            deductBatchAcrossLots(deviceId, skuId, batchNo, quantity, PULL_OFF, REPLENISH, refId, operatorId);
         } else {
-            deductFefoForRef(deviceId, skuId, quantity, "PULL_OFF", "REPLENISH", refId, operatorId);
+            deductFefoForRef(deviceId, skuId, quantity, PULL_OFF, REPLENISH, refId, operatorId);
         }
         self.syncAggregateInventory(deviceId, skuId);
     }
@@ -357,9 +365,9 @@ public class InventoryLotService {
             return;
         }
         if (batchNo != null && !batchNo.isBlank()) {
-            deductBatchAcrossLots(deviceId, skuId, batchNo, quantity, "WRITE_OFF", "WRITE_OFF", refId, operatorId);
+            deductBatchAcrossLots(deviceId, skuId, batchNo, quantity, WRITE_OFF, WRITE_OFF, refId, operatorId);
         } else {
-            deductFefoForRef(deviceId, skuId, quantity, "WRITE_OFF", "WRITE_OFF", refId, operatorId);
+            deductFefoForRef(deviceId, skuId, quantity, WRITE_OFF, WRITE_OFF, refId, operatorId);
         }
         self.syncAggregateInventory(deviceId, skuId);
     }
@@ -459,7 +467,7 @@ public class InventoryLotService {
             int take = Math.min(lot.getQuantity(), remaining);
             lot.setQuantity(lot.getQuantity() - take);
             if (lot.getQuantity() == 0) {
-                lot.setStatus("DEPLETED");
+                lot.setStatus(DEPLETED);
             }
             lotRepository.save(lot);
             recordMovement(deviceId, skuId, lot.getBatchNo(), "ADJ", -take, "STOCKTAKE", refId, operatorId);
@@ -497,7 +505,7 @@ public class InventoryLotService {
             }
             doAddRestock(deviceId, line.getSkuId(), line.getBatchNo(), production, expiry,
                     line.getQuantity(), line.getSlotId(), operatorId, refId);
-        } else if ("PULL_OFF".equalsIgnoreCase(line.getLineType())) {
+        } else if (PULL_OFF.equalsIgnoreCase(line.getLineType())) {
             doPullOff(deviceId, line.getSkuId(), line.getBatchNo(), line.getQuantity(), operatorId, refId);
         } else {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unknown lineType=" + line.getLineType());
@@ -541,7 +549,7 @@ public class InventoryLotService {
         // 覆盖常见 nearExpiryDays（通常 ≤30）；更长窗口留给后续批次/手动盘点
         LocalDate horizon = today.plusDays(90);
         List<DeviceSkuLot> lots = lotRepository.findForExpiryScan(
-                List.of("ON_SALE", "NEAR_EXPIRY", "BLOCKED"), horizon, 500);
+                List.of(ON_SALE, NEAR_EXPIRY, BLOCKED), horizon, 500);
         int alerts = 0;
         for (DeviceSkuLot lot : lots) {
             SkuCatalog sku = skuCatalogRepository.findById(lot.getSkuId()).orElse(null);
@@ -549,8 +557,8 @@ public class InventoryLotService {
             LocalDate nearThreshold = today.plusDays(nearDays);
 
             if (lot.getExpiryDate().isBefore(today)) {
-                if (!"BLOCKED".equals(lot.getStatus())) {
-                    lot.setStatus("BLOCKED");
+                if (!BLOCKED.equals(lot.getStatus())) {
+                    lot.setStatus(BLOCKED);
                     lotRepository.save(lot);
                 }
                 if (pullOffTaskRepository.findByLotIdAndStatus(lot.getLotId(), "OPEN").isEmpty()) {
@@ -565,13 +573,13 @@ public class InventoryLotService {
                     alerts++;
                 }
             } else if (!lot.getExpiryDate().isAfter(nearThreshold)) {
-                if ("ON_SALE".equals(lot.getStatus())) {
-                    lot.setStatus("NEAR_EXPIRY");
+                if (ON_SALE.equals(lot.getStatus())) {
+                    lot.setStatus(NEAR_EXPIRY);
                     lotRepository.save(lot);
                     alerts++;
                 }
                 // 临期批次同步生成下架任务，避免只改状态无人处理
-                if (("NEAR_EXPIRY".equals(lot.getStatus()) || "ON_SALE".equals(lot.getStatus()))
+                if ((NEAR_EXPIRY.equals(lot.getStatus()) || ON_SALE.equals(lot.getStatus()))
                         && pullOffTaskRepository.findByLotIdAndStatus(lot.getLotId(), "OPEN").isEmpty()) {
                     PullOffTask task = new PullOffTask();
                     task.setDeviceId(lot.getDeviceId());
@@ -579,7 +587,7 @@ public class InventoryLotService {
                     task.setLotId(lot.getLotId());
                     task.setBatchNo(lot.getBatchNo());
                     task.setQuantity(lot.getQuantity());
-                    task.setReason("NEAR_EXPIRY");
+                    task.setReason(NEAR_EXPIRY);
                     pullOffTaskRepository.save(task);
                     alerts++;
                 }
@@ -605,9 +613,9 @@ public class InventoryLotService {
                 .orElseGet(() -> {
                     LocalDate today = LocalDate.now();
                     String reason = lot.getExpiryDate() != null && lot.getExpiryDate().isBefore(today)
-                            ? "EXPIRED" : "NEAR_EXPIRY";
-                    if ("ON_SALE".equals(lot.getStatus()) && "NEAR_EXPIRY".equals(reason)) {
-                        lot.setStatus("NEAR_EXPIRY");
+                            ? "EXPIRED" : NEAR_EXPIRY;
+                    if (ON_SALE.equals(lot.getStatus()) && NEAR_EXPIRY.equals(reason)) {
+                        lot.setStatus(NEAR_EXPIRY);
                         lotRepository.save(lot);
                     }
                     PullOffTask task = new PullOffTask();
@@ -659,7 +667,7 @@ public class InventoryLotService {
             LocalDate expiry = lot.getExpiryDate();
             lot.setQuantity(lot.getQuantity() - take);
             if (lot.getQuantity() == 0) {
-                lot.setStatus("DEPLETED");
+                lot.setStatus(DEPLETED);
             }
             lotRepository.save(lot);
             recordMovement(deviceId, skuId, batch, "ADJ", -take, "SLOT_TRANSFER", refId, operatorId);
@@ -739,7 +747,7 @@ public class InventoryLotService {
             return false;
         }
         String status = lot.getStatus();
-        if ("BLOCKED".equals(status) || "DEPLETED".equals(status)) {
+        if (BLOCKED.equals(status) || DEPLETED.equals(status)) {
             return false;
         }
         return lot.getExpiryDate().isAfter(minExpiry);
@@ -748,14 +756,14 @@ public class InventoryLotService {
     private String resolveLotStatus(DeviceSkuLot lot) {
         LocalDate today = LocalDate.now();
         if (lot.getExpiryDate().isBefore(today)) {
-            return "BLOCKED";
+            return BLOCKED;
         }
         SkuCatalog sku = skuCatalogRepository.findById(lot.getSkuId()).orElse(null);
         int nearDays = sku != null ? sku.getNearExpiryDays() : 7;
         if (!lot.getExpiryDate().isAfter(today.plusDays(nearDays))) {
-            return "NEAR_EXPIRY";
+            return NEAR_EXPIRY;
         }
-        return "ON_SALE";
+        return ON_SALE;
     }
 
     private DeviceSkuLot createFallbackLot(String deviceId, String skuId, String batchNo) {
@@ -765,7 +773,7 @@ public class InventoryLotService {
         lot.setSkuId(skuId);
         lot.setBatchNo(batchNo);
         lot.setExpiryDate(LocalDate.now().plusDays(365));
-        lot.setStatus("ON_SALE");
+        lot.setStatus(ON_SALE);
         lot.setQuantity(0);
         lot.setSlotId(resolvePrimarySlotCode(deviceId, skuId));
         return lot;

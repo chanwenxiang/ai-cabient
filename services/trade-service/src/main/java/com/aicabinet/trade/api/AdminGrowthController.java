@@ -87,8 +87,10 @@ public class AdminGrowthController {
 
     @RequiresPermissions("ops:sku-review:list")
     @GetMapping("/sku-review")
-    public ApiResponse<List<SkuDelistReviewDto>> skuReviews() {
-        return ApiResponse.ok(skuReviewService.list());
+    public ApiResponse<PageResult<SkuDelistReviewDto>> skuReviews(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(skuReviewService.listPage(page, size));
     }
 
     @RequiresPermissions("ops:sku-review:list")

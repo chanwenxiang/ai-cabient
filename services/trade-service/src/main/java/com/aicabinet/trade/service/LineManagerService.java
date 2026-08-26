@@ -27,6 +27,17 @@ import java.util.Optional;
 
 @Service
 public class LineManagerService {
+    private static final String PERM_OPS_LINE_MANAGER_EDIT = "ops:line-manager:edit";
+    private static final String PERM_OPS_LINE_MANAGER_LIST = "ops:line-manager:list";
+    private static final String COMMISSIONFIXEDCENTS = "commissionFixedCents";
+    private static final String COMMISSIONRATEBPS = "commissionRateBps";
+    private static final String PERM_OPS_FINANCE_VIEW = "ops:finance:view";
+    private static final String MANAGERNAME = "managerName";
+    private static final String WXOPENID = "wxOpenid";
+    private static final String ORGNAME = "orgName";
+    private static final String USERID = "userId";
+    private static final String PHONE = "phone";
+
 
     public static final String STATUS_ACTIVE = "ACTIVE";
 
@@ -62,7 +73,7 @@ public class LineManagerService {
 
     @Transactional(readOnly = true)
     public PageResult<LineManagerDto> list(Long operatorId, String status, String keyword, int page, int size) {
-        permissionService.requireAnyPermission(operatorId, "ops:line-manager:list", "ops:finance:view");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_LINE_MANAGER_LIST, PERM_OPS_FINANCE_VIEW);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
         LambdaQueryWrapper<LineManager> q = new LambdaQueryWrapper<>();
@@ -81,15 +92,15 @@ public class LineManagerService {
 
     @Transactional(readOnly = true)
     public LineManagerDto detail(Long operatorId, long managerId) {
-        permissionService.requireAnyPermission(operatorId, "ops:line-manager:list", "ops:finance:view");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_LINE_MANAGER_LIST, PERM_OPS_FINANCE_VIEW);
         return toDto(requireManager(managerId));
     }
 
     @Transactional
     public LineManagerDto create(Long operatorId, Map<String, Object> body) {
-        permissionService.requirePermission(operatorId, "ops:line-manager:edit");
-        String name = stringVal(body.get("managerName"));
-        String phone = stringVal(body.get("phone"));
+        permissionService.requirePermission(operatorId, PERM_OPS_LINE_MANAGER_EDIT);
+        String name = stringVal(body.get(MANAGERNAME));
+        String phone = stringVal(body.get(PHONE));
         if (name == null || name.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "姓名必填");
         }
@@ -104,11 +115,11 @@ public class LineManagerService {
         manager.setManagerName(name.trim());
         manager.setPhone(phone.trim());
         manager.setStatus(STATUS_ACTIVE);
-        manager.setWxOpenid(trim(stringVal(body.get("wxOpenid"))));
-        manager.setUserId(longVal(body.get("userId")));
-        manager.setOrgName(trim(stringVal(body.get("orgName"))));
-        manager.setCommissionRateBps(intVal(body.get("commissionRateBps"), 200));
-        manager.setCommissionFixedCents(intVal(body.get("commissionFixedCents"), 0));
+        manager.setWxOpenid(trim(stringVal(body.get(WXOPENID))));
+        manager.setUserId(longVal(body.get(USERID)));
+        manager.setOrgName(trim(stringVal(body.get(ORGNAME))));
+        manager.setCommissionRateBps(intVal(body.get(COMMISSIONRATEBPS), 200));
+        manager.setCommissionFixedCents(intVal(body.get(COMMISSIONFIXEDCENTS), 0));
         manager.setCreatedAt(now);
         manager.setUpdatedAt(now);
         managerMapper.insert(manager);
@@ -118,16 +129,16 @@ public class LineManagerService {
 
     @Transactional
     public LineManagerDto update(Long operatorId, long managerId, Map<String, Object> body) {
-        permissionService.requirePermission(operatorId, "ops:line-manager:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_LINE_MANAGER_EDIT);
         LineManager manager = requireManager(managerId);
-        if (body.containsKey("managerName")) {
-            String name = stringVal(body.get("managerName"));
+        if (body.containsKey(MANAGERNAME)) {
+            String name = stringVal(body.get(MANAGERNAME));
             if (name != null && !name.isBlank()) {
                 manager.setManagerName(name.trim());
             }
         }
-        if (body.containsKey("phone")) {
-            String phone = stringVal(body.get("phone"));
+        if (body.containsKey(PHONE)) {
+            String phone = stringVal(body.get(PHONE));
             if (phone != null && !phone.isBlank()) {
                 managerMapper.findByPhone(phone.trim()).ifPresent(existing -> {
                     if (!existing.getManagerId().equals(managerId)) {
@@ -137,20 +148,20 @@ public class LineManagerService {
                 manager.setPhone(phone.trim());
             }
         }
-        if (body.containsKey("wxOpenid")) {
-            manager.setWxOpenid(trim(stringVal(body.get("wxOpenid"))));
+        if (body.containsKey(WXOPENID)) {
+            manager.setWxOpenid(trim(stringVal(body.get(WXOPENID))));
         }
-        if (body.containsKey("userId")) {
-            manager.setUserId(longVal(body.get("userId")));
+        if (body.containsKey(USERID)) {
+            manager.setUserId(longVal(body.get(USERID)));
         }
-        if (body.containsKey("orgName")) {
-            manager.setOrgName(trim(stringVal(body.get("orgName"))));
+        if (body.containsKey(ORGNAME)) {
+            manager.setOrgName(trim(stringVal(body.get(ORGNAME))));
         }
-        if (body.containsKey("commissionRateBps")) {
-            manager.setCommissionRateBps(intVal(body.get("commissionRateBps"), manager.getCommissionRateBps()));
+        if (body.containsKey(COMMISSIONRATEBPS)) {
+            manager.setCommissionRateBps(intVal(body.get(COMMISSIONRATEBPS), manager.getCommissionRateBps()));
         }
-        if (body.containsKey("commissionFixedCents")) {
-            manager.setCommissionFixedCents(intVal(body.get("commissionFixedCents"), manager.getCommissionFixedCents()));
+        if (body.containsKey(COMMISSIONFIXEDCENTS)) {
+            manager.setCommissionFixedCents(intVal(body.get(COMMISSIONFIXEDCENTS), manager.getCommissionFixedCents()));
         }
         if (body.containsKey("status")) {
             String status = stringVal(body.get("status"));
@@ -165,7 +176,7 @@ public class LineManagerService {
 
     @Transactional
     public LineManagerDto bindDevice(Long operatorId, long managerId, String deviceId) {
-        permissionService.requirePermission(operatorId, "ops:line-manager:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_LINE_MANAGER_EDIT);
         requireManager(managerId);
         if (deviceId == null || deviceId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备编号必填");
@@ -192,7 +203,7 @@ public class LineManagerService {
 
     @Transactional
     public LineManagerDto unbindDevice(Long operatorId, long managerId, String deviceId) {
-        permissionService.requirePermission(operatorId, "ops:line-manager:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_LINE_MANAGER_EDIT);
         requireManager(managerId);
         if (deviceId == null || deviceId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备编号必填");
@@ -210,7 +221,7 @@ public class LineManagerService {
 
     @Transactional
     public LineManagerDto adjust(Long operatorId, long managerId, long amountCents, String remark) {
-        permissionService.requirePermission(operatorId, "ops:line-manager:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_LINE_MANAGER_EDIT);
         requireManager(managerId);
         if (amountCents == 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "调账金额不能为 0");
@@ -230,7 +241,7 @@ public class LineManagerService {
 
     @Transactional(readOnly = true)
     public List<LineWalletLedgerDto> ledgers(Long operatorId, long managerId, int limit) {
-        permissionService.requireAnyPermission(operatorId, "ops:line-manager:list", "ops:finance:view");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_LINE_MANAGER_LIST, PERM_OPS_FINANCE_VIEW);
         return self.ledgersForManager(managerId, limit);
     }
 

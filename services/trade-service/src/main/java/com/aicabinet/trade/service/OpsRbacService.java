@@ -36,6 +36,11 @@ import java.util.Set;
 
 @Service
 public class OpsRbacService {
+    private static final String PERM_OPS_RBAC_ASSIGN = "ops:rbac:assign";
+    private static final String PERM_OPS_RBAC_ROLE = "ops:rbac:role";
+    private static final String INACTIVE = "INACTIVE";
+    private static final String ADMIN = "admin";
+
 
     private final OpsRoleMapper roleRepository;
     private final OpsPermissionMapper permissionRepository;
@@ -102,7 +107,7 @@ public class OpsRbacService {
         if (roleRepository.findByRoleKey(roleKey).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "角色标识已存在");
         }
-        if ("admin".equalsIgnoreCase(roleKey)) {
+        if (ADMIN.equalsIgnoreCase(roleKey)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不允许创建 admin 角色");
         }
         OpsRole role = new OpsRole();
@@ -123,8 +128,8 @@ public class OpsRbacService {
     private OpsRoleDto doUpdateRole(Long roleId, UpdateOpsRoleRequest request) {
         OpsRole role = roleRepository.findByIdForUpdate(roleId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ROLE_NOT_FOUND));
-        if ("admin".equals(role.getRoleKey()) && request.status() != null
-                && !"ACTIVE".equalsIgnoreCase(request.status().trim())) {
+        if (ADMIN.equals(role.getRoleKey()) && request.status() != null
+                && !CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(request.status().trim())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能停用超级管理员角色");
         }
         role.setRoleName(request.roleName().trim());
@@ -140,7 +145,7 @@ public class OpsRbacService {
     @Transactional(readOnly = true)
     public List<OpsRoleDto> listRoles(Long operatorId) {
         // 角色页维护 / 运营账号分配角色 均可读取角色列表
-        permissionService.requireAnyPermission(operatorId, "ops:rbac:role", "ops:rbac:assign");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_RBAC_ROLE, PERM_OPS_RBAC_ASSIGN);
         return roleRepository.findAll().stream()
                 .map(r -> {
                     int permCount = rolePermissionRepository.findPermissionIdsByRoleId(r.getRoleId()).size();
@@ -152,10 +157,10 @@ public class OpsRbacService {
     @Transactional(readOnly = true)
     public List<OpsPermissionDto> listPermissions(Long operatorId, boolean includeInactive) {
         // 角色分配权限 / 菜单管理页 均可读取权限树
-        permissionService.requireAnyPermission(operatorId, "ops:rbac:role", "ops:rbac:menu");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_RBAC_ROLE, "ops:rbac:menu");
         List<OpsPermission> rows = includeInactive
                 ? permissionRepository.findAllOrderBySortOrderAsc()
-                : permissionRepository.findByStatusOrderBySortOrderAsc("ACTIVE");
+                : permissionRepository.findByStatusOrderBySortOrderAsc(CabinetConstants.PROMOTION_STATUS_ACTIVE);
         return rows.stream().map(this::toPermissionDto).toList();
     }
 
@@ -183,7 +188,7 @@ public class OpsRbacService {
         p.setStatus(normalizeStatus(request.status()));
         permissionRepository.save(p);
         // 新建默认挂到超级管理员（复合主键实体用 insert，避免 save→selectById）
-        roleRepository.findByRoleKey("admin").ifPresent(admin ->
+        roleRepository.findByRoleKey(ADMIN).ifPresent(admin ->
                 rolePermissionRepository.insert(new OpsRolePermission(admin.getRoleId(), p.getPermissionId())));
         return toPermissionDto(p);
     }
@@ -228,14 +233,14 @@ public class OpsRbacService {
     private void doDeletePermission(Long permissionId) {
         OpsPermission p = permissionRepository.findByIdForUpdate(permissionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "菜单权限不存在"));
-        long childCount = permissionRepository.countByParentIdAndStatus(permissionId, "ACTIVE");
+        long childCount = permissionRepository.countByParentIdAndStatus(permissionId, CabinetConstants.PROMOTION_STATUS_ACTIVE);
         if (childCount > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "请先删除或停用子菜单");
         }
         if ("ops:admin".equals(p.getPermCode()) || "ops".equals(p.getPermCode())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "系统内置权限不可删除");
         }
-        p.setStatus("INACTIVE");
+        p.setStatus(INACTIVE);
         permissionRepository.save(p);
     }
 
@@ -267,10 +272,10 @@ public class OpsRbacService {
 
     private static String normalizeStatus(String status) {
         if (status == null || status.isBlank()) {
-            return "ACTIVE";
+            return CabinetConstants.PROMOTION_STATUS_ACTIVE;
         }
         String s = status.trim().toUpperCase();
-        if (!"ACTIVE".equals(s) && !"INACTIVE".equals(s)) {
+        if (!CabinetConstants.PROMOTION_STATUS_ACTIVE.equals(s) && !INACTIVE.equals(s)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "状态仅支持 ACTIVE 或 INACTIVE");
         }
         return s;
@@ -285,7 +290,7 @@ public class OpsRbacService {
 
     @Transactional(readOnly = true)
     public OpsRolePermissionsDto getRolePermissions(Long operatorId, Long roleId) {
-        permissionService.requireAnyPermission(operatorId, "ops:rbac:role", "ops:rbac:role:perm");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_RBAC_ROLE, "ops:rbac:role:perm");
         var role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ROLE_NOT_FOUND));
         List<Long> permissionIds = rolePermissionRepository.findPermissionIdsByRoleId(roleId);
@@ -301,7 +306,7 @@ public class OpsRbacService {
     private OpsRolePermissionsDto doAssignRolePermissions(Long operatorId, Long roleId, List<Long> permissionIds) {
         var role = roleRepository.findByIdForUpdate(roleId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ROLE_NOT_FOUND));
-        if ("admin".equals(role.getRoleKey())) {
+        if (ADMIN.equals(role.getRoleKey())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.CANNOT_MODIFY_ADMIN_ROLE);
         }
         rolePermissionRepository.deleteByIdRoleId(roleId);
@@ -319,7 +324,7 @@ public class OpsRbacService {
 
     @Transactional(readOnly = true)
     public PageResult<OpsOperatorDto> listOperators(Long operatorId, int page, int size, String phone) {
-        permissionService.requireAnyPermission(operatorId, "ops:rbac:assign", "ops:replenishment:edit");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_RBAC_ASSIGN, "ops:replenishment:edit");
         var pageable = PageRequest.of(page, Math.min(size, 100));
         Page<UserInfo> users = (phone == null || phone.isBlank())
                 ? userInfoRepository.findByUserIdGreaterThanEqualOrderByUserIdDesc(
@@ -390,7 +395,7 @@ public class OpsRbacService {
         }
         if (request.status() != null && !request.status().isBlank()) {
             String status = normalizeAccountStatus(request.status());
-            if ("INACTIVE".equals(status) && userId.equals(operatorId)) {
+            if (INACTIVE.equals(status) && userId.equals(operatorId)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.CANNOT_DISABLE_SELF);
             }
             user.setStatus(status);
@@ -418,7 +423,7 @@ public class OpsRbacService {
         }
         UserInfo user = userInfoRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
-        user.setStatus("INACTIVE");
+        user.setStatus(INACTIVE);
         userInfoRepository.save(user);
     }
 
@@ -448,7 +453,7 @@ public class OpsRbacService {
 
     @Transactional(readOnly = true)
     public OpsUserRolesDto getUserRoles(Long operatorId, Long userId) {
-        permissionService.requirePermission(operatorId, "ops:rbac:assign");
+        permissionService.requirePermission(operatorId, PERM_OPS_RBAC_ASSIGN);
         ensureOperatorAccount(userId);
         List<Long> roleIds = userRoleRepository.findByIdUserId(userId).stream()
                 .map(ur -> ur.getId().getRoleId())
@@ -483,7 +488,7 @@ public class OpsRbacService {
 
     @Transactional(readOnly = true)
     public OpsUserMerchantsDto getUserMerchants(Long operatorId, Long userId) {
-        permissionService.requirePermission(operatorId, "ops:rbac:assign");
+        permissionService.requirePermission(operatorId, PERM_OPS_RBAC_ASSIGN);
         ensureOperatorAccount(userId);
         List<String> merchantIds = userMerchantRepository.findByIdUserId(userId).stream()
                 .map(m -> m.getId().getMerchantId())
@@ -533,7 +538,7 @@ public class OpsRbacService {
     @Transactional(readOnly = true)
     public Set<String> activeNavPermissions(Long operatorId) {
         permissionService.requireOperator(operatorId);
-        return permissionRepository.findByStatusOrderBySortOrderAsc("ACTIVE").stream()
+        return permissionRepository.findByStatusOrderBySortOrderAsc(CabinetConstants.PROMOTION_STATUS_ACTIVE).stream()
                 .filter(p -> {
                     String t = p.getPermType();
                     return "C".equals(t) || "M".equals(t);
@@ -605,7 +610,7 @@ public class OpsRbacService {
                 user.getUserId(),
                 user.getPhoneNumber(),
                 user.getName(),
-                user.getStatus() == null || user.getStatus().isBlank() ? "ACTIVE" : user.getStatus(),
+                user.getStatus() == null || user.getStatus().isBlank() ? CabinetConstants.PROMOTION_STATUS_ACTIVE : user.getStatus(),
                 roleNames,
                 roleIds,
                 merchantIds,
@@ -652,10 +657,10 @@ public class OpsRbacService {
 
     private static String normalizeAccountStatus(String status) {
         if (status == null || status.isBlank()) {
-            return "ACTIVE";
+            return CabinetConstants.PROMOTION_STATUS_ACTIVE;
         }
         String normalized = status.trim().toUpperCase();
-        if (!"ACTIVE".equals(normalized) && !"INACTIVE".equals(normalized)) {
+        if (!CabinetConstants.PROMOTION_STATUS_ACTIVE.equals(normalized) && !INACTIVE.equals(normalized)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "账号状态仅支持 ACTIVE 或 INACTIVE");
         }
         return normalized;
@@ -663,10 +668,10 @@ public class OpsRbacService {
 
     private static String normalizeRoleStatus(String status) {
         if (status == null || status.isBlank()) {
-            return "ACTIVE";
+            return CabinetConstants.PROMOTION_STATUS_ACTIVE;
         }
         String normalized = status.trim().toUpperCase();
-        if (!"ACTIVE".equals(normalized) && !"INACTIVE".equals(normalized)) {
+        if (!CabinetConstants.PROMOTION_STATUS_ACTIVE.equals(normalized) && !INACTIVE.equals(normalized)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "角色状态仅支持 ACTIVE 或 INACTIVE");
         }
         return normalized;

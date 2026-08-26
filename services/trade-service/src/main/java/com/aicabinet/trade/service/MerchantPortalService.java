@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.common.enums.SessionState;
@@ -33,13 +34,27 @@ import java.util.stream.Collectors;
 
 @Service
 public class MerchantPortalService {
+    private static final String MERCHANT_SETTLEMENTS_VIEW = "merchant:settlements:view";
+    private static final String MERCHANT_INVENTORY_VIEW = "merchant:inventory:view";
+    private static final String MERCHANT_STORE_MANAGER = "merchant_store_manager";
+    private static final String MERCHANT_REPLENISHER = "merchant_replenisher";
+    private static final String MERCHANT_USERS_EDIT = "merchant:users:edit";
+    private static final String MERCHANT_FINANCE = "merchant_finance";
+    private static final String MERCHANT_STAFF = "merchant_staff";
+    private static final String MERCHANT_ADMIN = "merchant_admin";
+    private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
+    private static final String MERCHANT = "merchant";
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String MEDIUM = "MEDIUM";
+    private static final String LITERAL = "成员不存在";
+
 
     private static final List<SessionState> ACTIVE_STATES = List.of(
             SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
             SessionState.RECOGNIZING, SessionState.WAITING_UPLOAD, SessionState.SETTLING
     );
     private static final List<String> PENDING_SPLIT_STATUSES = List.of(
-            "PENDING", "ACCRUED", "LEDGER_ONLY", "WECHAT_SUBMITTED", "SUBMITTED"
+            STATUS_PENDING, "ACCRUED", "LEDGER_ONLY", "WECHAT_SUBMITTED", "SUBMITTED"
     );
     private static final List<String> FAILED_SPLIT_STATUSES = List.of("WECHAT_FAILED", "FAILED");
     private static final int WORKBENCH_ITEM_CAP = 50;
@@ -50,8 +65,8 @@ public class MerchantPortalService {
     private static final long MERCHANT_STORE_MANAGER_ROLE_ID = 10L;
     private static final long MERCHANT_REPLENISHER_ROLE_ID = 11L;
     private static final Set<String> MERCHANT_TEAM_ROLE_KEYS = Set.of(
-            "merchant", "merchant_admin", "merchant_staff", "merchant_finance",
-            "merchant_store_manager", "merchant_replenisher"
+            MERCHANT, MERCHANT_ADMIN, MERCHANT_STAFF, MERCHANT_FINANCE,
+            MERCHANT_STORE_MANAGER, MERCHANT_REPLENISHER
     );
 
     private final PermissionService permissionService;
@@ -189,13 +204,13 @@ public class MerchantPortalService {
         merchantPortalGuard.requireAccess(userId);
         List<DeviceInfo> devices = merchantFeaturePackService.allowedDevicesForPack(
                 userId, MerchantFeaturePacks.FIELD);
-        int online = (int) devices.stream().filter(d -> "ONLINE".equalsIgnoreCase(d.getOnlineStatus())).count();
+        int online = (int) devices.stream().filter(d -> CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(d.getOnlineStatus())).count();
         int offline = devices.size() - online;
 
         boolean canFinanceKpi = permissionService.hasAnyPermission(
                 userId,
                 "merchant:reports:view",
-                "merchant:settlements:view",
+                MERCHANT_SETTLEMENTS_VIEW,
                 "merchant:trend:view",
                 "merchant:analytics:view");
         if (!canFinanceKpi) {
@@ -324,10 +339,10 @@ public class MerchantPortalService {
                         null, null, d.getCreatedAt(), d.getSlaDueAt())));
 
         long offline = deviceIds == null
-                ? deviceRepository.countByOnlineStatusNot("ONLINE")
+                ? deviceRepository.countByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE)
                 : (deviceIds.isEmpty() ? 0
-                : deviceRepository.countByDeviceIdInAndOnlineStatusNot(deviceIds, "ONLINE"));
-        deviceRepository.findByOnlineStatusNot("ONLINE", WORKBENCH_ITEM_CAP).stream()
+                : deviceRepository.countByDeviceIdInAndOnlineStatusNot(deviceIds, CabinetConstants.DEVICE_ONLINE));
+        deviceRepository.findByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE, WORKBENCH_ITEM_CAP).stream()
                 .filter(d -> inDeviceScope(deviceIds, d.getDeviceId()))
                 .forEach(d -> items.add(new OpsActionItemDto(
                         "DEVICE_OFFLINE", "HIGH", "柜机离线",
@@ -340,7 +355,7 @@ public class MerchantPortalService {
         inventoryRepository.findLowStockLimit(WORKBENCH_ITEM_CAP).stream()
                 .filter(inv -> inDeviceScope(deviceIds, inv.getId().getDeviceId()))
                 .forEach(inv -> items.add(new OpsActionItemDto(
-                        "LOW_STOCK", "MEDIUM", "库存偏低",
+                        "LOW_STOCK", MEDIUM, "库存偏低",
                         "SKU " + inv.getId().getSkuId() + " 当前 " + inv.getQuantity()
                                 + " / 阈值 " + inv.getLowThreshold(),
                         inv.getId().getDeviceId(), null, null, inv.getId().getSkuId(),
@@ -352,7 +367,7 @@ public class MerchantPortalService {
         pullOffTaskRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
                 .filter(task -> inDeviceScope(deviceIds, task.getDeviceId()))
                 .forEach(task -> items.add(new OpsActionItemDto(
-                        "EXPIRY", "MEDIUM", "临期/过期下架",
+                        "EXPIRY", MEDIUM, "临期/过期下架",
                         "SKU " + task.getSkuId() + " · " + task.getReason(),
                         task.getDeviceId(), null, null, task.getSkuId(),
                         task.getTaskId(), task.getCreatedAt(), null)));
@@ -362,16 +377,16 @@ public class MerchantPortalService {
                 .limit(WORKBENCH_ITEM_CAP)
                 .toList();
         discrepancies.forEach(a -> items.add(new OpsActionItemDto(
-                "SLOT_DISCREPANCY", "MEDIUM", "货道账实差异",
+                "SLOT_DISCREPANCY", MEDIUM, "货道账实差异",
                 a.slotCode() + " 账面 " + a.bookQty() + " 实测 " + a.physicalQty(),
                 a.deviceId(), null, null, a.assignedSkuId(),
                 null, a.lastPhysicalAt(), null)));
 
         replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(
-                        List.of("PENDING", "IN_PROGRESS"), WORKBENCH_ITEM_CAP).stream()
+                        List.of(STATUS_PENDING, STATUS_IN_PROGRESS), WORKBENCH_ITEM_CAP).stream()
                 .filter(t -> inDeviceScope(deviceIds, t.getDeviceId()))
                 .forEach(t -> items.add(new OpsActionItemDto(
-                        "REPLENISHMENT", "MEDIUM", "补货任务进行中",
+                        "REPLENISHMENT", MEDIUM, "补货任务进行中",
                         "状态 " + replenishmentStatusLabel(t.getStatus())
                                 + (t.getNotes() != null ? " · " + t.getNotes() : ""),
                         t.getDeviceId(), null, null, null, t.getTaskId(), t.getCreatedAt(), null)));
@@ -452,7 +467,7 @@ public class MerchantPortalService {
         Boolean tempCommandSent = null;
         String tempCommandMessage = null;
         if (request.targetTempC() != null) {
-            if ("ONLINE".equalsIgnoreCase(device.getOnlineStatus())) {
+            if (CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(device.getOnlineStatus())) {
                 try {
                     deviceServiceClient.requestSetTargetTemp(deviceId, request.targetTempC());
                     tempCommandSent = true;
@@ -553,7 +568,7 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public List<DeviceInventoryDto> listInventory(Long userId, String deviceId, boolean lowStockOnly) {
-        permissionService.requirePermission(userId, "merchant:inventory:view");
+        permissionService.requirePermission(userId, MERCHANT_INVENTORY_VIEW);
         merchantPortalGuard.requireAccess(userId);
         Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
                 userId, MerchantFeaturePacks.FIELD);
@@ -598,7 +613,7 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public List<PullOffTaskDto> listExpiryAlerts(Long userId) {
-        permissionService.requirePermission(userId, "merchant:inventory:view");
+        permissionService.requirePermission(userId, MERCHANT_INVENTORY_VIEW);
         merchantPortalGuard.requireAccess(userId);
         Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
                 userId, MerchantFeaturePacks.FIELD);
@@ -621,7 +636,7 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public List<SlotDiscrepancyAlertDto> listSlotDiscrepancies(Long userId, String deviceId) {
-        permissionService.requirePermission(userId, "merchant:inventory:view");
+        permissionService.requirePermission(userId, MERCHANT_INVENTORY_VIEW);
         merchantPortalGuard.requireAccess(userId);
         Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
                 userId, MerchantFeaturePacks.FIELD);
@@ -670,7 +685,7 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public MerchantSettlementOverviewDto getSettlementOverview(Long userId) {
-        permissionService.requirePermission(userId, "merchant:settlements:view");
+        permissionService.requirePermission(userId, MERCHANT_SETTLEMENTS_VIEW);
         merchantPortalGuard.requireAccess(userId);
         Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.BIZ);
         if (merchantIds == null || merchantIds.isEmpty()) {
@@ -702,7 +717,7 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public List<MerchantDailySettlementDto> listDailySettlements(Long userId, String fromDate, String toDate) {
-        permissionService.requirePermission(userId, "merchant:settlements:view");
+        permissionService.requirePermission(userId, MERCHANT_SETTLEMENTS_VIEW);
         merchantPortalGuard.requireAccess(userId);
         Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.BIZ);
         if (merchantIds == null || merchantIds.isEmpty()) {
@@ -717,7 +732,7 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public List<MerchantSettlementBatchDto> listSettlementBatches(Long userId, String fromDate, String toDate) {
-        permissionService.requirePermission(userId, "merchant:settlements:view");
+        permissionService.requirePermission(userId, MERCHANT_SETTLEMENTS_VIEW);
         merchantPortalGuard.requireAccess(userId);
         Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.BIZ);
         if (merchantIds == null || merchantIds.isEmpty()) {
@@ -739,7 +754,7 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public List<RevenueSplitDto> getSettlementBatchDetail(Long userId, String batchNo) {
-        permissionService.requirePermission(userId, "merchant:settlements:view");
+        permissionService.requirePermission(userId, MERCHANT_SETTLEMENTS_VIEW);
         merchantPortalGuard.requireAccess(userId);
         if (batchNo == null || batchNo.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "批次号不能为空");
@@ -885,7 +900,7 @@ public class MerchantPortalService {
         }
         List<String> statuses = status != null && !status.isBlank()
                 ? List.of(status.trim().toUpperCase())
-                : List.of("PENDING", "IN_PROGRESS", "COMPLETED");
+                : List.of(STATUS_PENDING, STATUS_IN_PROGRESS, "COMPLETED");
         return replenishmentTaskRepository.findByStatusIn(statuses).stream()
                 .filter(t -> inDeviceScope(allowed, t.getDeviceId()))
                 .filter(t -> deviceId == null || deviceId.isBlank() || deviceId.trim().equals(t.getDeviceId()))
@@ -931,27 +946,27 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public List<MerchantTeamRoleDto> listTeamRoles(Long userId) {
-        permissionService.requireAnyPermission(userId, "merchant:users:invite", "merchant:users:edit");
+        permissionService.requireAnyPermission(userId, "merchant:users:invite", MERCHANT_USERS_EDIT);
         merchantPortalGuard.requireAccess(userId);
         return List.of(
-                new MerchantTeamRoleDto("merchant", "商户管理员", "全量经营与团队管理"),
-                new MerchantTeamRoleDto("merchant_store_manager", "店长", "现场+经营只读，可看团队"),
-                new MerchantTeamRoleDto("merchant_finance", "财务", "结算对账与钱包只读"),
-                new MerchantTeamRoleDto("merchant_replenisher", "补货员", "柜机补货与库存"),
-                new MerchantTeamRoleDto("merchant_staff", "店员", "通用只读协同")
+                new MerchantTeamRoleDto(MERCHANT, "商户管理员", "全量经营与团队管理"),
+                new MerchantTeamRoleDto(MERCHANT_STORE_MANAGER, "店长", "现场+经营只读，可看团队"),
+                new MerchantTeamRoleDto(MERCHANT_FINANCE, "财务", "结算对账与钱包只读"),
+                new MerchantTeamRoleDto(MERCHANT_REPLENISHER, "补货员", "柜机补货与库存"),
+                new MerchantTeamRoleDto(MERCHANT_STAFF, "店员", "通用只读协同")
         );
     }
 
     @Transactional
     public MerchantUserDto updateTeamUser(Long operatorId, Long targetUserId, UpdateMerchantUserRequest request) {
-        permissionService.requirePermission(operatorId, "merchant:users:edit");
+        permissionService.requirePermission(operatorId, MERCHANT_USERS_EDIT);
         merchantPortalGuard.requireAccess(operatorId);
         return runWithTeamUserLock(targetUserId, () -> doUpdateTeamUser(operatorId, targetUserId, request));
     }
 
     private MerchantUserDto doUpdateTeamUser(Long operatorId, Long targetUserId, UpdateMerchantUserRequest request) {
         UserInfo target = userInfoRepository.findByIdForUpdate(targetUserId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "成员不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         requireTeamMember(operatorId, targetUserId, target);
         if (request.displayName() != null && !request.displayName().isBlank()) {
             target.setName(request.displayName().trim());
@@ -982,7 +997,7 @@ public class MerchantPortalService {
 
     private MerchantUserDto doDisableTeamUser(Long operatorId, Long targetUserId) {
         UserInfo target = userInfoRepository.findByIdForUpdate(targetUserId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "成员不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         requireTeamMember(operatorId, targetUserId, target);
         target.setStatus("INACTIVE");
         userInfoRepository.save(target);
@@ -992,16 +1007,16 @@ public class MerchantPortalService {
 
     @Transactional
     public MerchantUserDto enableTeamUser(Long operatorId, Long targetUserId) {
-        permissionService.requirePermission(operatorId, "merchant:users:edit");
+        permissionService.requirePermission(operatorId, MERCHANT_USERS_EDIT);
         merchantPortalGuard.requireAccess(operatorId);
         return runWithTeamUserLock(targetUserId, () -> doEnableTeamUser(operatorId, targetUserId));
     }
 
     private MerchantUserDto doEnableTeamUser(Long operatorId, Long targetUserId) {
         UserInfo target = userInfoRepository.findByIdForUpdate(targetUserId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "成员不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         requireTeamMember(operatorId, targetUserId, target);
-        target.setStatus("ACTIVE");
+        target.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
         userInfoRepository.save(target);
         auditService.record(operatorId, "MERCHANT_USER_ENABLE", "USER", String.valueOf(targetUserId), null);
         return toMerchantUserDto(target, false);
@@ -1021,7 +1036,7 @@ public class MerchantPortalService {
     private MerchantUserDto doResetTeamUserPassword(Long operatorId, Long targetUserId,
                                                     ResetMerchantUserPasswordRequest request) {
         UserInfo target = userInfoRepository.findByIdForUpdate(targetUserId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "成员不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         requireTeamMember(operatorId, targetUserId, target);
         target.setPasswordHash(passwordEncoder.encode(request.password()));
         userInfoRepository.save(target);
@@ -1060,7 +1075,7 @@ public class MerchantPortalService {
         user.setName(request.displayName() != null && !request.displayName().isBlank()
                 ? request.displayName().trim() : "商户成员");
         user.setVerified(true);
-        user.setStatus("ACTIVE");
+        user.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         userInfoRepository.save(user);
 
@@ -1081,7 +1096,7 @@ public class MerchantPortalService {
 
     private UserInfo requireTeamMember(Long operatorId, Long targetUserId) {
         UserInfo target = userInfoRepository.findById(targetUserId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "成员不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         requireTeamMember(operatorId, targetUserId, target);
         return target;
     }
@@ -1104,11 +1119,11 @@ public class MerchantPortalService {
     private MerchantUserDto toMerchantUserDto(UserInfo user, boolean self) {
         String roleKey = resolveMerchantRoleKey(user.getUserId());
         String roleName = switch (roleKey) {
-            case "merchant" -> "商户管理员";
-            case "merchant_store_manager" -> "店长";
-            case "merchant_finance" -> "财务";
-            case "merchant_replenisher" -> "补货员";
-            case "merchant_staff" -> "店员";
+            case MERCHANT -> "商户管理员";
+            case MERCHANT_STORE_MANAGER -> "店长";
+            case MERCHANT_FINANCE -> "财务";
+            case MERCHANT_REPLENISHER -> "补货员";
+            case MERCHANT_STAFF -> "店员";
             default -> roleKey;
         };
         return new MerchantUserDto(
@@ -1117,13 +1132,13 @@ public class MerchantPortalService {
                 user.getName(),
                 roleKey,
                 roleName,
-                user.getStatus() == null ? "ACTIVE" : user.getStatus(),
+                user.getStatus() == null ? CabinetConstants.PROMOTION_STATUS_ACTIVE : user.getStatus(),
                 self
         );
     }
 
     private List<MerchantDeviceDto> buildDeviceDtos(List<DeviceInfo> devices) {
-        Set<String> replenishing = replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(List.of("IN_PROGRESS"), 500).stream()
+        Set<String> replenishing = replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(List.of(STATUS_IN_PROGRESS), 500).stream()
                 .map(ReplenishmentTask::getDeviceId)
                 .collect(Collectors.toSet());
         Map<String, ShoppingSession> activeByDevice = sessionRepository.findByStateIn(ACTIVE_STATES, 2000).stream()
@@ -1238,11 +1253,11 @@ public class MerchantPortalService {
         }
         String key = roleKey.trim().toLowerCase(Locale.ROOT);
         return switch (key) {
-            case "merchant", "merchant_admin" -> MERCHANT_ROLE_ID;
-            case "merchant_finance" -> MERCHANT_FINANCE_ROLE_ID;
-            case "merchant_store_manager" -> MERCHANT_STORE_MANAGER_ROLE_ID;
-            case "merchant_replenisher" -> MERCHANT_REPLENISHER_ROLE_ID;
-            case "merchant_staff" -> MERCHANT_STAFF_ROLE_ID;
+            case MERCHANT, MERCHANT_ADMIN -> MERCHANT_ROLE_ID;
+            case MERCHANT_FINANCE -> MERCHANT_FINANCE_ROLE_ID;
+            case MERCHANT_STORE_MANAGER -> MERCHANT_STORE_MANAGER_ROLE_ID;
+            case MERCHANT_REPLENISHER -> MERCHANT_REPLENISHER_ROLE_ID;
+            case MERCHANT_STAFF -> MERCHANT_STAFF_ROLE_ID;
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的角色: " + roleKey);
         };
     }
@@ -1253,9 +1268,9 @@ public class MerchantPortalService {
                 .flatMap(Optional::stream)
                 .map(OpsRole::getRoleKey)
                 .filter(MERCHANT_TEAM_ROLE_KEYS::contains)
-                .map(key -> "merchant_admin".equals(key) ? "merchant" : key)
+                .map(key -> MERCHANT_ADMIN.equals(key) ? MERCHANT : key)
                 .findFirst()
-                .orElse("merchant_staff");
+                .orElse(MERCHANT_STAFF);
     }
 
     private static boolean isTempOutOfRange(DeviceInfo d) {
@@ -1354,7 +1369,7 @@ public class MerchantPortalService {
         long settled = toLong(at(row, 8));
         long pending = toLong(at(row, 9));
         long failed = toLong(at(row, 10));
-        String status = failed > 0 ? "PARTIAL_FAILED" : (pending > 0 ? "PENDING" : "SETTLED");
+        String status = failed > 0 ? "PARTIAL_FAILED" : (pending > 0 ? STATUS_PENDING : "SETTLED");
         return new MerchantSettlementBatchDto(
                 batchNo, merchantId, merchantNames.get(merchantId), settleAfter, settledAt,
                 orderCount, gross, platform, merchant, settled, pending, failed, status
@@ -1488,7 +1503,7 @@ public class MerchantPortalService {
     private static int severityRank(String severity) {
         return switch (severity != null ? severity : "") {
             case "HIGH" -> 3;
-            case "MEDIUM" -> 2;
+            case MEDIUM -> 2;
             case "LOW" -> 1;
             default -> 0;
         };
@@ -1504,8 +1519,8 @@ public class MerchantPortalService {
             return "未知";
         }
         return switch (status.toUpperCase()) {
-            case "PENDING" -> "待处理";
-            case "IN_PROGRESS" -> "进行中";
+            case STATUS_PENDING -> "待处理";
+            case STATUS_IN_PROGRESS -> "进行中";
             case "COMPLETED" -> "已完成";
             case "CANCELLED" -> "已取消";
             default -> status;

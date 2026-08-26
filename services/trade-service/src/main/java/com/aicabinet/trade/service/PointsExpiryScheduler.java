@@ -26,6 +26,8 @@ import java.util.Map;
  */
 @Service
 public class PointsExpiryScheduler {
+    private static final String POINTS_EXPIRY = "points-expiry";
+
 
     private static final Logger log = LoggerFactory.getLogger(PointsExpiryScheduler.class);
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
@@ -53,7 +55,7 @@ public class PointsExpiryScheduler {
     @Transactional
     public void scan() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("points-expiry", 600)) {
+        if (!taskService.tryBegin(POINTS_EXPIRY, 600)) {
             return;
         }
         boolean failed = false;
@@ -67,11 +69,11 @@ public class PointsExpiryScheduler {
             }
         } catch (Exception e) {
             failed = true;
-            taskService.finish("points-expiry", "FAILED", e.getMessage(), start);
+            taskService.finish(POINTS_EXPIRY, "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("points-expiry", "SUCCESS", summary, start);
+                taskService.finish(POINTS_EXPIRY, "SUCCESS", summary, start);
             }
         }
     }

@@ -24,6 +24,8 @@ import java.util.UUID;
  */
 @Service
 public class MediaAssetService {
+    private static final String VIDEO = "VIDEO";
+
 
     private static final long MAX_BYTES = 50L * 1024 * 1024;
 
@@ -76,7 +78,7 @@ public class MediaAssetService {
         asset.setTitle(title == null || title.isBlank() ? file.getOriginalFilename() : title.trim());
         asset.setAssetType(type);
         asset.setStorageUri(storageUri);
-        asset.setDurationSeconds(durationSeconds > 0 ? durationSeconds : (type.equals("VIDEO") ? 0 : 10));
+        asset.setDurationSeconds(durationSeconds > 0 ? durationSeconds : (type.equals(VIDEO) ? 0 : 10));
         asset.setStatus("ACTIVE");
         asset.setUploadedBy(operatorId);
         assetRepository.insert(asset);
@@ -168,7 +170,7 @@ public class MediaAssetService {
     private static String normalizeType(String requested, String contentType) {
         if (requested != null && !requested.isBlank()) {
             String t = requested.trim().toUpperCase();
-            if (t.equals("IMAGE") || t.equals("VIDEO") || t.equals("H5")) {
+            if (t.equals("IMAGE") || t.equals(VIDEO) || t.equals("H5")) {
                 return t;
             }
         }
@@ -177,7 +179,7 @@ public class MediaAssetService {
                 return "IMAGE";
             }
             if (contentType.startsWith("video/")) {
-                return "VIDEO";
+                return VIDEO;
             }
         }
         return "H5";

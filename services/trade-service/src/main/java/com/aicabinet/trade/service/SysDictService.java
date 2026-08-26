@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.DictDtos;
 import com.aicabinet.trade.domain.SysDictData;
@@ -17,6 +18,9 @@ import java.util.Map;
 
 @Service
 public class SysDictService {
+    private static final String PERM_OPS_DICT_LIST = "ops:dict:list";
+    private static final String PERM_OPS_DICT_EDIT = "ops:dict:edit";
+
 
     private final SysDictTypeMapper typeRepository;
     private final SysDictDataMapper dataRepository;
@@ -37,7 +41,7 @@ public class SysDictService {
     }
 
     public List<DictDtos.DictTypeDto> listTypes(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:dict:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_DICT_LIST);
         return typeRepository.findAllByOrderBySortOrderAscDictTypeAsc().stream()
                 .map(t -> new DictDtos.DictTypeDto(
                         t.getDictType(),
@@ -52,7 +56,7 @@ public class SysDictService {
     }
 
     public List<DictDtos.DictDataDto> listItems(Long operatorId, String dictType) {
-        permissionService.requirePermission(operatorId, "ops:dict:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_DICT_LIST);
         requireType(dictType);
         return dataRepository.findByDictTypeOrderBySortOrderAscDictValueAsc(dictType).stream()
                 .map(this::toDataDto)
@@ -60,7 +64,7 @@ public class SysDictService {
     }
 
     public DictDtos.DictRuntimeDto runtimeMap(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:dict:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_DICT_LIST);
         return buildActiveRuntimeMap();
     }
 
@@ -93,13 +97,13 @@ public class SysDictService {
         String type = dictType.trim().toLowerCase();
         String key = value.trim().toUpperCase();
         return dataRepository.findByDictTypeAndDictValue(type, key)
-                .filter(row -> "ACTIVE".equalsIgnoreCase(row.getStatus()))
+                .filter(row -> CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(row.getStatus()))
                 .isPresent();
     }
 
     private DictDtos.DictRuntimeDto buildActiveRuntimeMap() {
         Map<String, List<DictDtos.DictDataDto>> map = new LinkedHashMap<>();
-        for (SysDictData row : dataRepository.findByStatusOrderByDictTypeAscSortOrderAsc("ACTIVE")) {
+        for (SysDictData row : dataRepository.findByStatusOrderByDictTypeAscSortOrderAsc(CabinetConstants.PROMOTION_STATUS_ACTIVE)) {
             map.computeIfAbsent(row.getDictType(), k -> new ArrayList<>()).add(toDataDto(row));
         }
         return new DictDtos.DictRuntimeDto(map);
@@ -107,7 +111,7 @@ public class SysDictService {
 
     @Transactional
     public DictDtos.DictTypeDto upsertType(Long operatorId, DictDtos.DictTypeUpsertRequest req) {
-        permissionService.requirePermission(operatorId, "ops:dict:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_DICT_EDIT);
         String type = requireText(req.dictType(), "字典类型").trim().toLowerCase();
         return runWithDictTypeLock(type, () -> doUpsertType(operatorId, req, type));
     }
@@ -135,7 +139,7 @@ public class SysDictService {
     @Transactional
     public DictDtos.DictDataDto upsertItem(Long operatorId, String dictType, Long dictDataId,
                                            DictDtos.DictDataUpsertRequest req) {
-        permissionService.requirePermission(operatorId, "ops:dict:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_DICT_EDIT);
         String type = dictType.trim().toLowerCase();
         return runWithDictTypeLock(type, () -> doUpsertItem(operatorId, type, dictDataId, req));
     }
@@ -177,7 +181,7 @@ public class SysDictService {
 
     @Transactional
     public void deleteItem(Long operatorId, Long dictDataId) {
-        permissionService.requirePermission(operatorId, "ops:dict:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_DICT_EDIT);
         runWithDictDataIdLock(dictDataId, () -> {
             SysDictData entity = dataRepository.findByIdForUpdate(dictDataId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "字典项不存在"));
@@ -191,7 +195,7 @@ public class SysDictService {
     /** 删除字典类型及其全部字典项。 */
     @Transactional
     public void deleteType(Long operatorId, String dictType) {
-        permissionService.requirePermission(operatorId, "ops:dict:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_DICT_EDIT);
         String type = requireText(dictType, "字典类型").trim();
         runWithDictTypeLock(type, () -> {
             SysDictType entity = typeRepository.findByIdForUpdate(type)
@@ -256,9 +260,9 @@ public class SysDictService {
 
     private static String normalizeStatus(String status) {
         if (status == null || status.isBlank()) {
-            return "ACTIVE";
+            return CabinetConstants.PROMOTION_STATUS_ACTIVE;
         }
-        return "INACTIVE".equalsIgnoreCase(status) ? "INACTIVE" : "ACTIVE";
+        return "INACTIVE".equalsIgnoreCase(status) ? "INACTIVE" : CabinetConstants.PROMOTION_STATUS_ACTIVE;
     }
 
     private static String requireText(String value, String field) {

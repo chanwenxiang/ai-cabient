@@ -16,6 +16,8 @@ import java.util.List;
 
 @Service
 public class DisputeSlaScheduler {
+    private static final String DISPUTE_SLA = "dispute-sla";
+
 
     private static final Logger log = LoggerFactory.getLogger(DisputeSlaScheduler.class);
     private static final int SCAN_BATCH = 500;
@@ -42,7 +44,7 @@ public class DisputeSlaScheduler {
     @Transactional
     public void checkDisputeSla() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("dispute-sla", 600)) {
+        if (!taskService.tryBegin(DISPUTE_SLA, 600)) {
             return;
         }
         boolean failed = false;
@@ -94,11 +96,11 @@ public class DisputeSlaScheduler {
         }
         } catch (Exception e) {
             failed = true;
-            taskService.finish("dispute-sla", "FAILED", e.getMessage(), start);
+            taskService.finish(DISPUTE_SLA, "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("dispute-sla", "SUCCESS", summary, start);
+                taskService.finish(DISPUTE_SLA, "SUCCESS", summary, start);
             }
         }
     }

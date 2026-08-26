@@ -17,6 +17,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v2/ops/admin/merchant-wallets")
 public class MerchantWalletController {
+    private static final String AMOUNTCENTS = "amountCents";
+
 
     private final MerchantWithdrawService merchantWithdrawService;
 
@@ -51,8 +53,8 @@ public class MerchantWalletController {
             HttpServletRequest request,
             @PathVariable String merchantId,
             @RequestBody Map<String, Object> body) {
-        long amount = body.get("amountCents") instanceof Number n ? n.longValue()
-                : Long.parseLong(String.valueOf(body.get("amountCents")));
+        long amount = body.get(AMOUNTCENTS) instanceof Number n ? n.longValue()
+                : Long.parseLong(String.valueOf(body.get(AMOUNTCENTS)));
         String remark = body.get("remark") == null ? null : String.valueOf(body.get("remark"));
         return ApiResponse.ok(merchantWithdrawService.adjust(operator(request), merchantId, amount, remark));
     }
@@ -63,8 +65,8 @@ public class MerchantWalletController {
             HttpServletRequest request,
             @PathVariable String merchantId,
             @RequestBody Map<String, Object> body) {
-        long amount = body.get("amountCents") instanceof Number n ? n.longValue()
-                : Long.parseLong(String.valueOf(body.get("amountCents")));
+        long amount = body.get(AMOUNTCENTS) instanceof Number n ? n.longValue()
+                : Long.parseLong(String.valueOf(body.get(AMOUNTCENTS)));
         String requestNo = body.get("requestNo") == null ? null : String.valueOf(body.get("requestNo"));
         return ApiResponse.ok(merchantWithdrawService.apply(merchantId, amount, requestNo));
     }

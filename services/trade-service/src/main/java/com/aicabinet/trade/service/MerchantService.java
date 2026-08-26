@@ -31,6 +31,10 @@ import java.util.stream.Collectors;
 
 @Service
 public class MerchantService {
+    private static final String PERM_OPS_MERCHANT_SPLIT = "ops:merchant:split";
+    private static final String ORDERID = "orderId=";
+    private static final String SPLIT = "SPLIT";
+
 
     private static final int EXPORT_LIMIT = 5000;
 
@@ -147,7 +151,7 @@ public class MerchantService {
     @Transactional(readOnly = true)
     public PageResult<RevenueSplitDto> listSplits(Long operatorId, int page, int size,
                                                    String merchantId, String status) {
-        permissionService.requirePermission(operatorId, "ops:merchant:split");
+        permissionService.requirePermission(operatorId, PERM_OPS_MERCHANT_SPLIT);
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         Set<String> allowed = merchantScopeService.allowedMerchantIds(operatorId);
         if (merchantId != null && !merchantId.isBlank()) {
@@ -201,7 +205,7 @@ public class MerchantService {
     @Transactional
     public RevenueSplitDto submitWeChatProfitSharing(Long operatorId, String splitId,
                                                      SubmitProfitSharingRequest request) {
-        permissionService.requirePermission(operatorId, "ops:merchant:split");
+        permissionService.requirePermission(operatorId, PERM_OPS_MERCHANT_SPLIT);
         OrderRevenueSplit split = splitRepository.findById(splitId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
         return runWithOrderSplitLock(split.getOrderId(), () -> {
@@ -219,15 +223,15 @@ public class MerchantService {
                         ApiMessages.INVALID_REQUEST + "：需提供 wxTransactionId（购物订单当前为余额支付）");
             }
             OrderRevenueSplit updated = profitSharingService.submitSplit(locked, merchant, wxTxn);
-            auditService.record(operatorId, "PROFIT_SHARING_SUBMIT", "SPLIT", splitId,
-                    "orderId=" + locked.getOrderId() + " status=" + updated.getStatus());
+            auditService.record(operatorId, "PROFIT_SHARING_SUBMIT", SPLIT, splitId,
+                    ORDERID + locked.getOrderId() + " status=" + updated.getStatus());
             return toSplitDto(updated, merchant.getMerchantName());
         });
     }
 
     @Transactional
     public RevenueSplitDto refreshWeChatProfitSharing(Long operatorId, String splitId) {
-        permissionService.requirePermission(operatorId, "ops:merchant:split");
+        permissionService.requirePermission(operatorId, PERM_OPS_MERCHANT_SPLIT);
         OrderRevenueSplit split = splitRepository.findById(splitId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
         return runWithOrderSplitLock(split.getOrderId(), () -> {
@@ -235,8 +239,8 @@ public class MerchantService {
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
             merchantScopeService.requireMerchantAccess(operatorId, locked.getMerchantId());
             OrderRevenueSplit updated = profitSharingService.refreshSplitStatus(locked);
-            auditService.record(operatorId, "PROFIT_SHARING_REFRESH", "SPLIT", splitId,
-                    "orderId=" + locked.getOrderId() + " status=" + updated.getStatus());
+            auditService.record(operatorId, "PROFIT_SHARING_REFRESH", SPLIT, splitId,
+                    ORDERID + locked.getOrderId() + " status=" + updated.getStatus());
             String merchantName = merchantRepository.findById(locked.getMerchantId())
                     .map(Merchant::getMerchantName)
                     .orElse(null);
@@ -249,7 +253,7 @@ public class MerchantService {
      */
     @Transactional
     public RevenueSplitDto confirmLedgerOnly(Long operatorId, String splitId, String reason) {
-        permissionService.requirePermission(operatorId, "ops:merchant:split");
+        permissionService.requirePermission(operatorId, PERM_OPS_MERCHANT_SPLIT);
         OrderRevenueSplit split = splitRepository.findById(splitId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
         return runWithOrderSplitLock(split.getOrderId(), () -> {
@@ -263,8 +267,8 @@ public class MerchantService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
             }
             String note = (reason == null || reason.isBlank()) ? "ledger-confirmed" : reason.trim();
-            auditService.record(operatorId, "SPLIT_LEDGER_CONFIRM", "SPLIT", splitId,
-                    "orderId=" + locked.getOrderId() + "; reason=" + note);
+            auditService.record(operatorId, "SPLIT_LEDGER_CONFIRM", SPLIT, splitId,
+                    ORDERID + locked.getOrderId() + "; reason=" + note);
             String merchantName = merchantRepository.findById(locked.getMerchantId())
                     .map(Merchant::getMerchantName)
                     .orElse(null);
@@ -274,7 +278,7 @@ public class MerchantService {
 
     @Transactional(readOnly = true)
     public ProfitSharingStatusDto profitSharingStatus(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:merchant:split");
+        permissionService.requirePermission(operatorId, PERM_OPS_MERCHANT_SPLIT);
         boolean enabled = profitSharingProperties.enabled();
         boolean apiReady = profitSharingService.isApiReady();
         boolean mock = profitSharingService.isMockMode();

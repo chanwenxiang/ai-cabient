@@ -13,6 +13,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @Component
 public class CabinetMetrics {
+    private static final String RESULT = "result";
+
 
     private final Counter doorOpenSuccess;
     private final Counter doorOpenFailure;
@@ -30,15 +32,15 @@ public class CabinetMetrics {
     private final AtomicLong devicesTotal = new AtomicLong();
 
     public CabinetMetrics(MeterRegistry registry, DeviceInfoMapper deviceRepository) {
-        this.doorOpenSuccess = registry.counter("cabinet.door.open", "result", "success");
-        this.doorOpenFailure = registry.counter("cabinet.door.open", "result", "failure");
+        this.doorOpenSuccess = registry.counter("cabinet.door.open", RESULT, "success");
+        this.doorOpenFailure = registry.counter("cabinet.door.open", RESULT, "failure");
         this.sessionCompleted = registry.counter("cabinet.session.transition", "state", "COMPLETED");
         this.sessionDisputed = registry.counter("cabinet.session.transition", "state", "DISPUTED");
         this.reconciliationMismatch = registry.counter("cabinet.reconciliation", "status", "MISMATCH");
         this.meterRegistry = registry;
         this.recognizeTimer = registry.timer("cabinet.recognize.duration");
-        this.settlementSuccess = registry.counter("cabinet.settlement", "result", "success");
-        this.settlementFailure = registry.counter("cabinet.settlement", "result", "failure");
+        this.settlementSuccess = registry.counter("cabinet.settlement", RESULT, "success");
+        this.settlementFailure = registry.counter("cabinet.settlement", RESULT, "failure");
         this.paymentCharge = registry.counter("cabinet.payment.charge");
         this.chargeAmount = DistributionSummary.builder("cabinet.charge.amount")
                 .baseUnit("cents").description("Charge amount distribution").register(registry);

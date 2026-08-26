@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.trade.domain.CompensationTask;
 import com.aicabinet.trade.domain.DistributedTransaction;
@@ -24,6 +25,10 @@ import java.util.Map;
 
 @Service
 public class CompensationTaskScheduler {
+    private static final String COMPENSATION_PROCESS = "compensation-process";
+    private static final String COMPENSATION_RETRY = "compensation-retry";
+    private static final String STATUS_COMPLETED = "COMPLETED";
+
     private static final Logger log = LoggerFactory.getLogger(CompensationTaskScheduler.class);
 
     static final int PROFIT_SHARING_RETURN_MAX_RETRIES = 5;
@@ -62,7 +67,7 @@ public class CompensationTaskScheduler {
     
     @Scheduled(fixedDelay = 30000)
     public void processCompensationTasks() {
-        if (!taskService.isEnabled("compensation-process")) {
+        if (!taskService.isEnabled(COMPENSATION_PROCESS)) {
             return;
         }
         long start = System.nanoTime();
@@ -85,9 +90,9 @@ public class CompensationTaskScheduler {
             String summary = tasks.isEmpty()
                     ? "本次无补偿任务"
                     : "处理补偿任务 " + tasks.size() + " 条";
-            taskService.finish("compensation-process", "SUCCESS", summary, start);
+            taskService.finish(COMPENSATION_PROCESS, "SUCCESS", summary, start);
         } catch (Exception e) {
-            taskService.finish("compensation-process", "FAILED", e.getMessage(), start);
+            taskService.finish(COMPENSATION_PROCESS, CabinetConstants.ORDER_STATUS_FAILED, e.getMessage(), start);
             throw e;
         } finally {
             lockService.releaseLock(lock);
@@ -106,7 +111,7 @@ public class CompensationTaskScheduler {
         try {
             DistributedTransaction tx = txRepository.findById(task.getTxId()).orElse(null);
             if (tx == null) {
-                task.setStatus("FAILED");
+                task.setStatus(CabinetConstants.ORDER_STATUS_FAILED);
                 task.setResult("Transaction not found");
                 taskRepository.save(task);
                 return;
@@ -114,14 +119,14 @@ public class CompensationTaskScheduler {
             
             executeCompensation(tx);
 
-            task.setStatus("COMPLETED");
+            task.setStatus(STATUS_COMPLETED);
             task.setResult("Compensation executed successfully");
             task.setExecutedAt(Instant.now());
             taskRepository.save(task);
 
             log.info("Compensation task completed: taskId={}", task.getTaskId());
         } catch (Exception e) {
-            task.setStatus("FAILED");
+            task.setStatus(CabinetConstants.ORDER_STATUS_FAILED);
             task.setResult("Error: " + e.getMessage());
             taskRepository.save(task);
             log.error("Compensation task error: taskId={}", task.getTaskId(), e);
@@ -134,29 +139,29 @@ public class CompensationTaskScheduler {
         try {
             OrderRevenueSplit split = splitRepository.selectById(task.getTxId());
             if (split == null) {
-                finishCompensationTask(task, "FAILED", "split not found");
+                finishCompensationTask(task, CabinetConstants.ORDER_STATUS_FAILED, "split not found");
                 return;
             }
             if (split.getWechatPendingReturnNo() == null || split.getWechatPendingReturnNo().isBlank()) {
-                finishCompensationTask(task, "COMPLETED", "no pending return");
+                finishCompensationTask(task, STATUS_COMPLETED, "no pending return");
                 return;
             }
             Merchant merchant = merchantRepository.findById(split.getMerchantId()).orElse(null);
             if (merchant == null) {
-                finishCompensationTask(task, "FAILED", "merchant not found");
+                finishCompensationTask(task, CabinetConstants.ORDER_STATUS_FAILED, "merchant not found");
                 return;
             }
             profitSharingService.refreshPendingReturn(split);
             split = splitRepository.selectById(task.getTxId());
             if (split.getWechatPendingReturnNo() == null || split.getWechatPendingReturnNo().isBlank()) {
-                finishCompensationTask(task, "COMPLETED", "return confirmed");
+                finishCompensationTask(task, STATUS_COMPLETED, "return confirmed");
                 return;
             }
             profitSharingService.retryFailedReturns(List.of(split), Map.of(merchant.getMerchantId(), merchant));
             split = splitRepository.selectById(task.getTxId());
             if ((split.getWechatPendingReturnNo() == null || split.getWechatPendingReturnNo().isBlank())
                     && (split.getFailureReason() == null || !split.getFailureReason().contains("分账回退未成功"))) {
-                finishCompensationTask(task, "COMPLETED", "return succeeded");
+                finishCompensationTask(task, STATUS_COMPLETED, "return succeeded");
                 return;
             }
             deferProfitSharingReturnTask(task, split.getSplitId());
@@ -174,7 +179,7 @@ public class CompensationTaskScheduler {
         int attempt = Math.max(0, task.getRetryCount()) + 1;
         task.setRetryCount(attempt);
         if (attempt >= PROFIT_SHARING_RETURN_MAX_RETRIES) {
-            finishCompensationTask(task, "FAILED",
+            finishCompensationTask(task, CabinetConstants.ORDER_STATUS_FAILED,
                     "max retries exceeded (" + attempt + ") splitId=" + splitId);
             log.warn("profit sharing return compensation exhausted splitId={} attempts={}", splitId, attempt);
             OrderRevenueSplit split = splitRepository.selectById(splitId);
@@ -228,7 +233,7 @@ public class CompensationTaskScheduler {
     
     @Scheduled(fixedDelay = 60000)
     public void retryFailedTransactions() {
-        if (!taskService.isEnabled("compensation-retry")) {
+        if (!taskService.isEnabled(COMPENSATION_RETRY)) {
             return;
         }
         long start = System.nanoTime();
@@ -253,9 +258,9 @@ public class CompensationTaskScheduler {
             String summary = retryable.isEmpty()
                     ? "本次无待重试事务"
                     : "重试分布式事务 " + retryable.size() + " 条";
-            taskService.finish("compensation-retry", "SUCCESS", summary, start);
+            taskService.finish(COMPENSATION_RETRY, "SUCCESS", summary, start);
         } catch (Exception e) {
-            taskService.finish("compensation-retry", "FAILED", e.getMessage(), start);
+            taskService.finish(COMPENSATION_RETRY, CabinetConstants.ORDER_STATUS_FAILED, e.getMessage(), start);
             throw e;
         } finally {
             lockService.releaseLock(lock);

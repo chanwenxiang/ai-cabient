@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.DeviceVisionContextDto;
 import com.aicabinet.common.dto.SkuCatalogDto;
@@ -36,6 +37,12 @@ import java.util.stream.Collectors;
 /** 商品主数据与端侧识别类名映射一体化录入、设备 SKU 白名单（算法无关，不绑定 YOLO）。 */
 @Service
 public class SkuVisionEnrollmentService {
+    private static final String PERM_OPS_VISION_EDIT = "ops:vision:edit";
+    private static final String PERM_OPS_SKU_LIST = "ops:sku:list";
+    private static final String PRODUCTION = "PRODUCTION";
+    private static final String MAPPING = "MAPPING";
+    private static final String TESTED = "TESTED";
+
 
     /** 端侧识别提供方尚未声明生产就绪时的管线状态。 */
     public static final String MODEL_PIPELINE_WAITING = "WAITING_EDGE_PROVIDER";
@@ -43,7 +50,7 @@ public class SkuVisionEnrollmentService {
             "「生产」仅表示运营映射进入结算白名单；实际自动扣款取决于端侧识别回传质量"
                     + "（mock/fallback/低置信会进争议）。类名映射算法无关，可随时换端侧识别提供方。";
 
-    private static final List<String> STATUS_ORDER = List.of("DRAFT", "MAPPING", "TESTED", "PRODUCTION");
+    private static final List<String> STATUS_ORDER = List.of(CabinetConstants.PROMOTION_STATUS_DRAFT, MAPPING, TESTED, PRODUCTION);
     private static final Set<String> ALLOWED_STATUS = Set.copyOf(STATUS_ORDER);
 
     private final SkuCatalogMapper skuCatalogRepository;
@@ -87,7 +94,7 @@ public class SkuVisionEnrollmentService {
 
     @Transactional(readOnly = true)
     public List<SkuCatalogDto> listSkusWithVision(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:sku:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_SKU_LIST);
         return skuCatalogRepository.findAllByOrderBySkuCodeAsc().stream()
                 .map(SkuCatalog::toDto)
                 .toList();
@@ -95,7 +102,7 @@ public class SkuVisionEnrollmentService {
 
     @Transactional(readOnly = true)
     public List<SkuVisionEnrollmentRowDto> listEnrollmentRows(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:sku:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_SKU_LIST);
         return skuCatalogRepository.findAllByOrderBySkuCodeAsc().stream()
                 .map(this::toEnrollmentRow)
                 .toList();
@@ -103,20 +110,20 @@ public class SkuVisionEnrollmentService {
 
     @Transactional(readOnly = true)
     public SkuVisionEnrollmentPipelineDto pipelineMeta(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:sku:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_SKU_LIST);
         return new SkuVisionEnrollmentPipelineDto(
                 MODEL_PIPELINE_WAITING,
                 MODEL_PIPELINE_HINT,
                 STATUS_ORDER,
                 List.of(
                         new SkuVisionEnrollmentPipelineDto.StatusStepDto(
-                                "DRAFT", "草稿", "录入商品基本信息，尚未绑定端侧识别类名"),
+                                CabinetConstants.PROMOTION_STATUS_DRAFT, "草稿", "录入商品基本信息，尚未绑定端侧识别类名"),
                         new SkuVisionEnrollmentPipelineDto.StatusStepDto(
-                                "MAPPING", "映射中", "已绑定识别类名与阈值，等待端侧/联调抽检"),
+                                MAPPING, "映射中", "已绑定识别类名与阈值，等待端侧/联调抽检"),
                         new SkuVisionEnrollmentPipelineDto.StatusStepDto(
-                                "TESTED", "已测试", "运营已完成识别预览抽检（可用联调数据）"),
+                                TESTED, "已测试", "运营已完成识别预览抽检（可用联调数据）"),
                         new SkuVisionEnrollmentPipelineDto.StatusStepDto(
-                                "PRODUCTION", "生产（结算白名单）",
+                                PRODUCTION, "生产（结算白名单）",
                                 "进入自动扣款白名单；端侧若回传 mock/fallback/低置信仍进争议")
                 )
         );
@@ -125,7 +132,7 @@ public class SkuVisionEnrollmentService {
     @Transactional
     public SkuCatalogDto enrollSku(Long operatorId, UpsertSkuVisionEnrollmentRequest request) {
         permissionService.requirePermission(operatorId, "ops:sku:edit");
-        permissionService.requirePermission(operatorId, "ops:vision:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_VISION_EDIT);
         UpsertSkuRequest skuReq = request.sku();
         String requestedId = skuReq.skuId() != null ? skuReq.skuId().trim() : "";
         if (!requestedId.isEmpty()) {
@@ -183,7 +190,7 @@ public class SkuVisionEnrollmentService {
 
     @Transactional
     public SkuCatalogDto updateEnrollmentStatus(Long operatorId, String skuId, String status) {
-        permissionService.requirePermission(operatorId, "ops:vision:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_VISION_EDIT);
         return runWithSkuVisionLock(skuId, () -> doUpdateEnrollmentStatus(operatorId, skuId, status));
     }
 
@@ -191,7 +198,7 @@ public class SkuVisionEnrollmentService {
         SkuCatalog sku = requireSkuForUpdate(skuId);
         String next = normalizeStatus(status);
         assertAllowedStatus(next);
-        if ("PRODUCTION".equals(next) || "TESTED".equals(next) || "MAPPING".equals(next)) {
+        if (PRODUCTION.equals(next) || TESTED.equals(next) || MAPPING.equals(next)) {
             requireMappedClass(sku);
         }
         sku.setVisionEnrollmentStatus(next);
@@ -205,7 +212,7 @@ public class SkuVisionEnrollmentService {
     /** 按固定顺序推进：DRAFT→MAPPING→TESTED→PRODUCTION。 */
     @Transactional
     public SkuVisionEnrollmentRowDto advanceEnrollment(Long operatorId, String skuId) {
-        permissionService.requirePermission(operatorId, "ops:vision:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_VISION_EDIT);
         return runWithSkuVisionLock(skuId, () -> doAdvanceEnrollment(operatorId, skuId));
     }
 
@@ -217,7 +224,7 @@ public class SkuVisionEnrollmentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "已处于生产状态，无需再推进（模型管线仍为 " + MODEL_PIPELINE_WAITING + "）");
         }
-        if ("MAPPING".equals(next) || "TESTED".equals(next) || "PRODUCTION".equals(next)) {
+        if (MAPPING.equals(next) || TESTED.equals(next) || PRODUCTION.equals(next)) {
             requireMappedClass(sku);
         }
         sku.setVisionEnrollmentStatus(next);
@@ -285,7 +292,7 @@ public class SkuVisionEnrollmentService {
             if (row == null) {
                 return Optional.of("识别 SKU " + item.skuId() + " 不在柜机 " + deviceId + " 在售白名单");
             }
-            if (!"PRODUCTION".equalsIgnoreCase(row.visionEnrollmentStatus())) {
+            if (!PRODUCTION.equalsIgnoreCase(row.visionEnrollmentStatus())) {
                 return Optional.of("SKU " + item.skuId() + " 识别入驻状态为 "
                         + row.visionEnrollmentStatus() + "，未进结算白名单，不可自动扣款");
             }
@@ -461,7 +468,7 @@ public class SkuVisionEnrollmentService {
     }
 
     private static String normalizeStatus(String status) {
-        return status == null ? "DRAFT" : status.trim().toUpperCase(Locale.ROOT);
+        return status == null ? CabinetConstants.PROMOTION_STATUS_DRAFT : status.trim().toUpperCase(Locale.ROOT);
     }
 
     private static void assertAllowedStatus(String status) {
@@ -474,7 +481,7 @@ public class SkuVisionEnrollmentService {
     private static String nextStatus(String current) {
         int idx = STATUS_ORDER.indexOf(current);
         if (idx < 0) {
-            return "MAPPING";
+            return MAPPING;
         }
         if (idx >= STATUS_ORDER.size() - 1) {
             return null;
@@ -496,15 +503,15 @@ public class SkuVisionEnrollmentService {
     private SkuVisionEnrollmentRowDto toEnrollmentRow(SkuCatalog sku) {
         String status = normalizeStatus(sku.getVisionEnrollmentStatus());
         // 结算白名单：生产态 + 已绑定识别类名（算法无关；库字段历史名为 yoloClassName）
-        boolean mappingEffective = "PRODUCTION".equals(status)
+        boolean mappingEffective = PRODUCTION.equals(status)
                 && sku.getYoloClassName() != null
                 && !sku.getYoloClassName().isBlank();
         String next = nextStatus(status);
         String nextAction = switch (status) {
-            case "DRAFT" -> "保存识别类名映射并推进到「映射中」";
-            case "MAPPING" -> "完成端侧/联调抽检后推进到「已测试」";
-            case "TESTED" -> "确认转生产（进入结算白名单；端侧 mock/低置信仍进争议）";
-            case "PRODUCTION" -> "已在结算白名单；自动扣款取决于端侧识别质量";
+            case CabinetConstants.PROMOTION_STATUS_DRAFT -> "保存识别类名映射并推进到「映射中」";
+            case MAPPING -> "完成端侧/联调抽检后推进到「已测试」";
+            case TESTED -> "确认转生产（进入结算白名单；端侧 mock/低置信仍进争议）";
+            case PRODUCTION -> "已在结算白名单；自动扣款取决于端侧识别质量";
             default -> "检查识别入驻状态";
         };
         return new SkuVisionEnrollmentRowDto(

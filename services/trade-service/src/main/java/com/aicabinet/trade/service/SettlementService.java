@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.OrderDto;
 import com.aicabinet.common.dto.OrderLineDto;
@@ -25,6 +26,9 @@ import java.util.List;
 import java.util.Map;
 @Service
 public class SettlementService {
+    private static final String GRAVITY_MISMATCH = "gravity-mismatch";
+    private static final String GRAVITY_FILL = "gravity-fill";
+
 
     private static final Logger log = LoggerFactory.getLogger(SettlementService.class);
 
@@ -335,7 +339,7 @@ public class SettlementService {
             return false;
         }
         String version = recognition.modelVersion() != null ? recognition.modelVersion().toLowerCase() : "";
-        return version.contains("gravity-fill") && !version.contains("gravity-mismatch");
+        return version.contains(GRAVITY_FILL) && !version.contains(GRAVITY_MISMATCH);
     }
 
     /**
@@ -378,8 +382,8 @@ public class SettlementService {
         String version = recognition.modelVersion() != null ? recognition.modelVersion().toLowerCase() : "";
         return version.contains("mock")
                 || version.contains("fallback")
-                || version.contains("gravity-mismatch")
-                || version.contains("gravity-fill");
+                || version.contains(GRAVITY_MISMATCH)
+                || version.contains(GRAVITY_FILL);
     }
 
     private static VisionServiceClient.RecognitionResult forceReviewIfMockOrMismatch(
@@ -399,10 +403,10 @@ public class SettlementService {
 
     static String reviewReasonFor(VisionServiceClient.RecognitionResult recognition) {
         String version = recognition.modelVersion() != null ? recognition.modelVersion().toLowerCase() : "";
-        if (version.contains("gravity-mismatch")) {
+        if (version.contains(GRAVITY_MISMATCH)) {
             return "视觉与重力数量不一致，需人工审核";
         }
-        if (version.contains("gravity-fill")) {
+        if (version.contains(GRAVITY_FILL)) {
             return "视觉为空，仅有重力信号（非生产识别精度），需人工审核";
         }
         if (version.contains("mock") || version.contains("fallback")) {
@@ -468,7 +472,7 @@ public class SettlementService {
 
         CabinetOrder order = existing.get();
         hydrateOrderLines(order);
-        if ("REFUNDED".equals(order.getStatus())) {
+        if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_ALREADY_REFUNDED);
         }
 
@@ -543,7 +547,7 @@ public class SettlementService {
         return orderRepository.findBySessionId(session.getSessionId())
                 .map(order -> {
                     hydrateOrderLines(order);
-                    if ("REFUNDED".equals(order.getStatus())) {
+                    if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
                         return 0;
                     }
                     int netPaid = orderPaymentService.netCompletedCents(order.getOrderId());
@@ -576,7 +580,7 @@ public class SettlementService {
                     if (order.getRefundedAt() == null) {
                         order.setRefundedAt(java.time.Instant.now());
                     }
-                    order.setStatus("REFUNDED");
+                    order.setStatus(CabinetConstants.ORDER_STATUS_REFUNDED);
                     orderRepository.save(order);
                     revenueSplitService.voidSplitOnFullRefund(order.getOrderId());
                     log.info("争议免单退款 session={} order={} refund={} channel={} restoreInventory={} didRestore={}",
@@ -673,7 +677,7 @@ public class SettlementService {
             order.setRefundedAt(java.time.Instant.now());
         }
         boolean full = remaining.isEmpty() || order.getTotalAmountCents() <= 0;
-        order.setStatus(full ? "REFUNDED" : "PARTIAL_REFUNDED");
+        order.setStatus(full ? CabinetConstants.ORDER_STATUS_REFUNDED : "PARTIAL_REFUNDED");
         if (full) {
             order.setRefundedAt(java.time.Instant.now());
             revenueSplitService.adjustSplitAfterPartialRefund(order, true);

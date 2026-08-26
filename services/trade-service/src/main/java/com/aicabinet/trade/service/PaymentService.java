@@ -42,6 +42,20 @@ import java.util.UUID;
 
 @Service
 public class PaymentService {
+    private static final String TRANSACTION_ID = "transaction_id";
+    private static final String TRADE_FINISHED = "TRADE_FINISHED";
+    private static final String TRADE_SUCCESS = "TRADE_SUCCESS";
+    private static final String OUT_TRADE_NO = "out_trade_no";
+    private static final String TRADE_STATUS = "trade_status";
+    private static final String TRADE_STATE = "trade_state";
+    private static final String PREPAY_ID = "prepay_id=";
+    private static final String STATUS_CANCELLED = "CANCELLED";
+    private static final String TRADE_NO = "trade_no";
+    private static final String ORDERID = "orderId";
+    private static final String STATUS_SUCCESS = "SUCCESS";
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String AMOUNT = "amount";
+
 
     private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
 
@@ -129,7 +143,7 @@ public class PaymentService {
         order.setUserId(userId);
         order.setAmountCents(amountCents);
         order.setChannel(channel);
-        order.setStatus("PENDING");
+        order.setStatus(STATUS_PENDING);
         order.setIdempotencyKey(idempotencyKey);
         rechargeOrderRepository.save(order);
 
@@ -142,23 +156,23 @@ public class PaymentService {
 
     private RechargePrepayResponse toPrepayResponse(RechargeOrder order) {
         if (PayChannels.ALIPAY.equals(order.getChannel())) {
-            if (alipayPayClient.isConfigured() && "PENDING".equals(order.getStatus())) {
+            if (alipayPayClient.isConfigured() && STATUS_PENDING.equals(order.getStatus())) {
                 AlipayPayClient.AlipayPrepayResult prepay = alipayPayClient.createWapPay(
                         order.getOrderId(), order.getAmountCents(), "AI Cabinet Recharge");
                 AlipayPayParams alipayPay = new AlipayPayParams(
                         order.getOrderId(), prepay.tradeNo(), prepay.payUrl(), prepay.payFormHtml());
                 return new RechargePrepayResponse(
                         order.getChannel(), order.getOrderId(), null, alipayPay,
-                        Map.of("orderId", order.getOrderId(), "mode", "live"));
+                        Map.of(ORDERID, order.getOrderId(), "mode", "live"));
             }
             return new RechargePrepayResponse(order.getChannel(), order.getOrderId(), null,
                     new AlipayPayParams(order.getOrderId(), order.getAlipayTradeNo(), null, null),
-                    Map.of("orderId", order.getOrderId(), "mode", "mock"));
+                    Map.of(ORDERID, order.getOrderId(), "mode", "mock"));
         }
-        Map<String, String> info = Map.of("orderId", order.getOrderId(), "mode", "mock");
+        Map<String, String> info = Map.of(ORDERID, order.getOrderId(), "mode", "mock");
         WxPayParams wxPay = new WxPayParams(String.valueOf(Instant.now().getEpochSecond()),
                 UUID.randomUUID().toString().replace("-", "").substring(0, 16),
-                "prepay_id=" + order.getWxPrepayId(), "RSA", "MOCK_SIGN", null);
+                PREPAY_ID + order.getWxPrepayId(), "RSA", "MOCK_SIGN", null);
         return new RechargePrepayResponse(order.getChannel(), order.getOrderId(), wxPay, null, info);
     }
 
@@ -177,7 +191,7 @@ public class PaymentService {
 
             String timeStamp = String.valueOf(Instant.now().getEpochSecond());
             String nonceStr = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-            String packageValue = "prepay_id=" + prepayId;
+            String packageValue = PREPAY_ID + prepayId;
             String paySign = v3Signer.signJsapi(
                     weChatPayProperties.appId(), timeStamp, nonceStr, packageValue,
                     weChatPayProperties.privateKey());
@@ -187,7 +201,7 @@ public class PaymentService {
                     order.getOrderId(),
                     wxPay,
                     null,
-                    Map.of("orderId", order.getOrderId(), "mode", "live", "apiVersion", "v3"));
+                    Map.of(ORDERID, order.getOrderId(), "mode", "live", "apiVersion", "v3"));
         }
 
         if (!securityProperties.mockEnabled()) {
@@ -198,7 +212,7 @@ public class PaymentService {
         WxPayParams wxPay = new WxPayParams(
                 String.valueOf(Instant.now().getEpochSecond()),
                 UUID.randomUUID().toString().replace("-", "").substring(0, 16),
-                "prepay_id=" + order.getWxPrepayId(),
+                PREPAY_ID + order.getWxPrepayId(),
                 "RSA",
                 "MOCK_SIGN",
                 null);
@@ -207,7 +221,7 @@ public class PaymentService {
                 order.getOrderId(),
                 wxPay,
                 null,
-                Map.of("orderId", order.getOrderId(), "mode", "mock", "apiVersion", "v3"));
+                Map.of(ORDERID, order.getOrderId(), "mode", "mock", "apiVersion", "v3"));
     }
 
     private RechargePrepayResponse createAlipayPrepay(RechargeOrder order) {
@@ -224,7 +238,7 @@ public class PaymentService {
                     order.getOrderId(),
                     null,
                     alipayPay,
-                    Map.of("orderId", order.getOrderId(), "mode", "live"));
+                    Map.of(ORDERID, order.getOrderId(), "mode", "live"));
         }
 
         if (!securityProperties.mockEnabled()) {
@@ -242,7 +256,7 @@ public class PaymentService {
                 order.getOrderId(),
                 null,
                 alipayPay,
-                Map.of("orderId", order.getOrderId(), "mode", "mock"));
+                Map.of(ORDERID, order.getOrderId(), "mode", "mock"));
     }
 
     @Transactional
@@ -268,11 +282,11 @@ public class PaymentService {
                                    String signature,
                                    String serial) {
         JsonNode transaction = notifyService.parseAndVerify(body, timestamp, nonce, signature, serial);
-        if (!"SUCCESS".equals(transaction.path("trade_state").asText())) {
-            log.info("wechat notify ignored trade_state={}", transaction.path("trade_state").asText());
+        if (!STATUS_SUCCESS.equals(transaction.path(TRADE_STATE).asText())) {
+            log.info("wechat notify ignored trade_state={}", transaction.path(TRADE_STATE).asText());
             return;
         }
-        String outTradeNo = transaction.path("out_trade_no").asText(null);
+        String outTradeNo = transaction.path(OUT_TRADE_NO).asText(null);
         if (outTradeNo == null) {
             throw new IllegalArgumentException(ApiMessages.MISSING_OUT_TRADE_NO);
         }
@@ -281,13 +295,13 @@ public class PaymentService {
                 log.warn("wechat notify channel mismatch orderId={} channel={}", outTradeNo, order.getChannel());
                 return;
             }
-            int notifyCents = transaction.path("amount").path("total").asInt(0);
+            int notifyCents = transaction.path(AMOUNT).path("total").asInt(0);
             if (notifyCents <= 0) {
                 log.warn("wechat notify missing amount orderId={}", outTradeNo);
                 return;
             }
             creditRecharge(outTradeNo, notifyCents,
-                    transaction.path("transaction_id").asText(null), null);
+                    transaction.path(TRANSACTION_ID).asText(null), null);
         });
     }
 
@@ -302,12 +316,12 @@ public class PaymentService {
             log.info("alipay agreement notify handled ok={} external={} agreement={}", ok, external, agreementNo);
             return;
         }
-        String tradeStatus = verified.get("trade_status");
-        if (!"TRADE_SUCCESS".equals(tradeStatus) && !"TRADE_FINISHED".equals(tradeStatus)) {
+        String tradeStatus = verified.get(TRADE_STATUS);
+        if (!TRADE_SUCCESS.equals(tradeStatus) && !TRADE_FINISHED.equals(tradeStatus)) {
             log.info("alipay notify ignored trade_status={}", tradeStatus);
             return;
         }
-        String outTradeNo = verified.get("out_trade_no");
+        String outTradeNo = verified.get(OUT_TRADE_NO);
         if (outTradeNo == null || outTradeNo.isBlank()) {
             throw new IllegalArgumentException(ApiMessages.MISSING_OUT_TRADE_NO);
         }
@@ -321,7 +335,7 @@ public class PaymentService {
                 log.warn("alipay notify missing amount orderId={}", outTradeNo);
                 return;
             }
-            String tradeNo = verified.get("trade_no");
+            String tradeNo = verified.get(TRADE_NO);
             creditRecharge(order.getOrderId(), notifyCents, null, tradeNo);
         });
     }
@@ -339,8 +353,8 @@ public class PaymentService {
             return false;
         }
         // 签约通知通常无 trade_status / out_trade_no，或带 external_agreement_no
-        String tradeStatus = params.get("trade_status");
-        String outTradeNo = params.get("out_trade_no");
+        String tradeStatus = params.get(TRADE_STATUS);
+        String outTradeNo = params.get(OUT_TRADE_NO);
         String external = params.get("external_agreement_no");
         if (external != null && !external.isBlank() && (tradeStatus == null || tradeStatus.isBlank())) {
             return true;
@@ -385,7 +399,7 @@ public class PaymentService {
             if (!order.getUserId().equals(userId)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.ORDER_ACCESS_DENIED);
             }
-            if (!"PENDING".equals(order.getStatus())) {
+            if (!STATUS_PENDING.equals(order.getStatus())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PENDING);
             }
             if (PayChannels.ALIPAY.equalsIgnoreCase(order.getChannel())) {
@@ -393,7 +407,7 @@ public class PaymentService {
             } else {
                 cancelPendingWeChat(order);
             }
-            order.setStatus("CANCELLED");
+            order.setStatus(STATUS_CANCELLED);
             rechargeOrderRepository.save(order);
             log.info("recharge cancelled orderId={}", orderId);
             return toDto(order);
@@ -410,12 +424,12 @@ public class PaymentService {
             return 0;
         }
         Instant cutoff = Instant.now().minus(minutes, ChronoUnit.MINUTES);
-        List<RechargeOrder> expired = rechargeOrderRepository.findByStatusAndCreatedAtBefore("PENDING", cutoff);
+        List<RechargeOrder> expired = rechargeOrderRepository.findByStatusAndCreatedAtBefore(STATUS_PENDING, cutoff);
         int n = 0;
         for (RechargeOrder order : expired) {
             try {
                 syncPendingOrder(order);
-                if (!"PENDING".equals(order.getStatus())) {
+                if (!STATUS_PENDING.equals(order.getStatus())) {
                     continue;
                 }
                 if (PayChannels.ALIPAY.equalsIgnoreCase(order.getChannel())) {
@@ -426,7 +440,7 @@ public class PaymentService {
                 if ("PAID".equals(order.getStatus())) {
                     continue;
                 }
-                order.setStatus("CANCELLED");
+                order.setStatus(STATUS_CANCELLED);
                 rechargeOrderRepository.save(order);
                 n++;
             } catch (Exception ex) {
@@ -623,8 +637,8 @@ public class PaymentService {
             }
             try {
                 JsonNode remote = weChatPayClient.queryByOutTradeNo(order.getOrderId());
-                if ("SUCCESS".equals(remote.path("trade_state").asText(""))) {
-                    String txnId = remote.path("transaction_id").asText(null);
+                if (STATUS_SUCCESS.equals(remote.path(TRADE_STATE).asText(""))) {
+                    String txnId = remote.path(TRANSACTION_ID).asText(null);
                     persistWxTransactionId(order, txnId);
                 }
             } catch (Exception e) {
@@ -646,9 +660,9 @@ public class PaymentService {
             }
             try {
                 JsonNode remote = alipayPayClient.queryByOutTradeNo(order.getOrderId());
-                String tradeStatus = remote.path("trade_status").asText("");
-                if ("TRADE_SUCCESS".equals(tradeStatus) || "TRADE_FINISHED".equals(tradeStatus)) {
-                    persistAlipayTradeNo(order, remote.path("trade_no").asText(null));
+                String tradeStatus = remote.path(TRADE_STATUS).asText("");
+                if (TRADE_SUCCESS.equals(tradeStatus) || TRADE_FINISHED.equals(tradeStatus)) {
+                    persistAlipayTradeNo(order, remote.path(TRADE_NO).asText(null));
                 }
             } catch (Exception e) {
                 log.debug("recharge alipay txn backfill skipped orderId={}: {}", order.getOrderId(), e.getMessage());
@@ -732,7 +746,7 @@ public class PaymentService {
     }
 
     private void syncPendingOrder(RechargeOrder order) {
-        if (!"PENDING".equals(order.getStatus())) {
+        if (!STATUS_PENDING.equals(order.getStatus())) {
             return;
         }
         if (PayChannels.ALIPAY.equalsIgnoreCase(order.getChannel())) {
@@ -748,15 +762,15 @@ public class PaymentService {
         }
         try {
             JsonNode remote = weChatPayClient.queryByOutTradeNo(order.getOrderId());
-            String tradeState = remote.path("trade_state").asText("");
-            if ("SUCCESS".equals(tradeState)) {
-                String txnId = remote.path("transaction_id").asText(null);
+            String tradeState = remote.path(TRADE_STATE).asText("");
+            if (STATUS_SUCCESS.equals(tradeState)) {
+                String txnId = remote.path(TRANSACTION_ID).asText(null);
                 if (txnId != null && !txnId.isBlank()) {
                     order.setWxTransactionId(txnId);
                 }
                 creditRecharge(order.getOrderId(), weChatQueryAmountCents(remote), txnId, null);
             } else if ("CLOSED".equals(tradeState) || "REVOKED".equals(tradeState) || "PAYERROR".equals(tradeState)) {
-                order.setStatus("CANCELLED");
+                order.setStatus(STATUS_CANCELLED);
                 rechargeOrderRepository.save(order);
             }
         } catch (Exception e) {
@@ -771,15 +785,15 @@ public class PaymentService {
         try {
             // Alipay query shape varies by SDK wrapper; reuse existing client
             var remote = alipayPayClient.queryByOutTradeNo(order.getOrderId());
-            String tradeStatus = remote.path("trade_status").asText("");
-            if ("TRADE_SUCCESS".equals(tradeStatus) || "TRADE_FINISHED".equals(tradeStatus)) {
-                String tradeNo = remote.path("trade_no").asText(null);
+            String tradeStatus = remote.path(TRADE_STATUS).asText("");
+            if (TRADE_SUCCESS.equals(tradeStatus) || TRADE_FINISHED.equals(tradeStatus)) {
+                String tradeNo = remote.path(TRADE_NO).asText(null);
                 if (tradeNo != null && !tradeNo.isBlank()) {
                     order.setAlipayTradeNo(tradeNo);
                 }
                 creditRecharge(order.getOrderId(), alipayQueryAmountCents(remote), null, tradeNo);
             } else if ("TRADE_CLOSED".equals(tradeStatus)) {
-                order.setStatus("CANCELLED");
+                order.setStatus(STATUS_CANCELLED);
                 rechargeOrderRepository.save(order);
             }
         } catch (Exception e) {
@@ -830,7 +844,7 @@ public class PaymentService {
             if ("PAID".equals(order.getStatus())) {
                 return;
             }
-            if (!"PENDING".equals(order.getStatus())) {
+            if (!STATUS_PENDING.equals(order.getStatus())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PENDING);
             }
             if (notifyAmountCents != null && notifyAmountCents > 0
@@ -857,7 +871,7 @@ public class PaymentService {
                 notificationService.notifyConsumer(
                         order.getUserId(),
                         "recharge_success",
-                        Map.of("amount", yuan(order.getAmountCents())),
+                        Map.of(AMOUNT, yuan(order.getAmountCents())),
                         "RECHARGE",
                         order.getOrderId());
             } catch (Exception e) {
@@ -887,7 +901,7 @@ public class PaymentService {
     }
 
     private static int weChatQueryAmountCents(JsonNode remote) {
-        int cents = remote.path("amount").path("total").asInt(0);
+        int cents = remote.path(AMOUNT).path("total").asInt(0);
         return cents > 0 ? cents : 0;
     }
 

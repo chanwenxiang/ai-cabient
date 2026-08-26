@@ -20,6 +20,13 @@ import java.util.Optional;
  */
 @Service
 public class DemoDataService {
+    private static final String SKU_NOODLE_001 = "SKU-NOODLE-001";
+    private static final String SKU_SNACK_001 = "SKU-SNACK-001";
+    private static final String SKU_WATER_001 = "SKU-WATER-001";
+    private static final String SKU_MILK_001 = "SKU-MILK-001";
+    private static final String SKU_DEMO_001 = "SKU-DEMO-001";
+    private static final String SKU_SODA_001 = "SKU-SODA-001";
+
 
     private static final Logger log = LoggerFactory.getLogger(DemoDataService.class);
 
@@ -107,7 +114,7 @@ public class DemoDataService {
                 .filter(this::isChargeableSkuEntity)
                 .map(SkuCatalog::getSkuId)
                 .findFirst()
-                .orElse("SKU-DEMO-001");
+                .orElse(SKU_DEMO_001);
     }
 
     private boolean isChargeableSku(String skuId) {
@@ -299,42 +306,42 @@ public class DemoDataService {
     private record DemoVisionSeed(String className, String skuId, float minConfidence) {}
 
     private static final List<DemoSkuSeed> DEMO_SKUS = List.of(
-            new DemoSkuSeed("SKU-DEMO-001", "可口可乐 330ml", 350, 330, 190,
+            new DemoSkuSeed(SKU_DEMO_001, "可口可乐 330ml", 350, 330, 190,
                     "/admin/sku-demo/cola.jpg", "经典可乐", "饮料", "6901028300018", 270, 7, 0, 0.92f),
-            new DemoSkuSeed("SKU-SODA-001", "雪碧 500ml", 400, 500, 220,
+            new DemoSkuSeed(SKU_SODA_001, "雪碧 500ml", 400, 500, 220,
                     "/admin/sku-demo/sprite.jpg", "柠檬味汽水", "饮料", "6901028300019", 270, 7, 0, 0.80f),
-            new DemoSkuSeed("SKU-WATER-001", "矿泉水 550ml", 200, 550, 110,
+            new DemoSkuSeed(SKU_WATER_001, "矿泉水 550ml", 200, 550, 110,
                     "/admin/sku-demo/water.jpg", "饮用天然水", "饮料", "6901028300021", 365, 14, 0, 0.92f),
-            new DemoSkuSeed("SKU-SNACK-001", "原味薯片 70g", 650, 70, 360,
+            new DemoSkuSeed(SKU_SNACK_001, "原味薯片 70g", 650, 70, 360,
                     "/admin/sku-demo/chips.jpg", "休闲零食", "零食", "6901028300022", 180, 7, 0, 0.92f),
-            new DemoSkuSeed("SKU-MILK-001", "纯牛奶 250ml", 450, 250, 250,
+            new DemoSkuSeed(SKU_MILK_001, "纯牛奶 250ml", 450, 250, 250,
                     "/admin/sku-demo/milk.jpg", "常温灭菌乳", "乳品", "6901028300023", 180, 5, 1, 0.92f),
-            new DemoSkuSeed("SKU-NOODLE-001", "红烧牛肉面", 520, 120, 290,
+            new DemoSkuSeed(SKU_NOODLE_001, "红烧牛肉面", 520, 120, 290,
                     "/admin/sku-demo/noodle.jpg", "方便食品", "方便食品", "6901028300024", 270, 7, 0, 0.92f)
     );
 
     private static final List<DemoInvSeed> DEMO_INVENTORY = List.of(
-            new DemoInvSeed("SKU-DEMO-001", 3, 20, 5),
-            new DemoInvSeed("SKU-SODA-001", 4, 20, 5),
-            new DemoInvSeed("SKU-WATER-001", 8, 24, 6),
-            new DemoInvSeed("SKU-SNACK-001", 2, 16, 4),
-            new DemoInvSeed("SKU-MILK-001", 1, 12, 3),
-            new DemoInvSeed("SKU-NOODLE-001", 5, 16, 4)
+            new DemoInvSeed(SKU_DEMO_001, 3, 20, 5),
+            new DemoInvSeed(SKU_SODA_001, 4, 20, 5),
+            new DemoInvSeed(SKU_WATER_001, 8, 24, 6),
+            new DemoInvSeed(SKU_SNACK_001, 2, 16, 4),
+            new DemoInvSeed(SKU_MILK_001, 1, 12, 3),
+            new DemoInvSeed(SKU_NOODLE_001, 5, 16, 4)
     );
 
     private static final List<DemoWhSeed> DEMO_WAREHOUSE_LOTS = List.of(
-            new DemoWhSeed("SKU-DEMO-001", "B-WH-COLA-01", 10, 260, 80),
-            new DemoWhSeed("SKU-SODA-001", "B-WH-SPRITE-01", 8, 262, 60),
-            new DemoWhSeed("SKU-WATER-001", "B-WH-WATER-01", 5, 360, 100),
-            new DemoWhSeed("SKU-SNACK-001", "B-WH-CHIPS-01", 15, 165, 40),
-            new DemoWhSeed("SKU-MILK-001", "B-WH-MILK-01", 3, 177, 30),
-            new DemoWhSeed("SKU-NOODLE-001", "B-WH-NOODLE-01", 20, 250, 50)
+            new DemoWhSeed(SKU_DEMO_001, "B-WH-COLA-01", 10, 260, 80),
+            new DemoWhSeed(SKU_SODA_001, "B-WH-SPRITE-01", 8, 262, 60),
+            new DemoWhSeed(SKU_WATER_001, "B-WH-WATER-01", 5, 360, 100),
+            new DemoWhSeed(SKU_SNACK_001, "B-WH-CHIPS-01", 15, 165, 40),
+            new DemoWhSeed(SKU_MILK_001, "B-WH-MILK-01", 3, 177, 30),
+            new DemoWhSeed(SKU_NOODLE_001, "B-WH-NOODLE-01", 20, 250, 50)
     );
 
     private static final List<DemoVisionSeed> DEMO_VISION_MAPPINGS = List.of(
-            new DemoVisionSeed("bottle", "SKU-DEMO-001", 0.5f),
-            new DemoVisionSeed("cup", "SKU-DEMO-001", 0.5f),
-            new DemoVisionSeed("can", "SKU-SODA-001", 0.5f),
-            new DemoVisionSeed("bowl", "SKU-NOODLE-001", 0.5f)
+            new DemoVisionSeed("bottle", SKU_DEMO_001, 0.5f),
+            new DemoVisionSeed("cup", SKU_DEMO_001, 0.5f),
+            new DemoVisionSeed("can", SKU_SODA_001, 0.5f),
+            new DemoVisionSeed("bowl", SKU_NOODLE_001, 0.5f)
     );
 }

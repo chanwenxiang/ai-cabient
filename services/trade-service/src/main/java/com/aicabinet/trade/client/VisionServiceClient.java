@@ -24,6 +24,8 @@ import java.util.Map;
 
 @Component
 public class VisionServiceClient {
+    private static final String UPLOAD_JPG = "upload.jpg";
+
 
     private static final Logger log = LoggerFactory.getLogger(VisionServiceClient.class);
     private static final TypeReference<List<Map<String, Object>>> CLIP_LIST_TYPE = new TypeReference<>() {};
@@ -117,7 +119,7 @@ public class VisionServiceClient {
         body.add("file", new ByteArrayResource(data) {
             @Override
             public String getFilename() {
-                return filename != null && !filename.isBlank() ? filename : "upload.jpg";
+                return filename != null && !filename.isBlank() ? filename : UPLOAD_JPG;
             }
         });
 
@@ -138,7 +140,7 @@ public class VisionServiceClient {
         body.add("file", new ByteArrayResource(data) {
             @Override
             public String getFilename() {
-                return filename != null && !filename.isBlank() ? filename : "upload.jpg";
+                return filename != null && !filename.isBlank() ? filename : UPLOAD_JPG;
             }
         });
         if (skuName != null && !skuName.isBlank()) {
@@ -161,7 +163,7 @@ public class VisionServiceClient {
         body.add("file", new ByteArrayResource(data) {
             @Override
             public String getFilename() {
-                return filename != null && !filename.isBlank() ? filename : "upload.jpg";
+                return filename != null && !filename.isBlank() ? filename : UPLOAD_JPG;
             }
         });
         VisionRecognizeResponse response = restClient.post()

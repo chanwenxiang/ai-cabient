@@ -20,6 +20,9 @@ import java.util.stream.Collectors;
 
 @Service
 public class VisionMappingService {
+    private static final String PERM_OPS_VISION_EDIT = "ops:vision:edit";
+    private static final String VISION = "VISION";
+
 
     private final SkuVisionMappingMapper yoloRepository;
     private final AliyunCategoryMappingMapper aliyunRepository;
@@ -55,7 +58,7 @@ public class VisionMappingService {
 
     @Transactional
     public YoloMappingDto upsertYolo(Long operatorId, UpsertYoloMappingRequest request) {
-        permissionService.requirePermission(operatorId, "ops:vision:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_VISION_EDIT);
         String className = request.className().trim();
         return runWithYoloLock(className, () -> doUpsertYolo(operatorId, request, className));
     }
@@ -69,7 +72,7 @@ public class VisionMappingService {
         String source = request.mappingSource();
         mapping.setMappingSource(source == null || source.isBlank() ? "YOLO_COCO" : source.trim());
         yoloRepository.save(mapping);
-        auditService.record(operatorId, "VISION_YOLO_UPSERT", "VISION", className,
+        auditService.record(operatorId, "VISION_YOLO_UPSERT", VISION, className,
                 "sku=" + mapping.getSkuId() + " conf=" + mapping.getMinConfidence());
         return new YoloMappingDto(
                 mapping.getClassName(), mapping.getSkuId(), mapping.getMinConfidence(), mapping.getMappingSource());
@@ -77,21 +80,21 @@ public class VisionMappingService {
 
     @Transactional
     public void deleteYolo(Long operatorId, String className) {
-        permissionService.requirePermission(operatorId, "ops:vision:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_VISION_EDIT);
         String key = className.trim();
         runWithYoloLock(key, () -> {
             if (yoloRepository.findByIdForUpdate(key).isEmpty()) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST);
             }
             yoloRepository.deleteById(key);
-            auditService.record(operatorId, "VISION_YOLO_DELETE", "VISION", key, null);
+            auditService.record(operatorId, "VISION_YOLO_DELETE", VISION, key, null);
             return null;
         });
     }
 
     @Transactional
     public AliyunMappingDto upsertAliyun(Long operatorId, UpsertAliyunMappingRequest request) {
-        permissionService.requirePermission(operatorId, "ops:vision:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_VISION_EDIT);
         String categoryId = request.categoryId().trim();
         return runWithAliyunLock(categoryId, () -> doUpsertAliyun(operatorId, request, categoryId));
     }
@@ -104,7 +107,7 @@ public class VisionMappingService {
         mapping.setSkuId(request.skuId().trim());
         mapping.setMinConfidence(request.minConfidence());
         aliyunRepository.save(mapping);
-        auditService.record(operatorId, "VISION_ALIYUN_UPSERT", "VISION", categoryId,
+        auditService.record(operatorId, "VISION_ALIYUN_UPSERT", VISION, categoryId,
                 "sku=" + mapping.getSkuId());
         return new AliyunMappingDto(
                 mapping.getCategoryId(), mapping.getCategoryName(), mapping.getSkuId(), mapping.getMinConfidence());
@@ -112,14 +115,14 @@ public class VisionMappingService {
 
     @Transactional
     public void deleteAliyun(Long operatorId, String categoryId) {
-        permissionService.requirePermission(operatorId, "ops:vision:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_VISION_EDIT);
         String key = categoryId.trim();
         runWithAliyunLock(key, () -> {
             if (aliyunRepository.findByIdForUpdate(key).isEmpty()) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST);
             }
             aliyunRepository.deleteById(key);
-            auditService.record(operatorId, "VISION_ALIYUN_DELETE", "VISION", key, null);
+            auditService.record(operatorId, "VISION_ALIYUN_DELETE", VISION, key, null);
             return null;
         });
     }

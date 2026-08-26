@@ -33,6 +33,8 @@ import java.util.function.Supplier;
 
 @Service
 public class AuthService {
+    private static final String V_1_D_10 = "1\\d{10}";
+
 
     private final UserInfoMapper userInfoRepository;
     private final UserAccountMapper userAccountRepository;
@@ -81,7 +83,7 @@ public class AuthService {
 
     public void sendSmsCode(String phoneNumber) {
         String phone = normalizePhone(phoneNumber);
-        if (!phone.matches("1\\d{10}")) {
+        if (!phone.matches(V_1_D_10)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
         }
         requireExistingUser(phone);
@@ -92,7 +94,7 @@ public class AuthService {
     public LoginResponse login(LoginRequest request) {
         String phone = normalizePhone(request.phoneNumber());
         String code = normalizeCode(request.code());
-        if (!phone.matches("1\\d{10}")) {
+        if (!phone.matches(V_1_D_10)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
         }
         UserInfo user = requireExistingUser(phone);
@@ -107,7 +109,7 @@ public class AuthService {
     @Transactional
     public LoginResponse loginByPassword(PasswordLoginRequest request) {
         String phone = normalizePhone(request.phoneNumber());
-        if (!phone.matches("1\\d{10}")) {
+        if (!phone.matches(V_1_D_10)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
         }
         UserInfo user = requireExistingUser(phone);
@@ -128,7 +130,7 @@ public class AuthService {
     @Transactional
     public LoginResponse adminLoginByPassword(PasswordLoginRequest request) {
         String phone = normalizePhone(request.phoneNumber());
-        if (!phone.matches("1\\d{10}")) {
+        if (!phone.matches(V_1_D_10)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
         }
         UserInfo user = requireExistingUser(phone);
@@ -157,7 +159,7 @@ public class AuthService {
     @Transactional
     public void adminResetPassword(AdminPasswordResetRequest request) {
         String phone = normalizePhone(request.phoneNumber());
-        if (!phone.matches("1\\d{10}")) {
+        if (!phone.matches(V_1_D_10)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
         }
         String newPassword = request.newPassword();
@@ -214,7 +216,7 @@ public class AuthService {
             }
             String phone = phoneNumber != null ? normalizePhone(phoneNumber) : "";
             if (!phone.isBlank()) {
-                if (!phone.matches("1\\d{10}")) {
+                if (!phone.matches(V_1_D_10)) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
                 }
                 UserInfo user = requireExistingUser(phone);

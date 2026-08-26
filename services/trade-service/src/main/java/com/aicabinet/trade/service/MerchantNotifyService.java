@@ -28,10 +28,18 @@ import java.util.function.Supplier;
 
 @Service
 public class MerchantNotifyService {
+    private static final String SLOT_DISCREPANCY = "SLOT_DISCREPANCY";
+    private static final String DEVICE_OFFLINE = "DEVICE_OFFLINE";
+    private static final String REPLENISHMENT = "REPLENISHMENT";
+    private static final String EXCEPTION = "EXCEPTION";
+    private static final String LOW_STOCK = "LOW_STOCK";
+    private static final String DISPUTE = "DISPUTE";
+    private static final String EXPIRY = "EXPIRY";
+
 
     private static final Logger log = LoggerFactory.getLogger(MerchantNotifyService.class);
     private static final Set<String> ALLOWED_ALERT_TYPES = Set.of(
-            "DISPUTE", "DEVICE_OFFLINE", "LOW_STOCK", "EXPIRY", "SLOT_DISCREPANCY", "REPLENISHMENT", "EXCEPTION");
+            DISPUTE, DEVICE_OFFLINE, LOW_STOCK, EXPIRY, SLOT_DISCREPANCY, REPLENISHMENT, EXCEPTION);
     private static final DateTimeFormatter TIME_FMT =
             DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.of("Asia/Shanghai"));
 
@@ -211,38 +219,38 @@ public class MerchantNotifyService {
     }
 
     private static boolean shouldNotify(MerchantWorkbenchDto wb, Set<String> enabledTypes, long openExceptions) {
-        if (enabledTypes.contains("DISPUTE") && wb.openDisputes() > 0) return true;
-        if (enabledTypes.contains("DEVICE_OFFLINE") && wb.offlineDevices() > 0) return true;
-        if (enabledTypes.contains("LOW_STOCK") && wb.lowStockItems() > 0) return true;
-        if (enabledTypes.contains("EXPIRY") && wb.expiryAlerts() > 0) return true;
-        if (enabledTypes.contains("SLOT_DISCREPANCY") && wb.slotDiscrepancies() > 0) return true;
-        if (enabledTypes.contains("REPLENISHMENT") && countActionType(wb, "REPLENISHMENT") > 0) return true;
-        if (enabledTypes.contains("EXCEPTION") && openExceptions > 0) return true;
+        if (enabledTypes.contains(DISPUTE) && wb.openDisputes() > 0) return true;
+        if (enabledTypes.contains(DEVICE_OFFLINE) && wb.offlineDevices() > 0) return true;
+        if (enabledTypes.contains(LOW_STOCK) && wb.lowStockItems() > 0) return true;
+        if (enabledTypes.contains(EXPIRY) && wb.expiryAlerts() > 0) return true;
+        if (enabledTypes.contains(SLOT_DISCREPANCY) && wb.slotDiscrepancies() > 0) return true;
+        if (enabledTypes.contains(REPLENISHMENT) && countActionType(wb, REPLENISHMENT) > 0) return true;
+        if (enabledTypes.contains(EXCEPTION) && openExceptions > 0) return true;
         return false;
     }
 
     private static String buildSummary(MerchantWorkbenchDto wb, Set<String> enabledTypes, long openExceptions) {
         List<String> parts = new ArrayList<>();
-        if (enabledTypes.contains("DISPUTE") && wb.openDisputes() > 0) {
+        if (enabledTypes.contains(DISPUTE) && wb.openDisputes() > 0) {
             parts.add("争议" + wb.openDisputes());
         }
-        if (enabledTypes.contains("DEVICE_OFFLINE") && wb.offlineDevices() > 0) {
+        if (enabledTypes.contains(DEVICE_OFFLINE) && wb.offlineDevices() > 0) {
             parts.add("离线" + wb.offlineDevices());
         }
-        if (enabledTypes.contains("LOW_STOCK") && wb.lowStockItems() > 0) {
+        if (enabledTypes.contains(LOW_STOCK) && wb.lowStockItems() > 0) {
             parts.add("低库存" + wb.lowStockItems());
         }
-        if (enabledTypes.contains("EXPIRY") && wb.expiryAlerts() > 0) {
+        if (enabledTypes.contains(EXPIRY) && wb.expiryAlerts() > 0) {
             parts.add("效期" + wb.expiryAlerts());
         }
-        if (enabledTypes.contains("SLOT_DISCREPANCY") && wb.slotDiscrepancies() > 0) {
+        if (enabledTypes.contains(SLOT_DISCREPANCY) && wb.slotDiscrepancies() > 0) {
             parts.add("货道差异" + wb.slotDiscrepancies());
         }
-        long replenishment = countActionType(wb, "REPLENISHMENT");
-        if (enabledTypes.contains("REPLENISHMENT") && replenishment > 0) {
+        long replenishment = countActionType(wb, REPLENISHMENT);
+        if (enabledTypes.contains(REPLENISHMENT) && replenishment > 0) {
             parts.add("补货" + replenishment);
         }
-        if (enabledTypes.contains("EXCEPTION") && openExceptions > 0) {
+        if (enabledTypes.contains(EXCEPTION) && openExceptions > 0) {
             parts.add("异常" + openExceptions);
         }
         return String.join(" ", parts);

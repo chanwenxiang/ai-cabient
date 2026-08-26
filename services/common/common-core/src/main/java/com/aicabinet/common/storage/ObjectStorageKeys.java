@@ -19,6 +19,8 @@ import java.util.regex.Pattern;
  * </pre>
  */
 public final class ObjectStorageKeys {
+    private static final String V_04D_02D_02D = "%04d/%02d/%02d";
+
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private static final Pattern UNSAFE = Pattern.compile("[^a-zA-Z0-9._-]+");
@@ -47,7 +49,7 @@ public final class ObjectStorageKeys {
             long userId, String sessionId, String camera, String extension, Instant at) {
         ZonedDateTime zdt = at.atZone(ZONE);
         String date = String.format(
-                Locale.ROOT, "%04d/%02d/%02d", zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
+                Locale.ROOT, V_04D_02D_02D, zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
         String safeSession = sanitize(sessionId, "session");
         String cam = normalizeCamera(camera);
         String ext = normalizeExtension(extension);
@@ -59,7 +61,7 @@ public final class ObjectStorageKeys {
     public static String disputeEvidenceKey(long userId, String fileToken, String extension) {
         ZonedDateTime zdt = Instant.now().atZone(ZONE);
         String date = String.format(
-                Locale.ROOT, "%04d/%02d/%02d", zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
+                Locale.ROOT, V_04D_02D_02D, zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
         String token = sanitize(fileToken, "file");
         String ext = normalizeExtension(extension);
         return String.format(Locale.ROOT, "dispute-evidence/%s/user-%d/%s%s", date, userId, token, ext);
@@ -69,7 +71,7 @@ public final class ObjectStorageKeys {
     public static String replenishmentEvidenceKey(long taskId, long userId, String fileToken, String extension) {
         ZonedDateTime zdt = Instant.now().atZone(ZONE);
         String date = String.format(
-                Locale.ROOT, "%04d/%02d/%02d", zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
+                Locale.ROOT, V_04D_02D_02D, zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
         String token = sanitize(fileToken, "file");
         String ext = normalizeExtension(extension);
         return String.format(
@@ -80,7 +82,7 @@ public final class ObjectStorageKeys {
     public static String skuImageKey(long operatorId, String fileToken, String extension) {
         ZonedDateTime zdt = Instant.now().atZone(ZONE);
         String date = String.format(
-                Locale.ROOT, "%04d/%02d/%02d", zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
+                Locale.ROOT, V_04D_02D_02D, zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
         String token = sanitize(fileToken, "file");
         String ext = normalizeExtension(extension);
         return String.format(Locale.ROOT, "sku-images/%s/op-%d/%s%s", date, operatorId, token, ext);
@@ -96,7 +98,7 @@ public final class ObjectStorageKeys {
             Instant at) {
         ZonedDateTime zdt = at.atZone(ZONE);
         String date = String.format(
-                Locale.ROOT, "%04d/%02d/%02d", zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
+                Locale.ROOT, V_04D_02D_02D, zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
         String safeDevice = sanitize(deviceId, "unknown-device");
         String safeSession = sanitize(sessionId, "session");
         String cam = normalizeCamera(camera);

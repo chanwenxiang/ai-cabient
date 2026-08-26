@@ -15,6 +15,8 @@ import java.time.temporal.ChronoUnit;
 /** 增长模块日志归档：清理通知日志；积分流水为账本组成部分，不在此删除。 */
 @Service
 public class GrowthLogArchiveScheduler {
+    private static final String GROWTH_LOG_ARCHIVE = "growth-log-archive";
+
 
     private static final Logger log = LoggerFactory.getLogger(GrowthLogArchiveScheduler.class);
     private static final int BATCH = 500;
@@ -35,7 +37,7 @@ public class GrowthLogArchiveScheduler {
     @Transactional
     public void archive() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("growth-log-archive", 600)) {
+        if (!taskService.tryBegin(GROWTH_LOG_ARCHIVE, 600)) {
             return;
         }
         boolean failed = false;
@@ -55,11 +57,11 @@ public class GrowthLogArchiveScheduler {
             }
         } catch (Exception e) {
             failed = true;
-            taskService.finish("growth-log-archive", "FAILED", e.getMessage(), start);
+            taskService.finish(GROWTH_LOG_ARCHIVE, "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("growth-log-archive", "SUCCESS", summary, start);
+                taskService.finish(GROWTH_LOG_ARCHIVE, "SUCCESS", summary, start);
             }
         }
     }

@@ -31,6 +31,10 @@ import java.util.function.Supplier;
 @Service
 
 public class DeviceFaultReportService {
+    private static final String DOOR_CLOSE = "DOOR_CLOSE";
+    private static final String DOOR_OPEN = "DOOR_OPEN";
+    private static final String OTHER = "OTHER";
+
 
 
 
@@ -42,11 +46,11 @@ public class DeviceFaultReportService {
 
     private static final Map<String, String> LEGACY_ISSUE_ALIASES = Map.of(
 
-            "DOOR_WONT_OPEN", "DOOR_OPEN",
+            "DOOR_WONT_OPEN", DOOR_OPEN,
 
-            "DOOR_WONT_CLOSE", "DOOR_CLOSE",
+            "DOOR_WONT_CLOSE", DOOR_CLOSE,
 
-            "DOOR", "DOOR_OPEN"
+            "DOOR", DOOR_OPEN
 
     );
 
@@ -208,17 +212,17 @@ public class DeviceFaultReportService {
 
         }
 
-        if (sysDictService.isActiveDictValue(SysDictService.DEVICE_FAULT_ISSUE, "OTHER")) {
+        if (sysDictService.isActiveDictValue(SysDictService.DEVICE_FAULT_ISSUE, OTHER)) {
 
-            return "OTHER";
+            return OTHER;
 
         }
 
         return switch (value) {
 
-            case "DOOR_OPEN", "DOOR_CLOSE", "PRODUCT", "PAYMENT", "OTHER" -> value;
+            case DOOR_OPEN, DOOR_CLOSE, "PRODUCT", "PAYMENT", OTHER -> value;
 
-            default -> "OTHER";
+            default -> OTHER;
 
         };
 
@@ -266,15 +270,15 @@ public class DeviceFaultReportService {
 
         return switch (code.trim().toUpperCase()) {
 
-            case "DOOR_OPEN", "DOOR_WONT_OPEN" -> "打不开门";
+            case DOOR_OPEN, "DOOR_WONT_OPEN" -> "打不开门";
 
-            case "DOOR_CLOSE", "DOOR_WONT_CLOSE" -> "门关不上";
+            case DOOR_CLOSE, "DOOR_WONT_CLOSE" -> "门关不上";
 
             case "PRODUCT" -> "商品异常";
 
             case "PAYMENT" -> "扣款问题";
 
-            case "OTHER" -> "其他";
+            case OTHER -> "其他";
 
             default -> "其他";
 

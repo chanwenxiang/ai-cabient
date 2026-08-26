@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.trade.config.MerchantWithdrawProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
@@ -32,14 +33,14 @@ public class MerchantWithdrawPayoutService {
             return PayoutResult.success("MOCK", ref, "Mock 打款成功");
         }
         if (merchant.getWechatReceiverId() == null || merchant.getWechatReceiverId().isBlank()) {
-            return PayoutResult.failure("WECHAT", null, "缺少微信收款方，无法打款");
+            return PayoutResult.failure(CabinetConstants.PAY_CHANNEL_WECHAT, null, "缺少微信收款方，无法打款");
         }
         if (!weChatPayProperties.isConfigured()) {
-            return PayoutResult.failure("WECHAT", null, "微信支付未配置，无法发起转账");
+            return PayoutResult.failure(CabinetConstants.PAY_CHANNEL_WECHAT, null, "微信支付未配置，无法发起转账");
         }
         log.warn("WeChat merchant transfer skeleton hit: requestId={}, receiver={}, amountCents={}",
                 request.getRequestId(), merchant.getWechatReceiverId(), request.getAmountCents());
-        return PayoutResult.failure("WECHAT", null, "微信商户转账接口尚未接入");
+        return PayoutResult.failure(CabinetConstants.PAY_CHANNEL_WECHAT, null, "微信商户转账接口尚未接入");
     }
 
     public record PayoutResult(

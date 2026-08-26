@@ -26,6 +26,8 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v2/ops/admin")
 public class AdminDashboardController {
+    private static final String ADMIN_SKUS = "admin:skus";
+
 
     private final AdminDashboardService adminService;
     private final CacheService cacheService;
@@ -431,7 +433,7 @@ public class AdminDashboardController {
                 + (status == null ? "" : status.trim()) + "|"
                 + (category == null ? "" : category.trim());
         return ApiResponse.ok(cacheService.get(
-                "admin:skus",
+                ADMIN_SKUS,
                 cacheKey,
                 60_000L,
                 () -> adminService.listSkus(opId, q, status, category)));
@@ -455,7 +457,7 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @Valid @RequestBody UpsertSkuRequest body) {
         SkuCatalogDto created = adminService.createSku(operatorId(request), body);
-        cacheService.evict("admin:skus");
+        cacheService.evict(ADMIN_SKUS);
         return ApiResponse.ok(created);
     }
 
@@ -466,7 +468,7 @@ public class AdminDashboardController {
             @PathVariable("skuId") String skuId,
             @Valid @RequestBody UpsertSkuRequest body) {
         SkuCatalogDto updated = adminService.updateSku(operatorId(request), skuId, body);
-        cacheService.evict("admin:skus");
+        cacheService.evict(ADMIN_SKUS);
         return ApiResponse.ok(updated);
     }
 

@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.SlaMetricsDto;
 import com.aicabinet.common.dto.SlaRealtimeDto;
@@ -26,6 +27,8 @@ import java.util.Set;
 
 @Service
 public class SlaMetricsService {
+    private static final String SLA_SNAPSHOT = "sla-snapshot";
+
 
     private static final Logger log = LoggerFactory.getLogger(SlaMetricsService.class);
 
@@ -65,7 +68,7 @@ public class SlaMetricsService {
     @Transactional(readOnly = true)
     public SlaMetricsDto current(Long operatorId) {
         SlaRealtimeDto realtime = self.realtimeMetrics(operatorId);
-        int currentOnline = (int) deviceRepository.countByOnlineStatus("ONLINE");
+        int currentOnline = (int) deviceRepository.countByOnlineStatus(CabinetConstants.DEVICE_ONLINE);
         int deviceTotal = (int) deviceRepository.count();
         return snapshotRepository.findFirstByOrderBySnapshotDateDesc()
                 .map(s -> {
@@ -97,7 +100,7 @@ public class SlaMetricsService {
     @Transactional
     public void snapshotDaily() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("sla-snapshot", 600)) {
+        if (!taskService.tryBegin(SLA_SNAPSHOT, 600)) {
             return;
         }
         boolean failed = false;
@@ -110,11 +113,11 @@ public class SlaMetricsService {
                     + snap.getDoorOpenSuccess() + "/" + snap.getDoorOpenAttempts();
         } catch (Exception e) {
             failed = true;
-            taskService.finish("sla-snapshot", "FAILED", e.getMessage(), start);
+            taskService.finish(SLA_SNAPSHOT, "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("sla-snapshot", "SUCCESS", summary, start);
+                taskService.finish(SLA_SNAPSHOT, "SUCCESS", summary, start);
             }
         }
     }
@@ -131,7 +134,7 @@ public class SlaMetricsService {
         long p95 = nz(sessionRepository.p95DoorOpenMsBetween(start, end));
 
         int deviceTotal = (int) deviceRepository.count();
-        int online = (int) deviceRepository.countByOnlineStatus("ONLINE");
+        int online = (int) deviceRepository.countByOnlineStatus(CabinetConstants.DEVICE_ONLINE);
 
         SlaDailySnapshot snap = new SlaDailySnapshot();
         snap.setSnapshotDate(date);
@@ -222,11 +225,11 @@ public class SlaMetricsService {
         if (scopedDeviceList != null) {
             totalDevices = scopedDeviceList.size();
             online = scopedDeviceList.stream()
-                    .filter(d -> "ONLINE".equalsIgnoreCase(d.getOnlineStatus()))
+                    .filter(d -> CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(d.getOnlineStatus()))
                     .count();
         } else {
             totalDevices = deviceRepository.count();
-            online = deviceRepository.countByOnlineStatus("ONLINE");
+            online = deviceRepository.countByOnlineStatus(CabinetConstants.DEVICE_ONLINE);
         }
         double onlineRate = totalDevices == 0 ? 0 : (double) online / totalDevices;
 

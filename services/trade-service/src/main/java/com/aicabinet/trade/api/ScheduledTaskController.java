@@ -36,6 +36,8 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v2/ops/admin/scheduled-tasks")
 public class ScheduledTaskController {
+    private static final String STATUS_SKIPPED = "SKIPPED";
+
 
     private final ScheduledTaskService taskService;
     private final ScheduledTaskRegistry registry;
@@ -107,11 +109,11 @@ public class ScheduledTaskController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存在: " + taskKey));
         if (!taskService.isEnabled(taskKey)) {
             return ApiResponse.ok(new ScheduledTaskRunResultDto(
-                    taskKey, "SKIPPED", "任务已停用，请先在列表中启用"));
+                    taskKey, STATUS_SKIPPED, "任务已停用，请先在列表中启用"));
         }
         if (lockService.isLocked("job:" + taskKey)) {
             return ApiResponse.ok(new ScheduledTaskRunResultDto(
-                    taskKey, "SKIPPED", "任务正在执行中，请稍后再试"));
+                    taskKey, STATUS_SKIPPED, "任务正在执行中，请稍后再试"));
         }
         try {
             Instant beforeRun = taskService.get(taskKey).lastRunAt();
@@ -125,7 +127,7 @@ public class ScheduledTaskController {
                 String hint = descriptor.xxlManaged() && xxlJobEnabled
                         ? "任务未写入执行记录（可能未抢到锁；也可在 XXL-JOB 控制台触发）"
                         : "任务未写入执行记录（可能未抢到锁或提前返回）";
-                return ApiResponse.ok(new ScheduledTaskRunResultDto(taskKey, "SKIPPED", hint));
+                return ApiResponse.ok(new ScheduledTaskRunResultDto(taskKey, STATUS_SKIPPED, hint));
             }
             String detail = after.lastMessage() == null || after.lastMessage().isBlank()
                     ? "已执行"

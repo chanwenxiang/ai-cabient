@@ -13,6 +13,12 @@ import java.util.Map;
  */
 @Service
 public class ProfitSharingReturnAlertService {
+    private static final String SPLIT_EXCEPTION = "SPLIT_EXCEPTION";
+    private static final String MERCHANTID = "merchantId";
+    private static final String ORDERID = "orderId";
+    private static final String SPLITID = "splitId";
+    private static final String LITERAL = "{} {}";
+
 
     private static final Logger log = LoggerFactory.getLogger(ProfitSharingReturnAlertService.class);
 
@@ -40,18 +46,18 @@ public class ProfitSharingReturnAlertService {
                 pendingCents,
                 split.getWechatPendingReturnNo(),
                 split.getFailureReason() != null ? split.getFailureReason() : "");
-        log.error("{} {}", title, msg);
+        log.error(LITERAL, title, msg);
         Map<String, Object> extra = Map.of(
-                "splitId", split.getSplitId() != null ? split.getSplitId() : "",
-                "orderId", split.getOrderId() != null ? split.getOrderId() : "",
-                "merchantId", split.getMerchantId() != null ? split.getMerchantId() : "",
+                SPLITID, split.getSplitId() != null ? split.getSplitId() : "",
+                ORDERID, split.getOrderId() != null ? split.getOrderId() : "",
+                MERCHANTID, split.getMerchantId() != null ? split.getMerchantId() : "",
                 "taskId", task.getTaskId() != null ? task.getTaskId() : 0L,
                 "retryCount", task.getRetryCount(),
                 "pendingReturnCents", pendingCents,
                 "outReturnNo", split.getWechatPendingReturnNo() != null ? split.getWechatPendingReturnNo() : ""
         );
         opsExceptionService.report(
-                "SPLIT_EXCEPTION",
+                SPLIT_EXCEPTION,
                 "HIGH",
                 split.getDeviceId(),
                 null,
@@ -83,18 +89,18 @@ public class ProfitSharingReturnAlertService {
                 oldMerchantCents,
                 newMerchantCents,
                 delta);
-        log.warn("{} {}", title, msg);
+        log.warn(LITERAL, title, msg);
         Map<String, Object> extra = Map.of(
-                "splitId", split.getSplitId() != null ? split.getSplitId() : "",
-                "orderId", split.getOrderId() != null ? split.getOrderId() : "",
-                "merchantId", split.getMerchantId() != null ? split.getMerchantId() : "",
+                SPLITID, split.getSplitId() != null ? split.getSplitId() : "",
+                ORDERID, split.getOrderId() != null ? split.getOrderId() : "",
+                MERCHANTID, split.getMerchantId() != null ? split.getMerchantId() : "",
                 "oldMerchantCents", oldMerchantCents,
                 "newMerchantCents", newMerchantCents,
                 "deltaCents", delta,
                 "splitStatus", split.getStatus() != null ? split.getStatus() : ""
         );
         opsExceptionService.report(
-                "SPLIT_EXCEPTION",
+                SPLIT_EXCEPTION,
                 "HIGH",
                 split.getDeviceId(),
                 null,
@@ -122,17 +128,17 @@ public class ProfitSharingReturnAlertService {
                 returnCents,
                 outReturnNo != null ? outReturnNo : "",
                 failureMessage != null ? failureMessage : "");
-        log.warn("{} {}", title, msg);
+        log.warn(LITERAL, title, msg);
         Map<String, Object> extra = Map.of(
-                "splitId", split.getSplitId() != null ? split.getSplitId() : "",
-                "orderId", split.getOrderId() != null ? split.getOrderId() : "",
-                "merchantId", split.getMerchantId() != null ? split.getMerchantId() : "",
+                SPLITID, split.getSplitId() != null ? split.getSplitId() : "",
+                ORDERID, split.getOrderId() != null ? split.getOrderId() : "",
+                MERCHANTID, split.getMerchantId() != null ? split.getMerchantId() : "",
                 "returnCents", returnCents,
                 "outReturnNo", outReturnNo != null ? outReturnNo : "",
                 "failureMessage", failureMessage != null ? failureMessage : ""
         );
         opsExceptionService.report(
-                "SPLIT_EXCEPTION",
+                SPLIT_EXCEPTION,
                 "HIGH",
                 split.getDeviceId(),
                 null,

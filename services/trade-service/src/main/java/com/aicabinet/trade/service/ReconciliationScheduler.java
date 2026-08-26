@@ -11,6 +11,8 @@ import java.time.LocalDate;
 
 @Component
 public class ReconciliationScheduler {
+    private static final String RECONCILIATION = "reconciliation";
+
 
     private static final Logger log = LoggerFactory.getLogger(ReconciliationScheduler.class);
 
@@ -29,7 +31,7 @@ public class ReconciliationScheduler {
     @Scheduled(cron = "${aicabinet.reconciliation.scheduled-cron:0 30 1 * * *}")
     public void runDailyReconciliation() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("reconciliation", 1800)) {
+        if (!taskService.tryBegin(RECONCILIATION, 1800)) {
             return;
         }
         boolean failed = false;
@@ -46,11 +48,11 @@ public class ReconciliationScheduler {
             log.info("scheduled reconciliation completed for date={}", yesterday);
         } catch (Exception e) {
             failed = true;
-            taskService.finish("reconciliation", "FAILED", e.getMessage(), start);
+            taskService.finish(RECONCILIATION, "FAILED", e.getMessage(), start);
             log.error("scheduled reconciliation failed", e);
         } finally {
             if (!failed) {
-                taskService.finish("reconciliation", "SUCCESS", summary, start);
+                taskService.finish(RECONCILIATION, "SUCCESS", summary, start);
             }
         }
     }

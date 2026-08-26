@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.CouponDefinition;
@@ -17,6 +18,8 @@ import java.util.List;
 
 @Service
 public class PromotionService {
+    private static final String LITERAL = "活动不存在";
+
 
     private static final Logger log = LoggerFactory.getLogger(PromotionService.class);
 
@@ -51,7 +54,7 @@ public class PromotionService {
     }
 
     public List<PromotionActivityDto> listActive() {
-        return repository.findByStatus("ACTIVE").stream().map(this::toDto).toList();
+        return repository.findByStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE).stream().map(this::toDto).toList();
     }
 
     public List<PromotionActivityDto> listAll() {
@@ -60,14 +63,14 @@ public class PromotionService {
 
     public List<PromotionActivityDto> listCurrentlyRunning() {
         Instant now = Instant.now();
-        return repository.findByStatusAndStartTimeBeforeAndEndTimeAfter("ACTIVE", now, now)
+        return repository.findByStatusAndStartTimeBeforeAndEndTimeAfter(CabinetConstants.PROMOTION_STATUS_ACTIVE, now, now)
                 .stream().map(this::toDto).toList();
     }
 
     @Transactional
     public PromotionActivityDto updateStatus(Long activityId, String status) {
         PromotionActivity a = repository.findById(activityId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "活动不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         a.setStatus(status);
         repository.save(a);
         log.info("promotion {} status={}", activityId, status);
@@ -77,8 +80,8 @@ public class PromotionService {
     @Transactional
     public PromotionActivityDto update(Long activityId, CreatePromotionRequest request) {
         PromotionActivity a = repository.findById(activityId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "活动不存在"));
-        if ("ACTIVE".equals(a.getStatus())) {
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
+        if (CabinetConstants.PROMOTION_STATUS_ACTIVE.equals(a.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "进行中的活动请先停止再编辑");
         }
         if (request.endTime() != null && request.startTime() != null
@@ -105,7 +108,7 @@ public class PromotionService {
 
     @Transactional
     public PromotionActivityDto launch(Long activityId) {
-        return self.updateStatus(activityId, "ACTIVE");
+        return self.updateStatus(activityId, CabinetConstants.PROMOTION_STATUS_ACTIVE);
     }
 
     @Transactional
@@ -123,7 +126,7 @@ public class PromotionService {
 
     private void doReserveBudgetOnClaim(Long activityId, int reserveCents) {
         PromotionActivity activity = repository.findByIdForUpdate(activityId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "活动不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         long budget = activity.getBudgetCents();
         long used = activity.getUsedCents();
         if (budget > 0 && used + reserveCents > budget) {

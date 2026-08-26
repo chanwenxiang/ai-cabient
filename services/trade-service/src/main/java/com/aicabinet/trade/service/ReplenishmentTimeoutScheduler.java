@@ -21,6 +21,10 @@ import java.util.List;
  */
 @Service
 public class ReplenishmentTimeoutScheduler {
+    private static final String REPLENISHMENT_TIMEOUT = "replenishment-timeout";
+    private static final String STATUS_CANCELLED = "CANCELLED";
+    private static final String STATUS_COMPLETED = "COMPLETED";
+
 
     private static final Logger log = LoggerFactory.getLogger(ReplenishmentTimeoutScheduler.class);
     /** 签到后超过该小时仍 IN_PROGRESS 则收口。 */
@@ -51,7 +55,7 @@ public class ReplenishmentTimeoutScheduler {
     @Transactional
     public void expireStaleCheckedInTasks() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("replenishment-timeout", 600)) {
+        if (!taskService.tryBegin(REPLENISHMENT_TIMEOUT, 600)) {
             return;
         }
         boolean failed = false;
@@ -75,11 +79,11 @@ public class ReplenishmentTimeoutScheduler {
         }
         } catch (Exception e) {
             failed = true;
-            taskService.finish("replenishment-timeout", "FAILED", e.getMessage(), start);
+            taskService.finish(REPLENISHMENT_TIMEOUT, "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("replenishment-timeout", "SUCCESS", summary, start);
+                taskService.finish(REPLENISHMENT_TIMEOUT, "SUCCESS", summary, start);
             }
         }
     }
@@ -92,7 +96,7 @@ public class ReplenishmentTimeoutScheduler {
                 .anyMatch(ReplenishmentTaskLine::isApplied);
 
         String note = "签到超过" + STALE_CHECK_IN_HOURS + "小时未完成，系统自动取消以恢复售卖";
-        task.setStatus("CANCELLED");
+        task.setStatus(STATUS_CANCELLED);
         String prev = task.getNotes();
         task.setNotes(prev == null || prev.isBlank() ? note : (prev + "；" + note));
         taskRepository.save(task);
@@ -121,13 +125,13 @@ public class ReplenishmentTimeoutScheduler {
             return;
         }
         boolean allTerminal = routeTasks.stream()
-                .allMatch(item -> "COMPLETED".equals(item.getStatus()) || "CANCELLED".equals(item.getStatus()));
+                .allMatch(item -> STATUS_COMPLETED.equals(item.getStatus()) || STATUS_CANCELLED.equals(item.getStatus()));
         if (!allTerminal) {
             return;
         }
-        boolean anyCompleted = routeTasks.stream().anyMatch(item -> "COMPLETED".equals(item.getStatus()));
+        boolean anyCompleted = routeTasks.stream().anyMatch(item -> STATUS_COMPLETED.equals(item.getStatus()));
         routeRepository.findById(routeId).ifPresent(route -> {
-            route.setStatus(anyCompleted ? "COMPLETED" : "CANCELLED");
+            route.setStatus(anyCompleted ? STATUS_COMPLETED : STATUS_CANCELLED);
             routeRepository.save(route);
         });
     }

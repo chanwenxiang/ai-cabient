@@ -25,13 +25,20 @@ import java.util.Set;
 
 @Service
 public class RepairTicketService {
+    private static final String PERM_OPS_DEVICE_LIST = "ops:device:list";
+    private static final String PERM_OPS_REPAIR_EDIT = "ops:repair:edit";
+    private static final String PERM_OPS_REPAIR_LIST = "ops:repair:list";
+    private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
+    private static final String STATUS_CANCELLED = "CANCELLED";
+    private static final String STATUS_NORMAL = "NORMAL";
 
-    private static final Set<String> STATUSES = Set.of("OPEN", "IN_PROGRESS", "DONE", "CANCELLED");
+
+    private static final Set<String> STATUSES = Set.of("OPEN", STATUS_IN_PROGRESS, "DONE", STATUS_CANCELLED);
     private static final Map<String, Set<String>> TRANSITIONS = Map.of(
-            "OPEN", Set.of("IN_PROGRESS", "CANCELLED"),
-            "IN_PROGRESS", Set.of("DONE", "CANCELLED", "OPEN"),
+            "OPEN", Set.of(STATUS_IN_PROGRESS, STATUS_CANCELLED),
+            STATUS_IN_PROGRESS, Set.of("DONE", STATUS_CANCELLED, "OPEN"),
             "DONE", Set.of(),
-            "CANCELLED", Set.of()
+            STATUS_CANCELLED, Set.of()
     );
 
     private final RepairTicketMapper ticketMapper;
@@ -64,7 +71,7 @@ public class RepairTicketService {
     @Transactional(readOnly = true)
     public PageResult<RepairTicketDto> list(Long operatorId, String status, String deviceId,
                                             String priority, int page, int size) {
-        permissionService.requireAnyPermission(operatorId, "ops:repair:list", "ops:device:list");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_REPAIR_LIST, PERM_OPS_DEVICE_LIST);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
         LambdaQueryWrapper<RepairTicket> q = new LambdaQueryWrapper<>();
@@ -85,7 +92,7 @@ public class RepairTicketService {
 
     @Transactional(readOnly = true)
     public List<RepairTicketDto> listByDevice(Long operatorId, String deviceId, int limit) {
-        permissionService.requireAnyPermission(operatorId, "ops:repair:list", "ops:device:list", "ops:device:edit");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_REPAIR_LIST, PERM_OPS_DEVICE_LIST, "ops:device:edit");
         int lim = Math.min(Math.max(limit, 1), 50);
         return ticketMapper.selectList(new LambdaQueryWrapper<RepairTicket>()
                         .eq(RepairTicket::getDeviceId, deviceId)
@@ -96,7 +103,7 @@ public class RepairTicketService {
 
     @Transactional(readOnly = true)
     public RepairTicketDetailDto detail(Long operatorId, long ticketId) {
-        permissionService.requireAnyPermission(operatorId, "ops:repair:list", "ops:device:list");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_REPAIR_LIST, PERM_OPS_DEVICE_LIST);
         RepairTicket ticket = requireTicket(ticketId);
         List<RepairTicketEventDto> events = eventMapper.selectList(new LambdaQueryWrapper<RepairTicketEvent>()
                         .eq(RepairTicketEvent::getTicketId, ticketId)
@@ -108,7 +115,7 @@ public class RepairTicketService {
     @Transactional
     public RepairTicketDto create(Long operatorId, String deviceId, String title, String faultType,
                                   String assignee, String priority, String remark) {
-        permissionService.requirePermission(operatorId, "ops:repair:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPAIR_EDIT);
         if (deviceId == null || deviceId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备编号必填");
         }
@@ -145,14 +152,14 @@ public class RepairTicketService {
     @Transactional
     public RepairTicketDto update(Long operatorId, long ticketId, String title, String faultType,
                                   String assignee, String priority, String remark) {
-        permissionService.requirePermission(operatorId, "ops:repair:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPAIR_EDIT);
         return runWithTicketLock(ticketId, () -> doUpdate(operatorId, ticketId, title, faultType, assignee, priority, remark));
     }
 
     private RepairTicketDto doUpdate(Long operatorId, long ticketId, String title, String faultType,
                                      String assignee, String priority, String remark) {
         RepairTicket ticket = requireTicketForUpdate(ticketId);
-        if ("DONE".equals(ticket.getStatus()) || "CANCELLED".equals(ticket.getStatus())) {
+        if ("DONE".equals(ticket.getStatus()) || STATUS_CANCELLED.equals(ticket.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "已关闭工单不可编辑");
         }
         if (title != null && !title.isBlank()) ticket.setTitle(title.trim());
@@ -169,7 +176,7 @@ public class RepairTicketService {
     /** 批量指派：只更新未关闭（OPEN / IN_PROGRESS）的工单。 */
     @Transactional
     public int batchAssign(Long operatorId, List<Long> ticketIds, String assignee) {
-        permissionService.requirePermission(operatorId, "ops:repair:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPAIR_EDIT);
         String name = trimToNull(assignee);
         if (name == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写指派人");
@@ -186,7 +193,7 @@ public class RepairTicketService {
 
     private boolean doAssignOne(Long operatorId, Long ticketId, String name) {
         RepairTicket ticket = requireTicketForUpdate(ticketId);
-        if ("DONE".equals(ticket.getStatus()) || "CANCELLED".equals(ticket.getStatus())) {
+        if ("DONE".equals(ticket.getStatus()) || STATUS_CANCELLED.equals(ticket.getStatus())) {
             return false;
         }
         ticket.setAssignee(name);
@@ -204,7 +211,7 @@ public class RepairTicketService {
     @Transactional
     public RepairTicketDto transition(Long operatorId, long ticketId, String toStatus, String remark,
                                       boolean unlockDevice) {
-        permissionService.requirePermission(operatorId, "ops:repair:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPAIR_EDIT);
         return runWithTicketLock(ticketId, () -> doTransition(operatorId, ticketId, toStatus, remark, unlockDevice));
     }
 
@@ -222,7 +229,7 @@ public class RepairTicketService {
         }
         ticket.setStatus(target);
         ticket.setUpdatedAt(Instant.now());
-        if ("DONE".equals(target) || "CANCELLED".equals(target)) {
+        if ("DONE".equals(target) || STATUS_CANCELLED.equals(target)) {
             ticket.setClosedAt(Instant.now());
         }
         if (remark != null && !remark.isBlank()) {
@@ -329,9 +336,9 @@ public class RepairTicketService {
     }
 
     private static String normalizePriority(String priority) {
-        if (priority == null || priority.isBlank()) return "NORMAL";
+        if (priority == null || priority.isBlank()) return STATUS_NORMAL;
         String p = priority.trim().toUpperCase(Locale.ROOT);
-        return Set.of("LOW", "NORMAL", "HIGH", "URGENT").contains(p) ? p : "NORMAL";
+        return Set.of("LOW", STATUS_NORMAL, "HIGH", "URGENT").contains(p) ? p : STATUS_NORMAL;
     }
 
     private static String trimToNull(String s) {

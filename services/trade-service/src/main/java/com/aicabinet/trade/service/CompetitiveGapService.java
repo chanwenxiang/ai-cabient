@@ -25,6 +25,14 @@ import java.util.stream.Collectors;
 
 @Service
 public class CompetitiveGapService {
+    private static final String PERM_OPS_PHONE_VERIFY_LIST = "ops:phone-verify:list";
+    private static final String PERM_OPS_RBAC_ASSIGN = "ops:rbac:assign";
+    private static final String PERM_OPS_USER_LIST = "ops:user:list";
+    private static final String DEVICE_IDS = "DEVICE_IDS";
+    private static final String LIMIT_2000 = "LIMIT 2000";
+    private static final String PRODUCT = "PRODUCT";
+    private static final String DEVICE = "DEVICE";
+
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
@@ -89,12 +97,12 @@ public class CompetitiveGapService {
 
     @Transactional(readOnly = true)
     public OpsUserDeviceScopeDto getUserDeviceScope(Long operatorId, Long userId) {
-        permissionService.requirePermission(operatorId, "ops:rbac:assign");
+        permissionService.requirePermission(operatorId, PERM_OPS_RBAC_ASSIGN);
         String mode = deviceScopePrefMapper.findById(userId)
                 .map(OpsUserDeviceScopePref::getScopeMode)
                 .orElse("ALL");
         if ("PARTIAL".equalsIgnoreCase(mode)) {
-            mode = "DEVICE_IDS";
+            mode = DEVICE_IDS;
         }
         List<String> devices = deviceScopeMapper.findByUserId(userId).stream()
                 .map(OpsUserDeviceScope::getDeviceId)
@@ -107,7 +115,7 @@ public class CompetitiveGapService {
 
     @Transactional
     public OpsUserDeviceScopeDto assignUserDeviceScope(Long operatorId, Long userId, OpsUserDeviceScopeDto body) {
-        permissionService.requireAnyPermission(operatorId, "ops:rbac:assign:device", "ops:rbac:assign");
+        permissionService.requireAnyPermission(operatorId, "ops:rbac:assign:device", PERM_OPS_RBAC_ASSIGN);
         return runWithDeviceScopeLock(userId, () -> doAssignUserDeviceScope(operatorId, userId, body));
     }
 
@@ -115,9 +123,9 @@ public class CompetitiveGapService {
         String mode = body.scopeMode() == null || body.scopeMode().isBlank()
                 ? "ALL" : body.scopeMode().trim().toUpperCase();
         if ("PARTIAL".equals(mode)) {
-            mode = "DEVICE_IDS";
+            mode = DEVICE_IDS;
         }
-        if (!Set.of("ALL", "DEVICE_IDS", "ROUTE").contains(mode)) {
+        if (!Set.of("ALL", DEVICE_IDS, "ROUTE").contains(mode)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scopeMode 仅支持 ALL / DEVICE_IDS / ROUTE");
         }
         OpsUserDeviceScopePref pref = deviceScopePrefMapper.findByIdForUpdate(userId).orElseGet(OpsUserDeviceScopePref::new);
@@ -128,7 +136,7 @@ public class CompetitiveGapService {
 
         deviceScopeMapper.deleteByUserId(userId);
         routeScopeMapper.deleteByUserId(userId);
-        if ("DEVICE_IDS".equals(mode) && body.deviceIds() != null) {
+        if (DEVICE_IDS.equals(mode) && body.deviceIds() != null) {
             for (String deviceId : body.deviceIds()) {
                 if (deviceId == null || deviceId.isBlank()) {
                     continue;
@@ -190,7 +198,7 @@ public class CompetitiveGapService {
 
     @Transactional(readOnly = true)
     public List<MerchantRoleTemplateDto> listRoleTemplates(Long operatorId) {
-        permissionService.requireAnyPermission(operatorId, "ops:merchant:list", "ops:rbac:assign");
+        permissionService.requireAnyPermission(operatorId, "ops:merchant:list", PERM_OPS_RBAC_ASSIGN);
         return roleTemplateMapper.findAllOrdered().stream()
                 .map(t -> new MerchantRoleTemplateDto(
                         t.getTemplateKey(), t.getTemplateName(), t.getDescription(),
@@ -272,7 +280,7 @@ public class CompetitiveGapService {
             }
         }
 
-        auditService.record(operatorId, "DEVICE_POLICY", "DEVICE", deviceId,
+        auditService.record(operatorId, "DEVICE_POLICY", DEVICE, deviceId,
                 "priceLocked=" + body.priceLocked()
                         + ";skuEdit=" + body.skuEditForbidden()
                         + ";saleForbidden=" + wantForbidden
@@ -309,12 +317,12 @@ public class CompetitiveGapService {
             }
             deviceIds = Set.of(did);
         }
-        String dimension = dim == null ? "PRODUCT" : dim.trim().toUpperCase();
+        String dimension = dim == null ? PRODUCT : dim.trim().toUpperCase();
 
         return switch (dimension) {
-            case "CABINET", "DEVICE" -> aggregateByDevice(deviceIds, start, end);
+            case "CABINET", DEVICE -> aggregateByDevice(deviceIds, start, end);
             case "MERCHANT" -> aggregateByMerchant(deviceIds, start, end);
-            case "MARGIN", "PRODUCT", "SKU" -> aggregateByProduct(deviceIds, start, end);
+            case "MARGIN", PRODUCT, "SKU" -> aggregateByProduct(deviceIds, start, end);
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dim 支持 PRODUCT/SKU/CABINET/MERCHANT/MARGIN");
         };
     }
@@ -344,10 +352,10 @@ public class CompetitiveGapService {
         Instant start = from.atStartOfDay(ZONE).toInstant();
         Instant end = to.plusDays(1).atStartOfDay(ZONE).toInstant();
         Set<String> scoped = deviceIds == null ? Set.of() : deviceIds;
-        String dimension = dim == null ? "PRODUCT" : dim.trim().toUpperCase();
+        String dimension = dim == null ? PRODUCT : dim.trim().toUpperCase();
         return switch (dimension) {
-            case "CABINET", "DEVICE" -> aggregateByDevice(scoped, start, end);
-            case "MARGIN", "PRODUCT", "SKU" -> aggregateByProduct(scoped, start, end);
+            case "CABINET", DEVICE -> aggregateByDevice(scoped, start, end);
+            case "MARGIN", PRODUCT, "SKU" -> aggregateByProduct(scoped, start, end);
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商户报表 dim 支持 PRODUCT/CABINET/MARGIN");
         };
     }
@@ -388,7 +396,7 @@ public class CompetitiveGapService {
     @Transactional(readOnly = true)
     public PageResult<PhoneVerifyLogDto> listPhoneVerify(Long operatorId, String phone, String channel,
                                                          int page, int size) {
-        permissionService.requireAnyPermission(operatorId, "ops:phone-verify:list", "ops:risk:list", "ops:user:list");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_PHONE_VERIFY_LIST, "ops:risk:list", PERM_OPS_USER_LIST);
         var result = phoneVerifyLogMapper.search(phone, channel, null, null, page, Math.min(size, 100));
         Map<String, String> merchantNames = merchantNamesForLogs(result.getRecords());
         List<PhoneVerifyLogDto> items = result.getRecords().stream()
@@ -419,7 +427,7 @@ public class CompetitiveGapService {
 
     @Transactional
     public PhoneVerifyLogDto recordPhoneVerify(Long operatorId, PhoneVerifyLogDto body) {
-        permissionService.requireAnyPermission(operatorId, "ops:phone-verify:list", "ops:user:list");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_PHONE_VERIFY_LIST, PERM_OPS_USER_LIST);
         if (body.phone() == null || body.phone().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "手机号不能为空");
         }
@@ -435,7 +443,7 @@ public class CompetitiveGapService {
 
     @Transactional
     public PhoneVerifyLogDto updatePhoneVerify(Long operatorId, Long logId, PhoneVerifyLogDto body) {
-        permissionService.requireAnyPermission(operatorId, "ops:phone-verify:list", "ops:user:list");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_PHONE_VERIFY_LIST, PERM_OPS_USER_LIST);
         return runWithPhoneVerifyLogLock(logId, () -> doUpdatePhoneVerify(logId, body));
     }
 
@@ -455,7 +463,7 @@ public class CompetitiveGapService {
 
     @Transactional
     public void deletePhoneVerify(Long operatorId, Long logId) {
-        permissionService.requireAnyPermission(operatorId, "ops:phone-verify:list", "ops:user:list");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_PHONE_VERIFY_LIST, PERM_OPS_USER_LIST);
         runWithPhoneVerifyLogLock(logId, () -> {
             doDeletePhoneVerify(logId);
             return null;
@@ -516,7 +524,7 @@ public class CompetitiveGapService {
         List<DeviceInfo> devices = allowed == null
                 ? deviceInfoMapper.selectList(Wrappers.<DeviceInfo>lambdaQuery()
                 .orderByAsc(DeviceInfo::getDeviceId)
-                .last("LIMIT 2000"))
+                .last(LIMIT_2000))
                 : deviceInfoMapper.findByDeviceIdIn(allowed);
         for (DeviceInfo d : devices) {
             if (d.getOnlineStatus() != null && !"ONLINE".equalsIgnoreCase(d.getOnlineStatus())) {
@@ -554,7 +562,7 @@ public class CompetitiveGapService {
         List<DeviceInfo> devices = allowed == null
                 ? deviceInfoMapper.selectList(Wrappers.<DeviceInfo>lambdaQuery()
                 .orderByAsc(DeviceInfo::getDeviceId)
-                .last("LIMIT 2000"))
+                .last(LIMIT_2000))
                 : deviceInfoMapper.findByDeviceIdIn(allowed);
         Set<String> sold = orderMapper.selectObjs(Wrappers.<CabinetOrder>query()
                         .select("DISTINCT device_id")
@@ -636,7 +644,7 @@ public class CompetitiveGapService {
         List<DeviceInfo> devices = deviceIds == null
                 ? deviceInfoMapper.selectList(Wrappers.<DeviceInfo>lambdaQuery()
                 .orderByAsc(DeviceInfo::getDeviceId)
-                .last("LIMIT 2000"))
+                .last(LIMIT_2000))
                 : deviceInfoMapper.findByDeviceIdIn(deviceIds);
         Map<String, String> deviceMerchant = devices.stream()
                 .collect(Collectors.toMap(DeviceInfo::getDeviceId,

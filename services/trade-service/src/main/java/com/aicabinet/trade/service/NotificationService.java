@@ -31,6 +31,11 @@ import java.util.function.Supplier;
  */
 @Service
 public class NotificationService {
+    private static final String CONSUMER = "CONSUMER";
+    private static final String MERCHANT = "MERCHANT";
+    private static final String IN_APP = "IN_APP";
+    private static final String LITERAL = "消息不存在";
+
 
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
 
@@ -64,13 +69,13 @@ public class NotificationService {
     @Transactional
     public void notifyConsumer(Long userId, String templateCode, Map<String, String> params,
                                String bizType, String bizId) {
-        self.send("CONSUMER", userId, null, templateCode, params, bizType, bizId);
+        self.send(CONSUMER, userId, null, templateCode, params, bizType, bizId);
     }
 
     @Transactional
     public void notifyMerchant(String merchantId, String templateCode, Map<String, String> params,
                                String bizType, String bizId) {
-        self.send("MERCHANT", null, merchantId, templateCode, params, bizType, bizId);
+        self.send(MERCHANT, null, merchantId, templateCode, params, bizType, bizId);
     }
 
     /** 运营后台站内信：不依赖消费者偏好开关，直接落库。 */
@@ -79,7 +84,7 @@ public class NotificationService {
         if (userId == null || userId < com.aicabinet.common.constants.CabinetConstants.OPERATOR_USER_ID_START) {
             return;
         }
-        saveLog("OPS_INBOX", "IN_APP", "OPS", userId, null, title, body, bizType, bizId);
+        saveLog("OPS_INBOX", IN_APP, "OPS", userId, null, title, body, bizType, bizId);
     }
 
     @Transactional(readOnly = true)
@@ -96,7 +101,7 @@ public class NotificationService {
     public void markOpsRead(Long userId, Long id) {
         runWithNotificationLogLock(id, () -> {
             NotificationLog record = logRepository.findByIdForUpdate(id)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "消息不存在"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
             if (record.getUserId() == null || !record.getUserId().equals(userId)
                     || !"OPS".equals(record.getAudience())) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权操作该消息");
@@ -124,11 +129,11 @@ public class NotificationService {
         }
 
         List<String> channelList = channels(tpl.getChannels(), tpl.getChannel());
-        if (channelList.contains("IN_APP")) {
-            saveLog(tpl.getTemplateCode(), "IN_APP", audience, userId, merchantId,
+        if (channelList.contains(IN_APP)) {
+            saveLog(tpl.getTemplateCode(), IN_APP, audience, userId, merchantId,
                     title, body, bizType, bizId);
         }
-        boolean hasExternal = channelList.stream().anyMatch(c -> !"IN_APP".equals(c));
+        boolean hasExternal = channelList.stream().anyMatch(c -> !IN_APP.equals(c));
         if (!hasExternal || userId == null) {
             return;
         }
@@ -167,7 +172,7 @@ public class NotificationService {
     private static java.util.List<String> channels(String channels, String fallback) {
         String raw = channels != null && !channels.isBlank() ? channels : fallback;
         if (raw == null || raw.isBlank()) {
-            return List.of("IN_APP");
+            return List.of(IN_APP);
         }
         return java.util.Arrays.stream(raw.split(","))
                 .map(String::trim)
@@ -196,7 +201,7 @@ public class NotificationService {
 
     private void doMarkConsumerRead(Long userId, Long id) {
         NotificationLog record = logRepository.findByIdForUpdate(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "消息不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         if (record.getUserId() == null || !record.getUserId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权操作该消息");
         }
@@ -244,7 +249,7 @@ public class NotificationService {
 
     private void doMarkMerchantRead(String merchantId, Long id) {
         NotificationLog record = logRepository.findByIdForUpdate(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "消息不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         if (record.getMerchantId() == null || !record.getMerchantId().equals(merchantId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权操作该消息");
         }
@@ -274,7 +279,7 @@ public class NotificationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体不能为空");
         }
         String audience = body.audience().trim().toUpperCase();
-        if (!"CONSUMER".equals(audience) && !"MERCHANT".equals(audience)) {
+        if (!CONSUMER.equals(audience) && !MERCHANT.equals(audience)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "受众仅支持 CONSUMER / MERCHANT");
         }
         String title = body.title().trim();
@@ -285,13 +290,13 @@ public class NotificationService {
         Long userId = body.userId();
         String merchantId = body.merchantId() == null || body.merchantId().isBlank()
                 ? null : body.merchantId().trim();
-        if ("CONSUMER".equals(audience) && userId == null) {
+        if (CONSUMER.equals(audience) && userId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "发给消费者需填写用户ID");
         }
-        if ("MERCHANT".equals(audience) && merchantId == null) {
+        if (MERCHANT.equals(audience) && merchantId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "发给商户需填写商户ID");
         }
-        if ("CONSUMER".equals(audience)) {
+        if (CONSUMER.equals(audience)) {
             return runWithConsumerNotificationLock(userId, () -> doSendManual(operatorId, body, audience,
                     title, content, userId, merchantId));
         }
@@ -306,7 +311,7 @@ public class NotificationService {
                 ? "OPS-" + (operatorId == null ? 0 : operatorId) : body.bizId().trim();
         NotificationLog record = new NotificationLog();
         record.setTemplateCode("OPS_MANUAL");
-        record.setChannel("IN_APP");
+        record.setChannel(IN_APP);
         record.setAudience(audience);
         record.setUserId(userId);
         record.setMerchantId(merchantId);

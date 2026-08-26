@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.UserBlacklist;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -44,5 +45,11 @@ public interface UserBlacklistMapper extends BaseTradeMapper<UserBlacklist> {
             out.add(row.getUserId());
         }
         return out;
+    }
+
+    /** page 为 0-based。 */
+    default Page<UserBlacklist> searchPage(int page, int size) {
+        return selectPage(new Page<>(page + 1L, size),
+                Wrappers.<UserBlacklist>lambdaQuery().orderByDesc(UserBlacklist::getCreatedAt));
     }
 }

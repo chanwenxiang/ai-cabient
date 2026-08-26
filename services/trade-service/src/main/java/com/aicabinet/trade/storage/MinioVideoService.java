@@ -32,6 +32,11 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 public class MinioVideoService {
+    private static final String HTTPS = "https://";
+    private static final String MINIO = "minio://";
+    private static final String HTTP = "http://";
+    private static final String FILE = "file://";
+
 
     private static final Logger log = LoggerFactory.getLogger(MinioVideoService.class);
 
@@ -48,7 +53,7 @@ public class MinioVideoService {
         if (storageUri == null || storageUri.isBlank()) {
             return Optional.empty();
         }
-        if (storageUri.startsWith("file://") || storageUri.startsWith("http://") || storageUri.startsWith("https://")) {
+        if (storageUri.startsWith(FILE) || storageUri.startsWith(HTTP) || storageUri.startsWith(HTTPS)) {
             return Optional.of(storageUri);
         }
         ParsedUri parsed = parseUri(storageUri);
@@ -78,7 +83,7 @@ public class MinioVideoService {
         if (videoUri == null || videoUri.isBlank()) {
             return Optional.empty();
         }
-        if (videoUri.startsWith("file://") || videoUri.startsWith("http://") || videoUri.startsWith("https://")) {
+        if (videoUri.startsWith(FILE) || videoUri.startsWith(HTTP) || videoUri.startsWith(HTTPS)) {
             return Optional.of(videoUri);
         }
         if (!objectExists(videoUri)) {
@@ -92,14 +97,14 @@ public class MinioVideoService {
         if (storageUri == null || storageUri.isBlank()) {
             return false;
         }
-        if (storageUri.startsWith("file://")) {
+        if (storageUri.startsWith(FILE)) {
             try {
                 return Files.isRegularFile(Paths.get(URI.create(storageUri)));
             } catch (Exception e) {
                 return false;
             }
         }
-        if (storageUri.startsWith("http://") || storageUri.startsWith("https://")) {
+        if (storageUri.startsWith(HTTP) || storageUri.startsWith(HTTPS)) {
             return true;
         }
         ParsedUri parsed = parseUri(storageUri);
@@ -122,7 +127,7 @@ public class MinioVideoService {
         if (storageUri == null || storageUri.isBlank()) {
             return false;
         }
-        if (storageUri.startsWith("file://")) {
+        if (storageUri.startsWith(FILE)) {
             try {
                 return Files.deleteIfExists(Paths.get(URI.create(storageUri)));
             } catch (Exception e) {
@@ -171,7 +176,7 @@ public class MinioVideoService {
                             .object(objectKey)
                             .expiry(expirySeconds, TimeUnit.SECONDS)
                             .build());
-            String videoUri = "minio://" + properties.bucket() + "/" + objectKey;
+            String videoUri = MINIO + properties.bucket() + "/" + objectKey;
             return Optional.of(new VideoUploadPresignResponse(
                     objectKey, uploadUrl, videoUri, expirySeconds));
         } catch (Exception e) {
@@ -197,7 +202,7 @@ public class MinioVideoService {
                     .stream(new java.io.ByteArrayInputStream(data), data.length, -1)
                     .contentType(type)
                     .build());
-            return Optional.of("minio://" + properties.bucket() + "/" + objectKey);
+            return Optional.of(MINIO + properties.bucket() + "/" + objectKey);
         } catch (Exception e) {
             log.warn("putObject failed key={} size={}", objectKey, data.length, e);
             return Optional.empty();
@@ -235,10 +240,10 @@ public class MinioVideoService {
         if (videoUri == null || videoUri.isBlank()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "视频不存在");
         }
-        if (videoUri.startsWith("http://") || videoUri.startsWith("https://")) {
+        if (videoUri.startsWith(HTTP) || videoUri.startsWith(HTTPS)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "外部视频请直接访问原链接");
         }
-        if (videoUri.startsWith("file://")) {
+        if (videoUri.startsWith(FILE)) {
             try {
                 streamLocalFile(videoUri, request, response);
             } catch (ResponseStatusException e) {
@@ -439,7 +444,7 @@ public class MinioVideoService {
     }
 
     private ParsedUri parseUri(String videoUri) {
-        for (String prefix : new String[]{"minio://", "oss://", "s3://"}) {
+        for (String prefix : new String[]{MINIO, "oss://", "s3://"}) {
             if (videoUri.startsWith(prefix)) {
                 String rest = videoUri.substring(prefix.length());
                 int slash = rest.indexOf('/');

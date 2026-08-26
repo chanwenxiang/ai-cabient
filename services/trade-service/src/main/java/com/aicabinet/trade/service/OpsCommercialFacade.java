@@ -13,6 +13,12 @@ import java.util.List;
 
 @Service
 public class OpsCommercialFacade {
+    private static final String PERM_OPS_REPLENISHMENT_LIST = "ops:replenishment:list";
+    private static final String PERM_OPS_REPLENISHMENT_EDIT = "ops:replenishment:edit";
+    private static final String PERM_OPS_RISK_BLACKLIST = "ops:risk:blacklist";
+    private static final String PERM_OPS_DEVICE_LIST = "ops:device:list";
+    private static final String PERM_OPS_DEVICE_EDIT = "ops:device:edit";
+
 
     private final PermissionService permissionService;
     private final OtaService otaService;
@@ -87,17 +93,17 @@ public class OpsCommercialFacade {
     }
 
     public List<UserBlacklistDto> listBlacklist(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:risk:blacklist");
+        permissionService.requirePermission(operatorId, PERM_OPS_RISK_BLACKLIST);
         return blacklistRepository.findAll().stream().map(this::toBlacklistDto).toList();
     }
 
     public void addBlacklist(Long operatorId, Long userId, String reason, Instant expiresAt) {
-        permissionService.requirePermission(operatorId, "ops:risk:blacklist");
+        permissionService.requirePermission(operatorId, PERM_OPS_RISK_BLACKLIST);
         riskControlService.addBlacklist(operatorId, userId, reason, expiresAt);
     }
 
     public void removeBlacklist(Long operatorId, Long userId) {
-        permissionService.requirePermission(operatorId, "ops:risk:blacklist");
+        permissionService.requirePermission(operatorId, PERM_OPS_RISK_BLACKLIST);
         riskControlService.removeBlacklist(userId);
     }
 
@@ -118,74 +124,74 @@ public class OpsCommercialFacade {
     }
 
     public List<DeviceInventoryDto> listInventory(Long operatorId, String deviceId, boolean lowStockOnly) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
         return replenishmentService.listInventory(deviceId, lowStockOnly);
     }
 
     public DeviceInventoryDto upsertInventory(Long operatorId, DeviceInventoryDto body) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return replenishmentService.upsertInventory(operatorId, body);
     }
 
     public List<ReplenishmentRouteDto> listRoutes(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
         return replenishmentService.listRoutes();
     }
 
     public ReplenishmentRouteDto planRoute(Long operatorId, PlanRouteRequest body) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return replenishmentService.planAndCreateRoute(operatorId, body);
     }
 
     public ReplenishmentRouteDto createRoute(Long operatorId, ReplenishmentRouteDto body) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return replenishmentService.createRoute(operatorId, body);
     }
 
     public ReplenishmentTaskDto completeTask(Long operatorId, Long taskId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return replenishmentService.completeTask(operatorId, taskId);
     }
 
     public ReplenishmentTaskDto cancelEmptyTask(Long operatorId, Long taskId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return replenishmentService.cancelEmptyTask(operatorId, taskId);
     }
 
     public ReplenishmentRouteDto cancelEmptyRoute(Long operatorId, Long routeId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return replenishmentService.cancelEmptyRoute(operatorId, routeId);
     }
 
     public List<ReplenishmentTaskLineDto> submitTaskLines(Long operatorId, Long taskId,
                                                           SubmitReplenishmentLinesRequest body) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return replenishmentService.submitTaskLines(operatorId, taskId, body);
     }
 
     public List<ReplenishmentTaskLineDto> listTaskLines(Long operatorId, Long taskId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
         return replenishmentService.listTaskLines(taskId);
     }
 
     public List<DeviceSkuLotDto> listDeviceLots(Long operatorId, String deviceId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
         return replenishmentService.listDeviceLots(deviceId);
     }
 
     public List<PullOffTaskDto> listExpiryAlerts(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
         return replenishmentService.listOpenPullOffTasks();
     }
 
     public PullOffTaskDto ensureExpiryAlert(Long operatorId, String lotId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return replenishmentService.ensurePullOffFromLot(lotId);
     }
 
     public ReplenishmentRouteDto createTaskFromExpiry(Long operatorId, Long pullOffTaskId,
                                                      CreateFromExpiryRequest body) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return replenishmentService.createTaskFromPullOff(operatorId, pullOffTaskId, body);
     }
 
@@ -195,17 +201,17 @@ public class OpsCommercialFacade {
     }
 
     public List<ReplenishmentSuggestDto> replenishmentSuggest(Long operatorId, String deviceId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
         return replenishmentService.suggestForDevice(deviceId);
     }
 
     public List<SlotReplenishmentSuggestDto> slotReplenishmentSuggest(Long operatorId, String deviceId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
         return replenishmentService.suggestSlotsForDevice(deviceId);
     }
 
     public ReplenishmentTaskDto checkInTask(Long operatorId, Long taskId, ReplenishmentCheckInRequest body) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return replenishmentService.checkInTask(operatorId, taskId, body);
     }
 
@@ -233,17 +239,17 @@ public class OpsCommercialFacade {
     }
 
     public int applyPlanogramTemplate(Long operatorId, String deviceId) {
-        permissionService.requirePermission(operatorId, "ops:device:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_EDIT);
         return deviceSlotService.applyPlanogramTemplate(operatorId, deviceId);
     }
 
     public WriteOffDto writeOff(Long operatorId, WriteOffRequest body) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return inventoryOpsService.writeOff(operatorId, body);
     }
 
     public DeviceInventoryDto stocktakeAdjust(Long operatorId, StocktakeAdjustRequest body) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         var inv = inventoryOpsService.stocktakeAdjust(operatorId, body);
         return new DeviceInventoryDto(
                 inv.getId().getDeviceId(),
@@ -319,41 +325,41 @@ public class OpsCommercialFacade {
     }
 
     private void requireWarehouseRead(Long operatorId) {
-        permissionService.requireAnyPermission(operatorId, "ops:warehouse:list", "ops:replenishment:list");
+        permissionService.requireAnyPermission(operatorId, "ops:warehouse:list", PERM_OPS_REPLENISHMENT_LIST);
     }
 
     private void requireWarehouseWrite(Long operatorId) {
-        permissionService.requireAnyPermission(operatorId, "ops:warehouse:edit", "ops:warehouse:import", "ops:replenishment:edit");
+        permissionService.requireAnyPermission(operatorId, "ops:warehouse:edit", "ops:warehouse:import", PERM_OPS_REPLENISHMENT_EDIT);
     }
 
     public DeviceDetailDto deviceDetail(Long operatorId, String deviceId) {
-        permissionService.requirePermission(operatorId, "ops:device:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_LIST);
         return deviceSlotService.getDeviceDetail(operatorId, deviceId);
     }
 
     public List<DeviceSlotDto> listDeviceSlots(Long operatorId, String deviceId) {
-        permissionService.requirePermission(operatorId, "ops:device:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_LIST);
         return deviceSlotService.listSlots(operatorId, deviceId);
     }
 
     public List<DeviceSlotDto> upsertDeviceSlots(Long operatorId, String deviceId,
                                                   List<UpsertDeviceSlotRequest> body) {
-        permissionService.requirePermission(operatorId, "ops:device:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_EDIT);
         return deviceSlotService.upsertSlots(operatorId, deviceId, body);
     }
 
     public DeviceSlotDto stocktakeSlot(Long operatorId, String deviceId, SlotStocktakeRequest body) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return deviceSlotService.stocktakeSlot(operatorId, deviceId, body);
     }
 
     public List<SlotDiscrepancyAlertDto> listSlotDiscrepancies(Long operatorId, String deviceId) {
-        permissionService.requireAnyPermission(operatorId, "ops:device:list", "ops:replenishment:list");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_DEVICE_LIST, PERM_OPS_REPLENISHMENT_LIST);
         return deviceSlotService.listDiscrepancyAlerts(operatorId, deviceId);
     }
 
     public void deleteDeviceSlot(Long operatorId, String deviceId, String slotCode) {
-        permissionService.requirePermission(operatorId, "ops:device:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_EDIT);
         deviceSlotService.deleteSlot(operatorId, deviceId, slotCode);
     }
 

@@ -1,11 +1,13 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.SiteContractDto;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.UpsertSiteContractRequest;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.SiteContract;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.SiteContractMapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,6 +54,23 @@ public class SiteContractService {
         return contractRepository.findAllOrderByUpdatedDesc().stream()
                 .map(c -> toDto(c, deviceNames.getOrDefault(c.getDeviceId(), c.getDeviceId())))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<SiteContractDto> listPage(Long operatorId, int page, int size) {
+        permissionService.requirePermission(operatorId, "ops:device:list");
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        Map<String, String> deviceNames = new HashMap<>();
+        for (DeviceInfo device : deviceRepository.findAllOrderByDeviceIdAsc()) {
+            deviceNames.put(device.getDeviceId(),
+                    device.getDeviceName() != null ? device.getDeviceName() : device.getDeviceId());
+        }
+        Page<SiteContract> result = contractRepository.searchPage(p, s);
+        List<SiteContractDto> items = result.getRecords().stream()
+                .map(c -> toDto(c, deviceNames.getOrDefault(c.getDeviceId(), c.getDeviceId())))
+                .toList();
+        return new PageResult<>(items, p, s, result.getTotal());
     }
 
     @Transactional

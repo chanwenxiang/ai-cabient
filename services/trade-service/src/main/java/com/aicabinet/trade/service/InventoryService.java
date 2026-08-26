@@ -20,6 +20,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class InventoryService {
+    private static final String ORDER = "ORDER";
+
 
     private static final Logger log = LoggerFactory.getLogger(InventoryService.class);
     /** 单柜库存扣减锁租约（秒） */
@@ -107,7 +109,7 @@ public class InventoryService {
             // 有批次账本时一律 FEFO：可售为 0 时禁止靠汇总表虚扣（会与消费者/货道账面不一致）
             if (lotLedger || inventoryLotService.hasSellableLots(deviceId, item.skuId())) {
                 InventoryLotService.FefoDeductResult result = inventoryLotService.deductFefo(
-                        deviceId, item.skuId(), item.quantity(), "ORDER", refId);
+                        deviceId, item.skuId(), item.quantity(), ORDER, refId);
                 batchBySku.put(item.skuId(), result.primaryBatch());
                 result.slotQtyDeducted().forEach((slot, qty) -> slotQtySold.merge(slot, qty, Integer::sum));
             } else {
@@ -134,7 +136,7 @@ public class InventoryService {
             int qty = -delta.delta();
             String slot = delta.slotId().trim().toUpperCase();
             InventoryLotService.FefoDeductResult result = inventoryLotService.deductFefo(
-                    deviceId, delta.skuId(), qty, "ORDER", refId, slot);
+                    deviceId, delta.skuId(), qty, ORDER, refId, slot);
             batchBySku.putIfAbsent(delta.skuId(), result.primaryBatch());
             slotQtySold.merge(slot, qty, Integer::sum);
         }
@@ -168,10 +170,10 @@ public class InventoryService {
             String slotId;
             if (batch != null && !batch.isBlank()) {
                 slotId = inventoryLotService.restoreToBatch(
-                        deviceId, item.skuId(), batch, item.quantity(), "ORDER", null);
+                        deviceId, item.skuId(), batch, item.quantity(), ORDER, null);
             } else if (lotLedger || inventoryLotService.hasSellableLots(deviceId, item.skuId())) {
                 slotId = inventoryLotService.restoreToBatch(deviceId, item.skuId(),
-                        "ADJ-" + item.skuId(), item.quantity(), "ORDER", null);
+                        "ADJ-" + item.skuId(), item.quantity(), ORDER, null);
             } else {
                 applyDelta(deviceId, item.skuId(), item.quantity());
                 slotId = null;

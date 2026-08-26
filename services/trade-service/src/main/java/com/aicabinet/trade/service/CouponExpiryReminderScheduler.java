@@ -24,6 +24,8 @@ import java.util.Map;
 /** 优惠券临期提醒：到期前 3 天推送一次，避免过期浪费。 */
 @Service
 public class CouponExpiryReminderScheduler {
+    private static final String COUPON_EXPIRY_REMIND = "coupon-expiry-remind";
+
 
     private static final Logger log = LoggerFactory.getLogger(CouponExpiryReminderScheduler.class);
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
@@ -51,7 +53,7 @@ public class CouponExpiryReminderScheduler {
     @Transactional
     public void scan() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("coupon-expiry-remind", 600)) {
+        if (!taskService.tryBegin(COUPON_EXPIRY_REMIND, 600)) {
             return;
         }
         boolean failed = false;
@@ -64,11 +66,11 @@ public class CouponExpiryReminderScheduler {
             }
         } catch (Exception e) {
             failed = true;
-            taskService.finish("coupon-expiry-remind", "FAILED", e.getMessage(), start);
+            taskService.finish(COUPON_EXPIRY_REMIND, "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("coupon-expiry-remind", "SUCCESS", summary, start);
+                taskService.finish(COUPON_EXPIRY_REMIND, "SUCCESS", summary, start);
             }
         }
     }

@@ -28,6 +28,9 @@ import lombok.Setter;
 @Getter
 @Setter
 public class WeChatProfitSharingService {
+    private static final String WECHAT_SUBMITTED = "WECHAT_SUBMITTED";
+    private static final String LEDGER_ONLY = "LEDGER_ONLY";
+
 
     private static final Logger log = LoggerFactory.getLogger(WeChatProfitSharingService.class);
 
@@ -72,11 +75,11 @@ public class WeChatProfitSharingService {
             throw new IllegalStateException("WeChat profit sharing is not enabled or pay is not configured");
         }
         if (split.getMerchantCents() <= 0) {
-            split.setStatus("LEDGER_ONLY");
+            split.setStatus(LEDGER_ONLY);
             split.setFailureReason(null);
             return splitRepository.save(split);
         }
-        if ("WECHAT_SUBMITTED".equals(split.getStatus())) {
+        if (WECHAT_SUBMITTED.equals(split.getStatus())) {
             return split;
         }
 
@@ -88,7 +91,7 @@ public class WeChatProfitSharingService {
 
         if (profitSharingProperties.mockEnabled()) {
             split.setWechatTransactionId(wxTransactionId.trim());
-            split.setStatus("WECHAT_SUBMITTED");
+            split.setStatus(WECHAT_SUBMITTED);
             split.setFailureReason(null);
             log.info("mock profit sharing submitted splitId={} orderId={} wxTxn={}",
                     split.getSplitId(), split.getOrderId(), wxTransactionId.trim());
@@ -111,7 +114,7 @@ public class WeChatProfitSharingService {
         try {
             JsonNode resp = weChatPayV3Client.post("/v3/profitsharing/orders", body);
             split.setWechatTransactionId(wxTransactionId.trim());
-            split.setStatus("WECHAT_SUBMITTED");
+            split.setStatus(WECHAT_SUBMITTED);
             split.setFailureReason(null);
             log.info("wechat profit sharing submitted splitId={} orderId={} wxOrderId={}",
                     split.getSplitId(), split.getOrderId(), resp.path("order_id").asText());
@@ -320,7 +323,7 @@ public class WeChatProfitSharingService {
         if (wxTxn == null || wxTxn.isBlank() || outOrderNo == null || outOrderNo.isBlank()) {
             throw new IllegalStateException("split missing wxTransactionId or wechatOutOrderNo");
         }
-        if ("LEDGER_ONLY".equals(split.getStatus()) || split.getMerchantCents() <= 0) {
+        if (LEDGER_ONLY.equals(split.getStatus()) || split.getMerchantCents() <= 0) {
             return split;
         }
         if (profitSharingProperties.mockEnabled()) {
@@ -370,7 +373,7 @@ public class WeChatProfitSharingService {
         }
         switch (state.toUpperCase()) {
             case "FINISHED", "PROCESSING" -> {
-                split.setStatus("WECHAT_SUBMITTED");
+                split.setStatus(WECHAT_SUBMITTED);
                 split.setFailureReason(null);
             }
             case "CLOSED" -> {
@@ -378,7 +381,7 @@ public class WeChatProfitSharingService {
                     split.setStatus("WECHAT_FAILED");
                     split.setFailureReason(truncate(failReason));
                 } else {
-                    split.setStatus("WECHAT_SUBMITTED");
+                    split.setStatus(WECHAT_SUBMITTED);
                     split.setFailureReason(null);
                 }
             }
@@ -388,7 +391,7 @@ public class WeChatProfitSharingService {
 
     @Transactional
     public void markLedgerOnly(OrderRevenueSplit split, String reason) {
-        split.setStatus("LEDGER_ONLY");
+        split.setStatus(LEDGER_ONLY);
         split.setFailureReason(reason != null ? truncate(reason) : null);
         splitRepository.save(split);
     }

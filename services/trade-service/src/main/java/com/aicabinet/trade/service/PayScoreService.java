@@ -20,6 +20,8 @@ import java.util.function.Supplier;
 
 @Service
 public class PayScoreService {
+    private static final String USER_NOT_FOUND = "user not found";
+
 
     private static final Logger log = LoggerFactory.getLogger(PayScoreService.class);
     public static final String ALIPAY_PENDING_PREFIX = "PENDING:";
@@ -90,7 +92,7 @@ public class PayScoreService {
     public String signWeChatPayScore(Long userId) {
         return runWithPayScoreUserLock(userId, () -> {
             UserInfo user = userInfoRepository.findByIdForUpdate(userId)
-                    .orElseThrow(() -> new IllegalArgumentException("user not found"));
+                    .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND));
             if (!payScoreProperties.enabled() && !securityProperties.mockEnabled()) {
                 throw new IllegalStateException("微信支付分未启用");
             }
@@ -121,7 +123,7 @@ public class PayScoreService {
 
     private AlipaySignResult doSignAlipayAgreement(Long userId) {
         UserInfo user = userInfoRepository.findByIdForUpdate(userId)
-                .orElseThrow(() -> new IllegalArgumentException("user not found"));
+                .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND));
         if (isActiveAlipayAgreementId(user.getAlipayAgreementId())) {
             return new AlipaySignResult(true, user.getAlipayAgreementId(), null, false);
         }
@@ -313,7 +315,7 @@ public class PayScoreService {
 
     private UserInfo requireUser(Long userId) {
         return userInfoRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("user not found"));
+                .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND));
     }
 
     static String payScoreUserLockKey(long userId) {

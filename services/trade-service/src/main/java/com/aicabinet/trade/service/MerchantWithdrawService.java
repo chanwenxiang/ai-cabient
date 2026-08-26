@@ -32,6 +32,13 @@ import java.util.UUID;
 
 @Service
 public class MerchantWithdrawService {
+    private static final String PERM_OPS_MERCHANT_WITHDRAW_REVIEW = "ops:merchant-withdraw:review";
+    private static final String PERM_OPS_MERCHANT_WITHDRAW_LIST = "ops:merchant-withdraw:list";
+    private static final String MERCHANT_WITHDRAW_REVIEW = "MERCHANT_WITHDRAW_REVIEW";
+    private static final String PERM_OPS_FINANCE_VIEW = "ops:finance:view";
+    private static final String STATUS_APPROVED = "APPROVED";
+    private static final String WITHDRAW = "WITHDRAW";
+
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
@@ -80,7 +87,7 @@ public class MerchantWithdrawService {
     @Transactional(readOnly = true)
     public PageResult<MerchantWalletAccountDto> listAccounts(Long operatorId, String keyword, int page, int size) {
         permissionService.requireAnyPermission(operatorId,
-                "ops:merchant-withdraw:list", "ops:finance:view", "ops:merchant:list");
+                PERM_OPS_MERCHANT_WITHDRAW_LIST, PERM_OPS_FINANCE_VIEW, "ops:merchant:list");
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
         LambdaQueryWrapper<Merchant> q = new LambdaQueryWrapper<>();
@@ -99,7 +106,7 @@ public class MerchantWithdrawService {
     @Transactional(readOnly = true)
     public List<MerchantWalletLedgerDto> ledgers(Long operatorId, String merchantId, int limit) {
         permissionService.requireAnyPermission(operatorId,
-                "ops:merchant-withdraw:list", "ops:finance:view", "ops:merchant:list");
+                PERM_OPS_MERCHANT_WITHDRAW_LIST, PERM_OPS_FINANCE_VIEW, "ops:merchant:list");
         requireMerchant(merchantId);
         return ledgerMapper.findByMerchantIdOrderByCreatedAtDesc(merchantId, limit).stream()
                 .map(this::toLedgerDto)
@@ -138,7 +145,7 @@ public class MerchantWithdrawService {
     public PageResult<MerchantWithdrawRequestDto> listWithdraws(
             Long operatorId, String status, String merchantId, int page, int size) {
         permissionService.requireAnyPermission(operatorId,
-                "ops:merchant-withdraw:list", "ops:merchant-withdraw:review", "ops:finance:view");
+                PERM_OPS_MERCHANT_WITHDRAW_LIST, PERM_OPS_MERCHANT_WITHDRAW_REVIEW, PERM_OPS_FINANCE_VIEW);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
         LambdaQueryWrapper<MerchantWithdrawRequest> q = new LambdaQueryWrapper<>();
@@ -202,7 +209,7 @@ public class MerchantWithdrawService {
 
     @Transactional
     public MerchantWithdrawRequestDto review(Long operatorId, long requestId, boolean approve, String remark) {
-        permissionService.requirePermission(operatorId, "ops:merchant-withdraw:review");
+        permissionService.requirePermission(operatorId, PERM_OPS_MERCHANT_WITHDRAW_REVIEW);
         MerchantWithdrawRequest request = requireRequest(requestId);
         return runWithMerchantWalletLock(request.getMerchantId(), () -> doReview(operatorId, request, approve, remark));
     }
@@ -223,8 +230,8 @@ public class MerchantWithdrawService {
             request.setStatus("REJECTED");
             withdrawMapper.updateById(request);
             merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
-                    "WITHDRAW", String.valueOf(request.getRequestId()), "提现驳回释放");
-            auditService.record(operatorId, "MERCHANT_WITHDRAW_REVIEW", "MERCHANT_WITHDRAW",
+                    WITHDRAW, String.valueOf(request.getRequestId()), "提现驳回释放");
+            auditService.record(operatorId, MERCHANT_WITHDRAW_REVIEW, "MERCHANT_WITHDRAW",
                     String.valueOf(request.getRequestId()), "驳回；金额(分)=" + request.getAmountCents()
                             + "；备注=" + trim(remark));
             return toDto(request);
@@ -233,13 +240,13 @@ public class MerchantWithdrawService {
                 operatorId, BIZ_MERCHANT_WITHDRAW, String.valueOf(request.getRequestId()), trim(remark));
         if (!approvalWorkflowService.isInstanceApproved(
                 BIZ_MERCHANT_WITHDRAW, String.valueOf(request.getRequestId()))) {
-            auditService.record(operatorId, "MERCHANT_WITHDRAW_REVIEW", "MERCHANT_WITHDRAW",
+            auditService.record(operatorId, MERCHANT_WITHDRAW_REVIEW, "MERCHANT_WITHDRAW",
                     String.valueOf(request.getRequestId()), "初审通过；金额(分)=" + request.getAmountCents());
             return toDto(request);
         }
-        request.setStatus("APPROVED");
+        request.setStatus(STATUS_APPROVED);
         withdrawMapper.updateById(request);
-        auditService.record(operatorId, "MERCHANT_WITHDRAW_REVIEW", "MERCHANT_WITHDRAW",
+        auditService.record(operatorId, MERCHANT_WITHDRAW_REVIEW, "MERCHANT_WITHDRAW",
                 String.valueOf(request.getRequestId()), "通过；金额(分)=" + request.getAmountCents()
                         + "；备注=" + trim(remark));
         return attemptPayout(request, operatorId);
@@ -247,10 +254,10 @@ public class MerchantWithdrawService {
 
     @Transactional
     public MerchantWithdrawRequestDto payout(Long operatorId, long requestId) {
-        permissionService.requirePermission(operatorId, "ops:merchant-withdraw:review");
+        permissionService.requirePermission(operatorId, PERM_OPS_MERCHANT_WITHDRAW_REVIEW);
         MerchantWithdrawRequest request = requireRequest(requestId);
         return runWithMerchantWalletLock(request.getMerchantId(), () -> {
-            if (!Set.of("APPROVED", "FAILED").contains(request.getStatus())) {
+            if (!Set.of(STATUS_APPROVED, "FAILED").contains(request.getStatus())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可打款");
             }
             auditService.record(operatorId, "MERCHANT_WITHDRAW_PAYOUT", "MERCHANT_WITHDRAW",
@@ -286,7 +293,7 @@ public class MerchantWithdrawService {
             request.setStatus("PENDING_REVIEW");
             withdrawMapper.insert(request);
             merchantWalletService.freezeForWithdraw(merchant.getMerchantId(), amountCents,
-                    "WITHDRAW", String.valueOf(request.getRequestId()), "提现申请冻结");
+                    WITHDRAW, String.valueOf(request.getRequestId()), "提现申请冻结");
             approvalWorkflowService.start(
                     BIZ_MERCHANT_WITHDRAW,
                     String.valueOf(request.getRequestId()),
@@ -295,12 +302,12 @@ public class MerchantWithdrawService {
                             + String.format(Locale.ROOT, "%.2f", amountCents / 100.0));
             return toDto(request);
         }
-        request.setStatus("APPROVED");
+        request.setStatus(STATUS_APPROVED);
         request.setReviewRemark("低于审核阈值自动通过");
         request.setReviewedAt(now);
         withdrawMapper.insert(request);
         merchantWalletService.freezeForWithdraw(merchant.getMerchantId(), amountCents,
-                "WITHDRAW", String.valueOf(request.getRequestId()), "提现申请冻结");
+                WITHDRAW, String.valueOf(request.getRequestId()), "提现申请冻结");
         return attemptPayout(request, null);
     }
 
@@ -321,7 +328,7 @@ public class MerchantWithdrawService {
             request.setPaidAt(now);
             withdrawMapper.updateById(request);
             merchantWalletService.consumeFrozen(request.getMerchantId(), request.getAmountCents(),
-                    "WITHDRAW", String.valueOf(request.getRequestId()), "提现打款成功");
+                    WITHDRAW, String.valueOf(request.getRequestId()), "提现打款成功");
             return toDto(request);
         }
         request.setStatus("FAILED");

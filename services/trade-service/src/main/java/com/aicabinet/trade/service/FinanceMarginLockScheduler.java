@@ -12,6 +12,8 @@ import java.time.ZoneId;
 /** 每日凌晨固化前一日毛利快照（改成本不回溯）。 */
 @Component
 public class FinanceMarginLockScheduler {
+    private static final String FINANCE_MARGIN = "finance-margin";
+
 
     private static final Logger log = LoggerFactory.getLogger(FinanceMarginLockScheduler.class);
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
@@ -28,7 +30,7 @@ public class FinanceMarginLockScheduler {
     @Scheduled(cron = "0 5 0 * * *", zone = "Asia/Shanghai")
     public void solidifyYesterday() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("finance-margin", 1800)) {
+        if (!taskService.tryBegin(FINANCE_MARGIN, 1800)) {
             return;
         }
         boolean failed = false;
@@ -40,11 +42,11 @@ public class FinanceMarginLockScheduler {
             log.info("finance margin solidified for {}", yesterday);
         } catch (Exception e) {
             failed = true;
-            taskService.finish("finance-margin", "FAILED", e.getMessage(), start);
+            taskService.finish(FINANCE_MARGIN, "FAILED", e.getMessage(), start);
             log.warn("finance margin solidify failed: {}", e.getMessage());
         } finally {
             if (!failed) {
-                taskService.finish("finance-margin", "SUCCESS", summary, start);
+                taskService.finish(FINANCE_MARGIN, "SUCCESS", summary, start);
             }
         }
     }

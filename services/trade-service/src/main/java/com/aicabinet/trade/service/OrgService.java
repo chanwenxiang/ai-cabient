@@ -23,6 +23,11 @@ import java.util.Map;
  */
 @Service
 public class OrgService {
+    private static final String PERM_OPS_DEVICE_EDIT = "ops:device:edit";
+    private static final String ORG_NODE = "ORG_NODE";
+    private static final String LITERAL = "组织不存在";
+    private static final String NAME = "name=";
+
 
     private final OpsOrgNodeMapper nodeRepository;
     private final OpsDeviceOrgMapper deviceOrgRepository;
@@ -79,7 +84,7 @@ public class OrgService {
     }
 
     private OrgNodeDto doUpsertNode(Long operatorId, UpsertOrgNodeRequest request) {
-        permissionService.requirePermission(operatorId, "ops:device:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_EDIT);
         String name = request.name().trim();
         if (name.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "组织名称不能为空");
@@ -99,11 +104,11 @@ public class OrgService {
             node.setCreatedAt(Instant.now());
             node.setUpdatedAt(Instant.now());
             nodeRepository.insert(node);
-            auditService.record(operatorId, "ORG_NODE_CREATE", "ORG_NODE",
-                    String.valueOf(node.getNodeId()), "name=" + name);
+            auditService.record(operatorId, "ORG_NODE_CREATE", ORG_NODE,
+                    String.valueOf(node.getNodeId()), NAME + name);
         } else {
             node = nodeRepository.findByIdForUpdate(request.nodeId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "组织不存在"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
             node.setName(name);
             node.setParentId(request.parentId());
             node.setNodeType(request.nodeType() == null || request.nodeType().isBlank()
@@ -111,8 +116,8 @@ public class OrgService {
             node.setSortOrder(request.sortOrder());
             node.setUpdatedAt(Instant.now());
             nodeRepository.updateById(node);
-            auditService.record(operatorId, "ORG_NODE_UPDATE", "ORG_NODE",
-                    String.valueOf(node.getNodeId()), "name=" + name);
+            auditService.record(operatorId, "ORG_NODE_UPDATE", ORG_NODE,
+                    String.valueOf(node.getNodeId()), NAME + name);
         }
         return toDto(node, deviceOrgRepository.findByNodeId(node.getNodeId()));
     }
@@ -120,13 +125,13 @@ public class OrgService {
     @Transactional
     public OrgNodeDto toggleNode(Long operatorId, Long nodeId, boolean enabled) {
         return runWithOrgNodeLock(nodeId, () -> {
-            permissionService.requirePermission(operatorId, "ops:device:edit");
+            permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_EDIT);
             OpsOrgNode node = requireNodeForUpdate(nodeId);
             node.setEnabled(enabled);
             node.setUpdatedAt(Instant.now());
             nodeRepository.updateById(node);
             auditService.record(operatorId, enabled ? "ORG_NODE_ENABLE" : "ORG_NODE_DISABLE",
-                    "ORG_NODE", String.valueOf(nodeId), "name=" + node.getName());
+                    ORG_NODE, String.valueOf(nodeId), NAME + node.getName());
             return toDto(node, deviceOrgRepository.findByNodeId(nodeId));
         });
     }
@@ -157,7 +162,7 @@ public class OrgService {
     }
 
     private OrgNodeDto doAssignDevices(Long operatorId, Long nodeId, List<String> normalized) {
-        permissionService.requirePermission(operatorId, "ops:device:edit");
+        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_EDIT);
         OpsOrgNode node = requireNodeForUpdate(nodeId);
         deviceOrgRepository.deleteByDeviceIds(normalized);
         deviceOrgRepository.deleteByNodeId(nodeId);
@@ -167,7 +172,7 @@ public class OrgService {
             mapping.setDeviceId(deviceId);
             deviceOrgRepository.insert(mapping);
         }
-        auditService.record(operatorId, "ORG_NODE_ASSIGN", "ORG_NODE",
+        auditService.record(operatorId, "ORG_NODE_ASSIGN", ORG_NODE,
                 String.valueOf(nodeId), "devices=" + normalized.size());
         return toDto(node, deviceOrgRepository.findByNodeId(nodeId));
     }
@@ -175,7 +180,7 @@ public class OrgService {
     @Transactional
     public void deleteNode(Long operatorId, Long nodeId) {
         runWithOrgNodeLock(nodeId, () -> {
-            permissionService.requireAnyPermission(operatorId, "ops:org:edit", "ops:device:edit");
+            permissionService.requireAnyPermission(operatorId, "ops:org:edit", PERM_OPS_DEVICE_EDIT);
             OpsOrgNode node = requireNodeForUpdate(nodeId);
             if (nodeRepository.countByParentId(nodeId) > 0) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "请先删除子组织");
@@ -184,20 +189,20 @@ public class OrgService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "请先解除该组织下的设备归属");
             }
             nodeRepository.deleteById(nodeId);
-            auditService.record(operatorId, "ORG_NODE_DELETE", "ORG_NODE",
-                    String.valueOf(nodeId), "name=" + node.getName());
+            auditService.record(operatorId, "ORG_NODE_DELETE", ORG_NODE,
+                    String.valueOf(nodeId), NAME + node.getName());
             return null;
         });
     }
 
     private OpsOrgNode requireNode(Long nodeId) {
         return nodeRepository.findById(nodeId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "组织不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
     }
 
     private OpsOrgNode requireNodeForUpdate(Long nodeId) {
         return nodeRepository.findByIdForUpdate(nodeId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "组织不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
     }
 
     static String orgNodeLockKey(Long nodeId) {

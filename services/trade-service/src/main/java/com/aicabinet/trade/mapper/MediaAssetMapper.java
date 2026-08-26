@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.MediaAsset;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -20,5 +21,11 @@ public interface MediaAssetMapper extends BaseTradeMapper<MediaAsset> {
     default List<MediaAsset> findAllOrderByCreatedDesc() {
         return selectList(Wrappers.<MediaAsset>lambdaQuery()
                 .orderByDesc(MediaAsset::getCreatedAt));
+    }
+
+    /** page 为 0-based。 */
+    default Page<MediaAsset> searchPage(int page, int size) {
+        return selectPage(new Page<>(page + 1L, size),
+                Wrappers.<MediaAsset>lambdaQuery().orderByDesc(MediaAsset::getCreatedAt));
     }
 }

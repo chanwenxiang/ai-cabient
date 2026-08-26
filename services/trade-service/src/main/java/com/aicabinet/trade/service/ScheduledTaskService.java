@@ -28,6 +28,8 @@ import java.util.regex.Pattern;
  */
 @Service
 public class ScheduledTaskService {
+    private static final String SCHEDULED_TASK = "SCHEDULED_TASK";
+
 
     private static final ThreadLocal<Boolean> ALLOW_BUILTIN = new ThreadLocal<>();
 
@@ -89,7 +91,7 @@ public class ScheduledTaskService {
         row.setRemark(blankToNull(req.remark()));
         row.setUpdatedAt(Instant.now());
         taskRepository.save(row);
-        auditService.record(operatorId, "SCHEDULED_TASK_CREATE", "SCHEDULED_TASK", taskKey, row.getTaskName());
+        auditService.record(operatorId, "SCHEDULED_TASK_CREATE", SCHEDULED_TASK, taskKey, row.getTaskName());
         return toDto(row);
     }
 
@@ -109,7 +111,7 @@ public class ScheduledTaskService {
         row.setRemark(blankToNull(req.remark()));
         row.setUpdatedAt(Instant.now());
         taskRepository.save(row);
-        auditService.record(operatorId, "SCHEDULED_TASK_UPDATE", "SCHEDULED_TASK", taskKey, row.getTaskName());
+        auditService.record(operatorId, "SCHEDULED_TASK_UPDATE", SCHEDULED_TASK, taskKey, row.getTaskName());
         return toDto(row);
     }
 
@@ -127,7 +129,7 @@ public class ScheduledTaskService {
         }
         ScheduledTask row = requireTaskForUpdate(taskKey);
         taskRepository.deleteById(taskKey);
-        auditService.record(operatorId, "SCHEDULED_TASK_DELETE", "SCHEDULED_TASK", taskKey, row.getTaskName());
+        auditService.record(operatorId, "SCHEDULED_TASK_DELETE", SCHEDULED_TASK, taskKey, row.getTaskName());
     }
 
     @Transactional(readOnly = true)
@@ -147,7 +149,7 @@ public class ScheduledTaskService {
         row.setUpdatedAt(Instant.now());
         taskRepository.save(row);
         auditService.record(operatorId, enabled ? "SCHEDULED_TASK_ENABLE" : "SCHEDULED_TASK_DISABLE",
-                "SCHEDULED_TASK", taskKey, row.getTaskName());
+                SCHEDULED_TASK, taskKey, row.getTaskName());
         return toDto(row);
     }
 
@@ -162,7 +164,7 @@ public class ScheduledTaskService {
         row.setRemark(remark == null ? null : remark.trim());
         row.setUpdatedAt(Instant.now());
         taskRepository.save(row);
-        auditService.record(operatorId, "SCHEDULED_TASK_REMARK", "SCHEDULED_TASK", taskKey, row.getTaskName());
+        auditService.record(operatorId, "SCHEDULED_TASK_REMARK", SCHEDULED_TASK, taskKey, row.getTaskName());
         return toDto(row);
     }
 

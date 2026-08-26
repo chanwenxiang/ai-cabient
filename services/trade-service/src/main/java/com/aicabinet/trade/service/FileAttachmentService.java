@@ -32,6 +32,14 @@ import java.util.UUID;
 
 @Service
 public class FileAttachmentService {
+    private static final String IMAGE_WEBP = "image/webp";
+    private static final String IMAGE_JPEG = "image/jpeg";
+    private static final String IMAGE_PNG = "image/png";
+    private static final String IMAGE_GIF = "image/gif";
+    private static final String MINIO = "minio://";
+    private static final String FILE = "file://";
+    private static final String LOCAL = "local";
+
 
     public static final String REF_PENDING = "PENDING_DISPUTE";
     public static final String REF_DISPUTE = "DISPUTE";
@@ -40,7 +48,7 @@ public class FileAttachmentService {
     private static final long MAX_BYTES = 5 * 1024 * 1024L;
     private static final int MAX_EVIDENCE = 5;
     private static final Set<String> ALLOWED_TYPES = Set.of(
-            "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"
+            IMAGE_JPEG, "image/jpg", IMAGE_PNG, IMAGE_WEBP, IMAGE_GIF
     );
 
     private final FileAttachmentMapper fileAttachmentMapper;
@@ -98,7 +106,7 @@ public class FileAttachmentService {
         row.setFileSize((long) bytes.length);
         row.setContentType(contentType);
         row.setStoragePath(storagePath);
-        row.setStorageBucket(storagePath.startsWith("minio://") ? minioProperties.bucket() : "local");
+        row.setStorageBucket(storagePath.startsWith(MINIO) ? minioProperties.bucket() : LOCAL);
         row.setContentSha256(sha);
         row.setUploadedBy(userId);
         row.setCreatedAt(Instant.now());
@@ -195,7 +203,7 @@ public class FileAttachmentService {
         row.setFileSize((long) bytes.length);
         row.setContentType(contentType);
         row.setStoragePath(storagePath);
-        row.setStorageBucket(storagePath.startsWith("minio://") ? minioProperties.bucket() : "local");
+        row.setStorageBucket(storagePath.startsWith(MINIO) ? minioProperties.bucket() : LOCAL);
         row.setContentSha256(sha);
         row.setUploadedBy(userId);
         row.setCreatedAt(Instant.now());
@@ -237,7 +245,7 @@ public class FileAttachmentService {
             FileAttachment existing = fileAttachmentMapper.findByContentSha256(sha).stream()
                     .filter(r -> REF_SKU_IMAGE.equals(r.getRefType()))
                     .filter(r -> r.getStoragePath() != null && !r.getStoragePath().isBlank())
-                    .filter(r -> !r.getStoragePath().startsWith("minio://")
+                    .filter(r -> !r.getStoragePath().startsWith(MINIO)
                             || minioVideoService.objectExists(r.getStoragePath()))
                     .findFirst()
                     .orElse(null);
@@ -256,7 +264,7 @@ public class FileAttachmentService {
         row.setFileSize((long) bytes.length);
         row.setContentType(contentType);
         row.setStoragePath(storagePath);
-        row.setStorageBucket(storagePath.startsWith("minio://") ? minioProperties.bucket() : "local");
+        row.setStorageBucket(storagePath.startsWith(MINIO) ? minioProperties.bucket() : LOCAL);
         row.setContentSha256(sha);
         row.setUploadedBy(operatorId);
         row.setCreatedAt(Instant.now());
@@ -296,7 +304,7 @@ public class FileAttachmentService {
         if (stillReferenced) {
             return;
         }
-        if (path.startsWith("minio://") || path.startsWith("file://")) {
+        if (path.startsWith(MINIO) || path.startsWith(FILE)) {
             minioVideoService.removeObject(path);
         }
     }
@@ -309,10 +317,10 @@ public class FileAttachmentService {
                 if (path == null || path.isBlank()) {
                     continue;
                 }
-                if (path.startsWith("minio://") && minioVideoService.objectExists(path)) {
+                if (path.startsWith(MINIO) && minioVideoService.objectExists(path)) {
                     return path;
                 }
-                if (path.startsWith("file://")) {
+                if (path.startsWith(FILE)) {
                     try {
                         if (Files.isRegularFile(Paths.get(URI.create(path)))) {
                             return path;
@@ -384,7 +392,7 @@ public class FileAttachmentService {
         if (row.getFileSize() != null && row.getFileSize() > 0) {
             response.setContentLengthLong(row.getFileSize());
         }
-        if (path.startsWith("file://")) {
+        if (path.startsWith(FILE)) {
             Path local = Paths.get(URI.create(path));
             try (InputStream in = Files.newInputStream(local); OutputStream out = response.getOutputStream()) {
                 in.transferTo(out);
@@ -464,23 +472,23 @@ public class FileAttachmentService {
                 type = type.substring(0, semi).trim();
             }
             if ("image/jpg".equals(type)) {
-                return "image/jpeg";
+                return IMAGE_JPEG;
             }
             return type;
         }
         String lower = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
-        if (lower.endsWith(".png")) return "image/png";
-        if (lower.endsWith(".webp")) return "image/webp";
-        if (lower.endsWith(".gif")) return "image/gif";
-        return "image/jpeg";
+        if (lower.endsWith(".png")) return IMAGE_PNG;
+        if (lower.endsWith(".webp")) return IMAGE_WEBP;
+        if (lower.endsWith(".gif")) return IMAGE_GIF;
+        return IMAGE_JPEG;
     }
 
     private static String extensionFor(String contentType, String fileName) {
         if (contentType != null) {
             return switch (contentType) {
-                case "image/png" -> ".png";
-                case "image/webp" -> ".webp";
-                case "image/gif" -> ".gif";
+                case IMAGE_PNG -> ".png";
+                case IMAGE_WEBP -> ".webp";
+                case IMAGE_GIF -> ".gif";
                 default -> ".jpg";
             };
         }

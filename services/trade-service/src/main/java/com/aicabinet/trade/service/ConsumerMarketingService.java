@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.CouponDto;
 import com.aicabinet.common.dto.MarketingBannerDto;
@@ -22,16 +23,18 @@ import java.util.function.Supplier;
 
 @Service
 public class ConsumerMarketingService {
+    private static final String DISCOUNT = "DISCOUNT";
+
 
     private static final Map<String, String> TYPE_LABELS = Map.of(
-            "DISCOUNT", "满减",
+            DISCOUNT, "满减",
             "NEW_USER", "新客",
             "FLASH", "限时",
             "GIFT", "赠品"
     );
 
     private static final Map<String, String> TYPE_EMOJI = Map.of(
-            "DISCOUNT", "🧊",
+            DISCOUNT, "🧊",
             "NEW_USER", "🎉",
             "FLASH", "⚡",
             "GIFT", "🎁"
@@ -118,7 +121,7 @@ public class ConsumerMarketingService {
     private CouponDto doClaimCampaign(Long userId, Long activityId) {
         PromotionActivity activity = activityRepository.findByIdForUpdate(activityId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "活动不存在"));
-        if (!"ACTIVE".equalsIgnoreCase(activity.getStatus())) {
+        if (!CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(activity.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "活动未开始或已结束");
         }
         Instant now = Instant.now();
@@ -133,7 +136,7 @@ public class ConsumerMarketingService {
         }
 
         CouponDefinition def = resolveCouponDef(activityId);
-        if (!"ACTIVE".equalsIgnoreCase(def.getStatus())) {
+        if (!CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(def.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "活动优惠券已停用");
         }
 
@@ -167,13 +170,13 @@ public class ConsumerMarketingService {
 
     private CouponDefinition resolveCouponDef(Long activityId) {
         return couponDefinitionRepository.findByActivityId(activityId).stream()
-                .filter(d -> "ACTIVE".equalsIgnoreCase(d.getStatus()))
+                .filter(d -> CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(d.getStatus()))
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "活动暂无可领优惠券"));
     }
 
     private MarketingCampaignDto toCampaign(PromotionActivityDto p, Long userId) {
-        String type = p.activityType() != null ? p.activityType() : "DISCOUNT";
+        String type = p.activityType() != null ? p.activityType() : DISCOUNT;
         String ctaPath = "/pages/coupons/coupons";
         // 「去领券」易被理解成仅跳转券包；实际点击会发券，文案用「立即领取」。
         String ctaLabel = "立即领取";

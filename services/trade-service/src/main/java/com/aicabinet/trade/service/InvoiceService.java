@@ -25,6 +25,10 @@ import java.util.Set;
 
 @Service
 public class InvoiceService {
+    private static final String PERM_OPS_INVOICE_LIST = "ops:invoice:list";
+    private static final String PERM_OPS_FINANCE_VIEW = "ops:finance:view";
+    private static final String STATUS_PENDING = "PENDING";
+
 
     private static final Set<String> INVOICEABLE = Set.of("PAID", "COMPLETED", "PARTIAL_REFUNDED");
 
@@ -84,7 +88,7 @@ public class InvoiceService {
         row.setTaxNo(blankToNull(body.taxNo()));
         row.setEmail(blankToNull(body.email()));
         row.setAmountCents(amount);
-        row.setStatus("PENDING");
+        row.setStatus(STATUS_PENDING);
         row.setCreatedAt(Instant.now());
         row.setUpdatedAt(Instant.now());
         invoiceRepository.insert(row);
@@ -98,13 +102,13 @@ public class InvoiceService {
 
     @Transactional(readOnly = true)
     public List<InvoiceRequestDto> listForOps(Long operatorId, String status) {
-        permissionService.requireAnyPermission(operatorId, "ops:invoice:list", "ops:finance:view");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_INVOICE_LIST, PERM_OPS_FINANCE_VIEW);
         return invoiceRepository.findByStatusOrderByCreatedAtDesc(status, 100).stream().map(this::toDto).toList();
     }
 
     @Transactional(readOnly = true)
     public PageResult<InvoiceRequestDto> listForOpsPage(Long operatorId, String status, int page, int size) {
-        permissionService.requireAnyPermission(operatorId, "ops:invoice:list", "ops:finance:view");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_INVOICE_LIST, PERM_OPS_FINANCE_VIEW);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
         Page<InvoiceRequest> result = invoiceRepository.search(status, p, s);
@@ -117,7 +121,7 @@ public class InvoiceService {
             permissionService.requirePermission(operatorId, "ops:invoice:edit");
             InvoiceRequest row = invoiceRepository.findByIdForUpdate(invoiceId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "开票申请不存在"));
-            if (!"PENDING".equalsIgnoreCase(row.getStatus())) {
+            if (!STATUS_PENDING.equalsIgnoreCase(row.getStatus())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "仅待处理申请可开具");
             }
             row.setStatus("ISSUED");
@@ -134,7 +138,7 @@ public class InvoiceService {
             permissionService.requirePermission(operatorId, "ops:invoice:edit");
             InvoiceRequest row = invoiceRepository.findByIdForUpdate(invoiceId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "开票申请不存在"));
-            if (!"PENDING".equalsIgnoreCase(row.getStatus())) {
+            if (!STATUS_PENDING.equalsIgnoreCase(row.getStatus())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "仅待处理申请可驳回");
             }
             row.setStatus("REJECTED");
@@ -198,7 +202,7 @@ public class InvoiceService {
     /** 按订单设备反查商户税号资料（运营开票参考）。 */
     @Transactional(readOnly = true)
     public MerchantTaxProfileDto taxProfileForOrder(Long operatorId, String orderId) {
-        permissionService.requireAnyPermission(operatorId, "ops:invoice:list", "ops:finance:view");
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_INVOICE_LIST, PERM_OPS_FINANCE_VIEW);
         CabinetOrder order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在"));
         DeviceInfo device = deviceRepository.findById(order.getDeviceId()).orElse(null);

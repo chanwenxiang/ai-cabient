@@ -10,6 +10,9 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class DeviceAvailabilityJobScheduler {
+    private static final String DEVICE_AUTO_UNLOCK = "device-auto-unlock";
+    private static final String KPI_SNAPSHOT = "kpi-snapshot";
+
 
     private final DeviceStableOnlineAutoUnlockService autoUnlockService;
     private final DeviceAvailabilityKpiService kpiService;
@@ -27,7 +30,7 @@ public class DeviceAvailabilityJobScheduler {
     @Scheduled(fixedRate = 300_000, initialDelay = 60_000)
     public void autoUnlockFallback() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("device-auto-unlock", 600)) {
+        if (!taskService.tryBegin(DEVICE_AUTO_UNLOCK, 600)) {
             return;
         }
         boolean failed = false;
@@ -37,11 +40,11 @@ public class DeviceAvailabilityJobScheduler {
             summary = n <= 0 ? "本次无自动解锁" : "自动解锁 " + n + " 台";
         } catch (Exception e) {
             failed = true;
-            taskService.finish("device-auto-unlock", "FAILED", e.getMessage(), start);
+            taskService.finish(DEVICE_AUTO_UNLOCK, "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("device-auto-unlock", "SUCCESS", summary, start);
+                taskService.finish(DEVICE_AUTO_UNLOCK, "SUCCESS", summary, start);
             }
         }
     }
@@ -50,7 +53,7 @@ public class DeviceAvailabilityJobScheduler {
     @Scheduled(cron = "0 10 1 * * *")
     public void kpiSnapshotFallback() {
         long start = System.nanoTime();
-        if (!taskService.tryBegin("kpi-snapshot", 600)) {
+        if (!taskService.tryBegin(KPI_SNAPSHOT, 600)) {
             return;
         }
         boolean failed = false;
@@ -61,11 +64,11 @@ public class DeviceAvailabilityJobScheduler {
                     + " 台，离线事件 " + dto.offlineEvents() + "，自动锁机 " + dto.autoLockCount();
         } catch (Exception e) {
             failed = true;
-            taskService.finish("kpi-snapshot", "FAILED", e.getMessage(), start);
+            taskService.finish(KPI_SNAPSHOT, "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("kpi-snapshot", "SUCCESS", summary, start);
+                taskService.finish(KPI_SNAPSHOT, "SUCCESS", summary, start);
             }
         }
     }

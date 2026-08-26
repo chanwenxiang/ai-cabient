@@ -20,6 +20,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class MerchantAnalyticsService {
+    private static final String BEST_SELLER = "BEST_SELLER";
+
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
@@ -347,7 +349,7 @@ public class MerchantAnalyticsService {
 
     private static String performanceLevel(long qty, long median) {
         if (qty == 0) return "NO_SALES";
-        if (median > 0 && qty >= median * 2) return "BEST_SELLER";
+        if (median > 0 && qty >= median * 2) return BEST_SELLER;
         if (median > 0 && qty * 2 < median) return "SLOW_MOVER";
         return "NORMAL";
     }
@@ -355,8 +357,8 @@ public class MerchantAnalyticsService {
     private static String recommendation(String level, Double daysOfCover) {
         if ("NO_SALES".equals(level)) return "检查陈列与定价，连续无销量可考虑下架";
         if ("SLOW_MOVER".equals(level)) return "减少补货，尝试促销或替换商品";
-        if ("BEST_SELLER".equals(level) && daysOfCover != null && daysOfCover < 3) return "畅销且库存不足，建议立即补货";
-        if ("BEST_SELLER".equals(level)) return "保持陈列，避免缺货并测试关联销售";
+        if (BEST_SELLER.equals(level) && daysOfCover != null && daysOfCover < 3) return "畅销且库存不足，建议立即补货";
+        if (BEST_SELLER.equals(level)) return "保持陈列，避免缺货并测试关联销售";
         if (daysOfCover != null && daysOfCover > 30) return "库存覆盖过高，建议降低补货量";
         return "保持当前策略并持续观察";
     }
