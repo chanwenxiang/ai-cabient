@@ -7,8 +7,7 @@
 #   .\scripts\devops\sonar-set-main-branch.ps1 -Password "xxx" -NewName "dev"
 param(
   [string]$HostUrl = $(if ($env:SONAR_HOST_URL) { $env:SONAR_HOST_URL } else { "http://localhost:19002" }),
-  [string]$ProjectKey = "ai-cabinet",
-  [string]$OldName = "main",
+  [string]$ProjectKey = "ai-cabinet-dev",
   [string]$NewName = "dev",
   [string]$User = $(if ($env:SONAR_ADMIN_USER) { $env:SONAR_ADMIN_USER } else { "admin" }),
   [string]$Password = $env:SONAR_ADMIN_PASSWORD
@@ -22,9 +21,10 @@ if (-not $Password) {
 $pair = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${User}:${Password}"))
 $headers = @{ Authorization = "Basic $pair" }
 
-Write-Host "Renaming branch $OldName -> $NewName on $ProjectKey ..."
+Write-Host "Renaming main branch -> $NewName on $ProjectKey ..."
+# CE 仅一条「主分支」；API 用 name=新名（非 newName），见 Sonar 社区帖与 Web API 文档
 Invoke-RestMethod -Method POST `
-  "$HostUrl/api/project_branches/rename?project=$ProjectKey&name=$OldName&newName=$NewName" `
+  "$HostUrl/api/project_branches/rename?project=$ProjectKey&name=$NewName" `
   -Headers $headers | Out-Null
 
 $branches = Invoke-RestMethod "$HostUrl/api/project_branches/list?project=$ProjectKey" -Headers $headers

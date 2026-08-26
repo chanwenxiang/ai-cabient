@@ -1,14 +1,10 @@
 {
-  "sonarlint.connectedMode.project": {
-    "connectionId": "ai-cabinet-local",
-    "projectKey": "ai-cabinet-dev"
-  },
-  "sonarlint.rules": {
-    "java:S1068": {
-      "level": "off"
-    },
-    "css:S4653": {
-      "level": "off"
-    }
-  }
+    "sonarlint.rules":  {
+                            "java:S1068":  {
+                                               "level":  "off"
+                                           },
+                            "css:S4653":  {
+                                              "level":  "off"
+                                          }
+                        }
 }

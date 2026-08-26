@@ -52,7 +52,7 @@ $scannerArgs = @(
   "-Dsonar.host.url=$SonarHostUrl",
   "-Dsonar.token=$SonarToken",
   "-Dsonar.sourceEncoding=UTF-8",
-  "-Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml"
+  "-Dsonar.java.coveragePlugin=jacoco"
 )
 if ($scmRevision) {
   $scannerArgs += "-Dsonar.scm.revision=$scmRevision"

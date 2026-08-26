@@ -65,13 +65,17 @@
           <el-table-column label="流程预览" min-width="280" align="center">
             <template #default="{ row }">
               <span class="flow-inline">
-                {{
-                  ['提交', ...sortedNodes(row.nodes).map((n) => n.nodeName), '结束'].join(' → ')
-                }}
+                {{ ['提交', ...sortedNodes(row.nodes).map((n) => n.nodeName), '结束'].join(' → ') }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip align="center" />
+          <el-table-column
+            prop="remark"
+            label="备注"
+            min-width="160"
+            show-overflow-tooltip
+            align="center"
+          />
           <el-table-column
             v-if="canEdit"
             label="操作"
@@ -80,10 +84,7 @@
             class-name="col-action"
           >
             <template #default="{ row }">
-              <TableActions
-                :actions="rowActions()"
-                @action="(k) => onRowAction(String(k), row)"
-              />
+              <TableActions :actions="rowActions()" @action="(k) => onRowAction(String(k), row)" />
             </template>
           </el-table-column>
         </el-table>
@@ -115,7 +116,11 @@
             :value="opt.value"
           />
         </el-select>
-        <el-input v-else :model-value="`${bizLabel(metaForm.bizType)} · ${metaForm.bizType}`" disabled />
+        <el-input
+          v-else
+          :model-value="`${bizLabel(metaForm.bizType)} · ${metaForm.bizType}`"
+          disabled
+        />
       </el-form-item>
       <el-form-item label="名称" required>
         <el-input v-model="metaForm.defName" placeholder="审批流名称" />
@@ -124,7 +129,13 @@
         <el-switch v-model="metaForm.enabled" />
       </el-form-item>
       <el-form-item label="备注">
-        <el-input v-model="metaForm.remark" type="textarea" :rows="2" maxlength="256" show-word-limit />
+        <el-input
+          v-model="metaForm.remark"
+          type="textarea"
+          :rows="2"
+          maxlength="256"
+          show-word-limit
+        />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -197,7 +208,12 @@
               />
             </div>
           </div>
-          <el-input v-model="n.nodeName" class="flow-node__name" placeholder="节点名称" @click.stop />
+          <el-input
+            v-model="n.nodeName"
+            class="flow-node__name"
+            placeholder="节点名称"
+            @click.stop
+          />
           <div class="flow-node__fields" @click.stop>
             <el-select v-model="n.assigneeType" placeholder="指派类型" style="width: 100%">
               <el-option
@@ -653,9 +669,8 @@ onMounted(load);
   max-height: min(68vh, 720px);
   overflow-y: auto;
   padding: 8px 4px 16px;
-  background:
-    radial-gradient(circle at 1px 1px, var(--el-border-color-lighter) 1px, transparent 0) 0 0 / 16px
-    16px;
+  background: radial-gradient(circle at 1px 1px, var(--el-border-color-lighter) 1px, transparent 0)
+    0 0 / 16px 16px;
   border-radius: 8px;
 }
 .flow-node {
@@ -666,7 +681,9 @@ onMounted(load);
   background: var(--el-bg-color);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 .flow-node.is-active {
   border-color: var(--el-color-primary);

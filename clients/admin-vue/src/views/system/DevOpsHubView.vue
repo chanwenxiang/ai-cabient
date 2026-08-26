@@ -13,16 +13,13 @@
         <el-card shadow="hover" class="tool-card">
           <div class="tool-card-head">
             <span class="tool-name">{{ displayName(tool) }}</span>
-            <el-tag :type="tool.online ? 'success' : 'info'" size="small">{{ tool.statusHint }}</el-tag>
+            <el-tag :type="tool.online ? 'success' : 'info'" size="small">{{
+              tool.statusHint
+            }}</el-tag>
           </div>
           <p class="tool-desc">{{ tool.description }}</p>
           <div class="tool-actions">
-            <el-button
-              v-if="tool.url"
-              type="primary"
-              link
-              @click="openExternal(tool.url)"
-            >
+            <el-button v-if="tool.url" type="primary" link @click="openExternal(tool.url)">
               新窗口打开
             </el-button>
             <el-button
@@ -56,11 +53,7 @@
         </div>
       </template>
       <div class="prom-query-grid">
-        <el-button
-          v-for="q in promQueries"
-          :key="q.label"
-          @click="openPromQuery(q.expr)"
-        >
+        <el-button v-for="q in promQueries" :key="q.label" @click="openPromQuery(q.expr)">
           {{ q.label }}
         </el-button>
       </div>
@@ -84,7 +77,10 @@
           class="grafana-frame"
           referrerpolicy="no-referrer"
         />
-        <el-empty v-else description="Grafana 未启动。请先运行 .\docker-up.ps1（Grafana 在全栈中）" />
+        <el-empty
+          v-else
+          description="Grafana 未启动。请先运行 .\docker-up.ps1（Grafana 在全栈中）"
+        />
       </div>
     </el-card>
   </div>
@@ -125,18 +121,24 @@ const NAME_ZH: Record<string, string> = {
   grafana: 'Grafana 看板',
   prometheus: 'Prometheus 指标',
   sonarqube: 'SonarQube 代码质量',
-  github: 'GitHub Actions',
+  github: 'GitHub Actions'
 };
 
 const promQueries = [
   { label: '服务是否在线', expr: 'up' },
   { label: '在线设备数', expr: 'cabinet_devices_online' },
   { label: '设备总数', expr: 'cabinet_devices_total' },
-  { label: '设备离线率', expr: '(cabinet_devices_total - cabinet_devices_online) / cabinet_devices_total' },
+  {
+    label: '设备离线率',
+    expr: '(cabinet_devices_total - cabinet_devices_online) / cabinet_devices_total'
+  },
   { label: '开门成功速率', expr: 'rate(cabinet_door_open_total{result="success"}[5m])' },
   { label: '开门失败速率', expr: 'rate(cabinet_door_open_total{result="failure"}[5m])' },
-  { label: '结算失败率', expr: 'sum(rate(cabinet_settlement_total{result="failure"}[5m])) / sum(rate(cabinet_settlement_total[5m]))' },
-  { label: 'MQTT 转发失败', expr: 'sum(rate(device_trade_forward_total{result="failure"}[5m]))' },
+  {
+    label: '结算失败率',
+    expr: 'sum(rate(cabinet_settlement_total{result="failure"}[5m])) / sum(rate(cabinet_settlement_total[5m]))'
+  },
+  { label: 'MQTT 转发失败', expr: 'sum(rate(device_trade_forward_total{result="failure"}[5m]))' }
 ];
 
 const loading = ref(false);
@@ -147,7 +149,9 @@ const grafanaSection = ref<{ $el?: HTMLElement } | null>(null);
 const tools = computed(() => hub.value?.tools ?? []);
 const grafanaEmbedPath = computed(() => hub.value?.grafanaEmbedPath || '');
 const grafanaOnline = computed(() => tools.value.find((t) => t.id === 'grafana')?.online ?? false);
-const prometheusUrl = computed(() => tools.value.find((t) => t.id === 'prometheus')?.url || 'http://localhost:9090');
+const prometheusUrl = computed(
+  () => tools.value.find((t) => t.id === 'prometheus')?.url || 'http://localhost:9090'
+);
 
 function displayName(tool: DevOpsTool) {
   return NAME_ZH[tool.id] || tool.name;
@@ -174,7 +178,10 @@ async function triggerSonarScan() {
   }
   sonarScanning.value = true;
   try {
-    const result = await api.request<SonarScanResult>('/api/v2/ops/admin/devops/sonar/scan', 'POST');
+    const result = await api.request<SonarScanResult>(
+      '/api/v2/ops/admin/devops/sonar/scan',
+      'POST'
+    );
     ElMessage.success(
       result.accepted
         ? `已提交 GitHub Actions「${result.jobName || 'sonar.yml'}」，完成后可在 SonarQube 查看`

@@ -60,13 +60,24 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip align="center" />
+          <el-table-column
+            prop="remark"
+            label="备注"
+            min-width="160"
+            show-overflow-tooltip
+            align="center"
+          />
           <el-table-column label="操作" width="200" align="center" class-name="col-action">
             <template #default="{ row }">
               <el-button v-hasPermi="['ops:dept:edit']" link type="primary" @click="openDept(row)"
                 >编辑</el-button
               >
-              <el-button v-hasPermi="['ops:dept:edit']" link type="primary" @click="openMembers(row)">
+              <el-button
+                v-hasPermi="['ops:dept:edit']"
+                link
+                type="primary"
+                @click="openMembers(row)"
+              >
                 成员
               </el-button>
             </template>
@@ -76,16 +87,30 @@
     </div>
   </el-card>
 
-  <el-dialog v-model="deptDlg" :title="deptForm.deptId ? '编辑部门' : '新增部门'" width="480px" destroy-on-close>
+  <el-dialog
+    v-model="deptDlg"
+    :title="deptForm.deptId ? '编辑部门' : '新增部门'"
+    width="480px"
+    destroy-on-close
+  >
     <el-form label-width="90px">
       <el-form-item label="编码" required>
-        <el-input v-model="deptForm.deptKey" :disabled="!!deptForm.deptId" placeholder="如 FINANCE" />
+        <el-input
+          v-model="deptForm.deptKey"
+          :disabled="!!deptForm.deptId"
+          placeholder="如 FINANCE"
+        />
       </el-form-item>
       <el-form-item label="名称" required>
         <el-input v-model="deptForm.deptName" placeholder="如 财务部" />
       </el-form-item>
       <el-form-item label="上级部门">
-        <el-select v-model="deptForm.parentId" clearable placeholder="无（根部门）" style="width: 100%">
+        <el-select
+          v-model="deptForm.parentId"
+          clearable
+          placeholder="无（根部门）"
+          style="width: 100%"
+        >
           <el-option
             v-for="d in parentOptions"
             :key="d.deptId"

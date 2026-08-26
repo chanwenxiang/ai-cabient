@@ -400,8 +400,13 @@ export function safeCssColor(color: string, fallback = '#64748b'): string {
   if (c.length > 64) return fallback;
   if (/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(c)) return c;
   // 固定上限的通道数，避免 [\d.\s%,.]+ 类开放量词触发 ReDoS
-  if (/^rgba?\(\s*\d{1,3}(?:\s*,\s*\d{1,3}){2}(?:\s*,\s*(?:0|1|0?\.\d{1,4}))?\s*\)$/i.test(c)) return c;
-  if (/^hsla?\(\s*\d{1,3}(?:\.\d{1,4})?\s*(?:,\s*\d{1,3}%\s*){2}(?:,\s*(?:0|1|0?\.\d{1,4}))?\s*\)$/i.test(c)) {
+  if (/^rgba?\(\s*\d{1,3}(?:\s*,\s*\d{1,3}){2}(?:\s*,\s*(?:0|1|0?\.\d{1,4}))?\s*\)$/i.test(c))
+    return c;
+  if (
+    /^hsla?\(\s*\d{1,3}(?:\.\d{1,4})?\s*(?:,\s*\d{1,3}%\s*){2}(?:,\s*(?:0|1|0?\.\d{1,4}))?\s*\)$/i.test(
+      c
+    )
+  ) {
     return c;
   }
   if (/^var\(\s*--[a-z0-9_-]{1,40}\s*(?:,[^)]{0,40})?\)$/i.test(c)) return c;
