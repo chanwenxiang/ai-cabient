@@ -1,10 +1,12 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.ReplyFeedbackRequest;
 import com.aicabinet.common.dto.SubmitFeedbackRequest;
 import com.aicabinet.common.dto.UserFeedbackDto;
 import com.aicabinet.trade.domain.UserFeedback;
 import com.aicabinet.trade.mapper.UserFeedbackMapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -79,6 +81,17 @@ public class UserFeedbackService {
                 : repository.findByStatusOrderByCreatedAtDesc(status.trim().toUpperCase());
         // 运营列表不回传 contactInfo，避免历史 XSS 样例进入浏览器
         return rows.stream().map(f -> toDto(f, false)).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<UserFeedbackDto> listPage(Long operatorId, String status, int page, int size) {
+        permissionService.requireAnyPermission(operatorId, "ops:feedback", "ops:feedback:reply");
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        String statusFilter = status == null || status.isBlank() ? null : status.trim().toUpperCase(Locale.ROOT);
+        Page<UserFeedback> result = repository.search(statusFilter, p, s);
+        List<UserFeedbackDto> items = result.getRecords().stream().map(f -> toDto(f, false)).toList();
+        return new PageResult<>(items, p, s, result.getTotal());
     }
 
     @Transactional

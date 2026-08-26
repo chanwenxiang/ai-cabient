@@ -242,15 +242,17 @@ public class OpsGapFeaturesController {
 
     @RequiresPermissions("ops:stock-health:list")
     @GetMapping("/reports/stock-health")
-    public ApiResponse<List<StockHealthRowDto>> stockHealth(
+    public ApiResponse<StockHealthPageDto> stockHealth(
             HttpServletRequest request,
             @RequestParam(required = false, defaultValue = "ALL") String dimension,
             @RequestParam(required = false) String merchantId,
             @RequestParam(required = false) String routeCode,
             @RequestParam(required = false) String lifecycleStatus,
-            @RequestParam(required = false) String deviceId) {
-        return ApiResponse.ok(deviceAssetService.stockHealth(
-                operatorId(request), dimension, merchantId, routeCode, lifecycleStatus, deviceId));
+            @RequestParam(required = false) String deviceId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(deviceAssetService.stockHealthPage(
+                operatorId(request), dimension, merchantId, routeCode, lifecycleStatus, deviceId, page, size));
     }
 
     @RequiresPermissions("ops:stock-health:export")

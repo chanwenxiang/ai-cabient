@@ -30,7 +30,7 @@
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="load">查询</el-button>
+        <el-button type="primary" @click="search">查询</el-button>
       </el-form-item>
     </el-form>
 
@@ -83,6 +83,18 @@
       </el-table-column>
     </el-table>
 
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next, jumper"
+      background
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
+
     <el-dialog
       v-model="dlg"
       :title="editingId ? '编辑手机验证' : '登记手机验证'"
@@ -124,6 +136,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import PagePager from '@/components/PagePager.vue';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const loading = ref(false);
@@ -131,6 +144,9 @@ const listHydrated = ref(false);
 const saving = ref(false);
 const phone = ref('');
 const channel = ref('');
+const page = ref(1);
+const size = ref(20);
+const total = ref(0);
 const items = ref<any[]>([]);
 const {
   defaultSort: idDefaultSort,
@@ -145,20 +161,34 @@ const form = reactive({ phone: '', userId: '', channel: 'SMS', merchantId: '' })
 async function load() {
   loading.value = true;
   try {
-    const q = new URLSearchParams({ page: '0', size: '50' });
+    const q = new URLSearchParams({
+      page: String(page.value - 1),
+      size: String(size.value)
+    });
     if (phone.value) q.set('phone', phone.value);
     if (channel.value) q.set('channel', channel.value);
-    const data = await api.request<{ items: any[] }>(
+    const data = await api.request<{ items: any[]; total: number }>(
       `/api/v2/ops/admin/phone-verify/logs?${q}`,
       'GET'
     );
     items.value = data.items || [];
+    total.value = Number(data.total) || 0;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
     listHydrated.value = true;
     loading.value = false;
   }
+}
+
+function onSizeChange() {
+  page.value = 1;
+  load();
+}
+
+function search() {
+  page.value = 1;
+  load();
 }
 
 function openCreate() {

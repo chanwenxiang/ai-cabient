@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.DeviceLifecycleEventDto;
 import com.aicabinet.common.dto.DeviceLifecycleRequest;
+import com.aicabinet.common.dto.StockHealthPageDto;
 import com.aicabinet.common.dto.StockHealthRowDto;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.DeviceLifecycleEvent;
@@ -28,6 +29,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -301,6 +303,32 @@ public class DeviceAssetService {
                 .thenComparing(StockHealthRowDto::deviceId)
                 .thenComparing(StockHealthRowDto::skuId));
         return rows;
+    }
+
+    /**
+     * 库存健康分页：先按筛选算全量（含 KPI / 一键补货柜机），再切片返回当前页。
+     */
+    @Transactional(readOnly = true)
+    public StockHealthPageDto stockHealthPage(Long operatorId, String dimension,
+                                              String merchantId, String routeCode, String lifecycleStatus,
+                                              String deviceId, int page, int size) {
+        List<StockHealthRowDto> all = stockHealth(
+                operatorId, dimension, merchantId, routeCode, lifecycleStatus, deviceId);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        long stockoutCount = all.stream().filter(r -> "STOCKOUT".equals(r.dimension())).count();
+        long lowCount = all.stream().filter(r -> "LOW".equals(r.dimension())).count();
+        long nearExpiryCount = all.stream().filter(r -> "NEAR_EXPIRY".equals(r.dimension())).count();
+        long deviceCount = all.stream().map(StockHealthRowDto::deviceId).filter(id -> id != null && !id.isBlank()).distinct().count();
+        List<String> planDeviceIds = all.stream()
+                .filter(r -> "STOCKOUT".equals(r.dimension()) || "LOW".equals(r.dimension()))
+                .map(StockHealthRowDto::deviceId)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.collectingAndThen(Collectors.toCollection(LinkedHashSet::new), ArrayList::new));
+        int from = Math.min(p * s, all.size());
+        int to = Math.min(from + s, all.size());
+        return new StockHealthPageDto(all.subList(from, to), p, s, all.size(),
+                stockoutCount, lowCount, nearExpiryCount, deviceCount, planDeviceIds);
     }
 
     public static String normalizeLifecycle(String status) {

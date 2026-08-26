@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.CreateInvoiceRequest;
 import com.aicabinet.common.dto.InvoiceRequestDto;
 import com.aicabinet.common.dto.MerchantTaxProfileDto;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.InvoiceRequest;
@@ -12,6 +13,7 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.InvoiceRequestMapper;
 import com.aicabinet.trade.mapper.MerchantTaxProfileMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -98,6 +100,15 @@ public class InvoiceService {
     public List<InvoiceRequestDto> listForOps(Long operatorId, String status) {
         permissionService.requireAnyPermission(operatorId, "ops:invoice:list", "ops:finance:view");
         return invoiceRepository.findByStatusOrderByCreatedAtDesc(status, 100).stream().map(this::toDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<InvoiceRequestDto> listForOpsPage(Long operatorId, String status, int page, int size) {
+        permissionService.requireAnyPermission(operatorId, "ops:invoice:list", "ops:finance:view");
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        Page<InvoiceRequest> result = invoiceRepository.search(status, p, s);
+        return new PageResult<>(result.getRecords().stream().map(this::toDto).toList(), p, s, result.getTotal());
     }
 
     @Transactional
