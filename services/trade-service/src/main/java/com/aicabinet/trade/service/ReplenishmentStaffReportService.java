@@ -37,20 +37,22 @@ public class ReplenishmentStaffReportService {
     public List<ReplenishmentStaffRowDto> report(int days) {
         int window = Math.min(Math.max(days, 7), 90);
         Instant since = LocalDate.now(ZONE).minusDays(window - 1L).atStartOfDay(ZONE).toInstant();
+        Map<Long, StaffAgg> agg = aggregateStaffTasks(since);
+        List<ReplenishmentStaffRowDto> out = new ArrayList<>();
+        for (Map.Entry<Long, StaffAgg> e : agg.entrySet()) {
+            out.add(toStaffRow(e.getKey(), e.getValue(), window));
+        }
+        out.sort(Comparator.comparingLong(ReplenishmentStaffRowDto::totalTasks).reversed());
+        return out;
+    }
 
+    private Map<Long, StaffAgg> aggregateStaffTasks(Instant since) {
         Map<Long, StaffAgg> agg = new LinkedHashMap<>();
         for (ReplenishmentTask t : taskRepository.findByCreatedAtAfter(since)) {
             if (t.getAssigneeUserId() == null) {
                 continue;
             }
-            StaffAgg a = agg.computeIfAbsent(t.getAssigneeUserId(), k -> new StaffAgg());
-            a.totalTasks++;
-            if ("COMPLETED".equalsIgnoreCase(t.getStatus())) {
-                a.completedTasks++;
-                if (t.getCompletedAt() != null) {
-                    a.durations.add(Duration.between(startTime(t), t.getCompletedAt()).toMinutes());
-                }
-            }
+            recordTaskCreatedInWindow(agg.computeIfAbsent(t.getAssigneeUserId(), k -> new StaffAgg()), t);
         }
         // 窗口外创建、窗口内完成的任务计入完成量（补全边界）
         for (ReplenishmentTask t : taskRepository.findByCompletedAtAfter(since)) {
@@ -58,39 +60,49 @@ public class ReplenishmentStaffReportService {
                 continue;
             }
             if (t.getCreatedAt() != null && t.getCreatedAt().isBefore(since)) {
-                StaffAgg a = agg.computeIfAbsent(t.getAssigneeUserId(), k -> new StaffAgg());
-                a.totalTasks++;
-                a.completedTasks++;
-                if (t.getCompletedAt() != null) {
-                    a.durations.add(Duration.between(startTime(t), t.getCompletedAt()).toMinutes());
-                }
+                recordBoundaryCompleted(agg.computeIfAbsent(t.getAssigneeUserId(), k -> new StaffAgg()), t);
             }
         }
+        return agg;
+    }
 
-        List<ReplenishmentStaffRowDto> out = new ArrayList<>();
-        for (Map.Entry<Long, StaffAgg> e : agg.entrySet()) {
-            StaffAgg a = e.getValue();
-            long open = Math.max(0, a.totalTasks - a.completedTasks);
-            double completionRate = a.totalTasks > 0 ? (double) a.completedTasks / a.totalTasks : 0.0;
-            Double avgMinutes = a.durations.isEmpty()
-                    ? null
-                    : a.durations.stream().mapToDouble(Long::doubleValue).average().orElse(0.0);
-            double avgDaily = a.totalTasks / (double) window;
-            UserInfo user = userInfoRepository.findById(e.getKey()).orElse(null);
-            out.add(new ReplenishmentStaffRowDto(
-                    e.getKey(),
-                    user != null ? user.getName() : null,
-                    user != null ? user.getPhoneNumber() : null,
-                    a.totalTasks,
-                    a.completedTasks,
-                    completionRate,
-                    avgMinutes,
-                    open,
-                    Math.round(avgDaily * 100.0) / 100.0
-            ));
+    private static void recordTaskCreatedInWindow(StaffAgg agg, ReplenishmentTask task) {
+        agg.totalTasks++;
+        if ("COMPLETED".equalsIgnoreCase(task.getStatus())) {
+            agg.completedTasks++;
+            if (task.getCompletedAt() != null) {
+                agg.durations.add(Duration.between(startTime(task), task.getCompletedAt()).toMinutes());
+            }
         }
-        out.sort(Comparator.comparingLong(ReplenishmentStaffRowDto::totalTasks).reversed());
-        return out;
+    }
+
+    private static void recordBoundaryCompleted(StaffAgg agg, ReplenishmentTask task) {
+        agg.totalTasks++;
+        agg.completedTasks++;
+        if (task.getCompletedAt() != null) {
+            agg.durations.add(Duration.between(startTime(task), task.getCompletedAt()).toMinutes());
+        }
+    }
+
+    private ReplenishmentStaffRowDto toStaffRow(Long userId, StaffAgg agg, int window) {
+        long open = Math.max(0, agg.totalTasks - agg.completedTasks);
+        double completionRate = agg.totalTasks > 0 ? (double) agg.completedTasks / agg.totalTasks : 0.0;
+        Double avgMinutes = agg.durations.isEmpty()
+                ? null
+                : agg.durations.stream().mapToDouble(Long::doubleValue).average().orElse(0.0);
+        double avgDaily = agg.totalTasks / (double) window;
+        UserInfo user = userInfoRepository.findById(userId).orElse(null);
+        return new ReplenishmentStaffRowDto(
+                userId,
+                user != null ? user.getName() : null,
+                user != null ? user.getPhoneNumber() : null,
+                agg.totalTasks,
+                agg.completedTasks,
+                completionRate,
+                avgMinutes,
+                open,
+                Math.round(avgDaily * 100.0) / 100.0
+        );
     }
 
     private static Instant startTime(ReplenishmentTask t) {

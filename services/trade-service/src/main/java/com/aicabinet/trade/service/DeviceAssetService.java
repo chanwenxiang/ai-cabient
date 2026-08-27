@@ -216,14 +216,44 @@ public class DeviceAssetService {
                                                String deviceId) {
         permissionService.requireAnyPermission(operatorId, "ops:stock-health:list", "ops:device:list", "ops:replenishment:list");
         Set<String> allowed = merchantScopeService.allowedDeviceIds(operatorId);
+        String dim = normalizeStockHealthDimension(dimension);
+        Map<String, DeviceInfo> devices = loadFilteredDevices(
+                allowed, deviceId, merchantId, routeCode, lifecycleStatus);
+        if (devices.isEmpty()) {
+            return List.of();
+        }
+        Map<String, SkuCatalog> skus = skuCatalogMapper.findAll().stream()
+                .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s, (a, b) -> a));
+        List<StockHealthRowDto> rows = new ArrayList<>();
+        Map<String, Boolean> ledgerByDevice = new HashMap<>();
+        Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
+        if (!NEAR_EXPIRY.equals(dim)) {
+            appendInventoryHealthRows(rows, devices, skus, dim, ledgerByDevice, sellableByDevice);
+        }
+        if (NEAR_EXPIRY.equals(dim) || "ALL".equals(dim)) {
+            appendNearExpiryRows(rows, devices, skus, loadCapacityByDeviceSku(devices.keySet()));
+        }
+        rows.sort(Comparator
+                .comparing(StockHealthRowDto::dimension)
+                .thenComparing(StockHealthRowDto::deviceId)
+                .thenComparing(StockHealthRowDto::skuId));
+        return rows;
+    }
+
+    private static String normalizeStockHealthDimension(String dimension) {
         String dim = dimension == null || dimension.isBlank() ? "ALL" : dimension.trim().toUpperCase(Locale.ROOT);
         if (!Set.of("ALL", STOCKOUT, "LOW", NEAR_EXPIRY).contains(dim)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "dimension 仅支持 ALL/STOCKOUT/LOW/NEAR_EXPIRY");
         }
-        String deviceFilter = deviceId == null ? "" : deviceId.trim();
+        return dim;
+    }
 
-        Map<String, DeviceInfo> devices = deviceInfoMapper.findAll().stream()
+    private Map<String, DeviceInfo> loadFilteredDevices(Set<String> allowed, String deviceId,
+                                                        String merchantId, String routeCode,
+                                                        String lifecycleStatus) {
+        String deviceFilter = deviceId == null ? "" : deviceId.trim();
+        return deviceInfoMapper.findAll().stream()
                 .filter(d -> allowed == null || allowed.contains(d.getDeviceId()))
                 .filter(d -> deviceFilter.isEmpty() || deviceFilter.equalsIgnoreCase(d.getDeviceId()))
                 .filter(d -> merchantId == null || merchantId.isBlank()
@@ -233,104 +263,122 @@ public class DeviceAssetService {
                 .filter(d -> lifecycleStatus == null || lifecycleStatus.isBlank()
                         || lifecycleStatus.equalsIgnoreCase(normalizeLifecycle(d.getLifecycleStatus())))
                 .collect(Collectors.toMap(DeviceInfo::getDeviceId, d -> d, (a, b) -> a));
+    }
 
-        if (devices.isEmpty()) {
-            return List.of();
-        }
-
-        Map<String, SkuCatalog> skus = skuCatalogMapper.findAll().stream()
-                .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s, (a, b) -> a));
-
-        List<StockHealthRowDto> rows = new ArrayList<>();
-        Map<String, Boolean> ledgerByDevice = new HashMap<>();
-        Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
-        if (!NEAR_EXPIRY.equals(dim)) {
-            List<DeviceSkuInventory> inv = inventoryMapper.selectList(Wrappers.<DeviceSkuInventory>lambdaQuery()
-                    .in(DeviceSkuInventory::getDeviceId, devices.keySet()));
-            for (DeviceSkuInventory row : inv) {
-                DeviceInfo d = devices.get(row.getDeviceId());
-                if (d == null) continue;
-                int qty = effectiveSellableQty(row, ledgerByDevice, sellableByDevice);
-                boolean stockout = qty <= 0;
-                boolean low = !stockout && qty <= Math.max(row.getLowThreshold(), 0);
-                if (STOCKOUT.equals(dim) && !stockout) continue;
-                if ("LOW".equals(dim) && !low) continue;
-                if ("ALL".equals(dim) && !stockout && !low) continue;
-                String kind = stockout ? STOCKOUT : "LOW";
-                int capacity = Math.max(row.getCapacity(), 0);
-                double rate = capacity <= 0 ? (stockout ? 100d : 0d)
-                        : Math.max(0d, (1d - (qty * 1d / capacity)) * 100d);
-                Integer daysOut = stockout ? estimateDaysOut(row.getDeviceId(), row.getSkuId(), row.getUpdatedAt()) : null;
-                SkuCatalog sku = skus.get(row.getSkuId());
-                rows.add(new StockHealthRowDto(
-                        kind,
-                        d.getDeviceId(),
-                        d.getDeviceName(),
-                        d.getMerchantId(),
-                        d.getRouteCode(),
-                        normalizeLifecycle(d.getLifecycleStatus()),
-                        row.getSkuId(),
-                        sku == null ? row.getSkuId() : sku.getSkuName(),
-                        qty,
-                        capacity,
-                        row.getLowThreshold(),
-                        Math.round(rate * 10d) / 10d,
-                        daysOut,
-                        null,
-                        row.getUpdatedAt(),
-                        null,
-                        null
-                ));
+    private void appendInventoryHealthRows(List<StockHealthRowDto> rows,
+                                           Map<String, DeviceInfo> devices,
+                                           Map<String, SkuCatalog> skus,
+                                           String dim,
+                                           Map<String, Boolean> ledgerByDevice,
+                                           Map<String, Map<String, Integer>> sellableByDevice) {
+        List<DeviceSkuInventory> inv = inventoryMapper.selectList(Wrappers.<DeviceSkuInventory>lambdaQuery()
+                .in(DeviceSkuInventory::getDeviceId, devices.keySet()));
+        for (DeviceSkuInventory row : inv) {
+            DeviceInfo device = devices.get(row.getDeviceId());
+            if (device == null) {
+                continue;
             }
+            int qty = effectiveSellableQty(row, ledgerByDevice, sellableByDevice);
+            boolean stockout = qty <= 0;
+            boolean low = !stockout && qty <= Math.max(row.getLowThreshold(), 0);
+            if (!matchesInventoryHealthDimension(dim, stockout, low)) {
+                continue;
+            }
+            String kind = stockout ? STOCKOUT : "LOW";
+            rows.add(buildInventoryHealthRow(device, row, skus, qty, kind, stockout));
         }
+    }
+
+    private static boolean matchesInventoryHealthDimension(String dim, boolean stockout, boolean low) {
+        if (STOCKOUT.equals(dim)) {
+            return stockout;
+        }
+        if ("LOW".equals(dim)) {
+            return low;
+        }
+        return stockout || low;
+    }
+
+    private StockHealthRowDto buildInventoryHealthRow(DeviceInfo device, DeviceSkuInventory row,
+                                                      Map<String, SkuCatalog> skus, int qty,
+                                                      String kind, boolean stockout) {
+        int capacity = Math.max(row.getCapacity(), 0);
+        double rate = capacity <= 0 ? (stockout ? 100d : 0d)
+                : Math.max(0d, (1d - (qty * 1d / capacity)) * 100d);
+        Integer daysOut = stockout ? estimateDaysOut(row.getDeviceId(), row.getSkuId(), row.getUpdatedAt()) : null;
+        SkuCatalog sku = skus.get(row.getSkuId());
+        return new StockHealthRowDto(
+                kind,
+                device.getDeviceId(),
+                device.getDeviceName(),
+                device.getMerchantId(),
+                device.getRouteCode(),
+                normalizeLifecycle(device.getLifecycleStatus()),
+                row.getSkuId(),
+                sku == null ? row.getSkuId() : sku.getSkuName(),
+                qty,
+                capacity,
+                row.getLowThreshold(),
+                Math.round(rate * 10d) / 10d,
+                daysOut,
+                null,
+                row.getUpdatedAt(),
+                null,
+                null
+        );
+    }
+
+    private Map<String, Integer> loadCapacityByDeviceSku(Set<String> deviceIds) {
         Map<String, Integer> capacityByDeviceSku = new HashMap<>();
-        if (NEAR_EXPIRY.equals(dim) || "ALL".equals(dim)) {
-            List<DeviceSkuInventory> caps = inventoryMapper.selectList(Wrappers.<DeviceSkuInventory>lambdaQuery()
-                    .in(DeviceSkuInventory::getDeviceId, devices.keySet()));
-            for (DeviceSkuInventory inv : caps) {
-                capacityByDeviceSku.put(inv.getDeviceId() + "\0" + inv.getSkuId(), Math.max(inv.getCapacity(), 0));
-            }
+        List<DeviceSkuInventory> caps = inventoryMapper.selectList(Wrappers.<DeviceSkuInventory>lambdaQuery()
+                .in(DeviceSkuInventory::getDeviceId, deviceIds));
+        for (DeviceSkuInventory inv : caps) {
+            capacityByDeviceSku.put(inv.getDeviceId() + "\0" + inv.getSkuId(), Math.max(inv.getCapacity(), 0));
         }
-        if (NEAR_EXPIRY.equals(dim) || "ALL".equals(dim)) {
-            LocalDate today = LocalDate.now(ZONE);
-            List<DeviceSkuLot> lots = lotMapper.selectList(Wrappers.<DeviceSkuLot>lambdaQuery()
-                    .in(DeviceSkuLot::getDeviceId, devices.keySet())
-                    .gt(DeviceSkuLot::getQuantity, 0)
-                    .isNotNull(DeviceSkuLot::getExpiryDate));
-            for (DeviceSkuLot lot : lots) {
-                DeviceInfo d = devices.get(lot.getDeviceId());
-                if (d == null || lot.getExpiryDate() == null) continue;
-                SkuCatalog sku = skus.get(lot.getSkuId());
-                int nearDays = sku != null ? Math.max(sku.getNearExpiryDays(), 0) : 7;
-                long daysLeft = ChronoUnit.DAYS.between(today, lot.getExpiryDate());
-                if (daysLeft > nearDays) continue;
-                int capacity = capacityByDeviceSku.getOrDefault(lot.getDeviceId() + "\0" + lot.getSkuId(), 0);
-                rows.add(new StockHealthRowDto(
-                        NEAR_EXPIRY,
-                        d.getDeviceId(),
-                        d.getDeviceName(),
-                        d.getMerchantId(),
-                        d.getRouteCode(),
-                        normalizeLifecycle(d.getLifecycleStatus()),
-                        lot.getSkuId(),
-                        sku == null ? lot.getSkuId() : sku.getSkuName(),
-                        lot.getQuantity(),
-                        capacity,
-                        null,
-                        0d,
-                        null,
-                        lot.getExpiryDate(),
-                        lot.getUpdatedAt(),
-                        lot.getLotId(),
-                        lot.getBatchNo()
-                ));
+        return capacityByDeviceSku;
+    }
+
+    private void appendNearExpiryRows(List<StockHealthRowDto> rows,
+                                      Map<String, DeviceInfo> devices,
+                                      Map<String, SkuCatalog> skus,
+                                      Map<String, Integer> capacityByDeviceSku) {
+        LocalDate today = LocalDate.now(ZONE);
+        List<DeviceSkuLot> lots = lotMapper.selectList(Wrappers.<DeviceSkuLot>lambdaQuery()
+                .in(DeviceSkuLot::getDeviceId, devices.keySet())
+                .gt(DeviceSkuLot::getQuantity, 0)
+                .isNotNull(DeviceSkuLot::getExpiryDate));
+        for (DeviceSkuLot lot : lots) {
+            DeviceInfo device = devices.get(lot.getDeviceId());
+            if (device == null || lot.getExpiryDate() == null) {
+                continue;
             }
+            SkuCatalog sku = skus.get(lot.getSkuId());
+            int nearDays = sku != null ? Math.max(sku.getNearExpiryDays(), 0) : 7;
+            long daysLeft = ChronoUnit.DAYS.between(today, lot.getExpiryDate());
+            if (daysLeft > nearDays) {
+                continue;
+            }
+            int capacity = capacityByDeviceSku.getOrDefault(lot.getDeviceId() + "\0" + lot.getSkuId(), 0);
+            rows.add(new StockHealthRowDto(
+                    NEAR_EXPIRY,
+                    device.getDeviceId(),
+                    device.getDeviceName(),
+                    device.getMerchantId(),
+                    device.getRouteCode(),
+                    normalizeLifecycle(device.getLifecycleStatus()),
+                    lot.getSkuId(),
+                    sku == null ? lot.getSkuId() : sku.getSkuName(),
+                    lot.getQuantity(),
+                    capacity,
+                    null,
+                    0d,
+                    null,
+                    lot.getExpiryDate(),
+                    lot.getUpdatedAt(),
+                    lot.getLotId(),
+                    lot.getBatchNo()
+            ));
         }
-        rows.sort(Comparator
-                .comparing(StockHealthRowDto::dimension)
-                .thenComparing(StockHealthRowDto::deviceId)
-                .thenComparing(StockHealthRowDto::skuId));
-        return rows;
     }
 
     /**

@@ -702,45 +702,10 @@ public class AdminDashboardService {
                         AdminDashboardService::preferSessionForDeviceList
                 ));
 
-        String kw = q == null ? "" : q.trim().toLowerCase();
-        String onlineFilter = online == null ? "" : online.trim().toUpperCase();
-        String lifeFilter = lifecycleStatus == null ? "" : lifecycleStatus.trim().toUpperCase();
-        String coopFilter = coopMode == null ? "" : coopMode.trim().toUpperCase();
-        String routeFilter = routeCode == null ? "" : routeCode.trim().toLowerCase();
-
+        DeviceListFilters filters = DeviceListFilters.from(q, online, salesLocked, lifecycleStatus, coopMode, routeCode);
         List<AdminDeviceDto> filtered = devices.stream()
                 .map(d -> toDeviceDto(d, sessionByDevice.get(d.getDeviceId()), replenishing.contains(d.getDeviceId())))
-                .filter(d -> {
-                    if (!onlineFilter.isEmpty() && !onlineFilter.equalsIgnoreCase(String.valueOf(d.onlineStatus()))) {
-                        return false;
-                    }
-                    if (salesLocked != null && d.salesLocked() != salesLocked) {
-                        return false;
-                    }
-                    if (!lifeFilter.isEmpty()
-                            && !lifeFilter.equalsIgnoreCase(String.valueOf(d.lifecycleStatus() == null ? DEPLOYED : d.lifecycleStatus()))) {
-                        return false;
-                    }
-                    if (!coopFilter.isEmpty()
-                            && !coopFilter.equalsIgnoreCase(String.valueOf(d.coopMode() == null ? "" : d.coopMode()))) {
-                        return false;
-                    }
-                    if (!routeFilter.isEmpty()
-                            && !String.valueOf(d.routeCode() == null ? "" : d.routeCode()).toLowerCase().contains(routeFilter)) {
-                        return false;
-                    }
-                    if (kw.isEmpty()) {
-                        return true;
-                    }
-                    return String.valueOf(d.deviceId()).toLowerCase().contains(kw)
-                            || String.valueOf(d.deviceName() == null ? "" : d.deviceName()).toLowerCase().contains(kw)
-                            || String.valueOf(d.merchantId() == null ? "" : d.merchantId()).toLowerCase().contains(kw)
-                            || String.valueOf(d.merchantName() == null ? "" : d.merchantName()).toLowerCase().contains(kw)
-                            || String.valueOf(d.imei() == null ? "" : d.imei()).toLowerCase().contains(kw)
-                            || String.valueOf(d.assetOwner() == null ? "" : d.assetOwner()).toLowerCase().contains(kw)
-                            || String.valueOf(d.opsTags() == null ? "" : d.opsTags()).toLowerCase().contains(kw)
-                            || String.valueOf(d.routeCode() == null ? "" : d.routeCode()).toLowerCase().contains(kw);
-                })
+                .filter(d -> matchesDeviceListFilters(d, filters))
                 .toList();
 
         int safeSize = Math.min(Math.max(size, 1), 200);
@@ -748,6 +713,65 @@ public class AdminDashboardService {
         int from = Math.min(safePage * safeSize, filtered.size());
         int to = Math.min(from + safeSize, filtered.size());
         return new PageResult<>(filtered.subList(from, to), safePage, safeSize, filtered.size());
+    }
+
+    private record DeviceListFilters(String kw, String onlineFilter, Boolean salesLocked,
+                                     String lifeFilter, String coopFilter, String routeFilter) {
+        static DeviceListFilters from(String q, String online, Boolean salesLocked,
+                                      String lifecycleStatus, String coopMode, String routeCode) {
+            return new DeviceListFilters(
+                    q == null ? "" : q.trim().toLowerCase(),
+                    online == null ? "" : online.trim().toUpperCase(),
+                    salesLocked,
+                    lifecycleStatus == null ? "" : lifecycleStatus.trim().toUpperCase(),
+                    coopMode == null ? "" : coopMode.trim().toUpperCase(),
+                    routeCode == null ? "" : routeCode.trim().toLowerCase()
+            );
+        }
+    }
+
+    private static boolean matchesDeviceListFilters(AdminDeviceDto device, DeviceListFilters filters) {
+        if (!filters.onlineFilter().isEmpty()
+                && !filters.onlineFilter().equalsIgnoreCase(String.valueOf(device.onlineStatus()))) {
+            return false;
+        }
+        if (filters.salesLocked() != null && device.salesLocked() != filters.salesLocked()) {
+            return false;
+        }
+        if (!filters.lifeFilter().isEmpty()
+                && !filters.lifeFilter().equalsIgnoreCase(
+                String.valueOf(device.lifecycleStatus() == null ? DEPLOYED : device.lifecycleStatus()))) {
+            return false;
+        }
+        if (!filters.coopFilter().isEmpty()
+                && !filters.coopFilter().equalsIgnoreCase(
+                String.valueOf(device.coopMode() == null ? "" : device.coopMode()))) {
+            return false;
+        }
+        if (!filters.routeFilter().isEmpty()
+                && !String.valueOf(device.routeCode() == null ? "" : device.routeCode())
+                .toLowerCase().contains(filters.routeFilter())) {
+            return false;
+        }
+        return matchesDeviceKeyword(device, filters.kw());
+    }
+
+    private static boolean matchesDeviceKeyword(AdminDeviceDto device, String kw) {
+        if (kw.isEmpty()) {
+            return true;
+        }
+        return containsIgnoreCase(device.deviceId(), kw)
+                || containsIgnoreCase(device.deviceName(), kw)
+                || containsIgnoreCase(device.merchantId(), kw)
+                || containsIgnoreCase(device.merchantName(), kw)
+                || containsIgnoreCase(device.imei(), kw)
+                || containsIgnoreCase(device.assetOwner(), kw)
+                || containsIgnoreCase(device.opsTags(), kw)
+                || containsIgnoreCase(device.routeCode(), kw);
+    }
+
+    private static boolean containsIgnoreCase(Object value, String kw) {
+        return String.valueOf(value == null ? "" : value).toLowerCase().contains(kw);
     }
 
     private static ShoppingSession preferSessionForDeviceList(ShoppingSession a, ShoppingSession b) {

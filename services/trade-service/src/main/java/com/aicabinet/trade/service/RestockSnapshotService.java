@@ -106,43 +106,51 @@ public class RestockSnapshotService {
         Map<String, Integer> bookBySlot = deviceSlotService.loadBookQtyBySlot(deviceId);
         Map<String, Integer> physical = new HashMap<>();
         for (Map.Entry<String, Integer> entry : skuNet.entrySet()) {
-            String skuId = entry.getKey();
-            int netDelta = entry.getValue();
-            List<DeviceSlotService.SlotBookView> slots =
-                    deviceSlotService.listEnabledSlotsForSku(deviceId, skuId);
-            if (slots.isEmpty()) {
-                continue;
-            }
-            if (netDelta >= 0) {
-                DeviceSlotService.SlotBookView primary = slots.get(0);
-                int book = bookBySlot.getOrDefault(primary.slotCode(), 0);
-                physical.put(primary.slotCode(), Math.max(0, book + netDelta));
-            } else {
-                int remaining = -netDelta;
-                List<DeviceSlotService.SlotBookView> ordered = slots.stream()
-                        .sorted((a, b) -> Integer.compare(
-                                bookBySlot.getOrDefault(b.slotCode(), 0),
-                                bookBySlot.getOrDefault(a.slotCode(), 0)))
-                        .toList();
-                for (DeviceSlotService.SlotBookView slot : ordered) {
-                    int book = bookBySlot.getOrDefault(slot.slotCode(), 0);
-                    if (remaining <= 0) {
-                        physical.putIfAbsent(slot.slotCode(), book);
-                        continue;
-                    }
-                    int take = ordered.size() == 1 || book <= 0
-                            ? remaining
-                            : Math.min(book, remaining);
-                    physical.put(slot.slotCode(), Math.max(0, book - take));
-                    remaining -= take;
-                }
-                if (remaining > 0 && !ordered.isEmpty()) {
-                    String code = ordered.get(0).slotCode();
-                    physical.put(code, Math.max(0, physical.getOrDefault(code, 0) - remaining));
-                }
-            }
+            applySkuNetDeltaToPhysical(deviceId, entry.getKey(), entry.getValue(), bookBySlot, physical);
         }
         return deviceSlotService.applyPhysicalSnapshot(deviceId, physical, "GRAVITY_SKU", refId);
+    }
+
+    private void applySkuNetDeltaToPhysical(String deviceId, String skuId, int netDelta,
+                                            Map<String, Integer> bookBySlot,
+                                            Map<String, Integer> physical) {
+        List<DeviceSlotService.SlotBookView> slots =
+                deviceSlotService.listEnabledSlotsForSku(deviceId, skuId);
+        if (slots.isEmpty()) {
+            return;
+        }
+        if (netDelta >= 0) {
+            DeviceSlotService.SlotBookView primary = slots.get(0);
+            int book = bookBySlot.getOrDefault(primary.slotCode(), 0);
+            physical.put(primary.slotCode(), Math.max(0, book + netDelta));
+            return;
+        }
+        applyNegativeSkuDelta(slots, -netDelta, bookBySlot, physical);
+    }
+
+    private static void applyNegativeSkuDelta(List<DeviceSlotService.SlotBookView> slots, int remaining,
+                                              Map<String, Integer> bookBySlot,
+                                              Map<String, Integer> physical) {
+        int left = remaining;
+        List<DeviceSlotService.SlotBookView> ordered = slots.stream()
+                .sorted((a, b) -> Integer.compare(
+                        bookBySlot.getOrDefault(b.slotCode(), 0),
+                        bookBySlot.getOrDefault(a.slotCode(), 0)))
+                .toList();
+        for (DeviceSlotService.SlotBookView slot : ordered) {
+            int book = bookBySlot.getOrDefault(slot.slotCode(), 0);
+            if (left <= 0) {
+                physical.putIfAbsent(slot.slotCode(), book);
+                continue;
+            }
+            int take = ordered.size() == 1 || book <= 0 ? left : Math.min(book, left);
+            physical.put(slot.slotCode(), Math.max(0, book - take));
+            left -= take;
+        }
+        if (left > 0 && !ordered.isEmpty()) {
+            String code = ordered.get(0).slotCode();
+            physical.put(code, Math.max(0, physical.getOrDefault(code, 0) - left));
+        }
     }
 
     private int applyVisionSkuCounts(String deviceId,

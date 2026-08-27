@@ -104,53 +104,67 @@ public class MerchantSkuPricingService {
 
         List<MerchantSkuPricingDto> rows = new ArrayList<>();
         for (String devId : deviceIds) {
-            List<DeviceSkuInventory> invRows = inventoryRepository.findByIdDeviceId(devId);
-            Set<String> skuIds = invRows.stream().map(r -> r.getId().getSkuId()).collect(Collectors.toSet());
-            if (skuIds.isEmpty()) {
-                continue;
-            }
-            Map<String, SkuCatalog> skuMap = skuCatalogRepository.findAllById(skuIds).stream()
-                    .filter(s -> "ACTIVE".equalsIgnoreCase(s.getStatus()))
-                    .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s));
-            Map<String, Integer> qtyBySku;
-            if (inventoryLotService.deviceUsesLotLedger(devId)) {
-                qtyBySku = new HashMap<>(inventoryLotService.sellableQtyBySku(devId));
-                for (String skuId : skuIds) {
-                    qtyBySku.putIfAbsent(skuId, 0);
-                }
-            } else {
-                qtyBySku = invRows.stream()
-                        .collect(Collectors.toMap(r -> r.getId().getSkuId(), DeviceSkuInventory::getQuantity, Integer::sum));
-            }
-            Map<String, DeviceSkuPrice> overrides = overrideByDevice.getOrDefault(devId, Map.of());
-            for (String skuId : skuIds) {
-                SkuCatalog sku = skuMap.get(skuId);
-                if (sku == null) {
-                    continue;
-                }
-                DeviceSkuPrice override = overrides.get(skuId);
-                int effective = override != null ? override.getPriceCents() : sku.getPriceCents();
-                rows.add(new MerchantSkuPricingDto(
-                        devId,
-                        deviceNames.getOrDefault(devId, devId),
-                        skuId,
-                        sku.getSkuName(),
-                        sku.getPriceCents(),
-                        override != null ? override.getPriceCents() : null,
-                        effective,
-                        minAllowedPrice(sku),
-                        maxAllowedPrice(sku),
-                        qtyBySku.getOrDefault(skuId, 0),
-                        override != null ? override.getUpdatedAt() : null,
-                        sku.getImageUrl(),
-                        sku.getBarcode()
-                ));
-            }
+            rows.addAll(buildPricingRowsForDevice(devId, deviceNames, overrideByDevice));
         }
         rows.sort(Comparator
                 .comparing(MerchantSkuPricingDto::deviceId)
                 .thenComparing(MerchantSkuPricingDto::skuName));
         return rows;
+    }
+
+    private List<MerchantSkuPricingDto> buildPricingRowsForDevice(
+            String deviceId,
+            Map<String, String> deviceNames,
+            Map<String, Map<String, DeviceSkuPrice>> overrideByDevice) {
+        List<DeviceSkuInventory> invRows = inventoryRepository.findByIdDeviceId(deviceId);
+        Set<String> skuIds = invRows.stream().map(r -> r.getId().getSkuId()).collect(Collectors.toSet());
+        if (skuIds.isEmpty()) {
+            return List.of();
+        }
+        Map<String, SkuCatalog> skuMap = skuCatalogRepository.findAllById(skuIds).stream()
+                .filter(s -> "ACTIVE".equalsIgnoreCase(s.getStatus()))
+                .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s));
+        Map<String, Integer> qtyBySku = resolveSellableQtyBySku(deviceId, invRows, skuIds);
+        Map<String, DeviceSkuPrice> overrides = overrideByDevice.getOrDefault(deviceId, Map.of());
+        List<MerchantSkuPricingDto> rows = new ArrayList<>();
+        for (String skuId : skuIds) {
+            SkuCatalog sku = skuMap.get(skuId);
+            if (sku == null) {
+                continue;
+            }
+            DeviceSkuPrice override = overrides.get(skuId);
+            int effective = override != null ? override.getPriceCents() : sku.getPriceCents();
+            rows.add(new MerchantSkuPricingDto(
+                    deviceId,
+                    deviceNames.getOrDefault(deviceId, deviceId),
+                    skuId,
+                    sku.getSkuName(),
+                    sku.getPriceCents(),
+                    override != null ? override.getPriceCents() : null,
+                    effective,
+                    minAllowedPrice(sku),
+                    maxAllowedPrice(sku),
+                    qtyBySku.getOrDefault(skuId, 0),
+                    override != null ? override.getUpdatedAt() : null,
+                    sku.getImageUrl(),
+                    sku.getBarcode()
+            ));
+        }
+        return rows;
+    }
+
+    private Map<String, Integer> resolveSellableQtyBySku(String deviceId,
+                                                         List<DeviceSkuInventory> invRows,
+                                                         Set<String> skuIds) {
+        if (inventoryLotService.deviceUsesLotLedger(deviceId)) {
+            Map<String, Integer> qtyBySku = new HashMap<>(inventoryLotService.sellableQtyBySku(deviceId));
+            for (String skuId : skuIds) {
+                qtyBySku.putIfAbsent(skuId, 0);
+            }
+            return qtyBySku;
+        }
+        return invRows.stream()
+                .collect(Collectors.toMap(r -> r.getId().getSkuId(), DeviceSkuInventory::getQuantity, Integer::sum));
     }
 
     @Transactional

@@ -93,38 +93,7 @@ public class FinanceReportService {
         List<FinanceDailyDto> daily = new ArrayList<>();
         LocalDate today = LocalDate.now(ZONE);
         for (int i = window - 1; i >= 0; i--) {
-            LocalDate day = today.minusDays(i);
-            if (!day.equals(today)) {
-                FinanceMarginLockDto locked = fundBillService.marginForDay(operatorId, day);
-                if (locked != null && locked.locked()) {
-                    daily.add(new FinanceDailyDto(
-                            day.toString(),
-                            locked.revenueCents(),
-                            locked.cogsCents(),
-                            locked.marginCents(),
-                            locked.writeOffCents()
-                    ));
-                    continue;
-                }
-            }
-            Instant start = day.atStartOfDay(ZONE).toInstant();
-            Instant end = day.plusDays(1).atStartOfDay(ZONE).toInstant();
-            long revenue = deviceIds == null
-                    ? orderRepository.sumTotalAmountBetween(start, end)
-                    : deviceIds.isEmpty() ? 0 : orderRepository.sumTotalAmountByDeviceIdInBetween(deviceIds, start, end);
-            long cogs = deviceIds == null
-                    ? lineRepository.sumCogsBetween(start, end)
-                    : deviceIds.isEmpty() ? 0 : lineRepository.sumCogsByDeviceIdsBetween(deviceIds, start, end);
-            long writeOff = deviceIds == null
-                    ? writeOffRepository.sumCostCentsBetween(start, end)
-                    : deviceIds.isEmpty() ? 0 : writeOffRepository.sumCostCentsByDeviceIdsBetween(deviceIds, start, end);
-            daily.add(new FinanceDailyDto(
-                    day.toString(),
-                    revenue,
-                    cogs,
-                    revenue - cogs,
-                    writeOff
-            ));
+            daily.add(buildDailyFinance(operatorId, deviceIds, today.minusDays(i), today));
         }
         Instant sinceSkus = today.minusDays(window - 1L).atStartOfDay(ZONE).toInstant();
         List<Object[]> skuRows = deviceIds == null
@@ -147,6 +116,49 @@ public class FinanceReportService {
                 })
                 .toList();
         return new FinanceReportDto(summary, daily, topSkus);
+    }
+
+    private FinanceDailyDto buildDailyFinance(Long operatorId, Set<String> deviceIds,
+                                              LocalDate day, LocalDate today) {
+        if (!day.equals(today)) {
+            FinanceMarginLockDto locked = fundBillService.marginForDay(operatorId, day);
+            if (locked != null && locked.locked()) {
+                return new FinanceDailyDto(
+                        day.toString(),
+                        locked.revenueCents(),
+                        locked.cogsCents(),
+                        locked.marginCents(),
+                        locked.writeOffCents()
+                );
+            }
+        }
+        Instant start = day.atStartOfDay(ZONE).toInstant();
+        Instant end = day.plusDays(1).atStartOfDay(ZONE).toInstant();
+        long revenue = sumDailyRevenue(deviceIds, start, end);
+        long cogs = sumDailyCogs(deviceIds, start, end);
+        long writeOff = sumDailyWriteOff(deviceIds, start, end);
+        return new FinanceDailyDto(day.toString(), revenue, cogs, revenue - cogs, writeOff);
+    }
+
+    private long sumDailyRevenue(Set<String> deviceIds, Instant start, Instant end) {
+        if (deviceIds == null) {
+            return orderRepository.sumTotalAmountBetween(start, end);
+        }
+        return deviceIds.isEmpty() ? 0 : orderRepository.sumTotalAmountByDeviceIdInBetween(deviceIds, start, end);
+    }
+
+    private long sumDailyCogs(Set<String> deviceIds, Instant start, Instant end) {
+        if (deviceIds == null) {
+            return lineRepository.sumCogsBetween(start, end);
+        }
+        return deviceIds.isEmpty() ? 0 : lineRepository.sumCogsByDeviceIdsBetween(deviceIds, start, end);
+    }
+
+    private long sumDailyWriteOff(Set<String> deviceIds, Instant start, Instant end) {
+        if (deviceIds == null) {
+            return writeOffRepository.sumCostCentsBetween(start, end);
+        }
+        return deviceIds.isEmpty() ? 0 : writeOffRepository.sumCostCentsByDeviceIdsBetween(deviceIds, start, end);
     }
 
     private static FinanceStatsDto emptyStats() {
