@@ -171,27 +171,28 @@ public class WarehouseService {
             line.setQuantity(dto.quantity());
             inboundLineRepository.save(line);
             addWarehouseStock(wh, dto.skuId(), dto.batchNo(), dto.productionDate(), dto.expiryDate(), dto.quantity());
-            recordWarehouseMovement(wh, dto.skuId(), dto.batchNo(), "MANUAL_INBOUND",
-                    dto.quantity(), "WAREHOUSE_INBOUND", String.valueOf(inbound.getInboundId()), operatorId);
+            recordWarehouseMovement(wh, dto.skuId(), dto.batchNo(),
+                    new MovementSpec("MANUAL_INBOUND", dto.quantity(), "WAREHOUSE_INBOUND",
+                            String.valueOf(inbound.getInboundId()), operatorId));
         }
         return request;
     }
 
     @Transactional
-    public void receivePurchaseStock(String warehouseId, String skuId, String batchNo,
-                                     LocalDate productionDate, LocalDate expiryDate,
-                                     int qty, int unitCostCents, Long operatorId,
-                                     String refType, String refId) {
-        if (qty <= 0) {
+    public void receivePurchaseStock(PurchaseReceiveCommand command) {
+        if (command.qty() <= 0) {
             throw badRequest(QUANTITY_MUST_BE_POSITIVE);
         }
-        String wh = resolveWarehouseId(warehouseId);
+        String wh = resolveWarehouseId(command.warehouseId());
         warehouseRepository.findById(wh).orElseThrow(() -> notFound(WAREHOUSE));
+        LotSpec lot = command.lot();
+        String refType = command.refType();
+        String refId = command.refId();
         WarehouseInbound inbound = new WarehouseInbound();
         inbound.setWarehouseId(wh);
         inbound.setRefNo(refType + "-" + refId);
         inbound.setNotes("purchase receive");
-        inbound.setOperatorId(operatorId);
+        inbound.setOperatorId(command.operatorId());
         if ("PURCHASE_ORDER".equals(refType)) {
             inbound.setPurchaseOrderId(parseLongOrNull(refId));
         }
@@ -199,17 +200,21 @@ public class WarehouseService {
 
         WarehouseInboundLine line = new WarehouseInboundLine();
         line.setInboundId(inbound.getInboundId());
-        line.setSkuId(skuId);
-        line.setBatchNo(batchNo);
-        line.setProductionDate(productionDate);
-        line.setExpiryDate(expiryDate);
-        line.setQuantity(qty);
-        line.setUnitCostCents(unitCostCents);
+        line.setSkuId(lot.skuId());
+        line.setBatchNo(lot.batchNo());
+        line.setProductionDate(lot.productionDate());
+        line.setExpiryDate(lot.expiryDate());
+        line.setQuantity(command.qty());
+        line.setUnitCostCents(command.unitCostCents());
         inboundLineRepository.save(line);
 
-        addWarehouseStock(wh, skuId, batchNo, productionDate, expiryDate, qty);
-        recordWarehouseMovement(wh, skuId, batchNo, "PURCHASE_RECEIVE", qty, refType, refId, operatorId);
+        addWarehouseStock(wh, lot.skuId(), lot.batchNo(), lot.productionDate(), lot.expiryDate(), command.qty());
+        recordWarehouseMovement(wh, lot.skuId(), lot.batchNo(),
+                new MovementSpec("PURCHASE_RECEIVE", command.qty(), refType, refId, command.operatorId()));
     }
+
+    public record PurchaseReceiveCommand(String warehouseId, LotSpec lot, int qty, int unitCostCents,
+                                           Long operatorId, String refType, String refId) {}
 
     @Transactional
     public void returnPurchaseStock(String warehouseId, String skuId, String batchNo, int qty,
@@ -220,46 +225,54 @@ public class WarehouseService {
         String wh = resolveWarehouseId(warehouseId);
         warehouseRepository.findById(wh).orElseThrow(() -> notFound(WAREHOUSE));
         deductWarehouseStock(wh, skuId, batchNo, qty);
-        recordWarehouseMovement(wh, skuId, batchNo, "PURCHASE_RETURN", -qty, refType, refId, operatorId);
+        recordWarehouseMovement(wh, skuId, batchNo,
+                new MovementSpec("PURCHASE_RETURN", -qty, refType, refId, operatorId));
     }
 
     /** 盘点差异调整：把账面库存直接对齐到实盘数量，并记录库存流水。 */
     @Transactional
-    public void adjustStocktake(String warehouseId, String skuId, String batchNo,
-                                LocalDate productionDate, LocalDate expiryDate,
-                                int bookQty, int countedQty, Long operatorId, Long stocktakeId) {
-        int delta = countedQty - bookQty;
+    public void adjustStocktake(StocktakeAdjustCommand command) {
+        int delta = command.countedQty() - command.bookQty();
         if (delta == 0) {
             return;
         }
-        String wh = resolveWarehouseId(warehouseId);
+        String wh = resolveWarehouseId(command.warehouseId());
         warehouseRepository.findById(wh).orElseThrow(() -> notFound(WAREHOUSE));
+        LotSpec lot = command.lot();
         if (delta > 0) {
-            addWarehouseStock(wh, skuId, batchNo, productionDate, expiryDate, delta);
+            addWarehouseStock(wh, lot.skuId(), lot.batchNo(), lot.productionDate(), lot.expiryDate(), delta);
         } else {
-            deductWarehouseStock(wh, skuId, batchNo, -delta);
+            deductWarehouseStock(wh, lot.skuId(), lot.batchNo(), -delta);
         }
-        recordWarehouseMovement(wh, skuId, batchNo, "STOCKTAKE", delta,
-                "STOCKTAKE", String.valueOf(stocktakeId), operatorId);
+        recordWarehouseMovement(wh, lot.skuId(), lot.batchNo(),
+                new MovementSpec("STOCKTAKE", delta, "STOCKTAKE", String.valueOf(command.stocktakeId()), command.operatorId()));
     }
+
+    public record LotSpec(String skuId, String batchNo, LocalDate productionDate, LocalDate expiryDate) {}
+
+    public record StocktakeAdjustCommand(String warehouseId, LotSpec lot, int bookQty, int countedQty,
+                                         Long operatorId, Long stocktakeId) {}
 
     /** 货位操作同步仓库总库存：入库/出库调整仓库账面并记录流水；移库 delta=0 仅留痕。 */
     @Transactional
-    public void binStockChange(String warehouseId, String skuId, String batchNo,
-                               LocalDate productionDate, LocalDate expiryDate,
-                               int deltaQty, Long operatorId, String refType, String refId) {
-        if (deltaQty == 0) {
+    public void binStockChange(BinStockChangeCommand command) {
+        if (command.deltaQty() == 0) {
             return;
         }
-        String wh = resolveWarehouseId(warehouseId);
+        String wh = resolveWarehouseId(command.warehouseId());
         warehouseRepository.findById(wh).orElseThrow(() -> notFound(WAREHOUSE));
-        if (deltaQty > 0) {
-            addWarehouseStock(wh, skuId, batchNo, productionDate, expiryDate, deltaQty);
+        LotSpec lot = command.lot();
+        if (command.deltaQty() > 0) {
+            addWarehouseStock(wh, lot.skuId(), lot.batchNo(), lot.productionDate(), lot.expiryDate(), command.deltaQty());
         } else {
-            deductWarehouseStock(wh, skuId, batchNo, -deltaQty);
+            deductWarehouseStock(wh, lot.skuId(), lot.batchNo(), -command.deltaQty());
         }
-        recordWarehouseMovement(wh, skuId, batchNo, "BIN_STOCK", deltaQty, refType, refId, operatorId);
+        recordWarehouseMovement(wh, lot.skuId(), lot.batchNo(),
+                new MovementSpec("BIN_STOCK", command.deltaQty(), command.refType(), command.refId(), command.operatorId()));
     }
+
+    public record BinStockChangeCommand(String warehouseId, LotSpec lot, int deltaQty,
+                                        Long operatorId, String refType, String refId) {}
 
     @Transactional(readOnly = true)
     public List<ReplenishmentSuggestDto> suggestForDevice(String deviceId) {
@@ -625,8 +638,8 @@ public class WarehouseService {
         for (WarehouseOutboundLine line : lines) {
             deductWarehouseStock(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(), line.getQuantity());
             recordWarehouseMovement(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
-                    "OUTBOUND_SHIP", -line.getQuantity(), "WAREHOUSE_OUTBOUND",
-                    String.valueOf(outboundId), operatorId);
+                    new MovementSpec("OUTBOUND_SHIP", -line.getQuantity(), "WAREHOUSE_OUTBOUND",
+                            String.valueOf(outboundId), operatorId));
             line.setHandoverStatus(IN_TRANSIT);
             outboundLineRepository.save(line);
         }
@@ -731,8 +744,8 @@ public class WarehouseService {
                 addWarehouseStock(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
                         null, line.getExpiryDate(), line.getQuantity());
                 recordWarehouseMovement(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
-                        "OUTBOUND_CANCEL", line.getQuantity(), "WAREHOUSE_OUTBOUND",
-                        String.valueOf(outboundId), operatorId);
+                        new MovementSpec("OUTBOUND_CANCEL", line.getQuantity(), "WAREHOUSE_OUTBOUND",
+                                String.valueOf(outboundId), operatorId));
             }
             line.setHandoverStatus(STATUS_CANCELLED);
             outboundLineRepository.save(line);
@@ -1120,20 +1133,20 @@ public class WarehouseService {
         });
     }
 
-    private void recordWarehouseMovement(String warehouseId, String skuId, String batchNo,
-                                         String movementType, int deltaQty,
-                                         String refType, String refId, Long operatorId) {
-        WarehouseMovement movement = new WarehouseMovement();
-        movement.setWarehouseId(warehouseId);
-        movement.setSkuId(skuId);
-        movement.setBatchNo(batchNo);
-        movement.setMovementType(movementType);
-        movement.setDeltaQty(deltaQty);
-        movement.setRefType(refType);
-        movement.setRefId(refId);
-        movement.setOperatorId(operatorId);
-        movementRepository.save(movement);
+    private void recordWarehouseMovement(String warehouseId, String skuId, String batchNo, MovementSpec movement) {
+        WarehouseMovement entity = new WarehouseMovement();
+        entity.setWarehouseId(warehouseId);
+        entity.setSkuId(skuId);
+        entity.setBatchNo(batchNo);
+        entity.setMovementType(movement.movementType());
+        entity.setDeltaQty(movement.deltaQty());
+        entity.setRefType(movement.refType());
+        entity.setRefId(movement.refId());
+        entity.setOperatorId(movement.operatorId());
+        movementRepository.save(entity);
     }
+
+    private record MovementSpec(String movementType, int deltaQty, String refType, String refId, Long operatorId) {}
 
     private void validateInboundLine(WarehouseInboundLineDto dto) {
         if (dto.skuId() == null || dto.skuId().isBlank()) throw badRequest("skuId required");

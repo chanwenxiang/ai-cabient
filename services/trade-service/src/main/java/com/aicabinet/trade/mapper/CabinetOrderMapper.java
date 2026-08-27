@@ -44,11 +44,25 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
     return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }
 
+    record OrderFilterCriteria(
+            String deviceId,
+            Collection<String> deviceIds,
+            String status,
+            Instant createdBefore,
+            Instant createdFrom,
+            Instant createdTo,
+            String orderId,
+            Long userId,
+            String sessionId,
+            String payTradeNo,
+            String payChannel,
+            String keyword) {}
+
     default Page<CabinetOrder> findByFiltersOrderByCreatedAtDesc(
             String deviceId, Collection<String> deviceIds, String status, Pageable pageable) {
         return findByFiltersOrderByCreatedAtDesc(
-                deviceId, deviceIds, status, null, null, null,
-                null, null, null, null, null, null, pageable);
+                new OrderFilterCriteria(deviceId, deviceIds, status, null, null, null,
+                        null, null, null, null, null, null), pageable);
     }
 
     default Page<CabinetOrder> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable) {
@@ -157,36 +171,23 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
             String deviceId, Collection<String> deviceIds, String status,
             Instant createdBefore, Pageable pageable) {
         return findByFiltersOrderByCreatedAtDesc(
-                deviceId, deviceIds, status, createdBefore, null, null,
-                null, null, null, null, null, null, pageable);
+                new OrderFilterCriteria(deviceId, deviceIds, status, createdBefore, null, null,
+                        null, null, null, null, null, null), pageable);
     }
 
     /**
      * 运营订单列表筛选：设备范围 + 状态/账龄 + 精确字段 + 关键词（订单号/设备/会话/用户/流水）。
      */
     default Page<CabinetOrder> findByFiltersOrderByCreatedAtDesc(
-            String deviceId,
-            Collection<String> deviceIds,
-            String status,
-            Instant createdBefore,
-            Instant createdFrom,
-            Instant createdTo,
-            String orderId,
-            Long userId,
-            String sessionId,
-            String payTradeNo,
-            String payChannel,
-            String keyword,
-            Pageable pageable) {
+            OrderFilterCriteria criteria, Pageable pageable) {
         var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<CabinetOrder>(
                 pageable.getPageNumber() + 1L, pageable.getPageSize());
         var q = Wrappers.<CabinetOrder>lambdaQuery();
-        if (!applyOrderDeviceScope(q, deviceId, deviceIds, pageable)) {
+        if (!applyOrderDeviceScope(q, criteria.deviceId(), criteria.deviceIds(), pageable)) {
             return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
         }
-        applyOrderExactFilters(q, status, createdBefore, createdFrom, createdTo,
-                orderId, userId, sessionId, payTradeNo, payChannel);
-        applyOrderKeywordFilter(q, keyword);
+        applyOrderExactFilters(q, criteria);
+        applyOrderKeywordFilter(q, criteria.keyword());
         q.orderByDesc(CabinetOrder::getCreatedAt);
         var result = selectPage(mpPage, q);
         return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
@@ -211,37 +212,36 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
 
     private static void applyOrderExactFilters(
             com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CabinetOrder> q,
-            String status, Instant createdBefore, Instant createdFrom, Instant createdTo,
-            String orderId, Long userId, String sessionId, String payTradeNo, String payChannel) {
-        if (status != null && !status.isBlank()) {
-            q.eq(CabinetOrder::getStatus, status.trim());
+            OrderFilterCriteria criteria) {
+        if (criteria.status() != null && !criteria.status().isBlank()) {
+            q.eq(CabinetOrder::getStatus, criteria.status().trim());
         }
-        if (createdBefore != null) {
-            q.lt(CabinetOrder::getCreatedAt, createdBefore);
+        if (criteria.createdBefore() != null) {
+            q.lt(CabinetOrder::getCreatedAt, criteria.createdBefore());
         }
-        if (createdFrom != null) {
-            q.ge(CabinetOrder::getCreatedAt, createdFrom);
+        if (criteria.createdFrom() != null) {
+            q.ge(CabinetOrder::getCreatedAt, criteria.createdFrom());
         }
-        if (createdTo != null) {
-            q.le(CabinetOrder::getCreatedAt, createdTo);
+        if (criteria.createdTo() != null) {
+            q.le(CabinetOrder::getCreatedAt, criteria.createdTo());
         }
-        if (orderId != null && !orderId.isBlank()) {
-            q.eq(CabinetOrder::getOrderId, orderId.trim());
+        if (criteria.orderId() != null && !criteria.orderId().isBlank()) {
+            q.eq(CabinetOrder::getOrderId, criteria.orderId().trim());
         }
-        if (userId != null) {
-            q.eq(CabinetOrder::getUserId, userId);
+        if (criteria.userId() != null) {
+            q.eq(CabinetOrder::getUserId, criteria.userId());
         }
-        if (sessionId != null && !sessionId.isBlank()) {
-            q.eq(CabinetOrder::getSessionId, sessionId.trim());
+        if (criteria.sessionId() != null && !criteria.sessionId().isBlank()) {
+            q.eq(CabinetOrder::getSessionId, criteria.sessionId().trim());
         }
-        if (payTradeNo != null && !payTradeNo.isBlank()) {
-            String trade = payTradeNo.trim();
+        if (criteria.payTradeNo() != null && !criteria.payTradeNo().isBlank()) {
+            String trade = criteria.payTradeNo().trim();
             q.and(w -> w.eq(CabinetOrder::getPayTradeNo, trade)
                     .or()
                     .eq(CabinetOrder::getPaymentOperationId, trade));
         }
-        if (payChannel != null && !payChannel.isBlank()) {
-            q.eq(CabinetOrder::getPayChannel, payChannel.trim());
+        if (criteria.payChannel() != null && !criteria.payChannel().isBlank()) {
+            q.eq(CabinetOrder::getPayChannel, criteria.payChannel().trim());
         }
     }
 

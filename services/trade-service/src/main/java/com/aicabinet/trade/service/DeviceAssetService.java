@@ -385,13 +385,12 @@ public class DeviceAssetService {
      * 库存健康分页：先按筛选算全量（含 KPI / 一键补货柜机），再切片返回当前页。
      */
     @Transactional(readOnly = true)
-    public StockHealthPageDto stockHealthPage(Long operatorId, String dimension,
-                                              String merchantId, String routeCode, String lifecycleStatus,
-                                              String deviceId, int page, int size) {
+    public StockHealthPageDto stockHealthPage(Long operatorId, StockHealthPageQuery query) {
         List<StockHealthRowDto> all = self.stockHealth(
-                operatorId, dimension, merchantId, routeCode, lifecycleStatus, deviceId);
-        int p = Math.max(page, 0);
-        int s = Math.min(Math.max(size, 1), 100);
+                operatorId, query.dimension(), query.merchantId(), query.routeCode(),
+                query.lifecycleStatus(), query.deviceId());
+        int p = Math.max(query.page(), 0);
+        int s = Math.min(Math.max(query.size(), 1), 100);
         long stockoutCount = all.stream().filter(r -> STOCKOUT.equals(r.dimension())).count();
         long lowCount = all.stream().filter(r -> "LOW".equals(r.dimension())).count();
         long nearExpiryCount = all.stream().filter(r -> NEAR_EXPIRY.equals(r.dimension())).count();
@@ -406,6 +405,10 @@ public class DeviceAssetService {
         return new StockHealthPageDto(all.subList(from, to), p, s, all.size(),
                 stockoutCount, lowCount, nearExpiryCount, deviceCount, planDeviceIds);
     }
+
+    public record StockHealthPageQuery(
+            String dimension, String merchantId, String routeCode, String lifecycleStatus,
+            String deviceId, int page, int size) {}
 
     public static String normalizeLifecycle(String status) {
         if (status == null || status.isBlank()) {

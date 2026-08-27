@@ -57,14 +57,7 @@ public class ProfitSharingReturnAlertService {
                 "outReturnNo", split.getWechatPendingReturnNo() != null ? split.getWechatPendingReturnNo() : ""
         );
         opsExceptionService.report(
-                SPLIT_EXCEPTION,
-                "HIGH",
-                split.getDeviceId(),
-                null,
-                split.getOrderId(),
-                null,
-                title,
-                msg + " taskId=" + task.getTaskId());
+                SPLIT_EXCEPTION, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(split.getDeviceId(), null, split.getOrderId(), null), title, msg + " taskId=" + task.getTaskId());
         // 运营异常中心按 orderId 去重；Webhook 仍可能重复投递，属可接受告警冗余
         opsAlertDispatcher.send("PROFIT_SHARING_RETURN_FAILED", title, msg, extra);
     }
@@ -100,14 +93,7 @@ public class ProfitSharingReturnAlertService {
                 "splitStatus", split.getStatus() != null ? split.getStatus() : ""
         );
         opsExceptionService.report(
-                SPLIT_EXCEPTION,
-                "HIGH",
-                split.getDeviceId(),
-                null,
-                split.getOrderId(),
-                null,
-                title,
-                msg);
+                SPLIT_EXCEPTION, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(split.getDeviceId(), null, split.getOrderId(), null), title, msg);
         opsAlertDispatcher.send("PROFIT_SHARING_MANUAL_SUPPLEMENT", title, msg, extra);
     }
 
@@ -138,14 +124,7 @@ public class ProfitSharingReturnAlertService {
                 "failureMessage", failureMessage != null ? failureMessage : ""
         );
         opsExceptionService.report(
-                SPLIT_EXCEPTION,
-                "HIGH",
-                split.getDeviceId(),
-                null,
-                split.getOrderId(),
-                null,
-                title,
-                msg);
+                SPLIT_EXCEPTION, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(split.getDeviceId(), null, split.getOrderId(), null), title, msg);
         opsAlertDispatcher.send("PROFIT_SHARING_RETURN_SUBMIT_FAILED", title, msg, extra);
     }
 }

@@ -87,35 +87,34 @@ public class BalanceLedgerService {
      * 记录预授权冻结/释放/冲抵流水（余额字段仅作审计快照；冻结额变更由调用方完成）。
      */
     @Transactional
-    public PaymentOperation recordFreezeOnly(Long userId, int amountCents, String businessType,
-                                             String businessId, String idempotencyKey,
-                                             String reason, int balanceBefore, int balanceAfter) {
-        return runWithBalanceLock(userId, () -> doRecordFreezeOnly(userId, amountCents, businessType,
-                businessId, idempotencyKey, reason, balanceBefore, balanceAfter));
+    public PaymentOperation recordFreezeOnly(Long userId, BalanceFreezeCommand command) {
+        return runWithBalanceLock(userId, () -> doRecordFreezeOnly(userId, command));
     }
 
-    private PaymentOperation doRecordFreezeOnly(Long userId, int amountCents, String businessType,
-                                                String businessId, String idempotencyKey,
-                                                String reason, int balanceBefore, int balanceAfter) {
-        if (amountCents <= 0) {
+    public record BalanceFreezeCommand(
+            int amountCents, String businessType, String businessId, String idempotencyKey,
+            String reason, int balanceBefore, int balanceAfter) {}
+
+    private PaymentOperation doRecordFreezeOnly(Long userId, BalanceFreezeCommand command) {
+        if (command.amountCents() <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
         }
-        var existing = operationRepository.findByIdempotencyKey(idempotencyKey);
+        var existing = operationRepository.findByIdempotencyKey(command.idempotencyKey());
         if (existing.isPresent()) {
             return existing.get();
         }
         PaymentOperation operation = new PaymentOperation();
         operation.setOperationId(BizIds.nextNumeric());
         operation.setOrderId(null);
-        operation.setOperationType(businessType);
-        operation.setAmountCents(amountCents);
+        operation.setOperationType(command.businessType());
+        operation.setAmountCents(command.amountCents());
         operation.setChannel(PayChannels.BALANCE);
         operation.setStatus("COMPLETED");
-        operation.setIdempotencyKey(idempotencyKey);
-        operation.setReason(buildReason(businessType, businessId, reason));
+        operation.setIdempotencyKey(command.idempotencyKey());
+        operation.setReason(buildReason(command.businessType(), command.businessId(), command.reason()));
         operation.setUserId(userId);
-        operation.setBalanceBeforeCents(balanceBefore);
-        operation.setBalanceAfterCents(balanceAfter);
+        operation.setBalanceBeforeCents(command.balanceBefore());
+        operation.setBalanceAfterCents(command.balanceAfter());
         return operationRepository.saveAndFlush(operation);
     }
 

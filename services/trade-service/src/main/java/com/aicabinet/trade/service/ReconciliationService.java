@@ -9,7 +9,7 @@ import com.aicabinet.trade.domain.PaymentPlatformBillLine;
 import com.aicabinet.trade.domain.PaymentReconciliation;
 import com.aicabinet.trade.reconciliation.PlatformBillLine;
 import com.aicabinet.trade.reconciliation.PlatformBillProviderRegistry;
-import com.aicabinet.trade.metrics.CabinetMetrics;
+import com.aicabinet.trade.service.support.ReconciliationServiceSupport;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.mapper.PaymentPlatformBillLineMapper;
 import com.aicabinet.trade.mapper.PaymentReconciliationMapper;
@@ -39,32 +39,14 @@ public class ReconciliationService {
     private static final Logger log = LoggerFactory.getLogger(ReconciliationService.class);
 
     private final PaymentReconciliationMapper reconRepository;
-    private final PaymentPlatformBillLineMapper billLineRepository;
-    private final PaymentOperationMapper paymentOperationRepository;
-    private final RechargeOrderMapper rechargeRepository;
-    private final PlatformBillProviderRegistry billProviderRegistry;
-    private final ObjectMapper objectMapper;
-    private final CabinetMetrics cabinetMetrics;
-    private final DistributedLockService distributedLockService;
+    private final ReconciliationServiceSupport support;
     private final ReconciliationService self;
 
     public ReconciliationService(PaymentReconciliationMapper reconRepository,
-                                 PaymentPlatformBillLineMapper billLineRepository,
-                                 PaymentOperationMapper paymentOperationRepository,
-                                 RechargeOrderMapper rechargeRepository,
-                                 PlatformBillProviderRegistry billProviderRegistry,
-                                 ObjectMapper objectMapper,
-                                 CabinetMetrics cabinetMetrics,
-                                 DistributedLockService distributedLockService,
+                                 ReconciliationServiceSupport support,
                                  @Lazy ReconciliationService self) {
         this.reconRepository = reconRepository;
-        this.billLineRepository = billLineRepository;
-        this.paymentOperationRepository = paymentOperationRepository;
-        this.rechargeRepository = rechargeRepository;
-        this.billProviderRegistry = billProviderRegistry;
-        this.objectMapper = objectMapper;
-        this.cabinetMetrics = cabinetMetrics;
-        this.distributedLockService = distributedLockService;
+        this.support = support;
         this.self = self;
     }
 
@@ -116,7 +98,7 @@ public class ReconciliationService {
         PaymentReconciliation recon = reconRepository.findById(reconId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, ApiMessages.RECONCILIATION_NOT_FOUND));
-        List<PaymentPlatformBillLineDto> lines = billLineRepository.findByReconId(reconId).stream()
+        List<PaymentPlatformBillLineDto> lines = support.billLineRepository().findByReconId(reconId).stream()
                 .map(this::toLineDto)
                 .toList();
         return new PaymentReconciliationDetailDto(toDto(recon), recon.getDetail(), lines);
@@ -127,7 +109,7 @@ public class ReconciliationService {
         String ch = channel != null ? channel.toUpperCase() : CabinetConstants.PAY_CHANNEL_WECHAT;
         return runWithDailyLock(date, ch, () -> {
             reconRepository.findByReconDateAndChannel(date, ch).ifPresent(existing -> {
-                billLineRepository.deleteByReconId(existing.getReconId());
+                support.billLineRepository().deleteByReconId(existing.getReconId());
                 reconRepository.delete(existing);
                 reconRepository.flush();
             });
@@ -141,7 +123,7 @@ public class ReconciliationService {
 
     private PaymentReconciliationDto runWithDailyLock(LocalDate date, String channel,
                                                       java.util.function.Supplier<PaymentReconciliationDto> action) {
-        if (!distributedLockService.tryLock(dailyReconciliationLockKey(date, channel), 120, 5)) {
+        if (!support.distributedLockService().tryLock(dailyReconciliationLockKey(date, channel), 120, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "对账任务处理中，请稍后重试");
         }
         try {
@@ -151,7 +133,7 @@ public class ReconciliationService {
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
         } finally {
-            distributedLockService.unlock(dailyReconciliationLockKey(date, channel));
+            support.distributedLockService().unlock(dailyReconciliationLockKey(date, channel));
         }
     }
 
@@ -161,7 +143,7 @@ public class ReconciliationService {
         Instant end = date.plusDays(1).atStartOfDay(zone).toInstant();
 
         long ledgerTotal = sumLedger(start, end, channel);
-        List<PlatformBillLine> platformLines = billProviderRegistry.fetchBill(channel, date);
+        List<PlatformBillLine> platformLines = support.billProviderRegistry().fetchBill(channel, date);
         long platformTotal = platformLines.stream().mapToLong(PlatformBillLine::amountCents).sum();
 
         Set<String> ledgerOrderIds = collectLedgerOrderIds(start, end, channel);
@@ -198,7 +180,7 @@ public class ReconciliationService {
             entity.setTradeType(line.tradeType());
             entity.setMatched(isMatched);
             entity.setRawDetail(line.rawDetail());
-            billLineRepository.save(entity);
+            support.billLineRepository().save(entity);
         }
 
         Set<String> ledgerOnlyOrderIds = new HashSet<>(ledgerOrderIds);
@@ -209,7 +191,7 @@ public class ReconciliationService {
         recon.setStatus(recon.getDiffCents() == 0 && unmatched == 0 && ledgerOnlyOrderIds.isEmpty()
                 ? "MATCHED" : "MISMATCH");
         if ("MISMATCH".equals(recon.getStatus())) {
-            cabinetMetrics.recordReconciliationMismatch();
+            support.cabinetMetrics().recordReconciliationMismatch();
         }
         recon.setCompletedAt(Instant.now());
         try {
@@ -223,7 +205,7 @@ public class ReconciliationService {
             detail.put("reviewAction", categories.isEmpty()
                     ? "NONE"
                     : "FILTER_DETAIL_AND_RERUN_AFTER_GATEWAY_OR_LEDGER_FIX");
-            recon.setDetail(objectMapper.writeValueAsString(detail));
+            recon.setDetail(support.objectMapper().writeValueAsString(detail));
         } catch (Exception e) {
             log.warn("recon detail json failed", e);
         }
@@ -247,18 +229,18 @@ public class ReconciliationService {
     }
 
     private long sumLedger(Instant start, Instant end, String channel) {
-        long total = paymentOperationRepository.sumNetCashflowBetween(start, end, channel);
+        long total = support.paymentOperationRepository().sumNetCashflowBetween(start, end, channel);
         if (CabinetConstants.PAY_CHANNEL_WECHAT.equals(channel) || "MOCK".equals(channel) || "ALIPAY".equals(channel)) {
-            total += rechargeRepository.sumPaidAmountBetween(start, end);
+            total += support.rechargeRepository().sumPaidAmountBetween(start, end);
         }
         return total;
     }
 
     private Set<String> collectLedgerOrderIds(Instant start, Instant end, String channel) {
-        Set<String> ids = new HashSet<>(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(
+        Set<String> ids = new HashSet<>(support.paymentOperationRepository().findDistinctCabinetOrderIdsBetween(
                 start, end, channel));
         if (CabinetConstants.PAY_CHANNEL_WECHAT.equals(channel) || "MOCK".equals(channel) || "ALIPAY".equals(channel)) {
-            ids.addAll(rechargeRepository.findPaidOrderIdsBetween(start, end));
+            ids.addAll(support.rechargeRepository().findPaidOrderIdsBetween(start, end));
         }
         return ids;
     }

@@ -144,8 +144,7 @@ public class DevicePresenceService {
         d.setOnlineSince(null);
         deviceRepository.save(d);
         deviceRepository.clearOnlineSince(deviceId);
-        opsExceptionService.report("DEVICE_OFFLINE", "CRITICAL", deviceId, null,
-                null, null, "设备离线", "连续 " + OFFLINE_AFTER_MINUTES + " 分钟未收到心跳");
+        opsExceptionService.report("DEVICE_OFFLINE", "CRITICAL", new OpsExceptionService.ExceptionReport.ExceptionRefs(deviceId, null, null, null), "设备离线", "连续 " + OFFLINE_AFTER_MINUTES + " 分钟未收到心跳");
         log.info("device marked offline device={}", deviceId);
     }
 
@@ -181,9 +180,7 @@ public class DevicePresenceService {
                 d.setSalesUnlockedAt(null);
                 deviceRepository.save(d);
                 deviceRepository.clearSalesUnlockedAt(d.getDeviceId());
-                opsExceptionService.report("DEVICE_FAULT", "HIGH", d.getDeviceId(), null,
-                        null, null, "离线超时自动停售",
-                        "设备离线超过 " + lockAfterMinutes + " 分钟，已自动锁机（故障码：离线超时）");
+                opsExceptionService.report("DEVICE_FAULT", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(d.getDeviceId(), null, null, null), "离线超时自动停售", "设备离线超过 " + lockAfterMinutes + " 分钟，已自动锁机（故障码：离线超时）");
                 auditService.record(0L, "DEVICE_AUTO_LOCK_OFFLINE", "DEVICE", d.getDeviceId(),
                         "离线超过 " + lockAfterMinutes + " 分钟，已自动锁机停售");
                 log.info("device auto sales-locked after offline device={} minutes={}",

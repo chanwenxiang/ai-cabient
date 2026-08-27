@@ -11,39 +11,43 @@ import java.util.List;
 
 @Mapper
 public interface DeviceOpsEventMapper extends BaseTradeMapper<DeviceOpsEvent> {
-    default Page<DeviceOpsEvent> search(Collection<String> deviceIds, String eventType, String severity,
-                                        String deviceId, Instant from, Instant to,
-                                        int page, int size, boolean eventIdAsc) {
+
+    record DeviceOpsEventSearchCriteria(
+            Collection<String> deviceIds,
+            String eventType,
+            String severity,
+            String deviceId,
+            Instant from,
+            Instant to,
+            int page,
+            int size,
+            boolean eventIdAsc) {}
+
+    default Page<DeviceOpsEvent> search(DeviceOpsEventSearchCriteria criteria) {
         var q = Wrappers.<DeviceOpsEvent>lambdaQuery();
-        if (eventIdAsc) {
+        if (criteria.eventIdAsc()) {
             q.orderByAsc(DeviceOpsEvent::getEventId);
         } else {
             q.orderByDesc(DeviceOpsEvent::getEventId);
         }
-        if (deviceId != null && !deviceId.isBlank()) {
-            q.eq(DeviceOpsEvent::getDeviceId, deviceId.trim());
-        } else if (deviceIds != null && !deviceIds.isEmpty()) {
-            q.in(DeviceOpsEvent::getDeviceId, deviceIds);
+        if (criteria.deviceId() != null && !criteria.deviceId().isBlank()) {
+            q.eq(DeviceOpsEvent::getDeviceId, criteria.deviceId().trim());
+        } else if (criteria.deviceIds() != null && !criteria.deviceIds().isEmpty()) {
+            q.in(DeviceOpsEvent::getDeviceId, criteria.deviceIds());
         }
-        if (eventType != null && !eventType.isBlank()) {
-            q.eq(DeviceOpsEvent::getEventType, eventType.trim());
+        if (criteria.eventType() != null && !criteria.eventType().isBlank()) {
+            q.eq(DeviceOpsEvent::getEventType, criteria.eventType().trim());
         }
-        if (severity != null && !severity.isBlank()) {
-            q.eq(DeviceOpsEvent::getSeverity, severity.trim());
+        if (criteria.severity() != null && !criteria.severity().isBlank()) {
+            q.eq(DeviceOpsEvent::getSeverity, criteria.severity().trim());
         }
-        if (from != null) {
-            q.ge(DeviceOpsEvent::getCreatedAt, from);
+        if (criteria.from() != null) {
+            q.ge(DeviceOpsEvent::getCreatedAt, criteria.from());
         }
-        if (to != null) {
-            q.le(DeviceOpsEvent::getCreatedAt, to);
+        if (criteria.to() != null) {
+            q.le(DeviceOpsEvent::getCreatedAt, criteria.to());
         }
-        return selectPage(new Page<>(page + 1L, size), q);
-    }
-
-    /** @deprecated use overload with severity/deviceId */
-    default Page<DeviceOpsEvent> search(Collection<String> deviceIds, String eventType, Instant from, Instant to,
-                                        int page, int size, boolean eventIdAsc) {
-        return search(deviceIds, eventType, null, null, from, to, page, size, eventIdAsc);
+        return selectPage(new Page<>(criteria.page() + 1L, criteria.size()), q);
     }
 
     default List<DeviceOpsEvent> findRecent(int limit) {

@@ -106,9 +106,10 @@ public class BalanceRefundService {
 
         account.setFrozenCents(Math.max(0, account.getFrozenCents()) + amountCents);
         accountMapper.save(account);
-        balanceLedgerService.recordFreezeOnly(userId, amountCents, "BALANCE_REFUND_FREEZE",
-                null, "BALANCE_REFUND_FREEZE:" + userId + ":" + Instant.now().toEpochMilli(),
-                "余额退款申请冻结", account.getBalanceCents(), account.getBalanceCents());
+        balanceLedgerService.recordFreezeOnly(userId, new BalanceLedgerService.BalanceFreezeCommand(
+                amountCents, "BALANCE_REFUND_FREEZE", null,
+                "BALANCE_REFUND_FREEZE:" + userId + ":" + Instant.now().toEpochMilli(),
+                "余额退款申请冻结", account.getBalanceCents(), account.getBalanceCents()));
 
         Instant now = Instant.now();
         BalanceRefundRequest req = new BalanceRefundRequest();
@@ -281,10 +282,10 @@ public class BalanceRefundService {
             throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, ApiMessages.INSUFFICIENT_BALANCE);
         }
         accountMapper.save(account);
-        balanceLedgerService.recordFreezeOnly(req.getUserId(), req.getAmountCents(), BIZ_BALANCE_REFUND,
-                String.valueOf(req.getRequestId()),
+        balanceLedgerService.recordFreezeOnly(req.getUserId(), new BalanceLedgerService.BalanceFreezeCommand(
+                req.getAmountCents(), BIZ_BALANCE_REFUND, String.valueOf(req.getRequestId()),
                 "BALANCE_REFUND:" + req.getRequestNo(),
-                "余额退款原路退回", before, account.getBalanceCents());
+                "余额退款原路退回", before, account.getBalanceCents()));
     }
 
     private void releaseFreeze(Long userId, int amountCents, String bizKey) {
@@ -295,9 +296,9 @@ public class BalanceRefundService {
         account.setFrozenCents(frozen - release);
         accountMapper.save(account);
         if (release > 0) {
-            balanceLedgerService.recordFreezeOnly(userId, release, "BALANCE_REFUND_RELEASE",
-                    null, "BALANCE_REFUND_RELEASE:" + bizKey,
-                    "余额退款申请释放冻结", account.getBalanceCents(), account.getBalanceCents());
+            balanceLedgerService.recordFreezeOnly(userId, new BalanceLedgerService.BalanceFreezeCommand(
+                    release, "BALANCE_REFUND_RELEASE", null, "BALANCE_REFUND_RELEASE:" + bizKey,
+                    "余额退款申请释放冻结", account.getBalanceCents(), account.getBalanceCents()));
         }
     }
 

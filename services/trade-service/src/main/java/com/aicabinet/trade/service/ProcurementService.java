@@ -375,18 +375,15 @@ public class ProcurementService {
         line.setQualityNote(quality.note());
         line.setRejectedQty(0);
         purchaseOrderLineRepository.save(line);
-        warehouseService.receivePurchaseStock(
+        warehouseService.receivePurchaseStock(new WarehouseService.PurchaseReceiveCommand(
                 warehouseId,
-                line.getSkuId(),
-                line.getBatchNo(),
-                line.getProductionDate(),
-                line.getExpiryDate(),
+                new WarehouseService.LotSpec(line.getSkuId(), line.getBatchNo(),
+                        line.getProductionDate(), line.getExpiryDate()),
                 deltaQty,
                 line.getUnitCostCents(),
                 operatorId,
                 BIZ_PURCHASE_ORDER,
-                String.valueOf(order.getPurchaseOrderId())
-        );
+                String.valueOf(order.getPurchaseOrderId())));
         return (long) deltaQty * line.getUnitCostCents();
     }
 

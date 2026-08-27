@@ -235,10 +235,11 @@ public class WarehouseStocktakeService {
             if (line.getCountedQty() != null && line.getDiffQty() != 0
                     && !ADJUSTED.equals(line.getStatus())
                     && (selected == null || selected.contains(line.getLineId()))) {
-                warehouseService.adjustStocktake(
-                        st.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
-                        line.getProductionDate(), line.getExpiryDate(),
-                        line.getBookQty(), line.getCountedQty(), operatorId, st.getStocktakeId());
+                warehouseService.adjustStocktake(new WarehouseService.StocktakeAdjustCommand(
+                        st.getWarehouseId(),
+                        new WarehouseService.LotSpec(line.getSkuId(), line.getBatchNo(),
+                                line.getProductionDate(), line.getExpiryDate()),
+                        line.getBookQty(), line.getCountedQty(), operatorId, st.getStocktakeId()));
                 line.setStatus(ADJUSTED);
                 line.setAdjustedAt(Instant.now());
                 lineRepository.save(line);

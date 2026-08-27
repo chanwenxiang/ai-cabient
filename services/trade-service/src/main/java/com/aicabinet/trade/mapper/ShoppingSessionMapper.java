@@ -297,7 +297,7 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
             @Param("deviceIds") Collection<String> deviceIds);
 
     /** 运营会话列表筛选：设备范围 + 状态 + 会话/用户/时间 + 关键词 + 上传状态/滞留。 */
-    default Page<ShoppingSession> findByFiltersOrderByCreatedAtDesc(
+    record SessionFilterCriteria(
             String deviceId,
             Collection<String> deviceIds,
             SessionState state,
@@ -307,16 +307,18 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
             java.time.Instant createdTo,
             String keyword,
             String uploadStatus,
-            java.time.Instant updatedBefore,
-            Pageable pageable) {
+            java.time.Instant updatedBefore) {}
+
+    default Page<ShoppingSession> findByFiltersOrderByCreatedAtDesc(
+            SessionFilterCriteria criteria, Pageable pageable) {
         var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<ShoppingSession>(
                 pageable.getPageNumber() + 1L, pageable.getPageSize());
         var q = Wrappers.<ShoppingSession>lambdaQuery();
-        if (!applySessionDeviceScope(q, deviceId, deviceIds, pageable)) {
+        if (!applySessionDeviceScope(q, criteria.deviceId(), criteria.deviceIds(), pageable)) {
             return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
         }
-        applySessionExactFilters(q, state, sessionId, userId, createdFrom, createdTo, uploadStatus, updatedBefore);
-        applySessionKeywordFilter(q, keyword);
+        applySessionExactFilters(q, criteria);
+        applySessionKeywordFilter(q, criteria.keyword());
         q.orderByDesc(ShoppingSession::getCreatedAt);
         var result = selectPage(mpPage, q);
         return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
@@ -341,29 +343,27 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
 
     private static void applySessionExactFilters(
             com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ShoppingSession> q,
-            SessionState state, String sessionId, Long userId,
-            java.time.Instant createdFrom, java.time.Instant createdTo,
-            String uploadStatus, java.time.Instant updatedBefore) {
-        if (state != null) {
-            q.eq(ShoppingSession::getState, state);
+            SessionFilterCriteria criteria) {
+        if (criteria.state() != null) {
+            q.eq(ShoppingSession::getState, criteria.state());
         }
-        if (sessionId != null && !sessionId.isBlank()) {
-            q.eq(ShoppingSession::getSessionId, sessionId.trim());
+        if (criteria.sessionId() != null && !criteria.sessionId().isBlank()) {
+            q.eq(ShoppingSession::getSessionId, criteria.sessionId().trim());
         }
-        if (userId != null) {
-            q.eq(ShoppingSession::getUserId, userId);
+        if (criteria.userId() != null) {
+            q.eq(ShoppingSession::getUserId, criteria.userId());
         }
-        if (createdFrom != null) {
-            q.ge(ShoppingSession::getCreatedAt, createdFrom);
+        if (criteria.createdFrom() != null) {
+            q.ge(ShoppingSession::getCreatedAt, criteria.createdFrom());
         }
-        if (createdTo != null) {
-            q.le(ShoppingSession::getCreatedAt, createdTo);
+        if (criteria.createdTo() != null) {
+            q.le(ShoppingSession::getCreatedAt, criteria.createdTo());
         }
-        if (uploadStatus != null && !uploadStatus.isBlank()) {
-            q.eq(ShoppingSession::getUploadStatus, uploadStatus.trim());
+        if (criteria.uploadStatus() != null && !criteria.uploadStatus().isBlank()) {
+            q.eq(ShoppingSession::getUploadStatus, criteria.uploadStatus().trim());
         }
-        if (updatedBefore != null) {
-            q.le(ShoppingSession::getUpdatedAt, updatedBefore);
+        if (criteria.updatedBefore() != null) {
+            q.le(ShoppingSession::getUpdatedAt, criteria.updatedBefore());
         }
     }
 
@@ -392,22 +392,6 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
         } catch (NumberFormatException ignored) {
             return null;
         }
-    }
-
-    /** @deprecated use overload with uploadStatus/updatedBefore */
-    default Page<ShoppingSession> findByFiltersOrderByCreatedAtDesc(
-            String deviceId,
-            Collection<String> deviceIds,
-            SessionState state,
-            String sessionId,
-            Long userId,
-            java.time.Instant createdFrom,
-            java.time.Instant createdTo,
-            String keyword,
-            Pageable pageable) {
-        return findByFiltersOrderByCreatedAtDesc(
-                deviceId, deviceIds, state, sessionId, userId, createdFrom, createdTo,
-                keyword, null, null, pageable);
     }
 
     default long countByDeviceIdAndCreatedAtAfter(String deviceId, java.time.Instant since) {

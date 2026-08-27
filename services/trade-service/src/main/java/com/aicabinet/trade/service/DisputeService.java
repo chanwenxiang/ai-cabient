@@ -153,7 +153,7 @@ public class DisputeService {
         if (existing.isPresent()) {
             return toDto(existing.get());
         }
-        DisputeTicketDto dto = saveOpenTicket(
+        DisputeTicketDto dto = saveOpenTicket(new OpenTicketDraft(
                 session.getUserId(),
                 session.getSessionId(),
                 reason,
@@ -162,7 +162,7 @@ public class DisputeService {
                 recognition != null ? priorityForRecognition(recognition) : "HIGH",
                 recognition != null ? reviewCodeFor(recognition, reason) : "TIMEOUT",
                 toJson(recognition != null && recognition.detectedClasses() != null
-                        ? recognition.detectedClasses() : List.of()));
+                        ? recognition.detectedClasses() : List.of())));
         // 争议/回查会话立即归档录像副本（原始录像会在保留期后过期）
         videoArchiveService.archiveSession(session);
         return dto;
@@ -203,8 +203,9 @@ public class DisputeService {
             }
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DISPUTE_ALREADY_EXISTS);
         }
-        DisputeTicketDto dto = saveOpenTicket(userId, session.getSessionId(), request.reason().trim(), "[]",
-                normalizeCategory(request.category()), normalizePriority(request.priority()), null, null);
+        DisputeTicketDto dto = saveOpenTicket(new OpenTicketDraft(
+                userId, session.getSessionId(), request.reason().trim(), "[]",
+                normalizeCategory(request.category()), normalizePriority(request.priority()), null, null));
         // 用户事后申诉：在原始录像仍保留期间立即归档，避免过期后无法回放
         videoArchiveService.archiveSession(session);
         fileAttachmentService.bindEvidenceToDispute(userId, dto.ticketId(), request.evidenceFileIds());
@@ -348,7 +349,7 @@ public class DisputeService {
     private DisputeTicket ensureDisputeTicketForFullRefund(CabinetOrder order, ShoppingSession session, String reason) {
         DisputeTicket ticket = disputeRepository.findBySessionId(session.getSessionId()).orElse(null);
         if (ticket == null) {
-            DisputeTicketDto created = saveOpenTicket(
+            DisputeTicketDto created = saveOpenTicket(new OpenTicketDraft(
                     order.getUserId(),
                     session.getSessionId(),
                     reason,
@@ -356,7 +357,7 @@ public class DisputeService {
                     USER_APPEAL,
                     STATUS_NORMAL,
                     null,
-                    null);
+                    null));
             return disputeRepository.findById(created.ticketId()).orElseThrow();
         }
         if (STATUS_RESOLVED.equals(ticket.getStatus()) || STATUS_CLOSED.equals(ticket.getStatus())) {
@@ -391,29 +392,32 @@ public class DisputeService {
         }
     }
 
-    private DisputeTicketDto saveOpenTicket(Long userId, String sessionId, String reason, String itemsJson,
-                                            String category, String priority,
-                                            String reviewCode, String detectedClassesJson) {
+    private record OpenTicketDraft(
+            Long userId, String sessionId, String reason, String itemsJson,
+            String category, String priority, String reviewCode, String detectedClassesJson) {}
+
+    private DisputeTicketDto saveOpenTicket(OpenTicketDraft draft) {
         DisputeTicket ticket = new DisputeTicket();
         ticket.setTicketId(newTicketId());
-        ticket.setSessionId(sessionId);
-        ticket.setReason(reason);
+        ticket.setSessionId(draft.sessionId());
+        ticket.setReason(draft.reason());
         ticket.setStatus("OPEN");
-        ticket.setCategory(category);
-        ticket.setPriority(priority);
-        ticket.setItems(itemsJson);
-        if (reviewCode != null && !reviewCode.isBlank()) {
-            ticket.setReviewCode(reviewCode.trim().toUpperCase());
+        ticket.setCategory(draft.category());
+        ticket.setPriority(draft.priority());
+        ticket.setItems(draft.itemsJson());
+        if (draft.reviewCode() != null && !draft.reviewCode().isBlank()) {
+            ticket.setReviewCode(draft.reviewCode().trim().toUpperCase());
         }
-        if (detectedClassesJson != null && !detectedClassesJson.isBlank() && !"null".equals(detectedClassesJson)) {
-            ticket.setDetectedClasses(detectedClassesJson);
+        if (draft.detectedClassesJson() != null && !draft.detectedClassesJson().isBlank()
+                && !"null".equals(draft.detectedClassesJson())) {
+            ticket.setDetectedClasses(draft.detectedClassesJson());
         }
         Instant now = Instant.now();
         ticket.setSlaDueAt(now.plus(
                 systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_HOURS, disputeSlaProperties.hours()),
                 ChronoUnit.HOURS));
         disputeRepository.save(ticket);
-        riskControlService.onDisputeCreated(userId, sessionId);
+        riskControlService.onDisputeCreated(draft.userId(), draft.sessionId());
         return toDto(ticket);
     }
 
@@ -457,30 +461,22 @@ public class DisputeService {
     }
 
     @Transactional(readOnly = true)
-    public PageResult<DisputeTicketDto> listTickets(Long operatorId, int page, int size,
-                                                    String status, String sessionId, String deviceId,
-                                                    String category, String reviewCode) {
-        return self.listTickets(operatorId, page, size, status, sessionId, deviceId, null, category, reviewCode);
-    }
-
-    @Transactional(readOnly = true)
-    public PageResult<DisputeTicketDto> listTickets(Long operatorId, int page, int size,
-                                                    String status, String sessionId, String deviceId,
-                                                    String orderId, String category, String reviewCode) {
+    public PageResult<DisputeTicketDto> listTickets(Long operatorId, DisputeTicketListQuery query) {
         permissionService.requirePermission(operatorId, PERM_OPS_DISPUTE);
-        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
-        Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(operatorId, deviceId);
+        Pageable pageable = PageRequest.of(query.page(), Math.min(query.size(), 100));
+        Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(operatorId, query.deviceId());
         Page<DisputeTicket> result;
         if (deviceScope != null && deviceScope.isEmpty()) {
             result = Page.empty(pageable);
         } else if (deviceScope != null) {
             result = disputeRepository.searchByDeviceIds(
-                    blankToNull(status), blankToNull(sessionId), deviceScope, blankToNull(orderId),
-                    blankToNull(category), blankToNull(reviewCode), pageable);
+                    blankToNull(query.status()), blankToNull(query.sessionId()), deviceScope, blankToNull(query.orderId()),
+                    blankToNull(query.category()), blankToNull(query.reviewCode()), pageable);
         } else {
             result = disputeRepository.search(
-                    blankToNull(status), blankToNull(sessionId), blankToNull(deviceId), blankToNull(orderId),
-                    blankToNull(category), blankToNull(reviewCode), pageable);
+                    blankToNull(query.status()), blankToNull(query.sessionId()), blankToNull(query.deviceId()),
+                    blankToNull(query.orderId()),
+                    blankToNull(query.category()), blankToNull(query.reviewCode()), pageable);
         }
         return new PageResult<>(
                 result.getContent().stream().map(this::toDto).toList(),
@@ -489,6 +485,10 @@ public class DisputeService {
                 result.getTotalElements()
         );
     }
+
+    public record DisputeTicketListQuery(
+            int page, int size, String status, String sessionId, String deviceId,
+            String orderId, String category, String reviewCode) {}
 
     /** 运营按工单号取详情（深链 / 跨页打开）。 */
     @Transactional(readOnly = true)

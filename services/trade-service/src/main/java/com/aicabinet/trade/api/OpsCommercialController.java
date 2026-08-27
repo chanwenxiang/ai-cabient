@@ -3,26 +3,10 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
-import com.aicabinet.trade.service.CommercialFlowService;
-import com.aicabinet.trade.service.FileAttachmentService;
+import com.aicabinet.trade.api.support.OpsCommercialControllerSupport;
 import com.aicabinet.trade.service.OpsCommercialFacade;
-import com.aicabinet.trade.service.OpsCsvExportService;
-import com.aicabinet.trade.service.ProcurementService;
-import com.aicabinet.trade.service.PurchaseSuggestionService;
-import com.aicabinet.trade.service.SupplierPayableService;
-import com.aicabinet.trade.service.OpsTwoFactorService;
-import com.aicabinet.trade.service.DeviceTempPlanService;
-import com.aicabinet.trade.service.DeviceEnvService;
-import com.aicabinet.trade.service.MediaAssetService;
-import com.aicabinet.trade.service.AdCampaignService;
-import com.aicabinet.trade.service.FootfallAnalyticsService;
-import com.aicabinet.trade.service.OrgService;
-import com.aicabinet.trade.service.SiteContractService;
-import com.aicabinet.common.dto.TwoFactorCodeRequest;
 import com.aicabinet.common.dto.TwoFactorEnrollDto;
 import com.aicabinet.common.dto.TwoFactorStatusDto;
-import com.aicabinet.trade.service.WarehouseStocktakeService;
-import com.aicabinet.trade.service.WarehouseBinService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -44,64 +28,18 @@ import java.util.Map;
 public class OpsCommercialController {
 
     private final OpsCommercialFacade facade;
-    private final CommercialFlowService commercialFlowService;
-    private final ProcurementService procurementService;
-    private final PurchaseSuggestionService purchaseSuggestionService;
-    private final SupplierPayableService supplierPayableService;
-    private final WarehouseStocktakeService warehouseStocktakeService;
-    private final WarehouseBinService warehouseBinService;
-    private final OpsCsvExportService csvExportService;
-    private final FileAttachmentService fileAttachmentService;
-    private final OpsTwoFactorService opsTwoFactorService;
-    private final DeviceTempPlanService deviceTempPlanService;
-    private final DeviceEnvService deviceEnvService;
-    private final MediaAssetService mediaAssetService;
-    private final AdCampaignService adCampaignService;
-    private final FootfallAnalyticsService footfallAnalyticsService;
-    private final OrgService orgService;
-    private final SiteContractService siteContractService;
+    private final OpsCommercialControllerSupport support;
 
-    public OpsCommercialController(OpsCommercialFacade facade,
-                                   CommercialFlowService commercialFlowService,
-                                   ProcurementService procurementService,
-                                   PurchaseSuggestionService purchaseSuggestionService,
-                                   SupplierPayableService supplierPayableService,
-                                   WarehouseStocktakeService warehouseStocktakeService,
-                                   WarehouseBinService warehouseBinService,
-                                   OpsCsvExportService csvExportService,
-                                   FileAttachmentService fileAttachmentService,
-                                   OpsTwoFactorService opsTwoFactorService,
-                                   DeviceTempPlanService deviceTempPlanService,
-                                   DeviceEnvService deviceEnvService,
-                                   MediaAssetService mediaAssetService,
-                                   AdCampaignService adCampaignService,
-                                   FootfallAnalyticsService footfallAnalyticsService,
-                                   OrgService orgService,
-                                   SiteContractService siteContractService) {
+    public OpsCommercialController(OpsCommercialFacade facade, OpsCommercialControllerSupport support) {
         this.facade = facade;
-        this.commercialFlowService = commercialFlowService;
-        this.procurementService = procurementService;
-        this.purchaseSuggestionService = purchaseSuggestionService;
-        this.supplierPayableService = supplierPayableService;
-        this.warehouseStocktakeService = warehouseStocktakeService;
-        this.warehouseBinService = warehouseBinService;
-        this.csvExportService = csvExportService;
-        this.fileAttachmentService = fileAttachmentService;
-        this.opsTwoFactorService = opsTwoFactorService;
-        this.deviceTempPlanService = deviceTempPlanService;
-        this.deviceEnvService = deviceEnvService;
-        this.mediaAssetService = mediaAssetService;
-        this.adCampaignService = adCampaignService;
-        this.footfallAnalyticsService = footfallAnalyticsService;
-        this.orgService = orgService;
-        this.siteContractService = siteContractService;
+        this.support = support;
     }
 
     // --- 组织架构与点位生命周期 ---
     @RequiresPermissions("ops:org:list")
     @GetMapping("/org/tree")
     public ApiResponse<List<OrgNodeDto>> orgTree(HttpServletRequest request) {
-        return ApiResponse.ok(orgService.tree(operatorId(request)));
+        return ApiResponse.ok(support.orgService().tree(operatorId(request)));
     }
 
     @RequiresPermissions("ops:org:edit")
@@ -109,7 +47,7 @@ public class OpsCommercialController {
     public ApiResponse<OrgNodeDto> upsertOrgNode(
             HttpServletRequest request,
             @Valid @RequestBody UpsertOrgNodeRequest body) {
-        return ApiResponse.ok(orgService.upsertNode(operatorId(request), body));
+        return ApiResponse.ok(support.orgService().upsertNode(operatorId(request), body));
     }
 
     @RequiresPermissions("ops:org:edit")
@@ -118,7 +56,7 @@ public class OpsCommercialController {
             HttpServletRequest request,
             @PathVariable Long nodeId,
             @RequestParam boolean enabled) {
-        return ApiResponse.ok(orgService.toggleNode(operatorId(request), nodeId, enabled));
+        return ApiResponse.ok(support.orgService().toggleNode(operatorId(request), nodeId, enabled));
     }
 
     @RequiresPermissions("ops:org:edit")
@@ -127,14 +65,14 @@ public class OpsCommercialController {
             HttpServletRequest request,
             @PathVariable Long nodeId,
             @Valid @RequestBody AssignOrgDevicesRequest body) {
-        return ApiResponse.ok(orgService.assignDevices(operatorId(request), nodeId, body.deviceIds()));
+        return ApiResponse.ok(support.orgService().assignDevices(operatorId(request), nodeId, body.deviceIds()));
     }
 
     @RequiresPermissions("ops:org:edit")
     @DeleteMapping("/org/nodes/{nodeId}")
     public ApiResponse<Void> deleteOrgNode(
             HttpServletRequest request, @PathVariable Long nodeId) {
-        orgService.deleteNode(operatorId(request), nodeId);
+        support.orgService().deleteNode(operatorId(request), nodeId);
         return ApiResponse.ok(null);
     }
 
@@ -144,7 +82,7 @@ public class OpsCommercialController {
             HttpServletRequest request,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size) {
-        return ApiResponse.ok(siteContractService.listPage(operatorId(request), page, size));
+        return ApiResponse.ok(support.siteContractService().listPage(operatorId(request), page, size));
     }
 
     @RequiresPermissions("ops:org:edit")
@@ -153,14 +91,14 @@ public class OpsCommercialController {
             HttpServletRequest request,
             @PathVariable String deviceId,
             @Valid @RequestBody UpsertSiteContractRequest body) {
-        return ApiResponse.ok(siteContractService.upsert(operatorId(request), deviceId, body));
+        return ApiResponse.ok(support.siteContractService().upsert(operatorId(request), deviceId, body));
     }
 
     @RequiresPermissions("ops:org:edit")
     @DeleteMapping("/site-contracts/{contractId}")
     public ApiResponse<Void> deleteSiteContract(
             HttpServletRequest request, @PathVariable Long contractId) {
-        siteContractService.delete(operatorId(request), contractId);
+        support.siteContractService().delete(operatorId(request), contractId);
         return ApiResponse.ok(null);
     }
 
@@ -172,7 +110,7 @@ public class OpsCommercialController {
             @RequestParam(name = "days", defaultValue = "7") int days,
             @RequestParam(name = "deviceLimit", defaultValue = "50") int deviceLimit,
             @RequestParam(name = "skuLimit", defaultValue = "20") int skuLimit) {
-        return ApiResponse.ok(footfallAnalyticsService.analytics(days, deviceLimit, skuLimit));
+        return ApiResponse.ok(support.footfallAnalyticsService().analytics(days, deviceLimit, skuLimit));
     }
 
     @RequiresPermissions("ops:analytics:footfall:view")
@@ -181,14 +119,14 @@ public class OpsCommercialController {
             HttpServletRequest request,
             @RequestParam String deviceId,
             @RequestParam(name = "days", defaultValue = "7") int days) {
-        return ApiResponse.ok(footfallAnalyticsService.slotHeat(deviceId, days));
+        return ApiResponse.ok(support.footfallAnalyticsService().slotHeat(deviceId, days));
     }
 
     // --- 广告/多媒体运营：素材库 + 投放计划（读写沿用设备权限码，避免新建角色权限） ---
     @RequiresPermissions("ops:ad:list")
     @GetMapping("/ad/assets")
     public ApiResponse<List<MediaAssetDto>> adAssets(HttpServletRequest request) {
-        return ApiResponse.ok(mediaAssetService.list());
+        return ApiResponse.ok(support.mediaAssetService().list());
     }
 
     @RequiresPermissions("ops:ad:edit")
@@ -199,7 +137,7 @@ public class OpsCommercialController {
             @RequestParam(name = "title", required = false) String title,
             @RequestParam(name = "durationSeconds", defaultValue = "0") int durationSeconds,
             @RequestParam(name = "assetType", required = false) String assetType) throws IOException {
-        return ApiResponse.ok(mediaAssetService.upload(
+        return ApiResponse.ok(support.mediaAssetService().upload(
                 operatorId(request), file, title, durationSeconds, assetType));
     }
 
@@ -209,28 +147,28 @@ public class OpsCommercialController {
             HttpServletRequest request,
             @PathVariable Long assetId,
             @Valid @RequestBody UpsertMediaAssetRequest body) {
-        return ApiResponse.ok(mediaAssetService.update(assetId, body));
+        return ApiResponse.ok(support.mediaAssetService().update(assetId, body));
     }
 
     @RequiresPermissions("ops:ad:edit")
     @DeleteMapping("/ad/assets/{assetId}")
     public ApiResponse<Void> deleteAdAsset(
             HttpServletRequest request, @PathVariable Long assetId) {
-        mediaAssetService.delete(assetId);
+        support.mediaAssetService().delete(assetId);
         return ApiResponse.ok(null);
     }
 
     @RequiresPermissions("ops:ad:list")
     @GetMapping("/ad/campaigns")
     public ApiResponse<List<AdCampaignDto>> adCampaigns(HttpServletRequest request) {
-        return ApiResponse.ok(adCampaignService.list());
+        return ApiResponse.ok(support.adCampaignService().list());
     }
 
     @RequiresPermissions("ops:ad:list")
     @GetMapping("/ad/campaigns/{campaignId}")
     public ApiResponse<AdCampaignDto> adCampaign(
             HttpServletRequest request, @PathVariable Long campaignId) {
-        return ApiResponse.ok(adCampaignService.get(campaignId));
+        return ApiResponse.ok(support.adCampaignService().get(campaignId));
     }
 
     @RequiresPermissions("ops:ad:edit")
@@ -238,7 +176,7 @@ public class OpsCommercialController {
     public ApiResponse<AdCampaignDto> createAdCampaign(
             HttpServletRequest request,
             @Valid @RequestBody UpsertAdCampaignRequest body) {
-        return ApiResponse.ok(adCampaignService.upsert(operatorId(request), null, body));
+        return ApiResponse.ok(support.adCampaignService().upsert(operatorId(request), null, body));
     }
 
     @RequiresPermissions("ops:ad:edit")
@@ -247,28 +185,28 @@ public class OpsCommercialController {
             HttpServletRequest request,
             @PathVariable Long campaignId,
             @Valid @RequestBody UpsertAdCampaignRequest body) {
-        return ApiResponse.ok(adCampaignService.upsert(operatorId(request), campaignId, body));
+        return ApiResponse.ok(support.adCampaignService().upsert(operatorId(request), campaignId, body));
     }
 
     @RequiresPermissions("ops:ad:edit")
     @PostMapping("/ad/campaigns/{campaignId}/launch")
     public ApiResponse<AdCampaignDto> launchAdCampaign(
             HttpServletRequest request, @PathVariable Long campaignId) {
-        return ApiResponse.ok(adCampaignService.launch(operatorId(request), campaignId));
+        return ApiResponse.ok(support.adCampaignService().launch(operatorId(request), campaignId));
     }
 
     @RequiresPermissions("ops:ad:edit")
     @PostMapping("/ad/campaigns/{campaignId}/stop")
     public ApiResponse<AdCampaignDto> stopAdCampaign(
             HttpServletRequest request, @PathVariable Long campaignId) {
-        return ApiResponse.ok(adCampaignService.stop(operatorId(request), campaignId));
+        return ApiResponse.ok(support.adCampaignService().stop(operatorId(request), campaignId));
     }
 
     @RequiresPermissions("ops:ad:edit")
     @DeleteMapping("/ad/campaigns/{campaignId}")
     public ApiResponse<Void> deleteAdCampaign(
             HttpServletRequest request, @PathVariable Long campaignId) {
-        adCampaignService.delete(operatorId(request), campaignId);
+        support.adCampaignService().delete(operatorId(request), campaignId);
         return ApiResponse.ok(null);
     }
 
@@ -277,7 +215,7 @@ public class OpsCommercialController {
     @GetMapping("/devices/{deviceId}/temp-plan")
     public ApiResponse<DeviceTempPlanDto> tempPlan(
             HttpServletRequest request, @PathVariable String deviceId) {
-        return ApiResponse.ok(deviceTempPlanService.get(operatorId(request), deviceId));
+        return ApiResponse.ok(support.deviceTempPlanService().get(operatorId(request), deviceId));
     }
 
     @RequiresPermissions("ops:device:edit")
@@ -286,7 +224,7 @@ public class OpsCommercialController {
             HttpServletRequest request,
             @PathVariable String deviceId,
             @Valid @RequestBody UpsertDeviceTempPlanRequest body) {
-        return ApiResponse.ok(deviceTempPlanService.upsert(
+        return ApiResponse.ok(support.deviceTempPlanService().upsert(
                 operatorId(request), deviceId, body.enabled(), body.entries()));
     }
 
@@ -294,7 +232,7 @@ public class OpsCommercialController {
     @PostMapping("/devices/{deviceId}/temp-plan/apply")
     public ApiResponse<DeviceTempPlanDto> applyTempPlan(
             HttpServletRequest request, @PathVariable String deviceId) {
-        return ApiResponse.ok(deviceTempPlanService.applyNow(operatorId(request), deviceId));
+        return ApiResponse.ok(support.deviceTempPlanService().applyNow(operatorId(request), deviceId));
     }
 
     @RequiresPermissions("ops:device:list")
@@ -305,31 +243,31 @@ public class OpsCommercialController {
             @RequestParam(name = "type", required = false) String type,
             @RequestParam(name = "hours", defaultValue = "24") int hours,
             @RequestParam(name = "limit", defaultValue = "200") int limit) {
-        return ApiResponse.ok(deviceEnvService.list(deviceId, type, hours, limit));
+        return ApiResponse.ok(support.deviceEnvService().list(deviceId, type, hours, limit));
     }
 
     // --- 个人中心：双因子认证（TOTP） ---
     @GetMapping("/rbac/me/two-factor/status")
     public ApiResponse<TwoFactorStatusDto> twoFactorStatus(HttpServletRequest request) {
-        return ApiResponse.ok(opsTwoFactorService.status(operatorId(request)));
+        return ApiResponse.ok(support.opsTwoFactorService().status(operatorId(request)));
     }
 
     @GetMapping("/rbac/me/two-factor/enroll")
     public ApiResponse<TwoFactorEnrollDto> enrollTwoFactor(HttpServletRequest request) {
-        return ApiResponse.ok(opsTwoFactorService.enroll(operatorId(request)));
+        return ApiResponse.ok(support.opsTwoFactorService().enroll(operatorId(request)));
     }
 
     @PostMapping("/rbac/me/two-factor/confirm")
     public ApiResponse<Void> confirmTwoFactor(HttpServletRequest request,
                                               @Valid @RequestBody TwoFactorCodeRequest body) {
-        opsTwoFactorService.confirm(operatorId(request), body.code());
+        support.opsTwoFactorService().confirm(operatorId(request), body.code());
         return ApiResponse.ok(null);
     }
 
     @PostMapping("/rbac/me/two-factor/disable")
     public ApiResponse<Void> disableTwoFactor(HttpServletRequest request,
                                               @Valid @RequestBody TwoFactorCodeRequest body) {
-        opsTwoFactorService.disable(operatorId(request), body.code());
+        support.opsTwoFactorService().disable(operatorId(request), body.code());
         return ApiResponse.ok(null);
     }
 
@@ -338,7 +276,7 @@ public class OpsCommercialController {
     public ApiResponse<CommercialFlowRunResult> runCommercialFlow(
             HttpServletRequest request,
             @RequestBody(required = false) CommercialFlowRunRequest body) {
-        return ApiResponse.ok(commercialFlowService.runFullFlow(operatorId(request), body));
+        return ApiResponse.ok(support.commercialFlowService().runFullFlow(operatorId(request), body));
     }
 
     @RequiresPermissions("ops:procurement:list")
@@ -348,7 +286,7 @@ public class OpsCommercialController {
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size) {
-        return ApiResponse.ok(procurementService.listSuppliersPage(operatorId(request), q, page, size));
+        return ApiResponse.ok(support.procurementService().listSuppliersPage(operatorId(request), q, page, size));
     }
 
     @RequiresPermissions("ops:procurement:edit")
@@ -367,7 +305,7 @@ public class OpsCommercialController {
                 body.creditLimitCents(),
                 body.createdAt()
         );
-        return ApiResponse.ok(procurementService.upsertSupplier(operatorId(request), merged));
+        return ApiResponse.ok(support.procurementService().upsertSupplier(operatorId(request), merged));
     }
 
     @RequiresPermissions("ops:procurement:list")
@@ -379,7 +317,7 @@ public class OpsCommercialController {
             @RequestParam(name = "returnableOnly", defaultValue = "false") boolean returnableOnly,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size) {
-        return ApiResponse.ok(procurementService.listPurchaseOrdersPage(
+        return ApiResponse.ok(support.procurementService().listPurchaseOrdersPage(
                 operatorId(request), q, warehouseId, returnableOnly, page, size));
     }
 
@@ -388,7 +326,7 @@ public class OpsCommercialController {
     public ApiResponse<PurchaseOrderDto> purchaseOrder(
             HttpServletRequest request,
             @PathVariable Long purchaseOrderId) {
-        return ApiResponse.ok(procurementService.getPurchaseOrder(operatorId(request), purchaseOrderId));
+        return ApiResponse.ok(support.procurementService().getPurchaseOrder(operatorId(request), purchaseOrderId));
     }
 
     @RequiresPermissions("ops:procurement:list")
@@ -400,7 +338,7 @@ public class OpsCommercialController {
             @RequestParam(required = false) Integer coverageDays,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size) {
-        return ApiResponse.ok(purchaseSuggestionService.suggestPage(
+        return ApiResponse.ok(support.purchaseSuggestionService().suggestPage(
                 operatorId(request),
                 warehouseId,
                 leadTimeDays == null ? 0 : leadTimeDays,
@@ -414,7 +352,7 @@ public class OpsCommercialController {
     public ApiResponse<PurchaseOrderDto> createPurchaseOrder(
             HttpServletRequest request,
             @Valid @RequestBody CreatePurchaseOrderRequest body) {
-        return ApiResponse.ok(procurementService.createPurchaseOrder(operatorId(request), body));
+        return ApiResponse.ok(support.procurementService().createPurchaseOrder(operatorId(request), body));
     }
 
     @RequiresPermissions(value = {"ops:procurement:edit", "ops:finance:view"}, logical = RequiresPermissions.Logical.OR)
@@ -425,7 +363,7 @@ public class OpsCommercialController {
             @RequestBody java.util.Map<String, Object> body) {
         boolean approve = body != null && Boolean.TRUE.equals(body.get("approve"));
         String remark = body != null && body.get("remark") != null ? String.valueOf(body.get("remark")) : null;
-        return ApiResponse.ok(procurementService.reviewPurchaseOrder(
+        return ApiResponse.ok(support.procurementService().reviewPurchaseOrder(
                 operatorId(request), purchaseOrderId, approve, remark));
     }
 
@@ -435,7 +373,7 @@ public class OpsCommercialController {
             HttpServletRequest request,
             @PathVariable Long purchaseOrderId,
             @Valid @RequestBody ReceivePurchaseOrderRequest body) {
-        return ApiResponse.ok(procurementService.receivePurchaseOrder(operatorId(request), purchaseOrderId, body));
+        return ApiResponse.ok(support.procurementService().receivePurchaseOrder(operatorId(request), purchaseOrderId, body));
     }
 
     @RequiresPermissions("ops:procurement:list")
@@ -446,7 +384,7 @@ public class OpsCommercialController {
             @RequestParam(name = "warehouseId", required = false) String warehouseId,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size) {
-        return ApiResponse.ok(procurementService.listPurchaseReturnsPage(
+        return ApiResponse.ok(support.procurementService().listPurchaseReturnsPage(
                 operatorId(request), q, warehouseId, page, size));
     }
 
@@ -455,7 +393,7 @@ public class OpsCommercialController {
     public ApiResponse<PurchaseReturnDto> createPurchaseReturn(
             HttpServletRequest request,
             @Valid @RequestBody CreatePurchaseReturnRequest body) {
-        return ApiResponse.ok(procurementService.createPurchaseReturn(operatorId(request), body));
+        return ApiResponse.ok(support.procurementService().createPurchaseReturn(operatorId(request), body));
     }
 
     @RequiresPermissions("ops:procurement:list")
@@ -467,7 +405,7 @@ public class OpsCommercialController {
             @RequestParam(required = false, defaultValue = "false") boolean overdueOnly,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size) {
-        return ApiResponse.ok(supplierPayableService.listPayablesPage(
+        return ApiResponse.ok(support.supplierPayableService().listPayablesPage(
                 operatorId(request), supplierId, status, overdueOnly, page, size));
     }
 
@@ -476,7 +414,7 @@ public class OpsCommercialController {
     public ApiResponse<List<SupplierPayableSummaryDto>> payableSummary(
             HttpServletRequest request,
             @RequestParam(required = false) String supplierId) {
-        return ApiResponse.ok(supplierPayableService.summary(operatorId(request), supplierId));
+        return ApiResponse.ok(support.supplierPayableService().summary(operatorId(request), supplierId));
     }
 
     @RequiresPermissions("ops:procurement:edit")
@@ -485,7 +423,7 @@ public class OpsCommercialController {
             HttpServletRequest request,
             @PathVariable Long payableId,
             @Valid @RequestBody PaySupplierRequest body) {
-        return ApiResponse.ok(supplierPayableService.pay(operatorId(request), payableId, body));
+        return ApiResponse.ok(support.supplierPayableService().pay(operatorId(request), payableId, body));
     }
 
     // --- 整仓盘点 ---
@@ -497,7 +435,7 @@ public class OpsCommercialController {
             @RequestParam(required = false) String warehouseId,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size) {
-        return ApiResponse.ok(warehouseStocktakeService.listPage(
+        return ApiResponse.ok(support.warehouseStocktakeService().listPage(
                 operatorId(request), status, warehouseId, page, size));
     }
 
@@ -506,7 +444,7 @@ public class OpsCommercialController {
     public ApiResponse<StocktakeDto> createStocktake(
             HttpServletRequest request,
             @Valid @RequestBody CreateStocktakeRequest body) {
-        return ApiResponse.ok(warehouseStocktakeService.create(operatorId(request), body));
+        return ApiResponse.ok(support.warehouseStocktakeService().create(operatorId(request), body));
     }
 
     @RequiresPermissions("ops:warehouse:list")
@@ -514,7 +452,7 @@ public class OpsCommercialController {
     public ApiResponse<StocktakeDto> stocktakeDetail(
             HttpServletRequest request,
             @PathVariable Long stocktakeId) {
-        return ApiResponse.ok(warehouseStocktakeService.get(operatorId(request), stocktakeId));
+        return ApiResponse.ok(support.warehouseStocktakeService().get(operatorId(request), stocktakeId));
     }
 
     @RequiresPermissions("ops:warehouse:edit")
@@ -524,7 +462,7 @@ public class OpsCommercialController {
             @PathVariable Long stocktakeId,
             @PathVariable Long lineId,
             @Valid @RequestBody UpdateStocktakeLineRequest body) {
-        return ApiResponse.ok(warehouseStocktakeService.updateLine(
+        return ApiResponse.ok(support.warehouseStocktakeService().updateLine(
                 operatorId(request), stocktakeId, lineId, body));
     }
 
@@ -533,7 +471,7 @@ public class OpsCommercialController {
     public ApiResponse<StocktakeDto> completeStocktake(
             HttpServletRequest request,
             @PathVariable Long stocktakeId) {
-        return ApiResponse.ok(warehouseStocktakeService.complete(operatorId(request), stocktakeId));
+        return ApiResponse.ok(support.warehouseStocktakeService().complete(operatorId(request), stocktakeId));
     }
 
     @RequiresPermissions("ops:warehouse:edit")
@@ -542,7 +480,7 @@ public class OpsCommercialController {
             HttpServletRequest request,
             @PathVariable Long stocktakeId,
             @RequestBody(required = false) AdjustStocktakeRequest body) {
-        return ApiResponse.ok(warehouseStocktakeService.adjust(operatorId(request), stocktakeId, body));
+        return ApiResponse.ok(support.warehouseStocktakeService().adjust(operatorId(request), stocktakeId, body));
     }
 
     @RequiresPermissions("ops:warehouse:edit")
@@ -550,7 +488,7 @@ public class OpsCommercialController {
     public ApiResponse<StocktakeDto> cancelStocktake(
             HttpServletRequest request,
             @PathVariable Long stocktakeId) {
-        return ApiResponse.ok(warehouseStocktakeService.cancel(operatorId(request), stocktakeId));
+        return ApiResponse.ok(support.warehouseStocktakeService().cancel(operatorId(request), stocktakeId));
     }
 
     @RequiresPermissions("ops:warehouse:edit")
@@ -560,7 +498,7 @@ public class OpsCommercialController {
             HttpServletRequest request,
             @PathVariable Long stocktakeId,
             @RequestParam("file") MultipartFile file) throws IOException {
-        return ApiResponse.ok(warehouseStocktakeService.applyVisionCounts(
+        return ApiResponse.ok(support.warehouseStocktakeService().applyVisionCounts(
                 operatorId(request), stocktakeId, file.getBytes(), file.getOriginalFilename()));
     }
 
@@ -570,7 +508,7 @@ public class OpsCommercialController {
     public ApiResponse<List<WarehouseBinDto>> bins(
             HttpServletRequest request,
             @RequestParam(required = false) String warehouseId) {
-        return ApiResponse.ok(warehouseBinService.listBins(operatorId(request), warehouseId));
+        return ApiResponse.ok(support.warehouseBinService().listBins(operatorId(request), warehouseId));
     }
 
     @RequiresPermissions("ops:warehouse:edit")
@@ -578,7 +516,7 @@ public class OpsCommercialController {
     public ApiResponse<WarehouseBinDto> upsertBin(
             HttpServletRequest request,
             @Valid @RequestBody UpsertWarehouseBinRequest body) {
-        return ApiResponse.ok(warehouseBinService.upsertBin(operatorId(request), body));
+        return ApiResponse.ok(support.warehouseBinService().upsertBin(operatorId(request), body));
     }
 
     @RequiresPermissions("ops:warehouse:list")
@@ -589,7 +527,7 @@ public class OpsCommercialController {
             @RequestParam(required = false) Long binId,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size) {
-        return ApiResponse.ok(warehouseBinService.listBinStockPage(
+        return ApiResponse.ok(support.warehouseBinService().listBinStockPage(
                 operatorId(request), warehouseId, binId, page, size));
     }
 
@@ -598,7 +536,7 @@ public class OpsCommercialController {
     public ApiResponse<Void> binInbound(
             HttpServletRequest request,
             @Valid @RequestBody BinInboundRequest body) {
-        warehouseBinService.inboundToBin(operatorId(request), body);
+        support.warehouseBinService().inboundToBin(operatorId(request), body);
         return ApiResponse.ok(null);
     }
 
@@ -607,7 +545,7 @@ public class OpsCommercialController {
     public ApiResponse<Void> binMove(
             HttpServletRequest request,
             @Valid @RequestBody BinMoveRequest body) {
-        warehouseBinService.moveBetweenBins(operatorId(request), body);
+        support.warehouseBinService().moveBetweenBins(operatorId(request), body);
         return ApiResponse.ok(null);
     }
 
@@ -646,7 +584,7 @@ public class OpsCommercialController {
     @RequiresPermissions("ops:risk:export")
     @GetMapping(value = "/risk/events/export", produces = "text/csv")
     public ResponseEntity<byte[]> exportRiskEvents(HttpServletRequest request) {
-        byte[] csv = csvExportService.exportRiskEventsCsv(operatorId(request));
+        byte[] csv = support.csvExportService().exportRiskEventsCsv(operatorId(request));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"risk-events.csv\"")
                 .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
@@ -662,7 +600,7 @@ public class OpsCommercialController {
     @RequiresPermissions("ops:risk:export")
     @GetMapping(value = "/risk/blacklist/export", produces = "text/csv")
     public ResponseEntity<byte[]> exportBlacklist(HttpServletRequest request) {
-        byte[] csv = csvExportService.exportBlacklistCsv(operatorId(request));
+        byte[] csv = support.csvExportService().exportBlacklistCsv(operatorId(request));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"risk-blacklist.csv\"")
                 .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
@@ -770,7 +708,7 @@ public class OpsCommercialController {
     @RequiresPermissions("ops:replenishment:export")
     @GetMapping(value = "/replenishment/routes/export", produces = "text/csv")
     public ResponseEntity<byte[]> exportReplenishmentRoutes(HttpServletRequest request) {
-        byte[] csv = csvExportService.exportReplenishmentRoutesCsv(operatorId(request));
+        byte[] csv = support.csvExportService().exportReplenishmentRoutesCsv(operatorId(request));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"replenishment-routes.csv\"")
                 .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
@@ -780,7 +718,7 @@ public class OpsCommercialController {
     @RequiresPermissions("ops:replenishment:export")
     @GetMapping(value = "/replenishment/requests/export", produces = "text/csv")
     public ResponseEntity<byte[]> exportReplenishmentRequests(HttpServletRequest request) {
-        byte[] csv = csvExportService.exportReplenishmentRequestsCsv(operatorId(request));
+        byte[] csv = support.csvExportService().exportReplenishmentRequestsCsv(operatorId(request));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"replenishment-requests.csv\"")
                 .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
@@ -839,7 +777,7 @@ public class OpsCommercialController {
     public ApiResponse<List<FileAttachmentDto>> listTaskEvidence(
             HttpServletRequest request,
             @PathVariable Long taskId) {
-        List<FileAttachmentDto> items = fileAttachmentService.listReplenishmentEvidence(taskId).stream()
+        List<FileAttachmentDto> items = support.fileAttachmentService().listReplenishmentEvidence(taskId).stream()
                 .map(d -> FileAttachmentDto.of(
                         d.fileId(),
                         d.fileName(),
@@ -857,8 +795,8 @@ public class OpsCommercialController {
             @PathVariable Long taskId,
             @PathVariable Long fileId,
             HttpServletResponse response) throws IOException {
-        fileAttachmentService.stream(
-                fileAttachmentService.requireReplenishmentEvidence(taskId, fileId), response);
+        support.fileAttachmentService().stream(
+                support.fileAttachmentService().requireReplenishmentEvidence(taskId, fileId), response);
     }
 
     @RequiresPermissions("ops:replenishment:list")
@@ -1053,7 +991,7 @@ public class OpsCommercialController {
     public ResponseEntity<byte[]> exportWarehouse(
             HttpServletRequest request,
             @RequestParam(name = "tab", defaultValue = "warehouses") String tab) {
-        byte[] csv = csvExportService.exportWarehouseCsv(operatorId(request), tab);
+        byte[] csv = support.csvExportService().exportWarehouseCsv(operatorId(request), tab);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"warehouse-" + tab + ".csv\"")
                 .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))

@@ -262,7 +262,8 @@ public class OpsGapFeaturesController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.ok(deviceAssetService.stockHealthPage(
-                operatorId(request), dimension, merchantId, routeCode, lifecycleStatus, deviceId, page, size));
+                operatorId(request), new DeviceAssetService.StockHealthPageQuery(
+                        dimension, merchantId, routeCode, lifecycleStatus, deviceId, page, size)));
     }
 
     @RequiresPermissions("ops:stock-health:export")

@@ -228,9 +228,8 @@ public class MerchantWalletService {
 
         accountMapper.updateById(account);
 
-        appendLedger(merchantId, entryType, amountCents, balance, value(account.getFrozenCents()),
-
-                refType, refId, remark);
+        appendLedger(new LedgerLine(merchantId, entryType, amountCents,
+                new LedgerLine.BalanceSnapshot(balance, value(account.getFrozenCents())), refType, refId, remark));
 
     }
 
@@ -278,9 +277,8 @@ public class MerchantWalletService {
 
         accountMapper.updateById(account);
 
-        appendLedger(merchantId, entryType, -amountCents, balance, value(account.getFrozenCents()),
-
-                refType, refId, remark);
+        appendLedger(new LedgerLine(merchantId, entryType, -amountCents,
+                new LedgerLine.BalanceSnapshot(balance, value(account.getFrozenCents())), refType, refId, remark));
 
     }
 
@@ -328,9 +326,8 @@ public class MerchantWalletService {
 
         accountMapper.updateById(account);
 
-        appendLedger(merchantId, "WITHDRAW_FREEZE", -amountCents, value(account.getBalanceCents()), frozen,
-
-                refType, refId, remark);
+        appendLedger(new LedgerLine(merchantId, "WITHDRAW_FREEZE", -amountCents,
+                new LedgerLine.BalanceSnapshot(value(account.getBalanceCents()), frozen), refType, refId, remark));
 
     }
 
@@ -376,9 +373,8 @@ public class MerchantWalletService {
 
         accountMapper.updateById(account);
 
-        appendLedger(merchantId, "WITHDRAW_RELEASE", amountCents, value(account.getBalanceCents()), frozen,
-
-                refType, refId, remark);
+        appendLedger(new LedgerLine(merchantId, "WITHDRAW_RELEASE", amountCents,
+                new LedgerLine.BalanceSnapshot(value(account.getBalanceCents()), frozen), refType, refId, remark));
 
     }
 
@@ -428,7 +424,8 @@ public class MerchantWalletService {
 
         accountMapper.updateById(account);
 
-        appendLedger(merchantId, "WITHDRAW_PAID", -amountCents, balance, frozen, refType, refId, remark);
+        appendLedger(new LedgerLine(merchantId, "WITHDRAW_PAID", -amountCents,
+                new LedgerLine.BalanceSnapshot(balance, frozen), refType, refId, remark));
 
     }
 
@@ -484,32 +481,35 @@ public class MerchantWalletService {
 
 
 
-    private void appendLedger(String merchantId, String entryType, long amountCents, long balanceAfter, long frozenAfter,
-
-                              String refType, String refId, String remark) {
+    private void appendLedger(LedgerLine line) {
 
         MerchantWalletLedger ledger = new MerchantWalletLedger();
 
-        ledger.setMerchantId(merchantId);
+        ledger.setMerchantId(line.merchantId());
 
-        ledger.setEntryType(entryType);
+        ledger.setEntryType(line.entryType());
 
-        ledger.setAmountCents(amountCents);
+        ledger.setAmountCents(line.amountCents());
 
-        ledger.setBalanceAfter(balanceAfter);
+        ledger.setBalanceAfter(line.balances().balanceAfter());
 
-        ledger.setFrozenAfter(frozenAfter);
+        ledger.setFrozenAfter(line.balances().frozenAfter());
 
-        ledger.setRefType(trim(refType, 32));
+        ledger.setRefType(trim(line.refType(), 32));
 
-        ledger.setRefId(trim(refId, 64));
+        ledger.setRefId(trim(line.refId(), 64));
 
-        ledger.setRemark(trim(remark, 255));
+        ledger.setRemark(trim(line.remark(), 255));
 
         ledger.setCreatedAt(Instant.now());
 
         ledgerMapper.insert(ledger);
 
+    }
+
+    private record LedgerLine(String merchantId, String entryType, long amountCents, BalanceSnapshot balances,
+                              String refType, String refId, String remark) {
+        private record BalanceSnapshot(long balanceAfter, long frozenAfter) {}
     }
 
 
