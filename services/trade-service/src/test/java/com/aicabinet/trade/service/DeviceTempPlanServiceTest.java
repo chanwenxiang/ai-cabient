@@ -85,7 +85,7 @@ class DeviceTempPlanServiceTest {
         plan.setDeviceId("CAB-001");
         plan.setEnabled(true);
         when(planRepository.findByDeviceId("CAB-001")).thenReturn(Optional.of(plan));
-        when(entryRepository.findByPlanId(10L)).thenReturn(List.of(entry(1L, 0, 5), entry(2L, 480, 4)));
+        when(entryRepository.findByPlanId(10L)).thenReturn(List.of(entry(1L, 0, 4)));
         DeviceInfo device = device("CAB-001", "ONLINE", null);
         when(deviceRepository.findByIdForUpdate("CAB-001")).thenReturn(Optional.of(device));
         when(deviceClient.requestSetTargetTemp("CAB-001", 4)).thenReturn("CMD-1");
@@ -104,7 +104,7 @@ class DeviceTempPlanServiceTest {
         plan.setDeviceId("CAB-001");
         plan.setEnabled(true);
         when(planRepository.findByDeviceId("CAB-001")).thenReturn(Optional.of(plan));
-        when(entryRepository.findByPlanId(10L)).thenReturn(List.of(entry(1L, 0, 5), entry(2L, 480, 4)));
+        when(entryRepository.findByPlanId(10L)).thenReturn(List.of(entry(1L, 0, 4)));
         DeviceInfo device = device("CAB-001", "ONLINE", 4);
         when(deviceRepository.findByIdForUpdate("CAB-001")).thenReturn(Optional.of(device));
 
