@@ -184,16 +184,11 @@ async function searchRecords(q: string) {
           query: { keyword: String(u.phoneNumber || u.userId || '') }
         }))
     ),
-    take('ops:merchant:list', '/api/v2/ops/admin/merchants', (items) =>
-      items
-        .filter(
-          (m: any) =>
-            String(m.merchantId || '').includes(q) ||
-            String(m.merchantName || '').includes(q) ||
-            String(m.contactPhone || '').includes(q)
-        )
-        .slice(0, 5)
-        .map((m: any) => ({
+    take(
+      'ops:merchant:list',
+      `/api/v2/ops/admin/merchants?page=0&size=5&q=${encodeURIComponent(q)}`,
+      (items) =>
+        items.slice(0, 5).map((m: any) => ({
           type: 'merchant',
           title: m.merchantName || String(m.merchantId || ''),
           meta: `商户 ${m.merchantId || ''}`,

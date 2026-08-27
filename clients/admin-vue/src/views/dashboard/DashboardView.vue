@@ -712,11 +712,11 @@ async function load(opts?: { silent?: boolean }) {
     openExceptionCount.value = ex?.total || 0;
     if (canAccessPath('/merchant-onboarding')) {
       try {
-        const rows = await api.request<{ status?: string }[]>(
-          '/api/v2/ops/admin/merchant-onboarding?status=SUBMITTED',
+        const data = await api.request<{ items?: { status?: string }[]; total?: number }>(
+          '/api/v2/ops/admin/merchant-onboarding?status=SUBMITTED&page=0&size=1',
           'GET'
         );
-        onboardPending.value = (rows || []).length;
+        onboardPending.value = Number(data?.total) || (data?.items || []).length;
       } catch {
         onboardPending.value = 0;
       }

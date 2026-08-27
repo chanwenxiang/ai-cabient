@@ -86,7 +86,7 @@
       <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
-          :data="paged"
+          :data="rows"
           stripe
           border
           class="report-table"
@@ -171,12 +171,12 @@
       :hydrated="listHydrated"
       v-model:current-page="page"
       v-model:page-size="size"
-      :total="filtered.length"
+      :total="total"
       :page-sizes="[10, 20, 50]"
       :layout="paginationLayout"
       :pager-count="pagerCount"
       background
-      @current-change="() => {}"
+      @current-change="load"
       @size-change="onSizeChange"
     />
   </el-card>
@@ -214,6 +214,8 @@ const loading = ref(false);
 /** 首屏未拉完前勿展示 0 / ¥0.00 */
 const listHydrated = ref(false);
 const rows = ref<DeviceReportRow[]>([]);
+const total = ref(0);
+const offlineTotal = ref(0);
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('deviceId');
 const keyword = ref('');
 const deviceId = ref('');
@@ -222,32 +224,10 @@ const page = ref(1);
 const size = ref(20);
 const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1280);
 
-const deviceOptions = computed(() =>
-  rows.value.map((r) => ({ deviceId: r.deviceId, deviceName: r.deviceName }))
-);
-
-const filtered = computed(() => {
-  const kw = keyword.value.trim().toLowerCase();
-  const list = rows.value.filter((r) => {
-    if (deviceId.value && r.deviceId !== deviceId.value) return false;
-    if (onlineFilter.value && r.onlineStatus !== onlineFilter.value) return false;
-    if (!kw) return true;
-    return [r.deviceId, r.deviceName].some((v) =>
-      String(v || '')
-        .toLowerCase()
-        .includes(kw)
-    );
-  });
-  return sortById(list, 'deviceId');
-});
-
-const paged = computed(() => {
-  const start = (page.value - 1) * size.value;
-  return filtered.value.slice(start, start + size.value);
-});
+const deviceOptions = ref<{ deviceId: string; deviceName?: string }[]>([]);
 
 const sum = computed(() =>
-  filtered.value.reduce(
+  rows.value.reduce(
     (acc, r) => ({
       orderTotal: acc.orderTotal + (r.orderTotal || 0),
       revenueTotal: acc.revenueTotal + (r.revenueTotalCents || 0),
@@ -258,20 +238,17 @@ const sum = computed(() =>
   )
 );
 
-const offlineTotal = computed(() => rows.value.filter((r) => r.onlineStatus === 'OFFLINE').length);
+const pagePartial = computed(() => total.value > rows.value.length);
 
 const kpiTiles = computed(() => {
   const ready = listHydrated.value;
+  const pageHint = pagePartial.value ? '本页合计' : undefined;
   return [
     {
       label: '设备数',
-      value: ready ? String(filtered.value.length) : '…',
+      value: ready ? String(total.value) : '…',
       accent: 'accent-teal',
-      hint: ready
-        ? onlineFilter.value
-          ? `已筛选 · 共 ${rows.value.length} 台`
-          : undefined
-        : '加载中…',
+      hint: ready ? (onlineFilter.value ? `已筛选 · 共 ${total.value} 台` : undefined) : '加载中…',
       action: ready
         ? () => {
             if (onlineFilter.value) {
@@ -297,13 +274,13 @@ const kpiTiles = computed(() => {
       label: '累计营收',
       value: ready ? `¥${(sum.value.revenueTotal / 100).toFixed(2)}` : '…',
       accent: 'accent-violet',
-      hint: ready ? `订单 ${sum.value.orderTotal}` : '加载中…'
+      hint: ready ? pageHint || `订单 ${sum.value.orderTotal}` : '加载中…'
     },
     {
       label: '今日营收',
       value: ready ? `¥${(sum.value.revenueToday / 100).toFixed(2)}` : '…',
       accent: 'accent-blue',
-      hint: ready ? undefined : '加载中…'
+      hint: ready ? pageHint : '加载中…'
     }
   ];
 });
@@ -333,7 +310,7 @@ const { onExport } = useListCsv({
     '进行中'
   ],
   toRows: () =>
-    pickSelected(filtered.value).map((row) => [
+    pickSelected(rows.value).map((row) => [
       row.deviceId,
       row.deviceName || '',
       dictLabel('online_status', row.onlineStatus),
@@ -354,11 +331,51 @@ watch(keyword, () => {
   page.value = 1;
 });
 
+function queryParams() {
+  const q = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
+  });
+  if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
+  if (onlineFilter.value) q.set('online', onlineFilter.value);
+  if (deviceId.value) q.set('deviceId', deviceId.value);
+  return q;
+}
+
+async function loadDeviceOptions() {
+  try {
+    deviceOptions.value =
+      (await api.request<{ deviceId: string; deviceName?: string }[]>(
+        '/api/v2/ops/admin/devices/ref',
+        'GET'
+      )) || [];
+  } catch {
+    deviceOptions.value = [];
+  }
+}
+
+async function loadOfflineTotal() {
+  try {
+    const q = new URLSearchParams({ online: 'OFFLINE', page: '0', size: '1' });
+    const data = await api.request<{ total?: number }>(
+      `/api/v2/ops/admin/reports/devices?${q}`,
+      'GET'
+    );
+    offlineTotal.value = Number(data.total) || 0;
+  } catch {
+    offlineTotal.value = 0;
+  }
+}
+
 async function load() {
   loading.value = true;
   try {
-    rows.value = await api.request<DeviceReportRow[]>('/api/v2/ops/admin/reports/devices', 'GET');
-    page.value = 1;
+    const data = await api.request<{ items: DeviceReportRow[]; total: number }>(
+      `/api/v2/ops/admin/reports/devices?${queryParams()}`,
+      'GET'
+    );
+    rows.value = sortById(data.items || [], 'deviceId');
+    total.value = Number(data.total) || 0;
     clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -378,6 +395,7 @@ function syncRouteQuery() {
 function search() {
   page.value = 1;
   syncRouteQuery();
+  load();
 }
 
 function reset() {
@@ -386,10 +404,12 @@ function reset() {
   onlineFilter.value = '';
   page.value = 1;
   syncRouteQuery();
+  load();
 }
 
 function onSizeChange() {
   page.value = 1;
+  load();
 }
 
 function goDevice(deviceId: string) {
@@ -399,11 +419,14 @@ function goDevice(deviceId: string) {
 onMounted(() => {
   applyRouteQuery();
   window.addEventListener('resize', onResize, { passive: true });
+  void loadDeviceOptions();
+  void loadOfflineTotal();
   load();
 });
 onActivated(() => {
   if (applyRouteQuery()) {
     page.value = 1;
+    load();
   }
 });
 

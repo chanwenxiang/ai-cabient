@@ -166,10 +166,12 @@
       :hydrated="listHydrated"
       v-model:current-page="page"
       v-model:page-size="size"
-      :total="filtered.length"
+      :total="total"
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next"
       background
+      @current-change="load"
+      @size-change="onSizeChange"
     />
 
     <el-dialog
@@ -279,6 +281,7 @@ const listHydrated = ref(false);
 const saving = ref(false);
 const error = ref('');
 const list = ref<any[]>([]);
+const total = ref(0);
 const page = ref(1);
 const size = ref(20);
 const keyword = ref('');
@@ -294,31 +297,9 @@ function emptyForm() {
   return { title: '', content: '', targetScope: 'ALL', priority: 'NORMAL' };
 }
 
-const filtered = computed(() => {
-  const q = keyword.value.trim().toLowerCase();
-  const rows = list.value.filter((row) => {
-    if (statusFilter.value && row.status !== statusFilter.value) return false;
-    if (priorityFilter.value && row.priority !== priorityFilter.value) return false;
-    if (
-      q &&
-      !String(row.title || '')
-        .toLowerCase()
-        .includes(q)
-    )
-      return false;
-    return true;
-  });
-  return sortById(rows);
-});
+const filtered = computed(() => sortById(list.value));
 
-const paged = computed(() => {
-  const start = (page.value - 1) * size.value;
-  return filtered.value.slice(start, start + size.value);
-});
-
-watch([keyword, statusFilter, priorityFilter], () => {
-  page.value = 1;
-});
+const paged = computed(() => list.value);
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<any>((r) => r.announceId ?? `${r.title}-${r.publishAt}`);
@@ -411,6 +392,12 @@ function applyRouteQuery() {
 function search() {
   page.value = 1;
   syncRouteQuery();
+  void load();
+}
+
+function onSizeChange() {
+  page.value = 1;
+  void load();
 }
 
 function reset() {
@@ -419,14 +406,23 @@ function reset() {
   priorityFilter.value = '';
   page.value = 1;
   syncRouteQuery();
+  void load();
 }
 
 async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const res = await get('/api/v2/ops/announcements');
-    list.value = res.data ?? [];
+    const q = new URLSearchParams({
+      page: String(page.value - 1),
+      size: String(size.value)
+    });
+    if (keyword.value.trim()) q.set('q', keyword.value.trim());
+    if (statusFilter.value) q.set('status', statusFilter.value);
+    if (priorityFilter.value) q.set('priority', priorityFilter.value);
+    const res = await get<{ items: any[]; total: number }>(`/api/v2/ops/announcements?${q}`);
+    list.value = res.data?.items ?? [];
+    total.value = res.data?.total ?? 0;
     clearSelection();
   } catch (e: any) {
     error.value = e?.message || '加载失败';

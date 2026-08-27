@@ -138,6 +138,29 @@ public class OpsCommercialFacade {
         return replenishmentService.listRoutes();
     }
 
+    public PageResult<ReplenishmentRouteDto> listRoutesPage(
+            Long operatorId, String deviceId, int page, int size) {
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
+        return replenishmentService.listRoutesPage(deviceId, page, size);
+    }
+
+    public PageResult<ReplenishmentFulfillmentTaskDto> listFulfillmentTasksPage(
+            Long operatorId, String deviceId, String status, int page, int size) {
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
+        return replenishmentService.listFulfillmentTasksPage(deviceId, status, page, size);
+    }
+
+    public ReplenishmentOpsSummaryDto replenishmentSummary(Long operatorId) {
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
+        return replenishmentService.opsSummary();
+    }
+
+    public ReplenishmentShortagePageDto listShortagePage(
+            Long operatorId, String deviceId, int page, int size) {
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
+        return replenishmentService.listShortagePage(operatorId, deviceId, page, size);
+    }
+
     public ReplenishmentRouteDto planRoute(Long operatorId, PlanRouteRequest body) {
         permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return replenishmentService.planAndCreateRoute(operatorId, body);
@@ -184,6 +207,11 @@ public class OpsCommercialFacade {
         return replenishmentService.listOpenPullOffTasks();
     }
 
+    public PageResult<PullOffTaskDto> listExpiryAlertsPage(Long operatorId, int page, int size) {
+        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
+        return replenishmentService.listOpenPullOffTasksPage(page, size);
+    }
+
     public PullOffTaskDto ensureExpiryAlert(Long operatorId, String lotId) {
         permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return replenishmentService.ensurePullOffFromLot(lotId);
@@ -217,6 +245,11 @@ public class OpsCommercialFacade {
 
     public List<MerchantReplenishmentRequestDto> listMerchantReplenishmentRequests(Long operatorId, String status) {
         return merchantReplenishmentService.listRequestsForOps(operatorId, status);
+    }
+
+    public PageResult<MerchantReplenishmentRequestDto> listMerchantReplenishmentRequestsPage(
+            Long operatorId, String status, int page, int size) {
+        return merchantReplenishmentService.listRequestsForOpsPage(operatorId, status, page, size);
     }
 
     public MerchantReplenishmentRequestDto acceptMerchantReplenishmentRequest(Long operatorId, Long requestId) {
@@ -266,6 +299,12 @@ public class OpsCommercialFacade {
         return warehouseService.listWarehouses();
     }
 
+    public PageResult<WarehouseDto> listWarehousesPage(
+            Long operatorId, String keyword, int page, int size) {
+        requireWarehouseRead(operatorId);
+        return warehouseService.listWarehousesPage(keyword, page, size);
+    }
+
     public WarehouseDto upsertWarehouse(Long operatorId, String warehouseId, UpsertWarehouseRequest body) {
         requireWarehouseWrite(operatorId);
         return warehouseService.upsertWarehouse(
@@ -277,9 +316,21 @@ public class OpsCommercialFacade {
         return warehouseService.listInventory(warehouseId);
     }
 
+    public PageResult<WarehouseInventoryDto> warehouseInventoryPage(
+            Long operatorId, String warehouseId, String keyword, int page, int size) {
+        requireWarehouseRead(operatorId);
+        return warehouseService.listInventoryPage(warehouseId, keyword, page, size);
+    }
+
     public List<WarehouseMovementDto> warehouseMovements(Long operatorId, String warehouseId) {
         requireWarehouseRead(operatorId);
         return warehouseService.listMovements(warehouseId);
+    }
+
+    public PageResult<WarehouseMovementDto> warehouseMovementsPage(
+            Long operatorId, String warehouseId, String keyword, int page, int size) {
+        requireWarehouseRead(operatorId);
+        return warehouseService.listMovementsPage(warehouseId, keyword, page, size);
     }
 
     public WarehouseInboundRequest warehouseInbound(Long operatorId, WarehouseInboundRequest body) {
@@ -290,6 +341,12 @@ public class OpsCommercialFacade {
     public List<WarehouseOutboundDto> listWarehouseOutbounds(Long operatorId) {
         requireWarehouseRead(operatorId);
         return warehouseService.listOutbounds();
+    }
+
+    public PageResult<WarehouseOutboundDto> listWarehouseOutboundsPage(
+            Long operatorId, String keyword, String warehouseId, int page, int size) {
+        requireWarehouseRead(operatorId);
+        return warehouseService.listOutboundsPage(keyword, warehouseId, page, size);
     }
 
     public WarehouseOutboundDto getWarehouseOutbound(Long operatorId, Long outboundId) {
@@ -322,6 +379,12 @@ public class OpsCommercialFacade {
     public List<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransit(Long operatorId, String deviceId) {
         requireWarehouseRead(operatorId);
         return inTransitService.listInTransit(deviceId);
+    }
+
+    public PageResult<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransitPage(
+            Long operatorId, String deviceId, int page, int size) {
+        requireWarehouseRead(operatorId);
+        return inTransitService.listInTransitPage(deviceId, page, size);
     }
 
     private void requireWarehouseRead(Long operatorId) {

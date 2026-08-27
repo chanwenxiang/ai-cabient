@@ -1344,6 +1344,8 @@
       :total="tabTotal"
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next"
+      @current-change="onPagerChange"
+      @size-change="onPagerSizeChange"
     />
 
     <el-dialog
@@ -2221,6 +2223,22 @@ function isTabLoading(name: string) {
 const saving = ref(false);
 const cleanupStaleLoading = ref(false);
 const tab = ref('warehouses');
+const SERVER_PAGINATED_TABS = new Set([
+  'warehouses',
+  'suppliers',
+  'purchase',
+  'returns',
+  'suggestions',
+  'payables',
+  'stocktakes',
+  'bins',
+  'outbounds',
+  'transit',
+  'transfers',
+  'inventory',
+  'movements'
+]);
+const tabTotals = ref<Record<string, number>>({});
 const page = ref(1);
 const size = ref(20);
 const keyword = ref('');
@@ -2363,6 +2381,7 @@ const pageHint = computed(() => {
 
 const showFilterBar = computed(() =>
   [
+    'warehouses',
     'suppliers',
     'purchase',
     'returns',
@@ -2380,28 +2399,8 @@ const activeSuppliers = computed(() => suppliers.value.filter((s) => s.status ==
 const activeWarehouses = computed(() =>
   warehouses.value.filter((w) => (w.status || 'ACTIVE') === 'ACTIVE')
 );
-const filteredSuppliers = computed(() => {
-  const q = keyword.value.trim().toLowerCase();
-  if (!q || tab.value !== 'suppliers') return suppliers.value;
-  return suppliers.value.filter((s) =>
-    [s.supplierId, s.supplierName, s.contactName, s.contactPhone]
-      .join(' ')
-      .toLowerCase()
-      .includes(q)
-  );
-});
-const filteredPurchaseOrders = computed(() => {
-  const q = keyword.value.trim().toLowerCase();
-  let list = purchaseOrders.value;
-  if (filterWarehouseId.value) list = list.filter((p) => p.warehouseId === filterWarehouseId.value);
-  if (!q) return list;
-  return list.filter((p) =>
-    [p.purchaseOrderId, p.refNo, p.supplierId, supplierName(p.supplierId)]
-      .join(' ')
-      .toLowerCase()
-      .includes(q)
-  );
-});
+const filteredSuppliers = computed(() => suppliers.value);
+const filteredPurchaseOrders = computed(() => purchaseOrders.value);
 const filteredPurchaseReturns = computed(() => {
   const q = keyword.value.trim().toLowerCase();
   let list = purchaseReturns.value;
@@ -2414,13 +2413,7 @@ const filteredPurchaseReturns = computed(() => {
       .includes(q)
   );
 });
-const returnablePurchaseOrders = computed(() =>
-  purchaseOrders.value.filter(
-    (po) =>
-      ['RECEIVED', 'PARTIAL_RECEIVED'].includes(po.status) &&
-      (po.lines || []).some((l: Row) => (l.receivedQty || 0) - (l.returnedQty || 0) > 0)
-  )
-);
+const returnablePurchaseOrders = ref<Row[]>([]);
 const OUTBOUND_STATUS_RANK: Record<string, number> = {
   PICKED: 0,
   DRAFT: 1,
@@ -2435,9 +2428,6 @@ function isOutboundActionable(row: Row) {
 
 const filteredOutbounds = computed(() => {
   let list = outbounds.value;
-  if (filterWarehouseId.value) {
-    list = list.filter((o) => o.warehouseId === filterWarehouseId.value);
-  }
   const st = filterOutboundStatus.value;
   if (st === 'actionable') {
     list = list.filter((o) => isOutboundActionable(o));
@@ -2572,15 +2562,12 @@ function clearFocusDevice() {
   syncRouteQuery();
 }
 
-function slicePage<T>(rows: T[]) {
-  const start = (page.value - 1) * size.value;
-  return rows.slice(start, start + size.value);
-}
-
 const tabSource = computed(() => {
   switch (tab.value) {
+    case 'warehouses':
+      return warehouses.value;
     case 'suppliers':
-      return filteredSuppliers.value;
+      return suppliers.value;
     case 'purchase':
       return filteredPurchaseOrders.value;
     case 'returns':
@@ -2597,6 +2584,8 @@ const tabSource = computed(() => {
       return filteredOutbounds.value;
     case 'transit':
       return filteredInTransit.value;
+    case 'transfers':
+      return transfers.value;
     case 'inventory':
       return inventory.value;
     case 'movements':
@@ -2605,19 +2594,24 @@ const tabSource = computed(() => {
       return warehouses.value;
   }
 });
-const tabTotal = computed(() => tabSource.value.length);
-const pagedWarehouses = computed(() => slicePage(sortWarehousesById(warehouses.value)));
-const pagedSuppliers = computed(() => slicePage(sortSuppliersById(filteredSuppliers.value)));
-const pagedPurchaseOrders = computed(() => slicePage(filteredPurchaseOrders.value));
-const pagedPurchaseReturns = computed(() => slicePage(filteredPurchaseReturns.value));
-const pagedSuggestions = computed(() => slicePage(suggestions.value));
-const pagedPayables = computed(() => slicePage(payables.value));
-const pagedStocktakes = computed(() => slicePage(stocktakes.value));
-const pagedBinStock = computed(() => slicePage(binStock.value));
-const pagedOutbounds = computed(() => slicePage(filteredOutbounds.value));
-const pagedInTransit = computed(() => slicePage(filteredInTransit.value));
-const pagedInventory = computed(() => slicePage(inventory.value));
-const pagedMovements = computed(() => slicePage(movements.value));
+const tabTotal = computed(() => {
+  if (SERVER_PAGINATED_TABS.has(tab.value)) {
+    return tabTotals.value[tab.value] || 0;
+  }
+  return tabSource.value.length;
+});
+const pagedWarehouses = computed(() => sortWarehousesById(warehouses.value));
+const pagedSuppliers = computed(() => sortSuppliersById(suppliers.value));
+const pagedPurchaseOrders = computed(() => purchaseOrders.value);
+const pagedPurchaseReturns = computed(() => purchaseReturns.value);
+const pagedSuggestions = computed(() => suggestions.value);
+const pagedPayables = computed(() => payables.value);
+const pagedStocktakes = computed(() => stocktakes.value);
+const pagedBinStock = computed(() => binStock.value);
+const pagedOutbounds = computed(() => filteredOutbounds.value);
+const pagedInTransit = computed(() => filteredInTransit.value);
+const pagedInventory = computed(() => inventory.value);
+const pagedMovements = computed(() => movements.value);
 const payableSummaryText = computed(() => {
   const rows = payableSummary.value;
   if (!rows.length) return '暂无未结清应付账款';
@@ -2647,7 +2641,14 @@ watch(tab, () => {
   page.value = 1;
   selectedKeys.value = [];
 });
-watch([keyword, filterWarehouseId, overdueOnly, focusDeviceId], () => {
+watch([keyword, filterWarehouseId, focusDeviceId], () => {
+  page.value = 1;
+  if (SERVER_PAGINATED_TABS.has(tab.value)) {
+    loadedTabs.value.delete(tab.value);
+    loadTab(tab.value, true);
+  }
+});
+watch(overdueOnly, () => {
   page.value = 1;
 });
 
@@ -3070,56 +3071,163 @@ async function ensureMeta() {
     }
   }
   if (!skus.value.length) {
-    skus.value = await api.request<Row[]>('/api/v2/ops/admin/skus', 'GET').catch(() => []);
+    skus.value =
+      (
+        await api
+          .request<{ items: Row[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET')
+          .catch(() => ({ items: [] as Row[] }))
+      ).items || [];
   }
 }
 
 async function loadWarehouses() {
-  warehouses.value = await api.request<Row[]>('/api/v2/ops/admin/warehouse/list', 'GET');
+  const q = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
+  });
+  if (keyword.value.trim()) q.set('q', keyword.value.trim());
+  const data = await api.request<{ items: Row[]; total: number }>(
+    `/api/v2/ops/admin/warehouse/list?${q}`,
+    'GET'
+  );
+  warehouses.value = data.items || [];
+  tabTotals.value = { ...tabTotals.value, warehouses: Number(data.total) || 0 };
 }
 async function loadWarehousesSoft() {
   try {
-    await loadWarehouses();
+    const data = await api.request<{ items: Row[] }>(
+      '/api/v2/ops/admin/warehouse/list?page=0&size=500',
+      'GET'
+    );
+    warehouses.value = data.items || [];
   } catch {
     /* 筛选用元数据失败时保留旧列表，不拖垮库存/出库主数据 */
   }
 }
 async function loadSuppliers() {
-  suppliers.value = await api.request<Row[]>('/api/v2/ops/admin/suppliers', 'GET');
+  const q = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
+  });
+  if (keyword.value.trim()) q.set('q', keyword.value.trim());
+  const data = await api.request<{ items: Row[]; total: number }>(
+    `/api/v2/ops/admin/suppliers?${q}`,
+    'GET'
+  );
+  suppliers.value = data.items || [];
+  tabTotals.value = { ...tabTotals.value, suppliers: Number(data.total) || 0 };
 }
 async function loadSuppliersSoft() {
   try {
-    await loadSuppliers();
+    const data = await api.request<{ items: Row[] }>(
+      '/api/v2/ops/admin/suppliers?page=0&size=500',
+      'GET'
+    );
+    suppliers.value = data.items || [];
   } catch {
     /* 采购/退货筛选项可选 */
   }
 }
 async function loadPurchase() {
-  purchaseOrders.value = await api.request<Row[]>('/api/v2/ops/admin/purchase-orders', 'GET');
+  const data = await api.request<{ items: Row[]; total: number }>(
+    `/api/v2/ops/admin/purchase-orders?${warehouseListParams()}`,
+    'GET'
+  );
+  purchaseOrders.value = data.items || [];
+  tabTotals.value = { ...tabTotals.value, purchase: Number(data.total) || 0 };
+}
+async function loadReturnablePurchaseOrders() {
+  try {
+    returnablePurchaseOrders.value =
+      (
+        await api.request<{ items: Row[] }>(
+          '/api/v2/ops/admin/purchase-orders?returnableOnly=true&page=0&size=500',
+          'GET'
+        )
+      ).items || [];
+  } catch {
+    returnablePurchaseOrders.value = [];
+  }
 }
 async function loadReturns() {
-  purchaseReturns.value = await api.request<Row[]>('/api/v2/ops/admin/purchase-returns', 'GET');
+  const q = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
+  });
+  if (keyword.value.trim()) q.set('q', keyword.value.trim());
+  if (filterWarehouseId.value) q.set('warehouseId', filterWarehouseId.value);
+  const data = await api.request<{ items: Row[]; total: number }>(
+    `/api/v2/ops/admin/purchase-returns?${q}`,
+    'GET'
+  );
+  purchaseReturns.value = data.items || [];
+  tabTotals.value = { ...tabTotals.value, returns: Number(data.total) || 0 };
 }
 async function loadOutbounds() {
-  outbounds.value = await api.request<Row[]>('/api/v2/ops/admin/warehouse/outbounds', 'GET');
+  const data = await api.request<{ items: Row[]; total: number }>(
+    `/api/v2/ops/admin/warehouse/outbounds?${warehouseListParams()}`,
+    'GET'
+  );
+  outbounds.value = data.items || [];
+  tabTotals.value = { ...tabTotals.value, outbounds: Number(data.total) || 0 };
 }
 async function loadTransit() {
-  inTransit.value = await api.request<Row[]>('/api/v2/ops/admin/warehouse/in-transit', 'GET');
+  const q = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
+  });
+  if (focusDeviceId.value) q.set('deviceId', focusDeviceId.value);
+  const data = await api.request<{ items: Row[]; total: number }>(
+    `/api/v2/ops/admin/warehouse/in-transit?${q}`,
+    'GET'
+  );
+  inTransit.value = data.items || [];
+  tabTotals.value = { ...tabTotals.value, transit: Number(data.total) || 0 };
 }
 async function loadInventory() {
-  const q = filterWarehouseId.value
-    ? `?warehouseId=${encodeURIComponent(filterWarehouseId.value)}`
-    : '';
-  inventory.value = await api.request<Row[]>(`/api/v2/ops/admin/warehouse/inventory${q}`, 'GET');
+  const data = await api.request<{ items: Row[]; total: number }>(
+    `/api/v2/ops/admin/warehouse/inventory?${warehouseListParams()}`,
+    'GET'
+  );
+  inventory.value = data.items || [];
+  tabTotals.value = { ...tabTotals.value, inventory: Number(data.total) || 0 };
 }
 async function loadMovements() {
-  const q = filterWarehouseId.value
-    ? `?warehouseId=${encodeURIComponent(filterWarehouseId.value)}`
-    : '';
-  movements.value = await api.request<Row[]>(`/api/v2/ops/admin/warehouse/movements${q}`, 'GET');
+  const data = await api.request<{ items: Row[]; total: number }>(
+    `/api/v2/ops/admin/warehouse/movements?${warehouseListParams()}`,
+    'GET'
+  );
+  movements.value = data.items || [];
+  tabTotals.value = { ...tabTotals.value, movements: Number(data.total) || 0 };
+}
+
+function warehouseListParams() {
+  const q = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
+  });
+  if (keyword.value.trim()) q.set('q', keyword.value.trim());
+  if (filterWarehouseId.value) q.set('warehouseId', filterWarehouseId.value);
+  return q;
+}
+
+function onPagerChange() {
+  if (SERVER_PAGINATED_TABS.has(tab.value)) {
+    loadTab(tab.value, true);
+  }
+}
+
+function onPagerSizeChange() {
+  page.value = 1;
+  if (SERVER_PAGINATED_TABS.has(tab.value)) {
+    loadTab(tab.value, true);
+  }
 }
 async function loadSuggestions() {
-  const params = new URLSearchParams();
+  const params = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
+  });
   if (suggestionLeadTimeDays.value > 0) {
     params.set('leadTimeDays', String(suggestionLeadTimeDays.value));
   }
@@ -3129,21 +3237,26 @@ async function loadSuggestions() {
   if (filterWarehouseId.value) {
     params.set('warehouseId', filterWarehouseId.value);
   }
-  const q = params.toString();
-  suggestions.value = await api.request<Row[]>(
-    `/api/v2/ops/admin/procurement/suggestions${q ? `?${q}` : ''}`,
+  const data = await api.request<{ items: Row[]; total: number }>(
+    `/api/v2/ops/admin/procurement/suggestions?${params}`,
     'GET'
   );
+  suggestions.value = data.items || [];
+  tabTotals.value = { ...tabTotals.value, suggestions: Number(data.total) || 0 };
 }
 async function loadPayables() {
-  const params = new URLSearchParams();
+  const params = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
+  });
   if (payableStatusFilter.value) params.set('status', payableStatusFilter.value);
   if (payableOverdueOnly.value) params.set('overdueOnly', 'true');
-  const q = params.toString();
-  payables.value = await api.request<Row[]>(
-    `/api/v2/ops/admin/suppliers/payables${q ? `?${q}` : ''}`,
+  const data = await api.request<{ items: Row[]; total: number }>(
+    `/api/v2/ops/admin/suppliers/payables?${params}`,
     'GET'
   );
+  payables.value = data.items || [];
+  tabTotals.value = { ...tabTotals.value, payables: Number(data.total) || 0 };
 }
 async function loadPayableSummary() {
   payableSummary.value = await api
@@ -3151,26 +3264,47 @@ async function loadPayableSummary() {
     .catch(() => []);
 }
 async function loadStocktakes() {
-  const q = stocktakeStatusFilter.value
-    ? `?status=${encodeURIComponent(stocktakeStatusFilter.value)}`
-    : '';
-  stocktakes.value = await api.request<Row[]>(`/api/v2/ops/admin/warehouse/stocktakes${q}`, 'GET');
+  const params = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
+  });
+  if (stocktakeStatusFilter.value) params.set('status', stocktakeStatusFilter.value);
+  if (filterWarehouseId.value) params.set('warehouseId', filterWarehouseId.value);
+  const data = await api.request<{ items: Row[]; total: number }>(
+    `/api/v2/ops/admin/warehouse/stocktakes?${params}`,
+    'GET'
+  );
+  stocktakes.value = data.items || [];
+  tabTotals.value = { ...tabTotals.value, stocktakes: Number(data.total) || 0 };
 }
 async function loadBins() {
   bins.value = await api.request<Row[]>('/api/v2/ops/admin/warehouse/bins', 'GET');
 }
 async function loadBinStock() {
-  const params = new URLSearchParams();
+  const params = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
+  });
   if (filterWarehouseId.value) params.set('warehouseId', filterWarehouseId.value);
   if (filterBinId.value != null) params.set('binId', String(filterBinId.value));
-  const q = params.toString();
-  binStock.value = await api.request<Row[]>(
-    `/api/v2/ops/admin/warehouse/bins/stock${q ? `?${q}` : ''}`,
+  const data = await api.request<{ items: Row[]; total: number }>(
+    `/api/v2/ops/admin/warehouse/bins/stock?${params}`,
     'GET'
   );
+  binStock.value = data.items || [];
+  tabTotals.value = { ...tabTotals.value, bins: Number(data.total) || 0 };
 }
 async function loadTransfers() {
-  transfers.value = await api.request<Row[]>('/api/v2/ops/admin/warehouse/transfers', 'GET');
+  const q = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
+  });
+  const data = await api.request<{ items: Row[]; total: number }>(
+    `/api/v2/ops/admin/warehouse/transfers?${q}`,
+    'GET'
+  );
+  transfers.value = data.items || [];
+  tabTotals.value = { ...tabTotals.value, transfers: Number(data.total) || 0 };
 }
 async function openTransferCreate() {
   Object.assign(transferForm, {
@@ -3246,6 +3380,7 @@ async function loadTab(name: string, force = false) {
     } else if (name === 'returns') {
       await Promise.all([
         loadReturns(),
+        loadReturnablePurchaseOrders(),
         loadPurchase().catch(() => {}),
         loadSuppliersSoft(),
         loadWarehousesSoft()
@@ -3297,12 +3432,7 @@ function reloadCurrent() {
 }
 function onWarehouseFilter() {
   page.value = 1;
-  if (
-    tab.value === 'inventory' ||
-    tab.value === 'movements' ||
-    tab.value === 'suggestions' ||
-    tab.value === 'bins'
-  ) {
+  if (SERVER_PAGINATED_TABS.has(tab.value)) {
     loadedTabs.value.delete(tab.value);
     loadTab(tab.value, true);
   }

@@ -3,6 +3,7 @@ import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.AdjustStocktakeRequest;
 import com.aicabinet.common.dto.CreateStocktakeRequest;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.StocktakeDto;
 import com.aicabinet.common.dto.StocktakeLineDto;
 import com.aicabinet.common.dto.UpdateStocktakeLineRequest;
@@ -126,11 +127,18 @@ public class WarehouseStocktakeService {
     @Transactional(readOnly = true)
     public List<StocktakeDto> list(Long operatorId, String status) {
         permissionService.requirePermission(operatorId, "ops:warehouse:list");
-        return stocktakeRepository.findAllByOrderByCreatedAtDesc().stream()
-                .filter(s -> status == null || status.isBlank()
-                        || status.trim().equalsIgnoreCase(s.getStatus()))
-                .map(this::toDto)
-                .toList();
+        return listPage(operatorId, status, null, 0, 500).items();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<StocktakeDto> listPage(
+            Long operatorId, String status, String warehouseId, int page, int size) {
+        permissionService.requirePermission(operatorId, "ops:warehouse:list");
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = stocktakeRepository.searchPage(status, warehouseId, p, s);
+        List<StocktakeDto> items = result.getRecords().stream().map(this::toDto).toList();
+        return new PageResult<>(items, p, s, result.getTotal());
     }
 
     @Transactional(readOnly = true)

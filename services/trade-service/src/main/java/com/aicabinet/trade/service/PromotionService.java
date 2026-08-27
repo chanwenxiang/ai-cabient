@@ -61,6 +61,14 @@ public class PromotionService {
         return repository.findAll().stream().map(this::toDto).toList();
     }
 
+    public PageResult<PromotionActivityDto> listPage(String q, String status, int page, int size) {
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = repository.searchPage(q, status, p, s);
+        List<PromotionActivityDto> items = result.getRecords().stream().map(this::toDto).toList();
+        return new PageResult<>(items, p, s, result.getTotal());
+    }
+
     public List<PromotionActivityDto> listCurrentlyRunning() {
         Instant now = Instant.now();
         return repository.findByStatusAndStartTimeBeforeAndEndTimeAfter(CabinetConstants.PROMOTION_STATUS_ACTIVE, now, now)

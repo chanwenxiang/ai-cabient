@@ -21,8 +21,13 @@ public class PromotionController {
 
     @RequiresPermissions("ops:promotion:list")
     @GetMapping
-    public ApiResponse<List<PromotionActivityDto>> listAll(HttpServletRequest request) {
-        return ApiResponse.ok(promotionService.listAll());
+    public ApiResponse<PageResult<PromotionActivityDto>> listAll(
+            HttpServletRequest request,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(promotionService.listPage(q, status, page, size));
     }
 
     @RequiresPermissions("ops:promotion:list")

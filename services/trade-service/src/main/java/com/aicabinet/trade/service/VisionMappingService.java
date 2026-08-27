@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.UpsertAliyunMappingRequest;
 import com.aicabinet.common.dto.UpsertYoloMappingRequest;
 import com.aicabinet.trade.domain.AliyunCategoryMapping;
@@ -54,6 +55,29 @@ public class VisionMappingService {
     public VisionMappingsDto listMappingsForAdmin(Long operatorId) {
         permissionService.requirePermission(operatorId, "ops:vision:list");
         return buildDto();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<YoloMappingDto> listYoloMappingsPage(Long operatorId, String keyword, int page, int size) {
+        permissionService.requirePermission(operatorId, "ops:vision:list");
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        String kw = keyword != null && !keyword.isBlank() ? keyword.trim() : null;
+        java.util.Set<String> skuIdsByName = null;
+        if (kw != null) {
+            skuIdsByName = skuCatalogRepository.findAll().stream()
+                    .filter(sku -> sku.getSkuName() != null
+                            && sku.getSkuName().toLowerCase().contains(kw.toLowerCase()))
+                    .map(SkuCatalog::getSkuId)
+                    .collect(Collectors.toSet());
+        }
+        var result = yoloRepository.searchPage(kw, skuIdsByName, p, s);
+        Map<String, SkuCatalog> skuById = skuCatalogRepository.findAll().stream()
+                .collect(Collectors.toMap(SkuCatalog::getSkuId, sku -> sku, (a, b) -> a));
+        List<YoloMappingDto> items = result.getRecords().stream()
+                .map(m -> toYoloDto(m, skuById.get(m.getSkuId())))
+                .toList();
+        return new PageResult<>(items, p, s, result.getTotal());
     }
 
     @Transactional
@@ -169,26 +193,27 @@ public class VisionMappingService {
         Map<String, SkuCatalog> skuById = skuCatalogRepository.findAll().stream()
                 .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s, (a, b) -> a));
         List<YoloMappingDto> yolo = yoloRepository.findAll().stream()
-                .map(m -> {
-                    SkuCatalog sku = skuById.get(m.getSkuId());
-                    String enrollment = sku != null ? sku.getVisionEnrollmentStatus() : null;
-                    boolean effective = enrollment != null && "PRODUCTION".equalsIgnoreCase(enrollment);
-                    return new YoloMappingDto(
-                            m.getClassName(),
-                            m.getSkuId(),
-                            m.getMinConfidence(),
-                            m.getMappingSource(),
-                            sku != null ? sku.getSkuName() : null,
-                            enrollment,
-                            effective,
-                            SkuVisionEnrollmentService.MODEL_PIPELINE_WAITING);
-                })
+                .map(m -> toYoloDto(m, skuById.get(m.getSkuId())))
                 .toList();
         List<AliyunMappingDto> aliyun = aliyunRepository.findAll().stream()
                 .map(m -> new AliyunMappingDto(
                         m.getCategoryId(), m.getCategoryName(), m.getSkuId(), m.getMinConfidence()))
                 .toList();
         return new VisionMappingsDto(yolo, aliyun);
+    }
+
+    private YoloMappingDto toYoloDto(SkuVisionMapping m, SkuCatalog sku) {
+        String enrollment = sku != null ? sku.getVisionEnrollmentStatus() : null;
+        boolean effective = enrollment != null && "PRODUCTION".equalsIgnoreCase(enrollment);
+        return new YoloMappingDto(
+                m.getClassName(),
+                m.getSkuId(),
+                m.getMinConfidence(),
+                m.getMappingSource(),
+                sku != null ? sku.getSkuName() : null,
+                enrollment,
+                effective,
+                SkuVisionEnrollmentService.MODEL_PIPELINE_WAITING);
     }
 
     public record YoloMappingDto(

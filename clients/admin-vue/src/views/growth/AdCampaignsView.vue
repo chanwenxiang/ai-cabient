@@ -98,6 +98,18 @@
       </el-table-column>
     </el-table>
 
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
+
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑投放' : '新建投放'" width="560px">
       <el-form label-position="top">
         <el-form-item label="名称">
@@ -158,11 +170,16 @@ import { computed, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import PagePager from '@/components/PagePager.vue';
 import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import type { AdCampaignDto, MediaAssetDto } from '@aicabinet/shared-types';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const loading = ref(false);
+const listHydrated = ref(false);
+const page = ref(1);
+const size = ref(20);
+const total = ref(0);
 const saving = ref(false);
 const rows = ref<AdCampaignDto[]>([]);
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort<AdCampaignDto>('campaignId');
@@ -186,18 +203,37 @@ onMounted(async () => {
 async function load() {
   loading.value = true;
   try {
-    rows.value =
-      (await api.request<AdCampaignDto[]>('/api/v2/ops/admin/ad/campaigns', 'GET')) || [];
+    const q = new URLSearchParams({
+      page: String(page.value - 1),
+      size: String(size.value)
+    });
+    const data = await api.request<{ items: AdCampaignDto[]; total: number }>(
+      `/api/v2/ops/admin/ad/campaigns?${q}`,
+      'GET'
+    );
+    rows.value = data.items || [];
+    total.value = Number(data.total) || 0;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }
 
+function onSizeChange() {
+  page.value = 1;
+  load();
+}
+
 async function loadAssets() {
   try {
-    assets.value = (await api.request<MediaAssetDto[]>('/api/v2/ops/admin/ad/assets', 'GET')) || [];
+    const q = new URLSearchParams({ page: '0', size: '500' });
+    const data = await api.request<{ items: MediaAssetDto[] }>(
+      `/api/v2/ops/admin/ad/assets?${q}`,
+      'GET'
+    );
+    assets.value = data.items || [];
   } catch {
     assets.value = [];
   }

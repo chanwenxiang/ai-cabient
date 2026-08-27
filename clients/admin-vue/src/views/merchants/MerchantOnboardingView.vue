@@ -53,7 +53,7 @@
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="load">查询</el-button>
+        <el-button type="primary" @click="search">查询</el-button>
       </el-form-item>
     </el-form>
 
@@ -120,6 +120,18 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <PagePager
+      :hydrated="hydrated"
+      v-model:current-page="page"
+      v-model:page-size="pageSize"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next, jumper"
+      background
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
   </el-card>
 
   <el-dialog
@@ -174,6 +186,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import PagePager from '@/components/PagePager.vue';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
@@ -199,6 +212,9 @@ const loading = ref(false);
 const hydrated = ref(false);
 const saving = ref(false);
 const rows = ref<OnboardRow[]>([]);
+const page = ref(1);
+const pageSize = ref(20);
+const total = ref(0);
 const merchantId = ref('');
 const channel = ref('');
 const status = ref('');
@@ -251,17 +267,24 @@ function statusTag(s?: string): 'info' | 'warning' | 'success' | 'danger' {
 async function load() {
   loading.value = true;
   try {
-    const q = new URLSearchParams();
+    const q = new URLSearchParams({
+      page: String(page.value - 1),
+      size: String(pageSize.value)
+    });
     if (merchantId.value.trim()) q.set('merchantId', merchantId.value.trim());
     if (channel.value) q.set('channel', channel.value);
     if (status.value) q.set('status', status.value);
     const [list, h] = await Promise.all([
-      api.request<OnboardRow[]>(`/api/v2/ops/admin/merchant-onboarding?${q}`, 'GET'),
+      api.request<{ items: OnboardRow[]; total: number }>(
+        `/api/v2/ops/admin/merchant-onboarding?${q}`,
+        'GET'
+      ),
       api
         .request<Record<string, any>>('/api/v2/ops/admin/merchant-onboarding/live-hints', 'GET')
         .catch(() => null)
     ]);
-    rows.value = list || [];
+    rows.value = list.items || [];
+    total.value = Number(list.total) || 0;
     hints.value = h;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -269,6 +292,16 @@ async function load() {
     loading.value = false;
     hydrated.value = true;
   }
+}
+
+function onSizeChange() {
+  page.value = 1;
+  load();
+}
+
+function search() {
+  page.value = 1;
+  load();
 }
 
 function openCreate() {

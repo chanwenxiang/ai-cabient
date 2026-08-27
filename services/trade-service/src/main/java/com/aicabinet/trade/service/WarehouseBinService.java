@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.BinInboundRequest;
 import com.aicabinet.common.dto.BinMoveRequest;
 import com.aicabinet.common.dto.UpsertWarehouseBinRequest;
@@ -90,6 +91,25 @@ public class WarehouseBinService {
     @Transactional(readOnly = true)
     public List<WarehouseBinStockDto> listBinStock(Long operatorId, String warehouseId, Long binId) {
         permissionService.requirePermission(operatorId, "ops:warehouse:list");
+        return buildBinStockList(warehouseId, binId);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<WarehouseBinStockDto> listBinStockPage(
+            Long operatorId, String warehouseId, Long binId, int page, int size) {
+        permissionService.requirePermission(operatorId, "ops:warehouse:list");
+        List<WarehouseBinStockDto> all = buildBinStockList(warehouseId, binId);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        int from = p * s;
+        if (from >= all.size()) {
+            return new PageResult<>(List.of(), p, s, all.size());
+        }
+        int to = Math.min(from + s, all.size());
+        return new PageResult<>(all.subList(from, to), p, s, all.size());
+    }
+
+    private List<WarehouseBinStockDto> buildBinStockList(String warehouseId, Long binId) {
         List<WarehouseBin> bins = binRepository.findAll().stream()
                 .filter(b -> binId == null || binId.equals(b.getBinId()))
                 .filter(b -> warehouseId == null || warehouseId.isBlank()

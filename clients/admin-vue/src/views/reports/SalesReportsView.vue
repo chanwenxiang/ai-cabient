@@ -17,7 +17,7 @@
 
     <el-form inline class="filter-bar filter-bar--compact">
       <el-form-item label="维度">
-        <el-radio-group v-model="dim" @change="load">
+        <el-radio-group v-model="dim" @change="search">
           <el-radio-button value="PRODUCT">商品</el-radio-button>
           <el-radio-button value="CABINET">货柜</el-radio-button>
           <el-radio-button value="MERCHANT">商户</el-radio-button>
@@ -31,7 +31,7 @@
           filterable
           placeholder="全部柜机"
           style="width: 200px"
-          @change="load"
+          @change="search"
         >
           <el-option
             v-for="d in deviceOptions"
@@ -45,7 +45,7 @@
         <el-date-picker v-model="range" type="daterange" value-format="YYYY-MM-DD" />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="load">查询</el-button>
+        <el-button type="primary" @click="search">查询</el-button>
       </el-form-item>
     </el-form>
 
@@ -94,6 +94,18 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next, jumper"
+      background
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
   </el-card>
 </template>
 
@@ -102,6 +114,7 @@ import { onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
+import PagePager from '@/components/PagePager.vue';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { csvFileName } from '@/utils/csv';
 
@@ -109,6 +122,9 @@ const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 
 const loading = ref(false);
 const listHydrated = ref(false);
+const page = ref(1);
+const size = ref(20);
+const total = ref(0);
 const dim = ref('PRODUCT');
 const deviceId = ref('');
 function todayStr() {
@@ -121,18 +137,27 @@ function todayStr() {
 const range = ref<[string, string] | null>([todayStr(), todayStr()]);
 const rows = ref<any[]>([]);
 
-function queryParams() {
+function queryParams(includePage = true) {
   const q = new URLSearchParams({ dim: dim.value });
   if (range.value?.[0]) q.set('fromDate', range.value[0]);
   if (range.value?.[1]) q.set('toDate', range.value[1]);
   if (deviceId.value) q.set('deviceId', deviceId.value);
+  if (includePage) {
+    q.set('page', String(page.value - 1));
+    q.set('size', String(size.value));
+  }
   return q;
 }
 
 async function load() {
   loading.value = true;
   try {
-    rows.value = await api.request(`/api/v2/ops/admin/sales-reports?${queryParams()}`, 'GET');
+    const data = await api.request<{ items: any[]; total: number }>(
+      `/api/v2/ops/admin/sales-reports?${queryParams()}`,
+      'GET'
+    );
+    rows.value = data.items || [];
+    total.value = Number(data.total) || 0;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
     if (!listHydrated.value) rows.value = [];
@@ -142,10 +167,20 @@ async function load() {
   }
 }
 
+function onSizeChange() {
+  page.value = 1;
+  load();
+}
+
+function search() {
+  page.value = 1;
+  load();
+}
+
 async function exportCsv() {
   try {
     await downloadAuthFile(
-      `/api/v2/ops/admin/sales-reports/export?${queryParams()}`,
+      `/api/v2/ops/admin/sales-reports/export?${queryParams(false)}`,
       csvFileName(`销售报表-${dim.value}`)
     );
   } catch (e) {

@@ -153,6 +153,71 @@ public class DeviceSlotService {
         return alerts;
     }
 
+    /**
+     * 缺货建议全量行：账实差异 + 低库存/OOS 货道，按 deviceId:slotCode 去重。
+     */
+    @Transactional(readOnly = true)
+    public List<ReplenishmentShortageRowDto> listShortageRows(Long operatorId, String deviceIdFilter) {
+        LinkedHashMap<String, ReplenishmentShortageRowDto> byKey = new LinkedHashMap<>();
+        for (SlotDiscrepancyAlertDto alert : self.listDiscrepancyAlerts(operatorId, deviceIdFilter)) {
+            String key = shortageRowKey(alert.deviceId(), alert.slotCode());
+            DeviceSlot slot = slotRepository.findById(new DeviceSlotId(alert.deviceId(), alert.slotCode()))
+                    .orElse(null);
+            int minLevel = slot != null ? slot.getMinLevel() : 0;
+            int parLevel = slot != null ? slot.getParLevel() : 0;
+            String status = slot != null ? resolveStockStatus(slot, alert.bookQty()) : "LOW";
+            byKey.put(key, new ReplenishmentShortageRowDto(
+                    alert.deviceId(), alert.deviceName(), alert.slotCode(),
+                    alert.assignedSkuId(), alert.assignedSkuName(),
+                    alert.bookQty(), minLevel, parLevel, status, key));
+        }
+        for (DeviceInfo device : resolveDevicesForShortage(operatorId, deviceIdFilter)) {
+            String deviceId = device.getDeviceId();
+            Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
+            for (DeviceSlot slot : slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId)) {
+                if (!slot.isEnabled()) {
+                    continue;
+                }
+                String skuId = slot.getAssignedSkuId();
+                if (skuId == null || skuId.isBlank()) {
+                    continue;
+                }
+                String slotCode = slot.getId().getSlotCode();
+                String key = shortageRowKey(deviceId, slotCode);
+                if (byKey.containsKey(key)) {
+                    continue;
+                }
+                int bookQty = bookBySlot.getOrDefault(slotCode, 0);
+                String status = resolveStockStatus(slot, bookQty);
+                if (bookQty <= slot.getMinLevel() || "OOS".equals(status) || "LOW".equals(status)) {
+                    String skuName = skuCatalogRepository.findById(skuId)
+                            .map(SkuCatalog::getSkuName)
+                            .orElse(null);
+                    byKey.put(key, new ReplenishmentShortageRowDto(
+                            deviceId, device.getDeviceName(), slotCode, skuId, skuName,
+                            bookQty, slot.getMinLevel(), slot.getParLevel(), status, key));
+                }
+            }
+        }
+        return byKey.values().stream()
+                .sorted(Comparator.comparing(ReplenishmentShortageRowDto::deviceId)
+                        .thenComparing(ReplenishmentShortageRowDto::slotCode))
+                .toList();
+    }
+
+    private List<DeviceInfo> resolveDevicesForShortage(Long operatorId, String deviceIdFilter) {
+        if (deviceIdFilter != null && !deviceIdFilter.isBlank()) {
+            String dev = deviceIdFilter.trim();
+            merchantScopeService.requireDeviceAccess(operatorId, dev);
+            return deviceRepository.findById(dev).map(List::of).orElse(List.of());
+        }
+        return merchantScopeService.allowedDevices(operatorId);
+    }
+
+    private static String shortageRowKey(String deviceId, String slotCode) {
+        return deviceId + ":" + slotCode;
+    }
+
     private List<SlotDiscrepancyAlertDto> buildDiscrepanciesForDevice(String deviceId) {
         requireDevice(deviceId);
         Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);

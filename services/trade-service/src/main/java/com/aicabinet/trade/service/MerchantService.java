@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -88,6 +89,33 @@ public class MerchantService {
                 .filter(m -> allowed == null || allowed.contains(m.getMerchantId()))
                 .map(m -> toDto(m, deviceCounts.getOrDefault(m.getMerchantId(), 0L)))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<MerchantDto> listMerchantsPage(Long operatorId, int page, int size, String keyword) {
+        permissionService.requirePermission(operatorId, "ops:merchant:list");
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        Set<String> allowed = merchantScopeService.allowedMerchantIds(operatorId);
+        Collection<String> scopeFilter = allowed;
+        Map<String, Long> deviceCounts = deviceRepository.findAll().stream()
+                .filter(d -> d.getMerchantId() != null)
+                .filter(d -> allowed == null || allowed.contains(d.getMerchantId()))
+                .collect(Collectors.groupingBy(
+                        com.aicabinet.trade.domain.DeviceInfo::getMerchantId,
+                        Collectors.counting()));
+        var result = merchantRepository.searchPage(scopeFilter, blankToNull(keyword), p, s);
+        List<MerchantDto> items = result.getRecords().stream()
+                .map(m -> toDto(m, deviceCounts.getOrDefault(m.getMerchantId(), 0L)))
+                .toList();
+        return new PageResult<>(items, p, s, result.getTotal());
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     @Transactional
@@ -358,10 +386,6 @@ public class MerchantService {
             return List.of("ACCRUED", "LEDGER_ONLY", "WECHAT_FAILED", "FAILED");
         }
         return List.of(key);
-    }
-
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private static String csv(String value) {

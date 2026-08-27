@@ -1762,7 +1762,12 @@ async function loadRelated() {
 }
 
 async function loadSkus() {
-  skus.value = await api.request<SkuCatalog[]>('/api/v2/ops/admin/skus', 'GET').catch(() => []);
+  skus.value =
+    (
+      await api
+        .request<{ items: SkuCatalog[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET')
+        .catch(() => ({ items: [] as SkuCatalog[] }))
+    ).items || [];
 }
 
 async function reload() {

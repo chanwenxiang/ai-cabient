@@ -1,6 +1,7 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.UpsertAliyunMappingRequest;
 import com.aicabinet.common.dto.UpsertYoloMappingRequest;
 import com.aicabinet.trade.auth.AuthInterceptor;
@@ -24,6 +25,16 @@ public class VisionMappingAdminController {
     @GetMapping
     public ApiResponse<VisionMappingService.VisionMappingsDto> list(HttpServletRequest request) {
         return ApiResponse.ok(visionMappingService.listMappingsForAdmin(operatorId(request)));
+    }
+
+    @RequiresPermissions("ops:vision:list")
+    @GetMapping("/yolo")
+    public ApiResponse<PageResult<VisionMappingService.YoloMappingDto>> listYolo(
+            HttpServletRequest request,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(visionMappingService.listYoloMappingsPage(operatorId(request), q, page, size));
     }
 
     @RequiresPermissions("ops:vision:edit")

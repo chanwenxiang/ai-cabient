@@ -144,6 +144,17 @@
             </template>
           </el-table-column>
         </el-table>
+        <PagePager
+          :hydrated="contractsHydrated"
+          v-model:current-page="contractPage"
+          v-model:page-size="contractSize"
+          :total="contractTotal"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next"
+          background
+          @current-change="loadContracts"
+          @size-change="onContractSizeChange"
+        />
       </el-tab-pane>
     </el-tabs>
 
@@ -345,6 +356,7 @@ import { onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import PagePager from '@/components/PagePager.vue';
 import type { OrgNodeDto, SiteContractDto } from '@aicabinet/shared-types';
 import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 
@@ -353,6 +365,10 @@ const saving = ref(false);
 const tab = ref('org');
 const orgTree = ref<OrgNodeDto[]>([]);
 const contracts = ref<SiteContractDto[]>([]);
+const contractsHydrated = ref(false);
+const contractPage = ref(1);
+const contractSize = ref(20);
+const contractTotal = ref(0);
 const deviceOptions = ref<{ deviceId: string; deviceName?: string }[]>([]);
 const nodeVisible = ref(false);
 const nodeForm = ref<{
@@ -415,17 +431,39 @@ onMounted(async () => {
 async function loadAll() {
   loading.value = true;
   try {
-    const [tree, list] = await Promise.all([
-      api.request<OrgNodeDto[]>('/api/v2/ops/admin/org/tree', 'GET'),
-      api.request<SiteContractDto[]>('/api/v2/ops/admin/site-contracts', 'GET')
-    ]);
-    orgTree.value = tree || [];
-    contracts.value = list || [];
+    orgTree.value = (await api.request<OrgNodeDto[]>('/api/v2/ops/admin/org/tree', 'GET')) || [];
+    await loadContracts();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
     loading.value = false;
   }
+}
+
+async function loadContracts() {
+  loading.value = true;
+  try {
+    const q = new URLSearchParams({
+      page: String(contractPage.value - 1),
+      size: String(contractSize.value)
+    });
+    const data = await api.request<{ items: SiteContractDto[]; total: number }>(
+      `/api/v2/ops/admin/site-contracts?${q}`,
+      'GET'
+    );
+    contracts.value = data.items || [];
+    contractTotal.value = Number(data.total) || 0;
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '合同加载失败');
+  } finally {
+    contractsHydrated.value = true;
+    loading.value = false;
+  }
+}
+
+function onContractSizeChange() {
+  contractPage.value = 1;
+  loadContracts();
 }
 
 async function loadDevices() {

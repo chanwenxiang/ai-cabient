@@ -5,6 +5,7 @@ import com.aicabinet.trade.domain.WarehouseInventory;
 import com.aicabinet.trade.domain.WarehouseOutbound;
 import com.aicabinet.trade.domain.WarehouseOutboundLine;
 import com.aicabinet.trade.mapper.*;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -62,19 +63,19 @@ class WarehouseServiceTest {
         w1.setWarehouseId("WH-001");
         w1.setWarehouseName("主仓库");
 
-        when(warehouseRepository.findAll()).thenReturn(List.of(w1));
+        when(warehouseRepository.searchPage(null, 0, 500)).thenReturn(pageOf(w1));
 
         var result = warehouseService.listWarehouses();
 
         assertEquals(1, result.size());
         assertEquals("WH-001", result.get(0).warehouseId());
         assertEquals("主仓库", result.get(0).warehouseName());
-        verify(warehouseRepository, times(1)).findAll();
+        verify(warehouseRepository, times(1)).searchPage(null, 0, 500);
     }
 
     @Test
     void listWarehouses_shouldReturnEmpty_whenNoData() {
-        when(warehouseRepository.findAll()).thenReturn(List.of());
+        when(warehouseRepository.searchPage(null, 0, 500)).thenReturn(pageOf());
 
         var result = warehouseService.listWarehouses();
 
@@ -167,6 +168,13 @@ class WarehouseServiceTest {
         assertEquals(2, lines.get(0).getQuantity());
         assertEquals("FAR", lines.get(1).getBatchNo());
         assertEquals(3, lines.get(1).getQuantity());
+    }
+
+    private static Page<Warehouse> pageOf(Warehouse... rows) {
+        Page<Warehouse> page = new Page<>(1, 500);
+        page.setRecords(List.of(rows));
+        page.setTotal(rows.length);
+        return page;
     }
 
     private void stubOutboundSave(long outboundId) {

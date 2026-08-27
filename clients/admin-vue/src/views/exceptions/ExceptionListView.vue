@@ -1101,7 +1101,9 @@ async function openDetail(row: OpsException) {
       canManualResolve(detail.value.exception) &&
       !skus.value.length
     ) {
-      skus.value = await api.request<Sku[]>('/api/v2/ops/admin/skus', 'GET');
+      skus.value =
+        (await api.request<{ items: Sku[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET'))
+          .items || [];
     }
     const sid = detail.value?.exception?.sessionId;
     if (sid && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
