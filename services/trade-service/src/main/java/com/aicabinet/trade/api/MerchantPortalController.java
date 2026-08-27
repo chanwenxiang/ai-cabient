@@ -120,7 +120,8 @@ public class MerchantPortalController {
             @RequestParam(name = "to", required = false) String to,
             @RequestParam(name = "keyword", required = false) String keyword) {
         return ApiResponse.ok(support.merchantFinanceService().listOrders(
-                userId(request), page, size, deviceId, status, from, to, keyword));
+                userId(request), new MerchantFinanceService.MerchantOrderListQuery(
+                        page, size, deviceId, status, from, to, keyword)));
     }
 
     @RequiresPermissions("merchant:orders:list")

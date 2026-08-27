@@ -71,17 +71,18 @@ public class ReconciliationService {
     }
 
     @Transactional(readOnly = true)
-    public PageResult<PaymentReconciliationDto> listPage(Long operatorId, LocalDate from, LocalDate to,
-                                                         String channel, String status, String keyword,
-                                                         int page, int size) {
-        LocalDate end = to != null ? to : LocalDate.now();
-        LocalDate start = from != null ? from : end.minusDays(30);
-        int p = Math.max(page, 0);
-        int s = Math.min(Math.max(size, 1), 100);
-        var result = reconRepository.searchPage(start, end, channel, status, keyword, p, s);
+    public PageResult<PaymentReconciliationDto> listPage(Long operatorId, ReconListPageQuery query) {
+        LocalDate end = query.to() != null ? query.to() : LocalDate.now();
+        LocalDate start = query.from() != null ? query.from() : end.minusDays(30);
+        int p = Math.max(query.page(), 0);
+        int s = Math.min(Math.max(query.size(), 1), 100);
+        var result = reconRepository.searchPage(start, end, query.channel(), query.status(), query.keyword(), p, s);
         List<PaymentReconciliationDto> items = result.getRecords().stream().map(this::toDto).toList();
         return new PageResult<>(items, p, s, result.getTotal());
     }
+
+    public record ReconListPageQuery(
+            LocalDate from, LocalDate to, String channel, String status, String keyword, int page, int size) {}
 
     private static boolean matchesReconKeyword(PaymentReconciliation r, String keyword) {
         if (keyword == null || keyword.isBlank()) {

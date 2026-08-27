@@ -127,40 +127,28 @@ public class MerchantWalletService {
     @Transactional
 
     public boolean reverseCreditIfPresent(String merchantId, long amountCents, String entryType,
-
-                                          String reverseRefType, String reverseRefId,
-
-                                          String originalRefType, String originalRefId, String remark) {
-
+                                          ReverseCreditCommand command) {
         return runWithWalletLock(merchantId, () -> {
 
             requireMerchantId(merchantId);
 
             requirePositive(amountCents);
 
-            if (originalRefType == null || originalRefId == null
-
-                    || ledgerMapper.findByRef(merchantId, originalRefType, originalRefId).isEmpty()) {
-
+            if (command.originalRefType() == null || command.originalRefId() == null
+                    || ledgerMapper.findByRef(merchantId, command.originalRefType(), command.originalRefId()).isEmpty()) {
                 return false;
-
             }
-
-            if (reverseRefType != null && reverseRefId != null
-
-                    && ledgerMapper.findByRef(merchantId, reverseRefType, reverseRefId).isPresent()) {
-
+            if (command.reverseRefType() != null && command.reverseRefId() != null
+                    && ledgerMapper.findByRef(merchantId, command.reverseRefType(), command.reverseRefId()).isPresent()) {
                 return false;
-
             }
-
-            doDebit(merchantId, amountCents, entryType, reverseRefType, reverseRefId, remark);
-
+            doDebit(merchantId, amountCents, entryType, command.reverseRefType(), command.reverseRefId(), command.remark());
             return true;
-
         });
-
     }
+
+    public record ReverseCreditCommand(
+            String reverseRefType, String reverseRefId, String originalRefType, String originalRefId, String remark) {}
 
 
 

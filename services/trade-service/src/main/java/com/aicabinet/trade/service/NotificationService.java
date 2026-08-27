@@ -84,7 +84,9 @@ public class NotificationService {
         if (userId == null || userId < com.aicabinet.common.constants.CabinetConstants.OPERATOR_USER_ID_START) {
             return;
         }
-        saveLog("OPS_INBOX", IN_APP, "OPS", userId, null, title, body, bizType, bizId);
+        saveLog(new NotificationLogDraft("OPS_INBOX", IN_APP,
+                new NotificationLogDraft.NotificationTarget("OPS", userId, null),
+                new NotificationLogDraft.NotificationContent(title, body, bizType, bizId)));
     }
 
     @Transactional(readOnly = true)
@@ -130,8 +132,9 @@ public class NotificationService {
 
         List<String> channelList = channels(tpl.getChannels(), tpl.getChannel());
         if (channelList.contains(IN_APP)) {
-            saveLog(tpl.getTemplateCode(), IN_APP, audience, userId, merchantId,
-                    title, body, bizType, bizId);
+            saveLog(new NotificationLogDraft(tpl.getTemplateCode(), IN_APP,
+                    new NotificationLogDraft.NotificationTarget(audience, userId, merchantId),
+                    new NotificationLogDraft.NotificationContent(title, body, bizType, bizId)));
         }
         boolean hasExternal = channelList.stream().anyMatch(c -> !IN_APP.equals(c));
         if (!hasExternal || userId == null) {
@@ -150,23 +153,29 @@ public class NotificationService {
         externalDispatcher.dispatch(message);
     }
 
-    private void saveLog(String templateCode, String channel, String audience, Long userId,
-                         String merchantId, String title, String body, String bizType, String bizId) {
+    private record NotificationLogDraft(
+            String templateCode, String channel, NotificationTarget target, NotificationContent content) {
+        private record NotificationTarget(String audience, Long userId, String merchantId) {}
+        private record NotificationContent(String title, String body, String bizType, String bizId) {}
+    }
+
+    private void saveLog(NotificationLogDraft draft) {
         NotificationLog record = new NotificationLog();
-        record.setTemplateCode(templateCode);
-        record.setChannel(channel);
-        record.setAudience(audience);
-        record.setUserId(userId);
-        record.setMerchantId(merchantId);
-        record.setTitle(title);
-        record.setBody(body);
-        record.setBizType(bizType);
-        record.setBizId(bizId);
+        record.setTemplateCode(draft.templateCode());
+        record.setChannel(draft.channel());
+        record.setAudience(draft.target().audience());
+        record.setUserId(draft.target().userId());
+        record.setMerchantId(draft.target().merchantId());
+        record.setTitle(draft.content().title());
+        record.setBody(draft.content().body());
+        record.setBizType(draft.content().bizType());
+        record.setBizId(draft.content().bizId());
         record.setStatus("SENT");
         record.setCreatedAt(Instant.now());
         logRepository.save(record);
         log.info("notification sent channel={} template={} audience={} userId={} merchantId={}",
-                channel, templateCode, audience, userId, merchantId);
+                draft.channel(), draft.templateCode(), draft.target().audience(),
+                draft.target().userId(), draft.target().merchantId());
     }
 
     private static java.util.List<String> channels(String channels, String fallback) {

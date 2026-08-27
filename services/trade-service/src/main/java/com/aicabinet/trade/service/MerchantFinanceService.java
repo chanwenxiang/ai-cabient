@@ -73,13 +73,12 @@ public class MerchantFinanceService {
     }
 
     @Transactional(readOnly = true)
-    public PageResult<MerchantOrderSummaryDto> listOrders(Long userId, int page, int size, String deviceId,
-                                                          String status, String fromDate, String toDate,
-                                                          String keyword) {
+    public PageResult<MerchantOrderSummaryDto> listOrders(Long userId, MerchantOrderListQuery query) {
         permissionService.requirePermission(userId, "merchant:orders:list");
         merchantPortalGuard.requireAccess(userId);
-        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
-        Page<CabinetOrder> result = queryOrders(userId, deviceId, status, fromDate, toDate, keyword, pageable);
+        Pageable pageable = PageRequest.of(query.page(), Math.min(query.size(), 100));
+        Page<CabinetOrder> result = queryOrders(userId, query.deviceId(), query.status(),
+                query.fromDate(), query.toDate(), query.keyword(), pageable);
         Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(
                 result.getContent().stream().map(CabinetOrder::getOrderId).toList());
         Map<String, List<CabinetOrderLine>> linesByOrder = orderLineRepository.findByOrderIds(
@@ -96,6 +95,9 @@ public class MerchantFinanceService {
                 result.getNumber(), result.getSize(), result.getTotalElements()
         );
     }
+
+    public record MerchantOrderListQuery(
+            int page, int size, String deviceId, String status, String fromDate, String toDate, String keyword) {}
 
     @Transactional(readOnly = true)
     public OrderDto getOrder(Long userId, String orderId) {

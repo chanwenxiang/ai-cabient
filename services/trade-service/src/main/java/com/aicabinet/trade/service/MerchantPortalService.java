@@ -588,7 +588,8 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public PageResult<MerchantOrderSummaryDto> listOrders(Long userId, int page, int size, String deviceId) {
-        return merchantFinanceService.listOrders(userId, page, size, deviceId, null, null, null, null);
+        return merchantFinanceService.listOrders(userId, new MerchantFinanceService.MerchantOrderListQuery(
+                page, size, deviceId, null, null, null, null));
     }
 
     @Transactional(readOnly = true)

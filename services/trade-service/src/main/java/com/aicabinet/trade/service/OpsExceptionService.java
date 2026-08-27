@@ -406,7 +406,9 @@ public class OpsExceptionService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         String result = applyManualResolution(session, item, resolutionType, lines, reason);
         String type = resolutionType == null ? "" : resolutionType.trim().toUpperCase();
-        finalizeManualResolve(operatorId, exceptionId, item, session, type, lines, marker, result);
+        finalizeManualResolve(new ManualResolveFinalization(
+                operatorId, exceptionId, item, session,
+                new ManualResolveFinalization.ManualResolveOutcome(type, lines, marker, result)));
         return toDto(item);
     }
 
@@ -432,25 +434,32 @@ public class OpsExceptionService {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "resolutionType 仅支持 CONFIRM、ADJUST、WAIVE");
     }
 
-    private void finalizeManualResolve(Long operatorId, String exceptionId, OpsException item,
-                                       ShoppingSession session, String resolutionType,
-                                       List<ResolveDisputeRequest.ManualLineItem> lines,
-                                       String marker, String result) {
-        session.setState(SessionState.COMPLETED);
-        session.setFailReason(null);
-        support.sessionRepository().save(session);
-        support.disputeService().closeOpenTicketForSession(operatorId, session.getSessionId(), resolutionType, lines);
-        if ((item.getOrderId() == null || item.getOrderId().isBlank())
-                && session.getOrderId() != null && !session.getOrderId().isBlank()) {
-            item.setOrderId(session.getOrderId());
+    private record ManualResolveFinalization(
+            Long operatorId, String exceptionId, OpsException item, ShoppingSession session,
+            ManualResolveOutcome outcome) {
+        private record ManualResolveOutcome(
+                String resolutionType, List<ResolveDisputeRequest.ManualLineItem> lines,
+                String marker, String result) {}
+    }
+
+    private void finalizeManualResolve(ManualResolveFinalization ctx) {
+        ctx.session().setState(SessionState.COMPLETED);
+        ctx.session().setFailReason(null);
+        support.sessionRepository().save(ctx.session());
+        support.disputeService().closeOpenTicketForSession(
+                ctx.operatorId(), ctx.session().getSessionId(),
+                ctx.outcome().resolutionType(), ctx.outcome().lines());
+        if ((ctx.item().getOrderId() == null || ctx.item().getOrderId().isBlank())
+                && ctx.session().getOrderId() != null && !ctx.session().getOrderId().isBlank()) {
+            ctx.item().setOrderId(ctx.session().getOrderId());
         }
-        item.setAssigneeUserId(operatorId);
-        item.setStatus(STATUS_RESOLVED);
-        item.setResolution(trim(result));
-        item.setResolvedAt(Instant.now());
-        repository.save(item);
-        support.auditService().record(operatorId, "OPS_EXCEPTION_MANUAL_RESOLVE", OPS_EXCEPTION, exceptionId,
-                marker + "; " + result);
+        ctx.item().setAssigneeUserId(ctx.operatorId());
+        ctx.item().setStatus(STATUS_RESOLVED);
+        ctx.item().setResolution(trim(ctx.outcome().result()));
+        ctx.item().setResolvedAt(Instant.now());
+        repository.save(ctx.item());
+        support.auditService().record(ctx.operatorId(), "OPS_EXCEPTION_MANUAL_RESOLVE", OPS_EXCEPTION, ctx.exceptionId(),
+                ctx.outcome().marker() + "; " + ctx.outcome().result());
     }
 
     private OpsException require(String id) { return repository.findById(id).orElseThrow(() ->
