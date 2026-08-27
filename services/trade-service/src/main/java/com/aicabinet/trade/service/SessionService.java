@@ -483,44 +483,11 @@ public class SessionService {
         if (!EnumSet.of(SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING).contains(session.getState())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SESSION_STATE_INVALID);
         }
-        Map<String, LiveCartDto.LiveCartLine> bySku = new LinkedHashMap<>();
         String mode = request == null ? "REPLACE" : request.resolvedMode();
-        if ("DELTA".equals(mode)) {
-            for (LiveCartDto.LiveCartLine existing : parseLiveCartLines(session.getLiveCart())) {
-                bySku.put(existing.skuId(), existing);
-            }
-        }
+        Map<String, LiveCartDto.LiveCartLine> bySku = seedCartFromExisting(session, mode);
         List<LiveCartUpdateRequest.LiveCartItem> incoming =
                 request == null || request.items() == null ? List.of() : request.items();
-        for (LiveCartUpdateRequest.LiveCartItem item : incoming) {
-            if (item == null || item.skuId() == null || item.skuId().isBlank()) {
-                continue;
-            }
-            String sku = item.skuId().trim();
-            if ("DELTA".equals(mode)) {
-                LiveCartDto.LiveCartLine prev = bySku.get(sku);
-                int prevQty = prev == null ? 0 : prev.quantity();
-                int nextQty = Math.max(0, prevQty + item.quantity());
-                if (nextQty <= 0) {
-                    bySku.remove(sku);
-                    continue;
-                }
-                int unit = item.unitPriceCents() != null && item.unitPriceCents() > 0
-                        ? item.unitPriceCents()
-                        : (prev != null ? prev.unitPriceCents() : 0);
-                String name = item.skuName() != null && !item.skuName().isBlank()
-                        ? item.skuName()
-                        : (prev != null ? prev.skuName() : sku);
-                bySku.put(sku, new LiveCartDto.LiveCartLine(sku, name, nextQty, unit, unit * nextQty));
-            } else {
-                if (item.quantity() <= 0) {
-                    continue;
-                }
-                int unit = item.unitPriceCents() == null ? 0 : Math.max(0, item.unitPriceCents());
-                String name = item.skuName() == null || item.skuName().isBlank() ? sku : item.skuName();
-                bySku.put(sku, new LiveCartDto.LiveCartLine(sku, name, item.quantity(), unit, unit * item.quantity()));
-            }
-        }
+        mergeIncomingCartItems(bySku, incoming, mode);
         if ("REPLACE".equals(mode) && incoming.isEmpty()) {
             bySku.clear();
         }
@@ -529,6 +496,62 @@ public class SessionService {
         repository.save(session);
         log.info("live cart updated session={} mode={} lines={}", sessionId, mode, lines.size());
         return toLiveCartDto(sessionId, lines);
+    }
+
+    private Map<String, LiveCartDto.LiveCartLine> seedCartFromExisting(ShoppingSession session, String mode) {
+        Map<String, LiveCartDto.LiveCartLine> bySku = new LinkedHashMap<>();
+        if (!"DELTA".equals(mode)) {
+            return bySku;
+        }
+        for (LiveCartDto.LiveCartLine existing : parseLiveCartLines(session.getLiveCart())) {
+            bySku.put(existing.skuId(), existing);
+        }
+        return bySku;
+    }
+
+    private void mergeIncomingCartItems(Map<String, LiveCartDto.LiveCartLine> bySku,
+                                        List<LiveCartUpdateRequest.LiveCartItem> incoming,
+                                        String mode) {
+        for (LiveCartUpdateRequest.LiveCartItem item : incoming) {
+            if (item == null || item.skuId() == null || item.skuId().isBlank()) {
+                continue;
+            }
+            if ("DELTA".equals(mode)) {
+                applyDeltaCartItem(bySku, item);
+            } else {
+                applyReplaceCartItem(bySku, item);
+            }
+        }
+    }
+
+    private static void applyDeltaCartItem(Map<String, LiveCartDto.LiveCartLine> bySku,
+                                           LiveCartUpdateRequest.LiveCartItem item) {
+        String sku = item.skuId().trim();
+        LiveCartDto.LiveCartLine prev = bySku.get(sku);
+        int prevQty = prev == null ? 0 : prev.quantity();
+        int nextQty = Math.max(0, prevQty + item.quantity());
+        if (nextQty <= 0) {
+            bySku.remove(sku);
+            return;
+        }
+        int unit = item.unitPriceCents() != null && item.unitPriceCents() > 0
+                ? item.unitPriceCents()
+                : (prev != null ? prev.unitPriceCents() : 0);
+        String name = item.skuName() != null && !item.skuName().isBlank()
+                ? item.skuName()
+                : (prev != null ? prev.skuName() : sku);
+        bySku.put(sku, new LiveCartDto.LiveCartLine(sku, name, nextQty, unit, unit * nextQty));
+    }
+
+    private static void applyReplaceCartItem(Map<String, LiveCartDto.LiveCartLine> bySku,
+                                             LiveCartUpdateRequest.LiveCartItem item) {
+        if (item.quantity() <= 0) {
+            return;
+        }
+        String sku = item.skuId().trim();
+        int unit = item.unitPriceCents() == null ? 0 : Math.max(0, item.unitPriceCents());
+        String name = item.skuName() == null || item.skuName().isBlank() ? sku : item.skuName();
+        bySku.put(sku, new LiveCartDto.LiveCartLine(sku, name, item.quantity(), unit, unit * item.quantity()));
     }
 
     @Transactional(readOnly = true)

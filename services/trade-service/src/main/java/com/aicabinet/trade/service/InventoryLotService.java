@@ -552,48 +552,65 @@ public class InventoryLotService {
                 List.of(ON_SALE, NEAR_EXPIRY, BLOCKED), horizon, 500);
         int alerts = 0;
         for (DeviceSkuLot lot : lots) {
-            SkuCatalog sku = skuCatalogRepository.findById(lot.getSkuId()).orElse(null);
-            int nearDays = sku != null ? sku.getNearExpiryDays() : 7;
-            LocalDate nearThreshold = today.plusDays(nearDays);
-
-            if (lot.getExpiryDate().isBefore(today)) {
-                if (!BLOCKED.equals(lot.getStatus())) {
-                    lot.setStatus(BLOCKED);
-                    lotRepository.save(lot);
-                }
-                if (pullOffTaskRepository.findByLotIdAndStatus(lot.getLotId(), "OPEN").isEmpty()) {
-                    PullOffTask task = new PullOffTask();
-                    task.setDeviceId(lot.getDeviceId());
-                    task.setSkuId(lot.getSkuId());
-                    task.setLotId(lot.getLotId());
-                    task.setBatchNo(lot.getBatchNo());
-                    task.setQuantity(lot.getQuantity());
-                    task.setReason("EXPIRED");
-                    pullOffTaskRepository.save(task);
-                    alerts++;
-                }
-            } else if (!lot.getExpiryDate().isAfter(nearThreshold)) {
-                if (ON_SALE.equals(lot.getStatus())) {
-                    lot.setStatus(NEAR_EXPIRY);
-                    lotRepository.save(lot);
-                    alerts++;
-                }
-                // 临期批次同步生成下架任务，避免只改状态无人处理
-                if ((NEAR_EXPIRY.equals(lot.getStatus()) || ON_SALE.equals(lot.getStatus()))
-                        && pullOffTaskRepository.findByLotIdAndStatus(lot.getLotId(), "OPEN").isEmpty()) {
-                    PullOffTask task = new PullOffTask();
-                    task.setDeviceId(lot.getDeviceId());
-                    task.setSkuId(lot.getSkuId());
-                    task.setLotId(lot.getLotId());
-                    task.setBatchNo(lot.getBatchNo());
-                    task.setQuantity(lot.getQuantity());
-                    task.setReason(NEAR_EXPIRY);
-                    pullOffTaskRepository.save(task);
-                    alerts++;
-                }
-            }
+            alerts += scanSingleLotForExpiry(lot, today);
         }
         return alerts;
+    }
+
+    private int scanSingleLotForExpiry(DeviceSkuLot lot, LocalDate today) {
+        SkuCatalog sku = skuCatalogRepository.findById(lot.getSkuId()).orElse(null);
+        int nearDays = sku != null ? sku.getNearExpiryDays() : 7;
+        LocalDate nearThreshold = today.plusDays(nearDays);
+        if (lot.getExpiryDate().isBefore(today)) {
+            return processExpiredLot(lot);
+        }
+        if (!lot.getExpiryDate().isAfter(nearThreshold)) {
+            return processNearExpiryLot(lot);
+        }
+        return 0;
+    }
+
+    private int processExpiredLot(DeviceSkuLot lot) {
+        int alerts = 0;
+        if (!BLOCKED.equals(lot.getStatus())) {
+            lot.setStatus(BLOCKED);
+            lotRepository.save(lot);
+        }
+        if (createPullOffTaskIfAbsent(lot, "EXPIRED")) {
+            alerts++;
+        }
+        return alerts;
+    }
+
+    private int processNearExpiryLot(DeviceSkuLot lot) {
+        int alerts = 0;
+        if (ON_SALE.equals(lot.getStatus())) {
+            lot.setStatus(NEAR_EXPIRY);
+            lotRepository.save(lot);
+            alerts++;
+        }
+        // 临期批次同步生成下架任务，避免只改状态无人处理
+        if ((NEAR_EXPIRY.equals(lot.getStatus()) || ON_SALE.equals(lot.getStatus()))
+                && createPullOffTaskIfAbsent(lot, NEAR_EXPIRY)) {
+            alerts++;
+        }
+        return alerts;
+    }
+
+    /** @return true 若新建了 OPEN 下架任务 */
+    private boolean createPullOffTaskIfAbsent(DeviceSkuLot lot, String reason) {
+        if (!pullOffTaskRepository.findByLotIdAndStatus(lot.getLotId(), "OPEN").isEmpty()) {
+            return false;
+        }
+        PullOffTask task = new PullOffTask();
+        task.setDeviceId(lot.getDeviceId());
+        task.setSkuId(lot.getSkuId());
+        task.setLotId(lot.getLotId());
+        task.setBatchNo(lot.getBatchNo());
+        task.setQuantity(lot.getQuantity());
+        task.setReason(reason);
+        pullOffTaskRepository.save(task);
+        return true;
     }
 
     /**

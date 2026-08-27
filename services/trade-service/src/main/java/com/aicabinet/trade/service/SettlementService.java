@@ -643,13 +643,46 @@ public class SettlementService {
         if (order.getLines() == null || order.getLines().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "订单无商品行，无法按行退款");
         }
+        int priorPayable = Math.max(0, order.getTotalAmountCents());
+        PartialRefundPartition partition = validateAndPartitionRefundLines(order, refundLines, defaultRestore);
+
+        List<CabinetOrderLine> remaining = buildRemainingLines(
+                mergeLinesBySku(order.getLines()), partition.refundQtyBySku());
+        order.setLines(remaining);
+        int newSubtotal = remaining.stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
+        couponService.recalcOrRestoreAfterPartialRefund(order, newSubtotal);
+        recalculatePayableAfterLineChange(order);
+        int refundCents = Math.max(0, priorPayable - order.getTotalAmountCents());
+        if (refundCents <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额为 0");
+        }
+
+        applyPartialRefundInventory(order, partition, remaining.isEmpty());
+        finalizePartialRefundPayment(order, refundCents, reason, remaining.isEmpty());
+        log.info("partial refund order={} refundCents={} status={} restoredLines={} keptLines={}",
+                order.getOrderId(), refundCents, order.getStatus(),
+                partition.restoreItems().size(), partition.keptItems().size());
+        return new PartialRefundResult(refundCents, order.getStatus(), partition.anyRestored());
+    }
+
+    private record PartialRefundPartition(
+            List<VisionServiceClient.RecognizedItem> restoreItems,
+            List<VisionServiceClient.RecognizedItem> keptItems,
+            Map<String, String> batchBySku,
+            Map<String, Integer> refundQtyBySku,
+            boolean anyRestored) {
+    }
+
+    private PartialRefundPartition validateAndPartitionRefundLines(
+            CabinetOrder order,
+            List<OrderRefundRequest.PartialRefundLine> refundLines,
+            boolean defaultRestore) {
         Map<String, CabinetOrderLine> bySku = mergeLinesBySku(order.getLines());
         List<VisionServiceClient.RecognizedItem> restoreItems = new java.util.ArrayList<>();
         List<VisionServiceClient.RecognizedItem> keptItems = new java.util.ArrayList<>();
         Map<String, String> batchBySku = new java.util.HashMap<>();
-        boolean anyRestored = false;
         Map<String, Integer> refundQtyBySku = new java.util.LinkedHashMap<>();
-        int priorPayable = Math.max(0, order.getTotalAmountCents());
+        boolean anyRestored = false;
 
         for (OrderRefundRequest.PartialRefundLine req : refundLines) {
             if (req == null || req.skuId() == null || req.skuId().isBlank() || req.quantity() <= 0) {
@@ -679,30 +712,28 @@ public class SettlementService {
                 keptItems.add(item);
             }
         }
+        return new PartialRefundPartition(restoreItems, keptItems, batchBySku, refundQtyBySku, anyRestored);
+    }
 
-        List<CabinetOrderLine> remaining = buildRemainingLines(bySku, refundQtyBySku);
-        order.setLines(remaining);
-        int newSubtotal = remaining.stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
-        couponService.recalcOrRestoreAfterPartialRefund(order, newSubtotal);
-        recalculatePayableAfterLineChange(order);
-        int refundCents = Math.max(0, priorPayable - order.getTotalAmountCents());
-        if (refundCents <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额为 0");
+    private void applyPartialRefundInventory(CabinetOrder order, PartialRefundPartition partition,
+                                             boolean remainingEmpty) {
+        if (!order.isInventoryDeducted()) {
+            return;
         }
-
-        if (order.isInventoryDeducted()) {
-            if (!restoreItems.isEmpty()) {
-                inventoryService.restoreForOrder(order.getDeviceId(), restoreItems, batchBySku);
-            }
-            if (!keptItems.isEmpty()) {
-                inventoryService.recordRefundKeptGoods(
-                        order.getDeviceId(), keptItems, batchBySku, order.getOrderId());
-            }
-            if (remaining.isEmpty()) {
-                order.setInventoryDeducted(false);
-            }
+        if (!partition.restoreItems().isEmpty()) {
+            inventoryService.restoreForOrder(order.getDeviceId(), partition.restoreItems(), partition.batchBySku());
         }
+        if (!partition.keptItems().isEmpty()) {
+            inventoryService.recordRefundKeptGoods(
+                    order.getDeviceId(), partition.keptItems(), partition.batchBySku(), order.getOrderId());
+        }
+        if (remainingEmpty) {
+            order.setInventoryDeducted(false);
+        }
+    }
 
+    private void finalizePartialRefundPayment(CabinetOrder order, int refundCents, String reason,
+                                              boolean remainingEmpty) {
         int priorRefunded = Math.max(0, order.getRefundedCents());
         orderPaymentService.refundOrder(order, refundCents, reason == null ? "按行部分退款" : reason);
         // 支付层正常会累加 refundedCents；演示账号早退 / 历史路径漏写时在此兜底，避免 PARTIAL_REFUNDED 金额为 0
@@ -712,19 +743,14 @@ public class SettlementService {
         if (order.getRefundedAt() == null) {
             order.setRefundedAt(java.time.Instant.now());
         }
-        boolean full = remaining.isEmpty() || order.getTotalAmountCents() <= 0;
+        boolean full = remainingEmpty || order.getTotalAmountCents() <= 0;
         order.setStatus(full ? CabinetConstants.ORDER_STATUS_REFUNDED : "PARTIAL_REFUNDED");
         if (full) {
             order.setRefundedAt(java.time.Instant.now());
-            revenueSplitService.adjustSplitAfterPartialRefund(order, true);
-        } else {
-            revenueSplitService.adjustSplitAfterPartialRefund(order, false);
         }
+        revenueSplitService.adjustSplitAfterPartialRefund(order, full);
         orderRepository.save(order);
         replaceOrderLines(order);
-        log.info("partial refund order={} refundCents={} status={} restoredLines={} keptLines={}",
-                order.getOrderId(), refundCents, order.getStatus(), restoreItems.size(), keptItems.size());
-        return new PartialRefundResult(refundCents, order.getStatus(), anyRestored);
     }
 
     public record PartialRefundResult(int refundedCents, String status, boolean anyInventoryRestored) {}
@@ -867,20 +893,10 @@ public class SettlementService {
         deviceValidationService.ensureSettlementAllowed(session.getDeviceId());
         CabinetOrder order = buildOrder(session, items);
         CouponService.BestCoupon appliedCoupon = selectBestCouponForOrder(order);
-        boolean unpaid = false;
-        if (!userValidationService.canChargeViaPasswordFree(session.getUserId(), session.getEntryChannel())) {
-            try {
-                int hold = ConsumerPreauthService.STATUS_FROZEN.equalsIgnoreCase(
-                        session.getPreauthStatus() == null ? "" : session.getPreauthStatus())
-                        ? Math.max(0, session.getPreauthCents()) : 0;
-                userValidationService.validateSufficientBalanceForCharge(
-                        session.getUserId(), order.getTotalAmountCents(), hold);
-            } catch (BalanceInsufficientException e) {
-                unpaid = true;
-                // 优惠券等到补扣成功再核销，避免关单占券；同时清掉订单上的券字段，防止未占券却按折后价落 PENDING
-                appliedCoupon = null;
-                clearCouponSelection(order);
-            }
+        boolean unpaid = detectUnpaidBeforeCharge(session, order);
+        if (unpaid) {
+            appliedCoupon = null;
+            clearCouponSelection(order);
         }
         var batchBySku = inventoryService.deductForOrder(
                 session.getDeviceId(), items, session.getSessionId(), gravityDeltasForInventory(session));
@@ -892,30 +908,10 @@ public class SettlementService {
         persistOrderLines(order);
 
         if (unpaid) {
-            session.setOrderId(order.getOrderId());
-            sessionRepository.save(session);
-            videoArchiveService.archiveAfterSettlement(session);
-            log.info("unpaid order created session={} order={} amount={}",
-                    session.getSessionId(), order.getOrderId(), order.getTotalAmountCents());
-            return toDto(order);
+            return finishUnpaidOrder(session, order);
         }
-
-        try {
-            orderPaymentService.chargeOrder(order);
-        } catch (ResponseStatusException e) {
-            if (isInsufficientBalance(e)) {
-                // 扣款失败转待支付：同样不占券，补扣时再选
-                clearCouponSelection(order);
-                order.setStatus("PENDING");
-                orderRepository.save(order);
-                session.setOrderId(order.getOrderId());
-                sessionRepository.save(session);
-                videoArchiveService.archiveAfterSettlement(session);
-                log.info("unpaid order after charge fail session={} order={} amount={}",
-                        session.getSessionId(), order.getOrderId(), order.getTotalAmountCents());
-                return toDto(order);
-            }
-            throw e;
+        if (!tryChargeSettledOrder(session, order)) {
+            return toDto(order);
         }
         orderRepository.save(order);
         if (appliedCoupon != null) {
@@ -950,6 +946,57 @@ public class SettlementService {
                 session.getSessionId(), order.getOrderId(), order.getTotalAmountCents(),
                 order.getCouponDiscountCents(), order.getPayChannel());
         return toDto(order);
+    }
+
+    /** 余额不足时预判为待支付（优惠券延后核销）。 */
+    private boolean detectUnpaidBeforeCharge(ShoppingSession session, CabinetOrder order) {
+        if (userValidationService.canChargeViaPasswordFree(session.getUserId(), session.getEntryChannel())) {
+            return false;
+        }
+        try {
+            int hold = ConsumerPreauthService.STATUS_FROZEN.equalsIgnoreCase(
+                    session.getPreauthStatus() == null ? "" : session.getPreauthStatus())
+                    ? Math.max(0, session.getPreauthCents()) : 0;
+            userValidationService.validateSufficientBalanceForCharge(
+                    session.getUserId(), order.getTotalAmountCents(), hold);
+            return false;
+        } catch (BalanceInsufficientException e) {
+            return true;
+        }
+    }
+
+    private OrderDto finishUnpaidOrder(ShoppingSession session, CabinetOrder order) {
+        session.setOrderId(order.getOrderId());
+        sessionRepository.save(session);
+        videoArchiveService.archiveAfterSettlement(session);
+        log.info("unpaid order created session={} order={} amount={}",
+                session.getSessionId(), order.getOrderId(), order.getTotalAmountCents());
+        return toDto(order);
+    }
+
+    /**
+     * 尝试扣款；余额不足时转 PENDING 并返回 false（订单已落库）。
+     * 其他支付异常继续抛出。
+     */
+    private boolean tryChargeSettledOrder(ShoppingSession session, CabinetOrder order) {
+        try {
+            orderPaymentService.chargeOrder(order);
+            return true;
+        } catch (ResponseStatusException e) {
+            if (!isInsufficientBalance(e)) {
+                throw e;
+            }
+            // 扣款失败转待支付：同样不占券，补扣时再选
+            clearCouponSelection(order);
+            order.setStatus("PENDING");
+            orderRepository.save(order);
+            session.setOrderId(order.getOrderId());
+            sessionRepository.save(session);
+            videoArchiveService.archiveAfterSettlement(session);
+            log.info("unpaid order after charge fail session={} order={} amount={}",
+                    session.getSessionId(), order.getOrderId(), order.getTotalAmountCents());
+            return false;
+        }
     }
 
     private static String yuan(int cents) {
