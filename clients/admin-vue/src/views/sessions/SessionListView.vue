@@ -671,16 +671,21 @@ function waitReasonForWaitingUpload(upload: string, stuck: boolean) {
   return stuck ? '关门后长期待上传' : '关门后等待录像上报';
 }
 
+const ACTIVE_SESSION_HINTS: Record<string, (stuck: boolean) => string> = {
+  RECOGNIZING: (stuck) => (stuck ? '识别滞留，需人工跟进' : '视觉识别处理中'),
+  SETTLING: (stuck) => (stuck ? '结算滞留，需核对扣款' : '订单结算中'),
+  OPENING: (stuck) => (stuck ? '开门指令超时' : '开门指令下发中'),
+  DISPUTED: () => '待人工审核'
+};
+
 function waitReasonForActiveState(s: string, stuck: boolean, fail: string) {
-  if (s === 'RECOGNIZING') return stuck ? '识别滞留，需人工跟进' : '视觉识别处理中';
-  if (s === 'SETTLING') return stuck ? '结算滞留，需核对扣款' : '订单结算中';
+  const hint = ACTIVE_SESSION_HINTS[s];
+  if (hint) return hint(stuck);
   if (s === 'SHOPPING' || s === 'OPEN' || s === 'DOOR_OPEN') {
     return stuck ? '长时间未关门' : '购物中 / 柜门开启';
   }
-  if (s === 'OPENING') return stuck ? '开门指令超时' : '开门指令下发中';
   if (s === 'FAILED') return fail === '无' ? '会话失败' : fail;
   if (s === 'CANCELLED') return fail === '无' ? '会话已取消' : fail;
-  if (s === 'DISPUTED') return '待人工审核';
   return '';
 }
 

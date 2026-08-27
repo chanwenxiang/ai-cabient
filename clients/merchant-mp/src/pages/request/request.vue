@@ -278,6 +278,73 @@ function changeListStatus(status: string) {
   void loadRequests();
 }
 
+function buildSuggestMap(items: MerchantReplenishmentSuggest[]) {
+  const suggestMap = new Map<string, MerchantReplenishmentSuggest>();
+  for (const s of items || []) {
+    if (!s?.skuId) continue;
+    const prev = suggestMap.get(s.skuId);
+    if (!prev || (s.suggestQty || 0) > (prev.suggestQty || 0)) suggestMap.set(s.skuId, s);
+  }
+  return suggestMap;
+}
+
+function mergeSlotDraftLine(
+  bySku: Map<string, DraftLine>,
+  slot: DeviceSlot,
+  sug: MerchantReplenishmentSuggest | undefined
+) {
+  const skuId = String(slot.assignedSkuId || '').trim();
+  if (!skuId) return;
+  const book = Number(slot.bookQty) || 0;
+  const capacity = Number(slot.maxLevel ?? slot.parLevel) || 0;
+  const suggestQty = Number(sug?.suggestQty) || 0;
+  const soldQty7d = Number(sug?.soldQty7d) || 0;
+  const suggestReason = String(sug?.suggestReason || '');
+  const existing = bySku.get(skuId);
+  if (existing) {
+    existing.currentQty += book;
+    existing.capacity += capacity;
+    existing.suggestQty = Math.max(existing.suggestQty, suggestQty);
+    existing.soldQty7d = Math.max(existing.soldQty7d, soldQty7d);
+    if (suggestReason) existing.suggestReason = suggestReason;
+    return skuId;
+  }
+  const defaultQty = suggestQty > 0 ? suggestQty : Math.max(0, (Number(slot.parLevel) || 0) - book);
+  bySku.set(skuId, {
+    skuId,
+    skuName: String(slot.assignedSkuName || skuId),
+    currentQty: book,
+    capacity,
+    suggestQty,
+    soldQty7d,
+    suggestReason,
+    qty: defaultQty > 0 ? defaultQty : 1,
+    selected: suggestQty > 0 || defaultQty > 0
+  });
+  return skuId;
+}
+
+function appendOrphanSuggestions(
+  bySku: Map<string, DraftLine>,
+  suggestMap: Map<string, MerchantReplenishmentSuggest>
+) {
+  for (const [skuId, sug] of suggestMap) {
+    if (bySku.has(skuId)) continue;
+    const qty = Math.max(1, Number(sug.suggestQty) || 1);
+    bySku.set(skuId, {
+      skuId,
+      skuName: skuId,
+      currentQty: Number(sug.currentQty) || 0,
+      capacity: Number(sug.capacity) || 0,
+      suggestQty: Number(sug.suggestQty) || 0,
+      soldQty7d: Number(sug.soldQty7d) || 0,
+      suggestReason: String(sug.suggestReason || ''),
+      qty,
+      selected: (sug.suggestQty || 0) > 0
+    });
+  }
+}
+
 async function loadDraft() {
   const deviceId = selectedDeviceId.value;
   if (!deviceId) {
@@ -294,62 +361,13 @@ async function loadDraft() {
       merchantApi.deviceSlots(deviceId).catch(() => [] as DeviceSlot[])
     ]);
     if (seq !== draftSeq) return;
-    const suggestMap = new Map<string, MerchantReplenishmentSuggest>();
-    for (const s of suggest || []) {
-      if (!s?.skuId) continue;
-      const prev = suggestMap.get(s.skuId);
-      if (!prev || (s.suggestQty || 0) > (prev.suggestQty || 0)) suggestMap.set(s.skuId, s);
-    }
+    const suggestMap = buildSuggestMap(suggest);
     const bySku = new Map<string, DraftLine>();
     for (const slot of slots || []) {
-      const skuId = String(slot.assignedSkuId || '').trim();
-      if (!skuId) continue;
-      const sug = suggestMap.get(skuId);
-      const book = Number(slot.bookQty) || 0;
-      const capacity = Number(slot.maxLevel ?? slot.parLevel) || 0;
-      const suggestQty = Number(sug?.suggestQty) || 0;
-      const soldQty7d = Number(sug?.soldQty7d) || 0;
-      const suggestReason = String(sug?.suggestReason || '');
-      const existing = bySku.get(skuId);
-      if (existing) {
-        existing.currentQty += book;
-        existing.capacity += capacity;
-        existing.suggestQty = Math.max(existing.suggestQty, suggestQty);
-        existing.soldQty7d = Math.max(existing.soldQty7d, soldQty7d);
-        if (suggestReason) existing.suggestReason = suggestReason;
-        continue;
-      }
-      const defaultQty =
-        suggestQty > 0 ? suggestQty : Math.max(0, (Number(slot.parLevel) || 0) - book);
-      bySku.set(skuId, {
-        skuId,
-        skuName: String(slot.assignedSkuName || skuId),
-        currentQty: book,
-        capacity,
-        suggestQty,
-        soldQty7d,
-        suggestReason,
-        qty: defaultQty > 0 ? defaultQty : 1,
-        selected: suggestQty > 0 || defaultQty > 0
-      });
-      suggestMap.delete(skuId);
+      const skuId = mergeSlotDraftLine(bySku, slot, suggestMap.get(String(slot.assignedSkuId || '').trim()));
+      if (skuId) suggestMap.delete(skuId);
     }
-    // suggestions without slot binding still show
-    for (const [skuId, sug] of suggestMap) {
-      if (bySku.has(skuId)) continue;
-      const qty = Math.max(1, Number(sug.suggestQty) || 1);
-      bySku.set(skuId, {
-        skuId,
-        skuName: skuId,
-        currentQty: Number(sug.currentQty) || 0,
-        capacity: Number(sug.capacity) || 0,
-        suggestQty: Number(sug.suggestQty) || 0,
-        soldQty7d: Number(sug.soldQty7d) || 0,
-        suggestReason: String(sug.suggestReason || ''),
-        qty,
-        selected: (sug.suggestQty || 0) > 0
-      });
-    }
+    appendOrphanSuggestions(bySku, suggestMap);
     if (seq !== draftSeq) return;
     draftLines.value = [...bySku.values()].sort((a, b) => {
       if (a.selected !== b.selected) return a.selected ? -1 : 1;
