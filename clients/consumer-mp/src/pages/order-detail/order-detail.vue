@@ -364,11 +364,11 @@ function resolveOrderId(opt?: Record<string, string | undefined>): string {
   const merged = { ...currentPageOptions(), ...opt };
   const fromOpt = String(merged.orderId || merged.id || '').trim();
   if (fromOpt) return fromOpt;
-  if (typeof window !== 'undefined' && typeof window.location !== 'undefined') {
+  if (typeof globalThis !== 'undefined' && typeof globalThis.location !== 'undefined') {
     try {
-      const hash = String(window.location.hash || '');
+      const hash = String(globalThis.location.hash || '');
       const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
-      const search = String(window.location.search || '').replace(/^\?/, '');
+      const search = String(globalThis.location.search || '').replace(/^\?/, '');
       const fromUrl =
         queryGet(hashQuery || search, 'orderId') || queryGet(hashQuery || search, 'id');
       if (fromUrl.trim()) return fromUrl.trim();
@@ -425,14 +425,14 @@ function onHashChange() {
 }
 
 onMounted(() => {
-  if (typeof window !== 'undefined') {
-    window.addEventListener('hashchange', onHashChange);
+  if (typeof globalThis !== 'undefined') {
+    globalThis.addEventListener('hashchange', onHashChange);
   }
 });
 
 onUnmounted(() => {
-  if (typeof window !== 'undefined') {
-    window.removeEventListener('hashchange', onHashChange);
+  if (typeof globalThis !== 'undefined') {
+    globalThis.removeEventListener('hashchange', onHashChange);
   }
 });
 

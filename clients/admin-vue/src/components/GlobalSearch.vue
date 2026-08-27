@@ -235,9 +235,9 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
-onMounted(() => window.addEventListener('keydown', onKeydown));
+onMounted(() => globalThis.addEventListener('keydown', onKeydown));
 onUnmounted(() => {
-  window.removeEventListener('keydown', onKeydown);
+  globalThis.removeEventListener('keydown', onKeydown);
   if (searchTimer) clearTimeout(searchTimer);
 });
 </script>

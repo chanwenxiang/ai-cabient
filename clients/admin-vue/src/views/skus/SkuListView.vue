@@ -487,7 +487,7 @@ async function onImageUpload(options: UploadRequestOptions) {
   }
   imageUploading.value = true;
   try {
-    const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin;
+    const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
     const formData = new FormData();
     formData.append('file', file);
     const res = await authFetch(`${base}/api/v2/ops/admin/skus/image`, {
@@ -715,7 +715,7 @@ function openPrintLabels(ids: Array<string | number>) {
     name: 'print',
     query: { type: 'labels', ids: list.join(',') }
   }).href;
-  window.open(url, '_blank');
+  globalThis.open(url, '_blank');
 }
 function printSelectedLabels() {
   openPrintLabels(selectedKeys.value);

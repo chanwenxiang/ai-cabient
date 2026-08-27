@@ -32,7 +32,7 @@ export function useResizableDrawer(options: ResizableDrawerOptions) {
   const maxWidthCap = options.maxWidth ?? 1200;
   const defaultWidth = options.defaultWidth ?? 560;
 
-  const maxNow = () => Math.min(Math.round(window.innerWidth * 0.92), maxWidthCap);
+  const maxNow = () => Math.min(Math.round(globalThis.innerWidth * 0.92), maxWidthCap);
 
   const width = ref(readWidth(options.storageKey, defaultWidth, minWidth, maxNow()));
 
@@ -66,8 +66,8 @@ export function useResizableDrawer(options: ResizableDrawerOptions) {
     const onUp = () => {
       if (raf) cancelAnimationFrame(raf);
       raf = 0;
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
+      globalThis.removeEventListener('pointermove', onMove);
+      globalThis.removeEventListener('pointerup', onUp);
       detach = null;
       drawerEl.classList.remove('is-resizing');
       width.value = latest;
@@ -82,8 +82,8 @@ export function useResizableDrawer(options: ResizableDrawerOptions) {
 
     detach = () => {
       if (raf) cancelAnimationFrame(raf);
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
+      globalThis.removeEventListener('pointermove', onMove);
+      globalThis.removeEventListener('pointerup', onUp);
       drawerEl.classList.remove('is-resizing');
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
@@ -91,8 +91,8 @@ export function useResizableDrawer(options: ResizableDrawerOptions) {
 
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
+    globalThis.addEventListener('pointermove', onMove);
+    globalThis.addEventListener('pointerup', onUp);
   }
 
   onBeforeUnmount(() => {

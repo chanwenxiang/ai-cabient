@@ -39,7 +39,7 @@ function isAllowedAlipayAction(action: string): boolean {
   try {
     const url = new URL(
       action,
-      typeof window !== 'undefined' ? window.location.origin : 'https://local.invalid'
+      typeof globalThis !== 'undefined' ? globalThis.location.origin : 'https://local.invalid'
     );
     if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
     const host = url.hostname.toLowerCase();
@@ -63,7 +63,7 @@ export function openAlipayPayUrl(payUrl: string) {
   }
   rememberAlipayReturnPage();
   // #ifdef H5
-  window.location.href = payUrl;
+  globalThis.location.href = payUrl;
   // #endif
   // #ifndef H5
   throw new Error('支付宝沙箱充值请在 H5 浏览器中打开');
@@ -134,8 +134,8 @@ export function openAlipayPrepay(alipayPay?: { payUrl?: string; payFormHtml?: st
 export function redirectIfAlipayReturn(): boolean {
   // #ifdef H5
   try {
-    const search = window.location.search || '';
-    const hash = window.location.hash || '';
+    const search = globalThis.location.search || '';
+    const hash = globalThis.location.hash || '';
     const combined = `${search}\n${hash}`;
     const fromAlipay =
       /[?&]out_trade_no=/.test(combined) ||

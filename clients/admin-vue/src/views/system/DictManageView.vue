@@ -530,7 +530,7 @@ function syncRouteQuery() {
 
 function scrollDetailIntoViewIfStacked() {
   // 仅在极窄叠栏时滚到右侧；与样式断点 720px 对齐
-  if (typeof window === 'undefined' || !window.matchMedia('(max-width: 720px)').matches) return;
+  if (typeof globalThis === 'undefined' || !globalThis.matchMedia('(max-width: 720px)').matches) return;
   void nextTick(() => {
     const el = detailColRef.value as HTMLElement | null;
     el?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
@@ -712,15 +712,15 @@ function startResize(ev: MouseEvent) {
   };
   const onUp = () => {
     localStorage.setItem(TYPES_WIDTH_KEY, String(typesWidth.value));
-    window.removeEventListener('mousemove', onMove);
-    window.removeEventListener('mouseup', onUp);
+    globalThis.removeEventListener('mousemove', onMove);
+    globalThis.removeEventListener('mouseup', onUp);
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
   };
   document.body.style.cursor = 'col-resize';
   document.body.style.userSelect = 'none';
-  window.addEventListener('mousemove', onMove);
-  window.addEventListener('mouseup', onUp);
+  globalThis.addEventListener('mousemove', onMove);
+  globalThis.addEventListener('mouseup', onUp);
 }
 
 watch(

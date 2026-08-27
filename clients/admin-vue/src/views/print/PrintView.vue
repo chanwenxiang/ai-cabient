@@ -213,16 +213,16 @@ async function load() {
   } finally {
     loading.value = false;
     nextTick(() => {
-      setTimeout(() => window.print(), 300);
+      setTimeout(() => globalThis.print(), 300);
     });
   }
 }
 
 function doPrint() {
-  window.print();
+  globalThis.print();
 }
 function closeWindow() {
-  window.close();
+  globalThis.close();
 }
 
 onMounted(load);

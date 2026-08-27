@@ -2,7 +2,7 @@ import { normalizeDeviceId, parseCabinetScan } from '@aicabinet/shared-uni/qrcod
 import { promptText } from '@/utils/text-prompt';
 
 function isBrowserH5(): boolean {
-  return typeof window !== 'undefined' && typeof document !== 'undefined';
+  return typeof globalThis !== 'undefined' && typeof document !== 'undefined';
 }
 
 function resolveDeviceId(raw: string): string {

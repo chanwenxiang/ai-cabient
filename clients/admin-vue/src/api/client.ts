@@ -6,7 +6,7 @@ const EXPIRES_KEY = 'admin_token_expires';
 const COOKIE_AUTH_KEY = 'admin_cookie_auth';
 
 function getBaseUrl() {
-  return (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin;
+  return (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
 }
 
 export function clearSession() {
@@ -61,8 +61,8 @@ export const api = new ApiClient({
   },
   clearSession,
   onUnauthorized: () => {
-    if (!window.location.pathname.includes('/login')) {
-      window.location.assign('/admin/login');
+    if (!globalThis.location.pathname.includes('/login')) {
+      globalThis.location.assign('/admin/login');
     }
   }
 });
@@ -139,8 +139,8 @@ export async function downloadAuthFile(path: string, fallbackName: string) {
   const res = await authFetch(`${getBaseUrl()}${path}`);
   if (res.status === 401) {
     clearSession();
-    if (!window.location.pathname.includes('/login')) {
-      window.location.assign('/admin/login');
+    if (!globalThis.location.pathname.includes('/login')) {
+      globalThis.location.assign('/admin/login');
     }
     throw new Error('登录已失效');
   }
