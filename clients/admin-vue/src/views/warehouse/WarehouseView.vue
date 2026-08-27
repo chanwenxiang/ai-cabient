@@ -3508,7 +3508,7 @@ function openSupplier(row?: Row) {
     contactName: row?.contactName || '',
     contactPhone: row?.contactPhone || '',
     paymentTermsDays: row?.paymentTermsDays || 30,
-    creditLimitYuan: row?.creditLimitCents != null ? Number(row.creditLimitCents) / 100 : 0,
+    creditLimitYuan: row?.creditLimitCents == null ? 0 : Number(row.creditLimitCents) / 100,
     status: row?.status || 'ACTIVE'
   });
   supplierDialog.value = true;

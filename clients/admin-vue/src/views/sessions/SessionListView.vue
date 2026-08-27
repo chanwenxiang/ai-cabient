@@ -682,8 +682,8 @@ function waitReason(row: SessionRow) {
     return stuck ? '长时间未关门' : '购物中 / 柜门开启';
   }
   if (s === 'OPENING') return stuck ? '开门指令超时' : '开门指令下发中';
-  if (s === 'FAILED') return fail !== '无' ? fail : '会话失败';
-  if (s === 'CANCELLED') return fail !== '无' ? fail : '会话已取消';
+  if (s === 'FAILED') return fail === '无' ? '会话失败' : fail;
+  if (s === 'CANCELLED') return fail === '无' ? '会话已取消' : fail;
   if (s === 'DISPUTED') return '待人工审核';
   if (fail !== '无') return fail;
   return isActiveState(row.state) ? '会话处理中' : '无';

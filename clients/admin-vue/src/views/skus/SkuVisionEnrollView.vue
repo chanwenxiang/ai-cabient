@@ -743,7 +743,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         row.skuId,
         row.skuName,
         ((row.priceCents || 0) / 100).toFixed(2),
-        row.purchaseCostCents != null ? (row.purchaseCostCents / 100).toFixed(2) : '',
+        row.purchaseCostCents == null ? '' : (row.purchaseCostCents / 100).toFixed(2),
         categoryLabel(row.category) === '无' ? '' : categoryLabel(row.category),
         row.yoloClassName || '',
         enrollmentLabel(row.visionEnrollmentStatus),

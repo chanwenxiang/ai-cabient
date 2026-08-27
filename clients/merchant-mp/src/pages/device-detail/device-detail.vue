@@ -272,10 +272,10 @@ async function loadDetail() {
     lifecycleStatus.value = String(
       (settings as { lifecycleStatus?: string }).lifecycleStatus || ''
     );
-    currentTemp.value = settings.currentTempC != null ? settings.currentTempC + '°C' : '暂无';
-    targetTemp.value = settings.targetTempC != null ? settings.targetTempC + '°C' : '未设置';
+    currentTemp.value = settings.currentTempC == null ? '暂无' : settings.currentTempC + '°C';
+    targetTemp.value = settings.targetTempC == null ? '未设置' : settings.targetTempC + '°C';
     formName.value = (settings.deviceName as string) || '';
-    formTargetTemp.value = settings.targetTempC != null ? String(settings.targetTempC) : '';
+    formTargetTemp.value = settings.targetTempC == null ? '' : String(settings.targetTempC);
     formRemark.value = (settings.opsRemark as string) || '';
     const [list, temps, vel] = await Promise.all([
       merchantApi.deviceSlots(deviceId.value).catch(() => [] as DeviceSlot[]),
@@ -290,7 +290,7 @@ async function loadDetail() {
     velocity.value = vel;
     const par: Record<string, string> = {};
     list.forEach((s) => {
-      par[s.slotCode] = s.parLevel != null ? String(s.parLevel) : '';
+      par[s.slotCode] = s.parLevel == null ? '' : String(s.parLevel);
     });
     slotPar.value = par;
     isPreferred.value =

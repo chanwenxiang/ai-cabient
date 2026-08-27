@@ -240,7 +240,7 @@ function memberLevelLabel(level?: string) {
 }
 
 function userNameText(row: UserRow) {
-  const name = row.name != null ? String(row.name).trim() : '';
+  const name = row.name == null ? '' : String(row.name).trim();
   if (name) return name;
   return '暂无';
 }

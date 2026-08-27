@@ -300,9 +300,9 @@ function avgTicket(row: { orderCount?: number; totalSpentCents?: number; totalSp
   const n = Number(row.orderCount || 0);
   if (n <= 0) return '暂无';
   const cents =
-    row.totalSpentCents != null
-      ? Number(row.totalSpentCents)
-      : Math.round(Number(row.totalSpent ?? 0) * 100);
+    row.totalSpentCents == null
+      ? Math.round(Number(row.totalSpent ?? 0) * 100)
+      : Number(row.totalSpentCents);
   return yuan(Math.round(cents / n));
 }
 function lastTime(value?: string | number | null) {

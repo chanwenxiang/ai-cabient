@@ -81,11 +81,7 @@ public class CompensationTaskScheduler {
             log.info("Found {} compensation tasks to process", tasks.size());
             
             for (CompensationTask task : tasks) {
-                try {
-                    self.processTask(task);
-                } catch (Exception e) {
-                    log.error("Failed to process compensation task: {}", task.getTaskId(), e);
-                }
+                processTaskSafely(task);
             }
             String summary = tasks.isEmpty()
                     ? "本次无补偿任务"
@@ -246,14 +242,7 @@ public class CompensationTaskScheduler {
             log.info("Found {} transactions to retry", retryable.size());
             
             for (DistributedTransaction tx : retryable) {
-                try {
-                    tx.setRetryCount(tx.getRetryCount() + 1);
-                    txRepository.save(tx);
-                    
-                    log.info("Retrying transaction: txId={}, attempt={}", tx.getTxId(), tx.getRetryCount());
-                } catch (Exception e) {
-                    log.error("Failed to retry transaction: {}", tx.getTxId(), e);
-                }
+                retryTransactionSafely(tx);
             }
             String summary = retryable.isEmpty()
                     ? "本次无待重试事务"
@@ -264,6 +253,24 @@ public class CompensationTaskScheduler {
             throw e;
         } finally {
             lockService.releaseLock(lock);
+        }
+    }
+
+    private void processTaskSafely(CompensationTask task) {
+        try {
+            self.processTask(task);
+        } catch (Exception e) {
+            log.error("Failed to process compensation task: {}", task.getTaskId(), e);
+        }
+    }
+
+    private void retryTransactionSafely(DistributedTransaction tx) {
+        try {
+            tx.setRetryCount(tx.getRetryCount() + 1);
+            txRepository.save(tx);
+            log.info("Retrying transaction: txId={}, attempt={}", tx.getTxId(), tx.getRetryCount());
+        } catch (Exception e) {
+            log.error("Failed to retry transaction: {}", tx.getTxId(), e);
         }
     }
 }

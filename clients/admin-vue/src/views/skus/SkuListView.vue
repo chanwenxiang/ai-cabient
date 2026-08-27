@@ -626,14 +626,14 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
     ],
     toRows: () =>
       pickSelected(displayRows.value).map((row) => [
-        row.skuCode != null ? String(row.skuCode) : '',
+        row.skuCode == null ? '' : String(row.skuCode),
         row.barcode || '',
         row.skuName,
         row.brand || '',
         row.spec || '',
         row.unit || '件',
         ((row.priceCents || 0) / 100).toFixed(2),
-        row.purchaseCostCents != null ? (row.purchaseCostCents / 100).toFixed(2) : '',
+        row.purchaseCostCents == null ? '' : (row.purchaseCostCents / 100).toFixed(2),
         categoryLabel(row.category) || '',
         skuStatusLabel(row.status),
         formatDateTime(row.createdAt),
@@ -732,7 +732,7 @@ function openEdit(row?: SkuCatalog) {
     form.spec = row.spec || '';
     form.unit = row.unit || '件';
     form.priceYuan = (row.priceCents || 0) / 100;
-    form.costYuan = row.purchaseCostCents != null ? row.purchaseCostCents / 100 : undefined;
+    form.costYuan = row.purchaseCostCents == null ? undefined : row.purchaseCostCents / 100;
     form.category = normalizeCategoryToCode(row.category);
     form.weightGrams = row.weightGrams;
     form.status = row.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';

@@ -107,7 +107,7 @@ const { onExport } = useListCsv({
       r.totalTasks,
       r.completedTasks,
       pct(r.completionRate),
-      r.avgDurationMinutes != null ? r.avgDurationMinutes.toFixed(0) : '',
+      r.avgDurationMinutes == null ? '' : r.avgDurationMinutes.toFixed(0),
       r.openTasks,
       r.avgDailyTasks
     ])
