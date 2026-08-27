@@ -426,10 +426,10 @@ function severityClass(severity?: string) {
 }
 
 function goBack() {
-  if (window.history.length > 1) {
-    window.history.back();
+  if (globalThis.history.length > 1) {
+    globalThis.history.back();
   } else {
-    window.location.href = '/admin/#/dashboard';
+    globalThis.location.href = '/admin/#/dashboard';
   }
 }
 
@@ -550,13 +550,13 @@ let refreshTimer = 0;
 onMounted(() => {
   tick();
   load();
-  clockTimer = window.setInterval(tick, 1000);
-  refreshTimer = window.setInterval(load, 30_000);
+  clockTimer = globalThis.setInterval(tick, 1000);
+  refreshTimer = globalThis.setInterval(load, 30_000);
   document.addEventListener('fullscreenchange', onFullscreenChange);
 });
 onBeforeUnmount(() => {
-  window.clearInterval(clockTimer);
-  window.clearInterval(refreshTimer);
+  globalThis.clearInterval(clockTimer);
+  globalThis.clearInterval(refreshTimer);
   document.removeEventListener('fullscreenchange', onFullscreenChange);
 });
 </script>

@@ -955,7 +955,7 @@ async function onDisputeImagePick(ev: Event) {
   suggestingDispute.value = true;
   disputeSuggestHint.value = '';
   try {
-    const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin;
+    const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
     const form = new FormData();
     form.append('deviceId', selected.value.deviceId);
     form.append('image', file);

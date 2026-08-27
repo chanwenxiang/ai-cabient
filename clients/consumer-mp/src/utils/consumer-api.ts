@@ -249,10 +249,10 @@ export function consumerWxH5Login(code: string) {
 
 function readQueryParam(name: string): string {
   try {
-    if (typeof window === 'undefined') return '';
-    const fromSearch = queryGet(window.location.search, name);
+    if (typeof globalThis === 'undefined') return '';
+    const fromSearch = queryGet(globalThis.location.search, name);
     if (fromSearch) return fromSearch;
-    const hash = window.location.hash || '';
+    const hash = globalThis.location.hash || '';
     const q = hash.includes('?') ? hash.split('?')[1] : '';
     if (q) return queryGet(q, name);
   } catch {
@@ -263,8 +263,8 @@ function readQueryParam(name: string): string {
 
 function stripAuthCodeFromUrl() {
   try {
-    if (typeof window === 'undefined' || !window.history?.replaceState) return;
-    const url = new URL(window.location.href);
+    if (typeof globalThis === 'undefined' || !globalThis.history?.replaceState) return;
+    const url = new URL(globalThis.location.href);
     url.searchParams.delete('auth_code');
     url.searchParams.delete('authCode');
     url.searchParams.delete('app_id');
@@ -285,7 +285,7 @@ function stripAuthCodeFromUrl() {
         .join('&');
       url.hash = next ? `${path}?${next}` : path;
     }
-    window.history.replaceState({}, '', url.toString());
+    globalThis.history.replaceState({}, '', url.toString());
   } catch {
     /* ignore */
   }

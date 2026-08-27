@@ -666,14 +666,14 @@ onLoad(async (opts) => {
   refreshLandingPad();
   let launch = parseLaunchOptions((opts || {}) as Record<string, string>);
   // H5：兼容 ?deviceId= / hash 查询（柜门二维码 deep link）
-  if (!launch.deviceId && typeof window !== 'undefined') {
+  if (!launch.deviceId && typeof globalThis !== 'undefined') {
     try {
-      const fromSearchMap = parseQuery(window.location.search);
+      const fromSearchMap = parseQuery(globalThis.location.search);
       const fromSearch = parseLaunchOptions(fromSearchMap);
       if (fromSearch.deviceId) {
         launch = fromSearch;
-      } else if (window.location.hash.includes('deviceId=')) {
-        const hashQuery = window.location.hash.split('?')[1] || '';
+      } else if (globalThis.location.hash.includes('deviceId=')) {
+        const hashQuery = globalThis.location.hash.split('?')[1] || '';
         const fromHash = parseLaunchOptions(parseQuery(hashQuery));
         if (fromHash.deviceId) launch = fromHash;
       }

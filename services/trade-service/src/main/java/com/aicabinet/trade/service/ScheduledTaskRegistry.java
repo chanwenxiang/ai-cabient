@@ -90,7 +90,7 @@ public class ScheduledTaskRegistry {
         register("expiry-alert", "库存临期预警", "WAREHOUSE", "每 60 分钟", 600,
                 expiryAlertScheduler::scanExpiry);
         register("reconciliation", "每日对账", FINANCE, "每日 01:30", 1800,
-                () -> reconciliationScheduler.runDailyReconciliation());
+                reconciliationScheduler::runDailyReconciliation);
         register("line-commission", "线长佣金入账", FINANCE, "每日 00:20", 1800,
                 lineCommissionJob::postDailyCommission);
         register("finance-margin", "财务保证金固化", FINANCE, "每日 00:05", 1800,

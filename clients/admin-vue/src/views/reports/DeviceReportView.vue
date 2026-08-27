@@ -222,7 +222,7 @@ const deviceId = ref('');
 const onlineFilter = ref('');
 const page = ref(1);
 const size = ref(20);
-const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1280);
+const viewportWidth = ref(typeof globalThis !== 'undefined' ? globalThis.innerWidth : 1280);
 
 const deviceOptions = ref<{ deviceId: string; deviceName?: string }[]>([]);
 
@@ -324,7 +324,7 @@ const { onExport } = useListCsv({
 });
 
 function onResize() {
-  viewportWidth.value = window.innerWidth;
+  viewportWidth.value = globalThis.innerWidth;
 }
 
 watch(keyword, () => {
@@ -418,7 +418,7 @@ function goDevice(deviceId: string) {
 
 onMounted(() => {
   applyRouteQuery();
-  window.addEventListener('resize', onResize, { passive: true });
+  globalThis.addEventListener('resize', onResize, { passive: true });
   void loadDeviceOptions();
   void loadOfflineTotal();
   load();
@@ -444,7 +444,7 @@ function applyRouteQuery() {
 }
 
 onUnmounted(() => {
-  window.removeEventListener('resize', onResize);
+  globalThis.removeEventListener('resize', onResize);
 });
 </script>
 

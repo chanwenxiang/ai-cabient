@@ -14,7 +14,7 @@ export function useSessionVideo() {
       throw new Error('无关联会话，无法播放录像');
     }
     const res = await authFetch(
-      `${window.location.origin}/api/v2/ops/admin/sessions/${encodeURIComponent(id)}/video`
+      `${globalThis.location.origin}/api/v2/ops/admin/sessions/${encodeURIComponent(id)}/video`
     );
     if (!res.ok) {
       if (res.status === 404) throw new Error('录像尚未上传或不存在');
@@ -33,8 +33,8 @@ export function useSessionVideo() {
   async function playSessionVideo(sessionId?: string | null) {
     try {
       const { url, revoke } = await fetchSessionVideoBlob(sessionId);
-      window.open(url, '_blank');
-      window.setTimeout(revoke, 60_000);
+      globalThis.open(url, '_blank');
+      globalThis.setTimeout(revoke, 60_000);
     } catch (e) {
       ElMessage.error(e instanceof Error ? e.message : '播放失败');
     }

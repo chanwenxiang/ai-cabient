@@ -163,7 +163,7 @@ import loginBgUrl from '@/static/bg-cooler.jpg';
 
 const redirect = ref('/pages/index/index');
 // H5 无法微信静默授权，默认展开手机号，减少多点一次
-const showPhoneForm = ref(typeof window !== 'undefined');
+const showPhoneForm = ref(typeof globalThis !== 'undefined');
 const wxBtnLabel = computed(() => '微信授权登录');
 const isDev = showDevTools();
 const demoPhone = String(import.meta.env.VITE_DEMO_PHONE || '').trim();
@@ -260,7 +260,7 @@ async function onWxLogin() {
     const cfg = await consumerApi.consumerPublicConfig();
     const oauthUrl = String(cfg?.wechatH5OauthUrl || '').trim();
     if (oauthUrl) {
-      window.location.href = oauthUrl;
+      globalThis.location.href = oauthUrl;
       return;
     }
     if (cfg?.wechatH5OauthEnabled === 'true') {

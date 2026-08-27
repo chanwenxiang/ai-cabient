@@ -558,7 +558,7 @@ public class OpsRbacService {
                 .toList();
         List<String> roleNames = roleIds.stream()
                 .flatMap(id -> roleRepository.findById(id).stream())
-                .map(r -> r.getRoleName())
+                .map(OpsRole::getRoleName)
                 .toList();
         int permCount = permissionRepository.findPermCodesByUserId(operatorId).size();
         boolean global = merchantScopeService.isGlobalScope(operatorId);
@@ -586,7 +586,7 @@ public class OpsRbacService {
                 .toList();
         List<String> roleNames = roleIds.stream()
                 .flatMap(id -> roleRepository.findById(id).stream())
-                .map(r -> r.getRoleName())
+                .map(OpsRole::getRoleName)
                 .toList();
         List<String> merchantIds = userMerchantRepository.findByIdUserId(user.getUserId()).stream()
                 .map(m -> m.getId().getMerchantId())

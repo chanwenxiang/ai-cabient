@@ -405,8 +405,8 @@ function closeOtherTags() {
 function openTagMenu(e: MouseEvent, tag: { path: string; title: string }) {
   const menuW = 160;
   const menuH = 220;
-  const x = Math.min(e.clientX, window.innerWidth - menuW - 8);
-  const y = Math.min(e.clientY, window.innerHeight - menuH - 8);
+  const x = Math.min(e.clientX, globalThis.innerWidth - menuW - 8);
+  const y = Math.min(e.clientY, globalThis.innerHeight - menuH - 8);
   tagMenu.value = { visible: true, x: Math.max(8, x), y: Math.max(8, y), path: tag.path };
 }
 
@@ -493,7 +493,7 @@ function onSettingCommand(cmd: string) {
 }
 
 function syncSidebarWithViewport() {
-  const compact = window.innerWidth <= 1200;
+  const compact = globalThis.innerWidth <= 1200;
   if (!compact) {
     userExpandedInCompact.value = false;
   }
@@ -509,18 +509,18 @@ onMounted(() => {
   syncSidebarWithViewport();
   void auth.refreshPermissions();
   observeTableScrollFit(document.getElementById('main-content') as HTMLElement);
-  window.addEventListener('click', hideTagMenu);
-  window.addEventListener('scroll', hideTagMenu, true);
-  window.addEventListener('resize', syncSidebarWithViewport);
-  window.addEventListener('focus', onWindowFocus);
+  globalThis.addEventListener('click', hideTagMenu);
+  globalThis.addEventListener('scroll', hideTagMenu, true);
+  globalThis.addEventListener('resize', syncSidebarWithViewport);
+  globalThis.addEventListener('focus', onWindowFocus);
 });
 
 onUnmounted(() => {
   stopTableScrollFit();
-  window.removeEventListener('click', hideTagMenu);
-  window.removeEventListener('scroll', hideTagMenu, true);
-  window.removeEventListener('resize', syncSidebarWithViewport);
-  window.removeEventListener('focus', onWindowFocus);
+  globalThis.removeEventListener('click', hideTagMenu);
+  globalThis.removeEventListener('scroll', hideTagMenu, true);
+  globalThis.removeEventListener('resize', syncSidebarWithViewport);
+  globalThis.removeEventListener('focus', onWindowFocus);
 });
 </script>
 

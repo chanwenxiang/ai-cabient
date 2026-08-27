@@ -26,7 +26,7 @@ const HOST_ID = 'merchant-text-prompt';
 let activeH5Finish: ((value: string | null) => void) | null = null;
 
 function isBrowserH5(): boolean {
-  return typeof window !== 'undefined' && typeof document !== 'undefined';
+  return typeof globalThis !== 'undefined' && typeof document !== 'undefined';
 }
 
 function promptNative(opts: TextPromptOptions): Promise<string | null> {
@@ -261,7 +261,7 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
     const input = fieldEl();
     requestAnimationFrame(() => {
       // Avoid autofocus on coarse pointers (mobile) — prevents keyboard/zoom jump.
-      const coarse = window.matchMedia('(pointer: coarse)').matches;
+      const coarse = globalThis.matchMedia('(pointer: coarse)').matches;
       if (coarse) return;
       input?.focus();
       const len = input?.value.length || 0;

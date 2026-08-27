@@ -2298,7 +2298,7 @@ async function loadEvidencePreviews(
     previewUrl?: string;
   }[]
 ) {
-  const base = window.location.origin;
+  const base = globalThis.location.origin;
   const next: typeof files = [];
   const urls: string[] = [];
   for (const f of files) {
@@ -2329,7 +2329,7 @@ async function loadEvidencePreviews(
 
 function openEvidencePreview(f: { previewUrl?: string; fileName?: string }) {
   if (!f.previewUrl) return;
-  window.open(f.previewUrl, '_blank');
+  globalThis.open(f.previewUrl, '_blank');
 }
 
 function canOpenRestock(task: Row) {

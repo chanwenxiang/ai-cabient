@@ -215,7 +215,7 @@ function currentPageOptions(): Record<string, string> {
 function readHashQuery(): Record<string, string> {
   // #ifdef H5
   try {
-    const hash = window.location.hash || '';
+    const hash = globalThis.location.hash || '';
     const q = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
     const params = parseQuery(q);
     return {

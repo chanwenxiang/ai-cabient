@@ -188,7 +188,7 @@ async function runRecognize() {
   if (!imageFile.value) return;
   recognizing.value = true;
   try {
-    const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin;
+    const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
     const form = new FormData();
     form.append('image', imageFile.value);
     form.append('deviceId', 'CAB-001');

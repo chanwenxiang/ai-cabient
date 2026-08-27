@@ -1372,7 +1372,7 @@ async function loadQr() {
     qrUrl.value = link.url || '';
     revokeQrPreview();
     const res = await authFetch(
-      `${(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin}/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/qr.png`
+      `${(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin}/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/qr.png`
     );
     if (!res.ok) throw new Error('二维码图片加载失败');
     const blob = await res.blob();

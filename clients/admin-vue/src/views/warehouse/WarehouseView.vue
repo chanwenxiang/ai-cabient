@@ -3020,7 +3020,7 @@ function money(cents: number) {
 }
 function openPrint(type: string, query: Record<string, string | number>) {
   const url = router.resolve({ name: 'print', query: { type, ...query } }).href;
-  window.open(url, '_blank');
+  globalThis.open(url, '_blank');
 }
 function expiryDays(value: string) {
   return Math.ceil((new Date(value).getTime() - Date.now()) / 86400000);
@@ -3668,7 +3668,7 @@ async function onStocktakePhoto(event: Event) {
   }
   scanningPhoto.value = true;
   try {
-    const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin;
+    const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
     const form = new FormData();
     form.append('file', file);
     const res = await authFetch(
