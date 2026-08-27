@@ -327,7 +327,7 @@ public class MerchantService {
                 apiReady,
                 profitSharingProperties.retryEnabled(),
                 profitSharingProperties.retryBatchSize(),
-                mock ? "MOCK" : (weChatPayProperties.isConfigured() ? "CONFIGURED" : "MISSING"),
+                wechatConfigLabel(mock, weChatPayProperties.isConfigured()),
                 note
         );
     }
@@ -422,5 +422,12 @@ public class MerchantService {
         } finally {
             distributedLockService.unlock(RevenueSplitService.orderSplitLockKey(orderId));
         }
+    }
+
+    private static String wechatConfigLabel(boolean mock, boolean configured) {
+        if (mock) {
+            return "MOCK";
+        }
+        return configured ? "CONFIGURED" : "MISSING";
     }
 }

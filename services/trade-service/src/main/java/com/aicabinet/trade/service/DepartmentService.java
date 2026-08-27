@@ -136,8 +136,15 @@ public class DepartmentService {
         for (OpsUserDepartment ud : userDepartmentRepository.findByDeptId(deptId)) {
             userIds.add(ud.getUserId());
             UserInfo u = userInfoRepository.selectById(ud.getUserId());
-            names.add(u == null ? String.valueOf(ud.getUserId())
-                    : (u.getName() == null || u.getName().isBlank() ? u.getPhoneNumber() : u.getName()));
+            String displayName;
+            if (u == null) {
+                displayName = String.valueOf(ud.getUserId());
+            } else if (u.getName() == null || u.getName().isBlank()) {
+                displayName = u.getPhoneNumber();
+            } else {
+                displayName = u.getName();
+            }
+            names.add(displayName);
         }
         return new OpsDepartmentMembersDto(dept.getDeptId(), dept.getDeptKey(), dept.getDeptName(), userIds, names);
     }

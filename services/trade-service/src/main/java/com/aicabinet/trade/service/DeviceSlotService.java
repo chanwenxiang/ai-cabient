@@ -545,8 +545,7 @@ public class DeviceSlotService {
                 .map(s -> {
                     String code = s.getId().getSlotCode();
                     int book = bookBySlot.getOrDefault(code, 0);
-                    int cap = s.getMaxLevel() > 0 ? s.getMaxLevel()
-                            : (s.getParLevel() > 0 ? s.getParLevel() : Integer.MAX_VALUE);
+                    int cap = slotCapacity(s, Integer.MAX_VALUE);
                     return new Candidate(code, book, Math.max(0, cap - book));
                 })
                 .filter(c -> c.headroom > 0)
@@ -607,8 +606,7 @@ public class DeviceSlotService {
         if (slot == null || !slot.isEnabled()) {
             return 0;
         }
-        int cap = slot.getMaxLevel() > 0 ? slot.getMaxLevel()
-                : (slot.getParLevel() > 0 ? slot.getParLevel() : 0);
+        int cap = slotCapacity(slot, 0);
         if (cap <= 0) {
             return Integer.MAX_VALUE / 4;
         }
@@ -890,8 +888,7 @@ public class DeviceSlotService {
             throw badRequest("货道 " + slotCode + " 已绑定 "
                     + slot.getAssignedSkuId() + "，与明细商品 " + skuId + " 不一致");
         }
-        int cap = slot.getMaxLevel() > 0 ? slot.getMaxLevel()
-                : (slot.getParLevel() > 0 ? slot.getParLevel() : 0);
+        int cap = slotCapacity(slot, 0);
         if (cap > 0) {
             int book = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
             if (book + quantity > cap) {
@@ -1189,5 +1186,15 @@ public class DeviceSlotService {
         } finally {
             distributedLockService.unlock(lockKey);
         }
+    }
+
+    private static int slotCapacity(DeviceSlot slot, int whenBothZero) {
+        if (slot.getMaxLevel() > 0) {
+            return slot.getMaxLevel();
+        }
+        if (slot.getParLevel() > 0) {
+            return slot.getParLevel();
+        }
+        return whenBothZero;
     }
 }

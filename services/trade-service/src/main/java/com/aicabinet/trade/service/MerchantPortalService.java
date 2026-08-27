@@ -349,8 +349,14 @@ public class MerchantPortalService {
     }
 
     private long appendOpenDisputeItems(List<OpsActionItemDto> items, Set<String> bizDeviceIds) {
-        long openDisputes = bizDeviceIds == null ? disputeRepository.countByStatus("OPEN")
-                : (bizDeviceIds.isEmpty() ? 0 : disputeRepository.countOpenByDeviceIds(bizDeviceIds));
+        long openDisputes;
+        if (bizDeviceIds == null) {
+            openDisputes = disputeRepository.countByStatus("OPEN");
+        } else if (bizDeviceIds.isEmpty()) {
+            openDisputes = 0;
+        } else {
+            openDisputes = disputeRepository.countOpenByDeviceIds(bizDeviceIds);
+        }
         disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
                 .filter(d -> inDeviceScope(bizDeviceIds, sessionDeviceId(d.getSessionId())))
                 .forEach(d -> items.add(new OpsActionItemDto(
@@ -362,10 +368,14 @@ public class MerchantPortalService {
     }
 
     private long appendOfflineDeviceItems(List<OpsActionItemDto> items, Set<String> deviceIds) {
-        long offline = deviceIds == null
-                ? deviceRepository.countByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE)
-                : (deviceIds.isEmpty() ? 0
-                : deviceRepository.countByDeviceIdInAndOnlineStatusNot(deviceIds, CabinetConstants.DEVICE_ONLINE));
+        long offline;
+        if (deviceIds == null) {
+            offline = deviceRepository.countByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE);
+        } else if (deviceIds.isEmpty()) {
+            offline = 0;
+        } else {
+            offline = deviceRepository.countByDeviceIdInAndOnlineStatusNot(deviceIds, CabinetConstants.DEVICE_ONLINE);
+        }
         deviceRepository.findByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE, WORKBENCH_ITEM_CAP).stream()
                 .filter(d -> inDeviceScope(deviceIds, d.getDeviceId()))
                 .forEach(d -> items.add(new OpsActionItemDto(
@@ -376,9 +386,14 @@ public class MerchantPortalService {
     }
 
     private long appendLowStockItems(List<OpsActionItemDto> items, Set<String> deviceIds) {
-        long lowStock = deviceIds == null
-                ? inventoryRepository.countLowStock()
-                : (deviceIds.isEmpty() ? 0 : inventoryRepository.countLowStockByDeviceIds(deviceIds));
+        long lowStock;
+        if (deviceIds == null) {
+            lowStock = inventoryRepository.countLowStock();
+        } else if (deviceIds.isEmpty()) {
+            lowStock = 0;
+        } else {
+            lowStock = inventoryRepository.countLowStockByDeviceIds(deviceIds);
+        }
         inventoryRepository.findLowStockLimit(WORKBENCH_ITEM_CAP).stream()
                 .filter(inv -> inDeviceScope(deviceIds, inv.getId().getDeviceId()))
                 .forEach(inv -> items.add(new OpsActionItemDto(
@@ -391,10 +406,14 @@ public class MerchantPortalService {
     }
 
     private long appendExpiryItems(List<OpsActionItemDto> items, Set<String> deviceIds) {
-        long expiry = deviceIds == null
-                ? pullOffTaskRepository.countByStatus("OPEN")
-                : (deviceIds.isEmpty() ? 0
-                : pullOffTaskRepository.countByStatusAndDeviceIdIn("OPEN", deviceIds));
+        long expiry;
+        if (deviceIds == null) {
+            expiry = pullOffTaskRepository.countByStatus("OPEN");
+        } else if (deviceIds.isEmpty()) {
+            expiry = 0;
+        } else {
+            expiry = pullOffTaskRepository.countByStatusAndDeviceIdIn("OPEN", deviceIds);
+        }
         pullOffTaskRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
                 .filter(task -> inDeviceScope(deviceIds, task.getDeviceId()))
                 .forEach(task -> items.add(new OpsActionItemDto(
@@ -1378,7 +1397,7 @@ public class MerchantPortalService {
         return new ProfitSharingStatusDto(
                 enabled, apiReady, profitSharingProperties.retryEnabled(),
                 profitSharingProperties.retryBatchSize(),
-                mock ? "MOCK" : (weChatPayProperties.isConfigured() ? "CONFIGURED" : "MISSING"),
+                wechatConfigLabel(mock, weChatPayProperties.isConfigured()),
                 note
         );
     }
@@ -1403,7 +1422,7 @@ public class MerchantPortalService {
         long settled = toLong(at(row, 8));
         long pending = toLong(at(row, 9));
         long failed = toLong(at(row, 10));
-        String status = failed > 0 ? "PARTIAL_FAILED" : (pending > 0 ? STATUS_PENDING : "SETTLED");
+        String status = settlementBatchStatus(failed, pending, STATUS_PENDING);
         return new MerchantSettlementBatchDto(
                 batchNo, merchantId, merchantNames.get(merchantId), settleAfter, settledAt,
                 orderCount, gross, platform, merchant, settled, pending, failed, status
@@ -1625,5 +1644,22 @@ public class MerchantPortalService {
         } finally {
             distributedLockService.unlock(lockKey);
         }
+    }
+
+    private static String wechatConfigLabel(boolean mock, boolean configured) {
+        if (mock) {
+            return "MOCK";
+        }
+        return configured ? "CONFIGURED" : "MISSING";
+    }
+
+    private static String settlementBatchStatus(long failed, long pending, String pendingStatus) {
+        if (failed > 0) {
+            return "PARTIAL_FAILED";
+        }
+        if (pending > 0) {
+            return pendingStatus;
+        }
+        return "SETTLED";
     }
 }

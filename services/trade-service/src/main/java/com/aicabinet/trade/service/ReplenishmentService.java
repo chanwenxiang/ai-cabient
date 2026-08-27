@@ -1465,9 +1465,14 @@ public class ReplenishmentService {
             ReplenishmentTask task, ReplenishmentRoute route) {
         ReplenishmentTaskDto base = toTaskDto(task);
         String routeName = route != null ? route.getRouteName() : null;
-        Long assignee = base.assigneeUserId() != null
-                ? base.assigneeUserId()
-                : route != null ? route.getAssigneeUserId() : null;
+        Long assignee;
+        if (base.assigneeUserId() != null) {
+            assignee = base.assigneeUserId();
+        } else if (route != null) {
+            assignee = route.getAssigneeUserId();
+        } else {
+            assignee = null;
+        }
         return new ReplenishmentFulfillmentTaskDto(
                 base.taskId(),
                 base.routeId(),

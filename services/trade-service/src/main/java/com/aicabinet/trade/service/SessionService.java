@@ -533,12 +533,22 @@ public class SessionService {
             bySku.remove(sku);
             return;
         }
-        int unit = item.unitPriceCents() != null && item.unitPriceCents() > 0
-                ? item.unitPriceCents()
-                : (prev != null ? prev.unitPriceCents() : 0);
-        String name = item.skuName() != null && !item.skuName().isBlank()
-                ? item.skuName()
-                : (prev != null ? prev.skuName() : sku);
+        int unit;
+        if (item.unitPriceCents() != null && item.unitPriceCents() > 0) {
+            unit = item.unitPriceCents();
+        } else if (prev != null) {
+            unit = prev.unitPriceCents();
+        } else {
+            unit = 0;
+        }
+        String name;
+        if (item.skuName() != null && !item.skuName().isBlank()) {
+            name = item.skuName();
+        } else if (prev != null) {
+            name = prev.skuName();
+        } else {
+            name = sku;
+        }
         bySku.put(sku, new LiveCartDto.LiveCartLine(sku, name, nextQty, unit, unit * nextQty));
     }
 
@@ -1095,8 +1105,14 @@ public class SessionService {
     }
 
     private boolean upgradeStaleRecognizingSession(ShoppingSession session, Instant cutoff) {
-        Instant anchor = session.getCloseTime() != null ? session.getCloseTime()
-                : (session.getUpdatedAt() != null ? session.getUpdatedAt() : session.getCreatedAt());
+        Instant anchor;
+        if (session.getCloseTime() != null) {
+            anchor = session.getCloseTime();
+        } else if (session.getUpdatedAt() != null) {
+            anchor = session.getUpdatedAt();
+        } else {
+            anchor = session.getCreatedAt();
+        }
         if (anchor == null || !anchor.isBefore(cutoff)) {
             return false;
         }

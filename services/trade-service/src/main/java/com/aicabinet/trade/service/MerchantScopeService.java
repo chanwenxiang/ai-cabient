@@ -160,11 +160,14 @@ public class MerchantScopeService {
             if (routes.isEmpty()) {
                 return Set.of();
             }
-            List<DeviceInfo> candidates = merchantScopedDevices == null
-                    ? deviceRepository.findAll()
-                    : (merchantScopedDevices.isEmpty()
-                    ? List.of()
-                    : deviceRepository.findByDeviceIdIn(merchantScopedDevices));
+            List<DeviceInfo> candidates;
+            if (merchantScopedDevices == null) {
+                candidates = deviceRepository.findAll();
+            } else if (merchantScopedDevices.isEmpty()) {
+                candidates = List.of();
+            } else {
+                candidates = deviceRepository.findByDeviceIdIn(merchantScopedDevices);
+            }
             picked = candidates.stream()
                     .filter(d -> d.getRouteCode() != null && routes.contains(d.getRouteCode().trim()))
                     .map(DeviceInfo::getDeviceId)

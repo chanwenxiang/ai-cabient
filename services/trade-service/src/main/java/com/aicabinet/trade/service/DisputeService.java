@@ -679,10 +679,13 @@ public class DisputeService {
         disputeRepository.save(ticket);
         auditService.record(operatorId, "DISPUTE_WAIVE", DISPUTE, ticket.getTicketId(),
                 "refund=" + refunded + "; restoreInventory=" + restore);
-        String message = refunded > 0
-                ? "已免单，退还 ¥" + String.format("%.2f", refunded / 100.0)
-                + (restore ? "，库存已回库" : "，库存未回库")
-                : "已免单，无需扣款";
+        String message;
+        if (refunded > 0) {
+            message = "已免单，退还 ¥" + String.format("%.2f", refunded / 100.0)
+                    + (restore ? "，库存已回库" : "，库存未回库");
+        } else {
+            message = "已免单，无需扣款";
+        }
         return new ResolveDisputeResultDto(null, WAIVE, refunded, 0, -refunded, message);
     }
 

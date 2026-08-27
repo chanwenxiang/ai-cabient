@@ -96,9 +96,14 @@ public class FinanceReportService {
             daily.add(buildDailyFinance(operatorId, deviceIds, today.minusDays(i), today));
         }
         Instant sinceSkus = today.minusDays(window - 1L).atStartOfDay(ZONE).toInstant();
-        List<Object[]> skuRows = deviceIds == null
-                ? lineRepository.skuBreakdownSince(sinceSkus)
-                : deviceIds.isEmpty() ? List.of() : lineRepository.skuBreakdownByDevicesSince(deviceIds, sinceSkus);
+        List<Object[]> skuRows;
+        if (deviceIds == null) {
+            skuRows = lineRepository.skuBreakdownSince(sinceSkus);
+        } else if (deviceIds.isEmpty()) {
+            skuRows = List.of();
+        } else {
+            skuRows = lineRepository.skuBreakdownByDevicesSince(deviceIds, sinceSkus);
+        }
         List<FinanceSkuDto> topSkus = skuRows.stream()
                 .limit(20)
                 .map(row -> {
