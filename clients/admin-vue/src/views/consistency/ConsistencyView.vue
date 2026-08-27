@@ -195,7 +195,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
+import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 
 type Row = {
   id: number;

@@ -358,7 +358,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import type { OrgNodeDto, SiteContractDto } from '@aicabinet/shared-types';
-import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
+import { displayLabel } from '@aicabinet/shared-dict';
 
 const loading = ref(false);
 const saving = ref(false);

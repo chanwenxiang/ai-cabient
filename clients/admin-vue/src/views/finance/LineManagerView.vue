@@ -489,7 +489,7 @@ import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
+import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 

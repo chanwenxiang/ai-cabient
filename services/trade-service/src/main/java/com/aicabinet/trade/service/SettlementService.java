@@ -141,7 +141,6 @@ public class SettlementService {
                 recognition = withGravityFallback(session, recognition);
                 return processRecognitionResultUnlocked(session, recognition);
             } catch (RestClientException | IllegalStateException e) {
-                log.warn("vision unavailable, hold charge and escalate session={}", session.getSessionId(), e);
                 VisionServiceClient.RecognitionResult unavailable = new VisionServiceClient.RecognitionResult(
                         "UNAVAILABLE-" + session.getSessionId(), List.of(), 0f, true,
                         "vision-unavailable", List.of());

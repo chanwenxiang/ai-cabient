@@ -162,7 +162,7 @@ import { ElMessage, type Sort } from 'element-plus';
 import { api } from '@/api/client';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
 
 const { deviceOptions, loadDeviceOptions } = useDeviceOptions();

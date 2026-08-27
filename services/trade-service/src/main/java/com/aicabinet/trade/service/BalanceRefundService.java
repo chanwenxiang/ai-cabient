@@ -202,7 +202,6 @@ public class BalanceRefundService {
                     String.valueOf(req.getRequestId()), "通过并原路退款 " + req.getRequestNo()
                             + " ¥" + String.format("%.2f", req.getAmountCents() / 100.0));
         } catch (RuntimeException e) {
-            log.error("balance refund approve failed request={}", req.getRequestNo(), e);
             req.setStatus(STATUS_FAILED);
             req.setFailReason(e.getMessage() == null ? "退款失败" : e.getMessage());
             requestMapper.updateById(req);
