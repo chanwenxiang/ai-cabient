@@ -33,7 +33,8 @@ class WarehouseTransferConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new WarehouseTransferService(orderMapper, lineMapper, warehouseMapper,
-                warehouseService, permissionService, auditService, distributedLockService);
+                warehouseService, permissionService, auditService, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

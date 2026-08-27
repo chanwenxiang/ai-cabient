@@ -27,7 +27,8 @@ class InTransitConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        service = new InTransitService(transitRepository, distributedLockService);
+        service = new InTransitService(transitRepository, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

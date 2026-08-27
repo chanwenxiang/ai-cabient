@@ -5,6 +5,7 @@ import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.MerchantPortalGuard;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +47,7 @@ public class MerchantReplenishmentService {
     private final FileAttachmentService fileAttachmentService;
     private final DistributedLockService distributedLockService;
     private final ApprovalWorkflowService approvalWorkflowService;
+    private final MerchantReplenishmentService self;
 
     public MerchantReplenishmentService(PermissionService permissionService,
                                         MerchantFeaturePackService merchantFeaturePackService,
@@ -64,7 +66,8 @@ public class MerchantReplenishmentService {
                                         ReplenishmentTaskMapper taskRepository,
                                         FileAttachmentService fileAttachmentService,
                                         DistributedLockService distributedLockService,
-                                        ApprovalWorkflowService approvalWorkflowService) {
+                                        ApprovalWorkflowService approvalWorkflowService,
+                                        @Lazy MerchantReplenishmentService self) {
         this.permissionService = permissionService;
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.merchantPortalGuard = merchantPortalGuard;
@@ -83,6 +86,7 @@ public class MerchantReplenishmentService {
         this.fileAttachmentService = fileAttachmentService;
         this.distributedLockService = distributedLockService;
         this.approvalWorkflowService = approvalWorkflowService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -290,7 +294,7 @@ public class MerchantReplenishmentService {
     @Transactional(readOnly = true)
     public List<MerchantReplenishmentRequestDto> listRequestsForOps(Long operatorId, String status) {
         permissionService.requirePermission(operatorId, "ops:replenishment:list");
-        return listRequestsForOpsPage(operatorId, status, 0, 200).items();
+        return self.listRequestsForOpsPage(operatorId, status, 0, 200).items();
     }
 
     @Transactional(readOnly = true)

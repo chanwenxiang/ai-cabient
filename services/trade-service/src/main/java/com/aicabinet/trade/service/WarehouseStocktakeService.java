@@ -16,6 +16,7 @@ import com.aicabinet.trade.mapper.WarehouseMapper;
 import com.aicabinet.trade.mapper.WarehouseStocktakeLineMapper;
 import com.aicabinet.trade.mapper.WarehouseStocktakeMapper;
 import com.aicabinet.trade.client.VisionServiceClient;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,7 @@ import java.security.SecureRandom;
 @Service
 public class WarehouseStocktakeService {
     private static final String PERM_OPS_WAREHOUSE_EDIT = "ops:warehouse:edit";
+    private static final String PERM_OPS_WAREHOUSE_LIST = "ops:warehouse:list";
     private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
     private static final String ADJUSTED = "ADJUSTED";
     private static final String MATCHED = "MATCHED";
@@ -58,6 +60,7 @@ public class WarehouseStocktakeService {
     private final WarehouseService warehouseService;
     private final VisionServiceClient visionServiceClient;
     private final DistributedLockService distributedLockService;
+    private final WarehouseStocktakeService self;
 
     public WarehouseStocktakeService(PermissionService permissionService,
                                      WarehouseStocktakeMapper stocktakeRepository,
@@ -67,7 +70,8 @@ public class WarehouseStocktakeService {
                                      SkuCatalogMapper skuCatalogRepository,
                                      WarehouseService warehouseService,
                                      VisionServiceClient visionServiceClient,
-                                     DistributedLockService distributedLockService) {
+                                     DistributedLockService distributedLockService,
+                                     @Lazy WarehouseStocktakeService self) {
         this.permissionService = permissionService;
         this.stocktakeRepository = stocktakeRepository;
         this.lineRepository = lineRepository;
@@ -77,6 +81,7 @@ public class WarehouseStocktakeService {
         this.warehouseService = warehouseService;
         this.visionServiceClient = visionServiceClient;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional
@@ -126,14 +131,14 @@ public class WarehouseStocktakeService {
 
     @Transactional(readOnly = true)
     public List<StocktakeDto> list(Long operatorId, String status) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:list");
-        return listPage(operatorId, status, null, 0, 500).items();
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_LIST);
+        return self.listPage(operatorId, status, null, 0, 500).items();
     }
 
     @Transactional(readOnly = true)
     public PageResult<StocktakeDto> listPage(
             Long operatorId, String status, String warehouseId, int page, int size) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_LIST);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
         var result = stocktakeRepository.searchPage(status, warehouseId, p, s);
@@ -143,7 +148,7 @@ public class WarehouseStocktakeService {
 
     @Transactional(readOnly = true)
     public StocktakeDto get(Long operatorId, Long stocktakeId) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_LIST);
         return toDto(requireStocktake(stocktakeId));
     }
 

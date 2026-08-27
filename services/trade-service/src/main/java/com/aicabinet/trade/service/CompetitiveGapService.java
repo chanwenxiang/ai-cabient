@@ -229,7 +229,7 @@ public class CompetitiveGapService {
     @Transactional
     public PageResult<DeviceOpsEventDto> listDeviceOpsEvents(Long operatorId, String eventType,
                                                              int page, int size, boolean eventIdAsc) {
-        return listDeviceOpsEvents(operatorId, eventType, null, null, page, size, eventIdAsc);
+        return self.listDeviceOpsEvents(operatorId, eventType, null, null, page, size, eventIdAsc);
     }
 
     @Transactional

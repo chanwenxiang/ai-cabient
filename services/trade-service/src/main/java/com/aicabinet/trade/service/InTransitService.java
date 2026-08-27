@@ -6,6 +6,7 @@ import com.aicabinet.trade.domain.WarehouseOutboundLine;
 import com.aicabinet.trade.mapper.WarehouseInTransitMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,11 +28,14 @@ public class InTransitService {
 
     private final WarehouseInTransitMapper transitRepository;
     private final DistributedLockService distributedLockService;
+    private final InTransitService self;
 
     public InTransitService(WarehouseInTransitMapper transitRepository,
-                            DistributedLockService distributedLockService) {
+                            DistributedLockService distributedLockService,
+                            @Lazy InTransitService self) {
         this.transitRepository = transitRepository;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional
@@ -143,7 +147,7 @@ public class InTransitService {
 
     @Transactional(readOnly = true)
     public List<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransit(String deviceId) {
-        return listInTransitPage(deviceId, 0, 500).items();
+        return self.listInTransitPage(deviceId, 0, 500).items();
     }
 
     @Transactional(readOnly = true)

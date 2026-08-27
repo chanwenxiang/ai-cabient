@@ -32,7 +32,8 @@ class SupplierPayableConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new SupplierPayableService(permissionService, payableRepository, paymentRepository,
-                supplierRepository, warehouseRepository, distributedLockService);
+                supplierRepository, warehouseRepository, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

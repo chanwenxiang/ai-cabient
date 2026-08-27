@@ -28,7 +28,8 @@ class InTransitServiceTest {
 
     @BeforeEach
     void setUp() {
-        inTransitService = new InTransitService(transitRepository, distributedLockService);
+        inTransitService = new InTransitService(transitRepository, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(inTransitService, "self", inTransitService);
     }
 
     @Test
