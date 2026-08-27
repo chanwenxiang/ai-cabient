@@ -957,9 +957,13 @@ public class SettlementService {
             return false;
         }
         try {
-            int hold = ConsumerPreauthService.STATUS_FROZEN.equalsIgnoreCase(
-                    session.getPreauthStatus() == null ? "" : session.getPreauthStatus())
-                    ? Math.max(0, session.getPreauthCents()) : 0;
+            int hold;
+            if (ConsumerPreauthService.STATUS_FROZEN.equalsIgnoreCase(
+                    session.getPreauthStatus() == null ? "" : session.getPreauthStatus())) {
+                hold = Math.max(0, session.getPreauthCents());
+            } else {
+                hold = 0;
+            }
             userValidationService.validateSufficientBalanceForCharge(
                     session.getUserId(), order.getTotalAmountCents(), hold);
             return false;
