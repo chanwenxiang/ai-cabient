@@ -153,7 +153,7 @@ public class LineWithdrawService {
         auditService.record(operatorId, LINE_WITHDRAW_REVIEW, BIZ_LINE_WITHDRAW,
                 String.valueOf(request.getRequestId()), "通过；金额(分)=" + request.getAmountCents()
                         + "；备注=" + trim(remark));
-        return attemptPayout(request, operatorId);
+        return attemptPayout(request);
     }
 
     @Transactional
@@ -166,7 +166,7 @@ public class LineWithdrawService {
             }
             auditService.record(operatorId, "LINE_WITHDRAW_PAYOUT", BIZ_LINE_WITHDRAW,
                     String.valueOf(requestId), "打款金额(分)=" + request.getAmountCents());
-            return attemptPayout(request, operatorId);
+            return attemptPayout(request);
         });
     }
 
@@ -237,10 +237,10 @@ public class LineWithdrawService {
         withdrawMapper.insert(request);
         lineWalletService.freezeForWithdraw(manager.getManagerId(), amountCents,
                 WITHDRAW, String.valueOf(request.getRequestId()), "提现申请冻结");
-        return attemptPayout(request, null);
+        return attemptPayout(request);
     }
 
-    private LineWithdrawRequestDto attemptPayout(LineWithdrawRequest request, Long operatorId) {
+    private LineWithdrawRequestDto attemptPayout(LineWithdrawRequest request) {
         LineManager manager = lineManagerService.requireManager(request.getManagerId());
         request.setStatus("PAYING");
         request.setUpdatedAt(Instant.now());

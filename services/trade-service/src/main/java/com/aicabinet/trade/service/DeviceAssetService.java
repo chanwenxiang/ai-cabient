@@ -307,7 +307,7 @@ public class DeviceAssetService {
         } else {
             rate = Math.max(0d, (1d - (qty * 1d / capacity)) * 100d);
         }
-        Integer daysOut = stockout ? estimateDaysOut(row.getDeviceId(), row.getSkuId(), row.getUpdatedAt()) : null;
+        Integer daysOut = stockout ? estimateDaysOut(row.getUpdatedAt()) : null;
         SkuCatalog sku = skus.get(row.getSkuId());
         return new StockHealthRowDto(
                 kind,
@@ -448,7 +448,7 @@ public class DeviceAssetService {
         return bySku.getOrDefault(row.getSkuId(), 0);
     }
 
-    private Integer estimateDaysOut(String deviceId, String skuId, Instant updatedAt) {
+    private Integer estimateDaysOut(Instant updatedAt) {
         if (updatedAt == null) return null;
         long days = ChronoUnit.DAYS.between(updatedAt.atZone(ZONE).toLocalDate(), LocalDate.now(ZONE));
         return (int) Math.max(days, 0);

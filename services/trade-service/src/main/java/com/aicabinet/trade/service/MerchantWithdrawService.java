@@ -249,7 +249,7 @@ public class MerchantWithdrawService {
         auditService.record(operatorId, MERCHANT_WITHDRAW_REVIEW, BIZ_MERCHANT_WITHDRAW,
                 String.valueOf(request.getRequestId()), "通过；金额(分)=" + request.getAmountCents()
                         + "；备注=" + trim(remark));
-        return attemptPayout(request, operatorId);
+        return attemptPayout(request);
     }
 
     @Transactional
@@ -262,7 +262,7 @@ public class MerchantWithdrawService {
             }
             auditService.record(operatorId, "MERCHANT_WITHDRAW_PAYOUT", BIZ_MERCHANT_WITHDRAW,
                     String.valueOf(requestId), "打款金额(分)=" + request.getAmountCents());
-            return attemptPayout(request, operatorId);
+            return attemptPayout(request);
         });
     }
 
@@ -308,10 +308,10 @@ public class MerchantWithdrawService {
         withdrawMapper.insert(request);
         merchantWalletService.freezeForWithdraw(merchant.getMerchantId(), amountCents,
                 WITHDRAW, String.valueOf(request.getRequestId()), "提现申请冻结");
-        return attemptPayout(request, null);
+        return attemptPayout(request);
     }
 
-    private MerchantWithdrawRequestDto attemptPayout(MerchantWithdrawRequest request, Long operatorId) {
+    private MerchantWithdrawRequestDto attemptPayout(MerchantWithdrawRequest request) {
         Merchant merchant = requireMerchant(request.getMerchantId());
         request.setStatus("PAYING");
         request.setUpdatedAt(Instant.now());

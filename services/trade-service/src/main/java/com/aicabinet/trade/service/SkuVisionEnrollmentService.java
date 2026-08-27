@@ -186,7 +186,7 @@ public class SkuVisionEnrollmentService {
         skuCatalogRepository.save(sku);
         String newImageUrl = trimToNull(skuReq.imageUrl());
         if (oldImageUrl != null && !oldImageUrl.equals(newImageUrl)) {
-            fileAttachmentService.releaseSkuImageIfUnused(oldImageUrl, operatorId);
+            fileAttachmentService.releaseSkuImageIfUnused(oldImageUrl);
         }
 
         String skuId = sku.getSkuId();

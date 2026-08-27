@@ -314,7 +314,7 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
         var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<ShoppingSession>(
                 pageable.getPageNumber() + 1L, pageable.getPageSize());
         var q = Wrappers.<ShoppingSession>lambdaQuery();
-        if (!applySessionDeviceScope(q, criteria.deviceId(), criteria.deviceIds(), pageable)) {
+        if (!applySessionDeviceScope(q, criteria.deviceId(), criteria.deviceIds())) {
             return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
         }
         applySessionExactFilters(q, criteria);
@@ -326,7 +326,7 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
 
     private static boolean applySessionDeviceScope(
             com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ShoppingSession> q,
-            String deviceId, Collection<String> deviceIds, Pageable pageable) {
+            String deviceId, Collection<String> deviceIds) {
         if (deviceId != null && !deviceId.isBlank()) {
             q.eq(ShoppingSession::getDeviceId, deviceId.trim());
             return true;

@@ -1021,7 +1021,7 @@ public class MerchantPortalService {
     private MerchantUserDto doUpdateTeamUser(Long operatorId, Long targetUserId, UpdateMerchantUserRequest request) {
         UserInfo target = userInfoRepository.findByIdForUpdate(targetUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
-        requireTeamMember(operatorId, targetUserId, target);
+        assertTeamMemberAccess(operatorId, targetUserId);
         if (request.displayName() != null && !request.displayName().isBlank()) {
             target.setName(request.displayName().trim());
         }
@@ -1052,7 +1052,7 @@ public class MerchantPortalService {
     private MerchantUserDto doDisableTeamUser(Long operatorId, Long targetUserId) {
         UserInfo target = userInfoRepository.findByIdForUpdate(targetUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
-        requireTeamMember(operatorId, targetUserId, target);
+        assertTeamMemberAccess(operatorId, targetUserId);
         target.setStatus("INACTIVE");
         userInfoRepository.save(target);
         auditService.record(operatorId, "MERCHANT_USER_DISABLE", "USER", String.valueOf(targetUserId), null);
@@ -1069,7 +1069,7 @@ public class MerchantPortalService {
     private MerchantUserDto doEnableTeamUser(Long operatorId, Long targetUserId) {
         UserInfo target = userInfoRepository.findByIdForUpdate(targetUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
-        requireTeamMember(operatorId, targetUserId, target);
+        assertTeamMemberAccess(operatorId, targetUserId);
         target.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
         userInfoRepository.save(target);
         auditService.record(operatorId, "MERCHANT_USER_ENABLE", "USER", String.valueOf(targetUserId), null);
@@ -1091,7 +1091,7 @@ public class MerchantPortalService {
                                                     ResetMerchantUserPasswordRequest request) {
         UserInfo target = userInfoRepository.findByIdForUpdate(targetUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
-        requireTeamMember(operatorId, targetUserId, target);
+        assertTeamMemberAccess(operatorId, targetUserId);
         target.setPasswordHash(passwordEncoder.encode(request.password()));
         userInfoRepository.save(target);
         auditService.record(operatorId, "MERCHANT_USER_RESET_PASSWORD", "USER", String.valueOf(targetUserId), null);
@@ -1151,11 +1151,11 @@ public class MerchantPortalService {
     private UserInfo requireTeamMember(Long operatorId, Long targetUserId) {
         UserInfo target = userInfoRepository.findById(targetUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
-        requireTeamMember(operatorId, targetUserId, target);
+        assertTeamMemberAccess(operatorId, targetUserId);
         return target;
     }
 
-    private void requireTeamMember(Long operatorId, Long targetUserId, UserInfo target) {
+    private void assertTeamMemberAccess(Long operatorId, Long targetUserId) {
         Set<String> merchants = merchantFeaturePackService.allowedMerchantIdsForPack(
                 operatorId, MerchantFeaturePacks.TEAM);
         if (merchants == null || merchants.isEmpty()) {

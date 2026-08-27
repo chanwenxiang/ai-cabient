@@ -168,10 +168,10 @@ public class OpsRbacService {
     public OpsPermissionDto createPermission(Long operatorId, CreateOpsPermissionRequest request) {
         permissionService.requirePermission(operatorId, "ops:rbac:menu:add");
         String permCode = request.permCode().trim();
-        return runWithPermissionCodeLock(permCode, () -> doCreatePermission(operatorId, request, permCode));
+        return runWithPermissionCodeLock(permCode, () -> doCreatePermission(request, permCode));
     }
 
-    private OpsPermissionDto doCreatePermission(Long operatorId, CreateOpsPermissionRequest request, String permCode) {
+    private OpsPermissionDto doCreatePermission(CreateOpsPermissionRequest request, String permCode) {
         String permType = normalizePermType(request.permType());
         if (permissionRepository.findByPermCode(permCode).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "权限标识已存在");

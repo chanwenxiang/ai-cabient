@@ -276,7 +276,7 @@ public class FileAttachmentService {
      * 商品主图被替换/移除时释放旧图：同对象仍被其它附件引用则仅删记录，
      * 无引用时同时删除对象存储里的旧文件（含本地回退文件）。
      */
-    public void releaseSkuImageIfUnused(String imageUrl, Long operatorId) {
+    public void releaseSkuImageIfUnused(String imageUrl) {
         if (imageUrl == null || imageUrl.isBlank()) {
             return;
         }

@@ -112,23 +112,21 @@ public class PaymentService {
 
     @Transactional
     public RechargePrepayResponse createRechargePrepay(Long userId, String requestedChannel,
-                                                       int amountCents, String requestedIdempotencyKey,
-                                                       String clientIp) {
+                                                       int amountCents, String requestedIdempotencyKey) {
         String channel = PayChannels.normalize(requestedChannel);
         String idempotencyKey = requestedIdempotencyKey.trim();
         if (!distributedLockService.tryLock(rechargeIdempotencyLockKey(idempotencyKey), 60, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "充值请求处理中，请稍后重试");
         }
         try {
-            return doCreateRechargePrepay(userId, channel, amountCents, idempotencyKey, clientIp);
+            return doCreateRechargePrepay(userId, channel, amountCents, idempotencyKey);
         } finally {
             distributedLockService.unlock(rechargeIdempotencyLockKey(idempotencyKey));
         }
     }
 
     private RechargePrepayResponse doCreateRechargePrepay(Long userId, String channel,
-                                                          int amountCents, String idempotencyKey,
-                                                          String clientIp) {
+                                                          int amountCents, String idempotencyKey) {
         RechargeOrder existing = rechargeOrderRepository.findByIdempotencyKey(idempotencyKey).orElse(null);
         if (existing != null) {
             if (!existing.getUserId().equals(userId)
@@ -148,7 +146,7 @@ public class PaymentService {
         rechargeOrderRepository.save(order);
 
         return switch (channel) {
-            case PayChannels.WECHAT -> createWeChatPrepay(order, userId, clientIp);
+            case PayChannels.WECHAT -> createWeChatPrepay(order, userId);
             case PayChannels.ALIPAY -> createAlipayPrepay(order);
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.UNSUPPORTED_CHANNEL);
         };
@@ -176,7 +174,7 @@ public class PaymentService {
         return new RechargePrepayResponse(order.getChannel(), order.getOrderId(), wxPay, null, info);
     }
 
-    private RechargePrepayResponse createWeChatPrepay(RechargeOrder order, Long userId, String clientIp) {
+    private RechargePrepayResponse createWeChatPrepay(RechargeOrder order, Long userId) {
         if (weChatPayProperties.isConfigured()) {
             UserInfo user = userInfoRepository.findById(userId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
@@ -185,7 +183,7 @@ public class PaymentService {
             }
             String prepayId = weChatPayClient.unifiedOrderJsapi(
                     user.getWxOpenId(), order.getOrderId(), order.getAmountCents(),
-                    "AI开门柜充值", clientIp);
+                    "AI开门柜充值");
             order.setWxPrepayId(prepayId);
             rechargeOrderRepository.save(order);
 

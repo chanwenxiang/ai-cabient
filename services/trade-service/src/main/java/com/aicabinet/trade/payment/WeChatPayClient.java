@@ -15,7 +15,7 @@ public class WeChatPayClient {
         this.v3Client = v3Client;
     }
 
-    public String unifiedOrderJsapi(String openId, String outTradeNo, int totalFeeCents, String body, String clientIp) {
+    public String unifiedOrderJsapi(String openId, String outTradeNo, int totalFeeCents, String body) {
         return v3Client.createJsapiPrepayId(openId, outTradeNo, totalFeeCents, body);
     }
 
