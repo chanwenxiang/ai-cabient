@@ -164,7 +164,7 @@ async function openHistory() {
 }
 
 function draftValueFor(p: MerchantSkuPricing) {
-  return p.overridePriceCents != null ? (p.overridePriceCents / 100).toFixed(2) : '';
+  return p.overridePriceCents == null ? '' : (p.overridePriceCents / 100).toFixed(2);
 }
 
 onShow(() => {

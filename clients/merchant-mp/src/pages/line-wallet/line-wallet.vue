@@ -132,7 +132,7 @@ const loadError = ref('');
 const amountYuan = ref('');
 const overview = ref<LineWalletOverview | null>(null);
 const maxWithdrawYuan = computed(() =>
-  overview.value?.availableCents != null ? yuan(overview.value.availableCents) : ''
+  overview.value?.availableCents == null ? '' : yuan(overview.value.availableCents)
 );
 
 function yuan(cents?: number) {
