@@ -43,7 +43,8 @@ class PurchaseSuggestionServiceTest {
     void setUp() {
         service = new PurchaseSuggestionService(permissionService, orderLineRepository,
                 warehouseInventoryRepository, purchaseOrderLineRepository, skuCatalogRepository,
-                skuReviewRepository, new RopProperties());
+                skuReviewRepository, new RopProperties(), null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

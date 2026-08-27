@@ -394,34 +394,47 @@ public class ApprovalWorkflowService {
         nodeRepository.deleteByDefId(defId);
         int autoSeq = 1;
         for (ApprovalNodeDto n : sorted) {
-            if (n == null || n.nodeName() == null || n.nodeName().isBlank()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "节点名称不能为空");
-            }
-            String assigneeType = n.assigneeType() == null ? "" : n.assigneeType().trim().toUpperCase(Locale.ROOT);
-            if (!ASSIGNEE_TYPES.contains(assigneeType)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "assigneeType 仅支持 PERM/ROLE/DEPT/USER");
-            }
-            String assigneeValue = n.assigneeValue() == null ? "" : n.assigneeValue().trim();
-            if (assigneeValue.isBlank()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "审批人取值不能为空");
-            }
-            String passRule = n.passRule() == null || n.passRule().isBlank()
-                    ? "ANY" : n.passRule().trim().toUpperCase(Locale.ROOT);
-            if (!PASS_RULES.contains(passRule)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "passRule 仅支持 ANY/ALL");
-            }
-            ApprovalNode node = new ApprovalNode();
-            node.setDefId(defId);
-            node.setSeq(n.seq() == null ? autoSeq : n.seq());
-            node.setNodeName(n.nodeName().trim());
-            node.setAssigneeType(assigneeType);
-            node.setAssigneeValue("DEPT".equals(assigneeType) || "ROLE".equals(assigneeType) || "PERM".equals(assigneeType)
-                    ? assigneeValue.toUpperCase(Locale.ROOT)
-                    : assigneeValue);
-            node.setPassRule(passRule);
+            ApprovalNode node = buildApprovalNode(defId, n, autoSeq);
             nodeRepository.insert(node);
             autoSeq = Math.max(autoSeq, node.getSeq()) + 1;
+        }
+    }
+
+    private static ApprovalNode buildApprovalNode(Long defId, ApprovalNodeDto n, int autoSeq) {
+        validateNodeDto(n);
+        String assigneeType = n.assigneeType().trim().toUpperCase(Locale.ROOT);
+        String assigneeValue = n.assigneeValue().trim();
+        String passRule = n.passRule() == null || n.passRule().isBlank()
+                ? "ANY" : n.passRule().trim().toUpperCase(Locale.ROOT);
+        ApprovalNode node = new ApprovalNode();
+        node.setDefId(defId);
+        node.setSeq(n.seq() == null ? autoSeq : n.seq());
+        node.setNodeName(n.nodeName().trim());
+        node.setAssigneeType(assigneeType);
+        node.setAssigneeValue("DEPT".equals(assigneeType) || "ROLE".equals(assigneeType) || "PERM".equals(assigneeType)
+                ? assigneeValue.toUpperCase(Locale.ROOT)
+                : assigneeValue);
+        node.setPassRule(passRule);
+        return node;
+    }
+
+    private static void validateNodeDto(ApprovalNodeDto n) {
+        if (n == null || n.nodeName() == null || n.nodeName().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "节点名称不能为空");
+        }
+        String assigneeType = n.assigneeType() == null ? "" : n.assigneeType().trim().toUpperCase(Locale.ROOT);
+        if (!ASSIGNEE_TYPES.contains(assigneeType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "assigneeType 仅支持 PERM/ROLE/DEPT/USER");
+        }
+        String assigneeValue = n.assigneeValue() == null ? "" : n.assigneeValue().trim();
+        if (assigneeValue.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "审批人取值不能为空");
+        }
+        String passRule = n.passRule() == null || n.passRule().isBlank()
+                ? "ANY" : n.passRule().trim().toUpperCase(Locale.ROOT);
+        if (!PASS_RULES.contains(passRule)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "passRule 仅支持 ANY/ALL");
         }
     }
 

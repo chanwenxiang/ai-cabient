@@ -31,7 +31,8 @@ class MerchantReplenishmentConcurrencyTest {
         service = new MerchantReplenishmentService(
                 permissionService, null, merchantPortalGuard, null, null, null, null,
                 null, null, null, null, requestRepository, null, null, null,
-                null, distributedLockService, null);
+                null, distributedLockService, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

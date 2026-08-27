@@ -8,6 +8,7 @@ import com.aicabinet.trade.mapper.PurchaseOrderLineMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.SkuDelistReviewMapper;
 import com.aicabinet.trade.mapper.WarehouseInventoryMapper;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,6 +50,7 @@ public class PurchaseSuggestionService {
     private final SkuCatalogMapper skuCatalogRepository;
     private final SkuDelistReviewMapper skuReviewRepository;
     private final RopProperties ropProperties;
+    private final PurchaseSuggestionService self;
 
     public PurchaseSuggestionService(PermissionService permissionService,
                                      CabinetOrderLineMapper orderLineRepository,
@@ -56,7 +58,8 @@ public class PurchaseSuggestionService {
                                      PurchaseOrderLineMapper purchaseOrderLineRepository,
                                      SkuCatalogMapper skuCatalogRepository,
                                      SkuDelistReviewMapper skuReviewRepository,
-                                     RopProperties ropProperties) {
+                                     RopProperties ropProperties,
+                                     @Lazy PurchaseSuggestionService self) {
         this.permissionService = permissionService;
         this.orderLineRepository = orderLineRepository;
         this.warehouseInventoryRepository = warehouseInventoryRepository;
@@ -64,6 +67,7 @@ public class PurchaseSuggestionService {
         this.skuCatalogRepository = skuCatalogRepository;
         this.skuReviewRepository = skuReviewRepository;
         this.ropProperties = ropProperties;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -145,7 +149,7 @@ public class PurchaseSuggestionService {
     @Transactional(readOnly = true)
     public PageResult<PurchaseSuggestionDto> suggestPage(
             Long operatorId, String warehouseId, int leadTimeDays, int coverageDays, int page, int size) {
-        List<PurchaseSuggestionDto> all = suggest(operatorId, warehouseId, leadTimeDays, coverageDays);
+        List<PurchaseSuggestionDto> all = self.suggest(operatorId, warehouseId, leadTimeDays, coverageDays);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
         int from = p * s;

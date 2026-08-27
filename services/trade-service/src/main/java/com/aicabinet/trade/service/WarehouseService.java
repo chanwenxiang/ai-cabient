@@ -91,7 +91,7 @@ public class WarehouseService {
 
     @Transactional(readOnly = true)
     public List<WarehouseDto> listWarehouses() {
-        return listWarehousesPage(null, 0, 500).items();
+        return self.listWarehousesPage(null, 0, 500).items();
     }
 
     @Transactional(readOnly = true)
@@ -669,6 +669,16 @@ public class WarehouseService {
         String device = deviceId.trim();
         List<WarehouseOutboundLine> deviceLines =
                 outboundLineRepository.findByOutboundIdAndDeviceIdOrderByLineIdAsc(outboundId, device);
+        assertDeviceLinesNotHandedOver(deviceLines);
+        if (SHIPPED.equals(outbound.getStatus())) {
+            cancelShippedDeviceLines(outbound, deviceLines, device, outboundId, operatorId);
+        } else {
+            markDeviceLinesCancelled(deviceLines);
+        }
+        maybeFinalizeOutboundCancellation(outbound, outboundId, deviceLines);
+    }
+
+    private static void assertDeviceLinesNotHandedOver(List<WarehouseOutboundLine> deviceLines) {
         boolean handedOver = deviceLines.stream().anyMatch(line -> {
             String hs = line.getHandoverStatus();
             return RECEIVED.equals(hs) || PARTIAL.equals(hs);
@@ -676,27 +686,33 @@ public class WarehouseService {
         if (handedOver) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_CANCEL_NOT_EMPTY);
         }
-        String status = outbound.getStatus();
-        if (SHIPPED.equals(status)) {
-            for (WarehouseOutboundLine line : deviceLines) {
-                if (line.getQuantity() > 0) {
-                    addWarehouseStock(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
-                            null, line.getExpiryDate(), line.getQuantity());
-                    recordWarehouseMovement(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
-                            "OUTBOUND_CANCEL", line.getQuantity(), "WAREHOUSE_OUTBOUND",
-                            String.valueOf(outboundId), operatorId);
-                }
-                line.setHandoverStatus(STATUS_CANCELLED);
-                outboundLineRepository.save(line);
+    }
+
+    private void cancelShippedDeviceLines(WarehouseOutbound outbound, List<WarehouseOutboundLine> deviceLines,
+                                          String device, Long outboundId, Long operatorId) {
+        for (WarehouseOutboundLine line : deviceLines) {
+            if (line.getQuantity() > 0) {
+                addWarehouseStock(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
+                        null, line.getExpiryDate(), line.getQuantity());
+                recordWarehouseMovement(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
+                        "OUTBOUND_CANCEL", line.getQuantity(), "WAREHOUSE_OUTBOUND",
+                        String.valueOf(outboundId), operatorId);
             }
-            inTransitService.cancelOpenForDevice(outboundId, device);
-        } else {
-            // DRAFT / PICKED：未扣仓，仅标记明细与单据
-            for (WarehouseOutboundLine line : deviceLines) {
-                line.setHandoverStatus(STATUS_CANCELLED);
-                outboundLineRepository.save(line);
-            }
+            line.setHandoverStatus(STATUS_CANCELLED);
+            outboundLineRepository.save(line);
         }
+        inTransitService.cancelOpenForDevice(outboundId, device);
+    }
+
+    private void markDeviceLinesCancelled(List<WarehouseOutboundLine> deviceLines) {
+        for (WarehouseOutboundLine line : deviceLines) {
+            line.setHandoverStatus(STATUS_CANCELLED);
+            outboundLineRepository.save(line);
+        }
+    }
+
+    private void maybeFinalizeOutboundCancellation(WarehouseOutbound outbound, Long outboundId,
+                                                   List<WarehouseOutboundLine> deviceLines) {
         List<WarehouseOutboundLine> allLines = outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
         boolean allDeviceCancelled = allLines.stream().allMatch(line ->
                 STATUS_CANCELLED.equals(line.getHandoverStatus())
@@ -962,48 +978,76 @@ public class WarehouseService {
         Map<String, Integer> takenBySku = new LinkedHashMap<>();
         List<WarehouseOutboundLine> kept = new java.util.ArrayList<>();
         for (WarehouseOutboundLine line : lines) {
-            String deviceId = line.getDeviceId();
-            String skuId = line.getSkuId();
-            if (deviceId == null || deviceId.isBlank() || skuId == null
-                    || !deviceSlotService.hasSkuSlots(deviceId, skuId)) {
+            if (!shouldClampLineToHeadroom(line)) {
                 kept.add(line);
                 continue;
             }
-            int qty = line.getQuantity();
-            if (qty <= 0) {
-                outboundLineRepository.deleteById(line.getLineId());
-                continue;
+            int allow = computeLineAllowance(line, takenBySlot, takenBySku);
+            WarehouseOutboundLine keptLine = applyAllowanceToLine(line, allow, takenBySlot, takenBySku);
+            if (keptLine != null) {
+                kept.add(keptLine);
             }
-            String slotId = line.getSlotId();
-            int allow;
-            if (slotId != null && !slotId.isBlank()) {
-                String key = deviceId + "|" + slotId.trim().toUpperCase();
-                int headroom = deviceSlotService.headroomForSlot(deviceId, slotId);
-                int already = takenBySlot.getOrDefault(key, 0);
-                allow = Math.max(0, headroom - already);
-                if (allow > 0) {
-                    takenBySlot.put(key, already + Math.min(qty, allow));
-                }
-            } else {
-                String key = deviceId + "|" + skuId;
-                int headroom = deviceSlotService.totalHeadroomForSku(deviceId, skuId);
-                int already = takenBySku.getOrDefault(key, 0);
-                allow = Math.max(0, headroom - already);
-                if (allow > 0) {
-                    takenBySku.put(key, already + Math.min(qty, allow));
-                }
-            }
-            if (allow <= 0) {
-                outboundLineRepository.deleteById(line.getLineId());
-                continue;
-            }
-            if (allow < qty) {
-                line.setQuantity(allow);
-                outboundLineRepository.save(line);
-            }
-            kept.add(line);
         }
         return kept;
+    }
+
+    private boolean shouldClampLineToHeadroom(WarehouseOutboundLine line) {
+        String deviceId = line.getDeviceId();
+        String skuId = line.getSkuId();
+        return deviceId != null && !deviceId.isBlank() && skuId != null
+                && deviceSlotService.hasSkuSlots(deviceId, skuId);
+    }
+
+    private int computeLineAllowance(WarehouseOutboundLine line,
+                                     Map<String, Integer> takenBySlot,
+                                     Map<String, Integer> takenBySku) {
+        int qty = line.getQuantity();
+        if (qty <= 0) {
+            return 0;
+        }
+        String slotId = line.getSlotId();
+        if (slotId != null && !slotId.isBlank()) {
+            String key = line.getDeviceId() + "|" + slotId.trim().toUpperCase();
+            int headroom = deviceSlotService.headroomForSlot(line.getDeviceId(), slotId);
+            int already = takenBySlot.getOrDefault(key, 0);
+            return Math.max(0, headroom - already);
+        }
+        String key = line.getDeviceId() + "|" + line.getSkuId();
+        int headroom = deviceSlotService.totalHeadroomForSku(line.getDeviceId(), line.getSkuId());
+        int already = takenBySku.getOrDefault(key, 0);
+        return Math.max(0, headroom - already);
+    }
+
+    private WarehouseOutboundLine applyAllowanceToLine(WarehouseOutboundLine line, int allow,
+                                                       Map<String, Integer> takenBySlot,
+                                                       Map<String, Integer> takenBySku) {
+        if (line.getQuantity() <= 0) {
+            outboundLineRepository.deleteById(line.getLineId());
+            return null;
+        }
+        if (allow <= 0) {
+            outboundLineRepository.deleteById(line.getLineId());
+            return null;
+        }
+        reserveHeadroom(line, allow, takenBySlot, takenBySku);
+        if (allow < line.getQuantity()) {
+            line.setQuantity(allow);
+            outboundLineRepository.save(line);
+        }
+        return line;
+    }
+
+    private void reserveHeadroom(WarehouseOutboundLine line, int allow,
+                                 Map<String, Integer> takenBySlot, Map<String, Integer> takenBySku) {
+        int qty = Math.min(line.getQuantity(), allow);
+        String slotId = line.getSlotId();
+        if (slotId != null && !slotId.isBlank()) {
+            String key = line.getDeviceId() + "|" + slotId.trim().toUpperCase();
+            takenBySlot.put(key, takenBySlot.getOrDefault(key, 0) + qty);
+            return;
+        }
+        String key = line.getDeviceId() + "|" + line.getSkuId();
+        takenBySku.put(key, takenBySku.getOrDefault(key, 0) + qty);
     }
 
     private void addWarehouseStock(String warehouseId, String skuId, String batchNo,

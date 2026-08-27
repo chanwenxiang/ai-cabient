@@ -517,47 +517,53 @@ public class ReplenishmentService {
     /** 出库发运后：按出库行自动生成补货任务行（不覆盖已录入的未应用行）。 */
     @Transactional
     public void generateLinesFromOutbound(Long outboundId) {
-        List<ReplenishmentTask> tasks = taskRepository.findByOutboundId(outboundId);
-        for (ReplenishmentTask task : tasks) {
-            if (STATUS_COMPLETED.equals(task.getStatus())) {
-                continue;
-            }
-            if (!taskLineRepository.findByTaskIdAndAppliedFalse(task.getTaskId()).isEmpty()) {
-                continue;
-            }
-            List<WarehouseOutboundLine> outboundLines = warehouseService
-                    .outboundLinesForDevice(outboundId, task.getDeviceId());
-            if (outboundLines.isEmpty()) {
-                continue;
-            }
-            for (WarehouseOutboundLine ol : outboundLines) {
-                List<DeviceSlotService.SlotRestockAllocation> allocations =
-                        resolveOutboundSlotAllocations(task.getDeviceId(), ol);
-                int allocated = 0;
-                for (DeviceSlotService.SlotRestockAllocation alloc : allocations) {
-                    ReplenishmentTaskLine line = new ReplenishmentTaskLine();
-                    line.setTaskId(task.getTaskId());
-                    line.setLineType(RESTOCK);
-                    line.setSkuId(ol.getSkuId());
-                    line.setBatchNo(ol.getBatchNo());
-                    line.setExpiryDate(ol.getExpiryDate());
-                    line.setQuantity(alloc.quantity());
-                    line.setSlotId(alloc.slotCode());
-                    line.setApplied(false);
-                    taskLineRepository.save(line);
-                    allocated += alloc.quantity();
-                }
-                // 超出货道可补容量：截断，不生成无货道行（避免确认时手填）
-                int remain = Math.max(0, ol.getQuantity() - allocated);
-                if (remain > 0) {
-                    log.warn("generateLinesFromOutbound: truncated {} units over capacity task={} sku={} slot={} allocated={}",
-                            remain, task.getTaskId(), ol.getSkuId(), ol.getSlotId(), allocated);
-                }
-            }
-            if (!STATUS_IN_PROGRESS.equals(task.getStatus())) {
-                task.setStatus(STATUS_IN_PROGRESS);
-                taskRepository.save(task);
-            }
+        for (ReplenishmentTask task : taskRepository.findByOutboundId(outboundId)) {
+            generateLinesForTask(task, outboundId);
+        }
+    }
+
+    private void generateLinesForTask(ReplenishmentTask task, Long outboundId) {
+        if (STATUS_COMPLETED.equals(task.getStatus())) {
+            return;
+        }
+        if (!taskLineRepository.findByTaskIdAndAppliedFalse(task.getTaskId()).isEmpty()) {
+            return;
+        }
+        List<WarehouseOutboundLine> outboundLines = warehouseService
+                .outboundLinesForDevice(outboundId, task.getDeviceId());
+        if (outboundLines.isEmpty()) {
+            return;
+        }
+        for (WarehouseOutboundLine ol : outboundLines) {
+            saveRestockLinesFromOutbound(task, ol);
+        }
+        if (!STATUS_IN_PROGRESS.equals(task.getStatus())) {
+            task.setStatus(STATUS_IN_PROGRESS);
+            taskRepository.save(task);
+        }
+    }
+
+    private void saveRestockLinesFromOutbound(ReplenishmentTask task, WarehouseOutboundLine ol) {
+        List<DeviceSlotService.SlotRestockAllocation> allocations =
+                resolveOutboundSlotAllocations(task.getDeviceId(), ol);
+        int allocated = 0;
+        for (DeviceSlotService.SlotRestockAllocation alloc : allocations) {
+            ReplenishmentTaskLine line = new ReplenishmentTaskLine();
+            line.setTaskId(task.getTaskId());
+            line.setLineType(RESTOCK);
+            line.setSkuId(ol.getSkuId());
+            line.setBatchNo(ol.getBatchNo());
+            line.setExpiryDate(ol.getExpiryDate());
+            line.setQuantity(alloc.quantity());
+            line.setSlotId(alloc.slotCode());
+            line.setApplied(false);
+            taskLineRepository.save(line);
+            allocated += alloc.quantity();
+        }
+        int remain = Math.max(0, ol.getQuantity() - allocated);
+        if (remain > 0) {
+            log.warn("generateLinesFromOutbound: truncated {} units over capacity task={} sku={} slot={} allocated={}",
+                    remain, task.getTaskId(), ol.getSkuId(), ol.getSlotId(), allocated);
         }
     }
 

@@ -44,7 +44,8 @@ class ProcurementConcurrencyTest {
         service = new ProcurementService(permissionService, supplierRepository,
                 purchaseOrderRepository, purchaseOrderLineRepository, purchaseReturnRepository,
                 purchaseReturnLineRepository, warehouseRepository, skuCatalogRepository,
-                warehouseService, supplierPayableService, distributedLockService, null, null);
+                warehouseService, supplierPayableService, distributedLockService, null, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

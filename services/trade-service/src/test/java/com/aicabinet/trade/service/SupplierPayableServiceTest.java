@@ -52,7 +52,8 @@ class SupplierPayableServiceTest {
     @BeforeEach
     void setUp() {
         service = new SupplierPayableService(permissionService, payableRepository,
-                paymentRepository, supplierRepository, warehouseRepository, distributedLockService);
+                paymentRepository, supplierRepository, warehouseRepository, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }
 

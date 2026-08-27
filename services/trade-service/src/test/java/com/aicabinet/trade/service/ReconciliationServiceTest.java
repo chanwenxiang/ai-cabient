@@ -41,7 +41,8 @@ class ReconciliationServiceTest {
     void setUp() {
         service = new ReconciliationService(
                 reconRepository, billLineRepository, paymentOperationRepository, rechargeRepository,
-                billProviderRegistry, new ObjectMapper(), cabinetMetrics, distributedLockService);
+                billProviderRegistry, new ObjectMapper(), cabinetMetrics, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyLong(),

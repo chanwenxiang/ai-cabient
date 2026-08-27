@@ -18,6 +18,7 @@ import com.aicabinet.trade.support.ApiMessages;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,6 +46,7 @@ public class ReconciliationService {
     private final ObjectMapper objectMapper;
     private final CabinetMetrics cabinetMetrics;
     private final DistributedLockService distributedLockService;
+    private final ReconciliationService self;
 
     public ReconciliationService(PaymentReconciliationMapper reconRepository,
                                  PaymentPlatformBillLineMapper billLineRepository,
@@ -53,7 +55,8 @@ public class ReconciliationService {
                                  PlatformBillProviderRegistry billProviderRegistry,
                                  ObjectMapper objectMapper,
                                  CabinetMetrics cabinetMetrics,
-                                 DistributedLockService distributedLockService) {
+                                 DistributedLockService distributedLockService,
+                                 @Lazy ReconciliationService self) {
         this.reconRepository = reconRepository;
         this.billLineRepository = billLineRepository;
         this.paymentOperationRepository = paymentOperationRepository;
@@ -62,11 +65,12 @@ public class ReconciliationService {
         this.objectMapper = objectMapper;
         this.cabinetMetrics = cabinetMetrics;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
     public List<PaymentReconciliationDto> list(Long operatorId, LocalDate from, LocalDate to, String channel) {
-        return list(operatorId, from, to, channel, null, null);
+        return self.list(operatorId, from, to, channel, null, null);
     }
 
     @Transactional(readOnly = true)

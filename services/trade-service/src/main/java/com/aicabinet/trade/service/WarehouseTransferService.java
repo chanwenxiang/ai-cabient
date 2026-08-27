@@ -10,6 +10,7 @@ import com.aicabinet.trade.mapper.WarehouseMapper;
 import com.aicabinet.trade.mapper.WarehouseTransferLineMapper;
 import com.aicabinet.trade.mapper.WarehouseTransferOrderMapper;
 import com.aicabinet.trade.util.BizIds;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +22,7 @@ import java.util.List;
 @Service
 public class WarehouseTransferService {
     private static final String PERM_OPS_WAREHOUSE_EDIT = "ops:warehouse:edit";
+    private static final String PERM_OPS_WAREHOUSE_LIST = "ops:warehouse:list";
     private static final String TRANSFER = "TRANSFER";
 
 
@@ -31,6 +33,7 @@ public class WarehouseTransferService {
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
+    private final WarehouseTransferService self;
 
     public WarehouseTransferService(WarehouseTransferOrderMapper orderMapper,
                                     WarehouseTransferLineMapper lineMapper,
@@ -38,7 +41,8 @@ public class WarehouseTransferService {
                                     WarehouseService warehouseService,
                                     PermissionService permissionService,
                                     AdminAuditService auditService,
-                                    DistributedLockService distributedLockService) {
+                                    DistributedLockService distributedLockService,
+                                    @Lazy WarehouseTransferService self) {
         this.orderMapper = orderMapper;
         this.lineMapper = lineMapper;
         this.warehouseMapper = warehouseMapper;
@@ -46,18 +50,19 @@ public class WarehouseTransferService {
         this.permissionService = permissionService;
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
     public List<WarehouseTransferDto> list(Long operatorId, String status) {
-        permissionService.requireAnyPermission(operatorId, "ops:warehouse:list", PERM_OPS_WAREHOUSE_EDIT);
-        return listPage(operatorId, status, 0, 200).items();
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_WAREHOUSE_LIST, PERM_OPS_WAREHOUSE_EDIT);
+        return self.listPage(operatorId, status, 0, 200).items();
     }
 
     @Transactional(readOnly = true)
     public PageResult<WarehouseTransferDto> listPage(
             Long operatorId, String status, int page, int size) {
-        permissionService.requireAnyPermission(operatorId, "ops:warehouse:list", PERM_OPS_WAREHOUSE_EDIT);
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_WAREHOUSE_LIST, PERM_OPS_WAREHOUSE_EDIT);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
         var result = orderMapper.searchPage(status, p, s);
@@ -67,7 +72,7 @@ public class WarehouseTransferService {
 
     @Transactional(readOnly = true)
     public WarehouseTransferDto get(Long operatorId, Long transferId) {
-        permissionService.requireAnyPermission(operatorId, "ops:warehouse:list", PERM_OPS_WAREHOUSE_EDIT);
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_WAREHOUSE_LIST, PERM_OPS_WAREHOUSE_EDIT);
         return toDto(requireOrder(transferId));
     }
 

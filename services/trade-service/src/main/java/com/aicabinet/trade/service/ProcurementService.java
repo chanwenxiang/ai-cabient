@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,7 @@ public class ProcurementService {
     private final DistributedLockService distributedLockService;
     private final ApprovalWorkflowService approvalWorkflowService;
     private final AdminAuditService auditService;
+    private final ProcurementService self;
 
     private static final String BIZ_PURCHASE_ORDER = "PURCHASE_ORDER";
 
@@ -48,7 +50,8 @@ public class ProcurementService {
                               SupplierPayableService supplierPayableService,
                               DistributedLockService distributedLockService,
                               ApprovalWorkflowService approvalWorkflowService,
-                              AdminAuditService auditService) {
+                              AdminAuditService auditService,
+                              @Lazy ProcurementService self) {
         this.permissionService = permissionService;
         this.supplierRepository = supplierRepository;
         this.purchaseOrderRepository = purchaseOrderRepository;
@@ -62,12 +65,13 @@ public class ProcurementService {
         this.distributedLockService = distributedLockService;
         this.approvalWorkflowService = approvalWorkflowService;
         this.auditService = auditService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
     public List<SupplierDto> listSuppliers(Long operatorId) {
         requireWarehouseRead(operatorId);
-        return listSuppliersPage(operatorId, null, 0, 500).items();
+        return self.listSuppliersPage(operatorId, null, 0, 500).items();
     }
 
     @Transactional(readOnly = true)
@@ -232,7 +236,7 @@ public class ProcurementService {
     @Transactional(readOnly = true)
     public List<PurchaseReturnDto> listPurchaseReturns(Long operatorId) {
         requireWarehouseRead(operatorId);
-        return listPurchaseReturnsPage(operatorId, null, null, 0, 500).items();
+        return self.listPurchaseReturnsPage(operatorId, null, null, 0, 500).items();
     }
 
     @Transactional(readOnly = true)
@@ -372,7 +376,7 @@ public class ProcurementService {
                     deltaQty,
                     line.getUnitCostCents(),
                     operatorId,
-                    "PURCHASE_ORDER",
+                    BIZ_PURCHASE_ORDER,
                     String.valueOf(order.getPurchaseOrderId())
             );
             receivedValueCents += (long) deltaQty * line.getUnitCostCents();

@@ -30,6 +30,7 @@ import java.util.List;
 @Service
 public class WarehouseBinService {
     private static final String PERM_OPS_WAREHOUSE_EDIT = "ops:warehouse:edit";
+    private static final String PERM_OPS_WAREHOUSE_LIST = "ops:warehouse:list";
 
 
     private final PermissionService permissionService;
@@ -58,7 +59,7 @@ public class WarehouseBinService {
 
     @Transactional(readOnly = true)
     public List<WarehouseBinDto> listBins(Long operatorId, String warehouseId) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_LIST);
         String wh = warehouseId == null || warehouseId.isBlank() ? null : warehouseId.trim();
         return binRepository.findAll().stream()
                 .filter(b -> wh == null || wh.equals(b.getWarehouseId()))
@@ -90,14 +91,14 @@ public class WarehouseBinService {
 
     @Transactional(readOnly = true)
     public List<WarehouseBinStockDto> listBinStock(Long operatorId, String warehouseId, Long binId) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_LIST);
         return buildBinStockList(warehouseId, binId);
     }
 
     @Transactional(readOnly = true)
     public PageResult<WarehouseBinStockDto> listBinStockPage(
             Long operatorId, String warehouseId, Long binId, int page, int size) {
-        permissionService.requirePermission(operatorId, "ops:warehouse:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_LIST);
         List<WarehouseBinStockDto> all = buildBinStockList(warehouseId, binId);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);

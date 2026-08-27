@@ -12,6 +12,7 @@ import com.aicabinet.trade.mapper.SupplierMapper;
 import com.aicabinet.trade.mapper.SupplierPayableMapper;
 import com.aicabinet.trade.mapper.SupplierPaymentMapper;
 import com.aicabinet.trade.mapper.WarehouseMapper;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -37,6 +38,7 @@ public class SupplierPayableService {
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private static final int DEFAULT_TERMS_DAYS = 30;
+    private static final String PERM_OPS_PROCUREMENT_LIST = "ops:procurement:list";
 
     private final PermissionService permissionService;
     private final SupplierPayableMapper payableRepository;
@@ -44,33 +46,36 @@ public class SupplierPayableService {
     private final SupplierMapper supplierRepository;
     private final WarehouseMapper warehouseRepository;
     private final DistributedLockService distributedLockService;
+    private final SupplierPayableService self;
 
     public SupplierPayableService(PermissionService permissionService,
                                   SupplierPayableMapper payableRepository,
                                   SupplierPaymentMapper paymentRepository,
                                   SupplierMapper supplierRepository,
                                   WarehouseMapper warehouseRepository,
-                                  DistributedLockService distributedLockService) {
+                                  DistributedLockService distributedLockService,
+                                  @Lazy SupplierPayableService self) {
         this.permissionService = permissionService;
         this.payableRepository = payableRepository;
         this.paymentRepository = paymentRepository;
         this.supplierRepository = supplierRepository;
         this.warehouseRepository = warehouseRepository;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
     public List<SupplierPayableDto> listPayables(Long operatorId, String supplierId,
                                                  String status, boolean overdueOnly) {
-        permissionService.requirePermission(operatorId, "ops:procurement:list");
-        return listPayablesPage(operatorId, supplierId, status, overdueOnly, 0, 500).items();
+        permissionService.requirePermission(operatorId, PERM_OPS_PROCUREMENT_LIST);
+        return self.listPayablesPage(operatorId, supplierId, status, overdueOnly, 0, 500).items();
     }
 
     @Transactional(readOnly = true)
     public PageResult<SupplierPayableDto> listPayablesPage(Long operatorId, String supplierId,
                                                            String status, boolean overdueOnly,
                                                            int page, int size) {
-        permissionService.requirePermission(operatorId, "ops:procurement:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_PROCUREMENT_LIST);
         List<SupplierPayableDto> all;
         if (overdueOnly) {
             all = payableRepository.findAllByOrderByDueDateAsc().stream()
@@ -101,7 +106,7 @@ public class SupplierPayableService {
 
     @Transactional(readOnly = true)
     public List<SupplierPayableSummaryDto> summary(Long operatorId, String supplierId) {
-        permissionService.requirePermission(operatorId, "ops:procurement:list");
+        permissionService.requirePermission(operatorId, PERM_OPS_PROCUREMENT_LIST);
         Map<String, long[]> agg = new LinkedHashMap<>(); // supplierId -> [count, balance, overdueBalance]
         for (SupplierPayable p : payableRepository.findAll()) {
             if (supplierId != null && !supplierId.isBlank()

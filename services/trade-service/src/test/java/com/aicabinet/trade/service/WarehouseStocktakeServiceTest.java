@@ -55,7 +55,8 @@ class WarehouseStocktakeServiceTest {
     void setUp() {
         service = new WarehouseStocktakeService(permissionService, stocktakeRepository,
                 lineRepository, warehouseRepository, inventoryRepository, skuCatalogRepository,
-                warehouseService, visionServiceClient, distributedLockService);
+                warehouseService, visionServiceClient, distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         lenient().when(distributedLockService.tryLock(any(), anyLong(), anyLong())).thenReturn(true);
     }
 
