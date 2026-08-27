@@ -692,6 +692,35 @@ onLoad(async (opts) => {
 
 onReady(() => refreshLandingPad());
 
+async function resumeReopenDeviceFlow(): Promise<boolean> {
+  const reopen = uni.getStorageSync('reopen_device_id');
+  if (!reopen) return false;
+  uni.removeStorageSync('reopen_device_id');
+  const ch = uni.getStorageSync('reopen_entry_channel');
+  if (ch) {
+    uni.removeStorageSync('reopen_entry_channel');
+    entryChannel.value = resolveEntryChannel(ch);
+  }
+  await startShoppingFlow(reopen, ch || undefined);
+  return true;
+}
+
+async function resumeBrowseDeviceFlow() {
+  const browse = uni.getStorageSync('browse_device_id');
+  if (!browse) return;
+  uni.removeStorageSync('browse_device_id');
+  await showDeviceCatalog(String(browse));
+}
+
+async function onAuthenticatedShow() {
+  await resumePendingRechargeIfAny();
+  await refreshReviewState();
+  if (scanned.value && deviceId.value) refreshDeviceStatus();
+  if (await resumeReopenDeviceFlow()) return;
+  await resumeBrowseDeviceFlow();
+  restoreActiveSession();
+}
+
 onShow(async () => {
   refreshLandingPad();
   lastDeviceId.value = uni.getStorageSync('last_device_id') || '';
@@ -699,26 +728,7 @@ onShow(async () => {
   await loadConsumerConfig();
   await ensureConsumerAuth();
   if (getConsumerToken()) {
-    await resumePendingRechargeIfAny();
-    await refreshReviewState();
-    if (scanned.value && deviceId.value) refreshDeviceStatus();
-    const reopen = uni.getStorageSync('reopen_device_id');
-    if (reopen) {
-      uni.removeStorageSync('reopen_device_id');
-      const ch = uni.getStorageSync('reopen_entry_channel');
-      if (ch) {
-        uni.removeStorageSync('reopen_entry_channel');
-        entryChannel.value = resolveEntryChannel(ch);
-      }
-      await startShoppingFlow(reopen, ch || undefined);
-      return;
-    }
-    const browse = uni.getStorageSync('browse_device_id');
-    if (browse) {
-      uni.removeStorageSync('browse_device_id');
-      await showDeviceCatalog(String(browse));
-    }
-    restoreActiveSession();
+    await onAuthenticatedShow();
   }
   startDevicePoll();
 });
@@ -770,123 +780,107 @@ function resetDevice() {
   resetCatalogFilter();
 }
 
-async function startShoppingFlow(id: string, scanChannel?: string | null) {
-  const cabinetId = id.trim().toUpperCase();
-  if (!cabinetId || opening.value || enteringFlow.value) return;
-  if (!/^[A-Z0-9][A-Z0-9_-]{1,63}$/.test(cabinetId)) {
-    setLandingError('柜机编号无效，请扫描柜门二维码或输入如 CAB-001。', 'device_not_found');
-    lastFailedDeviceId.value = '';
-    uni.showToast({ title: '柜机编号无效', icon: 'none' });
+type DeviceAvailability = {
+  online: boolean;
+  reason: string;
+  blocked: boolean;
+};
+
+function normalizeCabinetId(id: string): string {
+  return id.trim().toUpperCase();
+}
+
+function isCabinetIdInvalid(cabinetId: string): boolean {
+  return !/^[A-Z0-9][A-Z0-9_-]{1,63}$/.test(cabinetId);
+}
+
+function applyDeviceAvailability(
+  status: Awaited<ReturnType<typeof consumerApi.deviceStatus>>
+): DeviceAvailability {
+  const online = status.online === true || (status.onlineStatus || '').toUpperCase() === 'ONLINE';
+  const reason = String(status.busyReason || '').toUpperCase();
+  deviceOffline.value = !online;
+  if (!online) {
+    deviceStatusText.value = '离线';
+  } else if (status.available === false && reason === 'LOCKED') {
+    deviceStatusText.value = '暂停营业';
+  } else if (status.available === false && reason === 'REPLENISHMENT') {
+    deviceStatusText.value = '补货中';
+  } else if (status.available === false || reason === 'SESSION') {
+    deviceStatusText.value = '使用中';
+  } else {
+    deviceStatusText.value = '在线 · 可开门';
+  }
+  return { online, reason, blocked: !online || status.available === false };
+}
+
+function blockedDeviceLandingError(
+  online: boolean,
+  reason: string
+): { kind: OpenErrorKind; msg: string; toastTitle: string } {
+  if (!online) {
+    return {
+      kind: 'other',
+      msg: '该柜机当前离线，请稍后再试或更换其他柜机。',
+      toastTitle: '暂时无法开门'
+    };
+  }
+  if (reason === 'LOCKED') {
+    return {
+      kind: 'device_paused',
+      msg: '柜机已暂停营业，请稍后再试或换一台',
+      toastTitle: '柜机暂停营业'
+    };
+  }
+  if (reason === 'REPLENISHMENT') {
+    return {
+      kind: 'device_busy',
+      msg: '柜机正在补货，请稍后再试',
+      toastTitle: '柜机正忙'
+    };
+  }
+  if (reason === 'SESSION') {
+    return {
+      kind: 'device_busy',
+      msg: '柜机正在被使用，请稍后再试',
+      toastTitle: '柜机正忙'
+    };
+  }
+  return { kind: 'other', msg: deviceStatusText.value, toastTitle: '暂时无法开门' };
+}
+
+function markOpenFailed(cabinetId: string) {
+  scanned.value = false;
+  deviceId.value = '';
+  lastFailedDeviceId.value = cabinetId;
+  lastFailedChannel.value = entryChannel.value;
+}
+
+function rejectBlockedDevice(cabinetId: string, avail: DeviceAvailability): boolean {
+  if (!avail.blocked) return false;
+  markOpenFailed(cabinetId);
+  const err = blockedDeviceLandingError(avail.online, avail.reason);
+  setLandingError(err.msg, err.kind);
+  uni.showToast({ title: err.toastTitle, icon: 'none' });
+  return true;
+}
+
+function applyProductsResult(result: PromiseSettledResult<DeviceProduct[]>) {
+  if (result.status === 'fulfilled') {
+    products.value = normalizeProducts(result.value);
+    clampSelectionToStock();
     return;
   }
+  products.value = [];
+  resetCatalogFilter();
+  uni.showToast({ title: formatError(result.reason), icon: 'none' });
+}
 
-  const resolved = resolveEntryChannel(scanChannel) || entryChannel.value;
-  if (resolved) entryChannel.value = resolved;
-
-  enteringFlow.value = true;
-  landingError.value = '';
-  landingErrorKind.value = 'other';
-
-  try {
-    if (!(await ensureConsumerAuth())) {
-      // 登录成功回到首页后由 onShow 读取 reopen_device_id 续开
-      uni.setStorageSync('reopen_device_id', cabinetId);
-      if (entryChannel.value) {
-        uni.setStorageSync('reopen_entry_channel', entryChannel.value);
-      }
-      authPromptVisible.value = true;
-      return;
-    }
-    if (!(await ensureCanOpenDoor())) {
-      return;
-    }
-
-    opening.value = true;
-    deviceId.value = cabinetId;
-    scanned.value = true;
-    const status = await consumerApi.deviceStatus(cabinetId);
-    deviceName.value = status.deviceName || cabinetId;
-    const pre = Number(status.preauthCents);
-    devicePreauthCents.value = Number.isFinite(pre) && pre > 0 ? pre : null;
-    const online = status.online === true || (status.onlineStatus || '').toUpperCase() === 'ONLINE';
-    const reason = String(status.busyReason || '').toUpperCase();
-    deviceOffline.value = !online;
-    if (!online) {
-      deviceStatusText.value = '离线';
-    } else if (status.available === false && reason === 'LOCKED') {
-      deviceStatusText.value = '暂停营业';
-    } else if (status.available === false && reason === 'REPLENISHMENT') {
-      deviceStatusText.value = '补货中';
-    } else if (status.available === false || reason === 'SESSION') {
-      deviceStatusText.value = '使用中';
-    } else {
-      deviceStatusText.value = '在线 · 可开门';
-    }
-
-    if (!online || status.available === false) {
-      scanned.value = false;
-      deviceId.value = '';
-      lastFailedDeviceId.value = cabinetId;
-      lastFailedChannel.value = entryChannel.value;
-      let kind: OpenErrorKind = 'other';
-      let msg = deviceStatusText.value;
-      if (!online) {
-        kind = 'other';
-        msg = '该柜机当前离线，请稍后再试或更换其他柜机。';
-      } else if (reason === 'LOCKED') {
-        kind = 'device_paused';
-        msg = '柜机已暂停营业，请稍后再试或换一台';
-      } else if (reason === 'REPLENISHMENT') {
-        kind = 'device_busy';
-        msg = '柜机正在补货，请稍后再试';
-      } else if (reason === 'SESSION') {
-        kind = 'device_busy';
-        msg = '柜机正在被使用，请稍后再试';
-      }
-      setLandingError(msg, kind);
-      let toastTitle = '暂时无法开门';
-      if (kind === 'device_paused') toastTitle = '柜机暂停营业';
-      else if (kind === 'device_busy') toastTitle = '柜机正忙';
-      uni.showToast({
-        title: toastTitle,
-        icon: 'none'
-      });
-      return;
-    }
-    productsLoading.value = true;
-    const OPEN_TIMEOUT_MS = 20000;
-    const [productsResult, sessionResult] = await Promise.allSettled([
-      withTimeout(consumerApi.deviceProducts(cabinetId), OPEN_TIMEOUT_MS, '商品加载超时，请重试'),
-      withTimeout(
-        consumerApi.createSession(cabinetId, entryChannel.value),
-        OPEN_TIMEOUT_MS,
-        '开门请求超时，请检查网络后重试'
-      )
-    ]);
-    if (productsResult.status === 'fulfilled') {
-      products.value = normalizeProducts(productsResult.value);
-      clampSelectionToStock();
-    } else {
-      products.value = [];
-      resetCatalogFilter();
-      // 商品失败不阻断开门，仅提示
-      uni.showToast({ title: formatError(productsResult.reason), icon: 'none' });
-    }
-    if (sessionResult.status !== 'fulfilled') {
-      // 超时兜底：请求超时但服务端可能已创建会话，先尝试认领，避免孤儿会话
-      if (await adoptOrphanSession(cabinetId)) {
-        return;
-      }
-      scanned.value = false;
-      deviceId.value = '';
-      lastFailedDeviceId.value = cabinetId;
-      lastFailedChannel.value = entryChannel.value;
-      const failReason = sessionResult.reason;
-      const kind = classifyOpenError(failReason);
-      setLandingError(formatError(failReason), kind);
-      uni.showToast({ title: landingError.value, icon: 'none' });
-      return;
-    }
+async function handleSessionOpenResult(
+  cabinetId: string,
+  sessionResult: PromiseSettledResult<SessionDto>
+): Promise<boolean> {
+  if (sessionResult.status === 'fulfilled') {
     const s = sessionResult.value;
     lastFailedDeviceId.value = '';
     lastFailedChannel.value = null;
@@ -894,18 +888,94 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
     uni.setStorageSync('active_session_id', s.sessionId);
     applySessionView(s);
     startPoll();
+    return true;
+  }
+  if (await adoptOrphanSession(cabinetId)) return true;
+  markOpenFailed(cabinetId);
+  const failReason = sessionResult.reason;
+  const kind = classifyOpenError(failReason);
+  setLandingError(formatError(failReason), kind);
+  uni.showToast({ title: landingError.value, icon: 'none' });
+  return false;
+}
+
+function resetDeviceOnOpenFailure(cabinetId: string) {
+  if (sessionId.value) return;
+  scanned.value = false;
+  deviceId.value = '';
+  deviceName.value = '';
+  deviceStatusText.value = '';
+  products.value = [];
+  resetCatalogFilter();
+  lastFailedDeviceId.value = cabinetId;
+  lastFailedChannel.value = entryChannel.value;
+}
+
+function beginCabinetEntry(cabinetId: string, scanChannel?: string | null): boolean {
+  if (!cabinetId || opening.value || enteringFlow.value) return false;
+  if (isCabinetIdInvalid(cabinetId)) {
+    setLandingError('柜机编号无效，请扫描柜门二维码或输入如 CAB-001。', 'device_not_found');
+    lastFailedDeviceId.value = '';
+    uni.showToast({ title: '柜机编号无效', icon: 'none' });
+    return false;
+  }
+  const resolved = resolveEntryChannel(scanChannel) || entryChannel.value;
+  if (resolved) entryChannel.value = resolved;
+  return true;
+}
+
+async function ensureAuthForOpen(cabinetId: string): Promise<boolean> {
+  if (await ensureConsumerAuth()) return true;
+  uni.setStorageSync('reopen_device_id', cabinetId);
+  if (entryChannel.value) {
+    uni.setStorageSync('reopen_entry_channel', entryChannel.value);
+  }
+  authPromptVisible.value = true;
+  return false;
+}
+
+async function prepareDeviceForOpen(cabinetId: string): Promise<boolean> {
+  opening.value = true;
+  deviceId.value = cabinetId;
+  scanned.value = true;
+  const status = await consumerApi.deviceStatus(cabinetId);
+  deviceName.value = status.deviceName || cabinetId;
+  const pre = Number(status.preauthCents);
+  devicePreauthCents.value = Number.isFinite(pre) && pre > 0 ? pre : null;
+  const avail = applyDeviceAvailability(status);
+  return !rejectBlockedDevice(cabinetId, avail);
+}
+
+async function openDeviceSession(cabinetId: string) {
+  productsLoading.value = true;
+  const OPEN_TIMEOUT_MS = 20000;
+  const [productsResult, sessionResult] = await Promise.allSettled([
+    withTimeout(consumerApi.deviceProducts(cabinetId), OPEN_TIMEOUT_MS, '商品加载超时，请重试'),
+    withTimeout(
+      consumerApi.createSession(cabinetId, entryChannel.value),
+      OPEN_TIMEOUT_MS,
+      '开门请求超时，请检查网络后重试'
+    )
+  ]);
+  applyProductsResult(productsResult);
+  await handleSessionOpenResult(cabinetId, sessionResult);
+}
+
+async function startShoppingFlow(id: string, scanChannel?: string | null) {
+  const cabinetId = normalizeCabinetId(id);
+  if (!beginCabinetEntry(cabinetId, scanChannel)) return;
+
+  enteringFlow.value = true;
+  landingError.value = '';
+  landingErrorKind.value = 'other';
+
+  try {
+    if (!(await ensureAuthForOpen(cabinetId))) return;
+    if (!(await ensureCanOpenDoor())) return;
+    if (!(await prepareDeviceForOpen(cabinetId))) return;
+    await openDeviceSession(cabinetId);
   } catch (e) {
-    // 未成功创建会话即失败：回到落地页展示错误，避免停留在“空柜机购物页”
-    if (!sessionId.value) {
-      scanned.value = false;
-      deviceId.value = '';
-      deviceName.value = '';
-      deviceStatusText.value = '';
-      products.value = [];
-      resetCatalogFilter();
-      lastFailedDeviceId.value = cabinetId;
-      lastFailedChannel.value = entryChannel.value;
-    }
+    resetDeviceOnOpenFailure(cabinetId);
     setLandingError(formatError(e), 'other');
     uni.showToast({ title: formatError(e), icon: 'none' });
   } finally {

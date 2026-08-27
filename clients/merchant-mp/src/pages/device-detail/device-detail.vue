@@ -240,19 +240,99 @@ onLoad((opts) => {
   loadDetail();
 });
 
-async function loadDetail() {
-  const seq = ++loadSeq;
+function formatTempDisplay(value: number | null | undefined, emptyLabel: string): string {
+  return value == null ? emptyLabel : `${value}°C`;
+}
+
+function readExtendedDeviceFields(settings: Awaited<ReturnType<typeof merchantApi.deviceSettings>>) {
+  const ext = settings as {
+    salesLocked?: boolean;
+    salesLockReason?: string;
+    address?: string;
+    routeCode?: string;
+    lifecycleStatus?: string;
+  };
+  return {
+    salesLocked: !!ext.salesLocked,
+    salesLockReason: String(ext.salesLockReason || ''),
+    address: String(ext.address || ''),
+    routeCode: String(ext.routeCode || ''),
+    lifecycleStatus: String(ext.lifecycleStatus || '')
+  };
+}
+
+function applyDeviceSettings(settings: Awaited<ReturnType<typeof merchantApi.deviceSettings>>) {
+  const ext = readExtendedDeviceFields(settings);
+  merchantId.value = (settings.merchantId as string) || '';
+  deviceName.value = (settings.deviceName as string) || deviceId.value;
+  online.value = ((settings.onlineStatus as string) || '').toUpperCase() === 'ONLINE';
+  salesLocked.value = ext.salesLocked;
+  salesLockReason.value = ext.salesLockReason;
+  address.value = ext.address;
+  routeCode.value = ext.routeCode;
+  lifecycleStatus.value = ext.lifecycleStatus;
+  currentTemp.value = formatTempDisplay(settings.currentTempC, '暂无');
+  targetTemp.value = formatTempDisplay(settings.targetTempC, '未设置');
+  formName.value = (settings.deviceName as string) || '';
+  formTargetTemp.value = settings.targetTempC == null ? '' : String(settings.targetTempC);
+  formRemark.value = (settings.opsRemark as string) || '';
+}
+
+function applySlotParLevels(list: DeviceSlot[]) {
+  const par: Record<string, string> = {};
+  list.forEach((s) => {
+    par[s.slotCode] = s.parLevel == null ? '' : String(s.parLevel);
+  });
+  slotPar.value = par;
+}
+
+function syncPreferredFlag() {
+  isPreferred.value =
+    String(getPreferredDeviceId() || '')
+      .trim()
+      .toUpperCase() ===
+    String(deviceId.value || '')
+      .trim()
+      .toUpperCase();
+}
+
+async function loadDeviceExtras(seq: number) {
+  const [list, temps, vel] = await Promise.all([
+    merchantApi.deviceSlots(deviceId.value).catch(() => [] as DeviceSlot[]),
+    merchantApi
+      .deviceTemperatureHistory(deviceId.value, 24)
+      .catch(() => [] as DeviceTemperatureReading[]),
+    merchantApi.skuVelocity(deviceId.value).catch(() => [] as MerchantSkuVelocity[])
+  ]);
+  if (seq !== loadSeq) return;
+  slots.value = list;
+  tempHistory.value = temps;
+  velocity.value = vel;
+  applySlotParLevels(list);
+  syncPreferredFlag();
+}
+
+async function refreshDeviceDetailMe(seq: number): Promise<boolean> {
   try {
     await refreshMe();
   } catch {
-    if (!uni.getStorageSync('merchant_token')) return;
+    if (!uni.getStorageSync('merchant_token')) return false;
     me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
   }
-  if (seq !== loadSeq) return;
+  return seq === loadSeq;
+}
+
+function denyDeviceDetailAccess() {
+  loading.value = false;
+  uni.showToast({ title: '无柜机详情权限', icon: 'none' });
+  uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
+}
+
+async function loadDetail() {
+  const seq = ++loadSeq;
+  if (!(await refreshDeviceDetailMe(seq))) return;
   if (!canView.value) {
-    loading.value = false;
-    uni.showToast({ title: '无柜机详情权限', icon: 'none' });
-    uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
+    denyDeviceDetailAccess();
     return;
   }
   if (!deviceName.value) loading.value = true;
@@ -260,46 +340,8 @@ async function loadDetail() {
   try {
     const settings = await merchantApi.deviceSettings(deviceId.value);
     if (seq !== loadSeq) return;
-    merchantId.value = (settings.merchantId as string) || '';
-    deviceName.value = (settings.deviceName as string) || deviceId.value;
-    online.value = ((settings.onlineStatus as string) || '').toUpperCase() === 'ONLINE';
-    salesLocked.value = !!(settings as { salesLocked?: boolean }).salesLocked;
-    salesLockReason.value = String(
-      (settings as { salesLockReason?: string }).salesLockReason || ''
-    );
-    address.value = String((settings as { address?: string }).address || '');
-    routeCode.value = String((settings as { routeCode?: string }).routeCode || '');
-    lifecycleStatus.value = String(
-      (settings as { lifecycleStatus?: string }).lifecycleStatus || ''
-    );
-    currentTemp.value = settings.currentTempC == null ? '暂无' : settings.currentTempC + '°C';
-    targetTemp.value = settings.targetTempC == null ? '未设置' : settings.targetTempC + '°C';
-    formName.value = (settings.deviceName as string) || '';
-    formTargetTemp.value = settings.targetTempC == null ? '' : String(settings.targetTempC);
-    formRemark.value = (settings.opsRemark as string) || '';
-    const [list, temps, vel] = await Promise.all([
-      merchantApi.deviceSlots(deviceId.value).catch(() => [] as DeviceSlot[]),
-      merchantApi
-        .deviceTemperatureHistory(deviceId.value, 24)
-        .catch(() => [] as DeviceTemperatureReading[]),
-      merchantApi.skuVelocity(deviceId.value).catch(() => [] as MerchantSkuVelocity[])
-    ]);
-    if (seq !== loadSeq) return;
-    slots.value = list;
-    tempHistory.value = temps;
-    velocity.value = vel;
-    const par: Record<string, string> = {};
-    list.forEach((s) => {
-      par[s.slotCode] = s.parLevel == null ? '' : String(s.parLevel);
-    });
-    slotPar.value = par;
-    isPreferred.value =
-      String(getPreferredDeviceId() || '')
-        .trim()
-        .toUpperCase() ===
-      String(deviceId.value || '')
-        .trim()
-        .toUpperCase();
+    applyDeviceSettings(settings);
+    await loadDeviceExtras(seq);
   } catch (e) {
     if (seq !== loadSeq) return;
     error.value = e instanceof Error ? e.message : '加载失败';

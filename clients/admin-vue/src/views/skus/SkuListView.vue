@@ -357,7 +357,7 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { findNavByPath } from '@/config/menu';
-import { dictRuntimeEpoch } from '@/stores/dict-runtime';
+import { consumeDictRuntimeEpoch } from '@/stores/dict-runtime';
 import type { FileAttachmentDto, SkuCatalog, UpsertSkuRequest } from '@aicabinet/shared-types';
 
 const route = useRoute();
@@ -380,7 +380,7 @@ const saleTab = ref('ACTIVE');
 
 function categoryLabel(code?: string | null) {
   if (!code) return '暂无';
-  dictRuntimeEpoch.value;
+  consumeDictRuntimeEpoch();
   return displayLabel('category_code', code, '未分类');
 }
 
@@ -403,7 +403,7 @@ function categoryMatches(stored: string | null | undefined, selected: string): b
 function normalizeCategoryToCode(raw?: string | null): string {
   const text = String(raw || '').trim();
   if (!text) return '';
-  dictRuntimeEpoch.value;
+  consumeDictRuntimeEpoch();
   for (const o of dictOptions('category_code')) {
     if (o.value === text || o.label === text) return o.value;
   }

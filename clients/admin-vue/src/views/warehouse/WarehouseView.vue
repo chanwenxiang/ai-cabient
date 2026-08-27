@@ -3372,6 +3372,33 @@ async function cancelTransfer(row: Row) {
   await loadTab('transfers', true);
 }
 
+async function loadWarehouseTabData(name: string) {
+  const loaders: Record<string, () => Promise<unknown>> = {
+    warehouses: () => loadWarehouses(),
+    suppliers: () => loadSuppliers(),
+    purchase: () => Promise.all([loadPurchase(), loadSuppliersSoft(), loadWarehousesSoft()]),
+    returns: () =>
+      Promise.all([
+        loadReturns(),
+        loadReturnablePurchaseOrders(),
+        loadPurchase().catch(() => {}),
+        loadSuppliersSoft(),
+        loadWarehousesSoft()
+      ]),
+    suggestions: () => Promise.all([loadSuggestions(), loadWarehousesSoft(), loadSuppliersSoft()]),
+    payables: () => Promise.all([loadPayables(), loadPayableSummary(), loadSuppliersSoft()]),
+    stocktakes: () => Promise.all([loadStocktakes(), loadWarehousesSoft()]),
+    bins: () => Promise.all([loadBins(), loadBinStock(), loadWarehousesSoft()]),
+    outbounds: () => Promise.all([loadOutbounds(), loadWarehousesSoft()]),
+    transit: () => loadTransit(),
+    transfers: () => Promise.all([loadTransfers(), loadWarehousesSoft()]),
+    inventory: () => Promise.all([loadInventory(), loadWarehousesSoft()]),
+    movements: () => Promise.all([loadMovements(), loadWarehousesSoft()])
+  };
+  const loader = loaders[name];
+  if (loader) await loader();
+}
+
 async function loadTab(name: string, force = false) {
   if (!force && loadedTabs.value.has(name) && name !== 'inventory' && name !== 'movements') return;
   const nextLoading = new Set(loadingTabs.value);
@@ -3379,36 +3406,7 @@ async function loadTab(name: string, force = false) {
   loadingTabs.value = nextLoading;
   try {
     await ensureMeta();
-    if (name === 'warehouses') await loadWarehouses();
-    else if (name === 'suppliers') await loadSuppliers();
-    else if (name === 'purchase') {
-      await Promise.all([loadPurchase(), loadSuppliersSoft(), loadWarehousesSoft()]);
-    } else if (name === 'returns') {
-      await Promise.all([
-        loadReturns(),
-        loadReturnablePurchaseOrders(),
-        loadPurchase().catch(() => {}),
-        loadSuppliersSoft(),
-        loadWarehousesSoft()
-      ]);
-    } else if (name === 'suggestions') {
-      await Promise.all([loadSuggestions(), loadWarehousesSoft(), loadSuppliersSoft()]);
-    } else if (name === 'payables') {
-      await Promise.all([loadPayables(), loadPayableSummary(), loadSuppliersSoft()]);
-    } else if (name === 'stocktakes') {
-      await Promise.all([loadStocktakes(), loadWarehousesSoft()]);
-    } else if (name === 'bins') {
-      await Promise.all([loadBins(), loadBinStock(), loadWarehousesSoft()]);
-    } else if (name === 'outbounds') {
-      await Promise.all([loadOutbounds(), loadWarehousesSoft()]);
-    } else if (name === 'transit') await loadTransit();
-    else if (name === 'transfers') {
-      await Promise.all([loadTransfers(), loadWarehousesSoft()]);
-    } else if (name === 'inventory') {
-      await Promise.all([loadInventory(), loadWarehousesSoft()]);
-    } else if (name === 'movements') {
-      await Promise.all([loadMovements(), loadWarehousesSoft()]);
-    }
+    await loadWarehouseTabData(name);
     loadedTabs.value.add(name);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');

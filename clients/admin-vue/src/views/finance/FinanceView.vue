@@ -338,55 +338,61 @@ const { onExport: onExportTopSkus } = useListCsv({
     ])
 });
 
-const kpiTiles = computed(() => {
-  const marginRate = (stats.value.grossMarginRateToday || 0) * 100;
-  const marginCents = stats.value.grossMarginTodayCents || 0;
-  const canAnalytics = canAccessPath('/analytics');
-  const canOrders = canAccessPath('/orders');
-  const ready = listHydrated.value;
-  let revenueHint: string | undefined;
-  if (!ready) {
-    revenueHint = '加载中…';
-  } else if (canAnalytics) {
-    revenueHint = '查看数据分析';
-  } else {
-    revenueHint = '今日快照';
-  }
-  let ordersHint: string | undefined;
-  if (!ready) {
-    ordersHint = '加载中…';
-  } else if (canOrders) {
-    ordersHint = '查看订单';
-  } else {
-    ordersHint = '今日快照';
-  }
+function kpiNavHint(ready: boolean, canNavigate: boolean, navigateLabel: string) {
+  if (!ready) return '加载中…';
+  return canNavigate ? navigateLabel : '今日快照';
+}
+
+function financeKpiMoney(ready: boolean, cents: number) {
+  return ready ? `¥${(cents / 100).toFixed(2)}` : '…';
+}
+
+type FinanceKpiTile = {
+  label: string;
+  value: string;
+  accent: string;
+  path?: string;
+  hint?: string;
+  warn?: boolean;
+};
+
+function buildFinanceKpiTiles(
+  ready: boolean,
+  canAnalytics: boolean,
+  canOrders: boolean,
+  marginRate: number,
+  marginCents: number
+): FinanceKpiTile[] {
+  const loadingHint = ready ? undefined : '加载中…';
+  const revenueHint = kpiNavHint(ready, canAnalytics, '查看数据分析');
+  const ordersHint = kpiNavHint(ready, canOrders, '查看订单');
   return [
     {
       label: '今日营收',
-      value: ready ? `¥${((stats.value.revenueTodayCents || 0) / 100).toFixed(2)}` : '…',
+      value: financeKpiMoney(ready, stats.value.revenueTodayCents || 0),
       accent: 'accent-teal',
       path: canAnalytics ? '/analytics' : undefined,
       hint: revenueHint
     },
     {
       label: '今日成本',
-      value: ready ? `¥${((stats.value.cogsTodayCents || 0) / 100).toFixed(2)}` : '…',
+      value: financeKpiMoney(ready, stats.value.cogsTodayCents || 0),
       accent: 'accent-blue',
-      hint: ready ? undefined : '加载中…'
+      hint: loadingHint
     },
     {
       label: '今日毛利',
-      value: ready ? `¥${(marginCents / 100).toFixed(2)}` : '…',
+      value: financeKpiMoney(ready, marginCents),
       accent: 'accent-amber',
       warn: ready && marginCents < 0,
-      hint: ready ? undefined : '加载中…'
+      hint: loadingHint
     },
     {
       label: '今日毛利率',
       value: ready ? `${marginRate.toFixed(1)}%` : '…',
       accent: 'accent-violet',
       warn: ready && marginRate < 0,
-      hint: ready ? undefined : '加载中…'
+      hint: loadingHint
     },
     {
       label: '今日订单',
@@ -397,11 +403,23 @@ const kpiTiles = computed(() => {
     },
     {
       label: '今日客单',
-      value: ready ? `¥${((stats.value.averageOrderValueTodayCents || 0) / 100).toFixed(2)}` : '…',
+      value: financeKpiMoney(ready, stats.value.averageOrderValueTodayCents || 0),
       accent: 'accent-blue',
-      hint: ready ? undefined : '加载中…'
+      hint: loadingHint
     }
   ];
+}
+
+const kpiTiles = computed(() => {
+  const marginRate = (stats.value.grossMarginRateToday || 0) * 100;
+  const marginCents = stats.value.grossMarginTodayCents || 0;
+  return buildFinanceKpiTiles(
+    listHydrated.value,
+    canAccessPath('/analytics'),
+    canAccessPath('/orders'),
+    marginRate,
+    marginCents
+  );
 });
 
 const chartSvg = computed(() => {

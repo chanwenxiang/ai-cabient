@@ -315,43 +315,62 @@ onShow(() => {
 });
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
+async function ensureOrdersMerchantMe(seq: number): Promise<boolean> {
+  try {
+    await refreshMe();
+  } catch {
+    if (!uni.getStorageSync('merchant_token')) return false;
+    me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+  }
+  if (seq !== loadSeq) return false;
+  if (!me.value) {
+    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+  }
+  return true;
+}
+
+function applyOrdersResponse(
+  res: MerchantOrderSummary[] | { items?: MerchantOrderSummary[]; total?: number }
+) {
+  if (Array.isArray(res)) {
+    list.value = res;
+    listTotal.value = res.length;
+  } else {
+    list.value = res?.items || [];
+    listTotal.value = res?.total ?? list.value.length;
+  }
+  pageIndex.value = 0;
+  hasMore.value = list.value.length < listTotal.value;
+}
+
+function denyOrdersAccess() {
+  booting.value = false;
+  loading.value = false;
+  uni.showToast({ title: '无订单权限', icon: 'none' });
+  uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
+}
+
+async function fetchOrdersPage(seq: number) {
+  const res = await merchantApi.orders(orderParams(0, PAGE_SIZE));
+  if (seq !== loadSeq) return;
+  applyOrdersResponse(res);
+}
+
 async function load() {
   if (!uni.getStorageSync('merchant_token')) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
   const seq = ++loadSeq;
-  try {
-    await refreshMe();
-  } catch {
-    if (!uni.getStorageSync('merchant_token')) return;
-    me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
-  }
-  if (seq !== loadSeq) return;
-  if (!me.value) {
-    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
-  }
+  if (!(await ensureOrdersMerchantMe(seq))) return;
   if (!canList.value) {
-    booting.value = false;
-    loading.value = false;
-    uni.showToast({ title: '无订单权限', icon: 'none' });
-    uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
+    denyOrdersAccess();
     return;
   }
   if (!list.value.length) loading.value = true;
   error.value = '';
   try {
-    const res = await merchantApi.orders(orderParams(0, PAGE_SIZE));
-    if (seq !== loadSeq) return;
-    if (Array.isArray(res)) {
-      list.value = res;
-      listTotal.value = res.length;
-    } else {
-      list.value = res?.items || [];
-      listTotal.value = res?.total ?? list.value.length;
-    }
-    pageIndex.value = 0;
-    hasMore.value = list.value.length < listTotal.value;
+    await fetchOrdersPage(seq);
   } catch (e) {
     if (seq !== loadSeq) return;
     list.value = [];

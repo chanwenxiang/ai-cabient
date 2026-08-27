@@ -769,31 +769,53 @@ function disputeStatusType(s?: string) {
   return '';
 }
 
+const REVIEW_CODE_HINTS: Record<string, string> = {
+  LOW_CONF: '低置信',
+  MOCK: '模拟识别',
+  GRAVITY_MISMATCH: '重力错配',
+  GRAVITY_FILL: '重力回填',
+  UNMAPPED: '未映射',
+  EMPTY: '空识别',
+  WHITELIST: '白名单',
+  NEED_REVIEW: '需复核'
+};
+
+function confidenceHintFromCode(code: string): string {
+  return REVIEW_CODE_HINTS[code] || '';
+}
+
+const RECOGNITION_HINT_RULES: Array<{ test: (text: string, row: { category?: string }) => boolean; hint: string }> = [
+  { test: (text) => /模拟|非生产精度|mock/i.test(text), hint: '模拟识别' },
+  { test: (text) => /视觉与重力|重力.*不一致|错配/.test(text), hint: '重力错配' },
+  { test: (text) => /仅有重力|重力信号/.test(text), hint: '重力回填' },
+  { test: (text) => /低置信|置信度|阈值/.test(text), hint: '低置信' },
+  { test: (text) => /未映射|检出类/.test(text), hint: '未映射' },
+  { test: (text) => /未识别/.test(text), hint: '空识别' },
+  { test: (text) => /白名单|视觉状态/.test(text), hint: '白名单' },
+  { test: (_text, row) => row.category === 'RECOGNITION', hint: '识别争议' }
+];
+
+function confidenceHintFromRecognitionText(row: {
+  category?: string;
+  reason?: string;
+}): string {
+  const text = `${row.reason || ''} ${row.category || ''}`;
+  if (row.category !== 'RECOGNITION' && !/识别|置信|未映射|存疑|模拟|重力/.test(text)) {
+    return '';
+  }
+  for (const rule of RECOGNITION_HINT_RULES) {
+    if (rule.test(text, row)) return rule.hint;
+  }
+  return '';
+}
+
 function confidenceHint(
   row?: DisputeTicketDto | null | { reviewCode?: string; category?: string; reason?: string }
 ) {
   if (!row) return '';
-  const code = String(row.reviewCode || '').toUpperCase();
-  if (code === 'LOW_CONF') return '低置信';
-  if (code === 'MOCK') return '模拟识别';
-  if (code === 'GRAVITY_MISMATCH') return '重力错配';
-  if (code === 'GRAVITY_FILL') return '重力回填';
-  if (code === 'UNMAPPED') return '未映射';
-  if (code === 'EMPTY') return '空识别';
-  if (code === 'WHITELIST') return '白名单';
-  if (code === 'NEED_REVIEW') return '需复核';
-  const text = `${row.reason || ''} ${row.category || ''}`;
-  if (row.category === 'RECOGNITION' || /识别|置信|未映射|存疑|模拟|重力/.test(text)) {
-    if (/模拟|非生产精度|mock/i.test(text)) return '模拟识别';
-    if (/视觉与重力|重力.*不一致|错配/.test(text)) return '重力错配';
-    if (/仅有重力|重力信号/.test(text)) return '重力回填';
-    if (/低置信|置信度|阈值/.test(text)) return '低置信';
-    if (/未映射|检出类/.test(text)) return '未映射';
-    if (/未识别/.test(text)) return '空识别';
-    if (/白名单|视觉状态/.test(text)) return '白名单';
-    if (row.category === 'RECOGNITION') return '识别争议';
-  }
-  return '';
+  const fromCode = confidenceHintFromCode(String(row.reviewCode || '').toUpperCase());
+  if (fromCode) return fromCode;
+  return confidenceHintFromRecognitionText(row);
 }
 
 function reviewChipType(row?: DisputeTicketDto | null) {
@@ -804,32 +826,43 @@ function reviewChipType(row?: DisputeTicketDto | null) {
   return 'info';
 }
 
-function rowActions(row: DisputeTicketDto): TableAction[] {
-  const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
-  if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
-    actions.push({
-      key: 'video',
-      label: '录像',
-      icon: VideoCamera,
-      type: 'warning',
-      overflow: true
-    });
-  }
-  if (row.reviewCode === 'UNMAPPED' || (row.detectedClasses && row.detectedClasses.length)) {
-    actions.push({ key: 'mapping', label: '去映射', icon: Link, overflow: true });
-  }
-  if (row.deviceId && canAccessPath('/exceptions')) {
-    actions.push({ key: 'exception', label: '异常', icon: Warning, overflow: true });
-  }
-  if (row.orderId || row.deviceId) {
-    actions.push({ key: 'order', label: '订单', icon: Link, overflow: true });
-  }
+function appendDisputeVideoAction(actions: TableAction[], row: DisputeTicketDto) {
+  if (!row.sessionId) return;
+  if (!(auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) return;
+  actions.push({
+    key: 'video',
+    label: '录像',
+    icon: VideoCamera,
+    type: 'warning',
+    overflow: true
+  });
+}
+
+function appendDisputeMappingAction(actions: TableAction[], row: DisputeTicketDto) {
+  if (row.reviewCode !== 'UNMAPPED' && !(row.detectedClasses && row.detectedClasses.length)) return;
+  actions.push({ key: 'mapping', label: '去映射', icon: Link, overflow: true });
+}
+
+function appendDisputeStatusActions(actions: TableAction[], row: DisputeTicketDto) {
   if (row.status === 'RESOLVED' && auth.hasPerm('ops:dispute:resolve')) {
     actions.push({ key: 'close', label: '关闭', icon: CircleClose, overflow: true });
   }
   if (row.status === 'CLOSED' && auth.hasPerm('ops:dispute:resolve')) {
     actions.push({ key: 'reopen', label: '重开', icon: RefreshLeft, overflow: true });
   }
+}
+
+function rowActions(row: DisputeTicketDto): TableAction[] {
+  const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
+  appendDisputeVideoAction(actions, row);
+  appendDisputeMappingAction(actions, row);
+  if (row.deviceId && canAccessPath('/exceptions')) {
+    actions.push({ key: 'exception', label: '异常', icon: Warning, overflow: true });
+  }
+  if (row.orderId || row.deviceId) {
+    actions.push({ key: 'order', label: '订单', icon: Link, overflow: true });
+  }
+  appendDisputeStatusActions(actions, row);
   return actions;
 }
 
@@ -944,6 +977,22 @@ function triggerDisputeImage() {
   disputeImageInput.value?.click();
 }
 
+function applyDisputeSuggestPreview(preview: DevRecognitionPreviewDto) {
+  disputeSuggestHint.value = preview.hint || '未返回建议';
+  if (!preview.items?.length || !selected.value) return;
+  selected.value = {
+    ...selected.value,
+    suggestedItems: preview.items.map((i) => ({
+      skuId: i.skuId,
+      skuName: i.skuName,
+      quantity: i.quantity,
+      unitPriceCents: 0,
+      lineAmountCents: 0
+    }))
+  };
+  resetDraftFromSuggested();
+}
+
 async function onDisputeImagePick(ev: Event) {
   if (!selected.value?.deviceId) {
     ElMessage.warning('工单缺少设备 ID');
@@ -967,27 +1016,22 @@ async function onDisputeImagePick(ev: Event) {
     if (!res.ok || json.code !== 0) {
       throw new Error(json.message || `请求失败 (${res.status})`);
     }
-    const preview = json.data as DevRecognitionPreviewDto;
-    disputeSuggestHint.value = preview.hint || '未返回建议';
-    if (preview.items?.length && selected.value) {
-      selected.value = {
-        ...selected.value,
-        suggestedItems: preview.items.map((i) => ({
-          skuId: i.skuId,
-          skuName: i.skuName,
-          quantity: i.quantity,
-          unitPriceCents: 0,
-          lineAmountCents: 0
-        }))
-      };
-      resetDraftFromSuggested();
-    }
+    applyDisputeSuggestPreview(json.data as DevRecognitionPreviewDto);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '智能识别建议失败');
   } finally {
     suggestingDispute.value = false;
     input.value = '';
   }
+}
+
+function patchResolvedListItem(ticketId: string, patched: DisputeTicketDto) {
+  if (status.value === 'OPEN') {
+    items.value = items.value.filter((t) => t.ticketId !== ticketId);
+    total.value = Math.max(0, total.value - 1);
+    return;
+  }
+  items.value = items.value.map((t) => (t.ticketId === ticketId ? patched : t));
 }
 
 function applyResolvedTicket(result: ResolveDisputeResultDto) {
@@ -1001,44 +1045,34 @@ function applyResolvedTicket(result: ResolveDisputeResultDto) {
     billedAmountCents: result.finalAmountCents ?? selected.value.billedAmountCents
   };
   selected.value = patched;
-  if (status.value === 'OPEN') {
-    items.value = items.value.filter((t) => t.ticketId !== ticketId);
-    total.value = Math.max(0, total.value - 1);
-  } else {
-    items.value = items.value.map((t) => (t.ticketId === ticketId ? patched : t));
-  }
+  patchResolvedListItem(ticketId, patched);
   resolveFeedback.value = { message: result.message || '争议已结案' };
 }
 
-async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'ADJUST') {
-  if (!selected.value || resolving.value) return;
-  if (!videoReviewed.value && !noVideoAck.value) {
-    ElMessage.warning(
-      embedVideoUrl.value
-        ? '请先观看录像并勾选「已对照录像核对」'
-        : '请先勾选「无录像 / 无法播放，仍结案」，再勾选「已对照录像核对」后结案'
-    );
-    return;
-  }
-  if (noVideoAck.value && !videoReviewed.value) {
+function validateResolveVideoReview(): boolean {
+  if (videoReviewed.value || noVideoAck.value) {
+    if (!noVideoAck.value || videoReviewed.value) return true;
     ElMessage.warning('已确认无录像后，仍需勾选「已对照录像核对」表示人工已知情结案');
-    return;
+    return false;
   }
-  let action: string;
-  if (resolutionType === 'KEEP') {
-    action = '维持原账单';
-  } else if (resolutionType === 'WAIVE') {
-    action = '免单并退回全部已扣余额';
-  } else {
-    action = '按调整明细落账（可能补扣或退差）';
-  }
-  if (
-    (resolutionType === 'ADJUST' || resolutionType === 'CONFIRM') &&
-    !draftConfirmItems.value.length
-  ) {
-    ElMessage.warning('请先填写至少一行有效商品');
-    return;
-  }
+  ElMessage.warning(
+    embedVideoUrl.value
+      ? '请先观看录像并勾选「已对照录像核对」'
+      : '请先勾选「无录像 / 无法播放，仍结案」，再勾选「已对照录像核对」后结案'
+  );
+  return false;
+}
+
+function resolveActionLabel(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'ADJUST'): string {
+  if (resolutionType === 'KEEP') return '维持原账单';
+  if (resolutionType === 'WAIVE') return '免单并退回全部已扣余额';
+  return '按调整明细落账（可能补扣或退差）';
+}
+
+async function confirmResolveAction(
+  resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'ADJUST',
+  action: string
+): Promise<boolean> {
   try {
     await ElMessageBox.confirm(
       `确认${action}？该操作会写入资金与审计记录。${noVideoAck.value ? '\n（已确认无录像仍结案）' : '\n（已确认对照录像）'}`,
@@ -1049,47 +1083,85 @@ async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'A
         cancelButtonText: '取消'
       }
     );
+    return true;
   } catch (e: any) {
-    if (e === 'cancel' || e === 'close') return;
+    if (e === 'cancel' || e === 'close') return false;
     ElMessage.error(e instanceof Error ? e.message : '确认失败');
-    return;
+    return false;
   }
+}
+
+async function promptRestoreInventoryOnWaive(): Promise<boolean | undefined> {
+  try {
+    await ElMessageBox.confirm(
+      '免单库存处理：\n「退货退款」= 误识别/货仍在柜，回库\n「仅退款」= 顾客已拿走，不回库',
+      '免单是否回库',
+      {
+        distinguishCancelAndClose: true,
+        confirmButtonText: '退货退款（回库）',
+        cancelButtonText: '仅退款（不回库）',
+        type: 'warning'
+      }
+    );
+    return true;
+  } catch (action) {
+    if (action === 'cancel') return false;
+    return undefined;
+  }
+}
+
+function validateResolveDraftItems(
+  resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'ADJUST'
+): boolean {
+  if (
+    (resolutionType !== 'ADJUST' && resolutionType !== 'CONFIRM') ||
+    draftConfirmItems.value.length
+  ) {
+    return true;
+  }
+  ElMessage.warning('请先填写至少一行有效商品');
+  return false;
+}
+
+async function collectWaiveRestoreInventory(): Promise<boolean | undefined> {
+  const choice = await promptRestoreInventoryOnWaive();
+  return choice;
+}
+
+async function submitDisputeResolve(
+  resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'ADJUST',
+  restoreInventory?: boolean
+) {
+  if (!selected.value) return;
+  const result = await api.request<ResolveDisputeResultDto>(
+    `/api/v2/ops/disputes/${encodeURIComponent(selected.value.ticketId)}/resolve`,
+    'POST',
+    {
+      resolutionType,
+      restoreInventory,
+      items:
+        resolutionType === 'ADJUST' || resolutionType === 'CONFIRM' ? draftConfirmItems.value : []
+    }
+  );
+  applyResolvedTicket(result);
+  ElMessage.success(result.message || '争议已处理');
+}
+
+async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'ADJUST') {
+  if (!selected.value || resolving.value) return;
+  if (!validateResolveVideoReview()) return;
+  const action = resolveActionLabel(resolutionType);
+  if (!validateResolveDraftItems(resolutionType)) return;
+  if (!(await confirmResolveAction(resolutionType, action))) return;
   let restoreInventory: boolean | undefined;
   if (resolutionType === 'WAIVE') {
-    try {
-      await ElMessageBox.confirm(
-        '免单库存处理：\n「退货退款」= 误识别/货仍在柜，回库\n「仅退款」= 顾客已拿走，不回库',
-        '免单是否回库',
-        {
-          distinguishCancelAndClose: true,
-          confirmButtonText: '退货退款（回库）',
-          cancelButtonText: '仅退款（不回库）',
-          type: 'warning'
-        }
-      );
-      restoreInventory = true;
-    } catch (action) {
-      if (action === 'cancel') {
-        restoreInventory = false;
-      } else {
-        return;
-      }
-    }
+    const choice = await collectWaiveRestoreInventory();
+    if (choice === undefined) return;
+    restoreInventory = choice;
   }
   resolving.value = true;
   try {
-    const result = await api.request<ResolveDisputeResultDto>(
-      `/api/v2/ops/disputes/${encodeURIComponent(selected.value.ticketId)}/resolve`,
-      'POST',
-      {
-        resolutionType,
-        restoreInventory,
-        items:
-          resolutionType === 'ADJUST' || resolutionType === 'CONFIRM' ? draftConfirmItems.value : []
-      }
-    );
-    applyResolvedTicket(result);
-    ElMessage.success(result.message || '争议已处理');
+    await submitDisputeResolve(resolutionType, restoreInventory);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '处理失败');
   } finally {
@@ -1107,13 +1179,18 @@ function classifyKeyword(raw: string): { orderId?: string; sessionId?: string; d
   return { deviceId: v };
 }
 
+function appendDisputeRouteReviewCode(query: Record<string, string>) {
+  if (categoryTab.value !== 'RECOGNITION' || !reviewCodeTab.value || reviewCodeTab.value === 'ALL') {
+    return;
+  }
+  query.reviewCode = reviewCodeTab.value;
+}
+
 function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (status.value) query.status = status.value;
   if (categoryTab.value && categoryTab.value !== 'ALL') query.category = categoryTab.value;
-  if (categoryTab.value === 'RECOGNITION' && reviewCodeTab.value && reviewCodeTab.value !== 'ALL') {
-    query.reviewCode = reviewCodeTab.value;
-  }
+  appendDisputeRouteReviewCode(query);
   if (keyword.value.trim()) query.keyword = keyword.value.trim();
   // 看板深链工单号：tab 变更触发的 replace 不得冲掉，否则详情无法自动打开
   if (focusDisputeId.value) query.ticketId = focusDisputeId.value;
@@ -1134,49 +1211,66 @@ function onReviewCodeTab() {
   load(false);
 }
 
+function appendDisputeListReviewCode(q: URLSearchParams) {
+  if (categoryTab.value !== 'RECOGNITION' || !reviewCodeTab.value || reviewCodeTab.value === 'ALL') {
+    return;
+  }
+  q.set('reviewCode', reviewCodeTab.value);
+}
+
+function appendDisputeListKeyword(q: URLSearchParams) {
+  const classified = classifyKeyword(keyword.value);
+  if (classified.sessionId) q.set('sessionId', classified.sessionId);
+  if (classified.deviceId) q.set('deviceId', classified.deviceId);
+  if (classified.orderId) q.set('orderId', classified.orderId);
+}
+
+function buildDisputeListQuery(): URLSearchParams {
+  const q = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
+  });
+  if (status.value) q.set('status', status.value);
+  if (categoryTab.value && categoryTab.value !== 'ALL') {
+    q.set('category', categoryTab.value);
+  }
+  appendDisputeListReviewCode(q);
+  appendDisputeListKeyword(q);
+  return q;
+}
+
+async function tryLoadTicketByNumericKeyword(raw: string): Promise<DisputeTicketDto | null> {
+  if (!/^\d{10,}$/.test(raw)) return null;
+  try {
+    const byTicket = await api.request<DisputeTicketDto>(
+      `/api/v2/ops/disputes/${encodeURIComponent(raw)}`,
+      'GET'
+    );
+    return byTicket?.ticketId ? byTicket : null;
+  } catch {
+    return null;
+  }
+}
+
+async function applyNumericKeywordFallback() {
+  if (items.value.length) return;
+  const fallback = await tryLoadTicketByNumericKeyword(keyword.value.trim());
+  if (!fallback) return;
+  items.value = [fallback];
+  total.value = 1;
+}
+
 async function load(showToast = false) {
   loading.value = true;
   try {
-    const q = new URLSearchParams({
-      page: String(page.value - 1),
-      size: String(size.value)
-    });
-    if (status.value) q.set('status', status.value);
-    if (categoryTab.value && categoryTab.value !== 'ALL') {
-      q.set('category', categoryTab.value);
-    }
-    if (
-      categoryTab.value === 'RECOGNITION' &&
-      reviewCodeTab.value &&
-      reviewCodeTab.value !== 'ALL'
-    ) {
-      q.set('reviewCode', reviewCodeTab.value);
-    }
-    const classified = classifyKeyword(keyword.value);
-    if (classified.sessionId) q.set('sessionId', classified.sessionId);
-    if (classified.deviceId) q.set('deviceId', classified.deviceId);
-    if (classified.orderId) q.set('orderId', classified.orderId);
     const data = await api.request<PageResult<DisputeTicketDto>>(
-      `/api/v2/ops/disputes?${q}`,
+      `/api/v2/ops/disputes?${buildDisputeListQuery()}`,
       'GET'
     );
     items.value = sortById(data.items || [], 'ticketId');
     total.value = data.total || 0;
     // 关键词若是工单号（雪花）被当成 sessionId 会空；回退按 ticketId 拉详情
-    if (!items.value.length && /^\d{10,}$/.test(keyword.value.trim())) {
-      try {
-        const byTicket = await api.request<DisputeTicketDto>(
-          `/api/v2/ops/disputes/${encodeURIComponent(keyword.value.trim())}`,
-          'GET'
-        );
-        if (byTicket?.ticketId) {
-          items.value = [byTicket];
-          total.value = 1;
-        }
-      } catch {
-        /* 非工单号则保持空列表 */
-      }
-    }
+    await applyNumericKeywordFallback();
     clearSelection();
     await openFocusedTicket();
     if (showToast) ElMessage.success('已刷新');
@@ -1224,64 +1318,78 @@ function hasInboundDeepLink() {
   );
 }
 
+function syncDisputeStatusFromRoute(changed: boolean): boolean {
+  const allowedStatus = new Set(['OPEN', 'RESOLVED', 'CLOSED']);
+  if (typeof route.query.status !== 'string' || !route.query.status) return changed;
+  const next = route.query.status.trim().toUpperCase();
+  if (!allowedStatus.has(next) || next === status.value) return changed;
+  status.value = next;
+  return true;
+}
+
+function syncDisputeCategoryFromRoute(changed: boolean, inbound: boolean): boolean {
+  if (typeof route.query.category === 'string') {
+    const next = route.query.category || 'ALL';
+    if (next === categoryTab.value) return changed;
+    if (next === 'RECOGNITION') categoryTab.value = 'RECOGNITION';
+    else if (next === 'ALL') categoryTab.value = 'ALL';
+    else categoryTab.value = next;
+    return true;
+  }
+  if (!inbound || categoryTab.value === 'ALL') return changed;
+  categoryTab.value = 'ALL';
+  return true;
+}
+
+function syncDisputeReviewCodeFromRoute(changed: boolean, inbound: boolean): boolean {
+  if (typeof route.query.reviewCode === 'string') {
+    const next = route.query.reviewCode || 'ALL';
+    if (next === reviewCodeTab.value) return changed;
+    reviewCodeTab.value = next;
+    if (next !== 'ALL') categoryTab.value = 'RECOGNITION';
+    return true;
+  }
+  if (!inbound || reviewCodeTab.value === 'ALL') return changed;
+  reviewCodeTab.value = 'ALL';
+  return true;
+}
+
+function resolveDisputeRouteKeyword(): string {
+  if (typeof route.query.keyword === 'string') return route.query.keyword;
+  if (typeof route.query.orderId === 'string') return route.query.orderId;
+  if (typeof route.query.sessionId === 'string') return route.query.sessionId;
+  if (typeof route.query.deviceId === 'string') return route.query.deviceId;
+  return '';
+}
+
+function syncDisputeKeywordFromRoute(changed: boolean): boolean {
+  const routeKeyword = resolveDisputeRouteKeyword();
+  if (routeKeyword === keyword.value) return changed;
+  keyword.value = routeKeyword;
+  return true;
+}
+
+function resolveDisputeFocusId(): string {
+  if (typeof route.query.ticketId === 'string') return route.query.ticketId;
+  if (typeof route.query.disputeId === 'string') return route.query.disputeId;
+  return '';
+}
+
+function syncDisputeFocusFromRoute(changed: boolean): boolean {
+  const focusId = resolveDisputeFocusId();
+  if (focusId === focusDisputeId.value) return changed;
+  focusDisputeId.value = focusId;
+  return true;
+}
+
 function applyRouteQuery() {
   let changed = false;
   const inbound = hasInboundDeepLink();
-  const allowedStatus = new Set(['OPEN', 'RESOLVED', 'CLOSED']);
-  if (typeof route.query.status === 'string' && route.query.status) {
-    const next = route.query.status.trim().toUpperCase();
-    if (allowedStatus.has(next) && next !== status.value) {
-      status.value = next;
-      changed = true;
-    }
-  }
-  if (typeof route.query.category === 'string') {
-    const next = route.query.category || 'ALL';
-    if (next !== categoryTab.value) {
-      if (next === 'RECOGNITION') categoryTab.value = 'RECOGNITION';
-      else if (next === 'ALL') categoryTab.value = 'ALL';
-      else categoryTab.value = next;
-      changed = true;
-    }
-  } else if (inbound && categoryTab.value !== 'ALL') {
-    categoryTab.value = 'ALL';
-    changed = true;
-  }
-  if (typeof route.query.reviewCode === 'string') {
-    const next = route.query.reviewCode || 'ALL';
-    if (next !== reviewCodeTab.value) {
-      reviewCodeTab.value = next;
-      if (next !== 'ALL') categoryTab.value = 'RECOGNITION';
-      changed = true;
-    }
-  } else if (inbound && reviewCodeTab.value !== 'ALL') {
-    reviewCodeTab.value = 'ALL';
-    changed = true;
-  }
-  let routeKeyword = '';
-  if (typeof route.query.keyword === 'string') {
-    routeKeyword = route.query.keyword;
-  } else if (typeof route.query.orderId === 'string') {
-    routeKeyword = route.query.orderId;
-  } else if (typeof route.query.sessionId === 'string') {
-    routeKeyword = route.query.sessionId;
-  } else if (typeof route.query.deviceId === 'string') {
-    routeKeyword = route.query.deviceId;
-  }
-  if (routeKeyword !== keyword.value) {
-    keyword.value = routeKeyword;
-    changed = true;
-  }
-  let focusId = '';
-  if (typeof route.query.ticketId === 'string') {
-    focusId = route.query.ticketId;
-  } else if (typeof route.query.disputeId === 'string') {
-    focusId = route.query.disputeId;
-  }
-  if (focusId !== focusDisputeId.value) {
-    focusDisputeId.value = focusId;
-    changed = true;
-  }
+  changed = syncDisputeStatusFromRoute(changed);
+  changed = syncDisputeCategoryFromRoute(changed, inbound);
+  changed = syncDisputeReviewCodeFromRoute(changed, inbound);
+  changed = syncDisputeKeywordFromRoute(changed);
+  changed = syncDisputeFocusFromRoute(changed);
   return changed;
 }
 

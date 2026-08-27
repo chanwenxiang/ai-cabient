@@ -664,18 +664,14 @@ function sessionDurationMs(row: SessionRow) {
   return end - start;
 }
 
-function waitReason(row: SessionRow) {
-  const s = String(row.state || '').toUpperCase();
-  const upload = String(row.uploadStatus || '').toUpperCase();
-  const stuck = isStuck(row);
-  const fail = failReasonText(row);
-  if (s === 'WAITING_UPLOAD') {
-    if (upload === 'FAILED') return '录像上传失败，待设备侧重试';
-    if (upload === 'UPLOADING') return stuck ? '上传中断或极慢' : '等待录像上传完成';
-    if (upload === 'LOCAL_QUEUED')
-      return stuck ? '本地排队超时，可能弱网/离线' : '设备本地排队待推送';
-    return stuck ? '关门后长期待上传' : '关门后等待录像上报';
-  }
+function waitReasonForWaitingUpload(upload: string, stuck: boolean) {
+  if (upload === 'FAILED') return '录像上传失败，待设备侧重试';
+  if (upload === 'UPLOADING') return stuck ? '上传中断或极慢' : '等待录像上传完成';
+  if (upload === 'LOCAL_QUEUED') return stuck ? '本地排队超时，可能弱网/离线' : '设备本地排队待推送';
+  return stuck ? '关门后长期待上传' : '关门后等待录像上报';
+}
+
+function waitReasonForActiveState(s: string, stuck: boolean, fail: string) {
   if (s === 'RECOGNIZING') return stuck ? '识别滞留，需人工跟进' : '视觉识别处理中';
   if (s === 'SETTLING') return stuck ? '结算滞留，需核对扣款' : '订单结算中';
   if (s === 'SHOPPING' || s === 'OPEN' || s === 'DOOR_OPEN') {
@@ -685,6 +681,17 @@ function waitReason(row: SessionRow) {
   if (s === 'FAILED') return fail === '无' ? '会话失败' : fail;
   if (s === 'CANCELLED') return fail === '无' ? '会话已取消' : fail;
   if (s === 'DISPUTED') return '待人工审核';
+  return '';
+}
+
+function waitReason(row: SessionRow) {
+  const s = String(row.state || '').toUpperCase();
+  const upload = String(row.uploadStatus || '').toUpperCase();
+  const stuck = isStuck(row);
+  const fail = failReasonText(row);
+  if (s === 'WAITING_UPLOAD') return waitReasonForWaitingUpload(upload, stuck);
+  const activeReason = waitReasonForActiveState(s, stuck, fail);
+  if (activeReason) return activeReason;
   if (fail !== '无') return fail;
   return isActiveState(row.state) ? '会话处理中' : '无';
 }
@@ -951,49 +958,71 @@ async function cancelSession(sessionId: string) {
   }
 }
 
-function applyRouteQuery() {
-  let changed = false;
-  let routeKeyword = '';
-  if (typeof route.query.keyword === 'string') {
-    routeKeyword = route.query.keyword;
-  } else if (typeof route.query.q === 'string') {
-    routeKeyword = route.query.q;
-  } else if (typeof route.query.deviceId === 'string') {
-    routeKeyword = route.query.deviceId;
-  } else if (typeof route.query.qSessionId === 'string') {
-    routeKeyword = route.query.qSessionId;
-  } else if (typeof route.query.userId === 'string') {
-    routeKeyword = route.query.userId;
+const SESSION_ROUTE_KEYWORD_KEYS = [
+  'keyword',
+  'q',
+  'deviceId',
+  'qSessionId',
+  'userId'
+] as const;
+
+function resolveSessionRouteKeyword(): string {
+  for (const key of SESSION_ROUTE_KEYWORD_KEYS) {
+    const value = route.query[key];
+    if (typeof value === 'string') return value;
   }
-  if (routeKeyword !== keyword.value) {
-    keyword.value = routeKeyword;
-    changed = true;
-  }
+  return '';
+}
+
+function syncSessionKeywordFromRoute(changed: boolean): boolean {
+  const routeKeyword = resolveSessionRouteKeyword();
+  if (routeKeyword === keyword.value) return changed;
+  keyword.value = routeKeyword;
+  return true;
+}
+
+function syncSessionStatusFromRoute(changed: boolean): boolean {
   if (typeof route.query.state === 'string' && route.query.state !== stateFilter.value) {
     statusTab.value = route.query.state || 'ALL';
-    changed = true;
-  } else if (!route.query.state && stateFilter.value && route.query.stuck) {
-    // 仅 stuck 深链时保留当前状态 Tab
-  } else if (!route.query.state && stateFilter.value && !route.query.stuck) {
+    return true;
+  }
+  if (!route.query.state && stateFilter.value && route.query.stuck) {
+    return changed;
+  }
+  if (!route.query.state && stateFilter.value && !route.query.stuck) {
     statusTab.value = 'ALL';
-    changed = true;
-  } else if (!route.query.state && !stateFilter.value && statusTab.value !== 'ALL') {
+    return true;
+  }
+  if (!route.query.state && !stateFilter.value && statusTab.value !== 'ALL') {
     statusTab.value = 'ALL';
   }
+  return changed;
+}
+
+function syncSessionStuckFromRoute(changed: boolean): boolean {
   const qStuck = route.query.stuck === '1' || route.query.stuck === 'true';
-  if (qStuck !== stuckOnly.value) {
-    stuckOnly.value = qStuck;
-    changed = true;
-  }
+  if (qStuck === stuckOnly.value) return changed;
+  stuckOnly.value = qStuck;
+  return true;
+}
+
+function syncSessionFocusFromRoute(changed: boolean): boolean {
   if (typeof route.query.sessionId === 'string') {
-    if (route.query.sessionId !== focusSessionId.value) {
-      focusSessionId.value = route.query.sessionId;
-      changed = true;
-    }
-  } else if (focusSessionId.value) {
-    focusSessionId.value = '';
-    changed = true;
+    if (route.query.sessionId === focusSessionId.value) return changed;
+    focusSessionId.value = route.query.sessionId;
+    return true;
   }
+  if (!focusSessionId.value) return changed;
+  focusSessionId.value = '';
+  return true;
+}
+
+function applyRouteQuery() {
+  let changed = false;
+  changed = syncSessionKeywordFromRoute(changed);
+  changed = syncSessionStatusFromRoute(changed);
+  changed = syncSessionStuckFromRoute(changed);
+  changed = syncSessionFocusFromRoute(changed);
   return changed;
 }
 

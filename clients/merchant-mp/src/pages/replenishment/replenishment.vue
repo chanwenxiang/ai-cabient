@@ -625,13 +625,14 @@ function taskLooksPullOff(task: Task) {
   return /from-expiry|PULL_OFF|下架|临期/i.test(String(task.notes || ''));
 }
 
-/** 机器备注转可读文案；seq=/dist= 等内部字段不展示 */
-function displayTaskNotes(notes?: string): string {
-  const raw = String(notes || '').trim();
-  if (!raw) return '';
+function knownTaskNoteLabel(raw: string): string {
   if (/from-expiry|NEAR_EXPIRY/i.test(raw)) return '临期商品下架';
   if (/PULL_OFF/i.test(raw) && !/[\u4e00-\u9fff]/.test(raw)) return '下架任务';
-  const cleaned = raw
+  return '';
+}
+
+function stripMachineTaskNoteTokens(raw: string): string {
+  return raw
     .replaceAll(/from-expiry:\d+/gi, '')
     .replaceAll(/\bNEAR_EXPIRY\b/gi, '')
     .replaceAll(/\bPULL_OFF\b/gi, '')
@@ -639,9 +640,20 @@ function displayTaskNotes(notes?: string): string {
     .replaceAll(/\bdist=\d+m?\b/gi, '')
     .replaceAll(/[|;,]+/g, ' ')
     .trim();
-  if (!cleaned) return '';
-  // 仍是纯机器键值则隐藏
-  if (!/[\u4e00-\u9fff]/.test(cleaned) && /^[\w:=\-.\s]+$/.test(cleaned)) return '';
+}
+
+function isOpaqueMachineNote(cleaned: string): boolean {
+  return !/[\u4e00-\u9fff]/.test(cleaned) && /^[\w:=\-.\s]+$/.test(cleaned);
+}
+
+/** 机器备注转可读文案；seq=/dist= 等内部字段不展示 */
+function displayTaskNotes(notes?: string): string {
+  const raw = String(notes || '').trim();
+  if (!raw) return '';
+  const known = knownTaskNoteLabel(raw);
+  if (known) return known;
+  const cleaned = stripMachineTaskNoteTokens(raw);
+  if (!cleaned || isOpaqueMachineNote(cleaned)) return '';
   return cleaned;
 }
 
@@ -710,27 +722,34 @@ const statusOptions = computed(() => [
   )
 ]);
 
-const tasks = computed(() => {
-  let rows = allTasks.value.filter((t) => t.status !== 'CANCELLED');
-  if (filterDeviceId.value) {
-    const key = filterDeviceId.value.trim().toUpperCase();
-    rows = rows.filter(
-      (t) =>
-        String(t.deviceId || '')
-          .trim()
-          .toUpperCase() === key
-    );
-  }
-  if (status.value) {
-    rows = rows.filter((t) => t.status === status.value);
-  }
-  const preferred = preferredId.value;
-  if (!preferred || filterDeviceId.value) return rows;
+function filterTasksByDevice(rows: Task[], deviceKey: string) {
+  return rows.filter(
+    (t) =>
+      String(t.deviceId || '')
+        .trim()
+        .toUpperCase() === deviceKey
+  );
+}
+
+function sortTasksByPreferred(rows: Task[], preferred: string) {
+  if (!preferred) return rows;
   return [...rows].sort((a, b) => {
     if (a.deviceId === preferred) return -1;
     if (b.deviceId === preferred) return 1;
     return 0;
   });
+}
+
+const tasks = computed(() => {
+  let rows = allTasks.value.filter((t) => t.status !== 'CANCELLED');
+  if (filterDeviceId.value) {
+    rows = filterTasksByDevice(rows, filterDeviceId.value.trim().toUpperCase());
+  }
+  if (status.value) {
+    rows = rows.filter((t) => t.status === status.value);
+  }
+  if (filterDeviceId.value || !preferredId.value) return rows;
+  return sortTasksByPreferred(rows, preferredId.value);
 });
 
 const pendingCount = computed(
@@ -741,12 +760,14 @@ const pendingCount = computed(
 const completedCount = computed(
   () => allTasks.value.filter((item) => item.status === 'COMPLETED').length
 );
-const emptyHint = computed(() => {
-  if (filterDeviceId.value) {
-    return status.value
-      ? `该柜机暂无「${displayLabel('replenishment_task_status', status.value, '该状态')}」任务`
-      : '该柜机暂无补货任务';
-  }
+
+function emptyHintForDeviceFilter(): string {
+  return status.value
+    ? `该柜机暂无「${displayLabel('replenishment_task_status', status.value, '该状态')}」任务`
+    : '该柜机暂无补货任务';
+}
+
+function emptyHintForStatusFilter(): string {
   if (status.value === 'IN_PROGRESS' && pendingCount.value === 0 && completedCount.value > 0) {
     return '暂无进行中的任务，可查看已完成记录';
   }
@@ -754,6 +775,11 @@ const emptyHint = computed(() => {
     return `暂无「${displayLabel('replenishment_task_status', status.value, '该状态')}」任务`;
   }
   return '当前没有补货任务';
+}
+
+const emptyHint = computed(() => {
+  if (filterDeviceId.value) return emptyHintForDeviceFilter();
+  return emptyHintForStatusFilter();
 });
 
 function applyRouteQuery(opts?: Record<string, string | undefined>) {
@@ -881,34 +907,90 @@ function formatTime(value?: string) {
   return formatDateTimeShort(value, '暂无');
 }
 
+async function ensureReplenishmentMe(seq: number): Promise<boolean> {
+  try {
+    await refreshMe();
+  } catch {
+    if (!uni.getStorageSync('merchant_token')) return false;
+    me.value =
+      me.value ||
+      (uni.getStorageSync('merchant_me') as import('@aicabinet/shared-types').MerchantMe) ||
+      null;
+  }
+  if (seq !== loadSeq) return false;
+  if (!me.value) {
+    me.value =
+      (uni.getStorageSync('merchant_me') as import('@aicabinet/shared-types').MerchantMe) || null;
+  }
+  return true;
+}
+
+function applyReplenishmentListData(
+  taskRows: Record<string, unknown>[],
+  deviceRows: Record<string, unknown>[],
+  skuRows: Record<string, unknown>[],
+  eff: MerchantReplenishmentEfficiency | null,
+  lowStockRows: DeviceLowStockItem[]
+) {
+  allTasks.value = taskRows as Task[];
+  devices.value = deviceRows;
+  skus.value = (skuRows || []) as Record<string, unknown>[];
+  efficiency.value = eff;
+  lowStockList.value = aggregateLowStock(lowStockRows || []);
+  void refreshEvidenceCounts(allTasks.value);
+  void refreshLineSummaries(allTasks.value);
+}
+
+function findDeepLinkTaskById(): Task | undefined {
+  if (!focusTaskId.value) return undefined;
+  const open = allTasks.value.find(
+    (t) => t.taskId === focusTaskId.value && t.status !== 'CANCELLED'
+  );
+  focusTaskId.value = null;
+  return open;
+}
+
+function findDeepLinkTaskByDevice(): Task | undefined {
+  if (detailVisible.value || !filterDeviceId.value) return undefined;
+  const key = filterDeviceId.value.trim().toUpperCase();
+  return allTasks.value.find(
+    (t) =>
+      String(t.deviceId || '')
+        .trim()
+        .toUpperCase() === key &&
+      t.status !== 'COMPLETED' &&
+      t.status !== 'CANCELLED'
+  );
+}
+
+function resolveDeepLinkOpenTask(): Task | undefined {
+  if (!pendingDeepLink) return undefined;
+  return findDeepLinkTaskById() || findDeepLinkTaskByDevice();
+}
+
+async function handleDeepLinkAfterLoad(open: Task | undefined, wantedTaskId: number | null) {
+  if (pendingDeepLink) {
+    clearDeepLinkQuery();
+  }
+  if (open) {
+    await openTask(open);
+  } else if (wantedTaskId) {
+    uni.showToast({ title: `任务 #${wantedTaskId} 不可用或已取消`, icon: 'none' });
+  }
+}
+
 async function load() {
   if (!uni.getStorageSync('merchant_token')) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
   const seq = ++loadSeq;
-  try {
-    await refreshMe();
-  } catch {
-    if (!uni.getStorageSync('merchant_token')) return;
-    // 接口抖动时保留内存/本地缓存，避免误判无权限
-    me.value =
-      me.value ||
-      (uni.getStorageSync('merchant_me') as import('@aicabinet/shared-types').MerchantMe) ||
-      null;
-  }
-  if (seq !== loadSeq) return;
-  if (!me.value) {
-    me.value =
-      (uni.getStorageSync('merchant_me') as import('@aicabinet/shared-types').MerchantMe) || null;
-  }
+  if (!(await ensureReplenishmentMe(seq))) return;
   if (!canReplenish.value) {
     uni.showToast({ title: '无补货权限', icon: 'none' });
     uni.switchTab({ url: '/pages/home/home' });
     return;
   }
-  // Deep link is applied in onLoad only — do not re-read hash on every onShow
-  // 已有任务时静默刷新，避免返回/切页时整块列表先缩后胀
   if (!allTasks.value.length) loading.value = true;
   try {
     const [taskRows, deviceRows, skuRows, eff, lowStockRows] = await Promise.all([
@@ -919,39 +1001,10 @@ async function load() {
       merchantApi.lowStockDevices().catch(() => [] as DeviceLowStockItem[])
     ]);
     if (seq !== loadSeq) return;
-    allTasks.value = taskRows as Task[];
-    devices.value = deviceRows as Record<string, unknown>[];
-    skus.value = (skuRows || []) as Record<string, unknown>[];
-    efficiency.value = eff;
-    lowStockList.value = aggregateLowStock(lowStockRows || []);
-    void refreshEvidenceCounts(allTasks.value);
-    void refreshLineSummaries(allTasks.value);
-
-    // Consume deep link once (扫柜 / 工作台入口)
-    let open: Task | undefined;
+    applyReplenishmentListData(taskRows, deviceRows, skuRows, eff, lowStockRows);
     const wantedTaskId = focusTaskId.value;
-    if (pendingDeepLink && focusTaskId.value) {
-      open = allTasks.value.find((t) => t.taskId === focusTaskId.value && t.status !== 'CANCELLED');
-      focusTaskId.value = null;
-    } else if (pendingDeepLink && !detailVisible.value && filterDeviceId.value) {
-      const key = filterDeviceId.value.trim().toUpperCase();
-      open = allTasks.value.find(
-        (t) =>
-          String(t.deviceId || '')
-            .trim()
-            .toUpperCase() === key &&
-          t.status !== 'COMPLETED' &&
-          t.status !== 'CANCELLED'
-      );
-    }
-    if (pendingDeepLink) {
-      clearDeepLinkQuery();
-    }
-    if (open) {
-      await openTask(open);
-    } else if (wantedTaskId) {
-      uni.showToast({ title: `任务 #${wantedTaskId} 不可用或已取消`, icon: 'none' });
-    }
+    const open = resolveDeepLinkOpenTask();
+    await handleDeepLinkAfterLoad(open, wantedTaskId);
   } catch (error) {
     if (seq !== loadSeq) return;
     uni.showToast({ title: error instanceof Error ? error.message : '加载失败', icon: 'none' });
@@ -972,6 +1025,17 @@ function clearDeviceFilter() {
   clearDeepLinkQuery();
 }
 
+function findActiveTaskForDevice(deviceKey: string): Task | undefined {
+  return allTasks.value.find(
+    (t) =>
+      String(t.deviceId || '')
+        .trim()
+        .toUpperCase() === deviceKey &&
+      t.status !== 'COMPLETED' &&
+      t.status !== 'CANCELLED'
+  );
+}
+
 async function onScan() {
   if (scanning.value) return;
   scanning.value = true;
@@ -981,14 +1045,7 @@ async function onScan() {
     const key = id.trim().toUpperCase();
     filterDeviceId.value = key;
     status.value = '';
-    const open = allTasks.value.find(
-      (t) =>
-        String(t.deviceId || '')
-          .trim()
-          .toUpperCase() === key &&
-        t.status !== 'COMPLETED' &&
-        t.status !== 'CANCELLED'
-    );
+    const open = findActiveTaskForDevice(key);
     if (open) {
       await openTask(open);
     } else {
@@ -999,56 +1056,66 @@ async function onScan() {
   }
 }
 
+async function readProductBarcode(): Promise<string | null> {
+  try {
+    const res = await new Promise<{ result?: string }>((resolve, reject) => {
+      uni.scanCode({
+        onlyFromCamera: false,
+        scanType: ['barCode', 'qrCode'],
+        success: (r) => resolve(r as { result?: string }),
+        fail: reject
+      });
+    });
+    return String(res.result || '').trim() || null;
+  } catch (err) {
+    const msg = String((err as { errMsg?: string })?.errMsg || '');
+    if (/cancel|取消/i.test(msg)) return null;
+    return String(
+      (await promptText({
+        title: '输入商品条码',
+        placeholder: '扫描商品包装条码',
+        required: true,
+        requiredMessage: '条码无效',
+        maxLength: 64,
+        singleLine: true,
+        testId: 'product-barcode-prompt'
+      })) || ''
+    ).trim() || null;
+  }
+}
+
+function findSkuByBarcode(code: string) {
+  const key = code.trim().toUpperCase();
+  return skus.value.find(
+    (s) =>
+      String((s as { barcode?: string }).barcode || '')
+        .trim()
+        .toUpperCase() === key ||
+      String((s as { skuId?: string }).skuId || '')
+        .trim()
+        .toUpperCase() === key
+  ) as { skuId?: string; skuName?: string } | undefined;
+}
+
+function findMatchingTaskLine(skuId: string): Line | undefined {
+  return lines.value.find(
+    (l) => !l.applied && String(l.skuId).toUpperCase() === String(skuId).toUpperCase()
+  );
+}
+
 /** 扫商品条码自动匹配任务明细并 +1；浏览器无法调起扫码时手输条码 */
 async function scanProduct(line: Line) {
   if (!canRequest.value || linesConfirmed.value || line.applied || scanning.value) return;
   scanning.value = true;
   try {
-    let code = '';
-    try {
-      const res = await new Promise<{ result?: string }>((resolve, reject) => {
-        uni.scanCode({
-          onlyFromCamera: false,
-          scanType: ['barCode', 'qrCode'],
-          success: (r) => resolve(r as { result?: string }),
-          fail: reject
-        });
-      });
-      code = String(res.result || '').trim();
-    } catch (err) {
-      const msg = String((err as { errMsg?: string })?.errMsg || '');
-      if (/cancel|取消/i.test(msg)) return;
-      // H5 / 扫码失败：手输条码
-      code = String(
-        (await promptText({
-          title: '输入商品条码',
-          placeholder: '扫描商品包装条码',
-          required: true,
-          requiredMessage: '条码无效',
-          maxLength: 64,
-          singleLine: true,
-          testId: 'product-barcode-prompt'
-        })) || ''
-      ).trim();
-    }
+    const code = await readProductBarcode();
     if (!code) return;
-    const key = code.trim().toUpperCase();
-    const sku = skus.value.find(
-      (s) =>
-        String((s as { barcode?: string }).barcode || '')
-          .trim()
-          .toUpperCase() === key ||
-        String((s as { skuId?: string }).skuId || '')
-          .trim()
-          .toUpperCase() === key
-    ) as { skuId?: string; skuName?: string } | undefined;
+    const sku = findSkuByBarcode(code);
     if (!sku?.skuId) {
       uni.showToast({ title: '未匹配到商品条码', icon: 'none' });
       return;
     }
-    const target = lines.value.find(
-      (l) => !l.applied && String(l.skuId).toUpperCase() === String(sku.skuId).toUpperCase()
-    );
+    const target = findMatchingTaskLine(sku.skuId);
     if (!target) {
       uni.showToast({ title: '本次任务不含该商品', icon: 'none' });
       return;
@@ -1158,8 +1225,7 @@ function previewEvidence(index: number) {
   uni.previewImage({ urls, current: urls[index] || urls[0] });
 }
 
-async function openTask(task: Task) {
-  // 打开前用列表最新状态（签到后避免仍用旧 checkInAt）
+function prepareTaskDetailSheet(task: Task) {
   const fromList = allTasks.value.find((t) => t.taskId === task.taskId);
   selected.value = { ...(fromList || task) };
   sheetCloseArmed.value = false;
@@ -1170,54 +1236,73 @@ async function openTask(task: Task) {
   detailLoading.value = true;
   slotCaps.value = {};
   deviceSlotsList.value = [];
+}
+
+async function refreshSelectedTask(task: Task) {
+  try {
+    const latest = (await merchantApi.replenishmentTasks()) as Task[];
+    allTasks.value = latest;
+    const fresh = latest.find((t) => t.taskId === task.taskId);
+    if (fresh) selected.value = { ...fresh };
+  } catch {
+    /* keep selected */
+  }
+}
+
+async function mapEvidenceFiles(task: Task, evidence: { fileId?: number; url?: string }[]) {
+  return Promise.all(
+    (evidence || []).map(async (f) => {
+      const fileId = f.fileId;
+      if (!fileId) return { localPath: f.url || '', fileId };
+      try {
+        const localPath = await merchantApi.downloadReplenishmentEvidence(task.taskId, fileId);
+        return { localPath, fileId };
+      } catch {
+        return { localPath: f.url || '', fileId };
+      }
+    })
+  );
+}
+
+function buildSlotCapsFromSlots(slots: DeviceSlot[]) {
+  const map: Record<string, { maxLevel: number; bookQty: number }> = {};
+  for (const s of slots) {
+    const code = String(s.slotCode || '').toUpperCase();
+    if (!code) continue;
+    map[code] = {
+      maxLevel: Number(s.maxLevel) || 0,
+      bookQty: Number(s.bookQty) || 0
+    };
+  }
+  return map;
+}
+
+async function loadTaskDetailResources(task: Task) {
+  const [taskLines, slots, evidence] = await Promise.all([
+    merchantApi.replenishmentTaskLines(task.taskId) as Promise<Line[]>,
+    merchantApi.deviceSlots(task.deviceId).catch(() => [] as DeviceSlot[]),
+    merchantApi.listReplenishmentEvidence(task.taskId).catch(() => [])
+  ]);
+  lines.value = taskLines;
+  deviceSlotsList.value = (slots || []) as DeviceSlot[];
+  const mapped = await mapEvidenceFiles(task, evidence || []);
+  evidenceItems.value = mapped;
+  evidenceCountMap.value = {
+    ...evidenceCountMap.value,
+    [task.taskId]: mapped.length
+  };
+  slotCaps.value = buildSlotCapsFromSlots(deviceSlotsList.value);
+}
+
+async function openTask(task: Task) {
+  prepareTaskDetailSheet(task);
   await nextTick();
   setTimeout(() => {
     sheetCloseArmed.value = true;
   }, 280);
   try {
-    // 再拉一次任务列表，确保签到/状态与明细一致
-    try {
-      const latest = (await merchantApi.replenishmentTasks()) as Task[];
-      allTasks.value = latest;
-      const fresh = latest.find((t) => t.taskId === task.taskId);
-      if (fresh) selected.value = { ...fresh };
-    } catch {
-      /* keep selected */
-    }
-    const [taskLines, slots, evidence] = await Promise.all([
-      merchantApi.replenishmentTaskLines(task.taskId) as Promise<Line[]>,
-      merchantApi.deviceSlots(task.deviceId).catch(() => [] as DeviceSlot[]),
-      merchantApi.listReplenishmentEvidence(task.taskId).catch(() => [])
-    ]);
-    lines.value = taskLines;
-    deviceSlotsList.value = (slots || []) as DeviceSlot[];
-    const mapped = await Promise.all(
-      (evidence || []).map(async (f) => {
-        const fileId = f.fileId;
-        if (!fileId) return { localPath: f.url || '', fileId };
-        try {
-          const localPath = await merchantApi.downloadReplenishmentEvidence(task.taskId, fileId);
-          return { localPath, fileId };
-        } catch {
-          return { localPath: f.url || '', fileId };
-        }
-      })
-    );
-    evidenceItems.value = mapped;
-    evidenceCountMap.value = {
-      ...evidenceCountMap.value,
-      [task.taskId]: mapped.length
-    };
-    const map: Record<string, { maxLevel: number; bookQty: number }> = {};
-    for (const s of deviceSlotsList.value) {
-      const code = String(s.slotCode || '').toUpperCase();
-      if (!code) continue;
-      map[code] = {
-        maxLevel: Number(s.maxLevel) || 0,
-        bookQty: Number(s.bookQty) || 0
-      };
-    }
-    slotCaps.value = map;
+    await refreshSelectedTask(task);
+    await loadTaskDetailResources(task);
   } catch (error) {
     uni.showToast({ title: error instanceof Error ? error.message : '明细加载失败', icon: 'none' });
   } finally {
@@ -1409,6 +1494,70 @@ function getLocationWithTimeout(timeoutMs = 5000): Promise<UniApp.GetLocationSuc
   });
 }
 
+function isDistanceCheckError(msg: string): boolean {
+  return msg.includes('签到位置') || msg.includes('超出') || msg.includes('米');
+}
+
+async function obtainCheckInLocation(): Promise<{
+  body: Record<string, number>;
+  locationOk: boolean;
+} | null> {
+  try {
+    const location = await getLocationWithTimeout(5000);
+    return { body: { latitude: location.latitude, longitude: location.longitude }, locationOk: true };
+  } catch {
+    const cont = await askConfirm({
+      title: '定位失败',
+      content: '无法获取当前位置，仍可继续签到，但无法校验是否到店。是否继续？',
+      confirmText: '继续签到',
+      cancelText: '取消'
+    });
+    return cont ? { body: {}, locationOk: false } : null;
+  }
+}
+
+async function submitCheckIn(body: Record<string, number>, locationOk: boolean) {
+  if (!selected.value) return;
+  selected.value = (await merchantApi.checkInReplenishmentTask(
+    selected.value.taskId,
+    body
+  )) as Task;
+  syncTaskInList(selected.value);
+  uni.showToast({
+    title: locationOk ? '签到成功' : '已签到（未带定位）',
+    icon: locationOk ? 'success' : 'none'
+  });
+}
+
+async function retryCheckInWithoutDistance() {
+  if (!selected.value) return;
+  selected.value = (await merchantApi.checkInReplenishmentTask(
+    selected.value.taskId,
+    {}
+  )) as Task;
+  syncTaskInList(selected.value);
+  uni.showToast({ title: '已签到（未校验距离）', icon: 'none' });
+}
+
+async function handleCheckInDistanceFailure(msg: string) {
+  const retry = await askConfirm({
+    title: '距离柜机过远',
+    content: `${msg}\n\n若你已在柜前（定位漂移），可改为不校验距离继续签到。`,
+    confirmText: '继续签到',
+    cancelText: '取消'
+  });
+  if (!retry) return;
+  try {
+    await retryCheckInWithoutDistance();
+  } catch (e2) {
+    uni.showToast({
+      title: e2 instanceof Error ? e2.message : '签到失败',
+      icon: 'none',
+      duration: 3600
+    });
+  }
+}
+
 async function checkIn() {
   if (!selected.value || submitting.value) return;
   if (!canRequest.value) {
@@ -1416,64 +1565,44 @@ async function checkIn() {
     return;
   }
   submitting.value = true;
-  let body: Record<string, number> = {};
-  let locationOk = false;
-  try {
-    const location = await getLocationWithTimeout(5000);
-    body = { latitude: location.latitude, longitude: location.longitude };
-    locationOk = true;
-  } catch {
+  const location = await obtainCheckInLocation();
+  if (!location) {
     submitting.value = false;
-    const cont = await askConfirm({
-      title: '定位失败',
-      content: '无法获取当前位置，仍可继续签到，但无法校验是否到店。是否继续？',
-      confirmText: '继续签到',
-      cancelText: '取消'
-    });
-    if (!cont) return;
-    submitting.value = true;
+    return;
   }
   try {
-    selected.value = (await merchantApi.checkInReplenishmentTask(
-      selected.value.taskId,
-      body
-    )) as Task;
-    syncTaskInList(selected.value);
-    uni.showToast({
-      title: locationOk ? '签到成功' : '已签到（未带定位）',
-      icon: locationOk ? 'success' : 'none'
-    });
+    await submitCheckIn(location.body, location.locationOk);
   } catch (error) {
     const msg = error instanceof Error ? error.message : '签到失败';
-    if (locationOk && (msg.includes('签到位置') || msg.includes('超出') || msg.includes('米'))) {
-      const retry = await askConfirm({
-        title: '距离柜机过远',
-        content: `${msg}\n\n若你已在柜前（定位漂移），可改为不校验距离继续签到。`,
-        confirmText: '继续签到',
-        cancelText: '取消'
-      });
-      if (retry) {
-        try {
-          selected.value = (await merchantApi.checkInReplenishmentTask(
-            selected.value.taskId,
-            {}
-          )) as Task;
-          syncTaskInList(selected.value);
-          uni.showToast({ title: '已签到（未校验距离）', icon: 'none' });
-        } catch (e2) {
-          uni.showToast({
-            title: e2 instanceof Error ? e2.message : '签到失败',
-            icon: 'none',
-            duration: 3600
-          });
-        }
-      }
+    if (location.locationOk && isDistanceCheckError(msg)) {
+      await handleCheckInDistanceFailure(msg);
     } else {
       uni.showToast({ title: msg, icon: 'none', duration: 3600 });
     }
   } finally {
     submitting.value = false;
   }
+}
+
+function openDoorConfirmTitle(): string {
+  if (doorOpened.value) return '再次开门';
+  if (detailIsPullOff.value) return '下架开门';
+  return '补货开门';
+}
+
+async function applyOpenDoorSession(session: { sessionId?: string }) {
+  if (!selected.value) return;
+  doorOpened.value = true;
+  openSessionId.value = session.sessionId || '';
+  if (session.sessionId) persistDoorState(selected.value.taskId, session.sessionId);
+  selected.value = {
+    ...selected.value,
+    status: selected.value.status === 'PENDING' ? 'IN_PROGRESS' : selected.value.status
+  };
+  uni.showToast({ title: '开门指令已下发', icon: 'success' });
+  await load();
+  const fresh = allTasks.value.find((t) => t.taskId === selected.value?.taskId);
+  if (fresh) selected.value = { ...fresh };
 }
 
 async function openDoor() {
@@ -1486,11 +1615,8 @@ async function openDoor() {
     uni.showToast({ title: '请先现场签到', icon: 'none' });
     return;
   }
-  let confirmTitle = '补货开门';
-  if (doorOpened.value) confirmTitle = '再次开门';
-  else if (detailIsPullOff.value) confirmTitle = '下架开门';
   const ok = await askConfirm({
-    title: confirmTitle,
+    title: openDoorConfirmTitle(),
     content: '将下发开门指令，本次为补货会话，不会按购物扣款。请确认人在柜前。',
     confirmText: '开门',
     cancelText: '取消'
@@ -1499,17 +1625,7 @@ async function openDoor() {
   submitting.value = true;
   try {
     const session = await merchantApi.openReplenishmentDoor(selected.value.taskId);
-    doorOpened.value = true;
-    openSessionId.value = session.sessionId || '';
-    if (session.sessionId) persistDoorState(selected.value.taskId, session.sessionId);
-    selected.value = {
-      ...selected.value,
-      status: selected.value.status === 'PENDING' ? 'IN_PROGRESS' : selected.value.status
-    };
-    uni.showToast({ title: '开门指令已下发', icon: 'success' });
-    await load();
-    const fresh = allTasks.value.find((t) => t.taskId === selected.value?.taskId);
-    if (fresh) selected.value = { ...fresh };
+    await applyOpenDoorSession(session);
   } catch (error) {
     const msg = error instanceof Error ? error.message : '开门失败';
     uni.showToast({ title: msg, icon: 'none', duration: 3200 });
@@ -1518,27 +1634,38 @@ async function openDoor() {
   }
 }
 
-function adjustQty(line: Line, delta: number) {
-  if (!canRequest.value) return;
-  if (linesConfirmed.value || line.applied || selected.value?.status === 'COMPLETED') return;
+function canAdjustLineQty(line: Line): boolean {
+  if (!canRequest.value) return false;
+  if (linesConfirmed.value || line.applied || selected.value?.status === 'COMPLETED') return false;
+  return true;
+}
+
+function increaseLineQty(line: Line, delta: number) {
   const cur = Number(line.quantity) || 0;
-  if (delta > 0) {
-    if (!isPullOffType(line.lineType)) {
-      const room = slotHeadroom(line);
-      if (cur >= room) {
-        uni.showToast({
-          title: room <= 0 ? '货道已满，无法再加' : `最多再补 ${room}`,
-          icon: 'none'
-        });
-        return;
-      }
-      line.quantity = Math.min(room, cur + delta);
-      return;
-    }
+  if (isPullOffType(line.lineType)) {
     line.quantity = cur + delta;
     return;
   }
+  const room = slotHeadroom(line);
+  if (cur >= room) {
+    uni.showToast({
+      title: room <= 0 ? '货道已满，无法再加' : `最多再补 ${room}`,
+      icon: 'none'
+    });
+    return;
+  }
+  line.quantity = Math.min(room, cur + delta);
+}
+
+function decreaseLineQty(line: Line, delta: number) {
+  const cur = Number(line.quantity) || 0;
   line.quantity = Math.max(0, cur + delta);
+}
+
+function adjustQty(line: Line, delta: number) {
+  if (!canAdjustLineQty(line)) return;
+  if (delta > 0) increaseLineQty(line, delta);
+  else decreaseLineQty(line, delta);
 }
 
 function clampLinesToCapacity() {
@@ -1555,52 +1682,78 @@ function clampLinesToCapacity() {
   return changed;
 }
 
-async function confirmLines() {
-  if (!selected.value || submitting.value) return;
-  if (!canRequest.value) {
-    uni.showToast({ title: '无补货操作权限', icon: 'none' });
-    return;
-  }
+function buildConfirmLinePayload(line: Line) {
+  return {
+    skuId: line.skuId,
+    quantity: line.quantity,
+    lineType: line.lineType || 'RESTOCK',
+    batchNo: line.batchNo,
+    productionDate: line.productionDate,
+    expiryDate: line.expiryDate,
+    slotId: line.slotId
+  };
+}
+
+async function ensureLinesWithinCapacity(): Promise<boolean> {
   const over = lines.value.filter(
     (l) => !l.applied && !isPullOffType(l.lineType) && (Number(l.quantity) || 0) > slotHeadroom(l)
   );
-  if (over.length) {
-    const ok = await askConfirm({
-      title: '货道容量不足',
-      content: `${over.map((l) => `${l.slotId || '?'} 最多再补 ${slotHeadroom(l)}`).join('；')}。是否自动调低数量后继续？`,
-      confirmText: '自动调低',
-      cancelText: '手动改'
-    });
-    if (!ok) return;
-    clampLinesToCapacity();
-  }
+  if (!over.length) return true;
+  const ok = await askConfirm({
+    title: '货道容量不足',
+    content: `${over.map((l) => `${l.slotId || '?'} 最多再补 ${slotHeadroom(l)}`).join('；')}。是否自动调低数量后继续？`,
+    confirmText: '自动调低',
+    cancelText: '手动改'
+  });
+  if (!ok) return false;
+  clampLinesToCapacity();
+  return true;
+}
+
+function validatePositiveLines(): Line[] | null {
   const positive = lines.value.filter((l) => (Number(l.quantity) || 0) > 0);
   if (!positive.length) {
     uni.showToast({ title: '调低后无有效数量，请换货道或取消该行', icon: 'none' });
-    return;
+    return null;
   }
   const unassigned = positive.filter(
     (l) => !isPullOffType(l.lineType) && !String(l.slotId || '').trim()
   );
   if (unassigned.length) {
     uni.showToast({ title: '请先为待分配行选择货道', icon: 'none' });
+    return null;
+  }
+  return positive;
+}
+
+async function handleConfirmLinesFailure(msg: string) {
+  if (!msg.includes('容量不足')) {
+    uni.showToast({ title: msg, icon: 'none', duration: 3600 });
     return;
   }
+  const auto = await askConfirm({
+    title: '确认失败',
+    content: `${msg}\n\n是否按货道余量自动调低？`,
+    confirmText: '自动调低',
+    cancelText: '知道了'
+  });
+  if (auto) clampLinesToCapacity();
+}
+
+async function confirmLines() {
+  if (!selected.value || submitting.value) return;
+  if (!canRequest.value) {
+    uni.showToast({ title: '无补货操作权限', icon: 'none' });
+    return;
+  }
+  if (!(await ensureLinesWithinCapacity())) return;
+  const positive = validatePositiveLines();
+  if (!positive) return;
   submitting.value = true;
   try {
     lines.value = (await merchantApi.confirmReplenishmentLines(
       selected.value.taskId,
-      positive.map((line) => ({
-        // 显式构造请求 DTO（对齐后端 SubmitReplenishmentLinesRequest），
-        // 不把 applied 等前端 UI 状态发回服务端
-        skuId: line.skuId,
-        quantity: line.quantity,
-        lineType: line.lineType || 'RESTOCK',
-        batchNo: line.batchNo,
-        productionDate: line.productionDate,
-        expiryDate: line.expiryDate,
-        slotId: line.slotId
-      }))
+      positive.map(buildConfirmLinePayload)
     )) as Line[];
     linesConfirmed.value = true;
     lineSummaryMap.value = {
@@ -1610,20 +1763,76 @@ async function confirmLines() {
     uni.showToast({ title: '清单已确认', icon: 'success' });
   } catch (error) {
     const msg = error instanceof Error ? error.message : '确认失败';
-    if (msg.includes('容量不足')) {
-      const auto = await askConfirm({
-        title: '确认失败',
-        content: `${msg}\n\n是否按货道余量自动调低？`,
-        confirmText: '自动调低',
-        cancelText: '知道了'
-      });
-      if (auto) clampLinesToCapacity();
-    } else {
-      uni.showToast({ title: msg, icon: 'none', duration: 3600 });
-    }
+    await handleConfirmLinesFailure(msg);
   } finally {
     submitting.value = false;
   }
+}
+
+function pullOffCopy(restockText: string, pullOffText: string): string {
+  return detailIsPullOff.value ? pullOffText : restockText;
+}
+
+async function confirmDoorOpenedIfNeeded(): Promise<boolean> {
+  if (doorOpened.value) return true;
+  const cont = await askConfirm({
+    title: '尚未开门',
+    content: pullOffCopy(
+      '还未下发补货开门。若已现场开门完成上架，仍可继续确认完成。',
+      '还未下发下架开门。若已现场开门完成下架，仍可继续确认完成。'
+    ),
+    confirmText: '继续完成',
+    cancelText: '去开门'
+  });
+  return cont;
+}
+
+async function confirmEvidenceIfNeeded(): Promise<boolean> {
+  if (evidenceItems.value.length > 0) return true;
+  const photoOk = await askConfirm({
+    title: '缺少现场凭证',
+    content: pullOffCopy(
+      '建议先拍照留存补货证据，再完成任务，便于后台抽检。',
+      '建议先拍照留存下架证据，再完成任务，便于后台抽检。'
+    ),
+    confirmText: '去拍照',
+    cancelText: '仍完成'
+  });
+  if (!photoOk) return true;
+  if (selected.value?.checkInAt) void addEvidence();
+  else uni.showToast({ title: '请先签到再拍照', icon: 'none' });
+  return false;
+}
+
+async function confirmCompleteAction(): Promise<boolean> {
+  return askConfirm({
+    title: pullOffCopy('确认全部上架', '确认全部下架'),
+    content: pullOffCopy(
+      '完成后将更新柜机库存并签收在途商品，请确认商品、批次和货道无误。',
+      '完成后将扣减柜机库存，请确认下架商品、批次和数量无误。'
+    ),
+    confirmText: '确认完成',
+    cancelText: '取消'
+  });
+}
+
+async function finalizeCompletedTask(taskId: number) {
+  selected.value = (await merchantApi.completeReplenishmentTask(taskId)) as Task;
+  lines.value = lines.value.map((line) => ({ ...line, applied: true }));
+  try {
+    uni.removeStorageSync(doorCacheKey(taskId));
+  } catch {
+    /* ignore */
+  }
+  doorOpened.value = false;
+  openSessionId.value = '';
+  uni.showToast({
+    title: detailIsPullOff.value ? '下架完成' : '补货完成',
+    icon: 'success'
+  });
+  await load();
+  const fresh = allTasks.value.find((t) => t.taskId === taskId);
+  if (fresh) selected.value = { ...fresh };
 }
 
 async function completeTask() {
@@ -1636,58 +1845,12 @@ async function completeTask() {
     uni.showToast({ title: '请先确认商品与数量', icon: 'none' });
     return;
   }
-  if (!doorOpened.value) {
-    const cont = await askConfirm({
-      title: '尚未开门',
-      content: detailIsPullOff.value
-        ? '还未下发下架开门。若已现场开门完成下架，仍可继续确认完成。'
-        : '还未下发补货开门。若已现场开门完成上架，仍可继续确认完成。',
-      confirmText: '继续完成',
-      cancelText: '去开门'
-    });
-    if (!cont) return;
-  }
-  if (evidenceItems.value.length === 0) {
-    const photoOk = await askConfirm({
-      title: '缺少现场凭证',
-      content: detailIsPullOff.value
-        ? '建议先拍照留存下架证据，再完成任务，便于后台抽检。'
-        : '建议先拍照留存补货证据，再完成任务，便于后台抽检。',
-      confirmText: '去拍照',
-      cancelText: '仍完成'
-    });
-    // 主按钮去拍照；取消才强制完成（与旧流程相反，提高凭证留存率）
-    if (photoOk) {
-      if (selected.value?.checkInAt) void addEvidence();
-      else uni.showToast({ title: '请先签到再拍照', icon: 'none' });
-      return;
-    }
-  }
-  const ok = await askConfirm({
-    title: detailIsPullOff.value ? '确认全部下架' : '确认全部上架',
-    content: detailIsPullOff.value
-      ? '完成后将扣减柜机库存，请确认下架商品、批次和数量无误。'
-      : '完成后将更新柜机库存并签收在途商品，请确认商品、批次和货道无误。',
-    confirmText: '确认完成',
-    cancelText: '取消'
-  });
-  if (!ok) return;
+  if (!(await confirmDoorOpenedIfNeeded())) return;
+  if (!(await confirmEvidenceIfNeeded())) return;
+  if (!(await confirmCompleteAction())) return;
   submitting.value = true;
   try {
-    const taskId = selected.value.taskId;
-    selected.value = (await merchantApi.completeReplenishmentTask(taskId)) as Task;
-    lines.value = lines.value.map((line) => ({ ...line, applied: true }));
-    try {
-      uni.removeStorageSync(doorCacheKey(taskId));
-    } catch {
-      /* ignore */
-    }
-    doorOpened.value = false;
-    openSessionId.value = '';
-    uni.showToast({ title: detailIsPullOff.value ? '下架完成' : '补货完成', icon: 'success' });
-    await load();
-    const fresh = allTasks.value.find((t) => t.taskId === taskId);
-    if (fresh) selected.value = { ...fresh };
+    await finalizeCompletedTask(selected.value.taskId);
   } catch (error) {
     uni.showToast({ title: error instanceof Error ? error.message : '完成失败', icon: 'none' });
   } finally {

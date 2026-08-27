@@ -277,52 +277,75 @@ async function loadServicePhone() {
   }
 }
 
-async function reload() {
-  if (!getConsumerToken()) {
-    error.value = '请先登录后查看审核详情';
+function applyFoundTicket(found: DisputeTicketDto) {
+  ticket.value = found;
+  sessionId.value = found.sessionId || sessionId.value;
+  ticketId.value = found.ticketId || ticketId.value;
+  void hydrateEvidencePreviews();
+  void loadRefundChannel(found.orderId);
+}
+
+function findTicketInList(list: DisputeTicketDto[]): DisputeTicketDto | null {
+  if (ticketId.value) {
+    const byId = list.find((d) => d.ticketId === ticketId.value);
+    if (byId) return byId;
+  }
+  if (sessionId.value) {
+    return list.find((d) => d.sessionId === sessionId.value) || null;
+  }
+  return null;
+}
+
+async function reloadFromListFallback(primaryError: unknown) {
+  const list = await consumerApi.listMyDisputes();
+  const found = findTicketInList(list);
+  if (!found) {
     ticket.value = null;
-    loading.value = false;
+    error.value =
+      primaryError instanceof Error
+        ? primaryError.message
+        : '未找到该审核单，可能已归档或尚未生成';
     return;
+  }
+  applyFoundTicket(found);
+}
+
+function abortReload(message: string) {
+  error.value = message;
+  ticket.value = null;
+  loading.value = false;
+}
+
+function canReloadDispute(): boolean {
+  if (!getConsumerToken()) {
+    abortReload('请先登录后查看审核详情');
+    return false;
   }
   if (!ticketId.value && !sessionId.value) {
-    error.value = '缺少审核单参数';
-    ticket.value = null;
-    loading.value = false;
-    return;
+    abortReload('缺少审核单参数');
+    return false;
   }
+  return true;
+}
+
+async function fetchDisputeDetailPrimary() {
+  const found = await consumerApi.getMyDispute({
+    ticketId: ticketId.value || undefined,
+    sessionId: sessionId.value || undefined
+  });
+  applyFoundTicket(found);
+}
+
+async function reload() {
+  if (!canReloadDispute()) return;
   if (!ticket.value) loading.value = true;
   error.value = '';
   try {
-    const found = await consumerApi.getMyDispute({
-      ticketId: ticketId.value || undefined,
-      sessionId: sessionId.value || undefined
-    });
-    ticket.value = found;
-    sessionId.value = found.sessionId || sessionId.value;
-    ticketId.value = found.ticketId || ticketId.value;
-    void hydrateEvidencePreviews();
-    void loadRefundChannel(found.orderId);
+    await fetchDisputeDetailPrimary();
   } catch (e) {
     // 旧后端无 detail 接口时回退列表查找
     try {
-      const list = await consumerApi.listMyDisputes();
-      let found: DisputeTicketDto | null = null;
-      if (ticketId.value) {
-        found = list.find((d) => d.ticketId === ticketId.value) || null;
-      }
-      if (!found && sessionId.value) {
-        found = list.find((d) => d.sessionId === sessionId.value) || null;
-      }
-      if (!found) {
-        ticket.value = null;
-        error.value = e instanceof Error ? e.message : '未找到该审核单，可能已归档或尚未生成';
-        return;
-      }
-      ticket.value = found;
-      sessionId.value = found.sessionId || sessionId.value;
-      ticketId.value = found.ticketId || ticketId.value;
-      void hydrateEvidencePreviews();
-      void loadRefundChannel(found.orderId);
+      await reloadFromListFallback(e);
     } catch (e2) {
       error.value = e2 instanceof Error ? e2.message : '加载失败';
     }

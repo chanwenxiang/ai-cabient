@@ -240,49 +240,48 @@ const sum = computed(() =>
 
 const pagePartial = computed(() => total.value > rows.value.length);
 
+function deviceReportDeviceCountHint(ready: boolean) {
+  if (!ready) return '加载中…';
+  if (onlineFilter.value) return `已筛选 · 共 ${total.value} 台`;
+  return undefined;
+}
+
+function deviceReportOfflineHint(ready: boolean) {
+  if (!ready) return '加载中…';
+  if (offlineTotal.value) return '点击筛选离线';
+  return '全部在线';
+}
+
+function deviceReportClearOnlineFilter() {
+  if (!onlineFilter.value) return;
+  onlineFilter.value = '';
+  search();
+}
+
+function deviceReportToggleOfflineFilter() {
+  onlineFilter.value = onlineFilter.value === 'OFFLINE' ? '' : 'OFFLINE';
+  search();
+}
+
 const kpiTiles = computed(() => {
   const ready = listHydrated.value;
   const pageHint = pagePartial.value ? '本页合计' : undefined;
-  let deviceCountHint: string | undefined;
-  if (!ready) {
-    deviceCountHint = '加载中…';
-  } else if (onlineFilter.value) {
-    deviceCountHint = `已筛选 · 共 ${total.value} 台`;
-  }
-  let offlineHint: string;
-  if (!ready) {
-    offlineHint = '加载中…';
-  } else if (offlineTotal.value) {
-    offlineHint = '点击筛选离线';
-  } else {
-    offlineHint = '全部在线';
-  }
+  const deviceCountHint = deviceReportDeviceCountHint(ready);
+  const offlineHint = deviceReportOfflineHint(ready);
   return [
     {
       label: '设备数',
       value: ready ? String(total.value) : '…',
       accent: 'accent-teal',
       hint: deviceCountHint,
-      action: ready
-        ? () => {
-            if (onlineFilter.value) {
-              onlineFilter.value = '';
-              search();
-            }
-          }
-        : undefined
+      action: ready ? deviceReportClearOnlineFilter : undefined
     },
     {
       label: '离线设备',
       value: ready ? String(offlineTotal.value) : '…',
       accent: 'accent-amber',
       hint: offlineHint,
-      action: ready
-        ? () => {
-            onlineFilter.value = onlineFilter.value === 'OFFLINE' ? '' : 'OFFLINE';
-            search();
-          }
-        : undefined
+      action: ready ? deviceReportToggleOfflineFilter : undefined
     },
     {
       label: '累计营收',

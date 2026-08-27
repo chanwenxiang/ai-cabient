@@ -33,52 +33,71 @@ export function downloadCsv(filename: string, headers: string[], rows: Array<Arr
   URL.revokeObjectURL(url);
 }
 
+type CsvParseState = {
+  rows: string[][];
+  row: string[];
+  cell: string;
+  inQuotes: boolean;
+};
+
+function handleQuotedChar(state: CsvParseState, raw: string, i: number): number {
+  const ch = raw[i];
+  if (ch === '"') {
+    if (raw[i + 1] === '"') {
+      state.cell += '"';
+      return i + 1;
+    }
+    state.inQuotes = false;
+    return i;
+  }
+  state.cell += ch;
+  return i;
+}
+
+function flushRow(state: CsvParseState) {
+  state.row.push(state.cell);
+  state.cell = '';
+  if (state.row.some((c) => c.trim() !== '')) {
+    state.rows.push(state.row);
+  }
+  state.row = [];
+}
+
+function handleUnquotedChar(state: CsvParseState, ch: string) {
+  if (ch === '"') {
+    state.inQuotes = true;
+    return;
+  }
+  if (ch === ',') {
+    state.row.push(state.cell);
+    state.cell = '';
+    return;
+  }
+  if (ch === '\n') {
+    flushRow(state);
+    return;
+  }
+  state.cell += ch;
+}
+
 /** Minimal CSV parser: supports quoted fields and commas. */
 export function parseCsv(text: string): string[][] {
   const raw = text
     .replace(/^\uFEFF/, '')
     .replaceAll('\r\n', '\n')
     .replaceAll('\r', '\n');
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = '';
-  let inQuotes = false;
+  const state: CsvParseState = { rows: [], row: [], cell: '', inQuotes: false };
   for (let i = 0; i < raw.length; i++) {
     const ch = raw[i];
-    if (inQuotes) {
-      if (ch === '"') {
-        if (raw[i + 1] === '"') {
-          cell += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        cell += ch;
-      }
+    if (state.inQuotes) {
+      i = handleQuotedChar(state, raw, i);
       continue;
     }
-    if (ch === '"') {
-      inQuotes = true;
-      continue;
-    }
-    if (ch === ',') {
-      row.push(cell);
-      cell = '';
-      continue;
-    }
-    if (ch === '\n') {
-      row.push(cell);
-      cell = '';
-      if (row.some((c) => c.trim() !== '')) rows.push(row);
-      row = [];
-      continue;
-    }
-    cell += ch;
+    handleUnquotedChar(state, ch);
   }
-  row.push(cell);
-  if (row.some((c) => c.trim() !== '')) rows.push(row);
-  return rows;
+  state.row.push(state.cell);
+  if (state.row.some((c) => c.trim() !== '')) state.rows.push(state.row);
+  return state.rows;
 }
 
 export function csvRowsToObjects(rows: string[][]): Record<string, string>[] {

@@ -779,16 +779,15 @@ function emptyRefHint(row: OpsException) {
   return isDeviceScopedException(row) ? '设备类异常无关联会话/订单/用户' : '暂无关联数据';
 }
 
-function exceptionActions(row: OpsException): TableAction[] {
-  // 对齐库存健康：主区放详情/设备/处理，次要进「更多」
-  const acts: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
-  if (row.deviceId && canAccessPath('/devices')) {
-    acts.push({ key: 'device', label: '设备', icon: Monitor });
-  }
+function pushOpenExceptionActions(acts: TableAction[], row: OpsException) {
   if (canHandle.value && row.status === 'OPEN') {
     acts.push({ key: 'claim', label: '领取', icon: UserFilled, type: 'primary' });
   }
-  if (canHandle.value && row.status !== 'RESOLVED' && canResolveWithRepair(row)) {
+}
+
+function pushResolveExceptionAction(acts: TableAction[], row: OpsException) {
+  if (!canHandle.value || row.status === 'RESOLVED') return;
+  if (canResolveWithRepair(row)) {
     acts.push({
       key: 'repair',
       label: '建工单结案',
@@ -796,17 +795,30 @@ function exceptionActions(row: OpsException): TableAction[] {
       type: 'success',
       overflow: true
     });
-  } else if (canHandle.value && row.status !== 'RESOLVED') {
-    acts.push({ key: 'resolve', label: '解决', icon: CircleCheck, type: 'success' });
+    return;
   }
-  if (canHandle.value && row.status === 'RESOLVED') {
-    acts.push({
-      key: row.archived ? 'unarchive' : 'archive',
-      label: row.archived ? '取消归档' : '归档',
-      icon: FolderOpened,
-      overflow: true
-    });
+  acts.push({ key: 'resolve', label: '解决', icon: CircleCheck, type: 'success' });
+}
+
+function pushArchiveExceptionAction(acts: TableAction[], row: OpsException) {
+  if (!canHandle.value || row.status !== 'RESOLVED') return;
+  acts.push({
+    key: row.archived ? 'unarchive' : 'archive',
+    label: row.archived ? '取消归档' : '归档',
+    icon: FolderOpened,
+    overflow: true
+  });
+}
+
+function exceptionActions(row: OpsException): TableAction[] {
+  // 对齐库存健康：主区放详情/设备/处理，次要进「更多」
+  const acts: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
+  if (row.deviceId && canAccessPath('/devices')) {
+    acts.push({ key: 'device', label: '设备', icon: Monitor });
   }
+  pushOpenExceptionActions(acts, row);
+  pushResolveExceptionAction(acts, row);
+  pushArchiveExceptionAction(acts, row);
   if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
     acts.push({ key: 'video', label: '录像', icon: VideoCamera, type: 'warning', overflow: true });
   }

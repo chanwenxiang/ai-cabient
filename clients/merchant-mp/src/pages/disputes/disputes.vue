@@ -268,66 +268,91 @@ function canReplyTicket(item: MerchantDisputeTicket) {
   return canReply.value && (item.status || '').toUpperCase() === 'OPEN';
 }
 
+async function refreshDisputesMerchantMe(seq: number): Promise<boolean> {
+  try {
+    await refreshMe();
+  } catch {
+    if (!uni.getStorageSync('merchant_token')) return false;
+    me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+  }
+  if (seq !== loadSeq) return false;
+  if (!me.value) {
+    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+  }
+  return true;
+}
+
+function applyDisputesResponse(
+  res: MerchantDisputeTicket[] | { items?: MerchantDisputeTicket[]; total?: number }
+) {
+  if (Array.isArray(res)) {
+    list.value = res;
+    listTotal.value = res.length;
+  } else {
+    list.value = res?.items || [];
+    listTotal.value = res?.total ?? list.value.length;
+  }
+  pageIndex.value = 0;
+  hasMore.value = list.value.length < listTotal.value;
+}
+
+function denyDisputesAccess() {
+  uni.showToast({ title: '无争议权限', icon: 'none' });
+  uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
+}
+
+async function fetchDisputesList(seq: number) {
+  const res = await merchantApi.disputes(activeTab.value, 0, 100);
+  if (seq !== loadSeq) return;
+  applyDisputesResponse(res);
+  await handlePendingSessionId();
+  await handlePendingTicketId();
+}
+
+async function handlePendingSessionId() {
+  if (!pendingSessionId.value) return;
+  const sid = pendingSessionId.value;
+  pendingSessionId.value = '';
+  const matched = list.value.filter((t) => t.sessionId === sid);
+  if (matched.length === 1) {
+    onDetail(matched[0]);
+  } else if (matched.length > 1) {
+    list.value = matched;
+    listTotal.value = matched.length;
+  }
+}
+
+async function handlePendingTicketId() {
+  if (!pendingTicketId.value) return;
+  const tid = pendingTicketId.value;
+  pendingTicketId.value = '';
+  let row = list.value.find((t) => t.ticketId === tid);
+  if (!row) {
+    try {
+      const detailRes = await merchantApi.disputeDetail(tid);
+      row = detailRes?.ticket;
+    } catch {
+      row = undefined;
+    }
+  }
+  if (row) onDetail(row);
+}
+
 async function load() {
   if (!uni.getStorageSync('merchant_token')) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
   const seq = ++loadSeq;
-  try {
-    await refreshMe();
-  } catch {
-    if (!uni.getStorageSync('merchant_token')) return;
-    me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
-  }
-  if (seq !== loadSeq) return;
-  if (!me.value) {
-    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
-  }
+  if (!(await refreshDisputesMerchantMe(seq))) return;
   if (!canListDisputes.value) {
-    uni.showToast({ title: '无争议权限', icon: 'none' });
-    uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
+    denyDisputesAccess();
     return;
   }
   if (!list.value.length) loading.value = true;
   error.value = '';
   try {
-    const res = await merchantApi.disputes(activeTab.value, 0, 100);
-    if (seq !== loadSeq) return;
-    if (Array.isArray(res)) {
-      list.value = res;
-      listTotal.value = res.length;
-    } else {
-      list.value = res?.items || [];
-      listTotal.value = res?.total ?? list.value.length;
-    }
-    pageIndex.value = 0;
-    hasMore.value = list.value.length < listTotal.value;
-    if (pendingSessionId.value) {
-      const sid = pendingSessionId.value;
-      pendingSessionId.value = '';
-      const matched = list.value.filter((t) => t.sessionId === sid);
-      if (matched.length === 1) {
-        onDetail(matched[0]);
-      } else if (matched.length > 1) {
-        list.value = matched;
-        listTotal.value = matched.length;
-      }
-    }
-    if (pendingTicketId.value) {
-      const tid = pendingTicketId.value;
-      pendingTicketId.value = '';
-      let row = list.value.find((t) => t.ticketId === tid);
-      if (!row) {
-        try {
-          const detail = await merchantApi.disputeDetail(tid);
-          row = detail?.ticket;
-        } catch {
-          row = undefined;
-        }
-      }
-      if (row) onDetail(row);
-    }
+    await fetchDisputesList(seq);
   } catch (e) {
     if (seq !== loadSeq) return;
     list.value = [];

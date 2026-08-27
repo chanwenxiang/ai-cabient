@@ -1641,6 +1641,48 @@ const { onExport: exportExpiry } = useListCsv({
     ])
 });
 
+async function exportRequestsFull() {
+  try {
+    await downloadAuthFile(
+      '/api/v2/ops/admin/replenishment/requests/export',
+      csvFileName('商户要货')
+    );
+    ElMessage.success('已导出');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '导出失败');
+  }
+}
+
+async function exportRoutesFull() {
+  try {
+    await downloadAuthFile(
+      '/api/v2/ops/admin/replenishment/routes/export',
+      csvFileName('补货路线')
+    );
+    ElMessage.success('已导出');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '导出失败');
+  }
+}
+
+async function exportRequestsTab() {
+  const selected = pickRequests(requests.value);
+  if (selected.length && selected.length < requests.value.length) {
+    exportRequests();
+    return;
+  }
+  await exportRequestsFull();
+}
+
+async function exportRoutesTab() {
+  const selected = pickRoutes(routes.value);
+  if (selected.length && selected.length < routes.value.length) {
+    exportRoutes();
+    return;
+  }
+  await exportRoutesFull();
+}
+
 async function onExport() {
   if (tab.value === 'shortage') {
     exportShortages();
@@ -1655,36 +1697,10 @@ async function onExport() {
     return;
   }
   if (tab.value === 'requests') {
-    const selected = pickRequests(requests.value);
-    if (selected.length && selected.length < requests.value.length) {
-      exportRequests();
-      return;
-    }
-    try {
-      await downloadAuthFile(
-        '/api/v2/ops/admin/replenishment/requests/export',
-        csvFileName('商户要货')
-      );
-      ElMessage.success('已导出');
-    } catch (e) {
-      ElMessage.error(e instanceof Error ? e.message : '导出失败');
-    }
+    await exportRequestsTab();
     return;
   }
-  const selected = pickRoutes(routes.value);
-  if (selected.length && selected.length < routes.value.length) {
-    exportRoutes();
-    return;
-  }
-  try {
-    await downloadAuthFile(
-      '/api/v2/ops/admin/replenishment/routes/export',
-      csvFileName('补货路线')
-    );
-    ElMessage.success('已导出');
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '导出失败');
-  }
+  await exportRoutesTab();
 }
 
 function currentAssigneeId() {
@@ -2552,6 +2568,52 @@ async function createPlan() {
   }
 }
 
+async function acceptReplenishmentRequest(row: Row) {
+  const linesPreview = formatRequestLines(row);
+  await ElMessageBox.confirm(
+    `确认接单要货 ${row.requestId}？\n设备：${deviceName(row.deviceId)}（${row.deviceId}）\n明细：${linesPreview}`,
+    '接单',
+    { type: 'warning', confirmButtonText: '确认接单' }
+  );
+  const accepted = await api.request<{
+    requestId?: number;
+    outboundId?: number | null;
+    replenishmentTaskId?: number | null;
+    reviewerId?: number;
+    reviewerName?: string;
+    reviewedAt?: string;
+    status?: string;
+  }>(`/api/v2/ops/admin/replenishment/requests/${row.requestId}/accept`, 'POST');
+  if (accepted?.outboundId) {
+    ElMessage.success(
+      `已接单，出库 ${accepted.outboundId}，补货任务 ${accepted.replenishmentTaskId ?? '无'}`
+    );
+  } else {
+    ElMessage.success(
+      `已接单，无仓配库存，已建现场补货任务 ${accepted?.replenishmentTaskId ?? '无'}`
+    );
+  }
+}
+
+async function rejectReplenishmentRequest(row: Row) {
+  const { value } = await ElMessageBox.prompt('请填写驳回原因', '驳回要货', {
+    inputValidator: (v) => !!String(v || '').trim() || '必须填写原因',
+    confirmButtonText: '确认驳回',
+    type: 'warning'
+  });
+  await api.request(`/api/v2/ops/admin/replenishment/requests/${row.requestId}/reject`, 'POST', {
+    reason: value
+  });
+  ElMessage.success('已驳回');
+}
+
+function refreshRequestFlowDrawer(row: Row) {
+  if (!requestFlowDrawer.value || requestFlowRow.value?.requestId !== row.requestId) return;
+  const updated = allRequests.value.find((r) => r.requestId === row.requestId);
+  if (updated) requestFlowRow.value = updated;
+  else requestFlowDrawer.value = false;
+}
+
 async function onRequestAction(row: Row, key: string) {
   try {
     if (key === 'flow') {
@@ -2563,51 +2625,12 @@ async function onRequestAction(row: Row, key: string) {
       return;
     }
     if (key === 'accept') {
-      const linesPreview = formatRequestLines(row);
-      await ElMessageBox.confirm(
-        `确认接单要货 ${row.requestId}？\n设备：${deviceName(row.deviceId)}（${row.deviceId}）\n明细：${linesPreview}`,
-        '接单',
-        { type: 'warning', confirmButtonText: '确认接单' }
-      );
-      const accepted = await api.request<{
-        requestId?: number;
-        outboundId?: number | null;
-        replenishmentTaskId?: number | null;
-        reviewerId?: number;
-        reviewerName?: string;
-        reviewedAt?: string;
-        status?: string;
-      }>(`/api/v2/ops/admin/replenishment/requests/${row.requestId}/accept`, 'POST');
-      if (accepted?.outboundId) {
-        ElMessage.success(
-          `已接单，出库 ${accepted.outboundId}，补货任务 ${accepted.replenishmentTaskId ?? '无'}`
-        );
-      } else {
-        ElMessage.success(
-          `已接单，无仓配库存，已建现场补货任务 ${accepted?.replenishmentTaskId ?? '无'}`
-        );
-      }
+      await acceptReplenishmentRequest(row);
     } else if (key === 'reject') {
-      const { value } = await ElMessageBox.prompt('请填写驳回原因', '驳回要货', {
-        inputValidator: (v) => !!String(v || '').trim() || '必须填写原因',
-        confirmButtonText: '确认驳回',
-        type: 'warning'
-      });
-      await api.request(
-        `/api/v2/ops/admin/replenishment/requests/${row.requestId}/reject`,
-        'POST',
-        {
-          reason: value
-        }
-      );
-      ElMessage.success('已驳回');
+      await rejectReplenishmentRequest(row);
     }
     await loadTab(tab.value, true);
-    if (requestFlowDrawer.value && requestFlowRow.value?.requestId === row.requestId) {
-      const updated = allRequests.value.find((r) => r.requestId === row.requestId);
-      if (updated) requestFlowRow.value = updated;
-      else requestFlowDrawer.value = false;
-    }
+    refreshRequestFlowDrawer(row);
   } catch (e: any) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '操作失败');

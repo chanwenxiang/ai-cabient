@@ -12,6 +12,11 @@ import { api, isLoggedIn } from '@/api/client';
  */
 export const dictRuntimeEpoch = ref(0);
 
+/** 供 computed / 字典函数建立响应式依赖，替代裸读 epoch 或 void 运算符。 */
+export function consumeDictRuntimeEpoch(): number {
+  return dictRuntimeEpoch.value;
+}
+
 function bumpDictRuntime() {
   dictRuntimeEpoch.value += 1;
 }
