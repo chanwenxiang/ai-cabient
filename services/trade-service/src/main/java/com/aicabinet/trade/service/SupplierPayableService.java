@@ -109,19 +109,16 @@ public class SupplierPayableService {
         permissionService.requirePermission(operatorId, PERM_OPS_PROCUREMENT_LIST);
         Map<String, long[]> agg = new LinkedHashMap<>(); // supplierId -> [count, balance, overdueBalance]
         for (SupplierPayable p : payableRepository.findAll()) {
-            if (supplierId != null && !supplierId.isBlank()
-                    && !supplierId.trim().equals(p.getSupplierId())) {
-                continue;
-            }
-            long balance = balance(p);
-            if (balance <= 0) {
-                continue;
-            }
-            long[] row = agg.computeIfAbsent(p.getSupplierId(), k -> new long[3]);
-            row[0]++;
-            row[1] += balance;
-            if (isOverdue(p)) {
-                row[2] += balance;
+            if (supplierId == null || supplierId.isBlank() || supplierId.trim().equals(p.getSupplierId())) {
+                long bal = balance(p);
+                if (bal > 0) {
+                    long[] row = agg.computeIfAbsent(p.getSupplierId(), k -> new long[3]);
+                    row[0]++;
+                    row[1] += bal;
+                    if (isOverdue(p)) {
+                        row[2] += bal;
+                    }
+                }
             }
         }
         List<SupplierPayableSummaryDto> out = new ArrayList<>();

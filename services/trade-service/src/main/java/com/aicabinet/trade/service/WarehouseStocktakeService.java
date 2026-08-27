@@ -232,20 +232,17 @@ public class WarehouseStocktakeService {
                 : null;
         List<WarehouseStocktakeLine> lines = lineRepository.findByStocktakeIdOrderByLineIdAsc(stocktakeId);
         for (WarehouseStocktakeLine line : lines) {
-            if (line.getCountedQty() == null || line.getDiffQty() == 0
-                    || ADJUSTED.equals(line.getStatus())) {
-                continue;
+            if (line.getCountedQty() != null && line.getDiffQty() != 0
+                    && !ADJUSTED.equals(line.getStatus())
+                    && (selected == null || selected.contains(line.getLineId()))) {
+                warehouseService.adjustStocktake(
+                        st.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
+                        line.getProductionDate(), line.getExpiryDate(),
+                        line.getBookQty(), line.getCountedQty(), operatorId, st.getStocktakeId());
+                line.setStatus(ADJUSTED);
+                line.setAdjustedAt(Instant.now());
+                lineRepository.save(line);
             }
-            if (selected != null && !selected.contains(line.getLineId())) {
-                continue;
-            }
-            warehouseService.adjustStocktake(
-                    st.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
-                    line.getProductionDate(), line.getExpiryDate(),
-                    line.getBookQty(), line.getCountedQty(), operatorId, st.getStocktakeId());
-            line.setStatus(ADJUSTED);
-            line.setAdjustedAt(Instant.now());
-            lineRepository.save(line);
         }
         refreshTotals(st);
         boolean anyDiffLeft = lines.stream().anyMatch(l -> l.getCountedQty() != null
@@ -305,18 +302,16 @@ public class WarehouseStocktakeService {
             bySku.put(line.getSkuId().toUpperCase(Locale.ROOT), line);
         }
         for (VisionServiceClient.RecognizedItem item : result.items()) {
-            if (item.skuId() == null || item.confidence() < MIN_VISION_CONFIDENCE) {
-                continue;
+            if (item.skuId() != null && item.confidence() >= MIN_VISION_CONFIDENCE) {
+                WarehouseStocktakeLine line = bySku.get(item.skuId().trim().toUpperCase(Locale.ROOT));
+                if (line != null) {
+                    int counted = Math.max(0, item.quantity());
+                    line.setCountedQty(counted);
+                    line.setDiffQty(counted - line.getBookQty());
+                    line.setStatus(line.getDiffQty() == 0 ? MATCHED : "DIFF");
+                    lineRepository.save(line);
+                }
             }
-            WarehouseStocktakeLine line = bySku.get(item.skuId().trim().toUpperCase(Locale.ROOT));
-            if (line == null) {
-                continue;
-            }
-            int counted = Math.max(0, item.quantity());
-            line.setCountedQty(counted);
-            line.setDiffQty(counted - line.getBookQty());
-            line.setStatus(line.getDiffQty() == 0 ? MATCHED : "DIFF");
-            lineRepository.save(line);
         }
         if (CabinetConstants.PROMOTION_STATUS_DRAFT.equals(st.getStatus())) {
             st.setStatus(STATUS_IN_PROGRESS);

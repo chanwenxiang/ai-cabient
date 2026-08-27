@@ -92,13 +92,9 @@ public class RestockSnapshotService {
                                 String refId) {
         Map<String, Integer> skuNet = new HashMap<>();
         for (GravityDeltaRequest.GravityDeltaItem delta : deltas) {
-            if (delta.slotId() != null && !delta.slotId().isBlank()) {
-                continue;
+            if ((delta.slotId() == null || delta.slotId().isBlank()) && delta.delta() != 0) {
+                skuNet.merge(delta.skuId(), delta.delta(), Integer::sum);
             }
-            if (delta.delta() == 0) {
-                continue;
-            }
-            skuNet.merge(delta.skuId(), delta.delta(), Integer::sum);
         }
         if (skuNet.isEmpty()) {
             return deviceSlotService.syncPhysicalFromBook(deviceId, refId);
