@@ -151,9 +151,9 @@ public class WarehouseBinService {
         }
         WarehouseBin bin = requireActiveBin(wh, binCode);
         runWithBinStockLock(bin.getBinId(), skuId, batchNo, () -> {
-            warehouseService.binStockChange(wh, skuId, batchNo,
-                    request.productionDate(), request.expiryDate(), qty,
-                    operatorId, "BIN_INBOUND", String.valueOf(bin.getBinId()));
+            warehouseService.binStockChange(new WarehouseService.BinStockChangeCommand(
+                    wh, new WarehouseService.LotSpec(skuId, batchNo, request.productionDate(), request.expiryDate()),
+                    qty, operatorId, "BIN_INBOUND", String.valueOf(bin.getBinId())));
             doAddBinStock(bin.getBinId(), skuId, batchNo,
                     request.productionDate(), request.expiryDate(), qty);
             return null;

@@ -4,13 +4,8 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.api.support.AdminDashboardControllerSupport;
 import com.aicabinet.trade.service.AdminDashboardService;
-import com.aicabinet.trade.service.AdminDeviceOpsService;
-import com.aicabinet.trade.service.DeviceAssetService;
-import com.aicabinet.trade.service.DisputeService;
-import com.aicabinet.trade.service.FileAttachmentService;
-import com.aicabinet.trade.service.UnpaidOrderService;
-import com.aicabinet.trade.support.CacheService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
@@ -30,51 +25,27 @@ public class AdminDashboardController {
 
 
     private final AdminDashboardService adminService;
-    private final CacheService cacheService;
-    private final DisputeService disputeService;
-    private final AdminDeviceOpsService deviceOpsService;
-    private final UnpaidOrderService unpaidOrderService;
-    private final DeviceAssetService deviceAssetService;
-    private final FileAttachmentService fileAttachmentService;
-    private final com.aicabinet.trade.service.DeviceQrService deviceQrService;
-    private final com.aicabinet.trade.config.SecurityProperties securityProperties;
-    private final com.aicabinet.trade.service.SystemConfigService systemConfigService;
+    private final AdminDashboardControllerSupport support;
 
     public AdminDashboardController(AdminDashboardService adminService,
-                                    CacheService cacheService,
-                                    DisputeService disputeService,
-                                    AdminDeviceOpsService deviceOpsService,
-                                    UnpaidOrderService unpaidOrderService,
-                                    DeviceAssetService deviceAssetService,
-                                    FileAttachmentService fileAttachmentService,
-                                    com.aicabinet.trade.service.DeviceQrService deviceQrService,
-                                    com.aicabinet.trade.config.SecurityProperties securityProperties,
-                                    com.aicabinet.trade.service.SystemConfigService systemConfigService) {
+                                    AdminDashboardControllerSupport support) {
         this.adminService = adminService;
-        this.cacheService = cacheService;
-        this.disputeService = disputeService;
-        this.deviceOpsService = deviceOpsService;
-        this.unpaidOrderService = unpaidOrderService;
-        this.deviceAssetService = deviceAssetService;
-        this.fileAttachmentService = fileAttachmentService;
-        this.deviceQrService = deviceQrService;
-        this.securityProperties = securityProperties;
-        this.systemConfigService = systemConfigService;
+        this.support = support;
     }
 
     @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/stats")
     public ApiResponse<AdminStatsDto> stats(HttpServletRequest request) {
         Long opId = operatorId(request);
-        return ApiResponse.ok(cacheService.get("dashboard:stats", String.valueOf(opId), 30_000L, () -> adminService.stats(opId)));
+        return ApiResponse.ok(support.cacheService().get("dashboard:stats", String.valueOf(opId), 30_000L, () -> adminService.stats(opId)));
     }
 
     /** 大屏/分析：演示数据口径提示（mock 且配置开启时）。 */
     @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/data-scope")
     public ApiResponse<DataScopeDto> dataScope(HttpServletRequest request) {
-        boolean mock = securityProperties.mockEnabled();
-        boolean banner = systemConfigService.getBoolean("ops.demo_data_banner", true);
+        boolean mock = support.securityProperties().mockEnabled();
+        boolean banner = support.systemConfigService().getBoolean("ops.demo_data_banner", true);
         boolean demo = mock && banner;
         return ApiResponse.ok(new DataScopeDto(
                 demo,
@@ -86,7 +57,7 @@ public class AdminDashboardController {
     @GetMapping("/workbench")
     public ApiResponse<OpsWorkbenchDto> workbench(HttpServletRequest request) {
         Long opId = operatorId(request);
-        return ApiResponse.ok(cacheService.get("dashboard:workbench", String.valueOf(opId), 30_000L, () -> adminService.workbench(opId)));
+        return ApiResponse.ok(support.cacheService().get("dashboard:workbench", String.valueOf(opId), 30_000L, () -> adminService.workbench(opId)));
     }
 
     /** 工作台聚合：stats + workbench + 待处理异常数，一次请求。 */
@@ -103,7 +74,7 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @RequestParam(name = "days", defaultValue = "7") int days) {
         Long opId = operatorId(request);
-        return ApiResponse.ok(cacheService.get("dashboard:trend", opId + ":" + days, 60_000L, () -> adminService.orderTrend(opId, days)));
+        return ApiResponse.ok(support.cacheService().get("dashboard:trend", opId + ":" + days, 60_000L, () -> adminService.orderTrend(opId, days)));
     }
 
     @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
@@ -120,7 +91,7 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @RequestParam(name = "days", defaultValue = "7") int days) {
         Long opId = operatorId(request);
-        return ApiResponse.ok(cacheService.get(
+        return ApiResponse.ok(support.cacheService().get(
                 "dashboard:channels",
                 opId + ":" + days,
                 60_000L,
@@ -151,7 +122,8 @@ public class AdminDashboardController {
             @RequestParam(name = "coopMode", required = false) String coopMode,
             @RequestParam(name = "routeCode", required = false) String routeCode) {
         return ApiResponse.ok(adminService.listDevicesPaged(
-                operatorId(request), page, size, q, online, salesLocked, lifecycleStatus, coopMode, routeCode));
+                operatorId(request), new AdminDashboardService.DeviceListQuery(
+                        page, size, q, online, salesLocked, lifecycleStatus, coopMode, routeCode)));
     }
 
     @RequiresPermissions("ops:device:edit")
@@ -160,7 +132,7 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @PathVariable("deviceId") String deviceId,
             @Valid @RequestBody DeviceOpsCommandRequest body) {
-        return ApiResponse.ok(deviceOpsService.execute(operatorId(request), deviceId, body));
+        return ApiResponse.ok(support.deviceOpsService().execute(operatorId(request), deviceId, body));
     }
 
     @RequiresPermissions(value = {"ops:device:create", "ops:device:edit"}, logical = RequiresPermissions.Logical.OR)
@@ -185,7 +157,7 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @PathVariable("deviceId") String deviceId) {
         operatorId(request);
-        return ApiResponse.ok(deviceQrService.linkFor(deviceId));
+        return ApiResponse.ok(support.deviceQrService().linkFor(deviceId));
     }
 
     @RequiresPermissions("ops:device:list")
@@ -194,8 +166,8 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @PathVariable("deviceId") String deviceId) {
         operatorId(request);
-        DeviceQrLinkDto link = deviceQrService.linkFor(deviceId);
-        byte[] png = deviceQrService.pngFor(deviceId);
+        DeviceQrLinkDto link = support.deviceQrService().linkFor(deviceId);
+        byte[] png = support.deviceQrService().pngFor(deviceId);
         String filename = link.deviceId() + "-qr.png";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
@@ -218,7 +190,7 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @PathVariable("deviceId") String deviceId,
             @RequestBody DeviceLifecycleRequest body) {
-        deviceAssetService.applyLifecycle(operatorId(request), deviceId, body);
+        support.deviceAssetService().applyLifecycle(operatorId(request), deviceId, body);
         return ApiResponse.ok(adminService.getDevice(operatorId(request), deviceId));
     }
 
@@ -228,7 +200,7 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @PathVariable("deviceId") String deviceId,
             @RequestParam(name = "limit", defaultValue = "30") int limit) {
-        return ApiResponse.ok(deviceAssetService.listLifecycleEvents(operatorId(request), deviceId, limit));
+        return ApiResponse.ok(support.deviceAssetService().listLifecycleEvents(operatorId(request), deviceId, limit));
     }
 
     @RequiresPermissions(value = {"ops:session:list", "ops:session:upload"}, logical = RequiresPermissions.Logical.OR)
@@ -248,8 +220,9 @@ public class AdminDashboardController {
             @RequestParam(name = "stuckOnly", defaultValue = "false") boolean stuckOnly,
             @RequestParam(name = "stuckMinutes", defaultValue = "30") int stuckMinutes) {
         return ApiResponse.ok(adminService.listSessions(
-                operatorId(request), page, size, deviceId, state, sessionId, userId, from, to, q,
-                uploadStatus, stuckOnly, stuckMinutes));
+                operatorId(request), new AdminDashboardService.SessionListQuery(
+                        page, size, deviceId, state, sessionId, userId, from, to, q,
+                        uploadStatus, stuckOnly, stuckMinutes)));
     }
 
     @RequiresPermissions("ops:session:export")
@@ -266,8 +239,8 @@ public class AdminDashboardController {
             @RequestParam(name = "stuckOnly", defaultValue = "false") boolean stuckOnly,
             @RequestParam(name = "stuckMinutes", defaultValue = "30") int stuckMinutes) {
         byte[] csv = adminService.exportSessionsCsv(
-                operatorId(request), deviceId, state, sessionId, userId, from, to, q,
-                stuckOnly, stuckMinutes);
+                operatorId(request), new AdminDashboardService.SessionExportQuery(
+                        deviceId, state, sessionId, userId, from, to, q, stuckOnly, stuckMinutes));
         return csvAttachment("sessions.csv", csv);
     }
 
@@ -306,8 +279,9 @@ public class AdminDashboardController {
             @RequestParam(name = "to", required = false) Instant to,
             @RequestParam(name = "q", required = false) String q) {
         return ApiResponse.ok(adminService.listOrders(
-                operatorId(request), page, size, deviceId, status, Boolean.TRUE.equals(overdue),
-                orderId, userId, sessionId, payTradeNo, payChannel, from, to, q));
+                operatorId(request), new AdminDashboardService.OrderListQuery(
+                        page, size, deviceId, status, Boolean.TRUE.equals(overdue),
+                        orderId, userId, sessionId, payTradeNo, payChannel, from, to, q)));
     }
 
     @RequiresPermissions("ops:order:export")
@@ -326,8 +300,8 @@ public class AdminDashboardController {
             @RequestParam(name = "to", required = false) Instant to,
             @RequestParam(name = "q", required = false) String q) {
         byte[] csv = adminService.exportOrdersCsv(
-                operatorId(request), deviceId, status, mode,
-                orderId, userId, sessionId, payTradeNo, payChannel, from, to, q);
+                operatorId(request), new AdminDashboardService.OrderExportQuery(
+                        deviceId, status, mode, orderId, userId, sessionId, payTradeNo, payChannel, from, to, q));
         String filename = "lines".equalsIgnoreCase(mode) || "product".equalsIgnoreCase(mode)
                 ? "order-lines.csv" : "orders.csv";
         return csvAttachment(filename, csv);
@@ -399,7 +373,7 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @PathVariable("orderId") String orderId,
             @Valid @RequestBody OrderRefundRequest body) {
-        return ApiResponse.ok(disputeService.refundByOperator(operatorId(request), orderId, body));
+        return ApiResponse.ok(support.disputeService().refundByOperator(operatorId(request), orderId, body));
     }
 
     @RequiresPermissions("ops:order:remind")
@@ -407,7 +381,7 @@ public class AdminDashboardController {
     public ApiResponse<UnpaidOrderActionResultDto> remindUnpaidOrder(
             HttpServletRequest request,
             @PathVariable("orderId") String orderId) {
-        return ApiResponse.ok(unpaidOrderService.remind(operatorId(request), orderId));
+        return ApiResponse.ok(support.unpaidOrderService().remind(operatorId(request), orderId));
     }
 
     @RequiresPermissions("ops:order:cancel")
@@ -416,7 +390,7 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @PathVariable("orderId") String orderId,
             @Valid @RequestBody CancelUnpaidOrderRequest body) {
-        return ApiResponse.ok(unpaidOrderService.cancel(operatorId(request), orderId, body));
+        return ApiResponse.ok(support.unpaidOrderService().cancel(operatorId(request), orderId, body));
     }
 
     @RequiresPermissions(value = {"ops:order:remind", "ops:order:cancel", "ops:order:refund"},
@@ -425,7 +399,7 @@ public class AdminDashboardController {
     public ApiResponse<OrderDto> collectUnpaidOrder(
             HttpServletRequest request,
             @PathVariable("orderId") String orderId) {
-        return ApiResponse.ok(unpaidOrderService.collect(operatorId(request), orderId));
+        return ApiResponse.ok(support.unpaidOrderService().collect(operatorId(request), orderId));
     }
 
     @RequiresPermissions(value = {"ops:sku:list", "ops:replenishment:list", "ops:warehouse:list"}, logical = RequiresPermissions.Logical.OR)
@@ -445,7 +419,7 @@ public class AdminDashboardController {
     @GetMapping("/devices/ref")
     public ApiResponse<List<DeviceRefDto>> deviceRefs(HttpServletRequest request) {
         Long opId = operatorId(request);
-        return ApiResponse.ok(cacheService.get(
+        return ApiResponse.ok(support.cacheService().get(
                 "admin:devices:ref",
                 String.valueOf(opId),
                 60_000L,
@@ -458,7 +432,7 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @Valid @RequestBody UpsertSkuRequest body) {
         SkuCatalogDto created = adminService.createSku(operatorId(request), body);
-        cacheService.evict(ADMIN_SKUS);
+        support.cacheService().evict(ADMIN_SKUS);
         return ApiResponse.ok(created);
     }
 
@@ -469,7 +443,7 @@ public class AdminDashboardController {
             @PathVariable("skuId") String skuId,
             @Valid @RequestBody UpsertSkuRequest body) {
         SkuCatalogDto updated = adminService.updateSku(operatorId(request), skuId, body);
-        cacheService.evict(ADMIN_SKUS);
+        support.cacheService().evict(ADMIN_SKUS);
         return ApiResponse.ok(updated);
     }
 
@@ -478,14 +452,14 @@ public class AdminDashboardController {
     public ApiResponse<FileAttachmentDto> uploadSkuImage(
             HttpServletRequest request,
             @RequestPart("file") MultipartFile file) {
-        return ApiResponse.ok(fileAttachmentService.uploadSkuImage(operatorId(request), file));
+        return ApiResponse.ok(support.fileAttachmentService().uploadSkuImage(operatorId(request), file));
     }
 
     @RequiresPermissions("ops:report:device")
     @GetMapping("/reports/devices")
     public ApiResponse<List<AdminDeviceReportDto>> deviceReports(HttpServletRequest request) {
         Long opId = operatorId(request);
-        return ApiResponse.ok(cacheService.get("admin:reports", "all", 60_000L, () -> adminService.deviceReports(opId)));
+        return ApiResponse.ok(support.cacheService().get("admin:reports", "all", 60_000L, () -> adminService.deviceReports(opId)));
     }
 
     @RequiresPermissions("ops:audit:list")

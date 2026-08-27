@@ -127,10 +127,10 @@ public class WarehouseTransferService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "调拨单无明细");
         }
         for (WarehouseTransferLine line : lines) {
-            warehouseService.binStockChange(
-                    order.getFromWarehouseId(), line.getSkuId(), line.getBatchNo(),
-                    null, line.getExpiryDate(), -line.getQuantity(), operatorId,
-                    "TRANSFER_OUT", String.valueOf(transferId));
+            warehouseService.binStockChange(new WarehouseService.BinStockChangeCommand(
+                    order.getFromWarehouseId(),
+                    new WarehouseService.LotSpec(line.getSkuId(), line.getBatchNo(), null, line.getExpiryDate()),
+                    -line.getQuantity(), operatorId, "TRANSFER_OUT", String.valueOf(transferId)));
         }
         order.setStatus("SHIPPED");
         order.setShippedAt(Instant.now());
@@ -152,10 +152,10 @@ public class WarehouseTransferService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "仅已发运可收货");
         }
         for (WarehouseTransferLine line : lineMapper.findByTransferId(transferId)) {
-            warehouseService.binStockChange(
-                    order.getToWarehouseId(), line.getSkuId(), line.getBatchNo(),
-                    null, line.getExpiryDate(), line.getQuantity(), operatorId,
-                    "TRANSFER_IN", String.valueOf(transferId));
+            warehouseService.binStockChange(new WarehouseService.BinStockChangeCommand(
+                    order.getToWarehouseId(),
+                    new WarehouseService.LotSpec(line.getSkuId(), line.getBatchNo(), null, line.getExpiryDate()),
+                    line.getQuantity(), operatorId, "TRANSFER_IN", String.valueOf(transferId)));
         }
         order.setStatus("RECEIVED");
         order.setReceivedAt(Instant.now());

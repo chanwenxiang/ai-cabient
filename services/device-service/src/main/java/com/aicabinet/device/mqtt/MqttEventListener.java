@@ -219,9 +219,9 @@ public class MqttEventListener implements MqttCallbackExtended {
             return;
         }
         try {
-            tradeServiceClient.notifyDoorEvent(
-                    sessionId, deviceId, doorState, videoUri, uploadStatus, videoClipsJson, cameraFusionMode,
-                    gravityDeltasJson);
+            tradeServiceClient.notifyDoorEvent(new com.aicabinet.common.dto.DoorEventRequest(
+                    sessionId, deviceId, doorState, System.currentTimeMillis(),
+                    videoUri, uploadStatus, videoClipsJson, cameraFusionMode, gravityDeltasJson));
             metrics.recordDoorForwarded();
         } catch (Exception e) {
             metrics.recordTradeFailure();

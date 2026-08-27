@@ -38,7 +38,8 @@ public class DisputeController {
             @RequestParam(name = "reviewCode", required = false) String reviewCode) {
         Long operatorId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return ApiResponse.ok(disputeService.listTickets(
-                operatorId, page, size, status, sessionId, deviceId, orderId, category, reviewCode));
+                operatorId, new DisputeService.DisputeTicketListQuery(
+                        page, size, status, sessionId, deviceId, orderId, category, reviewCode)));
     }
 
     @RequiresPermissions("ops:dispute")

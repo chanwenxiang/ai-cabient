@@ -102,14 +102,7 @@ public class ReplenishmentTimeoutScheduler {
         finalizeRouteIfReady(task.getRouteId());
 
         opsExceptionService.report(
-                "RESTOCK_TASK_TIMEOUT",
-                hasApplied ? "HIGH" : "MEDIUM",
-                task.getDeviceId(),
-                null,
-                null,
-                null,
-                "补货任务超时",
-                "任务 #" + taskId + " 已签到超时自动取消"
+                "RESTOCK_TASK_TIMEOUT", hasApplied ? "HIGH" : "MEDIUM", new OpsExceptionService.ExceptionReport.ExceptionRefs(task.getDeviceId(), null, null, null), "补货任务超时", "任务 #" + taskId + " 已签到超时自动取消"
                         + (hasApplied ? "（存在已上架明细，请核对库存）" : ""));
         log.warn("stale replenishment task cancelled taskId={} device={} hasApplied={}",
                 taskId, task.getDeviceId(), hasApplied);

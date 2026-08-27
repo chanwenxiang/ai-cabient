@@ -256,10 +256,10 @@ public class CompetitiveGapService {
         }
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
-        var result = deviceOpsEventMapper.search(
+        var result = deviceOpsEventMapper.search(new DeviceOpsEventMapper.DeviceOpsEventSearchCriteria(
                 allowed, eventType, severity, deviceId,
                 Instant.now().minusSeconds(86400L * 14), Instant.now(),
-                p, s, eventIdAsc);
+                p, s, eventIdAsc));
         Set<String> nameIds = result.getRecords().stream()
                 .map(DeviceOpsEvent::getDeviceId)
                 .filter(Objects::nonNull)

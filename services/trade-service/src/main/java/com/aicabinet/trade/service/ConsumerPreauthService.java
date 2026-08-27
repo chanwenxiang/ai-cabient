@@ -123,9 +123,9 @@ public class ConsumerPreauthService {
         session.setPreauthCents(amount);
         session.setPreauthStatus(STATUS_FROZEN);
         sessionRepository.save(session);
-        balanceLedgerService.recordFreezeOnly(session.getUserId(), amount, "PREAUTH_FREEZE",
-                session.getSessionId(), "PREAUTH_FREEZE:" + session.getSessionId(),
-                "开门预授权冻结", account.getBalanceCents(), account.getBalanceCents());
+        balanceLedgerService.recordFreezeOnly(session.getUserId(), new BalanceLedgerService.BalanceFreezeCommand(
+                amount, "PREAUTH_FREEZE", session.getSessionId(), "PREAUTH_FREEZE:" + session.getSessionId(),
+                "开门预授权冻结", account.getBalanceCents(), account.getBalanceCents()));
         log.info("preauth frozen session={} user={} amount={}",
                 session.getSessionId(), session.getUserId(), amount);
     }
@@ -167,9 +167,9 @@ public class ConsumerPreauthService {
             account.setFrozenCents(frozen - release);
             accountRepository.save(account);
             if (release > 0) {
-                balanceLedgerService.recordFreezeOnly(session.getUserId(), release, "PREAUTH_RELEASE",
-                        session.getSessionId(), "PREAUTH_RELEASE:" + session.getSessionId(),
-                        "开门预授权释放", account.getBalanceCents(), account.getBalanceCents());
+                balanceLedgerService.recordFreezeOnly(session.getUserId(), new BalanceLedgerService.BalanceFreezeCommand(
+                        release, "PREAUTH_RELEASE", session.getSessionId(), "PREAUTH_RELEASE:" + session.getSessionId(),
+                        "开门预授权释放", account.getBalanceCents(), account.getBalanceCents()));
             }
         }
         session.setPreauthStatus(STATUS_RELEASED);
@@ -218,16 +218,16 @@ public class ConsumerPreauthService {
         }
         accountRepository.save(account);
         if (capture > 0) {
-            balanceLedgerService.recordFreezeOnly(session.getUserId(), capture, "PREAUTH_CAPTURE",
-                    session.getSessionId(),
+            balanceLedgerService.recordFreezeOnly(session.getUserId(), new BalanceLedgerService.BalanceFreezeCommand(
+                    capture, "PREAUTH_CAPTURE", session.getSessionId(),
                     "PREAUTH_CAPTURE:" + session.getSessionId() + ":" + capture,
-                    "开门预授权冲抵订单", before, account.getBalanceCents());
+                    "开门预授权冲抵订单", before, account.getBalanceCents()));
         }
         if (release > 0) {
-            balanceLedgerService.recordFreezeOnly(session.getUserId(), release, "PREAUTH_RELEASE",
-                    session.getSessionId(),
+            balanceLedgerService.recordFreezeOnly(session.getUserId(), new BalanceLedgerService.BalanceFreezeCommand(
+                    release, "PREAUTH_RELEASE", session.getSessionId(),
                     "PREAUTH_RELEASE:" + session.getSessionId() + ":remain",
-                    "开门预授权剩余释放", account.getBalanceCents(), account.getBalanceCents());
+                    "开门预授权剩余释放", account.getBalanceCents(), account.getBalanceCents()));
         }
         session.setPreauthStatus(STATUS_CAPTURED);
         sessionRepository.save(session);

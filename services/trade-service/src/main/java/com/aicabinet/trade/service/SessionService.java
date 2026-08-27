@@ -702,15 +702,11 @@ public class SessionService {
             log.info("session completed session={} order={}", session.getSessionId(), order.orderId());
             cabinetMetrics.recordSettlementSuccess();
             if ("PENDING".equalsIgnoreCase(order.status())) {
-                opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", session.getDeviceId(),
-                        session.getSessionId(), order.orderId(), session.getUserId(),
-                        "订单待支付", "余额不足，已生成待支付订单，可催付或关单");
+                opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), order.orderId(), session.getUserId()), "订单待支付", "余额不足，已生成待支付订单，可催付或关单");
             }
         } catch (DisputeRequiredException e) {
             transition(session, SessionState.DISPUTED);
-            opsExceptionService.report("RECOGNITION_FAILED", "HIGH", session.getDeviceId(),
-                    session.getSessionId(), session.getOrderId(), session.getUserId(),
-                    "识别结果需人工审核", e.getMessage());
+            opsExceptionService.report("RECOGNITION_FAILED", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "识别结果需人工审核", e.getMessage());
             log.warn("session disputed session={}", session.getSessionId());
             cabinetMetrics.recordSettlementFailure();
             return toDto(session);
@@ -718,9 +714,7 @@ public class SessionService {
             // 兼容旧路径：若结算仍抛余额不足且未落单，则进争议
             session.setFailReason(e.getMessage());
             transition(session, SessionState.DISPUTED);
-            opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", session.getDeviceId(),
-                    session.getSessionId(), session.getOrderId(), session.getUserId(),
-                    LITERAL, e.getMessage());
+            opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), LITERAL, e.getMessage());
             log.warn("session balance insufficient session={}", session.getSessionId());
             cabinetMetrics.recordSettlementFailure();
             return toDto(session);
@@ -728,9 +722,7 @@ public class SessionService {
             if (e.getStatusCode() == HttpStatus.PRECONDITION_FAILED) {
                 session.setFailReason(e.getReason());
                 transition(session, SessionState.DISPUTED);
-                opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", session.getDeviceId(),
-                        session.getSessionId(), session.getOrderId(), session.getUserId(),
-                        LITERAL, e.getReason());
+                opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), LITERAL, e.getReason());
                 return toDto(session);
             }
             session.setFailReason(e.getReason());
@@ -741,17 +733,13 @@ public class SessionService {
             return toDto(session);
         } catch (RestClientException e) {
             log.error("vision/settle remote call failed session={}", session.getSessionId(), e);
-            opsExceptionService.report("RECOGNITION_UNAVAILABLE", "HIGH", session.getDeviceId(),
-                    session.getSessionId(), session.getOrderId(), session.getUserId(),
-                    "识别或结算服务不可用", e.getMessage());
+            opsExceptionService.report("RECOGNITION_UNAVAILABLE", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "识别或结算服务不可用", e.getMessage());
             transition(session, SessionState.FAILED);
             return toDto(session);
         } catch (RuntimeException e) {
             log.error("settle failed session={}", session.getSessionId(), e);
             cabinetMetrics.recordSettlementFailure();
-            opsExceptionService.report("SETTLEMENT_FAILED", "HIGH", session.getDeviceId(),
-                    session.getSessionId(), session.getOrderId(), session.getUserId(),
-                    "订单结算失败", e.getMessage());
+            opsExceptionService.report("SETTLEMENT_FAILED", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "订单结算失败", e.getMessage());
             session.setFailReason(ApiMessages.INTERNAL_ERROR);
             if (session.getState().canTransitionTo(SessionState.FAILED)) {
                 transition(session, SessionState.FAILED);
@@ -784,23 +772,17 @@ public class SessionService {
             transition(session, SessionState.COMPLETED);
             log.info("async session completed session={} order={}", sessionId, order.orderId());
             if ("PENDING".equalsIgnoreCase(order.status())) {
-                opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", session.getDeviceId(),
-                        session.getSessionId(), order.orderId(), session.getUserId(),
-                        "订单待支付", "余额不足，已生成待支付订单，可催付或关单");
+                opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), order.orderId(), session.getUserId()), "订单待支付", "余额不足，已生成待支付订单，可催付或关单");
             }
         } catch (DisputeRequiredException e) {
             transition(session, SessionState.DISPUTED);
-            opsExceptionService.report("RECOGNITION_FAILED", "HIGH", session.getDeviceId(),
-                    session.getSessionId(), session.getOrderId(), session.getUserId(),
-                    "识别结果需人工审核", e.getMessage());
+            opsExceptionService.report("RECOGNITION_FAILED", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "识别结果需人工审核", e.getMessage());
             log.warn("async session disputed session={}", sessionId);
             return;
         } catch (BalanceInsufficientException e) {
             session.setFailReason(e.getMessage());
             transition(session, SessionState.DISPUTED);
-            opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", session.getDeviceId(),
-                    session.getSessionId(), session.getOrderId(), session.getUserId(),
-                    LITERAL, e.getMessage());
+            opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), LITERAL, e.getMessage());
             log.warn("async session balance insufficient session={}", sessionId);
             return;
         } catch (ResponseStatusException e) {
@@ -812,9 +794,7 @@ public class SessionService {
             if (e.getStatusCode() == HttpStatus.PRECONDITION_FAILED) {
                 session.setFailReason(e.getReason());
                 transition(session, SessionState.DISPUTED);
-                opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", session.getDeviceId(),
-                        session.getSessionId(), session.getOrderId(), session.getUserId(),
-                        LITERAL, e.getReason());
+                opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), LITERAL, e.getReason());
                 log.warn("async session balance insufficient session={}", sessionId);
                 return;
             }
@@ -1007,8 +987,7 @@ public class SessionService {
                     s.setState(SessionState.CANCELLED);
                     repository.save(s);
                     cabinetMetrics.recordSessionState(SessionState.CANCELLED);
-                    opsExceptionService.report("OPEN_TIMEOUT", "HIGH", s.getDeviceId(), s.getSessionId(),
-                            s.getOrderId(), s.getUserId(), "开门超时", "开门命令在90秒内未得到设备响应");
+                    opsExceptionService.report("OPEN_TIMEOUT", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(s.getDeviceId(), s.getSessionId(), s.getOrderId(), s.getUserId()), "开门超时", "开门命令在90秒内未得到设备响应");
                     log.warn("opening session expired session={} device={}", s.getSessionId(), s.getDeviceId());
                 });
         if (!stale.isEmpty()) {
@@ -1050,9 +1029,7 @@ public class SessionService {
                     s.setState(SessionState.CANCELLED);
                     repository.save(s);
                     cabinetMetrics.recordSessionState(SessionState.CANCELLED);
-                    opsExceptionService.report("RESTOCK_SESSION_TIMEOUT", "MEDIUM", s.getDeviceId(),
-                            s.getSessionId(), s.getOrderId(), s.getUserId(),
-                            "补货会话超时", "补货开门后超过" + RESTOCK_SHOPPING_EXPIRE_MINUTES + "分钟未结束");
+                    opsExceptionService.report("RESTOCK_SESSION_TIMEOUT", "MEDIUM", new OpsExceptionService.ExceptionReport.ExceptionRefs(s.getDeviceId(), s.getSessionId(), s.getOrderId(), s.getUserId()), "补货会话超时", "补货开门后超过" + RESTOCK_SHOPPING_EXPIRE_MINUTES + "分钟未结束");
                     log.warn("restock shopping session expired session={} device={}",
                             s.getSessionId(), s.getDeviceId());
                 });
@@ -1149,9 +1126,7 @@ public class SessionService {
             repository.save(session);
             cabinetMetrics.recordSessionState(SessionState.FAILED);
         }
-        opsExceptionService.report("RECOGNITION_TIMEOUT", "HIGH", session.getDeviceId(),
-                session.getSessionId(), session.getOrderId(), session.getUserId(),
-                "识别超时", "关门后超过10分钟未完成识别结算");
+        opsExceptionService.report("RECOGNITION_TIMEOUT", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "识别超时", "关门后超过10分钟未完成识别结算");
         log.warn("识别超时会话已升级 session={} from={} to={}",
                 session.getSessionId(), from, session.getState());
     }
@@ -1169,9 +1144,7 @@ public class SessionService {
         session.setState(SessionState.COMPLETED);
         repository.save(session);
         cabinetMetrics.recordSessionState(SessionState.COMPLETED);
-        opsExceptionService.report("RESTOCK_RECOGNITION_TIMEOUT", "MEDIUM", session.getDeviceId(),
-                session.getSessionId(), session.getOrderId(), session.getUserId(),
-                "补货识别超时", "补货关门后超过10分钟未完成货道快照");
+        opsExceptionService.report("RESTOCK_RECOGNITION_TIMEOUT", "MEDIUM", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "补货识别超时", "补货关门后超过10分钟未完成货道快照");
         log.warn("restock recognizing session expired session={} device={}",
                 session.getSessionId(), session.getDeviceId());
     }

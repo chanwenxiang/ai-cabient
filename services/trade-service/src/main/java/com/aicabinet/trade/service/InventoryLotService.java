@@ -170,7 +170,8 @@ public class InventoryLotService {
                         lot.setStatus(DEPLETED);
                     }
                     lotRepository.save(lot);
-                    recordMovement(deviceId, skuId, lot.getBatchNo(), "SALE", -take, refType, refId, null);
+                    recordMovement(deviceId, skuId, new InventoryMovementCommand(
+                            lot.getBatchNo(), "SALE", -take, new LotMovementRef(refType, refId, null)));
                     if (lot.getSlotId() != null && !lot.getSlotId().isBlank()) {
                         String slotCode = lot.getSlotId().trim().toUpperCase();
                         slotQty.merge(slotCode, take, Integer::sum);
@@ -184,14 +185,26 @@ public class InventoryLotService {
 
     public record FefoDeductResult(String primaryBatch, Map<String, Integer> slotQtyDeducted) {}
 
+    private record LotMovementRef(String refType, String refId, Long operatorId) {}
+
+    private record InventoryMovementCommand(
+            String batchNo, String movementType, int deltaQty, LotMovementRef ref) {}
+
+    private record RestockCommand(
+            String batchNo, LocalDate productionDate, LocalDate expiryDate,
+            int quantity, String slotId, LotMovementRef ref) {}
+
+    private record BatchLotDeductCommand(
+            String batchNo, int quantity, String movementType, LotMovementRef ref) {}
+
     /** 同批次跨货道扣减（下架/报损按批次号操作时）。 */
-    private void deductBatchAcrossLots(String deviceId, String skuId, String batchNo, int quantity,
-                                       String movementType, String refType, String refId, Long operatorId) {
-        List<DeviceSkuLot> lots = lotRepository.findAllByDeviceIdAndSkuIdAndBatchNo(deviceId, skuId, batchNo);
+    private void deductBatchAcrossLots(String deviceId, String skuId, BatchLotDeductCommand command) {
+        List<DeviceSkuLot> lots = lotRepository.findAllByDeviceIdAndSkuIdAndBatchNo(
+                deviceId, skuId, command.batchNo());
         if (lots.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "lot not found");
         }
-        int remaining = quantity;
+        int remaining = command.quantity();
         int totalTaken = 0;
         for (DeviceSkuLot lot : lots) {
             if (remaining > 0 && lot.getQuantity() > 0) {
@@ -208,7 +221,8 @@ public class InventoryLotService {
         if (totalTaken <= 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "lot not found");
         }
-        recordMovement(deviceId, skuId, batchNo, movementType, -totalTaken, refType, refId, operatorId);
+        recordMovement(deviceId, skuId, new InventoryMovementCommand(
+                command.batchNo(), command.movementType(), -totalTaken, command.ref()));
     }
 
     private void deductFefoForRef(String deviceId, String skuId, int quantity,
@@ -234,7 +248,9 @@ public class InventoryLotService {
                         lot.setStatus(DEPLETED);
                     }
                     lotRepository.save(lot);
-                    recordMovement(deviceId, skuId, lot.getBatchNo(), movementType, -take, refType, refId, operatorId);
+                    recordMovement(deviceId, skuId, new InventoryMovementCommand(
+                            lot.getBatchNo(), movementType, -take,
+                            new LotMovementRef(refType, refId, operatorId)));
                     remaining -= take;
                 }
             }
@@ -268,31 +284,29 @@ public class InventoryLotService {
             lot.setStatus(resolveLotStatus(lot));
         }
         lotRepository.save(lot);
-        recordMovement(deviceId, skuId, batchNo, "REFUND", quantity, refType, refId, null);
+        recordMovement(deviceId, skuId, new InventoryMovementCommand(
+                batchNo, "REFUND", quantity, new LotMovementRef(refType, refId, null)));
         self.syncAggregateInventory(deviceId, skuId);
         return lot.getSlotId();
     }
 
     @Transactional
-    public void addRestock(String deviceId, String skuId, String batchNo,
-                           LocalDate productionDate, LocalDate expiryDate,
-                           int quantity, String slotId, Long operatorId, String refId) {
+    public void addRestock(String deviceId, String skuId, RestockCommand command) {
         runWithDeviceLotLock(deviceId, () -> {
-            doAddRestock(deviceId, skuId, batchNo, productionDate, expiryDate, quantity, slotId, operatorId, refId);
+            doAddRestock(deviceId, skuId, command);
             return null;
         });
     }
 
-    private void doAddRestock(String deviceId, String skuId, String batchNo,
-                              LocalDate productionDate, LocalDate expiryDate,
-                              int quantity, String slotId, Long operatorId, String refId) {
-        validateRestockExpiry(skuId, expiryDate);
-        ensureSlotCapacity(deviceId, slotId, quantity);
-        String resolvedBatch = (batchNo == null || batchNo.isBlank())
+    private void doAddRestock(String deviceId, String skuId, RestockCommand command) {
+        validateRestockExpiry(skuId, command.expiryDate());
+        ensureSlotCapacity(deviceId, command.slotId(), command.quantity());
+        String resolvedBatch = (command.batchNo() == null || command.batchNo().isBlank())
                 ? "B-" + LocalDate.now() + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase()
-                : batchNo.trim();
+                : command.batchNo().trim();
 
-        String slotCode = (slotId == null || slotId.isBlank()) ? null : slotId.trim().toUpperCase();
+        String slotCode = (command.slotId() == null || command.slotId().isBlank())
+                ? null : command.slotId().trim().toUpperCase();
         DeviceSkuLot lot = null;
         if (slotCode != null) {
             lot = lotRepository
@@ -308,21 +322,23 @@ public class InventoryLotService {
             lot.setDeviceId(deviceId);
             lot.setSkuId(skuId);
             lot.setBatchNo(resolvedBatch);
-            lot.setProductionDate(productionDate);
-            lot.setExpiryDate(expiryDate);
+            lot.setProductionDate(command.productionDate());
+            lot.setExpiryDate(command.expiryDate());
             lot.setSlotId(slotCode);
             lot.setStatus(ON_SALE);
             lot.setQuantity(0);
         }
-        lot.setQuantity(lot.getQuantity() + quantity);
+        lot.setQuantity(lot.getQuantity() + command.quantity());
         lot.setStatus(resolveLotStatus(lot));
         if (slotCode != null) {
             lot.setSlotId(slotCode);
         }
         lotRepository.save(lot);
-        recordMovement(deviceId, skuId, resolvedBatch, "RESTOCK", quantity, REPLENISH, refId, operatorId);
+        recordMovement(deviceId, skuId, new InventoryMovementCommand(
+                resolvedBatch, "RESTOCK", command.quantity(),
+                new LotMovementRef(REPLENISH, command.ref().refId(), command.ref().operatorId())));
         self.syncAggregateInventory(deviceId, skuId);
-        log.info("restock lot device={} sku={} batch={} qty={}", deviceId, skuId, resolvedBatch, quantity);
+        log.info("restock lot device={} sku={} batch={} qty={}", deviceId, skuId, resolvedBatch, command.quantity());
     }
 
     @Transactional
@@ -340,7 +356,8 @@ public class InventoryLotService {
             return;
         }
         if (batchNo != null && !batchNo.isBlank()) {
-            deductBatchAcrossLots(deviceId, skuId, batchNo, quantity, PULL_OFF, REPLENISH, refId, operatorId);
+            deductBatchAcrossLots(deviceId, skuId, new BatchLotDeductCommand(
+                    batchNo, quantity, PULL_OFF, new LotMovementRef(REPLENISH, refId, operatorId)));
         } else {
             deductFefoForRef(deviceId, skuId, quantity, PULL_OFF, REPLENISH, refId, operatorId);
         }
@@ -362,7 +379,8 @@ public class InventoryLotService {
             return;
         }
         if (batchNo != null && !batchNo.isBlank()) {
-            deductBatchAcrossLots(deviceId, skuId, batchNo, quantity, WRITE_OFF, WRITE_OFF, refId, operatorId);
+            deductBatchAcrossLots(deviceId, skuId, new BatchLotDeductCommand(
+                    batchNo, quantity, WRITE_OFF, new LotMovementRef(WRITE_OFF, refId, operatorId)));
         } else {
             deductFefoForRef(deviceId, skuId, quantity, WRITE_OFF, WRITE_OFF, refId, operatorId);
         }
@@ -380,8 +398,8 @@ public class InventoryLotService {
         }
         String batch = (batchNo == null || batchNo.isBlank()) ? "-" : batchNo;
         // delta=0：数量不变；quantity 语义写在 refId 旁供运营检索
-        recordMovement(deviceId, skuId, batch, "REFUND_KEPT", 0, "ORDER_REFUND",
-                orderId + ":qty=" + quantity, null);
+        recordMovement(deviceId, skuId, new InventoryMovementCommand(
+                batch, "REFUND_KEPT", 0, new LotMovementRef("ORDER_REFUND", orderId + ":qty=" + quantity, null)));
         log.info("REFUND_KEPT noted device={} sku={} batch={} qty={} order={}",
                 deviceId, skuId, batch, quantity, orderId);
     }
@@ -410,8 +428,9 @@ public class InventoryLotService {
             SkuCatalog sku = skuCatalogRepository.findById(skuId).orElse(null);
             int shelfDays = sku != null && sku.getShelfLifeDays() != null ? sku.getShelfLifeDays() : 180;
             LocalDate expiry = LocalDate.now().plusDays(shelfDays);
-            doAddRestock(deviceId, skuId, "STOCKTAKE-" + LocalDate.now(), LocalDate.now(), expiry,
-                    delta, null, operatorId, refId);
+            doAddRestock(deviceId, skuId, new RestockCommand(
+                    "STOCKTAKE-" + LocalDate.now(), LocalDate.now(), expiry, delta, null,
+                    new LotMovementRef(REPLENISH, refId, operatorId)));
         } else {
             deductFefoForRef(deviceId, skuId, -delta, "ADJ", "STOCKTAKE", refId, operatorId);
         }
@@ -449,8 +468,9 @@ public class InventoryLotService {
             SkuCatalog sku = skuCatalogRepository.findById(skuId).orElse(null);
             int shelfDays = sku != null && sku.getShelfLifeDays() != null ? sku.getShelfLifeDays() : 180;
             LocalDate expiry = LocalDate.now().plusDays(shelfDays);
-            doAddRestock(deviceId, skuId, "STOCKTAKE-" + LocalDate.now(), LocalDate.now(), expiry,
-                    delta, slot, operatorId, refId);
+            doAddRestock(deviceId, skuId, new RestockCommand(
+                    "STOCKTAKE-" + LocalDate.now(), LocalDate.now(), expiry, delta, slot,
+                    new LotMovementRef(REPLENISH, refId, operatorId)));
             return;
         }
         int remaining = -delta;
@@ -462,7 +482,8 @@ public class InventoryLotService {
                     lot.setStatus(DEPLETED);
                 }
                 lotRepository.save(lot);
-                recordMovement(deviceId, skuId, lot.getBatchNo(), "ADJ", -take, "STOCKTAKE", refId, operatorId);
+                recordMovement(deviceId, skuId, new InventoryMovementCommand(
+                        lot.getBatchNo(), "ADJ", -take, new LotMovementRef("STOCKTAKE", refId, operatorId)));
                 remaining -= take;
             }
         }
@@ -496,8 +517,9 @@ public class InventoryLotService {
                     expiry = production.plusDays(shelfDays);
                 }
             }
-            doAddRestock(deviceId, line.getSkuId(), line.getBatchNo(), production, expiry,
-                    line.getQuantity(), line.getSlotId(), operatorId, refId);
+            doAddRestock(deviceId, line.getSkuId(), new RestockCommand(
+                    line.getBatchNo(), production, expiry, line.getQuantity(), line.getSlotId(),
+                    new LotMovementRef(REPLENISH, refId, operatorId)));
         } else if (PULL_OFF.equalsIgnoreCase(line.getLineType())) {
             doPullOff(deviceId, line.getSkuId(), line.getBatchNo(), line.getQuantity(), operatorId, refId);
         } else {
@@ -675,8 +697,11 @@ public class InventoryLotService {
                     lot.setStatus(DEPLETED);
                 }
                 lotRepository.save(lot);
-                recordMovement(deviceId, skuId, batch, "ADJ", -take, "SLOT_TRANSFER", refId, operatorId);
-                doAddRestock(deviceId, skuId, batch, production, expiry, take, to, operatorId, refId);
+                recordMovement(deviceId, skuId, new InventoryMovementCommand(
+                        batch, "ADJ", -take, new LotMovementRef("SLOT_TRANSFER", refId, operatorId)));
+                doAddRestock(deviceId, skuId, new RestockCommand(
+                        batch, production, expiry, take, to,
+                        new LotMovementRef(REPLENISH, refId, operatorId)));
                 remaining -= take;
             }
         }
@@ -811,18 +836,16 @@ public class InventoryLotService {
         return best != null ? best : slots.get(0).getId().getSlotCode();
     }
 
-    private void recordMovement(String deviceId, String skuId, String batchNo,
-                                String movementType, int deltaQty,
-                                String refType, String refId, Long operatorId) {
+    private void recordMovement(String deviceId, String skuId, InventoryMovementCommand command) {
         InventoryMovement m = new InventoryMovement();
         m.setDeviceId(deviceId);
         m.setSkuId(skuId);
-        m.setBatchNo(batchNo);
-        m.setMovementType(movementType);
-        m.setDeltaQty(deltaQty);
-        m.setRefType(refType);
-        m.setRefId(refId);
-        m.setOperatorId(operatorId);
+        m.setBatchNo(command.batchNo());
+        m.setMovementType(command.movementType());
+        m.setDeltaQty(command.deltaQty());
+        m.setRefType(command.ref().refType());
+        m.setRefId(command.ref().refId());
+        m.setOperatorId(command.ref().operatorId());
         movementRepository.save(m);
     }
 

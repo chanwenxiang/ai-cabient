@@ -681,17 +681,16 @@ public class AdminDashboardService {
 
     public PageResult<AdminDeviceDto> listDevicesPaged(Long operatorId, int page, int size,
                                                          String q, String online) {
-        return listDevicesPaged(operatorId, page, size, q, online, null);
+        return listDevicesPaged(operatorId, new DeviceListQuery(page, size, q, online, null, null, null, null));
     }
 
     public PageResult<AdminDeviceDto> listDevicesPaged(Long operatorId, int page, int size,
                                                          String q, String online, Boolean salesLocked) {
-        return listDevicesPaged(operatorId, page, size, q, online, salesLocked, null, null, null);
+        return listDevicesPaged(operatorId,
+                new DeviceListQuery(page, size, q, online, salesLocked, null, null, null));
     }
 
-    public PageResult<AdminDeviceDto> listDevicesPaged(Long operatorId, int page, int size,
-                                                         String q, String online, Boolean salesLocked,
-                                                         String lifecycleStatus, String coopMode, String routeCode) {
+    public PageResult<AdminDeviceDto> listDevicesPaged(Long operatorId, DeviceListQuery query) {
         permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_LIST);
         List<DeviceInfo> devices = merchantScopeService.allowedDevices(operatorId);
         Set<String> replenishing = replenishingDeviceIds();
@@ -702,18 +701,23 @@ public class AdminDashboardService {
                         AdminDashboardService::preferSessionForDeviceList
                 ));
 
-        DeviceListFilters filters = DeviceListFilters.from(q, online, salesLocked, lifecycleStatus, coopMode, routeCode);
+        DeviceListFilters filters = DeviceListFilters.from(
+                query.q(), query.online(), query.salesLocked(),
+                query.lifecycleStatus(), query.coopMode(), query.routeCode());
         List<AdminDeviceDto> filtered = devices.stream()
                 .map(d -> toDeviceDto(d, sessionByDevice.get(d.getDeviceId()), replenishing.contains(d.getDeviceId())))
                 .filter(d -> matchesDeviceListFilters(d, filters))
                 .toList();
 
-        int safeSize = Math.min(Math.max(size, 1), 200);
-        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(query.size(), 1), 200);
+        int safePage = Math.max(query.page(), 0);
         int from = Math.min(safePage * safeSize, filtered.size());
         int to = Math.min(from + safeSize, filtered.size());
         return new PageResult<>(filtered.subList(from, to), safePage, safeSize, filtered.size());
     }
+
+    public record DeviceListQuery(int page, int size, String q, String online, Boolean salesLocked,
+                                  String lifecycleStatus, String coopMode, String routeCode) {}
 
     private record DeviceListFilters(String kw, String onlineFilter, Boolean salesLocked,
                                      String lifeFilter, String coopFilter, String routeFilter) {
@@ -794,46 +798,22 @@ public class AdminDashboardService {
 
     public PageResult<AdminSessionDto> listSessions(Long operatorId, int page, int size,
                                                       String deviceId, SessionState state) {
-        return listSessions(operatorId, page, size, deviceId, state, null, null, null, null, null);
+        return listSessions(operatorId, new SessionListQuery(
+                page, size, deviceId, state, null, null, null, null, null, null, false, 30));
     }
 
-    public PageResult<AdminSessionDto> listSessions(
-            Long operatorId,
-            int page,
-            int size,
-            String deviceId,
-            SessionState state,
-            String sessionId,
-            Long userId,
-            Instant from,
-            Instant to,
-            String keyword) {
-        return listSessions(operatorId, page, size, deviceId, state, sessionId, userId, from, to, keyword,
-                null, false, 30);
-    }
-
-    public PageResult<AdminSessionDto> listSessions(
-            Long operatorId,
-            int page,
-            int size,
-            String deviceId,
-            SessionState state,
-            String sessionId,
-            Long userId,
-            Instant from,
-            Instant to,
-            String keyword,
-            String uploadStatus,
-            boolean stuckOnly,
-            int stuckMinutes) {
+    public PageResult<AdminSessionDto> listSessions(Long operatorId, SessionListQuery query) {
         permissionService.requireAnyPermission(operatorId, "ops:session:list", "ops:session:upload");
-        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
-        Instant updatedBefore = stuckOnly
-                ? Instant.now().minus(Math.max(stuckMinutes, 1), ChronoUnit.MINUTES)
+        Pageable pageable = PageRequest.of(query.page(), Math.min(query.size(), 100));
+        Instant updatedBefore = query.stuckOnly()
+                ? Instant.now().minus(Math.max(query.stuckMinutes(), 1), ChronoUnit.MINUTES)
                 : null;
         Page<ShoppingSession> result = querySessions(
-                operatorId, deviceId, state, sessionId, userId, from, to, keyword,
-                blankToNull(uploadStatus), updatedBefore, pageable);
+                operatorId,
+                new SessionQueryCriteria(
+                        query.deviceId(), query.state(), query.sessionId(), query.userId(),
+                        query.from(), query.to(), query.keyword(), blankToNull(query.uploadStatus()), updatedBefore),
+                pageable);
         return new PageResult<>(
                 result.getContent().stream().map(this::toSessionDto).toList(),
                 result.getNumber(),
@@ -842,54 +822,50 @@ public class AdminDashboardService {
         );
     }
 
+    public record SessionListQuery(
+            int page, int size, String deviceId, SessionState state,
+            String sessionId, Long userId, Instant from, Instant to, String keyword,
+            String uploadStatus, boolean stuckOnly, int stuckMinutes) {}
+
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(Long operatorId, int page, int size, String deviceId) {
-        return self.listOrders(operatorId, page, size, deviceId, null, false,
-                null, null, null, null, null, null, null, null);
+        return self.listOrders(operatorId, new OrderListQuery(
+                page, size, deviceId, null, false, null, null, null, null, null, null, null, null));
     }
 
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(
             Long operatorId, int page, int size, String deviceId, String status) {
-        return self.listOrders(operatorId, page, size, deviceId, status, false,
-                null, null, null, null, null, null, null, null);
+        return self.listOrders(operatorId, new OrderListQuery(
+                page, size, deviceId, status, false, null, null, null, null, null, null, null, null));
     }
 
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(
             Long operatorId, int page, int size, String deviceId, String status, boolean overdueOnly) {
-        return self.listOrders(operatorId, page, size, deviceId, status, overdueOnly,
-                null, null, null, null, null, null, null, null);
+        return self.listOrders(operatorId, new OrderListQuery(
+                page, size, deviceId, status, overdueOnly, null, null, null, null, null, null, null, null));
     }
 
     @Transactional(readOnly = true)
-    public PageResult<AdminOrderSummaryDto> listOrders(
-            Long operatorId,
-            int page,
-            int size,
-            String deviceId,
-            String status,
-            boolean overdueOnly,
-            String orderId,
-            Long userId,
-            String sessionId,
-            String payTradeNo,
-            String payChannel,
-            Instant from,
-            Instant to,
-            String keyword) {
+    public PageResult<AdminOrderSummaryDto> listOrders(Long operatorId, OrderListQuery query) {
         permissionService.requirePermission(operatorId, "ops:order:list");
-        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
+        Pageable pageable = PageRequest.of(query.page(), Math.min(query.size(), 100));
+        String status = query.status();
         Instant createdBefore = null;
-        if (overdueOnly) {
+        if (query.overdueOnly()) {
             createdBefore = Instant.now().minus(UNPAID_OPS_OVERDUE_MINUTES, ChronoUnit.MINUTES);
             if (status == null || status.isBlank()) {
                 status = STATUS_PENDING;
             }
         }
         Page<CabinetOrder> result = queryOrders(
-                operatorId, deviceId, status, createdBefore, from, to,
-                orderId, userId, sessionId, payTradeNo, payChannel, keyword, pageable);
+                operatorId,
+                new OrderQueryCriteria(
+                        query.deviceId(), status, createdBefore, query.from(), query.to(),
+                        query.orderId(), query.userId(), query.sessionId(),
+                        query.payTradeNo(), query.payChannel(), query.keyword()),
+                pageable);
         List<String> orderIds = result.getContent().stream().map(CabinetOrder::getOrderId).toList();
         Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(orderIds);
         Map<String, List<CabinetOrderLine>> linesByOrder = loadOrderLinesByOrderIds(orderIds);
@@ -905,6 +881,11 @@ public class AdminDashboardService {
                 result.getTotalElements()
         );
     }
+
+    public record OrderListQuery(
+            int page, int size, String deviceId, String status, boolean overdueOnly,
+            String orderId, Long userId, String sessionId, String payTradeNo, String payChannel,
+            Instant from, Instant to, String keyword) {}
 
     private long countOverdueUnpaidOrders(Long operatorId) {
         Instant cutoff = Instant.now().minus(UNPAID_OPS_OVERDUE_MINUTES, ChronoUnit.MINUTES);
@@ -1360,36 +1341,29 @@ public class AdminDashboardService {
 
     @Transactional(readOnly = true)
     public byte[] exportOrdersCsv(Long operatorId, String deviceId) {
-        return self.exportOrdersCsv(operatorId, deviceId, null, "orders",
-                null, null, null, null, null, null, null, null);
+        return self.exportOrdersCsv(operatorId, new OrderExportQuery(
+                deviceId, null, "orders", null, null, null, null, null, null, null, null));
     }
 
     @Transactional(readOnly = true)
     public byte[] exportOrdersCsv(Long operatorId, String deviceId, String status, String mode) {
-        return self.exportOrdersCsv(operatorId, deviceId, status, mode,
-                null, null, null, null, null, null, null, null);
+        return self.exportOrdersCsv(operatorId, new OrderExportQuery(
+                deviceId, status, mode, null, null, null, null, null, null, null, null));
     }
 
     @Transactional(readOnly = true)
-    public byte[] exportOrdersCsv(
-            Long operatorId,
-            String deviceId,
-            String status,
-            String mode,
-            String orderId,
-            Long userId,
-            String sessionId,
-            String payTradeNo,
-            String payChannel,
-            Instant from,
-            Instant to,
-            String keyword) {
+    public byte[] exportOrdersCsv(Long operatorId, OrderExportQuery query) {
         permissionService.requirePermission(operatorId, "ops:order:export");
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, CREATEDAT));
         Page<CabinetOrder> page = queryOrders(
-                operatorId, deviceId, status, null, from, to,
-                orderId, userId, sessionId, payTradeNo, payChannel, keyword, pageable);
-        boolean byLines = mode != null && (mode.equalsIgnoreCase("lines") || mode.equalsIgnoreCase("product"));
+                operatorId,
+                new OrderQueryCriteria(
+                        query.deviceId(), query.status(), null, query.from(), query.to(),
+                        query.orderId(), query.userId(), query.sessionId(),
+                        query.payTradeNo(), query.payChannel(), query.keyword()),
+                pageable);
+        boolean byLines = query.mode() != null
+                && (query.mode().equalsIgnoreCase("lines") || query.mode().equalsIgnoreCase("product"));
         if (byLines) {
             StringBuilder sb = new StringBuilder(
                     "orderId,deviceId,status,skuId,skuName,quantity,unitPriceCents,lineAmountCents,createdAt\n");
@@ -1452,41 +1426,33 @@ public class AdminDashboardService {
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 
+    public record OrderExportQuery(
+            String deviceId, String status, String mode,
+            String orderId, Long userId, String sessionId, String payTradeNo, String payChannel,
+            Instant from, Instant to, String keyword) {}
+
+    public record SessionExportQuery(
+            String deviceId, SessionState state,
+            String sessionId, Long userId, Instant from, Instant to, String keyword,
+            boolean stuckOnly, int stuckMinutes) {}
+
     public byte[] exportSessionsCsv(Long operatorId, String deviceId, SessionState state) {
-        return exportSessionsCsv(operatorId, deviceId, state, null, null, null, null, null, false, 30);
+        return exportSessionsCsv(operatorId, new SessionExportQuery(
+                deviceId, state, null, null, null, null, null, false, 30));
     }
 
-    public byte[] exportSessionsCsv(
-            Long operatorId,
-            String deviceId,
-            SessionState state,
-            String sessionId,
-            Long userId,
-            Instant from,
-            Instant to,
-            String keyword) {
-        return exportSessionsCsv(operatorId, deviceId, state, sessionId, userId, from, to, keyword, false, 30);
-    }
-
-    public byte[] exportSessionsCsv(
-            Long operatorId,
-            String deviceId,
-            SessionState state,
-            String sessionId,
-            Long userId,
-            Instant from,
-            Instant to,
-            String keyword,
-            boolean stuckOnly,
-            int stuckMinutes) {
+    public byte[] exportSessionsCsv(Long operatorId, SessionExportQuery query) {
         permissionService.requirePermission(operatorId, "ops:session:export");
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, CREATEDAT));
-        Instant updatedBefore = stuckOnly
-                ? Instant.now().minus(Math.max(stuckMinutes, 1), ChronoUnit.MINUTES)
+        Instant updatedBefore = query.stuckOnly()
+                ? Instant.now().minus(Math.max(query.stuckMinutes(), 1), ChronoUnit.MINUTES)
                 : null;
         Page<ShoppingSession> page = querySessions(
-                operatorId, deviceId, state, sessionId, userId, from, to, keyword,
-                null, updatedBefore, pageable);
+                operatorId,
+                new SessionQueryCriteria(
+                        query.deviceId(), query.state(), query.sessionId(), query.userId(),
+                        query.from(), query.to(), query.keyword(), null, updatedBefore),
+                pageable);
         StringBuilder sb = new StringBuilder(
                 "sessionId,userId,deviceId,state,sessionKind,entryChannel,orderId,uploadStatus,failReason,"
                         + "openTime,closeTime,createdAt,updatedAt\n");
@@ -1806,92 +1772,71 @@ public class AdminDashboardService {
         return value;
     }
 
-    private Page<ShoppingSession> querySessions(
-            Long operatorId,
-            String deviceId,
-            SessionState state,
-            String sessionId,
-            Long userId,
-            Instant from,
-            Instant to,
-            String keyword,
-            Pageable pageable) {
-        return querySessions(operatorId, deviceId, state, sessionId, userId, from, to, keyword,
-                null, null, pageable);
-    }
+    private record SessionQueryCriteria(
+            String deviceId, SessionState state, String sessionId, Long userId,
+            Instant from, Instant to, String keyword, String uploadStatus, Instant updatedBefore) {}
+
+    private record OrderQueryCriteria(
+            String deviceId, String status, Instant createdBefore, Instant createdFrom, Instant createdTo,
+            String orderId, Long userId, String sessionId, String payTradeNo, String payChannel, String keyword) {}
 
     private Page<ShoppingSession> querySessions(
-            Long operatorId,
-            String deviceId,
-            SessionState state,
-            String sessionId,
-            Long userId,
-            Instant from,
-            Instant to,
-            String keyword,
-            String uploadStatus,
-            Instant updatedBefore,
-            Pageable pageable) {
-        Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(operatorId, deviceId);
+            Long operatorId, SessionQueryCriteria criteria, Pageable pageable) {
+        Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(operatorId, criteria.deviceId());
         if (deviceScope != null && deviceScope.isEmpty()) {
             return Page.empty(pageable);
         }
-        String deviceFilter = (deviceId != null && !deviceId.isBlank()) ? deviceId.trim() : null;
+        String deviceFilter = (criteria.deviceId() != null && !criteria.deviceId().isBlank())
+                ? criteria.deviceId().trim() : null;
         Collection<String> scopeFilter = deviceFilter == null ? deviceScope : null;
         return sessionRepository.findByFiltersOrderByCreatedAtDesc(
-                deviceFilter,
-                scopeFilter,
-                state,
-                blankToNull(sessionId),
-                userId,
-                from,
-                to,
-                blankToNull(keyword),
-                uploadStatus,
-                updatedBefore,
+                new ShoppingSessionMapper.SessionFilterCriteria(
+                        deviceFilter,
+                        scopeFilter,
+                        criteria.state(),
+                        blankToNull(criteria.sessionId()),
+                        criteria.userId(),
+                        criteria.from(),
+                        criteria.to(),
+                        blankToNull(criteria.keyword()),
+                        criteria.uploadStatus(),
+                        criteria.updatedBefore()),
                 pageable);
     }
 
     private Page<CabinetOrder> queryOrders(
             Long operatorId, String deviceId, String status, Instant createdBefore, Pageable pageable) {
-        return queryOrders(operatorId, deviceId, status, createdBefore, null, null,
-                null, null, null, null, null, null, pageable);
+        return queryOrders(operatorId,
+                new OrderQueryCriteria(deviceId, status, createdBefore, null, null,
+                        null, null, null, null, null, null),
+                pageable);
     }
 
     private Page<CabinetOrder> queryOrders(
-            Long operatorId,
-            String deviceId,
-            String status,
-            Instant createdBefore,
-            Instant createdFrom,
-            Instant createdTo,
-            String orderId,
-            Long userId,
-            String sessionId,
-            String payTradeNo,
-            String payChannel,
-            String keyword,
-            Pageable pageable) {
-        Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(operatorId, deviceId);
+            Long operatorId, OrderQueryCriteria criteria, Pageable pageable) {
+        Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(operatorId, criteria.deviceId());
         if (deviceScope != null && deviceScope.isEmpty()) {
             return Page.empty(pageable);
         }
-        String statusFilter = (status != null && !status.isBlank()) ? status.trim() : null;
-        String deviceFilter = (deviceId != null && !deviceId.isBlank()) ? deviceId.trim() : null;
+        String statusFilter = (criteria.status() != null && !criteria.status().isBlank())
+                ? criteria.status().trim() : null;
+        String deviceFilter = (criteria.deviceId() != null && !criteria.deviceId().isBlank())
+                ? criteria.deviceId().trim() : null;
         Collection<String> scopeFilter = deviceFilter == null ? deviceScope : null;
         return orderRepository.findByFiltersOrderByCreatedAtDesc(
-                deviceFilter,
-                scopeFilter,
-                statusFilter,
-                createdBefore,
-                createdFrom,
-                createdTo,
-                blankToNull(orderId),
-                userId,
-                blankToNull(sessionId),
-                blankToNull(payTradeNo),
-                blankToNull(payChannel),
-                blankToNull(keyword),
+                new CabinetOrderMapper.OrderFilterCriteria(
+                        deviceFilter,
+                        scopeFilter,
+                        statusFilter,
+                        criteria.createdBefore(),
+                        criteria.createdFrom(),
+                        criteria.createdTo(),
+                        blankToNull(criteria.orderId()),
+                        criteria.userId(),
+                        blankToNull(criteria.sessionId()),
+                        blankToNull(criteria.payTradeNo()),
+                        blankToNull(criteria.payChannel()),
+                        blankToNull(criteria.keyword())),
                 pageable);
     }
 

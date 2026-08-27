@@ -150,8 +150,9 @@ class WarehouseStocktakeServiceTest {
 
         var dto = service.adjust(1L, 1L, null);
 
-        verify(warehouseService).adjustStocktake(
-                "WH-001", "SKU-A", "B1", null, null, 10, 7, 1L, 1L);
+        verify(warehouseService).adjustStocktake(new WarehouseService.StocktakeAdjustCommand(
+                "WH-001", new WarehouseService.LotSpec("SKU-A", "B1", null, null),
+                10, 7, 1L, 1L));
         assertEquals("ADJUSTED", line.getStatus());
         assertEquals("ADJUSTED", st.getStatus());
         assertEquals(0, dto.diffLineCount());

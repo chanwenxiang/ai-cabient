@@ -122,10 +122,10 @@ class WarehouseBinServiceTest {
                 "WH-001", "A-01", "SKU-A", "B1",
                 LocalDate.now().minusDays(2), LocalDate.now().plusDays(60), 6));
 
-        verify(warehouseService).binStockChange(
-                "WH-001", "SKU-A", "B1",
-                LocalDate.now().minusDays(2), LocalDate.now().plusDays(60),
-                6, 1L, "BIN_INBOUND", "1");
+        verify(warehouseService).binStockChange(new WarehouseService.BinStockChangeCommand(
+                "WH-001", new WarehouseService.LotSpec("SKU-A", "B1",
+                        LocalDate.now().minusDays(2), LocalDate.now().plusDays(60)),
+                6, 1L, "BIN_INBOUND", "1"));
         assertEquals(1, saved.size());
         assertEquals(6, saved.get(0).getQuantity());
         assertEquals(1L, saved.get(0).getBinId());

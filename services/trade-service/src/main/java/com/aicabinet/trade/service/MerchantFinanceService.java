@@ -307,8 +307,10 @@ public class MerchantFinanceService {
                 ? null : parseDateEnd(toDate.trim());
         String normalizedStatus = (status == null || status.isBlank()) ? null : status.trim().toUpperCase();
         return orderRepository.findByFiltersOrderByCreatedAtDesc(
-                normalizedDeviceId, deviceScope, normalizedStatus, null, from, to,
-                null, null, null, null, null, keyword, pageable);
+                new CabinetOrderMapper.OrderFilterCriteria(
+                        normalizedDeviceId, deviceScope, normalizedStatus, null, from, to,
+                        null, null, null, null, null, keyword),
+                pageable);
     }
 
     /** lineCount 口径与运营侧一致：商品件数（quantity 合计），非行数。 */

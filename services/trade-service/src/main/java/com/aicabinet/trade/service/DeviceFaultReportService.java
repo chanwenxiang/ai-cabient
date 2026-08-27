@@ -122,21 +122,7 @@ public class DeviceFaultReportService {
 
         opsExceptionService.report(
 
-                "DEVICE_FAULT",
-
-                "HIGH",
-
-                id,
-
-                null,
-
-                null,
-
-                userId,
-
-                "消费者设备报修",
-
-                formatFaultDetail(row.getIssueType(), row.getDescription())
+                "DEVICE_FAULT", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(id, null, null, userId), "消费者设备报修", formatFaultDetail(row.getIssueType(), row.getDescription())
 
         );
 

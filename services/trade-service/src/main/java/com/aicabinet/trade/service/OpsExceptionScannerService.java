@@ -103,7 +103,6 @@ public class OpsExceptionScannerService {
 
     private void report(ShoppingSession session, String type, String severity,
                         String title, String detail) {
-        exceptionService.report(type, severity, session.getDeviceId(), session.getSessionId(),
-                session.getOrderId(), session.getUserId(), title, detail);
+        exceptionService.report(type, severity, new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), title, detail);
     }
 }

@@ -58,8 +58,7 @@ public class VisionAnomalyIngestService {
             detail += "；补充说明：" + event.detail().trim();
         }
         OpsExceptionDto created = opsExceptionService.report(
-                "VISION_ANOMALY", severity, event.deviceId(), event.sessionId(),
-                null, null, title, detail);
+                "VISION_ANOMALY", severity, new OpsExceptionService.ExceptionReport.ExceptionRefs(event.deviceId(), event.sessionId(), null, null), title, detail);
         if (created != null && ("HIGH".equals(severity) || "CRITICAL".equals(severity))) {
             opsAlertDispatcher.send(
                     "VISION_ANOMALY",

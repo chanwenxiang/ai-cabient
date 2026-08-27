@@ -7,8 +7,7 @@ import com.aicabinet.common.dto.OpsExceptionDetailDto;
 import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.domain.OpsException;
 import com.aicabinet.trade.domain.ShoppingSession;
-import com.aicabinet.trade.mapper.AdminAuditLogMapper;
-import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.service.support.OpsExceptionServiceSupport;
 import com.aicabinet.common.dto.ResolveDisputeRequest;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.VisionServiceClient;
@@ -34,55 +33,67 @@ public class OpsExceptionService {
     private static final List<String> OPEN = List.of("OPEN", PROCESSING);
     private final OpsExceptionMapper repository;
     private final PermissionService permissionService;
-    private final AdminAuditService auditService;
-    private final AdminAuditLogMapper auditRepository;
-    private final ShoppingSessionMapper sessionRepository;
-    private final SettlementService settlementService;
-    private final DisputeService disputeService;
-    private final RepairTicketService repairTicketService;
+    private final OpsExceptionServiceSupport support;
     private final DistributedLockService distributedLockService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final OpsExceptionService self;
 
     public OpsExceptionService(OpsExceptionMapper repository, PermissionService permissionService,
-                               AdminAuditService auditService, AdminAuditLogMapper auditRepository,
-                               ShoppingSessionMapper sessionRepository,
-                               @Lazy SettlementService settlementService,
-                               @Lazy DisputeService disputeService, RepairTicketService repairTicketService,
+                               OpsExceptionServiceSupport support,
                                DistributedLockService distributedLockService, @Lazy OpsExceptionService self) {
-        this.repository = repository; this.permissionService = permissionService; this.auditService = auditService;
-        this.auditRepository = auditRepository;
-        this.sessionRepository = sessionRepository; this.settlementService = settlementService;
-        this.disputeService = disputeService;
-        this.repairTicketService = repairTicketService;
+        this.repository = repository;
+        this.permissionService = permissionService;
+        this.support = support;
         this.distributedLockService = distributedLockService;
         this.self = self;
+    }
+
+    public record ExceptionReport(String type, String severity, ExceptionRefs refs, String title, String detail) {
+        public record ExceptionRefs(String deviceId, String sessionId, String orderId, Long userId) {}
+
+        public static ExceptionReport of(String type, String severity, ExceptionRefs refs, String title, String detail) {
+            return new ExceptionReport(type, severity, refs, title, detail);
+        }
+    }
+
+    @Transactional
+    public OpsExceptionDto report(String type, String severity, ExceptionReport.ExceptionRefs refs,
+                                  String title, String detail) {
+        return report(ExceptionReport.of(type, severity, refs, title, detail));
+    }
+
+    @Transactional
+    public OpsExceptionDto report(ExceptionReport request) {
+        String dedup = request.type() + ":" + first(request.refs().sessionId(), request.refs().orderId(),
+                request.refs().deviceId(), String.valueOf(request.refs().userId()));
+        return runWithDedupLock(dedup, () -> repository.findFirstByDedupKeyAndStatusIn(dedup, OPEN).map(this::toDto).orElseGet(() -> {
+            OpsException item = new OpsException();
+            item.setExceptionId(BizIds.nextNumeric());
+            item.setExceptionType(request.type());
+            item.setSeverity(request.severity());
+            item.setStatus("OPEN");
+            item.setDeviceId(request.refs().deviceId());
+            item.setSessionId(request.refs().sessionId());
+            item.setOrderId(request.refs().orderId());
+            item.setUserId(request.refs().userId());
+            item.setTitle(request.title());
+            item.setDetail(trim(request.detail()));
+            item.setDedupKey(dedup);
+            item.setSlaDueAt(slaDueFor(request.severity(), Instant.now()));
+            return toDto(repository.save(item));
+        }));
     }
 
     @Transactional(readOnly = true)
     public OpsExceptionDetailDto detail(Long operatorId, String exceptionId) {
         requireExceptionRead(operatorId);
         OpsException item = require(exceptionId);
-        var actions = auditRepository.findByTargetTypeAndTargetIdOrderByCreatedAtAsc(OPS_EXCEPTION, exceptionId)
+        var actions = support.auditRepository().findByTargetTypeAndTargetIdOrderByCreatedAtAsc(OPS_EXCEPTION, exceptionId)
                 .stream().map(log -> new OpsExceptionActionDto(log.getLogId(), log.getOperatorId(),
                         log.getAction(), log.getDetail(), log.getCreatedAt())).toList();
         return new OpsExceptionDetailDto(toDto(item), actions);
     }
 
-    @Transactional
-    public OpsExceptionDto report(String type, String severity, String deviceId, String sessionId,
-                                  String orderId, Long userId, String title, String detail) {
-        String dedup = type + ":" + first(sessionId, orderId, deviceId, String.valueOf(userId));
-        return runWithDedupLock(dedup, () -> repository.findFirstByDedupKeyAndStatusIn(dedup, OPEN).map(this::toDto).orElseGet(() -> {
-            OpsException item = new OpsException();
-            item.setExceptionId(BizIds.nextNumeric());
-            item.setExceptionType(type); item.setSeverity(severity); item.setStatus("OPEN");
-            item.setDeviceId(deviceId); item.setSessionId(sessionId); item.setOrderId(orderId); item.setUserId(userId);
-            item.setTitle(title); item.setDetail(trim(detail)); item.setDedupKey(dedup);
-            item.setSlaDueAt(slaDueFor(severity, Instant.now()));
-            return toDto(repository.save(item));
-        }));
-    }
 
     private static Instant slaDueFor(String severity, Instant from) {
         String s = severity == null ? "" : severity.trim().toUpperCase();
@@ -148,7 +159,7 @@ public class OpsExceptionService {
             OpsException item = requireForUpdate(exceptionId);
             if (STATUS_RESOLVED.equals(item.getStatus())) return toDto(item);
             item.setAssigneeUserId(operatorId); item.setStatus(PROCESSING); repository.save(item);
-            auditService.record(operatorId, "OPS_EXCEPTION_CLAIM", OPS_EXCEPTION, exceptionId, item.getExceptionType());
+            support.auditService().record(operatorId, "OPS_EXCEPTION_CLAIM", OPS_EXCEPTION, exceptionId, item.getExceptionType());
             return toDto(item);
         });
     }
@@ -160,7 +171,7 @@ public class OpsExceptionService {
             OpsException item = requireForUpdate(exceptionId);
             item.setAssigneeUserId(operatorId); item.setStatus(STATUS_RESOLVED); item.setResolution(trim(resolution));
             item.setResolvedAt(Instant.now()); repository.save(item);
-            auditService.record(operatorId, "OPS_EXCEPTION_RESOLVE", OPS_EXCEPTION, exceptionId, trim(resolution));
+            support.auditService().record(operatorId, "OPS_EXCEPTION_RESOLVE", OPS_EXCEPTION, exceptionId, trim(resolution));
             return toDto(item);
         });
     }
@@ -179,7 +190,7 @@ public class OpsExceptionService {
             item.setArchived(true);
             item.setArchivedAt(Instant.now());
             repository.save(item);
-            auditService.record(operatorId, "OPS_EXCEPTION_ARCHIVE", OPS_EXCEPTION, exceptionId,
+            support.auditService().record(operatorId, "OPS_EXCEPTION_ARCHIVE", OPS_EXCEPTION, exceptionId,
                     "异常已归档：" + item.getExceptionId());
             return toDto(item);
         });
@@ -196,7 +207,7 @@ public class OpsExceptionService {
             item.setArchived(false);
             item.setArchivedAt(null);
             repository.save(item);
-            auditService.record(operatorId, "OPS_EXCEPTION_UNARCHIVE", OPS_EXCEPTION, exceptionId,
+            support.auditService().record(operatorId, "OPS_EXCEPTION_UNARCHIVE", OPS_EXCEPTION, exceptionId,
                     "异常取消归档：" + item.getExceptionId());
             return toDto(item);
         });
@@ -223,7 +234,7 @@ public class OpsExceptionService {
                     ? "消费者设备报修" : item.getTitle().trim();
             String remark = (item.getDetail() == null ? "" : item.getDetail().trim() + "; ")
                     + "来自异常 " + exceptionId;
-            var ticket = repairTicketService.create(
+            var ticket = support.repairTicketService().create(
                     operatorId,
                     item.getDeviceId(),
                     title,
@@ -237,7 +248,7 @@ public class OpsExceptionService {
             item.setResolution(text);
             item.setResolvedAt(Instant.now());
             repository.save(item);
-            auditService.record(operatorId, "OPS_EXCEPTION_RESOLVE_WITH_REPAIR", OPS_EXCEPTION, exceptionId, text);
+            support.auditService().record(operatorId, "OPS_EXCEPTION_RESOLVE_WITH_REPAIR", OPS_EXCEPTION, exceptionId, text);
             return toDto(item);
         });
     }
@@ -260,7 +271,7 @@ public class OpsExceptionService {
                 locked.setResolution(text);
                 locked.setResolvedAt(Instant.now());
                 repository.save(locked);
-                auditService.record(operatorId, "OPS_EXCEPTION_SYNC_FROM_DISPUTE", OPS_EXCEPTION,
+                support.auditService().record(operatorId, "OPS_EXCEPTION_SYNC_FROM_DISPUTE", OPS_EXCEPTION,
                         locked.getExceptionId(), text);
             }
             return null;
@@ -277,7 +288,7 @@ public class OpsExceptionService {
                 locked.setResolution(trim(resolution));
                 locked.setResolvedAt(Instant.now());
                 repository.save(locked);
-                auditService.record(0L, "OPS_EXCEPTION_AUTO_RESOLVE", OPS_EXCEPTION,
+                support.auditService().record(0L, "OPS_EXCEPTION_AUTO_RESOLVE", OPS_EXCEPTION,
                         locked.getExceptionId(), trim(resolution));
             });
             return null;
@@ -302,7 +313,7 @@ public class OpsExceptionService {
             item.setResolution(trim(resolution));
             item.setResolvedAt(Instant.now());
             repository.save(item);
-            auditService.record(merchantUserId, "MERCHANT_OPS_EXCEPTION_RESOLVE", OPS_EXCEPTION,
+            support.auditService().record(merchantUserId, "MERCHANT_OPS_EXCEPTION_RESOLVE", OPS_EXCEPTION,
                     exceptionId, trim(resolution));
             return toDto(item);
         });
@@ -316,7 +327,7 @@ public class OpsExceptionService {
             item.setAssigneeUserId(assigneeUserId);
             item.setStatus(PROCESSING);
             repository.save(item);
-            auditService.record(operatorId, "OPS_EXCEPTION_TRANSFER", OPS_EXCEPTION, exceptionId,
+            support.auditService().record(operatorId, "OPS_EXCEPTION_TRANSFER", OPS_EXCEPTION, exceptionId,
                     "接收人：用户 " + assigneeUserId + "；原因：" + trim(reason));
             return toDto(item);
         });
@@ -327,7 +338,7 @@ public class OpsExceptionService {
         requireExceptionHandle(operatorId);
         return runWithExceptionLock(exceptionId, () -> {
             requireOpenForUpdate(exceptionId);
-            auditService.record(operatorId, "OPS_EXCEPTION_NOTE", OPS_EXCEPTION, exceptionId, trim(note));
+            support.auditService().record(operatorId, "OPS_EXCEPTION_NOTE", OPS_EXCEPTION, exceptionId, trim(note));
             return toDto(require(exceptionId));
         });
     }
@@ -341,7 +352,7 @@ public class OpsExceptionService {
             item.setAssigneeUserId(operatorId);
             item.setStatus(PROCESSING);
             repository.save(item);
-            auditService.record(operatorId, action, OPS_EXCEPTION, exceptionId,
+            support.auditService().record(operatorId, action, OPS_EXCEPTION, exceptionId,
                     "幂等键：" + idempotencyKey + "；" + trim(detail));
             return toDto(item);
         });
@@ -359,7 +370,7 @@ public class OpsExceptionService {
             item.setResolution(trim(result));
             item.setResolvedAt(Instant.now());
             repository.save(item);
-            auditService.record(operatorId, action, OPS_EXCEPTION, exceptionId,
+            support.auditService().record(operatorId, action, OPS_EXCEPTION, exceptionId,
                     "幂等键：" + idempotencyKey + "；结果：" + trim(result));
             return toDto(item);
         });
@@ -384,14 +395,14 @@ public class OpsExceptionService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该异常类型不支持人工商品或资金处置");
         }
         String marker = "idempotencyKey=" + idempotencyKey;
-        boolean replay = auditRepository.findByTargetTypeAndTargetIdOrderByCreatedAtAsc(
+        boolean replay = support.auditRepository().findByTargetTypeAndTargetIdOrderByCreatedAtAsc(
                         OPS_EXCEPTION, exceptionId).stream()
                 .anyMatch(log -> log.getDetail() != null && log.getDetail().contains(marker));
         if (replay || STATUS_RESOLVED.equals(item.getStatus())) return toDto(item);
         if (item.getSessionId() == null || item.getSessionId().isBlank()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该异常未关联购物会话");
         }
-        var session = sessionRepository.findById(item.getSessionId())
+        var session = support.sessionRepository().findById(item.getSessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         String result = applyManualResolution(session, item, resolutionType, lines, reason);
         String type = resolutionType == null ? "" : resolutionType.trim().toUpperCase();
@@ -403,7 +414,7 @@ public class OpsExceptionService {
                                          List<ResolveDisputeRequest.ManualLineItem> lines, String reason) {
         String type = resolutionType == null ? "" : resolutionType.trim().toUpperCase();
         if ("WAIVE".equals(type)) {
-            int refunded = settlementService.waiveAndRefund(session);
+            int refunded = support.settlementService().waiveAndRefund(session);
             return "人工免单，退回余额 " + refunded + " 分；原因=" + reason;
         }
         if ("CONFIRM".equals(type) || "ADJUST".equals(type)) {
@@ -411,7 +422,7 @@ public class OpsExceptionService {
                     .filter(line -> line.quantity() > 0)
                     .map(line -> new VisionServiceClient.RecognizedItem(line.skuId(), line.quantity(), 1.0f))
                     .toList();
-            var settled = settlementService.confirmDisputedItems(session, recognized);
+            var settled = support.settlementService().confirmDisputedItems(session, recognized);
             session.setOrderId(settled.order().orderId());
             item.setOrderId(settled.order().orderId());
             return "人工确认商品，原金额=" + settled.originalAmountCents()
@@ -427,8 +438,8 @@ public class OpsExceptionService {
                                        String marker, String result) {
         session.setState(SessionState.COMPLETED);
         session.setFailReason(null);
-        sessionRepository.save(session);
-        disputeService.closeOpenTicketForSession(operatorId, session.getSessionId(), resolutionType, lines);
+        support.sessionRepository().save(session);
+        support.disputeService().closeOpenTicketForSession(operatorId, session.getSessionId(), resolutionType, lines);
         if ((item.getOrderId() == null || item.getOrderId().isBlank())
                 && session.getOrderId() != null && !session.getOrderId().isBlank()) {
             item.setOrderId(session.getOrderId());
@@ -438,7 +449,7 @@ public class OpsExceptionService {
         item.setResolution(trim(result));
         item.setResolvedAt(Instant.now());
         repository.save(item);
-        auditService.record(operatorId, "OPS_EXCEPTION_MANUAL_RESOLVE", OPS_EXCEPTION, exceptionId,
+        support.auditService().record(operatorId, "OPS_EXCEPTION_MANUAL_RESOLVE", OPS_EXCEPTION, exceptionId,
                 marker + "; " + result);
     }
 
@@ -521,7 +532,7 @@ public class OpsExceptionService {
         // 审单落账后会话已有 orderId/userId，但历史异常行可能未回写；列表展示时从会话补齐
         if (i.getSessionId() != null && !i.getSessionId().isBlank()
                 && ((orderId == null || orderId.isBlank()) || userId == null)) {
-            var session = sessionRepository.findById(i.getSessionId());
+            var session = support.sessionRepository().findById(i.getSessionId());
             if (orderId == null || orderId.isBlank()) {
                 orderId = session.map(ShoppingSession::getOrderId)
                         .filter(id -> id != null && !id.isBlank())
