@@ -134,60 +134,72 @@ public class RoutePlanningService {
         int seq = 1;
 
         while (!remaining.isEmpty()) {
-            Map<DeviceInfo, Integer> roadMeters = new LinkedHashMap<>();
-            List<DeviceInfo> routable = new ArrayList<>();
-            for (DeviceInfo device : remaining) {
-                if (device.getLatitude() == null || device.getLongitude() == null) {
-                    roadMeters.put(device, null); // 缺坐标的点用直线距离兜底
-                } else {
-                    routable.add(device);
-                }
-            }
-            if (!routable.isEmpty()) {
-                String origins = routable.stream()
-                        .map(d -> d.getLongitude() + "," + d.getLatitude())
-                        .reduce((a, b) -> a + ";" + b)
-                        .orElse("");
-                List<Integer> meters = gaodeDistances(origins, curLng + "," + curLat);
-                for (int i = 0; i < routable.size(); i++) {
-                    roadMeters.put(routable.get(i), meters.get(i));
-                }
-            }
-
-            DeviceInfo nearest = null;
-            double nearestDist = Double.MAX_VALUE;
-            for (DeviceInfo device : remaining) {
-                double dist;
-                Integer road = roadMeters.get(device);
-                if (road != null) {
-                    dist = road;
-                } else {
-                    double lat = device.getLatitude() != null ? device.getLatitude() : curLat;
-                    double lng = device.getLongitude() != null ? device.getLongitude() : curLng;
-                    dist = haversineMeters(curLat, curLng, lat, lng);
-                }
-                if (dist < nearestDist) {
-                    nearestDist = dist;
-                    nearest = device;
-                }
-            }
-
-            remaining.remove(nearest);
-            if (nearest == null) {
+            Map<DeviceInfo, Integer> roadMeters = buildGaodeRoadMeters(remaining, curLat, curLng);
+            NearestDevicePick pick = findNearestFromRoadMeters(remaining, roadMeters, curLat, curLng);
+            if (pick.device() == null) {
                 break;
             }
-            int legM = (int) Math.round(nearestDist);
+            remaining.remove(pick.device());
+            int legM = (int) Math.round(pick.distanceMeters());
             totalDistance += legM;
-            double destLat = nearest.getLatitude() != null ? nearest.getLatitude() : curLat;
-            double destLng = nearest.getLongitude() != null ? nearest.getLongitude() : curLng;
+            double destLat = pick.device().getLatitude() != null ? pick.device().getLatitude() : curLat;
+            double destLng = pick.device().getLongitude() != null ? pick.device().getLongitude() : curLng;
             waypoints.add(new RouteWaypointDto(
-                    seq++, nearest.getDeviceId(), destLat, destLng,
-                    address(nearest), legM
+                    seq++, pick.device().getDeviceId(), destLat, destLng,
+                    address(pick.device()), legM
             ));
             curLat = destLat;
             curLng = destLng;
         }
         return new PlannedRoute(waypoints, totalDistance);
+    }
+
+    private Map<DeviceInfo, Integer> buildGaodeRoadMeters(List<DeviceInfo> remaining, double curLat, double curLng) {
+        Map<DeviceInfo, Integer> roadMeters = new LinkedHashMap<>();
+        List<DeviceInfo> routable = new ArrayList<>();
+        for (DeviceInfo device : remaining) {
+            if (device.getLatitude() == null || device.getLongitude() == null) {
+                roadMeters.put(device, null);
+            } else {
+                routable.add(device);
+            }
+        }
+        if (!routable.isEmpty()) {
+            String origins = routable.stream()
+                    .map(d -> d.getLongitude() + "," + d.getLatitude())
+                    .reduce((a, b) -> a + ";" + b)
+                    .orElse("");
+            List<Integer> meters = gaodeDistances(origins, curLng + "," + curLat);
+            for (int i = 0; i < routable.size(); i++) {
+                roadMeters.put(routable.get(i), meters.get(i));
+            }
+        }
+        return roadMeters;
+    }
+
+    private static NearestDevicePick findNearestFromRoadMeters(List<DeviceInfo> remaining,
+                                                               Map<DeviceInfo, Integer> roadMeters,
+                                                               double curLat, double curLng) {
+        DeviceInfo nearest = null;
+        double nearestDist = Double.MAX_VALUE;
+        for (DeviceInfo device : remaining) {
+            double dist = distanceToDevice(device, roadMeters.get(device), curLat, curLng);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearest = device;
+            }
+        }
+        return new NearestDevicePick(nearest, nearestDist);
+    }
+
+    private static double distanceToDevice(DeviceInfo device, Integer roadMeters,
+                                           double curLat, double curLng) {
+        if (roadMeters != null) {
+            return roadMeters;
+        }
+        double lat = device.getLatitude() != null ? device.getLatitude() : curLat;
+        double lng = device.getLongitude() != null ? device.getLongitude() : curLng;
+        return haversineMeters(curLat, curLng, lat, lng);
     }
 
     /** 调用高德距离矩阵：origins 多个、destination 一个，按 origins 顺序返回距离（米）。 */

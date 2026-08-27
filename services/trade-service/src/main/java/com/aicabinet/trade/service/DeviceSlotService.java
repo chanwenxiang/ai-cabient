@@ -698,37 +698,57 @@ public class DeviceSlotService {
             throw badRequest("slots required");
         }
         for (UpsertDeviceSlotRequest req : requests) {
-            validateUpsert(req);
-            String slotCode = req.slotCode().trim().toUpperCase();
-            DeviceSlotId id = new DeviceSlotId(deviceId, slotCode);
-            DeviceSlot slot = slotRepository.findById(id).orElseGet(() -> {
-                DeviceSlot created = new DeviceSlot();
-                created.setId(id);
-                return created;
-            });
-            if (req.rowNo() != null) slot.setRowNo(req.rowNo());
-            if (req.colNo() != null) slot.setColNo(req.colNo());
-            if (req.slotType() != null && !req.slotType().isBlank()) {
-                slot.setSlotType(req.slotType().trim().toUpperCase());
-            }
-            if (req.assignedSkuId() != null) {
-                String sku = req.assignedSkuId().isBlank() ? null : req.assignedSkuId().trim();
-                if (sku != null) {
-                    skuCatalogRepository.findById(sku)
-                            .orElseThrow(() -> badRequest("sku not found: " + sku));
-                }
-                slot.setAssignedSkuId(sku);
-            }
-            if (req.parLevel() != null) slot.setParLevel(req.parLevel());
-            if (req.minLevel() != null) slot.setMinLevel(req.minLevel());
-            if (req.maxLevel() != null) slot.setMaxLevel(req.maxLevel());
-            if (req.enabled() != null) slot.setEnabled(req.enabled());
-            if (slot.getMaxLevel() <= 0 && slot.getParLevel() > 0) {
-                slot.setMaxLevel(slot.getParLevel());
-            }
-            slotRepository.save(slot);
+            persistUpsertSlot(deviceId, req);
         }
         return self.listSlots(operatorId, deviceId);
+    }
+
+    private void persistUpsertSlot(String deviceId, UpsertDeviceSlotRequest req) {
+        validateUpsert(req);
+        String slotCode = req.slotCode().trim().toUpperCase();
+        DeviceSlotId id = new DeviceSlotId(deviceId, slotCode);
+        DeviceSlot slot = slotRepository.findById(id).orElseGet(() -> {
+            DeviceSlot created = new DeviceSlot();
+            created.setId(id);
+            return created;
+        });
+        applyUpsertFields(slot, req);
+        if (slot.getMaxLevel() <= 0 && slot.getParLevel() > 0) {
+            slot.setMaxLevel(slot.getParLevel());
+        }
+        slotRepository.save(slot);
+    }
+
+    private void applyUpsertFields(DeviceSlot slot, UpsertDeviceSlotRequest req) {
+        if (req.rowNo() != null) {
+            slot.setRowNo(req.rowNo());
+        }
+        if (req.colNo() != null) {
+            slot.setColNo(req.colNo());
+        }
+        if (req.slotType() != null && !req.slotType().isBlank()) {
+            slot.setSlotType(req.slotType().trim().toUpperCase());
+        }
+        if (req.assignedSkuId() != null) {
+            String sku = req.assignedSkuId().isBlank() ? null : req.assignedSkuId().trim();
+            if (sku != null) {
+                skuCatalogRepository.findById(sku)
+                        .orElseThrow(() -> badRequest("sku not found: " + sku));
+            }
+            slot.setAssignedSkuId(sku);
+        }
+        if (req.parLevel() != null) {
+            slot.setParLevel(req.parLevel());
+        }
+        if (req.minLevel() != null) {
+            slot.setMinLevel(req.minLevel());
+        }
+        if (req.maxLevel() != null) {
+            slot.setMaxLevel(req.maxLevel());
+        }
+        if (req.enabled() != null) {
+            slot.setEnabled(req.enabled());
+        }
     }
 
     @Transactional
