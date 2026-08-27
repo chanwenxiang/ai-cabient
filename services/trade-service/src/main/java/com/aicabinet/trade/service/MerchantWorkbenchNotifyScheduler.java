@@ -2,7 +2,6 @@ package com.aicabinet.trade.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -14,12 +13,12 @@ public class MerchantWorkbenchNotifyScheduler {
     private static final Logger log = LoggerFactory.getLogger(MerchantWorkbenchNotifyScheduler.class);
 
     private final MerchantNotifyService merchantNotifyService;
+    private final ScheduledTaskService taskService;
 
-    @Autowired
-    private ScheduledTaskService taskService;
-
-    public MerchantWorkbenchNotifyScheduler(MerchantNotifyService merchantNotifyService) {
+    public MerchantWorkbenchNotifyScheduler(MerchantNotifyService merchantNotifyService,
+                                            ScheduledTaskService taskService) {
         this.merchantNotifyService = merchantNotifyService;
+        this.taskService = taskService;
     }
 
     /** 每 15 分钟检查一次商户待办并推送订阅消息（已绑定微信且开启偏好） */

@@ -6,7 +6,6 @@ import com.aicabinet.trade.mapper.MemberMapper;
 import com.aicabinet.trade.mapper.MemberPointsLogMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -38,17 +37,18 @@ public class PointsExpiryScheduler {
     private final NotificationService notificationService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final PointsExpiryScheduler self;
-
-    @Autowired
-    private ScheduledTaskService taskService;
+    private final ScheduledTaskService taskService;
 
     public PointsExpiryScheduler(MemberPointsLogMapper pointsLogRepository,
                                  MemberMapper memberRepository,
-                                 NotificationService notificationService, @Lazy PointsExpiryScheduler self) {
+                                 NotificationService notificationService,
+                                 @Lazy PointsExpiryScheduler self,
+                                 ScheduledTaskService taskService) {
         this.pointsLogRepository = pointsLogRepository;
         this.memberRepository = memberRepository;
         this.notificationService = notificationService;
         this.self = self;
+        this.taskService = taskService;
     }
 
     @Scheduled(fixedRate = 6 * 3_600_000L)

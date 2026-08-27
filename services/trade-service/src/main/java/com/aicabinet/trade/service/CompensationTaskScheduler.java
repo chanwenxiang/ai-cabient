@@ -13,7 +13,6 @@ import com.aicabinet.trade.payment.WeChatProfitSharingService;
 import org.redisson.api.RLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -32,39 +31,40 @@ public class CompensationTaskScheduler {
     private static final Logger log = LoggerFactory.getLogger(CompensationTaskScheduler.class);
 
     static final int PROFIT_SHARING_RETURN_MAX_RETRIES = 5;
-    
-    @Autowired
-    private CompensationTaskMapper taskRepository;
-    
-    @Autowired
-    private DistributedTransactionMapper txRepository;
-    
-    @Autowired
-    private DistributedLockService lockService;
-    
-    @Autowired
-    private TccTransactionCoordinator txCoordinator;
 
-    @Autowired
-    private ScheduledTaskService taskService;
-
-    @Autowired
-    private OrderRevenueSplitMapper splitRepository;
-
-    @Autowired
-    private MerchantMapper merchantRepository;
-
-    @Autowired
-    private WeChatProfitSharingService profitSharingService;
-
-    @Autowired
-    private ProfitSharingReturnAlertService profitSharingReturnAlertService;
-
+    private final CompensationTaskMapper taskRepository;
+    private final DistributedTransactionMapper txRepository;
+    private final DistributedLockService lockService;
+    private final TccTransactionCoordinator txCoordinator;
+    private final ScheduledTaskService taskService;
+    private final OrderRevenueSplitMapper splitRepository;
+    private final MerchantMapper merchantRepository;
+    private final WeChatProfitSharingService profitSharingService;
+    private final ProfitSharingReturnAlertService profitSharingReturnAlertService;
     /** 自注入：保证 processTask 上的 @Transactional 经 Spring 代理生效。 */
-    @Autowired
-    @Lazy
-    private CompensationTaskScheduler self;
-    
+    private final CompensationTaskScheduler self;
+
+    public CompensationTaskScheduler(CompensationTaskMapper taskRepository,
+                                       DistributedTransactionMapper txRepository,
+                                       DistributedLockService lockService,
+                                       TccTransactionCoordinator txCoordinator,
+                                       ScheduledTaskService taskService,
+                                       OrderRevenueSplitMapper splitRepository,
+                                       MerchantMapper merchantRepository,
+                                       WeChatProfitSharingService profitSharingService,
+                                       ProfitSharingReturnAlertService profitSharingReturnAlertService,
+                                       @Lazy CompensationTaskScheduler self) {
+        this.taskRepository = taskRepository;
+        this.txRepository = txRepository;
+        this.lockService = lockService;
+        this.txCoordinator = txCoordinator;
+        this.taskService = taskService;
+        this.splitRepository = splitRepository;
+        this.merchantRepository = merchantRepository;
+        this.profitSharingService = profitSharingService;
+        this.profitSharingReturnAlertService = profitSharingReturnAlertService;
+        this.self = self;
+    }
     @Scheduled(fixedDelay = 30000)
     public void processCompensationTasks() {
         if (!taskService.isEnabled(COMPENSATION_PROCESS)) {

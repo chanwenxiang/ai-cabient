@@ -64,8 +64,8 @@ class DisputeReviewCodeTest {
                 settlementService, new ObjectMapper(), minioVideoService, auditService, riskControlService,
                 permissionService, merchantScopeService, null, merchantPortalGuard, skuCatalogRepository,
                 new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService,
-                fileAttachmentService, null, videoArchiveService, orderPaymentService, distributedLockService, null);
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "systemConfigService", systemConfigService);
+                fileAttachmentService, null, videoArchiveService, orderPaymentService, distributedLockService,
+                systemConfigService, null);
         lenient().when(systemConfigService.getInt(anyString(), anyInt())).thenAnswer(i -> i.getArgument(1));
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
     }

@@ -29,7 +29,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
@@ -87,12 +86,8 @@ public class SessionService {
     private final ConsumerPreauthService consumerPreauthService;
     private final MerchantOpsPolicyService opsPolicyService;
     private final DistributedLockService distributedLockService;
-
-    @Autowired
-    private ScheduledTaskService taskService;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+    private final ScheduledTaskService taskService;
+    private final ObjectMapper objectMapper;
 
     public SessionService(ShoppingSessionMapper repository,
                           DeviceServiceClient deviceClient,
@@ -112,7 +107,9 @@ public class SessionService {
                           @Lazy DisputeService disputeService,
                           ConsumerPreauthService consumerPreauthService,
                           MerchantOpsPolicyService opsPolicyService,
-                          DistributedLockService distributedLockService) {
+                          DistributedLockService distributedLockService,
+                          ScheduledTaskService taskService,
+                          ObjectMapper objectMapper) {
         this.repository = repository;
         this.deviceClient = deviceClient;
         this.userValidationService = userValidationService;
@@ -132,6 +129,8 @@ public class SessionService {
         this.consumerPreauthService = consumerPreauthService;
         this.opsPolicyService = opsPolicyService;
         this.distributedLockService = distributedLockService;
+        this.taskService = taskService;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional

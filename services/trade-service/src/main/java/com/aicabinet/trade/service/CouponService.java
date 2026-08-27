@@ -7,7 +7,6 @@ import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -27,13 +26,11 @@ public class CouponService {
     private static final String COUPON_EXPIRE = "coupon-expire";
     private static final String LITERAL = "优惠券定义不存在";
 
-    @Autowired
-    private ScheduledTaskService taskService;
-
     private static final Logger log = LoggerFactory.getLogger(CouponService.class);
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int COUPON_CODE_LENGTH = 12;
 
+    private final ScheduledTaskService taskService;
     private final CouponDefinitionMapper definitionRepository;
     private final UserCouponMapper userCouponRepository;
     private final UserInfoMapper userInfoRepository;
@@ -44,13 +41,16 @@ public class CouponService {
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final CouponService self;
 
-    public CouponService(CouponDefinitionMapper definitionRepository,
+    public CouponService(ScheduledTaskService taskService,
+                         CouponDefinitionMapper definitionRepository,
                          UserCouponMapper userCouponRepository,
                          UserInfoMapper userInfoRepository,
                          CabinetOrderMapper orderRepository,
                          CabinetOrderLineMapper orderLineRepository,
                          DistributedLockService distributedLockService,
-                         PromotionService promotionService, @Lazy CouponService self) {
+                         PromotionService promotionService,
+                         @Lazy CouponService self) {
+        this.taskService = taskService;
         this.definitionRepository = definitionRepository;
         this.userCouponRepository = userCouponRepository;
         this.userInfoRepository = userInfoRepository;

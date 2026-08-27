@@ -7,7 +7,6 @@ import com.aicabinet.trade.mapper.ReplenishmentTaskLineMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,20 +34,20 @@ public class ReplenishmentTimeoutScheduler {
     private final ReplenishmentRouteMapper routeRepository;
     private final SessionService sessionService;
     private final OpsExceptionService opsExceptionService;
-
-    @Autowired
-    private ScheduledTaskService taskService;
+    private final ScheduledTaskService taskService;
 
     public ReplenishmentTimeoutScheduler(ReplenishmentTaskMapper taskRepository,
                                          ReplenishmentTaskLineMapper taskLineRepository,
                                          ReplenishmentRouteMapper routeRepository,
                                          SessionService sessionService,
-                                         OpsExceptionService opsExceptionService) {
+                                         OpsExceptionService opsExceptionService,
+                                         ScheduledTaskService taskService) {
         this.taskRepository = taskRepository;
         this.taskLineRepository = taskLineRepository;
         this.routeRepository = routeRepository;
         this.sessionService = sessionService;
         this.opsExceptionService = opsExceptionService;
+        this.taskService = taskService;
     }
 
     @Scheduled(fixedRate = 60_000)

@@ -6,7 +6,6 @@ import com.aicabinet.trade.mapper.CouponDefinitionMapper;
 import com.aicabinet.trade.mapper.UserCouponMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -36,17 +35,18 @@ public class CouponExpiryReminderScheduler {
     private final NotificationService notificationService;
         /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final CouponExpiryReminderScheduler self;
-
-    @Autowired
-    private ScheduledTaskService taskService;
+    private final ScheduledTaskService taskService;
 
     public CouponExpiryReminderScheduler(UserCouponMapper couponRepository,
                                          CouponDefinitionMapper definitionRepository,
-                                         NotificationService notificationService, @Lazy CouponExpiryReminderScheduler self) {
+                                         NotificationService notificationService,
+                                         @Lazy CouponExpiryReminderScheduler self,
+                                         ScheduledTaskService taskService) {
         this.couponRepository = couponRepository;
         this.definitionRepository = definitionRepository;
         this.notificationService = notificationService;
         this.self = self;
+        this.taskService = taskService;
     }
 
     @Scheduled(fixedRate = 6 * 3_600_000L)

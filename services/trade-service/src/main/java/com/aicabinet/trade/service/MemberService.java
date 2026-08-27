@@ -9,7 +9,6 @@ import com.aicabinet.trade.mapper.MemberPointsLogMapper;
 import com.aicabinet.common.dto.MemberLevelRuleDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -32,21 +31,23 @@ public class MemberService {
     public static final String LEVEL_GOLD = "GOLD";
     public static final String LEVEL_PLATINUM = "PLATINUM";
 
-    @Autowired
-    private MemberMapper memberRepository;
+    private final MemberMapper memberRepository;
+    private final MemberLevelRuleMapper levelRuleRepository;
+    private final MemberPointsLogMapper pointsLogRepository;
+    private final DistributedLockService distributedLockService;
+    private final MemberService self;
 
-    @Autowired
-    private MemberLevelRuleMapper levelRuleRepository;
-
-    @Autowired
-    private MemberPointsLogMapper pointsLogRepository;
-
-    @Autowired
-    private DistributedLockService distributedLockService;
-
-    @Autowired
-    @Lazy
-    private MemberService self;
+    public MemberService(MemberMapper memberRepository,
+                         MemberLevelRuleMapper levelRuleRepository,
+                         MemberPointsLogMapper pointsLogRepository,
+                         DistributedLockService distributedLockService,
+                         @Lazy MemberService self) {
+        this.memberRepository = memberRepository;
+        this.levelRuleRepository = levelRuleRepository;
+        this.pointsLogRepository = pointsLogRepository;
+        this.distributedLockService = distributedLockService;
+        this.self = self;
+    }
 
     @Transactional
     public Member createMember(Long userId) {

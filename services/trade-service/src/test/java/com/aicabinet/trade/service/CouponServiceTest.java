@@ -44,9 +44,9 @@ class CouponServiceTest {
     @BeforeEach
     void setUp() {
         couponService = new CouponService(
-                definitionRepository, userCouponRepository, userInfoRepository, orderRepository,
+                taskService, definitionRepository, userCouponRepository, userInfoRepository, orderRepository,
                 orderLineRepository, distributedLockService, promotionService, null);
-        org.springframework.test.util.ReflectionTestUtils.setField(couponService, "taskService", taskService);
+        org.springframework.test.util.ReflectionTestUtils.setField(couponService, "self", couponService);
         lenient().when(taskService.tryBegin(anyString(), anyLong())).thenReturn(true);
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
     }

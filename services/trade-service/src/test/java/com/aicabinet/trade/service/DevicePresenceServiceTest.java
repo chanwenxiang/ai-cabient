@@ -47,7 +47,7 @@ class DevicePresenceServiceTest {
         when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DevicePresenceService service = new DevicePresenceService(
-                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null);
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         service.heartbeat("CAB-002", "0.9.0", null, null);
 
@@ -72,7 +72,7 @@ class DevicePresenceServiceTest {
         when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DevicePresenceService service = new DevicePresenceService(
-                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null);
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         service.heartbeat("CAB-003", "0.9.0", null, null);
 
@@ -97,7 +97,7 @@ class DevicePresenceServiceTest {
         when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DevicePresenceService service = new DevicePresenceService(
-                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null);
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         service.heartbeat("CAB-001", "0.9.0", null, null);
 

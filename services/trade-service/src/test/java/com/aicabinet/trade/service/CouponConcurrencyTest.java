@@ -28,6 +28,7 @@ class CouponConcurrencyTest {
     @Mock private CabinetOrderMapper orderRepository;
     @Mock private CabinetOrderLineMapper orderLineRepository;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private ScheduledTaskService taskService;
     @Mock private PromotionService promotionService;
 
     private CouponService couponService;
@@ -35,7 +36,7 @@ class CouponConcurrencyTest {
     @BeforeEach
     void setUp() {
         couponService = new CouponService(
-                definitionRepository, userCouponRepository, userInfoRepository, orderRepository,
+                taskService, definitionRepository, userCouponRepository, userInfoRepository, orderRepository,
                 orderLineRepository, distributedLockService, promotionService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(couponService, "self", couponService);
     }

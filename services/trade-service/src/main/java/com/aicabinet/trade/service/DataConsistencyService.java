@@ -9,7 +9,6 @@ import com.aicabinet.trade.mapper.DataConsistencyRecordMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -75,36 +74,38 @@ public class DataConsistencyService {
         }
     }
 
-    @Autowired
-    private DataChangeLogMapper changeLogRepository;
+    private final DataChangeLogMapper changeLogRepository;
+    private final DataConsistencyRecordMapper consistencyRepository;
+    private final JdbcTemplate jdbcTemplate;
+    private final ObjectMapper objectMapper;
+    private final ScheduledTaskService taskService;
+    private final DistributedLockService distributedLockService;
+    private final CouponService couponService;
+    private final CabinetOrderMapper cabinetOrderRepository;
+    private final OrderPaymentService orderPaymentService;
+    private final DataConsistencyService self;
 
-    @Autowired
-    private DataConsistencyRecordMapper consistencyRepository;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
-@Autowired
-private ObjectMapper objectMapper;
-
-@Autowired
-private ScheduledTaskService taskService;
-
-@Autowired
-private DistributedLockService distributedLockService;
-
-@Autowired
-private CouponService couponService;
-
-@Autowired
-private CabinetOrderMapper cabinetOrderRepository;
-
-@Autowired
-private OrderPaymentService orderPaymentService;
-
-@Autowired
-@Lazy
-private DataConsistencyService self;
+    public DataConsistencyService(DataChangeLogMapper changeLogRepository,
+                                  DataConsistencyRecordMapper consistencyRepository,
+                                  JdbcTemplate jdbcTemplate,
+                                  ObjectMapper objectMapper,
+                                  ScheduledTaskService taskService,
+                                  DistributedLockService distributedLockService,
+                                  CouponService couponService,
+                                  CabinetOrderMapper cabinetOrderRepository,
+                                  OrderPaymentService orderPaymentService,
+                                  @Lazy DataConsistencyService self) {
+        this.changeLogRepository = changeLogRepository;
+        this.consistencyRepository = consistencyRepository;
+        this.jdbcTemplate = jdbcTemplate;
+        this.objectMapper = objectMapper;
+        this.taskService = taskService;
+        this.distributedLockService = distributedLockService;
+        this.couponService = couponService;
+        this.cabinetOrderRepository = cabinetOrderRepository;
+        this.orderPaymentService = orderPaymentService;
+        this.self = self;
+    }
 
     private JdbcTemplate requireJdbc() {
         return java.util.Objects.requireNonNull(jdbcTemplate, "jdbcTemplate");

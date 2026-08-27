@@ -50,7 +50,7 @@ class SessionServiceRecoveryTest {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
                 gravityHelper, restockSnapshotService, null, opsExceptionService, userInfoRepository, orderRepository,
-                null, null, null, null, distributedLockService);
+                null, null, null, null, distributedLockService, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),

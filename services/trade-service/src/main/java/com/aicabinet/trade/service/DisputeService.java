@@ -34,7 +34,6 @@ import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -86,10 +85,9 @@ public class DisputeService {
     private final SkuCatalogMapper skuCatalogRepository;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DisputeService self;
-private final DisputeSlaProperties disputeSlaProperties;
-@Autowired
-private SystemConfigService systemConfigService;
-private final UserInfoMapper userInfoRepository;
+    private final DisputeSlaProperties disputeSlaProperties;
+    private final SystemConfigService systemConfigService;
+    private final UserInfoMapper userInfoRepository;
     private final OpsExceptionService opsExceptionService;
     private final FileAttachmentService fileAttachmentService;
     private final RefundPolicyService refundPolicyService;
@@ -118,7 +116,9 @@ private final UserInfoMapper userInfoRepository;
                           RefundPolicyService refundPolicyService,
                           VideoArchiveService videoArchiveService,
                           OrderPaymentService orderPaymentService,
-                          DistributedLockService distributedLockService, @Lazy DisputeService self) {
+                          DistributedLockService distributedLockService,
+                          SystemConfigService systemConfigService,
+                          @Lazy DisputeService self) {
         this.disputeRepository = disputeRepository;
         this.disputeMessageRepository = disputeMessageRepository;
         this.sessionRepository = sessionRepository;
@@ -141,6 +141,7 @@ private final UserInfoMapper userInfoRepository;
         this.videoArchiveService = videoArchiveService;
         this.orderPaymentService = orderPaymentService;
         this.distributedLockService = distributedLockService;
+        this.systemConfigService = systemConfigService;
         this.self = self;
     }
 

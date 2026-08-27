@@ -2,7 +2,6 @@ package com.aicabinet.trade.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -19,12 +18,12 @@ public class FinanceMarginLockScheduler {
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
     private final FundBillService fundBillService;
+    private final ScheduledTaskService taskService;
 
-    @Autowired
-    private ScheduledTaskService taskService;
-
-    public FinanceMarginLockScheduler(FundBillService fundBillService) {
+    public FinanceMarginLockScheduler(FundBillService fundBillService,
+                                      ScheduledTaskService taskService) {
         this.fundBillService = fundBillService;
+        this.taskService = taskService;
     }
 
     @Scheduled(cron = "0 5 0 * * *", zone = "Asia/Shanghai")

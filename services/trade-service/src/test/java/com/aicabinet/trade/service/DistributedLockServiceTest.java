@@ -29,8 +29,7 @@ class DistributedLockServiceTest {
 
     @BeforeEach
     void setUp() {
-        lockService = new DistributedLockService();
-        ReflectionTestUtils.setField(lockService, "redissonClient", redissonClient);
+        lockService = new DistributedLockService(redissonClient);
         lenient().when(redissonClient.getLock(startsWith("aicabinet:lock:"))).thenReturn(rLock);
     }
 

@@ -12,7 +12,6 @@ import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.SlaDailySnapshotMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -44,9 +43,7 @@ public class SlaMetricsService {
     private final DistributedLockService distributedLockService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final SlaMetricsService self;
-
-    @Autowired
-    private ScheduledTaskService taskService;
+    private final ScheduledTaskService taskService;
 
     public SlaMetricsService(ShoppingSessionMapper sessionRepository,
                              DeviceInfoMapper deviceRepository,
@@ -54,7 +51,9 @@ public class SlaMetricsService {
                              MerchantScopeService merchantScopeService,
                              DisputeTicketMapper disputeRepository,
                              DisputeSlaService disputeSlaService,
-                             DistributedLockService distributedLockService, @Lazy SlaMetricsService self) {
+                             DistributedLockService distributedLockService,
+                             @Lazy SlaMetricsService self,
+                             ScheduledTaskService taskService) {
         this.sessionRepository = sessionRepository;
         this.deviceRepository = deviceRepository;
         this.snapshotRepository = snapshotRepository;
@@ -63,6 +62,7 @@ public class SlaMetricsService {
         this.disputeSlaService = disputeSlaService;
         this.distributedLockService = distributedLockService;
         this.self = self;
+        this.taskService = taskService;
     }
 
     @Transactional(readOnly = true)
