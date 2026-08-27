@@ -65,11 +65,8 @@ public class ReplenishmentTimeoutScheduler {
                 "IN_PROGRESS", cutoff, 100);
         int n = 0;
         for (ReplenishmentTask task : stale) {
-            try {
-                expireOne(task);
+            if (expireStaleTaskSafely(task)) {
                 n++;
-            } catch (Exception e) {
-                log.warn("expire stale replenishment task failed taskId={}", task.getTaskId(), e);
             }
         }
         summary = n <= 0 ? "本次无超时补货任务" : "超时取消补货任务 " + n + " 条";
@@ -84,6 +81,16 @@ public class ReplenishmentTimeoutScheduler {
             if (!failed) {
                 taskService.finish(REPLENISHMENT_TIMEOUT, "SUCCESS", summary, start);
             }
+        }
+    }
+
+    private boolean expireStaleTaskSafely(ReplenishmentTask task) {
+        try {
+            expireOne(task);
+            return true;
+        } catch (Exception e) {
+            log.warn("expire stale replenishment task failed taskId={}", task.getTaskId(), e);
+            return false;
         }
     }
 

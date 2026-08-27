@@ -403,11 +403,11 @@ let suppressTypeClear = false;
 
 const filteredTypes = computed(() => {
   const q = typeQuery.value.trim().toLowerCase();
-  const list = !q
-    ? types.value
-    : types.value.filter(
+  const list = q
+    ? types.value.filter(
         (row) => row.dictType.toLowerCase().includes(q) || row.dictName.toLowerCase().includes(q)
-      );
+      )
+    : types.value;
   return sortTypesById(list);
 });
 const displayItems = computed(() => sortItemsById(items.value));

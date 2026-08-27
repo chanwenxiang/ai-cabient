@@ -39,7 +39,7 @@ function isAllowedAlipayAction(action: string): boolean {
   try {
     const url = new URL(
       action,
-      typeof globalThis !== 'undefined' ? globalThis.location.origin : 'https://local.invalid'
+      typeof globalThis === 'undefined' ? 'https://local.invalid' : globalThis.location.origin
     );
     if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
     const host = url.hostname.toLowerCase();

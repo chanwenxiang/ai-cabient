@@ -45,9 +45,9 @@
             <text :class="item.slaOverdue ? 'sla-overdue' : 'sla-ok'">{{
               item.slaOverdue
                 ? '已超时'
-                : item.slaHoursRemaining != null
-                  ? `剩余 ${item.slaHoursRemaining} 小时`
-                  : '处理中'
+                : item.slaHoursRemaining == null
+                  ? '处理中'
+                  : `剩余 ${item.slaHoursRemaining} 小时`
             }}</text>
           </view>
           <view
@@ -369,11 +369,11 @@ async function onDetail(item: MerchantDisputeTicket) {
   }
   detail.value = row;
   canReplyDetail.value =
-    canReplyFromApi != null ? canReplyFromApi && canReply.value : canReplyTicket(row);
+    canReplyFromApi == null ? canReplyTicket(row) : canReplyFromApi && canReply.value;
   canResolveDetail.value =
-    canResolveFromApi != null
-      ? !!canResolveFromApi && canResolve.value
-      : canResolve.value && (row.status || '').toUpperCase() === 'OPEN';
+    canResolveFromApi == null
+      ? canResolve.value && (row.status || '').toUpperCase() === 'OPEN'
+      : !!canResolveFromApi && canResolve.value;
   detailVisible.value = true;
 }
 

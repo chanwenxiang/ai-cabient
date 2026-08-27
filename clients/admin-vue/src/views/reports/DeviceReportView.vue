@@ -222,7 +222,7 @@ const deviceId = ref('');
 const onlineFilter = ref('');
 const page = ref(1);
 const size = ref(20);
-const viewportWidth = ref(typeof globalThis !== 'undefined' ? globalThis.innerWidth : 1280);
+const viewportWidth = ref(typeof globalThis === 'undefined' ? 1280 : globalThis.innerWidth);
 
 const deviceOptions = ref<{ deviceId: string; deviceName?: string }[]>([]);
 

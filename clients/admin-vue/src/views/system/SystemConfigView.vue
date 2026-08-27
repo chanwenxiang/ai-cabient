@@ -215,15 +215,15 @@ const valueOptions = computed(() => ENUM_VALUE_OPTIONS[form.configKey.trim()] ||
 
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase();
-  const rows = !q
-    ? items.value
-    : items.value.filter((row) =>
+  const rows = q
+    ? items.value.filter((row) =>
         [row.configKey, row.configValue, row.description].some((x) =>
           String(x || '')
             .toLowerCase()
             .includes(q)
         )
-      );
+      )
+    : items.value;
   return sortByPrimaryKey(rows, 'configKey', 'asc');
 });
 

@@ -857,9 +857,9 @@ const { onExport: exportMerchants } = useListCsv({
       row.merchantId,
       row.merchantName,
       `${(row.platformRateBps / 100).toFixed(1)}%`,
-      row.packFieldEnabled !== false ? '是' : '否',
-      row.packBizEnabled !== false ? '是' : '否',
-      row.packTeamEnabled !== false ? '是' : '否',
+      row.packFieldEnabled === false ? '否' : '是',
+      row.packBizEnabled === false ? '否' : '是',
+      row.packTeamEnabled === false ? '否' : '是',
       row.allowMerchantPlanogramEdit ? '是' : '否',
       row.allowMerchantPricingEdit ? '是' : '否',
       row.deviceCount ?? 0

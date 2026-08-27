@@ -68,11 +68,11 @@ function updateCompact() {
 
 onMounted(() => {
   updateCompact();
-  if (typeof ResizeObserver !== 'undefined') {
+  if (typeof ResizeObserver === 'undefined') {
+    window.addEventListener('resize', updateCompact, { passive: true });
+  } else {
     observer = new ResizeObserver(updateCompact);
     if (hostRef.value) observer.observe(hostRef.value);
-  } else {
-    window.addEventListener('resize', updateCompact, { passive: true });
   }
 });
 

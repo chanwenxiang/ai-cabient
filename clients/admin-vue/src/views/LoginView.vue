@@ -441,9 +441,12 @@ async function submitReset() {
 onMounted(async () => {
   await loadCaptcha();
   await nextTick();
-  if (!phone.value) phoneInput.value?.focus?.();
-  else if (!password.value) passwordInput.value?.focus?.();
-  else captchaInput.value?.focus?.();
+  if (phone.value) {
+    if (password.value) captchaInput.value?.focus?.();
+    else passwordInput.value?.focus?.();
+  } else {
+    phoneInput.value?.focus?.();
+  }
 });
 
 async function finishLogin(normalizedPhone: string) {

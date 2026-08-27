@@ -203,7 +203,7 @@ function openCreate() {
 function openEdit(row: any) {
   editingId.value = row.logId;
   form.phone = row.phone || '';
-  form.userId = row.userId != null ? String(row.userId) : '';
+  form.userId = row.userId == null ? '' : String(row.userId);
   form.channel = row.channel || 'SMS';
   form.merchantId = row.merchantId || '';
   dlg.value = true;

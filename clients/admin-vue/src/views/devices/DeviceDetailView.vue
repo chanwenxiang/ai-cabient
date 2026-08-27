@@ -1417,12 +1417,12 @@ function fillAsset(row: DeviceInfo) {
   asset.imei = row.imei || '';
   asset.assetOwner = row.assetOwner || '';
   asset.coopMode = row.coopMode || '';
-  asset.depositCents = row.depositCents != null ? Number(row.depositCents) : undefined;
-  asset.dataFeeCents = row.dataFeeCents != null ? Number(row.dataFeeCents) : undefined;
+  asset.depositCents = row.depositCents == null ? undefined : Number(row.depositCents);
+  asset.dataFeeCents = row.dataFeeCents == null ? undefined : Number(row.dataFeeCents);
   asset.opsTags = row.opsTags || '';
   asset.routeCode = row.routeCode || '';
-  asset.latitude = row.latitude != null ? Number(row.latitude) : undefined;
-  asset.longitude = row.longitude != null ? Number(row.longitude) : undefined;
+  asset.latitude = row.latitude == null ? undefined : Number(row.latitude);
+  asset.longitude = row.longitude == null ? undefined : Number(row.longitude);
   asset.address = row.address || '';
   asset.deployedAt = row.deployedAt;
   asset.lifecycleRemark = row.lifecycleRemark || '';
@@ -1523,7 +1523,7 @@ async function loadDetail() {
   metrics.value = detail.metrics;
   slots.value = detail.slots || [];
   slotsHydrated.value = true;
-  tempDraft.value = detail.metrics?.targetTempC != null ? detail.metrics.targetTempC : undefined;
+  tempDraft.value = detail.metrics?.targetTempC == null ? undefined : detail.metrics.targetTempC;
   await Promise.all([
     loadAsset(),
     loadLifecycleEvents(),
@@ -1897,7 +1897,7 @@ function openEditor(slot: DeviceSlot) {
   editForm.enabled = slot.enabled;
   editForm.bookQty = slot.bookQty ?? 0;
   editForm.physicalQty =
-    slot.lastPhysicalQty != null ? Number(slot.lastPhysicalQty) : (slot.bookQty ?? 0);
+    slot.lastPhysicalQty == null ? (slot.bookQty ?? 0) : Number(slot.lastPhysicalQty);
   editForm.qtyDiff = slot.qtyDiff ?? 0;
   editForm.hasDiscrepancy = !!slot.hasDiscrepancy;
   editForm.adjustBookQty = false;
