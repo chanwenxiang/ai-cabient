@@ -202,14 +202,14 @@ public class BalanceRefundService {
                     String.valueOf(req.getRequestId()), "通过并原路退款 " + req.getRequestNo()
                             + " ¥" + String.format("%.2f", req.getAmountCents() / 100.0));
         } catch (RuntimeException e) {
-            log.warn("balance refund approve failed request={}: {}", req.getRequestNo(), e.getMessage());
+            log.error("balance refund approve failed request={}", req.getRequestNo(), e);
             req.setStatus(STATUS_FAILED);
             req.setFailReason(e.getMessage() == null ? "退款失败" : e.getMessage());
             requestMapper.updateById(req);
             // 失败时保持冻结，避免用户继续花掉；运营可驳回释放或再次审核（需先改状态）
             // 这里自动释放冻结，避免卡死；运营可让用户重新申请
             releaseFreeze(req.getUserId(), req.getAmountCents(), req.getRequestNo() + ":fail");
-            throw e;
+            throw new IllegalStateException("balance refund approve failed request=" + req.getRequestNo(), e);
         }
         return toDto(req);
     }

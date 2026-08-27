@@ -1148,13 +1148,6 @@ public class MerchantPortalService {
         return toMerchantUserDto(user, false);
     }
 
-    private UserInfo requireTeamMember(Long operatorId, Long targetUserId) {
-        UserInfo target = userInfoRepository.findById(targetUserId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
-        assertTeamMemberAccess(operatorId, targetUserId);
-        return target;
-    }
-
     private void assertTeamMemberAccess(Long operatorId, Long targetUserId) {
         Set<String> merchants = merchantFeaturePackService.allowedMerchantIdsForPack(
                 operatorId, MerchantFeaturePacks.TEAM);

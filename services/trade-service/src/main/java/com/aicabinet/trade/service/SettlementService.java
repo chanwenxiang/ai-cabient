@@ -146,7 +146,8 @@ public class SettlementService {
                         "UNAVAILABLE-" + session.getSessionId(), List.of(), 0f, true,
                         "vision-unavailable", List.of());
                 escalateToDispute(session, unavailable, "识别服务暂时不可用，已转人工审核，本次暂未扣款");
-                throw e;
+                throw new IllegalStateException(
+                        "vision unavailable session=" + session.getSessionId(), e);
             }
         });
     }

@@ -124,8 +124,6 @@ public class DevOpsHubService {
                     dashboard,
                     "Queued GitHub Actions workflow '" + workflow + "' on ref '" + ref
                             + "'. Check Actions tab when finished.");
-        } catch (ResponseStatusException ex) {
-            throw ex;
         } catch (Exception ex) {
             log.error("DevOps Sonar scan trigger failed operatorId={} workflow={}", operatorId, workflow, ex);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,

@@ -11,7 +11,7 @@ export function csvFileName(prefix: string, d = new Date()): string {
 
 export function escapeCsvCell(value: unknown): string {
   const s = value == null ? '' : String(value);
-  if (/[",\n\r]/.test(s)) return `"${s.replaceAll(/"/g, '""')}"`;
+  if (/[",\n\r]/.test(s)) return `"${s.replaceAll('"', '""')}"`;
   return s;
 }
 
@@ -37,8 +37,8 @@ export function downloadCsv(filename: string, headers: string[], rows: Array<Arr
 export function parseCsv(text: string): string[][] {
   const raw = text
     .replace(/^\uFEFF/, '')
-    .replaceAll(/\r\n/g, '\n')
-    .replaceAll(/\r/g, '\n');
+    .replaceAll('\r\n', '\n')
+    .replaceAll('\r', '\n');
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = '';
