@@ -169,14 +169,14 @@ const BASE_NAV: NavItem[] = [
     title: '识别入驻',
     group: '设备商品',
     perm: 'ops:sku:list',
-    keywords: ['sku', '识别', '入驻', 'yolo', 'vision', '类名']
+    keywords: ['sku', '识别', '入驻', 'vision', '类名', '端侧']
   },
   {
     path: '/vision-mappings',
     title: '识别映射',
     group: '设备商品',
     perm: 'ops:vision:list',
-    keywords: ['yolo', '映射', 'vision', 'deepseek', '重力']
+    keywords: ['映射', 'vision', '类名', '端侧']
   },
   {
     path: '/upload-queue',

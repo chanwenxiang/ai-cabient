@@ -156,21 +156,17 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/vision-service.Dockerfile
-      args:
-        INSTALL_ML: ${VISION_INSTALL_ML:-false}
     image: ai-cabinet/vision-service:${IMAGE_TAG:-latest}
     ports:
       - "8082:8082"
     environment:
       MOCK_ENABLED: ${VISION_MOCK_ENABLED:-true}
-      RECOGNIZER_BACKEND: ${RECOGNIZER_BACKEND:-yolo_deepseek}
+      RECOGNIZER_BACKEND: ${RECOGNIZER_BACKEND:-mock}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
       DEEPSEEK_TIMEOUT_MS: ${DEEPSEEK_TIMEOUT_MS:-2000}
       DEEPSEEK_AUTO_CHARGE: ${DEEPSEEK_AUTO_CHARGE:-false}
       VISION_FORCE_REAL: ${VISION_FORCE_REAL:-false}
-      YOLO_RECOGNITION_MODE: ${YOLO_RECOGNITION_MODE:-delta}
-      HYBRID_DELTA_FIRST: ${HYBRID_DELTA_FIRST:-false}
       VISION_API_KEY: ${VISION_API_KEY}
       MINIO_ENDPOINT: http://minio:9000
       MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-http://localhost:9000}
@@ -182,11 +178,6 @@ services:
       TRADE_SERVICE_URL: http://trade-service:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       KAFKA_ENABLED: "false"
-      YOLO_MODEL_PATH: ${YOLO_MODEL_PATH:-/app/models/yolov8n.pt}
-      YOLO_MODEL_VERSION: ${YOLO_MODEL_VERSION:-yolov8n}
-      YOLO_AUTO_DOWNLOAD: ${YOLO_AUTO_DOWNLOAD:-true}
-      YOLO_CONF: ${YOLO_CONF:-0.5}
-      YOLO_REVIEW_CONF: ${YOLO_REVIEW_CONF:-0.7}
     depends_on:
       minio-init:
         condition: service_completed_successfully
@@ -198,8 +189,8 @@ services:
       timeout: 10s
       retries: 8
       start_period: 60s
-    mem_limit: 2g
-    cpus: 2.0
+    mem_limit: 512m
+    cpus: 1.0
     profiles: ["apps"]
 
   redpanda:

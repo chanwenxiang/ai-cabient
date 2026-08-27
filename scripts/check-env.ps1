@@ -80,13 +80,10 @@ function Invoke-EnvCheck([hashtable]$Env, [string]$Mode) {
 
     if ($Mode -eq "staging") {
         if ($Env["VISION_MOCK_ENABLED"] -eq "true") {
-            $errors += "VISION_MOCK_ENABLED must be false for staging (use real YOLO + DB mappings)"
+            $warnings += "VISION_MOCK_ENABLED=true — staging should use edge recognition or mock=false with need_review path"
         }
         if (-not $Env["SMS_WEBHOOK_URL"]) {
             $errors += "SMS_WEBHOOK_URL is required for staging (compose provides sms-webhook-mock)"
-        }
-        if ($Env["VISION_INSTALL_ML"] -eq "false") {
-            $warnings += "VISION_INSTALL_ML=false — staging vision may fail without YOLO in image"
         }
         $balanceOnly = $Env["CHECKOUT_BALANCE_ONLY"] -eq "true"
         if ($balanceOnly) {
@@ -117,25 +114,11 @@ function Invoke-EnvCheck([hashtable]$Env, [string]$Mode) {
                            "WECHAT_PRIVATE_KEY", "WECHAT_MINIAPP_ID", "WECHAT_MINIAPP_SECRET", "WECHAT_NOTIFY_URL")) {
             if (-not $Env[$key]) { $errors += "$key is required for prod" }
         }
-        if ($Env["YOLO_AUTO_DOWNLOAD"] -eq "true") {
-            $errors += "YOLO_AUTO_DOWNLOAD must be false for prod (bake or mount SKU model weights)"
-        }
-        $modelPath = $Env["YOLO_MODEL_PATH"]
-        $modelVersion = $Env["YOLO_MODEL_VERSION"]
-        if (-not $modelVersion) {
-            $errors += "YOLO_MODEL_VERSION is required for prod (e.g. cabinet-skus-v1.0.0)"
-        }
-        if ($modelPath -match "yolov8n") {
-            $errors += "YOLO_MODEL_PATH must not use generic yolov8n.pt in prod"
-        }
-        if (-not $modelPath) {
-            $warnings += "YOLO_MODEL_PATH empty — set to /app/models/cabinet-skus-*.pt"
+        if ($Env["VISION_MOCK_ENABLED"] -eq "true") {
+            $warnings += "VISION_MOCK_ENABLED=true — production should use edge provider recognition"
         }
         if ($Env["MQTT_BROKER"] -match "^tcp://") {
             $errors += "MQTT_BROKER must use ssl:// in prod"
-        }
-        if ($Env["VISION_MOCK_ENABLED"] -eq "true") {
-            $warnings += "VISION_MOCK_ENABLED=true — production should use real recognizer"
         }
         if ($Env["CORS_ORIGIN"] -match "localhost") {
             $warnings += "CORS_ORIGIN still localhost"
