@@ -273,11 +273,30 @@ public class WarehouseService {
     public List<ReplenishmentSuggestDto> suggestForDevice(String deviceId, boolean fillToPar) {
         String dev = deviceId.trim();
         Map<String, Integer> inTransitBySku = inTransitService.qtyBySkuForDevice(dev);
+        Map<String, SalesVelocityService.SkuVelocity> velocityBySku = salesVelocityService.velocityBySku(deviceId);
+        List<ReplenishmentSuggestDto> fromSlots = buildSuggestionsFromSlots(dev, deviceId, fillToPar, inTransitBySku, velocityBySku);
+        if (!fromSlots.isEmpty()) {
+            return fromSlots;
+        }
+        if (fillToPar) {
+            // 货道已满 PAR / 在途抵消后，再回退常规低库存/ROP 建议
+            return self.suggestForDevice(deviceId, false);
+        }
+        List<ReplenishmentSuggestDto> lowStock = suggestFromLowStock(dev, inTransitBySku, velocityBySku);
+        if (!lowStock.isEmpty()) {
+            return lowStock;
+        }
+        return suggestFromRop(dev, inTransitBySku, velocityBySku);
+    }
+
+    private List<ReplenishmentSuggestDto> buildSuggestionsFromSlots(
+            String dev, String deviceId, boolean fillToPar,
+            Map<String, Integer> inTransitBySku,
+            Map<String, SalesVelocityService.SkuVelocity> velocityBySku) {
         Map<String, Integer> qtyBySku = new LinkedHashMap<>();
         Map<String, Integer> bookBySku = new LinkedHashMap<>();
         Map<String, Integer> parBySku = new LinkedHashMap<>();
         Map<String, String> reasonBySku = new LinkedHashMap<>();
-        Map<String, SalesVelocityService.SkuVelocity> velocityBySku = salesVelocityService.velocityBySku(deviceId);
         List<SlotReplenishmentSuggestDto> slots = fillToPar
                 ? deviceSlotService.suggestSlotsForOutboundFill(deviceId)
                 : deviceSlotService.suggestSlotsForDevice(deviceId);
@@ -290,33 +309,32 @@ public class WarehouseService {
             parBySku.merge(slot.skuId(), slot.parLevel(), Integer::sum);
             reasonBySku.putIfAbsent(slot.skuId(), slot.suggestReason());
         }
-        if (!qtyBySku.isEmpty()) {
-            List<ReplenishmentSuggestDto> fromSlots = qtyBySku.entrySet().stream()
-                    .map(e -> {
-                        String skuId = e.getKey();
-                        SalesVelocityService.SkuVelocity velocity = velocityBySku.getOrDefault(
-                                skuId, new SalesVelocityService.SkuVelocity(0, 0, 0, 0));
-                        int book = bookBySku.getOrDefault(skuId, 0);
-                        int par = parBySku.getOrDefault(skuId, 0);
-                        int inTransit = inTransitBySku.getOrDefault(skuId, 0);
-                        int rawSuggest = e.getValue();
-                        return new ReplenishmentSuggestDto(
-                                dev, skuId, book, par, 0,
-                                Math.max(0, rawSuggest - inTransit), inTransit,
-                                velocity.soldQty7d(), velocity.soldQty14d(), velocity.ropPoint(),
-                                reasonBySku.getOrDefault(skuId, "PAR"));
-                    })
-                    .filter(s -> s.suggestQty() > 0)
-                    .toList();
-            if (!fromSlots.isEmpty()) {
-                return fromSlots;
-            }
+        if (qtyBySku.isEmpty()) {
+            return List.of();
         }
-        if (fillToPar) {
-            // 货道已满 PAR / 在途抵消后，再回退常规低库存/ROP 建议
-            return self.suggestForDevice(deviceId, false);
-        }
-        List<ReplenishmentSuggestDto> lowStock = deviceInventoryRepository.findByIdDeviceId(dev).stream()
+        return qtyBySku.entrySet().stream()
+                .map(e -> {
+                    String skuId = e.getKey();
+                    SalesVelocityService.SkuVelocity velocity = velocityBySku.getOrDefault(
+                            skuId, new SalesVelocityService.SkuVelocity(0, 0, 0, 0));
+                    int book = bookBySku.getOrDefault(skuId, 0);
+                    int par = parBySku.getOrDefault(skuId, 0);
+                    int inTransit = inTransitBySku.getOrDefault(skuId, 0);
+                    int rawSuggest = e.getValue();
+                    return new ReplenishmentSuggestDto(
+                            dev, skuId, book, par, 0,
+                            Math.max(0, rawSuggest - inTransit), inTransit,
+                            velocity.soldQty7d(), velocity.soldQty14d(), velocity.ropPoint(),
+                            reasonBySku.getOrDefault(skuId, "PAR"));
+                })
+                .filter(s -> s.suggestQty() > 0)
+                .toList();
+    }
+
+    private List<ReplenishmentSuggestDto> suggestFromLowStock(
+            String dev, Map<String, Integer> inTransitBySku,
+            Map<String, SalesVelocityService.SkuVelocity> velocityBySku) {
+        return deviceInventoryRepository.findByIdDeviceId(dev).stream()
                 .map(i -> {
                     String skuId = i.getId().getSkuId();
                     int book = bookQtyForSuggest(dev, skuId, i.getQuantity());
@@ -345,9 +363,11 @@ public class WarehouseService {
                 })
                 .filter(s -> s.suggestQty() > 0)
                 .toList();
-        if (!lowStock.isEmpty()) {
-            return lowStock;
-        }
+    }
+
+    private List<ReplenishmentSuggestDto> suggestFromRop(
+            String dev, Map<String, Integer> inTransitBySku,
+            Map<String, SalesVelocityService.SkuVelocity> velocityBySku) {
         return velocityBySku.entrySet().stream()
                 .filter(e -> e.getValue().ropPoint() > 0)
                 .map(e -> {

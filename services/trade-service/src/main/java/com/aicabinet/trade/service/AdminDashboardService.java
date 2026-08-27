@@ -266,62 +266,79 @@ public class AdminDashboardService {
         permissionService.requirePermission(operatorId, PERM_OPS_DASHBOARD_VIEW);
         Set<String> scopedDevices = merchantScopeService.allowedDeviceIds(operatorId);
         List<OpsActionItemDto> items = new java.util.ArrayList<>();
+        collectDisputeActionItems(scopedDevices, items);
+        collectUploadStuckItems(scopedDevices, items);
+        collectOfflineDeviceItems(scopedDevices, items);
+        collectLowStockItems(scopedDevices, items);
+        collectReplenishmentActionItems(scopedDevices, items);
+        collectStaleSessionItems(scopedDevices, items);
+        collectReconMismatchItems(items);
+        collectSplitExceptionItems(scopedDevices, items);
+        collectInTransitOverdueItems(scopedDevices, items);
 
-        List<DisputeTicket> openDisputes = disputeRepository
-                .findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
+        items.sort(java.util.Comparator
+                .comparingInt((OpsActionItemDto item) -> severityRank(item.severity()))
+                .thenComparing(item -> item.dueAt() != null ? item.dueAt() : Instant.MAX));
+
+        return buildWorkbenchDto(operatorId, scopedDevices, items);
+    }
+
+    private void collectDisputeActionItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
+        disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
                 .filter(d -> inDeviceScope(scopedDevices, sessionDeviceId(d.getSessionId())))
-                .toList();
-        openDisputes.forEach(d -> items.add(new OpsActionItemDto(
-                "DISPUTE",
-                disputeSeverity(d),
-                "待审核争议",
-                formatDisputeReasonText(d.getReason()),
-                sessionDeviceId(d.getSessionId()),
-                d.getSessionId(),
-                d.getTicketId(),
-                null,
-                null,
-                d.getCreatedAt(),
-                d.getSlaDueAt()
-        )));
+                .forEach(d -> items.add(new OpsActionItemDto(
+                        "DISPUTE",
+                        disputeSeverity(d),
+                        "待审核争议",
+                        formatDisputeReasonText(d.getReason()),
+                        sessionDeviceId(d.getSessionId()),
+                        d.getSessionId(),
+                        d.getTicketId(),
+                        null,
+                        null,
+                        d.getCreatedAt(),
+                        d.getSlaDueAt()
+                )));
+    }
 
-        List<ShoppingSession> waitingUploads = sessionRepository
-                .findTop10ByStateOrderByUpdatedAtAsc(SessionState.WAITING_UPLOAD).stream()
+    private void collectUploadStuckItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
+        sessionRepository.findTop10ByStateOrderByUpdatedAtAsc(SessionState.WAITING_UPLOAD).stream()
                 .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
-                .toList();
-        waitingUploads.forEach(s -> items.add(new OpsActionItemDto(
-                "UPLOAD_STUCK",
-                uploadSeverity(s),
-                "视频待上传",
-                "上传状态：" + uploadStatusLabel(s.getUploadStatus()),
-                s.getDeviceId(),
-                s.getSessionId(),
-                null,
-                null,
-                null,
-                s.getCreatedAt(),
-                s.getUpdatedAt().plus(30, ChronoUnit.MINUTES)
-        )));
+                .forEach(s -> items.add(new OpsActionItemDto(
+                        "UPLOAD_STUCK",
+                        uploadSeverity(s),
+                        "视频待上传",
+                        "上传状态：" + uploadStatusLabel(s.getUploadStatus()),
+                        s.getDeviceId(),
+                        s.getSessionId(),
+                        null,
+                        null,
+                        null,
+                        s.getCreatedAt(),
+                        s.getUpdatedAt().plus(30, ChronoUnit.MINUTES)
+                )));
+    }
 
-        List<DeviceInfo> offlineDevices = deviceRepository
-                .findByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE, WORKBENCH_ITEM_CAP).stream()
+    private void collectOfflineDeviceItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
+        deviceRepository.findByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE, WORKBENCH_ITEM_CAP).stream()
                 .filter(d -> inDeviceScope(scopedDevices, d.getDeviceId()))
-                .toList();
-        offlineDevices.forEach(d -> items.add(new OpsActionItemDto(
-                "DEVICE_OFFLINE",
-                offlineSeverity(d),
-                "设备离线",
-                d.getDeviceName() != null && !d.getDeviceName().isBlank()
-                        ? d.getDeviceName() : d.getDeviceId(),
-                d.getDeviceId(),
-                null,
-                null,
-                null,
-                null,
-                d.getUpdatedAt(),
-                null
-        )));
+                .forEach(d -> items.add(new OpsActionItemDto(
+                        "DEVICE_OFFLINE",
+                        offlineSeverity(d),
+                        "设备离线",
+                        d.getDeviceName() != null && !d.getDeviceName().isBlank()
+                                ? d.getDeviceName() : d.getDeviceId(),
+                        d.getDeviceId(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        d.getUpdatedAt(),
+                        null
+                )));
+    }
 
+    private void collectLowStockItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
         inventoryRepository.findLowStockLimit(WORKBENCH_ITEM_CAP).stream()
                 .filter(i -> inDeviceScope(scopedDevices, i.getId().getDeviceId()))
                 .forEach(i -> items.add(new OpsActionItemDto(
@@ -337,7 +354,9 @@ public class AdminDashboardService {
                         i.getUpdatedAt(),
                         null
                 )));
+    }
 
+    private void collectReplenishmentActionItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
         replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(
                         List.of(STATUS_PENDING, STATUS_IN_PROGRESS), WORKBENCH_ITEM_CAP).stream()
                 .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
@@ -354,7 +373,9 @@ public class AdminDashboardService {
                         t.getCreatedAt(),
                         null
                 )));
+    }
 
+    private void collectStaleSessionItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
         findStaleSessions(scopedDevices).forEach(s -> items.add(new OpsActionItemDto(
                 "SESSION_STALE",
                 staleSessionSeverity(s),
@@ -368,7 +389,9 @@ public class AdminDashboardService {
                 s.getCreatedAt(),
                 s.getUpdatedAt().plus(STALE_SESSION_MINUTES, ChronoUnit.MINUTES)
         )));
+    }
 
+    private void collectReconMismatchItems(List<OpsActionItemDto> items) {
         reconciliationRepository.findTop10ByStatusOrderByCompletedAtDesc("MISMATCH")
                 .forEach(r -> items.add(new OpsActionItemDto(
                         "RECON_MISMATCH",
@@ -385,14 +408,17 @@ public class AdminDashboardService {
                         r.getCompletedAt() != null ? r.getCompletedAt() : r.getCreatedAt(),
                         null
                 )));
+    }
 
+    private void collectSplitExceptionItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
         SPLIT_EXCEPTION_STATUSES.forEach(status ->
                 splitRepository.findTop20ByStatusOrderByCreatedAtAsc(status).stream()
                         .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
                         .limit(5)
                         .forEach(s -> items.add(new OpsActionItemDto(
                                 "SPLIT_EXCEPTION",
-                                CabinetConstants.ORDER_STATUS_FAILED.equalsIgnoreCase(s.getStatus()) || WECHAT_FAILED.equalsIgnoreCase(s.getStatus())
+                                CabinetConstants.ORDER_STATUS_FAILED.equalsIgnoreCase(s.getStatus())
+                                        || WECHAT_FAILED.equalsIgnoreCase(s.getStatus())
                                         ? "HIGH" : MEDIUM,
                                 "分账待跟进",
                                 "订单 " + s.getOrderId() + " · 状态 " + splitStatusLabel(s.getStatus())
@@ -409,7 +435,9 @@ public class AdminDashboardService {
                                         : null
                         )))
         );
+    }
 
+    private void collectInTransitOverdueItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
         Instant transitCutoff = Instant.now().minus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS);
         inTransitRepository.findByStatusAndCreatedAtBefore(IN_TRANSIT, transitCutoff, WORKBENCH_ITEM_CAP).stream()
                 .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
@@ -427,18 +455,12 @@ public class AdminDashboardService {
                         t.getCreatedAt(),
                         t.getCreatedAt().plus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS)
                 )));
+    }
 
-        items.sort(java.util.Comparator
-                .comparingInt((OpsActionItemDto item) -> severityRank(item.severity()))
-                .thenComparing(item -> item.dueAt() != null ? item.dueAt() : Instant.MAX));
-
-        long staleSessions = countStaleSessions(scopedDevices);
-        long splitExceptions = countSplitExceptions(scopedDevices);
-        long inTransitOverdue = countInTransitOverdue(scopedDevices);
+    private OpsWorkbenchDto buildWorkbenchDto(
+            Long operatorId, Set<String> scopedDevices, List<OpsActionItemDto> items) {
         List<DeviceInfo> scopedDeviceList = merchantScopeService.allowedDevices(operatorId);
         long devicesSalesLocked = scopedDeviceList.stream().filter(DeviceInfo::salesLockedEnabled).count();
-        long devicesOnSale = scopedDeviceList.size() - devicesSalesLocked;
-        long pendingUnpaidOrders = countOverdueUnpaidOrders(operatorId);
         return new OpsWorkbenchDto(
                 countOpenDisputes(scopedDevices),
                 disputeSlaService.countOverdue(),
@@ -446,14 +468,14 @@ public class AdminDashboardService {
                 countWaitingUploads(scopedDevices),
                 countLowStock(scopedDevices),
                 countPendingReplenishments(scopedDevices),
-                staleSessions,
+                countStaleSessions(scopedDevices),
                 reconciliationRepository.countByStatus("MISMATCH"),
-                splitExceptions,
-                inTransitOverdue,
+                countSplitExceptions(scopedDevices),
+                countInTransitOverdue(scopedDevices),
                 items.stream().limit(100).toList(),
-                devicesOnSale,
+                scopedDeviceList.size() - devicesSalesLocked,
                 devicesSalesLocked,
-                pendingUnpaidOrders
+                countOverdueUnpaidOrders(operatorId)
         );
     }
 
