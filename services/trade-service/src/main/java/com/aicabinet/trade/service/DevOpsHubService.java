@@ -134,7 +134,7 @@ public class DevOpsHubService {
         }
     }
 
-    private void dispatchGithubWorkflow(String workflow, String ref) throws Exception {
+    private void dispatchGithubWorkflow(String workflow, String ref) throws IOException, InterruptedException {
         String repo = blankToDefault(githubRepo, "chanwenxiang/ai-cabient");
         String encodedWorkflow = URLEncoder.encode(workflow, StandardCharsets.UTF_8).replace("+", "%20");
         String path = "https://api.github.com/repos/" + repo + "/actions/workflows/" + encodedWorkflow + "/dispatches";

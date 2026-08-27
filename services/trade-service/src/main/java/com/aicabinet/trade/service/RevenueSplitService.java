@@ -538,12 +538,12 @@ public class RevenueSplitService {
 
     @FunctionalInterface
     private interface LockedSplitSupplier<T> {
-        T get() throws Exception;
+        T get();
     }
 
     @FunctionalInterface
     private interface LockedSplitAction {
-        void run() throws Exception;
+        void run();
     }
 
     private void runWithOrderSplitLock(String orderId, LockedSplitAction action) {

@@ -437,7 +437,7 @@ public class OrderPaymentService {
 
     @FunctionalInterface
     private interface LockedOrderConsumer {
-        void accept(CabinetOrder locked) throws Exception;
+        void accept(CabinetOrder locked);
     }
 
     private void runWithOrderPaymentLock(String orderId, LockedOrderConsumer action) {

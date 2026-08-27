@@ -42,7 +42,8 @@ public class SmsCodeService {
         persistCode(normalized, code, expiresAt);
 
         if (securityProperties.mockEnabled()) {
-            log.info("DEV SMS code for {}: {} (stored in DB)", maskPhone(normalized), code);
+            String masked = maskPhone(normalized);
+            log.info("DEV SMS code for {}: {} (stored in DB)", masked, code);
             return;
         }
         smsSender.send(normalized, code);

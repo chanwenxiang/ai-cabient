@@ -10,6 +10,8 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.FileInputStream;
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 
 @Component
@@ -36,14 +38,14 @@ public class MqttConnectOptionsFactory {
         if (properties.isSsl()) {
             try {
                 options.setSocketFactory(createSslSocketFactory());
-            } catch (Exception e) {
+            } catch (GeneralSecurityException | IOException e) {
                 throw new IllegalStateException("failed to configure MQTT SSL", e);
             }
         }
         return options;
     }
 
-    private SSLSocketFactory createSslSocketFactory() throws Exception {
+    private SSLSocketFactory createSslSocketFactory() throws GeneralSecurityException, IOException {
         if (properties.trustStorePath() != null && !properties.trustStorePath().isBlank()) {
             KeyStore trustStore = KeyStore.getInstance("JKS");
             char[] password = properties.trustStorePassword() != null

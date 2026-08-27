@@ -1,5 +1,6 @@
 package com.aicabinet.trade.support;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -133,12 +134,12 @@ public class CacheService {
 
     private record Envelope(String type, String json) {}
 
-    private String serialize(Object value) throws Exception {
+    private String serialize(Object value) throws JsonProcessingException {
         return objectMapper.writeValueAsString(
                 new Envelope(value.getClass().getName(), objectMapper.writeValueAsString(value)));
     }
 
-    private Object deserialize(String raw) throws Exception {
+    private Object deserialize(String raw) throws JsonProcessingException, ClassNotFoundException {
         Envelope envelope = objectMapper.readValue(raw, Envelope.class);
         Class<?> type = Class.forName(envelope.type());
         return objectMapper.readValue(envelope.json(), type);

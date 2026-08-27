@@ -3,6 +3,7 @@ package com.aicabinet.trade.payment;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -42,7 +43,7 @@ public class WeChatPayV3Signer {
         return sign(message, privateKeyPem);
     }
 
-    private static PrivateKey loadPrivateKey(String pem) throws Exception {
+    private static PrivateKey loadPrivateKey(String pem) throws GeneralSecurityException {
         String normalized = pem
                 .replace("-----BEGIN PRIVATE KEY-----", "")
                 .replace("-----END PRIVATE KEY-----", "")
@@ -52,7 +53,7 @@ public class WeChatPayV3Signer {
         return KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(decoded));
     }
 
-    private static PublicKey loadPublicKey(String pem) throws Exception {
+    private static PublicKey loadPublicKey(String pem) throws GeneralSecurityException {
         String normalized = pem.contains("BEGIN CERTIFICATE")
                 ? pem
                 : "-----BEGIN CERTIFICATE-----\n" + pem + "\n-----END CERTIFICATE-----";

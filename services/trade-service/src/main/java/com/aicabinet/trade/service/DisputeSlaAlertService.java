@@ -31,7 +31,7 @@ public class DisputeSlaAlertService {
                 ticket.getTicketId(), ticket.getSessionId(),
                 systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_REMINDER_HOURS,
                         disputeSlaProperties.reminderHoursBefore()));
-        log.warn(title + " " + msg);
+        log.warn("{} {}", title, msg);
         dispatch("DISPUTE_SLA_REMINDER", title, ticket, msg);
     }
 
@@ -41,7 +41,7 @@ public class DisputeSlaAlertService {
                 ticket.getTicketId(), ticket.getSessionId(),
                 systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_HOURS,
                         disputeSlaProperties.hours()));
-        log.error(title + " " + msg);
+        log.error("{} {}", title, msg);
         dispatch("DISPUTE_SLA_OVERDUE", title, ticket, msg);
     }
 

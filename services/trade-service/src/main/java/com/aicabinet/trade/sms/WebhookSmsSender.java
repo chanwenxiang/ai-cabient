@@ -58,7 +58,8 @@ public class WebhookSmsSender implements SmsSender {
             if (status >= 400) {
                 throw new IllegalStateException("SMS webhook returned HTTP " + status);
             }
-            log.info("{} dispatched via webhook phone={}", kind, maskPhone(phoneNumber));
+            String masked = maskPhone(phoneNumber);
+            log.info("{} dispatched via webhook phone={}", kind, masked);
         } catch (Exception e) {
             throw new IllegalStateException("SMS webhook dispatch failed", e);
         }
