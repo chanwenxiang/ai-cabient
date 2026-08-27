@@ -120,46 +120,64 @@ public class CompetitiveGapService {
     }
 
     private OpsUserDeviceScopeDto doAssignUserDeviceScope(Long operatorId, Long userId, OpsUserDeviceScopeDto body) {
-        String mode = body.scopeMode() == null || body.scopeMode().isBlank()
-                ? "ALL" : body.scopeMode().trim().toUpperCase();
+        String mode = normalizeScopeMode(body.scopeMode());
+        saveScopePreference(userId, mode);
+        deviceScopeMapper.deleteByUserId(userId);
+        routeScopeMapper.deleteByUserId(userId);
+        persistDeviceScopes(userId, mode, body.deviceIds());
+        persistRouteScopes(userId, mode, body.routeCodes());
+        auditService.record(operatorId, "OPS_USER_DEVICE_SCOPE", "USER", String.valueOf(userId), mode);
+        return self.getUserDeviceScope(operatorId, userId);
+    }
+
+    private static String normalizeScopeMode(String rawMode) {
+        String mode = rawMode == null || rawMode.isBlank()
+                ? "ALL" : rawMode.trim().toUpperCase();
         if ("PARTIAL".equals(mode)) {
             mode = DEVICE_IDS;
         }
         if (!Set.of("ALL", DEVICE_IDS, "ROUTE").contains(mode)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scopeMode 仅支持 ALL / DEVICE_IDS / ROUTE");
         }
+        return mode;
+    }
+
+    private void saveScopePreference(Long userId, String mode) {
         OpsUserDeviceScopePref pref = deviceScopePrefMapper.findByIdForUpdate(userId).orElseGet(OpsUserDeviceScopePref::new);
         pref.setUserId(userId);
         pref.setScopeMode(mode);
         pref.setUpdatedAt(Instant.now());
         deviceScopePrefMapper.save(pref);
+    }
 
-        deviceScopeMapper.deleteByUserId(userId);
-        routeScopeMapper.deleteByUserId(userId);
-        if (DEVICE_IDS.equals(mode) && body.deviceIds() != null) {
-            for (String deviceId : body.deviceIds()) {
-                if (deviceId == null || deviceId.isBlank()) {
-                    continue;
-                }
-                OpsUserDeviceScope row = new OpsUserDeviceScope();
-                row.setUserId(userId);
-                row.setDeviceId(deviceId.trim());
-                deviceScopeMapper.insert(row);
-            }
+    private void persistDeviceScopes(Long userId, String mode, List<String> deviceIds) {
+        if (!DEVICE_IDS.equals(mode) || deviceIds == null) {
+            return;
         }
-        if ("ROUTE".equals(mode) && body.routeCodes() != null) {
-            for (String route : body.routeCodes()) {
-                if (route == null || route.isBlank()) {
-                    continue;
-                }
-                OpsUserRouteScope row = new OpsUserRouteScope();
-                row.setUserId(userId);
-                row.setRouteCode(route.trim());
-                routeScopeMapper.insert(row);
+        for (String deviceId : deviceIds) {
+            if (deviceId == null || deviceId.isBlank()) {
+                continue;
             }
+            OpsUserDeviceScope row = new OpsUserDeviceScope();
+            row.setUserId(userId);
+            row.setDeviceId(deviceId.trim());
+            deviceScopeMapper.insert(row);
         }
-        auditService.record(operatorId, "OPS_USER_DEVICE_SCOPE", "USER", String.valueOf(userId), mode);
-        return self.getUserDeviceScope(operatorId, userId);
+    }
+
+    private void persistRouteScopes(Long userId, String mode, List<String> routeCodes) {
+        if (!"ROUTE".equals(mode) || routeCodes == null) {
+            return;
+        }
+        for (String route : routeCodes) {
+            if (route == null || route.isBlank()) {
+                continue;
+            }
+            OpsUserRouteScope row = new OpsUserRouteScope();
+            row.setUserId(userId);
+            row.setRouteCode(route.trim());
+            routeScopeMapper.insert(row);
+        }
     }
 
     // ---- M2 org ops config + role templates ----

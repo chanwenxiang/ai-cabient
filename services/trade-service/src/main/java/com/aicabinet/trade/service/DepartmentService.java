@@ -66,44 +66,9 @@ public class DepartmentService {
         if (req == null || req.deptName() == null || req.deptName().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "部门名称不能为空");
         }
-        OpsDepartment row;
-        if (deptId == null) {
-            String key = normalizeKey(req.deptKey(), req.deptName());
-            if (departmentRepository.findByDeptKey(key).isPresent()) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "部门编码已存在: " + key);
-            }
-            row = new OpsDepartment();
-            row.setDeptKey(key);
-            row.setCreatedAt(Instant.now());
-        } else {
-            row = departmentRepository.selectById(deptId);
-            if (row == null) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "部门不存在");
-            }
-        }
-        Long parentId = req.parentId();
-        if (parentId != null) {
-            if (deptId != null && parentId.equals(deptId)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级部门不能是自己");
-            }
-            OpsDepartment parent = departmentRepository.selectById(parentId);
-            if (parent == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级部门不存在");
-            }
-            if (deptId != null && isAncestorOf(deptId, parentId)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能将上级设为自己的下级");
-            }
-        }
-        row.setParentId(parentId);
-        row.setDeptName(req.deptName().trim());
-        row.setSortOrder(req.sortOrder() == null ? 0 : req.sortOrder());
-        String status = req.status() == null || req.status().isBlank() ? "ACTIVE" : req.status().trim().toUpperCase(Locale.ROOT);
-        if (!STATUSES.contains(status)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status 仅支持 ACTIVE/INACTIVE");
-        }
-        row.setStatus(status);
-        row.setRemark(trimToNull(req.remark()));
-        row.setUpdatedAt(Instant.now());
+        OpsDepartment row = resolveDepartmentForUpsert(deptId, req);
+        validateParentDepartment(deptId, req.parentId());
+        applyDepartmentFields(row, req);
         if (row.getDeptId() == null) {
             departmentRepository.insert(row);
         } else {
@@ -112,6 +77,54 @@ public class DepartmentService {
         auditService.record(operatorId, "OPS_DEPT_UPSERT", "OPS_DEPT",
                 String.valueOf(row.getDeptId()), row.getDeptKey() + ":" + row.getDeptName());
         return toDto(row);
+    }
+
+    private OpsDepartment resolveDepartmentForUpsert(Long deptId, UpsertOpsDepartmentRequest req) {
+        if (deptId == null) {
+            String key = normalizeKey(req.deptKey(), req.deptName());
+            if (departmentRepository.findByDeptKey(key).isPresent()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "部门编码已存在: " + key);
+            }
+            OpsDepartment row = new OpsDepartment();
+            row.setDeptKey(key);
+            row.setCreatedAt(Instant.now());
+            return row;
+        }
+        OpsDepartment row = departmentRepository.selectById(deptId);
+        if (row == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "部门不存在");
+        }
+        return row;
+    }
+
+    private void validateParentDepartment(Long deptId, Long parentId) {
+        if (parentId == null) {
+            return;
+        }
+        if (deptId != null && parentId.equals(deptId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级部门不能是自己");
+        }
+        OpsDepartment parent = departmentRepository.selectById(parentId);
+        if (parent == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级部门不存在");
+        }
+        if (deptId != null && isAncestorOf(deptId, parentId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能将上级设为自己的下级");
+        }
+    }
+
+    private void applyDepartmentFields(OpsDepartment row, UpsertOpsDepartmentRequest req) {
+        row.setParentId(req.parentId());
+        row.setDeptName(req.deptName().trim());
+        row.setSortOrder(req.sortOrder() == null ? 0 : req.sortOrder());
+        String status = req.status() == null || req.status().isBlank()
+                ? "ACTIVE" : req.status().trim().toUpperCase(Locale.ROOT);
+        if (!STATUSES.contains(status)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status 仅支持 ACTIVE/INACTIVE");
+        }
+        row.setStatus(status);
+        row.setRemark(trimToNull(req.remark()));
+        row.setUpdatedAt(Instant.now());
     }
 
     @Transactional(readOnly = true)

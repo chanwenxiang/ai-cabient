@@ -125,53 +125,64 @@ public class PointsExpiryScheduler {
                 pointsLogRepository.findEarnExpiredBefore(now));
         int affected = 0;
         for (Map.Entry<Long, List<MemberPointsLog>> e : byMember.entrySet()) {
-            Long memberId = e.getKey();
-            Member member = memberRepository.findByIdForUpdate(memberId).orElse(null);
-            if (member == null) {
-                continue;
+            if (expireMemberPoints(e.getKey(), e.getValue(), now)) {
+                affected++;
             }
-            int expirePoints = e.getValue().stream().mapToInt(l -> nz(l.getPoints())).sum();
-            if (expirePoints <= 0) {
-                continue;
-            }
-            int available = nz(member.getAvailablePoints());
-            int actualExpire = Math.min(available, expirePoints);
-            if (actualExpire <= 0) {
-                continue;
-            }
-            member.setAvailablePoints(available - actualExpire);
-            member.setExpiredPoints(nz(member.getExpiredPoints()) + actualExpire);
-            member.setUpdatedAt(now);
-            memberRepository.save(member);
-
-            int remaining = actualExpire;
-            for (MemberPointsLog l : e.getValue()) {
-                if (remaining <= 0) {
-                    break;
-                }
-                int pts = nz(l.getPoints());
-                if (pts <= 0 || l.getExpiredAt() != null) {
-                    continue;
-                }
-                if (pts <= remaining) {
-                    l.setExpiredAt(now);
-                    pointsLogRepository.save(l);
-                    remaining -= pts;
-                }
-            }
-
-            MemberPointsLog expireLog = new MemberPointsLog();
-            expireLog.setMemberId(memberId);
-            expireLog.setPoints(-actualExpire);
-            expireLog.setPointsType("EXPIRE");
-            expireLog.setSourceType("EXPIRE");
-            expireLog.setSourceId("points-expire-" + DATE_FMT.format(now));
-            expireLog.setDescription("积分过期");
-            expireLog.setExpiredAt(now);
-            pointsLogRepository.save(expireLog);
-            affected++;
         }
         return affected;
+    }
+
+    private boolean expireMemberPoints(Long memberId, List<MemberPointsLog> logs, Instant now) {
+        Member member = memberRepository.findByIdForUpdate(memberId).orElse(null);
+        if (member == null) {
+            return false;
+        }
+        int expirePoints = logs.stream().mapToInt(l -> nz(l.getPoints())).sum();
+        if (expirePoints <= 0) {
+            return false;
+        }
+        int available = nz(member.getAvailablePoints());
+        int actualExpire = Math.min(available, expirePoints);
+        if (actualExpire <= 0) {
+            return false;
+        }
+        member.setAvailablePoints(available - actualExpire);
+        member.setExpiredPoints(nz(member.getExpiredPoints()) + actualExpire);
+        member.setUpdatedAt(now);
+        memberRepository.save(member);
+        markEarnLogsExpired(logs, actualExpire, now);
+        writeExpireLog(memberId, actualExpire, now);
+        return true;
+    }
+
+    private void markEarnLogsExpired(List<MemberPointsLog> logs, int actualExpire, Instant now) {
+        int remaining = actualExpire;
+        for (MemberPointsLog l : logs) {
+            if (remaining <= 0) {
+                break;
+            }
+            int pts = nz(l.getPoints());
+            if (pts <= 0 || l.getExpiredAt() != null) {
+                continue;
+            }
+            if (pts <= remaining) {
+                l.setExpiredAt(now);
+                pointsLogRepository.save(l);
+                remaining -= pts;
+            }
+        }
+    }
+
+    private void writeExpireLog(Long memberId, int actualExpire, Instant now) {
+        MemberPointsLog expireLog = new MemberPointsLog();
+        expireLog.setMemberId(memberId);
+        expireLog.setPoints(-actualExpire);
+        expireLog.setPointsType("EXPIRE");
+        expireLog.setSourceType("EXPIRE");
+        expireLog.setSourceId("points-expire-" + DATE_FMT.format(now));
+        expireLog.setDescription("积分过期");
+        expireLog.setExpiredAt(now);
+        pointsLogRepository.save(expireLog);
     }
 
     private static Map<Long, List<MemberPointsLog>> groupByMember(List<MemberPointsLog> logs) {

@@ -81,71 +81,97 @@ public final class AlipayBillCsvParser {
 
     public static List<PlatformBillLine> parseCsv(String csv, LocalDate billDate) {
         String[] lines = csv.replace("\uFEFF", "").split("\n");
-        List<PlatformBillLine> result = new ArrayList<>();
+        CsvHeader header = locateHeader(lines);
+        if (header == null) {
+            return new ArrayList<>();
+        }
         ZoneId zone = ZoneId.systemDefault();
-        int headerIdx = -1;
-        int platformCol = -1;
-        int merchantCol = -1;
-        int amountCol = -1;
-        int finishCol = -1;
+        List<PlatformBillLine> result = new ArrayList<>();
+        for (int i = header.headerIdx() + 1; i < lines.length; i++) {
+            String line = lines[i].trim();
+            if (line.isEmpty() || line.startsWith("#")) {
+                continue;
+            }
+            PlatformBillLine parsed = parseDataLine(line, header, billDate, zone);
+            if (parsed != null) {
+                result.add(parsed);
+            }
+        }
+        return result;
+    }
 
+    private static CsvHeader locateHeader(String[] lines) {
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i].trim();
             if (line.startsWith("#") || line.isEmpty()) {
                 continue;
             }
-            if (line.contains("商户订单号") || line.contains("支付宝交易号")) {
-                String[] headers = line.split(",");
-                for (int c = 0; c < headers.length; c++) {
-                    String h = headers[c].trim();
-                    if (h.contains("支付宝交易号")) platformCol = c;
-                    else if (h.contains("商户订单号")) merchantCol = c;
-                    else if (h.contains("商家实收")) amountCol = c;
-                    else if (h.contains("订单金额") && amountCol < 0) amountCol = c;
-                    else if (h.contains("完成时间")) finishCol = c;
-                }
-                headerIdx = i;
-                break;
-            }
-        }
-        if (headerIdx < 0 || merchantCol < 0) {
-            return result;
-        }
-
-        for (int i = headerIdx + 1; i < lines.length; i++) {
-            String line = lines[i].trim();
-            if (line.isEmpty() || line.startsWith("#")) {
+            if (!line.contains("商户订单号") && !line.contains("支付宝交易号")) {
                 continue;
             }
-            String[] cols = line.split(",", -1);
-            if (cols.length <= merchantCol) {
-                continue;
-            }
-            try {
-                String merchantOrderNo = cols[merchantCol].trim();
-                if (merchantOrderNo.isEmpty()) {
-                    continue;
+            int platformCol = -1;
+            int merchantCol = -1;
+            int amountCol = -1;
+            int finishCol = -1;
+            String[] headers = line.split(",");
+            for (int c = 0; c < headers.length; c++) {
+                String h = headers[c].trim();
+                if (h.contains("支付宝交易号")) {
+                    platformCol = c;
+                } else if (h.contains("商户订单号")) {
+                    merchantCol = c;
+                } else if (h.contains("商家实收")) {
+                    amountCol = c;
+                } else if (h.contains("订单金额") && amountCol < 0) {
+                    amountCol = c;
+                } else if (h.contains("完成时间")) {
+                    finishCol = c;
                 }
-                String platformTradeNo = platformCol >= 0 && cols.length > platformCol
-                        ? cols[platformCol].trim()
-                        : merchantOrderNo;
-                long amountCents = parseYuan(amountCol >= 0 && cols.length > amountCol
-                        ? cols[amountCol].trim()
-                        : "0");
-                Instant tradeTime = billDate.atStartOfDay(zone).toInstant();
-                if (finishCol >= 0 && cols.length > finishCol && !cols[finishCol].isBlank()) {
-                    tradeTime = LocalDateTime.parse(cols[finishCol].trim(), FINISH_TIME)
-                            .atZone(zone).toInstant();
-                }
-                result.add(new PlatformBillLine(
-                        platformTradeNo, merchantOrderNo, amountCents, tradeTime, "ALIPAY", line
-                ));
-            } catch (Exception e) {
-                log.debug("skip alipay bill line: {}", line);
             }
+            if (merchantCol < 0) {
+                return null;
+            }
+            return new CsvHeader(i, platformCol, merchantCol, amountCol, finishCol);
         }
-        return result;
+        return null;
     }
+
+    private static PlatformBillLine parseDataLine(String line, CsvHeader header, LocalDate billDate, ZoneId zone) {
+        String[] cols = line.split(",", -1);
+        if (cols.length <= header.merchantCol()) {
+            return null;
+        }
+        try {
+            String merchantOrderNo = cols[header.merchantCol()].trim();
+            if (merchantOrderNo.isEmpty()) {
+                return null;
+            }
+            String platformTradeNo = header.platformCol() >= 0 && cols.length > header.platformCol()
+                    ? cols[header.platformCol()].trim()
+                    : merchantOrderNo;
+            long amountCents = parseYuan(header.amountCol() >= 0 && cols.length > header.amountCol()
+                    ? cols[header.amountCol()].trim()
+                    : "0");
+            Instant tradeTime = resolveTradeTime(cols, header.finishCol(), billDate, zone);
+            return new PlatformBillLine(
+                    platformTradeNo, merchantOrderNo, amountCents, tradeTime, "ALIPAY", line
+            );
+        } catch (Exception e) {
+            log.debug("skip alipay bill line: {}", line);
+            return null;
+        }
+    }
+
+    private static Instant resolveTradeTime(String[] cols, int finishCol, LocalDate billDate, ZoneId zone) {
+        Instant tradeTime = billDate.atStartOfDay(zone).toInstant();
+        if (finishCol >= 0 && cols.length > finishCol && !cols[finishCol].isBlank()) {
+            return LocalDateTime.parse(cols[finishCol].trim(), FINISH_TIME)
+                    .atZone(zone).toInstant();
+        }
+        return tradeTime;
+    }
+
+    private record CsvHeader(int headerIdx, int platformCol, int merchantCol, int amountCol, int finishCol) {}
 
     private static long parseYuan(String yuan) {
         if (yuan == null || yuan.isBlank()) {

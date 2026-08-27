@@ -102,74 +102,91 @@ public class DeviceAssetService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
         String action = request.action().trim().toUpperCase(Locale.ROOT);
         String from = normalizeLifecycle(device.getLifecycleStatus());
-        String to = from;
         String remark = blankToNull(request.remark());
-
-        switch (action) {
-            case INBOUND -> {
-                requireNotRetired(from);
-                to = INBOUND;
-            }
-            case "UNDEPLOY", "IDLE" -> {
-                requireNotRetired(from);
-                to = "IDLE";
-            }
-            case "DEPLOY" -> {
-                requireNotRetired(from);
-                if (RETURNING.equals(from) || RETIRED.equals(from)) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "返厂/退役柜不可直接投放");
-                }
-                to = DEPLOYED;
-                device.setDeployedAt(Instant.now());
-            }
-            case "RETURN" -> {
-                requireNotRetired(from);
-                to = RETURNING;
-            }
-            case "RETIRE" -> {
-                if (RETIRED.equals(from)) {
-                    return device;
-                }
-                if (remark == null) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退役需填写备注");
-                }
-                to = RETIRED;
-            }
-            case "BIND" -> {
-                requireNotRetired(from);
-                String merchantId = blankToNull(request.merchantId());
-                if (merchantId == null) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "绑定需指定商户");
-                }
-                if (!merchantMapper.existsById(merchantId)) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
-                }
-                merchantScopeService.requireMerchantAccess(operatorId, merchantId);
-                device.setMerchantId(merchantId);
-                if (INBOUND.equals(from) || "IDLE".equals(from)) {
-                    to = DEPLOYED;
-                    device.setDeployedAt(Instant.now());
-                }
-            }
-            case "UNBIND" -> {
-                requireNotRetired(from);
-                device.setMerchantId(null);
-                to = "IDLE";
-            }
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "action 支持 BIND/UNBIND/DEPLOY/UNDEPLOY/RETURN/RETIRE/INBOUND");
+        LifecycleTransition transition = resolveLifecycleTransition(operatorId, device, action, from, remark, request);
+        if (transition.noop()) {
+            return device;
         }
-
-        device.setLifecycleStatus(to);
+        device.setLifecycleStatus(transition.toStatus());
         if (remark != null) {
             device.setLifecycleRemark(remark);
         }
         device.setUpdatedAt(Instant.now());
         deviceInfoMapper.save(device);
-        recordEvent(deviceId, from, to, action, operatorId, remark);
-        auditService.record(operatorId, "DEVICE_LIFECYCLE", "DEVICE", deviceId, action + ":" + from + "->" + to);
+        recordEvent(deviceId, from, transition.toStatus(), action, operatorId, remark);
+        auditService.record(operatorId, "DEVICE_LIFECYCLE", "DEVICE", deviceId,
+                action + ":" + from + "->" + transition.toStatus());
         return device;
     }
+
+    private LifecycleTransition resolveLifecycleTransition(Long operatorId, DeviceInfo device, String action,
+                                                           String from, String remark,
+                                                           DeviceLifecycleRequest request) {
+        return switch (action) {
+            case INBOUND -> {
+                requireNotRetired(from);
+                yield new LifecycleTransition(INBOUND, false);
+            }
+            case "UNDEPLOY", "IDLE" -> {
+                requireNotRetired(from);
+                yield new LifecycleTransition("IDLE", false);
+            }
+            case "DEPLOY" -> applyDeployTransition(device, from);
+            case "RETURN" -> {
+                requireNotRetired(from);
+                yield new LifecycleTransition(RETURNING, false);
+            }
+            case "RETIRE" -> applyRetireTransition(from, remark);
+            case "BIND" -> applyBindTransition(operatorId, device, from, request);
+            case "UNBIND" -> {
+                requireNotRetired(from);
+                device.setMerchantId(null);
+                yield new LifecycleTransition("IDLE", false);
+            }
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "action 支持 BIND/UNBIND/DEPLOY/UNDEPLOY/RETURN/RETIRE/INBOUND");
+        };
+    }
+
+    private LifecycleTransition applyDeployTransition(DeviceInfo device, String from) {
+        requireNotRetired(from);
+        if (RETURNING.equals(from) || RETIRED.equals(from)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "返厂/退役柜不可直接投放");
+        }
+        device.setDeployedAt(Instant.now());
+        return new LifecycleTransition(DEPLOYED, false);
+    }
+
+    private static LifecycleTransition applyRetireTransition(String from, String remark) {
+        if (RETIRED.equals(from)) {
+            return new LifecycleTransition(RETIRED, true);
+        }
+        if (remark == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退役需填写备注");
+        }
+        return new LifecycleTransition(RETIRED, false);
+    }
+
+    private LifecycleTransition applyBindTransition(Long operatorId, DeviceInfo device, String from,
+                                                    DeviceLifecycleRequest request) {
+        requireNotRetired(from);
+        String merchantId = blankToNull(request.merchantId());
+        if (merchantId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "绑定需指定商户");
+        }
+        if (!merchantMapper.existsById(merchantId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
+        }
+        merchantScopeService.requireMerchantAccess(operatorId, merchantId);
+        device.setMerchantId(merchantId);
+        if (INBOUND.equals(from) || "IDLE".equals(from)) {
+            device.setDeployedAt(Instant.now());
+            return new LifecycleTransition(DEPLOYED, false);
+        }
+        return new LifecycleTransition(from, false);
+    }
+
+    private record LifecycleTransition(String toStatus, boolean noop) {}
 
     @Transactional(readOnly = true)
     public List<DeviceLifecycleEventDto> listLifecycleEvents(Long operatorId, String deviceId, int limit) {
