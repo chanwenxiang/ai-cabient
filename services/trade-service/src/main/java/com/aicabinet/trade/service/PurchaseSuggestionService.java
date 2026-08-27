@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.PurchaseSuggestionDto;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.config.RopProperties;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.PurchaseOrderLineMapper;
@@ -139,6 +140,20 @@ public class PurchaseSuggestionService {
         out.sort(Comparator.comparingInt(PurchaseSuggestionDto::suggestQty).reversed()
                 .thenComparing(Comparator.comparingDouble(PurchaseSuggestionDto::avgDailySales).reversed()));
         return out;
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<PurchaseSuggestionDto> suggestPage(
+            Long operatorId, String warehouseId, int leadTimeDays, int coverageDays, int page, int size) {
+        List<PurchaseSuggestionDto> all = suggest(operatorId, warehouseId, leadTimeDays, coverageDays);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        int from = p * s;
+        if (from >= all.size()) {
+            return new PageResult<>(List.of(), p, s, all.size());
+        }
+        int to = Math.min(from + s, all.size());
+        return new PageResult<>(all.subList(from, to), p, s, all.size());
     }
 
     /** 需求模型：日均销量 / 覆盖期需求 / 安全库存 / 预测日均 / 日趋势 / 建议理由。 */

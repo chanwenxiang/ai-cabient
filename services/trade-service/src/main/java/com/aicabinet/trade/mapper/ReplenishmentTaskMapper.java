@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -105,6 +106,32 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
         return selectList(Wrappers.<ReplenishmentTask>lambdaQuery()
                 .isNotNull(ReplenishmentTask::getCompletedAt)
                 .ge(ReplenishmentTask::getCompletedAt, since));
+    }
+
+    /** page 为 0-based。 */
+    default Page<ReplenishmentTask> searchPage(String deviceId, String status, int page, int size) {
+        var query = Wrappers.<ReplenishmentTask>lambdaQuery().orderByAsc(ReplenishmentTask::getTaskId);
+        if (deviceId != null && !deviceId.isBlank()) {
+            query.eq(ReplenishmentTask::getDeviceId, deviceId.trim());
+        }
+        if (status != null && !status.isBlank()) {
+            query.eq(ReplenishmentTask::getStatus, status.trim().toUpperCase());
+        }
+        return selectPage(new Page<>(page + 1L, size), query);
+    }
+
+    default java.util.List<Long> findDistinctRouteIdsByDeviceId(String deviceId) {
+        if (deviceId == null || deviceId.isBlank()) {
+            return java.util.List.of();
+        }
+        return selectList(Wrappers.<ReplenishmentTask>lambdaQuery()
+                        .eq(ReplenishmentTask::getDeviceId, deviceId.trim())
+                        .select(ReplenishmentTask::getRouteId))
+                .stream()
+                .map(ReplenishmentTask::getRouteId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
     }
 
 }

@@ -129,10 +129,12 @@
       :hydrated="listHydrated"
       v-model:current-page="page"
       v-model:page-size="size"
-      :total="filtered.length"
+      :total="total"
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next"
       background
+      @current-change="load"
+      @size-change="onSizeChange"
     />
 
     <el-card class="aliyun-card" shadow="never">
@@ -307,6 +309,7 @@ const saving = ref(false);
 const keyword = ref('');
 const page = ref(1);
 const size = ref(20);
+const total = ref(0);
 const yoloMappings = ref<YoloMappingRow[]>([]);
 const aliyunMappings = ref<AliyunMappingRow[]>([]);
 const skuOptions = ref<SkuOption[]>([]);
@@ -326,28 +329,9 @@ const editForm = reactive({
   mappingSource: '' as string | undefined
 });
 
-const filtered = computed(() => {
-  const q = keyword.value.trim().toLowerCase();
-  const rows = !q
-    ? yoloMappings.value
-    : yoloMappings.value.filter((row) =>
-        [row.className, row.skuId, row.skuName].some((x) =>
-          String(x || '')
-            .toLowerCase()
-            .includes(q)
-        )
-      );
-  return sortById(rows);
-});
+const filtered = computed(() => sortById(yoloMappings.value));
 
-const paged = computed(() => {
-  const start = (page.value - 1) * size.value;
-  return filtered.value.slice(start, start + size.value);
-});
-
-watch(keyword, () => {
-  page.value = 1;
-});
+const paged = computed(() => filtered.value);
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<YoloMappingRow>((r) => r.className || `${r.skuId}`);
@@ -400,18 +384,25 @@ function applyRouteQuery() {
 function search() {
   page.value = 1;
   syncRouteQuery();
+  void load();
 }
 
 function reset() {
   keyword.value = '';
   page.value = 1;
   syncRouteQuery();
+  void load();
+}
+
+function onSizeChange() {
+  page.value = 1;
+  void load();
 }
 
 async function loadSkus() {
   try {
     const data = await api.request<SkuOption[] | { items?: SkuOption[] }>(
-      '/api/v2/ops/admin/skus',
+      '/api/v2/ops/admin/skus?page=0&size=500',
       'GET'
     );
     skuOptions.value = Array.isArray(data) ? data : data.items || [];
@@ -423,16 +414,23 @@ async function loadSkus() {
 async function load() {
   loading.value = true;
   try {
-    const data = await api.request<
-      { yolo?: YoloMappingRow[]; aliyun?: AliyunMappingRow[] } | YoloMappingRow[]
-    >('/api/v2/ops/admin/vision-mappings', 'GET');
-    if (Array.isArray(data)) {
-      yoloMappings.value = data;
-      aliyunMappings.value = [];
-    } else {
-      yoloMappings.value = data.yolo || [];
-      aliyunMappings.value = data.aliyun || [];
-    }
+    const q = new URLSearchParams({
+      page: String(page.value - 1),
+      size: String(size.value)
+    });
+    if (keyword.value.trim()) q.set('q', keyword.value.trim());
+    const yoloPage = await api.request<{ items?: YoloMappingRow[]; total?: number }>(
+      `/api/v2/ops/admin/vision-mappings/yolo?${q}`,
+      'GET'
+    );
+    yoloMappings.value = yoloPage.items || [];
+    total.value = yoloPage.total ?? 0;
+
+    const all = await api.request<{ aliyun?: AliyunMappingRow[] }>(
+      '/api/v2/ops/admin/vision-mappings',
+      'GET'
+    );
+    aliyunMappings.value = all.aliyun || [];
     clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -566,6 +564,7 @@ function onAction(key: string, row: YoloMappingRow) {
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
   page.value = 1;
+  await load();
 }
 
 watch(

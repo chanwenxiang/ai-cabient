@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.SupplierPayable;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -32,5 +33,19 @@ public interface SupplierPayableMapper extends BaseTradeMapper<SupplierPayable> 
         return selectList(Wrappers.<SupplierPayable>lambdaQuery()
                 .orderByAsc(SupplierPayable::getDueDate)
                 .orderByDesc(SupplierPayable::getPayableId));
+    }
+
+    /** page 为 0-based；overdueOnly 在 service 层二次过滤。 */
+    default Page<SupplierPayable> searchPage(String supplierId, String status, int page, int size) {
+        var query = Wrappers.<SupplierPayable>lambdaQuery()
+                .orderByAsc(SupplierPayable::getDueDate)
+                .orderByDesc(SupplierPayable::getPayableId);
+        if (supplierId != null && !supplierId.isBlank()) {
+            query.eq(SupplierPayable::getSupplierId, supplierId.trim());
+        }
+        if (status != null && !status.isBlank()) {
+            query.eq(SupplierPayable::getStatus, status.trim().toUpperCase());
+        }
+        return selectPage(new Page<>(page + 1L, size), query);
     }
 }

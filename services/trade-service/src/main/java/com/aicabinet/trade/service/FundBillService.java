@@ -143,6 +143,31 @@ public class FundBillService {
     }
 
     @Transactional(readOnly = true)
+    public PageResult<FundDailyBillDto> listDailyBillsPage(Long operatorId, String fromDate, String toDate,
+                                                            String keyword, int page, int size) {
+        List<FundDailyBillDto> all = filterDailyBills(self.listDailyBills(operatorId, fromDate, toDate), keyword);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        int from = p * s;
+        if (from >= all.size()) {
+            return new PageResult<>(List.of(), p, s, all.size());
+        }
+        int to = Math.min(from + s, all.size());
+        return new PageResult<>(all.subList(from, to), p, s, all.size());
+    }
+
+    private static List<FundDailyBillDto> filterDailyBills(List<FundDailyBillDto> rows, String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return rows;
+        }
+        String kw = keyword.trim().toLowerCase();
+        return rows.stream()
+                .filter(r -> r.merchantId() != null && r.merchantId().toLowerCase().contains(kw)
+                        || r.merchantName() != null && r.merchantName().toLowerCase().contains(kw))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public PageResult<FundLedgerEntryDto> listLedger(Long operatorId, String fromDate, String toDate,
                                                      String financialType, String direction,
                                                      int page, int size) {

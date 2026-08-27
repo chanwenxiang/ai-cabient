@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.PaySupplierRequest;
 import com.aicabinet.common.dto.SupplierPayableDto;
 import com.aicabinet.common.dto.SupplierPayableSummaryDto;
@@ -62,14 +63,40 @@ public class SupplierPayableService {
     public List<SupplierPayableDto> listPayables(Long operatorId, String supplierId,
                                                  String status, boolean overdueOnly) {
         permissionService.requirePermission(operatorId, "ops:procurement:list");
-        return payableRepository.findAllByOrderByDueDateAsc().stream()
-                .filter(p -> supplierId == null || supplierId.isBlank()
-                        || supplierId.trim().equals(p.getSupplierId()))
-                .filter(p -> status == null || status.isBlank()
-                        || status.trim().equalsIgnoreCase(p.getStatus()))
-                .filter(p -> !overdueOnly || isOverdue(p))
-                .map(this::toDto)
-                .toList();
+        return listPayablesPage(operatorId, supplierId, status, overdueOnly, 0, 500).items();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<SupplierPayableDto> listPayablesPage(Long operatorId, String supplierId,
+                                                           String status, boolean overdueOnly,
+                                                           int page, int size) {
+        permissionService.requirePermission(operatorId, "ops:procurement:list");
+        List<SupplierPayableDto> all;
+        if (overdueOnly) {
+            all = payableRepository.findAllByOrderByDueDateAsc().stream()
+                    .filter(p -> supplierId == null || supplierId.isBlank()
+                            || supplierId.trim().equals(p.getSupplierId()))
+                    .filter(p -> status == null || status.isBlank()
+                            || status.trim().equalsIgnoreCase(p.getStatus()))
+                    .filter(this::isOverdue)
+                    .map(this::toDto)
+                    .toList();
+        } else {
+            int p = Math.max(page, 0);
+            int s = Math.min(Math.max(size, 1), 100);
+            var result = payableRepository.searchPage(supplierId, status, p, s);
+            return new PageResult<>(
+                    result.getRecords().stream().map(this::toDto).toList(),
+                    p, s, result.getTotal());
+        }
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        int from = p * s;
+        if (from >= all.size()) {
+            return new PageResult<>(List.of(), p, s, all.size());
+        }
+        int to = Math.min(from + s, all.size());
+        return new PageResult<>(all.subList(from, to), p, s, all.size());
     }
 
     @Transactional(readOnly = true)

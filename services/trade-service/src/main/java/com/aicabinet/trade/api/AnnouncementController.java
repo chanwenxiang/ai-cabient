@@ -1,6 +1,7 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.domain.Announcement;
@@ -23,8 +24,13 @@ public class AnnouncementController {
 
     @RequiresPermissions("ops:announcement:list")
     @GetMapping
-    public ApiResponse<List<Announcement>> list() {
-        return ApiResponse.ok(announcementService.listAll());
+    public ApiResponse<PageResult<Announcement>> list(
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "priority", required = false) String priority,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(announcementService.listPage(q, status, priority, page, size));
     }
 
     @GetMapping("/published")

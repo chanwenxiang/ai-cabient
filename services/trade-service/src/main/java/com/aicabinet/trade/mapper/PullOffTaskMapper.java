@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.PullOffTask;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -34,6 +35,15 @@ public interface PullOffTaskMapper extends BaseTradeMapper<PullOffTask> {
 
     default Optional<PullOffTask> findByLotIdAndStatus(String lotId, String status) {
     return Optional.ofNullable(selectOne(Wrappers.<PullOffTask>lambdaQuery().eq(PullOffTask::getLotId, lotId).eq(PullOffTask::getStatus, status)));
+    }
+
+    /** page 为 0-based。 */
+    default Page<PullOffTask> searchPage(String status, int page, int size) {
+        String st = status != null && !status.isBlank() ? status.trim().toUpperCase() : "OPEN";
+        return selectPage(new Page<>(page + 1L, size),
+                Wrappers.<PullOffTask>lambdaQuery()
+                        .eq(PullOffTask::getStatus, st)
+                        .orderByDesc(PullOffTask::getCreatedAt));
     }
 
 }

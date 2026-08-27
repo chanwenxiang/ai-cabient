@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.MerchantReplenishmentRequest;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +36,20 @@ public interface MerchantReplenishmentRequestMapper extends BaseTradeMapper<Merc
 
     default List<MerchantReplenishmentRequest> findByMerchantIdInOrderBySubmittedAtDesc(Collection<String> merchantIds) {
     return selectList(Wrappers.<MerchantReplenishmentRequest>lambdaQuery().in(MerchantReplenishmentRequest::getMerchantId, merchantIds).orderByDesc(MerchantReplenishmentRequest::getSubmittedAt));
+    }
+
+    /** page 为 0-based；status 传 ALL 或空表示不限。 */
+    default Page<MerchantReplenishmentRequest> searchPage(String status, int page, int size) {
+        var query = Wrappers.<MerchantReplenishmentRequest>lambdaQuery();
+        if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status.trim())) {
+            query.eq(MerchantReplenishmentRequest::getStatus, status.trim().toUpperCase());
+        }
+        if (status != null && "SUBMITTED".equalsIgnoreCase(status.trim())) {
+            query.orderByAsc(MerchantReplenishmentRequest::getSubmittedAt);
+        } else {
+            query.orderByDesc(MerchantReplenishmentRequest::getSubmittedAt);
+        }
+        return selectPage(new Page<>(page + 1L, size), query);
     }
 
 }

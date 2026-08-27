@@ -9,6 +9,7 @@ import com.aicabinet.trade.mapper.SupplierMapper;
 import com.aicabinet.trade.mapper.SupplierPayableMapper;
 import com.aicabinet.trade.mapper.SupplierPaymentMapper;
 import com.aicabinet.trade.mapper.WarehouseMapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -148,7 +149,10 @@ class SupplierPayableServiceTest {
     void listPayables_shouldFlagOverdue() {
         SupplierPayable overdue = payable(2000L, 0L, "UNPAID");
         overdue.setDueDate(LocalDate.now(ZONE).minusDays(3));
-        when(payableRepository.findAllByOrderByDueDateAsc()).thenReturn(List.of(overdue));
+        Page<SupplierPayable> page = new Page<>(1, 100);
+        page.setRecords(List.of(overdue));
+        page.setTotal(1);
+        when(payableRepository.searchPage(null, null, 0, 100)).thenReturn(page);
         when(supplierRepository.findById("SUP-001")).thenReturn(Optional.of(supplier(30)));
 
         var result = service.listPayables(1L, null, null, false);

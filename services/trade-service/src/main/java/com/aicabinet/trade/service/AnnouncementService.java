@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.AnnouncementDto;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.domain.Announcement;
 import com.aicabinet.trade.mapper.AnnouncementMapper;
 import org.slf4j.Logger;
@@ -36,6 +37,21 @@ public class AnnouncementService {
 
     public List<Announcement> listAll() {
         return repository.findAll();
+    }
+
+    public PageResult<Announcement> listPage(String keyword, String status, String priority, int page, int size) {
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = repository.searchPage(
+                blankToNull(keyword), blankToNull(status), blankToNull(priority), p, s);
+        return new PageResult<>(result.getRecords(), p, s, result.getTotal());
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     public List<Announcement> listPublished() {

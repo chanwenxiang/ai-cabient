@@ -77,7 +77,7 @@
       <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
-          :data="paged"
+          :data="displayList"
           stripe
           border
           class="report-table"
@@ -166,10 +166,12 @@
       :hydrated="listHydrated"
       v-model:current-page="page"
       v-model:page-size="size"
-      :total="filtered.length"
+      :total="total"
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next"
       background
+      @current-change="load"
+      @size-change="onSizeChange"
     />
 
     <el-dialog
@@ -292,6 +294,7 @@ const listHydrated = ref(false);
 const saving = ref(false);
 const importing = ref(false);
 const list = ref<any[]>([]);
+const total = ref(0);
 const keyword = ref('');
 const statusFilter = ref('');
 const page = ref(1);
@@ -301,29 +304,22 @@ const showDialog = ref(false);
 const editingId = ref<number | null>(null);
 const importInput = ref<HTMLInputElement | null>(null);
 const deviceOptions = ref<{ deviceId: string; deviceName?: string }[]>([]);
+const displayList = computed(() => sortById(list.value));
 
-const filtered = computed(() => {
-  const q = keyword.value.trim().toLowerCase();
-  const rows = list.value.filter((row) => {
-    if (statusFilter.value === 'ACTIVE' && !isEnabled(row.status)) return false;
-    if (statusFilter.value === 'INACTIVE' && isEnabled(row.status)) return false;
-    if (!q) return true;
-    return [row.activityId, row.activityName, row.activityType].some((x) =>
-      String(x || '')
-        .toLowerCase()
-        .includes(q)
-    );
+function queryParams() {
+  const q = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
   });
-  return sortById(rows);
-});
+  if (keyword.value.trim()) q.set('q', keyword.value.trim());
+  if (statusFilter.value) q.set('status', statusFilter.value);
+  return q;
+}
 
-const paged = computed(() => {
-  const start = (page.value - 1) * size.value;
-  return filtered.value.slice(start, start + size.value);
-});
-watch([keyword, statusFilter], () => {
+function onSizeChange() {
   page.value = 1;
-});
+  load();
+}
 
 const exportButtonLabel = computed(() =>
   selectedIds.value.length ? `导出选中 (${selectedIds.value.length})` : '导出'
@@ -431,7 +427,9 @@ function rowActions(row: any): TableAction[] {
 }
 
 /** 当前页没有任何可操作项时不展示操作列（避免整列「无」） */
-const showActionColumn = computed(() => paged.value.some((row) => rowActions(row).length > 0));
+const showActionColumn = computed(() =>
+  displayList.value.some((row) => rowActions(row).length > 0)
+);
 
 function onSelectionChange(rows: any[]) {
   selectedIds.value = rows.map((r) => r.activityId).filter(Boolean);
@@ -445,7 +443,12 @@ async function onAction(key: string, row: any) {
 async function load() {
   loading.value = true;
   try {
-    list.value = await api.request<any[]>('/api/v2/ops/promotions', 'GET');
+    const data = await api.request<{ items: any[]; total: number }>(
+      `/api/v2/ops/promotions?${queryParams()}`,
+      'GET'
+    );
+    list.value = data.items || [];
+    total.value = Number(data.total) || 0;
     selectedIds.value = [];
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -580,8 +583,8 @@ function toExportRows(items: any[]) {
 
 function onExport() {
   const rows = selectedIds.value.length
-    ? filtered.value.filter((r) => selectedIds.value.includes(r.activityId))
-    : filtered.value;
+    ? displayList.value.filter((r) => selectedIds.value.includes(r.activityId))
+    : displayList.value;
   if (!rows.length) return ElMessage.warning('暂无数据可导出');
   downloadCsv(csvFileName('营销活动'), CSV_HEADERS, toExportRows(rows));
   ElMessage.success(`已导出 ${rows.length} 条`);
@@ -671,6 +674,7 @@ function syncRouteQuery() {
 function search() {
   page.value = 1;
   syncRouteQuery();
+  load();
 }
 
 function resetFilters() {
@@ -678,6 +682,7 @@ function resetFilters() {
   statusFilter.value = '';
   page.value = 1;
   syncRouteQuery();
+  load();
 }
 
 function applyRouteQuery() {
@@ -698,6 +703,7 @@ function applyRouteQuery() {
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
   page.value = 1;
+  await load();
 }
 
 watch(

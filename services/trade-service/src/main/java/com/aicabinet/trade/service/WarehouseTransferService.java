@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.CreateWarehouseTransferRequest;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.WarehouseTransferDto;
 import com.aicabinet.trade.domain.WarehouseTransferLine;
 import com.aicabinet.trade.domain.WarehouseTransferOrder;
@@ -50,7 +51,18 @@ public class WarehouseTransferService {
     @Transactional(readOnly = true)
     public List<WarehouseTransferDto> list(Long operatorId, String status) {
         permissionService.requireAnyPermission(operatorId, "ops:warehouse:list", PERM_OPS_WAREHOUSE_EDIT);
-        return orderMapper.findRecent(status).stream().map(this::toDto).toList();
+        return listPage(operatorId, status, 0, 200).items();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<WarehouseTransferDto> listPage(
+            Long operatorId, String status, int page, int size) {
+        permissionService.requireAnyPermission(operatorId, "ops:warehouse:list", PERM_OPS_WAREHOUSE_EDIT);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        var result = orderMapper.searchPage(status, p, s);
+        List<WarehouseTransferDto> items = result.getRecords().stream().map(this::toDto).toList();
+        return new PageResult<>(items, p, s, result.getTotal());
     }
 
     @Transactional(readOnly = true)

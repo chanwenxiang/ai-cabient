@@ -65,6 +65,18 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next, jumper"
+      background
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
   </el-card>
 </template>
 
@@ -73,6 +85,7 @@ import { onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 
@@ -93,7 +106,11 @@ type ReviewRow = {
 
 const loading = ref(false);
 const running = ref(false);
+const listHydrated = ref(false);
 const days = ref(30);
+const page = ref(1);
+const size = ref(20);
+const total = ref(0);
 const list = ref<ReviewRow[]>([]);
 
 const { onExport } = useListCsv({
@@ -132,21 +149,37 @@ onMounted(load);
 async function load() {
   loading.value = true;
   try {
-    list.value = await api.request<ReviewRow[]>('/api/v2/ops/admin/growth/sku-review');
+    const q = new URLSearchParams({
+      page: String(page.value - 1),
+      size: String(size.value)
+    });
+    const data = await api.request<{ items: ReviewRow[]; total: number }>(
+      `/api/v2/ops/admin/growth/sku-review?${q}`
+    );
+    list.value = data.items || [];
+    total.value = Number(data.total) || 0;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
+}
+
+function onSizeChange() {
+  page.value = 1;
+  load();
 }
 
 async function run() {
   running.value = true;
   try {
-    list.value = await api.request<ReviewRow[]>(
+    await api.request<ReviewRow[]>(
       `/api/v2/ops/admin/growth/sku-review/run?days=${days.value}`,
       'POST'
     );
+    page.value = 1;
+    await load();
     ElMessage.success('诊断完成');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '诊断失败');

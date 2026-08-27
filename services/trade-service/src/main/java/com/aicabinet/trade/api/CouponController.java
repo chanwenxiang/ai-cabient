@@ -46,8 +46,13 @@ public class CouponController {
 
     @RequiresPermissions("ops:coupon:list")
     @GetMapping("/definitions")
-    public ApiResponse<List<CouponDefinitionDto>> listDefinitions(HttpServletRequest request) {
-        return ApiResponse.ok(couponService.listDefinitions());
+    public ApiResponse<PageResult<CouponDefinitionDto>> listDefinitions(
+            HttpServletRequest request,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(couponService.listDefinitionsPage(q, status, page, size));
     }
 
     @RequiresPermissions(value = {"ops:coupon:create", "ops:coupon:import"}, logical = RequiresPermissions.Logical.OR)

@@ -662,14 +662,14 @@
           >
             一键规划补货（{{ shortageDevices.length }} 台）
           </el-button>
-          <el-button :icon="Refresh" :loading="shortageLoading" @click="loadShortage"
+          <el-button :icon="Refresh" :loading="isTabLoading('shortage')" @click="reloadCurrent"
             >刷新缺货</el-button
           >
         </div>
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
-              v-loading="isTabLoading('shortage') || shortageLoading"
+              v-loading="isTabLoading('shortage')"
               :data="pagedShortages"
               stripe
               border
@@ -679,7 +679,7 @@
             >
               <template #empty
                 ><el-empty
-                  v-if="listHydrated && !isTabLoading('shortage') && !shortageLoading"
+                  v-if="listHydrated && !isTabLoading('shortage')"
                   description="当前无缺货/低库存货道"
               /></template>
               <el-table-column type="selection" width="48" align="center" />
@@ -887,6 +887,8 @@
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next"
       background
+      @current-change="onPagerChange"
+      @size-change="onPagerSizeChange"
     />
 
     <ResizableDrawer
@@ -1276,7 +1278,6 @@ function isTabLoading(name: string) {
 }
 
 const headerRefreshing = computed(() => {
-  if (tab.value === 'shortage') return isTabLoading('shortage') || shortageLoading.value;
   if (tab.value === 'expiry') return isTabLoading('expiry') || expiryLoading.value;
   return isTabLoading(tab.value);
 });
@@ -1291,19 +1292,10 @@ function markTabsLoading(names: string[], on: boolean) {
 }
 
 function reloadCurrent() {
-  if (tab.value === 'shortage') {
-    void loadShortage();
-    return;
-  }
-  if (tab.value === 'expiry') {
-    void loadExpiryAlerts();
-    return;
-  }
-  void load();
+  void loadTab(tab.value, true);
 }
 
 const saving = ref(false);
-const shortageLoading = ref(false);
 const expiryLoading = ref(false);
 const expiryActingId = ref<number | null>(null);
 const openDoorLoading = ref<number | null>(null);
@@ -1311,6 +1303,14 @@ const checkInLoading = ref<number | null>(null);
 const completeLoading = ref<number | null>(null);
 const cancelRouteLoading = ref<number | null>(null);
 const tab = ref('routes');
+const SERVER_PAGINATED_TABS = new Set(['routes', 'fulfillment', 'requests', 'expiry', 'shortage']);
+const tabTotals = ref<Record<string, number>>({});
+const summary = ref({
+  pendingTaskCount: 0,
+  fulfilledTaskCount: 0,
+  plannedRouteCount: 0,
+  pendingRequestCount: 0
+});
 const page = ref(1);
 const size = ref(20);
 const focusDeviceId = ref('');
@@ -1319,8 +1319,10 @@ const fulfillmentUnassignedOnly = ref(false);
 const requestStatusFilter = ref('SUBMITTED');
 const routes = ref<Row[]>([]);
 const allRequests = ref<Row[]>([]);
+const fulfillmentTasksList = ref<Row[]>([]);
 const devices = ref<Row[]>([]);
 const shortages = ref<Row[]>([]);
+const shortageDeviceIds = ref<string[]>([]);
 const expiryAlerts = ref<Row[]>([]);
 const linesDrawer = ref(false);
 const requestFlowDrawer = ref(false);
@@ -1342,9 +1344,7 @@ const taskEvidence = ref<
 >([]);
 const evidenceObjectUrls = ref<string[]>([]);
 
-const shortageDevices = computed(() => [
-  ...new Set(shortages.value.map((s) => s.deviceId).filter(Boolean))
-]);
+const shortageDevices = computed(() => shortageDeviceIds.value);
 const planDialog = ref(false);
 const assigneeOptions = ref<AssigneeOption[]>([]);
 const assigneeLoading = ref(false);
@@ -1358,14 +1358,8 @@ const selectedDevicesWithoutShortage = computed(() =>
   planForm.deviceIds.filter((id) => !shortageDevices.value.includes(id))
 );
 
-const requests = computed(() => {
-  const status = requestStatusFilter.value;
-  if (!status || status === 'ALL') return allRequests.value;
-  return allRequests.value.filter((r) => String(r.status || '') === status);
-});
-const pendingRequestCount = computed(
-  () => allRequests.value.filter((r) => String(r.status || '') === 'SUBMITTED').length
-);
+const requests = computed(() => allRequests.value);
+const pendingRequestCount = computed(() => summary.value.pendingRequestCount);
 const requestsEmptyText = computed(() => {
   switch (requestStatusFilter.value) {
     case 'ACCEPTED':
@@ -1380,33 +1374,9 @@ const requestsEmptyText = computed(() => {
       return '暂无待处理要货申请';
   }
 });
-const plannedCount = computed(
-  () => routes.value.filter((item) => ['PLANNED', 'IN_PROGRESS'].includes(item.status)).length
-);
-const pendingTaskCount = computed(
-  () =>
-    routes.value
-      .flatMap((item) => item.tasks || [])
-      .filter((item) => ['PENDING', 'IN_PROGRESS'].includes(item.status)).length
-);
-const fulfillmentTasksBase = computed(() => {
-  const id = focusDeviceId.value.trim();
-  const status = fulfillmentStatus.value;
-  const rows: Row[] = [];
-  for (const routeRow of routes.value) {
-    for (const task of routeRow.tasks || []) {
-      if (id && task.deviceId !== id) continue;
-      if (status && String(task.status || '') !== status) continue;
-      rows.push({
-        ...task,
-        routeId: routeRow.routeId,
-        routeName: routeRow.routeName,
-        assigneeUserId: task.assigneeUserId || routeRow.assigneeUserId
-      });
-    }
-  }
-  return sortTasksById(rows);
-});
+const plannedCount = computed(() => summary.value.plannedRouteCount);
+const pendingTaskCount = computed(() => summary.value.pendingTaskCount);
+const fulfillmentTasksBase = computed(() => fulfillmentTasksList.value);
 const fulfillmentTasks = computed(() => {
   if (!fulfillmentUnassignedOnly.value) return fulfillmentTasksBase.value;
   return fulfillmentTasksBase.value.filter((t) => taskUnassignedHint.value[Number(t.taskId)]);
@@ -1414,46 +1384,34 @@ const fulfillmentTasks = computed(() => {
 const unassignedHintCount = computed(
   () => fulfillmentTasksBase.value.filter((t) => taskUnassignedHint.value[Number(t.taskId)]).length
 );
-const fulfilledCount = computed(
-  () =>
-    routes.value.flatMap((r) => r.tasks || []).filter((t) => String(t.status) === 'COMPLETED')
-      .length
-);
+const fulfilledCount = computed(() => summary.value.fulfilledTaskCount);
 const fulfillmentEmptyText = computed(() => {
   if (focusDeviceId.value.trim()) return `设备 ${focusDeviceId.value} 暂无履约记录`;
   if (fulfillmentUnassignedOnly.value) return '暂无待分配货道的开放任务';
   if (fulfillmentStatus.value) return '当前筛选下暂无履约记录';
   return '暂无履约记录';
 });
-const filteredRoutes = computed(() => {
-  const id = focusDeviceId.value.trim();
-  const list = !id
-    ? routes.value
-    : routes.value.filter((row) => (row.tasks || []).some((task: Row) => task.deviceId === id));
-  return sortRoutesById(list);
-});
+const filteredRoutes = computed(() => sortRoutesById(routes.value));
 const sortedRequests = computed(() => sortRequestsById(requests.value));
 const routesEmptyText = computed(() =>
   focusDeviceId.value.trim() ? `设备 ${focusDeviceId.value} 暂无关联补货路线` : '暂无补货路线'
 );
 
-function slicePage<T>(rows: T[]) {
-  const start = (page.value - 1) * size.value;
-  return rows.slice(start, page.value * size.value);
-}
-
+const pagedRoutes = computed(() => filteredRoutes.value);
+const pagedRequests = computed(() => sortedRequests.value);
+const pagedShortages = computed(() => shortages.value);
 const tabTotal = computed(() => {
-  if (tab.value === 'requests') return sortedRequests.value.length;
-  if (tab.value === 'shortage') return shortages.value.length;
-  if (tab.value === 'expiry') return expiryAlerts.value.length;
-  if (tab.value === 'fulfillment') return fulfillmentTasks.value.length;
-  return filteredRoutes.value.length;
+  if (SERVER_PAGINATED_TABS.has(tab.value)) {
+    if (tab.value === 'fulfillment' && fulfillmentUnassignedOnly.value) {
+      return fulfillmentTasks.value.length;
+    }
+    return tabTotals.value[tab.value] || 0;
+  }
+  return 0;
 });
-const pagedRoutes = computed(() => slicePage(filteredRoutes.value));
-const pagedRequests = computed(() => slicePage(sortedRequests.value));
-const pagedShortages = computed(() => slicePage(shortages.value));
-const pagedExpiry = computed(() => slicePage(expiryAlerts.value));
-const pagedFulfillment = computed(() => slicePage(fulfillmentTasks.value));
+
+const pagedExpiry = computed(() => expiryAlerts.value);
+const pagedFulfillment = computed(() => sortTasksById(fulfillmentTasks.value));
 const linesDrawerTitle = computed(() =>
   linesTask.value?.taskId ? `理货明细 · 任务 ${linesTask.value.taskId}` : '理货明细'
 );
@@ -1524,12 +1482,12 @@ function onSlotAssign(row: Row, slotCode: string | null | undefined) {
   }
 }
 
-watch(
-  [tab, focusDeviceId, fulfillmentStatus, fulfillmentUnassignedOnly, requestStatusFilter],
-  () => {
-    page.value = 1;
+watch([focusDeviceId, fulfillmentStatus, requestStatusFilter], () => {
+  page.value = 1;
+  if (SERVER_PAGINATED_TABS.has(tab.value)) {
+    void loadTab(tab.value, true);
   }
-);
+});
 
 watch(linesDrawer, (open) => {
   if (!open) revokeEvidencePreviews();
@@ -1656,7 +1614,7 @@ const { onExport: exportShortages } = useListCsv({
   headers: ['设备', '货道', '商品', '账面', '最低', '目标', '状态'],
   toRows: () =>
     pickShortages(shortages.value).map((row) => [
-      row.deviceId,
+      row.deviceName || row.deviceId,
       row.slotCode,
       row.assignedSkuName || '',
       row.bookQty,
@@ -1778,6 +1736,8 @@ async function loadAssignees() {
 }
 
 function deviceName(deviceId: string) {
+  const fromShortage = shortages.value.find((item) => item.deviceId === deviceId)?.deviceName;
+  if (fromShortage) return fromShortage;
   return devices.value.find((item) => item.deviceId === deviceId)?.deviceName || deviceId || '无';
 }
 function localDate() {
@@ -1805,6 +1765,7 @@ function goDevice(deviceId?: string) {
 }
 
 function openPlan() {
+  void loadDeviceRefs();
   Object.assign(planForm, {
     routeName: `${new Date().toLocaleDateString('zh-CN')} 补货路线`,
     plannedDate: localDate(),
@@ -1824,6 +1785,136 @@ function syncRouteQuery() {
 function onTabChange() {
   page.value = 1;
   syncRouteQuery();
+  void loadTab(tab.value, true);
+}
+
+function replenishmentListParams(extra?: Record<string, string>) {
+  const q = new URLSearchParams({
+    page: String(page.value - 1),
+    size: String(size.value)
+  });
+  if (extra) {
+    for (const [key, value] of Object.entries(extra)) {
+      if (value) q.set(key, value);
+    }
+  }
+  return q;
+}
+
+function onPagerChange() {
+  if (SERVER_PAGINATED_TABS.has(tab.value)) {
+    void loadTab(tab.value, true);
+  }
+}
+
+function onPagerSizeChange() {
+  page.value = 1;
+  if (SERVER_PAGINATED_TABS.has(tab.value)) {
+    void loadTab(tab.value, true);
+  }
+}
+
+async function loadSummary() {
+  try {
+    const data = await api.request<{
+      pendingTaskCount: number;
+      fulfilledTaskCount: number;
+      plannedRouteCount: number;
+      pendingRequestCount: number;
+    }>('/api/v2/ops/admin/replenishment/summary', 'GET');
+    summary.value = {
+      pendingTaskCount: Number(data.pendingTaskCount) || 0,
+      fulfilledTaskCount: Number(data.fulfilledTaskCount) || 0,
+      plannedRouteCount: Number(data.plannedRouteCount) || 0,
+      pendingRequestCount: Number(data.pendingRequestCount) || 0
+    };
+  } catch {
+    /* KPI 汇总失败不阻断列表 */
+  }
+}
+
+async function loadRoutes() {
+  const extra: Record<string, string> = {};
+  if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
+  const data = await api.request<{ items: Row[]; total: number }>(
+    `/api/v2/ops/admin/replenishment/routes?${replenishmentListParams(extra)}`,
+    'GET'
+  );
+  routes.value = data.items || [];
+  tabTotals.value = { ...tabTotals.value, routes: Number(data.total) || 0 };
+  clearRoutesSelection();
+}
+
+async function loadFulfillment() {
+  const extra: Record<string, string> = {};
+  if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
+  if (fulfillmentStatus.value) extra.status = fulfillmentStatus.value;
+  const data = await api.request<{ items: Row[]; total: number }>(
+    `/api/v2/ops/admin/replenishment/fulfillment-tasks?${replenishmentListParams(extra)}`,
+    'GET'
+  );
+  fulfillmentTasksList.value = data.items || [];
+  tabTotals.value = { ...tabTotals.value, fulfillment: Number(data.total) || 0 };
+  void prefetchUnassignedHints();
+}
+
+async function loadRequests() {
+  const status = requestStatusFilter.value || 'ALL';
+  const data = await api.request<{ items: Row[]; total: number }>(
+    `/api/v2/ops/admin/replenishment/requests?${replenishmentListParams({ status })}`,
+    'GET'
+  );
+  allRequests.value = data.items || [];
+  tabTotals.value = { ...tabTotals.value, requests: Number(data.total) || 0 };
+  clearRequestsSelection();
+}
+
+async function loadDeviceRefs() {
+  if (devices.value.length) return;
+  try {
+    devices.value = await api.request<Row[]>('/api/v2/ops/admin/devices/ref', 'GET');
+  } catch {
+    devices.value = [];
+  }
+}
+
+async function loadShortages() {
+  const extra: Record<string, string> = {};
+  if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
+  const data = await api.request<{
+    items: Row[];
+    total: number;
+    shortageDeviceIds: string[];
+  }>(`/api/v2/ops/admin/replenishment/shortage?${replenishmentListParams(extra)}`, 'GET');
+  shortages.value = (data.items || []).map((row) => ({
+    ...row,
+    slotKey: row.slotKey || `${row.deviceId}:${row.slotCode || row.skuId || ''}`
+  }));
+  tabTotals.value = { ...tabTotals.value, shortage: Number(data.total) || 0 };
+  shortageDeviceIds.value = data.shortageDeviceIds || [];
+  clearShortageSelection();
+}
+
+async function loadTab(name: string, force = false) {
+  if (!force && !SERVER_PAGINATED_TABS.has(name)) return;
+  markTabsLoading([name], true);
+  loading.value = true;
+  try {
+    await loadSummary();
+    if (name === 'routes') await loadRoutes();
+    else if (name === 'fulfillment') await loadFulfillment();
+    else if (name === 'requests') await loadRequests();
+    else if (name === 'shortage') {
+      await loadDeviceRefs();
+      await loadShortages();
+    } else if (name === 'expiry') await loadExpiryAlerts();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '补货数据加载失败');
+  } finally {
+    listHydrated.value = true;
+    loading.value = false;
+    markTabsLoading([name], false);
+  }
 }
 
 function clearDeviceFocus() {
@@ -1888,6 +1979,7 @@ function clearPlanQuery() {
 async function planFromShortage() {
   const ids = shortageDevices.value;
   if (!ids.length) return ElMessage.warning('当前无缺货设备');
+  await loadDeviceRefs();
   Object.assign(planForm, {
     routeName: `${new Date().toLocaleDateString('zh-CN')} 缺货补货`,
     plannedDate: localDate(),
@@ -1901,6 +1993,7 @@ async function planFromShortage() {
 
 function planSingleDevice(deviceId: string) {
   if (!deviceId) return;
+  void loadDeviceRefs();
   Object.assign(planForm, {
     routeName: `${new Date().toLocaleDateString('zh-CN')} ${deviceId} 补货`,
     plannedDate: localDate(),
@@ -1911,24 +2004,19 @@ function planSingleDevice(deviceId: string) {
   planDialog.value = true;
 }
 
-async function loadShortage() {
-  shortageLoading.value = true;
-  try {
-    await load();
-  } finally {
-    shortageLoading.value = false;
-  }
-}
-
 async function loadExpiryAlerts() {
   expiryLoading.value = true;
   try {
-    const list = await api.request<Row[]>('/api/v2/ops/admin/expiry/alerts', 'GET');
-    let rows = list || [];
+    const data = await api.request<{ items: Row[]; total: number }>(
+      `/api/v2/ops/admin/expiry/alerts?${replenishmentListParams()}`,
+      'GET'
+    );
+    let rows = data.items || [];
     if (focusDeviceId.value.trim()) {
       rows = rows.filter((x) => x.deviceId === focusDeviceId.value.trim());
     }
     expiryAlerts.value = rows;
+    tabTotals.value = { ...tabTotals.value, expiry: Number(data.total) || 0 };
     clearExpirySelection();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '临期告警加载失败');
@@ -2091,7 +2179,7 @@ async function createFromExpiry(row: Row, lineType: 'PULL_OFF' | 'RESTOCK') {
         : `已生成补货任务 ${route?.tasks?.[0]?.taskId || route?.routeId || ''}`
     );
     await loadExpiryAlerts();
-    await load();
+    await loadTab(tab.value, true);
     tab.value = 'routes';
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '生成任务失败');
@@ -2290,7 +2378,7 @@ async function checkInRestockTask(task: Row) {
   try {
     await api.request(`/api/v2/ops/admin/replenishment/tasks/${task.taskId}/check-in`, 'POST', {});
     ElMessage.success(`任务 ${task.taskId} 已签到，可补货开门`);
-    await load();
+    await loadTab(tab.value, true);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '签到失败');
   } finally {
@@ -2335,7 +2423,7 @@ async function cancelEmptyRoute(row: Row) {
     ElMessage.success(
       orphanCleanup ? `路线 ${row.routeId} 脏出库已收口` : `路线 ${row.routeId} 已取消`
     );
-    await load();
+    await loadTab(tab.value, true);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '取消失败');
   } finally {
@@ -2376,7 +2464,7 @@ async function openRestockDoor(task: Row) {
       message: session?.sessionId ? `开门已下发（${session.sessionId}）` : '开门指令已下发',
       duration: 4000
     });
-    await load();
+    await loadTab(tab.value, true);
   } catch (error) {
     ElMessage.error({
       message: error instanceof Error ? error.message : '开门失败',
@@ -2406,7 +2494,7 @@ async function completeRestockTask(task: Row) {
   try {
     await api.request(`/api/v2/ops/admin/replenishment/tasks/${task.taskId}/complete`, 'POST');
     ElMessage.success(`任务 ${task.taskId} 已完成上架`);
-    await load();
+    await loadTab(tab.value, true);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '完成上架失败');
   } finally {
@@ -2428,10 +2516,13 @@ async function createPlan() {
     planDialog.value = false;
     tab.value = 'routes';
     syncRouteQuery();
-    await load();
-    const outbounds = await api
-      .request<Row[]>('/api/v2/ops/admin/warehouse/outbounds')
-      .catch(() => []);
+    await loadTab(tab.value, true);
+    const outbounds =
+      (
+        await api
+          .request<{ items: Row[] }>('/api/v2/ops/admin/warehouse/outbounds?page=0&size=500', 'GET')
+          .catch(() => ({ items: [] as Row[] }))
+      ).items || [];
     const linked = (outbounds || []).filter((o) => o.routeId === route?.routeId);
     if (linked.length) {
       ElMessage.success({
@@ -2504,7 +2595,7 @@ async function onRequestAction(row: Row, key: string) {
       );
       ElMessage.success('已驳回');
     }
-    await load();
+    await loadTab(tab.value, true);
     if (requestFlowDrawer.value && requestFlowRow.value?.requestId === row.requestId) {
       const updated = allRequests.value.find((r) => r.requestId === row.requestId);
       if (updated) requestFlowRow.value = updated;
@@ -2543,7 +2634,7 @@ async function goRequestTask(row: Row) {
   }
   let task = findTaskById(taskId);
   if (!task) {
-    await load();
+    await loadTab(tab.value, true);
     task = findTaskById(taskId);
   }
   if (!task) {
@@ -2617,68 +2708,6 @@ function openRequestFlow(row: Row) {
   requestFlowRow.value = row;
   requestFlowDrawer.value = true;
 }
-
-async function load() {
-  const allTabs = ['routes', 'fulfillment', 'requests', 'shortage', 'expiry'];
-  // 首屏：各 Tab 都转；刷新：仅当前 Tab 转，避免切到未激活面板也整屏 loading
-  const spinTabs = listHydrated.value ? [tab.value] : allTabs;
-  markTabsLoading(spinTabs, true);
-  loading.value = true;
-  try {
-    // devices / discrepancies 可能对补货员等窄权限角色 403；勿与路线/要货绑死在同一 Promise.all
-    const [r, req, devicePage, disc] = await Promise.all([
-      api.request<Row[]>('/api/v2/ops/admin/replenishment/routes', 'GET'),
-      api.request<Row[]>('/api/v2/ops/admin/replenishment/requests?status=ALL', 'GET'),
-      api.request<Row[]>('/api/v2/ops/admin/devices/ref', 'GET').catch(() => [] as Row[]),
-      api.request<Row[]>('/api/v2/ops/admin/slots/discrepancies', 'GET').catch(() => [])
-    ]);
-    routes.value = r || [];
-    allRequests.value = req || [];
-    devices.value = devicePage || [];
-    clearRoutesSelection();
-    clearRequestsSelection();
-    const lowStock: Row[] = [];
-    for (const d of devices.value) {
-      try {
-        const suggest = await api.request<Row[]>(
-          `/api/v2/ops/admin/replenishment/suggest/slots?deviceId=${encodeURIComponent(d.deviceId)}`,
-          'GET'
-        );
-        for (const s of suggest || []) {
-          if (
-            (s.bookQty ?? 0) <= (s.minLevel ?? 0) ||
-            s.stockStatus === 'OOS' ||
-            s.stockStatus === 'LOW'
-          ) {
-            lowStock.push({ ...s, deviceId: d.deviceId });
-          }
-        }
-      } catch {
-        /* ignore per-device */
-      }
-    }
-    const byKey = new Map<string, Row>();
-    for (const row of [...(disc || []), ...lowStock]) {
-      const key = `${row.deviceId}:${row.slotCode || row.skuId || ''}`;
-      if (!byKey.has(key)) byKey.set(key, { ...row, slotKey: key });
-    }
-    let list = [...byKey.values()];
-    if (focusDeviceId.value.trim()) {
-      list = list.filter((x) => x.deviceId === focusDeviceId.value.trim());
-    }
-    shortages.value = list;
-    clearShortageSelection();
-    await loadExpiryAlerts();
-    void prefetchUnassignedHints();
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '补货数据加载失败');
-  } finally {
-    listHydrated.value = true;
-    loading.value = false;
-    markTabsLoading(spinTabs, false);
-  }
-}
-
 /** 履约开放任务：预拉明细，标出待分配货道红点（最多 24 个，避免打爆接口） */
 async function prefetchUnassignedHints() {
   const open = fulfillmentTasksBase.value
@@ -2718,7 +2747,7 @@ async function prefetchUnassignedHints() {
 async function reloadFromRouteQuery() {
   applyRouteQuery();
   page.value = 1;
-  await load();
+  await loadTab(tab.value, true);
   await maybeAutoPlanFromQuery();
 }
 
@@ -2733,7 +2762,7 @@ onMounted(async () => {
   applyRouteQuery();
   syncRouteQuery();
   void loadAssignees();
-  await load();
+  await loadTab(tab.value, true);
   await maybeAutoPlanFromQuery();
 });
 onActivated(() => {

@@ -243,9 +243,13 @@ public class AdminDashboardController {
             @RequestParam(name = "userId", required = false) Long userId,
             @RequestParam(name = "from", required = false) Instant from,
             @RequestParam(name = "to", required = false) Instant to,
-            @RequestParam(name = "q", required = false) String q) {
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "uploadStatus", required = false) String uploadStatus,
+            @RequestParam(name = "stuckOnly", defaultValue = "false") boolean stuckOnly,
+            @RequestParam(name = "stuckMinutes", defaultValue = "30") int stuckMinutes) {
         return ApiResponse.ok(adminService.listSessions(
-                operatorId(request), page, size, deviceId, state, sessionId, userId, from, to, q));
+                operatorId(request), page, size, deviceId, state, sessionId, userId, from, to, q,
+                uploadStatus, stuckOnly, stuckMinutes));
     }
 
     @RequiresPermissions("ops:session:export")
@@ -258,9 +262,12 @@ public class AdminDashboardController {
             @RequestParam(name = "userId", required = false) Long userId,
             @RequestParam(name = "from", required = false) Instant from,
             @RequestParam(name = "to", required = false) Instant to,
-            @RequestParam(name = "q", required = false) String q) {
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "stuckOnly", defaultValue = "false") boolean stuckOnly,
+            @RequestParam(name = "stuckMinutes", defaultValue = "30") int stuckMinutes) {
         byte[] csv = adminService.exportSessionsCsv(
-                operatorId(request), deviceId, state, sessionId, userId, from, to, q);
+                operatorId(request), deviceId, state, sessionId, userId, from, to, q,
+                stuckOnly, stuckMinutes);
         return csvAttachment("sessions.csv", csv);
     }
 
@@ -423,20 +430,14 @@ public class AdminDashboardController {
 
     @RequiresPermissions(value = {"ops:sku:list", "ops:replenishment:list", "ops:warehouse:list"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/skus")
-    public ApiResponse<List<SkuCatalogDto>> skus(
+    public ApiResponse<PageResult<SkuCatalogDto>> skus(
             HttpServletRequest request,
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "status", required = false) String status,
-            @RequestParam(name = "category", required = false) String category) {
-        Long opId = operatorId(request);
-        String cacheKey = (q == null ? "" : q.trim()) + "|"
-                + (status == null ? "" : status.trim()) + "|"
-                + (category == null ? "" : category.trim());
-        return ApiResponse.ok(cacheService.get(
-                ADMIN_SKUS,
-                cacheKey,
-                60_000L,
-                () -> adminService.listSkus(opId, q, status, category)));
+            @RequestParam(name = "category", required = false) String category,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return ApiResponse.ok(adminService.listSkusPage(operatorId(request), q, status, category, page, size));
     }
 
     /** 设备基础信息只读（履约角色设备下拉），按账号商户范围过滤。 */
@@ -493,9 +494,13 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size,
-            @RequestParam(name = "sortDir", defaultValue = "asc") String sortDir) {
+            @RequestParam(name = "sortDir", defaultValue = "asc") String sortDir,
+            @RequestParam(name = "action", required = false) String action,
+            @RequestParam(name = "target", required = false) String target,
+            @RequestParam(name = "mine", defaultValue = "false") boolean mine) {
         boolean logIdAsc = !"desc".equalsIgnoreCase(sortDir);
-        return ApiResponse.ok(adminService.listAuditLogs(operatorId(request), page, size, logIdAsc));
+        return ApiResponse.ok(adminService.listAuditLogs(
+                operatorId(request), page, size, logIdAsc, action, target, mine));
     }
 
     @RequiresPermissions(value = {"ops:audit:recent", "ops:audit:list"}, logical = RequiresPermissions.Logical.OR)
