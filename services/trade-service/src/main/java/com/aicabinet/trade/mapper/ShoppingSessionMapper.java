@@ -312,14 +312,38 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
         var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<ShoppingSession>(
                 pageable.getPageNumber() + 1L, pageable.getPageSize());
         var q = Wrappers.<ShoppingSession>lambdaQuery();
+        if (!applySessionDeviceScope(q, deviceId, deviceIds, pageable)) {
+            return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
+        }
+        applySessionExactFilters(q, state, sessionId, userId, createdFrom, createdTo, uploadStatus, updatedBefore);
+        applySessionKeywordFilter(q, keyword);
+        q.orderByDesc(ShoppingSession::getCreatedAt);
+        var result = selectPage(mpPage, q);
+        return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
+    }
+
+    private static boolean applySessionDeviceScope(
+            com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ShoppingSession> q,
+            String deviceId, Collection<String> deviceIds, Pageable pageable) {
         if (deviceId != null && !deviceId.isBlank()) {
             q.eq(ShoppingSession::getDeviceId, deviceId.trim());
-        } else if (deviceIds != null) {
-            if (deviceIds.isEmpty()) {
-                return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
-            }
-            q.in(ShoppingSession::getDeviceId, deviceIds);
+            return true;
         }
+        if (deviceIds == null) {
+            return true;
+        }
+        if (deviceIds.isEmpty()) {
+            return false;
+        }
+        q.in(ShoppingSession::getDeviceId, deviceIds);
+        return true;
+    }
+
+    private static void applySessionExactFilters(
+            com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ShoppingSession> q,
+            SessionState state, String sessionId, Long userId,
+            java.time.Instant createdFrom, java.time.Instant createdTo,
+            String uploadStatus, java.time.Instant updatedBefore) {
         if (state != null) {
             q.eq(ShoppingSession::getState, state);
         }
@@ -341,27 +365,33 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
         if (updatedBefore != null) {
             q.le(ShoppingSession::getUpdatedAt, updatedBefore);
         }
-        if (keyword != null && !keyword.isBlank()) {
-            String kw = keyword.trim();
-            Long kwUserId = null;
-            try {
-                kwUserId = Long.parseLong(kw);
-            } catch (NumberFormatException ignored) {
-                // not a user id
-            }
-            Long finalKwUserId = kwUserId;
-            q.and(w -> {
-                w.like(ShoppingSession::getSessionId, kw)
-                        .or().like(ShoppingSession::getDeviceId, kw)
-                        .or().like(ShoppingSession::getOrderId, kw);
-                if (finalKwUserId != null) {
-                    w.or().eq(ShoppingSession::getUserId, finalKwUserId);
-                }
-            });
+    }
+
+    private static void applySessionKeywordFilter(
+            com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ShoppingSession> q,
+            String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return;
         }
-        q.orderByDesc(ShoppingSession::getCreatedAt);
-        var result = selectPage(mpPage, q);
-        return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
+        String kw = keyword.trim();
+        Long kwUserId = parseOptionalUserId(kw);
+        Long finalKwUserId = kwUserId;
+        q.and(w -> {
+            w.like(ShoppingSession::getSessionId, kw)
+                    .or().like(ShoppingSession::getDeviceId, kw)
+                    .or().like(ShoppingSession::getOrderId, kw);
+            if (finalKwUserId != null) {
+                w.or().eq(ShoppingSession::getUserId, finalKwUserId);
+            }
+        });
+    }
+
+    private static Long parseOptionalUserId(String kw) {
+        try {
+            return Long.parseLong(kw);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     /** @deprecated use overload with uploadStatus/updatedBefore */

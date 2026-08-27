@@ -313,47 +313,14 @@ private final UserInfoMapper userInfoRepository;
         }
         ShoppingSession session = sessionRepository.findById(order.getSessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        DisputeTicket ticket = disputeRepository.findBySessionId(session.getSessionId()).orElse(null);
-        if (ticket == null) {
-            DisputeTicketDto created = saveOpenTicket(
-                    order.getUserId(),
-                    session.getSessionId(),
-                    reason,
-                    "[]",
-                    USER_APPEAL,
-                    STATUS_NORMAL,
-                    null,
-                    null);
-            ticket = disputeRepository.findById(created.ticketId()).orElseThrow();
-        } else if (STATUS_RESOLVED.equals(ticket.getStatus()) || STATUS_CLOSED.equals(ticket.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "关联争议已结案，无法再次退款");
-        } else {
-            ticket.setReason(reason);
-            ticket.setCategory(USER_APPEAL);
-            disputeRepository.save(ticket);
-        }
-        Long evidenceOwner = operator ? order.getUserId() : actorId;
-        if (!operator) {
-            fileAttachmentService.bindEvidenceToDispute(evidenceOwner, ticket.getTicketId(),
-                    request != null ? request.evidenceFileIds() : null);
-        } else if (request != null && request.evidenceFileIds() != null && !request.evidenceFileIds().isEmpty()) {
-            // 运营代传附图时仍校验上传者归属（通常是消费者先传）
-            fileAttachmentService.bindEvidenceToDispute(order.getUserId(), ticket.getTicketId(),
-                    request.evidenceFileIds());
-        }
+        DisputeTicket ticket = ensureDisputeTicketForFullRefund(order, session, reason);
+        bindFullRefundEvidence(actorId, order, ticket, request, operator);
         boolean restoreInventory = RefundInventoryPolicy.resolve(
                 request != null ? request.restoreInventory() : null,
                 reason,
-                // 运营默认不回库（须显式勾选）；消费者自助偏误识别场景，未知文案默认回库
                 !operator);
         int refunded = settlementService.waiveAndRefund(session, restoreInventory);
-        ticket.setStatus(STATUS_RESOLVED);
-        ticket.setResolutionItems("[]");
-        ticket.setResolvedAt(Instant.now());
-        if (operator) {
-            ticket.setOperatorNote("运营直接退款: " + reason
-                    + (restoreInventory ? " [回库]" : " [不回库]"));
-        }
+        finalizeFullRefundTicket(ticket, operator, reason, restoreInventory);
         disputeRepository.save(ticket);
         session.setState(SessionState.COMPLETED);
         sessionRepository.save(session);
@@ -375,6 +342,52 @@ private final UserInfoMapper userInfoRepository;
                 message,
                 restoreInventory,
                 false);
+    }
+
+    private DisputeTicket ensureDisputeTicketForFullRefund(CabinetOrder order, ShoppingSession session, String reason) {
+        DisputeTicket ticket = disputeRepository.findBySessionId(session.getSessionId()).orElse(null);
+        if (ticket == null) {
+            DisputeTicketDto created = saveOpenTicket(
+                    order.getUserId(),
+                    session.getSessionId(),
+                    reason,
+                    "[]",
+                    USER_APPEAL,
+                    STATUS_NORMAL,
+                    null,
+                    null);
+            return disputeRepository.findById(created.ticketId()).orElseThrow();
+        }
+        if (STATUS_RESOLVED.equals(ticket.getStatus()) || STATUS_CLOSED.equals(ticket.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "关联争议已结案，无法再次退款");
+        }
+        ticket.setReason(reason);
+        ticket.setCategory(USER_APPEAL);
+        return ticket;
+    }
+
+    private void bindFullRefundEvidence(Long actorId, CabinetOrder order, DisputeTicket ticket,
+                                        OrderRefundRequest request, boolean operator) {
+        if (!operator) {
+            fileAttachmentService.bindEvidenceToDispute(actorId, ticket.getTicketId(),
+                    request != null ? request.evidenceFileIds() : null);
+            return;
+        }
+        if (request != null && request.evidenceFileIds() != null && !request.evidenceFileIds().isEmpty()) {
+            fileAttachmentService.bindEvidenceToDispute(order.getUserId(), ticket.getTicketId(),
+                    request.evidenceFileIds());
+        }
+    }
+
+    private static void finalizeFullRefundTicket(DisputeTicket ticket, boolean operator,
+                                                 String reason, boolean restoreInventory) {
+        ticket.setStatus(STATUS_RESOLVED);
+        ticket.setResolutionItems("[]");
+        ticket.setResolvedAt(Instant.now());
+        if (operator) {
+            ticket.setOperatorNote("运营直接退款: " + reason
+                    + (restoreInventory ? " [回库]" : " [不回库]"));
+        }
     }
 
     private DisputeTicketDto saveOpenTicket(Long userId, String sessionId, String reason, String itemsJson,

@@ -1269,29 +1269,60 @@ public class AdminDashboardService {
         DeviceInfo device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
+        RefundPolicyPatch refundPatch = applyUpdateDeviceFields(operatorId, device, request);
+        Instant now = Instant.now();
+        device.setUpdatedAt(now);
+        deviceRepository.save(device);
+        if (refundPatch.touch()) {
+            deviceRepository.update(null, Wrappers.<DeviceInfo>lambdaUpdate()
+                    .eq(DeviceInfo::getDeviceId, deviceId)
+                    .set(DeviceInfo::getRefundPolicy, refundPatch.stored())
+                    .set(DeviceInfo::getUpdatedAt, now));
+            device.setRefundPolicy(refundPatch.stored());
+            device.setUpdatedAt(now);
+        }
+        auditService.record(operatorId, "DEVICE_UPDATE", "DEVICE", deviceId,
+                device.getDeviceName() + "; refundPolicy=" + device.getRefundPolicy());
+        DeviceInfo fresh = deviceRepository.findById(deviceId).orElse(device);
+        ShoppingSession session = findSessionForDeviceList(deviceId);
+        return toDeviceDto(fresh, session, replenishingDeviceIds().contains(fresh.getDeviceId()));
+    }
+
+    private record RefundPolicyPatch(boolean touch, String stored) {}
+
+    private RefundPolicyPatch applyUpdateDeviceFields(Long operatorId, DeviceInfo device, UpdateDeviceRequest request) {
         if (request.deviceName() != null && !request.deviceName().isBlank()) {
             device.setDeviceName(request.deviceName().trim());
         }
         if (request.deviceType() != null && !request.deviceType().isBlank()) {
             device.setDeviceType(request.deviceType().trim());
         }
-        if (request.merchantId() != null) {
-            if (request.merchantId().isBlank()) {
-                device.setMerchantId(null);
-            } else {
-                String merchantId = request.merchantId().trim();
-                requireMerchant(merchantId);
-                merchantScopeService.requireMerchantAccess(operatorId, merchantId);
-                device.setMerchantId(merchantId);
-            }
-        }
+        applyUpdateDeviceMerchant(operatorId, device, request.merchantId());
         boolean touchRefundPolicy = request.refundPolicy() != null;
         String storedRefundPolicy = null;
         if (touchRefundPolicy) {
-            // INHERIT/空 → null（跟随全局）；MyBatis-Plus updateById 默认跳过 null，须单独 set
             storedRefundPolicy = RefundPolicyService.normalizeStored(request.refundPolicy());
             device.setRefundPolicy(storedRefundPolicy);
         }
+        applyUpdateDeviceOptionalFields(device, request);
+        return new RefundPolicyPatch(touchRefundPolicy, storedRefundPolicy);
+    }
+
+    private void applyUpdateDeviceMerchant(Long operatorId, DeviceInfo device, String merchantId) {
+        if (merchantId == null) {
+            return;
+        }
+        if (merchantId.isBlank()) {
+            device.setMerchantId(null);
+            return;
+        }
+        String mid = merchantId.trim();
+        requireMerchant(mid);
+        merchantScopeService.requireMerchantAccess(operatorId, mid);
+        device.setMerchantId(mid);
+    }
+
+    private static void applyUpdateDeviceOptionalFields(DeviceInfo device, UpdateDeviceRequest request) {
         if (request.imei() != null) {
             device.setImei(trimToNull(request.imei()));
         }
@@ -1325,23 +1356,6 @@ public class AdminDashboardService {
         if (request.address() != null) {
             device.setAddress(trimToNull(request.address()));
         }
-        Instant now = Instant.now();
-        device.setUpdatedAt(now);
-        deviceRepository.save(device);
-        if (touchRefundPolicy) {
-            deviceRepository.update(null, Wrappers.<DeviceInfo>lambdaUpdate()
-                    .eq(DeviceInfo::getDeviceId, deviceId)
-                    .set(DeviceInfo::getRefundPolicy, storedRefundPolicy)
-                    .set(DeviceInfo::getUpdatedAt, now));
-            device.setRefundPolicy(storedRefundPolicy);
-            device.setUpdatedAt(now);
-        }
-        auditService.record(operatorId, "DEVICE_UPDATE", "DEVICE", deviceId,
-                device.getDeviceName() + "; refundPolicy=" + device.getRefundPolicy());
-        // 重新加载，避免返回值与库不一致
-        DeviceInfo fresh = deviceRepository.findById(deviceId).orElse(device);
-        ShoppingSession session = findSessionForDeviceList(deviceId);
-        return toDeviceDto(fresh, session, replenishingDeviceIds().contains(fresh.getDeviceId()));
     }
 
     @Transactional(readOnly = true)

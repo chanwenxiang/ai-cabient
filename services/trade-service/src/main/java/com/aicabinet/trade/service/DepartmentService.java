@@ -146,26 +146,49 @@ public class DepartmentService {
     public OpsDepartmentMembersDto assignMembers(Long operatorId, Long deptId, AssignDepartmentMembersRequest req) {
         permissionService.requirePermission(operatorId, PERM_OPS_DEPT_EDIT);
         OpsDepartment dept = requireDept(deptId);
-        Set<Long> next = new LinkedHashSet<>();
-        if (req != null && req.userIds() != null) {
-            for (Long userId : req.userIds()) {
-                if (userId == null || userId < 100000001L) {
-                    continue;
-                }
-                UserInfo u = userInfoRepository.selectById(userId);
-                if (u == null) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "用户不存在: " + userId);
-                }
-                next.add(userId);
+        Set<Long> next = parseAssignMemberUserIds(req);
+        Set<Long> previousPrimaries = collectPrimaryMembers(deptId);
+        userDepartmentRepository.deleteByDeptId(deptId);
+        assignMembersToDept(deptId, next, previousPrimaries);
+        for (Long leftUserId : previousPrimaries) {
+            if (!next.contains(leftUserId)) {
+                ensureHasPrimary(leftUserId);
             }
         }
+        auditService.record(operatorId, "OPS_DEPT_MEMBERS", "OPS_DEPT",
+                String.valueOf(deptId), "members=" + next.size());
+        return self.members(operatorId, dept.getDeptId());
+    }
+
+    private Set<Long> parseAssignMemberUserIds(AssignDepartmentMembersRequest req) {
+        Set<Long> next = new LinkedHashSet<>();
+        if (req == null || req.userIds() == null) {
+            return next;
+        }
+        for (Long userId : req.userIds()) {
+            if (userId == null || userId < 100000001L) {
+                continue;
+            }
+            UserInfo u = userInfoRepository.selectById(userId);
+            if (u == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "用户不存在: " + userId);
+            }
+            next.add(userId);
+        }
+        return next;
+    }
+
+    private Set<Long> collectPrimaryMembers(Long deptId) {
         Set<Long> previousPrimaries = new HashSet<>();
         for (OpsUserDepartment ud : userDepartmentRepository.findByDeptId(deptId)) {
             if (Boolean.TRUE.equals(ud.getIsPrimary())) {
                 previousPrimaries.add(ud.getUserId());
             }
         }
-        userDepartmentRepository.deleteByDeptId(deptId);
+        return previousPrimaries;
+    }
+
+    private void assignMembersToDept(Long deptId, Set<Long> next, Set<Long> previousPrimaries) {
         for (Long userId : next) {
             boolean makePrimary = previousPrimaries.contains(userId)
                     || userDepartmentRepository.findByUserId(userId).isEmpty();
@@ -175,14 +198,6 @@ public class DepartmentService {
                 clearOtherPrimaries(userId, deptId);
             }
         }
-        for (Long leftUserId : previousPrimaries) {
-            if (!next.contains(leftUserId)) {
-                ensureHasPrimary(leftUserId);
-            }
-        }
-        auditService.record(operatorId, "OPS_DEPT_MEMBERS", "OPS_DEPT",
-                String.valueOf(deptId), "members=" + next.size());
-        return self.members(operatorId, dept.getDeptId());
     }
 
     /**

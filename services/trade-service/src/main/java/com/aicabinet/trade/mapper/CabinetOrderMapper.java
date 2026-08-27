@@ -181,14 +181,38 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
         var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<CabinetOrder>(
                 pageable.getPageNumber() + 1L, pageable.getPageSize());
         var q = Wrappers.<CabinetOrder>lambdaQuery();
+        if (!applyOrderDeviceScope(q, deviceId, deviceIds, pageable)) {
+            return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
+        }
+        applyOrderExactFilters(q, status, createdBefore, createdFrom, createdTo,
+                orderId, userId, sessionId, payTradeNo, payChannel);
+        applyOrderKeywordFilter(q, keyword);
+        q.orderByDesc(CabinetOrder::getCreatedAt);
+        var result = selectPage(mpPage, q);
+        return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
+    }
+
+    private static boolean applyOrderDeviceScope(
+            com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CabinetOrder> q,
+            String deviceId, Collection<String> deviceIds, Pageable pageable) {
         if (deviceId != null && !deviceId.isBlank()) {
             q.eq(CabinetOrder::getDeviceId, deviceId.trim());
-        } else if (deviceIds != null) {
-            if (deviceIds.isEmpty()) {
-                return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
-            }
-            q.in(CabinetOrder::getDeviceId, deviceIds);
+            return true;
         }
+        if (deviceIds == null) {
+            return true;
+        }
+        if (deviceIds.isEmpty()) {
+            return false;
+        }
+        q.in(CabinetOrder::getDeviceId, deviceIds);
+        return true;
+    }
+
+    private static void applyOrderExactFilters(
+            com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CabinetOrder> q,
+            String status, Instant createdBefore, Instant createdFrom, Instant createdTo,
+            String orderId, Long userId, String sessionId, String payTradeNo, String payChannel) {
         if (status != null && !status.isBlank()) {
             q.eq(CabinetOrder::getStatus, status.trim());
         }
@@ -219,29 +243,35 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
         if (payChannel != null && !payChannel.isBlank()) {
             q.eq(CabinetOrder::getPayChannel, payChannel.trim());
         }
-        if (keyword != null && !keyword.isBlank()) {
-            String kw = keyword.trim();
-            Long kwUserId = null;
-            try {
-                kwUserId = Long.parseLong(kw);
-            } catch (NumberFormatException ignored) {
-                // not a user id
-            }
-            Long finalKwUserId = kwUserId;
-            q.and(w -> {
-                w.like(CabinetOrder::getOrderId, kw)
-                        .or().like(CabinetOrder::getDeviceId, kw)
-                        .or().like(CabinetOrder::getSessionId, kw)
-                        .or().like(CabinetOrder::getPayTradeNo, kw)
-                        .or().like(CabinetOrder::getPaymentOperationId, kw);
-                if (finalKwUserId != null) {
-                    w.or().eq(CabinetOrder::getUserId, finalKwUserId);
-                }
-            });
+    }
+
+    private static void applyOrderKeywordFilter(
+            com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CabinetOrder> q,
+            String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return;
         }
-        q.orderByDesc(CabinetOrder::getCreatedAt);
-        var result = selectPage(mpPage, q);
-        return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
+        String kw = keyword.trim();
+        Long kwUserId = parseOptionalUserId(kw);
+        Long finalKwUserId = kwUserId;
+        q.and(w -> {
+            w.like(CabinetOrder::getOrderId, kw)
+                    .or().like(CabinetOrder::getDeviceId, kw)
+                    .or().like(CabinetOrder::getSessionId, kw)
+                    .or().like(CabinetOrder::getPayTradeNo, kw)
+                    .or().like(CabinetOrder::getPaymentOperationId, kw);
+            if (finalKwUserId != null) {
+                w.or().eq(CabinetOrder::getUserId, finalKwUserId);
+            }
+        });
+    }
+
+    private static Long parseOptionalUserId(String kw) {
+        try {
+            return Long.parseLong(kw);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     default long countByUserIdAndStatus(Long userId, String status) {
