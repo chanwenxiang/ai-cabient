@@ -1035,9 +1035,10 @@ public class AdminDashboardService {
         return listSkus(operatorId, null, null, null);
     }
 
+    @Transactional(readOnly = true)
     public List<SkuCatalogDto> listSkus(Long operatorId, String q, String status, String category) {
         permissionService.requireAnyPermission(operatorId, "ops:sku:list", "ops:replenishment:list", "ops:warehouse:list");
-        return listSkusPage(operatorId, q, status, category, 0, 500).items();
+        return self.listSkusPage(operatorId, q, status, category, 0, 500).items();
     }
 
     @Transactional(readOnly = true)
