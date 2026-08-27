@@ -185,12 +185,12 @@ public class InventoryLotService {
 
     public record FefoDeductResult(String primaryBatch, Map<String, Integer> slotQtyDeducted) {}
 
-    private record LotMovementRef(String refType, String refId, Long operatorId) {}
+    public record LotMovementRef(String refType, String refId, Long operatorId) {}
 
     private record InventoryMovementCommand(
             String batchNo, String movementType, int deltaQty, LotMovementRef ref) {}
 
-    private record RestockCommand(
+    public record RestockCommand(
             String batchNo, LocalDate productionDate, LocalDate expiryDate,
             int quantity, String slotId, LotMovementRef ref) {}
 
