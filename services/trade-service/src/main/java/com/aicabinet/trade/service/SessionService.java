@@ -1077,45 +1077,8 @@ public class SessionService {
         for (ShoppingSession s : repository.findByStateInAndUpdatedAtBefore(
                         List.of(SessionState.RECOGNIZING, SessionState.WAITING_UPLOAD, SessionState.SETTLING),
                         cutoff, 500)) {
-                    Instant anchor = s.getCloseTime() != null ? s.getCloseTime()
-                            : (s.getUpdatedAt() != null ? s.getUpdatedAt() : s.getCreatedAt());
-                    if (anchor == null || !anchor.isBefore(cutoff)) {
-                        continue;
-                    }
-                    try {
-                        // 补货会话不走消费者争议：超时尽力快照后关闭，避免误建争议单
-                        if (DeviceValidationService.isRestockSession(s)) {
-                            closeStaleRestockRecognizing(s);
-                            upgraded++;
-                            continue;
-                        }
-                        SessionState from = s.getState();
-                        String failReason = "识别超时，已转人工审核，本次暂未扣款";
-                        if (from.canTransitionTo(SessionState.DISPUTED)) {
-                            s.setFailReason(failReason);
-                            transition(s, SessionState.DISPUTED);
-                            try {
-                                disputeService.createTimeoutTicket(s, failReason);
-                            } catch (Exception ticketEx) {
-                                log.warn("超时争议单创建失败 session={}", s.getSessionId(), ticketEx);
-                            }
-                        } else if (from.canTransitionTo(SessionState.FAILED)) {
-                            s.setFailReason("识别超时");
-                            transition(s, SessionState.FAILED);
-                        } else {
-                            s.setFailReason("识别超时");
-                            s.setState(SessionState.FAILED);
-                            repository.save(s);
-                            cabinetMetrics.recordSessionState(SessionState.FAILED);
-                        }
-                        opsExceptionService.report("RECOGNITION_TIMEOUT", "HIGH", s.getDeviceId(),
-                                s.getSessionId(), s.getOrderId(), s.getUserId(),
-                                "识别超时", "关门后超过10分钟未完成识别结算");
-                        log.warn("识别超时会话已升级 session={} from={} to={}",
-                                s.getSessionId(), from, s.getState());
+                    if (upgradeStaleRecognizingSession(s, cutoff)) {
                         upgraded++;
-                    } catch (Exception e) {
-                        log.warn("识别超时升级失败 session={}", s.getSessionId(), e);
                     }
                 }
         if (upgraded > 0) {
@@ -1130,6 +1093,52 @@ public class SessionService {
                 taskService.finish(SESSION_RECOGNIZING_EXPIRE, STATUS_SUCCESS, summary, start);
             }
         }
+    }
+
+    private boolean upgradeStaleRecognizingSession(ShoppingSession session, Instant cutoff) {
+        Instant anchor = session.getCloseTime() != null ? session.getCloseTime()
+                : (session.getUpdatedAt() != null ? session.getUpdatedAt() : session.getCreatedAt());
+        if (anchor == null || !anchor.isBefore(cutoff)) {
+            return false;
+        }
+        try {
+            if (DeviceValidationService.isRestockSession(session)) {
+                closeStaleRestockRecognizing(session);
+                return true;
+            }
+            upgradeConsumerRecognizingTimeout(session);
+            return true;
+        } catch (Exception e) {
+            log.warn("识别超时升级失败 session={}", session.getSessionId(), e);
+            return false;
+        }
+    }
+
+    private void upgradeConsumerRecognizingTimeout(ShoppingSession session) {
+        SessionState from = session.getState();
+        String failReason = "识别超时，已转人工审核，本次暂未扣款";
+        if (from.canTransitionTo(SessionState.DISPUTED)) {
+            session.setFailReason(failReason);
+            transition(session, SessionState.DISPUTED);
+            try {
+                disputeService.createTimeoutTicket(session, failReason);
+            } catch (Exception ticketEx) {
+                log.warn("超时争议单创建失败 session={}", session.getSessionId(), ticketEx);
+            }
+        } else if (from.canTransitionTo(SessionState.FAILED)) {
+            session.setFailReason("识别超时");
+            transition(session, SessionState.FAILED);
+        } else {
+            session.setFailReason("识别超时");
+            session.setState(SessionState.FAILED);
+            repository.save(session);
+            cabinetMetrics.recordSessionState(SessionState.FAILED);
+        }
+        opsExceptionService.report("RECOGNITION_TIMEOUT", "HIGH", session.getDeviceId(),
+                session.getSessionId(), session.getOrderId(), session.getUserId(),
+                "识别超时", "关门后超过10分钟未完成识别结算");
+        log.warn("识别超时会话已升级 session={} from={} to={}",
+                session.getSessionId(), from, session.getState());
     }
 
     private void closeStaleRestockRecognizing(ShoppingSession session) {

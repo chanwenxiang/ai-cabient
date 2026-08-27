@@ -74,34 +74,34 @@ public class PermissionService {
         if (permCode == null || permCode.isBlank()) {
             return false;
         }
-        // 与前端 packages/shared-rbac matchPermission 同源（ops:admin 短路 + 分段通配）
-        boolean matched = perms.contains(permCode);
-        if (!matched) {
-            // 若依风格分段通配：ops:rbac:role:add ← ops:rbac:role:* / ops:rbac:* / ops:*
-            String[] segments = permCode.split(":");
-            for (int i = segments.length - 1; i >= 1; i--) {
-                StringBuilder wildcard = new StringBuilder();
-                for (int j = 0; j < i; j++) {
-                    if (j > 0) {
-                        wildcard.append(':');
-                    }
-                    wildcard.append(segments[j]);
-                }
-                wildcard.append(":*");
-                if (perms.contains(wildcard.toString())) {
-                    matched = true;
-                    break;
-                }
-            }
-        }
-        if (!matched) {
+        if (!permMatchesCode(perms, permCode)) {
             return false;
         }
-        // 商户能力：RBAC ∧ 平台功能包
         if (permCode.startsWith("merchant:")) {
             return merchantFeaturePackService.isPermEnabledForUser(userId, permCode);
         }
         return true;
+    }
+
+    private static boolean permMatchesCode(Set<String> perms, String permCode) {
+        if (perms.contains(permCode)) {
+            return true;
+        }
+        String[] segments = permCode.split(":");
+        for (int i = segments.length - 1; i >= 1; i--) {
+            StringBuilder wildcard = new StringBuilder();
+            for (int j = 0; j < i; j++) {
+                if (j > 0) {
+                    wildcard.append(':');
+                }
+                wildcard.append(segments[j]);
+            }
+            wildcard.append(":*");
+            if (perms.contains(wildcard.toString())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean hasAnyPermission(Long userId, String... permCodes) {

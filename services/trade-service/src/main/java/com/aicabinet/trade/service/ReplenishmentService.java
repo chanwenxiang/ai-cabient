@@ -1221,35 +1221,9 @@ public class ReplenishmentService {
         if (!"OPEN".equalsIgnoreCase(pull.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该临期告警已处理");
         }
-        String lineType = request != null && request.lineType() != null
-                ? request.lineType().trim().toUpperCase(java.util.Locale.ROOT)
-                : "PULL_OFF";
-        if (!"PULL_OFF".equals(lineType) && !RESTOCK.equals(lineType)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "lineType 仅支持 PULL_OFF 或 RESTOCK");
-        }
+        String lineType = normalizePullOffLineType(request);
         Long assignee = request != null ? request.assigneeUserId() : null;
-
-        int qty = Math.max(1, pull.getQuantity());
-        List<DeviceSlotService.SlotRestockAllocation> restockAllocs = List.of();
-        if (RESTOCK.equals(lineType)) {
-            if (!deviceSlotService.hasSkuSlots(pull.getDeviceId(), pull.getSkuId())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "该商品未绑定货道，无法创建补货任务；请先在货道配置中绑定 SKU");
-            }
-            int headroom = deviceSlotService.totalHeadroomForSku(pull.getDeviceId(), pull.getSkuId());
-            if (headroom <= 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "该商品货道已满，无法创建补货任务；请改用「下架任务」腾出库存后再补");
-            }
-            if (qty > headroom) {
-                qty = headroom;
-            }
-            restockAllocs = deviceSlotService.allocateRestockQuantity(pull.getDeviceId(), pull.getSkuId(), qty);
-            if (restockAllocs.isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "该商品货道已满，无法创建补货任务；请改用「下架任务」腾出库存后再补");
-            }
-        }
+        PullOffTaskPlan plan = preparePullOffTaskPlan(pull, lineType);
 
         ReplenishmentRoute route = new ReplenishmentRoute();
         route.setRouteName("临期-" + pull.getDeviceId() + "-" + pull.getSkuId());
@@ -1267,12 +1241,56 @@ public class ReplenishmentService {
                 + (pull.getReason() != null ? " " + pull.getReason() : ""));
         task = taskRepository.save(task);
         notifyTaskAssigned(task);
+        persistPullOffTaskLines(task.getTaskId(), lineType, pull, plan);
+        pull.setStatus("RESOLVED");
+        pull.setResolvedAt(Instant.now());
+        pullOffTaskRepository.save(pull);
+        return toRouteDto(route);
+    }
 
+    private static String normalizePullOffLineType(CreateFromExpiryRequest request) {
+        String lineType = request != null && request.lineType() != null
+                ? request.lineType().trim().toUpperCase(java.util.Locale.ROOT)
+                : "PULL_OFF";
+        if (!"PULL_OFF".equals(lineType) && !RESTOCK.equals(lineType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "lineType 仅支持 PULL_OFF 或 RESTOCK");
+        }
+        return lineType;
+    }
+
+    private record PullOffTaskPlan(int qty, List<DeviceSlotService.SlotRestockAllocation> restockAllocs) {}
+
+    private PullOffTaskPlan preparePullOffTaskPlan(PullOffTask pull, String lineType) {
+        int qty = Math.max(1, pull.getQuantity());
+        List<DeviceSlotService.SlotRestockAllocation> restockAllocs = List.of();
+        if (!RESTOCK.equals(lineType)) {
+            return new PullOffTaskPlan(qty, restockAllocs);
+        }
+        if (!deviceSlotService.hasSkuSlots(pull.getDeviceId(), pull.getSkuId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "该商品未绑定货道，无法创建补货任务；请先在货道配置中绑定 SKU");
+        }
+        int headroom = deviceSlotService.totalHeadroomForSku(pull.getDeviceId(), pull.getSkuId());
+        if (headroom <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "该商品货道已满，无法创建补货任务；请改用「下架任务」腾出库存后再补");
+        }
+        if (qty > headroom) {
+            qty = headroom;
+        }
+        restockAllocs = deviceSlotService.allocateRestockQuantity(pull.getDeviceId(), pull.getSkuId(), qty);
+        if (restockAllocs.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "该商品货道已满，无法创建补货任务；请改用「下架任务」腾出库存后再补");
+        }
+        return new PullOffTaskPlan(qty, restockAllocs);
+    }
+
+    private void persistPullOffTaskLines(Long taskId, String lineType, PullOffTask pull, PullOffTaskPlan plan) {
         if (RESTOCK.equals(lineType)) {
-            // 与 seedDraftRestockLines 一致：每个货道分配单独一行，避免把总量写进首槽导致超填
-            for (DeviceSlotService.SlotRestockAllocation alloc : restockAllocs) {
+            for (DeviceSlotService.SlotRestockAllocation alloc : plan.restockAllocs()) {
                 ReplenishmentTaskLine line = new ReplenishmentTaskLine();
-                line.setTaskId(task.getTaskId());
+                line.setTaskId(taskId);
                 line.setLineType(lineType);
                 line.setSkuId(pull.getSkuId());
                 line.setBatchNo(pull.getBatchNo());
@@ -1281,22 +1299,16 @@ public class ReplenishmentService {
                 line.setApplied(false);
                 taskLineRepository.save(line);
             }
-        } else {
-            ReplenishmentTaskLine line = new ReplenishmentTaskLine();
-            line.setTaskId(task.getTaskId());
-            line.setLineType(lineType);
-            line.setSkuId(pull.getSkuId());
-            line.setBatchNo(pull.getBatchNo());
-            line.setQuantity(qty);
-            line.setApplied(false);
-            taskLineRepository.save(line);
+            return;
         }
-
-        pull.setStatus("RESOLVED");
-        pull.setResolvedAt(Instant.now());
-        pullOffTaskRepository.save(pull);
-
-        return toRouteDto(route);
+        ReplenishmentTaskLine line = new ReplenishmentTaskLine();
+        line.setTaskId(taskId);
+        line.setLineType(lineType);
+        line.setSkuId(pull.getSkuId());
+        line.setBatchNo(pull.getBatchNo());
+        line.setQuantity(plan.qty());
+        line.setApplied(false);
+        taskLineRepository.save(line);
     }
 
     /** 补货任务指派站内信（商户端消息中心）。 */

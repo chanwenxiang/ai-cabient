@@ -311,28 +311,39 @@ public class FileAttachmentService {
 
     /** 同内容（sha256）已有可用对象时复用其存储路径，避免重复占用容量。 */
     private String storeOrReuse(String sha256, String objectKey, byte[] bytes, String contentType) {
-        if (sha256 != null) {
-            for (FileAttachment r : fileAttachmentMapper.findByContentSha256(sha256)) {
-                String path = r.getStoragePath();
-                if (path == null || path.isBlank()) {
-                    continue;
-                }
-                if (path.startsWith(MINIO) && minioVideoService.objectExists(path)) {
-                    return path;
-                }
-                if (path.startsWith(FILE)) {
-                    try {
-                        if (Files.isRegularFile(Paths.get(URI.create(path)))) {
-                            return path;
-                        }
-                    } catch (Exception ignored) {
-                        // 本地文件不可读则继续
-                    }
-                }
-            }
+        String reused = findReusableStoragePath(sha256);
+        if (reused != null) {
+            return reused;
         }
         return minioVideoService.putObject(objectKey, bytes, contentType)
                 .orElseGet(() -> fallbackStore(objectKey, bytes));
+    }
+
+    private String findReusableStoragePath(String sha256) {
+        if (sha256 == null) {
+            return null;
+        }
+        for (FileAttachment r : fileAttachmentMapper.findByContentSha256(sha256)) {
+            String path = r.getStoragePath();
+            if (path == null || path.isBlank()) {
+                continue;
+            }
+            if (path.startsWith(MINIO) && minioVideoService.objectExists(path)) {
+                return path;
+            }
+            if (path.startsWith(FILE) && localFileExists(path)) {
+                return path;
+            }
+        }
+        return null;
+    }
+
+    private static boolean localFileExists(String path) {
+        try {
+            return Files.isRegularFile(Paths.get(URI.create(path)));
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private static String sha256Hex(byte[] data) {

@@ -131,6 +131,13 @@ public class LineManagerService {
     public LineManagerDto update(Long operatorId, long managerId, Map<String, Object> body) {
         permissionService.requirePermission(operatorId, PERM_OPS_LINE_MANAGER_EDIT);
         LineManager manager = requireManager(managerId);
+        applyLineManagerUpdates(manager, managerId, body);
+        manager.setUpdatedAt(Instant.now());
+        managerMapper.updateById(manager);
+        return toDto(manager);
+    }
+
+    private void applyLineManagerUpdates(LineManager manager, long managerId, Map<String, Object> body) {
         if (body.containsKey(MANAGERNAME)) {
             String name = stringVal(body.get(MANAGERNAME));
             if (name != null && !name.isBlank()) {
@@ -138,15 +145,7 @@ public class LineManagerService {
             }
         }
         if (body.containsKey(PHONE)) {
-            String phone = stringVal(body.get(PHONE));
-            if (phone != null && !phone.isBlank()) {
-                managerMapper.findByPhone(phone.trim()).ifPresent(existing -> {
-                    if (!existing.getManagerId().equals(managerId)) {
-                        throw new ResponseStatusException(HttpStatus.CONFLICT, "手机号已存在");
-                    }
-                });
-                manager.setPhone(phone.trim());
-            }
+            applyLineManagerPhone(manager, managerId, stringVal(body.get(PHONE)));
         }
         if (body.containsKey(WXOPENID)) {
             manager.setWxOpenid(trim(stringVal(body.get(WXOPENID))));
@@ -169,9 +168,18 @@ public class LineManagerService {
                 manager.setStatus(status.trim().toUpperCase(Locale.ROOT));
             }
         }
-        manager.setUpdatedAt(Instant.now());
-        managerMapper.updateById(manager);
-        return toDto(manager);
+    }
+
+    private void applyLineManagerPhone(LineManager manager, long managerId, String phone) {
+        if (phone == null || phone.isBlank()) {
+            return;
+        }
+        managerMapper.findByPhone(phone.trim()).ifPresent(existing -> {
+            if (!existing.getManagerId().equals(managerId)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "手机号已存在");
+            }
+        });
+        manager.setPhone(phone.trim());
     }
 
     @Transactional
