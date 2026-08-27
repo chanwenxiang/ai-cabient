@@ -953,18 +953,18 @@ async function cancelSession(sessionId: string) {
 
 function applyRouteQuery() {
   let changed = false;
-  const routeKeyword =
-    typeof route.query.keyword === 'string'
-      ? route.query.keyword
-      : typeof route.query.q === 'string'
-        ? route.query.q
-        : typeof route.query.deviceId === 'string'
-          ? route.query.deviceId
-          : typeof route.query.qSessionId === 'string'
-            ? route.query.qSessionId
-            : typeof route.query.userId === 'string'
-              ? route.query.userId
-              : '';
+  let routeKeyword = '';
+  if (typeof route.query.keyword === 'string') {
+    routeKeyword = route.query.keyword;
+  } else if (typeof route.query.q === 'string') {
+    routeKeyword = route.query.q;
+  } else if (typeof route.query.deviceId === 'string') {
+    routeKeyword = route.query.deviceId;
+  } else if (typeof route.query.qSessionId === 'string') {
+    routeKeyword = route.query.qSessionId;
+  } else if (typeof route.query.userId === 'string') {
+    routeKeyword = route.query.userId;
+  }
   if (routeKeyword !== keyword.value) {
     keyword.value = routeKeyword;
     changed = true;

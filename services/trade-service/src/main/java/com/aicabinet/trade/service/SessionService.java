@@ -778,13 +778,11 @@ public class SessionService {
             transition(session, SessionState.DISPUTED);
             opsExceptionService.report("RECOGNITION_FAILED", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "识别结果需人工审核", e.getMessage());
             log.warn("async session disputed session={}", sessionId);
-            return;
         } catch (BalanceInsufficientException e) {
             session.setFailReason(e.getMessage());
             transition(session, SessionState.DISPUTED);
             opsExceptionService.report(BALANCE_INSUFFICIENT, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), LITERAL, e.getMessage());
             log.warn("async session balance insufficient session={}", sessionId);
-            return;
         } catch (ResponseStatusException e) {
             if (e.getStatusCode() == HttpStatus.CONFLICT) {
                 transition(session, SessionState.DISPUTED);
@@ -802,7 +800,6 @@ public class SessionService {
             transition(session, SessionState.FAILED);
             repository.save(session);
             log.warn("async session failed session={} reason={}", sessionId, e.getReason());
-            return;
         }
     }
 

@@ -344,13 +344,29 @@ const kpiTiles = computed(() => {
   const canAnalytics = canAccessPath('/analytics');
   const canOrders = canAccessPath('/orders');
   const ready = listHydrated.value;
+  let revenueHint: string | undefined;
+  if (!ready) {
+    revenueHint = '加载中…';
+  } else if (canAnalytics) {
+    revenueHint = '查看数据分析';
+  } else {
+    revenueHint = '今日快照';
+  }
+  let ordersHint: string | undefined;
+  if (!ready) {
+    ordersHint = '加载中…';
+  } else if (canOrders) {
+    ordersHint = '查看订单';
+  } else {
+    ordersHint = '今日快照';
+  }
   return [
     {
       label: '今日营收',
       value: ready ? `¥${((stats.value.revenueTodayCents || 0) / 100).toFixed(2)}` : '…',
       accent: 'accent-teal',
       path: canAnalytics ? '/analytics' : undefined,
-      hint: ready ? (canAnalytics ? '查看数据分析' : '今日快照') : '加载中…'
+      hint: revenueHint
     },
     {
       label: '今日成本',
@@ -377,7 +393,7 @@ const kpiTiles = computed(() => {
       value: ready ? String(stats.value.orderToday || 0) : '…',
       accent: 'accent-teal',
       path: canOrders ? '/orders' : undefined,
-      hint: ready ? (canOrders ? '查看订单' : '今日快照') : '加载中…'
+      hint: ordersHint
     },
     {
       label: '今日客单',

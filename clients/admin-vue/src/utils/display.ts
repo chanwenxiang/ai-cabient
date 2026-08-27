@@ -34,7 +34,12 @@ export function rateText(
   const n = Number(v);
   if (!Number.isFinite(n)) return opts?.empty ?? EMPTY_STAT;
   if (n === 0 && opts?.zeroLabel) return opts.zeroLabel;
-  const pct = opts?.asPercent === false ? n : n <= 1 ? n * 100 : n;
+  let pct: number;
+  if (opts?.asPercent === false) {
+    pct = n;
+  } else {
+    pct = n <= 1 ? n * 100 : n;
+  }
   const d = opts?.digits ?? 1;
   return `${pct.toFixed(d)}%`;
 }

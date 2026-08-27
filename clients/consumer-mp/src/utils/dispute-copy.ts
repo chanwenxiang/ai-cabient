@@ -71,7 +71,12 @@ export function consumerDisputeReviewCopy(
 
 /** 消费者提交申诉/退款失败时的友好文案（覆盖后端 409 等冲突提示） */
 export function consumerAppealErrorMessage(error: unknown, fallback = '提交失败'): string {
-  const raw = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+  let raw = '';
+  if (error instanceof Error) {
+    raw = error.message;
+  } else if (typeof error === 'string') {
+    raw = error;
+  }
   const msg = (raw || '').trim();
   if (!msg) return fallback;
   if (/本单已结案|不可再申诉|申诉通道已关闭|通道已关闭|关联争议已结案|无法再次退款/i.test(msg)) {

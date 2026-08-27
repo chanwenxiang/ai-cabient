@@ -334,11 +334,12 @@ async function save() {
     ElMessage.warning('请填写当前值');
     return;
   }
-  const value = configKey.endsWith('_enabled')
-    ? configValue === 'true'
-      ? 'true'
-      : 'false'
-    : configValue;
+  let value: string;
+  if (configKey.endsWith('_enabled')) {
+    value = configValue === 'true' ? 'true' : 'false';
+  } else {
+    value = configValue;
+  }
   saving.value = true;
   try {
     await api.request('/api/v2/ops/admin/system-configs', 'PUT', {

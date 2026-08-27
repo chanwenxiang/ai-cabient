@@ -385,7 +385,11 @@ async function onSetPayPreferred(channel: 'BALANCE' | 'WECHAT' | 'ALIPAY') {
   try {
     account.value = await consumerApi.setPayPreferred(channel);
     syncBalanceDisplay(account.value);
-    const label = channel === 'BALANCE' ? '余额' : channel === 'WECHAT' ? '微信免密' : '支付宝免密';
+    const payLabels: Record<string, string> = {
+      BALANCE: '余额',
+      WECHAT: '微信免密'
+    };
+    const label = payLabels[channel] ?? '支付宝免密';
     uni.showToast({ title: `已优先${label}`, icon: 'success' });
   } catch (e) {
     uni.showToast({
@@ -508,7 +512,10 @@ function formatTransactionTime(value?: string) {
 
 function formatTransactionAmount(cents: number) {
   const signed = fmtMoney(Math.abs(cents || 0));
-  return `${cents > 0 ? '+' : cents < 0 ? '-' : ''}${signed}`;
+  let sign = '';
+  if (cents > 0) sign = '+';
+  else if (cents < 0) sign = '-';
+  return `${sign}${signed}`;
 }
 
 async function refreshAccount() {

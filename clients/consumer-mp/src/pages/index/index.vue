@@ -844,13 +844,11 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
         msg = '柜机正在被使用，请稍后再试';
       }
       setLandingError(msg, kind);
+      let toastTitle = '暂时无法开门';
+      if (kind === 'device_paused') toastTitle = '柜机暂停营业';
+      else if (kind === 'device_busy') toastTitle = '柜机正忙';
       uni.showToast({
-        title:
-          kind === 'device_paused'
-            ? '柜机暂停营业'
-            : kind === 'device_busy'
-              ? '柜机正忙'
-              : '暂时无法开门',
+        title: toastTitle,
         icon: 'none'
       });
       return;

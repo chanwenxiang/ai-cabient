@@ -1024,12 +1024,14 @@ async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'A
     ElMessage.warning('已确认无录像后，仍需勾选「已对照录像核对」表示人工已知情结案');
     return;
   }
-  const action =
-    resolutionType === 'KEEP'
-      ? '维持原账单'
-      : resolutionType === 'WAIVE'
-        ? '免单并退回全部已扣余额'
-        : '按调整明细落账（可能补扣或退差）';
+  let action: string;
+  if (resolutionType === 'KEEP') {
+    action = '维持原账单';
+  } else if (resolutionType === 'WAIVE') {
+    action = '免单并退回全部已扣余额';
+  } else {
+    action = '按调整明细落账（可能补扣或退差）';
+  }
   if (
     (resolutionType === 'ADJUST' || resolutionType === 'CONFIRM') &&
     !draftConfirmItems.value.length
@@ -1236,7 +1238,9 @@ function applyRouteQuery() {
   if (typeof route.query.category === 'string') {
     const next = route.query.category || 'ALL';
     if (next !== categoryTab.value) {
-      categoryTab.value = next === 'RECOGNITION' ? 'RECOGNITION' : next === 'ALL' ? 'ALL' : next;
+      if (next === 'RECOGNITION') categoryTab.value = 'RECOGNITION';
+      else if (next === 'ALL') categoryTab.value = 'ALL';
+      else categoryTab.value = next;
       changed = true;
     }
   } else if (inbound && categoryTab.value !== 'ALL') {
@@ -1254,26 +1258,26 @@ function applyRouteQuery() {
     reviewCodeTab.value = 'ALL';
     changed = true;
   }
-  const routeKeyword =
-    typeof route.query.keyword === 'string'
-      ? route.query.keyword
-      : typeof route.query.orderId === 'string'
-        ? route.query.orderId
-        : typeof route.query.sessionId === 'string'
-          ? route.query.sessionId
-          : typeof route.query.deviceId === 'string'
-            ? route.query.deviceId
-            : '';
+  let routeKeyword = '';
+  if (typeof route.query.keyword === 'string') {
+    routeKeyword = route.query.keyword;
+  } else if (typeof route.query.orderId === 'string') {
+    routeKeyword = route.query.orderId;
+  } else if (typeof route.query.sessionId === 'string') {
+    routeKeyword = route.query.sessionId;
+  } else if (typeof route.query.deviceId === 'string') {
+    routeKeyword = route.query.deviceId;
+  }
   if (routeKeyword !== keyword.value) {
     keyword.value = routeKeyword;
     changed = true;
   }
-  const focusId =
-    typeof route.query.ticketId === 'string'
-      ? route.query.ticketId
-      : typeof route.query.disputeId === 'string'
-        ? route.query.disputeId
-        : '';
+  let focusId = '';
+  if (typeof route.query.ticketId === 'string') {
+    focusId = route.query.ticketId;
+  } else if (typeof route.query.disputeId === 'string') {
+    focusId = route.query.disputeId;
+  }
   if (focusId !== focusDisputeId.value) {
     focusDisputeId.value = focusId;
     changed = true;

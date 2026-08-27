@@ -243,12 +243,26 @@ const pagePartial = computed(() => total.value > rows.value.length);
 const kpiTiles = computed(() => {
   const ready = listHydrated.value;
   const pageHint = pagePartial.value ? '本页合计' : undefined;
+  let deviceCountHint: string | undefined;
+  if (!ready) {
+    deviceCountHint = '加载中…';
+  } else if (onlineFilter.value) {
+    deviceCountHint = `已筛选 · 共 ${total.value} 台`;
+  }
+  let offlineHint: string;
+  if (!ready) {
+    offlineHint = '加载中…';
+  } else if (offlineTotal.value) {
+    offlineHint = '点击筛选离线';
+  } else {
+    offlineHint = '全部在线';
+  }
   return [
     {
       label: '设备数',
       value: ready ? String(total.value) : '…',
       accent: 'accent-teal',
-      hint: ready ? (onlineFilter.value ? `已筛选 · 共 ${total.value} 台` : undefined) : '加载中…',
+      hint: deviceCountHint,
       action: ready
         ? () => {
             if (onlineFilter.value) {
@@ -262,7 +276,7 @@ const kpiTiles = computed(() => {
       label: '离线设备',
       value: ready ? String(offlineTotal.value) : '…',
       accent: 'accent-amber',
-      hint: ready ? (offlineTotal.value ? '点击筛选离线' : '全部在线') : '加载中…',
+      hint: offlineHint,
       action: ready
         ? () => {
             onlineFilter.value = onlineFilter.value === 'OFFLINE' ? '' : 'OFFLINE';

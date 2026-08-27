@@ -229,13 +229,11 @@ function formatEventDetail(detail?: string) {
       if (key === 'onlineStatus') valLabel = displayLabel('online_status', val, '未知');
       else if (key === 'lifecycle' || key === 'lifecycleStatus')
         valLabel = displayLabel('device_lifecycle', val, '未知');
-      else if (key === 'salesLocked')
-        valLabel =
-          val === 'true' || val === 't' || val === '1'
-            ? '是'
-            : val === 'false' || val === 'f' || val === '0'
-              ? '否'
-              : val;
+      else if (key === 'salesLocked') {
+        if (val === 'true' || val === 't' || val === '1') valLabel = '是';
+        else if (val === 'false' || val === 'f' || val === '0') valLabel = '否';
+        else valLabel = val;
+      }
       return `${keyLabel}：${valLabel}`;
     })
     .join('；');

@@ -3,16 +3,23 @@ export type SortDirection = 'asc' | 'desc';
 const INT_RE = /^-?\d+$/;
 const DECIMAL_RE = /^-?\d+(\.\d+)?$/;
 
+function compareOrderedStrings(sa: string, sb: string): number {
+  if (sa < sb) return -1;
+  if (sa > sb) return 1;
+  return 0;
+}
+
 /** Compare digit IDs safely (snowflake / bigint beyond Number.MAX_SAFE_INTEGER). */
 function compareDigitIds(sa: string, sb: string): number {
   try {
     const ba = BigInt(sa);
     const bb = BigInt(sb);
-    return ba === bb ? 0 : ba < bb ? -1 : 1;
+    if (ba === bb) return 0;
+    return ba < bb ? -1 : 1;
   } catch {
     // same length lexicographic fallback for pure digits
     if (sa.length !== sb.length) return sa.length < sb.length ? -1 : 1;
-    return sa < sb ? -1 : sa > sb ? 1 : 0;
+    return compareOrderedStrings(sa, sb);
   }
 }
 
@@ -37,7 +44,8 @@ export function comparePrimaryKey(a: unknown, b: unknown): number {
     DECIMAL_RE.test(sa) &&
     DECIMAL_RE.test(sb)
   ) {
-    return na === nb ? 0 : na < nb ? -1 : 1;
+    if (na === nb) return 0;
+    return na < nb ? -1 : 1;
   }
   return sa.localeCompare(sb, 'zh-CN', { numeric: true, sensitivity: 'base' });
 }
