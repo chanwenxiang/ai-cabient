@@ -61,6 +61,7 @@ public class OtaService {
             try {
                 release.setDeviceAllowlist(objectMapper.writeValueAsString(body.deviceAllowlist()));
             } catch (Exception ignored) {
+                // Malformed allowlist in request: skip persisting allowlist JSON.
             }
         }
         release.setStatus(STATUS_PUBLISHED);
@@ -183,6 +184,7 @@ public class OtaService {
                 allowlist = objectMapper.readValue(r.getDeviceAllowlist(),
                         objectMapper.getTypeFactory().constructCollectionType(List.class, String.class));
             } catch (Exception ignored) {
+                // Corrupt allowlist JSON in DB: fall back to empty allowlist.
             }
         }
         return new OtaReleaseDto(

@@ -194,7 +194,8 @@ public class InvoiceService {
     private void requireMerchantScope(Long userId, String merchantId) {
         permissionService.requirePermission(userId, "merchant:portal:access");
         Set<String> allowed = merchantScopeService.allowedMerchantIds(userId);
-        if (allowed == null || allowed.isEmpty() || !allowed.contains(merchantId)) {
+        if (!merchantScopeService.isGlobalScope(userId)
+                && (allowed.isEmpty() || !allowed.contains(merchantId))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED);
         }
     }

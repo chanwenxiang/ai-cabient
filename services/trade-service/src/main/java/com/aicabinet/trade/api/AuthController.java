@@ -156,8 +156,6 @@ public class AuthController {
             Long userId = jwtService.validateAndGetUserId(token);
             LoginResponse refreshed = authService.refreshSession(userId);
             return ApiResponse.ok(withSessionCookie(response, refreshed));
-        } catch (JwtService.InvalidSessionTokenException e) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.INVALID_TOKEN);
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.INVALID_TOKEN);
         }

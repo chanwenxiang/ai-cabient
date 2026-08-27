@@ -83,7 +83,9 @@ public class MerchantScopeService {
     @Transactional(readOnly = true)
     public Set<String> allowedMerchantIds(Long operatorId) {
         if (self.isGlobalScope(operatorId)) {
-            return null;
+            return merchantRepository.findAll().stream()
+                    .map(Merchant::getMerchantId)
+                    .collect(Collectors.toUnmodifiableSet());
         }
         Set<String> roots = userMerchantRepository.findByIdUserId(operatorId).stream()
                 .map(m -> m.getId().getMerchantId())
@@ -121,17 +123,16 @@ public class MerchantScopeService {
     /** null = 全部设备；空集 = 无权限；非空 = 限定设备（商户范围 ∩ 货柜范围） */
     @Transactional(readOnly = true)
     public Set<String> allowedDeviceIds(Long operatorId) {
-        Set<String> merchantIds = self.allowedMerchantIds(operatorId);
-        Set<String> byMerchant;
-        if (merchantIds == null) {
-            byMerchant = null;
-        } else if (merchantIds.isEmpty()) {
-            return Set.of();
-        } else {
-            byMerchant = deviceRepository.findByMerchantIdIn(merchantIds).stream()
-                    .map(DeviceInfo::getDeviceId)
-                    .collect(Collectors.toSet());
+        if (self.isGlobalScope(operatorId)) {
+            return self.intersectDeviceCabinetScope(operatorId, null);
         }
+        Set<String> merchantIds = self.allowedMerchantIds(operatorId);
+        if (merchantIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> byMerchant = deviceRepository.findByMerchantIdIn(merchantIds).stream()
+                .map(DeviceInfo::getDeviceId)
+                .collect(Collectors.toSet());
         return self.intersectDeviceCabinetScope(operatorId, byMerchant);
     }
 
@@ -199,10 +200,10 @@ public class MerchantScopeService {
 
     @Transactional(readOnly = true)
     public void requireMerchantAccess(Long operatorId, String merchantId) {
-        Set<String> allowed = self.allowedMerchantIds(operatorId);
-        if (allowed == null) {
+        if (self.isGlobalScope(operatorId)) {
             return;
         }
+        Set<String> allowed = self.allowedMerchantIds(operatorId);
         if (merchantId == null || !allowed.contains(merchantId)) {
             cabinetMetrics.recordMerchantScopeDenied("merchant");
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED);
@@ -211,6 +212,9 @@ public class MerchantScopeService {
 
     @Transactional(readOnly = true)
     public void requireDeviceAccess(Long operatorId, String deviceId) {
+        if (self.isGlobalScope(operatorId)) {
+            return;
+        }
         Set<String> allowedDevices = self.allowedDeviceIds(operatorId);
         if (allowedDevices == null) {
             return;
@@ -238,7 +242,9 @@ public class MerchantScopeService {
             return List.of(dev);
         }
         if (allowed == null) {
-            return null;
+            return self.allowedDevices(operatorId).stream()
+                    .map(DeviceInfo::getDeviceId)
+                    .toList();
         }
         return allowed.isEmpty() ? Collections.emptyList() : allowed;
     }

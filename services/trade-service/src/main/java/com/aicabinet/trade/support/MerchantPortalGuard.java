@@ -40,7 +40,7 @@ public class MerchantPortalGuard {
                     "平台管理员请使用运营后台；商户门户需使用已绑定商户的账号登录");
         }
         Set<String> allowed = merchantScopeService.allowedMerchantIds(userId);
-        if (allowed == null || allowed.isEmpty()) {
+        if (allowed.isEmpty()) {
             cabinetMetrics.recordMerchantScopeDenied("portal_no_merchant");
             accessDeniedAudit.denied(userId, MERCHANT_PORTAL_ACCESS, "账号未绑定任何商户");
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED);

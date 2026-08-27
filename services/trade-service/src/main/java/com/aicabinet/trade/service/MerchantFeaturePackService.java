@@ -43,7 +43,7 @@ public class MerchantFeaturePackService {
     @Transactional(readOnly = true)
     public Set<String> enabledPacksForUser(Long userId) {
         Set<String> allowed = merchantScopeService.allowedMerchantIds(userId);
-        if (allowed == null) {
+        if (merchantScopeService.isGlobalScope(userId)) {
             return Set.of(MerchantFeaturePacks.FIELD, MerchantFeaturePacks.BIZ, MerchantFeaturePacks.TEAM);
         }
         if (allowed.isEmpty()) {
@@ -101,7 +101,7 @@ public class MerchantFeaturePackService {
         return self.enabledPacksForUser(userId).stream().sorted().collect(Collectors.toList());
     }
 
-    /** 数据范围 ∩ 开了指定功能包的商户；null 表示全局（运营）。 */
+    /** 数据范围 ∩ 开了指定功能包的商户；全局账号返回库内启用该包的商户集合。 */
     @Transactional(readOnly = true)
     public Set<String> allowedMerchantIdsForPack(Long userId, String pack) {
         Set<String> allowed = merchantScopeService.allowedMerchantIds(userId);
@@ -111,7 +111,9 @@ public class MerchantFeaturePackService {
     @Transactional(readOnly = true)
     public Set<String> filterMerchantIdsByPack(Set<String> merchantIds, String pack) {
         if (merchantIds == null) {
-            return null;
+            merchantIds = merchantRepository.findAll().stream()
+                    .map(Merchant::getMerchantId)
+                    .collect(Collectors.toCollection(HashSet::new));
         }
         if (merchantIds.isEmpty() || pack == null || pack.isBlank()) {
             return Set.copyOf(merchantIds);
@@ -150,19 +152,17 @@ public class MerchantFeaturePackService {
 
     @Transactional(readOnly = true)
     public Set<String> allowedDeviceIdsForPack(Long userId, String pack) {
-        Set<String> merchantIds = self.allowedMerchantIdsForPack(userId, pack);
-        Set<String> byMerchant;
-        if (merchantIds == null) {
-            byMerchant = null;
-        } else if (merchantIds.isEmpty()) {
-            return Set.of();
-        } else {
-            byMerchant = deviceRepository.findByMerchantIdIn(merchantIds).stream()
-                    .map(DeviceInfo::getDeviceId)
-                    .collect(Collectors.toCollection(HashSet::new));
+        if (merchantScopeService.isGlobalScope(userId)) {
+            return merchantScopeService.intersectDeviceCabinetScope(userId, null);
         }
-        Set<String> scoped = merchantScopeService.intersectDeviceCabinetScope(userId, byMerchant);
-        return scoped == null ? null : scoped;
+        Set<String> merchantIds = self.allowedMerchantIdsForPack(userId, pack);
+        if (merchantIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> byMerchant = deviceRepository.findByMerchantIdIn(merchantIds).stream()
+                .map(DeviceInfo::getDeviceId)
+                .collect(Collectors.toCollection(HashSet::new));
+        return merchantScopeService.intersectDeviceCabinetScope(userId, byMerchant);
     }
 
     /** 与 {@link MerchantScopeService#intersectDeviceFilter} 相同语义，但限制在功能包内。 */
@@ -175,7 +175,9 @@ public class MerchantFeaturePackService {
             return List.of(dev);
         }
         if (allowed == null) {
-            return null;
+            return deviceRepository.findAll().stream()
+                    .map(DeviceInfo::getDeviceId)
+                    .toList();
         }
         return allowed.isEmpty() ? Collections.emptyList() : allowed;
     }

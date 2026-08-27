@@ -366,11 +366,9 @@ public class ReplenishmentService {
         route.setStartLongitude(request.startLongitude());
 
         try {
-
             route.setRouteGeoJson(objectMapper.writeValueAsString(planned.waypoints()));
-
         } catch (Exception ignored) {
-
+            // Route geo JSON is optional metadata; planning result still persists without it.
         }
 
         route = routeRepository.save(route);
@@ -1405,13 +1403,10 @@ public class ReplenishmentService {
         if (route.getRouteGeoJson() != null && !route.getRouteGeoJson().isBlank()) {
 
             try {
-
                 waypoints = objectMapper.readValue(route.getRouteGeoJson(),
-
                         objectMapper.getTypeFactory().constructCollectionType(List.class, RouteWaypointDto.class));
-
             } catch (Exception ignored) {
-
+                // Corrupt route geo JSON: expose route without reconstructed waypoints.
             }
 
         }

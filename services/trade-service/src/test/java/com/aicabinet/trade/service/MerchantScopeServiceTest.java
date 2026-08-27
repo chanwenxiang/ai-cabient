@@ -73,7 +73,7 @@ class MerchantScopeServiceTest {
         stubAdminRole(ADMIN_USER);
 
         assertTrue(merchantScopeService.isGlobalScope(ADMIN_USER));
-        assertNull(merchantScopeService.allowedMerchantIds(ADMIN_USER));
+        assertTrue(merchantScopeService.allowedMerchantIds(ADMIN_USER).isEmpty());
         assertDoesNotThrow(() -> merchantScopeService.requireDeviceAccess(ADMIN_USER, "CAB-OTHER"));
     }
 
@@ -125,7 +125,7 @@ class MerchantScopeServiceTest {
     @Test
     void intersectDeviceFilter_scopesToAllowedDevices() {
         stubAdminRole(ADMIN_USER);
-        assertNull(merchantScopeService.intersectDeviceFilter(ADMIN_USER, null));
+        assertTrue(merchantScopeService.intersectDeviceFilter(ADMIN_USER, null).isEmpty());
 
         stubScopedMerchant(MERCHANT_A_USER, "MCH-DEFAULT", device("CAB-001", "MCH-DEFAULT"));
         assertEquals(Set.of("CAB-001"), merchantScopeService.intersectDeviceFilter(MERCHANT_A_USER, null));
