@@ -61,7 +61,7 @@ class OrgServiceTest {
     @Test
     void tree_shouldBuildHierarchyWithDeviceIds() {
         when(nodeRepository.findAllOrderBySort()).thenReturn(List.of(
-                node(1L, null, "总部"), node(2L, 1L, "华南�?), node(3L, 2L, "深圳分公�?)));
+                node(1L, null, "总部"), node(2L, 1L, "华南区"), node(3L, 2L, "深圳分公司")));
         OpsDeviceOrg m = new OpsDeviceOrg();
         m.setNodeId(3L);
         m.setDeviceId("CAB-001");
@@ -71,15 +71,15 @@ class OrgServiceTest {
 
         assertEquals(1, roots.size());
         assertEquals("总部", roots.get(0).name());
-        assertEquals("华南�?, roots.get(0).children().get(0).name());
+        assertEquals("华南区", roots.get(0).children().get(0).name());
         OrgNodeDto leaf = roots.get(0).children().get(0).children().get(0);
-        assertEquals("深圳分公�?, leaf.name());
+        assertEquals("深圳分公司", leaf.name());
         assertEquals(List.of("CAB-001"), leaf.deviceIds());
     }
 
     @Test
     void assignDevices_shouldRebuildNodeMapping() {
-        OpsOrgNode n = node(2L, null, "华南�?);
+        OpsOrgNode n = node(2L, null, "华南区");
         when(nodeRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(n));
         when(deviceOrgRepository.findByNodeId(2L)).thenReturn(List.of());
 
@@ -100,9 +100,9 @@ class OrgServiceTest {
         });
 
         OrgNodeDto dto = service.upsertNode(OPERATOR_ID,
-                new UpsertOrgNodeRequest(null, null, "西南�?, "REGION", 2));
+                new UpsertOrgNodeRequest(null, null, "西南区", "REGION", 2));
 
-        assertEquals("西南�?, dto.name());
+        assertEquals("西南区", dto.name());
         assertEquals("REGION", dto.nodeType());
         verify(auditService).appendLog(anyLong(), any(), any(), any(), any());
     }

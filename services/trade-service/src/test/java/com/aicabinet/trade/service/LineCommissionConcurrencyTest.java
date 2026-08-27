@@ -43,8 +43,7 @@ class LineCommissionConcurrencyTest {
     @BeforeEach
     void setUp() {
         job = new LineCommissionJob(managerMapper, deviceMapper, orderMapper,
-                commissionDailyMapper, lineWalletService, distributedLockService);
-        ReflectionTestUtils.setField(job, "taskService", taskService);
+                commissionDailyMapper, lineWalletService, distributedLockService, taskService);
         when(taskService.tryBegin(eq("line-commission"), eq(1800L))).thenReturn(true);
     }
 

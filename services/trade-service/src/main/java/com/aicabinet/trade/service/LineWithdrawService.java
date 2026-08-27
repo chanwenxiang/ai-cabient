@@ -103,9 +103,9 @@ public class LineWithdrawService {
     @Transactional
     public LineWithdrawRequestDto merchantApply(Long userId, long amountCents, String requestNo) {
         LineManager manager = lineManagerService.findByUserId(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未绑定线长身�?));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未绑定线长身份"));
         if (!LineManagerService.STATUS_ACTIVE.equalsIgnoreCase(manager.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "线长账号不可�?);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "线长账号不可用");
         }
         return createWithdraw(manager, amountCents, requestNo, userId);
     }
@@ -121,7 +121,7 @@ public class LineWithdrawService {
     private LineWithdrawRequestDto doReview(Long operatorId, LineWithdrawRequest request,
                                             boolean approve, String remark) {
         if (!"PENDING_REVIEW".equals(request.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可审�?);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可审核");
         }
         Instant now = Instant.now();
         request.setReviewerId(operatorId);
@@ -136,8 +136,8 @@ public class LineWithdrawService {
             lineWalletService.releaseFrozen(request.getManagerId(), request.getAmountCents(),
                     WITHDRAW, String.valueOf(request.getRequestId()), "提现驳回释放");
             auditService.appendLog(operatorId, LINE_WITHDRAW_REVIEW, BIZ_LINE_WITHDRAW,
-                    String.valueOf(request.getRequestId()), "驳回；金�?�?=" + request.getAmountCents()
-                            + "；备�?" + trim(remark));
+                    String.valueOf(request.getRequestId()), "驳回；金额(分)=" + request.getAmountCents()
+                            + "；备注=" + trim(remark));
             return toDto(request);
         }
         approvalWorkflowService.completeApproved(
@@ -145,14 +145,14 @@ public class LineWithdrawService {
         if (!approvalWorkflowService.isInstanceApproved(
                 BIZ_LINE_WITHDRAW, String.valueOf(request.getRequestId()))) {
             auditService.appendLog(operatorId, LINE_WITHDRAW_REVIEW, BIZ_LINE_WITHDRAW,
-                    String.valueOf(request.getRequestId()), "初审通过；金�?�?=" + request.getAmountCents());
+                    String.valueOf(request.getRequestId()), "初审通过；金额(分)=" + request.getAmountCents());
             return toDto(request);
         }
         request.setStatus(STATUS_APPROVED);
         withdrawMapper.updateById(request);
         auditService.appendLog(operatorId, LINE_WITHDRAW_REVIEW, BIZ_LINE_WITHDRAW,
-                String.valueOf(request.getRequestId()), "通过；金�?�?=" + request.getAmountCents()
-                        + "；备�?" + trim(remark));
+                String.valueOf(request.getRequestId()), "通过；金额(分)=" + request.getAmountCents()
+                        + "；备注=" + trim(remark));
         return attemptPayout(request);
     }
 
@@ -162,10 +162,10 @@ public class LineWithdrawService {
         LineWithdrawRequest request = requireRequest(requestId);
         return runWithLineWalletLock(request.getManagerId(), () -> {
             if (!Set.of(STATUS_APPROVED, "FAILED").contains(request.getStatus())) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可打�?);
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可打款");
             }
             auditService.appendLog(operatorId, "LINE_WITHDRAW_PAYOUT", BIZ_LINE_WITHDRAW,
-                    String.valueOf(requestId), "打款金额(�?=" + request.getAmountCents());
+                    String.valueOf(requestId), "打款金额(分)=" + request.getAmountCents());
             return attemptPayout(request);
         });
     }
@@ -268,7 +268,7 @@ public class LineWithdrawService {
     private void validateAmount(long managerId, long amountCents) {
         if (amountCents < properties.minAmountCents()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "最低提�?" + (properties.minAmountCents() / 100.0) + " �?);
+                    "最低提现 " + (properties.minAmountCents() / 100.0) + " 元");
         }
         long activeDevices = deviceMapper.selectCount(Wrappers.<LineDevice>lambdaQuery()
                 .eq(LineDevice::getManagerId, managerId)
@@ -346,7 +346,7 @@ public class LineWithdrawService {
 
     private <T> T runWithLineWalletLock(long managerId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(lineWalletLockKey(managerId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "钱包处理中，请稍后重�?);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "钱包处理中，请稍后重试");
         }
         try {
             return action.get();

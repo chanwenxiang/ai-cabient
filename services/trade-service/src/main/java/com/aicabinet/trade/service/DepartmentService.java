@@ -38,7 +38,7 @@ public class DepartmentService {
     private final UserInfoMapper userInfoRepository;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
-    /** �?Spring 代理调用本类 @Transactional 方法，避免自调用失效�?*/
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DepartmentService self;
 
     public DepartmentService(OpsDepartmentMapper departmentRepository,
@@ -83,7 +83,7 @@ public class DepartmentService {
         if (deptId == null) {
             String key = normalizeKey(req.deptKey(), req.deptName());
             if (departmentRepository.findByDeptKey(key).isPresent()) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "部门编码已存�? " + key);
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "部门编码已存在: " + key);
             }
             OpsDepartment row = new OpsDepartment();
             row.setDeptKey(key);
@@ -92,7 +92,7 @@ public class DepartmentService {
         }
         OpsDepartment row = departmentRepository.selectById(deptId);
         if (row == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "部门不存�?);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "部门不存在");
         }
         return row;
     }
@@ -102,11 +102,11 @@ public class DepartmentService {
             return;
         }
         if (deptId != null && parentId.equals(deptId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级部门不能是自�?);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级部门不能是自己");
         }
         OpsDepartment parent = departmentRepository.selectById(parentId);
         if (parent == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级部门不存�?);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级部门不存在");
         }
         if (deptId != null && isAncestorOf(deptId, parentId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能将上级设为自己的下级");
@@ -120,7 +120,7 @@ public class DepartmentService {
         String status = req.status() == null || req.status().isBlank()
                 ? "ACTIVE" : req.status().trim().toUpperCase(Locale.ROOT);
         if (!STATUSES.contains(status)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status 仅支�?ACTIVE/INACTIVE");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status 仅支持 ACTIVE/INACTIVE");
         }
         row.setStatus(status);
         row.setRemark(trimToNull(req.remark()));
@@ -178,7 +178,7 @@ public class DepartmentService {
             }
             UserInfo u = userInfoRepository.selectById(userId);
             if (u == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "用户不存�? " + userId);
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "用户不存在: " + userId);
             }
             next.add(userId);
         }
@@ -208,7 +208,8 @@ public class DepartmentService {
     }
 
     /**
-     * 替换用户全部部门归属；primaryDeptId 为空时取列表第一个为主部门�?     */
+     * 替换用户全部部门归属；primaryDeptId 为空时取列表第一个为主部门。
+     */
     @Transactional
     public void replaceUserDepartments(Long userId, List<Long> deptIds, Long primaryDeptId) {
         if (userId == null || userId < 100000001L) {
@@ -259,7 +260,7 @@ public class DepartmentService {
         }
     }
 
-    /** parentId 是否�?deptId 的子孙链上（会死循环的挂靠） */
+    /** parentId 是否在 deptId 的子孙链上（会死循环的挂靠） */
     private boolean isAncestorOf(Long deptId, Long candidateParentId) {
         Long cursor = candidateParentId;
         int guard = 0;
@@ -276,7 +277,7 @@ public class DepartmentService {
     private OpsDepartment requireDept(Long deptId) {
         OpsDepartment dept = departmentRepository.selectById(deptId);
         if (dept == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "部门不存�?);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "部门不存在");
         }
         return dept;
     }

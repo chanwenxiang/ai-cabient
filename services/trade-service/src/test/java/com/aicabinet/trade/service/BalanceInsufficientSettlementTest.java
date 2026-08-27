@@ -70,8 +70,9 @@ class BalanceInsufficientSettlementTest {
         assertEquals(SessionState.DISPUTED, result.state());
         assertEquals(ApiMessages.INSUFFICIENT_BALANCE, session.getFailReason());
         assertNull(session.getOrderId());
-        verify(opsExceptionService).report("BALANCE_INSUFFICIENT", "HIGH", "CAB-001",
-                "S-BAL-01", null, 13800138000L, "结算余额不足", ApiMessages.INSUFFICIENT_BALANCE);
+        verify(opsExceptionService).report("BALANCE_INSUFFICIENT", "HIGH",
+                new OpsExceptionService.ExceptionReport.ExceptionRefs("CAB-001", "S-BAL-01", null, 13800138000L),
+                "结算余额不足", ApiMessages.INSUFFICIENT_BALANCE);
     }
 
     @Test
@@ -88,8 +89,9 @@ class BalanceInsufficientSettlementTest {
         assertEquals(SessionState.DISPUTED, session.getState());
         assertEquals(ApiMessages.INSUFFICIENT_BALANCE, session.getFailReason());
         assertNull(session.getOrderId());
-        verify(opsExceptionService).report("BALANCE_INSUFFICIENT", "HIGH", "CAB-001",
-                "S-BAL-02", null, 13800138000L, "结算余额不足", ApiMessages.INSUFFICIENT_BALANCE);
+        verify(opsExceptionService).report("BALANCE_INSUFFICIENT", "HIGH",
+                new OpsExceptionService.ExceptionReport.ExceptionRefs("CAB-001", "S-BAL-02", null, 13800138000L),
+                "结算余额不足", ApiMessages.INSUFFICIENT_BALANCE);
     }
 
     @Test

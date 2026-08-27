@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.reconciliation.PlatformBillLine;
 import com.aicabinet.trade.reconciliation.PlatformBillProviderRegistry;
+import com.aicabinet.trade.service.support.ReconciliationServiceSupport;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.mapper.PaymentPlatformBillLineMapper;
 import com.aicabinet.trade.mapper.PaymentReconciliationMapper;
@@ -39,9 +40,10 @@ class ReconciliationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ReconciliationService(
-                reconRepository, billLineRepository, paymentOperationRepository, rechargeRepository,
-                billProviderRegistry, new ObjectMapper(), cabinetMetrics, distributedLockService, null);
+        ReconciliationServiceSupport support = new ReconciliationServiceSupport(
+                billLineRepository, paymentOperationRepository, rechargeRepository,
+                billProviderRegistry, new ObjectMapper(), cabinetMetrics, distributedLockService);
+        service = new ReconciliationService(reconRepository, support, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),

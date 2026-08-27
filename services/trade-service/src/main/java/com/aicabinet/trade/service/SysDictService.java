@@ -68,14 +68,14 @@ public class SysDictService {
         return buildActiveRuntimeMap();
     }
 
-    /** Labels for any authenticated client (consumer / merchant / admin). Display only �?not capability flags. */
+    /** Labels for any authenticated client (consumer / merchant / admin). Display only — not capability flags. */
     public DictDtos.DictRuntimeDto runtimeMapForAuthenticatedUser() {
         return buildActiveRuntimeMap();
     }
 
   public static final String DEVICE_FAULT_ISSUE = "device_fault_issue";
 
-    /** 展示用：含已停用项，便于历史数据仍显示运营配置过的中文�?*/
+    /** 展示用：含已停用项，便于历史数据仍显示运营配置过的中文。 */
     @Transactional(readOnly = true)
     public String labelOf(String dictType, String value, String fallback) {
         if (value == null || value.isBlank()) {
@@ -147,14 +147,14 @@ public class SysDictService {
     private DictDtos.DictDataDto doUpsertItem(Long operatorId, String dictType, Long dictDataId,
                                               DictDtos.DictDataUpsertRequest req) {
         requireType(dictType);
-        String value = requireText(req.dictValue(), "字典�?).trim().toUpperCase();
+        String value = requireText(req.dictValue(), "字典值").trim().toUpperCase();
         String label = requireText(req.dictLabel(), "字典标签").trim();
         SysDictData entity;
         if (dictDataId != null) {
             entity = dataRepository.findByIdForUpdate(dictDataId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "字典项不存在"));
             if (!dictType.equals(entity.getDictType())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "字典类型不匹�?);
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "字典类型不匹配");
             }
         } else {
             entity = dataRepository.findByDictTypeAndDictValueForUpdate(dictType, value).orElseGet(SysDictData::new);
@@ -192,14 +192,14 @@ public class SysDictService {
         });
     }
 
-    /** 删除字典类型及其全部字典项�?*/
+    /** 删除字典类型及其全部字典项。 */
     @Transactional
     public void deleteType(Long operatorId, String dictType) {
         permissionService.requirePermission(operatorId, PERM_OPS_DICT_EDIT);
         String type = requireText(dictType, "字典类型").trim();
         runWithDictTypeLock(type, () -> {
             SysDictType entity = typeRepository.findByIdForUpdate(type)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "字典类型不存�?));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "字典类型不存在"));
             long itemCount = dataRepository.countByDictType(type);
             dataRepository.deleteByDictType(type);
             typeRepository.deleteById(type);
@@ -220,7 +220,7 @@ public class SysDictService {
     private <T> T runWithDictTypeLock(String dictType, java.util.function.Supplier<T> action) {
         String key = dictTypeLockKey(dictType);
         if (!distributedLockService.tryLock(key, 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "字典处理中，请稍后重�?);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "字典处理中，请稍后重试");
         }
         try {
             return action.get();
@@ -243,7 +243,7 @@ public class SysDictService {
 
     private SysDictType requireType(String dictType) {
         return typeRepository.findById(dictType)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "字典类型不存�?));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "字典类型不存在"));
     }
 
     private DictDtos.DictDataDto toDataDto(SysDictData row) {

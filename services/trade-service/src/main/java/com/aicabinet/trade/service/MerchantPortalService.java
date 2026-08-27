@@ -46,7 +46,7 @@ public class MerchantPortalService {
     private static final String MERCHANT = "merchant";
     private static final String STATUS_PENDING = "PENDING";
     private static final String MEDIUM = "MEDIUM";
-    private static final String LITERAL = "成员不存�?;
+    private static final String LITERAL = "成员不存在";
 
 
     private static final List<SessionState> ACTIVE_STATES = List.of(
@@ -102,7 +102,7 @@ public class MerchantPortalService {
     private final MerchantSelfServiceGate merchantSelfServiceGate;
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final DistributedLockService distributedLockService;
-    /** �?Spring 代理调用本类 @Transactional 方法，避免自调用失效�?*/
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final MerchantPortalService self;
 
     public MerchantPortalService(MerchantFinanceService merchantFinanceService,
@@ -360,7 +360,7 @@ public class MerchantPortalService {
         disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
                 .filter(d -> inDeviceScope(bizDeviceIds, sessionDeviceId(d.getSessionId())))
                 .forEach(d -> items.add(new OpsActionItemDto(
-                        "DISPUTE", "HIGH", "待审核争�?,
+                        "DISPUTE", "HIGH", "待审核争议",
                         formatDisputeReason(d.getReason()),
                         sessionDeviceId(d.getSessionId()), d.getSessionId(), d.getTicketId(),
                         null, null, d.getCreatedAt(), d.getSlaDueAt())));
@@ -399,7 +399,7 @@ public class MerchantPortalService {
                 .forEach(inv -> items.add(new OpsActionItemDto(
                         "LOW_STOCK", MEDIUM, "库存偏低",
                         "SKU " + inv.getId().getSkuId() + " 当前 " + inv.getQuantity()
-                                + " / 阈�?" + inv.getLowThreshold(),
+                                + " / 阈值 " + inv.getLowThreshold(),
                         inv.getId().getDeviceId(), null, null, inv.getId().getSkuId(),
                         null, inv.getUpdatedAt(), null)));
         return lowStock;
@@ -443,8 +443,8 @@ public class MerchantPortalService {
                         List.of(STATUS_PENDING, STATUS_IN_PROGRESS), WORKBENCH_ITEM_CAP).stream()
                 .filter(t -> inDeviceScope(deviceIds, t.getDeviceId()))
                 .forEach(t -> items.add(new OpsActionItemDto(
-                        "REPLENISHMENT", MEDIUM, "补货任务进行�?,
-                        "状�?" + replenishmentStatusLabel(t.getStatus())
+                        "REPLENISHMENT", MEDIUM, "补货任务进行中",
+                        "状态 " + replenishmentStatusLabel(t.getStatus())
                                 + (t.getNotes() != null ? " · " + t.getNotes() : ""),
                         t.getDeviceId(), null, null, null, t.getTaskId(), t.getCreatedAt(), null)));
     }
@@ -492,7 +492,7 @@ public class MerchantPortalService {
         deviceRepository.save(device);
         TempCommandResult tempResult = dispatchTargetTempIfRequested(device, request.targetTempC());
         auditService.appendLog(userId, "MERCHANT_DEVICE_SETTINGS", "DEVICE", deviceId,
-                "名称�? + device.getDeviceName());
+                "名称：" + device.getDeviceName());
         return toDeviceSettings(device, tempResult.sent(), tempResult.message());
     }
 
@@ -527,7 +527,7 @@ public class MerchantPortalService {
                 deviceServiceClient.requestSetTargetTemp(device.getDeviceId(), targetTempC);
                 return new TempCommandResult(true, "已向柜机下发目标温度 " + targetTempC + "°C");
             } catch (Exception ex) {
-                return new TempCommandResult(false, "设置已保存，柜机指令下发失败（请确认 device-service 在线�?);
+                return new TempCommandResult(false, "设置已保存，柜机指令下发失败（请确认 device-service 在线）");
             }
         }
         return new TempCommandResult(false, "设置已保存，柜机离线时将在上线后手动同步");
@@ -811,7 +811,7 @@ public class MerchantPortalService {
         permissionService.requirePermission(userId, MERCHANT_SETTLEMENTS_VIEW);
         merchantPortalGuard.requireAccess(userId);
         if (batchNo == null || batchNo.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "批次号不能为�?);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "批次号不能为空");
         }
         Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.BIZ);
         Map<String, String> merchantNames = merchantRepository.findAll().stream()
@@ -969,7 +969,7 @@ public class MerchantPortalService {
         permissionService.requirePermission(userId, "merchant:replenishment:view");
         merchantPortalGuard.requireAccess(userId);
         ReplenishmentTask task = replenishmentTaskRepository.findById(taskId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存�?));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存在"));
         merchantFeaturePackService.requireDevicePack(
                 userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
         return replenishmentTaskLineRepository.findByTaskIdOrderByLineIdAsc(taskId).stream()
@@ -1003,10 +1003,10 @@ public class MerchantPortalService {
         permissionService.requireAnyPermission(userId, "merchant:users:invite", MERCHANT_USERS_EDIT);
         merchantPortalGuard.requireAccess(userId);
         return List.of(
-                new MerchantTeamRoleDto(MERCHANT, "商户管理�?, "全量经营与团队管�?),
-                new MerchantTeamRoleDto(MERCHANT_STORE_MANAGER, "店长", "现场+经营只读，可看团�?),
-                new MerchantTeamRoleDto(MERCHANT_FINANCE, "财务", "结算对账与钱包只�?),
-                new MerchantTeamRoleDto(MERCHANT_REPLENISHER, "补货�?, "柜机补货与库�?),
+                new MerchantTeamRoleDto(MERCHANT, "商户管理员", "全量经营与团队管理"),
+                new MerchantTeamRoleDto(MERCHANT_STORE_MANAGER, "店长", "现场+经营只读，可看团队"),
+                new MerchantTeamRoleDto(MERCHANT_FINANCE, "财务", "结算对账与钱包只读"),
+                new MerchantTeamRoleDto(MERCHANT_REPLENISHER, "补货员", "柜机补货与库存"),
                 new MerchantTeamRoleDto(MERCHANT_STAFF, "店员", "通用只读协同")
         );
     }
@@ -1027,7 +1027,7 @@ public class MerchantPortalService {
         }
         if (request.roleKey() != null && !request.roleKey().isBlank()) {
             if (targetUserId.equals(operatorId)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能修改自己的角�?);
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能修改自己的角色");
             }
             long roleId = resolveMerchantRoleId(request.roleKey());
             userRoleRepository.deleteByIdUserId(targetUserId);
@@ -1082,7 +1082,7 @@ public class MerchantPortalService {
         permissionService.requirePermission(operatorId, "merchant:users:reset-password");
         merchantPortalGuard.requireAccess(operatorId);
         if (request == null || request.password() == null || request.password().length() < 6) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "密码至少 6 �?);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "密码至少 6 位");
         }
         return runWithTeamUserLock(targetUserId, () -> doResetTeamUserPassword(operatorId, targetUserId, request));
     }
@@ -1103,10 +1103,10 @@ public class MerchantPortalService {
         permissionService.requirePermission(userId, "merchant:users:invite");
         merchantPortalGuard.requireAccess(userId);
         if (request.phoneNumber() == null || request.phoneNumber().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "手机号不能为�?);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "手机号不能为空");
         }
         if (request.password() == null || request.password().length() < 6) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "密码至少 6 �?);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "密码至少 6 位");
         }
         String phone = request.phoneNumber().trim();
         return runWithTeamPhoneLock(phone, () -> doCreateTeamUser(userId, request, phone));
@@ -1114,7 +1114,7 @@ public class MerchantPortalService {
 
     private MerchantUserDto doCreateTeamUser(Long userId, CreateMerchantUserRequest request, String phone) {
         if (userInfoRepository.findByPhoneNumber(phone).isPresent()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "该手机号已注�?);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该手机号已注册");
         }
         Set<String> merchants = merchantFeaturePackService.allowedMerchantIdsForPack(
                 userId, MerchantFeaturePacks.TEAM);
@@ -1166,17 +1166,17 @@ public class MerchantPortalService {
                 .collect(Collectors.toSet());
         boolean overlap = targetMerchants.stream().anyMatch(merchants::contains);
         if (!overlap) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权管理该成�?);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权管理该成员");
         }
     }
 
     private MerchantUserDto toMerchantUserDto(UserInfo user, boolean self) {
         String roleKey = resolveMerchantRoleKey(user.getUserId());
         String roleName = switch (roleKey) {
-            case MERCHANT -> "商户管理�?;
+            case MERCHANT -> "商户管理员";
             case MERCHANT_STORE_MANAGER -> "店长";
             case MERCHANT_FINANCE -> "财务";
-            case MERCHANT_REPLENISHER -> "补货�?;
+            case MERCHANT_REPLENISHER -> "补货员";
             case MERCHANT_STAFF -> "店员";
             default -> roleKey;
         };
@@ -1385,15 +1385,15 @@ public class MerchantPortalService {
         boolean mock = profitSharingService.isMockMode();
         String note;
         if (!enabled) {
-            note = "平台分账功能未启用，当前为记账模�?;
+            note = "平台分账功能未启用，当前为记账模式";
         } else if (mock) {
-            note = "平台分账联调 Mock 已启�?;
+            note = "平台分账联调 Mock 已启用";
         } else if (!weChatPayProperties.isConfigured()) {
-            note = "微信支付未配置，分账将延迟到�?;
+            note = "微信支付未配置，分账将延迟到账";
         } else if (!apiReady) {
-            note = "分账 API 未就绪，请联系平台运�?;
+            note = "分账 API 未就绪，请联系平台运营";
         } else {
-            note = "分账 API 已就绪，待分账款项将由平台定期提�?;
+            note = "分账 API 已就绪，待分账款项将由平台定期提交";
         }
         return new ProfitSharingStatusDto(
                 enabled, apiReady, profitSharingProperties.retryEnabled(),
@@ -1573,10 +1573,10 @@ public class MerchantPortalService {
             return "未知";
         }
         return switch (status.toUpperCase()) {
-            case STATUS_PENDING -> "待处�?;
-            case STATUS_IN_PROGRESS -> "进行�?;
-            case "COMPLETED" -> "已完�?;
-            case "CANCELLED" -> "已取�?;
+            case STATUS_PENDING -> "待处理";
+            case STATUS_IN_PROGRESS -> "进行中";
+            case "COMPLETED" -> "已完成";
+            case "CANCELLED" -> "已取消";
             default -> status;
         };
     }
@@ -1617,15 +1617,15 @@ public class MerchantPortalService {
     }
 
     private <T> T runWithDeviceSettingsLock(String deviceId, Supplier<T> action) {
-        return runWithLock(DeviceAssetService.deviceAssetLockKey(deviceId), "设备设置处理中，请稍后重�?, action);
+        return runWithLock(DeviceAssetService.deviceAssetLockKey(deviceId), "设备设置处理中，请稍后重试", action);
     }
 
     private <T> T runWithMerchantProfileLock(long userId, Supplier<T> action) {
-        return runWithLock(merchantProfileLockKey(userId), "商户资料处理中，请稍后重�?, action);
+        return runWithLock(merchantProfileLockKey(userId), "商户资料处理中，请稍后重试", action);
     }
 
     private <T> T runWithTeamUserLock(long targetUserId, Supplier<T> action) {
-        return runWithLock(AccountService.userAccountLockKey(targetUserId), "成员处理中，请稍后重�?, action);
+        return runWithLock(AccountService.userAccountLockKey(targetUserId), "成员处理中，请稍后重试", action);
     }
 
     private <T> T runWithTeamPhoneLock(String phone, Supplier<T> action) {

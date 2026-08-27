@@ -109,9 +109,9 @@ class SessionServiceRecoveryTest {
         var result = service.settleAfterClose("S-DISPUTED");
 
         assertEquals(SessionState.DISPUTED, result.state());
-        verify(opsExceptionService).report("RECOGNITION_FAILED", "HIGH", "CAB-001",
-                "S-DISPUTED", null, 7L, "识别结果需人工审核",
-                "识别服务暂时不可用，已转人工审核，本次暂未扣款");
+        verify(opsExceptionService).report("RECOGNITION_FAILED", "HIGH",
+                new OpsExceptionService.ExceptionReport.ExceptionRefs("CAB-001", "S-DISPUTED", null, 7L),
+                "识别结果需人工审核", "识别服务暂时不可用，已转人工审核，本次暂未扣款");
     }
 
     private ShoppingSession session(String id, Long userId, String deviceId, SessionState state) {

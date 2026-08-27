@@ -24,19 +24,18 @@ class OpsExceptionScannerServiceTest {
         when(sessions.findByStateAndOpenTimeBefore(any(), any(), anyInt())).thenReturn(List.of());
         when(sessions.findByStateAndUpdatedAtBefore(any(), any(), anyInt())).thenAnswer(invocation ->
                 invocation.getArgument(0) == SessionState.SETTLING ? List.of(session) : List.of());
-        var scanner = new OpsExceptionScannerService(sessions, exceptions,
-                new OpsMonitoringProperties(true, 10, 5, 3, 3));
         ScheduledTaskService tasks = mock(ScheduledTaskService.class);
         when(tasks.tryBegin(anyString(), anyLong())).thenReturn(true);
-        org.springframework.test.util.ReflectionTestUtils.setField(scanner, "taskService", tasks);
         SystemConfigService cfg = mock(SystemConfigService.class);
         when(cfg.getInt(anyString(), anyInt())).thenAnswer(i -> i.getArgument(1));
-        org.springframework.test.util.ReflectionTestUtils.setField(scanner, "systemConfigService", cfg);
+        var scanner = new OpsExceptionScannerService(sessions, exceptions,
+                new OpsMonitoringProperties(true, 10, 5, 3, 3), tasks, cfg);
 
         scanner.scan();
 
-        verify(exceptions).report(eq("SETTLEMENT_STUCK"), eq("CRITICAL"), eq("D1"), eq("S1"),
-                isNull(), eq(1L), eq("订单结算滞留"), contains("超过 3 分钟"));
+        verify(exceptions).report(eq("SETTLEMENT_STUCK"), eq("CRITICAL"),
+                eq(new OpsExceptionService.ExceptionReport.ExceptionRefs("D1", "S1", null, 1L)),
+                eq("订单结算滞留"), contains("超过 3 分钟"));
     }
 
     private static void setUpdatedAt(ShoppingSession session, Instant value) {

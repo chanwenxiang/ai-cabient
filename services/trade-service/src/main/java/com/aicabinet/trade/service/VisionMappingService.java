@@ -162,7 +162,7 @@ public class VisionMappingService {
     private <T> T runWithYoloLock(String className, java.util.function.Supplier<T> action) {
         String key = yoloMappingLockKey(className);
         if (!distributedLockService.tryLock(key, 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "识别映射处理中，请稍后重�?);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "识别映射处理中，请稍后重试");
         }
         try {
             return action.get();

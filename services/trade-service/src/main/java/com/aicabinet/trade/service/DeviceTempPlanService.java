@@ -27,7 +27,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 温控计划：按当日分钟排程目标温度，调度器每分钟把当前时段目标温度下发到柜机�? */
+ * 温控计划：按当日分钟排程目标温度，调度器每分钟把当前时段目标温度下发到柜机。
+ */
 @Service
 public class DeviceTempPlanService {
 
@@ -43,7 +44,7 @@ public class DeviceTempPlanService {
     private final DeviceServiceClient deviceClient;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
-    /** �?Spring 代理调用本类 @Transactional 方法，避免自调用失效�?*/
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DeviceTempPlanService self;
     private final ScheduledTaskService taskService;
 
@@ -91,13 +92,13 @@ public class DeviceTempPlanService {
         Set<Integer> minutes = new HashSet<>();
         for (DeviceTempPlanEntryDto e : entries) {
             if (e.startMinute() < 0 || e.startMinute() > 1439) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "时间点须�?00:00-23:59 之间");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "时间点须在 00:00-23:59 之间");
             }
             if (e.targetTempC() < MIN_TEMP || e.targetTempC() > MAX_TEMP) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "目标温度须在 -30°C ~ 30°C 之间");
             }
             if (!minutes.add(e.startMinute())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "时间点不能重�?);
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "时间点不能重复");
             }
         }
         DeviceTempPlan plan = planRepository.findByDeviceId(deviceId).orElseGet(() -> {
@@ -123,7 +124,7 @@ public class DeviceTempPlanService {
             entryRepository.insert(row);
         }
         auditService.appendLog(operatorId, "DEVICE_TEMP_PLAN", "DEVICE", deviceId,
-                "温控计划更新，条目数=" + entries.size() + "，启�?" + enabled);
+                "温控计划更新，条目数=" + entries.size() + "，启用=" + enabled);
         if (enabled) {
             doApplyNow(deviceId);
         }
@@ -141,7 +142,7 @@ public class DeviceTempPlanService {
         });
     }
 
-    /** 当前分钟应执行的目标温度：取最后一�?startMinute <= now 的条目，未到则取当日最后一条（跨日回绕）�?*/
+    /** 当前分钟应执行的目标温度：取最后一个 startMinute <= now 的条目，未到则取当日最后一条（跨日回绕）。 */
     static int targetForMinute(List<DeviceTempPlanEntryDto> entries, int minuteOfDay) {
         DeviceTempPlanEntryDto best = entries.get(entries.size() - 1);
         for (DeviceTempPlanEntryDto e : entries) {
@@ -193,7 +194,7 @@ public class DeviceTempPlanService {
         }
     }
 
-    /** 每分钟扫描启用的温控计划，按当前时段下发目标温度�?*/
+    /** 每分钟扫描启用的温控计划，按当前时段下发目标温度。 */
     @Scheduled(fixedRate = 60_000)
     public void scheduledApply() {
         if (!taskService.tryBegin("temp-plan", 600)) {
@@ -218,7 +219,7 @@ public class DeviceTempPlanService {
 
     private DeviceInfo requireDevice(String deviceId) {
         return deviceRepository.findById(deviceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存�? " + deviceId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在: " + deviceId));
     }
 
     static String tempPlanLockKey(String deviceId) {
@@ -227,7 +228,7 @@ public class DeviceTempPlanService {
 
     private <T> T runWithTempPlanLock(String deviceId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(tempPlanLockKey(deviceId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "温控计划处理中，请稍后重�?);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "温控计划处理中，请稍后重试");
         }
         try {
             return action.get();

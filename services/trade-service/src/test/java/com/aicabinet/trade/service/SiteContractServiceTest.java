@@ -60,15 +60,15 @@ class SiteContractServiceTest {
     void upsert_shouldCreateWithComputedStatus() {
         DeviceInfo device = new DeviceInfo();
         device.setDeviceId("CAB-001");
-        device.setDeviceName("测试�?);
+        device.setDeviceName("测试柜");
         when(deviceRepository.findById("CAB-001")).thenReturn(Optional.of(device));
         when(contractRepository.findByDeviceIdForUpdate("CAB-001")).thenReturn(Optional.empty());
 
         SiteContractDto dto = service.upsert(OPERATOR_ID, "CAB-001",
-                new UpsertSiteContractRequest("科技�?A �?, "深圳", "张先�?, "13800138000",
+                new UpsertSiteContractRequest("科技园 A 座", "深圳", "张先生", "13800138000",
                         LocalDate.now(), LocalDate.now().plusDays(15), 50000, null));
 
-        assertEquals("测试�?, dto.deviceName());
+        assertEquals("测试柜", dto.deviceName());
         assertEquals("EXPIRING", dto.status());
         verify(contractRepository).insert(any(SiteContract.class));
         verify(auditService).appendLog(eq(OPERATOR_ID), any(), any(), any(), any());

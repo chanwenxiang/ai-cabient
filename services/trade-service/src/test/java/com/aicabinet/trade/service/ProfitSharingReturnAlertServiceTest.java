@@ -42,10 +42,7 @@ class ProfitSharingReturnAlertServiceTest {
         verify(opsExceptionService).report(
                 eq("SPLIT_EXCEPTION"),
                 eq("HIGH"),
-                eq("D-1"),
-                eq(null),
-                eq("O-1"),
-                eq(null),
+                eq(new OpsExceptionService.ExceptionReport.ExceptionRefs("D-1", null, "O-1", null)),
                 eq("[分账回退补偿失败]"),
                 org.mockito.ArgumentMatchers.contains("SPLIT-1"));
         verify(opsAlertDispatcher).send(
@@ -69,10 +66,7 @@ class ProfitSharingReturnAlertServiceTest {
         verify(opsExceptionService).report(
                 eq("SPLIT_EXCEPTION"),
                 eq("HIGH"),
-                eq("D-2"),
-                eq(null),
-                eq("O-2"),
-                eq(null),
+                eq(new OpsExceptionService.ExceptionReport.ExceptionRefs("D-2", null, "O-2", null)),
                 eq("[分账需人工补分账]"),
                 org.mockito.ArgumentMatchers.contains("540"));
         verify(opsAlertDispatcher).send(
@@ -95,10 +89,7 @@ class ProfitSharingReturnAlertServiceTest {
         verify(opsExceptionService).report(
                 eq("SPLIT_EXCEPTION"),
                 eq("HIGH"),
-                eq("D-R"),
-                eq(null),
-                eq("O-R"),
-                eq(null),
+                eq(new OpsExceptionService.ExceptionReport.ExceptionRefs("D-R", null, "O-R", null)),
                 eq("[分账回退提交失败]"),
                 org.mockito.ArgumentMatchers.contains("PSR-R"));
         verify(opsAlertDispatcher).send(

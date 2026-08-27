@@ -15,6 +15,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
@@ -47,8 +48,9 @@ class VisionAnomalyIngestServiceTest {
     void ingest_shouldReportHighSeverityAndPushAlert() {
         OpsExceptionDto created = mock(OpsExceptionDto.class);
         when(opsExceptionService.report(
-                eq("VISION_ANOMALY"), eq("HIGH"), eq("CAB-001"), eq("S1"),
-                isNull(), isNull(), eq("防撬告警"), contains("识别来源：QUECTEL")))
+                eq("VISION_ANOMALY"), eq("HIGH"),
+                eq(new OpsExceptionService.ExceptionReport.ExceptionRefs("CAB-001", "S1", null, null)),
+                eq("防撬告警"), contains("识别来源：QUECTEL")))
                 .thenReturn(created);
 
         List<OpsExceptionDto> out = service.ingest(List.of(
@@ -66,8 +68,9 @@ class VisionAnomalyIngestServiceTest {
     @Test
     void ingest_shouldNotPushMediumSeverity() {
         when(opsExceptionService.report(
-                eq("VISION_ANOMALY"), eq("MEDIUM"), eq("CAB-002"), isNull(),
-                isNull(), isNull(), eq("遮挡识别"), contains("识别来源：QUECTEL")))
+                eq("VISION_ANOMALY"), eq("MEDIUM"),
+                eq(new OpsExceptionService.ExceptionReport.ExceptionRefs("CAB-002", null, null, null)),
+                eq("遮挡识别"), contains("识别来源：QUECTEL")))
                 .thenReturn(mock(OpsExceptionDto.class));
 
         service.ingest(List.of(
@@ -83,8 +86,7 @@ class VisionAnomalyIngestServiceTest {
                 new VisionAnomalyEventDto(" ", "S1", "TAMPER", 0.9, null, "QUECTEL", Instant.now())));
 
         assertEquals(0, out.size());
-        verify(opsExceptionService, never()).report(anyString(), anyString(), anyString(),
-                anyString(), anyString(), any(), anyString(), anyString());
+        verify(opsExceptionService, never()).report(anyString(), anyString(), any(), anyString(), anyString());
     }
 
     @Test

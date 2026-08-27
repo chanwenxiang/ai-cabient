@@ -61,7 +61,7 @@ public class DeviceAssetService {
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
-        /** �?Spring 代理调用本类 @Transactional 方法，避免自调用失效�?*/
+        /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DeviceAssetService self;
 
     public DeviceAssetService(DeviceInfoMapper deviceInfoMapper,
@@ -244,7 +244,7 @@ public class DeviceAssetService {
         String dim = dimension == null || dimension.isBlank() ? "ALL" : dimension.trim().toUpperCase(Locale.ROOT);
         if (!Set.of("ALL", STOCKOUT, "LOW", NEAR_EXPIRY).contains(dim)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "dimension 仅支�?ALL/STOCKOUT/LOW/NEAR_EXPIRY");
+                    "dimension 仅支持 ALL/STOCKOUT/LOW/NEAR_EXPIRY");
         }
         return dim;
     }
@@ -382,7 +382,8 @@ public class DeviceAssetService {
     }
 
     /**
-     * 库存健康分页：先按筛选算全量（含 KPI / 一键补货柜机），再切片返回当前页�?     */
+     * 库存健康分页：先按筛选算全量（含 KPI / 一键补货柜机），再切片返回当前页。
+     */
     @Transactional(readOnly = true)
     public StockHealthPageDto stockHealthPage(Long operatorId, StockHealthPageQuery query) {
         List<StockHealthRowDto> all = self.stockHealth(
@@ -455,7 +456,7 @@ public class DeviceAssetService {
 
     private void requireNotRetired(String from) {
         if (RETIRED.equals(from)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "已退役设备不可操�?);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "已退役设备不可操作");
         }
     }
 
@@ -483,7 +484,7 @@ public class DeviceAssetService {
 
     private <T> T runWithDeviceAssetLock(String deviceId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(deviceAssetLockKey(deviceId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备资产处理中，请稍后重�?);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备资产处理中，请稍后重试");
         }
         try {
             return action.get();

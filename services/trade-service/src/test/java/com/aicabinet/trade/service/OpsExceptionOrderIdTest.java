@@ -9,6 +9,7 @@ import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.AdminAuditLogMapper;
 import com.aicabinet.trade.mapper.OpsExceptionMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.service.support.OpsExceptionServiceSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,8 +46,9 @@ class OpsExceptionOrderIdTest {
 
     @BeforeEach
     void setUp() {
-        service = new OpsExceptionService(repository, permissionService, auditService, auditRepository,
-                sessionRepository, settlementService, disputeService, repairTicketService, distributedLockService, null);
+        OpsExceptionServiceSupport support = new OpsExceptionServiceSupport(
+                auditService, auditRepository, sessionRepository, settlementService, disputeService, repairTicketService);
+        service = new OpsExceptionService(repository, permissionService, support, distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),

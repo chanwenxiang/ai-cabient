@@ -26,7 +26,7 @@ public class MerchantReplenishmentService {
     private static final String REPLEN_REQUEST = "REPLEN_REQUEST";
     private static final String DEVICEID = "deviceId=";
     private static final String SUBMITTED = "SUBMITTED";
-    private static final String LITERAL = "补货任务不存�?;
+    private static final String LITERAL = "补货任务不存在";
 
 
     private final PermissionService permissionService;
@@ -100,7 +100,7 @@ public class MerchantReplenishmentService {
         return replenishmentService.suggestForDevice(deviceId.trim());
     }
 
-    /** 补货员今日运营执行情况：分配给本人的任务完成统计（对标友智慧「运营执行情况」）�?*/
+    /** 补货员今日运营执行情况：分配给本人的任务完成统计（对标友智慧「运营执行情况」）。 */
     @Transactional(readOnly = true)
     public MerchantReplenishmentEfficiencyDto myEfficiency(Long userId) {
         permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
@@ -165,7 +165,7 @@ public class MerchantReplenishmentService {
     }
 
     /**
-     * 商户/补货员现场开门：须已签到，绑定补货任务，不走消费者结算�?
+     * 商户/补货员现场开门：须已签到，绑定补货任务，不走消费者结算。
      */
     @Transactional
     public SessionDto openDoorForTask(Long userId, Long taskId) {
@@ -177,7 +177,7 @@ public class MerchantReplenishmentService {
         return session;
     }
 
-    /** 签到/开�?确认上架/完成：与前端一致，需补货操作权（request�?*/
+    /** 签到/开门/确认上架/完成：与前端一致，需补货操作权（request） */
     private ReplenishmentTask requireScopedTask(Long userId, Long taskId) {
         permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_REQUEST);
         merchantPortalGuard.requireAccess(userId);
@@ -231,7 +231,7 @@ public class MerchantReplenishmentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备 ID 不能为空");
         }
         if (body.lines() == null || body.lines().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择一种商�?);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择一种商品");
         }
         String deviceId = body.deviceId().trim();
         return runWithDeviceLock(deviceId, () -> doSubmitRequest(userId, body, deviceId));
@@ -244,7 +244,7 @@ public class MerchantReplenishmentService {
         DeviceInfo device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
         if (device.getMerchantId() == null || device.getMerchantId().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备未绑定商�?);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备未绑定商户");
         }
 
         Map<String, Integer> suggestBySku = replenishmentService.suggestForDevice(deviceId).stream()
@@ -279,7 +279,7 @@ public class MerchantReplenishmentService {
             requestLineRepository.save(row);
         }
         if (requestLineRepository.findByRequestIdOrderByLineIdAsc(request.getRequestId()).isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择一种有效商�?);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择一种有效商品");
         }
         auditService.appendLog(userId, MERCHANT_REPLEN_REQUEST, REPLEN_REQUEST,
                 String.valueOf(request.getRequestId()), "device=" + deviceId);
@@ -327,7 +327,7 @@ public class MerchantReplenishmentService {
         }
         List<MerchantReplenishmentRequestLine> lines = requestLineRepository.findByRequestIdOrderByLineIdAsc(requestId);
         if (lines.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "要货单无商品�?);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "要货单无商品行");
         }
 
         ReplenishmentRoute route = new ReplenishmentRoute();
@@ -348,17 +348,17 @@ public class MerchantReplenishmentService {
         for (MerchantReplenishmentRequestLine line : lines) {
             skuQty.merge(line.getSkuId(), line.getRequestedQty(), Integer::sum);
         }
-        // 出库与接单解耦：仓库无可用库存时仍生成补货任务，避免同事�?rollback-only
+        // 出库与接单解耦：仓库无可用库存时仍生成补货任务，避免同事务 rollback-only
         Long outboundId = warehouseService.tryCreateOutboundFromLines(
                 route.getRouteId(), request.getDeviceId(), operatorId, skuQty, null);
         if (outboundId != null) {
             task.setOutboundId(outboundId);
             taskRepository.save(task);
             request.setOutboundId(outboundId);
-            // 草稿出库行即可生成现场补货明细，无需等发�?
+            // 草稿出库行即可生成现场补货明细，无需等发运
             replenishmentService.generateLinesFromOutbound(outboundId);
         } else {
-            // 无仓配：按要货数�?seed RESTOCK 行，避免商户打开空任�?
+            // 无仓配：按要货数量 seed RESTOCK 行，避免商户打开空任务
             replenishmentService.seedDraftRestockLines(task.getTaskId(), request.getDeviceId(), skuQty);
         }
 
