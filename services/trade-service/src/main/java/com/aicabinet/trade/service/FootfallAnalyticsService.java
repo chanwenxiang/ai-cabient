@@ -119,16 +119,38 @@ public class FootfallAnalyticsService {
                     0));
         }
         out.sort(Comparator.comparingLong(SlotHeatDto::qtySold).reversed());
-        int n = out.size();
+        return applyHeatLevels(out);
+    }
+
+    private static List<SlotHeatDto> applyHeatLevels(List<SlotHeatDto> sorted) {
+        int n = sorted.size();
+        List<SlotHeatDto> out = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
-            double ratio = n <= 1 ? 0 : (double) i / n;
-            out.set(i, new SlotHeatDto(
-                    out.get(i).slotId(), out.get(i).rowNo(), out.get(i).colNo(),
-                    out.get(i).skuId(), out.get(i).skuName(), out.get(i).qtySold(),
-                    out.get(i).revenueCents(),
-                    ratio < 0.25 ? 3 : ratio < 0.5 ? 2 : ratio < 0.75 ? 1 : 0));
+            SlotHeatDto row = sorted.get(i);
+            out.add(new SlotHeatDto(
+                    row.slotId(), row.rowNo(), row.colNo(),
+                    row.skuId(), row.skuName(), row.qtySold(),
+                    row.revenueCents(),
+                    heatLevel(i, n)));
         }
         return out;
+    }
+
+    private static int heatLevel(int index, int total) {
+        if (total <= 1) {
+            return 0;
+        }
+        double ratio = (double) index / total;
+        if (ratio < 0.25) {
+            return 3;
+        }
+        if (ratio < 0.5) {
+            return 2;
+        }
+        if (ratio < 0.75) {
+            return 1;
+        }
+        return 0;
     }
 
     private static long countRepeatBuyers(List<CabinetOrder> paidOrders) {

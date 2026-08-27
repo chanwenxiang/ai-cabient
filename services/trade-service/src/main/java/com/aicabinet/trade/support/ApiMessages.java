@@ -238,46 +238,13 @@ public final class ApiMessages {
     }
 
     private static String translatePattern(String msg, String lower) {
-        if (lower.startsWith("unsupported channel:")) {
-            return UNSUPPORTED_CHANNEL;
+        String byPrefix = translateByPrefix(lower);
+        if (byPrefix != null) {
+            return byPrefix;
         }
-        if (lower.startsWith("invalid wechat notify signature")) {
-            return INVALID_WECHAT_NOTIFY;
-        }
-        if (lower.startsWith("invalid permissionid:")) {
-            return INVALID_REQUEST;
-        }
-        if (lower.startsWith("invalid roleid:")) {
-            return INVALID_REQUEST;
-        }
-        if (lower.startsWith("sku not found:")) {
-            return SKU_NOT_FOUND;
-        }
-        if (lower.startsWith("unknown device:")) {
-            return DEVICE_NOT_FOUND;
-        }
-        if (lower.startsWith("check-in too far from device")) {
-            var m = Pattern.compile("(\\d{1,6})\\s{0,4}m").matcher(lower);
-            if (m.find()) {
-                return String.format(REPLENISHMENT_CHECK_IN_TOO_FAR, Integer.parseInt(m.group(1)));
-            }
-            return String.format(REPLENISHMENT_CHECK_IN_TOO_FAR, 500);
-        }
-        if (lower.startsWith("permission denied:")) {
-            return PERMISSION_DENIED;
-        }
-        var blacklist = BLACKLIST_PATTERN.matcher(msg);
-        if (blacklist.find()) {
-            String reason = blacklist.group(1).trim();
-            return USER_BLACKLISTED + (reason.isEmpty() ? "" : "：" + reason);
-        }
-        var balanceMin = BALANCE_MIN_PATTERN.matcher(msg);
-        if (balanceMin.find()) {
-            return BALANCE_TOO_LOW;
-        }
-        var transition = TRANSITION_PATTERN.matcher(msg);
-        if (transition.find()) {
-            return SESSION_STATE_INVALID;
+        String byRegex = translateByRegex(msg);
+        if (byRegex != null) {
+            return byRegex;
         }
         if (lower.contains("balance") && lower.contains("insufficient")) {
             return INSUFFICIENT_BALANCE;
@@ -289,6 +256,48 @@ public final class ApiMessages {
             return "资源不存在";
         }
         return msg;
+    }
+
+    private static String translateByPrefix(String lower) {
+        if (lower.startsWith("unsupported channel:")) {
+            return UNSUPPORTED_CHANNEL;
+        }
+        if (lower.startsWith("invalid wechat notify signature")) {
+            return INVALID_WECHAT_NOTIFY;
+        }
+        if (lower.startsWith("invalid permissionid:") || lower.startsWith("invalid roleid:")) {
+            return INVALID_REQUEST;
+        }
+        if (lower.startsWith("sku not found:")) {
+            return SKU_NOT_FOUND;
+        }
+        if (lower.startsWith("unknown device:")) {
+            return DEVICE_NOT_FOUND;
+        }
+        if (lower.startsWith("check-in too far from device")) {
+            var m = Pattern.compile("(\\d{1,6})\\s{0,4}m").matcher(lower);
+            return String.format(REPLENISHMENT_CHECK_IN_TOO_FAR,
+                    m.find() ? Integer.parseInt(m.group(1)) : 500);
+        }
+        if (lower.startsWith("permission denied:")) {
+            return PERMISSION_DENIED;
+        }
+        return null;
+    }
+
+    private static String translateByRegex(String msg) {
+        var blacklist = BLACKLIST_PATTERN.matcher(msg);
+        if (blacklist.find()) {
+            String reason = blacklist.group(1).trim();
+            return USER_BLACKLISTED + (reason.isEmpty() ? "" : "：" + reason);
+        }
+        if (BALANCE_MIN_PATTERN.matcher(msg).find()) {
+            return BALANCE_TOO_LOW;
+        }
+        if (TRANSITION_PATTERN.matcher(msg).find()) {
+            return SESSION_STATE_INVALID;
+        }
+        return null;
     }
 
     private static boolean containsCjk(String s) {

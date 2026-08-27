@@ -327,69 +327,12 @@ public class MerchantPortalService {
         }
 
         List<OpsActionItemDto> items = new ArrayList<>();
-
-        long openDisputes = bizDeviceIds == null ? disputeRepository.countByStatus("OPEN")
-                : (bizDeviceIds.isEmpty() ? 0 : disputeRepository.countOpenByDeviceIds(bizDeviceIds));
-        disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
-                .filter(d -> inDeviceScope(bizDeviceIds, sessionDeviceId(d.getSessionId())))
-                .forEach(d -> items.add(new OpsActionItemDto(
-                        "DISPUTE", "HIGH", "待审核争议",
-                        formatDisputeReason(d.getReason()),
-                        sessionDeviceId(d.getSessionId()), d.getSessionId(), d.getTicketId(),
-                        null, null, d.getCreatedAt(), d.getSlaDueAt())));
-
-        long offline = deviceIds == null
-                ? deviceRepository.countByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE)
-                : (deviceIds.isEmpty() ? 0
-                : deviceRepository.countByDeviceIdInAndOnlineStatusNot(deviceIds, CabinetConstants.DEVICE_ONLINE));
-        deviceRepository.findByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE, WORKBENCH_ITEM_CAP).stream()
-                .filter(d -> inDeviceScope(deviceIds, d.getDeviceId()))
-                .forEach(d -> items.add(new OpsActionItemDto(
-                        "DEVICE_OFFLINE", "HIGH", "柜机离线",
-                        d.getDeviceName() != null ? d.getDeviceName() : d.getDeviceId(),
-                        d.getDeviceId(), null, null, null, null, d.getUpdatedAt(), null)));
-
-        long lowStock = deviceIds == null
-                ? inventoryRepository.countLowStock()
-                : (deviceIds.isEmpty() ? 0 : inventoryRepository.countLowStockByDeviceIds(deviceIds));
-        inventoryRepository.findLowStockLimit(WORKBENCH_ITEM_CAP).stream()
-                .filter(inv -> inDeviceScope(deviceIds, inv.getId().getDeviceId()))
-                .forEach(inv -> items.add(new OpsActionItemDto(
-                        "LOW_STOCK", MEDIUM, "库存偏低",
-                        "SKU " + inv.getId().getSkuId() + " 当前 " + inv.getQuantity()
-                                + " / 阈值 " + inv.getLowThreshold(),
-                        inv.getId().getDeviceId(), null, null, inv.getId().getSkuId(),
-                        null, inv.getUpdatedAt(), null)));
-        long expiry = deviceIds == null
-                ? pullOffTaskRepository.countByStatus("OPEN")
-                : (deviceIds.isEmpty() ? 0
-                : pullOffTaskRepository.countByStatusAndDeviceIdIn("OPEN", deviceIds));
-        pullOffTaskRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
-                .filter(task -> inDeviceScope(deviceIds, task.getDeviceId()))
-                .forEach(task -> items.add(new OpsActionItemDto(
-                        "EXPIRY", MEDIUM, "临期/过期下架",
-                        "SKU " + task.getSkuId() + " · " + task.getReason(),
-                        task.getDeviceId(), null, null, task.getSkuId(),
-                        task.getTaskId(), task.getCreatedAt(), null)));
-
-        List<SlotDiscrepancyAlertDto> discrepancies = deviceSlotService.listDiscrepancyAlerts(userId, null).stream()
-                .filter(a -> inDeviceScope(deviceIds, a.deviceId()))
-                .limit(WORKBENCH_ITEM_CAP)
-                .toList();
-        discrepancies.forEach(a -> items.add(new OpsActionItemDto(
-                "SLOT_DISCREPANCY", MEDIUM, "货道账实差异",
-                a.slotCode() + " 账面 " + a.bookQty() + " 实测 " + a.physicalQty(),
-                a.deviceId(), null, null, a.assignedSkuId(),
-                null, a.lastPhysicalAt(), null)));
-
-        replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(
-                        List.of(STATUS_PENDING, STATUS_IN_PROGRESS), WORKBENCH_ITEM_CAP).stream()
-                .filter(t -> inDeviceScope(deviceIds, t.getDeviceId()))
-                .forEach(t -> items.add(new OpsActionItemDto(
-                        "REPLENISHMENT", MEDIUM, "补货任务进行中",
-                        "状态 " + replenishmentStatusLabel(t.getStatus())
-                                + (t.getNotes() != null ? " · " + t.getNotes() : ""),
-                        t.getDeviceId(), null, null, null, t.getTaskId(), t.getCreatedAt(), null)));
+        long openDisputes = appendOpenDisputeItems(items, bizDeviceIds);
+        long offline = appendOfflineDeviceItems(items, deviceIds);
+        long lowStock = appendLowStockItems(items, deviceIds);
+        long expiry = appendExpiryItems(items, deviceIds);
+        List<SlotDiscrepancyAlertDto> discrepancies = appendSlotDiscrepancyItems(items, deviceIds, userId);
+        appendReplenishmentItems(items, deviceIds);
 
         long pendingSplits = merchantIds == null ? 0
                 : splitRepository.countByMerchantIdInAndStatusIn(merchantIds, PENDING_SPLIT_STATUSES);
@@ -403,6 +346,88 @@ public class MerchantPortalService {
                 discrepancies.size(), pendingSplits,
                 items.stream().limit(100).toList()
         );
+    }
+
+    private long appendOpenDisputeItems(List<OpsActionItemDto> items, Set<String> bizDeviceIds) {
+        long openDisputes = bizDeviceIds == null ? disputeRepository.countByStatus("OPEN")
+                : (bizDeviceIds.isEmpty() ? 0 : disputeRepository.countOpenByDeviceIds(bizDeviceIds));
+        disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
+                .filter(d -> inDeviceScope(bizDeviceIds, sessionDeviceId(d.getSessionId())))
+                .forEach(d -> items.add(new OpsActionItemDto(
+                        "DISPUTE", "HIGH", "待审核争议",
+                        formatDisputeReason(d.getReason()),
+                        sessionDeviceId(d.getSessionId()), d.getSessionId(), d.getTicketId(),
+                        null, null, d.getCreatedAt(), d.getSlaDueAt())));
+        return openDisputes;
+    }
+
+    private long appendOfflineDeviceItems(List<OpsActionItemDto> items, Set<String> deviceIds) {
+        long offline = deviceIds == null
+                ? deviceRepository.countByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE)
+                : (deviceIds.isEmpty() ? 0
+                : deviceRepository.countByDeviceIdInAndOnlineStatusNot(deviceIds, CabinetConstants.DEVICE_ONLINE));
+        deviceRepository.findByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE, WORKBENCH_ITEM_CAP).stream()
+                .filter(d -> inDeviceScope(deviceIds, d.getDeviceId()))
+                .forEach(d -> items.add(new OpsActionItemDto(
+                        "DEVICE_OFFLINE", "HIGH", "柜机离线",
+                        d.getDeviceName() != null ? d.getDeviceName() : d.getDeviceId(),
+                        d.getDeviceId(), null, null, null, null, d.getUpdatedAt(), null)));
+        return offline;
+    }
+
+    private long appendLowStockItems(List<OpsActionItemDto> items, Set<String> deviceIds) {
+        long lowStock = deviceIds == null
+                ? inventoryRepository.countLowStock()
+                : (deviceIds.isEmpty() ? 0 : inventoryRepository.countLowStockByDeviceIds(deviceIds));
+        inventoryRepository.findLowStockLimit(WORKBENCH_ITEM_CAP).stream()
+                .filter(inv -> inDeviceScope(deviceIds, inv.getId().getDeviceId()))
+                .forEach(inv -> items.add(new OpsActionItemDto(
+                        "LOW_STOCK", MEDIUM, "库存偏低",
+                        "SKU " + inv.getId().getSkuId() + " 当前 " + inv.getQuantity()
+                                + " / 阈值 " + inv.getLowThreshold(),
+                        inv.getId().getDeviceId(), null, null, inv.getId().getSkuId(),
+                        null, inv.getUpdatedAt(), null)));
+        return lowStock;
+    }
+
+    private long appendExpiryItems(List<OpsActionItemDto> items, Set<String> deviceIds) {
+        long expiry = deviceIds == null
+                ? pullOffTaskRepository.countByStatus("OPEN")
+                : (deviceIds.isEmpty() ? 0
+                : pullOffTaskRepository.countByStatusAndDeviceIdIn("OPEN", deviceIds));
+        pullOffTaskRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
+                .filter(task -> inDeviceScope(deviceIds, task.getDeviceId()))
+                .forEach(task -> items.add(new OpsActionItemDto(
+                        "EXPIRY", MEDIUM, "临期/过期下架",
+                        "SKU " + task.getSkuId() + " · " + task.getReason(),
+                        task.getDeviceId(), null, null, task.getSkuId(),
+                        task.getTaskId(), task.getCreatedAt(), null)));
+        return expiry;
+    }
+
+    private List<SlotDiscrepancyAlertDto> appendSlotDiscrepancyItems(List<OpsActionItemDto> items,
+                                                                     Set<String> deviceIds, Long userId) {
+        List<SlotDiscrepancyAlertDto> discrepancies = deviceSlotService.listDiscrepancyAlerts(userId, null).stream()
+                .filter(a -> inDeviceScope(deviceIds, a.deviceId()))
+                .limit(WORKBENCH_ITEM_CAP)
+                .toList();
+        discrepancies.forEach(a -> items.add(new OpsActionItemDto(
+                "SLOT_DISCREPANCY", MEDIUM, "货道账实差异",
+                a.slotCode() + " 账面 " + a.bookQty() + " 实测 " + a.physicalQty(),
+                a.deviceId(), null, null, a.assignedSkuId(),
+                null, a.lastPhysicalAt(), null)));
+        return discrepancies;
+    }
+
+    private void appendReplenishmentItems(List<OpsActionItemDto> items, Set<String> deviceIds) {
+        replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(
+                        List.of(STATUS_PENDING, STATUS_IN_PROGRESS), WORKBENCH_ITEM_CAP).stream()
+                .filter(t -> inDeviceScope(deviceIds, t.getDeviceId()))
+                .forEach(t -> items.add(new OpsActionItemDto(
+                        "REPLENISHMENT", MEDIUM, "补货任务进行中",
+                        "状态 " + replenishmentStatusLabel(t.getStatus())
+                                + (t.getNotes() != null ? " · " + t.getNotes() : ""),
+                        t.getDeviceId(), null, null, null, t.getTaskId(), t.getCreatedAt(), null)));
     }
 
     @Transactional(readOnly = true)

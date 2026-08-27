@@ -104,42 +104,62 @@ public class OrderPaymentService {
 
     private void chargeOrderUnderLock(CabinetOrder order) {
         String idemKey = "CHARGE:" + order.getOrderId() + ":" + order.getTotalAmountCents();
-        if (isCompleted(idemKey)) {
-            order.setPayChannel(paymentOperationRepository.findByIdempotencyKey(idemKey)
-                    .map(PaymentOperation::getChannel).orElse(PayChannels.BALANCE));
-            ensurePayTradeNo(order);
-            ensurePaymentOperationId(order);
+        if (restoreCompletedCharge(order, idemKey)) {
             return;
         }
         UserInfo user = userInfoRepository.findById(order.getUserId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
-
-        ShoppingSession session = null;
-        String entryChannel = null;
-        if (order.getSessionId() != null && !order.getSessionId().isBlank()) {
-            session = sessionRepository.findById(order.getSessionId()).orElse(null);
-            if (session != null) {
-                entryChannel = session.getEntryChannel();
-            }
+        ShoppingSession session = resolveSession(order.getSessionId());
+        String entryChannel = session != null ? session.getEntryChannel() : null;
+        if (tryPayScoreCharge(order, user, session, entryChannel, idemKey)) {
+            return;
         }
+        applyBalanceCharge(order, session, idemKey);
+        order.setPayChannel(PayChannels.BALANCE);
+        ensurePaymentOperationId(order);
+    }
 
-        if (!checkoutProperties.balanceOnly()) {
-            PayScoreService.ChargeResult charge = payScoreService.charge(
-                    user, order.getOrderId(), order.getTotalAmountCents(), "AI开门柜购物", entryChannel);
-            if (!PayChannels.BALANCE.equals(charge.channel())) {
-                order.setPayChannel(charge.channel());
-                order.setPayTradeNo(charge.tradeNo());
-                recordOperation(order, CHARGE, order.getTotalAmountCents(), charge.channel(), idemKey,
-                        charge.tradeNo(), "order charge");
-                if (session != null) {
-                    consumerPreauthService.releaseIfFrozen(session);
-                }
-                log.info("order charged channel={} order={} tradeNo={} entry={}",
-                        charge.channel(), order.getOrderId(), charge.tradeNo(), entryChannel);
-                return;
-            }
+    private boolean restoreCompletedCharge(CabinetOrder order, String idemKey) {
+        if (!isCompleted(idemKey)) {
+            return false;
         }
+        order.setPayChannel(paymentOperationRepository.findByIdempotencyKey(idemKey)
+                .map(PaymentOperation::getChannel).orElse(PayChannels.BALANCE));
+        ensurePayTradeNo(order);
+        ensurePaymentOperationId(order);
+        return true;
+    }
 
+    private ShoppingSession resolveSession(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return null;
+        }
+        return sessionRepository.findById(sessionId).orElse(null);
+    }
+
+    private boolean tryPayScoreCharge(CabinetOrder order, UserInfo user, ShoppingSession session,
+                                      String entryChannel, String idemKey) {
+        if (checkoutProperties.balanceOnly()) {
+            return false;
+        }
+        PayScoreService.ChargeResult charge = payScoreService.charge(
+                user, order.getOrderId(), order.getTotalAmountCents(), "AI开门柜购物", entryChannel);
+        if (PayChannels.BALANCE.equals(charge.channel())) {
+            return false;
+        }
+        order.setPayChannel(charge.channel());
+        order.setPayTradeNo(charge.tradeNo());
+        recordOperation(order, CHARGE, order.getTotalAmountCents(), charge.channel(), idemKey,
+                charge.tradeNo(), "order charge");
+        if (session != null) {
+            consumerPreauthService.releaseIfFrozen(session);
+        }
+        log.info("order charged channel={} order={} tradeNo={} entry={}",
+                charge.channel(), order.getOrderId(), charge.tradeNo(), entryChannel);
+        return true;
+    }
+
+    private void applyBalanceCharge(CabinetOrder order, ShoppingSession session, String idemKey) {
         int remainDebit = order.getTotalAmountCents();
         int capturedViaPreauth = 0;
         if (session != null) {
@@ -160,15 +180,12 @@ public class OrderPaymentService {
             order.setPaymentOperationId(operation.getOperationId());
             order.setBalanceBeforeCents(operation.getBalanceBeforeCents());
             order.setBalanceAfterCents(operation.getBalanceAfterCents());
-        } else {
-            // 全额由预授权冲抵：仍记一条零侧审计用的 CHARGE 幂等键，防止重复扣
-            if (!isCompleted(idemKey)) {
-                recordOperation(order, CHARGE, order.getTotalAmountCents(), PayChannels.BALANCE, idemKey,
-                        null, "order charge via preauth");
-            }
+            return;
         }
-        order.setPayChannel(PayChannels.BALANCE);
-        ensurePaymentOperationId(order);
+        if (!isCompleted(idemKey)) {
+            recordOperation(order, CHARGE, order.getTotalAmountCents(), PayChannels.BALANCE, idemKey,
+                    null, "order charge via preauth");
+        }
     }
 
     /** 订单已完成支付流水的净入账（分），供争议免单等场景使用。 */

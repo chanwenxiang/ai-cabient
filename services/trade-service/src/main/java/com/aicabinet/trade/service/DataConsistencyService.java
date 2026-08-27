@@ -662,11 +662,30 @@ private DataConsistencyService self;
 
     private FixOutcome fixOrderAmount(DataConsistencyRecord record) {
         String orderId = record.getCheckKey();
+        OrderAmountSnapshot snap = loadOrderAmountSnapshot(orderId);
+        if (snap == null) {
+            return FixOutcome.fail("订单不存在");
+        }
+        if (snap.header() == snap.payableFromLines()) {
+            return FixOutcome.ok("头金额已与明细折后一致");
+        }
+        FixOutcome couponFix = tryClearStaleCouponMismatch(orderId, snap);
+        if (couponFix != null) {
+            return couponFix;
+        }
+        FixOutcome paidEqualsHeader = tryFixWhenPaidEqualsHeader(orderId, snap);
+        if (paidEqualsHeader != null) {
+            return paidEqualsHeader;
+        }
+        return tryAlignHeaderToPayable(orderId, snap);
+    }
+
+    private OrderAmountSnapshot loadOrderAmountSnapshot(String orderId) {
         Integer header = queryNullableInt(
                 "SELECT total_amount_cents FROM cabinet_order WHERE order_id = ?",
                 orderId);
         if (header == null) {
-            return FixOutcome.fail("订单不存在");
+            return null;
         }
         int paid = queryInt(
                 "SELECT COALESCE(SUM(CASE "
@@ -686,45 +705,54 @@ private DataConsistencyService self;
         int memberDiscountCents = queryInt(
                 "SELECT COALESCE(member_discount_cents, 0) FROM cabinet_order WHERE order_id = ?",
                 orderId);
-        int payableFromLines = lineSum - couponDiscountCents - memberDiscountCents;
         int lineCount = queryInt(
                 "SELECT COUNT(*) FROM cabinet_order_line WHERE order_id = ?",
                 orderId);
+        return new OrderAmountSnapshot(header, paid, lineSum, couponDiscountCents, memberDiscountCents,
+                lineSum - couponDiscountCents - memberDiscountCents, lineCount);
+    }
 
-        if (header == payableFromLines) {
-            return FixOutcome.ok("头金额已与明细折后一致");
+    private FixOutcome tryClearStaleCouponMismatch(String orderId, OrderAmountSnapshot snap) {
+        if (snap.paid() == snap.header() && snap.paid() == snap.lineSum()
+                && (snap.couponDiscountCents() > 0 || snap.memberDiscountCents() > 0)
+                && snap.payableFromLines() != snap.header()) {
+            return clearStaleCouponFields(orderId, snap.couponDiscountCents(), snap.memberDiscountCents());
         }
+        return null;
+    }
 
-        if (paid == header && paid == lineSum
-                && (couponDiscountCents > 0 || memberDiscountCents > 0) && payableFromLines != header) {
-            return clearStaleCouponFields(orderId, couponDiscountCents, memberDiscountCents);
+    private FixOutcome tryFixWhenPaidEqualsHeader(String orderId, OrderAmountSnapshot snap) {
+        if (snap.paid() != snap.header()) {
+            return null;
         }
-
-        if (paid == header) {
-            if (lineCount == 1 && couponDiscountCents == 0 && memberDiscountCents == 0
-                    && lineSum != header) {
-                return alignSingleLineToHeader(orderId, header);
-            }
-            if (lineCount == 0) {
-                return FixOutcome.fail("无明细行，无法自动补 SKU，请人工补行");
-            }
-            return FixOutcome.fail("多行明细与头金额不一致，需人工拆分/改价");
+        if (snap.lineCount() == 1 && snap.couponDiscountCents() == 0 && snap.memberDiscountCents() == 0
+                && snap.lineSum() != snap.header()) {
+            return alignSingleLineToHeader(orderId, snap.header());
         }
+        if (snap.lineCount() == 0) {
+            return FixOutcome.fail("无明细行，无法自动补 SKU，请人工补行");
+        }
+        return FixOutcome.fail("多行明细与头金额不一致，需人工拆分/改价");
+    }
 
-        if (lineSum > 0 && paid == 0) {
+    private FixOutcome tryAlignHeaderToPayable(String orderId, OrderAmountSnapshot snap) {
+        if (snap.lineSum() > 0 && snap.paid() == 0) {
             jdbcTemplate.update(
                     UPDATE_CABINET_ORDER_SET_TOTAL_AMOUNT_CENTS_WHERE_ORDER_ID,
-                    payableFromLines, orderId);
-            return FixOutcome.ok("无匹配入账流水，已把头金额改为明细折后 " + payableFromLines);
+                    snap.payableFromLines(), orderId);
+            return FixOutcome.ok("无匹配入账流水，已把头金额改为明细折后 " + snap.payableFromLines());
         }
-        if (lineSum > 0 && paid == payableFromLines && paid != header) {
+        if (snap.lineSum() > 0 && snap.paid() == snap.payableFromLines() && snap.paid() != snap.header()) {
             jdbcTemplate.update(
                     UPDATE_CABINET_ORDER_SET_TOTAL_AMOUNT_CENTS_WHERE_ORDER_ID,
-                    payableFromLines, orderId);
-            return FixOutcome.ok("实付已与折后一致，已同步订单头为 " + payableFromLines);
+                    snap.payableFromLines(), orderId);
+            return FixOutcome.ok("实付已与折后一致，已同步订单头为 " + snap.payableFromLines());
         }
         return FixOutcome.fail("明细折后与入账不一致，无法自动修复（请走退款/调账或人工改券）");
     }
+
+    private record OrderAmountSnapshot(int header, int paid, int lineSum, int couponDiscountCents,
+                                       int memberDiscountCents, int payableFromLines, int lineCount) {}
 
     /** 实付=明细原价但券/会员字段未生效：清除脏元数据并尝试退还券占用。 */
     private FixOutcome clearStaleCouponFields(String orderId, int couponDiscount, int memberDiscount) {

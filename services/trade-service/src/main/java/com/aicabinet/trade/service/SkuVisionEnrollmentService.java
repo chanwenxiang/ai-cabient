@@ -401,6 +401,12 @@ public class SkuVisionEnrollmentService {
     }
 
     private void applySkuFields(SkuCatalog sku, UpsertSkuRequest skuReq, UpsertSkuVisionEnrollmentRequest request) {
+        applyBasicSkuFields(sku, skuReq);
+        applyShelfAndCostFields(sku, skuReq);
+        applyVisionFields(sku, skuReq, request);
+    }
+
+    private void applyBasicSkuFields(SkuCatalog sku, UpsertSkuRequest skuReq) {
         sku.setSkuName(skuReq.skuName().trim());
         sku.setPriceCents(skuReq.priceCents());
         sku.setWeightGrams(skuReq.weightGrams());
@@ -413,6 +419,9 @@ public class SkuVisionEnrollmentService {
         sku.setSpec(trimToNull(skuReq.spec()));
         sku.setUnit(skuReq.unit() != null && !skuReq.unit().isBlank() ? skuReq.unit().trim() : "件");
         sku.setStatus(skuReq.status());
+    }
+
+    private void applyShelfAndCostFields(SkuCatalog sku, UpsertSkuRequest skuReq) {
         sku.setShelfLifeDays(skuReq.shelfLifeDays());
         sku.setNearExpiryDays(skuReq.nearExpiryDays());
         sku.setBlockSaleDaysBeforeExpiry(skuReq.blockSaleDaysBeforeExpiry());
@@ -422,6 +431,9 @@ public class SkuVisionEnrollmentService {
         if (skuReq.minChargeConfidence() != null) {
             sku.setMinChargeConfidence(skuReq.minChargeConfidence());
         }
+    }
+
+    private void applyVisionFields(SkuCatalog sku, UpsertSkuRequest skuReq, UpsertSkuVisionEnrollmentRequest request) {
         if (skuReq.yoloClassName() != null && !skuReq.yoloClassName().isBlank()) {
             sku.setYoloClassName(skuReq.yoloClassName().trim());
         } else if (request.yoloClassName() != null && !request.yoloClassName().isBlank()) {

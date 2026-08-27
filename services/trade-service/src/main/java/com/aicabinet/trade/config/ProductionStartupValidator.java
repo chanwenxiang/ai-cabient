@@ -70,22 +70,46 @@ public class ProductionStartupValidator {
     @EventListener(ApplicationReadyEvent.class)
     public void validateProductionConfig() {
         if (!isStrictProfile()) {
-            if (securityProperties.mockEnabled()) {
-                log.warn("Running with mock-enabled=true (dev/demo). Settlement mock is NOT production accuracy; "
-                        + "mock/low-conf/gravity-mismatch routes to need_review.");
-            }
-            String visionMock = environment.getProperty("VISION_MOCK_ENABLED",
-                    environment.getProperty("MOCK_ENABLED", ""));
-            if ("true".equalsIgnoreCase(visionMock) || visionMock.isBlank() && securityProperties.mockEnabled()) {
-                log.warn("Vision mock likely enabled (VISION_MOCK_ENABLED/MOCK_ENABLED). "
-                        + "Demo recognition must not be treated as production accuracy; use docker-compose.production.yml for go-live.");
-            }
-            if (checkoutProperties.balanceOnly()) {
-                log.info("CHECKOUT_BALANCE_ONLY=true — settlement uses wallet balance only (no live WeChat charge required).");
-            }
-            warnDevDemoSecrets();
+            warnNonStrictProfile();
             return;
         }
+        rejectMockFlagsInStrictProfile();
+        requireSecret(authProperties.jwtSecret(), DEV_JWT_SECRET, "JWT_SECRET / aicabinet.auth.jwt-secret");
+        requireSecret(internalApiProperties.key(), DEV_INTERNAL_KEY, "INTERNAL_API_KEY / aicabinet.internal-api.key");
+        requireSecret(visionApiProperties.key(), DEV_VISION_KEY, "VISION_API_KEY / aicabinet.vision-api.key");
+        if (!authProperties.sms().hasWebhook()) {
+            throw new IllegalStateException("Production/staging requires SMS webhook: aicabinet.auth.sms.webhook-url");
+        }
+        validateSmsMockCode();
+        validateCookieSecurity();
+        warnIfDefaultMinioCredentials();
+        warnIfLocalhostCors();
+        if (isStagingProfile()) {
+            validateStagingProfile();
+        } else {
+            validateProductionProfile();
+        }
+        log.info("{} configuration validated", isStagingProfile() ? "Staging" : "Production");
+    }
+
+    private void warnNonStrictProfile() {
+        if (securityProperties.mockEnabled()) {
+            log.warn("Running with mock-enabled=true (dev/demo). Settlement mock is NOT production accuracy; "
+                    + "mock/low-conf/gravity-mismatch routes to need_review.");
+        }
+        String visionMock = environment.getProperty("VISION_MOCK_ENABLED",
+                environment.getProperty("MOCK_ENABLED", ""));
+        if ("true".equalsIgnoreCase(visionMock) || visionMock.isBlank() && securityProperties.mockEnabled()) {
+            log.warn("Vision mock likely enabled (VISION_MOCK_ENABLED/MOCK_ENABLED). "
+                    + "Demo recognition must not be treated as production accuracy; use docker-compose.production.yml for go-live.");
+        }
+        if (checkoutProperties.balanceOnly()) {
+            log.info("CHECKOUT_BALANCE_ONLY=true — settlement uses wallet balance only (no live WeChat charge required).");
+        }
+        warnDevDemoSecrets();
+    }
+
+    private void rejectMockFlagsInStrictProfile() {
         if (securityProperties.mockEnabled()) {
             throw new IllegalStateException("Production/staging profile cannot run with aicabinet.security.mock-enabled=true");
         }
@@ -97,41 +121,32 @@ public class ProductionStartupValidator {
             throw new IllegalStateException(
                     "Production/staging profile cannot run with aicabinet.merchant-withdraw.mock-enabled=true (mock payouts)");
         }
-        requireSecret(authProperties.jwtSecret(), DEV_JWT_SECRET, "JWT_SECRET / aicabinet.auth.jwt-secret");
-        requireSecret(internalApiProperties.key(), DEV_INTERNAL_KEY, "INTERNAL_API_KEY / aicabinet.internal-api.key");
-        requireSecret(visionApiProperties.key(), DEV_VISION_KEY, "VISION_API_KEY / aicabinet.vision-api.key");
-        if (!authProperties.sms().hasWebhook()) {
-            throw new IllegalStateException("Production/staging requires SMS webhook: aicabinet.auth.sms.webhook-url");
-        }
-        validateSmsMockCode();
-        validateCookieSecurity();
-        warnIfDefaultMinioCredentials();
-        warnIfLocalhostCors();
+    }
 
-        if (isStagingProfile()) {
-            log.warn("Staging mode active — WeChat Pay/MiniApp validation skipped; use prod profile before go-live");
-            if (checkoutProperties.balanceOnly()) {
-                log.info("Staging CHECKOUT_BALANCE_ONLY=true — suitable for no-merchant balance-only soak tests");
-            }
-            validateReconciliationConfig(false);
-        } else {
-            if (!weChatPayProperties.isConfigured()) {
-                throw new IllegalStateException("Production requires WeChat Pay V3 configuration");
-            }
-            boolean hasStaticCert = weChatPayProperties.platformCert() != null
-                    && !weChatPayProperties.platformCert().isBlank();
-            if (!hasStaticCert && !weChatPayProperties.platformCertAutoFetch()) {
-                throw new IllegalStateException(
-                        "Production requires WECHAT_PLATFORM_CERT or WECHAT_PLATFORM_CERT_AUTO_FETCH=true");
-            }
-            if (!weChatMiniAppProperties.isConfigured()) {
-                throw new IllegalStateException("Production requires WeChat MiniApp configuration");
-            }
-            validatePayScoreConfig();
-            validateProfitSharingConfig();
-            validateReconciliationConfig(true);
+    private void validateStagingProfile() {
+        log.warn("Staging mode active — WeChat Pay/MiniApp validation skipped; use prod profile before go-live");
+        if (checkoutProperties.balanceOnly()) {
+            log.info("Staging CHECKOUT_BALANCE_ONLY=true — suitable for no-merchant balance-only soak tests");
         }
-        log.info("{} configuration validated", isStagingProfile() ? "Staging" : "Production");
+        validateReconciliationConfig(false);
+    }
+
+    private void validateProductionProfile() {
+        if (!weChatPayProperties.isConfigured()) {
+            throw new IllegalStateException("Production requires WeChat Pay V3 configuration");
+        }
+        boolean hasStaticCert = weChatPayProperties.platformCert() != null
+                && !weChatPayProperties.platformCert().isBlank();
+        if (!hasStaticCert && !weChatPayProperties.platformCertAutoFetch()) {
+            throw new IllegalStateException(
+                    "Production requires WECHAT_PLATFORM_CERT or WECHAT_PLATFORM_CERT_AUTO_FETCH=true");
+        }
+        if (!weChatMiniAppProperties.isConfigured()) {
+            throw new IllegalStateException("Production requires WeChat MiniApp configuration");
+        }
+        validatePayScoreConfig();
+        validateProfitSharingConfig();
+        validateReconciliationConfig(true);
     }
 
     private void validateReconciliationConfig(boolean requireWeChatWhenReal) {

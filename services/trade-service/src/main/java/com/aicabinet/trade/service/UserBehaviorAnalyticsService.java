@@ -45,9 +45,45 @@ public class UserBehaviorAnalyticsService {
         Instant dormantFloor = LocalDate.now(ZONE).minusDays(90).atStartOfDay(ZONE).toInstant();
 
         List<CabinetOrder> windowOrders = paid(orderRepository.findByCreatedAtAfter(since));
-        List<CabinetOrder> allOrders = paid(orderRepository.findAll());
+        Map<Long, UserAgg> agg = aggregateUsers(paid(orderRepository.findAll()));
+        WindowMetrics windowMetrics = computeWindowMetrics(windowOrders, agg, since, since30);
+        List<UserBehaviorRowDto> dormant = findDormantUsers(agg, dormantCutoff, dormantFloor);
+        int dormantTotal = dormant.size();
+        dormant.sort(Comparator.comparing(UserBehaviorRowDto::lastOrderAt).reversed());
+        if (dormant.size() > 20) {
+            dormant = dormant.subList(0, 20);
+        }
 
-        // 用户聚合
+        List<UserBehaviorRowDto> topRepeat = agg.entrySet().stream()
+                .filter(e -> e.getValue().totalOrders >= 2)
+                .sorted((a, b) -> Long.compare(b.getValue().totalRevenue, a.getValue().totalRevenue))
+                .limit(10)
+                .map(e -> row(e.getKey(), e.getValue()))
+                .toList();
+
+        double avgOrder = windowMetrics.orders() > 0
+                ? (double) windowMetrics.revenue() / windowMetrics.orders() : 0.0;
+        double repeatRate7 = windowMetrics.active7() > 0
+                ? (double) windowMetrics.repeat7() / windowMetrics.active7() : 0.0;
+
+        return new UserBehaviorSummaryDto(
+                windowMetrics.active7(),
+                windowMetrics.active30(),
+                windowMetrics.new7(),
+                windowMetrics.new30(),
+                windowMetrics.repeat7(),
+                repeatRate7,
+                dormantTotal,
+                agg.size(),
+                windowMetrics.orders(),
+                windowMetrics.revenue(),
+                avgOrder,
+                topRepeat,
+                dormant
+        );
+    }
+
+    private static Map<Long, UserAgg> aggregateUsers(List<CabinetOrder> allOrders) {
         Map<Long, UserAgg> agg = new HashMap<>();
         for (CabinetOrder o : allOrders) {
             if (o.getUserId() == null) {
@@ -65,8 +101,11 @@ public class UserBehaviorAnalyticsService {
                 }
             }
         }
+        return agg;
+    }
 
-        // 窗口期指标
+    private static WindowMetrics computeWindowMetrics(List<CabinetOrder> windowOrders, Map<Long, UserAgg> agg,
+                                                      Instant since, Instant since30) {
         Map<Long, Integer> windowCount = new HashMap<>();
         long windowOrdersCount = 0;
         long windowRevenue = 0;
@@ -84,11 +123,9 @@ public class UserBehaviorAnalyticsService {
         int new30 = 0;
         int repeat7 = 0;
         for (Map.Entry<Long, Integer> e : windowCount.entrySet()) {
-            Long uid = e.getKey();
-            UserAgg u = agg.get(uid);
+            UserAgg u = agg.get(e.getKey());
             Instant uFirst = u != null ? u.firstOrderAt : null;
-            int cnt = e.getValue();
-            if (cnt >= 2) {
+            if (e.getValue() >= 2) {
                 repeat7++;
             }
             if (uFirst != null && uFirst.compareTo(since) >= 0) {
@@ -100,8 +137,11 @@ public class UserBehaviorAnalyticsService {
             active7++;
             active30++;
         }
+        return new WindowMetrics(active7, active30, new7, new30, repeat7, windowOrdersCount, windowRevenue);
+    }
 
-        // 沉睡用户：30~90 天前有单、近 30 天无单
+    private List<UserBehaviorRowDto> findDormantUsers(Map<Long, UserAgg> agg, Instant dormantCutoff,
+                                                      Instant dormantFloor) {
         List<UserBehaviorRowDto> dormant = new ArrayList<>();
         for (Map.Entry<Long, UserAgg> e : agg.entrySet()) {
             UserAgg u = e.getValue();
@@ -111,40 +151,11 @@ public class UserBehaviorAnalyticsService {
                 dormant.add(row(e.getKey(), u));
             }
         }
-        int dormantTotal = dormant.size();
-        dormant.sort(Comparator.comparing(UserBehaviorRowDto::lastOrderAt).reversed());
-        if (dormant.size() > 20) {
-            dormant = dormant.subList(0, 20);
-        }
-
-        List<UserBehaviorRowDto> topRepeat = agg.entrySet().stream()
-                .filter(e -> e.getValue().totalOrders >= 2)
-                .sorted((a, b) -> Long.compare(b.getValue().totalRevenue, a.getValue().totalRevenue))
-                .limit(10)
-                .map(e -> row(e.getKey(), e.getValue()))
-                .toList();
-
-        long totalOrders = windowOrdersCount;
-        long totalRevenue = windowRevenue;
-        double avgOrder = totalOrders > 0 ? (double) totalRevenue / totalOrders : 0.0;
-        double repeatRate7 = active7 > 0 ? (double) repeat7 / active7 : 0.0;
-
-        return new UserBehaviorSummaryDto(
-                active7,
-                active30,
-                new7,
-                new30,
-                repeat7,
-                repeatRate7,
-                dormantTotal,
-                agg.size(),
-                totalOrders,
-                totalRevenue,
-                avgOrder,
-                topRepeat,
-                dormant
-        );
+        return dormant;
     }
+
+    private record WindowMetrics(int active7, int active30, int new7, int new30, int repeat7,
+                                 long orders, long revenue) {}
 
     private UserBehaviorRowDto row(Long userId, UserAgg u) {
         UserInfo info = userInfoRepository.findById(userId).orElse(null);
