@@ -60,7 +60,7 @@ public class DeviceInternalController {
         Integer currentTempC = body != null ? body.currentTempC() : null;
         presenceService.heartbeat(deviceId, appVersion, firmwareVersion, currentTempC);
         if (body != null) {
-            envService.record(deviceId, body.humidityPct(), body.voltageV(), body.powerW());
+            envService.saveReading(deviceId, body.humidityPct(), body.voltageV(), body.powerW());
         }
         return ApiResponse.ok(null);
     }

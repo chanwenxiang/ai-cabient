@@ -91,18 +91,18 @@ public class ExternalNotificationDispatcher {
     }
 
     private void saveLog(NotificationDispatchMessage msg, String channel) {
-        NotificationLog record = new NotificationLog();
-        record.setTemplateCode(msg.templateCode());
-        record.setChannel(channel);
-        record.setAudience("CONSUMER");
-        record.setUserId(msg.userId());
-        record.setTitle(msg.title());
-        record.setBody(msg.body());
-        record.setBizType(msg.bizType());
-        record.setBizId(msg.bizId());
-        record.setStatus("SENT");
-        record.setCreatedAt(Instant.now());
-        logRepository.save(record);
+        NotificationLog logEntry = new NotificationLog();
+        logEntry.setTemplateCode(msg.templateCode());
+        logEntry.setChannel(channel);
+        logEntry.setAudience("CONSUMER");
+        logEntry.setUserId(msg.userId());
+        logEntry.setTitle(msg.title());
+        logEntry.setBody(msg.body());
+        logEntry.setBizType(msg.bizType());
+        logEntry.setBizId(msg.bizId());
+        logEntry.setStatus("SENT");
+        logEntry.setCreatedAt(Instant.now());
+        logRepository.save(logEntry);
         log.info("external notification sent channel={} template={} userId={}",
                 channel, msg.templateCode(), msg.userId());
     }

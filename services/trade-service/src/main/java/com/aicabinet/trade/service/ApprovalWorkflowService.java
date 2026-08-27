@@ -55,7 +55,7 @@ public class ApprovalWorkflowService {
     private final NotificationService notificationService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
-    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    /** �?Spring 代理调用本类 @Transactional 方法，避免自调用失效�?*/
     private final ApprovalWorkflowService self;
 
     public ApprovalWorkflowService(ApprovalDefinitionMapper definitionRepository,
@@ -104,7 +104,7 @@ public class ApprovalWorkflowService {
             if (STATUS_PENDING.equals(existing.getStatus()) || STATUS_APPROVED.equals(existing.getStatus())) {
                 return;
             }
-            // REJECTED / CANCELLED → restart for resubmit
+            // REJECTED / CANCELLED �?restart for resubmit
             ApprovalInstance locked = instanceRepository.findByIdForUpdate(existing.getInstanceId()).orElseThrow();
             skipOpenTasks(locked.getInstanceId());
             locked.setDefId(def.getDefId());
@@ -157,7 +157,7 @@ public class ApprovalWorkflowService {
                         && actorUserId != null
                         && actorUserId.equals(t.getAssigneeUserId()));
         if (!actorHasPending) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "您不是当前审批节点的处理人");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "您不是当前审批节点的处理�?);
         }
 
         Instant now = Instant.now();
@@ -208,7 +208,7 @@ public class ApprovalWorkflowService {
                         && actorUserId != null
                         && actorUserId.equals(t.getAssigneeUserId()));
         if (!actorHasPending) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "您不是当前审批节点的处理人");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "您不是当前审批节点的处理�?);
         }
         Instant now = Instant.now();
         for (ApprovalTask task : currentTasks) {
@@ -290,9 +290,9 @@ public class ApprovalWorkflowService {
     @Transactional
     public void markTaskRead(Long userId, Long taskId) {
         ApprovalTask task = taskRepository.findByIdForUpdate(taskId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "待办不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "待办不存�?));
         if (!userId.equals(task.getAssigneeUserId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权操作该待办");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权操作该待�?);
         }
         if (task.getReadAt() == null) {
             task.setReadAt(Instant.now());
@@ -312,7 +312,7 @@ public class ApprovalWorkflowService {
     public ApprovalDefinitionDto createDefinition(Long operatorId, CreateApprovalDefinitionRequest req) {
         permissionService.requirePermission(operatorId, PERM_OPS_APPROVAL_CONFIG);
         if (req == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体不能为空");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体不能为�?);
         }
         String bizType = req.bizType() == null ? "" : req.bizType().trim().toUpperCase(Locale.ROOT);
         if (bizType.isBlank()) {
@@ -334,7 +334,7 @@ public class ApprovalWorkflowService {
             nodes = List.of(new ApprovalNodeDto(null, 1, "运营审核", "PERM", "ops:approval:list", "ANY"));
         }
         replaceNodes(def.getDefId(), nodes);
-        auditService.record(operatorId, "APPROVAL_DEF_CREATE", APPROVAL_DEF,
+        auditService.appendLog(operatorId, "APPROVAL_DEF_CREATE", APPROVAL_DEF,
                 String.valueOf(def.getDefId()), bizType);
         return toDefinitionDto(definitionRepository.selectById(def.getDefId()));
     }
@@ -344,11 +344,11 @@ public class ApprovalWorkflowService {
                                                     UpsertApprovalDefinitionRequest req) {
         permissionService.requirePermission(operatorId, PERM_OPS_APPROVAL_CONFIG);
         if (req == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体不能为空");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体不能为�?);
         }
         ApprovalDefinition def = definitionRepository.selectById(defId);
         if (def == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "审批定义不存在");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "审批定义不存�?);
         }
         if (req.defName() != null && !req.defName().isBlank()) {
             def.setDefName(req.defName().trim());
@@ -364,7 +364,7 @@ public class ApprovalWorkflowService {
         if (req.nodes() != null) {
             replaceNodes(defId, req.nodes());
         }
-        auditService.record(operatorId, "APPROVAL_DEF_UPDATE", APPROVAL_DEF,
+        auditService.appendLog(operatorId, "APPROVAL_DEF_UPDATE", APPROVAL_DEF,
                 String.valueOf(defId), def.getBizType());
         return toDefinitionDto(definitionRepository.selectById(defId));
     }
@@ -374,20 +374,20 @@ public class ApprovalWorkflowService {
         permissionService.requirePermission(operatorId, PERM_OPS_APPROVAL_CONFIG);
         ApprovalDefinition def = definitionRepository.selectById(defId);
         if (def == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "审批定义不存在");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "审批定义不存�?);
         }
         if (instanceRepository.countByDefId(defId) > 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "已有审批实例，不可删除");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "已有审批实例，不可删�?);
         }
         nodeRepository.deleteByDefId(defId);
         definitionRepository.deleteById(defId);
-        auditService.record(operatorId, "APPROVAL_DEF_DELETE", APPROVAL_DEF,
+        auditService.appendLog(operatorId, "APPROVAL_DEF_DELETE", APPROVAL_DEF,
                 String.valueOf(defId), def.getBizType());
     }
 
     private void replaceNodes(Long defId, List<ApprovalNodeDto> nodes) {
         if (nodes == null || nodes.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "至少配置一个审批节点");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "至少配置一个审批节�?);
         }
         List<ApprovalNodeDto> sorted = new ArrayList<>(nodes);
         sorted.sort(Comparator.comparing(n -> n.seq() == null ? Integer.MAX_VALUE : n.seq()));
@@ -425,16 +425,16 @@ public class ApprovalWorkflowService {
         String assigneeType = n.assigneeType() == null ? "" : n.assigneeType().trim().toUpperCase(Locale.ROOT);
         if (!ASSIGNEE_TYPES.contains(assigneeType)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "assigneeType 仅支持 PERM/ROLE/DEPT/USER");
+                    "assigneeType 仅支�?PERM/ROLE/DEPT/USER");
         }
         String assigneeValue = n.assigneeValue() == null ? "" : n.assigneeValue().trim();
         if (assigneeValue.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "审批人取值不能为空");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "审批人取值不能为�?);
         }
         String passRule = n.passRule() == null || n.passRule().isBlank()
                 ? "ANY" : n.passRule().trim().toUpperCase(Locale.ROOT);
         if (!PASS_RULES.contains(passRule)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "passRule 仅支持 ANY/ALL");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "passRule 仅支�?ANY/ALL");
         }
     }
 
@@ -463,7 +463,7 @@ public class ApprovalWorkflowService {
             log.warn("approval node has no assignees bizType={} node={}", instance.getBizType(), node.getNodeName());
             return;
         }
-        String body = "节点「" + node.getNodeName() + "」待您处理";
+        String body = "节点�? + node.getNodeName() + "」待您处�?;
         for (Long assigneeId : assignees) {
             ApprovalTask task = new ApprovalTask();
             task.setInstanceId(instance.getInstanceId());

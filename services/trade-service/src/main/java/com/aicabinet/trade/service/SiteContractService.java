@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 点位场地合同：每个柜机一份合同，按到期时间自动标记 EXPIRING / EXPIRED。
+ * 点位场地合同：每个柜机一份合同，按到期时间自动标�?EXPIRING / EXPIRED�?
  */
 @Service
 public class SiteContractService {
@@ -82,10 +82,10 @@ public class SiteContractService {
     private SiteContractDto doUpsert(Long operatorId, String id, UpsertSiteContractRequest request) {
         permissionService.requirePermission(operatorId, "ops:device:edit");
         DeviceInfo device = deviceRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在: " + id));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存�? " + id));
         if (request.startDate() != null && request.endDate() != null
                 && request.endDate().isBefore(request.startDate())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "合同结束日期不能早于开始日期");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "合同结束日期不能早于开始日�?);
         }
         SiteContract contract = contractRepository.findByDeviceIdForUpdate(id).orElseGet(SiteContract::new);
         boolean created = contract.getContractId() == null;
@@ -106,7 +106,7 @@ public class SiteContractService {
         } else {
             contractRepository.updateById(contract);
         }
-        auditService.record(operatorId, created ? "SITE_CONTRACT_CREATE" : "SITE_CONTRACT_UPDATE",
+        auditService.appendLog(operatorId, created ? "SITE_CONTRACT_CREATE" : "SITE_CONTRACT_UPDATE",
                 "SITE_CONTRACT", String.valueOf(contract.getContractId()),
                 "device=" + id + " site=" + contract.getSiteName());
         String deviceName = device.getDeviceName() != null ? device.getDeviceName() : id;
@@ -117,9 +117,9 @@ public class SiteContractService {
     public void delete(Long operatorId, Long contractId) {
         permissionService.requireAnyPermission(operatorId, "ops:org:edit", "ops:device:edit");
         SiteContract contract = contractRepository.findById(contractId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "合同不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "合同不存�?));
         contractRepository.deleteById(contractId);
-        auditService.record(operatorId, "SITE_CONTRACT_DELETE", "SITE_CONTRACT",
+        auditService.appendLog(operatorId, "SITE_CONTRACT_DELETE", "SITE_CONTRACT",
                 String.valueOf(contractId), "device=" + contract.getDeviceId());
     }
 
@@ -143,7 +143,7 @@ public class SiteContractService {
 
     private <T> T runWithContractLock(String deviceId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(contractLockKey(deviceId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "场地合同处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "场地合同处理中，请稍后重�?);
         }
         try {
             return action.get();

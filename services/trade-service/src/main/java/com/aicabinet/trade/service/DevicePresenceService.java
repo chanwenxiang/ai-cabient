@@ -34,7 +34,7 @@ public class DevicePresenceService {
     private final SystemConfigService systemConfigService;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
-    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    /** �?Spring 代理调用本类 @Transactional 方法，避免自调用失效�?*/
     private final DevicePresenceService self;
     private final ScheduledTaskService taskService;
 
@@ -113,7 +113,7 @@ public class DevicePresenceService {
             return;
         }
         boolean failed = false;
-        String summary = "本次无设备状态变更";
+        String summary = "本次无设备状态变�?;
         try {
         Instant cutoff = Instant.now().minus(OFFLINE_AFTER_MINUTES, ChronoUnit.MINUTES);
         var stale = deviceRepository.findByOnlineStatusAndUpdatedAtBefore(CabinetConstants.DEVICE_ONLINE, cutoff);
@@ -123,7 +123,7 @@ public class DevicePresenceService {
         }));
         int locked = autoLockLongOfflineDevices();
         cabinetMetrics.refreshDeviceGauges(deviceRepository);
-        summary = "标记离线 " + stale.size() + " 台，自动锁机 " + locked + " 台";
+        summary = "标记离线 " + stale.size() + " 台，自动锁机 " + locked + " �?;
         } catch (Exception e) {
             failed = true;
             taskService.finish(DEVICE_PRESENCE, "FAILED", e.getMessage(), start);
@@ -144,11 +144,11 @@ public class DevicePresenceService {
         d.setOnlineSince(null);
         deviceRepository.save(d);
         deviceRepository.clearOnlineSince(deviceId);
-        opsExceptionService.report("DEVICE_OFFLINE", "CRITICAL", new OpsExceptionService.ExceptionReport.ExceptionRefs(deviceId, null, null, null), "设备离线", "连续 " + OFFLINE_AFTER_MINUTES + " 分钟未收到心跳");
+        opsExceptionService.report("DEVICE_OFFLINE", "CRITICAL", new OpsExceptionService.ExceptionReport.ExceptionRefs(deviceId, null, null, null), "设备离线", "连续 " + OFFLINE_AFTER_MINUTES + " 分钟未收到心�?);
         log.info("device marked offline device={}", deviceId);
     }
 
-    /** 离线超过配置分钟数后自动锁机停售（需运营手动解锁）。返回本次锁机台数。 */
+    /** 离线超过配置分钟数后自动锁机停售（需运营手动解锁）。返回本次锁机台数�?*/
     private int autoLockLongOfflineDevices() {
         int lockAfterMinutes = systemConfigService.getInt(
                 SystemConfigService.DEVICE_OFFLINE_AUTO_LOCK_MINUTES, 10);
@@ -176,12 +176,12 @@ public class DevicePresenceService {
                     return false;
                 }
                 d.setSalesLocked(true);
-                d.setSalesLockReason("离线超时自动停售（超 " + lockAfterMinutes + " 分钟）");
+                d.setSalesLockReason("离线超时自动停售（超 " + lockAfterMinutes + " 分钟�?);
                 d.setSalesUnlockedAt(null);
                 deviceRepository.save(d);
                 deviceRepository.clearSalesUnlockedAt(d.getDeviceId());
                 opsExceptionService.report("DEVICE_FAULT", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(d.getDeviceId(), null, null, null), "离线超时自动停售", "设备离线超过 " + lockAfterMinutes + " 分钟，已自动锁机（故障码：离线超时）");
-                auditService.record(0L, "DEVICE_AUTO_LOCK_OFFLINE", "DEVICE", d.getDeviceId(),
+                auditService.appendLog(0L, "DEVICE_AUTO_LOCK_OFFLINE", "DEVICE", d.getDeviceId(),
                         "离线超过 " + lockAfterMinutes + " 分钟，已自动锁机停售");
                 log.info("device auto sales-locked after offline device={} minutes={}",
                         d.getDeviceId(), lockAfterMinutes);

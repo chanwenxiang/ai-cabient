@@ -32,7 +32,7 @@ public class DeviceEnvService {
     }
 
     @Transactional
-    public void record(String deviceId, Double humidityPct, Double voltageV, Double powerW) {
+    public void saveReading(String deviceId, Double humidityPct, Double voltageV, Double powerW) {
         if (deviceId == null || deviceId.isBlank()) {
             return;
         }

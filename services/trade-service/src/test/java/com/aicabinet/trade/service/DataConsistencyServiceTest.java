@@ -163,15 +163,15 @@ class DataConsistencyServiceTest {
 
     @Test
     void fixInconsistency_whenPaidMatchesHeader_alignsSingleLine() {
-        DataConsistencyRecord record = new DataConsistencyRecord();
-        record.setId(3L);
-        record.setCheckType("ORDER_AMOUNT");
-        record.setCheckKey("O-FIX");
-        record.setExpectedValue("150");
-        record.setActualValue("350");
-        record.setStatus(DataConsistencyService.STATUS_FAIL);
+        DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
+        consistencyRecord.setId(3L);
+        consistencyRecord.setCheckType("ORDER_AMOUNT");
+        consistencyRecord.setCheckKey("O-FIX");
+        consistencyRecord.setExpectedValue("150");
+        consistencyRecord.setActualValue("350");
+        consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
 
-        when(consistencyRepository.findByIdForUpdate(3L)).thenReturn(java.util.Optional.of(record));
+        when(consistencyRepository.findByIdForUpdate(3L)).thenReturn(java.util.Optional.of(consistencyRecord));
         when(jdbcTemplate.query(startsWith("SELECT total_amount_cents"), anyIntExtractor(), eq("O-FIX")))
                 .thenReturn(150);
         when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(CASE"), anyIntExtractor(), eq("O-FIX")))
@@ -191,20 +191,20 @@ class DataConsistencyServiceTest {
                 .thenReturn(1);
 
         assertTrue(service.fixInconsistency(3L));
-        assertEquals(DataConsistencyService.STATUS_FIXED, record.getStatus());
-        assertNotNull(record.getFixedAt());
-        verify(consistencyRepository).save(record);
+        assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
+        assertNotNull(consistencyRecord.getFixedAt());
+        verify(consistencyRepository).save(consistencyRecord);
     }
 
     @Test
     void fixInconsistency_clearsStaleCouponWhenPaidMatchesLineSubtotal() {
-        DataConsistencyRecord record = new DataConsistencyRecord();
-        record.setId(9L);
-        record.setCheckType("ORDER_AMOUNT");
-        record.setCheckKey("O-STALE");
-        record.setStatus(DataConsistencyService.STATUS_FAIL);
+        DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
+        consistencyRecord.setId(9L);
+        consistencyRecord.setCheckType("ORDER_AMOUNT");
+        consistencyRecord.setCheckKey("O-STALE");
+        consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
 
-        when(consistencyRepository.findByIdForUpdate(9L)).thenReturn(java.util.Optional.of(record));
+        when(consistencyRepository.findByIdForUpdate(9L)).thenReturn(java.util.Optional.of(consistencyRecord));
         when(jdbcTemplate.query(startsWith("SELECT total_amount_cents"), anyIntExtractor(), eq("O-STALE")))
                 .thenReturn(150);
         when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(CASE"), anyIntExtractor(), eq("O-STALE")))
@@ -224,7 +224,7 @@ class DataConsistencyServiceTest {
         DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(9L);
         assertTrue(outcome.fixed());
         assertTrue(outcome.message().contains("清除未生效"));
-        assertEquals(DataConsistencyService.STATUS_FIXED, record.getStatus());
+        assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
     }
 
     @Test
@@ -242,14 +242,14 @@ class DataConsistencyServiceTest {
 
     @Test
     void fixInconsistency_withoutPayment_updatesHeaderToLineSum() {
-        DataConsistencyRecord record = new DataConsistencyRecord();
-        record.setId(5L);
-        record.setCheckType("ORDER_AMOUNT");
-        record.setCheckKey("O-NOPAY");
-        record.setActualValue("120");
-        record.setStatus(DataConsistencyService.STATUS_FAIL);
+        DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
+        consistencyRecord.setId(5L);
+        consistencyRecord.setCheckType("ORDER_AMOUNT");
+        consistencyRecord.setCheckKey("O-NOPAY");
+        consistencyRecord.setActualValue("120");
+        consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
 
-        when(consistencyRepository.findByIdForUpdate(5L)).thenReturn(java.util.Optional.of(record));
+        when(consistencyRepository.findByIdForUpdate(5L)).thenReturn(java.util.Optional.of(consistencyRecord));
         when(jdbcTemplate.query(startsWith("SELECT total_amount_cents"), anyIntExtractor(), eq("O-NOPAY")))
                 .thenReturn(100);
         when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(CASE"), anyIntExtractor(), eq("O-NOPAY")))
@@ -268,23 +268,23 @@ class DataConsistencyServiceTest {
                 eq("O-NOPAY"))).thenReturn(1);
 
         assertTrue(service.fixInconsistency(5L));
-        assertEquals(DataConsistencyService.STATUS_FIXED, record.getStatus());
+        assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
     }
 
     @Test
     void fixInconsistency_paymentAmount_rejectsWhenUnderpaid() {
-        DataConsistencyRecord record = new DataConsistencyRecord();
-        record.setId(4L);
-        record.setCheckType("PAYMENT_AMOUNT");
-        record.setCheckKey("O-PAY");
-        record.setExpectedValue("100");
-        record.setActualValue("50");
-        record.setStatus(DataConsistencyService.STATUS_FAIL);
+        DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
+        consistencyRecord.setId(4L);
+        consistencyRecord.setCheckType("PAYMENT_AMOUNT");
+        consistencyRecord.setCheckKey("O-PAY");
+        consistencyRecord.setExpectedValue("100");
+        consistencyRecord.setActualValue("50");
+        consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
 
-        when(consistencyRepository.findByIdForUpdate(4L)).thenReturn(java.util.Optional.of(record));
+        when(consistencyRepository.findByIdForUpdate(4L)).thenReturn(java.util.Optional.of(consistencyRecord));
 
         assertFalse(service.fixInconsistency(4L));
-        assertEquals(DataConsistencyService.STATUS_FAIL, record.getStatus());
+        assertEquals(DataConsistencyService.STATUS_FAIL, consistencyRecord.getStatus());
         verify(orderPaymentService, never()).refundOrder(any(), anyInt(), anyString());
 
         DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(4L);
@@ -294,26 +294,26 @@ class DataConsistencyServiceTest {
 
     @Test
     void fixInconsistency_paymentAmount_refundsOvercharge() {
-        DataConsistencyRecord record = new DataConsistencyRecord();
-        record.setId(12L);
-        record.setCheckType("PAYMENT_AMOUNT");
-        record.setCheckKey("O-SNACK");
-        record.setExpectedValue("1503");
-        record.setActualValue("1504");
-        record.setStatus(DataConsistencyService.STATUS_FAIL);
+        DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
+        consistencyRecord.setId(12L);
+        consistencyRecord.setCheckType("PAYMENT_AMOUNT");
+        consistencyRecord.setCheckKey("O-SNACK");
+        consistencyRecord.setExpectedValue("1503");
+        consistencyRecord.setActualValue("1504");
+        consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
 
         CabinetOrder order = new CabinetOrder();
         order.setOrderId("O-SNACK");
         order.setStatus("PAID");
 
-        when(consistencyRepository.findByIdForUpdate(12L)).thenReturn(java.util.Optional.of(record));
+        when(consistencyRepository.findByIdForUpdate(12L)).thenReturn(java.util.Optional.of(consistencyRecord));
         when(cabinetOrderRepository.findByIdForUpdate("O-SNACK")).thenReturn(java.util.Optional.of(order));
 
         DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(12L);
         assertTrue(outcome.fixed());
         assertTrue(outcome.message().contains("1"));
         verify(orderPaymentService).refundOrder(order, 1, "一致性修复退多收");
-        assertEquals(DataConsistencyService.STATUS_FIXED, record.getStatus());
+        assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
     }
 
     @Test
@@ -367,21 +367,21 @@ class DataConsistencyServiceTest {
 
     @Test
     void fixInconsistency_inventoryMismatch_updatesSummaryQty() {
-        DataConsistencyRecord record = new DataConsistencyRecord();
-        record.setId(8L);
-        record.setCheckType("INVENTORY_MISMATCH");
-        record.setCheckKey("DEV-1|SKU-9");
-        record.setActualValue("12");
-        record.setStatus(DataConsistencyService.STATUS_FAIL);
+        DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
+        consistencyRecord.setId(8L);
+        consistencyRecord.setCheckType("INVENTORY_MISMATCH");
+        consistencyRecord.setCheckKey("DEV-1|SKU-9");
+        consistencyRecord.setActualValue("12");
+        consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
 
-        when(consistencyRepository.findByIdForUpdate(8L)).thenReturn(java.util.Optional.of(record));
+        when(consistencyRepository.findByIdForUpdate(8L)).thenReturn(java.util.Optional.of(consistencyRecord));
         when(jdbcTemplate.update(startsWith("UPDATE device_sku_inventory"), eq("12"), eq("DEV-1"), eq("SKU-9")))
                 .thenReturn(1);
 
         DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(8L);
 
         assertTrue(outcome.fixed());
-        assertEquals(DataConsistencyService.STATUS_FIXED, record.getStatus());
+        assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
         assertTrue(outcome.message().contains("12"));
     }
 
@@ -456,13 +456,13 @@ class DataConsistencyServiceTest {
 
     @Test
     void fixInconsistency_orderLineSum_alignsLineToUnitTimesQty() {
-        DataConsistencyRecord record = new DataConsistencyRecord();
-        record.setId(10L);
-        record.setCheckType("ORDER_LINE_SUM");
-        record.setCheckKey("O-L1|SKU-A");
-        record.setStatus(DataConsistencyService.STATUS_FAIL);
+        DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
+        consistencyRecord.setId(10L);
+        consistencyRecord.setCheckType("ORDER_LINE_SUM");
+        consistencyRecord.setCheckKey("O-L1|SKU-A");
+        consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
 
-        when(consistencyRepository.findByIdForUpdate(10L)).thenReturn(java.util.Optional.of(record));
+        when(consistencyRepository.findByIdForUpdate(10L)).thenReturn(java.util.Optional.of(consistencyRecord));
         when(jdbcTemplate.queryForList(anyString(), eq("O-L1"), eq("SKU-A")))
                 .thenReturn(List.of(Map.of(
                         "quantity", 3,
@@ -487,18 +487,18 @@ class DataConsistencyServiceTest {
         DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(10L);
         assertTrue(outcome.fixed());
         assertTrue(outcome.message().contains("1503"));
-        assertEquals(DataConsistencyService.STATUS_FIXED, record.getStatus());
+        assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
     }
 
     @Test
     void fixInconsistency_couponUsedLink_releasesStaleCoupons() {
-        DataConsistencyRecord record = new DataConsistencyRecord();
-        record.setId(11L);
-        record.setCheckType("COUPON_USED_LINK");
-        record.setCheckKey("O-COUP");
-        record.setStatus(DataConsistencyService.STATUS_FAIL);
+        DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
+        consistencyRecord.setId(11L);
+        consistencyRecord.setCheckType("COUPON_USED_LINK");
+        consistencyRecord.setCheckKey("O-COUP");
+        consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
 
-        when(consistencyRepository.findByIdForUpdate(11L)).thenReturn(java.util.Optional.of(record));
+        when(consistencyRepository.findByIdForUpdate(11L)).thenReturn(java.util.Optional.of(consistencyRecord));
         when(jdbcTemplate.query(startsWith("SELECT COALESCE(coupon_discount_cents"), anyIntExtractor(), eq("O-COUP")))
                 .thenReturn(0);
         when(jdbcTemplate.query(startsWith("SELECT coupon_id"), any(ResultSetExtractor.class), eq("O-COUP")))
@@ -510,6 +510,6 @@ class DataConsistencyServiceTest {
         DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(11L);
         assertTrue(outcome.fixed());
         assertTrue(outcome.message().contains("6"));
-        assertEquals(DataConsistencyService.STATUS_FIXED, record.getStatus());
+        assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
     }
 }

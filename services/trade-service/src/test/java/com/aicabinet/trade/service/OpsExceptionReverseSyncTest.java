@@ -71,9 +71,9 @@ class OpsExceptionReverseSyncTest {
             assertEquals(10001L, saved.getAssigneeUserId());
             assertEquals("争议结案(WAIVE)同步关闭异常", saved.getResolution());
         }
-        verify(auditService).record(eq(10001L), eq("OPS_EXCEPTION_SYNC_FROM_DISPUTE"),
+        verify(auditService).appendLog(eq(10001L), eq("OPS_EXCEPTION_SYNC_FROM_DISPUTE"),
                 eq("OPS_EXCEPTION"), eq("EX-OPEN-001"), eq("争议结案(WAIVE)同步关闭异常"));
-        verify(auditService).record(eq(10001L), eq("OPS_EXCEPTION_SYNC_FROM_DISPUTE"),
+        verify(auditService).appendLog(eq(10001L), eq("OPS_EXCEPTION_SYNC_FROM_DISPUTE"),
                 eq("OPS_EXCEPTION"), eq("EX-PROC-001"), eq("争议结案(WAIVE)同步关闭异常"));
     }
 }

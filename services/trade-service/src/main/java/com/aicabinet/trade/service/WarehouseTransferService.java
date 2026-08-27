@@ -82,7 +82,7 @@ public class WarehouseTransferService {
         String from = req.fromWarehouseId().trim();
         String to = req.toWarehouseId().trim();
         if (from.equalsIgnoreCase(to)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "调出仓与调入仓不能相同");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "调出仓与调入仓不能相�?);
         }
         warehouseMapper.findById(from).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "调出仓不存在"));
         warehouseMapper.findById(to).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "调入仓不存在"));
@@ -107,7 +107,7 @@ public class WarehouseTransferService {
             row.setQuantity(line.quantity());
             lineMapper.insert(row);
         }
-        auditService.record(operatorId, "WH_TRANSFER_CREATE", TRANSFER, order.getTransferNo(), from + "->" + to);
+        auditService.appendLog(operatorId, "WH_TRANSFER_CREATE", TRANSFER, order.getTransferNo(), from + "->" + to);
         return toDto(order);
     }
 
@@ -136,7 +136,7 @@ public class WarehouseTransferService {
         order.setShippedAt(Instant.now());
         order.setUpdatedAt(Instant.now());
         orderMapper.updateById(order);
-        auditService.record(operatorId, "WH_TRANSFER_SHIP", TRANSFER, order.getTransferNo(), null);
+        auditService.appendLog(operatorId, "WH_TRANSFER_SHIP", TRANSFER, order.getTransferNo(), null);
         return toDto(order);
     }
 
@@ -149,7 +149,7 @@ public class WarehouseTransferService {
     private WarehouseTransferDto doReceive(Long operatorId, Long transferId) {
         WarehouseTransferOrder order = requireOrderForUpdate(transferId);
         if (!"SHIPPED".equals(order.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅已发运可收货");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅已发运可收�?);
         }
         for (WarehouseTransferLine line : lineMapper.findByTransferId(transferId)) {
             warehouseService.binStockChange(new WarehouseService.BinStockChangeCommand(
@@ -161,7 +161,7 @@ public class WarehouseTransferService {
         order.setReceivedAt(Instant.now());
         order.setUpdatedAt(Instant.now());
         orderMapper.updateById(order);
-        auditService.record(operatorId, "WH_TRANSFER_RECEIVE", TRANSFER, order.getTransferNo(), null);
+        auditService.appendLog(operatorId, "WH_TRANSFER_RECEIVE", TRANSFER, order.getTransferNo(), null);
         return toDto(order);
     }
 

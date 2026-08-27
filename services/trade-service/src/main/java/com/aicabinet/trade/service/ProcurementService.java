@@ -176,7 +176,7 @@ public class ProcurementService {
                 BIZ_PURCHASE_ORDER,
                 String.valueOf(order.getPurchaseOrderId()),
                 operatorId,
-                "采购单 " + order.getRefNo());
+                "采购�?" + order.getRefNo());
         return toPurchaseDto(order);
     }
 
@@ -188,7 +188,7 @@ public class ProcurementService {
                 () -> doReviewPurchaseOrder(operatorId, purchaseOrderId, approve, remark));
     }
 
-    /** Demo / 内部编排：按当前节点待办人依次通过，直至可收货。 */
+    /** Demo / 内部编排：按当前节点待办人依次通过，直至可收货�?*/
     @Transactional
     public void ensurePurchaseOrderApproved(Long operatorId, Long purchaseOrderId) {
         runWithPurchaseOrderLock(purchaseOrderId, () -> {
@@ -220,15 +220,15 @@ public class ProcurementService {
             approvalWorkflowService.completeRejected(operatorId, BIZ_PURCHASE_ORDER, bizId, trimToNull(remark));
             order.setStatus("REJECTED");
             purchaseOrderRepository.save(order);
-            auditService.record(operatorId, "PURCHASE_ORDER_REJECT", BIZ_PURCHASE_ORDER, bizId, trimToNull(remark));
+            auditService.appendLog(operatorId, "PURCHASE_ORDER_REJECT", BIZ_PURCHASE_ORDER, bizId, trimToNull(remark));
             return toPurchaseDto(order);
         }
         approvalWorkflowService.completeApproved(operatorId, BIZ_PURCHASE_ORDER, bizId, trimToNull(remark));
         if (approvalWorkflowService.isInstanceApproved(BIZ_PURCHASE_ORDER, bizId)) {
             order.setStatus("CREATED");
-            auditService.record(operatorId, "PURCHASE_ORDER_APPROVE", BIZ_PURCHASE_ORDER, bizId, "审批通过");
+            auditService.appendLog(operatorId, "PURCHASE_ORDER_APPROVE", BIZ_PURCHASE_ORDER, bizId, "审批通过");
         } else {
-            auditService.record(operatorId, "PURCHASE_ORDER_APPROVE", BIZ_PURCHASE_ORDER, bizId, "审批节点通过");
+            auditService.appendLog(operatorId, "PURCHASE_ORDER_APPROVE", BIZ_PURCHASE_ORDER, bizId, "审批节点通过");
         }
         return toPurchaseDto(purchaseOrderRepository.save(order));
     }
@@ -407,7 +407,7 @@ public class ProcurementService {
                 ? order.getWarehouseId()
                 : request.receiveWarehouseId().trim();
         if (target == null || target.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "收货仓库未指定");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "收货仓库未指�?);
         }
         return target;
     }

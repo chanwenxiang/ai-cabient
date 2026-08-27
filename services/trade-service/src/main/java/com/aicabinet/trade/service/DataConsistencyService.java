@@ -520,15 +520,15 @@ public class DataConsistencyService {
                 return;
             }
             Instant now = Instant.now();
-            for (DataConsistencyRecord record : open) {
-                if (stillFailing != null && stillFailing.contains(record.getCheckKey())) {
+            for (DataConsistencyRecord consistencyRecord : open) {
+                if (stillFailing != null && stillFailing.contains(consistencyRecord.getCheckKey())) {
                     continue;
                 }
-                record.setStatus(STATUS_FIXED);
-                record.setFixedAt(now);
-                consistencyRepository.save(record);
+                consistencyRecord.setStatus(STATUS_FIXED);
+                consistencyRecord.setFixedAt(now);
+                consistencyRepository.save(consistencyRecord);
                 log.info("一致性误报已自动关闭 type={} key={} recordId={}",
-                        checkType, record.getCheckKey(), record.getId());
+                        checkType, consistencyRecord.getCheckKey(), consistencyRecord.getId());
             }
         } catch (Exception e) {
             log.error("关闭过期一致性 FAIL 失败 type={}: {}", checkType, e.getMessage());
@@ -573,16 +573,16 @@ public class DataConsistencyService {
                 existing.setCheckedAt(Instant.now());
                 consistencyRepository.save(existing);
             } else {
-                DataConsistencyRecord record = new DataConsistencyRecord();
-                record.setCheckType(checkType);
-                record.setTableName(tableName);
-                record.setCheckKey(checkKey);
-                record.setExpectedValue(expected);
-                record.setActualValue(actual);
-                record.setErrorMessage(errorMessage);
-                record.setStatus(STATUS_FAIL);
-                record.setCheckedAt(Instant.now());
-                consistencyRepository.save(record);
+                DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
+                consistencyRecord.setCheckType(checkType);
+                consistencyRecord.setTableName(tableName);
+                consistencyRecord.setCheckKey(checkKey);
+                consistencyRecord.setExpectedValue(expected);
+                consistencyRecord.setActualValue(actual);
+                consistencyRecord.setErrorMessage(errorMessage);
+                consistencyRecord.setStatus(STATUS_FAIL);
+                consistencyRecord.setCheckedAt(Instant.now());
+                consistencyRepository.save(consistencyRecord);
             }
         } catch (Exception e) {
             log.error("持久化一致性记录失败 type={} key={}: {}", checkType, checkKey, e.getMessage());
@@ -609,20 +609,20 @@ public class DataConsistencyService {
     }
 
     private FixOutcome doFixInconsistencyDetailed(Long recordId) {
-        DataConsistencyRecord record = consistencyRepository.findByIdForUpdate(recordId).orElse(null);
-        if (record == null) {
+        DataConsistencyRecord consistencyRecord = consistencyRepository.findByIdForUpdate(recordId).orElse(null);
+        if (consistencyRecord == null) {
             return FixOutcome.fail("记录不存在");
         }
 
         try {
-            FixOutcome outcome = applyFix(record);
+            FixOutcome outcome = applyFix(consistencyRecord);
             if (outcome.fixed()) {
-                record.setStatus(STATUS_FIXED);
-                record.setFixedAt(Instant.now());
+                consistencyRecord.setStatus(STATUS_FIXED);
+                consistencyRecord.setFixedAt(Instant.now());
                 if (outcome.message() != null) {
-                    record.setErrorMessage(outcome.message());
+                    consistencyRecord.setErrorMessage(outcome.message());
                 }
-                consistencyRepository.save(record);
+                consistencyRepository.save(consistencyRecord);
                 log.info("已修复一致性问题 recordId={} msg={}", recordId, outcome.message());
             }
             return outcome;
@@ -632,12 +632,12 @@ public class DataConsistencyService {
         }
     }
 
-    static String consistencyRecordLockKey(Long recordId) {
+    static String recordLockKey(Long recordId) {
         return "data-consistency:record:" + recordId;
     }
 
     private <T> T runWithConsistencyRecordLock(Long recordId, java.util.function.Supplier<T> action) {
-        String key = consistencyRecordLockKey(recordId);
+        String key = recordLockKey(recordId);
         if (!distributedLockService.tryLock(key, 60, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "一致性记录处理中，请稍后重试");
         }
@@ -648,21 +648,21 @@ public class DataConsistencyService {
         }
     }
 
-    private FixOutcome applyFix(DataConsistencyRecord record) {
-        return switch (record.getCheckType()) {
-            case ORDER_AMOUNT -> fixOrderAmount(record);
-            case INVENTORY_MISMATCH -> fixInventoryMismatch(record);
-            case ORDER_LINE_SUM -> fixOrderLineSum(record);
-            case COUPON_USED_LINK -> fixCouponUsedLink(record);
-            case PAYMENT_AMOUNT -> fixPaymentAmount(record);
+    private FixOutcome applyFix(DataConsistencyRecord consistencyRecord) {
+        return switch (consistencyRecord.getCheckType()) {
+            case ORDER_AMOUNT -> fixOrderAmount(consistencyRecord);
+            case INVENTORY_MISMATCH -> fixInventoryMismatch(consistencyRecord);
+            case ORDER_LINE_SUM -> fixOrderLineSum(consistencyRecord);
+            case COUPON_USED_LINK -> fixCouponUsedLink(consistencyRecord);
+            case PAYMENT_AMOUNT -> fixPaymentAmount(consistencyRecord);
             case REFUND_AMOUNT, WALLET_BALANCE ->
                     FixOutcome.fail("该类仅巡检记录，请人工核对处理");
-            default -> FixOutcome.fail("不支持自动修复的类型: " + record.getCheckType());
+            default -> FixOutcome.fail("不支持自动修复的类型: " + consistencyRecord.getCheckType());
         };
     }
 
-    private FixOutcome fixOrderAmount(DataConsistencyRecord record) {
-        String orderId = record.getCheckKey();
+    private FixOutcome fixOrderAmount(DataConsistencyRecord consistencyRecord) {
+        String orderId = consistencyRecord.getCheckKey();
         OrderAmountSnapshot snap = loadOrderAmountSnapshot(orderId);
         if (snap == null) {
             return FixOutcome.fail("订单不存在");
@@ -818,8 +818,8 @@ public class DataConsistencyService {
                 orderId);
     }
 
-    private FixOutcome fixOrderLineSum(DataConsistencyRecord record) {
-        String[] parts = record.getCheckKey().split("\\|", 2);
+    private FixOutcome fixOrderLineSum(DataConsistencyRecord consistencyRecord) {
+        String[] parts = consistencyRecord.getCheckKey().split("\\|", 2);
         if (parts.length < 2) {
             return FixOutcome.fail("行键格式无效，期望 orderId|skuId");
         }
@@ -874,10 +874,10 @@ public class DataConsistencyService {
     }
 
     /** 实付大于订单头时退多收差额（常见于修行金额后遗留尾差）。 */
-    private FixOutcome fixPaymentAmount(DataConsistencyRecord record) {
-        String orderId = record.getCheckKey();
-        int expected = parseRecordCents(record.getExpectedValue());
-        int actual = parseRecordCents(record.getActualValue());
+    private FixOutcome fixPaymentAmount(DataConsistencyRecord consistencyRecord) {
+        String orderId = consistencyRecord.getCheckKey();
+        int expected = parseRecordCents(consistencyRecord.getExpectedValue());
+        int actual = parseRecordCents(consistencyRecord.getActualValue());
         if (actual <= expected) {
             return FixOutcome.fail("仅支持实付大于订单头的多收场景，少收请走补扣/调账");
         }
@@ -905,8 +905,8 @@ public class DataConsistencyService {
         }
     }
 
-    private FixOutcome fixCouponUsedLink(DataConsistencyRecord record) {
-        String orderId = record.getCheckKey();
+    private FixOutcome fixCouponUsedLink(DataConsistencyRecord consistencyRecord) {
+        String orderId = consistencyRecord.getCheckKey();
         Integer orderDiscount = jdbcTemplate.query(
                 "SELECT COALESCE(coupon_discount_cents, 0) FROM cabinet_order WHERE order_id = ?",
                 rs -> rs.next() ? rs.getInt(1) : null,
@@ -929,18 +929,18 @@ public class DataConsistencyService {
         return FixOutcome.ok("已释放 " + released + " 张错绑核销券");
     }
 
-    private FixOutcome fixInventoryMismatch(DataConsistencyRecord record) {
-        String[] parts = record.getCheckKey().split("\\|", 2);
+    private FixOutcome fixInventoryMismatch(DataConsistencyRecord consistencyRecord) {
+        String[] parts = consistencyRecord.getCheckKey().split("\\|", 2);
         if (parts.length < 2) {
             return FixOutcome.fail("库存键格式无效，期望 deviceId|skuId");
         }
         String sql = "UPDATE device_sku_inventory SET quantity = CAST(? AS INT) "
                 + "WHERE device_id = ? AND sku_id = ?";
-        int updated = jdbcTemplate.update(sql, record.getActualValue(), parts[0], parts[1]);
+        int updated = jdbcTemplate.update(sql, consistencyRecord.getActualValue(), parts[0], parts[1]);
         if (updated <= 0) {
             return FixOutcome.fail("未更新到库存行");
         }
-        return FixOutcome.ok("已将汇总库存改为在架批次合计 " + record.getActualValue());
+        return FixOutcome.ok("已将汇总库存改为在架批次合计 " + consistencyRecord.getActualValue());
     }
 
     public List<DataConsistencyRecord> getFailedChecks() {

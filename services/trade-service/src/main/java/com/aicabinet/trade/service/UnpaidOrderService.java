@@ -119,7 +119,7 @@ public class UnpaidOrderService {
         boolean sent = false;
         String message;
         if (user == null || user.getWxOpenId() == null || user.getWxOpenId().isBlank()) {
-            message = "用户未绑定微信，已记催付审计（请线下触达）";
+            message = "用户未绑定微信，已记催付审计（请线下触达�?;
         } else {
             String templateId = weChatMiniAppProperties.subscribeTemplateId();
             if (templateId == null || templateId.isBlank()) {
@@ -131,13 +131,13 @@ public class UnpaidOrderService {
                     templateId,
                     "pages/orders/orders",
                     Map.of(
-                            "thing1", "待支付订单提醒",
+                            "thing1", "待支付订单提�?,
                             "amount2", amount,
                             "time3", TIME_FMT.format(Instant.now())
                     ));
-            message = sent ? "催付订阅消息已发送" : "催付发送失败（请检查小程序订阅配置），已记审计";
+            message = sent ? "催付订阅消息已发�? : "催付发送失败（请检查小程序订阅配置），已记审计";
         }
-        auditService.record(operatorId, "ORDER_REMIND", ORDER, orderId, message);
+        auditService.appendLog(operatorId, "ORDER_REMIND", ORDER, orderId, message);
         return new UnpaidOrderActionResultDto(orderId, order.getStatus(), message, sent, false);
     }
 
@@ -158,11 +158,11 @@ public class UnpaidOrderService {
                 riskControlService.addBlacklist(operatorId, order.getUserId(),
                         "待支付关单：" + reason, expires);
             }
-            auditService.record(operatorId, "ORDER_CANCEL_UNPAID", ORDER, orderId,
-                    reason + (blacklist ? "；已拉黑用户 30 天" : ""));
+            auditService.appendLog(operatorId, "ORDER_CANCEL_UNPAID", ORDER, orderId,
+                    reason + (blacklist ? "；已拉黑用户 30 �? : ""));
             log.info("unpaid order cancelled order={} by={} blacklist={}", orderId, operatorId, blacklist);
             return new UnpaidOrderActionResultDto(orderId, STATUS_CANCELLED,
-                    blacklist ? "已关单并拉黑用户 30 天" : "待支付订单已关闭，库存已回滚", false, blacklist);
+                    blacklist ? "已关单并拉黑用户 30 �? : "待支付订单已关闭，库存已回滚", false, blacklist);
         });
     }
 
@@ -172,7 +172,7 @@ public class UnpaidOrderService {
         return runWithOrderPaymentLock(orderId, () -> {
             CabinetOrder order = requirePendingScoped(operatorId, orderId);
             markPaid(order);
-            auditService.record(operatorId, "ORDER_COLLECT_UNPAID", ORDER, orderId, "运营代收");
+            auditService.appendLog(operatorId, "ORDER_COLLECT_UNPAID", ORDER, orderId, "运营代收");
             return settlementService.getOrderBySession(order.getSessionId());
         });
     }
@@ -230,10 +230,10 @@ public class UnpaidOrderService {
             consumerPreauthService.releaseBySessionId(locked.getSessionId());
             if (autoBlacklist && locked.getUserId() != null) {
                 riskControlService.addBlacklist(0L, locked.getUserId(),
-                        "待支付超时自动关单", Instant.now().plus(7, ChronoUnit.DAYS));
+                        "待支付超时自动关�?, Instant.now().plus(7, ChronoUnit.DAYS));
             }
-            auditService.record(0L, "ORDER_AUTO_CANCEL_UNPAID", ORDER, locked.getOrderId(),
-                    "超时 " + hours + " 小时自动关单；是否拉黑=" + (autoBlacklist ? "是" : "否"));
+            auditService.appendLog(0L, "ORDER_AUTO_CANCEL_UNPAID", ORDER, locked.getOrderId(),
+                    "超时 " + hours + " 小时自动关单；是否拉�?" + (autoBlacklist ? "�? : "�?));
             return locked;
         });
         return cancelled != null;
@@ -367,7 +367,7 @@ public class UnpaidOrderService {
 
     private <T> T runWithOrderPaymentLock(String orderId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(OrderPaymentService.orderPaymentLockKey(orderId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单支付处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单支付处理中，请稍后重�?);
         }
         try {
             return action.get();

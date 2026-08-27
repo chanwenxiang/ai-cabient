@@ -96,7 +96,7 @@ public class VisionMappingService {
         String source = request.mappingSource();
         mapping.setMappingSource(source == null || source.isBlank() ? "EDGE_CLASS" : source.trim());
         yoloRepository.save(mapping);
-        auditService.record(operatorId, "VISION_YOLO_UPSERT", VISION, className,
+        auditService.appendLog(operatorId, "VISION_YOLO_UPSERT", VISION, className,
                 "sku=" + mapping.getSkuId() + " conf=" + mapping.getMinConfidence());
         return new YoloMappingDto(
                 mapping.getClassName(), mapping.getSkuId(), mapping.getMinConfidence(), mapping.getMappingSource());
@@ -111,7 +111,7 @@ public class VisionMappingService {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST);
             }
             yoloRepository.deleteById(key);
-            auditService.record(operatorId, "VISION_YOLO_DELETE", VISION, key, null);
+            auditService.appendLog(operatorId, "VISION_YOLO_DELETE", VISION, key, null);
             return null;
         });
     }
@@ -131,7 +131,7 @@ public class VisionMappingService {
         mapping.setSkuId(request.skuId().trim());
         mapping.setMinConfidence(request.minConfidence());
         aliyunRepository.save(mapping);
-        auditService.record(operatorId, "VISION_ALIYUN_UPSERT", VISION, categoryId,
+        auditService.appendLog(operatorId, "VISION_ALIYUN_UPSERT", VISION, categoryId,
                 "sku=" + mapping.getSkuId());
         return new AliyunMappingDto(
                 mapping.getCategoryId(), mapping.getCategoryName(), mapping.getSkuId(), mapping.getMinConfidence());
@@ -146,7 +146,7 @@ public class VisionMappingService {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST);
             }
             aliyunRepository.deleteById(key);
-            auditService.record(operatorId, "VISION_ALIYUN_DELETE", VISION, key, null);
+            auditService.appendLog(operatorId, "VISION_ALIYUN_DELETE", VISION, key, null);
             return null;
         });
     }
@@ -162,7 +162,7 @@ public class VisionMappingService {
     private <T> T runWithYoloLock(String className, java.util.function.Supplier<T> action) {
         String key = yoloMappingLockKey(className);
         if (!distributedLockService.tryLock(key, 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "识别映射处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "识别映射处理中，请稍后重�?);
         }
         try {
             return action.get();

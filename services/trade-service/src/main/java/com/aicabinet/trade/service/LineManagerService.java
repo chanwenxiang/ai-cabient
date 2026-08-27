@@ -49,7 +49,7 @@ public class LineManagerService {
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
-    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    /** �?Spring 代理调用本类 @Transactional 方法，避免自调用失效�?*/
     private final LineManagerService self;
 
     public LineManagerService(LineManagerMapper managerMapper,
@@ -191,11 +191,11 @@ public class LineManagerService {
         }
         String dev = deviceId.trim();
         if (deviceInfoMapper.selectById(dev) == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存�?);
         }
         deviceMapper.findByDeviceIdAndStatus(dev, STATUS_ACTIVE).ifPresent(existing -> {
             if (!existing.getManagerId().equals(managerId)) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "设备已绑定其他线长");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "设备已绑定其他线�?);
             }
         });
         if (deviceMapper.findByDeviceIdAndStatus(dev, STATUS_ACTIVE).isEmpty()) {
@@ -217,7 +217,7 @@ public class LineManagerService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备编号必填");
         }
         LineDevice ld = deviceMapper.findByDeviceIdAndStatus(deviceId.trim(), STATUS_ACTIVE)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备未绑定"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备未绑�?));
         if (!ld.getManagerId().equals(managerId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备不属于该线长");
         }
@@ -232,7 +232,7 @@ public class LineManagerService {
         permissionService.requirePermission(operatorId, PERM_OPS_LINE_MANAGER_EDIT);
         requireManager(managerId);
         if (amountCents == 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "调账金额不能为 0");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "调账金额不能�?0");
         }
         return runWithLineWalletLock(managerId, () -> {
             String refId = "ADJ-" + operatorId + "-" + System.currentTimeMillis();
@@ -241,8 +241,8 @@ public class LineManagerService {
             } else {
                 lineWalletService.debit(managerId, -amountCents, "ADJUST", "OPS_ADJUST", refId, remark);
             }
-            auditService.record(operatorId, "LINE_MANAGER_ADJUST", "LINE_MANAGER",
-                    String.valueOf(managerId), "金额(分)=" + amountCents + "；备注=" + remark);
+            auditService.appendLog(operatorId, "LINE_MANAGER_ADJUST", "LINE_MANAGER",
+                    String.valueOf(managerId), "金额(�?=" + amountCents + "；备�?" + remark);
             return toDto(requireManager(managerId));
         });
     }
@@ -310,7 +310,7 @@ public class LineManagerService {
 
     LineManager requireManager(long managerId) {
         return managerMapper.findById(managerId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "线长不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "线长不存�?));
     }
 
     private static long value(Long value) {
@@ -353,7 +353,7 @@ public class LineManagerService {
 
     private <T> T runWithLineWalletLock(long managerId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(LineWithdrawService.lineWalletLockKey(managerId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "钱包处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "钱包处理中，请稍后重�?);
         }
         try {
             return action.get();

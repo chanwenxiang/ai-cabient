@@ -15,7 +15,7 @@ public class AdminAuditService {
     }
 
     @Transactional
-    public void record(Long operatorId, String action, String targetType, String targetId, String detail) {
+    public void appendLog(Long operatorId, String action, String targetType, String targetId, String detail) {
         AdminAuditLog log = new AdminAuditLog();
         log.setOperatorId(operatorId);
         log.setAction(action);

@@ -24,13 +24,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 广告/多媒体投放计划：DRAFT/RUNNING/STOPPED 生命周期，设备屏按当前生效计划拉取轮播内容。
- */
+ * 广告/多媒体投放计划：DRAFT/RUNNING/STOPPED 生命周期，设备屏按当前生效计划拉取轮播内容�? */
 @Service
 public class AdCampaignService {
     private static final String AD_CAMPAIGN = "AD_CAMPAIGN";
     private static final String SPECIFIC = "SPECIFIC";
-    private static final String LITERAL = "投放计划不存在";
+    private static final String LITERAL = "投放计划不存�?;
     private static final String NAME = "name=";
 
 
@@ -80,7 +79,7 @@ public class AdCampaignService {
 
     private AdCampaignDto doUpsert(Long operatorId, Long campaignId, UpsertAdCampaignRequest request) {
         if (request.assetIds() == null || request.assetIds().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "投放计划至少需要一个素材");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "投放计划至少需要一个素�?);
         }
         String scope = request.deviceScope() == null || request.deviceScope().isBlank()
                 ? "ALL" : request.deviceScope().trim().toUpperCase();
@@ -90,7 +89,7 @@ public class AdCampaignService {
         }
         for (Long assetId : request.assetIds()) {
             assetRepository.findById(assetId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "素材不存在: " + assetId));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "素材不存�? " + assetId));
         }
 
         AdCampaign campaign;
@@ -117,7 +116,7 @@ public class AdCampaignService {
         }
         replaceItems(campaign.getCampaignId(), request.assetIds());
         replaceDevices(campaign.getCampaignId(), scope, request.deviceIds());
-        auditService.record(operatorId, "AD_CAMPAIGN_UPSERT", AD_CAMPAIGN,
+        auditService.appendLog(operatorId, "AD_CAMPAIGN_UPSERT", AD_CAMPAIGN,
                 String.valueOf(campaign.getCampaignId()), NAME + campaign.getName());
         return toDto(campaign);
     }
@@ -127,12 +126,12 @@ public class AdCampaignService {
         return runWithCampaignLock(campaignId, () -> {
             AdCampaign campaign = requireCampaignForUpdate(campaignId);
             if (itemRepository.findByCampaignId(campaignId).isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "投放计划没有素材，无法上线");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "投放计划没有素材，无法上�?);
             }
             campaign.setStatus("RUNNING");
             campaign.setUpdatedAt(Instant.now());
             campaignRepository.updateById(campaign);
-            auditService.record(operatorId, "AD_CAMPAIGN_LAUNCH", AD_CAMPAIGN,
+            auditService.appendLog(operatorId, "AD_CAMPAIGN_LAUNCH", AD_CAMPAIGN,
                     String.valueOf(campaignId), NAME + campaign.getName());
             return toDto(campaign);
         });
@@ -145,7 +144,7 @@ public class AdCampaignService {
             campaign.setStatus("STOPPED");
             campaign.setUpdatedAt(Instant.now());
             campaignRepository.updateById(campaign);
-            auditService.record(operatorId, "AD_CAMPAIGN_STOP", AD_CAMPAIGN,
+            auditService.appendLog(operatorId, "AD_CAMPAIGN_STOP", AD_CAMPAIGN,
                     String.valueOf(campaignId), NAME + campaign.getName());
             return toDto(campaign);
         });
@@ -156,18 +155,18 @@ public class AdCampaignService {
         runWithCampaignLock(campaignId, () -> {
             AdCampaign campaign = requireCampaignForUpdate(campaignId);
             if ("RUNNING".equalsIgnoreCase(campaign.getStatus())) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "投放中的计划请先停止再删除");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "投放中的计划请先停止再删�?);
             }
             itemRepository.deleteByCampaignId(campaignId);
             deviceRepository.deleteByCampaignId(campaignId);
             campaignRepository.deleteById(campaignId);
-            auditService.record(operatorId, "AD_CAMPAIGN_DELETE", AD_CAMPAIGN,
+            auditService.appendLog(operatorId, "AD_CAMPAIGN_DELETE", AD_CAMPAIGN,
                     String.valueOf(campaignId), NAME + campaign.getName());
             return null;
         });
     }
 
-    /** 设备屏内容（内部接口）：取当前时间窗口内 RUNNING 的投放计划（全部设备或包含该设备），返回轮播素材。 */
+    /** 设备屏内容（内部接口）：取当前时间窗口内 RUNNING 的投放计划（全部设备或包含该设备），返回轮播素材�?*/
     @Transactional(readOnly = true)
     public ScreenContentDto screenContent(String deviceId) {
         Instant now = Instant.now();
@@ -193,7 +192,7 @@ public class AdCampaignService {
         return new ScreenContentDto(null, null, List.of());
     }
 
-    /** 设备屏回写曝光/完播，供投放 ROI 留痕。 */
+    /** 设备屏回写曝�?完播，供投放 ROI 留痕�?*/
     @Transactional
     public void recordPlayEvent(String deviceId, Long campaignId, Long assetId, String eventType) {
         if (deviceId == null || deviceId.isBlank() || campaignId == null) {
@@ -201,7 +200,7 @@ public class AdCampaignService {
         }
         String type = eventType == null ? "" : eventType.trim().toUpperCase();
         if (!type.equals("IMPRESSION") && !type.equals("COMPLETE") && !type.equals("CLICK")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "eventType 仅支持 IMPRESSION/COMPLETE/CLICK");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "eventType 仅支�?IMPRESSION/COMPLETE/CLICK");
         }
         requireCampaign(campaignId);
         AdPlayEvent ev = new AdPlayEvent();
@@ -270,7 +269,7 @@ public class AdCampaignService {
 
     private <T> T runWithCampaignLock(Long campaignId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(campaignLockKey(campaignId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "广告投放计划处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "广告投放计划处理中，请稍后重�?);
         }
         try {
             return action.get();

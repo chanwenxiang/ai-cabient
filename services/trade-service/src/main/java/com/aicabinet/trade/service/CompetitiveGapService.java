@@ -53,7 +53,7 @@ public class CompetitiveGapService {
     private final SecurityProperties securityProperties;
     private final OpsUserRouteScopeMapper routeScopeMapper;
     private final DistributedLockService distributedLockService;
-    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    /** �?Spring 代理调用本类 @Transactional 方法，避免自调用失效�?*/
     private final CompetitiveGapService self;
 
     public CompetitiveGapService(OpsUserDeviceScopeMapper deviceScopeMapper,
@@ -126,7 +126,7 @@ public class CompetitiveGapService {
         routeScopeMapper.deleteByUserId(userId);
         persistDeviceScopes(userId, mode, body.deviceIds());
         persistRouteScopes(userId, mode, body.routeCodes());
-        auditService.record(operatorId, "OPS_USER_DEVICE_SCOPE", "USER", String.valueOf(userId), mode);
+        auditService.appendLog(operatorId, "OPS_USER_DEVICE_SCOPE", "USER", String.valueOf(userId), mode);
         return self.getUserDeviceScope(operatorId, userId);
     }
 
@@ -137,7 +137,7 @@ public class CompetitiveGapService {
             mode = DEVICE_IDS;
         }
         if (!Set.of("ALL", DEVICE_IDS, "ROUTE").contains(mode)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scopeMode 仅支持 ALL / DEVICE_IDS / ROUTE");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scopeMode 仅支�?ALL / DEVICE_IDS / ROUTE");
         }
         return mode;
     }
@@ -249,7 +249,7 @@ public class CompetitiveGapService {
         if (deviceId != null && !deviceId.isBlank()) {
             merchantScopeService.requireDeviceAccess(operatorId, deviceId.trim());
         }
-        // 仅本地 mock：列表为空时补演示事件；生产应由真实心跳/扫描任务写事件，禁止读接口写库
+        // 仅本�?mock：列表为空时补演示事件；生产应由真实心跳/扫描任务写事件，禁止读接口写�?
         if (securityProperties.mockEnabled()) {
             ensureSyntheticOfflineEvents(allowed);
             ensureNoSalesEvents(allowed);
@@ -279,7 +279,7 @@ public class CompetitiveGapService {
         permissionService.requireAnyPermission(operatorId, "ops:device:list", "ops:device:edit");
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         DeviceInfo d = deviceInfoMapper.findById(deviceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存�?));
         return toPolicy(d);
     }
 
@@ -292,11 +292,11 @@ public class CompetitiveGapService {
 
     private DevicePolicyDto doUpdateDevicePolicy(Long operatorId, String deviceId, DevicePolicyDto body) {
         DeviceInfo d = deviceInfoMapper.findByIdForUpdate(deviceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存�?));
         d.setPriceLocked(body.priceLocked());
         d.setSkuEditForbidden(body.skuEditForbidden());
 
-        // 禁售 ⇒ 营业锁机；二者与运维「锁机停售」共用 DeviceSalesLockService（DB + MQTT）
+        // 禁售 �?营业锁机；二者与运维「锁机停售」共�?DeviceSalesLockService（DB + MQTT�?
         boolean wantForbidden = body.saleForbidden();
         boolean wantLocked = body.salesLocked() || wantForbidden;
         boolean wasLocked = d.salesLockedEnabled();
@@ -315,13 +315,13 @@ public class CompetitiveGapService {
             }
             salesLockService.applySalesLock(operatorId, d, wantLocked, reason, true);
             if (wantForbidden) {
-                // 解锁逻辑会清禁售；此处锁机+禁售需保持禁售标记
+                // 解锁逻辑会清禁售；此处锁�?禁售需保持禁售标记
                 d.setSaleForbidden(true);
                 deviceInfoMapper.save(d);
             }
         }
 
-        auditService.record(operatorId, "DEVICE_POLICY", DEVICE, deviceId,
+        auditService.appendLog(operatorId, "DEVICE_POLICY", DEVICE, deviceId,
                 "priceLocked=" + body.priceLocked()
                         + ";skuEdit=" + body.skuEditForbidden()
                         + ";saleForbidden=" + wantForbidden
@@ -382,7 +382,7 @@ public class CompetitiveGapService {
         return new PageResult<>(all.subList(from, to), p, s, all.size());
     }
 
-    /** 商户可读子集：商品 / 货柜 / 毛利（不含跨商户 MERCHANT 维）。 */
+    /** 商户可读子集：商�?/ 货柜 / 毛利（不含跨商户 MERCHANT 维）�?*/
     @Transactional(readOnly = true)
     public List<SalesReportRowDto> salesReportForDevices(Set<String> deviceIds, String dim,
                                                          String fromDate, String toDate) {
@@ -401,7 +401,7 @@ public class CompetitiveGapService {
         };
     }
 
-    /** 短信/渠道验证成功后写入审计流水（无运营权限校验）。 */
+    /** 短信/渠道验证成功后写入审计流水（无运营权限校验）�?*/
     @Transactional
     public void auditPhoneVerify(Long userId, String phone, String channel) {
         if (phone == null || phone.isBlank()) {
@@ -470,7 +470,7 @@ public class CompetitiveGapService {
     public PhoneVerifyLogDto recordPhoneVerify(Long operatorId, PhoneVerifyLogDto body) {
         permissionService.requireAnyPermission(operatorId, PERM_OPS_PHONE_VERIFY_LIST, PERM_OPS_USER_LIST);
         if (body.phone() == null || body.phone().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "手机号不能为空");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "手机号不能为�?);
         }
         PhoneVerifyLog log = new PhoneVerifyLog();
         log.setUserId(body.userId());
@@ -490,9 +490,9 @@ public class CompetitiveGapService {
 
     private PhoneVerifyLogDto doUpdatePhoneVerify(Long logId, PhoneVerifyLogDto body) {
         PhoneVerifyLog log = phoneVerifyLogMapper.findByIdForUpdate(logId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "验证记录不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "验证记录不存�?));
         if (body.phone() == null || body.phone().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "手机号不能为空");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "手机号不能为�?);
         }
         log.setUserId(body.userId());
         log.setPhone(body.phone().trim());
@@ -513,7 +513,7 @@ public class CompetitiveGapService {
 
     private void doDeletePhoneVerify(Long logId) {
         if (phoneVerifyLogMapper.findByIdForUpdate(logId).isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "验证记录不存在");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "验证记录不存�?);
         }
         phoneVerifyLogMapper.deleteById(logId);
     }
@@ -540,7 +540,7 @@ public class CompetitiveGapService {
 
     private <T> T runWithLock(String lockKey, Supplier<T> action) {
         if (!distributedLockService.tryLock(lockKey, 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "配置处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "配置处理中，请稍后重�?);
         }
         try {
             return action.get();
@@ -619,7 +619,7 @@ public class CompetitiveGapService {
                 e.setDeviceId(d.getDeviceId());
                 e.setEventType("NO_SALES");
                 e.setSeverity("WARN");
-                e.setTitle("近7日无销售");
+                e.setTitle("�?日无销�?);
                 e.setDetail("生命周期：已部署");
                 e.setCreatedAt(Instant.now());
                 deviceOpsEventMapper.insert(e);
@@ -711,7 +711,7 @@ public class CompetitiveGapService {
         return map.entrySet().stream()
                 .map(e -> new SalesReportRowDto(
                         e.getKey(),
-                        names.getOrDefault(e.getKey(), e.getKey().isBlank() ? "(未绑定)" : e.getKey()),
+                        names.getOrDefault(e.getKey(), e.getKey().isBlank() ? "(未绑�?" : e.getKey()),
                         e.getValue().orderCount, e.getValue().qty, e.getValue().revenue,
                         e.getValue().cogs, e.getValue().revenue - e.getValue().cogs))
                 .sorted((a, b) -> Long.compare(b.revenueCents(), a.revenueCents()))
