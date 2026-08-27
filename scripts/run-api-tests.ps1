@@ -149,9 +149,9 @@ try {
 }
 
 foreach ($pair in @(
-    @{ Id = "TC-INFRA-002"; Url = "http://localhost:18080/actuator/health" },
-    @{ Id = "TC-INFRA-003"; Url = "http://localhost:18081/actuator/health" },
-    @{ Id = "TC-INFRA-004"; Url = "http://localhost:18082/health" }
+    @{ Id = "TC-INFRA-002"; Url = "$BaseUrl/actuator/health" },
+    @{ Id = "TC-INFRA-003"; Url = "$(Get-E2eDeviceUrl)/actuator/health" },
+    @{ Id = "TC-INFRA-004"; Url = "$(Get-E2eVisionUrl)/health" }
 )) {
     try {
         $h = Invoke-RestMethod -Uri $pair.Url -TimeoutSec 5
