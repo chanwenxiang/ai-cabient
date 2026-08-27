@@ -307,8 +307,13 @@ public class NotificationService {
     private NotificationDto doSendManual(Long operatorId, AdminManualNotificationRequest body, String audience,
                                          String title, String content, Long userId, String merchantId) {
         String bizType = body.bizType() == null || body.bizType().isBlank() ? "OPS_MANUAL" : body.bizType().trim();
-        String bizId = body.bizId() == null || body.bizId().isBlank()
-                ? "OPS-" + (operatorId == null ? 0 : operatorId) : body.bizId().trim();
+        String bizId;
+        if (body.bizId() == null || body.bizId().isBlank()) {
+            long operatorKey = operatorId == null ? 0 : operatorId;
+            bizId = "OPS-" + operatorKey;
+        } else {
+            bizId = body.bizId().trim();
+        }
         NotificationLog record = new NotificationLog();
         record.setTemplateCode("OPS_MANUAL");
         record.setChannel(IN_APP);

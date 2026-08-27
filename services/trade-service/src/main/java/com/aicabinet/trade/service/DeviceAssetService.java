@@ -303,8 +303,12 @@ public class DeviceAssetService {
                                                       Map<String, SkuCatalog> skus, int qty,
                                                       String kind, boolean stockout) {
         int capacity = Math.max(row.getCapacity(), 0);
-        double rate = capacity <= 0 ? (stockout ? 100d : 0d)
-                : Math.max(0d, (1d - (qty * 1d / capacity)) * 100d);
+        double rate;
+        if (capacity <= 0) {
+            rate = stockout ? 100d : 0d;
+        } else {
+            rate = Math.max(0d, (1d - (qty * 1d / capacity)) * 100d);
+        }
         Integer daysOut = stockout ? estimateDaysOut(row.getDeviceId(), row.getSkuId(), row.getUpdatedAt()) : null;
         SkuCatalog sku = skus.get(row.getSkuId());
         return new StockHealthRowDto(

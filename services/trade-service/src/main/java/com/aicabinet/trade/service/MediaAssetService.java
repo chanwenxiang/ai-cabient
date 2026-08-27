@@ -78,7 +78,7 @@ public class MediaAssetService {
         asset.setTitle(title == null || title.isBlank() ? file.getOriginalFilename() : title.trim());
         asset.setAssetType(type);
         asset.setStorageUri(storageUri);
-        asset.setDurationSeconds(durationSeconds > 0 ? durationSeconds : (type.equals(VIDEO) ? 0 : 10));
+        asset.setDurationSeconds(resolveDurationSeconds(durationSeconds, type));
         asset.setStatus("ACTIVE");
         asset.setUploadedBy(operatorId);
         assetRepository.insert(asset);
@@ -190,5 +190,12 @@ public class MediaAssetService {
             return "bin";
         }
         return filename.substring(filename.lastIndexOf('.') + 1).replaceAll("[^a-zA-Z0-9]", "bin");
+    }
+
+    private static int resolveDurationSeconds(int durationSeconds, String type) {
+        if (durationSeconds > 0) {
+            return durationSeconds;
+        }
+        return VIDEO.equals(type) ? 0 : 10;
     }
 }

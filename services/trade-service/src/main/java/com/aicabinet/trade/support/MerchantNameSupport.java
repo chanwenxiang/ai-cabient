@@ -54,7 +54,7 @@ public final class MerchantNameSupport {
             return storedReason;
         }
         if (reviewCode == null || reviewCode.isBlank()) {
-            return isCorrupted(storedReason) ? "识别结果需人工审核" : (storedReason == null ? "" : storedReason);
+            return fallbackStoredReason(storedReason);
         }
         return switch (reviewCode.trim().toUpperCase()) {
             case "GRAVITY_FILL" -> "视觉为空，仅有重力信号（非生产识别精度），需人工审核";
@@ -63,7 +63,14 @@ public final class MerchantNameSupport {
             case "LOW_CONFIDENCE" -> "识别置信度不足，需人工审核";
             case "EMPTY" -> "未识别到商品，需人工审核";
             case "TIMEOUT" -> "识别超时，已转人工审核，本次暂未扣款";
-            default -> isCorrupted(storedReason) ? "识别结果需人工审核" : (storedReason == null ? "" : storedReason);
+            default -> fallbackStoredReason(storedReason);
         };
+    }
+
+    private static String fallbackStoredReason(String storedReason) {
+        if (isCorrupted(storedReason)) {
+            return "识别结果需人工审核";
+        }
+        return storedReason == null ? "" : storedReason;
     }
 }

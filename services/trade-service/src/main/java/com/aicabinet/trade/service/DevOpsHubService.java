@@ -182,7 +182,14 @@ public class DevOpsHubService {
             String healthBaseUrl,
             String healthPath) {
         boolean online = healthPath != null && ping(healthBaseUrl, healthPath);
-        String hint = online ? "在线" : (healthPath == null ? "外部链接" : "未检测到服务");
+        String hint;
+        if (online) {
+            hint = "在线";
+        } else if (healthPath == null) {
+            hint = "外部链接";
+        } else {
+            hint = "未检测到服务";
+        }
         return new DevOpsToolDto(id, name, description, baseUrl, embedUrl, online, hint);
     }
 

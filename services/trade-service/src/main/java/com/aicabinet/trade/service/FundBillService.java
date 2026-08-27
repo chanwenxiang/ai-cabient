@@ -255,15 +255,12 @@ public class FundBillService {
         Instant start = day.atStartOfDay(ZONE).toInstant();
         Instant end = day.plusDays(1).atStartOfDay(ZONE).toInstant();
         Set<String> deviceIds = operatorId == null ? null : merchantScopeService.allowedDeviceIds(operatorId);
-        long revenue = deviceIds == null
-                ? orderMapper.sumTotalAmountBetween(start, end)
-                : deviceIds.isEmpty() ? 0 : orderMapper.sumTotalAmountByDeviceIdInBetween(deviceIds, start, end);
-        long cogs = deviceIds == null
-                ? lineMapper.sumCogsBetween(start, end)
-                : deviceIds.isEmpty() ? 0 : lineMapper.sumCogsByDeviceIdsBetween(deviceIds, start, end);
-        long writeOff = deviceIds == null
-                ? writeOffMapper.sumCostCentsBetween(start, end)
-                : deviceIds.isEmpty() ? 0 : writeOffMapper.sumCostCentsByDeviceIdsBetween(deviceIds, start, end);
+        long revenue = sumScoped(deviceIds, () -> orderMapper.sumTotalAmountBetween(start, end),
+                () -> orderMapper.sumTotalAmountByDeviceIdInBetween(deviceIds, start, end));
+        long cogs = sumScoped(deviceIds, () -> lineMapper.sumCogsBetween(start, end),
+                () -> lineMapper.sumCogsByDeviceIdsBetween(deviceIds, start, end));
+        long writeOff = sumScoped(deviceIds, () -> writeOffMapper.sumCostCentsBetween(start, end),
+                () -> writeOffMapper.sumCostCentsByDeviceIdsBetween(deviceIds, start, end));
         long orderCount = countOrdersBetween(deviceIds, start, end);
 
         FinanceMarginDailyLock lock = marginLockMapper.findById(day).orElseGet(FinanceMarginDailyLock::new);
@@ -399,6 +396,18 @@ public class FundBillService {
         }
         String s = v.replace("\"", "\"\"");
         return s.contains(",") ? "\"" + s + "\"" : s;
+    }
+
+    private static long sumScoped(Set<String> deviceIds,
+                                  java.util.function.LongSupplier allScope,
+                                  java.util.function.LongSupplier scoped) {
+        if (deviceIds == null) {
+            return allScope.getAsLong();
+        }
+        if (deviceIds.isEmpty()) {
+            return 0;
+        }
+        return scoped.getAsLong();
     }
 
     private static class Agg {

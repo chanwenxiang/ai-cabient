@@ -15,6 +15,7 @@ import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.mapper.OpsExceptionMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -128,11 +129,14 @@ public class OpsExceptionService {
         var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100));
         if (deviceIds != null && deviceIds.isEmpty()) return new PageResult<>(List.of(), page, size, 0);
         String statusFilter = status == null || status.isBlank() ? null : status.trim().toUpperCase();
-        var result = deviceIds == null
-                ? repository.findFiltered(statusFilter, null, false, pageable)
-                : (statusFilter == null
-                ? repository.findByDeviceIdInOrderByCreatedAtDesc(deviceIds, pageable)
-                : repository.findByDeviceIdInAndStatusOrderByCreatedAtDesc(deviceIds, statusFilter, pageable));
+        Page<OpsException> result;
+        if (deviceIds == null) {
+            result = repository.findFiltered(statusFilter, null, false, pageable);
+        } else if (statusFilter == null) {
+            result = repository.findByDeviceIdInOrderByCreatedAtDesc(deviceIds, pageable);
+        } else {
+            result = repository.findByDeviceIdInAndStatusOrderByCreatedAtDesc(deviceIds, statusFilter, pageable);
+        }
         return new PageResult<>(result.getContent().stream().map(this::toDto).toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements());
     }

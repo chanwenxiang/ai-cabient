@@ -584,9 +584,14 @@ public class CouponService {
     private CouponDto toDto(UserCoupon uc, CouponDefinition def) {
         String name = def != null ? def.getCouponName() : "未知优惠券";
         String type = def != null ? def.getCouponType() : "AMOUNT_OFF";
-        int denomination = def != null
-                ? def.getDenominationCents()
-                : (uc.getDiscountCents() != null ? uc.getDiscountCents() : 0);
+        int denomination;
+        if (def != null) {
+            denomination = def.getDenominationCents();
+        } else if (uc.getDiscountCents() != null) {
+            denomination = uc.getDiscountCents();
+        } else {
+            denomination = 0;
+        }
         int minSpend = def != null ? def.getMinSpendCents() : 0;
         return new CouponDto(
                 uc.getCouponId(),

@@ -400,7 +400,7 @@ public class MerchantFinanceService {
         long settled = toLong(at(row, 8));
         long pending = toLong(at(row, 9));
         long failed = toLong(at(row, 10));
-        String status = failed > 0 ? "PARTIAL_FAILED" : (pending > 0 ? "PENDING" : "SETTLED");
+        String status = settlementBatchStatus(failed, pending, "PENDING");
         return new MerchantSettlementBatchDto(
                 batchNo, merchantId, merchantNames.get(merchantId), settleAfter, settledAt,
                 orderCount, gross, platform, merchant, settled, pending, failed, status
@@ -430,7 +430,7 @@ public class MerchantFinanceService {
         return new ProfitSharingStatusDto(
                 enabled, apiReady, profitSharingProperties.retryEnabled(),
                 profitSharingProperties.retryBatchSize(),
-                mock ? "MOCK" : (weChatPayProperties.isConfigured() ? "CONFIGURED" : "MISSING"),
+                wechatConfigLabel(mock, weChatPayProperties.isConfigured()),
                 note
         );
     }
@@ -549,5 +549,22 @@ public class MerchantFinanceService {
         }
         return LocalDate.now(ZoneId.systemDefault()).plusDays(1)
                 .atStartOfDay(ZoneId.systemDefault()).toInstant();
+    }
+
+    private static String wechatConfigLabel(boolean mock, boolean configured) {
+        if (mock) {
+            return "MOCK";
+        }
+        return configured ? "CONFIGURED" : "MISSING";
+    }
+
+    private static String settlementBatchStatus(long failed, long pending, String pendingStatus) {
+        if (failed > 0) {
+            return "PARTIAL_FAILED";
+        }
+        if (pending > 0) {
+            return pendingStatus;
+        }
+        return "SETTLED";
     }
 }

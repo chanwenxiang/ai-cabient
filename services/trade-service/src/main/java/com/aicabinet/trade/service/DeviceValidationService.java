@@ -149,8 +149,14 @@ public class DeviceValidationService {
         if (!active.isEmpty()) {
             boolean restock = active.stream().anyMatch(DeviceValidationService::isRestockSession);
             boolean ops = active.stream().anyMatch(DeviceValidationService::isOpsRemoteSession);
-            String msg = restock ? ApiMessages.RESTOCK_DOOR_SESSION_BUSY
-                    : (ops ? "设备运维开门会话进行中，请先关门或结束后再试" : ApiMessages.DEVICE_BUSY);
+            String msg;
+            if (restock) {
+                msg = ApiMessages.RESTOCK_DOOR_SESSION_BUSY;
+            } else if (ops) {
+                msg = "设备运维开门会话进行中，请先关门或结束后再试";
+            } else {
+                msg = ApiMessages.DEVICE_BUSY;
+            }
             throw new ResponseStatusException(HttpStatus.CONFLICT, msg);
         }
     }

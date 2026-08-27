@@ -716,8 +716,7 @@ public class InventoryLotService {
         if (slot == null) {
             return;
         }
-        int cap = slot.getMaxLevel() > 0 ? slot.getMaxLevel()
-                : (slot.getParLevel() > 0 ? slot.getParLevel() : 0);
+        int cap = slotCapacity(slot, 0);
         if (cap > 0 && targetQty > cap) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     String.format(com.aicabinet.trade.support.ApiMessages.SLOT_QTY_OVER_CAPACITY,
@@ -735,8 +734,7 @@ public class InventoryLotService {
         if (slot == null) {
             return;
         }
-        int cap = slot.getMaxLevel() > 0 ? slot.getMaxLevel()
-                : (slot.getParLevel() > 0 ? slot.getParLevel() : 0);
+        int cap = slotCapacity(slot, 0);
         if (cap <= 0) {
             return;
         }
@@ -861,5 +859,15 @@ public class InventoryLotService {
         } finally {
             distributedLockService.unlock(lockKey);
         }
+    }
+
+    private static int slotCapacity(DeviceSlot slot, int whenBothZero) {
+        if (slot.getMaxLevel() > 0) {
+            return slot.getMaxLevel();
+        }
+        if (slot.getParLevel() > 0) {
+            return slot.getParLevel();
+        }
+        return whenBothZero;
     }
 }
