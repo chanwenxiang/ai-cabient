@@ -13,22 +13,11 @@ services:
       AICABINET_SECURITY_MOCK_ENABLED: "false"
 
   vision-service:
-    build:
-      args:
-        INSTALL_ML: ${VISION_INSTALL_ML:-true}
-        SKU_MODEL_FILE: ${VISION_SKU_MODEL_FILE:-}
     environment:
       MOCK_ENABLED: "false"
-      YOLO_AUTO_DOWNLOAD: ${YOLO_AUTO_DOWNLOAD:-false}
-      YOLO_MODEL_PATH: ${YOLO_MODEL_PATH:-/app/models/cabinet-skus-v1.0.0.pt}
-      YOLO_MODEL_VERSION: ${YOLO_MODEL_VERSION:-cabinet-skus-v1.0.0}
-      YOLO_CONF: ${YOLO_CONF:-0.45}
-      YOLO_REVIEW_CONF: ${YOLO_REVIEW_CONF:-0.72}
-      RECOGNIZER_BACKEND: ${RECOGNIZER_BACKEND:-yolo}
+      RECOGNIZER_BACKEND: ${RECOGNIZER_BACKEND:-mock}
       KAFKA_ENABLED: ${KAFKA_ENABLED:-true}
       KAFKA_BOOTSTRAP: ${KAFKA_BOOTSTRAP:-redpanda:9092}
-    volumes:
-      - ${VISION_MODEL_HOST_PATH:-./models/production}:/app/models:ro
 
   device-service:
     environment:

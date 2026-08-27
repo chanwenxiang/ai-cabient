@@ -25,7 +25,7 @@
 | `services/trade-service` | 交易服务 | 会话、订单、结算、运营 API |
 | `services/device-service` | 设备服务 | MQTT、设备状态 |
 | `services/common/common-core` | 公共核心库 | DTO、枚举 |
-| `vision-service` | 视觉识别服务 | FastAPI + YOLO |
+| `vision-service` | 视觉 mock / 争议辅助 | FastAPI（无端侧模型） |
 | `edge/device-simulator` | 设备模拟器 | 本地联调 |
 | `edge/android-app` | 柜机端 App | Android |
 | `infra/` | 基础设施 | Docker / 网关 |
@@ -54,7 +54,7 @@
 
 > **启动速查**（端口、账号）：[docs/STARTUP_REFERENCE.md](docs/STARTUP_REFERENCE.md)
 
-> **YOLO 识别测试**：[docs/VISION_YOLO_TEST.md](docs/VISION_YOLO_TEST.md)
+> **端侧识别对接**：[docs/VISION_QUECTEL_INTEGRATION.md](docs/VISION_QUECTEL_INTEGRATION.md)
 
 > **生产部署**：[docs/PRODUCTION.md](docs/PRODUCTION.md)
 

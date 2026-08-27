@@ -4,21 +4,22 @@
 
 ## 1. 背景与目标
 
-现视觉链路为云端识别：柜机摄像头录像 → MinIO → `trade-service` 调 `vision-service`
-（YOLO delta / DeepSeek 兜底）→ SKU 清单 → 结算。
+现视觉链路规划为端侧识别：柜机摄像头 → **端侧 AI 提供方**推理 → SKU 清单上报 trade-service 结算。
+
+开发联调仍可用云端 vision-service mock（`MOCK_ENABLED=true`）。
 
 计划对接移远 OpenVending（端侧 AI：摄像头 + AI 算力模组/边缘盒），目标：
 
 1. 识别下沉到端侧，结算更快、更省云端算力；
 2. 端侧异常行为事件（错拿 / 遮挡 / 防撬 / 异常开门）实时上报，补齐运营闭环；
-3. 云端 YOLO 保留为低置信度兜底与复核通道。
+3. 云端不再维护自研 YOLO；低置信度进争议/人工复核。
 
 ## 2. 目标架构
 
 ```text
 移远摄像头/边缘盒 ── 端侧识别结果 + 异常事件 ──► device-service / trade-service（内部 API）
         │                                                  │
-        └── 低置信度/复核 ──► vision-service（云端 YOLO）──┘
+        └── 低置信度 ──► 争议/人工复核 ─────────────────────┘
                                                           │
                                     异常中心(VISION_ANOMALY) + 钉钉/企微告警
 ```

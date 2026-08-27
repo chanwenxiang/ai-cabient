@@ -1,40 +1,26 @@
-﻿"""识别引擎工厂：yolo | yolo_deepseek（YOLO delta + DeepSeek 兜底）。"""
+﻿"""识别引擎工厂：mock（开发联调）| quectel（端侧提供方占位）。"""
 
 from __future__ import annotations
 
 import logging
 import os
 
-from app.recognition.deepseek_recognizer import DeepSeekRecognizer
+from app.recognition.mock_recognizer import MockRecognizer
 from app.recognition.quectel_recognizer import QuectelRecognizer
-from app.recognition.yolo_deepseek_recognizer import YoloDeepSeekRecognizer
-from app.recognition.yolo_recognizer import YoloRecognizer
 
 log = logging.getLogger(__name__)
 
-RECOGNIZER_BACKEND = os.getenv("RECOGNIZER_BACKEND", "yolo").lower().strip()
-_DEPRECATED_BACKENDS = frozenset({"hybrid"})
+RECOGNIZER_BACKEND = os.getenv("RECOGNIZER_BACKEND", "mock").lower().strip()
+_DEPRECATED_BACKENDS = frozenset({"yolo", "yolo_deepseek", "hybrid"})
 
 
 def create_recognizer():
     if RECOGNIZER_BACKEND == "quectel":
-        # 移远端侧识别：端侧结果直通平台；此处保留云端占位，SDK 就绪前不可用
         return QuectelRecognizer()
-    yolo = YoloRecognizer()
     if RECOGNIZER_BACKEND in _DEPRECATED_BACKENDS:
         log.warning(
-            "RECOGNIZER_BACKEND=%s is deprecated; using yolo",
+            "RECOGNIZER_BACKEND=%s is removed; using mock (edge recognition is external)",
             RECOGNIZER_BACKEND,
         )
-        return yolo
-    if RECOGNIZER_BACKEND == "yolo_deepseek":
-        deepseek = DeepSeekRecognizer()
-        log.info(
-            "recognizer backend=yolo_deepseek yolo=%s deepseek=%s",
-            yolo.available,
-            deepseek.available,
-        )
-        return YoloDeepSeekRecognizer(yolo, deepseek)
-    log.info("recognizer backend=yolo mode=%s", os.getenv("YOLO_RECOGNITION_MODE", "delta"))
-    return yolo
-
+    log.info("recognizer backend=mock (production uses edge provider results)")
+    return MockRecognizer()

@@ -57,37 +57,25 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/vision-service.Dockerfile
-      args:
-        INSTALL_ML: ${VISION_INSTALL_ML:-true}
-        SKU_MODEL_FILE: retail-os-v2.0.0.pt
     image: ai-cabinet/vision-service:${IMAGE_TAG:-latest}
     environment:
       MOCK_ENABLED: ${VISION_MOCK_ENABLED:-true}
       VISION_FORCE_REAL: ${VISION_FORCE_REAL:-false}
-      YOLO_RECOGNITION_MODE: ${YOLO_RECOGNITION_MODE:-delta}
-      HYBRID_DELTA_FIRST: ${HYBRID_DELTA_FIRST:-false}
       MOCK_FORCE_NEED_REVIEW: ${MOCK_FORCE_NEED_REVIEW:-false}
       VISION_API_KEY: ${VISION_API_KEY:-dev-vision-key-change-me}
       TRADE_SERVICE_URL: http://trade-service:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
-      RECOGNIZER_BACKEND: ${RECOGNIZER_BACKEND:-yolo_deepseek}
+      RECOGNIZER_BACKEND: ${RECOGNIZER_BACKEND:-mock}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
       DEEPSEEK_TIMEOUT_MS: ${DEEPSEEK_TIMEOUT_MS:-2000}
       DEEPSEEK_AUTO_CHARGE: ${DEEPSEEK_AUTO_CHARGE:-false}
-      YOLO_MODEL_PATH: ${YOLO_MODEL_PATH:-/app/models/retail-os-v2.0.0.pt}
-      YOLO_MODEL_VERSION: ${YOLO_MODEL_VERSION:-retail-os-v2.0.0}
-      YOLO_AUTO_DOWNLOAD: ${YOLO_AUTO_DOWNLOAD:-false}
-      YOLO_CONF: ${YOLO_CONF:-0.45}
-      YOLO_REVIEW_CONF: ${YOLO_REVIEW_CONF:-0.72}
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: ${MINIO_BUCKET:-cabinet-videos}
       KAFKA_ENABLED: "false"
       KAFKA_BOOTSTRAP: redpanda:9092
-    volumes:
-      - ../vision-service/models:/app/models:ro
     ports: ["18082:8082"]
     depends_on:
       minio-init: { condition: service_completed_successfully }
@@ -256,7 +244,7 @@ services:
       AICABINET_SIM_GRAVITY_SLOT: A1
       # 测试关门页：http://localhost:${AICABINET_SIM_HTTP_PORT:-18089}/ （SHOPPING_MS=0 时点按钮关门）
       AICABINET_SIM_HTTP_PORT: "18089"
-      # 顶摄测试图/视频上传 MinIO，供 vision-service 真实 YOLO 识别
+      # 顶摄测试图/视频上传 MinIO，供 vision-service mock 联调
       AICABINET_SIM_VIDEO_FILE: "${AICABINET_SIM_VIDEO_FILE:-/testdata/bottle.jpg}"
     ports:
       - "${AICABINET_SIM_HTTP_PORT:-18089}:18089"

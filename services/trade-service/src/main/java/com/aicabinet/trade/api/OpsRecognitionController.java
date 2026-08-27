@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-/** 运营端：上传商品图测试 YOLO 识别能力 */
+/** 运营端：上传商品图测试识别辅助（DeepSeek 建议类名） */
 @RestController
 @RequestMapping("/api/v2/ops")
 public class OpsRecognitionController {

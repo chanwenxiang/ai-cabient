@@ -94,7 +94,7 @@ public class VisionMappingService {
         mapping.setSkuId(request.skuId().trim());
         mapping.setMinConfidence(request.minConfidence());
         String source = request.mappingSource();
-        mapping.setMappingSource(source == null || source.isBlank() ? "YOLO_COCO" : source.trim());
+        mapping.setMappingSource(source == null || source.isBlank() ? "EDGE_CLASS" : source.trim());
         yoloRepository.save(mapping);
         auditService.record(operatorId, "VISION_YOLO_UPSERT", VISION, className,
                 "sku=" + mapping.getSkuId() + " conf=" + mapping.getMinConfidence());

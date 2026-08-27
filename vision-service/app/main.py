@@ -1,4 +1,4 @@
-"""AI 视觉识别服务 — 自训 YOLO delta + class→SKU 映射。"""
+"""AI 视觉服务 — 开发 mock + 端侧识别对接占位（无自研 YOLO）。"""
 
 import logging
 import os
@@ -10,37 +10,36 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.kafka_worker import start_kafka_worker
-from app.recognition.yolo_recognizer import get_force_need_review, set_force_need_review
+from app.recognition.mock_recognizer import get_force_need_review, set_force_need_review
 from app.recognizer import get_recognizer
 from app.storage import OBJECT_STORAGE_ENDPOINT
 
 API_KEY_HEADER = "X-Internal-Api-Key"
 VISION_API_KEY = os.getenv("VISION_API_KEY", "dev-vision-key-change-me")
-RECOGNIZER_BACKEND = os.getenv("RECOGNIZER_BACKEND", "yolo")
+RECOGNIZER_BACKEND = os.getenv("RECOGNIZER_BACKEND", "mock")
 
-app = FastAPI(title="AI Cabinet Vision Service", version="0.8.0")
+app = FastAPI(title="AI Cabinet Vision Service", version="0.9.0")
 recognizer = get_recognizer()
 start_kafka_worker(recognizer)
 
 MOCK_ENABLED = os.getenv("MOCK_ENABLED", "true").lower() == "true"
 VISION_FORCE_REAL = os.getenv("VISION_FORCE_REAL", "false").lower() == "true"
-YOLO_RECOGNITION_MODE = os.getenv("YOLO_RECOGNITION_MODE", "delta")
 DEV_VISION_KEY = "dev-vision-key-change-me"
 if VISION_API_KEY == DEV_VISION_KEY and not MOCK_ENABLED:
     raise RuntimeError("MOCK_ENABLED=false requires a strong VISION_API_KEY (not dev default)")
 if (not MOCK_ENABLED or VISION_FORCE_REAL) and not getattr(recognizer, "available", False):
-    err = getattr(recognizer, "load_error", "yolo not loaded")
-    raise RuntimeError(f"Real YOLO recognition requires loaded model: {err}")
+    log.warning(
+        "Recognizer unavailable with mock disabled; cloud will return need_review "
+        "(production recognition should come from edge provider)"
+    )
 
 print("=" * 60)
 print("vision-service started")
 print(f"  backend       = {RECOGNIZER_BACKEND}")
-print(f"  yolo_loaded   = {getattr(recognizer, 'available', False)}")
+print(f"  recognizer_ok = {getattr(recognizer, 'available', False)}")
 print(f"  model_version = {getattr(recognizer, 'model_version', 'n/a')}")
-print(f"  model_path    = {getattr(recognizer, 'model_path', 'n/a')}")
 print(f"  load_error    = {getattr(recognizer, 'load_error', None)}")
 print(f"  force_real    = {VISION_FORCE_REAL}")
-print(f"  yolo_mode     = {YOLO_RECOGNITION_MODE}")
 print(f"  storage       = {OBJECT_STORAGE_ENDPOINT}")
 print(f"  health        = http://localhost:8082/health")
 print("=" * 60)
@@ -112,16 +111,14 @@ def health():
         "status": "ok",
         "recognizer_backend": RECOGNIZER_BACKEND,
         "recognizer_available": getattr(recognizer, "available", False),
-        "model_version": getattr(recognizer, "model_version", getattr(recognizer, "model_path", "unknown")),
-        "model_path": getattr(recognizer, "model_path", "unknown"),
+        "model_version": getattr(recognizer, "model_version", "mock-dev"),
         "object_storage_endpoint": OBJECT_STORAGE_ENDPOINT,
         "video_cache_dir": os.getenv("VIDEO_CACHE_DIR", "cache/videos"),
         "kafka_enabled": os.getenv("KAFKA_ENABLED", "false").lower() == "true",
         "mock_enabled": os.getenv("MOCK_ENABLED", "true").lower() == "true",
         "mock_force_need_review": get_force_need_review(),
         "vision_force_real": VISION_FORCE_REAL,
-        "yolo_recognition_mode": YOLO_RECOGNITION_MODE,
-        "yolo_loaded": getattr(recognizer, "available", False),
+        "edge_recognition": "external",
         "load_error": getattr(recognizer, "load_error", None),
         "deepseek_configured": bool(deepseek_key),
         "deepseek_model": os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"),
@@ -184,7 +181,6 @@ async def recognize_upload(
 ):
     data = await file.read()
     filename = file.filename or "image.jpg"
-    # yolo_deepseek / deepseek 支持 device_id；纯 yolo 忽略多余参数
     upload = recognizer.recognize_upload
     try:
         out = upload(session_id, data, filename, device_id=device_id or None)  # type: ignore[call-arg]

@@ -34,26 +34,26 @@ demo/
 
 ## 识别链路
 
-关门视频 → MinIO → **vision-service**（YOLO 本地推理）→ SKU 映射 → trade-service 结算。
+生产：**端侧识别提供方**（移远 OpenVending 等）在柜机完成推理，将 SKU 清单上报 trade-service 结算；平台维护「端侧类名 → 商品」映射表（`sku_vision_mapping`）。
+
+开发联调：关门视频 → MinIO → **vision-service**（mock 识别，默认 `MOCK_ENABLED=true`）→ SKU 映射 → trade-service 结算。
 
 | 模式 | 环境变量 | 行为 |
 |------|----------|------|
-| 开发 mock | `MOCK_ENABLED=true`（默认） | 识别失败时返回 mock SKU，便于全栈联调 |
-| 冷启动本地 YOLO | `infra/.env.vision-dev` 或 `docker-compose.vision-local.yml`（Retail-OS + `VISION_FORCE_REAL`） | 无自有标注时的服务端真推理；映射 `YOLO_RETAIL`；非生产准确率 |
-| 真实识别 | `VISION_FORCE_REAL=true` 或 `MOCK_ENABLED=false` | 失败进人工审核，不静默 mock |
-| 单帧 | `YOLO_RECOGNITION_MODE=single_frame` | 视频中间帧检测 |
-| 差异（推荐） | `YOLO_RECOGNITION_MODE=delta` | 开门首帧 vs 关门末帧 SKU 差异 |
+| 开发 mock | `MOCK_ENABLED=true`（默认） | 返回 mock SKU，便于全栈联调 |
+| 端侧提供方 | 端侧 SDK 上报 `POST /internal/v1/vision/...` | 置信度达标直接结算，低置信进争议 |
+| 关闭 mock | `VISION_FORCE_REAL=true` 或 `MOCK_ENABLED=false` | 无端侧结果时进人工审核，不静默 mock |
 
 可选 **重力传感器融合**：视觉与重力 SKU 数量不一致时强制 `need_review`（`GravitySettlementHelper`）。
 
-无自有标注时的冷启动步骤见 [`VISION_SKU_MODEL.md`](VISION_SKU_MODEL.md) §0。柜机端本地推理为阶段 D，见 [`edge/android-app/docs/EDGE_VISION_INFERENCE.md`](../edge/android-app/docs/EDGE_VISION_INFERENCE.md)。
+端侧对接方案见 [`VISION_QUECTEL_INTEGRATION.md`](VISION_QUECTEL_INTEGRATION.md)。
 
 ## 商业落地要点
 
 | 能力 | 说明 |
 |------|------|
 | 对象存储 | MinIO（本地）/ OSS（生产）存关门视频 |
-| 识别链路 | vision-service 自训 YOLO delta + SKU 映射表 |
+| 识别链路 | 端侧识别提供方 + SKU 类名映射表；dev 用 vision-service mock |
 | 支付 | 微信 V3；dev mock 分支与 prod 共用代码 |
 | 短信 | Webhook 模式；预发可用 `sms-webhook-mock` |
 | 多租户 | 商户数据隔离 via `MerchantScopeService` |

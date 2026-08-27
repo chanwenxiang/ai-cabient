@@ -1,15 +1,9 @@
----
-description: FastAPI vision-service conventions
-globs: vision-service/**/*.py
-alwaysApply: false
----
-
 # vision-service
 
 - 入口：`app/main.py`（FastAPI）；识别实现在 `app/recognition/`，经 `app/recognizer.py` / `factory` 装配。
 - `/api/*` 需请求头 `X-Internal-Api-Key`（环境变量 `VISION_API_KEY`）；health 等非 api 路径除外。
-- 默认 `MOCK_ENABLED=true`；真实识别需模型可用，且非默认弱 key（见启动时校验）。
-- 后端选择：`RECOGNIZER_BACKEND`（默认 `yolo`）；模式 `YOLO_RECOGNITION_MODE`（如 `delta`）。
+- 默认 `MOCK_ENABLED=true`；**生产识别由端侧提供方上报**，云端不承载自研推理。
+- 后端选择：`RECOGNIZER_BACKEND`（默认 `mock`；`quectel` 为端侧占位）。
 - 响应模型用 Pydantic（`LineItem`、`RecognizeRequest` 等）；改契约时同步 trade-service 调用方。
 - Kafka worker：`app/kafka_worker.py`；对象存储相关见 `app/storage.py`。
-- 勿把训练权重/大数据集提交进 git；模型路径走环境与 `infra/models` 约定。
+- 端侧对接方案见 `docs/VISION_QUECTEL_INTEGRATION.md`。

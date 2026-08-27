@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/** vision-service 拉取 YOLO / 阿里云类目 → SKU 映射。 */
+/** vision-service 拉取端侧类名 / 阿里云类目 → SKU 映射。 */
 @RestController
 @RequestMapping("/internal/v1/vision")
 public class VisionMappingInternalController {

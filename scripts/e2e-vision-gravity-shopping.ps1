@@ -1,4 +1,4 @@
-# 识别 + mock 重力 E2E：真实 YOLO 跑 vision，模拟器上报重力取货，期望 COMPLETED
+# 识别 + mock 重力 E2E：vision-service mock，模拟器上报重力取货
 param(
     [string]$BaseUrl = "",
     [string]$Phone = "",
@@ -75,7 +75,7 @@ if (-not $SkipSimulatorRecreate) {
 $visionBase = if ($BaseUrl -match ':18080$') { "http://localhost:18082" } else { "http://localhost:8082" }
 try {
     $visionHealth = Invoke-RestMethod -Uri "$visionBase/health" -TimeoutSec 10
-    Write-Host "    vision OK yolo_loaded=$($visionHealth.yolo_loaded) mode=$($visionHealth.yolo_recognition_mode)"
+    Write-Host "    vision OK backend=$($visionHealth.recognizer_backend) mock=$($visionHealth.mock_enabled)"
 } catch {
     Write-Warning "vision health check failed: $_"
 }

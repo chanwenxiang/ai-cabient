@@ -21,7 +21,7 @@
 | `services/trade-service` | 交易服务 | 会话、订单、结算、运营 / 商户 API | IDEA Run `TradeServiceApplication` 或 `mvn spring-boot:run`（:8080） |
 | `services/device-service` | 设备服务 | MQTT、设备状态、指令下发 | `DeviceServiceApplication`（:8081） |
 | `services/common/common-core` | 公共核心库 | DTO、枚举、工具 | Maven 依赖，不单独启动 |
-| `vision-service` | 视觉识别服务 | FastAPI + YOLO 识别 | `uvicorn app.main:app --port 8082` |
+| `vision-service` | 视觉 mock / 争议辅助 | FastAPI（无端侧模型） | `uvicorn app.main:app --port 8082` |
 
 ## 边缘与联调
 
@@ -70,7 +70,7 @@
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 架构速查 |
 | [FRONTEND_PRODUCT_DECISIONS.md](FRONTEND_PRODUCT_DECISIONS.md) | 前端产品决策 |
 | [MERCHANT_PLATFORM.md](MERCHANT_PLATFORM.md) | 商户 API / 账号 |
-| [VISION_YOLO_TEST.md](VISION_YOLO_TEST.md) | YOLO 识别测试 |
+| [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md) | 端侧识别对接 |
 
 ## 与旧系统关系
 

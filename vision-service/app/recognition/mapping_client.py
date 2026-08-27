@@ -1,4 +1,4 @@
-﻿"""从 trade-service 拉取 YOLO / 阿里云类目 → SKU 映射（带内存缓存）。"""
+﻿"""从 trade-service 拉取端侧识别类名 → SKU 映射（带内存缓存）。"""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ TRADE_SERVICE_URL = os.getenv("TRADE_SERVICE_URL", "http://localhost:8080").rstr
 INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "dev-internal-key-change-me")
 CACHE_TTL_SECONDS = int(os.getenv("VISION_MAPPING_CACHE_TTL", "300"))
 
-_yolo_cache: dict[str, tuple[str, float, str]] | None = None
+_class_cache: dict[str, tuple[str, float, str]] | None = None
 
 _default_sku_cache: tuple[str, float] | None = None  # (sku_id, cached_at)
 _cache_at = 0.0
@@ -26,8 +26,8 @@ def _trade_headers() -> dict[str, str]:
 
 
 def _refresh_if_needed() -> None:
-    global _yolo_cache, _cache_at
-    if _yolo_cache is not None and (time.time() - _cache_at) < CACHE_TTL_SECONDS:
+    global _class_cache, _cache_at
+    if _class_cache is not None and (time.time() - _cache_at) < CACHE_TTL_SECONDS:
         return
     try:
         with httpx.Client(timeout=5.0) as client:
@@ -37,20 +37,20 @@ def _refresh_if_needed() -> None:
             )
             resp.raise_for_status()
             body: dict[str, Any] = resp.json().get("data") or {}
-        yolo: dict[str, tuple[str, float, str]] = {}
-        for row in body.get("yolo") or []:
-            yolo[str(row["className"])] = (
+        classes: dict[str, tuple[str, float, str]] = {}
+        rows = body.get("yolo") or body.get("classes") or []
+        for row in rows:
+            classes[str(row["className"])] = (
                 str(row["skuId"]),
                 float(row.get("minConfidence") or 0.5),
-                str(row.get("mappingSource") or "YOLO_COCO"),
+                str(row.get("mappingSource") or "EDGE_CLASS"),
             )
-        _yolo_cache = yolo
+        _class_cache = classes
         _cache_at = time.time()
-        log.info("vision mappings loaded yolo=%d items", len(_yolo_cache))
+        log.info("vision mappings loaded classes=%d items", len(_class_cache))
     except Exception as exc:
         log.warning("load vision mappings failed: %s", exc)
-        _yolo_cache = {}
-        # (aliyun cache removed)
+        _class_cache = {}
         _cache_at = time.time()
 
 
@@ -71,7 +71,7 @@ def fetch_device_vision_context(device_id: str | None) -> list[dict[str, Any]]:
             {
                 "skuId": str(row.get("skuId") or ""),
                 "skuName": str(row.get("skuName") or ""),
-                "yoloClassName": str(row.get("yoloClassName") or ""),
+                "yoloClassName": str(row.get("yoloClassName") or row.get("className") or ""),
                 "priceCents": int(row.get("priceCents") or 0),
                 "imageUrl": row.get("imageUrl"),
             }
@@ -80,26 +80,6 @@ def fetch_device_vision_context(device_id: str | None) -> list[dict[str, Any]]:
         ]
     except Exception as exc:
         log.warning("fetch device vision context failed device=%s: %s", device_id, exc)
-        return []
-
-
-def fetch_catalog_classes() -> list[tuple[str, str, str]]:
-    """sku_id, class_name, sku_name — 供 collect_sku_dataset。"""
-    try:
-        with httpx.Client(timeout=5.0) as client:
-            resp = client.get(
-                f"{TRADE_SERVICE_URL}/internal/v1/vision/catalog-classes",
-                headers=_trade_headers(),
-            )
-            resp.raise_for_status()
-            rows = resp.json().get("data") or []
-        return [
-            (str(r["skuId"]), str(r["className"]), str(r.get("skuName") or ""))
-            for r in rows
-            if r.get("skuId") and r.get("className")
-        ]
-    except Exception as exc:
-        log.warning("fetch catalog classes failed: %s", exc)
         return []
 
 
@@ -153,11 +133,11 @@ def fetch_inventory_snapshot(device_id: str | None) -> list[tuple[str, int]]:
         return []
 
 
-def yolo_class_to_sku() -> dict[str, tuple[str, float]]:
+def class_to_sku() -> dict[str, tuple[str, float]]:
     _refresh_if_needed()
-    return {k: (v[0], v[1]) for k, v in (_yolo_cache or {}).items()}
+    return {k: (v[0], v[1]) for k, v in (_class_cache or {}).items()}
 
 
-# (aliyun category mapping removed)
-
-
+def yolo_class_to_sku() -> dict[str, tuple[str, float]]:
+    """兼容旧调用方。"""
+    return class_to_sku()
