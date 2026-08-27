@@ -772,6 +772,5 @@ export function alertTypeLabel(type: string) {
 }
 
 export function merchantAlertTitle(_type: string, title: string) {
-  // 用 replace + 正则而非 replaceAll（ES2021），兼容旧版微信基础库 / WebView
-  return String(title || '').replace(/设备/g, '柜机');
+  return String(title || '').replaceAll(/设备/g, '柜机');
 }

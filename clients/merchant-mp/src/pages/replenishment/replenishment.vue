@@ -632,12 +632,12 @@ function displayTaskNotes(notes?: string): string {
   if (/from-expiry|NEAR_EXPIRY/i.test(raw)) return '临期商品下架';
   if (/PULL_OFF/i.test(raw) && !/[\u4e00-\u9fff]/.test(raw)) return '下架任务';
   const cleaned = raw
-    .replace(/from-expiry:\d+/gi, '')
-    .replace(/\bNEAR_EXPIRY\b/gi, '')
-    .replace(/\bPULL_OFF\b/gi, '')
-    .replace(/\bseq=\d+\b/gi, '')
-    .replace(/\bdist=\d+m?\b/gi, '')
-    .replace(/[|;,]+/g, ' ')
+    .replaceAll(/from-expiry:\d+/gi, '')
+    .replaceAll(/\bNEAR_EXPIRY\b/gi, '')
+    .replaceAll(/\bPULL_OFF\b/gi, '')
+    .replaceAll(/\bseq=\d+\b/gi, '')
+    .replaceAll(/\bdist=\d+m?\b/gi, '')
+    .replaceAll(/[|;,]+/g, ' ')
     .trim();
   if (!cleaned) return '';
   // 仍是纯机器键值则隐藏

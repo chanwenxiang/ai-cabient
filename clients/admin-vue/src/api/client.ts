@@ -154,7 +154,7 @@ export async function downloadAuthFile(path: string, fallbackName: string) {
   const blob = await res.blob();
   const cd = res.headers.get('Content-Disposition') || '';
   const match = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(cd);
-  const filename = match ? decodeURIComponent(match[1].replace(/"/g, '')) : fallbackName;
+  const filename = match ? decodeURIComponent(match[1].replaceAll(/"/g, '')) : fallbackName;
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

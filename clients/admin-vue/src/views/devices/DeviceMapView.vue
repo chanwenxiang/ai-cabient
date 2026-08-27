@@ -397,13 +397,13 @@ function focusPoint(p: MapPoint) {
 }
 
 function escapeHtml(s: string) {
-  return s.replace(
+  return s.replaceAll(
     /[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] || c
   );
 }
 function escapeAttr(s: string) {
-  return s.replace(/"/g, '&quot;');
+  return s.replaceAll(/"/g, '&quot;');
 }
 
 onMounted(async () => {

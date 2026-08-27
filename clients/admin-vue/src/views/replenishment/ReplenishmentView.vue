@@ -2126,13 +2126,13 @@ function formatTaskNotes(notes?: string) {
     return `商户要货单 ${raw.replace(/^\D+/, '')}`;
   }
   const cleaned = raw
-    .replace(/from-expiry:\d+/gi, '')
-    .replace(/\bNEAR_EXPIRY\b/gi, '')
-    .replace(/\bEXPIRED\b/gi, '')
-    .replace(/\bPULL_OFF\b/gi, '')
-    .replace(/\bseq\s*=\s*\d+\b/gi, '')
-    .replace(/\bdist\s*=\s*\d+\s*m?\b/gi, '')
-    .replace(/[|;,]+/g, ' ')
+    .replaceAll(/from-expiry:\d+/gi, '')
+    .replaceAll(/\bNEAR_EXPIRY\b/gi, '')
+    .replaceAll(/\bEXPIRED\b/gi, '')
+    .replaceAll(/\bPULL_OFF\b/gi, '')
+    .replaceAll(/\bseq\s*=\s*\d+\b/gi, '')
+    .replaceAll(/\bdist\s*=\s*\d+\s*m?\b/gi, '')
+    .replaceAll(/[|;,]+/g, ' ')
     .trim();
   if (!cleaned) return '';
   if (!/[\u4e00-\u9fff]/.test(cleaned) && /^[\w:=\-.\s]+$/.test(cleaned)) return '';
