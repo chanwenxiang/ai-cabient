@@ -332,7 +332,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import ChartBox from '@/components/ChartBox.vue';
 import ChartPanel from '@/components/ChartPanel.vue';

@@ -307,7 +307,7 @@ import {
   orderStatusLabel,
   fmtMoney
 } from '@aicabinet/shared-uni/format';
-import { parseQuery, queryGet } from '@aicabinet/shared-uni/query';
+import { queryGet } from '@aicabinet/shared-uni/query';
 import type { OrderDetailDto } from '@aicabinet/shared-types';
 import {
   DISPUTE_REASON_CHIPS,

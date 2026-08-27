@@ -59,7 +59,6 @@ public class TccTransactionCoordinator {
             log.info("Transaction started: txId={}, type={}", txId, txType);
             return txId;
         } catch (Exception e) {
-            log.error("Failed to begin transaction txId={} txType={}", txId, txType, e);
             throw new IllegalStateException("Failed to begin transaction txId=" + txId + " txType=" + txType, e);
         }
     }

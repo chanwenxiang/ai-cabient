@@ -293,7 +293,7 @@ import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { shortBizNo } from '@aicabinet/shared-uni/format';
 import type { OpsWorkbench, PageResult } from '@aicabinet/shared-types';
 

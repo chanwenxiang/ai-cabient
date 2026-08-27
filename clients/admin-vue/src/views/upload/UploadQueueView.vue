@@ -228,7 +228,7 @@ import PagePager from '@/components/PagePager.vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { dictLabel, dictTagType, displayLabel } from '@aicabinet/shared-dict';
+import { dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useListCsv } from '@/composables/useListCsv';

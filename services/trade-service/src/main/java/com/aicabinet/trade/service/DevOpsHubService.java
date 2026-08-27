@@ -125,9 +125,8 @@ public class DevOpsHubService {
                     "Queued GitHub Actions workflow '" + workflow + "' on ref '" + ref
                             + "'. Check Actions tab when finished.");
         } catch (Exception ex) {
-            log.error("DevOps Sonar scan trigger failed operatorId={} workflow={}", operatorId, workflow, ex);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "Failed to trigger GitHub Actions: " + safeMessage(ex));
+                    "Failed to trigger GitHub Actions: " + safeMessage(ex), ex);
         } finally {
             distributedLockService.unlock(SONAR_SCAN_LOCK);
         }
