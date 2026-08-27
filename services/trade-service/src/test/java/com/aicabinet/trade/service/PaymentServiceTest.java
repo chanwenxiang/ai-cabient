@@ -273,7 +273,7 @@ class PaymentServiceTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> paymentService.createRechargePrepay(10001L, "WECHAT", 500, "idem-1", "127.0.0.1"));
+                () -> paymentService.createRechargePrepay(10001L, "WECHAT", 500, "idem-1"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }

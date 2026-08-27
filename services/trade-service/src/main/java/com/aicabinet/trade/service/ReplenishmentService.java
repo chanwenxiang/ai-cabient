@@ -568,10 +568,10 @@ public class ReplenishmentService {
 
     @Transactional
     public ReplenishmentTaskDto checkInTask(Long operatorId, Long taskId, ReplenishmentCheckInRequest request) {
-        return runWithTaskLock(taskId, () -> doCheckInTask(operatorId, taskId, request));
+        return runWithTaskLock(taskId, () -> doCheckInTask(taskId, request));
     }
 
-    private ReplenishmentTaskDto doCheckInTask(Long operatorId, Long taskId, ReplenishmentCheckInRequest request) {
+    private ReplenishmentTaskDto doCheckInTask(Long taskId, ReplenishmentCheckInRequest request) {
         ReplenishmentTask task = requireTaskForUpdate(taskId);
         if (request != null && request.latitude() != null && request.longitude() != null) {
             validateCheckInLocation(task.getDeviceId(), request.latitude(), request.longitude());
@@ -661,11 +661,11 @@ public class ReplenishmentService {
 
                                                           SubmitReplenishmentLinesRequest request) {
 
-        return runWithTaskLock(taskId, () -> doSubmitTaskLines(operatorId, taskId, request));
+        return runWithTaskLock(taskId, () -> doSubmitTaskLines(taskId, request));
 
     }
 
-    private List<ReplenishmentTaskLineDto> doSubmitTaskLines(Long operatorId, Long taskId,
+    private List<ReplenishmentTaskLineDto> doSubmitTaskLines(Long taskId,
                                                              SubmitReplenishmentLinesRequest request) {
         ReplenishmentTask task = requireTaskForUpdate(taskId);
         if (STATUS_COMPLETED.equals(task.getStatus())) {

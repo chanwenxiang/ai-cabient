@@ -1123,7 +1123,7 @@ public class AdminDashboardService {
         String newImageUrl = trimToNull(request.imageUrl());
         if (oldImageUrl != null && !oldImageUrl.equals(newImageUrl)) {
             // 主图被替换/清空时释放旧图（无引用则删除对象），避免孤儿文件堆积
-            fileAttachmentService.releaseSkuImageIfUnused(oldImageUrl, operatorId);
+            fileAttachmentService.releaseSkuImageIfUnused(oldImageUrl);
         }
         auditService.record(operatorId, "SKU_UPDATE", "SKU", sku.getSkuId(),
                 "code=" + sku.getSkuCode() + " " + sku.getSkuName() + " price=" + sku.getPriceCents());

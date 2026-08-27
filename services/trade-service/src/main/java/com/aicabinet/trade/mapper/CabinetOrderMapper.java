@@ -183,7 +183,7 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
         var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<CabinetOrder>(
                 pageable.getPageNumber() + 1L, pageable.getPageSize());
         var q = Wrappers.<CabinetOrder>lambdaQuery();
-        if (!applyOrderDeviceScope(q, criteria.deviceId(), criteria.deviceIds(), pageable)) {
+        if (!applyOrderDeviceScope(q, criteria.deviceId(), criteria.deviceIds())) {
             return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
         }
         applyOrderExactFilters(q, criteria);
@@ -195,7 +195,7 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
 
     private static boolean applyOrderDeviceScope(
             com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CabinetOrder> q,
-            String deviceId, Collection<String> deviceIds, Pageable pageable) {
+            String deviceId, Collection<String> deviceIds) {
         if (deviceId != null && !deviceId.isBlank()) {
             q.eq(CabinetOrder::getDeviceId, deviceId.trim());
             return true;

@@ -168,10 +168,10 @@ public class WarehouseTransferService {
     @Transactional
     public WarehouseTransferDto cancel(Long operatorId, Long transferId) {
         permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
-        return runWithTransferLock(transferId, () -> doCancel(operatorId, transferId));
+        return runWithTransferLock(transferId, () -> doCancel(transferId));
     }
 
-    private WarehouseTransferDto doCancel(Long operatorId, Long transferId) {
+    private WarehouseTransferDto doCancel(Long transferId) {
         WarehouseTransferOrder order = requireOrderForUpdate(transferId);
         if (!CabinetConstants.PROMOTION_STATUS_DRAFT.equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "仅草稿可取消");

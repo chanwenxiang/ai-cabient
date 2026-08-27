@@ -28,9 +28,8 @@ public class PaymentController {
             HttpServletRequest request,
             @Valid @RequestBody RechargePrepayRequest body) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        String clientIp = request.getRemoteAddr();
         return ApiResponse.ok(paymentService.createRechargePrepay(userId, body.channel(),
-                body.amountCents(), body.idempotencyKey(), clientIp));
+                body.amountCents(), body.idempotencyKey()));
     }
 
     @GetMapping("/recharges")

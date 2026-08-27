@@ -531,12 +531,12 @@ public class ApprovalWorkflowService {
                 task.getNodeName(),
                 task.getNodeSeq(),
                 task.getStatus(),
-                actionPath(bizType, bizId),
+                actionPath(bizType),
                 task.getCreatedAt(),
                 task.getReadAt());
     }
 
-    static String actionPath(String bizType, String bizId) {
+    static String actionPath(String bizType) {
         if (bizType == null) {
             return "/approvals";
         }
