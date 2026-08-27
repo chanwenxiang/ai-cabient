@@ -430,20 +430,18 @@ public class PaymentService {
         for (RechargeOrder order : expired) {
             try {
                 syncPendingOrder(order);
-                if (!STATUS_PENDING.equals(order.getStatus())) {
-                    continue;
+                if (STATUS_PENDING.equals(order.getStatus())) {
+                    if (PayChannels.ALIPAY.equalsIgnoreCase(order.getChannel())) {
+                        cancelPendingAlipay(order);
+                    } else {
+                        cancelPendingWeChat(order);
+                    }
+                    if (!"PAID".equals(order.getStatus())) {
+                        order.setStatus(STATUS_CANCELLED);
+                        rechargeOrderRepository.save(order);
+                        n++;
+                    }
                 }
-                if (PayChannels.ALIPAY.equalsIgnoreCase(order.getChannel())) {
-                    cancelPendingAlipay(order);
-                } else {
-                    cancelPendingWeChat(order);
-                }
-                if ("PAID".equals(order.getStatus())) {
-                    continue;
-                }
-                order.setStatus(STATUS_CANCELLED);
-                rechargeOrderRepository.save(order);
-                n++;
             } catch (Exception ex) {
                 log.warn("auto cancel recharge failed orderId={}", order.getOrderId(), ex);
             }

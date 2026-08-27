@@ -613,22 +613,18 @@ public class CompetitiveGapService {
                 .map(String::valueOf)
                 .collect(Collectors.toSet());
         for (DeviceInfo d : devices) {
-            if (!"DEPLOYED".equalsIgnoreCase(DeviceAssetService.normalizeLifecycle(d.getLifecycleStatus()))) {
-                continue;
+            if ("DEPLOYED".equalsIgnoreCase(DeviceAssetService.normalizeLifecycle(d.getLifecycleStatus()))
+                    && !sold.contains(d.getDeviceId())) {
+                DeviceOpsEvent e = new DeviceOpsEvent();
+                e.setDeviceId(d.getDeviceId());
+                e.setEventType("NO_SALES");
+                e.setSeverity("WARN");
+                e.setTitle("近7日无销售");
+                e.setDetail("生命周期：已部署");
+                e.setCreatedAt(Instant.now());
+                deviceOpsEventMapper.insert(e);
             }
-            if (sold.contains(d.getDeviceId())) {
-                continue;
-            }
-            DeviceOpsEvent e = new DeviceOpsEvent();
-            e.setDeviceId(d.getDeviceId());
-            e.setEventType("NO_SALES");
-            e.setSeverity("WARN");
-            e.setTitle("近7日无销售");
-            e.setDetail("生命周期：已部署");
-            e.setCreatedAt(Instant.now());
-            deviceOpsEventMapper.insert(e);
         }
-    }
 
     private List<SalesReportRowDto> aggregateByProduct(Set<String> deviceIds, Instant start, Instant end) {
         List<Object[]> rows;

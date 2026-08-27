@@ -139,13 +139,9 @@ public class DeviceSlotService {
         List<SlotDiscrepancyAlertDto> alerts = new ArrayList<>();
         for (DeviceSlot slot : candidates) {
             String deviceId = slot.getId().getDeviceId();
-            if (allowed != null && !allowed.contains(deviceId)) {
-                continue;
+            if ((allowed == null || allowed.contains(deviceId)) && deviceRepository.existsById(deviceId)) {
+                alerts.addAll(buildDiscrepancyForSlot(slot, self.loadBookQtyBySlot(deviceId), deviceNames));
             }
-            if (!deviceRepository.existsById(deviceId)) {
-                continue;
-            }
-            alerts.addAll(buildDiscrepancyForSlot(slot, self.loadBookQtyBySlot(deviceId), deviceNames));
         }
         alerts.sort(Comparator
                 .comparing(SlotDiscrepancyAlertDto::deviceId)
@@ -322,18 +318,16 @@ public class DeviceSlotService {
         int updated = 0;
         for (Map.Entry<String, Integer> entry : slotQtySold.entrySet()) {
             int sold = entry.getValue() != null ? entry.getValue() : 0;
-            if (sold <= 0) {
-                continue;
+            if (sold > 0) {
+                String slotCode = entry.getKey().trim().toUpperCase();
+                DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode)).orElse(null);
+                if (slot != null && slot.getLastPhysicalQty() != null) {
+                    slot.setLastPhysicalQty(Math.max(0, slot.getLastPhysicalQty() - sold));
+                    slot.setLastPhysicalAt(now);
+                    slotRepository.save(slot);
+                    updated++;
+                }
             }
-            String slotCode = entry.getKey().trim().toUpperCase();
-            DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode)).orElse(null);
-            if (slot == null || slot.getLastPhysicalQty() == null) {
-                continue;
-            }
-            slot.setLastPhysicalQty(Math.max(0, slot.getLastPhysicalQty() - sold));
-            slot.setLastPhysicalAt(now);
-            slotRepository.save(slot);
-            updated++;
         }
         if (updated > 0) {
             log.info("physical after sale device={} ref={} slots={}", deviceId, refId, updated);
@@ -407,18 +401,16 @@ public class DeviceSlotService {
         int updated = 0;
         for (Map.Entry<String, Integer> entry : slotQtyRestored.entrySet()) {
             int qty = entry.getValue() != null ? entry.getValue() : 0;
-            if (qty <= 0 || entry.getKey() == null || entry.getKey().isBlank()) {
-                continue;
+            if (qty > 0 && entry.getKey() != null && !entry.getKey().isBlank()) {
+                String slotCode = entry.getKey().trim().toUpperCase();
+                DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode)).orElse(null);
+                if (slot != null && slot.getLastPhysicalQty() != null) {
+                    slot.setLastPhysicalQty(slot.getLastPhysicalQty() + qty);
+                    slot.setLastPhysicalAt(now);
+                    slotRepository.save(slot);
+                    updated++;
+                }
             }
-            String slotCode = entry.getKey().trim().toUpperCase();
-            DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode)).orElse(null);
-            if (slot == null || slot.getLastPhysicalQty() == null) {
-                continue;
-            }
-            slot.setLastPhysicalQty(slot.getLastPhysicalQty() + qty);
-            slot.setLastPhysicalAt(now);
-            slotRepository.save(slot);
-            updated++;
         }
         if (updated > 0) {
             log.info("physical after restore device={} ref={} slots={}", deviceId, refId, updated);
@@ -437,20 +429,18 @@ public class DeviceSlotService {
         Map<String, Integer> slotQty = new LinkedHashMap<>();
         for (Map.Entry<String, Integer> entry : skuQtyRestored.entrySet()) {
             int remaining = entry.getValue() != null ? entry.getValue() : 0;
-            if (remaining <= 0 || entry.getKey() == null || entry.getKey().isBlank()) {
-                continue;
+            if (remaining > 0 && entry.getKey() != null && !entry.getKey().isBlank()) {
+                List<DeviceSlot> slots = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
+                        .filter(s -> s.isEnabled() && entry.getKey().equals(s.getAssignedSkuId()))
+                        .sorted((a, b) -> Integer.compare(
+                                bookBySlot.getOrDefault(b.getId().getSlotCode(), 0),
+                                bookBySlot.getOrDefault(a.getId().getSlotCode(), 0)))
+                        .toList();
+                if (!slots.isEmpty()) {
+                    String code = slots.get(0).getId().getSlotCode();
+                    slotQty.merge(code, remaining, Integer::sum);
+                }
             }
-            List<DeviceSlot> slots = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
-                    .filter(s -> s.isEnabled() && entry.getKey().equals(s.getAssignedSkuId()))
-                    .sorted((a, b) -> Integer.compare(
-                            bookBySlot.getOrDefault(b.getId().getSlotCode(), 0),
-                            bookBySlot.getOrDefault(a.getId().getSlotCode(), 0)))
-                    .toList();
-            if (slots.isEmpty()) {
-                continue;
-            }
-            String code = slots.get(0).getId().getSlotCode();
-            slotQty.merge(code, remaining, Integer::sum);
         }
         self.applyPhysicalAfterRestore(deviceId, slotQty, refId);
     }
@@ -471,23 +461,22 @@ public class DeviceSlotService {
             String skuId = skuEntry.getKey();
             int skuTotal = skuEntry.getValue();
             List<SlotBookView> slots = self.listEnabledSlotsForSku(deviceId, skuId);
-            if (slots.isEmpty()) {
-                continue;
-            }
-            int totalBook = slots.stream().mapToInt(s -> bookBySlot.getOrDefault(s.slotCode(), 0)).sum();
-            if (totalBook <= 0) {
-                physical.put(slots.get(0).slotCode(), skuTotal);
-                continue;
-            }
-            int remaining = skuTotal;
-            for (int i = 0; i < slots.size(); i++) {
-                SlotBookView slot = slots.get(i);
-                int book = bookBySlot.getOrDefault(slot.slotCode(), 0);
-                int alloc = (i == slots.size() - 1)
-                        ? remaining
-                        : Math.min(remaining, (skuTotal * book) / totalBook);
-                physical.put(slot.slotCode(), alloc);
-                remaining -= alloc;
+            if (!slots.isEmpty()) {
+                int totalBook = slots.stream().mapToInt(s -> bookBySlot.getOrDefault(s.slotCode(), 0)).sum();
+                if (totalBook <= 0) {
+                    physical.put(slots.get(0).slotCode(), skuTotal);
+                } else {
+                    int remaining = skuTotal;
+                    for (int i = 0; i < slots.size(); i++) {
+                        SlotBookView slot = slots.get(i);
+                        int book = bookBySlot.getOrDefault(slot.slotCode(), 0);
+                        int alloc = (i == slots.size() - 1)
+                                ? remaining
+                                : Math.min(remaining, (skuTotal * book) / totalBook);
+                        physical.put(slot.slotCode(), alloc);
+                        remaining -= alloc;
+                    }
+                }
             }
         }
         return doApplyPhysicalSnapshot(deviceId, physical, source, refId);
@@ -807,34 +796,28 @@ public class DeviceSlotService {
         int slotsFixed = 0;
         String refId = "CLAMP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         for (DeviceSlot slot : slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId)) {
-            if (!slot.isEnabled()) {
-                continue;
+            if (slot.isEnabled()) {
+                String slotCode = slot.getId().getSlotCode();
+                int cap = resolveSlotCapacity(slot);
+                String skuId = slot.getAssignedSkuId();
+                if (cap > 0 && skuId != null && !skuId.isBlank()) {
+                    int book = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
+                    if (book > cap) {
+                        int surplus = book - cap;
+                        for (SlotRestockAllocation alloc : self.allocateRestockQuantity(deviceId, skuId, surplus)) {
+                            inventoryLotService.transferBetweenSlots(
+                                    deviceId, skuId, slotCode, alloc.slotCode(), alloc.quantity(), null, refId);
+                            surplus -= alloc.quantity();
+                        }
+                        book = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
+                        if (book > cap) {
+                            inventoryLotService.stocktakeAdjustForSlot(deviceId, skuId, slotCode, cap, null, refId);
+                        }
+                        slotsFixed++;
+                        log.warn("clamp over-capacity slot device={} slot={} cap={} ref={}", deviceId, slotCode, cap, refId);
+                    }
+                }
             }
-            String slotCode = slot.getId().getSlotCode();
-            int cap = resolveSlotCapacity(slot);
-            if (cap <= 0) {
-                continue;
-            }
-            String skuId = slot.getAssignedSkuId();
-            if (skuId == null || skuId.isBlank()) {
-                continue;
-            }
-            int book = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
-            if (book <= cap) {
-                continue;
-            }
-            int surplus = book - cap;
-            for (SlotRestockAllocation alloc : self.allocateRestockQuantity(deviceId, skuId, surplus)) {
-                inventoryLotService.transferBetweenSlots(
-                        deviceId, skuId, slotCode, alloc.slotCode(), alloc.quantity(), null, refId);
-                surplus -= alloc.quantity();
-            }
-            book = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
-            if (book > cap) {
-                inventoryLotService.stocktakeAdjustForSlot(deviceId, skuId, slotCode, cap, null, refId);
-            }
-            slotsFixed++;
-            log.warn("clamp over-capacity slot device={} slot={} cap={} ref={}", deviceId, slotCode, cap, refId);
         }
         if (slotsFixed > 0) {
             self.syncPhysicalFromBook(deviceId, refId);

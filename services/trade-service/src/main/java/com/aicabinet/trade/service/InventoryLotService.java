@@ -159,30 +159,25 @@ public class InventoryLotService {
         String primaryBatch = null;
         Map<String, Integer> slotQty = new LinkedHashMap<>();
         for (DeviceSkuLot lot : lots) {
-            if (remaining <= 0) {
-                break;
+            if (remaining > 0 && isSellable(lot, minExpiry)) {
+                int take = Math.min(lot.getQuantity(), remaining);
+                if (take > 0) {
+                    if (primaryBatch == null) {
+                        primaryBatch = lot.getBatchNo();
+                    }
+                    lot.setQuantity(lot.getQuantity() - take);
+                    if (lot.getQuantity() == 0) {
+                        lot.setStatus(DEPLETED);
+                    }
+                    lotRepository.save(lot);
+                    recordMovement(deviceId, skuId, lot.getBatchNo(), "SALE", -take, refType, refId, null);
+                    if (lot.getSlotId() != null && !lot.getSlotId().isBlank()) {
+                        String slotCode = lot.getSlotId().trim().toUpperCase();
+                        slotQty.merge(slotCode, take, Integer::sum);
+                    }
+                    remaining -= take;
+                }
             }
-            if (!isSellable(lot, minExpiry)) {
-                continue;
-            }
-            int take = Math.min(lot.getQuantity(), remaining);
-            if (take <= 0) {
-                continue;
-            }
-            if (primaryBatch == null) {
-                primaryBatch = lot.getBatchNo();
-            }
-            lot.setQuantity(lot.getQuantity() - take);
-            if (lot.getQuantity() == 0) {
-                lot.setStatus(DEPLETED);
-            }
-            lotRepository.save(lot);
-            recordMovement(deviceId, skuId, lot.getBatchNo(), "SALE", -take, refType, refId, null);
-            if (lot.getSlotId() != null && !lot.getSlotId().isBlank()) {
-                String slotCode = lot.getSlotId().trim().toUpperCase();
-                slotQty.merge(slotCode, take, Integer::sum);
-            }
-            remaining -= take;
         }
         return new DeductionAccumulator(primaryBatch, slotQty, remaining);
     }
@@ -199,20 +194,16 @@ public class InventoryLotService {
         int remaining = quantity;
         int totalTaken = 0;
         for (DeviceSkuLot lot : lots) {
-            if (remaining <= 0) {
-                break;
+            if (remaining > 0 && lot.getQuantity() > 0) {
+                int take = Math.min(lot.getQuantity(), remaining);
+                lot.setQuantity(lot.getQuantity() - take);
+                if (lot.getQuantity() == 0) {
+                    lot.setStatus(DEPLETED);
+                }
+                lotRepository.save(lot);
+                remaining -= take;
+                totalTaken += take;
             }
-            if (lot.getQuantity() <= 0) {
-                continue;
-            }
-            int take = Math.min(lot.getQuantity(), remaining);
-            lot.setQuantity(lot.getQuantity() - take);
-            if (lot.getQuantity() == 0) {
-                lot.setStatus(DEPLETED);
-            }
-            lotRepository.save(lot);
-            remaining -= take;
-            totalTaken += take;
         }
         if (totalTaken <= 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "lot not found");
@@ -233,22 +224,20 @@ public class InventoryLotService {
             if (remaining <= 0) {
                 break;
             }
-            if (lot.getQuantity() <= 0) {
-                continue;
+            if (lot.getQuantity() > 0) {
+                boolean sellable = WRITE_OFF.equals(movementType) || "ADJ".equals(movementType)
+                        || PULL_OFF.equals(movementType) || isSellable(lot, minExpiry);
+                if (sellable) {
+                    int take = Math.min(lot.getQuantity(), remaining);
+                    lot.setQuantity(lot.getQuantity() - take);
+                    if (lot.getQuantity() == 0) {
+                        lot.setStatus(DEPLETED);
+                    }
+                    lotRepository.save(lot);
+                    recordMovement(deviceId, skuId, lot.getBatchNo(), movementType, -take, refType, refId, operatorId);
+                    remaining -= take;
+                }
             }
-            if (WRITE_OFF.equals(movementType) || "ADJ".equals(movementType) || PULL_OFF.equals(movementType)) {
-                // allow blocked lots for write-off/pull-off/stocktake shrink
-            } else if (!isSellable(lot, minExpiry)) {
-                continue;
-            }
-            int take = Math.min(lot.getQuantity(), remaining);
-            lot.setQuantity(lot.getQuantity() - take);
-            if (lot.getQuantity() == 0) {
-                lot.setStatus(DEPLETED);
-            }
-            lotRepository.save(lot);
-            recordMovement(deviceId, skuId, lot.getBatchNo(), movementType, -take, refType, refId, operatorId);
-            remaining -= take;
         }
 
         if (remaining > 0) {
@@ -466,20 +455,16 @@ public class InventoryLotService {
         }
         int remaining = -delta;
         for (DeviceSkuLot lot : lots) {
-            if (remaining <= 0) {
-                break;
+            if (remaining > 0 && lot.getQuantity() > 0) {
+                int take = Math.min(lot.getQuantity(), remaining);
+                lot.setQuantity(lot.getQuantity() - take);
+                if (lot.getQuantity() == 0) {
+                    lot.setStatus(DEPLETED);
+                }
+                lotRepository.save(lot);
+                recordMovement(deviceId, skuId, lot.getBatchNo(), "ADJ", -take, "STOCKTAKE", refId, operatorId);
+                remaining -= take;
             }
-            if (lot.getQuantity() <= 0) {
-                continue;
-            }
-            int take = Math.min(lot.getQuantity(), remaining);
-            lot.setQuantity(lot.getQuantity() - take);
-            if (lot.getQuantity() == 0) {
-                lot.setStatus(DEPLETED);
-            }
-            lotRepository.save(lot);
-            recordMovement(deviceId, skuId, lot.getBatchNo(), "ADJ", -take, "STOCKTAKE", refId, operatorId);
-            remaining -= take;
         }
         if (remaining > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -680,24 +665,20 @@ public class InventoryLotService {
                 .findByDeviceIdAndSkuIdAndSlotIdOrderByExpiryDateAsc(deviceId, skuId, from);
         int remaining = quantity;
         for (DeviceSkuLot lot : lots) {
-            if (remaining <= 0) {
-                break;
+            if (remaining > 0 && lot.getQuantity() > 0) {
+                int take = Math.min(lot.getQuantity(), remaining);
+                String batch = lot.getBatchNo();
+                LocalDate production = lot.getProductionDate();
+                LocalDate expiry = lot.getExpiryDate();
+                lot.setQuantity(lot.getQuantity() - take);
+                if (lot.getQuantity() == 0) {
+                    lot.setStatus(DEPLETED);
+                }
+                lotRepository.save(lot);
+                recordMovement(deviceId, skuId, batch, "ADJ", -take, "SLOT_TRANSFER", refId, operatorId);
+                doAddRestock(deviceId, skuId, batch, production, expiry, take, to, operatorId, refId);
+                remaining -= take;
             }
-            if (lot.getQuantity() <= 0) {
-                continue;
-            }
-            int take = Math.min(lot.getQuantity(), remaining);
-            String batch = lot.getBatchNo();
-            LocalDate production = lot.getProductionDate();
-            LocalDate expiry = lot.getExpiryDate();
-            lot.setQuantity(lot.getQuantity() - take);
-            if (lot.getQuantity() == 0) {
-                lot.setStatus(DEPLETED);
-            }
-            lotRepository.save(lot);
-            recordMovement(deviceId, skuId, batch, "ADJ", -take, "SLOT_TRANSFER", refId, operatorId);
-            doAddRestock(deviceId, skuId, batch, production, expiry, take, to, operatorId, refId);
-            remaining -= take;
         }
         if (remaining > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,

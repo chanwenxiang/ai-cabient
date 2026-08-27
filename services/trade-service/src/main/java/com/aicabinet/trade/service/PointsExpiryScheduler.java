@@ -162,10 +162,7 @@ public class PointsExpiryScheduler {
                 break;
             }
             int pts = nz(l.getPoints());
-            if (pts <= 0 || l.getExpiredAt() != null) {
-                continue;
-            }
-            if (pts <= remaining) {
+            if (pts > 0 && l.getExpiredAt() == null && pts <= remaining) {
                 l.setExpiredAt(now);
                 pointsLogRepository.save(l);
                 remaining -= pts;

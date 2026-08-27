@@ -275,17 +275,15 @@ public class DeviceAssetService {
                 .in(DeviceSkuInventory::getDeviceId, devices.keySet()));
         for (DeviceSkuInventory row : inv) {
             DeviceInfo device = devices.get(row.getDeviceId());
-            if (device == null) {
-                continue;
+            if (device != null) {
+                int qty = effectiveSellableQty(row, ledgerByDevice, sellableByDevice);
+                boolean stockout = qty <= 0;
+                boolean low = !stockout && qty <= Math.max(row.getLowThreshold(), 0);
+                if (matchesInventoryHealthDimension(dim, stockout, low)) {
+                    String kind = stockout ? STOCKOUT : "LOW";
+                    rows.add(buildInventoryHealthRow(device, row, skus, qty, kind, stockout));
+                }
             }
-            int qty = effectiveSellableQty(row, ledgerByDevice, sellableByDevice);
-            boolean stockout = qty <= 0;
-            boolean low = !stockout && qty <= Math.max(row.getLowThreshold(), 0);
-            if (!matchesInventoryHealthDimension(dim, stockout, low)) {
-                continue;
-            }
-            String kind = stockout ? STOCKOUT : "LOW";
-            rows.add(buildInventoryHealthRow(device, row, skus, qty, kind, stockout));
         }
     }
 
@@ -353,35 +351,33 @@ public class DeviceAssetService {
                 .isNotNull(DeviceSkuLot::getExpiryDate));
         for (DeviceSkuLot lot : lots) {
             DeviceInfo device = devices.get(lot.getDeviceId());
-            if (device == null || lot.getExpiryDate() == null) {
-                continue;
+            if (device != null && lot.getExpiryDate() != null) {
+                SkuCatalog sku = skus.get(lot.getSkuId());
+                int nearDays = sku != null ? Math.max(sku.getNearExpiryDays(), 0) : 7;
+                long daysLeft = ChronoUnit.DAYS.between(today, lot.getExpiryDate());
+                if (daysLeft <= nearDays) {
+                    int capacity = capacityByDeviceSku.getOrDefault(lot.getDeviceId() + "\0" + lot.getSkuId(), 0);
+                    rows.add(new StockHealthRowDto(
+                            NEAR_EXPIRY,
+                            device.getDeviceId(),
+                            device.getDeviceName(),
+                            device.getMerchantId(),
+                            device.getRouteCode(),
+                            normalizeLifecycle(device.getLifecycleStatus()),
+                            lot.getSkuId(),
+                            sku == null ? lot.getSkuId() : sku.getSkuName(),
+                            lot.getQuantity(),
+                            capacity,
+                            null,
+                            0d,
+                            null,
+                            lot.getExpiryDate(),
+                            lot.getUpdatedAt(),
+                            lot.getLotId(),
+                            lot.getBatchNo()
+                    ));
+                }
             }
-            SkuCatalog sku = skus.get(lot.getSkuId());
-            int nearDays = sku != null ? Math.max(sku.getNearExpiryDays(), 0) : 7;
-            long daysLeft = ChronoUnit.DAYS.between(today, lot.getExpiryDate());
-            if (daysLeft > nearDays) {
-                continue;
-            }
-            int capacity = capacityByDeviceSku.getOrDefault(lot.getDeviceId() + "\0" + lot.getSkuId(), 0);
-            rows.add(new StockHealthRowDto(
-                    NEAR_EXPIRY,
-                    device.getDeviceId(),
-                    device.getDeviceName(),
-                    device.getMerchantId(),
-                    device.getRouteCode(),
-                    normalizeLifecycle(device.getLifecycleStatus()),
-                    lot.getSkuId(),
-                    sku == null ? lot.getSkuId() : sku.getSkuName(),
-                    lot.getQuantity(),
-                    capacity,
-                    null,
-                    0d,
-                    null,
-                    lot.getExpiryDate(),
-                    lot.getUpdatedAt(),
-                    lot.getLotId(),
-                    lot.getBatchNo()
-            ));
         }
     }
 

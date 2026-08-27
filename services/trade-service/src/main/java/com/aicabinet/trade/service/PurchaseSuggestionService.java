@@ -109,36 +109,33 @@ public class PurchaseSuggestionService {
 
         List<PurchaseSuggestionDto> out = new ArrayList<>();
         for (String skuId : skuIds) {
-            if (excludedByReview.contains(skuId)) {
-                continue;
+            if (!excludedByReview.contains(skuId)) {
+                int q7 = sold7.getOrDefault(skuId, 0);
+                int q14 = sold14.getOrDefault(skuId, 0);
+                if (q14 > 0) {
+                    DemandModel model = demandModel(daily.get(skuId), q7, q14, today, window, horizon, lead);
+                    int demand = model.demand();
+                    int safety = model.safetyStock();
+                    int suggest = Math.max(0,
+                            demand + safety - onHand.getOrDefault(skuId, 0) - pending.getOrDefault(skuId, 0));
+                    if (suggest > 0) {
+                        out.add(new PurchaseSuggestionDto(
+                                skuId,
+                                skuNames.getOrDefault(skuId, skuId),
+                                onHand.getOrDefault(skuId, 0),
+                                pending.getOrDefault(skuId, 0),
+                                q7,
+                                q14,
+                                model.avgDaily(),
+                                horizon,
+                                suggest,
+                                safety,
+                                model.forecastDaily(),
+                                model.trendPerDay(),
+                                model.reason()));
+                    }
+                }
             }
-            int q7 = sold7.getOrDefault(skuId, 0);
-            int q14 = sold14.getOrDefault(skuId, 0);
-            if (q14 <= 0) {
-                continue;
-            }
-            DemandModel model = demandModel(daily.get(skuId), q7, q14, today, window, horizon, lead);
-            int demand = model.demand();
-            int safety = model.safetyStock();
-            int suggest = Math.max(0,
-                    demand + safety - onHand.getOrDefault(skuId, 0) - pending.getOrDefault(skuId, 0));
-            if (suggest <= 0) {
-                continue;
-            }
-            out.add(new PurchaseSuggestionDto(
-                    skuId,
-                    skuNames.getOrDefault(skuId, skuId),
-                    onHand.getOrDefault(skuId, 0),
-                    pending.getOrDefault(skuId, 0),
-                    q7,
-                    q14,
-                    model.avgDaily(),
-                    horizon,
-                    suggest,
-                    safety,
-                    model.forecastDaily(),
-                    model.trendPerDay(),
-                    model.reason()));
         }
 
         out.sort(Comparator.comparingInt(PurchaseSuggestionDto::suggestQty).reversed()

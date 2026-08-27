@@ -27,19 +27,18 @@ public final class WeChatBillCsvParser {
                 break;
             }
             String[] cols = line.replace("`", "").split(",");
-            if (cols.length < 13) {
-                continue;
-            }
-            Instant tradeTime = billDate.atStartOfDay(zone).toInstant();
-            try {
-                String merchantOrderNo = cols[6].trim();
-                String platformTradeNo = cols[5].trim();
-                long amountCents = Math.round(Double.parseDouble(cols[12].trim()) * 100);
-                result.add(new PlatformBillLine(
-                        platformTradeNo, merchantOrderNo, amountCents, tradeTime, "WECHAT", line
-                ));
-            } catch (Exception e) {
-                log.debug("skip wechat bill line: {}", line);
+            if (cols.length >= 13) {
+                Instant tradeTime = billDate.atStartOfDay(zone).toInstant();
+                try {
+                    String merchantOrderNo = cols[6].trim();
+                    String platformTradeNo = cols[5].trim();
+                    long amountCents = Math.round(Double.parseDouble(cols[12].trim()) * 100);
+                    result.add(new PlatformBillLine(
+                            platformTradeNo, merchantOrderNo, amountCents, tradeTime, "WECHAT", line
+                    ));
+                } catch (Exception e) {
+                    log.debug("skip wechat bill line: {}", line);
+                }
             }
         }
         return result;

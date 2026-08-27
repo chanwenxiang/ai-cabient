@@ -59,20 +59,18 @@ public class InTransitService {
 
     private void doRecordFromOutboundForDevice(Long outboundId, String deviceId, List<WarehouseOutboundLine> lines) {
         for (WarehouseOutboundLine line : lines) {
-            if (line.getDeviceId() == null || line.getDeviceId().isBlank() || line.getQuantity() <= 0) {
-                continue;
+            if (line.getDeviceId() != null && !line.getDeviceId().isBlank()
+                    && line.getQuantity() > 0
+                    && deviceId.equals(line.getDeviceId().trim())) {
+                WarehouseInTransit transit = new WarehouseInTransit();
+                transit.setOutboundId(outboundId);
+                transit.setDeviceId(deviceId);
+                transit.setSkuId(line.getSkuId());
+                transit.setBatchNo(line.getBatchNo());
+                transit.setQuantity(line.getQuantity());
+                transit.setStatus(STATUS_IN_TRANSIT);
+                transitRepository.save(transit);
             }
-            if (!deviceId.equals(line.getDeviceId().trim())) {
-                continue;
-            }
-            WarehouseInTransit transit = new WarehouseInTransit();
-            transit.setOutboundId(outboundId);
-            transit.setDeviceId(deviceId);
-            transit.setSkuId(line.getSkuId());
-            transit.setBatchNo(line.getBatchNo());
-            transit.setQuantity(line.getQuantity());
-            transit.setStatus(STATUS_IN_TRANSIT);
-            transitRepository.save(transit);
         }
         log.info("in-transit recorded outboundId={} deviceId={}", outboundId, deviceId);
     }
