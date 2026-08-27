@@ -1032,7 +1032,7 @@ public class AdminDashboardService {
     }
 
     public List<SkuCatalogDto> listSkus(Long operatorId) {
-        return listSkus(operatorId, null, null, null);
+        return self.listSkus(operatorId, null, null, null);
     }
 
     @Transactional(readOnly = true)
