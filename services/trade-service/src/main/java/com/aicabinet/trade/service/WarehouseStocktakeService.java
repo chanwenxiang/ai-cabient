@@ -298,29 +298,45 @@ public class WarehouseStocktakeService {
             return toDto(st);
         }
 
+        Map<String, WarehouseStocktakeLine> bySku = indexStocktakeLinesBySku(stocktakeId);
+        for (VisionServiceClient.RecognizedItem item : result.items()) {
+            applyVisionItemToLine(item, bySku);
+        }
+        markStocktakeInProgressIfDraft(st);
+        refreshTotals(st);
+        stocktakeRepository.save(st);
+        return toDto(st);
+    }
+
+    private Map<String, WarehouseStocktakeLine> indexStocktakeLinesBySku(Long stocktakeId) {
         Map<String, WarehouseStocktakeLine> bySku = new HashMap<>();
         for (WarehouseStocktakeLine line : lineRepository.findByStocktakeIdOrderByLineIdAsc(stocktakeId)) {
             bySku.put(line.getSkuId().toUpperCase(Locale.ROOT), line);
         }
-        for (VisionServiceClient.RecognizedItem item : result.items()) {
-            if (item.skuId() != null && item.confidence() >= MIN_VISION_CONFIDENCE) {
-                WarehouseStocktakeLine line = bySku.get(item.skuId().trim().toUpperCase(Locale.ROOT));
-                if (line != null) {
-                    int counted = Math.max(0, item.quantity());
-                    line.setCountedQty(counted);
-                    line.setDiffQty(counted - line.getBookQty());
-                    line.setStatus(line.getDiffQty() == 0 ? MATCHED : "DIFF");
-                    lineRepository.save(line);
-                }
-            }
+        return bySku;
+    }
+
+    private void applyVisionItemToLine(VisionServiceClient.RecognizedItem item,
+                                       Map<String, WarehouseStocktakeLine> bySku) {
+        if (item.skuId() == null || item.confidence() < MIN_VISION_CONFIDENCE) {
+            return;
         }
+        WarehouseStocktakeLine line = bySku.get(item.skuId().trim().toUpperCase(Locale.ROOT));
+        if (line == null) {
+            return;
+        }
+        int counted = Math.max(0, item.quantity());
+        line.setCountedQty(counted);
+        line.setDiffQty(counted - line.getBookQty());
+        line.setStatus(line.getDiffQty() == 0 ? MATCHED : "DIFF");
+        lineRepository.save(line);
+    }
+
+    private void markStocktakeInProgressIfDraft(WarehouseStocktake st) {
         if (CabinetConstants.PROMOTION_STATUS_DRAFT.equals(st.getStatus())) {
             st.setStatus(STATUS_IN_PROGRESS);
             st.setStartedAt(Instant.now());
         }
-        refreshTotals(st);
-        stocktakeRepository.save(st);
-        return toDto(st);
     }
 
     private void refreshTotals(WarehouseStocktake st) {

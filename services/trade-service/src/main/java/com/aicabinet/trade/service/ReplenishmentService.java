@@ -906,39 +906,62 @@ public class ReplenishmentService {
         }
         int received = 0;
         for (var ol : warehouseService.outboundLinesForDevice(task.getOutboundId(), task.getDeviceId())) {
-            if (ol.getQuantity() > 0) {
-                int credit = remainingCredit.getOrDefault(ol.getSkuId(), 0);
-                int need = ol.getQuantity() - credit;
-                if (credit > 0) {
-                    remainingCredit.put(ol.getSkuId(), Math.max(0, credit - ol.getQuantity()));
-                }
-                if (need > 0) {
-                    List<DeviceSlotService.SlotRestockAllocation> allocations =
-                            resolveOutboundSlotAllocations(task.getDeviceId(), ol, need);
-                    if (allocations.isEmpty()) {
-                        // 无货道绑定时仍按出库数量回写（兼容旧柜）
-                        if (!deviceSlotService.hasSkuSlots(task.getDeviceId(), ol.getSkuId())) {
-                            inventoryLotService.addRestock(
-                                    task.getDeviceId(), ol.getSkuId(),
-                                    new InventoryLotService.RestockCommand(
-                                            ol.getBatchNo(), null, ol.getExpiryDate(), need, null,
-                                            new InventoryLotService.LotMovementRef("REPLENISH", refId, operatorId)));
-                            received += need;
-                        }
-                    } else {
-                        for (DeviceSlotService.SlotRestockAllocation alloc : allocations) {
-                            inventoryLotService.addRestock(
-                                    task.getDeviceId(), ol.getSkuId(),
-                                    new InventoryLotService.RestockCommand(
-                                            ol.getBatchNo(), null, ol.getExpiryDate(), alloc.quantity(),
-                                            alloc.slotCode(),
-                                            new InventoryLotService.LotMovementRef("REPLENISH", refId, operatorId)));
-                            deviceSlotService.recordRestock(task.getDeviceId(), alloc.slotCode());
-                            received += alloc.quantity();
-                        }
-                    }
-                }
+            if (ol.getQuantity() <= 0) {
+                continue;
             }
+            int need = computeOutboundRestockNeed(ol, remainingCredit);
+            if (need > 0) {
+                received += applyOutboundLineRestock(task, ol, need, operatorId, refId);
+            }
+        }
+        return received;
+    }
+
+    private static int computeOutboundRestockNeed(WarehouseOutboundLine ol, Map<String, Integer> remainingCredit) {
+        int credit = remainingCredit.getOrDefault(ol.getSkuId(), 0);
+        int need = ol.getQuantity() - credit;
+        if (credit > 0) {
+            remainingCredit.put(ol.getSkuId(), Math.max(0, credit - ol.getQuantity()));
+        }
+        return need;
+    }
+
+    private int applyOutboundLineRestock(ReplenishmentTask task, WarehouseOutboundLine ol, int need,
+                                         Long operatorId, String refId) {
+        List<DeviceSlotService.SlotRestockAllocation> allocations =
+                resolveOutboundSlotAllocations(task.getDeviceId(), ol, need);
+        if (allocations.isEmpty()) {
+            return restockOutboundLineWithoutSlots(task, ol, need, operatorId, refId);
+        }
+        return restockOutboundLineWithAllocations(task, ol, allocations, operatorId, refId);
+    }
+
+    private int restockOutboundLineWithoutSlots(ReplenishmentTask task, WarehouseOutboundLine ol, int need,
+                                                Long operatorId, String refId) {
+        if (!deviceSlotService.hasSkuSlots(task.getDeviceId(), ol.getSkuId())) {
+            inventoryLotService.addRestock(
+                    task.getDeviceId(), ol.getSkuId(),
+                    new InventoryLotService.RestockCommand(
+                            ol.getBatchNo(), null, ol.getExpiryDate(), need, null,
+                            new InventoryLotService.LotMovementRef("REPLENISH", refId, operatorId)));
+            return need;
+        }
+        return 0;
+    }
+
+    private int restockOutboundLineWithAllocations(ReplenishmentTask task, WarehouseOutboundLine ol,
+                                                   List<DeviceSlotService.SlotRestockAllocation> allocations,
+                                                   Long operatorId, String refId) {
+        int received = 0;
+        for (DeviceSlotService.SlotRestockAllocation alloc : allocations) {
+            inventoryLotService.addRestock(
+                    task.getDeviceId(), ol.getSkuId(),
+                    new InventoryLotService.RestockCommand(
+                            ol.getBatchNo(), null, ol.getExpiryDate(), alloc.quantity(),
+                            alloc.slotCode(),
+                            new InventoryLotService.LotMovementRef("REPLENISH", refId, operatorId)));
+            deviceSlotService.recordRestock(task.getDeviceId(), alloc.slotCode());
+            received += alloc.quantity();
         }
         return received;
     }
