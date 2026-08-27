@@ -625,6 +625,7 @@ public class CompetitiveGapService {
                 deviceOpsEventMapper.insert(e);
             }
         }
+    }
 
     private List<SalesReportRowDto> aggregateByProduct(Set<String> deviceIds, Instant start, Instant end) {
         List<Object[]> rows;

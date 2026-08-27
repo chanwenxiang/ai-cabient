@@ -786,25 +786,24 @@ public class WarehouseService {
         int skipped = 0;
         List<Long> cancelledIds = new ArrayList<>();
         for (WarehouseOutbound outbound : outboundRepository.findAllByOrderByCreatedAtDesc()) {
-            if (STATUS_CANCELLED.equals(outbound.getStatus())) {
-                continue;
-            }
-            String bucket = classifyStaleOutbound(outbound, routeStatusById);
-            if (bucket == null) {
-                skipped++;
-                continue;
-            }
-            try {
-                self.cancelUnreceivedOutbound(outbound.getOutboundId(), operatorId);
-                cancelledIds.add(outbound.getOutboundId());
-                switch (bucket) {
-                    case "empty" -> cancelledEmptyDrafts++;
-                    case "terminal-draft" -> cancelledTerminalDrafts++;
-                    case "orphan-shipped" -> cancelledOrphanShipped++;
-                    default -> { }
+            if (!STATUS_CANCELLED.equals(outbound.getStatus())) {
+                String bucket = classifyStaleOutbound(outbound, routeStatusById);
+                if (bucket != null) {
+                    try {
+                        self.cancelUnreceivedOutbound(outbound.getOutboundId(), operatorId);
+                        cancelledIds.add(outbound.getOutboundId());
+                        switch (bucket) {
+                            case "empty" -> cancelledEmptyDrafts++;
+                            case "terminal-draft" -> cancelledTerminalDrafts++;
+                            case "orphan-shipped" -> cancelledOrphanShipped++;
+                            default -> { }
+                        }
+                    } catch (ResponseStatusException ex) {
+                        skipped++;
+                    }
+                } else {
+                    skipped++;
                 }
-            } catch (ResponseStatusException ex) {
-                skipped++;
             }
         }
         return new WarehouseStaleCleanupResultDto(
@@ -974,32 +973,30 @@ public class WarehouseService {
                 if (remaining <= 0) {
                     break;
                 }
-                if (lot.getQuantity() <= 0 || lot.getExpiryDate().isBefore(LocalDate.now())) {
-                    continue;
+                if (lot.getQuantity() > 0 && !lot.getExpiryDate().isBefore(LocalDate.now())) {
+                    WarehouseInventory lockedLot = inventoryRepository
+                            .findByWarehouseIdAndSkuIdAndBatchNoForUpdate(warehouseId, skuId, lot.getBatchNo())
+                            .orElse(lot);
+                    int allocated = outboundLineRepository.sumAllocatedQty(warehouseId, skuId, lockedLot.getBatchNo());
+                    int available = Math.max(0, lockedLot.getQuantity() - allocated);
+                    if (available > 0) {
+                        int take = Math.min(available, remaining);
+                        WarehouseOutboundLine line = new WarehouseOutboundLine();
+                        line.setOutboundId(outboundId);
+                        line.setDeviceId(deviceId);
+                        line.setSkuId(skuId);
+                        line.setBatchNo(lockedLot.getBatchNo());
+                        line.setExpiryDate(lockedLot.getExpiryDate());
+                        line.setQuantity(take);
+                        line.setPicked(false);
+                        if (slotId != null && !slotId.isBlank()) {
+                            line.setSlotId(slotId.trim().toUpperCase());
+                        }
+                        outboundLineRepository.save(line);
+                        remaining -= take;
+                        lines++;
+                    }
                 }
-                WarehouseInventory lockedLot = inventoryRepository
-                        .findByWarehouseIdAndSkuIdAndBatchNoForUpdate(warehouseId, skuId, lot.getBatchNo())
-                        .orElse(lot);
-                int allocated = outboundLineRepository.sumAllocatedQty(warehouseId, skuId, lockedLot.getBatchNo());
-                int available = Math.max(0, lockedLot.getQuantity() - allocated);
-                if (available <= 0) {
-                    continue;
-                }
-                int take = Math.min(available, remaining);
-                WarehouseOutboundLine line = new WarehouseOutboundLine();
-                line.setOutboundId(outboundId);
-                line.setDeviceId(deviceId);
-                line.setSkuId(skuId);
-                line.setBatchNo(lockedLot.getBatchNo());
-                line.setExpiryDate(lockedLot.getExpiryDate());
-                line.setQuantity(take);
-                line.setPicked(false);
-                if (slotId != null && !slotId.isBlank()) {
-                    line.setSlotId(slotId.trim().toUpperCase());
-                }
-                outboundLineRepository.save(line);
-                remaining -= take;
-                lines++;
             }
             if (remaining > 0 && requireFull) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
