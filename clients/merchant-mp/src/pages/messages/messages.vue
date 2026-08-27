@@ -92,46 +92,70 @@ function bizTypeLabel(type?: string) {
   return '';
 }
 
+async function markNotificationReadIfNeeded(m: MerchantNotificationDto) {
+  if (m.read) return;
+  try {
+    await merchantApi.markNotificationRead(m.id);
+    m.read = true;
+  } catch {
+    /* 忽略已读失败 */
+  }
+}
+
+function navigateReplenishment(id: string) {
+  if (!id) return;
+  uni.navigateTo({ url: `/pages/replenishment/replenishment?taskId=${id}` });
+}
+
+function navigateDispute(id: string) {
+  uni.navigateTo({
+    url: id ? `/pages/disputes/disputes?ticketId=${id}` : '/pages/disputes/disputes'
+  });
+}
+
+function navigateOrder(id: string) {
+  if (!id) return;
+  uni.navigateTo({ url: `/pages/order-detail/order-detail?orderId=${id}` });
+}
+
+function navigateSettlement() {
+  uni.navigateTo({ url: '/pages/settlements/settlements' });
+}
+
+function navigateWallet() {
+  uni.navigateTo({ url: '/pages/wallet/wallet' });
+}
+
+function navigateAlerts() {
+  uni.switchTab({ url: '/pages/alerts/alerts' });
+}
+
+function navigateAnnouncement(id: string) {
+  if (!id) return;
+  uni.navigateTo({ url: `/pages/announcements/detail?id=${id}` });
+}
+
+const NOTIFICATION_NAVIGATORS: Record<string, (id: string) => void> = {
+  REPLENISHMENT: navigateReplenishment,
+  DISPUTE: navigateDispute,
+  ORDER: navigateOrder,
+  SETTLEMENT: navigateSettlement,
+  SPLIT: navigateSettlement,
+  WALLET: navigateWallet,
+  WITHDRAW: navigateWallet,
+  DEVICE: navigateAlerts,
+  ALERT: navigateAlerts,
+  ANNOUNCEMENT: navigateAnnouncement
+};
+
+function navigateForNotification(type: string, id: string) {
+  NOTIFICATION_NAVIGATORS[type]?.(id);
+}
+
 async function onOpen(m: MerchantNotificationDto) {
-  if (!m.read) {
-    try {
-      await merchantApi.markNotificationRead(m.id);
-      m.read = true;
-    } catch {
-      /* 忽略已读失败 */
-    }
-  }
+  await markNotificationReadIfNeeded(m);
   const id = m.bizId ? encodeURIComponent(m.bizId) : '';
-  const type = String(m.bizType || '').toUpperCase();
-  if (type === 'REPLENISHMENT' && id) {
-    uni.navigateTo({ url: `/pages/replenishment/replenishment?taskId=${id}` });
-    return;
-  }
-  if (type === 'DISPUTE') {
-    uni.navigateTo({
-      url: id ? `/pages/disputes/disputes?ticketId=${id}` : '/pages/disputes/disputes'
-    });
-    return;
-  }
-  if (type === 'ORDER' && id) {
-    uni.navigateTo({ url: `/pages/order-detail/order-detail?orderId=${id}` });
-    return;
-  }
-  if (type === 'SETTLEMENT' || type === 'SPLIT') {
-    uni.navigateTo({ url: '/pages/settlements/settlements' });
-    return;
-  }
-  if (type === 'WALLET' || type === 'WITHDRAW') {
-    uni.navigateTo({ url: '/pages/wallet/wallet' });
-    return;
-  }
-  if (type === 'DEVICE' || type === 'ALERT') {
-    uni.switchTab({ url: '/pages/alerts/alerts' });
-    return;
-  }
-  if (type === 'ANNOUNCEMENT' && id) {
-    uni.navigateTo({ url: `/pages/announcements/detail?id=${id}` });
-  }
+  navigateForNotification(String(m.bizType || '').toUpperCase(), id);
 }
 
 function formatTime(t: string) {

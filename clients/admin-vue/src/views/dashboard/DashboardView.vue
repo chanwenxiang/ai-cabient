@@ -691,6 +691,22 @@ async function fetchWorkbenchBundle() {
   }
 }
 
+async function loadOnboardPending() {
+  if (!canAccessPath('/merchant-onboarding')) {
+    onboardPending.value = 0;
+    return;
+  }
+  try {
+    const data = await api.request<{ items?: { status?: string }[]; total?: number }>(
+      '/api/v2/ops/admin/merchant-onboarding?status=SUBMITTED&page=0&size=1',
+      'GET'
+    );
+    onboardPending.value = Number(data?.total) || (data?.items || []).length;
+  } catch {
+    onboardPending.value = 0;
+  }
+}
+
 async function load(opts?: { silent?: boolean }) {
   loading.value = true;
   try {
@@ -710,19 +726,7 @@ async function load(opts?: { silent?: boolean }) {
     stats.value = s || {};
     workbench.value = wb;
     openExceptionCount.value = ex?.total || 0;
-    if (canAccessPath('/merchant-onboarding')) {
-      try {
-        const data = await api.request<{ items?: { status?: string }[]; total?: number }>(
-          '/api/v2/ops/admin/merchant-onboarding?status=SUBMITTED&page=0&size=1',
-          'GET'
-        );
-        onboardPending.value = Number(data?.total) || (data?.items || []).length;
-      } catch {
-        onboardPending.value = 0;
-      }
-    } else {
-      onboardPending.value = 0;
-    }
+    await loadOnboardPending();
   } catch (e) {
     if (!opts?.silent) {
       ElMessage.error(e instanceof Error ? e.message : '加载失败');

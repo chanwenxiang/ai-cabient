@@ -487,44 +487,43 @@ async function onExport() {
 
 const VALID_DIMS = new Set(['ALL', 'STOCKOUT', 'LOW', 'NEAR_EXPIRY']);
 
+function syncStockHealthQueryField(
+  key: 'deviceId' | 'merchantId' | 'routeCode',
+  refValue: { value: string },
+  changed: boolean
+): boolean {
+  if (!(key in route.query)) return changed;
+  const next = typeof route.query[key] === 'string' ? route.query[key] : '';
+  if (next === refValue.value) return changed;
+  refValue.value = next;
+  return true;
+}
+
+function syncStockHealthLifecycle(changed: boolean): boolean {
+  if (!('lifecycleStatus' in route.query)) return changed;
+  const next =
+    typeof route.query.lifecycleStatus === 'string' ? route.query.lifecycleStatus : 'DEPLOYED';
+  if (next === lifecycleStatus.value) return changed;
+  lifecycleStatus.value = next || 'DEPLOYED';
+  return true;
+}
+
+function syncStockHealthDimension(changed: boolean): boolean {
+  const dim =
+    typeof route.query.dimension === 'string' ? route.query.dimension.trim().toUpperCase() : '';
+  if (!VALID_DIMS.has(dim) || dim === dimension.value) return changed;
+  dimension.value = dim;
+  return true;
+}
+
 /** 看板快捷入口带 query 时覆盖本地筛选；无对应 query 则保留用户上次选择 */
 function applyRouteQuery() {
   let changed = false;
-  const dim =
-    typeof route.query.dimension === 'string' ? route.query.dimension.trim().toUpperCase() : '';
-  if (VALID_DIMS.has(dim) && dim !== dimension.value) {
-    dimension.value = dim;
-    changed = true;
-  }
-  if ('deviceId' in route.query) {
-    const next = typeof route.query.deviceId === 'string' ? route.query.deviceId : '';
-    if (next !== deviceId.value) {
-      deviceId.value = next;
-      changed = true;
-    }
-  }
-  if ('merchantId' in route.query) {
-    const next = typeof route.query.merchantId === 'string' ? route.query.merchantId : '';
-    if (next !== merchantId.value) {
-      merchantId.value = next;
-      changed = true;
-    }
-  }
-  if ('routeCode' in route.query) {
-    const next = typeof route.query.routeCode === 'string' ? route.query.routeCode : '';
-    if (next !== routeCode.value) {
-      routeCode.value = next;
-      changed = true;
-    }
-  }
-  if ('lifecycleStatus' in route.query) {
-    const next =
-      typeof route.query.lifecycleStatus === 'string' ? route.query.lifecycleStatus : 'DEPLOYED';
-    if (next !== lifecycleStatus.value) {
-      lifecycleStatus.value = next || 'DEPLOYED';
-      changed = true;
-    }
-  }
+  changed = syncStockHealthDimension(changed);
+  changed = syncStockHealthQueryField('deviceId', deviceId, changed);
+  changed = syncStockHealthQueryField('merchantId', merchantId, changed);
+  changed = syncStockHealthQueryField('routeCode', routeCode, changed);
+  changed = syncStockHealthLifecycle(changed);
   return changed;
 }
 

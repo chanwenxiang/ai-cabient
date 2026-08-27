@@ -1,6 +1,6 @@
 import { computed, type ComputedRef } from 'vue';
 import { dictOptions } from '@aicabinet/shared-dict-core';
-import { dictRuntimeEpoch } from '@/stores/dict-runtime';
+import { consumeDictRuntimeEpoch } from '@/stores/dict-runtime';
 
 /**
  * 响应式字典下拉：依赖 dictRuntimeEpoch，禁用项在 loadRuntimeDict 后立即从选项中消失。
@@ -8,7 +8,7 @@ import { dictRuntimeEpoch } from '@/stores/dict-runtime';
  */
 export function useDictOptions(type: string): ComputedRef<{ value: string; label: string }[]> {
   return computed(() => {
-    dictRuntimeEpoch.value;
+    consumeDictRuntimeEpoch();
     return dictOptions(type);
   });
 }

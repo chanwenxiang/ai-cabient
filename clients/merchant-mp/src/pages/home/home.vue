@@ -388,152 +388,195 @@ function hydrateFromCache() {
 
 let loadSeq = 0;
 
+async function fetchHomeProfile(seq: number): Promise<MerchantMe | null> {
+  hydrateFromCache();
+  try {
+    const profile = await refreshMe();
+    if (seq !== loadSeq) return null;
+    return profile;
+  } catch {
+    if (!uni.getStorageSync('merchant_token')) return null;
+    const profile = (uni.getStorageSync('merchant_me') as MerchantMe) || ({} as MerchantMe);
+    me.value = profile;
+    if (seq !== loadSeq) return null;
+    return profile;
+  }
+}
+
+const EMPTY_WORKBENCH = {
+  offlineDevices: 0,
+  openDisputes: 0,
+  lowStockItems: 0,
+  expiryAlerts: 0,
+  slotDiscrepancies: 0,
+  actionItems: [] as { type: string; title: string; detail?: string; deviceId?: string }[]
+};
+
+async function fetchHomeTrend() {
+  if (!canTrend.value) return { last7Days: [] as { date: string; revenueCents: number }[] };
+  return (
+    merchantApi.trend(7) as Promise<{ last7Days?: { date: string; revenueCents: number }[] }>
+  ).catch(() => ({ last7Days: [] }));
+}
+
+async function fetchHomeWorkbench() {
+  if (!canAlerts.value) return EMPTY_WORKBENCH;
+  return merchantApi.workbench().catch(() => EMPTY_WORKBENCH);
+}
+
+async function fetchHomeExceptions() {
+  if (!canAlerts.value) return { items: [], total: 0 };
+  return merchantApi.openExceptions(100).catch(() => ({ items: [], total: 0 }));
+}
+
+async function fetchHomeExpiryRows() {
+  if (!canAlerts.value) return [];
+  return merchantApi.expiryAlerts().catch(() => []);
+}
+
+async function fetchHomeDevices() {
+  if (!canDevices.value && !canReplenishment.value) return [];
+  return merchantApi.devices().catch(() => []);
+}
+
+async function fetchHomeReplenishmentTasks() {
+  if (!canReplenishment.value) return [];
+  return merchantApi.replenishmentTasks().catch(() => []);
+}
+
+async function fetchHomeAnalytics() {
+  if (!canBusiness.value) return null;
+  return merchantApi.analytics(7).catch(() => null);
+}
+
+async function fetchHomeDashboardBundle() {
+  return Promise.all([
+    merchantApi.stats().catch(() => ({}) as Record<string, number>),
+    fetchHomeTrend(),
+    fetchHomeWorkbench(),
+    fetchHomeExceptions(),
+    fetchHomeExpiryRows(),
+    fetchHomeDevices(),
+    fetchHomeReplenishmentTasks(),
+    merchantApi.listAnnouncements().catch(() => []),
+    fetchHomeAnalytics()
+  ]);
+}
+
+function applyHomeFinanceKpis(
+  s: Record<string, number>,
+  analytics: { days?: number; avgOrderValueCents?: number | null } | null,
+  days: { date: string; revenueCents: number }[]
+) {
+  const maxRev = Math.max(...days.map((d) => d.revenueCents), 1);
+  revenueToday.value = canFinanceKpi.value ? fmtMoney(s.revenueTodayCents) : '暂无';
+  incomeToday.value = canFinanceKpi.value ? fmtMoney(s.merchantIncomeTodayCents) : '暂无';
+  analyticsDays.value = Number(analytics?.days || 7);
+  avgOrderToday.value =
+    canBusiness.value && analytics?.avgOrderValueCents != null
+      ? fmtMoney(analytics.avgOrderValueCents)
+      : '暂无';
+  trendBars.value = canFinanceKpi.value
+    ? days.map((d) => ({
+        date: d.date,
+        label: d.date.slice(5),
+        height: Math.max(16, Math.round((d.revenueCents / maxRev) * 120))
+      }))
+    : [];
+}
+
+function applyHomeAlerts(
+  s: Record<string, number>,
+  workbench: typeof EMPTY_WORKBENCH,
+  exceptionPage: { items?: unknown[] },
+  expiryRows: unknown[]
+) {
+  offlineCount.value = canAlerts.value
+    ? workbench.offlineDevices || 0
+    : Number(s.deviceOffline || 0);
+  const mergedTodos = canAlerts.value
+    ? mergeTodoItems({
+        exceptions: exceptionPage.items || [],
+        actionItems: workbench.actionItems || [],
+        expiryRows: expiryRows || []
+      })
+    : [];
+  pendingCount.value = mergedTodos.length;
+  setAlertsTabBadge(pendingCount.value);
+  actionItems.value = canAlerts.value
+    ? mergedTodos.slice(0, 3).map((a) => ({
+        type: a.type,
+        title: a.title,
+        detail: a.detail,
+        deviceId: a.deviceId
+      }))
+    : [];
+}
+
+function applyHomeDashboardData(
+  profile: MerchantMe,
+  bundle: Awaited<ReturnType<typeof fetchHomeDashboardBundle>>
+) {
+  const [s, trend, workbench, exceptionPage, expiryRows, devices, tasks, announcements, analytics] =
+    bundle;
+  meName.value = profile.displayName || profile.phoneNumber || '同事';
+  merchantNames.value = formatMerchantNames(profile.merchants);
+  latestAnnouncement.value = announcements?.[0] || null;
+  stats.value = s;
+  const days = trend.last7Days || [];
+  applyHomeFinanceKpis(s, analytics, days);
+  applyHomeAlerts(s, workbench, exceptionPage, expiryRows);
+
+  const map: Record<string, string> = {};
+  for (const d of devices as { deviceId: string; deviceName?: string }[]) {
+    map[d.deviceId] = d.deviceName || d.deviceId;
+  }
+  deviceMap.value = map;
+  applyTaskPreview(tasks as TaskRow[]);
+}
+
+function applyTaskPreview(tasks: TaskRow[]) {
+  const taskRows = tasks || [];
+  const openTasks = taskRows.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
+  preferredId.value = getPreferredDeviceId();
+  const preferredKey = String(preferredId.value || '')
+    .trim()
+    .toUpperCase();
+  const sorted = preferredKey
+    ? [
+        ...openTasks.filter(
+          (t) =>
+            String(t.deviceId || '')
+              .trim()
+              .toUpperCase() === preferredKey
+        ),
+        ...openTasks.filter(
+          (t) =>
+            String(t.deviceId || '')
+              .trim()
+              .toUpperCase() !== preferredKey
+        )
+      ]
+    : openTasks;
+  pendingTaskCount.value = canReplenishment.value ? sorted.length : 0;
+  taskPreview.value = canReplenishment.value ? sorted.slice(0, 5) : [];
+}
+
 async function load() {
   if (!uni.getStorageSync('merchant_token')) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
   const seq = ++loadSeq;
-  hydrateFromCache();
   loading.value = !meName.value;
-  // 仅首次拉取显示加载文案；有数据或已 boot 后静默刷新
   taskPreviewLoading.value = !taskPreviewBooted.value && canReplenishment.value;
   error.value = '';
   try {
-    let profile: MerchantMe;
-    try {
-      profile = await refreshMe();
-    } catch {
-      if (!uni.getStorageSync('merchant_token')) return;
-      profile = (uni.getStorageSync('merchant_me') as MerchantMe) || ({} as MerchantMe);
-      me.value = profile;
-    }
+    const profile = await fetchHomeProfile(seq);
+    if (!profile || seq !== loadSeq) return;
+    const bundle = await fetchHomeDashboardBundle();
     if (seq !== loadSeq) return;
-    meName.value = profile.displayName || profile.phoneNumber || '同事';
-    merchantNames.value = formatMerchantNames(profile.merchants);
-
-    const [
-      s,
-      trend,
-      workbench,
-      exceptionPage,
-      expiryRows,
-      devices,
-      tasks,
-      announcements,
-      analytics
-    ] = await Promise.all([
-      merchantApi.stats().catch(() => ({}) as Record<string, number>),
-      canTrend.value
-        ? (
-            merchantApi.trend(7) as Promise<{
-              last7Days?: { date: string; revenueCents: number }[];
-            }>
-          ).catch(() => ({ last7Days: [] }))
-        : Promise.resolve({ last7Days: [] }),
-      canAlerts.value
-        ? merchantApi.workbench().catch(() => ({
-            offlineDevices: 0,
-            openDisputes: 0,
-            lowStockItems: 0,
-            expiryAlerts: 0,
-            slotDiscrepancies: 0,
-            actionItems: []
-          }))
-        : Promise.resolve({
-            offlineDevices: 0,
-            openDisputes: 0,
-            lowStockItems: 0,
-            expiryAlerts: 0,
-            slotDiscrepancies: 0,
-            actionItems: []
-          }),
-      canAlerts.value
-        ? merchantApi.openExceptions(100).catch(() => ({ items: [], total: 0 }))
-        : Promise.resolve({ items: [], total: 0 }),
-      canAlerts.value ? merchantApi.expiryAlerts().catch(() => []) : Promise.resolve([]),
-      canDevices.value || canReplenishment.value
-        ? merchantApi.devices().catch(() => [])
-        : Promise.resolve([]),
-      canReplenishment.value
-        ? merchantApi.replenishmentTasks().catch(() => [])
-        : Promise.resolve([]),
-      merchantApi.listAnnouncements().catch(() => []),
-      canBusiness.value ? merchantApi.analytics(7).catch(() => null) : Promise.resolve(null)
-    ]);
-    if (seq !== loadSeq) return;
-    latestAnnouncement.value = announcements?.[0] || null;
-
-    const days = trend.last7Days || [];
-    const maxRev = Math.max(...days.map((d) => d.revenueCents), 1);
-    stats.value = s;
-    revenueToday.value = canFinanceKpi.value ? fmtMoney(s.revenueTodayCents) : '暂无';
-    incomeToday.value = canFinanceKpi.value ? fmtMoney(s.merchantIncomeTodayCents) : '暂无';
-    analyticsDays.value = Number(analytics?.days || 7);
-    avgOrderToday.value =
-      canBusiness.value && analytics?.avgOrderValueCents != null
-        ? fmtMoney(analytics.avgOrderValueCents)
-        : '暂无';
-    offlineCount.value = canAlerts.value
-      ? workbench.offlineDevices || 0
-      : Number(s.deviceOffline || 0);
-    // 与待办页同一合并口径，保证首页数字 / Tab 角标 / 列表条数一致
-    const mergedTodos = canAlerts.value
-      ? mergeTodoItems({
-          exceptions: exceptionPage.items || [],
-          actionItems: workbench.actionItems || [],
-          expiryRows: expiryRows || []
-        })
-      : [];
-    pendingCount.value = mergedTodos.length;
-    setAlertsTabBadge(pendingCount.value);
-    actionItems.value = canAlerts.value
-      ? mergedTodos.slice(0, 3).map((a) => ({
-          type: a.type,
-          title: a.title,
-          detail: a.detail,
-          deviceId: a.deviceId
-        }))
-      : [];
-    trendBars.value = canFinanceKpi.value
-      ? days.map((d) => ({
-          date: d.date,
-          label: d.date.slice(5),
-          height: Math.max(16, Math.round((d.revenueCents / maxRev) * 120))
-        }))
-      : [];
-
-    const map: Record<string, string> = {};
-    for (const d of devices as { deviceId: string; deviceName?: string }[]) {
-      map[d.deviceId] = d.deviceName || d.deviceId;
-    }
-    deviceMap.value = map;
-
-    const taskRows = (tasks as TaskRow[]) || [];
-    const openTasks = taskRows.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
-    preferredId.value = getPreferredDeviceId();
-    const preferred = preferredId.value;
-    const preferredKey = String(preferred || '')
-      .trim()
-      .toUpperCase();
-    const sorted = preferredKey
-      ? [
-          ...openTasks.filter(
-            (t) =>
-              String(t.deviceId || '')
-                .trim()
-                .toUpperCase() === preferredKey
-          ),
-          ...openTasks.filter(
-            (t) =>
-              String(t.deviceId || '')
-                .trim()
-                .toUpperCase() !== preferredKey
-          )
-        ]
-      : openTasks;
-    pendingTaskCount.value = canReplenishment.value ? sorted.length : 0;
-    taskPreview.value = canReplenishment.value ? sorted.slice(0, 5) : [];
+    applyHomeDashboardData(profile, bundle);
   } catch (e) {
     if (seq !== loadSeq) return;
     error.value = e instanceof Error ? e.message : '加载失败';

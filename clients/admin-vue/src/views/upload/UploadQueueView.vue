@@ -435,49 +435,63 @@ function syncRouteQuery() {
   router.replace({ query });
 }
 
-function applyRouteQuery() {
-  let changed = false;
-  let routeKeyword = '';
-  if (typeof route.query.keyword === 'string') {
-    routeKeyword = route.query.keyword;
-  } else if (typeof route.query.q === 'string') {
-    routeKeyword = route.query.q;
-  } else if (typeof route.query.deviceId === 'string') {
-    routeKeyword = route.query.deviceId;
-  } else if (typeof route.query.qSessionId === 'string') {
-    routeKeyword = route.query.qSessionId;
-  } else if (typeof route.query.sessionId === 'string') {
-    routeKeyword = route.query.sessionId;
+const UPLOAD_ROUTE_KEYWORD_KEYS = ['keyword', 'q', 'deviceId', 'qSessionId', 'sessionId'] as const;
+
+function resolveUploadRouteKeyword(): string {
+  for (const key of UPLOAD_ROUTE_KEYWORD_KEYS) {
+    const value = route.query[key];
+    if (typeof value === 'string') return value;
   }
-  if (routeKeyword !== keyword.value) {
-    keyword.value = routeKeyword;
-    changed = true;
-  }
+  return '';
+}
+
+function syncUploadKeywordFromRoute(changed: boolean): boolean {
+  const routeKeyword = resolveUploadRouteKeyword();
+  if (routeKeyword === keyword.value) return changed;
+  keyword.value = routeKeyword;
+  return true;
+}
+
+function syncUploadStuckFromRoute(changed: boolean): boolean {
   const qStuck = route.query.stuck === '1' || route.query.stuck === 'true';
-  if (qStuck !== stuckOnly.value) {
-    stuckOnly.value = qStuck;
-    changed = true;
-  }
+  if (qStuck === stuckOnly.value) return changed;
+  stuckOnly.value = qStuck;
+  return true;
+}
+
+function syncUploadStatusFromRoute(changed: boolean): boolean {
   if (
     typeof route.query.uploadStatus === 'string' &&
     route.query.uploadStatus !== uploadStatus.value
   ) {
     uploadStatus.value = route.query.uploadStatus;
-    changed = true;
-  } else if (!route.query.uploadStatus && uploadStatus.value) {
+    return true;
+  }
+  if (!route.query.uploadStatus && uploadStatus.value) {
     uploadStatus.value = '';
-    changed = true;
+    return true;
   }
+  return changed;
+}
+
+function syncUploadFocusFromRoute(changed: boolean): boolean {
   if (typeof route.query.sessionId === 'string') {
-    if (route.query.sessionId !== focusSessionId.value) {
-      focusSessionId.value = route.query.sessionId;
-      if (!keyword.value) keyword.value = route.query.sessionId;
-      changed = true;
-    }
-  } else if (focusSessionId.value) {
-    focusSessionId.value = '';
-    changed = true;
+    if (route.query.sessionId === focusSessionId.value) return changed;
+    focusSessionId.value = route.query.sessionId;
+    if (!keyword.value) keyword.value = route.query.sessionId;
+    return true;
   }
+  if (!focusSessionId.value) return changed;
+  focusSessionId.value = '';
+  return true;
+}
+
+function applyRouteQuery() {
+  let changed = false;
+  changed = syncUploadKeywordFromRoute(changed);
+  changed = syncUploadStuckFromRoute(changed);
+  changed = syncUploadStatusFromRoute(changed);
+  changed = syncUploadFocusFromRoute(changed);
   return changed;
 }
 
@@ -510,11 +524,21 @@ async function scanWaitingPages(
       if (predicate(row)) matched.push(row);
     }
     scanned += batch.length;
-    if (opts?.findFirst && found) break;
-    if (!batch.length || batch.length < pageSize) break;
+    if (shouldStopWaitingScan(opts, found, batch, pageSize)) break;
     apiPage += 1;
   }
   return { matched, found };
+}
+
+function shouldStopWaitingScan(
+  opts: { findFirst?: string } | undefined,
+  found: SessionRow | undefined,
+  batch: SessionRow[],
+  pageSize: number
+): boolean {
+  if (opts?.findFirst && found) return true;
+  if (!batch.length || batch.length < pageSize) return true;
+  return false;
 }
 
 async function maybeScrollToFocus() {

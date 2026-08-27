@@ -283,41 +283,48 @@ function syncOpenedMenusForRoute(path: string, collapsed: boolean) {
   remountMenu(next);
 }
 
+function collectOpenedWithParent(key: string, parent: string): Set<string> {
+  const next = new Set<string>();
+  for (const opened of openedMenus.value) {
+    if (opened === parent || opened === key || opened.startsWith(`${key}:`)) {
+      next.add(opened);
+    } else if (!opened.startsWith(`${parent}:`)) {
+      next.add(opened);
+    }
+  }
+  next.add(parent);
+  next.add(key);
+  return next;
+}
+
+function collectOpenedRoot(key: string): Set<string> {
+  const next = new Set<string>();
+  for (const opened of openedMenus.value) {
+    if (opened === key || opened.startsWith(`${key}:`)) next.add(opened);
+  }
+  next.add(key);
+  return next;
+}
+
+function closeRemovedSubMenus(prevKeys: Set<string>, next: Set<string>) {
+  const menu = menuRef.value;
+  if (!menu) return;
+  for (const keyToClose of prevKeys) {
+    if (!next.has(keyToClose)) menu.close(keyToClose);
+  }
+}
+
 function onSubMenuOpen(key: string) {
   // 同级唯一展开（勿用 EP unique-opened：会禁止「一级+二级」同时展开）
   const parent = key.includes(':') ? key.slice(0, key.lastIndexOf(':')) : null;
-  const next = new Set<string>();
-
-  if (parent) {
-    for (const opened of openedMenus.value) {
-      if (opened === parent || opened === key || opened.startsWith(`${key}:`)) {
-        next.add(opened);
-      } else if (opened.startsWith(`${parent}:`)) {
-        // drop sibling sections
-      } else {
-        next.add(opened);
-      }
-    }
-    next.add(parent);
-    next.add(key);
-  } else {
-    for (const opened of openedMenus.value) {
-      if (opened === key || opened.startsWith(`${key}:`)) next.add(opened);
-    }
-    next.add(key);
-  }
+  const next = parent ? collectOpenedWithParent(key, parent) : collectOpenedRoot(key);
 
   const prevKeys = new Set(openedMenus.value);
   const list = [...next];
   openedMenus.value = list;
   persistOpenedMenus(list);
   // Close removed keys via EP API — remounting here races with @close and snaps back to route keys
-  const menu = menuRef.value;
-  if (menu) {
-    for (const keyToClose of prevKeys) {
-      if (!next.has(keyToClose)) menu.close(keyToClose);
-    }
-  }
+  closeRemovedSubMenus(prevKeys, next);
 }
 
 function onSubMenuClose(key: string) {

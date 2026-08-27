@@ -252,16 +252,14 @@ function goPolicy(kind: 'agreement' | 'privacy' | 'refund') {
   uni.navigateTo({ url: `/pages/policy/detail?type=${kind}` });
 }
 
-async function onWxLogin() {
-  if (loading.value) return;
+async function tryH5WechatOauth(): Promise<boolean> {
   // #ifdef H5
-  // H5 微信网页授权：公众号 OAuth 跳转；dev mock 直连建档；未配置则回落手机号
   try {
     const cfg = await consumerApi.consumerPublicConfig();
     const oauthUrl = String(cfg?.wechatH5OauthUrl || '').trim();
     if (oauthUrl) {
       globalThis.location.href = oauthUrl;
-      return;
+      return true;
     }
     if (cfg?.wechatH5OauthEnabled === 'true') {
       loading.value = true;
@@ -269,22 +267,25 @@ async function onWxLogin() {
       err.value = '';
       await consumerWxH5Login('dev-mock-web-code');
       finishLogin();
-      return;
+      return true;
     }
   } catch {
     /* fall through to phone login */
   }
   showPhoneForm.value = true;
   err.value = '当前环境未配置微信网页授权，请使用手机号登录';
-  return;
+  return true;
   // #endif
+  return false;
+}
+
+async function runMiniProgramWxLogin() {
   loading.value = true;
   wxMode.value = true;
   err.value = '';
   try {
     const ok = await ensureConsumerAuth({ force: true });
     if (!ok) {
-      // H5 / 非微信：引导展开手机号
       showPhoneForm.value = true;
       err.value = '当前环境无法微信授权，请使用手机号登录';
       return;
@@ -297,6 +298,12 @@ async function onWxLogin() {
     loading.value = false;
     wxMode.value = false;
   }
+}
+
+async function onWxLogin() {
+  if (loading.value) return;
+  if (await tryH5WechatOauth()) return;
+  await runMiniProgramWxLogin();
 }
 
 function caughtErrorMessage(error: unknown, fallback: string) {
@@ -331,57 +338,75 @@ async function onSendCode() {
   }
 }
 
-async function onLogin() {
-  if (loading.value) return;
+function resolvePhoneInput(): string | null {
   let phoneNum = phone.value.trim();
   if (!phoneNum) phoneNum = readDomFieldValue('input');
   phone.value = phoneNum;
   if (!/^1\d{10}$/.test(phoneNum)) {
     err.value = '请输入11位有效手机号';
-    return;
+    return null;
   }
+  return phoneNum;
+}
+
+function validateLoginCredentials(): boolean {
   if (mode.value === 'password') {
     let pwd = password.value;
     if (!pwd) pwd = readDomPassword();
     password.value = pwd;
     if (!pwd) {
       err.value = '请输入登录密码';
-      return;
+      return false;
     }
-  } else {
-    let sms = code.value.trim();
-    if (!sms) {
-      err.value = '请输入验证码';
-      return;
-    }
-    if (!/^\d{4,6}$/.test(sms)) {
-      err.value = '请输入4-6位验证码';
-      return;
-    }
-    code.value = sms;
+    return true;
   }
+  let sms = code.value.trim();
+  if (!sms) {
+    err.value = '请输入验证码';
+    return false;
+  }
+  if (!/^\d{4,6}$/.test(sms)) {
+    err.value = '请输入4-6位验证码';
+    return false;
+  }
+  code.value = sms;
+  return true;
+}
+
+async function bindWeixinIfPossible(phoneNum: string) {
+  try {
+    const wxCode = await new Promise<string>((resolve, reject) => {
+      uni.login({
+        provider: 'weixin',
+        success: (r) => (r.code ? resolve(r.code) : reject()),
+        fail: reject
+      });
+    });
+    await consumerWxLogin(wxCode, phoneNum);
+  } catch {
+    /* 非微信环境或绑定失败时仍可用手机号会话 */
+  }
+}
+
+async function performPhoneLogin(phoneNum: string) {
+  if (mode.value === 'password') {
+    await consumerPasswordLogin(phoneNum, password.value);
+  } else {
+    await consumerSmsLogin(phoneNum, code.value.trim());
+  }
+  await bindWeixinIfPossible(phoneNum);
+  finishLogin();
+}
+
+async function onLogin() {
+  if (loading.value) return;
+  const phoneNum = resolvePhoneInput();
+  if (!phoneNum || !validateLoginCredentials()) return;
   loading.value = true;
   wxMode.value = false;
   err.value = '';
   try {
-    if (mode.value === 'password') {
-      await consumerPasswordLogin(phoneNum, password.value);
-    } else {
-      await consumerSmsLogin(phoneNum, code.value.trim());
-    }
-    try {
-      const wxCode = await new Promise<string>((resolve, reject) => {
-        uni.login({
-          provider: 'weixin',
-          success: (r) => (r.code ? resolve(r.code) : reject()),
-          fail: reject
-        });
-      });
-      await consumerWxLogin(wxCode, phoneNum);
-    } catch {
-      /* 非微信环境或绑定失败时仍可用手机号会话 */
-    }
-    finishLogin();
+    await performPhoneLogin(phoneNum);
   } catch (e) {
     err.value = e instanceof Error ? e.message : '验证失败';
   } finally {

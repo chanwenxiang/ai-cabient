@@ -4,7 +4,7 @@
  * 字典启用/停用并 loadRuntimeDict 后，keep-alive 页面也会立刻重算下拉。
  */
 import { EMPTY_TEXT } from '@/utils/display';
-import { dictRuntimeEpoch } from '@/stores/dict-runtime';
+import { consumeDictRuntimeEpoch } from '@/stores/dict-runtime';
 import {
   dictLabel as coreDictLabel,
   dictOptions as coreDictOptions,
@@ -14,16 +14,16 @@ import {
 export * from '@aicabinet/shared-dict-core';
 
 export function dictOptions(type: string) {
-  dictRuntimeEpoch.value;
+  consumeDictRuntimeEpoch();
   return coreDictOptions(type);
 }
 
 export function dictLabel(type: string, code: string | null | undefined) {
-  dictRuntimeEpoch.value;
+  consumeDictRuntimeEpoch();
   return coreDictLabel(type, code);
 }
 
 export function displayLabel(type: string, code: string | null | undefined, empty = EMPTY_TEXT) {
-  dictRuntimeEpoch.value;
+  consumeDictRuntimeEpoch();
   return coreDisplayLabel(type, code, empty);
 }

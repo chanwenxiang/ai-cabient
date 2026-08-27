@@ -171,14 +171,33 @@ onShow(() => {
   void load(true);
 });
 
+function denyPricingAccess() {
+  loading.value = false;
+  if (!gated.value) {
+    gated.value = true;
+    uni.showToast({ title: '无定价查看权限', icon: 'none' });
+    uni.switchTab({ url: '/pages/home/home' });
+  }
+}
+
+function queuePricingReload(soft: boolean) {
+  pendingReload = soft ? pendingReload || 'soft' : 'hard';
+}
+
+async function runPricingLoad(seq: number) {
+  if (!(await ensurePricingAccess(seq))) return;
+  const list = await fetchPricingRows(seq);
+  if (!list || seq !== loadSeq) return;
+  applyPricingRows(list);
+}
+
 async function load(soft = false) {
   if (!uni.getStorageSync('merchant_token')) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
-  // 进行中再来一次：排队，结束后用最新柜机重拉，避免切换柜机丢请求
   if (loadingInFlight) {
-    pendingReload = soft ? pendingReload || 'soft' : 'hard';
+    queuePricingReload(soft);
     return;
   }
   loadingInFlight = true;
@@ -186,47 +205,55 @@ async function load(soft = false) {
   if (!soft || !rows.value.length) loading.value = true;
   error.value = '';
   try {
-    try {
-      await refreshMe();
-    } catch {
-      if (!uni.getStorageSync('merchant_token')) return;
-      me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
-    }
-    if (seq !== loadSeq) return;
-    if (!canView.value) {
-      loading.value = false;
-      if (!gated.value) {
-        gated.value = true;
-        uni.showToast({ title: '无定价查看权限', icon: 'none' });
-        uni.switchTab({ url: '/pages/home/home' });
-      }
-      return;
-    }
-    if (!devices.value.length) {
-      devices.value = await merchantApi.devices();
-    }
-    if (seq !== loadSeq) return;
-    const list = await merchantApi.pricing(selectedDeviceId.value || undefined);
-    if (seq !== loadSeq) return;
-    rows.value = list;
-    const next: Record<string, string> = {};
-    for (const p of list) {
-      next[draftKey(p)] = draftValueFor(p);
-    }
-    draft.value = next;
+    await runPricingLoad(seq);
   } catch (e) {
     if (seq === loadSeq) {
       error.value = e instanceof Error ? e.message : '加载失败';
     }
   } finally {
-    if (seq === loadSeq) {
-      loading.value = false;
-      loadingInFlight = false;
-      const again = pendingReload;
-      pendingReload = null;
-      if (again) void load(again === 'soft');
-    }
+    finishPricingLoad(seq);
   }
+}
+
+async function ensurePricingAccess(seq: number): Promise<boolean> {
+  try {
+    await refreshMe();
+  } catch {
+    if (!uni.getStorageSync('merchant_token')) return false;
+    me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+  }
+  if (seq !== loadSeq) return false;
+  if (!canView.value) {
+    denyPricingAccess();
+    return false;
+  }
+  return true;
+}
+
+async function fetchPricingRows(seq: number) {
+  if (!devices.value.length) {
+    devices.value = await merchantApi.devices();
+  }
+  if (seq !== loadSeq) return null;
+  return merchantApi.pricing(selectedDeviceId.value || undefined);
+}
+
+function applyPricingRows(list: MerchantSkuPricing[]) {
+  rows.value = list;
+  const next: Record<string, string> = {};
+  for (const p of list) {
+    next[draftKey(p)] = draftValueFor(p);
+  }
+  draft.value = next;
+}
+
+function finishPricingLoad(seq: number) {
+  if (seq !== loadSeq) return;
+  loading.value = false;
+  loadingInFlight = false;
+  const again = pendingReload;
+  pendingReload = null;
+  if (again) void load(again === 'soft');
 }
 
 function onDevicePick(e: { detail: { value: string } }) {

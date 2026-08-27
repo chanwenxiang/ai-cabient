@@ -501,7 +501,7 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { findNavByPath } from '@/config/menu';
-import { dictRuntimeEpoch } from '@/stores/dict-runtime';
+import { consumeDictRuntimeEpoch } from '@/stores/dict-runtime';
 import type {
   DevRecognitionPreviewDto,
   FileAttachmentDto,
@@ -688,7 +688,7 @@ async function batchDelist() {
 }
 
 function enrollmentStatusCode(raw?: string): string {
-  dictRuntimeEpoch.value;
+  consumeDictRuntimeEpoch();
   const text = String(raw || '').trim();
   if (!text) return 'MAPPING';
   for (const o of dictOptions('sku_enrollment_status')) {
@@ -843,7 +843,7 @@ function enrollmentLabel(status?: string) {
 
 function categoryLabel(code?: string | null) {
   if (!code) return '暂无';
-  dictRuntimeEpoch.value;
+  consumeDictRuntimeEpoch();
   return displayLabel('category_code', code, '未分类');
 }
 
@@ -851,7 +851,7 @@ function categoryLabel(code?: string | null) {
 function normalizeCategoryToCode(raw?: string | null): string {
   const text = String(raw || '').trim();
   if (!text) return '';
-  dictRuntimeEpoch.value;
+  consumeDictRuntimeEpoch();
   for (const o of dictOptions('category_code')) {
     if (o.value === text || o.label === text) return o.value;
   }
@@ -1010,6 +1010,21 @@ async function suggestClassNameIfEmpty() {
   await suggestClassName(false);
 }
 
+async function confirmClassNameReplace(nextName: string): Promise<boolean> {
+  const current = enrollForm.yoloClassName.trim();
+  if (!current || current === nextName) return true;
+  try {
+    await ElMessageBox.confirm(`将识别类名替换为「${nextName}」？`, '覆盖类名', {
+      confirmButtonText: '替换',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function suggestClassName(forceReplace: boolean) {
   if (!enrollForm.skuName.trim()) return;
   if (!forceReplace && enrollForm.yoloClassName.trim()) return;
@@ -1020,20 +1035,9 @@ async function suggestClassName(forceReplace: boolean) {
       'GET'
     );
     if (!forceReplace && enrollForm.yoloClassName.trim()) return;
-    if (
-      forceReplace &&
-      enrollForm.yoloClassName.trim() &&
-      enrollForm.yoloClassName.trim() !== data.yoloClassName
-    ) {
-      try {
-        await ElMessageBox.confirm(`将识别类名替换为「${data.yoloClassName}」？`, '覆盖类名', {
-          confirmButtonText: '替换',
-          cancelButtonText: '取消',
-          type: 'warning'
-        });
-      } catch {
-        return;
-      }
+    if (forceReplace) {
+      const confirmed = await confirmClassNameReplace(data.yoloClassName);
+      if (!confirmed) return;
     }
     enrollForm.yoloClassName = data.yoloClassName;
   } catch (e: any) {

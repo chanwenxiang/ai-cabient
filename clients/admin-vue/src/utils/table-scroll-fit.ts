@@ -46,12 +46,16 @@ function columnSumWidth(table: HTMLElement | null): number {
  * 在非 --h 布局下测量：临时去掉 max-content，避免把已膨胀的宽度当成「需要横滚」。
  * 带回滞：已是 --h 时略放宽「仍超宽」判定，减轻缩放时边框/滚动条闪断。
  */
+function forceReflow(el: HTMLElement): number {
+  return el.offsetWidth;
+}
+
 function measureOverflow(el: HTMLElement): boolean {
   const table = el.querySelector<HTMLElement>('.el-table');
   const hadH = el.classList.contains('table-scroll--h');
   if (hadH) el.classList.remove('table-scroll--h');
   // 强制回到 width:100% 布局再读
-  el.offsetWidth;
+  forceReflow(el);
 
   const colsW = columnSumWidth(table);
   const headerW = table?.querySelector('.el-table__header table')?.scrollWidth ?? 0;

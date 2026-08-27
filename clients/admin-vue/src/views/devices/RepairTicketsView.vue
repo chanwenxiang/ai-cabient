@@ -612,45 +612,71 @@ async function openDetail(row: Ticket) {
   }
 }
 
+async function promptRepairDoneUnlock(row: Ticket): Promise<boolean | null> {
+  try {
+    await ElMessageBox.confirm(
+      `工单 #${row.ticketId}（${row.deviceId}）标为完成。\n若柜机因故障/离线自动锁机，可同时解锁恢复售卖。`,
+      '完成维修',
+      {
+        distinguishCancelAndClose: true,
+        confirmButtonText: '完成并解锁',
+        cancelButtonText: '仅完成',
+        type: 'warning'
+      }
+    );
+    return true;
+  } catch (action) {
+    if (action === 'close') return null;
+    return false;
+  }
+}
+
+async function promptRepairDoneRemark(): Promise<string | undefined | null> {
+  const prompt = await ElMessageBox.prompt('可选备注', '完成维修', {
+    inputPlaceholder: '备注',
+    confirmButtonText: '确认',
+    cancelButtonText: '取消'
+  }).catch(() => null);
+  if (prompt === null) return null;
+  return prompt.value || undefined;
+}
+
+async function collectDoneTransitionInput(
+  row: Ticket
+): Promise<{ remark?: string; unlockDevice: boolean } | null> {
+  const unlockDevice = await promptRepairDoneUnlock(row);
+  if (unlockDevice === null) return null;
+  const remark = await promptRepairDoneRemark();
+  if (remark === null) return null;
+  return { remark, unlockDevice };
+}
+
+async function collectOtherTransitionRemark(next: string): Promise<string | undefined | null> {
+  const { value } = await ElMessageBox.prompt(
+    `将工单流转为「${statusLabel(next)}」`,
+    '状态流转',
+    {
+      inputPlaceholder: '可选备注',
+      confirmButtonText: '确认'
+    }
+  ).catch(() => ({ value: null as string | null }));
+  if (value === null) return null;
+  return value || undefined;
+}
+
 async function transition(row: Ticket, next: string) {
   try {
     let remark: string | undefined;
     let unlockDevice = false;
     if (next === 'DONE') {
-      try {
-        await ElMessageBox.confirm(
-          `工单 #${row.ticketId}（${row.deviceId}）标为完成。\n若柜机因故障/离线自动锁机，可同时解锁恢复售卖。`,
-          '完成维修',
-          {
-            distinguishCancelAndClose: true,
-            confirmButtonText: '完成并解锁',
-            cancelButtonText: '仅完成',
-            type: 'warning'
-          }
-        );
-        unlockDevice = true;
-      } catch (action) {
-        if (action === 'close') return;
-        unlockDevice = false;
-      }
-      const prompt = await ElMessageBox.prompt('可选备注', '完成维修', {
-        inputPlaceholder: '备注',
-        confirmButtonText: '确认',
-        cancelButtonText: '取消'
-      }).catch(() => null);
-      if (prompt === null) return;
-      remark = prompt.value || undefined;
+      const input = await collectDoneTransitionInput(row);
+      if (input === null) return;
+      remark = input.remark;
+      unlockDevice = input.unlockDevice;
     } else {
-      const { value } = await ElMessageBox.prompt(
-        `将工单流转为「${statusLabel(next)}」`,
-        '状态流转',
-        {
-          inputPlaceholder: '可选备注',
-          confirmButtonText: '确认'
-        }
-      ).catch(() => ({ value: null as string | null }));
-      if (value === null) return;
-      remark = value || undefined;
+      const otherRemark = await collectOtherTransitionRemark(next);
+      if (otherRemark === null) return;
+      remark = otherRemark;
     }
     await api.request(`/api/v2/ops/admin/repair-tickets/${row.ticketId}/transition`, 'POST', {
       status: next,

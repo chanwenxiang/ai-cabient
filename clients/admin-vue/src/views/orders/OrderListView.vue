@@ -830,6 +830,40 @@ function orderRowClass({ row }: { row: OrderSummary }) {
   return isUnpaidOverdue(row) ? 'is-unpaid-overdue' : '';
 }
 
+function appendPendingOrderActions(actions: TableAction[]) {
+  if (auth.hasPerm('ops:order:remind')) {
+    actions.push({ key: 'remind', label: '催付', icon: Bell, type: 'warning' });
+  }
+  if (
+    auth.hasPerm('ops:order:remind') ||
+    auth.hasPerm('ops:order:cancel') ||
+    auth.hasPerm('ops:order:refund')
+  ) {
+    actions.push({ key: 'collect', label: '补扣', icon: Coin, overflow: true });
+  }
+  if (auth.hasPerm('ops:order:cancel')) {
+    actions.push({
+      key: 'cancel',
+      label: '关单',
+      icon: CircleClose,
+      type: 'danger',
+      overflow: true
+    });
+  }
+}
+
+function appendOrderSessionVideoAction(actions: TableAction[], row: OrderSummary) {
+  if (!row.sessionId) return;
+  if (!(auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) return;
+  actions.push({
+    key: 'video',
+    label: '录像',
+    icon: VideoCamera,
+    type: 'warning',
+    overflow: true
+  });
+}
+
 function rowActions(row: OrderSummary): TableAction[] {
   const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
   actions.push({ key: 'copy', label: '复制单号', icon: CopyDocument, overflow: true });
@@ -837,35 +871,9 @@ function rowActions(row: OrderSummary): TableAction[] {
     actions.push({ key: 'session', label: '会话', icon: Link, overflow: true });
   }
   if (row.status === 'PENDING') {
-    if (auth.hasPerm('ops:order:remind')) {
-      actions.push({ key: 'remind', label: '催付', icon: Bell, type: 'warning' });
-    }
-    if (
-      auth.hasPerm('ops:order:remind') ||
-      auth.hasPerm('ops:order:cancel') ||
-      auth.hasPerm('ops:order:refund')
-    ) {
-      actions.push({ key: 'collect', label: '补扣', icon: Coin, overflow: true });
-    }
-    if (auth.hasPerm('ops:order:cancel')) {
-      actions.push({
-        key: 'cancel',
-        label: '关单',
-        icon: CircleClose,
-        type: 'danger',
-        overflow: true
-      });
-    }
+    appendPendingOrderActions(actions);
   }
-  if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
-    actions.push({
-      key: 'video',
-      label: '录像',
-      icon: VideoCamera,
-      type: 'warning',
-      overflow: true
-    });
-  }
+  appendOrderSessionVideoAction(actions, row);
   if (canRefund(row.status) && auth.hasPerm('ops:order:refund')) {
     actions.push({
       key: 'refund',
@@ -938,46 +946,55 @@ async function openDetail(row: OrderSummary) {
   }
 }
 
-async function refundOrder(row: { orderId: string; status?: string }) {
+async function promptRefundReason(orderId: string): Promise<string | null> {
+  const { value } = await ElMessageBox.prompt(
+    `确认原路退回订单 ${orderId} 的全部金额？`,
+    '全额退款',
+    {
+      inputPlaceholder: '请填写退款原因（至少4字）',
+      inputValidator: (v) =>
+        (!!String(v || '').trim() && String(v).trim().length >= 4) || '请填写至少4字原因',
+      confirmButtonText: '下一步',
+      type: 'warning'
+    }
+  ).catch(() => ({ value: null as string | null }));
+  if (value === null) return null;
+  return String(value).trim();
+}
+
+async function promptRefundInventoryRestore(): Promise<boolean | undefined> {
   try {
-    const { value } = await ElMessageBox.prompt(
-      `确认原路退回订单 ${row.orderId} 的全部金额？`,
-      '全额退款',
+    await ElMessageBox.confirm(
+      '请选择库存处理（竞品口径）：\n「退货退款」= 货仍在柜/误识别，库存回库\n「仅退款」= 货已拿走，库存不回库',
+      '库存是否回库',
       {
-        inputPlaceholder: '请填写退款原因（至少4字）',
-        inputValidator: (v) =>
-          (!!String(v || '').trim() && String(v).trim().length >= 4) || '请填写至少4字原因',
-        confirmButtonText: '下一步',
+        distinguishCancelAndClose: true,
+        confirmButtonText: '退货退款（回库）',
+        cancelButtonText: '仅退款（不回库）',
         type: 'warning'
       }
     );
-    let restoreInventory = false;
-    try {
-      await ElMessageBox.confirm(
-        '请选择库存处理（竞品口径）：\n「退货退款」= 货仍在柜/误识别，库存回库\n「仅退款」= 货已拿走，库存不回库',
-        '库存是否回库',
-        {
-          distinguishCancelAndClose: true,
-          confirmButtonText: '退货退款（回库）',
-          cancelButtonText: '仅退款（不回库）',
-          type: 'warning'
-        }
-      );
-      restoreInventory = true;
-    } catch (action) {
-      if (action === 'cancel') {
-        restoreInventory = false;
-      } else {
-        return;
-      }
-    }
+    return true;
+  } catch (action) {
+    if (action === 'cancel') return false;
+    return undefined;
+  }
+}
+
+async function refundOrder(row: { orderId: string; status?: string }) {
+  try {
+    const reason = await promptRefundReason(row.orderId);
+    if (reason === null) return;
+    const restoreChoice = await promptRefundInventoryRestore();
+    if (restoreChoice === undefined) return;
+    const restoreInventory = restoreChoice;
     refundingId.value = row.orderId;
     const result = await api.request<{
       message?: string;
       refundedCents?: number;
       inventoryRestored?: boolean;
     }>(`/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}/refund`, 'POST', {
-      reason: String(value).trim(),
+      reason,
       restoreInventory
     });
     ElMessage.success(result.message || '退款成功');
@@ -1231,66 +1248,88 @@ function onSizeChange() {
   load();
 }
 
-function applyRouteQuery() {
-  let changed = false;
-  let routeKeyword = '';
-  if (typeof route.query.keyword === 'string') {
-    routeKeyword = route.query.keyword;
-  } else if (typeof route.query.q === 'string') {
-    routeKeyword = route.query.q;
-  } else if (typeof route.query.deviceId === 'string') {
-    routeKeyword = route.query.deviceId;
-  } else if (typeof route.query.qOrderId === 'string') {
-    routeKeyword = route.query.qOrderId;
-  } else if (typeof route.query.qSessionId === 'string') {
-    routeKeyword = route.query.qSessionId;
-  } else if (typeof route.query.userId === 'string') {
-    routeKeyword = route.query.userId;
-  } else if (typeof route.query.payTradeNo === 'string') {
-    routeKeyword = route.query.payTradeNo;
+const ORDER_ROUTE_KEYWORD_KEYS = [
+  'keyword',
+  'q',
+  'deviceId',
+  'qOrderId',
+  'qSessionId',
+  'userId',
+  'payTradeNo'
+] as const;
+
+function resolveOrderRouteKeyword(): string {
+  for (const key of ORDER_ROUTE_KEYWORD_KEYS) {
+    const value = route.query[key];
+    if (typeof value === 'string') return value;
   }
-  if (routeKeyword !== keyword.value) {
-    keyword.value = routeKeyword;
-    changed = true;
-  }
+  return '';
+}
+
+function syncOrderKeywordFromRoute(changed: boolean): boolean {
+  const routeKeyword = resolveOrderRouteKeyword();
+  if (routeKeyword === keyword.value) return changed;
+  keyword.value = routeKeyword;
+  return true;
+}
+
+function syncPayChannelFromRoute(changed: boolean): boolean {
   if (typeof route.query.payChannel === 'string' && route.query.payChannel !== payChannel.value) {
     payChannel.value = route.query.payChannel;
-    changed = true;
-  } else if (!route.query.payChannel && payChannel.value) {
-    payChannel.value = '';
-    changed = true;
+    return true;
   }
+  if (!route.query.payChannel && payChannel.value) {
+    payChannel.value = '';
+    return true;
+  }
+  return changed;
+}
+
+function syncStatusFromRoute(changed: boolean): boolean {
   if (typeof route.query.status === 'string' && route.query.status !== status.value) {
     status.value = route.query.status;
     statusTab.value = route.query.status || 'ALL';
-    changed = true;
-  } else if (!route.query.status && (statusTab.value !== 'ALL' || status.value)) {
+    return true;
+  }
+  if (!route.query.status && (statusTab.value !== 'ALL' || status.value)) {
     statusTab.value = 'ALL';
     status.value = '';
-    if (overdueOnly.value) {
-      overdueOnly.value = false;
-    }
-    changed = true;
+    if (overdueOnly.value) overdueOnly.value = false;
+    return true;
   }
+  return changed;
+}
+
+function syncOverdueFromRoute(changed: boolean): boolean {
   const wantOverdue = route.query.overdue === '1' || route.query.overdue === 'true';
   if (statusTab.value === 'PENDING') {
-    if (wantOverdue !== overdueOnly.value) {
-      overdueOnly.value = wantOverdue;
-      changed = true;
-    }
-  } else if (overdueOnly.value) {
-    overdueOnly.value = false;
-    changed = true;
+    if (wantOverdue === overdueOnly.value) return changed;
+    overdueOnly.value = wantOverdue;
+    return true;
   }
+  if (!overdueOnly.value) return changed;
+  overdueOnly.value = false;
+  return true;
+}
+
+function syncFocusOrderFromRoute(changed: boolean): boolean {
   if (typeof route.query.orderId === 'string') {
-    if (route.query.orderId !== focusOrderId.value) {
-      focusOrderId.value = route.query.orderId;
-      changed = true;
-    }
-  } else if (focusOrderId.value) {
-    focusOrderId.value = '';
-    changed = true;
+    if (route.query.orderId === focusOrderId.value) return changed;
+    focusOrderId.value = route.query.orderId;
+    return true;
   }
+  if (!focusOrderId.value) return changed;
+  focusOrderId.value = '';
+  return true;
+}
+
+function applyRouteQuery() {
+  let changed = false;
+  changed = syncOrderKeywordFromRoute(changed);
+  changed = syncPayChannelFromRoute(changed);
+  changed = syncStatusFromRoute(changed);
+  changed = syncOverdueFromRoute(changed);
+  changed = syncFocusOrderFromRoute(changed);
   return changed;
 }
 
