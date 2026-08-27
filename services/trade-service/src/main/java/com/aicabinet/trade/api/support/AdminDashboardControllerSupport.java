@@ -15,69 +15,48 @@ import org.springframework.stereotype.Component;
 @Component
 public class AdminDashboardControllerSupport {
 
-    private final CacheService cacheService;
-    private final DisputeService disputeService;
-    private final AdminDeviceOpsService deviceOpsService;
-    private final UnpaidOrderService unpaidOrderService;
-    private final DeviceAssetService deviceAssetService;
-    private final FileAttachmentService fileAttachmentService;
-    private final DeviceQrService deviceQrService;
-    private final SecurityProperties securityProperties;
-    private final SystemConfigService systemConfigService;
+    private final AdminDashboardOpsSupport ops;
+    private final AdminDashboardConfigSupport config;
 
-    public AdminDashboardControllerSupport(CacheService cacheService,
-                                           DisputeService disputeService,
-                                           AdminDeviceOpsService deviceOpsService,
-                                           UnpaidOrderService unpaidOrderService,
-                                           DeviceAssetService deviceAssetService,
-                                           FileAttachmentService fileAttachmentService,
-                                           DeviceQrService deviceQrService,
-                                           SecurityProperties securityProperties,
-                                           SystemConfigService systemConfigService) {
-        this.cacheService = cacheService;
-        this.disputeService = disputeService;
-        this.deviceOpsService = deviceOpsService;
-        this.unpaidOrderService = unpaidOrderService;
-        this.deviceAssetService = deviceAssetService;
-        this.fileAttachmentService = fileAttachmentService;
-        this.deviceQrService = deviceQrService;
-        this.securityProperties = securityProperties;
-        this.systemConfigService = systemConfigService;
+    public AdminDashboardControllerSupport(AdminDashboardOpsSupport ops,
+                                           AdminDashboardConfigSupport config) {
+        this.ops = ops;
+        this.config = config;
     }
 
     public CacheService cacheService() {
-        return cacheService;
+        return ops.cacheService();
     }
 
     public DisputeService disputeService() {
-        return disputeService;
+        return ops.disputeService();
     }
 
     public AdminDeviceOpsService deviceOpsService() {
-        return deviceOpsService;
+        return ops.deviceOpsService();
     }
 
     public UnpaidOrderService unpaidOrderService() {
-        return unpaidOrderService;
+        return ops.unpaidOrderService();
     }
 
     public DeviceAssetService deviceAssetService() {
-        return deviceAssetService;
+        return ops.deviceAssetService();
     }
 
     public FileAttachmentService fileAttachmentService() {
-        return fileAttachmentService;
+        return config.fileAttachmentService();
     }
 
     public DeviceQrService deviceQrService() {
-        return deviceQrService;
+        return config.deviceQrService();
     }
 
     public SecurityProperties securityProperties() {
-        return securityProperties;
+        return config.securityProperties();
     }
 
     public SystemConfigService systemConfigService() {
-        return systemConfigService;
+        return config.systemConfigService();
     }
 }

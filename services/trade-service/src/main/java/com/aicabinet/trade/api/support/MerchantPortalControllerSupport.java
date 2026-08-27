@@ -16,76 +16,52 @@ import org.springframework.stereotype.Component;
 @Component
 public class MerchantPortalControllerSupport {
 
-    private final MerchantFinanceService merchantFinanceService;
-    private final MerchantSkuPricingService skuPricingService;
-    private final DisputeService disputeService;
-    private final MerchantReplenishmentService merchantReplenishmentService;
-    private final MerchantAnalyticsService merchantAnalyticsService;
-    private final MerchantNotifyService merchantNotifyService;
-    private final MerchantAiInsightService merchantAiInsightService;
-    private final LineWithdrawService lineWithdrawService;
-    private final MerchantWithdrawService merchantWithdrawService;
-    private final InvoiceService invoiceService;
+    private final MerchantPortalFinanceSupport finance;
+    private final MerchantPortalEngagementSupport engagement;
 
-    public MerchantPortalControllerSupport(MerchantFinanceService merchantFinanceService,
-                                           MerchantSkuPricingService skuPricingService,
-                                           DisputeService disputeService,
-                                           MerchantReplenishmentService merchantReplenishmentService,
-                                           MerchantAnalyticsService merchantAnalyticsService,
-                                           MerchantNotifyService merchantNotifyService,
-                                           MerchantAiInsightService merchantAiInsightService,
-                                           LineWithdrawService lineWithdrawService,
-                                           MerchantWithdrawService merchantWithdrawService,
-                                           InvoiceService invoiceService) {
-        this.merchantFinanceService = merchantFinanceService;
-        this.skuPricingService = skuPricingService;
-        this.disputeService = disputeService;
-        this.merchantReplenishmentService = merchantReplenishmentService;
-        this.merchantAnalyticsService = merchantAnalyticsService;
-        this.merchantNotifyService = merchantNotifyService;
-        this.merchantAiInsightService = merchantAiInsightService;
-        this.lineWithdrawService = lineWithdrawService;
-        this.merchantWithdrawService = merchantWithdrawService;
-        this.invoiceService = invoiceService;
+    public MerchantPortalControllerSupport(MerchantPortalFinanceSupport finance,
+                                           MerchantPortalEngagementSupport engagement) {
+        this.finance = finance;
+        this.engagement = engagement;
     }
 
     public MerchantFinanceService merchantFinanceService() {
-        return merchantFinanceService;
+        return finance.merchantFinanceService();
     }
 
     public MerchantSkuPricingService skuPricingService() {
-        return skuPricingService;
+        return finance.skuPricingService();
     }
 
     public DisputeService disputeService() {
-        return disputeService;
+        return engagement.disputeService();
     }
 
     public MerchantReplenishmentService merchantReplenishmentService() {
-        return merchantReplenishmentService;
+        return engagement.merchantReplenishmentService();
     }
 
     public MerchantAnalyticsService merchantAnalyticsService() {
-        return merchantAnalyticsService;
+        return engagement.merchantAnalyticsService();
     }
 
     public MerchantNotifyService merchantNotifyService() {
-        return merchantNotifyService;
+        return engagement.merchantNotifyService();
     }
 
     public MerchantAiInsightService merchantAiInsightService() {
-        return merchantAiInsightService;
+        return engagement.merchantAiInsightService();
     }
 
     public LineWithdrawService lineWithdrawService() {
-        return lineWithdrawService;
+        return finance.lineWithdrawService();
     }
 
     public MerchantWithdrawService merchantWithdrawService() {
-        return merchantWithdrawService;
+        return finance.merchantWithdrawService();
     }
 
     public InvoiceService invoiceService() {
-        return invoiceService;
+        return finance.invoiceService();
     }
 }

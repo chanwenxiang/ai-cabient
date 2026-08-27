@@ -22,118 +22,79 @@ import org.springframework.stereotype.Component;
 @Component
 public class OpsCommercialControllerSupport {
 
-    private final CommercialFlowService commercialFlowService;
-    private final ProcurementService procurementService;
-    private final PurchaseSuggestionService purchaseSuggestionService;
-    private final SupplierPayableService supplierPayableService;
-    private final WarehouseStocktakeService warehouseStocktakeService;
-    private final WarehouseBinService warehouseBinService;
-    private final OpsCsvExportService csvExportService;
-    private final FileAttachmentService fileAttachmentService;
-    private final OpsTwoFactorService opsTwoFactorService;
-    private final DeviceTempPlanService deviceTempPlanService;
-    private final DeviceEnvService deviceEnvService;
-    private final MediaAssetService mediaAssetService;
-    private final AdCampaignService adCampaignService;
-    private final FootfallAnalyticsService footfallAnalyticsService;
-    private final OrgService orgService;
-    private final SiteContractService siteContractService;
+    private final OpsCommercialSupplySupport supply;
+    private final OpsCommercialMediaSupport media;
+    private final OpsCommercialOrgSupport org;
 
-    public OpsCommercialControllerSupport(CommercialFlowService commercialFlowService,
-                                          ProcurementService procurementService,
-                                          PurchaseSuggestionService purchaseSuggestionService,
-                                          SupplierPayableService supplierPayableService,
-                                          WarehouseStocktakeService warehouseStocktakeService,
-                                          WarehouseBinService warehouseBinService,
-                                          OpsCsvExportService csvExportService,
-                                          FileAttachmentService fileAttachmentService,
-                                          OpsTwoFactorService opsTwoFactorService,
-                                          DeviceTempPlanService deviceTempPlanService,
-                                          DeviceEnvService deviceEnvService,
-                                          MediaAssetService mediaAssetService,
-                                          AdCampaignService adCampaignService,
-                                          FootfallAnalyticsService footfallAnalyticsService,
-                                          OrgService orgService,
-                                          SiteContractService siteContractService) {
-        this.commercialFlowService = commercialFlowService;
-        this.procurementService = procurementService;
-        this.purchaseSuggestionService = purchaseSuggestionService;
-        this.supplierPayableService = supplierPayableService;
-        this.warehouseStocktakeService = warehouseStocktakeService;
-        this.warehouseBinService = warehouseBinService;
-        this.csvExportService = csvExportService;
-        this.fileAttachmentService = fileAttachmentService;
-        this.opsTwoFactorService = opsTwoFactorService;
-        this.deviceTempPlanService = deviceTempPlanService;
-        this.deviceEnvService = deviceEnvService;
-        this.mediaAssetService = mediaAssetService;
-        this.adCampaignService = adCampaignService;
-        this.footfallAnalyticsService = footfallAnalyticsService;
-        this.orgService = orgService;
-        this.siteContractService = siteContractService;
+    public OpsCommercialControllerSupport(OpsCommercialSupplySupport supply,
+                                          OpsCommercialMediaSupport media,
+                                          OpsCommercialOrgSupport org) {
+        this.supply = supply;
+        this.media = media;
+        this.org = org;
     }
 
     public CommercialFlowService commercialFlowService() {
-        return commercialFlowService;
+        return org.commercialFlowService();
     }
 
     public ProcurementService procurementService() {
-        return procurementService;
+        return supply.procurementService();
     }
 
     public PurchaseSuggestionService purchaseSuggestionService() {
-        return purchaseSuggestionService;
+        return supply.purchaseSuggestionService();
     }
 
     public SupplierPayableService supplierPayableService() {
-        return supplierPayableService;
+        return supply.supplierPayableService();
     }
 
     public WarehouseStocktakeService warehouseStocktakeService() {
-        return warehouseStocktakeService;
+        return supply.warehouseStocktakeService();
     }
 
     public WarehouseBinService warehouseBinService() {
-        return warehouseBinService;
+        return supply.warehouseBinService();
     }
 
     public OpsCsvExportService csvExportService() {
-        return csvExportService;
+        return supply.csvExportService();
     }
 
     public FileAttachmentService fileAttachmentService() {
-        return fileAttachmentService;
+        return media.fileAttachmentService();
     }
 
     public OpsTwoFactorService opsTwoFactorService() {
-        return opsTwoFactorService;
+        return media.opsTwoFactorService();
     }
 
     public DeviceTempPlanService deviceTempPlanService() {
-        return deviceTempPlanService;
+        return media.deviceTempPlanService();
     }
 
     public DeviceEnvService deviceEnvService() {
-        return deviceEnvService;
+        return media.deviceEnvService();
     }
 
     public MediaAssetService mediaAssetService() {
-        return mediaAssetService;
+        return media.mediaAssetService();
     }
 
     public AdCampaignService adCampaignService() {
-        return adCampaignService;
+        return media.adCampaignService();
     }
 
     public FootfallAnalyticsService footfallAnalyticsService() {
-        return footfallAnalyticsService;
+        return org.footfallAnalyticsService();
     }
 
     public OrgService orgService() {
-        return orgService;
+        return org.orgService();
     }
 
     public SiteContractService siteContractService() {
-        return siteContractService;
+        return org.siteContractService();
     }
 }

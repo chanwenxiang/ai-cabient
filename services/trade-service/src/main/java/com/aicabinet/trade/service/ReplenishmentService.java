@@ -919,15 +919,20 @@ public class ReplenishmentService {
                         // 无货道绑定时仍按出库数量回写（兼容旧柜）
                         if (!deviceSlotService.hasSkuSlots(task.getDeviceId(), ol.getSkuId())) {
                             inventoryLotService.addRestock(
-                                    task.getDeviceId(), ol.getSkuId(), ol.getBatchNo(), null,
-                                    ol.getExpiryDate(), need, null, operatorId, refId);
+                                    task.getDeviceId(), ol.getSkuId(),
+                                    new InventoryLotService.RestockCommand(
+                                            ol.getBatchNo(), null, ol.getExpiryDate(), need, null,
+                                            new InventoryLotService.LotMovementRef("REPLENISH", refId, operatorId)));
                             received += need;
                         }
                     } else {
                         for (DeviceSlotService.SlotRestockAllocation alloc : allocations) {
                             inventoryLotService.addRestock(
-                                    task.getDeviceId(), ol.getSkuId(), ol.getBatchNo(), null,
-                                    ol.getExpiryDate(), alloc.quantity(), alloc.slotCode(), operatorId, refId);
+                                    task.getDeviceId(), ol.getSkuId(),
+                                    new InventoryLotService.RestockCommand(
+                                            ol.getBatchNo(), null, ol.getExpiryDate(), alloc.quantity(),
+                                            alloc.slotCode(),
+                                            new InventoryLotService.LotMovementRef("REPLENISH", refId, operatorId)));
                             deviceSlotService.recordRestock(task.getDeviceId(), alloc.slotCode());
                             received += alloc.quantity();
                         }
