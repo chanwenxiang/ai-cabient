@@ -467,6 +467,14 @@ function openCreate() {
 function openEdit(row: any) {
   editingId.value = row.activityId;
   const deviceIds = parseRuleDeviceIds(row.ruleConfig);
+  let formDeviceIds: string[];
+  if (deviceIds.length) {
+    formDeviceIds = deviceIds;
+  } else if (row.deviceScope && row.deviceScope !== 'ALL' && row.deviceScope !== 'SPECIFIC') {
+    formDeviceIds = [row.deviceScope];
+  } else {
+    formDeviceIds = [];
+  }
   form.value = {
     activityName: row.activityName,
     activityType: row.activityType,
@@ -475,11 +483,7 @@ function openEdit(row: any) {
     budgetYuan: (Number(row.budgetCents) || 0) / 100,
     userLimit: row.userLimit ?? 1,
     deviceScope: row.deviceScope === 'SPECIFIC' ? 'SPECIFIC' : 'ALL',
-    deviceIds: deviceIds.length
-      ? deviceIds
-      : row.deviceScope && row.deviceScope !== 'ALL' && row.deviceScope !== 'SPECIFIC'
-        ? [row.deviceScope]
-        : [],
+    deviceIds: formDeviceIds,
     description: row.description || ''
   };
   showDialog.value = true;

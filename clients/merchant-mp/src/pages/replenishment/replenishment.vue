@@ -1486,8 +1486,11 @@ async function openDoor() {
     uni.showToast({ title: '请先现场签到', icon: 'none' });
     return;
   }
+  let confirmTitle = '补货开门';
+  if (doorOpened.value) confirmTitle = '再次开门';
+  else if (detailIsPullOff.value) confirmTitle = '下架开门';
   const ok = await askConfirm({
-    title: doorOpened.value ? '再次开门' : detailIsPullOff.value ? '下架开门' : '补货开门',
+    title: confirmTitle,
     content: '将下发开门指令，本次为补货会话，不会按购物扣款。请确认人在柜前。',
     confirmText: '开门',
     cancelText: '取消'

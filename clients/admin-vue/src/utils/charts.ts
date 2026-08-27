@@ -2,11 +2,18 @@
 
 export type ChartKind = 'line' | 'area' | 'bar';
 
+function niceStep(n: number): number {
+  if (n <= 1) return 1;
+  if (n <= 2) return 2;
+  if (n <= 5) return 5;
+  return 10;
+}
+
 export function niceMax(val: number): number {
   if (val <= 0) return 1;
   const exp = Math.pow(10, Math.floor(Math.log10(val)));
   const n = val / exp;
-  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+  const step = niceStep(n);
   return step * exp;
 }
 

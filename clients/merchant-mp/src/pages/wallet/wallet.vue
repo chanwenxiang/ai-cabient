@@ -152,7 +152,9 @@ function yuan(cents?: number) {
 function formatSigned(cents?: number) {
   const n = Number(cents) || 0;
   const abs = Math.abs(n) / 100;
-  const sign = n > 0 ? '+' : n < 0 ? '-' : '';
+  let sign = '';
+  if (n > 0) sign = '+';
+  else if (n < 0) sign = '-';
   return `${sign}¥${abs.toFixed(2)}`;
 }
 

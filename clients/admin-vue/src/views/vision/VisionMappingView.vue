@@ -454,7 +454,13 @@ function openEdit(row: YoloMappingRow) {
   editForm.className = row.className || '';
   editForm.skuId = row.skuId || '';
   const conf = Number(row.minConfidence);
-  editForm.minConfidence = Number.isFinite(conf) ? (conf > 1 ? conf / 100 : conf) : 0.72;
+  if (!Number.isFinite(conf)) {
+    editForm.minConfidence = 0.72;
+  } else if (conf > 1) {
+    editForm.minConfidence = conf / 100;
+  } else {
+    editForm.minConfidence = conf;
+  }
   editForm.mappingSource = row.mappingSource;
   dialogVisible.value = true;
 }

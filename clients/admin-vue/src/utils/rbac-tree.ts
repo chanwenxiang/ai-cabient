@@ -12,7 +12,10 @@ export interface PermRow {
 }
 
 export function permTypeLabel(t: string) {
-  return t === 'M' ? '目录' : t === 'C' ? '菜单' : t === 'F' ? '按钮' : t;
+  if (t === 'M') return '目录';
+  if (t === 'C') return '菜单';
+  if (t === 'F') return '按钮';
+  return t;
 }
 
 export function buildPermTree(flat: PermRow[]): PermRow[] {

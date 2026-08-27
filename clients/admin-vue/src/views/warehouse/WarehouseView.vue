@@ -2208,7 +2208,9 @@ function statusCode(raw: string | undefined, fallback = 'ACTIVE') {
   if (!v) return fallback;
   const upper = v.toUpperCase();
   if (['ACTIVE', 'INACTIVE', 'ENABLED', 'DISABLED'].includes(upper)) {
-    return upper === 'ENABLED' ? 'ACTIVE' : upper === 'DISABLED' ? 'INACTIVE' : upper;
+    if (upper === 'ENABLED') return 'ACTIVE';
+    if (upper === 'DISABLED') return 'INACTIVE';
+    return upper;
   }
   if (v === '启用' || v === '正常') return 'ACTIVE';
   if (v === '停用' || v === '禁用') return 'INACTIVE';
@@ -3027,11 +3029,15 @@ function expiryDays(value: string) {
 }
 function expiryText(value: string) {
   const days = expiryDays(value);
-  return days < 0 ? '已过期' : days <= 7 ? '临期' : `${days} 天`;
+  if (days < 0) return '已过期';
+  if (days <= 7) return '临期';
+  return `${days} 天`;
 }
 function expiryType(value: string) {
   const days = expiryDays(value);
-  return days < 0 ? 'danger' : days <= 7 ? 'warning' : 'success';
+  if (days < 0) return 'danger';
+  if (days <= 7) return 'warning';
+  return 'success';
 }
 
 function outboundActions(row: Row): TableAction[] {
@@ -4195,7 +4201,10 @@ async function submitOutboundConfirm() {
   try {
     await api.request(`/api/v2/ops/admin/warehouse/outbounds/${outboundId}/${action}`, 'POST');
     outboundConfirm.visible = false;
-    const okMsg = action === 'pick' ? '拣货完成' : action === 'ship' ? '已发运' : '出库单已作废';
+    let okMsg: string;
+    if (action === 'pick') okMsg = '拣货完成';
+    else if (action === 'ship') okMsg = '已发运';
+    else okMsg = '出库单已作废';
     ElMessage.success(okMsg);
     loadedTabs.value.delete('outbounds');
     loadedTabs.value.delete('transit');

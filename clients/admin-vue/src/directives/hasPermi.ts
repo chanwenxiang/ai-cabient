@@ -12,8 +12,10 @@ type ElWithPermi = HTMLElement & {
   __hasPermiDisplay?: string;
 };
 
-function normalizeCodes(value: string | string[] | undefined | null) {
-  return Array.isArray(value) ? value : value ? [value] : [];
+function normalizeCodes(value: string | string[] | undefined | null): string[] {
+  if (Array.isArray(value)) return value;
+  if (value) return [value];
+  return [];
 }
 
 function applyPermi(el: ElWithPermi, binding: DirectiveBinding<string | string[]>) {

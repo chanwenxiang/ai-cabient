@@ -281,13 +281,16 @@ const rememberPassword = ref(localStorage.getItem(PW_FLAG_KEY) !== '0');
 const rememberCredentials = ref(
   rememberPassword.value || localStorage.getItem('admin_remember_phone') !== '0'
 );
-const password = ref(
-  rememberCredentials.value
-    ? decodePassword(localStorage.getItem(PW_STORE_KEY))
-    : ENABLE_TEST_TOOLS
-      ? '123456'
-      : ''
-);
+function initialPassword(): string {
+  if (rememberCredentials.value) {
+    return decodePassword(localStorage.getItem(PW_STORE_KEY));
+  }
+  if (ENABLE_TEST_TOOLS) {
+    return '123456';
+  }
+  return '';
+}
+const password = ref(initialPassword());
 const captchaCode = ref('');
 const captchaId = ref('');
 const captchaImage = ref('');

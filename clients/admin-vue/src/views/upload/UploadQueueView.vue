@@ -437,18 +437,18 @@ function syncRouteQuery() {
 
 function applyRouteQuery() {
   let changed = false;
-  const routeKeyword =
-    typeof route.query.keyword === 'string'
-      ? route.query.keyword
-      : typeof route.query.q === 'string'
-        ? route.query.q
-        : typeof route.query.deviceId === 'string'
-          ? route.query.deviceId
-          : typeof route.query.qSessionId === 'string'
-            ? route.query.qSessionId
-            : typeof route.query.sessionId === 'string'
-              ? route.query.sessionId
-              : '';
+  let routeKeyword = '';
+  if (typeof route.query.keyword === 'string') {
+    routeKeyword = route.query.keyword;
+  } else if (typeof route.query.q === 'string') {
+    routeKeyword = route.query.q;
+  } else if (typeof route.query.deviceId === 'string') {
+    routeKeyword = route.query.deviceId;
+  } else if (typeof route.query.qSessionId === 'string') {
+    routeKeyword = route.query.qSessionId;
+  } else if (typeof route.query.sessionId === 'string') {
+    routeKeyword = route.query.sessionId;
+  }
   if (routeKeyword !== keyword.value) {
     keyword.value = routeKeyword;
     changed = true;

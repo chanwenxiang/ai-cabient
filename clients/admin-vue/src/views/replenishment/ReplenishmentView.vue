@@ -1953,7 +1953,14 @@ async function maybeAutoPlanFromQuery() {
     .map((s) => s.trim())
     .filter(Boolean);
   const focus = focusDeviceId.value.trim();
-  const target = ids.length ? ids : focus ? [focus] : shortageDevices.value;
+  let target: string[];
+  if (ids.length) {
+    target = ids;
+  } else if (focus) {
+    target = [focus];
+  } else {
+    target = shortageDevices.value;
+  }
   if (!target.length) {
     ElMessage.warning('暂无缺货柜机可规划，请先刷新缺货建议');
     clearPlanQuery();

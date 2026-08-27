@@ -253,10 +253,15 @@ const parentOptions = computed(() =>
 );
 
 function typeText(t: string) {
-  return t === 'M' ? '目录' : t === 'C' ? '菜单' : t === 'F' ? '按钮' : t;
+  if (t === 'M') return '目录';
+  if (t === 'C') return '菜单';
+  if (t === 'F') return '按钮';
+  return t;
 }
 function typeTag(t: string) {
-  return t === 'M' ? 'warning' : t === 'C' ? 'success' : 'info';
+  if (t === 'M') return 'warning';
+  if (t === 'C') return 'success';
+  return 'info';
 }
 
 function parentOptionLabel(p: PermRow) {
@@ -427,7 +432,9 @@ async function load() {
 }
 
 function openCreate(parentId = 0) {
-  const prefix = scope.value === 'merchant' ? 'merchant:' : scope.value === 'ops' ? 'ops:' : '';
+  let prefix = '';
+  if (scope.value === 'merchant') prefix = 'merchant:';
+  else if (scope.value === 'ops') prefix = 'ops:';
   form.value = {
     permissionId: null,
     parentId,

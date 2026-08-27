@@ -728,6 +728,19 @@ async function submitDispute() {
   }
 }
 
+function refundConfirmContent(isPartial: boolean, restoreInventory: boolean, lineCount: number): string {
+  if (isPartial) {
+    if (restoreInventory) {
+      return `将退款所选 ${lineCount} 行商品并回库。是否继续？`;
+    }
+    return `将退款所选 ${lineCount} 行商品（不回库）。是否继续？`;
+  }
+  if (restoreInventory) {
+    return '将立即全额退款，并把本单商品回库（适用于没拿/误识别）。是否继续？';
+  }
+  return '将立即全额退款，但库存不回库（货已拿走/仅退款）。是否继续？';
+}
+
 async function submitRefund() {
   const oid = order.value?.orderId;
   const reason = disputeReason.value.trim();
@@ -755,13 +768,7 @@ async function submitRefund() {
   const confirmed = await new Promise<boolean>((resolve) =>
     uni.showModal({
       title: isPartial ? '确认按行退款' : '确认退款',
-      content: isPartial
-        ? restoreInventory
-          ? `将退款所选 ${lines.length} 行商品并回库。是否继续？`
-          : `将退款所选 ${lines.length} 行商品（不回库）。是否继续？`
-        : restoreInventory
-          ? '将立即全额退款，并把本单商品回库（适用于没拿/误识别）。是否继续？'
-          : '将立即全额退款，但库存不回库（货已拿走/仅退款）。是否继续？',
+      content: refundConfirmContent(isPartial, restoreInventory, lines.length),
       confirmText: '确认退款',
       success: (r) => resolve(!!r.confirm),
       fail: () => resolve(false)

@@ -151,6 +151,23 @@ const statusText = computed(() => {
   return displayLabel('dispute_status', s, '处理中');
 });
 
+function reviewStepDetail(
+  t: NonNullable<typeof ticket.value>,
+  resolved: boolean
+): string {
+  const note = (t as { operatorNote?: string }).operatorNote;
+  if (note) return note;
+  if (resolved) return '审核结论已生成';
+  if ((t as { slaOverdue?: boolean }).slaOverdue) return '已超时，加急处理中';
+  return '请耐心等待';
+}
+
+function closeStepTitle(status: string): string {
+  if (status === 'RESOLVED') return '已结案';
+  if (status === 'CLOSED') return '已关闭';
+  return '待结案';
+}
+
 const timeline = computed(() => {
   const t = ticket.value;
   if (!t) return [];
@@ -167,18 +184,12 @@ const timeline = computed(() => {
     {
       title: status === 'OPEN' || status === 'PENDING' ? '运营审核中' : '运营已审核',
       time: t.resolvedAt ? formatTime(t.resolvedAt) : '',
-      detail:
-        (t as { operatorNote?: string }).operatorNote ||
-        (resolved
-          ? '审核结论已生成'
-          : (t as { slaOverdue?: boolean }).slaOverdue
-            ? '已超时，加急处理中'
-            : '请耐心等待'),
+      detail: reviewStepDetail(t, resolved),
       done: resolved,
       current: !resolved
     },
     {
-      title: status === 'RESOLVED' ? '已结案' : status === 'CLOSED' ? '已关闭' : '待结案',
+      title: closeStepTitle(status),
       time:
         t.resolvedAt || (t as { closedAt?: string }).closedAt
           ? formatTime(t.resolvedAt || (t as { closedAt?: string }).closedAt)

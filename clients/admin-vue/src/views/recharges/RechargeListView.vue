@@ -306,12 +306,12 @@ function applyRouteQuery() {
     status.value = qStatus;
     changed = true;
   }
-  const routeKeyword =
-    typeof route.query.keyword === 'string'
-      ? route.query.keyword
-      : typeof route.query.userId === 'string'
-        ? route.query.userId
-        : '';
+  let routeKeyword = '';
+  if (typeof route.query.keyword === 'string') {
+    routeKeyword = route.query.keyword;
+  } else if (typeof route.query.userId === 'string') {
+    routeKeyword = route.query.userId;
+  }
   if (routeKeyword !== keyword.value) {
     keyword.value = routeKeyword;
     changed = true;
