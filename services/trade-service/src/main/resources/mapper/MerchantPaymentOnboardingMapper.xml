@@ -3,13 +3,13 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.MerchantPaymentOnboardingMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.MerchantPaymentOnboarding">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.MerchantPaymentOnboarding">
     <![CDATA[
     SELECT o.* FROM merchant_payment_onboarding o WHERE o.onboarding_id = #{onboardingId} FOR UPDATE
     ]]>
   </select>
 
-  <select id="_findByMerchantAndChannelForUpdateRaw" resultType="com.aicabinet.trade.domain.MerchantPaymentOnboarding">
+  <select id="findByMerchantAndChannelForUpdateRaw" resultType="com.aicabinet.trade.domain.MerchantPaymentOnboarding">
     <![CDATA[
     SELECT o.* FROM merchant_payment_onboarding o
     WHERE o.merchant_id = #{merchantId} AND o.channel = #{channel}

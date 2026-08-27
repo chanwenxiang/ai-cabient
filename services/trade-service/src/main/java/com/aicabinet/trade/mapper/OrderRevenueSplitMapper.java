@@ -13,10 +13,10 @@ import org.springframework.data.domain.Pageable;
 @Mapper
 public interface OrderRevenueSplitMapper extends BaseTradeMapper<OrderRevenueSplit> {
 
-    OrderRevenueSplit _findByOrderIdForUpdateRaw(@org.apache.ibatis.annotations.Param("orderId") String orderId);
+    OrderRevenueSplit findByOrderIdForUpdateRaw(@org.apache.ibatis.annotations.Param("orderId") String orderId);
 
     default Optional<OrderRevenueSplit> findByOrderIdForUpdate(String orderId) {
-        return Optional.ofNullable(_findByOrderIdForUpdateRaw(orderId));
+        return Optional.ofNullable(findByOrderIdForUpdateRaw(orderId));
     }
 
     default Optional<OrderRevenueSplit> findByOrderId(String orderId) {
@@ -114,11 +114,11 @@ public interface OrderRevenueSplitMapper extends BaseTradeMapper<OrderRevenueSpl
     return selectList(Wrappers.<OrderRevenueSplit>lambdaQuery().in(OrderRevenueSplit::getMerchantId, merchantIds).gt(OrderRevenueSplit::getCreatedAt, since));
     }
 
-        List<OrderRevenueSplit> _searchByMerchantsAll(@org.springframework.data.repository.query.Param("merchantIds") Collection<String> merchantIds, @org.springframework.data.repository.query.Param("status") String status, @org.springframework.data.repository.query.Param("from") java.time.Instant from, @org.springframework.data.repository.query.Param("to") java.time.Instant to);
+        List<OrderRevenueSplit> searchByMerchantsAll(@org.springframework.data.repository.query.Param("merchantIds") Collection<String> merchantIds, @org.springframework.data.repository.query.Param("status") String status, @org.springframework.data.repository.query.Param("from") java.time.Instant from, @org.springframework.data.repository.query.Param("to") java.time.Instant to);
 
 
     default Page<OrderRevenueSplit> searchByMerchants( @org.springframework.data.repository.query.Param("merchantIds") Collection<String> merchantIds, @org.springframework.data.repository.query.Param("status") String status, @org.springframework.data.repository.query.Param("from") java.time.Instant from, @org.springframework.data.repository.query.Param("to") java.time.Instant to, Pageable pageable) {
-    var all = _searchByMerchantsAll(merchantIds, status, from, to);
+    var all = searchByMerchantsAll(merchantIds, status, from, to);
     int start = (int) pageable.getOffset();
     int end = Math.min(start + pageable.getPageSize(), all.size());
     var slice = start >= all.size() ? java.util.List.<OrderRevenueSplit>of() : all.subList(start, end);
@@ -139,22 +139,22 @@ public interface OrderRevenueSplitMapper extends BaseTradeMapper<OrderRevenueSpl
     return selectList(Wrappers.<OrderRevenueSplit>lambdaQuery().in(OrderRevenueSplit::getMerchantId, merchantIds).eq(OrderRevenueSplit::getSettlementBatchNo, settlementBatchNo).orderByDesc(OrderRevenueSplit::getCreatedAt));
     }
 
-    java.util.List<java.util.LinkedHashMap<String, Object>> _aggregateDailyByMerchants(
+    java.util.List<java.util.LinkedHashMap<String, Object>> selectAggregateDailyByMerchants(
             @org.springframework.data.repository.query.Param("merchantIds") Collection<String> merchantIds,
             @org.springframework.data.repository.query.Param("from") Instant from,
             @org.springframework.data.repository.query.Param("to") Instant to);
 
     default List<Object[]> aggregateDailyByMerchants(Collection<String> merchantIds, Instant from, Instant to) {
-        return ColumnMapRows.toObjectRows(_aggregateDailyByMerchants(merchantIds, from, to), 8);
+        return ColumnMapRows.toObjectRows(selectAggregateDailyByMerchants(merchantIds, from, to), 8);
     }
 
-    java.util.List<java.util.LinkedHashMap<String, Object>> _aggregateBatchByMerchants(
+    java.util.List<java.util.LinkedHashMap<String, Object>> selectAggregateBatchByMerchants(
             @org.springframework.data.repository.query.Param("merchantIds") Collection<String> merchantIds,
             @org.springframework.data.repository.query.Param("from") Instant from,
             @org.springframework.data.repository.query.Param("to") Instant to);
 
     default List<Object[]> aggregateBatchByMerchants(Collection<String> merchantIds, Instant from, Instant to) {
-        return ColumnMapRows.toObjectRows(_aggregateBatchByMerchants(merchantIds, from, to), 11);
+        return ColumnMapRows.toObjectRows(selectAggregateBatchByMerchants(merchantIds, from, to), 11);
     }
 
 }

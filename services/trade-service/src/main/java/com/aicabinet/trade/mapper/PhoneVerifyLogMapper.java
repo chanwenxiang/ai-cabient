@@ -12,10 +12,10 @@ import java.time.Instant;
 @Mapper
 public interface PhoneVerifyLogMapper extends BaseTradeMapper<PhoneVerifyLog> {
 
-    PhoneVerifyLog _findByIdForUpdateRaw(@Param("logId") Long logId);
+    PhoneVerifyLog findByIdForUpdateRaw(@Param("logId") Long logId);
 
     default Optional<PhoneVerifyLog> findByIdForUpdate(Long logId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(logId));
+        return Optional.ofNullable(findByIdForUpdateRaw(logId));
     }
 
     default Page<PhoneVerifyLog> search(String phone, String channel, Instant from, Instant to, int page, int size) {

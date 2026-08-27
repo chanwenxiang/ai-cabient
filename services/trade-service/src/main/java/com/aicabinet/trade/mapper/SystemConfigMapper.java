@@ -8,9 +8,9 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface SystemConfigMapper extends BaseTradeMapper<SystemConfig> {
 
-    SystemConfig _findByIdForUpdateRaw(@Param("configKey") String configKey);
+    SystemConfig findByIdForUpdateRaw(@Param("configKey") String configKey);
 
     default Optional<SystemConfig> findByIdForUpdate(String configKey) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(configKey));
+        return Optional.ofNullable(findByIdForUpdateRaw(configKey));
     }
 }

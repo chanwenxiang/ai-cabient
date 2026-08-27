@@ -10,10 +10,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface SysDictTypeMapper extends BaseTradeMapper<SysDictType> {
 
-    SysDictType _findByIdForUpdateRaw(@Param("dictType") String dictType);
+    SysDictType findByIdForUpdateRaw(@Param("dictType") String dictType);
 
     default Optional<SysDictType> findByIdForUpdate(String dictType) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(dictType));
+        return Optional.ofNullable(findByIdForUpdateRaw(dictType));
     }
 
     default List<SysDictType> findAllByOrderBySortOrderAscDictTypeAsc() {

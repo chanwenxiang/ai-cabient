@@ -3,13 +3,13 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.OpsPermissionMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.OpsPermission">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.OpsPermission">
     <![CDATA[
     SELECT p.* FROM ops_permission p WHERE p.permission_id = #{permissionId} FOR UPDATE
     ]]>
   </select>
 
-  <select id="_findPermCodesByUserId" resultType="string">
+  <select id="selectPermCodesByUserId" resultType="string">
     <![CDATA[
     SELECT DISTINCT p.perm_code FROM ops_permission p
     JOIN ops_role_permission rp ON rp.permission_id = p.permission_id
@@ -18,7 +18,7 @@
     ]]>
   </select>
 
-  <select id="_findUserIdsByPermCode" resultType="long">
+  <select id="findUserIdsByPermCode" resultType="long">
     <![CDATA[
     SELECT DISTINCT ur.user_id
     FROM ops_user_role ur
@@ -33,7 +33,7 @@
     ]]>
   </select>
 
-  <select id="_findUserIdsByRoleKey" resultType="long">
+  <select id="findUserIdsByRoleKey" resultType="long">
     <![CDATA[
     SELECT DISTINCT ur.user_id
     FROM ops_user_role ur

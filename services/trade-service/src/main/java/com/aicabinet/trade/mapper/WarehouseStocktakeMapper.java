@@ -12,10 +12,10 @@ import java.util.Optional;
 @Mapper
 public interface WarehouseStocktakeMapper extends BaseTradeMapper<WarehouseStocktake> {
 
-    WarehouseStocktake _findByIdForUpdateRaw(@Param("stocktakeId") Long stocktakeId);
+    WarehouseStocktake findByIdForUpdateRaw(@Param("stocktakeId") Long stocktakeId);
 
     default Optional<WarehouseStocktake> findByIdForUpdate(Long stocktakeId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(stocktakeId));
+        return Optional.ofNullable(findByIdForUpdateRaw(stocktakeId));
     }
 
     default List<WarehouseStocktake> findAllByOrderByCreatedAtDesc() {

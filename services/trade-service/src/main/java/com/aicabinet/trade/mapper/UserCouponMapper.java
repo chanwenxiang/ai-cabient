@@ -11,10 +11,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface UserCouponMapper extends BaseTradeMapper<UserCoupon> {
 
-    UserCoupon _findByIdForUpdateRaw(@Param("couponId") Long couponId);
+    UserCoupon findByIdForUpdateRaw(@Param("couponId") Long couponId);
 
     default Optional<UserCoupon> findByIdForUpdate(Long couponId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(couponId));
+        return Optional.ofNullable(findByIdForUpdateRaw(couponId));
     }
 
     default List<UserCoupon> findByUserIdAndStatus(Long userId, String status) {

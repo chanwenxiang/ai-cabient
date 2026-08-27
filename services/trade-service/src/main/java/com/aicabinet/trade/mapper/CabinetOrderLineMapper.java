@@ -57,72 +57,72 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
 
     long sumCogsTotal();
 
-    List<LinkedHashMap<String, Object>> _sumSoldQtyBySkuSince(
+    List<LinkedHashMap<String, Object>> selectSumSoldQtyBySkuSince(
             @Param("deviceId") String deviceId, @Param("since") Instant since);
 
     default List<Object[]> sumSoldQtyBySkuSince(String deviceId, Instant since) {
-        return ColumnMapRows.toObjectRows(_sumSoldQtyBySkuSince(deviceId, since), 2);
+        return ColumnMapRows.toObjectRows(selectSumSoldQtyBySkuSince(deviceId, since), 2);
     }
 
-    List<LinkedHashMap<String, Object>> _sumSoldQtyAllSince(@Param("since") Instant since);
+    List<LinkedHashMap<String, Object>> selectSumSoldQtyAllSince(@Param("since") Instant since);
 
     default List<Object[]> sumSoldQtyAllSince(Instant since) {
-        return ColumnMapRows.toObjectRows(_sumSoldQtyAllSince(since), 2);
+        return ColumnMapRows.toObjectRows(selectSumSoldQtyAllSince(since), 2);
     }
 
     /** 按 SKU + 自然日（Asia/Shanghai）聚合销量，供采购建议趋势预测使用。 */
-    List<LinkedHashMap<String, Object>> _soldQtyDailySince(@Param("since") Instant since);
+    List<LinkedHashMap<String, Object>> selectSoldQtyDailySince(@Param("since") Instant since);
 
     default List<Object[]> soldQtyDailySince(Instant since) {
-        return ColumnMapRows.toObjectRows(_soldQtyDailySince(since), 3);
+        return ColumnMapRows.toObjectRows(selectSoldQtyDailySince(since), 3);
     }
 
     /** 按货道聚合销量/营收（货道热区），仅统计有 slot_id 的订单行。 */
-    List<LinkedHashMap<String, Object>> _slotBreakdownByDeviceSince(
+    List<LinkedHashMap<String, Object>> selectSlotBreakdownByDeviceSince(
             @Param("deviceId") String deviceId, @Param("since") Instant since);
 
     default List<Object[]> slotBreakdownByDeviceSince(String deviceId, Instant since) {
-        return ColumnMapRows.toObjectRows(_slotBreakdownByDeviceSince(deviceId, since), 5);
+        return ColumnMapRows.toObjectRows(selectSlotBreakdownByDeviceSince(deviceId, since), 5);
     }
 
     long sumCogsBetween(@Param("start") Instant start, @Param("end") Instant end);
 
-    List<LinkedHashMap<String, Object>> _skuBreakdownSince(@Param("since") Instant since);
+    List<LinkedHashMap<String, Object>> selectSkuBreakdownSince(@Param("since") Instant since);
 
     default List<Object[]> skuBreakdownSince(Instant since) {
-        return ColumnMapRows.toObjectRows(_skuBreakdownSince(since), 6);
+        return ColumnMapRows.toObjectRows(selectSkuBreakdownSince(since), 6);
     }
 
-    List<LinkedHashMap<String, Object>> _skuBreakdownBetween(
+    List<LinkedHashMap<String, Object>> selectSkuBreakdownBetween(
             @Param("start") Instant start, @Param("end") Instant end);
 
     default List<Object[]> skuBreakdownBetween(Instant start, Instant end) {
-        return ColumnMapRows.toObjectRows(_skuBreakdownBetween(start, end), 6);
+        return ColumnMapRows.toObjectRows(selectSkuBreakdownBetween(start, end), 6);
     }
 
-    List<LinkedHashMap<String, Object>> _skuBreakdownByDevicesSince(
+    List<LinkedHashMap<String, Object>> selectSkuBreakdownByDevicesSince(
             @Param("deviceIds") Collection<String> deviceIds, @Param("since") Instant since);
 
     default List<Object[]> skuBreakdownByDevicesSince(Collection<String> deviceIds, Instant since) {
-        return ColumnMapRows.toObjectRows(_skuBreakdownByDevicesSince(deviceIds, since), 6);
+        return ColumnMapRows.toObjectRows(selectSkuBreakdownByDevicesSince(deviceIds, since), 6);
     }
 
-    List<LinkedHashMap<String, Object>> _skuBreakdownByDevicesBetween(
+    List<LinkedHashMap<String, Object>> selectSkuBreakdownByDevicesBetween(
             @Param("deviceIds") Collection<String> deviceIds,
             @Param("start") Instant start,
             @Param("end") Instant end);
 
     default List<Object[]> skuBreakdownByDevicesBetween(Collection<String> deviceIds, Instant start, Instant end) {
-        return ColumnMapRows.toObjectRows(_skuBreakdownByDevicesBetween(deviceIds, start, end), 6);
+        return ColumnMapRows.toObjectRows(selectSkuBreakdownByDevicesBetween(deviceIds, start, end), 6);
     }
 
-    List<LinkedHashMap<String, Object>> _deviceBreakdownBetween(
+    List<LinkedHashMap<String, Object>> selectDeviceBreakdownBetween(
             @Param("deviceIds") Collection<String> deviceIds,
             @Param("start") Instant start,
             @Param("end") Instant end);
 
     default List<Object[]> deviceBreakdownBetween(Collection<String> deviceIds, Instant start, Instant end) {
-        return ColumnMapRows.toObjectRows(_deviceBreakdownBetween(deviceIds, start, end), 5);
+        return ColumnMapRows.toObjectRows(selectDeviceBreakdownBetween(deviceIds, start, end), 5);
     }
 
     long sumCogsByDeviceIdsSince(

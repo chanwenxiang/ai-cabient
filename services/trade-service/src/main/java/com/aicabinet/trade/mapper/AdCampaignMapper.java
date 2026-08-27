@@ -13,10 +13,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface AdCampaignMapper extends BaseTradeMapper<AdCampaign> {
 
-    AdCampaign _findByIdForUpdateRaw(@Param("campaignId") Long campaignId);
+    AdCampaign findByIdForUpdateRaw(@Param("campaignId") Long campaignId);
 
     default Optional<AdCampaign> findByIdForUpdate(Long campaignId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(campaignId));
+        return Optional.ofNullable(findByIdForUpdateRaw(campaignId));
     }
 
     default List<AdCampaign> findAllOrderByCreatedDesc() {

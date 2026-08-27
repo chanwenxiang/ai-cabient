@@ -12,10 +12,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface AnnouncementMapper extends BaseTradeMapper<Announcement> {
 
-    Announcement _findByIdForUpdateRaw(@Param("announceId") Long announceId);
+    Announcement findByIdForUpdateRaw(@Param("announceId") Long announceId);
 
     default Optional<Announcement> findByIdForUpdate(Long announceId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(announceId));
+        return Optional.ofNullable(findByIdForUpdateRaw(announceId));
     }
 
     default List<Announcement> findByStatusOrderByPublishAtDesc(String status) {

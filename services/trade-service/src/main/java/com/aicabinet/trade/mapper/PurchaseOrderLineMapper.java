@@ -26,10 +26,10 @@ public interface PurchaseOrderLineMapper extends BaseTradeMapper<PurchaseOrderLi
             "GROUP BY l.sku_id",
             "</script>"
     })
-    List<LinkedHashMap<String, Object>> _pendingQtyBySku(@Param("warehouseId") String warehouseId);
+    List<LinkedHashMap<String, Object>> selectPendingQtyBySku(@Param("warehouseId") String warehouseId);
 
     default List<Object[]> pendingQtyBySku(String warehouseId) {
-        return ColumnMapRows.toObjectRows(_pendingQtyBySku(warehouseId), 2);
+        return ColumnMapRows.toObjectRows(selectPendingQtyBySku(warehouseId), 2);
     }
 
 }

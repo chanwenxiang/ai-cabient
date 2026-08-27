@@ -8,9 +8,9 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface AliyunCategoryMappingMapper extends BaseTradeMapper<AliyunCategoryMapping> {
 
-    AliyunCategoryMapping _findByIdForUpdateRaw(@Param("categoryId") String categoryId);
+    AliyunCategoryMapping findByIdForUpdateRaw(@Param("categoryId") String categoryId);
 
     default Optional<AliyunCategoryMapping> findByIdForUpdate(String categoryId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(categoryId));
+        return Optional.ofNullable(findByIdForUpdateRaw(categoryId));
     }
 }

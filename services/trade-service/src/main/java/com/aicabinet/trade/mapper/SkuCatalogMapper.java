@@ -12,10 +12,10 @@ import java.util.Optional;
 @Mapper
 public interface SkuCatalogMapper extends BaseTradeMapper<SkuCatalog> {
 
-    SkuCatalog _findByIdForUpdateRaw(@Param("skuId") String skuId);
+    SkuCatalog findByIdForUpdateRaw(@Param("skuId") String skuId);
 
     default Optional<SkuCatalog> findByIdForUpdate(String skuId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(skuId));
+        return Optional.ofNullable(findByIdForUpdateRaw(skuId));
     }
 
     default java.util.List<SkuCatalog> findAllByOrderBySkuIdAsc() {

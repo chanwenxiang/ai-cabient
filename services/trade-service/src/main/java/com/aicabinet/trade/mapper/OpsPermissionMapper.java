@@ -10,20 +10,20 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface OpsPermissionMapper extends BaseTradeMapper<OpsPermission> {
 
-    OpsPermission _findByIdForUpdateRaw(@Param("permissionId") Long permissionId);
+    OpsPermission findByIdForUpdateRaw(@Param("permissionId") Long permissionId);
 
     default java.util.Optional<OpsPermission> findByIdForUpdate(Long permissionId) {
-        return java.util.Optional.ofNullable(_findByIdForUpdateRaw(permissionId));
+        return java.util.Optional.ofNullable(findByIdForUpdateRaw(permissionId));
     }
 
-    List<String> _findPermCodesByUserId(@Param("userId") Long userId);
+    List<String> selectPermCodesByUserId(@Param("userId") Long userId);
 
-    List<Long> _findUserIdsByPermCode(@Param("permCode") String permCode);
+    List<Long> findUserIdsByPermCode(@Param("permCode") String permCode);
 
-    List<Long> _findUserIdsByRoleKey(@Param("roleKey") String roleKey);
+    List<Long> findUserIdsByRoleKey(@Param("roleKey") String roleKey);
 
     default Set<String> findPermCodesByUserId(Long userId) {
-        return new java.util.LinkedHashSet<>(_findPermCodesByUserId(userId));
+        return new java.util.LinkedHashSet<>(selectPermCodesByUserId(userId));
     }
 
 

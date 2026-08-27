@@ -10,10 +10,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface ScheduledTaskMapper extends BaseTradeMapper<ScheduledTask> {
 
-    ScheduledTask _findByIdForUpdateRaw(@Param("taskKey") String taskKey);
+    ScheduledTask findByIdForUpdateRaw(@Param("taskKey") String taskKey);
 
     default Optional<ScheduledTask> findByIdForUpdate(String taskKey) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(taskKey));
+        return Optional.ofNullable(findByIdForUpdateRaw(taskKey));
     }
 
     default List<ScheduledTask> findAllByOrderByTaskKeyAsc() {

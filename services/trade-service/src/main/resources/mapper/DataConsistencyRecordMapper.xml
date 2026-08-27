@@ -9,7 +9,7 @@
     ]]>
   </select>
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.DataConsistencyRecord">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.DataConsistencyRecord">
     <![CDATA[
     SELECT r.* FROM data_consistency_record r WHERE r.id = #{id} FOR UPDATE
     ]]>

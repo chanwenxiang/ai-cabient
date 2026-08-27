@@ -11,10 +11,10 @@ import java.util.Optional;
 @Mapper
 public interface OpsOrgNodeMapper extends BaseTradeMapper<OpsOrgNode> {
 
-    OpsOrgNode _findByIdForUpdateRaw(@Param("nodeId") Long nodeId);
+    OpsOrgNode findByIdForUpdateRaw(@Param("nodeId") Long nodeId);
 
     default Optional<OpsOrgNode> findByIdForUpdate(Long nodeId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(nodeId));
+        return Optional.ofNullable(findByIdForUpdateRaw(nodeId));
     }
 
     default List<OpsOrgNode> findAllOrderBySort() {

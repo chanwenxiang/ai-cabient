@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.PurchaseOrderMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.PurchaseOrder">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.PurchaseOrder">
     <![CDATA[
     SELECT o.* FROM purchase_order o WHERE o.purchase_order_id = #{purchaseOrderId} FOR UPDATE
     ]]>

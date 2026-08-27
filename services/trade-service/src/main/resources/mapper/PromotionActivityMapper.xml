@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.PromotionActivityMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.PromotionActivity">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.PromotionActivity">
     <![CDATA[
     SELECT * FROM promotion_activity WHERE activity_id = #{activityId} FOR UPDATE
     ]]>

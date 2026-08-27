@@ -10,10 +10,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface DeviceAvailabilityKpiDailyMapper extends BaseTradeMapper<DeviceAvailabilityKpiDaily> {
 
-    DeviceAvailabilityKpiDaily _findByIdForUpdateRaw(@Param("kpiDate") LocalDate kpiDate);
+    DeviceAvailabilityKpiDaily findByIdForUpdateRaw(@Param("kpiDate") LocalDate kpiDate);
 
     default Optional<DeviceAvailabilityKpiDaily> findByIdForUpdate(LocalDate kpiDate) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(kpiDate));
+        return Optional.ofNullable(findByIdForUpdateRaw(kpiDate));
     }
 
     default Optional<DeviceAvailabilityKpiDaily> findFirstByOrderByKpiDateDesc() {

@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.WarehouseInventoryMapper">
 
-  <select id="_findByWarehouseSkuBatchForUpdateRaw" resultType="com.aicabinet.trade.domain.WarehouseInventory">
+  <select id="findByWarehouseSkuBatchForUpdateRaw" resultType="com.aicabinet.trade.domain.WarehouseInventory">
     <![CDATA[
     SELECT *
     FROM warehouse_inventory

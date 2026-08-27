@@ -8,9 +8,9 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface LineWalletAccountMapper extends BaseTradeMapper<LineWalletAccount> {
 
-    LineWalletAccount _findByIdForUpdateRaw(@Param("managerId") long managerId);
+    LineWalletAccount findByIdForUpdateRaw(@Param("managerId") long managerId);
 
     default Optional<LineWalletAccount> findByIdForUpdate(long managerId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(managerId));
+        return Optional.ofNullable(findByIdForUpdateRaw(managerId));
     }
 }

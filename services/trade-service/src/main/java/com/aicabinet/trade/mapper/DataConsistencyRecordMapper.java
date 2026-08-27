@@ -11,10 +11,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface DataConsistencyRecordMapper extends BaseTradeMapper<DataConsistencyRecord> {
 
-    DataConsistencyRecord _findByIdForUpdateRaw(@Param("id") Long id);
+    DataConsistencyRecord findByIdForUpdateRaw(@Param("id") Long id);
 
     default Optional<DataConsistencyRecord> findByIdForUpdate(Long id) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(id));
+        return Optional.ofNullable(findByIdForUpdateRaw(id));
     }
 
     default List<DataConsistencyRecord> findByStatus(String status) {

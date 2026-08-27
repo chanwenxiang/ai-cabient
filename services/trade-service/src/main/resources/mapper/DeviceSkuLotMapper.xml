@@ -11,7 +11,7 @@
     ]]>
   </select>
 
-  <select id="_sumSellableBySku" resultType="java.util.LinkedHashMap">
+  <select id="selectSumSellableBySku" resultType="java.util.LinkedHashMap">
     <![CDATA[
     SELECT l.sku_id AS c0, COALESCE(SUM(l.quantity), 0) AS c1
     FROM device_sku_lot l
@@ -40,7 +40,7 @@
     ]]>
   </select>
 
-  <select id="_sumBookQtyBySlot" resultType="java.util.LinkedHashMap">
+  <select id="selectSumBookQtyBySlot" resultType="java.util.LinkedHashMap">
     <![CDATA[
     SELECT l.slot_id AS c0, COALESCE(SUM(l.quantity), 0) AS c1
     FROM device_sku_lot l

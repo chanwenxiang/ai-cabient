@@ -14,10 +14,10 @@ import org.springframework.data.domain.Pageable;
 @Mapper
 public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
 
-    CabinetOrder _findByIdForUpdateRaw(@Param("orderId") String orderId);
+    CabinetOrder findByIdForUpdateRaw(@Param("orderId") String orderId);
 
     default Optional<CabinetOrder> findByIdForUpdate(String orderId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(orderId));
+        return Optional.ofNullable(findByIdForUpdateRaw(orderId));
     }
 
     /** 仅当 pay_trade_no 为空时写入，避免并发回填覆盖。 */

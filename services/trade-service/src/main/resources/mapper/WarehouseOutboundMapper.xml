@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.WarehouseOutboundMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.WarehouseOutbound">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.WarehouseOutbound">
     <![CDATA[
     SELECT o.* FROM warehouse_outbound o WHERE o.outbound_id = #{outboundId} FOR UPDATE
     ]]>

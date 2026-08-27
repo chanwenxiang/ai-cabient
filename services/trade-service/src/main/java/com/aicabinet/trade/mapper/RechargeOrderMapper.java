@@ -13,10 +13,10 @@ import org.springframework.data.domain.Pageable;
 @Mapper
 public interface RechargeOrderMapper extends BaseTradeMapper<RechargeOrder> {
 
-    RechargeOrder _findByIdForUpdateRaw(@Param("orderId") String orderId);
+    RechargeOrder findByIdForUpdateRaw(@Param("orderId") String orderId);
 
     default Optional<RechargeOrder> findByIdForUpdate(String orderId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(orderId));
+        return Optional.ofNullable(findByIdForUpdateRaw(orderId));
     }
 
     default Optional<RechargeOrder> findByIdempotencyKey(String idempotencyKey) {

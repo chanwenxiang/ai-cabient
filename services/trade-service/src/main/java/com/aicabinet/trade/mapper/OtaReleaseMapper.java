@@ -11,10 +11,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface OtaReleaseMapper extends BaseTradeMapper<OtaRelease> {
 
-    OtaRelease _findByIdForUpdateRaw(@Param("releaseId") Long releaseId);
+    OtaRelease findByIdForUpdateRaw(@Param("releaseId") Long releaseId);
 
     default Optional<OtaRelease> findByIdForUpdate(Long releaseId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(releaseId));
+        return Optional.ofNullable(findByIdForUpdateRaw(releaseId));
     }
 
     default List<OtaRelease> findByStatusOrderByPublishedAtDesc(String status) {

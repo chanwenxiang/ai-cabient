@@ -10,16 +10,16 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface MemberLevelRuleMapper extends BaseTradeMapper<MemberLevelRule> {
 
-    MemberLevelRule _findByIdForUpdateRaw(@Param("id") Long id);
+    MemberLevelRule findByIdForUpdateRaw(@Param("id") Long id);
 
     default Optional<MemberLevelRule> findByIdForUpdate(Long id) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(id));
+        return Optional.ofNullable(findByIdForUpdateRaw(id));
     }
 
-    MemberLevelRule _findByLevelCodeForUpdateRaw(@Param("levelCode") String levelCode);
+    MemberLevelRule findByLevelCodeForUpdateRaw(@Param("levelCode") String levelCode);
 
     default Optional<MemberLevelRule> findByLevelCodeForUpdate(String levelCode) {
-        return Optional.ofNullable(_findByLevelCodeForUpdateRaw(levelCode));
+        return Optional.ofNullable(findByLevelCodeForUpdateRaw(levelCode));
     }
 
     default Optional<MemberLevelRule> findByLevelCode(String levelCode) {

@@ -12,10 +12,10 @@ import java.util.Optional;
 @Mapper
 public interface WarehouseTransferOrderMapper extends BaseTradeMapper<WarehouseTransferOrder> {
 
-    WarehouseTransferOrder _findByIdForUpdateRaw(@Param("transferId") Long transferId);
+    WarehouseTransferOrder findByIdForUpdateRaw(@Param("transferId") Long transferId);
 
     default Optional<WarehouseTransferOrder> findByIdForUpdate(Long transferId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(transferId));
+        return Optional.ofNullable(findByIdForUpdateRaw(transferId));
     }
 
     default List<WarehouseTransferOrder> findRecent(String status) {

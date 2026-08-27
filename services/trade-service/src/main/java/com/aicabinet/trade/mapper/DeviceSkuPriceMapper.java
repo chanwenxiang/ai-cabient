@@ -13,11 +13,11 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface DeviceSkuPriceMapper extends BaseTradeMapper<DeviceSkuPrice> {
 
-    DeviceSkuPrice _findByDeviceIdAndSkuIdForUpdateRaw(
+    DeviceSkuPrice findByDeviceIdAndSkuIdForUpdateRaw(
             @Param("deviceId") String deviceId, @Param("skuId") String skuId);
 
     default Optional<DeviceSkuPrice> findByDeviceIdAndSkuIdForUpdate(String deviceId, String skuId) {
-        return Optional.ofNullable(_findByDeviceIdAndSkuIdForUpdateRaw(deviceId, skuId));
+        return Optional.ofNullable(findByDeviceIdAndSkuIdForUpdateRaw(deviceId, skuId));
     }
 
     default List<DeviceSkuPrice> findByIdDeviceIdIn(Collection<String> deviceIds) {

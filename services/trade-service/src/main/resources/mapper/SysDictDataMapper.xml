@@ -3,13 +3,13 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.SysDictDataMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.SysDictData">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.SysDictData">
     <![CDATA[
     SELECT d.* FROM sys_dict_data d WHERE d.dict_data_id = #{dictDataId} FOR UPDATE
     ]]>
   </select>
 
-  <select id="_findByDictTypeAndDictValueForUpdateRaw" resultType="com.aicabinet.trade.domain.SysDictData">
+  <select id="findByDictTypeAndDictValueForUpdateRaw" resultType="com.aicabinet.trade.domain.SysDictData">
     <![CDATA[
     SELECT d.* FROM sys_dict_data d
     WHERE d.dict_type = #{dictType} AND d.dict_value = #{dictValue}

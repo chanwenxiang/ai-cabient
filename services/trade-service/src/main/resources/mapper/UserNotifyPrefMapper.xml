@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.UserNotifyPrefMapper">
 
-  <select id="_findByUserIdAndCategoryForUpdateRaw" resultType="com.aicabinet.trade.domain.UserNotifyPref">
+  <select id="findByUserIdAndCategoryForUpdateRaw" resultType="com.aicabinet.trade.domain.UserNotifyPref">
     <![CDATA[
     SELECT p.* FROM user_notify_pref p
     WHERE p.user_id = #{userId} AND p.category = #{category}

@@ -8,9 +8,9 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface MerchantWalletAccountMapper extends BaseTradeMapper<MerchantWalletAccount> {
 
-    MerchantWalletAccount _findByIdForUpdateRaw(@Param("merchantId") String merchantId);
+    MerchantWalletAccount findByIdForUpdateRaw(@Param("merchantId") String merchantId);
 
     default Optional<MerchantWalletAccount> findByIdForUpdate(String merchantId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(merchantId));
+        return Optional.ofNullable(findByIdForUpdateRaw(merchantId));
     }
 }

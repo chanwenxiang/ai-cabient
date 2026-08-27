@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.MerchantTaxProfileMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.MerchantTaxProfile">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.MerchantTaxProfile">
     <![CDATA[
     SELECT p.* FROM merchant_tax_profile p WHERE p.merchant_id = #{merchantId} FOR UPDATE
     ]]>

@@ -18,7 +18,7 @@
     ]]>
   </select>
 
-  <select id="_sumSoldQtyBySkuSince" resultType="java.util.LinkedHashMap">
+  <select id="selectSumSoldQtyBySkuSince" resultType="java.util.LinkedHashMap">
     <![CDATA[
     SELECT l.sku_id AS c0, COALESCE(SUM(l.quantity), 0) AS c1
     FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
@@ -27,7 +27,7 @@
     ]]>
   </select>
 
-  <select id="_sumSoldQtyAllSince" resultType="java.util.LinkedHashMap">
+  <select id="selectSumSoldQtyAllSince" resultType="java.util.LinkedHashMap">
     <![CDATA[
     SELECT l.sku_id AS c0, COALESCE(SUM(l.quantity), 0) AS c1
     FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
@@ -36,7 +36,7 @@
     ]]>
   </select>
 
-  <select id="_soldQtyDailySince" resultType="java.util.LinkedHashMap">
+  <select id="selectSoldQtyDailySince" resultType="java.util.LinkedHashMap">
     <![CDATA[
     SELECT l.sku_id AS c0,
            DATE(timezone('Asia/Shanghai', o.created_at)) AS c1,
@@ -47,7 +47,7 @@
     ]]>
   </select>
 
-  <select id="_slotBreakdownByDeviceSince" resultType="java.util.LinkedHashMap">
+  <select id="selectSlotBreakdownByDeviceSince" resultType="java.util.LinkedHashMap">
     <![CDATA[
     SELECT l.slot_id AS c0, l.sku_id AS c1, l.sku_name AS c2,
            COALESCE(SUM(l.quantity), 0) AS c3,
@@ -68,7 +68,7 @@
     ]]>
   </select>
 
-  <select id="_skuBreakdownSince" resultType="java.util.LinkedHashMap">
+  <select id="selectSkuBreakdownSince" resultType="java.util.LinkedHashMap">
     <![CDATA[
     SELECT l.sku_id AS c0, l.sku_name AS c1,
            COALESCE(SUM(l.quantity), 0) AS c2,
@@ -82,7 +82,7 @@
     ]]>
   </select>
 
-  <select id="_skuBreakdownBetween" resultType="java.util.LinkedHashMap">
+  <select id="selectSkuBreakdownBetween" resultType="java.util.LinkedHashMap">
     <![CDATA[
     SELECT l.sku_id AS c0, l.sku_name AS c1,
            COALESCE(SUM(l.quantity), 0) AS c2,
@@ -96,7 +96,7 @@
     ]]>
   </select>
 
-  <select id="_skuBreakdownByDevicesSince" resultType="java.util.LinkedHashMap">
+  <select id="selectSkuBreakdownByDevicesSince" resultType="java.util.LinkedHashMap">
     SELECT l.sku_id AS c0, l.sku_name AS c1,
            COALESCE(SUM(l.quantity), 0) AS c2,
            COALESCE(SUM(l.line_amount_cents), 0) AS c3,
@@ -110,7 +110,7 @@
     ORDER BY SUM(l.line_amount_cents) DESC
   </select>
 
-  <select id="_skuBreakdownByDevicesBetween" resultType="java.util.LinkedHashMap">
+  <select id="selectSkuBreakdownByDevicesBetween" resultType="java.util.LinkedHashMap">
     SELECT l.sku_id AS c0, l.sku_name AS c1,
            COALESCE(SUM(l.quantity), 0) AS c2,
            COALESCE(SUM(l.line_amount_cents), 0) AS c3,
@@ -124,7 +124,7 @@
     ORDER BY SUM(l.line_amount_cents) DESC
   </select>
 
-  <select id="_deviceBreakdownBetween" resultType="java.util.LinkedHashMap">
+  <select id="selectDeviceBreakdownBetween" resultType="java.util.LinkedHashMap">
     SELECT o.device_id AS c0,
            COALESCE(SUM(l.quantity), 0) AS c1,
            COALESCE(SUM(l.line_amount_cents), 0) AS c2,

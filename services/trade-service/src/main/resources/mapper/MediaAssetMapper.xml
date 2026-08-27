@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.MediaAssetMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.MediaAsset">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.MediaAsset">
     <![CDATA[
     SELECT a.* FROM media_asset a WHERE a.asset_id = #{assetId} FOR UPDATE
     ]]>

@@ -37,7 +37,7 @@ public interface WarehouseInventoryMapper extends BaseTradeMapper<WarehouseInven
         return selectPage(new Page<>(page + 1L, size), query);
     }
 
-    WarehouseInventory _findByWarehouseSkuBatchForUpdateRaw(@Param("warehouseId") String warehouseId,
+    WarehouseInventory findByWarehouseSkuBatchForUpdateRaw(@Param("warehouseId") String warehouseId,
                                                             @Param("skuId") String skuId,
                                                             @Param("batchNo") String batchNo);
 
@@ -48,7 +48,7 @@ public interface WarehouseInventoryMapper extends BaseTradeMapper<WarehouseInven
     default Optional<WarehouseInventory> findByWarehouseIdAndSkuIdAndBatchNoForUpdate(String warehouseId,
                                                                                         String skuId,
                                                                                         String batchNo) {
-        return Optional.ofNullable(_findByWarehouseSkuBatchForUpdateRaw(warehouseId, skuId, batchNo));
+        return Optional.ofNullable(findByWarehouseSkuBatchForUpdateRaw(warehouseId, skuId, batchNo));
     }
 
     default List<WarehouseInventory> findByWarehouseIdAndSkuIdOrderByExpiryDateAsc(String warehouseId, String skuId) {
@@ -65,10 +65,10 @@ public interface WarehouseInventoryMapper extends BaseTradeMapper<WarehouseInven
             "GROUP BY sku_id",
             "</script>"
     })
-    List<LinkedHashMap<String, Object>> _sumQtyBySku(@Param("warehouseId") String warehouseId);
+    List<LinkedHashMap<String, Object>> selectSumQtyBySku(@Param("warehouseId") String warehouseId);
 
     default List<Object[]> sumQtyBySku(String warehouseId) {
-        return ColumnMapRows.toObjectRows(_sumQtyBySku(warehouseId), 2);
+        return ColumnMapRows.toObjectRows(selectSumQtyBySku(warehouseId), 2);
     }
 
 }

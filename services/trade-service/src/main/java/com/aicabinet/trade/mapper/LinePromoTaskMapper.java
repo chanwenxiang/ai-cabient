@@ -10,10 +10,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface LinePromoTaskMapper extends BaseTradeMapper<LinePromoTask> {
 
-    LinePromoTask _findByIdForUpdateRaw(@Param("taskId") Long taskId);
+    LinePromoTask findByIdForUpdateRaw(@Param("taskId") Long taskId);
 
     default Optional<LinePromoTask> findByIdForUpdate(Long taskId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(taskId));
+        return Optional.ofNullable(findByIdForUpdateRaw(taskId));
     }
     default List<LinePromoTask> findByManager(Long managerId, String status) {
         var q = Wrappers.<LinePromoTask>lambdaQuery()

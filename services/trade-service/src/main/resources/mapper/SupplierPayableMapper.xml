@@ -3,13 +3,13 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.SupplierPayableMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.SupplierPayable">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.SupplierPayable">
     <![CDATA[
     SELECT p.* FROM supplier_payable p WHERE p.payable_id = #{payableId} FOR UPDATE
     ]]>
   </select>
 
-  <select id="_findByPurchaseOrderIdForUpdateRaw" resultType="com.aicabinet.trade.domain.SupplierPayable">
+  <select id="findByPurchaseOrderIdForUpdateRaw" resultType="com.aicabinet.trade.domain.SupplierPayable">
     <![CDATA[
     SELECT p.* FROM supplier_payable p WHERE p.purchase_order_id = #{purchaseOrderId} FOR UPDATE
     ]]>

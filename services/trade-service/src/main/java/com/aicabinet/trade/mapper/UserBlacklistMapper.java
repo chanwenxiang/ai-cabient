@@ -16,10 +16,10 @@ import java.util.Set;
 @Mapper
 public interface UserBlacklistMapper extends BaseTradeMapper<UserBlacklist> {
 
-    UserBlacklist _findByIdForUpdateRaw(@Param("userId") Long userId);
+    UserBlacklist findByIdForUpdateRaw(@Param("userId") Long userId);
 
     default Optional<UserBlacklist> findByIdForUpdate(Long userId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(userId));
+        return Optional.ofNullable(findByIdForUpdateRaw(userId));
     }
 
     /** 当前生效中的黑名单记录（未过期或未设过期时间）。 */

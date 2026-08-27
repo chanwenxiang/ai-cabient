@@ -379,7 +379,7 @@ public class MerchantService {
 
     private static List<String> resolveSplitStatuses(String status) {
         if (status == null || status.isBlank()) {
-            return null;
+            return List.of();
         }
         String key = status.trim().toUpperCase();
         if ("PENDING".equals(key)) {

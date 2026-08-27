@@ -11,10 +11,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface WarehouseOutboundMapper extends BaseTradeMapper<WarehouseOutbound> {
 
-    WarehouseOutbound _findByIdForUpdateRaw(@Param("outboundId") Long outboundId);
+    WarehouseOutbound findByIdForUpdateRaw(@Param("outboundId") Long outboundId);
 
     default Optional<WarehouseOutbound> findByIdForUpdate(Long outboundId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(outboundId));
+        return Optional.ofNullable(findByIdForUpdateRaw(outboundId));
     }
 
     default List<WarehouseOutbound> findAllByOrderByCreatedAtDesc() {

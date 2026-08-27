@@ -14,10 +14,10 @@ import org.springframework.data.domain.Pageable;
 @Mapper
 public interface OpsExceptionMapper extends BaseTradeMapper<OpsException> {
 
-    OpsException _findByIdForUpdateRaw(@Param("exceptionId") String exceptionId);
+    OpsException findByIdForUpdateRaw(@Param("exceptionId") String exceptionId);
 
     default Optional<OpsException> findByIdForUpdate(String exceptionId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(exceptionId));
+        return Optional.ofNullable(findByIdForUpdateRaw(exceptionId));
     }
 
     default Optional<OpsException> findFirstByDedupKeyAndStatusIn(String dedupKey, Collection<String> statuses) {

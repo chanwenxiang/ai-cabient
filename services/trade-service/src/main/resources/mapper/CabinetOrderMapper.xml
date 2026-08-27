@@ -67,7 +67,7 @@
     AND o.created_at &gt;= #{start} AND o.created_at &lt; #{end}
   </select>
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.CabinetOrder">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.CabinetOrder">
     <![CDATA[
     SELECT o.* FROM cabinet_order o WHERE o.order_id = #{orderId} FOR UPDATE
     ]]>

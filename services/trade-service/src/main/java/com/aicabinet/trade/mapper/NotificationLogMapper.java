@@ -12,10 +12,10 @@ import java.util.List;
 @Mapper
 public interface NotificationLogMapper extends BaseTradeMapper<NotificationLog> {
 
-    NotificationLog _findByIdForUpdateRaw(@Param("id") Long id);
+    NotificationLog findByIdForUpdateRaw(@Param("id") Long id);
 
     default Optional<NotificationLog> findByIdForUpdate(Long id) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(id));
+        return Optional.ofNullable(findByIdForUpdateRaw(id));
     }
 
     default List<NotificationLog> findConsumerRecent(Long userId, int limit) {

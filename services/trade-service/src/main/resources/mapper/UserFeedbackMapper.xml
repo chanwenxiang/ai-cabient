@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.UserFeedbackMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.UserFeedback">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.UserFeedback">
     <![CDATA[
     SELECT f.* FROM user_feedback f WHERE f.feedback_id = #{feedbackId} FOR UPDATE
     ]]>

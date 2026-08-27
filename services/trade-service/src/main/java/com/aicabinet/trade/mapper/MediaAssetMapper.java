@@ -12,10 +12,10 @@ import java.util.Optional;
 @Mapper
 public interface MediaAssetMapper extends BaseTradeMapper<MediaAsset> {
 
-    MediaAsset _findByIdForUpdateRaw(@Param("assetId") Long assetId);
+    MediaAsset findByIdForUpdateRaw(@Param("assetId") Long assetId);
 
     default Optional<MediaAsset> findByIdForUpdate(Long assetId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(assetId));
+        return Optional.ofNullable(findByIdForUpdateRaw(assetId));
     }
 
     default List<MediaAsset> findAllOrderByCreatedDesc() {

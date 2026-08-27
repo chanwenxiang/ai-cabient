@@ -489,9 +489,9 @@ public class ApprovalWorkflowService {
             return ids;
         }
         if ("PERM".equals(type)) {
-            ids.addAll(permissionRepository._findUserIdsByPermCode(value));
+            ids.addAll(permissionRepository.findUserIdsByPermCode(value));
         } else if ("ROLE".equals(type)) {
-            ids.addAll(permissionRepository._findUserIdsByRoleKey(value));
+            ids.addAll(permissionRepository.findUserIdsByRoleKey(value));
         } else if ("DEPT".equals(type)) {
             ids.addAll(userDepartmentRepository.findUserIdsByDeptKey(value.toUpperCase(Locale.ROOT)));
         } else if ("USER".equals(type)) {

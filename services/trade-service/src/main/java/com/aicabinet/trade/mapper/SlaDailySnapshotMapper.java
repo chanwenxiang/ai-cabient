@@ -10,10 +10,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface SlaDailySnapshotMapper extends BaseTradeMapper<SlaDailySnapshot> {
 
-    SlaDailySnapshot _findByIdForUpdateRaw(@Param("snapshotDate") LocalDate snapshotDate);
+    SlaDailySnapshot findByIdForUpdateRaw(@Param("snapshotDate") LocalDate snapshotDate);
 
     default Optional<SlaDailySnapshot> findByIdForUpdate(LocalDate snapshotDate) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(snapshotDate));
+        return Optional.ofNullable(findByIdForUpdateRaw(snapshotDate));
     }
 
     default Optional<SlaDailySnapshot> findFirstByOrderBySnapshotDateDesc() {

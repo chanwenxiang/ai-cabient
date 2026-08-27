@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.SlaDailySnapshotMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.SlaDailySnapshot">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.SlaDailySnapshot">
     <![CDATA[
     SELECT s.* FROM sla_daily_snapshot s WHERE s.snapshot_date = #{snapshotDate} FOR UPDATE
     ]]>
