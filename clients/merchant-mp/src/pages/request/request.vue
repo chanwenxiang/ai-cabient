@@ -222,7 +222,7 @@ onShow(() => {
 });
 
 onPullDownRefresh(() => {
-  void bootstrap().finally(() => uni.stopPullDownRefresh());
+  bootstrap().finally(() => uni.stopPullDownRefresh()).catch(() => {});
 });
 
 watch(selectedDeviceId, (id, prev) => {

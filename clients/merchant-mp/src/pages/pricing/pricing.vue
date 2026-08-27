@@ -240,7 +240,7 @@ async function savePrice(p: MerchantSkuPricing) {
   const key = draftKey(p);
   if (savingKey.value === key) return;
   const raw = (draft.value[key] || '').trim();
-  const priceCents = raw === '' ? null : Math.round(parseFloat(raw) * 100);
+  const priceCents = raw === '' ? null : Math.round(Number.parseFloat(raw) * 100);
   if (raw !== '' && (Number.isNaN(priceCents!) || priceCents! < 0)) {
     uni.showToast({ title: '价格无效', icon: 'none' });
     return;

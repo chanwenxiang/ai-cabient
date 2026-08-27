@@ -570,9 +570,9 @@ function isActiveState(s?: string) {
 }
 
 function parseTs(value?: string) {
-  if (!value) return NaN;
+  if (!value) return Number.NaN;
   const t = Date.parse(value);
-  return Number.isNaN(t) ? NaN : t;
+  return Number.isNaN(t) ? Number.NaN : t;
 }
 
 function ageMs(row: SessionRow) {

@@ -585,7 +585,7 @@ function syncRefundLines() {
 function onPartialQty(row: RefundLineRow, e: any) {
   const n = Math.max(
     0,
-    Math.min(row.maxQty, parseInt(String(e?.detail?.value ?? e?.target?.value ?? 0), 10) || 0)
+    Math.min(row.maxQty, Number.parseInt(String(e?.detail?.value ?? e?.target?.value ?? 0), 10) || 0)
   );
   row.qty = n;
 }

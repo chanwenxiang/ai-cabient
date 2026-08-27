@@ -8,7 +8,7 @@ import { dictRuntimeEpoch } from '@/stores/dict-runtime';
  */
 export function useDictOptions(type: string): ComputedRef<{ value: string; label: string }[]> {
   return computed(() => {
-    void dictRuntimeEpoch.value;
+    dictRuntimeEpoch.value;
     return dictOptions(type);
   });
 }

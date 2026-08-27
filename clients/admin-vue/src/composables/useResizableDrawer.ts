@@ -16,7 +16,7 @@ function clamp(n: number, min: number, max: number) {
 function readWidth(key: string, fallback: number, min: number, max: number) {
   try {
     const raw = sessionStorage.getItem(key);
-    const n = raw ? Number(raw) : NaN;
+    const n = raw ? Number(raw) : Number.NaN;
     if (Number.isFinite(n)) return clamp(n, min, max);
   } catch {
     /* ignore */

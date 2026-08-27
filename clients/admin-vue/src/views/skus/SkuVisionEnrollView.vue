@@ -688,7 +688,7 @@ async function batchDelist() {
 }
 
 function enrollmentStatusCode(raw?: string): string {
-  void dictRuntimeEpoch.value;
+  dictRuntimeEpoch.value;
   const text = String(raw || '').trim();
   if (!text) return 'MAPPING';
   for (const o of dictOptions('sku_enrollment_status')) {
@@ -843,7 +843,7 @@ function enrollmentLabel(status?: string) {
 
 function categoryLabel(code?: string | null) {
   if (!code) return '暂无';
-  void dictRuntimeEpoch.value;
+  dictRuntimeEpoch.value;
   return displayLabel('category_code', code, '未分类');
 }
 
@@ -851,7 +851,7 @@ function categoryLabel(code?: string | null) {
 function normalizeCategoryToCode(raw?: string | null): string {
   const text = String(raw || '').trim();
   if (!text) return '';
-  void dictRuntimeEpoch.value;
+  dictRuntimeEpoch.value;
   for (const o of dictOptions('category_code')) {
     if (o.value === text || o.label === text) return o.value;
   }

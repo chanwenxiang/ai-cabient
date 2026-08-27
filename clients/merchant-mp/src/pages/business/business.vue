@@ -500,7 +500,7 @@ function onExport() {
     return;
   }
   const url = merchantApi.exportDeviceReportsUrl();
-  void downloadAuthedFile(url)
+  downloadAuthedFile(url)
     .then(async (tempFilePath) => {
       await openExportedFile(tempFilePath, `device-reports-${days.value}d.xlsx`);
       uni.showToast({ title: '导出成功', icon: 'success' });
