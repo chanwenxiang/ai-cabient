@@ -249,6 +249,75 @@ function onEndDate(e: unknown) {
 onShow(() => load());
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
+const EMPTY_SETTLEMENT_SUMMARY = {
+  gross: '0.00',
+  platformFee: '0.00',
+  merchantIncome: '0.00',
+  pending: '0.00',
+  settledMonth: '0.00',
+  avgOrder: '0.00',
+  failedOrders: '0'
+};
+
+function applyInvalidSettlementRange() {
+  loadError.value = '开始日期不能晚于结束日期';
+  daily.value = [];
+  batches.value = [];
+  summary.value = { ...EMPTY_SETTLEMENT_SUMMARY };
+  profitNote.value = '';
+  loading.value = false;
+}
+
+function applySettlementResponses(
+  overviewRes: PromiseSettledResult<Awaited<ReturnType<typeof merchantApi.settlements>>>,
+  daysRes: PromiseSettledResult<MerchantDailySettlement[]>,
+  batchRes: PromiseSettledResult<MerchantSettlementBatch[]>
+) {
+  if (overviewRes.status === 'rejected' && daysRes.status === 'rejected') {
+    throw overviewRes.reason instanceof Error
+      ? overviewRes.reason
+      : new Error('结算数据加载失败');
+  }
+
+  const days = daysRes.status === 'fulfilled' ? daysRes.value || [] : [];
+  daily.value = days;
+  if (daysRes.status === 'rejected') {
+    loadError.value =
+      daysRes.reason instanceof Error ? daysRes.reason.message : '按日汇总加载失败';
+  }
+
+  if (batchRes.status === 'fulfilled') {
+    batches.value = batchRes.value || [];
+  } else {
+    batches.value = [];
+    batchWarn.value =
+      batchRes.reason instanceof Error ? batchRes.reason.message : '结算批次加载失败';
+  }
+
+  const overview =
+    overviewRes.status === 'fulfilled'
+      ? overviewRes.value
+      : ({ pendingAmountCents: 0, settledMonthCents: 0 } as Awaited<
+          ReturnType<typeof merchantApi.settlements>
+        >);
+
+  const gross = days.reduce((s, d) => s + (d.grossCents || 0), 0);
+  const platform = days.reduce((s, d) => s + (d.platformCents || 0), 0);
+  const merchant = days.reduce((s, d) => s + (d.merchantCents || 0), 0);
+  const orders = days.reduce((s, d) => s + (d.orderCount || 0), 0);
+  const failed = days.reduce((s, d) => s + (d.failedCount || 0), 0);
+  summary.value = {
+    gross: (gross / 100).toFixed(2),
+    platformFee: (platform / 100).toFixed(2),
+    merchantIncome: (merchant / 100).toFixed(2),
+    pending: ((overview.pendingAmountCents || 0) / 100).toFixed(2),
+    settledMonth: ((overview.settledMonthCents || 0) / 100).toFixed(2),
+    avgOrder: orders > 0 ? (gross / orders / 100).toFixed(2) : '0.00',
+    failedOrders: String(failed || overview.failedSplitCount || 0)
+  };
+  profitNote.value = overview.profitSharing?.note || '';
+}
+
 async function load() {
   if (!getToken()) {
     uni.reLaunch({ url: '/pages/login/login' });
@@ -256,20 +325,7 @@ async function load() {
   }
   // 日期非法时先短路，避免无意义的 refreshMe / 接口等待
   if (startDate.value > endDate.value) {
-    loadError.value = '开始日期不能晚于结束日期';
-    daily.value = [];
-    batches.value = [];
-    summary.value = {
-      gross: '0.00',
-      platformFee: '0.00',
-      merchantIncome: '0.00',
-      pending: '0.00',
-      settledMonth: '0.00',
-      avgOrder: '0.00',
-      failedOrders: '0'
-    };
-    profitNote.value = '';
-    loading.value = false;
+    applyInvalidSettlementRange();
     return;
   }
   const seq = ++loadSeq;
@@ -296,50 +352,7 @@ async function load() {
       merchantApi.settlementBatches(startDate.value, endDate.value)
     ]);
     if (seq !== loadSeq) return;
-
-    if (overviewRes.status === 'rejected' && daysRes.status === 'rejected') {
-      throw overviewRes.reason instanceof Error
-        ? overviewRes.reason
-        : new Error('结算数据加载失败');
-    }
-
-    const days = daysRes.status === 'fulfilled' ? daysRes.value || [] : [];
-    daily.value = days;
-    if (daysRes.status === 'rejected') {
-      loadError.value =
-        daysRes.reason instanceof Error ? daysRes.reason.message : '按日汇总加载失败';
-    }
-
-    if (batchRes.status === 'fulfilled') {
-      batches.value = batchRes.value || [];
-    } else {
-      batches.value = [];
-      batchWarn.value =
-        batchRes.reason instanceof Error ? batchRes.reason.message : '结算批次加载失败';
-    }
-
-    const overview =
-      overviewRes.status === 'fulfilled'
-        ? overviewRes.value
-        : ({ pendingAmountCents: 0, settledMonthCents: 0 } as Awaited<
-            ReturnType<typeof merchantApi.settlements>
-          >);
-
-    const gross = days.reduce((s, d) => s + (d.grossCents || 0), 0);
-    const platform = days.reduce((s, d) => s + (d.platformCents || 0), 0);
-    const merchant = days.reduce((s, d) => s + (d.merchantCents || 0), 0);
-    const orders = days.reduce((s, d) => s + (d.orderCount || 0), 0);
-    const failed = days.reduce((s, d) => s + (d.failedCount || 0), 0);
-    summary.value = {
-      gross: (gross / 100).toFixed(2),
-      platformFee: (platform / 100).toFixed(2),
-      merchantIncome: (merchant / 100).toFixed(2),
-      pending: ((overview.pendingAmountCents || 0) / 100).toFixed(2),
-      settledMonth: ((overview.settledMonthCents || 0) / 100).toFixed(2),
-      avgOrder: orders > 0 ? (gross / orders / 100).toFixed(2) : '0.00',
-      failedOrders: String(failed || overview.failedSplitCount || 0)
-    };
-    profitNote.value = overview.profitSharing?.note || '';
+    applySettlementResponses(overviewRes, daysRes, batchRes);
   } catch (e: unknown) {
     if (seq !== loadSeq) return;
     loadError.value = e instanceof Error ? e.message : '加载失败';
