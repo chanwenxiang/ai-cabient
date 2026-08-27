@@ -404,11 +404,9 @@ public class RevenueSplitService {
                 split.getMerchantId(),
                 amount,
                 "SPLIT_REVERSE",
-                "SPLIT_REV",
-                split.getSplitId(),
-                "SPLIT",
-                split.getSplitId(),
-                "分账冲正 " + split.getOrderId());
+                new MerchantWalletService.ReverseCreditCommand(
+                        "SPLIT_REV", split.getSplitId(), "SPLIT", split.getSplitId(),
+                        "分账冲正 " + split.getOrderId()));
         if (reversed) {
             log.info("商户钱包冲正 merchant={} amount={} splitId={}",
                     split.getMerchantId(), amount, split.getSplitId());
