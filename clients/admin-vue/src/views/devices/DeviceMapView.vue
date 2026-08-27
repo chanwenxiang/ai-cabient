@@ -403,7 +403,7 @@ function escapeHtml(s: string) {
   );
 }
 function escapeAttr(s: string) {
-  return s.replaceAll(/"/g, '&quot;');
+  return s.replaceAll('"', '&quot;');
 }
 
 onMounted(async () => {

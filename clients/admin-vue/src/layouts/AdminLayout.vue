@@ -363,7 +363,7 @@ function scrollActiveTagIntoView() {
     const escaped =
       typeof CSS !== 'undefined' && CSS.escape
         ? CSS.escape(route.path)
-        : route.path.replaceAll(/"/g, '\\"');
+        : route.path.replaceAll('"', '\\"');
     const active = root.querySelector(`.tag-wrap[data-path="${escaped}"]`) as HTMLElement | null;
     if (!active) return;
     // 只用标签条横向滚动；禁止 scrollIntoView，避免带动右侧主内容区纵向跳动

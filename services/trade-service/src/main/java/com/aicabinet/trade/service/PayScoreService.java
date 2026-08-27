@@ -313,11 +313,6 @@ public class PayScoreService {
                         + "or a charge gateway, or enable mock.");
     }
 
-    private UserInfo requireUser(Long userId) {
-        return userInfoRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND));
-    }
-
     static String payScoreUserLockKey(long userId) {
         return "payscore:user:" + userId;
     }

@@ -718,7 +718,7 @@ const skuStatusByLabel: Record<string, string> = {
 
 function parseConfidence(raw: string | undefined, fallback: number) {
   if (raw == null || !String(raw).trim()) return fallback;
-  const n = Number(String(raw).replaceAll(/%/g, '').trim());
+  const n = Number(String(raw).replaceAll('%', '').trim());
   if (Number.isNaN(n)) return fallback;
   return n > 1 ? n / 100 : n;
 }

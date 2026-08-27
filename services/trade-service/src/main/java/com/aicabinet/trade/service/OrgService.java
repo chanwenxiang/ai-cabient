@@ -195,11 +195,6 @@ public class OrgService {
         });
     }
 
-    private OpsOrgNode requireNode(Long nodeId) {
-        return nodeRepository.findById(nodeId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
-    }
-
     private OpsOrgNode requireNodeForUpdate(Long nodeId) {
         return nodeRepository.findByIdForUpdate(nodeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));

@@ -377,10 +377,10 @@ export function buildDonutChart(opts: {
 
 function escapeXml(v: string | number): string {
   return String(v ?? '')
-    .replaceAll(/&/g, '&amp;')
-    .replaceAll(/</g, '&lt;')
-    .replaceAll(/"/g, '&quot;')
-    .replaceAll(/'/g, '&#39;');
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 /**

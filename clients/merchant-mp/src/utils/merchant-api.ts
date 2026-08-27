@@ -772,5 +772,5 @@ export function alertTypeLabel(type: string) {
 }
 
 export function merchantAlertTitle(_type: string, title: string) {
-  return String(title || '').replaceAll(/设备/g, '柜机');
+  return String(title || '').replaceAll('设备', '柜机');
 }

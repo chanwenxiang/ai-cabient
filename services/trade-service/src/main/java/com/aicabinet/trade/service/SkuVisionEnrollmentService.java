@@ -468,11 +468,6 @@ public class SkuVisionEnrollmentService {
         return suggestClassName(sku.getSkuName());
     }
 
-    private SkuCatalog requireSku(String skuId) {
-        return skuCatalogRepository.findById(skuId.trim())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SKU_NOT_FOUND));
-    }
-
     private SkuCatalog requireSkuForUpdate(String skuId) {
         return skuCatalogRepository.findByIdForUpdate(skuId.trim())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SKU_NOT_FOUND));

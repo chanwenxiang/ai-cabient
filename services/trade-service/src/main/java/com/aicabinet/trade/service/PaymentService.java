@@ -821,10 +821,6 @@ public class PaymentService {
         );
     }
 
-    private void creditRecharge(String orderId, Integer notifyAmountCents) {
-        creditRecharge(orderId, notifyAmountCents, null, null);
-    }
-
     private void creditRecharge(String orderId, Integer notifyAmountCents,
                               String wxTransactionId, String alipayTradeNo) {
         if (!distributedLockService.tryLock(rechargeLockKey(orderId), 30, 5)) {
