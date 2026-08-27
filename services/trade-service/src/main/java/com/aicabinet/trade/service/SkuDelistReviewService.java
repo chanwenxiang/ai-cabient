@@ -241,8 +241,11 @@ public class SkuDelistReviewService {
     private SkuDelistReviewDto toDto(SkuDelistReview r, SkuCatalog sku, Map<String, SkuCatalog> skus) {
         String skuName = sku != null ? sku.getSkuName() : r.getSkuId();
         String category = sku != null ? sku.getCategory() : null;
-        String replaceName = r.getReplaceSkuId() == null ? null
-                : (skus.get(r.getReplaceSkuId()) != null ? skus.get(r.getReplaceSkuId()).getSkuName() : r.getReplaceSkuId());
+        String replaceName = null;
+        if (r.getReplaceSkuId() != null) {
+            SkuCatalog replaceSku = skus.get(r.getReplaceSkuId());
+            replaceName = replaceSku != null ? replaceSku.getSkuName() : r.getReplaceSkuId();
+        }
         return new SkuDelistReviewDto(
                 r.getId(),
                 r.getSkuId(),
