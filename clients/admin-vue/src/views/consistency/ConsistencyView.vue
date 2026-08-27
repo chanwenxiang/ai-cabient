@@ -419,25 +419,25 @@ function openKey(row: Row) {
   if (kind === 'order') {
     const orderId =
       row.checkType === 'ORDER_LINE_SUM' ? row.checkKey.split('|', 2)[0] : row.checkKey;
-    void router.push({ path: '/orders', query: { orderId } });
+    router.push({ path: '/orders', query: { orderId } }).catch(() => {});
     return;
   }
   if (kind === 'device') {
     const deviceId = row.checkKey.split('|', 2)[0];
     if (deviceId) {
-      void router.push({
+      router.push({
         path: `/devices/${encodeURIComponent(deviceId)}`,
         query: { id: deviceId }
-      });
+      }).catch(() => {});
     }
     return;
   }
   if (kind === 'member') {
-    void router.push({ path: '/member-levels', query: { memberId: row.checkKey } });
+    router.push({ path: '/member-levels', query: { memberId: row.checkKey } }).catch(() => {});
     return;
   }
   if (kind === 'coupon') {
-    void router.push({ path: '/coupons', query: { defId: row.checkKey } });
+    router.push({ path: '/coupons', query: { defId: row.checkKey } }).catch(() => {});
   }
 }
 

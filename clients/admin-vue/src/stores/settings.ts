@@ -35,7 +35,7 @@ export const PRIMARY_OPTIONS = [
 function mixHex(hex: string, target: string, weight: number): string {
   const parse = (h: string) => {
     const n = h.replace('#', '');
-    return [parseInt(n.slice(0, 2), 16), parseInt(n.slice(2, 4), 16), parseInt(n.slice(4, 6), 16)];
+    return [Number.parseInt(n.slice(0, 2), 16), Number.parseInt(n.slice(2, 4), 16), Number.parseInt(n.slice(4, 6), 16)];
   };
   const [r1, g1, b1] = parse(hex);
   const [r2, g2, b2] = parse(target);

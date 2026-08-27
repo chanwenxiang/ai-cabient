@@ -501,13 +501,13 @@ function syncSidebarWithViewport() {
 }
 
 function onWindowFocus() {
-  void auth.refreshPermissions();
+  auth.refreshPermissions().catch(() => {});
 }
 
 onMounted(() => {
   settings.init();
   syncSidebarWithViewport();
-  void auth.refreshPermissions();
+  auth.refreshPermissions().catch(() => {});
   observeTableScrollFit(document.getElementById('main-content') as HTMLElement);
   globalThis.addEventListener('click', hideTagMenu);
   globalThis.addEventListener('scroll', hideTagMenu, true);

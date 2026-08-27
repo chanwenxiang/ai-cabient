@@ -109,7 +109,7 @@ function decodePassword(stored: unknown): string {
     if (!hex || hex.length % 2 !== 0) return '';
     let encoded = '';
     for (let i = 0; i < hex.length; i += 2) {
-      encoded += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16));
+      encoded += String.fromCharCode(Number.parseInt(hex.slice(i, i + 2), 16));
     }
     return decodeURIComponent(encoded);
   } catch {

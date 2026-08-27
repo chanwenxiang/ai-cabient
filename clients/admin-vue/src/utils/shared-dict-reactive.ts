@@ -14,16 +14,16 @@ import {
 export * from '@aicabinet/shared-dict-core';
 
 export function dictOptions(type: string) {
-  void dictRuntimeEpoch.value;
+  dictRuntimeEpoch.value;
   return coreDictOptions(type);
 }
 
 export function dictLabel(type: string, code: string | null | undefined) {
-  void dictRuntimeEpoch.value;
+  dictRuntimeEpoch.value;
   return coreDictLabel(type, code);
 }
 
 export function displayLabel(type: string, code: string | null | undefined, empty = EMPTY_TEXT) {
-  void dictRuntimeEpoch.value;
+  dictRuntimeEpoch.value;
   return coreDisplayLabel(type, code, empty);
 }

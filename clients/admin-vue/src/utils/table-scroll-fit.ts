@@ -36,7 +36,7 @@ function columnSumWidth(table: HTMLElement | null): number {
     // gutter 列不计入：本布局纵滚在 .table-scroll，gutter 宽应为 0
     if (col.getAttribute('name') === 'gutter' || col.classList.contains('gutter')) return;
     const el = col as HTMLElement;
-    const w = parseFloat(el.style.width || '') || parseFloat(col.getAttribute('width') || '') || 0;
+    const w = Number.parseFloat(el.style.width || '') || Number.parseFloat(col.getAttribute('width') || '') || 0;
     sum += w;
   });
   return sum;
@@ -51,7 +51,7 @@ function measureOverflow(el: HTMLElement): boolean {
   const hadH = el.classList.contains('table-scroll--h');
   if (hadH) el.classList.remove('table-scroll--h');
   // 强制回到 width:100% 布局再读
-  void el.offsetWidth;
+  el.offsetWidth;
 
   const colsW = columnSumWidth(table);
   const headerW = table?.querySelector('.el-table__header table')?.scrollWidth ?? 0;

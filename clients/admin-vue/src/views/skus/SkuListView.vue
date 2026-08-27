@@ -380,7 +380,7 @@ const saleTab = ref('ACTIVE');
 
 function categoryLabel(code?: string | null) {
   if (!code) return '暂无';
-  void dictRuntimeEpoch.value;
+  dictRuntimeEpoch.value;
   return displayLabel('category_code', code, '未分类');
 }
 
@@ -403,7 +403,7 @@ function categoryMatches(stored: string | null | undefined, selected: string): b
 function normalizeCategoryToCode(raw?: string | null): string {
   const text = String(raw || '').trim();
   if (!text) return '';
-  void dictRuntimeEpoch.value;
+  dictRuntimeEpoch.value;
   for (const o of dictOptions('category_code')) {
     if (o.value === text || o.label === text) return o.value;
   }

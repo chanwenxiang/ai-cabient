@@ -367,7 +367,7 @@ function onExport() {
     return;
   }
   const url = merchantApi.exportSettlementsUrl(startDate.value, endDate.value);
-  void downloadAuthedFile(url)
+  downloadAuthedFile(url)
     .then(async (tempFilePath) => {
       await openExportedFile(tempFilePath, `settlements-${startDate.value}-${endDate.value}.xlsx`);
       uni.showToast({ title: '导出成功', icon: 'success' });
