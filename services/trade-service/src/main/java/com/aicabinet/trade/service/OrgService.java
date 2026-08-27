@@ -19,12 +19,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 组织架构：总部/区域/分公司组织树，设备按节点归属，支撑点位管理�? */
+ * 组织架构：总部/区域/分公司组织树，设备按节点归属，支撑点位管理。
+ */
 @Service
 public class OrgService {
     private static final String PERM_OPS_DEVICE_EDIT = "ops:device:edit";
     private static final String ORG_NODE = "ORG_NODE";
-    private static final String LITERAL = "组织不存�?;
+    private static final String LITERAL = "组织不存在";
     private static final String NAME = "name=";
 
 
@@ -89,7 +90,7 @@ public class OrgService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "组织名称不能为空");
         }
         if (request.parentId() != null && request.parentId().equals(request.nodeId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级组织不能是自�?);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级组织不能是自己");
         }
         OpsOrgNode node;
         if (request.nodeId() == null) {
@@ -148,7 +149,7 @@ public class OrgService {
         try {
             for (String key : lockKeys) {
                 if (!distributedLockService.tryLock(key, 60, 5)) {
-                    throw new ResponseStatusException(HttpStatus.CONFLICT, "组织设备归属处理中，请稍后重�?);
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "组织设备归属处理中，请稍后重试");
                 }
                 acquired.add(key);
             }
@@ -182,10 +183,10 @@ public class OrgService {
             permissionService.requireAnyPermission(operatorId, "ops:org:edit", PERM_OPS_DEVICE_EDIT);
             OpsOrgNode node = requireNodeForUpdate(nodeId);
             if (nodeRepository.countByParentId(nodeId) > 0) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "请先删除子组�?);
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "请先删除子组织");
             }
             if (!deviceOrgRepository.findByNodeId(nodeId).isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "请先解除该组织下的设备归�?);
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "请先解除该组织下的设备归属");
             }
             nodeRepository.deleteById(nodeId);
             auditService.appendLog(operatorId, "ORG_NODE_DELETE", ORG_NODE,
@@ -214,7 +215,7 @@ public class OrgService {
 
     private <T> T runWithOrgNodeLock(Long nodeId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(orgNodeLockKey(nodeId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "组织节点处理中，请稍后重�?);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "组织节点处理中，请稍后重试");
         }
         try {
             return action.get();

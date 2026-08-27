@@ -4,6 +4,7 @@ import com.aicabinet.trade.domain.CompensationTask;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
 import com.aicabinet.trade.mapper.CompensationTaskMapper;
+import com.aicabinet.trade.mapper.DistributedTransactionMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
@@ -34,16 +35,19 @@ class CompensationTaskSchedulerTest {
     @Mock private WeChatProfitSharingService profitSharingService;
     @Mock private ProfitSharingReturnAlertService profitSharingReturnAlertService;
 
+    @Mock private DistributedTransactionMapper txRepository;
+    @Mock private DistributedLockService lockService;
+    @Mock private TccTransactionCoordinator txCoordinator;
+    @Mock private ScheduledTaskService taskService;
+
     private CompensationTaskScheduler scheduler;
 
     @BeforeEach
     void setUp() {
-        scheduler = new CompensationTaskScheduler();
-        ReflectionTestUtils.setField(scheduler, "taskRepository", taskRepository);
-        ReflectionTestUtils.setField(scheduler, "merchantRepository", merchantRepository);
-        ReflectionTestUtils.setField(scheduler, "splitRepository", splitRepository);
-        ReflectionTestUtils.setField(scheduler, "profitSharingService", profitSharingService);
-        ReflectionTestUtils.setField(scheduler, "profitSharingReturnAlertService", profitSharingReturnAlertService);
+        scheduler = new CompensationTaskScheduler(taskRepository, txRepository, lockService, txCoordinator,
+                taskService, splitRepository, merchantRepository, profitSharingService,
+                profitSharingReturnAlertService, null);
+        ReflectionTestUtils.setField(scheduler, "self", scheduler);
     }
 
     @Test

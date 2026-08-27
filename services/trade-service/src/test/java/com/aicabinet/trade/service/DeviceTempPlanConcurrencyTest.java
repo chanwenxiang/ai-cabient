@@ -34,13 +34,14 @@ class DeviceTempPlanConcurrencyTest {
     @Mock private DeviceServiceClient deviceClient;
     @Mock private AdminAuditService auditService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private ScheduledTaskService taskService;
 
     private DeviceTempPlanService service;
 
     @BeforeEach
     void setUp() {
         service = new DeviceTempPlanService(permissionService, planRepository, entryRepository,
-                deviceRepository, deviceClient, auditService, distributedLockService, null);
+                deviceRepository, deviceClient, auditService, distributedLockService, null, taskService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

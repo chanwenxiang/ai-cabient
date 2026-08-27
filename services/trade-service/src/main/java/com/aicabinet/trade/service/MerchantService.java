@@ -155,15 +155,15 @@ public class MerchantService {
         String parentId = blankToNull(request.parentMerchantId());
         if (parentId != null) {
             if (parentId.equals(merchantId)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级商户不能是自�?);
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级商户不能是自己");
             }
             Merchant parent = merchantRepository.findById(parentId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级商户不存�?));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级商户不存在"));
             merchantScopeService.requireMerchantAccess(operatorId, parentId);
-            // 禁止成环：parent 不能落在自己的下级树�?
+            // 禁止成环：parent 不能落在自己的下级树里
             Set<String> descendants = merchantScopeService.expandWithDescendants(Set.of(merchantId));
             if (descendants.contains(parentId)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级商户不能落在本节点下�?);
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级商户不能落在本节点下级");
             }
             merchant.setParentMerchantId(parent.getMerchantId());
         } else if (request.parentMerchantId() != null) {
@@ -248,7 +248,7 @@ public class MerchantService {
             }
             if (wxTxn == null || wxTxn.isBlank()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        ApiMessages.INVALID_REQUEST + "：需提供 wxTransactionId（购物订单当前为余额支付�?);
+                        ApiMessages.INVALID_REQUEST + "：需提供 wxTransactionId（购物订单当前为余额支付）");
             }
             OrderRevenueSplit updated = profitSharingService.submitSplit(locked, merchant, wxTxn);
             auditService.appendLog(operatorId, "PROFIT_SHARING_SUBMIT", SPLIT, splitId,
@@ -277,7 +277,7 @@ public class MerchantService {
     }
 
     /**
-     * 确认仅记账完结：无微信分账接收方时商户份额已入钱包，运营确认后不再占用「分账待跟进」�?
+     * 确认仅记账完结：无微信分账接收方时商户份额已入钱包，运营确认后不再占用「分账待跟进」。
      */
     @Transactional
     public RevenueSplitDto confirmLedgerOnly(Long operatorId, String splitId, String reason) {
@@ -314,11 +314,11 @@ public class MerchantService {
         if (!enabled) {
             note = "分账未启用：设置 PROFIT_SHARING_ENABLED=true";
         } else if (mock) {
-            note = "分账联调 Mock 已启用（不调用微�?API）；提交时填写任�?wxTransactionId 即可";
+            note = "分账联调 Mock 已启用（不调用微信 API）；提交时填写任意 wxTransactionId 即可";
         } else if (!weChatPayProperties.isConfigured()) {
-            note = "微信支付未配置完整，无法调用分账 API（或�?PROFIT_SHARING_MOCK_ENABLED=true 联调�?;
+            note = "微信支付未配置完整，无法调用分账 API（或设 PROFIT_SHARING_MOCK_ENABLED=true 联调）";
         } else if (!apiReady) {
-            note = "分账 API 未就�?;
+            note = "分账 API 未就绪";
         } else {
             note = "分账 API 就绪；余额支付订单需在提交时填写 wxTransactionId";
         }
@@ -404,7 +404,7 @@ public class MerchantService {
 
     private <T> T runWithMerchantLock(String merchantId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(merchantLockKey(merchantId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "商户资料处理中，请稍后重�?);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "商户资料处理中，请稍后重试");
         }
         try {
             return action.get();
@@ -415,7 +415,7 @@ public class MerchantService {
 
     private <T> T runWithOrderSplitLock(String orderId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(RevenueSplitService.orderSplitLockKey(orderId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单分账处理中，请稍后重�?);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单分账处理中，请稍后重试");
         }
         try {
             return action.get();

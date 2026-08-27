@@ -26,7 +26,7 @@ public class SiteRentSplitService {
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
-    /** �?Spring 代理调用本类 @Transactional 方法，避免自调用失效�?*/
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final SiteRentSplitService self;
 
     public SiteRentSplitService(SiteRentSplitRuleMapper ruleMapper,
@@ -59,7 +59,7 @@ public class SiteRentSplitService {
                                                       UpsertSiteRentSplitRulesRequest request) {
         permissionService.requirePermission(operatorId, "ops:org:edit");
         contractMapper.findByIdForUpdate(contractId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "场地合同不存�?));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "场地合同不存在"));
         int sumBps = 0;
         for (UpsertSiteRentSplitRulesRequest.Rule r : request.rules()) {
             String party = r.partyType().trim().toUpperCase();
@@ -72,7 +72,7 @@ public class SiteRentSplitService {
             sumBps += r.shareBps();
         }
         if (sumBps != 10000) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "租金分账份额合计须为 10000bps�?00%�?);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "租金分账份额合计须为 10000bps（100%）");
         }
         ruleMapper.deleteByContractId(contractId);
         Instant now = Instant.now();
@@ -97,7 +97,7 @@ public class SiteRentSplitService {
 
     private SiteContract requireContract(Long contractId) {
         return contractMapper.findById(contractId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "场地合同不存�?));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "场地合同不存在"));
     }
 
     private SiteRentSplitRuleDto toDto(SiteRentSplitRule r) {
@@ -117,7 +117,7 @@ public class SiteRentSplitService {
 
     private <T> T runWithContractRulesLock(Long contractId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(contractRulesLockKey(contractId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "场地租金分账规则处理中，请稍后重�?);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "场地租金分账规则处理中，请稍后重试");
         }
         try {
             return action.get();

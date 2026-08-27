@@ -100,7 +100,7 @@ public class MerchantOnboardingService {
     public MerchantPaymentOnboardingDto review(Long operatorId, long onboardingId, boolean approve, String remark) {
         permissionService.requireAnyPermission(operatorId, "ops:merchant:onboard:list", "ops:merchant:onboard:edit");
         MerchantPaymentOnboarding row = onboardingMapper.findByIdForUpdate(onboardingId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "进件记录不存�?));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "进件记录不存在"));
         merchantScopeService.requireMerchantAccess(operatorId, row.getMerchantId());
         return runWithOnboardingLock(row.getMerchantId(), row.getChannel(),
                 () -> doReview(operatorId, row, approve, remark));
@@ -109,11 +109,11 @@ public class MerchantOnboardingService {
     private MerchantPaymentOnboardingDto doReview(Long operatorId, MerchantPaymentOnboarding row,
                                                   boolean approve, String remark) {
         if (!SUBMITTED.equals(row.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅已提交进件可审�?);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅已提交进件可审批");
         }
         String bizId = String.valueOf(row.getOnboardingId());
         if (approvalWorkflowService.instanceStatus(BIZ_MERCHANT_ONBOARD, bizId).isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "审批流尚未发起，请重新提交进�?);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "审批流尚未发起，请重新提交进件");
         }
         if (!approve) {
             approvalWorkflowService.completeRejected(operatorId, BIZ_MERCHANT_ONBOARD, bizId, trim(remark));
@@ -145,9 +145,9 @@ public class MerchantOnboardingService {
         permissionService.requirePermission(operatorId, "ops:merchant:onboard:edit");
         merchantScopeService.requireMerchantAccess(operatorId, mid);
         merchantMapper.findById(mid)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "商户不存�?));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "商户不存在"));
         if (!CHANNELS.contains(channel)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "channel 仅支�?WECHAT/ALIPAY/PAYSCORE");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "channel 仅支持 WECHAT/ALIPAY/PAYSCORE");
         }
         String status = normalizeOnboardingStatus(req.status());
         MerchantPaymentOnboarding row = loadOrCreateOnboarding(onboardingId, mid, channel);
@@ -177,7 +177,7 @@ public class MerchantOnboardingService {
     private MerchantPaymentOnboarding loadOrCreateOnboarding(Long onboardingId, String mid, String channel) {
         if (onboardingId != null) {
             return onboardingMapper.findByIdForUpdate(onboardingId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "进件记录不存�?));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "进件记录不存在"));
         }
         MerchantPaymentOnboarding row = onboardingMapper.findByMerchantAndChannelForUpdate(mid, channel)
                 .orElseGet(MerchantPaymentOnboarding::new);
@@ -195,7 +195,7 @@ public class MerchantOnboardingService {
         if (CabinetConstants.PROMOTION_STATUS_ACTIVE.equals(status) && approvalEnabled) {
             String bizId = onboardingId == null ? null : String.valueOf(onboardingId);
             if (bizId == null || !approvalWorkflowService.isInstanceApproved(BIZ_MERCHANT_ONBOARD, bizId)) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "进件须审批通过后方可生�?);
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "进件须审批通过后方可生效");
             }
         }
     }
@@ -244,8 +244,8 @@ public class MerchantOnboardingService {
                 "wechatPayLive", weChatPayProperties.isConfigured() && !mock,
                 "alipayPayLive", alipayProperties.isConfigured() && !mock,
                 "payScoreLive", payScoreProperties.liveChargeEnabled() && !mock,
-                "hint", mock ? "当前�?Mock/演示：进件状态仅留痕，不发起真实进件 API"
-                        : "生产模式：进件状态供运营登记；真�?OpenAPI 可后续挂�?
+                "hint", mock ? "当前为 Mock/演示：进件状态仅留痕，不发起真实进件 API"
+                        : "生产模式：进件状态供运营登记；真实 OpenAPI 可后续挂接"
         );
     }
 
@@ -272,8 +272,8 @@ public class MerchantOnboardingService {
     private static String channelLabel(String channel) {
         return switch (channel) {
             case CabinetConstants.PAY_CHANNEL_WECHAT -> "微信";
-            case CabinetConstants.PAY_CHANNEL_ALIPAY -> "支付�?;
-            case PAYSCORE -> "支付�?;
+            case CabinetConstants.PAY_CHANNEL_ALIPAY -> "支付宝";
+            case PAYSCORE -> "支付分";
             default -> channel;
         };
     }
@@ -295,7 +295,7 @@ public class MerchantOnboardingService {
     private <T> T runWithOnboardingLock(String merchantId, String channel,
                                         java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(onboardingLockKey(merchantId, channel), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "商户进件处理中，请稍后重�?);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "商户进件处理中，请稍后重试");
         }
         try {
             return action.get();

@@ -176,7 +176,7 @@ public class ProcurementService {
                 BIZ_PURCHASE_ORDER,
                 String.valueOf(order.getPurchaseOrderId()),
                 operatorId,
-                "采购�?" + order.getRefNo());
+                "采购单 " + order.getRefNo());
         return toPurchaseDto(order);
     }
 
@@ -188,7 +188,7 @@ public class ProcurementService {
                 () -> doReviewPurchaseOrder(operatorId, purchaseOrderId, approve, remark));
     }
 
-    /** Demo / 内部编排：按当前节点待办人依次通过，直至可收货�?*/
+    /** Demo / 内部编排：按当前节点待办人依次通过，直至可收货。 */
     @Transactional
     public void ensurePurchaseOrderApproved(Long operatorId, Long purchaseOrderId) {
         runWithPurchaseOrderLock(purchaseOrderId, () -> {
@@ -407,7 +407,7 @@ public class ProcurementService {
                 ? order.getWarehouseId()
                 : request.receiveWarehouseId().trim();
         if (target == null || target.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "收货仓库未指�?);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "收货仓库未指定");
         }
         return target;
     }

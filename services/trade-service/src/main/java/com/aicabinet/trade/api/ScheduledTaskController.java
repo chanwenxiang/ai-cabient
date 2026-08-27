@@ -31,7 +31,8 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * 定时任务管理：列�?/ 启停 / 立即执行�? */
+ * 定时任务管理：列表 / 启停 / 立即执行。
+ */
 @RestController
 @RequestMapping("/api/v2/ops/admin/scheduled-tasks")
 public class ScheduledTaskController {
@@ -105,14 +106,14 @@ public class ScheduledTaskController {
     public ApiResponse<ScheduledTaskRunResultDto> run(HttpServletRequest request,
                                                       @PathVariable String taskKey) {
         ScheduledTaskRegistry.TaskDescriptor descriptor = registry.get(taskKey)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存�? " + taskKey));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存在: " + taskKey));
         if (!taskService.isEnabled(taskKey)) {
             return ApiResponse.ok(new ScheduledTaskRunResultDto(
                     taskKey, STATUS_SKIPPED, "任务已停用，请先在列表中启用"));
         }
         if (lockService.isLocked("job:" + taskKey)) {
             return ApiResponse.ok(new ScheduledTaskRunResultDto(
-                    taskKey, STATUS_SKIPPED, "任务正在执行中，请稍后再�?));
+                    taskKey, STATUS_SKIPPED, "任务正在执行中，请稍后再试"));
         }
         try {
             Instant beforeRun = taskService.get(taskKey).lastRunAt();
@@ -129,13 +130,13 @@ public class ScheduledTaskController {
                 return ApiResponse.ok(new ScheduledTaskRunResultDto(taskKey, STATUS_SKIPPED, hint));
             }
             String detail = after.lastMessage() == null || after.lastMessage().isBlank()
-                    ? "已执�?
+                    ? "已执行"
                     : after.lastMessage();
-            String duration = after.lastDurationMs() == null ? "�? : after.lastDurationMs() + " ms";
+            String duration = after.lastDurationMs() == null ? "—" : after.lastDurationMs() + " ms";
             return ApiResponse.ok(new ScheduledTaskRunResultDto(
                     taskKey,
                     "TRIGGERED",
-                    detail + "（耗时 " + duration + "�?,
+                    detail + "（耗时 " + duration + "）",
                     after.lastMessage(),
                     after.lastDurationMs()));
         } catch (Exception e) {

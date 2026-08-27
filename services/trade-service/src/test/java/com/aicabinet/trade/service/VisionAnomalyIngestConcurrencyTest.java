@@ -52,8 +52,9 @@ class VisionAnomalyIngestConcurrencyTest {
                 eq(VisionAnomalyIngestService.visionAnomalyDeviceLockKey("CAB-901")), eq(60L), eq(5L)))
                 .thenReturn(true);
         when(opsExceptionService.report(
-                eq("VISION_ANOMALY"), eq("MEDIUM"), eq("CAB-901"), eq("S2"),
-                eq(null), eq(null), eq("商品错拿"), org.mockito.ArgumentMatchers.anyString()))
+                eq("VISION_ANOMALY"), eq("MEDIUM"),
+                eq(new OpsExceptionService.ExceptionReport.ExceptionRefs("CAB-901", "S2", null, null)),
+                eq("商品错拿"), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(null);
 
         service.ingest(List.of(

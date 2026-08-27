@@ -6,6 +6,7 @@ import com.aicabinet.trade.mapper.PaymentPlatformBillLineMapper;
 import com.aicabinet.trade.mapper.PaymentReconciliationMapper;
 import com.aicabinet.trade.mapper.RechargeOrderMapper;
 import com.aicabinet.trade.reconciliation.PlatformBillProviderRegistry;
+import com.aicabinet.trade.service.support.ReconciliationServiceSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,9 +39,10 @@ class ReconciliationConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        service = new ReconciliationService(
-                reconRepository, billLineRepository, paymentOperationRepository, rechargeRepository,
-                billProviderRegistry, new ObjectMapper(), cabinetMetrics, distributedLockService, null);
+        ReconciliationServiceSupport support = new ReconciliationServiceSupport(
+                billLineRepository, paymentOperationRepository, rechargeRepository,
+                billProviderRegistry, new ObjectMapper(), cabinetMetrics, distributedLockService);
+        service = new ReconciliationService(reconRepository, support, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.mapper.OpsExceptionMapper;
+import com.aicabinet.trade.service.support.OpsExceptionServiceSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,8 +29,7 @@ class OpsExceptionConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        service = new OpsExceptionService(repository, permissionService, null, null,
-                null, null, null, null, distributedLockService, null);
+        service = new OpsExceptionService(repository, permissionService, null, distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
@@ -66,8 +66,9 @@ class OpsExceptionConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.report("OPEN_TIMEOUT", "HIGH", "CAB-1", "S-1",
-                        null, 1L, "title", "detail"));
+                () -> service.report("OPEN_TIMEOUT", "HIGH",
+                        new OpsExceptionService.ExceptionReport.ExceptionRefs("CAB-1", "S-1", null, 1L),
+                        "title", "detail"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }
