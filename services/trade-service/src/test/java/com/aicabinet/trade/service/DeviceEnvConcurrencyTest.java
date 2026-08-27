@@ -35,7 +35,7 @@ class DeviceEnvConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.record("CAB-001", 45.0, null, null));
+                () -> service.saveReading("CAB-001", 45.0, null, null));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }
@@ -46,7 +46,7 @@ class DeviceEnvConcurrencyTest {
                 eq(DeviceEnvService.deviceEnvLockKey("CAB-002")), eq(60L), eq(5L)))
                 .thenReturn(true);
 
-        service.record("CAB-002", 50.0, null, null);
+        service.saveReading("CAB-002", 50.0, null, null);
 
         verify(distributedLockService).unlock(DeviceEnvService.deviceEnvLockKey("CAB-002"));
         verify(readingRepository).insert(org.mockito.ArgumentMatchers.any());

@@ -20,11 +20,9 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
- * 定时任务管理：启停开关、分布式锁执行守卫、最近执行记录。
- * <p>所有写型定时任务通过 {@link #tryBegin}/{@link #finish} 包裹，保证集群下单实例执行，
- * 并在页面上可查看/启停/手动触发。</p>
- * <p>资金类等 {@link XxlJobManagedTasks}：开启 XXL-JOB 后内置 {@code @Scheduled} 自动让位，
- * 仅调度中心线程或 {@link #runAllowingBuiltin(Runnable)}（运营「立即执行」）可进入。</p>
+ * 定时任务管理：启停开关、分布式锁执行守卫、最近执行记录�? * <p>所有写型定时任务通过 {@link #tryBegin}/{@link #finish} 包裹，保证集群下单实例执行，
+ * 并在页面上可查看/启停/手动触发�?/p>
+ * <p>资金类等 {@link XxlJobManagedTasks}：开�?XXL-JOB 后内�?{@code @Scheduled} 自动让位�? * 仅调度中心线程或 {@link #runAllowingBuiltin(Runnable)}（运营「立即执行」）可进入�?/p>
  */
 @Service
 public class ScheduledTaskService {
@@ -65,11 +63,11 @@ public class ScheduledTaskService {
         return toDto(requireTask(taskKey));
     }
 
-    /** 新建自定义任务行（无代码 runner；仅作登记/启停，立即执行需后续注册）。 */
+    /** 新建自定义任务行（无代码 runner；仅作登�?启停，立即执行需后续注册）�?*/
     @Transactional
     public ScheduledTaskDto create(Long operatorId, UpsertScheduledTaskRequest req) {
         if (req == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体不能为空");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体不能为�?);
         }
         String taskKey = normalizeTaskKey(req.taskKey());
         return runWithAdminTaskLock(taskKey, () -> doCreate(operatorId, taskKey, req));
@@ -77,10 +75,10 @@ public class ScheduledTaskService {
 
     private ScheduledTaskDto doCreate(Long operatorId, String taskKey, UpsertScheduledTaskRequest req) {
         if (taskRepository.selectById(taskKey) != null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "任务标识已存在: " + taskKey);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "任务标识已存�? " + taskKey);
         }
         if (registry.get(taskKey).isPresent()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "任务标识与内置任务冲突: " + taskKey);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "任务标识与内置任务冲�? " + taskKey);
         }
         ScheduledTask row = new ScheduledTask();
         row.setTaskKey(taskKey);
@@ -91,14 +89,14 @@ public class ScheduledTaskService {
         row.setRemark(blankToNull(req.remark()));
         row.setUpdatedAt(Instant.now());
         taskRepository.save(row);
-        auditService.record(operatorId, "SCHEDULED_TASK_CREATE", SCHEDULED_TASK, taskKey, row.getTaskName());
+        auditService.appendLog(operatorId, "SCHEDULED_TASK_CREATE", SCHEDULED_TASK, taskKey, row.getTaskName());
         return toDto(row);
     }
 
     @Transactional
     public ScheduledTaskDto updateMeta(Long operatorId, String taskKey, UpdateScheduledTaskMetaRequest req) {
         if (req == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体不能为空");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体不能为�?);
         }
         return runWithAdminTaskLock(taskKey, () -> doUpdateMeta(operatorId, taskKey, req));
     }
@@ -111,7 +109,7 @@ public class ScheduledTaskService {
         row.setRemark(blankToNull(req.remark()));
         row.setUpdatedAt(Instant.now());
         taskRepository.save(row);
-        auditService.record(operatorId, "SCHEDULED_TASK_UPDATE", SCHEDULED_TASK, taskKey, row.getTaskName());
+        auditService.appendLog(operatorId, "SCHEDULED_TASK_UPDATE", SCHEDULED_TASK, taskKey, row.getTaskName());
         return toDto(row);
     }
 
@@ -129,7 +127,7 @@ public class ScheduledTaskService {
         }
         ScheduledTask row = requireTaskForUpdate(taskKey);
         taskRepository.deleteById(taskKey);
-        auditService.record(operatorId, "SCHEDULED_TASK_DELETE", SCHEDULED_TASK, taskKey, row.getTaskName());
+        auditService.appendLog(operatorId, "SCHEDULED_TASK_DELETE", SCHEDULED_TASK, taskKey, row.getTaskName());
     }
 
     @Transactional(readOnly = true)
@@ -148,12 +146,12 @@ public class ScheduledTaskService {
         row.setEnabled(enabled);
         row.setUpdatedAt(Instant.now());
         taskRepository.save(row);
-        auditService.record(operatorId, enabled ? "SCHEDULED_TASK_ENABLE" : "SCHEDULED_TASK_DISABLE",
+        auditService.appendLog(operatorId, enabled ? "SCHEDULED_TASK_ENABLE" : "SCHEDULED_TASK_DISABLE",
                 SCHEDULED_TASK, taskKey, row.getTaskName());
         return toDto(row);
     }
 
-    /** 更新任务备注（说明这个任务干嘛的），留审计。 */
+    /** 更新任务备注（说明这个任务干嘛的），留审计�?*/
     @Transactional
     public ScheduledTaskDto setRemark(Long operatorId, String taskKey, String remark) {
         return runWithAdminTaskLock(taskKey, () -> doSetRemark(operatorId, taskKey, remark));
@@ -164,13 +162,12 @@ public class ScheduledTaskService {
         row.setRemark(remark == null ? null : remark.trim());
         row.setUpdatedAt(Instant.now());
         taskRepository.save(row);
-        auditService.record(operatorId, "SCHEDULED_TASK_REMARK", SCHEDULED_TASK, taskKey, row.getTaskName());
+        auditService.appendLog(operatorId, "SCHEDULED_TASK_REMARK", SCHEDULED_TASK, taskKey, row.getTaskName());
         return toDto(row);
     }
 
     /**
-     * 运营后台「立即执行」：即使任务已由 XXL 接管，也允许本进程跑一遍（仍走锁与执行记录）。
-     */
+     * 运营后台「立即执行」：即使任务已由 XXL 接管，也允许本进程跑一遍（仍走锁与执行记录）�?     */
     public void runAllowingBuiltin(Runnable action) {
         ALLOW_BUILTIN.set(Boolean.TRUE);
         try {
@@ -180,7 +177,7 @@ public class ScheduledTaskService {
         }
     }
 
-    /** 执行守卫：任务启用检查 + 分布式锁；返回是否允许本次执行。 */
+    /** 执行守卫：任务启用检�?+ 分布式锁；返回是否允许本次执行�?*/
     public boolean tryBegin(String taskKey, long leaseSeconds) {
         if (shouldYieldToXxlJob(taskKey)) {
             return false;
@@ -192,7 +189,7 @@ public class ScheduledTaskService {
         return lockService.tryLock("job:" + taskKey, leaseSeconds, 0);
     }
 
-    /** 记录执行结果并释放分布式锁（独立事务，外层异常回滚不影响记录）。 */
+    /** 记录执行结果并释放分布式锁（独立事务，外层异常回滚不影响记录）�?*/
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void finish(String taskKey, String result, String message, long startNanos) {
         ScheduledTask row = taskRepository.findByIdForUpdate(taskKey).orElse(null);
@@ -208,7 +205,7 @@ public class ScheduledTaskService {
         lockService.unlock("job:" + taskKey);
     }
 
-    /** XXL 已接管且当前不是 XXL 线程 / 运营强制执行时，内置调度让位。 */
+    /** XXL 已接管且当前不是 XXL 线程 / 运营强制执行时，内置调度让位�?*/
     boolean shouldYieldToXxlJob(String taskKey) {
         if (!xxlJobEnabled || !XxlJobManagedTasks.isManaged(taskKey)) {
             return false;
@@ -227,7 +224,7 @@ public class ScheduledTaskService {
         }
     }
 
-    /** 未传说明时的兜底；正常任务应写入本次处理条数/快照等结果。 */
+    /** 未传说明时的兜底；正常任务应写入本次处理条数/快照等结果�?*/
     private static String defaultMessage(String result, String message) {
         if (message != null && !message.isBlank()) {
             return message.trim();
@@ -236,22 +233,22 @@ public class ScheduledTaskService {
             return "执行失败";
         }
         if ("SKIPPED".equals(result)) {
-            return "已跳过";
+            return "已跳�?;
         }
-        return "本次无处理";
+        return "本次无处�?;
     }
 
     private ScheduledTask requireTask(String taskKey) {
         ScheduledTask row = taskRepository.selectById(taskKey);
         if (row == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存在: " + taskKey);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存�? " + taskKey);
         }
         return row;
     }
 
     private ScheduledTask requireTaskForUpdate(String taskKey) {
         return taskRepository.findByIdForUpdate(taskKey)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存在: " + taskKey));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存�? " + taskKey));
     }
 
     static String scheduledTaskAdminLockKey(String taskKey) {
@@ -261,7 +258,7 @@ public class ScheduledTaskService {
     private <T> T runWithAdminTaskLock(String taskKey, java.util.function.Supplier<T> action) {
         String key = scheduledTaskAdminLockKey(taskKey);
         if (!lockService.tryLock(key, 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "定时任务配置处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "定时任务配置处理中，请稍后重�?);
         }
         try {
             return action.get();
@@ -284,7 +281,7 @@ public class ScheduledTaskService {
         String key = raw.trim().toLowerCase(Locale.ROOT);
         if (!TASK_KEY_PATTERN.matcher(key).matches()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "任务标识须为小写字母开头，仅含字母数字_-，长度 2–63");
+                    "任务标识须为小写字母开头，仅含字母数字_-，长�?2�?3");
         }
         return key;
     }

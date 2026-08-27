@@ -44,7 +44,7 @@ class DataConsistencyConcurrencyTest {
     @Test
     void fixInconsistency_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(DataConsistencyService.consistencyRecordLockKey(5L)), eq(60L), eq(5L)))
+                eq(DataConsistencyService.recordLockKey(5L)), eq(60L), eq(5L)))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,

@@ -25,9 +25,9 @@ import java.util.function.Supplier;
 
 /**
  * 设备“稳定在线自动解锁”：离线自动锁机后，设备恢复在线并稳定运行一段时间，
- * 且无未结算会话、无未完结维修工单时，自动解除销售锁恢复营业。
+ * 且无未结算会话、无未完结维修工单时，自动解除销售锁恢复营业�?
  * <p>默认关闭，通过系统参数 {@link SystemConfigService#DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED}
- * 开启；由 XXL-JOB 任务 deviceStableOnlineAutoUnlockJob 周期性触发。</p>
+ * 开启；�?XXL-JOB 任务 deviceStableOnlineAutoUnlockJob 周期性触发�?/p>
  */
 @Service
 public class DeviceStableOnlineAutoUnlockService {
@@ -73,7 +73,7 @@ public class DeviceStableOnlineAutoUnlockService {
         this.distributedLockService = distributedLockService;
     }
 
-    /** 扫描锁机中且稳定在线超过配置分钟数的设备并自动解锁，返回本次解锁台数。 */
+    /** 扫描锁机中且稳定在线超过配置分钟数的设备并自动解锁，返回本次解锁台数�?*/
     @Transactional
     public int autoUnlockStableOnlineDevices() {
         boolean enabled = systemConfigService.getBoolean(
@@ -115,10 +115,10 @@ public class DeviceStableOnlineAutoUnlockService {
     }
 
     /**
-     * 自动解锁安全校验：
-     * 1) 只处理存在未解决 OFFLINE_TIMEOUT 故障（DEVICE_FAULT）的设备，人工锁机不会被自动解锁；
-     * 2) 无未完结维修工单；
-     * 3) 无未结算购物会话。
+     * 自动解锁安全校验�?
+     * 1) 只处理存在未解决 OFFLINE_TIMEOUT 故障（DEVICE_FAULT）的设备，人工锁机不会被自动解锁�?
+     * 2) 无未完结维修工单�?
+     * 3) 无未结算购物会话�?
      */
     private boolean safeToUnlock(DeviceInfo device) {
         Optional<OpsException> fault = exceptionRepository
@@ -151,18 +151,18 @@ public class DeviceStableOnlineAutoUnlockService {
     private void unlock(DeviceInfo device) {
         salesLockService.applySalesLock(0L, device, false, "stable-online-auto-unlock", true);
         opsExceptionService.resolveSystem("DEVICE_FAULT", device.getDeviceId(),
-                "设备恢复稳定在线后自动解锁起售");
+                "设备恢复稳定在线后自动解锁起�?);
         opsExceptionService.resolveSystem("DEVICE_OFFLINE", device.getDeviceId(),
-                "设备恢复稳定在线后自动解锁起售");
-        auditService.record(0L, "DEVICE_AUTO_UNLOCK_STABLE_ONLINE", "DEVICE", device.getDeviceId(),
-                "恢复在线超过配置分钟数且无未结算会话/维修工单，自动解锁恢复营业");
+                "设备恢复稳定在线后自动解锁起�?);
+        auditService.appendLog(0L, "DEVICE_AUTO_UNLOCK_STABLE_ONLINE", "DEVICE", device.getDeviceId(),
+                "恢复在线超过配置分钟数且无未结算会话/维修工单，自动解锁恢复营�?);
         log.info("device auto unlocked after stable online device={}", device.getDeviceId());
     }
 
     private <T> T runWithDeviceSalesLock(String deviceId, Supplier<T> action) {
         String lockKey = DeviceSalesLockService.deviceSalesLockKey(deviceId);
         if (!distributedLockService.tryLock(lockKey, 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备锁机处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备锁机处理中，请稍后重�?);
         }
         try {
             return action.get();

@@ -56,7 +56,7 @@ public class LinePromoTaskService {
         LinePromoTask task;
         if (taskId != null) {
             task = taskMapper.findByIdForUpdate(taskId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "地推任务不存在"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "地推任务不存�?));
         } else {
             task = new LinePromoTask();
             task.setCreatedAt(Instant.now());
@@ -84,7 +84,7 @@ public class LinePromoTaskService {
         } else {
             taskMapper.updateById(task);
         }
-        auditService.record(operatorId, "LINE_PROMO_TASK", "TASK", String.valueOf(task.getTaskId()), status);
+        auditService.appendLog(operatorId, "LINE_PROMO_TASK", "TASK", String.valueOf(task.getTaskId()), status);
         return toDto(task);
     }
 
@@ -99,7 +99,7 @@ public class LinePromoTaskService {
     private <T> T runWithTaskLock(Long taskId, java.util.function.Supplier<T> action) {
         String key = linePromoTaskLockKey(taskId);
         if (!distributedLockService.tryLock(key, 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "地推任务处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "地推任务处理中，请稍后重�?);
         }
         try {
             return action.get();
@@ -111,7 +111,7 @@ public class LinePromoTaskService {
     private <T> T runWithManagerLock(Long managerId, java.util.function.Supplier<T> action) {
         String key = linePromoManagerLockKey(managerId);
         if (!distributedLockService.tryLock(key, 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "地推任务处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "地推任务处理中，请稍后重�?);
         }
         try {
             return action.get();

@@ -159,7 +159,7 @@ public class OpsExceptionService {
             OpsException item = requireForUpdate(exceptionId);
             if (STATUS_RESOLVED.equals(item.getStatus())) return toDto(item);
             item.setAssigneeUserId(operatorId); item.setStatus(PROCESSING); repository.save(item);
-            support.auditService().record(operatorId, "OPS_EXCEPTION_CLAIM", OPS_EXCEPTION, exceptionId, item.getExceptionType());
+            support.auditService().appendLog(operatorId, "OPS_EXCEPTION_CLAIM", OPS_EXCEPTION, exceptionId, item.getExceptionType());
             return toDto(item);
         });
     }
@@ -171,7 +171,7 @@ public class OpsExceptionService {
             OpsException item = requireForUpdate(exceptionId);
             item.setAssigneeUserId(operatorId); item.setStatus(STATUS_RESOLVED); item.setResolution(trim(resolution));
             item.setResolvedAt(Instant.now()); repository.save(item);
-            support.auditService().record(operatorId, "OPS_EXCEPTION_RESOLVE", OPS_EXCEPTION, exceptionId, trim(resolution));
+            support.auditService().appendLog(operatorId, "OPS_EXCEPTION_RESOLVE", OPS_EXCEPTION, exceptionId, trim(resolution));
             return toDto(item);
         });
     }
@@ -190,7 +190,7 @@ public class OpsExceptionService {
             item.setArchived(true);
             item.setArchivedAt(Instant.now());
             repository.save(item);
-            support.auditService().record(operatorId, "OPS_EXCEPTION_ARCHIVE", OPS_EXCEPTION, exceptionId,
+            support.auditService().appendLog(operatorId, "OPS_EXCEPTION_ARCHIVE", OPS_EXCEPTION, exceptionId,
                     "异常已归档：" + item.getExceptionId());
             return toDto(item);
         });
@@ -207,7 +207,7 @@ public class OpsExceptionService {
             item.setArchived(false);
             item.setArchivedAt(null);
             repository.save(item);
-            support.auditService().record(operatorId, "OPS_EXCEPTION_UNARCHIVE", OPS_EXCEPTION, exceptionId,
+            support.auditService().appendLog(operatorId, "OPS_EXCEPTION_UNARCHIVE", OPS_EXCEPTION, exceptionId,
                     "异常取消归档：" + item.getExceptionId());
             return toDto(item);
         });
@@ -248,7 +248,7 @@ public class OpsExceptionService {
             item.setResolution(text);
             item.setResolvedAt(Instant.now());
             repository.save(item);
-            support.auditService().record(operatorId, "OPS_EXCEPTION_RESOLVE_WITH_REPAIR", OPS_EXCEPTION, exceptionId, text);
+            support.auditService().appendLog(operatorId, "OPS_EXCEPTION_RESOLVE_WITH_REPAIR", OPS_EXCEPTION, exceptionId, text);
             return toDto(item);
         });
     }
@@ -271,7 +271,7 @@ public class OpsExceptionService {
                 locked.setResolution(text);
                 locked.setResolvedAt(Instant.now());
                 repository.save(locked);
-                support.auditService().record(operatorId, "OPS_EXCEPTION_SYNC_FROM_DISPUTE", OPS_EXCEPTION,
+                support.auditService().appendLog(operatorId, "OPS_EXCEPTION_SYNC_FROM_DISPUTE", OPS_EXCEPTION,
                         locked.getExceptionId(), text);
             }
             return null;
@@ -288,7 +288,7 @@ public class OpsExceptionService {
                 locked.setResolution(trim(resolution));
                 locked.setResolvedAt(Instant.now());
                 repository.save(locked);
-                support.auditService().record(0L, "OPS_EXCEPTION_AUTO_RESOLVE", OPS_EXCEPTION,
+                support.auditService().appendLog(0L, "OPS_EXCEPTION_AUTO_RESOLVE", OPS_EXCEPTION,
                         locked.getExceptionId(), trim(resolution));
             });
             return null;
@@ -313,7 +313,7 @@ public class OpsExceptionService {
             item.setResolution(trim(resolution));
             item.setResolvedAt(Instant.now());
             repository.save(item);
-            support.auditService().record(merchantUserId, "MERCHANT_OPS_EXCEPTION_RESOLVE", OPS_EXCEPTION,
+            support.auditService().appendLog(merchantUserId, "MERCHANT_OPS_EXCEPTION_RESOLVE", OPS_EXCEPTION,
                     exceptionId, trim(resolution));
             return toDto(item);
         });
@@ -327,7 +327,7 @@ public class OpsExceptionService {
             item.setAssigneeUserId(assigneeUserId);
             item.setStatus(PROCESSING);
             repository.save(item);
-            support.auditService().record(operatorId, "OPS_EXCEPTION_TRANSFER", OPS_EXCEPTION, exceptionId,
+            support.auditService().appendLog(operatorId, "OPS_EXCEPTION_TRANSFER", OPS_EXCEPTION, exceptionId,
                     "接收人：用户 " + assigneeUserId + "；原因：" + trim(reason));
             return toDto(item);
         });
@@ -338,7 +338,7 @@ public class OpsExceptionService {
         requireExceptionHandle(operatorId);
         return runWithExceptionLock(exceptionId, () -> {
             requireOpenForUpdate(exceptionId);
-            support.auditService().record(operatorId, "OPS_EXCEPTION_NOTE", OPS_EXCEPTION, exceptionId, trim(note));
+            support.auditService().appendLog(operatorId, "OPS_EXCEPTION_NOTE", OPS_EXCEPTION, exceptionId, trim(note));
             return toDto(require(exceptionId));
         });
     }
@@ -352,7 +352,7 @@ public class OpsExceptionService {
             item.setAssigneeUserId(operatorId);
             item.setStatus(PROCESSING);
             repository.save(item);
-            support.auditService().record(operatorId, action, OPS_EXCEPTION, exceptionId,
+            support.auditService().appendLog(operatorId, action, OPS_EXCEPTION, exceptionId,
                     "幂等键：" + idempotencyKey + "；" + trim(detail));
             return toDto(item);
         });
@@ -370,7 +370,7 @@ public class OpsExceptionService {
             item.setResolution(trim(result));
             item.setResolvedAt(Instant.now());
             repository.save(item);
-            support.auditService().record(operatorId, action, OPS_EXCEPTION, exceptionId,
+            support.auditService().appendLog(operatorId, action, OPS_EXCEPTION, exceptionId,
                     "幂等键：" + idempotencyKey + "；结果：" + trim(result));
             return toDto(item);
         });
@@ -458,7 +458,7 @@ public class OpsExceptionService {
         ctx.item().setResolution(trim(ctx.outcome().result()));
         ctx.item().setResolvedAt(Instant.now());
         repository.save(ctx.item());
-        support.auditService().record(ctx.operatorId(), "OPS_EXCEPTION_MANUAL_RESOLVE", OPS_EXCEPTION, ctx.exceptionId(),
+        support.auditService().appendLog(ctx.operatorId(), "OPS_EXCEPTION_MANUAL_RESOLVE", OPS_EXCEPTION, ctx.exceptionId(),
                 ctx.outcome().marker() + "; " + ctx.outcome().result());
     }
 

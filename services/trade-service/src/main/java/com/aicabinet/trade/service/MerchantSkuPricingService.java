@@ -36,7 +36,7 @@ public class MerchantSkuPricingService {
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final InventoryLotService inventoryLotService;
     private final DistributedLockService distributedLockService;
-    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    /** �?Spring 代理调用本类 @Transactional 方法，避免自调用失效�?*/
     private final MerchantSkuPricingService self;
 
     public MerchantSkuPricingService(DeviceSkuPriceMapper priceRepository,
@@ -195,7 +195,7 @@ public class MerchantSkuPricingService {
 
         if (newPrice == null) {
             existing.ifPresent(priceRepository::delete);
-            auditService.record(userId, MERCHANT_SKU_PRICE, "SKU_PRICE", deviceId + ":" + skuId,
+            auditService.appendLog(userId, MERCHANT_SKU_PRICE, "SKU_PRICE", deviceId + ":" + skuId,
                     "reset to base " + sku.getPriceCents() + " (was override " + oldOverride + ")");
         } else {
             validatePrice(sku, newPrice);
@@ -204,7 +204,7 @@ public class MerchantSkuPricingService {
             row.setPriceCents(newPrice);
             row.setUpdatedByUserId(userId);
             priceRepository.save(row);
-            auditService.record(userId, MERCHANT_SKU_PRICE, "SKU_PRICE", deviceId + ":" + skuId,
+            auditService.appendLog(userId, MERCHANT_SKU_PRICE, "SKU_PRICE", deviceId + ":" + skuId,
                     "base=" + sku.getPriceCents() + " override " + oldOverride + " -> " + newPrice);
         }
 
@@ -296,11 +296,11 @@ public class MerchantSkuPricingService {
         int max = maxAllowedPrice(sku);
         if (priceCents < min) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "价格不能低于最低限价 ¥" + (min / 100.0));
+                    "价格不能低于最低限�?¥" + (min / 100.0));
         }
         if (priceCents > max) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "价格不能高于最高限价 ¥" + (max / 100.0));
+                    "价格不能高于最高限�?¥" + (max / 100.0));
         }
     }
 
@@ -324,7 +324,7 @@ public class MerchantSkuPricingService {
 
     private <T> T runWithSkuPriceLock(String deviceId, String skuId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(skuPriceLockKey(deviceId, skuId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "商品价格调整处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "商品价格调整处理中，请稍后重�?);
         }
         try {
             return action.get();

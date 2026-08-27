@@ -81,27 +81,27 @@ public class BalanceRefundService {
     @Transactional
     public BalanceRefundRequestDto apply(Long userId, int amountCents, String reason) {
         if (amountCents < 100) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额至少 ¥1.00");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额至�?¥1.00");
         }
         return runWithBalanceRefundLock(userId, () -> doApply(userId, amountCents, reason));
     }
 
     private BalanceRefundRequestDto doApply(Long userId, int amountCents, String reason) {
         if (requestMapper.countByUserIdAndStatus(userId, STATUS_PENDING) > 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "已有待审核的退款申请，请等待处理完成");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "已有待审核的退款申请，请等待处理完�?);
         }
         UserAccount account = accountMapper.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ACCOUNT_NOT_FOUND));
         int available = Math.max(0, account.getBalanceCents() - Math.max(0, account.getFrozenCents()));
         if (amountCents > available) {
             throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
-                    "可用余额不足（可用 ¥" + String.format("%.2f", available / 100.0) + "）");
+                    "可用余额不足（可�?¥" + String.format("%.2f", available / 100.0) + "�?);
         }
         int refundableChannel = sumRefundableChannelCents(userId);
         if (amountCents > refundableChannel) {
             throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
-                    "可原路退回的充值不足（最多 ¥" + String.format("%.2f", refundableChannel / 100.0)
-                            + "）。运营赠送或已消费对应充值的部分无法原路退微信，请联系客服。");
+                    "可原路退回的充值不足（最�?¥" + String.format("%.2f", refundableChannel / 100.0)
+                            + "）。运营赠送或已消费对应充值的部分无法原路退微信，请联系客服�?);
         }
 
         account.setFrozenCents(Math.max(0, account.getFrozenCents()) + amountCents);
@@ -109,7 +109,7 @@ public class BalanceRefundService {
         balanceLedgerService.recordFreezeOnly(userId, new BalanceLedgerService.BalanceFreezeCommand(
                 amountCents, "BALANCE_REFUND_FREEZE", null,
                 "BALANCE_REFUND_FREEZE:" + userId + ":" + Instant.now().toEpochMilli(),
-                "余额退款申请冻结", account.getBalanceCents(), account.getBalanceCents()));
+                "余额退款申请冻�?, account.getBalanceCents(), account.getBalanceCents()));
 
         Instant now = Instant.now();
         BalanceRefundRequest req = new BalanceRefundRequest();
@@ -125,7 +125,7 @@ public class BalanceRefundService {
                 BIZ_BALANCE_REFUND,
                 String.valueOf(req.getRequestId()),
                 userId,
-                "余额退款 " + req.getRequestNo() + " ¥"
+                "余额退�?" + req.getRequestNo() + " ¥"
                         + String.format(Locale.ROOT, "%.2f", amountCents / 100.0));
         log.info("balance refund applied user={} amount={} request={}", userId, amountCents, req.getRequestNo());
         return toDto(req);
@@ -164,7 +164,7 @@ public class BalanceRefundService {
     private BalanceRefundRequestDto doReview(Long operatorId, BalanceRefundRequest req,
                                              boolean approve, String remark) {
         if (!STATUS_PENDING.equals(req.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可审核");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可审�?);
         }
         Instant now = Instant.now();
         req.setReviewerId(operatorId);
@@ -178,7 +178,7 @@ public class BalanceRefundService {
             releaseFreeze(req.getUserId(), req.getAmountCents(), req.getRequestNo());
             req.setStatus(STATUS_REJECTED);
             requestMapper.updateById(req);
-            auditService.record(operatorId, "BALANCE_REFUND_REJECT", BIZ_BALANCE_REFUND,
+            auditService.appendLog(operatorId, "BALANCE_REFUND_REJECT", BIZ_BALANCE_REFUND,
                     String.valueOf(req.getRequestId()), "驳回 " + req.getRequestNo());
             return toDto(req);
         }
@@ -187,7 +187,7 @@ public class BalanceRefundService {
                 operatorId, BIZ_BALANCE_REFUND, String.valueOf(req.getRequestId()), trim(remark));
         if (!approvalWorkflowService.isInstanceApproved(
                 BIZ_BALANCE_REFUND, String.valueOf(req.getRequestId()))) {
-            auditService.record(operatorId, "BALANCE_REFUND_APPROVE", BIZ_BALANCE_REFUND,
+            auditService.appendLog(operatorId, "BALANCE_REFUND_APPROVE", BIZ_BALANCE_REFUND,
                     String.valueOf(req.getRequestId()), "初审通过 " + req.getRequestNo());
             return toDto(req);
         }
@@ -198,13 +198,13 @@ public class BalanceRefundService {
             req.setRefundedAt(Instant.now());
             req.setFailReason(null);
             requestMapper.updateById(req);
-            auditService.record(operatorId, "BALANCE_REFUND_APPROVE", BIZ_BALANCE_REFUND,
-                    String.valueOf(req.getRequestId()), "通过并原路退款 " + req.getRequestNo()
+            auditService.appendLog(operatorId, "BALANCE_REFUND_APPROVE", BIZ_BALANCE_REFUND,
+                    String.valueOf(req.getRequestId()), "通过并原路退�?" + req.getRequestNo()
                             + " ¥" + String.format("%.2f", req.getAmountCents() / 100.0));
         } catch (RuntimeException e) {
             log.warn("balance refund approve failed request={}: {}", req.getRequestNo(), e.getMessage());
             req.setStatus(STATUS_FAILED);
-            req.setFailReason(e.getMessage() == null ? "退款失败" : e.getMessage());
+            req.setFailReason(e.getMessage() == null ? "退款失�? : e.getMessage());
             requestMapper.updateById(req);
             // 失败时保持冻结，避免用户继续花掉；运营可驳回释放或再次审核（需先改状态）
             // 这里自动释放冻结，避免卡死；运营可让用户重新申请
@@ -239,7 +239,7 @@ public class BalanceRefundService {
                             + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
                     paymentService.refundRechargeChannelPartial(
                             order.getOrderId(), slice,
-                            "余额退款申请 " + req.getRequestNo(),
+                            "余额退款申�?" + req.getRequestNo(),
                             outRefundNo);
                     BalanceRefundAllocation alloc = new BalanceRefundAllocation();
                     alloc.setRequestId(req.getRequestId());
@@ -285,7 +285,7 @@ public class BalanceRefundService {
         balanceLedgerService.recordFreezeOnly(req.getUserId(), new BalanceLedgerService.BalanceFreezeCommand(
                 req.getAmountCents(), BIZ_BALANCE_REFUND, String.valueOf(req.getRequestId()),
                 "BALANCE_REFUND:" + req.getRequestNo(),
-                "余额退款原路退回", before, account.getBalanceCents()));
+                "余额退款原路退�?, before, account.getBalanceCents()));
     }
 
     private void releaseFreeze(Long userId, int amountCents, String bizKey) {
@@ -298,7 +298,7 @@ public class BalanceRefundService {
         if (release > 0) {
             balanceLedgerService.recordFreezeOnly(userId, new BalanceLedgerService.BalanceFreezeCommand(
                     release, "BALANCE_REFUND_RELEASE", null, "BALANCE_REFUND_RELEASE:" + bizKey,
-                    "余额退款申请释放冻结", account.getBalanceCents(), account.getBalanceCents()));
+                    "余额退款申请释放冻�?, account.getBalanceCents(), account.getBalanceCents()));
         }
     }
 

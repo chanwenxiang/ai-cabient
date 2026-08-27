@@ -60,7 +60,7 @@ public class AdminDashboardService {
 
 
     private static final int EXPORT_LIMIT = 5000;
-    /** 工作台「待支付」与订单页 overdue=1 对齐：超过该分钟仍 PENDING 计入。 */
+    /** 工作台「待支付」与订单�?overdue=1 对齐：超过该分钟�?PENDING 计入�?*/
     public static final int UNPAID_OPS_OVERDUE_MINUTES = 30;
     private static final List<SessionState> ACTIVE_STATES = List.of(
             SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
@@ -76,7 +76,7 @@ public class AdminDashboardService {
     private static final List<String> SPLIT_EXCEPTION_STATUSES = List.of(CabinetConstants.ORDER_STATUS_FAILED, WECHAT_FAILED, LEDGER_ONLY);
     private static final long STALE_SESSION_MINUTES = 30;
     private static final long IN_TRANSIT_OVERDUE_HOURS = 24;
-    /** 工作台待办每类最多展示条数，避免全表加载。 */
+    /** 工作台待办每类最多展示条数，避免全表加载�?*/
     private static final int WORKBENCH_ITEM_CAP = 20;
 
     private final DeviceInfoMapper deviceRepository;
@@ -289,7 +289,7 @@ public class AdminDashboardService {
                 .forEach(d -> items.add(new OpsActionItemDto(
                         "DISPUTE",
                         disputeSeverity(d),
-                        "待审核争议",
+                        "待审核争�?,
                         formatDisputeReasonText(d.getReason()),
                         sessionDeviceId(d.getSessionId()),
                         d.getSessionId(),
@@ -307,7 +307,7 @@ public class AdminDashboardService {
                 .forEach(s -> items.add(new OpsActionItemDto(
                         "UPLOAD_STUCK",
                         uploadSeverity(s),
-                        "视频待上传",
+                        "视频待上�?,
                         "上传状态：" + uploadStatusLabel(s.getUploadStatus()),
                         s.getDeviceId(),
                         s.getSessionId(),
@@ -345,7 +345,7 @@ public class AdminDashboardService {
                         "LOW_STOCK",
                         MEDIUM,
                         "库存偏低",
-                        "当前库存 " + i.getQuantity() + "，预警阈值 " + i.getLowThreshold(),
+                        "当前库存 " + i.getQuantity() + "，预警阈�?" + i.getLowThreshold(),
                         i.getId().getDeviceId(),
                         null,
                         null,
@@ -363,7 +363,7 @@ public class AdminDashboardService {
                 .forEach(t -> items.add(new OpsActionItemDto(
                         "REPLENISHMENT",
                         MEDIUM,
-                        "补货任务待处理",
+                        "补货任务待处�?,
                         "状态：" + replenishStatusLabel(t.getStatus()),
                         t.getDeviceId(),
                         null,
@@ -380,7 +380,7 @@ public class AdminDashboardService {
                 "SESSION_STALE",
                 staleSessionSeverity(s),
                 "购物会话可能超时",
-                "状态 " + s.getState() + "，上传 " + uploadStatusLabel(s.getUploadStatus()),
+                "状�?" + s.getState() + "，上�?" + uploadStatusLabel(s.getUploadStatus()),
                 s.getDeviceId(),
                 s.getSessionId(),
                 null,
@@ -399,7 +399,7 @@ public class AdminDashboardService {
                         "对账存在差异",
                         "日期 " + r.getReconDate() + " · 渠道 " + payChannelLabel(r.getChannel())
                                 + " · 差额 ¥" + String.format("%.2f", r.getDiffCents() / 100.0)
-                                + " · 未匹配 " + r.getUnmatchedCount() + " 笔",
+                                + " · 未匹�?" + r.getUnmatchedCount() + " �?,
                         null,
                         null,
                         null,
@@ -420,8 +420,8 @@ public class AdminDashboardService {
                                 CabinetConstants.ORDER_STATUS_FAILED.equalsIgnoreCase(s.getStatus())
                                         || WECHAT_FAILED.equalsIgnoreCase(s.getStatus())
                                         ? "HIGH" : MEDIUM,
-                                "分账待跟进",
-                                "订单 " + s.getOrderId() + " · 状态 " + splitStatusLabel(s.getStatus())
+                                "分账待跟�?,
+                                "订单 " + s.getOrderId() + " · 状�?" + splitStatusLabel(s.getStatus())
                                         + (s.getFailureReason() != null && !s.getFailureReason().isBlank()
                                         ? " · 原因 " + s.getFailureReason() : ""),
                                 s.getDeviceId(),
@@ -445,7 +445,7 @@ public class AdminDashboardService {
                         "IN_TRANSIT_OVERDUE",
                         "HIGH",
                         "补货签收超时",
-                        "出库单 " + t.getOutboundId() + " · 商品 " + t.getSkuId()
+                        "出库�?" + t.getOutboundId() + " · 商品 " + t.getSkuId()
                                 + " · 批次 " + t.getBatchNo() + " · 数量 " + t.getQuantity(),
                         t.getDeviceId(),
                         null,
@@ -534,7 +534,7 @@ public class AdminDashboardService {
             }
         }
         // 无法无会话设备列表精确并集时：取「会话占柜」与「补货占柜」的上界近似
-        // （补货设备通常也有补货会话；若仅有任务无会话，用 max 会略低估，可接受）
+        // （补货设备通常也有补货会话；若仅有任务无会话，�?max 会略低估，可接受�?
         return Math.max(sessionDevices, occupied.size());
     }
 
@@ -910,16 +910,16 @@ public class AdminDashboardService {
         if (EnumSet.of(SessionState.COMPLETED, SessionState.CANCELLED, SessionState.FAILED).contains(session.getState())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SESSION_FINISHED);
         }
-        // 识别/结算中请走异常中心，避免截断库存与录像链路
+        // 识别/结算中请走异常中心，避免截断库存与录像链�?
         if (EnumSet.of(SessionState.WAITING_UPLOAD, SessionState.RECOGNIZING, SessionState.SETTLING, SessionState.DISPUTED)
                 .contains(session.getState())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "识别/结算中的会话请到异常中心处理，不可直接取消");
+                    "识别/结算中的会话请到异常中心处理，不可直接取�?);
         }
         SessionState previous = session.getState();
         session.setState(SessionState.CANCELLED);
         sessionRepository.save(session);
-        auditService.record(operatorId, "SESSION_CANCEL", "SESSION", sessionId,
+        auditService.appendLog(operatorId, "SESSION_CANCEL", "SESSION", sessionId,
                 "device=" + session.getDeviceId() + " previous=" + previous);
         return toSessionDto(session);
     }
@@ -934,7 +934,7 @@ public class AdminDashboardService {
         merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
         String videoUri = session.getVideoUri();
         if (videoUri == null || videoUri.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "该会话没有关联视频");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "该会话没有关联视�?);
         }
         minioVideoService.streamTo(videoUri, request, response);
     }
@@ -1102,7 +1102,7 @@ public class AdminDashboardService {
             sku.setCreatedAt(Instant.now());
         }
         skuCatalogRepository.save(sku);
-        auditService.record(operatorId, "SKU_CREATE", "SKU", sku.getSkuId(),
+        auditService.appendLog(operatorId, "SKU_CREATE", "SKU", sku.getSkuId(),
                 "code=" + sku.getSkuCode() + " " + sku.getSkuName() + " price=" + sku.getPriceCents());
         return sku.toDto();
     }
@@ -1122,10 +1122,10 @@ public class AdminDashboardService {
         skuCatalogRepository.save(sku);
         String newImageUrl = trimToNull(request.imageUrl());
         if (oldImageUrl != null && !oldImageUrl.equals(newImageUrl)) {
-            // 主图被替换/清空时释放旧图（无引用则删除对象），避免孤儿文件堆积
+            // 主图被替�?清空时释放旧图（无引用则删除对象），避免孤儿文件堆积
             fileAttachmentService.releaseSkuImageIfUnused(oldImageUrl);
         }
-        auditService.record(operatorId, "SKU_UPDATE", "SKU", sku.getSkuId(),
+        auditService.appendLog(operatorId, "SKU_UPDATE", "SKU", sku.getSkuId(),
                 "code=" + sku.getSkuCode() + " " + sku.getSkuName() + " price=" + sku.getPriceCents());
         return sku.toDto();
     }
@@ -1153,7 +1153,7 @@ public class AdminDashboardService {
         sku.setBarcode(trimToNull(request.barcode()));
         sku.setBrand(trimToNull(request.brand()));
         sku.setSpec(trimToNull(request.spec()));
-        sku.setUnit(request.unit() != null && !request.unit().isBlank() ? request.unit().trim() : "件");
+        sku.setUnit(request.unit() != null && !request.unit().isBlank() ? request.unit().trim() : "�?);
         sku.setStatus(request.status());
         sku.setShelfLifeDays(request.shelfLifeDays());
         sku.setNearExpiryDays(request.nearExpiryDays());
@@ -1240,7 +1240,7 @@ public class AdminDashboardService {
         }
         deviceRepository.save(device);
         deviceSlotService.ensureDefaultSlots(deviceId, device.getDeviceType());
-        auditService.record(operatorId, "DEVICE_CREATE", "DEVICE", deviceId, device.getDeviceName());
+        auditService.appendLog(operatorId, "DEVICE_CREATE", "DEVICE", deviceId, device.getDeviceName());
         return toDeviceDto(device, null, false);
     }
 
@@ -1262,7 +1262,7 @@ public class AdminDashboardService {
             device.setRefundPolicy(refundPatch.stored());
             device.setUpdatedAt(now);
         }
-        auditService.record(operatorId, "DEVICE_UPDATE", "DEVICE", deviceId,
+        auditService.appendLog(operatorId, "DEVICE_UPDATE", "DEVICE", deviceId,
                 device.getDeviceName() + "; refundPolicy=" + device.getRefundPolicy());
         DeviceInfo fresh = deviceRepository.findById(deviceId).orElse(device);
         ShoppingSession session = findSessionForDeviceList(deviceId);
@@ -1626,7 +1626,7 @@ public class AdminDashboardService {
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
             var ledger = balanceLedgerService.change(userId, request.deltaCents(), "ADMIN_ADJUST",
                     "ADMIN-" + userId, "ADMIN:" + request.idempotencyKey().trim(), request.reason());
-            auditService.record(operatorId, "BALANCE_ADJUST", "USER", String.valueOf(userId),
+            auditService.appendLog(operatorId, "BALANCE_ADJUST", "USER", String.valueOf(userId),
                     "delta=" + request.deltaCents() + " balance=" + ledger.getBalanceAfterCents()
                             + " reason=" + request.reason().trim());
             return toUserDto(user);
@@ -1639,7 +1639,7 @@ public class AdminDashboardService {
 
     private <T> T runWithUserBalanceLock(long userId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(userBalanceLockKey(userId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "余额处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "余额处理中，请稍后重�?);
         }
         try {
             return action.get();
@@ -1665,7 +1665,7 @@ public class AdminDashboardService {
             user.setName(request.realName().trim());
         }
         userInfoRepository.save(user);
-        auditService.record(operatorId, request.verified() ? "USER_VERIFY" : "USER_UNVERIFY", "USER",
+        auditService.appendLog(operatorId, request.verified() ? "USER_VERIFY" : "USER_UNVERIFY", "USER",
                 String.valueOf(userId), "verified=" + request.verified());
         return toUserDto(user);
     }
@@ -1690,7 +1690,7 @@ public class AdminDashboardService {
     public RechargeOrderDto refundRecharge(Long operatorId, String orderId, String reason) {
         permissionService.requirePermission(operatorId, "ops:recharge:edit");
         RechargeOrderDto result = paymentService.refundRecharge(orderId, reason);
-        auditService.record(operatorId, "RECHARGE_REFUND", "RECHARGE", orderId,
+        auditService.appendLog(operatorId, "RECHARGE_REFUND", "RECHARGE", orderId,
                 "userId=" + result.userId() + " amount=" + result.amountCents());
         return result;
     }
@@ -1763,7 +1763,7 @@ public class AdminDashboardService {
         );
     }
 
-    /** 列表展示名：优先实名/昵称，空则留 null 由前端显示「暂无」。 */
+    /** 列表展示名：优先实名/昵称，空则留 null 由前端显示「暂无」�?*/
     private static String resolveUserDisplayName(UserInfo u) {
         if (u.getName() != null && !u.getName().isBlank()) {
             return u.getName().trim();
@@ -1879,10 +1879,10 @@ public class AdminDashboardService {
                     }
                     return name;
                 })
-                .reduce((a, b) -> a + "、" + b)
+                .reduce((a, b) -> a + "�? + b)
                 .orElse("");
         if (lines.size() > 2) {
-            return preview + " 等" + lines.size() + "种";
+            return preview + " �? + lines.size() + "�?;
         }
         return preview;
     }
@@ -2002,7 +2002,7 @@ public class AdminDashboardService {
 
     private AdminOrderSummaryDto toOrderSummary(CabinetOrder o, int lineCount, List<CabinetOrderLine> lines) {
         String payChannel = o.getPayChannel();
-        // 余额账本扣款以 BL- 操作号为准，避免入口渠道误标为微信/支付宝
+        // 余额账本扣款�?BL- 操作号为准，避免入口渠道误标为微�?支付�?
         if (o.getPaymentOperationId() != null && o.getPaymentOperationId().startsWith("BL-")) {
             payChannel = "BALANCE";
         }
@@ -2066,12 +2066,12 @@ public class AdminDashboardService {
 
     private static String uploadStatusLabel(String status) {
         if (status == null || status.isBlank()) {
-            return "未上传";
+            return "未上�?;
         }
         return switch (status.toUpperCase()) {
             case "LOCAL_QUEUED" -> "本地排队";
-            case "UPLOADING" -> "上传中";
-            case "UPLOADED" -> "已上传";
+            case "UPLOADING" -> "上传�?;
+            case "UPLOADED" -> "已上�?;
             case CabinetConstants.ORDER_STATUS_FAILED -> "上传失败";
             default -> status;
         };
@@ -2082,10 +2082,10 @@ public class AdminDashboardService {
             return "未知";
         }
         return switch (status.toUpperCase()) {
-            case STATUS_PENDING -> "待处理";
-            case STATUS_IN_PROGRESS -> "进行中";
-            case "COMPLETED" -> "已完成";
-            case "CANCELLED" -> "已取消";
+            case STATUS_PENDING -> "待处�?;
+            case STATUS_IN_PROGRESS -> "进行�?;
+            case "COMPLETED" -> "已完�?;
+            case "CANCELLED" -> "已取�?;
             default -> status;
         };
     }
@@ -2106,7 +2106,7 @@ public class AdminDashboardService {
         }
         return switch (channel.toUpperCase()) {
             case "WECHAT" -> "微信";
-            case "ALIPAY" -> "支付宝";
+            case "ALIPAY" -> "支付�?;
             case "BALANCE" -> "余额";
             case "MOCK" -> "其他";
             case "UNKNOWN" -> "未知";
@@ -2119,11 +2119,11 @@ public class AdminDashboardService {
             return "未知";
         }
         return switch (status.toUpperCase()) {
-            case STATUS_PENDING -> "待分账";
-            case "SETTLED" -> "已分账";
-            case "VOIDED", "REVERSED" -> "已冲正";
+            case STATUS_PENDING -> "待分�?;
+            case "SETTLED" -> "已分�?;
+            case "VOIDED", "REVERSED" -> "已冲�?;
             case CabinetConstants.ORDER_STATUS_FAILED, WECHAT_FAILED -> "分账失败";
-            case LEDGER_ONLY -> "仅记账";
+            case LEDGER_ONLY -> "仅记�?;
             default -> status;
         };
     }

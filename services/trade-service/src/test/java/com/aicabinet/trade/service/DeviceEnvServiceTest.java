@@ -44,14 +44,14 @@ class DeviceEnvServiceTest {
 
     @Test
     void record_shouldSkipNullMetrics() {
-        service.record("CAB-001", null, null, null);
+        service.saveReading("CAB-001", null, null, null);
 
         verify(readingRepository, org.mockito.Mockito.never()).insert(any());
     }
 
     @Test
     void record_shouldInsertEachPresentMetric() {
-        service.record("CAB-001", 45.5, 12.3, 88.0);
+        service.saveReading("CAB-001", 45.5, 12.3, 88.0);
 
         ArgumentCaptor<DeviceEnvReading> captor = ArgumentCaptor.forClass(DeviceEnvReading.class);
         verify(readingRepository, org.mockito.Mockito.times(3)).insert(captor.capture());

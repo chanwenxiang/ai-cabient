@@ -14,8 +14,8 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.UUID;
 
 /**
- * 营业锁机唯一入口：DB 状态与边端 MQTT 锁机保持一致。
- * 运维指令「锁机停售」与柜机策略「营业锁机/禁售」均经此服务。
+ * 营业锁机唯一入口：DB 状态与边端 MQTT 锁机保持一致�?
+ * 运维指令「锁机停售」与柜机策略「营业锁�?禁售」均经此服务�?
  */
 @Service
 public class DeviceSalesLockService {
@@ -38,14 +38,14 @@ public class DeviceSalesLockService {
     }
 
     /**
-     * @param notifyEdge 是否下发 MQTT LOCK/UNLOCK（策略开关与运维按钮均应 true）
-     * @return commandId（边端下发或 LOCAL- 兜底）
+     * @param notifyEdge 是否下发 MQTT LOCK/UNLOCK（策略开关与运维按钮均应 true�?
+     * @return commandId（边端下发或 LOCAL- 兜底�?
      */
     @Transactional
     public String applySalesLock(Long operatorId, DeviceInfo device, boolean locked,
                                  String reason, boolean notifyEdge) {
         if (device == null || device.getDeviceId() == null || device.getDeviceId().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备不存在");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备不存�?);
         }
         return runWithDeviceSalesLock(device.getDeviceId(),
                 () -> doApplySalesLock(operatorId, device.getDeviceId(), locked, reason, notifyEdge));
@@ -58,7 +58,7 @@ public class DeviceSalesLockService {
     private String doApplySalesLock(Long operatorId, String deviceId, boolean locked,
                                     String reason, boolean notifyEdge) {
         DeviceInfo device = deviceRepository.findByIdForUpdate(deviceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存�?));
         String commandId = "LOCAL-" + UUID.randomUUID().toString().substring(0, 8);
         if (notifyEdge) {
             String mqttCmd = locked ? CabinetConstants.MQTT_CMD_LOCK : CabinetConstants.MQTT_CMD_UNLOCK;
@@ -71,29 +71,29 @@ public class DeviceSalesLockService {
         }
         device.setSalesLocked(locked);
         if (locked) {
-            // 锁机即消费者不可开门；禁售场景也走同一营业锁
+            // 锁机即消费者不可开门；禁售场景也走同一营业�?
             device.setSalesUnlockedAt(null);
             device.setSalesLockReason(
                     reason == null || reason.isBlank() ? "营业锁机" : reason.trim());
             deviceRepository.clearSalesUnlockedAt(device.getDeviceId());
         } else {
-            // 解锁营业时同步清掉禁售，避免策略里仍显示「禁售但已解锁」的矛盾态
+            // 解锁营业时同步清掉禁售，避免策略里仍显示「禁售但已解锁」的矛盾�?
             device.setSaleForbidden(false);
             device.setSalesLockReason(null);
             device.setSalesUnlockedAt(java.time.Instant.now());
         }
         deviceRepository.save(device);
         String action = locked ? "DEVICE_LOCK" : "DEVICE_UNLOCK";
-        auditService.record(operatorId, action, "DEVICE", device.getDeviceId(),
-                (reason == null || reason.isBlank() ? "营业锁" : reason.trim())
-                        + "；指令编号=" + commandId
-                        + "；是否下发柜机=" + (notifyEdge ? "是" : "否"));
+        auditService.appendLog(operatorId, action, "DEVICE", device.getDeviceId(),
+                (reason == null || reason.isBlank() ? "营业�? : reason.trim())
+                        + "；指令编�?" + commandId
+                        + "；是否下发柜�?" + (notifyEdge ? "�? : "�?));
         return commandId;
     }
 
     private String runWithDeviceSalesLock(String deviceId, java.util.function.Supplier<String> action) {
         if (!distributedLockService.tryLock(deviceSalesLockKey(deviceId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备锁机处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备锁机处理中，请稍后重�?);
         }
         try {
             return action.get();

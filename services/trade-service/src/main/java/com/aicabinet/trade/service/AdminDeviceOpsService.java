@@ -72,8 +72,8 @@ public class AdminDeviceOpsService {
     }
 
     /**
-     * 运维远程开门：落真实 ShoppingSession（OPS_REMOTE），占柜、接门事件、可留录像；
-     * 不结算、不出消费订单。与补货开门（RESTOCK）分离。
+     * 运维远程开门：落真�?ShoppingSession（OPS_REMOTE），占柜、接门事件、可留录像；
+     * 不结算、不出消费订单。与补货开门（RESTOCK）分离�?
      */
     private DeviceOpsCommandResultDto remoteOpen(Long operatorId, DeviceInfo device, String reason) {
         return runWithDeviceOpenLock(device.getDeviceId(), () -> doRemoteOpen(operatorId, device, reason));
@@ -95,13 +95,13 @@ public class AdminDeviceOpsService {
             deviceClient.requestOpenDoorOperator(sessionId, device.getDeviceId(), operatorId);
         } catch (Exception e) {
             session.setState(SessionState.FAILED);
-            session.setFailReason("开门指令下发失败");
+            session.setFailReason("开门指令下发失�?);
             sessionRepository.save(session);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "开门指令下发失败（请确认 device-service 在线）");
+                    "开门指令下发失败（请确�?device-service 在线�?);
         }
-        auditService.record(operatorId, "DEVICE_REMOTE_OPEN", "SESSION", sessionId,
-                "设备：" + device.getDeviceId() + "；" + reason);
+        auditService.appendLog(operatorId, "DEVICE_REMOTE_OPEN", "SESSION", sessionId,
+                "设备�? + device.getDeviceId() + "�? + reason);
         return new DeviceOpsCommandResultDto(device.getDeviceId(), "OPEN_DOOR", sessionId,
                 "运维开门会话已创建并下发：" + sessionId, device.salesLockedEnabled());
     }
@@ -127,7 +127,7 @@ public class AdminDeviceOpsService {
         // reload after save
         boolean nowLocked = device.salesLockedEnabled();
         return new DeviceOpsCommandResultDto(device.getDeviceId(), locked ? "LOCK" : "UNLOCK", commandId,
-                nowLocked ? "已锁机，消费者无法开门" : "已解锁，恢复营业", nowLocked);
+                nowLocked ? "已锁机，消费者无法开�? : "已解锁，恢复营业", nowLocked);
     }
 
     private DeviceOpsCommandResultDto reboot(Long operatorId, DeviceInfo device, String reason) {
@@ -136,18 +136,18 @@ public class AdminDeviceOpsService {
             commandId = deviceClient.requestOpsCommand(device.getDeviceId(), CabinetConstants.MQTT_CMD_REBOOT);
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "重启指令下发失败（请确认 device-service 在线）");
+                    "重启指令下发失败（请确认 device-service 在线�?);
         }
-        auditService.record(operatorId, "DEVICE_REBOOT", "DEVICE", device.getDeviceId(),
-                reason + "；指令编号=" + commandId);
+        auditService.appendLog(operatorId, "DEVICE_REBOOT", "DEVICE", device.getDeviceId(),
+                reason + "；指令编�?" + commandId);
         return new DeviceOpsCommandResultDto(device.getDeviceId(), "REBOOT", commandId,
-                "重启指令已下发", device.salesLockedEnabled());
+                "重启指令已下�?, device.salesLockedEnabled());
     }
 
     private DeviceOpsCommandResultDto setTemp(Long operatorId, DeviceInfo device, String reason,
                                               Integer targetTempC) {
         if (targetTempC == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写目标温度");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写目标温�?);
         }
         if (targetTempC < -30 || targetTempC > 30) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "目标温度应在 -30°C ~ 30°C 之间");
@@ -161,13 +161,13 @@ public class AdminDeviceOpsService {
                 commandId = deviceClient.requestSetTargetTemp(device.getDeviceId(), targetTempC);
                 message = "已向柜机下发目标温度 " + targetTempC + "°C";
             } catch (Exception e) {
-                message = "设置已保存，柜机指令下发失败（请确认 device-service 在线）";
+                message = "设置已保存，柜机指令下发失败（请确认 device-service 在线�?;
             }
         } else {
-            message = "设置已保存，柜机离线时请上线后重新下发";
+            message = "设置已保存，柜机离线时请上线后重新下�?;
         }
-        auditService.record(operatorId, "DEVICE_SET_TEMP", "DEVICE", device.getDeviceId(),
-                reason + "；目标温度=" + targetTempC + "℃；指令编号=" + commandId);
+        auditService.appendLog(operatorId, "DEVICE_SET_TEMP", "DEVICE", device.getDeviceId(),
+                reason + "；目标温�?" + targetTempC + "℃；指令编号=" + commandId);
         return new DeviceOpsCommandResultDto(device.getDeviceId(), "SET_TEMP", commandId,
                 message, device.salesLockedEnabled());
     }

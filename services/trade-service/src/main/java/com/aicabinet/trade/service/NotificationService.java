@@ -102,15 +102,15 @@ public class NotificationService {
     @Transactional
     public void markOpsRead(Long userId, Long id) {
         runWithNotificationLogLock(id, () -> {
-            NotificationLog record = logRepository.findByIdForUpdate(id)
+            NotificationLog logEntry = logRepository.findByIdForUpdate(id)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
-            if (record.getUserId() == null || !record.getUserId().equals(userId)
-                    || !"OPS".equals(record.getAudience())) {
+            if (logEntry.getUserId() == null || !logEntry.getUserId().equals(userId)
+                    || !"OPS".equals(logEntry.getAudience())) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权操作该消息");
             }
-            if (record.getReadAt() == null) {
-                record.setReadAt(Instant.now());
-                logRepository.save(record);
+            if (logEntry.getReadAt() == null) {
+                logEntry.setReadAt(Instant.now());
+                logRepository.save(logEntry);
             }
             return null;
         });
@@ -160,19 +160,19 @@ public class NotificationService {
     }
 
     private void saveLog(NotificationLogDraft draft) {
-        NotificationLog record = new NotificationLog();
-        record.setTemplateCode(draft.templateCode());
-        record.setChannel(draft.channel());
-        record.setAudience(draft.target().audience());
-        record.setUserId(draft.target().userId());
-        record.setMerchantId(draft.target().merchantId());
-        record.setTitle(draft.content().title());
-        record.setBody(draft.content().body());
-        record.setBizType(draft.content().bizType());
-        record.setBizId(draft.content().bizId());
-        record.setStatus("SENT");
-        record.setCreatedAt(Instant.now());
-        logRepository.save(record);
+        NotificationLog logEntry = new NotificationLog();
+        logEntry.setTemplateCode(draft.templateCode());
+        logEntry.setChannel(draft.channel());
+        logEntry.setAudience(draft.target().audience());
+        logEntry.setUserId(draft.target().userId());
+        logEntry.setMerchantId(draft.target().merchantId());
+        logEntry.setTitle(draft.content().title());
+        logEntry.setBody(draft.content().body());
+        logEntry.setBizType(draft.content().bizType());
+        logEntry.setBizId(draft.content().bizId());
+        logEntry.setStatus("SENT");
+        logEntry.setCreatedAt(Instant.now());
+        logRepository.save(logEntry);
         log.info("notification sent channel={} template={} audience={} userId={} merchantId={}",
                 draft.channel(), draft.templateCode(), draft.target().audience(),
                 draft.target().userId(), draft.target().merchantId());
@@ -209,14 +209,14 @@ public class NotificationService {
     }
 
     private void doMarkConsumerRead(Long userId, Long id) {
-        NotificationLog record = logRepository.findByIdForUpdate(id)
+        NotificationLog logEntry = logRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
-        if (record.getUserId() == null || !record.getUserId().equals(userId)) {
+        if (logEntry.getUserId() == null || !logEntry.getUserId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权操作该消息");
         }
-        if (record.getReadAt() == null) {
-            record.setReadAt(Instant.now());
-            logRepository.save(record);
+        if (logEntry.getReadAt() == null) {
+            logEntry.setReadAt(Instant.now());
+            logRepository.save(logEntry);
         }
     }
 
@@ -257,14 +257,14 @@ public class NotificationService {
     }
 
     private void doMarkMerchantRead(String merchantId, Long id) {
-        NotificationLog record = logRepository.findByIdForUpdate(id)
+        NotificationLog logEntry = logRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
-        if (record.getMerchantId() == null || !record.getMerchantId().equals(merchantId)) {
+        if (logEntry.getMerchantId() == null || !logEntry.getMerchantId().equals(merchantId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权操作该消息");
         }
-        if (record.getReadAt() == null) {
-            record.setReadAt(Instant.now());
-            logRepository.save(record);
+        if (logEntry.getReadAt() == null) {
+            logEntry.setReadAt(Instant.now());
+            logRepository.save(logEntry);
         }
     }
 
@@ -323,22 +323,22 @@ public class NotificationService {
         } else {
             bizId = body.bizId().trim();
         }
-        NotificationLog record = new NotificationLog();
-        record.setTemplateCode("OPS_MANUAL");
-        record.setChannel(IN_APP);
-        record.setAudience(audience);
-        record.setUserId(userId);
-        record.setMerchantId(merchantId);
-        record.setTitle(title);
-        record.setBody(content);
-        record.setBizType(bizType);
-        record.setBizId(bizId);
-        record.setStatus("SENT");
-        record.setCreatedAt(Instant.now());
-        logRepository.save(record);
+        NotificationLog logEntry = new NotificationLog();
+        logEntry.setTemplateCode("OPS_MANUAL");
+        logEntry.setChannel(IN_APP);
+        logEntry.setAudience(audience);
+        logEntry.setUserId(userId);
+        logEntry.setMerchantId(merchantId);
+        logEntry.setTitle(title);
+        logEntry.setBody(content);
+        logEntry.setBizType(bizType);
+        logEntry.setBizId(bizId);
+        logEntry.setStatus("SENT");
+        logEntry.setCreatedAt(Instant.now());
+        logRepository.save(logEntry);
         log.info("manual notification sent by={} audience={} userId={} merchantId={} id={}",
-                operatorId, audience, userId, merchantId, record.getId());
-        return toDto(record);
+                operatorId, audience, userId, merchantId, logEntry.getId());
+        return toDto(logEntry);
     }
 
     static String consumerNotificationLockKey(long userId) {

@@ -72,26 +72,26 @@ public class InventoryOpsService {
         Integer unitCost = sku.getPurchaseCostCents();
         int costCents = unitCost != null ? unitCost * request.quantity() : 0;
 
-        InventoryWriteOff record = new InventoryWriteOff();
-        record.setDeviceId(request.deviceId());
-        record.setSkuId(request.skuId());
-        record.setBatchNo(request.batchNo());
-        record.setQuantity(request.quantity());
-        record.setReason(reason);
-        record.setCostCents(costCents);
-        record.setOperatorId(operatorId);
-        record = writeOffRepository.save(record);
+        InventoryWriteOff writeOffEntry = new InventoryWriteOff();
+        writeOffEntry.setDeviceId(request.deviceId());
+        writeOffEntry.setSkuId(request.skuId());
+        writeOffEntry.setBatchNo(request.batchNo());
+        writeOffEntry.setQuantity(request.quantity());
+        writeOffEntry.setReason(reason);
+        writeOffEntry.setCostCents(costCents);
+        writeOffEntry.setOperatorId(operatorId);
+        writeOffEntry = writeOffRepository.save(writeOffEntry);
 
         return new WriteOffDto(
-                record.getWriteOffId(),
-                record.getDeviceId(),
-                record.getSkuId(),
-                record.getBatchNo(),
-                record.getQuantity(),
-                record.getReason(),
-                record.getCostCents(),
-                record.getOperatorId(),
-                record.getCreatedAt()
+                writeOffEntry.getWriteOffId(),
+                writeOffEntry.getDeviceId(),
+                writeOffEntry.getSkuId(),
+                writeOffEntry.getBatchNo(),
+                writeOffEntry.getQuantity(),
+                writeOffEntry.getReason(),
+                writeOffEntry.getCostCents(),
+                writeOffEntry.getOperatorId(),
+                writeOffEntry.getCreatedAt()
         );
     }
 

@@ -19,13 +19,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 组织架构：总部/区域/分公司组织树，设备按节点归属，支撑点位管理。
- */
+ * 组织架构：总部/区域/分公司组织树，设备按节点归属，支撑点位管理�? */
 @Service
 public class OrgService {
     private static final String PERM_OPS_DEVICE_EDIT = "ops:device:edit";
     private static final String ORG_NODE = "ORG_NODE";
-    private static final String LITERAL = "组织不存在";
+    private static final String LITERAL = "组织不存�?;
     private static final String NAME = "name=";
 
 
@@ -90,7 +89,7 @@ public class OrgService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "组织名称不能为空");
         }
         if (request.parentId() != null && request.parentId().equals(request.nodeId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级组织不能是自己");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级组织不能是自�?);
         }
         OpsOrgNode node;
         if (request.nodeId() == null) {
@@ -104,7 +103,7 @@ public class OrgService {
             node.setCreatedAt(Instant.now());
             node.setUpdatedAt(Instant.now());
             nodeRepository.insert(node);
-            auditService.record(operatorId, "ORG_NODE_CREATE", ORG_NODE,
+            auditService.appendLog(operatorId, "ORG_NODE_CREATE", ORG_NODE,
                     String.valueOf(node.getNodeId()), NAME + name);
         } else {
             node = nodeRepository.findByIdForUpdate(request.nodeId())
@@ -116,7 +115,7 @@ public class OrgService {
             node.setSortOrder(request.sortOrder());
             node.setUpdatedAt(Instant.now());
             nodeRepository.updateById(node);
-            auditService.record(operatorId, "ORG_NODE_UPDATE", ORG_NODE,
+            auditService.appendLog(operatorId, "ORG_NODE_UPDATE", ORG_NODE,
                     String.valueOf(node.getNodeId()), NAME + name);
         }
         return toDto(node, deviceOrgRepository.findByNodeId(node.getNodeId()));
@@ -130,7 +129,7 @@ public class OrgService {
             node.setEnabled(enabled);
             node.setUpdatedAt(Instant.now());
             nodeRepository.updateById(node);
-            auditService.record(operatorId, enabled ? "ORG_NODE_ENABLE" : "ORG_NODE_DISABLE",
+            auditService.appendLog(operatorId, enabled ? "ORG_NODE_ENABLE" : "ORG_NODE_DISABLE",
                     ORG_NODE, String.valueOf(nodeId), NAME + node.getName());
             return toDto(node, deviceOrgRepository.findByNodeId(nodeId));
         });
@@ -149,7 +148,7 @@ public class OrgService {
         try {
             for (String key : lockKeys) {
                 if (!distributedLockService.tryLock(key, 60, 5)) {
-                    throw new ResponseStatusException(HttpStatus.CONFLICT, "组织设备归属处理中，请稍后重试");
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "组织设备归属处理中，请稍后重�?);
                 }
                 acquired.add(key);
             }
@@ -172,7 +171,7 @@ public class OrgService {
             mapping.setDeviceId(deviceId);
             deviceOrgRepository.insert(mapping);
         }
-        auditService.record(operatorId, "ORG_NODE_ASSIGN", ORG_NODE,
+        auditService.appendLog(operatorId, "ORG_NODE_ASSIGN", ORG_NODE,
                 String.valueOf(nodeId), "devices=" + normalized.size());
         return toDto(node, deviceOrgRepository.findByNodeId(nodeId));
     }
@@ -183,13 +182,13 @@ public class OrgService {
             permissionService.requireAnyPermission(operatorId, "ops:org:edit", PERM_OPS_DEVICE_EDIT);
             OpsOrgNode node = requireNodeForUpdate(nodeId);
             if (nodeRepository.countByParentId(nodeId) > 0) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "请先删除子组织");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "请先删除子组�?);
             }
             if (!deviceOrgRepository.findByNodeId(nodeId).isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "请先解除该组织下的设备归属");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "请先解除该组织下的设备归�?);
             }
             nodeRepository.deleteById(nodeId);
-            auditService.record(operatorId, "ORG_NODE_DELETE", ORG_NODE,
+            auditService.appendLog(operatorId, "ORG_NODE_DELETE", ORG_NODE,
                     String.valueOf(nodeId), NAME + node.getName());
             return null;
         });
@@ -215,7 +214,7 @@ public class OrgService {
 
     private <T> T runWithOrgNodeLock(Long nodeId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(orgNodeLockKey(nodeId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "组织节点处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "组织节点处理中，请稍后重�?);
         }
         try {
             return action.get();

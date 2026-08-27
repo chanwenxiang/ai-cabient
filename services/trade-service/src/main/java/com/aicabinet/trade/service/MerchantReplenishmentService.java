@@ -26,7 +26,7 @@ public class MerchantReplenishmentService {
     private static final String REPLEN_REQUEST = "REPLEN_REQUEST";
     private static final String DEVICEID = "deviceId=";
     private static final String SUBMITTED = "SUBMITTED";
-    private static final String LITERAL = "补货任务不存在";
+    private static final String LITERAL = "补货任务不存�?;
 
 
     private final PermissionService permissionService;
@@ -100,7 +100,7 @@ public class MerchantReplenishmentService {
         return replenishmentService.suggestForDevice(deviceId.trim());
     }
 
-    /** 补货员今日运营执行情况：分配给本人的任务完成统计（对标友智慧「运营执行情况」）。 */
+    /** 补货员今日运营执行情况：分配给本人的任务完成统计（对标友智慧「运营执行情况」）�?*/
     @Transactional(readOnly = true)
     public MerchantReplenishmentEfficiencyDto myEfficiency(Long userId) {
         permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
@@ -129,7 +129,7 @@ public class MerchantReplenishmentService {
     public ReplenishmentTaskDto checkInTask(Long userId, Long taskId, ReplenishmentCheckInRequest body) {
         ReplenishmentTask task = requireScopedTask(userId, taskId);
         ReplenishmentTaskDto result = replenishmentService.checkInTask(userId, taskId, body);
-        auditService.record(userId, "MERCHANT_REPLENISHMENT_CHECK_IN", REPLENISHMENT_TASK,
+        auditService.appendLog(userId, "MERCHANT_REPLENISHMENT_CHECK_IN", REPLENISHMENT_TASK,
                 String.valueOf(taskId), DEVICEID + task.getDeviceId());
         return result;
     }
@@ -150,7 +150,7 @@ public class MerchantReplenishmentService {
                                                            SubmitReplenishmentLinesRequest body) {
         ReplenishmentTask task = requireScopedTask(userId, taskId);
         List<ReplenishmentTaskLineDto> result = replenishmentService.submitTaskLines(userId, taskId, body);
-        auditService.record(userId, "MERCHANT_REPLENISHMENT_CONFIRM_LINES", REPLENISHMENT_TASK,
+        auditService.appendLog(userId, "MERCHANT_REPLENISHMENT_CONFIRM_LINES", REPLENISHMENT_TASK,
                 String.valueOf(taskId), DEVICEID + task.getDeviceId() + ",lines=" + result.size());
         return result;
     }
@@ -159,25 +159,25 @@ public class MerchantReplenishmentService {
     public ReplenishmentTaskDto completeTask(Long userId, Long taskId) {
         ReplenishmentTask task = requireScopedTask(userId, taskId);
         ReplenishmentTaskDto result = replenishmentService.completeTask(userId, taskId);
-        auditService.record(userId, "MERCHANT_REPLENISHMENT_COMPLETE", REPLENISHMENT_TASK,
+        auditService.appendLog(userId, "MERCHANT_REPLENISHMENT_COMPLETE", REPLENISHMENT_TASK,
                 String.valueOf(taskId), DEVICEID + task.getDeviceId());
         return result;
     }
 
     /**
-     * 商户/补货员现场开门：须已签到，绑定补货任务，不走消费者结算。
+     * 商户/补货员现场开门：须已签到，绑定补货任务，不走消费者结算�?
      */
     @Transactional
     public SessionDto openDoorForTask(Long userId, Long taskId) {
         ReplenishmentTask task = requireScopedTask(userId, taskId);
         SessionDto session = opsService.openDoorForRestockAsUser(userId, task.getDeviceId(), taskId);
-        auditService.record(userId, "MERCHANT_REPLENISHMENT_OPEN_DOOR", REPLENISHMENT_TASK,
+        auditService.appendLog(userId, "MERCHANT_REPLENISHMENT_OPEN_DOOR", REPLENISHMENT_TASK,
                 String.valueOf(taskId),
                 DEVICEID + task.getDeviceId() + ",sessionId=" + session.sessionId());
         return session;
     }
 
-    /** 签到/开门/确认上架/完成：与前端一致，需补货操作权（request） */
+    /** 签到/开�?确认上架/完成：与前端一致，需补货操作权（request�?*/
     private ReplenishmentTask requireScopedTask(Long userId, Long taskId) {
         permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_REQUEST);
         merchantPortalGuard.requireAccess(userId);
@@ -231,7 +231,7 @@ public class MerchantReplenishmentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备 ID 不能为空");
         }
         if (body.lines() == null || body.lines().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择一种商品");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择一种商�?);
         }
         String deviceId = body.deviceId().trim();
         return runWithDeviceLock(deviceId, () -> doSubmitRequest(userId, body, deviceId));
@@ -244,7 +244,7 @@ public class MerchantReplenishmentService {
         DeviceInfo device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
         if (device.getMerchantId() == null || device.getMerchantId().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备未绑定商户");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备未绑定商�?);
         }
 
         Map<String, Integer> suggestBySku = replenishmentService.suggestForDevice(deviceId).stream()
@@ -279,9 +279,9 @@ public class MerchantReplenishmentService {
             requestLineRepository.save(row);
         }
         if (requestLineRepository.findByRequestIdOrderByLineIdAsc(request.getRequestId()).isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择一种有效商品");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择一种有效商�?);
         }
-        auditService.record(userId, MERCHANT_REPLEN_REQUEST, REPLEN_REQUEST,
+        auditService.appendLog(userId, MERCHANT_REPLEN_REQUEST, REPLEN_REQUEST,
                 String.valueOf(request.getRequestId()), "device=" + deviceId);
         approvalWorkflowService.start(
                 MERCHANT_REPLEN_REQUEST,
@@ -327,7 +327,7 @@ public class MerchantReplenishmentService {
         }
         List<MerchantReplenishmentRequestLine> lines = requestLineRepository.findByRequestIdOrderByLineIdAsc(requestId);
         if (lines.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "要货单无商品行");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "要货单无商品�?);
         }
 
         ReplenishmentRoute route = new ReplenishmentRoute();
@@ -348,17 +348,17 @@ public class MerchantReplenishmentService {
         for (MerchantReplenishmentRequestLine line : lines) {
             skuQty.merge(line.getSkuId(), line.getRequestedQty(), Integer::sum);
         }
-        // 出库与接单解耦：仓库无可用库存时仍生成补货任务，避免同事务 rollback-only
+        // 出库与接单解耦：仓库无可用库存时仍生成补货任务，避免同事�?rollback-only
         Long outboundId = warehouseService.tryCreateOutboundFromLines(
                 route.getRouteId(), request.getDeviceId(), operatorId, skuQty, null);
         if (outboundId != null) {
             task.setOutboundId(outboundId);
             taskRepository.save(task);
             request.setOutboundId(outboundId);
-            // 草稿出库行即可生成现场补货明细，无需等发运
+            // 草稿出库行即可生成现场补货明细，无需等发�?
             replenishmentService.generateLinesFromOutbound(outboundId);
         } else {
-            // 无仓配：按要货数量 seed RESTOCK 行，避免商户打开空任务
+            // 无仓配：按要货数�?seed RESTOCK 行，避免商户打开空任�?
             replenishmentService.seedDraftRestockLines(task.getTaskId(), request.getDeviceId(), skuQty);
         }
 
@@ -367,7 +367,7 @@ public class MerchantReplenishmentService {
         request.setReviewerId(operatorId);
         request.setReplenishmentTaskId(task.getTaskId());
         requestRepository.save(request);
-        auditService.record(operatorId, "MERCHANT_REPLEN_ACCEPT", REPLEN_REQUEST,
+        auditService.appendLog(operatorId, "MERCHANT_REPLEN_ACCEPT", REPLEN_REQUEST,
                 String.valueOf(requestId),
                 "task=" + task.getTaskId() + (outboundId != null ? ",outbound=" + outboundId : ",outbound=none"));
         approvalWorkflowService.completeApproved(
@@ -393,7 +393,7 @@ public class MerchantReplenishmentService {
         request.setReviewerId(operatorId);
         request.setRejectReason(body != null ? trimToNull(body.reason()) : null);
         requestRepository.save(request);
-        auditService.record(operatorId, "MERCHANT_REPLEN_REJECT", REPLEN_REQUEST,
+        auditService.appendLog(operatorId, "MERCHANT_REPLEN_REJECT", REPLEN_REQUEST,
                 String.valueOf(requestId), request.getRejectReason());
         approvalWorkflowService.completeRejected(
                 operatorId,

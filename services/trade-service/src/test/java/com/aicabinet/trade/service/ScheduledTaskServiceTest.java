@@ -36,10 +36,10 @@ class ScheduledTaskServiceTest {
                 .thenReturn(true);
         when(mapper.findByIdForUpdate("unpaid-cancel")).thenReturn(java.util.Optional.of(row));
 
-        ScheduledTaskDto dto = service(false).setRemark(100L, "unpaid-cancel", " 超时关单并回滚库存 ");
+        ScheduledTaskDto dto = service(false).setRemark(100L, "unpaid-cancel", " 超时关单并回滚库�?");
 
-        assertEquals("超时关单并回滚库存", dto.remark());
-        verify(audit).record(eq(100L), eq("SCHEDULED_TASK_REMARK"),
+        assertEquals("超时关单并回滚库�?, dto.remark());
+        verify(audit).appendLog(eq(100L), eq("SCHEDULED_TASK_REMARK"),
                 eq("SCHEDULED_TASK"), eq("unpaid-cancel"), anyString());
         verify(locks).unlock(ScheduledTaskService.scheduledTaskAdminLockKey("unpaid-cancel"));
     }
@@ -104,10 +104,10 @@ class ScheduledTaskServiceTest {
         row.setTaskKey("coupon-expire");
         when(mapper.findByIdForUpdate("coupon-expire")).thenReturn(java.util.Optional.of(row));
 
-        service(false).finish("coupon-expire", "SUCCESS", "过期优惠券 3 张", System.nanoTime());
+        service(false).finish("coupon-expire", "SUCCESS", "过期优惠�?3 �?, System.nanoTime());
 
         assertEquals("SUCCESS", row.getLastResult());
-        assertEquals("过期优惠券 3 张", row.getLastMessage());
+        assertEquals("过期优惠�?3 �?, row.getLastMessage());
         verify(mapper).save(row);
         verify(locks).unlock("job:coupon-expire");
     }

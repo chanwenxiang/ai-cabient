@@ -118,7 +118,7 @@ public class MerchantWithdrawService {
         permissionService.requirePermission(operatorId, "ops:merchant-withdraw:adjust");
         requireMerchant(merchantId);
         if (amountCents == 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "调账金额不能为 0");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "调账金额不能�?0");
         }
         return runWithMerchantWalletLock(merchantId, () -> {
             String refId = "ADJ-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
@@ -128,8 +128,8 @@ public class MerchantWithdrawService {
             } else {
                 merchantWalletService.debit(merchantId, -amountCents, "ADJUST", "OPS_ADJUST", refId, note);
             }
-            auditService.record(operatorId, BIZ_WALLET_ADJUST, "MERCHANT_WALLET", merchantId,
-                    "金额(分)=" + amountCents + "；备注=" + note);
+            auditService.appendLog(operatorId, BIZ_WALLET_ADJUST, "MERCHANT_WALLET", merchantId,
+                    "金额(�?=" + amountCents + "；备�?" + note);
             if (Math.abs(amountCents) >= properties.reviewThresholdCents()) {
                 approvalWorkflowService.start(
                         BIZ_WALLET_ADJUST,
@@ -217,7 +217,7 @@ public class MerchantWithdrawService {
     private MerchantWithdrawRequestDto doReview(Long operatorId, MerchantWithdrawRequest request,
                                                 boolean approve, String remark) {
         if (!"PENDING_REVIEW".equals(request.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可审核");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可审�?);
         }
         Instant now = Instant.now();
         request.setReviewerId(operatorId);
@@ -231,24 +231,24 @@ public class MerchantWithdrawService {
             withdrawMapper.updateById(request);
             merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
                     WITHDRAW, String.valueOf(request.getRequestId()), "提现驳回释放");
-            auditService.record(operatorId, MERCHANT_WITHDRAW_REVIEW, BIZ_MERCHANT_WITHDRAW,
-                    String.valueOf(request.getRequestId()), "驳回；金额(分)=" + request.getAmountCents()
-                            + "；备注=" + trim(remark));
+            auditService.appendLog(operatorId, MERCHANT_WITHDRAW_REVIEW, BIZ_MERCHANT_WITHDRAW,
+                    String.valueOf(request.getRequestId()), "驳回；金�?�?=" + request.getAmountCents()
+                            + "；备�?" + trim(remark));
             return toDto(request);
         }
         approvalWorkflowService.completeApproved(
                 operatorId, BIZ_MERCHANT_WITHDRAW, String.valueOf(request.getRequestId()), trim(remark));
         if (!approvalWorkflowService.isInstanceApproved(
                 BIZ_MERCHANT_WITHDRAW, String.valueOf(request.getRequestId()))) {
-            auditService.record(operatorId, MERCHANT_WITHDRAW_REVIEW, BIZ_MERCHANT_WITHDRAW,
-                    String.valueOf(request.getRequestId()), "初审通过；金额(分)=" + request.getAmountCents());
+            auditService.appendLog(operatorId, MERCHANT_WITHDRAW_REVIEW, BIZ_MERCHANT_WITHDRAW,
+                    String.valueOf(request.getRequestId()), "初审通过；金�?�?=" + request.getAmountCents());
             return toDto(request);
         }
         request.setStatus(STATUS_APPROVED);
         withdrawMapper.updateById(request);
-        auditService.record(operatorId, MERCHANT_WITHDRAW_REVIEW, BIZ_MERCHANT_WITHDRAW,
-                String.valueOf(request.getRequestId()), "通过；金额(分)=" + request.getAmountCents()
-                        + "；备注=" + trim(remark));
+        auditService.appendLog(operatorId, MERCHANT_WITHDRAW_REVIEW, BIZ_MERCHANT_WITHDRAW,
+                String.valueOf(request.getRequestId()), "通过；金�?�?=" + request.getAmountCents()
+                        + "；备�?" + trim(remark));
         return attemptPayout(request);
     }
 
@@ -258,10 +258,10 @@ public class MerchantWithdrawService {
         MerchantWithdrawRequest request = requireRequest(requestId);
         return runWithMerchantWalletLock(request.getMerchantId(), () -> {
             if (!Set.of(STATUS_APPROVED, "FAILED").contains(request.getStatus())) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可打款");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可打�?);
             }
-            auditService.record(operatorId, "MERCHANT_WITHDRAW_PAYOUT", BIZ_MERCHANT_WITHDRAW,
-                    String.valueOf(requestId), "打款金额(分)=" + request.getAmountCents());
+            auditService.appendLog(operatorId, "MERCHANT_WITHDRAW_PAYOUT", BIZ_MERCHANT_WITHDRAW,
+                    String.valueOf(requestId), "打款金额(�?=" + request.getAmountCents());
             return attemptPayout(request);
         });
     }
@@ -339,7 +339,7 @@ public class MerchantWithdrawService {
     private void validateAmount(String merchantId, long amountCents) {
         if (amountCents < properties.minAmountCents()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "最低提现 " + (properties.minAmountCents() / 100.0) + " 元");
+                    "最低提�?" + (properties.minAmountCents() / 100.0) + " �?);
         }
         MerchantWalletAccount account = merchantWalletService.ensureAccount(merchantId);
         long available = value(account.getBalanceCents()) - value(account.getFrozenCents());
@@ -357,13 +357,13 @@ public class MerchantWithdrawService {
         Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
                 userId, MerchantFeaturePacks.BIZ);
         if (merchantIds == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "运营账号请走后台调账/代提现");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "运营账号请走后台调账/代提�?);
         }
         if (merchantIds.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "未绑定商户");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "未绑定商�?);
         }
         return merchantIds.stream().sorted(Comparator.naturalOrder()).findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "未绑定商户"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "未绑定商�?));
     }
 
     private Merchant requireMerchant(String merchantId) {
@@ -371,7 +371,7 @@ public class MerchantWithdrawService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商户 ID 无效");
         }
         return merchantMapper.findById(merchantId.trim())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "商户不存在"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "商户不存�?));
     }
 
     private MerchantWithdrawRequest requireRequest(long requestId) {
@@ -456,7 +456,7 @@ public class MerchantWithdrawService {
 
     private <T> T runWithMerchantWalletLock(String merchantId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(merchantWalletLockKey(merchantId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "钱包处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "钱包处理中，请稍后重�?);
         }
         try {
             return action.get();
