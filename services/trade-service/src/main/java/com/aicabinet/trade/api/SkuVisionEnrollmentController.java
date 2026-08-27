@@ -13,6 +13,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
+
 @RestController
 @RequestMapping("/api/v2/ops/admin/sku-vision")
 public class SkuVisionEnrollmentController {
@@ -80,7 +82,7 @@ public class SkuVisionEnrollmentController {
     public ApiResponse<java.util.Map<String, Object>> suggestClassFromImage(
             HttpServletRequest request,
             @RequestParam("skuName") String skuName,
-            @RequestPart("image") org.springframework.web.multipart.MultipartFile image) throws Exception {
+            @RequestPart("image") org.springframework.web.multipart.MultipartFile image) throws IOException {
         operatorId(request);
         return ApiResponse.ok(enrollmentService.suggestClassFromImage(
                 image.getBytes(), image.getOriginalFilename(), skuName));

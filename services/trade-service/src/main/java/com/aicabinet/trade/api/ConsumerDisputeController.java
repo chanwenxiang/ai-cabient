@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 
 @RestController
@@ -76,7 +77,7 @@ public class ConsumerDisputeController {
     public void downloadEvidence(
             HttpServletRequest request,
             HttpServletResponse response,
-            @PathVariable("fileId") Long fileId) throws Exception {
+            @PathVariable("fileId") Long fileId) throws IOException {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         boolean operator = permissionService.hasAnyPermission(userId,
                 "ops:dispute", "ops:dispute:resolve");

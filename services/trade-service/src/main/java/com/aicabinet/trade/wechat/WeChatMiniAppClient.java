@@ -105,7 +105,8 @@ public class WeChatMiniAppClient {
             JsonNode node = objectMapper.readTree(response);
             int err = node.path(ERRCODE).asInt(0);
             if (err != 0) {
-                log.warn("subscribe send failed openId={} err={} msg={}", openId, err, node.path("errmsg").asText());
+                String errmsg = node.path("errmsg").asText();
+                log.warn("subscribe send failed openId={} err={} msg={}", openId, err, errmsg);
                 return false;
             }
             return true;
@@ -147,7 +148,8 @@ public class WeChatMiniAppClient {
             JsonNode node = objectMapper.readTree(response);
             int err = node.path(ERRCODE).asInt(0);
             if (err != 0) {
-                log.warn("generate_urllink failed err={} msg={}", err, node.path("errmsg").asText());
+                String errmsg = node.path("errmsg").asText();
+                log.warn("generate_urllink failed err={} msg={}", err, errmsg);
                 return java.util.Optional.empty();
             }
             String link = node.path("url_link").asText(null);
@@ -162,23 +164,29 @@ public class WeChatMiniAppClient {
         }
     }
 
-    private String accessToken() throws Exception {
+    private String accessToken() {
         CachedToken current = cachedToken.get();
         if (current != null && current.expiresAt.isAfter(Instant.now().plusSeconds(120))) {
             return current.token;
         }
-        String body = restClient.get()
-                .uri(ACCESS_TOKEN_URL, properties.appId(), properties.appSecret())
-                .retrieve()
-                .body(String.class);
-        JsonNode node = objectMapper.readTree(body);
-        if (node.has(ERRCODE) && node.get(ERRCODE).asInt() != 0) {
-            throw new IllegalStateException("access_token failed: " + body);
+        try {
+            String body = restClient.get()
+                    .uri(ACCESS_TOKEN_URL, properties.appId(), properties.appSecret())
+                    .retrieve()
+                    .body(String.class);
+            JsonNode node = objectMapper.readTree(body);
+            if (node.has(ERRCODE) && node.get(ERRCODE).asInt() != 0) {
+                throw new IllegalStateException("access_token failed: " + body);
+            }
+            String token = node.get("access_token").asText();
+            int expiresIn = node.path("expires_in").asInt(7200);
+            cachedToken.set(new CachedToken(token, Instant.now().plusSeconds(expiresIn)));
+            return token;
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("access_token failed", e);
         }
-        String token = node.get("access_token").asText();
-        int expiresIn = node.path("expires_in").asInt(7200);
-        cachedToken.set(new CachedToken(token, Instant.now().plusSeconds(expiresIn)));
-        return token;
     }
 
     private static String truncate(String value, int max) {

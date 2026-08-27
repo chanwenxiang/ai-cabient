@@ -60,7 +60,7 @@ public class TccTransactionCoordinator {
             return txId;
         } catch (Exception e) {
             log.error("Failed to begin transaction", e);
-            throw new RuntimeException("Failed to begin transaction", e);
+            throw new IllegalStateException("Failed to begin transaction", e);
         }
     }
     

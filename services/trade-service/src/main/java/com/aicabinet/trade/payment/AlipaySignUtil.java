@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
+import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
 import java.security.Signature;
 import java.security.PublicKey;
@@ -55,13 +56,13 @@ public class AlipaySignUtil {
         }
     }
 
-    private static PrivateKey loadPrivateKey(String pem) throws Exception {
+    private static PrivateKey loadPrivateKey(String pem) throws GeneralSecurityException {
         String normalized = normalizePem(pem);
         byte[] decoded = Base64.getDecoder().decode(normalized);
         return KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(decoded));
     }
 
-    private static PublicKey loadPublicKey(String pem) throws Exception {
+    private static PublicKey loadPublicKey(String pem) throws GeneralSecurityException {
         String normalized = normalizePem(pem);
         byte[] decoded = Base64.getDecoder().decode(normalized);
         return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(decoded));

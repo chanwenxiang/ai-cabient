@@ -283,7 +283,8 @@ public class PaymentService {
                                    String serial) {
         JsonNode transaction = notifyService.parseAndVerify(body, timestamp, nonce, signature, serial);
         if (!STATUS_SUCCESS.equals(transaction.path(TRADE_STATE).asText())) {
-            log.info("wechat notify ignored trade_state={}", transaction.path(TRADE_STATE).asText());
+            String tradeState = transaction.path(TRADE_STATE).asText();
+            log.info("wechat notify ignored trade_state={}", tradeState);
             return;
         }
         String outTradeNo = transaction.path(OUT_TRADE_NO).asText(null);
@@ -686,7 +687,7 @@ public class PaymentService {
         }
         order.setWxTransactionId(txnId.trim());
         rechargeOrderRepository.save(order);
-        log.info("backfilled wxTransactionId rechargeOrder={} txn={}", order.getOrderId(), txnId.trim());
+        log.info("backfilled wxTransactionId rechargeOrder={} txn={}", order.getOrderId(), order.getWxTransactionId());
     }
 
     private void persistAlipayTradeNo(RechargeOrder order, String tradeNo) {
@@ -698,7 +699,7 @@ public class PaymentService {
         }
         order.setAlipayTradeNo(tradeNo.trim());
         rechargeOrderRepository.save(order);
-        log.info("backfilled alipayTradeNo rechargeOrder={} tradeNo={}", order.getOrderId(), tradeNo.trim());
+        log.info("backfilled alipayTradeNo rechargeOrder={} tradeNo={}", order.getOrderId(), order.getAlipayTradeNo());
     }
 
     /** 入账时把网关交易号写入 recharge-credit 流水，供后续退款回填。 */

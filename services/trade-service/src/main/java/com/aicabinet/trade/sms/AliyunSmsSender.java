@@ -13,6 +13,8 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -94,7 +96,8 @@ public class AliyunSmsSender implements SmsSender {
             if (status >= 400) {
                 throw new IllegalStateException("Aliyun SMS HTTP " + status);
             }
-            log.info("SMS code dispatched via Aliyun phone={}", maskPhone(phoneNumber));
+            String masked = maskPhone(phoneNumber);
+            log.info("SMS code dispatched via Aliyun phone={}", masked);
         } catch (Exception e) {
             throw new IllegalStateException("Aliyun SMS dispatch failed", e);
         }
@@ -104,7 +107,7 @@ public class AliyunSmsSender implements SmsSender {
         return v == null || v.isBlank() ? def : v.trim();
     }
 
-    private static String sign(String stringToSign, String key) throws Exception {
+    private static String sign(String stringToSign, String key) throws NoSuchAlgorithmException, InvalidKeyException {
         // 阿里云 OpenAPI RPC 签名算法规定 HmacSHA1，不可换用更强摘要
         Mac mac = Mac.getInstance("HmacSHA1");
         mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA1"));

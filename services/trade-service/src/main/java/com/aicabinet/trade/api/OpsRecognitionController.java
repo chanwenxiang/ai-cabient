@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+
 /** 运营端：上传商品图测试识别辅助（DeepSeek 建议类名） */
 @RestController
 @RequestMapping("/api/v2/ops")
@@ -33,7 +35,7 @@ public class OpsRecognitionController {
     public ApiResponse<DevRecognitionPreviewDto> preview(
             HttpServletRequest request,
             @RequestPart("image") MultipartFile image,
-            @RequestParam(value = "deviceId", required = false) String deviceId) throws Exception {
+            @RequestParam(value = "deviceId", required = false) String deviceId) throws IOException {
         Long operatorId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         OperatorAuth.requireOperator(operatorId);
         byte[] bytes = requireImage(image);
@@ -49,7 +51,7 @@ public class OpsRecognitionController {
             @RequestPart("image") MultipartFile image,
             @RequestParam(value = "sessionId", required = false) String sessionId,
             @RequestParam(value = "mode", required = false, defaultValue = "FULL") String mode,
-            @RequestParam(value = "settle", required = false, defaultValue = "false") boolean settle) throws Exception {
+            @RequestParam(value = "settle", required = false, defaultValue = "false") boolean settle) throws IOException {
         Long operatorId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         OperatorAuth.requireOperator(operatorId);
         byte[] bytes = requireImage(image);
@@ -64,7 +66,7 @@ public class OpsRecognitionController {
     public ApiResponse<DevRecognitionPreviewDto> disputeSuggest(
             HttpServletRequest request,
             @RequestParam("deviceId") String deviceId,
-            @RequestPart("image") MultipartFile image) throws Exception {
+            @RequestPart("image") MultipartFile image) throws IOException {
         Long operatorId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         OperatorAuth.requireOperator(operatorId);
         byte[] bytes = requireImage(image);
@@ -72,7 +74,7 @@ public class OpsRecognitionController {
                 deviceId, bytes, image.getOriginalFilename()));
     }
 
-    private static byte[] requireImage(MultipartFile image) throws Exception {
+    private static byte[] requireImage(MultipartFile image) throws IOException {
         if (image == null || image.isEmpty()) {
             throw new IllegalArgumentException("请上传商品图片");
         }

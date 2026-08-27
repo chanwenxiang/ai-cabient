@@ -3,6 +3,7 @@ package com.aicabinet.device.mqtt;
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.mqtt.MqttTopics;
 import com.aicabinet.device.config.MqttProperties;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.eclipse.paho.client.mqttv3.*;
 import org.eclipse.paho.client.mqttv3.persist.MqttDefaultFilePersistence;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -76,8 +78,8 @@ public class MqttCommandPublisher {
             publish(deviceId, payload);
             log.info("published OPEN_DOOR to {} commandId={}", deviceId, commandId);
             return commandId;
-        } catch (Exception e) {
-            throw new RuntimeException("failed to publish open door command", e);
+        } catch (MqttException | JsonProcessingException e) {
+            throw new IllegalStateException("failed to publish open door command", e);
         }
     }
 
@@ -94,8 +96,8 @@ public class MqttCommandPublisher {
             publish(deviceId, payload);
             log.info("published SET_TARGET_TEMP to {} commandId={} target={}", deviceId, commandId, targetTempC);
             return commandId;
-        } catch (Exception e) {
-            throw new RuntimeException("failed to publish set target temp command", e);
+        } catch (MqttException | JsonProcessingException e) {
+            throw new IllegalStateException("failed to publish set target temp command", e);
         }
     }
 
@@ -112,12 +114,12 @@ public class MqttCommandPublisher {
             publish(deviceId, payload);
             log.info("published {} to {} commandId={}", commandType, deviceId, commandId);
             return commandId;
-        } catch (Exception e) {
-            throw new RuntimeException("failed to publish ops command " + commandType, e);
+        } catch (MqttException | JsonProcessingException e) {
+            throw new IllegalStateException("failed to publish ops command " + commandType, e);
         }
     }
 
-    private void publish(String deviceId, Map<String, Object> payload) throws Exception {
+    private void publish(String deviceId, Map<String, Object> payload) throws MqttException, JsonProcessingException {
         ensureConnected();
         byte[] bytes = objectMapper.writeValueAsBytes(payload);
         MqttMessage message = new MqttMessage(bytes);
@@ -144,7 +146,7 @@ public class MqttCommandPublisher {
         Path dir = Path.of(root, name);
         try {
             Files.createDirectories(dir);
-        } catch (Exception e) {
+        } catch (IOException e) {
             throw new IllegalStateException("failed to create MQTT persistence dir " + dir, e);
         }
         return new MqttDefaultFilePersistence(dir.toString());

@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -64,7 +65,7 @@ public final class AlipayBillCsvParser {
         return all;
     }
 
-    private static byte[] readZipEntryBounded(ZipInputStream zis, long maxBytes) throws Exception {
+    private static byte[] readZipEntryBounded(ZipInputStream zis, long maxBytes) throws IOException {
         byte[] buf = new byte[8192];
         int read;
         long total = 0;

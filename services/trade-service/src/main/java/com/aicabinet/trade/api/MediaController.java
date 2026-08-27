@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
+
 /**
  * Public-ish media endpoints used by {@code <img src>} (no Authorization header).
  * Product catalog images and ad-asset previews are accessed by opaque id.
@@ -28,7 +30,7 @@ public class MediaController {
     }
 
     @GetMapping("/sku-images/{fileId}")
-    public void skuImage(@PathVariable("fileId") Long fileId, HttpServletResponse response) throws Exception {
+    public void skuImage(@PathVariable("fileId") Long fileId, HttpServletResponse response) throws IOException {
         FileAttachment row = fileAttachmentService.requireSkuImage(fileId);
         fileAttachmentService.stream(row, response);
     }

@@ -89,12 +89,14 @@ public class WeChatProfitSharingService {
             split.setWechatOutOrderNo(outOrderNo);
         }
 
+        String trimmedWxTxn = wxTransactionId.trim();
+
         if (profitSharingProperties.mockEnabled()) {
-            split.setWechatTransactionId(wxTransactionId.trim());
+            split.setWechatTransactionId(trimmedWxTxn);
             split.setStatus(WECHAT_SUBMITTED);
             split.setFailureReason(null);
             log.info("mock profit sharing submitted splitId={} orderId={} wxTxn={}",
-                    split.getSplitId(), split.getOrderId(), wxTransactionId.trim());
+                    split.getSplitId(), split.getOrderId(), trimmedWxTxn);
             return splitRepository.save(split);
         }
 
@@ -106,21 +108,22 @@ public class WeChatProfitSharingService {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("appid", weChatPayProperties.appId());
-        body.put("transaction_id", wxTransactionId.trim());
+        body.put("transaction_id", trimmedWxTxn);
         body.put("out_order_no", outOrderNo);
         body.put("receivers", List.of(receiver));
         body.put("unfreeze_unsplit", true);
 
         try {
             JsonNode resp = weChatPayV3Client.post("/v3/profitsharing/orders", body);
-            split.setWechatTransactionId(wxTransactionId.trim());
+            split.setWechatTransactionId(trimmedWxTxn);
             split.setStatus(WECHAT_SUBMITTED);
             split.setFailureReason(null);
+            String wxOrderId = resp.path("order_id").asText();
             log.info("wechat profit sharing submitted splitId={} orderId={} wxOrderId={}",
-                    split.getSplitId(), split.getOrderId(), resp.path("order_id").asText());
+                    split.getSplitId(), split.getOrderId(), wxOrderId);
         } catch (Exception e) {
             split.setStatus("WECHAT_FAILED");
-            split.setWechatTransactionId(wxTransactionId.trim());
+            split.setWechatTransactionId(trimmedWxTxn);
             split.setFailureReason(truncate(e.getMessage()));
             log.warn("wechat profit sharing failed splitId={}: {}", split.getSplitId(), e.getMessage());
         }
