@@ -411,13 +411,12 @@ public class ReplenishmentService {
         }
         boolean anyGap = false;
         for (String deviceId : deviceIds) {
-            if (deviceId == null || deviceId.isBlank()) {
-                continue;
-            }
-            List<ReplenishmentSuggestDto> suggestions = warehouseService.suggestForDevice(deviceId.trim(), true);
-            if (suggestions.stream().anyMatch(s -> s.suggestQty() > 0)) {
-                anyGap = true;
-                break;
+            if (deviceId != null && !deviceId.isBlank()) {
+                List<ReplenishmentSuggestDto> suggestions = warehouseService.suggestForDevice(deviceId.trim(), true);
+                if (suggestions.stream().anyMatch(s -> s.suggestQty() > 0)) {
+                    anyGap = true;
+                    break;
+                }
             }
         }
         if (!anyGap) {
@@ -907,35 +906,33 @@ public class ReplenishmentService {
         }
         int received = 0;
         for (var ol : warehouseService.outboundLinesForDevice(task.getOutboundId(), task.getDeviceId())) {
-            if (ol.getQuantity() <= 0) {
-                continue;
-            }
-            int credit = remainingCredit.getOrDefault(ol.getSkuId(), 0);
-            int need = ol.getQuantity() - credit;
-            if (credit > 0) {
-                remainingCredit.put(ol.getSkuId(), Math.max(0, credit - ol.getQuantity()));
-            }
-            if (need <= 0) {
-                continue;
-            }
-            List<DeviceSlotService.SlotRestockAllocation> allocations =
-                    resolveOutboundSlotAllocations(task.getDeviceId(), ol, need);
-            if (allocations.isEmpty()) {
-                // 无货道绑定时仍按出库数量回写（兼容旧柜）
-                if (!deviceSlotService.hasSkuSlots(task.getDeviceId(), ol.getSkuId())) {
-                    inventoryLotService.addRestock(
-                            task.getDeviceId(), ol.getSkuId(), ol.getBatchNo(), null,
-                            ol.getExpiryDate(), need, null, operatorId, refId);
-                    received += need;
+            if (ol.getQuantity() > 0) {
+                int credit = remainingCredit.getOrDefault(ol.getSkuId(), 0);
+                int need = ol.getQuantity() - credit;
+                if (credit > 0) {
+                    remainingCredit.put(ol.getSkuId(), Math.max(0, credit - ol.getQuantity()));
                 }
-                continue;
-            }
-            for (DeviceSlotService.SlotRestockAllocation alloc : allocations) {
-                inventoryLotService.addRestock(
-                        task.getDeviceId(), ol.getSkuId(), ol.getBatchNo(), null,
-                        ol.getExpiryDate(), alloc.quantity(), alloc.slotCode(), operatorId, refId);
-                deviceSlotService.recordRestock(task.getDeviceId(), alloc.slotCode());
-                received += alloc.quantity();
+                if (need > 0) {
+                    List<DeviceSlotService.SlotRestockAllocation> allocations =
+                            resolveOutboundSlotAllocations(task.getDeviceId(), ol, need);
+                    if (allocations.isEmpty()) {
+                        // 无货道绑定时仍按出库数量回写（兼容旧柜）
+                        if (!deviceSlotService.hasSkuSlots(task.getDeviceId(), ol.getSkuId())) {
+                            inventoryLotService.addRestock(
+                                    task.getDeviceId(), ol.getSkuId(), ol.getBatchNo(), null,
+                                    ol.getExpiryDate(), need, null, operatorId, refId);
+                            received += need;
+                        }
+                    } else {
+                        for (DeviceSlotService.SlotRestockAllocation alloc : allocations) {
+                            inventoryLotService.addRestock(
+                                    task.getDeviceId(), ol.getSkuId(), ol.getBatchNo(), null,
+                                    ol.getExpiryDate(), alloc.quantity(), alloc.slotCode(), operatorId, refId);
+                            deviceSlotService.recordRestock(task.getDeviceId(), alloc.slotCode());
+                            received += alloc.quantity();
+                        }
+                    }
+                }
             }
         }
         return received;
@@ -1073,18 +1070,18 @@ public class ReplenishmentService {
             }
             if (STATUS_CANCELLED.equals(task.getStatus())) {
                 cancelTaskOutboundIfPresent(operatorId, task);
-                continue;
-            }
-            try {
-                assertTaskCancellableEmpty(task);
-            } catch (ResponseStatusException ex) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_ROUTE_CANCEL_BLOCKED);
-            }
-            cancelTaskOutboundIfPresent(operatorId, task);
-            task.setStatus(STATUS_CANCELLED);
-            taskRepository.save(task);
-            if (sessionService != null) {
-                sessionService.closeRestockSessionsForTask(task.getTaskId(), "补货任务已取消，自动关闭开门会话");
+            } else {
+                try {
+                    assertTaskCancellableEmpty(task);
+                } catch (ResponseStatusException ex) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_ROUTE_CANCEL_BLOCKED);
+                }
+                cancelTaskOutboundIfPresent(operatorId, task);
+                task.setStatus(STATUS_CANCELLED);
+                taskRepository.save(task);
+                if (sessionService != null) {
+                    sessionService.closeRestockSessionsForTask(task.getTaskId(), "补货任务已取消，自动关闭开门会话");
+                }
             }
         }
     }

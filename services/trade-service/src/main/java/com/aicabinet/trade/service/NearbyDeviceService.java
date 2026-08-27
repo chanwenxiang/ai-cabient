@@ -38,14 +38,12 @@ public class NearbyDeviceService {
 
         List<NearbyDeviceDto> out = new ArrayList<>();
         for (DeviceInfo d : deviceRepository.findAllOrderByDeviceIdAsc()) {
-            if (!hasCoordinates(d) || isExcludedLifecycle(d.getLifecycleStatus())) {
-                continue;
+            if (hasCoordinates(d) && !isExcludedLifecycle(d.getLifecycleStatus())) {
+                double dist = haversineMeters(latitude, longitude, d.getLatitude(), d.getLongitude());
+                if (dist <= radiusM) {
+                    out.add(toDto(d, dist));
+                }
             }
-            double dist = haversineMeters(latitude, longitude, d.getLatitude(), d.getLongitude());
-            if (dist > radiusM) {
-                continue;
-            }
-            out.add(toDto(d, dist));
         }
         out.sort(Comparator.comparingDouble(NearbyDeviceDto::distanceMeters));
         return out.size() > max ? out.subList(0, max) : out;

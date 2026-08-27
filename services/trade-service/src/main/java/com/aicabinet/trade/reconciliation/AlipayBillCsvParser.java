@@ -48,14 +48,11 @@ public final class AlipayBillCsvParser {
                     throw new IllegalStateException("alipay bill zip has too many entries");
                 }
                 String name = entry.getName() == null ? "" : entry.getName().replace('\\', '/');
-                if (name.contains("..") || name.startsWith("/") || entry.isDirectory()) {
-                    continue;
+                if (!name.contains("..") && !name.startsWith("/") && !entry.isDirectory()
+                        && name.toLowerCase(Locale.ROOT).endsWith(".csv")) {
+                    byte[] csvBytes = readZipEntryBounded(zis, MAX_ENTRY_UNCOMPRESSED_BYTES);
+                    all.addAll(parseCsv(new String(csvBytes, StandardCharsets.UTF_8), billDate));
                 }
-                if (!name.toLowerCase(Locale.ROOT).endsWith(".csv")) {
-                    continue;
-                }
-                byte[] csvBytes = readZipEntryBounded(zis, MAX_ENTRY_UNCOMPRESSED_BYTES);
-                all.addAll(parseCsv(new String(csvBytes, StandardCharsets.UTF_8), billDate));
             }
         } catch (IllegalStateException e) {
             throw e;
@@ -104,15 +101,12 @@ public final class AlipayBillCsvParser {
     private static CsvHeader locateHeader(String[] lines) {
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i].trim();
-            if (line.startsWith("#") || line.isEmpty()) {
-                continue;
-            }
-            if (!line.contains("商户订单号") && !line.contains("支付宝交易号")) {
-                continue;
-            }
-            CsvHeader header = parseHeaderColumns(i, line);
-            if (header != null) {
-                return header;
+            if (!line.startsWith("#") && !line.isEmpty()
+                    && (line.contains("商户订单号") || line.contains("支付宝交易号"))) {
+                CsvHeader header = parseHeaderColumns(i, line);
+                if (header != null) {
+                    return header;
+                }
             }
         }
         return null;

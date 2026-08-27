@@ -67,14 +67,9 @@ public class DeviceCatalogService {
         List<DeviceProductDto> result = new ArrayList<>();
         for (String skuId : skuIds) {
             SkuCatalog sku = skuMap.get(skuId);
-            if (sku == null) {
-                continue;
-            }
             int qty = qtyBySku.getOrDefault(skuId, 0);
-            if (qty <= 0) {
-                continue;
-            }
-            result.add(new DeviceProductDto(
+            if (sku != null && qty > 0) {
+                result.add(new DeviceProductDto(
                     sku.getSkuId(),
                     sku.getSkuName(),
                     skuPricingService.resolveUnitPriceCents(dev, sku),
@@ -83,6 +78,7 @@ public class DeviceCatalogService {
                     sku.getCategory(),
                     sku.getDescription()
             ));
+            }
         }
         result.sort((a, b) -> a.skuName().compareToIgnoreCase(b.skuName()));
         return result;

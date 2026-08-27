@@ -1608,18 +1608,16 @@ public class AdminDashboardService {
         List<ShoppingSession> closedSessions = sessionRepository.findByStateInAndUpdatedAtAfter(
                 CLOSED_STATES, since);
         for (ShoppingSession session : closedSessions) {
-            if (scopedDevices != null && !scopedDevices.contains(session.getDeviceId())) {
-                continue;
-            }
-            LocalDate day = session.getUpdatedAt().atZone(zone).toLocalDate();
-            long[] bucket = buckets.get(day);
-            if (bucket == null) {
-                continue;
-            }
-            if (session.getState() == SessionState.COMPLETED) {
-                bucket[0]++;
-            } else if (session.getState() == SessionState.DISPUTED) {
-                bucket[1]++;
+            if (scopedDevices == null || scopedDevices.contains(session.getDeviceId())) {
+                LocalDate day = session.getUpdatedAt().atZone(zone).toLocalDate();
+                long[] bucket = buckets.get(day);
+                if (bucket != null) {
+                    if (session.getState() == SessionState.COMPLETED) {
+                        bucket[0]++;
+                    } else if (session.getState() == SessionState.DISPUTED) {
+                        bucket[1]++;
+                    }
+                }
             }
         }
 

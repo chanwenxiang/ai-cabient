@@ -361,15 +361,11 @@ public class WeChatProfitSharingService {
         int retried = 0;
         for (OrderRevenueSplit split : splits) {
             Merchant merchant = merchantsById.get(split.getMerchantId());
-            if (merchant == null) {
-                continue;
-            }
             String wxTxn = split.getWechatTransactionId();
-            if (wxTxn == null || wxTxn.isBlank()) {
-                continue;
+            if (merchant != null && wxTxn != null && !wxTxn.isBlank()) {
+                self.submitSplit(split, merchant, wxTxn);
+                retried++;
             }
-            self.submitSplit(split, merchant, wxTxn);
-            retried++;
         }
         return retried;
     }

@@ -230,30 +230,28 @@ public class BalanceRefundService {
                 break;
             }
             int refundable = order.getAmountCents() - Math.max(0, order.getRefundedCents());
-            if (refundable <= 0) {
-                continue;
+            if (refundable > 0) {
+                String channel = normalizeRefundChannel(order.getChannel());
+                if (channel != null) {
+                    int slice = Math.min(remain, refundable);
+                    String outRefundNo = "BR" + req.getRequestId() + "R"
+                            + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+                    paymentService.refundRechargeChannelPartial(
+                            order.getOrderId(), slice,
+                            "余额退款申请 " + req.getRequestNo(),
+                            outRefundNo);
+                    BalanceRefundAllocation alloc = new BalanceRefundAllocation();
+                    alloc.setRequestId(req.getRequestId());
+                    alloc.setRechargeOrderId(order.getOrderId());
+                    alloc.setAmountCents(slice);
+                    alloc.setChannel(channel);
+                    alloc.setOutRefundNo(outRefundNo);
+                    alloc.setCreatedAt(Instant.now());
+                    allocationMapper.insert(alloc);
+                    allocations.add(alloc);
+                    remain -= slice;
+                }
             }
-            String channel = normalizeRefundChannel(order.getChannel());
-            if (channel == null) {
-                continue;
-            }
-            int slice = Math.min(remain, refundable);
-            String outRefundNo = "BR" + req.getRequestId() + "R"
-                    + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
-            paymentService.refundRechargeChannelPartial(
-                    order.getOrderId(), slice,
-                    "余额退款申请 " + req.getRequestNo(),
-                    outRefundNo);
-            BalanceRefundAllocation alloc = new BalanceRefundAllocation();
-            alloc.setRequestId(req.getRequestId());
-            alloc.setRechargeOrderId(order.getOrderId());
-            alloc.setAmountCents(slice);
-            alloc.setChannel(channel);
-            alloc.setOutRefundNo(outRefundNo);
-            alloc.setCreatedAt(Instant.now());
-            allocationMapper.insert(alloc);
-            allocations.add(alloc);
-            remain -= slice;
         }
         if (remain > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,

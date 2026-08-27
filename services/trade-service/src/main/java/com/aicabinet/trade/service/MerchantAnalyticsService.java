@@ -300,18 +300,16 @@ public class MerchantAnalyticsService {
         int oosCount = 0;
         long loss = 0;
         for (Map.Entry<String, Long> e : stock.entrySet()) {
-            if (e.getValue() > 0) {
-                continue;
+            if (e.getValue() <= 0) {
+                long[] v = sales.get(e.getKey());
+                if (v != null && v[0] > 0) {
+                    oosCount++;
+                    // 按日均销量 × 件均毛利 × min(窗口,7) 估算近期缺货损失
+                    long unitMargin = Math.max(0, (v[1] - v[2]) / Math.max(1, v[0]));
+                    double daily = (double) v[0] / Math.max(1, window);
+                    loss += Math.round(daily * unitMargin * Math.min(window, 7));
+                }
             }
-            long[] v = sales.get(e.getKey());
-            if (v == null || v[0] <= 0) {
-                continue;
-            }
-            oosCount++;
-            // 按日均销量 × 件均毛利 × min(窗口,7) 估算近期缺货损失
-            long unitMargin = Math.max(0, (v[1] - v[2]) / Math.max(1, v[0]));
-            double daily = (double) v[0] / Math.max(1, window);
-            loss += Math.round(daily * unitMargin * Math.min(window, 7));
         }
         return new StockoutEstimate(oosCount, loss);
     }
