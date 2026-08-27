@@ -149,34 +149,59 @@ public class MerchantOnboardingService {
         if (!CHANNELS.contains(channel)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "channel 仅支持 WECHAT/ALIPAY/PAYSCORE");
         }
-        String status = req.status() == null || req.status().isBlank() ? CabinetConstants.PROMOTION_STATUS_DRAFT : req.status().trim().toUpperCase();
+        String status = normalizeOnboardingStatus(req.status());
+        MerchantPaymentOnboarding row = loadOrCreateOnboarding(onboardingId, mid, channel);
+        String previousStatus = row.getStatus();
+        assertUpsertStatusTransition(previousStatus, status, row.getOnboardingId());
+        applyOnboardingFields(row, mid, channel, status, req);
+        if (row.getOnboardingId() == null) {
+            onboardingMapper.insert(row);
+        } else {
+            onboardingMapper.updateById(row);
+        }
+        maybeStartOnboardingApproval(operatorId, mid, channel, status, previousStatus, row);
+        auditService.record(operatorId, "MERCHANT_ONBOARD_UPSERT", MERCHANT, mid, channel + ":" + status);
+        return toDto(row, merchantName(mid));
+    }
+
+    private static String normalizeOnboardingStatus(String rawStatus) {
+        String status = rawStatus == null || rawStatus.isBlank()
+                ? CabinetConstants.PROMOTION_STATUS_DRAFT
+                : rawStatus.trim().toUpperCase();
         if (!STATUSES.contains(status)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "非法 status");
         }
+        return status;
+    }
 
-        MerchantPaymentOnboarding row;
+    private MerchantPaymentOnboarding loadOrCreateOnboarding(Long onboardingId, String mid, String channel) {
         if (onboardingId != null) {
-            row = onboardingMapper.findByIdForUpdate(onboardingId)
+            return onboardingMapper.findByIdForUpdate(onboardingId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "进件记录不存在"));
-        } else {
-            row = onboardingMapper.findByMerchantAndChannelForUpdate(mid, channel)
-                    .orElseGet(MerchantPaymentOnboarding::new);
-            if (row.getOnboardingId() == null) {
-                row.setCreatedAt(Instant.now());
-            }
         }
-        String previousStatus = row.getStatus();
+        MerchantPaymentOnboarding row = onboardingMapper.findByMerchantAndChannelForUpdate(mid, channel)
+                .orElseGet(MerchantPaymentOnboarding::new);
+        if (row.getOnboardingId() == null) {
+            row.setCreatedAt(Instant.now());
+        }
+        return row;
+    }
+
+    private void assertUpsertStatusTransition(String previousStatus, String status, Long onboardingId) {
         if (SUBMITTED.equals(previousStatus) && !SUBMITTED.equals(status)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "审批中的进件请通过审批操作处理");
         }
         boolean approvalEnabled = approvalWorkflowService.isDefinitionEnabled(BIZ_MERCHANT_ONBOARD);
         if (CabinetConstants.PROMOTION_STATUS_ACTIVE.equals(status) && approvalEnabled) {
-            String bizId = row.getOnboardingId() == null ? null : String.valueOf(row.getOnboardingId());
+            String bizId = onboardingId == null ? null : String.valueOf(onboardingId);
             if (bizId == null || !approvalWorkflowService.isInstanceApproved(BIZ_MERCHANT_ONBOARD, bizId)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "进件须审批通过后方可生效");
             }
         }
+    }
 
+    private static void applyOnboardingFields(MerchantPaymentOnboarding row, String mid, String channel,
+                                              String status, UpsertMerchantOnboardingRequest req) {
         row.setMerchantId(mid);
         row.setChannel(channel);
         row.setStatus(status);
@@ -187,31 +212,28 @@ public class MerchantOnboardingService {
         if (CabinetConstants.PROMOTION_STATUS_ACTIVE.equals(status) || SUBMITTED.equals(status)) {
             row.setLastSyncedAt(Instant.now());
         }
-        if (row.getOnboardingId() == null) {
-            onboardingMapper.insert(row);
-        } else {
-            onboardingMapper.updateById(row);
-        }
+    }
 
-        if (SUBMITTED.equals(status)) {
-            String bizId = String.valueOf(row.getOnboardingId());
-            String approvalStatus = approvalWorkflowService.instanceStatus(BIZ_MERCHANT_ONBOARD, bizId).orElse(null);
-            boolean canRestart = previousStatus == null
-                    || CabinetConstants.PROMOTION_STATUS_DRAFT.equals(previousStatus)
-                    || STATUS_REJECTED.equals(previousStatus)
-                    || (SUBMITTED.equals(previousStatus) && approvalStatus == null);
-            if (canRestart && !"PENDING".equals(approvalStatus) && !"APPROVED".equals(approvalStatus)) {
-                String merchantName = merchantName(mid);
-                approvalWorkflowService.start(
-                        BIZ_MERCHANT_ONBOARD,
-                        bizId,
-                        operatorId,
-                        "商户进件 " + merchantName + " · " + channelLabel(channel));
-            }
+    private void maybeStartOnboardingApproval(Long operatorId, String mid, String channel,
+                                              String status, String previousStatus,
+                                              MerchantPaymentOnboarding row) {
+        if (!SUBMITTED.equals(status)) {
+            return;
         }
-
-        auditService.record(operatorId, "MERCHANT_ONBOARD_UPSERT", MERCHANT, mid, channel + ":" + status);
-        return toDto(row, merchantName(mid));
+        String bizId = String.valueOf(row.getOnboardingId());
+        String approvalStatus = approvalWorkflowService.instanceStatus(BIZ_MERCHANT_ONBOARD, bizId).orElse(null);
+        boolean canRestart = previousStatus == null
+                || CabinetConstants.PROMOTION_STATUS_DRAFT.equals(previousStatus)
+                || STATUS_REJECTED.equals(previousStatus)
+                || (SUBMITTED.equals(previousStatus) && approvalStatus == null);
+        if (canRestart && !"PENDING".equals(approvalStatus) && !"APPROVED".equals(approvalStatus)) {
+            String merchantName = merchantName(mid);
+            approvalWorkflowService.start(
+                    BIZ_MERCHANT_ONBOARD,
+                    bizId,
+                    operatorId,
+                    "商户进件 " + merchantName + " · " + channelLabel(channel));
+        }
     }
 
     @Transactional(readOnly = true)

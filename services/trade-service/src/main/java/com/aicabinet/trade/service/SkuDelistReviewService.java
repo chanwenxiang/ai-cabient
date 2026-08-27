@@ -76,7 +76,19 @@ public class SkuDelistReviewService {
     private List<SkuDelistReviewDto> doRunReview(int days) {
         int window = Math.min(Math.max(days, 7), 90);
         Instant since = LocalDate.now(ZONE).minusDays(window - 1L).atStartOfDay(ZONE).toInstant();
-        Map<String, long[]> sales = new HashMap<>(); // skuId -> [qty, revenueCents]
+        Map<String, long[]> sales = loadSalesBySku(since);
+        Map<String, Long> stock = loadStockBySku();
+        Map<String, SkuCatalog> skus = skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()
+                .collect(LinkedHashMap::new, (m, s) -> m.put(s.getSkuId(), s), LinkedHashMap::putAll);
+        for (SkuCatalog sku : skus.values()) {
+            upsertSkuReview(sku, sales, stock, window);
+        }
+        log.info("sku review refreshed window={}d skus={}", window, skus.size());
+        return self.list();
+    }
+
+    private Map<String, long[]> loadSalesBySku(Instant since) {
+        Map<String, long[]> sales = new HashMap<>();
         for (Object[] row : lineRepository.skuBreakdownSince(since)) {
             if (row == null || row.length < 4 || row[0] == null) {
                 continue;
@@ -86,7 +98,10 @@ public class SkuDelistReviewService {
             long revenue = num(row[3]);
             sales.merge(skuId, new long[]{qty, revenue}, (a, b) -> new long[]{a[0] + b[0], a[1] + b[1]});
         }
+        return sales;
+    }
 
+    private Map<String, Long> loadStockBySku() {
         Map<String, Long> stock = new HashMap<>();
         Map<String, Boolean> ledgerByDevice = new HashMap<>();
         Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
@@ -98,59 +113,55 @@ public class SkuDelistReviewService {
             boolean ledger = ledgerByDevice.computeIfAbsent(deviceId, inventoryLotService::deviceUsesLotLedger);
             int qty = ledger
                     ? sellableByDevice.computeIfAbsent(deviceId, inventoryLotService::sellableQtyBySku)
-                            .getOrDefault(inv.getSkuId(), 0)
+                    .getOrDefault(inv.getSkuId(), 0)
                     : inv.getQuantity();
             stock.merge(inv.getSkuId(), (long) qty, Long::sum);
         }
+        return stock;
+    }
 
-        Map<String, SkuCatalog> skus = skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()
-                .collect(LinkedHashMap::new, (m, s) -> m.put(s.getSkuId(), s), LinkedHashMap::putAll);
-
-        for (SkuCatalog sku : skus.values()) {
-            if (sku == null || sku.getSkuId() == null || sku.getSkuId().isBlank()) {
-                continue;
-            }
-            long[] s = sales.getOrDefault(sku.getSkuId(), new long[]{0L, 0L});
-            long qty = s[0];
-            long revenue = s[1];
-            long curStock = stock.getOrDefault(sku.getSkuId(), 0L);
-            double avgDaily = window <= 0 ? 0d : (double) qty / window;
-            // 勿写 ?: 混用 int / Integer：无销量有库存时第二支为 null，外层会按 int 拆箱 NPE（BUG-011）
-            Integer stockDays;
-            if (avgDaily > 0) {
-                stockDays = (int) Math.round(curStock / avgDaily);
-            } else if (curStock > 0) {
-                stockDays = null;
-            } else {
-                stockDays = 0;
-            }
-            String level = performanceLevel(qty, avgDaily);
-
-            SkuDelistReview review = reviewRepository.findBySkuId(sku.getSkuId())
-                    .orElseGet(() -> {
-                        SkuDelistReview r = new SkuDelistReview();
-                        r.setSkuId(sku.getSkuId());
-                        r.setReviewStatus("PENDING");
-                        r.setCreatedAt(Instant.now());
-                        return r;
-                    });
-            review.setPerformanceLevel(level);
-            review.setSalesQty((int) Math.min(qty, Integer.MAX_VALUE));
-            review.setRevenueCents(revenue);
-            review.setStockDays(stockDays);
-            review.setUpdatedAt(Instant.now());
-            if (review.getReviewStatus() == null || review.getReviewStatus().isBlank()) {
-                review.setReviewStatus("PENDING");
-            }
-            // 勿用 BaseTradeMapper.save：新建时 id=null 会回落到 skuId 当 PK，引发异常（BUG-011）
-            if (review.getId() == null) {
-                reviewRepository.insert(review);
-            } else {
-                reviewRepository.updateById(review);
-            }
+    private void upsertSkuReview(SkuCatalog sku, Map<String, long[]> sales, Map<String, Long> stock, int window) {
+        if (sku == null || sku.getSkuId() == null || sku.getSkuId().isBlank()) {
+            return;
         }
-        log.info("sku review refreshed window={}d skus={}", window, skus.size());
-        return self.list();
+        long[] s = sales.getOrDefault(sku.getSkuId(), new long[]{0L, 0L});
+        long qty = s[0];
+        long revenue = s[1];
+        long curStock = stock.getOrDefault(sku.getSkuId(), 0L);
+        double avgDaily = window <= 0 ? 0d : (double) qty / window;
+        Integer stockDays = resolveStockDays(avgDaily, curStock);
+        SkuDelistReview review = reviewRepository.findBySkuId(sku.getSkuId())
+                .orElseGet(() -> {
+                    SkuDelistReview r = new SkuDelistReview();
+                    r.setSkuId(sku.getSkuId());
+                    r.setReviewStatus("PENDING");
+                    r.setCreatedAt(Instant.now());
+                    return r;
+                });
+        review.setPerformanceLevel(performanceLevel(qty, avgDaily));
+        review.setSalesQty((int) Math.min(qty, Integer.MAX_VALUE));
+        review.setRevenueCents(revenue);
+        review.setStockDays(stockDays);
+        review.setUpdatedAt(Instant.now());
+        if (review.getReviewStatus() == null || review.getReviewStatus().isBlank()) {
+            review.setReviewStatus("PENDING");
+        }
+        if (review.getId() == null) {
+            reviewRepository.insert(review);
+        } else {
+            reviewRepository.updateById(review);
+        }
+    }
+
+    private static Integer resolveStockDays(double avgDaily, long curStock) {
+        // 勿写 ?: 混用 int / Integer：无销量有库存时第二支为 null，外层会按 int 拆箱 NPE（BUG-011）
+        if (avgDaily > 0) {
+            return (int) Math.round(curStock / avgDaily);
+        }
+        if (curStock > 0) {
+            return null;
+        }
+        return 0;
     }
 
     @Transactional(readOnly = true)

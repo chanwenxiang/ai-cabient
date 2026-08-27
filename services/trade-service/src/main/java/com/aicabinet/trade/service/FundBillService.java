@@ -292,26 +292,45 @@ public class FundBillService {
             if (lock != null) {
                 out.add(toLockDto(lock, true));
             } else if (d.equals(LocalDate.now(ZONE))) {
-                Instant start = d.atStartOfDay(ZONE).toInstant();
-                Instant end = d.plusDays(1).atStartOfDay(ZONE).toInstant();
-                Set<String> deviceIds = merchantScopeService.allowedDeviceIds(operatorId);
-                long revenue = deviceIds == null
-                        ? orderMapper.sumTotalAmountBetween(start, end)
-                        : deviceIds.isEmpty() ? 0 : orderMapper.sumTotalAmountByDeviceIdInBetween(deviceIds, start, end);
-                long cogs = deviceIds == null
-                        ? lineMapper.sumCogsBetween(start, end)
-                        : deviceIds.isEmpty() ? 0 : lineMapper.sumCogsByDeviceIdsBetween(deviceIds, start, end);
-                long writeOff = deviceIds == null
-                        ? writeOffMapper.sumCostCentsBetween(start, end)
-                        : deviceIds.isEmpty() ? 0 : writeOffMapper.sumCostCentsByDeviceIdsBetween(deviceIds, start, end);
-                long orderCount = countOrdersBetween(deviceIds, start, end);
-                out.add(new FinanceMarginLockDto(d.toString(), revenue, cogs, revenue - cogs, writeOff, orderCount,
-                        null, null, false));
+                out.add(liveMarginForToday(operatorId, d));
             } else {
                 out.add(new FinanceMarginLockDto(d.toString(), 0, 0, 0, 0, 0, null, null, false));
             }
         }
         return out;
+    }
+
+    private FinanceMarginLockDto liveMarginForToday(Long operatorId, LocalDate day) {
+        Instant start = day.atStartOfDay(ZONE).toInstant();
+        Instant end = day.plusDays(1).atStartOfDay(ZONE).toInstant();
+        Set<String> deviceIds = merchantScopeService.allowedDeviceIds(operatorId);
+        long revenue = sumMarginRevenue(deviceIds, start, end);
+        long cogs = sumMarginCogs(deviceIds, start, end);
+        long writeOff = sumMarginWriteOff(deviceIds, start, end);
+        long orderCount = countOrdersBetween(deviceIds, start, end);
+        return new FinanceMarginLockDto(day.toString(), revenue, cogs, revenue - cogs, writeOff, orderCount,
+                null, null, false);
+    }
+
+    private long sumMarginRevenue(Set<String> deviceIds, Instant start, Instant end) {
+        if (deviceIds == null) {
+            return orderMapper.sumTotalAmountBetween(start, end);
+        }
+        return deviceIds.isEmpty() ? 0 : orderMapper.sumTotalAmountByDeviceIdInBetween(deviceIds, start, end);
+    }
+
+    private long sumMarginCogs(Set<String> deviceIds, Instant start, Instant end) {
+        if (deviceIds == null) {
+            return lineMapper.sumCogsBetween(start, end);
+        }
+        return deviceIds.isEmpty() ? 0 : lineMapper.sumCogsByDeviceIdsBetween(deviceIds, start, end);
+    }
+
+    private long sumMarginWriteOff(Set<String> deviceIds, Instant start, Instant end) {
+        if (deviceIds == null) {
+            return writeOffMapper.sumCostCentsBetween(start, end);
+        }
+        return deviceIds.isEmpty() ? 0 : writeOffMapper.sumCostCentsByDeviceIdsBetween(deviceIds, start, end);
     }
 
     /** 财务报表：历史日优先读固化快照 */

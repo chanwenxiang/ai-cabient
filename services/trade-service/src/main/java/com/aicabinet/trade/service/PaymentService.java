@@ -624,49 +624,56 @@ public class PaymentService {
      */
     private void ensureRechargeGatewayTradeNo(RechargeOrder order) {
         if (PayChannels.WECHAT.equalsIgnoreCase(order.getChannel())) {
-            if (order.getWxTransactionId() != null && !order.getWxTransactionId().isBlank()) {
-                return;
-            }
-            paymentOperationRepository.findRechargeCreditGatewayTradeNo(order.getOrderId())
-                    .ifPresent(txn -> persistWxTransactionId(order, txn));
-            if (order.getWxTransactionId() != null && !order.getWxTransactionId().isBlank()) {
-                return;
-            }
-            if (!weChatPayProperties.isConfigured()) {
-                return;
-            }
-            try {
-                JsonNode remote = weChatPayClient.queryByOutTradeNo(order.getOrderId());
-                if (STATUS_SUCCESS.equals(remote.path(TRADE_STATE).asText(""))) {
-                    String txnId = remote.path(TRANSACTION_ID).asText(null);
-                    persistWxTransactionId(order, txnId);
-                }
-            } catch (Exception e) {
-                log.debug("recharge wx txn backfill skipped orderId={}: {}", order.getOrderId(), e.getMessage());
-            }
+            ensureWechatRechargeTradeNo(order);
             return;
         }
         if (PayChannels.ALIPAY.equalsIgnoreCase(order.getChannel())) {
-            if (order.getAlipayTradeNo() != null && !order.getAlipayTradeNo().isBlank()) {
-                return;
+            ensureAlipayRechargeTradeNo(order);
+        }
+    }
+
+    private void ensureWechatRechargeTradeNo(RechargeOrder order) {
+        if (order.getWxTransactionId() != null && !order.getWxTransactionId().isBlank()) {
+            return;
+        }
+        paymentOperationRepository.findRechargeCreditGatewayTradeNo(order.getOrderId())
+                .ifPresent(txn -> persistWxTransactionId(order, txn));
+        if (order.getWxTransactionId() != null && !order.getWxTransactionId().isBlank()) {
+            return;
+        }
+        if (!weChatPayProperties.isConfigured()) {
+            return;
+        }
+        try {
+            JsonNode remote = weChatPayClient.queryByOutTradeNo(order.getOrderId());
+            if (STATUS_SUCCESS.equals(remote.path(TRADE_STATE).asText(""))) {
+                persistWxTransactionId(order, remote.path(TRANSACTION_ID).asText(null));
             }
-            paymentOperationRepository.findRechargeCreditGatewayTradeNo(order.getOrderId())
-                    .ifPresent(tradeNo -> persistAlipayTradeNo(order, tradeNo));
-            if (order.getAlipayTradeNo() != null && !order.getAlipayTradeNo().isBlank()) {
-                return;
+        } catch (Exception e) {
+            log.debug("recharge wx txn backfill skipped orderId={}: {}", order.getOrderId(), e.getMessage());
+        }
+    }
+
+    private void ensureAlipayRechargeTradeNo(RechargeOrder order) {
+        if (order.getAlipayTradeNo() != null && !order.getAlipayTradeNo().isBlank()) {
+            return;
+        }
+        paymentOperationRepository.findRechargeCreditGatewayTradeNo(order.getOrderId())
+                .ifPresent(tradeNo -> persistAlipayTradeNo(order, tradeNo));
+        if (order.getAlipayTradeNo() != null && !order.getAlipayTradeNo().isBlank()) {
+            return;
+        }
+        if (!alipayPayClient.isConfigured()) {
+            return;
+        }
+        try {
+            JsonNode remote = alipayPayClient.queryByOutTradeNo(order.getOrderId());
+            String tradeStatus = remote.path(TRADE_STATUS).asText("");
+            if (TRADE_SUCCESS.equals(tradeStatus) || TRADE_FINISHED.equals(tradeStatus)) {
+                persistAlipayTradeNo(order, remote.path(TRADE_NO).asText(null));
             }
-            if (!alipayPayClient.isConfigured()) {
-                return;
-            }
-            try {
-                JsonNode remote = alipayPayClient.queryByOutTradeNo(order.getOrderId());
-                String tradeStatus = remote.path(TRADE_STATUS).asText("");
-                if (TRADE_SUCCESS.equals(tradeStatus) || TRADE_FINISHED.equals(tradeStatus)) {
-                    persistAlipayTradeNo(order, remote.path(TRADE_NO).asText(null));
-                }
-            } catch (Exception e) {
-                log.debug("recharge alipay txn backfill skipped orderId={}: {}", order.getOrderId(), e.getMessage());
-            }
+        } catch (Exception e) {
+            log.debug("recharge alipay txn backfill skipped orderId={}: {}", order.getOrderId(), e.getMessage());
         }
     }
 

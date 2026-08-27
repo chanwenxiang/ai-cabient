@@ -458,23 +458,7 @@ public class WarehouseService {
     @Transactional
     public WarehouseOutboundDto createOutboundForRoute(Long routeId, String warehouseId, Long assigneeUserId) {
         String wh = resolveWarehouseId(warehouseId);
-        Optional<WarehouseOutbound> existing = outboundRepository.findByRouteId(routeId);
-        if (existing.isPresent()) {
-            WarehouseOutbound o = existing.get();
-            boolean emptyDraft = CabinetConstants.PROMOTION_STATUS_DRAFT.equals(o.getStatus())
-                    && outboundLineRepository.findByOutboundIdOrderByLineIdAsc(o.getOutboundId()).isEmpty();
-            if (!emptyDraft) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "outbound already exists for route");
-            }
-            // 历史空出库头：清理后重建明细
-            for (ReplenishmentTask task : taskRepository.findByRouteId(routeId)) {
-                if (o.getOutboundId().equals(task.getOutboundId())) {
-                    task.setOutboundId(null);
-                    taskRepository.save(task);
-                }
-            }
-            outboundRepository.deleteById(o.getOutboundId());
-        }
+        clearEmptyDraftOutboundForRoute(routeId);
         List<ReplenishmentTask> tasks = taskRepository.findByRouteId(routeId);
         if (tasks.isEmpty()) {
             throw badRequest("route has no tasks");
@@ -488,34 +472,66 @@ public class WarehouseService {
         outbound.setNotes("auto from route " + routeId);
         outbound = outboundRepository.save(outbound);
 
-        int allocatedLines = 0;
-        boolean hadSuggestQty = false;
-        for (ReplenishmentTask task : tasks) {
-            // 规划出库按补到 PAR，避免仅 minLevel 触发导致出库单无行
-            List<ReplenishmentSuggestDto> suggestions = self.suggestForDevice(task.getDeviceId(), true);
-            for (ReplenishmentSuggestDto s : suggestions) {
-                if (s.suggestQty() <= 0) continue;
-                hadSuggestQty = true;
-                // 单 SKU 库存不足时尽量分配可用量，避免整单回滚成空出库头
-                allocatedLines += allocateFefoToOutbound(
-                        outbound.getOutboundId(), wh, task.getDeviceId(), s.skuId(), s.suggestQty(), false);
-            }
-            task.setOutboundId(outbound.getOutboundId());
-            taskRepository.save(task);
-        }
-        if (allocatedLines <= 0) {
-            for (ReplenishmentTask task : tasks) {
-                if (outbound.getOutboundId().equals(task.getOutboundId())) {
-                    task.setOutboundId(null);
-                    taskRepository.save(task);
-                }
-            }
+        RouteOutboundAllocation allocation = allocateRouteOutboundLines(outbound, wh, tasks);
+        if (allocation.allocatedLines() <= 0) {
+            unlinkTasksFromOutbound(tasks, outbound.getOutboundId());
             outboundRepository.deleteById(outbound.getOutboundId());
-            throw badRequest(hadSuggestQty
+            throw badRequest(allocation.hadSuggestQty()
                     ? ApiMessages.REPLENISHMENT_WAREHOUSE_STOCK_INSUFFICIENT
                     : ApiMessages.REPLENISHMENT_NO_GAP);
         }
         return self.getOutbound(outbound.getOutboundId());
+    }
+
+    private void clearEmptyDraftOutboundForRoute(Long routeId) {
+        Optional<WarehouseOutbound> existing = outboundRepository.findByRouteId(routeId);
+        if (existing.isEmpty()) {
+            return;
+        }
+        WarehouseOutbound o = existing.get();
+        boolean emptyDraft = CabinetConstants.PROMOTION_STATUS_DRAFT.equals(o.getStatus())
+                && outboundLineRepository.findByOutboundIdOrderByLineIdAsc(o.getOutboundId()).isEmpty();
+        if (!emptyDraft) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "outbound already exists for route");
+        }
+        for (ReplenishmentTask task : taskRepository.findByRouteId(routeId)) {
+            if (o.getOutboundId().equals(task.getOutboundId())) {
+                task.setOutboundId(null);
+                taskRepository.save(task);
+            }
+        }
+        outboundRepository.deleteById(o.getOutboundId());
+    }
+
+    private record RouteOutboundAllocation(int allocatedLines, boolean hadSuggestQty) {}
+
+    private RouteOutboundAllocation allocateRouteOutboundLines(WarehouseOutbound outbound, String warehouseId,
+                                                               List<ReplenishmentTask> tasks) {
+        int allocatedLines = 0;
+        boolean hadSuggestQty = false;
+        for (ReplenishmentTask task : tasks) {
+            List<ReplenishmentSuggestDto> suggestions = self.suggestForDevice(task.getDeviceId(), true);
+            for (ReplenishmentSuggestDto s : suggestions) {
+                if (s.suggestQty() <= 0) {
+                    continue;
+                }
+                hadSuggestQty = true;
+                allocatedLines += allocateFefoToOutbound(
+                        outbound.getOutboundId(), warehouseId, task.getDeviceId(), s.skuId(), s.suggestQty(), false);
+            }
+            task.setOutboundId(outbound.getOutboundId());
+            taskRepository.save(task);
+        }
+        return new RouteOutboundAllocation(allocatedLines, hadSuggestQty);
+    }
+
+    private void unlinkTasksFromOutbound(List<ReplenishmentTask> tasks, Long outboundId) {
+        for (ReplenishmentTask task : tasks) {
+            if (outboundId.equals(task.getOutboundId())) {
+                task.setOutboundId(null);
+                taskRepository.save(task);
+            }
+        }
     }
 
     @Transactional(readOnly = true)
@@ -773,38 +789,14 @@ public class WarehouseService {
             if (STATUS_CANCELLED.equals(outbound.getStatus())) {
                 continue;
             }
-            Long outboundId = outbound.getOutboundId();
-            List<WarehouseOutboundLine> lines =
-                    outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
-            boolean handedOver = lines.stream().anyMatch(line -> {
-                String hs = line.getHandoverStatus();
-                return RECEIVED.equals(hs) || PARTIAL.equals(hs);
-            });
-            if (handedOver) {
-                skipped++;
-                continue;
-            }
-            String status = outbound.getStatus();
-            boolean empty = lines.isEmpty();
-            String routeStatus = outbound.getRouteId() == null ? null : routeStatusById.get(outbound.getRouteId());
-            boolean terminalRoute = STATUS_CANCELLED.equals(routeStatus) || "COMPLETED".equals(routeStatus);
-
-            String bucket = null;
-            if ((CabinetConstants.PROMOTION_STATUS_DRAFT.equals(status) || PICKED.equals(status)) && empty) {
-                bucket = "empty";
-            } else if ((CabinetConstants.PROMOTION_STATUS_DRAFT.equals(status) || PICKED.equals(status)) && terminalRoute) {
-                bucket = "terminal-draft";
-            } else if (SHIPPED.equals(status) && terminalRoute && !hasCompletedTaskLinked(outboundId)) {
-                // 终态路线 + 未签收 + 无已完成任务：与 cancel-empty 孤儿收口同安全边界
-                bucket = "orphan-shipped";
-            }
+            String bucket = classifyStaleOutbound(outbound, routeStatusById);
             if (bucket == null) {
                 skipped++;
                 continue;
             }
             try {
-                self.cancelUnreceivedOutbound(outboundId, operatorId);
-                cancelledIds.add(outboundId);
+                self.cancelUnreceivedOutbound(outbound.getOutboundId(), operatorId);
+                cancelledIds.add(outbound.getOutboundId());
                 switch (bucket) {
                     case "empty" -> cancelledEmptyDrafts++;
                     case "terminal-draft" -> cancelledTerminalDrafts++;
@@ -817,6 +809,33 @@ public class WarehouseService {
         }
         return new WarehouseStaleCleanupResultDto(
                 cancelledEmptyDrafts, cancelledTerminalDrafts, cancelledOrphanShipped, skipped, cancelledIds);
+    }
+
+    private String classifyStaleOutbound(WarehouseOutbound outbound, Map<Long, String> routeStatusById) {
+        Long outboundId = outbound.getOutboundId();
+        List<WarehouseOutboundLine> lines =
+                outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
+        boolean handedOver = lines.stream().anyMatch(line -> {
+            String hs = line.getHandoverStatus();
+            return RECEIVED.equals(hs) || PARTIAL.equals(hs);
+        });
+        if (handedOver) {
+            return null;
+        }
+        String status = outbound.getStatus();
+        boolean empty = lines.isEmpty();
+        String routeStatus = outbound.getRouteId() == null ? null : routeStatusById.get(outbound.getRouteId());
+        boolean terminalRoute = STATUS_CANCELLED.equals(routeStatus) || "COMPLETED".equals(routeStatus);
+        if ((CabinetConstants.PROMOTION_STATUS_DRAFT.equals(status) || PICKED.equals(status)) && empty) {
+            return "empty";
+        }
+        if ((CabinetConstants.PROMOTION_STATUS_DRAFT.equals(status) || PICKED.equals(status)) && terminalRoute) {
+            return "terminal-draft";
+        }
+        if (SHIPPED.equals(status) && terminalRoute && !hasCompletedTaskLinked(outboundId)) {
+            return "orphan-shipped";
+        }
+        return null;
     }
 
     /** 出库是否仍有已完成补货任务（已上架场景禁止自动回仓）。 */
