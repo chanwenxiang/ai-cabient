@@ -746,108 +746,113 @@ public class ReplenishmentService {
     }
 
     private ReplenishmentTaskDto doCompleteTask(Long operatorId, Long taskId) {
-
         ReplenishmentTask task = requireTaskForUpdate(taskId);
-
         // 未完成任务必须先签到，避免远程误点完成导致库存虚增
         if (!STATUS_COMPLETED.equals(task.getStatus()) && task.getCheckInAt() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     ApiMessages.REPLENISHMENT_COMPLETE_CHECK_IN_REQUIRED);
         }
-
         if (STATUS_COMPLETED.equals(task.getStatus())) {
-            // 任务已完成但出库仍在途（先完成任务、后发运的联调顺序）时，补签收；
-            // 仅当任务本身无明细时按出库行回写，避免与已上架任务行重复加库存
-            if (task.getOutboundId() != null
-                    && inTransitService.hasOpenForDevice(task.getOutboundId(), task.getDeviceId())) {
-                int appliedQty;
-                List<ReplenishmentTaskLine> existingLines =
-                        taskLineRepository.findByTaskIdOrderByLineIdAsc(taskId);
-                if (existingLines.isEmpty()) {
-                    appliedQty = restockFromOutboundLines(
-                            task, operatorId, "OB-" + task.getOutboundId());
-                } else {
-                    appliedQty = existingLines.stream()
-                            .filter(l -> RESTOCK.equalsIgnoreCase(l.getLineType()))
-                            .filter(ReplenishmentTaskLine::isApplied)
-                            .mapToInt(ReplenishmentTaskLine::getQuantity)
-                            .sum();
-                }
-                inTransitService.receiveForDevice(task.getOutboundId(), task.getDeviceId());
-                warehouseService.markDeviceHandoverReceived(
-                        task.getOutboundId(), task.getDeviceId(), appliedQty);
-            }
-            completeRouteIfReady(task.getRouteId());
-            if (sessionService != null) {
-                sessionService.closeRestockSessionsForTask(taskId, "补货任务已完成，自动关闭开门会话");
-            }
-            markLinkedRequestCompleted(task);
-            return toTaskDto(task);
+            return finalizeAlreadyCompletedTask(task, operatorId, taskId);
         }
-
         List<ReplenishmentTaskLine> pending = taskLineRepository.findByTaskIdAndAppliedFalse(taskId);
-
-        boolean expectReceive = false;
-        if (task.getOutboundId() != null) {
-            boolean inTransit = inTransitService.hasOpenForDevice(task.getOutboundId(), task.getDeviceId());
-            boolean hasOutboundLines = warehouseService.hasOutboundLinesForDevice(
-                    task.getOutboundId(), task.getDeviceId());
-            // 有仓配明细却未发运：有待上架任务行时阻止完成
-            if (!inTransit && hasOutboundLines && !pending.isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT,
-                        ApiMessages.REPLENISHMENT_OUTBOUND_NOT_IN_TRANSIT);
-            }
-            // 在途签收与任务行是否为空无关（空任务行仍应签收仓配在途）
-            expectReceive = inTransit;
+        boolean expectReceive = validateOutboundBeforeComplete(task, pending);
+        int appliedRestockQty = applyPendingReplenishmentLines(task, pending, operatorId, String.valueOf(taskId));
+        deviceSlotService.clampDeviceOverCapacity(task.getDeviceId());
+        task.setStatus(STATUS_COMPLETED);
+        task.setCompletedAt(Instant.now());
+        if (expectReceive) {
+            appliedRestockQty = receiveOutboundHandover(task, operatorId, appliedRestockQty, pending.isEmpty());
         }
+        task = taskRepository.save(task);
+        return finishCompletedTaskSideEffects(task, taskId);
+    }
 
-        String refId = String.valueOf(taskId);
+    /** 幂等重入：已完成后补签收在途并关闭会话。 */
+    private ReplenishmentTaskDto finalizeAlreadyCompletedTask(
+            ReplenishmentTask task, Long operatorId, Long taskId) {
+        // 任务已完成但出库仍在途（先完成任务、后发运的联调顺序）时，补签收；
+        // 仅当任务本身无明细时按出库行回写，避免与已上架任务行重复加库存
+        if (task.getOutboundId() != null
+                && inTransitService.hasOpenForDevice(task.getOutboundId(), task.getDeviceId())) {
+            int appliedQty = resolveAppliedQtyForCatchUpReceive(task, operatorId, taskId);
+            inTransitService.receiveForDevice(task.getOutboundId(), task.getDeviceId());
+            warehouseService.markDeviceHandoverReceived(
+                    task.getOutboundId(), task.getDeviceId(), appliedQty);
+        }
+        return finishCompletedTaskSideEffects(task, taskId);
+    }
+
+    private int resolveAppliedQtyForCatchUpReceive(
+            ReplenishmentTask task, Long operatorId, Long taskId) {
+        List<ReplenishmentTaskLine> existingLines =
+                taskLineRepository.findByTaskIdOrderByLineIdAsc(taskId);
+        if (existingLines.isEmpty()) {
+            return restockFromOutboundLines(task, operatorId, "OB-" + task.getOutboundId());
+        }
+        return existingLines.stream()
+                .filter(l -> RESTOCK.equalsIgnoreCase(l.getLineType()))
+                .filter(ReplenishmentTaskLine::isApplied)
+                .mapToInt(ReplenishmentTaskLine::getQuantity)
+                .sum();
+    }
+
+    /**
+     * 校验仓配发运状态；返回是否需要在途签收。
+     * 有仓配明细却未发运且仍有待上架行时拒绝完成。
+     */
+    private boolean validateOutboundBeforeComplete(
+            ReplenishmentTask task, List<ReplenishmentTaskLine> pending) {
+        if (task.getOutboundId() == null) {
+            return false;
+        }
+        boolean inTransit = inTransitService.hasOpenForDevice(task.getOutboundId(), task.getDeviceId());
+        boolean hasOutboundLines = warehouseService.hasOutboundLinesForDevice(
+                task.getOutboundId(), task.getDeviceId());
+        if (!inTransit && hasOutboundLines && !pending.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    ApiMessages.REPLENISHMENT_OUTBOUND_NOT_IN_TRANSIT);
+        }
+        return inTransit;
+    }
+
+    private int applyPendingReplenishmentLines(
+            ReplenishmentTask task, List<ReplenishmentTaskLine> pending, Long operatorId, String refId) {
         int appliedRestockQty = 0;
-
         for (ReplenishmentTaskLine line : pending) {
-
             inventoryLotService.applyReplenishmentLine(task.getDeviceId(), line, operatorId, refId);
-
             if (RESTOCK.equalsIgnoreCase(line.getLineType())) {
                 deviceSlotService.recordRestock(task.getDeviceId(), line.getSlotId());
                 appliedRestockQty += line.getQuantity();
             }
-
             line.setApplied(true);
-
             taskLineRepository.save(line);
-
         }
+        return appliedRestockQty;
+    }
 
-        deviceSlotService.clampDeviceOverCapacity(task.getDeviceId());
-
-        task.setStatus(STATUS_COMPLETED);
-
-        task.setCompletedAt(Instant.now());
-
-        if (expectReceive) {
-            // 仓配在途签收：按出库行上架；若已有现场 RESTOCK 行，则只补「SKU 差额」，避免重复加可乐又漏掉水。
-            Map<String, Integer> appliedBySku = new HashMap<>();
-            for (ReplenishmentTaskLine line : taskLineRepository.findByTaskIdOrderByLineIdAsc(taskId)) {
-                if (!RESTOCK.equalsIgnoreCase(line.getLineType()) || !line.isApplied()) {
-                    continue;
-                }
-                appliedBySku.merge(line.getSkuId(), line.getQuantity(), Integer::sum);
+    /**
+     * 仓配在途签收：按出库行上架；若已有现场 RESTOCK 行，则只补 SKU 差额。
+     */
+    private int receiveOutboundHandover(
+            ReplenishmentTask task, Long operatorId, int appliedRestockQty, boolean pendingWasEmpty) {
+        Map<String, Integer> appliedBySku = new HashMap<>();
+        for (ReplenishmentTaskLine line : taskLineRepository.findByTaskIdOrderByLineIdAsc(task.getTaskId())) {
+            if (!RESTOCK.equalsIgnoreCase(line.getLineType()) || !line.isApplied()) {
+                continue;
             }
-            int fromOutbound = restockFromOutboundLines(
-                    task, operatorId, "OB-" + task.getOutboundId(), appliedBySku);
-            if (pending.isEmpty()) {
-                appliedRestockQty = fromOutbound;
-            } else {
-                appliedRestockQty += fromOutbound;
-            }
-            inTransitService.receiveForDevice(task.getOutboundId(), task.getDeviceId());
-            // 按实际上架数量签收：不足则 PARTIAL
-            warehouseService.markDeviceHandoverReceived(
-                    task.getOutboundId(), task.getDeviceId(), appliedRestockQty);
+            appliedBySku.merge(line.getSkuId(), line.getQuantity(), Integer::sum);
         }
+        int fromOutbound = restockFromOutboundLines(
+                task, operatorId, "OB-" + task.getOutboundId(), appliedBySku);
+        int totalRestock = pendingWasEmpty ? fromOutbound : appliedRestockQty + fromOutbound;
+        inTransitService.receiveForDevice(task.getOutboundId(), task.getDeviceId());
+        warehouseService.markDeviceHandoverReceived(
+                task.getOutboundId(), task.getDeviceId(), totalRestock);
+        return totalRestock;
+    }
 
-        task = taskRepository.save(task);
+    private ReplenishmentTaskDto finishCompletedTaskSideEffects(ReplenishmentTask task, Long taskId) {
         completeRouteIfReady(task.getRouteId());
         // 完成补货后关闭仍占用柜机的补货开门会话，避免挡消费者
         if (sessionService != null) {
@@ -855,7 +860,6 @@ public class ReplenishmentService {
         }
         markLinkedRequestCompleted(task);
         return toTaskDto(task);
-
     }
 
     /** 关联要货单：任务完成后置 COMPLETED（仅 ACCEPTED → COMPLETED）。 */
