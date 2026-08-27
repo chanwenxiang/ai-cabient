@@ -12,10 +12,10 @@ import org.springframework.data.domain.Pageable;
 @Mapper
 public interface RiskEventMapper extends BaseTradeMapper<RiskEvent> {
 
-    RiskEvent _findByIdForUpdateRaw(@Param("eventId") Long eventId);
+    RiskEvent findByIdForUpdateRaw(@Param("eventId") Long eventId);
 
     default Optional<RiskEvent> findByIdForUpdate(Long eventId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(eventId));
+        return Optional.ofNullable(findByIdForUpdateRaw(eventId));
     }
 
     default Page<RiskEvent> findAllByOrderByCreatedAtDesc(Pageable pageable) {

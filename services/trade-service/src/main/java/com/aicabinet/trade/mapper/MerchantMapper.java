@@ -11,10 +11,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface MerchantMapper extends BaseTradeMapper<Merchant> {
 
-    Merchant _findByIdForUpdateRaw(@Param("merchantId") String merchantId);
+    Merchant findByIdForUpdateRaw(@Param("merchantId") String merchantId);
 
     default Optional<Merchant> findByIdForUpdate(String merchantId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(merchantId));
+        return Optional.ofNullable(findByIdForUpdateRaw(merchantId));
     }
 
     /** page 为 0-based；merchantIds 为 null 表示不限范围。 */

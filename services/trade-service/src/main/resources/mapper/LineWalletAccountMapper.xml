@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.LineWalletAccountMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.LineWalletAccount">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.LineWalletAccount">
     <![CDATA[
     SELECT a.* FROM line_wallet_account a WHERE a.manager_id = #{managerId} FOR UPDATE
     ]]>

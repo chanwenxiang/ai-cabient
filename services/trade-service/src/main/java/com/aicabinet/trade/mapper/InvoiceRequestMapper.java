@@ -12,16 +12,16 @@ import java.util.Optional;
 @Repository
 public interface InvoiceRequestMapper extends BaseTradeMapper<InvoiceRequest> {
 
-    InvoiceRequest _findByIdForUpdateRaw(@Param("invoiceId") Long invoiceId);
+    InvoiceRequest findByIdForUpdateRaw(@Param("invoiceId") Long invoiceId);
 
     default Optional<InvoiceRequest> findByIdForUpdate(Long invoiceId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(invoiceId));
+        return Optional.ofNullable(findByIdForUpdateRaw(invoiceId));
     }
 
-    InvoiceRequest _findActiveByOrderIdForUpdateRaw(@Param("orderId") String orderId);
+    InvoiceRequest findActiveByOrderIdForUpdateRaw(@Param("orderId") String orderId);
 
     default Optional<InvoiceRequest> findActiveByOrderIdForUpdate(String orderId) {
-        return Optional.ofNullable(_findActiveByOrderIdForUpdateRaw(orderId));
+        return Optional.ofNullable(findActiveByOrderIdForUpdateRaw(orderId));
     }
 
     default List<InvoiceRequest> findByUserIdOrderByCreatedAtDesc(Long userId) {

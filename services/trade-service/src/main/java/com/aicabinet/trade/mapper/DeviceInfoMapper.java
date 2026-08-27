@@ -11,10 +11,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
 
-    DeviceInfo _findByIdForUpdateRaw(@Param("deviceId") String deviceId);
+    DeviceInfo findByIdForUpdateRaw(@Param("deviceId") String deviceId);
 
     default Optional<DeviceInfo> findByIdForUpdate(String deviceId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(deviceId));
+        return Optional.ofNullable(findByIdForUpdateRaw(deviceId));
     }
 
     default List<DeviceInfo> findAllOrderByDeviceIdAsc() {

@@ -14,10 +14,10 @@ import org.springframework.data.domain.Pageable;
 @Mapper
 public interface DisputeTicketMapper extends BaseTradeMapper<DisputeTicket> {
 
-    DisputeTicket _findByIdForUpdateRaw(@Param("ticketId") String ticketId);
+    DisputeTicket findByIdForUpdateRaw(@Param("ticketId") String ticketId);
 
     default Optional<DisputeTicket> findByIdForUpdate(String ticketId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(ticketId));
+        return Optional.ofNullable(findByIdForUpdateRaw(ticketId));
     }
 
     default Optional<DisputeTicket> findBySessionId(String sessionId) {

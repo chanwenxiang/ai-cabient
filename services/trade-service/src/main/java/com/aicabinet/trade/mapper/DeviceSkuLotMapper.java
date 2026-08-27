@@ -64,10 +64,10 @@ public interface DeviceSkuLotMapper extends BaseTradeMapper<DeviceSkuLot> {
 
     int sumSellableQuantity(@Param("deviceId") String deviceId, @Param("skuId") String skuId);
 
-    List<LinkedHashMap<String, Object>> _sumSellableBySku(@Param("deviceId") String deviceId);
+    List<LinkedHashMap<String, Object>> selectSumSellableBySku(@Param("deviceId") String deviceId);
 
     default List<Object[]> sumSellableBySku(String deviceId) {
-        return ColumnMapRows.toObjectRows(_sumSellableBySku(deviceId), 2);
+        return ColumnMapRows.toObjectRows(selectSumSellableBySku(deviceId), 2);
     }
 
     long countNearExpiry(@Param("today") LocalDate today, @Param("nearDate") LocalDate nearDate);
@@ -93,9 +93,9 @@ public interface DeviceSkuLotMapper extends BaseTradeMapper<DeviceSkuLot> {
                 .last("LIMIT " + lim));
     }
 
-    List<LinkedHashMap<String, Object>> _sumBookQtyBySlot(@Param("deviceId") String deviceId);
+    List<LinkedHashMap<String, Object>> selectSumBookQtyBySlot(@Param("deviceId") String deviceId);
 
     default List<Object[]> sumBookQtyBySlot(String deviceId) {
-        return ColumnMapRows.toObjectRows(_sumBookQtyBySlot(deviceId), 2);
+        return ColumnMapRows.toObjectRows(selectSumBookQtyBySlot(deviceId), 2);
     }
 }

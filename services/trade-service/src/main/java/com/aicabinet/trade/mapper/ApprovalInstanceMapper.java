@@ -9,10 +9,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface ApprovalInstanceMapper extends BaseTradeMapper<ApprovalInstance> {
 
-    ApprovalInstance _findByIdForUpdateRaw(@Param("instanceId") Long instanceId);
+    ApprovalInstance findByIdForUpdateRaw(@Param("instanceId") Long instanceId);
 
     default Optional<ApprovalInstance> findByIdForUpdate(Long instanceId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(instanceId));
+        return Optional.ofNullable(findByIdForUpdateRaw(instanceId));
     }
 
     default Optional<ApprovalInstance> findByBizTypeAndBizId(String bizType, String bizId) {

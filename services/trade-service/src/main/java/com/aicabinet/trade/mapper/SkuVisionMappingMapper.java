@@ -12,10 +12,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface SkuVisionMappingMapper extends BaseTradeMapper<SkuVisionMapping> {
 
-    SkuVisionMapping _findByIdForUpdateRaw(@Param("className") String className);
+    SkuVisionMapping findByIdForUpdateRaw(@Param("className") String className);
 
     default Optional<SkuVisionMapping> findByIdForUpdate(String className) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(className));
+        return Optional.ofNullable(findByIdForUpdateRaw(className));
     }
 
     default List<SkuVisionMapping> findByMappingSource(String mappingSource) {

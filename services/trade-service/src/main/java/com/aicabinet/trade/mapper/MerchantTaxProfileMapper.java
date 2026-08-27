@@ -9,9 +9,9 @@ import java.util.Optional;
 @Repository
 public interface MerchantTaxProfileMapper extends BaseTradeMapper<MerchantTaxProfile> {
 
-    MerchantTaxProfile _findByIdForUpdateRaw(@Param("merchantId") String merchantId);
+    MerchantTaxProfile findByIdForUpdateRaw(@Param("merchantId") String merchantId);
 
     default Optional<MerchantTaxProfile> findByIdForUpdate(String merchantId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(merchantId));
+        return Optional.ofNullable(findByIdForUpdateRaw(merchantId));
     }
 }

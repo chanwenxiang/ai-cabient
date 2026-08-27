@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.WarehouseBinStockMapper">
 
-  <select id="_findByBinIdAndSkuIdAndBatchNoForUpdateRaw"
+  <select id="findByBinIdAndSkuIdAndBatchNoForUpdateRaw"
           resultType="com.aicabinet.trade.domain.WarehouseBinStock">
     <![CDATA[
     SELECT s.* FROM warehouse_bin_stock s

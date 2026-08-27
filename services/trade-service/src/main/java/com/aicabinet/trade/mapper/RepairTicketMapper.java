@@ -8,9 +8,9 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface RepairTicketMapper extends BaseTradeMapper<RepairTicket> {
 
-    RepairTicket _findByIdForUpdateRaw(@Param("ticketId") Long ticketId);
+    RepairTicket findByIdForUpdateRaw(@Param("ticketId") Long ticketId);
 
     default Optional<RepairTicket> findByIdForUpdate(Long ticketId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(ticketId));
+        return Optional.ofNullable(findByIdForUpdateRaw(ticketId));
     }
 }

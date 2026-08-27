@@ -19,10 +19,10 @@ public interface UserAccountMapper extends BaseTradeMapper<UserAccount> {
                 .in(UserAccount::getUserId, userIds));
     }
 
-        UserAccount _findByIdForUpdateRaw(@Param("userId") Long userId);
+        UserAccount findByIdForUpdateRaw(@Param("userId") Long userId);
 
     default Optional<UserAccount> findByIdForUpdate(@Param("userId") Long userId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(userId));
+        return Optional.ofNullable(findByIdForUpdateRaw(userId));
     }
 
 }

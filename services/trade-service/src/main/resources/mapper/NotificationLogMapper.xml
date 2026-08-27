@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.NotificationLogMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.NotificationLog">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.NotificationLog">
     <![CDATA[
     SELECT n.* FROM notification_log n WHERE n.id = #{id} FOR UPDATE
     ]]>

@@ -10,10 +10,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface IdempotencyKeyMapper extends BaseTradeMapper<IdempotencyKey> {
 
-    IdempotencyKey _findByIdForUpdateRaw(@Param("idempotencyKey") String idempotencyKey);
+    IdempotencyKey findByIdForUpdateRaw(@Param("idempotencyKey") String idempotencyKey);
 
     default Optional<IdempotencyKey> findByIdForUpdate(String idempotencyKey) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(idempotencyKey));
+        return Optional.ofNullable(findByIdForUpdateRaw(idempotencyKey));
     }
 
     @org.apache.ibatis.annotations.Delete("""

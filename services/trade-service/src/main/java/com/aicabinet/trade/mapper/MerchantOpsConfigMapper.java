@@ -8,9 +8,9 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface MerchantOpsConfigMapper extends BaseTradeMapper<MerchantOpsConfig> {
 
-    MerchantOpsConfig _findByIdForUpdateRaw(@Param("merchantId") String merchantId);
+    MerchantOpsConfig findByIdForUpdateRaw(@Param("merchantId") String merchantId);
 
     default Optional<MerchantOpsConfig> findByIdForUpdate(String merchantId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(merchantId));
+        return Optional.ofNullable(findByIdForUpdateRaw(merchantId));
     }
 }

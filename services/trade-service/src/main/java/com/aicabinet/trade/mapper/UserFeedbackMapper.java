@@ -11,10 +11,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface UserFeedbackMapper extends BaseTradeMapper<UserFeedback> {
 
-    UserFeedback _findByIdForUpdateRaw(@Param("feedbackId") Long feedbackId);
+    UserFeedback findByIdForUpdateRaw(@Param("feedbackId") Long feedbackId);
 
     default Optional<UserFeedback> findByIdForUpdate(Long feedbackId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(feedbackId));
+        return Optional.ofNullable(findByIdForUpdateRaw(feedbackId));
     }
 
     default List<UserFeedback> findAllOrderByCreatedAtDesc() {

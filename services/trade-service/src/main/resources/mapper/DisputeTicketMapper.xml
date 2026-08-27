@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.DisputeTicketMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.DisputeTicket">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.DisputeTicket">
     <![CDATA[
     SELECT d.* FROM dispute_ticket d WHERE d.ticket_id = #{ticketId} FOR UPDATE
     ]]>

@@ -11,11 +11,11 @@ import java.util.Optional;
 @Mapper
 public interface UserNotifyPrefMapper extends BaseTradeMapper<UserNotifyPref> {
 
-    UserNotifyPref _findByUserIdAndCategoryForUpdateRaw(
+    UserNotifyPref findByUserIdAndCategoryForUpdateRaw(
             @Param("userId") Long userId, @Param("category") String category);
 
     default Optional<UserNotifyPref> findByUserIdAndCategoryForUpdate(Long userId, String category) {
-        return Optional.ofNullable(_findByUserIdAndCategoryForUpdateRaw(userId, category));
+        return Optional.ofNullable(findByUserIdAndCategoryForUpdateRaw(userId, category));
     }
 
     default Optional<UserNotifyPref> findByUserIdAndCategory(Long userId, String category) {

@@ -11,10 +11,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface PromotionActivityMapper extends BaseTradeMapper<PromotionActivity> {
 
-    PromotionActivity _findByIdForUpdateRaw(@Param("activityId") Long activityId);
+    PromotionActivity findByIdForUpdateRaw(@Param("activityId") Long activityId);
 
     default java.util.Optional<PromotionActivity> findByIdForUpdate(Long activityId) {
-        return java.util.Optional.ofNullable(_findByIdForUpdateRaw(activityId));
+        return java.util.Optional.ofNullable(findByIdForUpdateRaw(activityId));
     }
 
     default List<PromotionActivity> findByStatus(String status) {

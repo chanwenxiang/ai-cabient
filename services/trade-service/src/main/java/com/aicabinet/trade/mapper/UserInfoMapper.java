@@ -12,10 +12,10 @@ import org.springframework.data.domain.Pageable;
 @Mapper
 public interface UserInfoMapper extends BaseTradeMapper<UserInfo> {
 
-    UserInfo _findByIdForUpdateRaw(@Param("userId") Long userId);
+    UserInfo findByIdForUpdateRaw(@Param("userId") Long userId);
 
     default Optional<UserInfo> findByIdForUpdate(Long userId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(userId));
+        return Optional.ofNullable(findByIdForUpdateRaw(userId));
     }
 
     default Optional<UserInfo> findByPhoneNumber(String phoneNumber) {

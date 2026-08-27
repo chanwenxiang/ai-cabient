@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.SkuVisionMappingMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.SkuVisionMapping">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.SkuVisionMapping">
     <![CDATA[
     SELECT m.* FROM sku_vision_mapping m WHERE m.class_name = #{className} FOR UPDATE
     ]]>

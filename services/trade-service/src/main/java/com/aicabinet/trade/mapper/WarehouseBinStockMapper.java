@@ -11,14 +11,14 @@ import java.util.Optional;
 @Mapper
 public interface WarehouseBinStockMapper extends BaseTradeMapper<WarehouseBinStock> {
 
-    WarehouseBinStock _findByBinIdAndSkuIdAndBatchNoForUpdateRaw(
+    WarehouseBinStock findByBinIdAndSkuIdAndBatchNoForUpdateRaw(
             @Param("binId") Long binId,
             @Param("skuId") String skuId,
             @Param("batchNo") String batchNo);
 
     default Optional<WarehouseBinStock> findByBinIdAndSkuIdAndBatchNoForUpdate(
             Long binId, String skuId, String batchNo) {
-        return Optional.ofNullable(_findByBinIdAndSkuIdAndBatchNoForUpdateRaw(binId, skuId, batchNo));
+        return Optional.ofNullable(findByBinIdAndSkuIdAndBatchNoForUpdateRaw(binId, skuId, batchNo));
     }
 
     default List<WarehouseBinStock> findByBinIdOrderByExpiryDateAsc(Long binId) {

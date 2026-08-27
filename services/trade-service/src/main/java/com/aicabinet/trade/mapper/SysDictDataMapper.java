@@ -10,17 +10,17 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface SysDictDataMapper extends BaseTradeMapper<SysDictData> {
 
-    SysDictData _findByIdForUpdateRaw(@Param("dictDataId") Long dictDataId);
+    SysDictData findByIdForUpdateRaw(@Param("dictDataId") Long dictDataId);
 
     default Optional<SysDictData> findByIdForUpdate(Long dictDataId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(dictDataId));
+        return Optional.ofNullable(findByIdForUpdateRaw(dictDataId));
     }
 
-    SysDictData _findByDictTypeAndDictValueForUpdateRaw(
+    SysDictData findByDictTypeAndDictValueForUpdateRaw(
             @Param("dictType") String dictType, @Param("dictValue") String dictValue);
 
     default Optional<SysDictData> findByDictTypeAndDictValueForUpdate(String dictType, String dictValue) {
-        return Optional.ofNullable(_findByDictTypeAndDictValueForUpdateRaw(dictType, dictValue));
+        return Optional.ofNullable(findByDictTypeAndDictValueForUpdateRaw(dictType, dictValue));
     }
 
     default List<SysDictData> findByDictTypeOrderBySortOrderAscDictValueAsc(String dictType) {

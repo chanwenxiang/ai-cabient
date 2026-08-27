@@ -14,18 +14,18 @@ import java.util.Optional;
 @Mapper
 public interface MerchantPaymentOnboardingMapper extends BaseTradeMapper<MerchantPaymentOnboarding> {
 
-    MerchantPaymentOnboarding _findByIdForUpdateRaw(@Param("onboardingId") Long onboardingId);
+    MerchantPaymentOnboarding findByIdForUpdateRaw(@Param("onboardingId") Long onboardingId);
 
     default Optional<MerchantPaymentOnboarding> findByIdForUpdate(Long onboardingId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(onboardingId));
+        return Optional.ofNullable(findByIdForUpdateRaw(onboardingId));
     }
 
-    MerchantPaymentOnboarding _findByMerchantAndChannelForUpdateRaw(
+    MerchantPaymentOnboarding findByMerchantAndChannelForUpdateRaw(
             @Param("merchantId") String merchantId, @Param("channel") String channel);
 
     default Optional<MerchantPaymentOnboarding> findByMerchantAndChannelForUpdate(
             String merchantId, String channel) {
-        return Optional.ofNullable(_findByMerchantAndChannelForUpdateRaw(merchantId, channel));
+        return Optional.ofNullable(findByMerchantAndChannelForUpdateRaw(merchantId, channel));
     }
 
     default Optional<MerchantPaymentOnboarding> findByMerchantAndChannel(String merchantId, String channel) {

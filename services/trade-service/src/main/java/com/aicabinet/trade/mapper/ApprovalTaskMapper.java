@@ -9,10 +9,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface ApprovalTaskMapper extends BaseTradeMapper<ApprovalTask> {
 
-    ApprovalTask _findByIdForUpdateRaw(@Param("taskId") Long taskId);
+    ApprovalTask findByIdForUpdateRaw(@Param("taskId") Long taskId);
 
     default java.util.Optional<ApprovalTask> findByIdForUpdate(Long taskId) {
-        return java.util.Optional.ofNullable(_findByIdForUpdateRaw(taskId));
+        return java.util.Optional.ofNullable(findByIdForUpdateRaw(taskId));
     }
 
     default List<ApprovalTask> findPendingByAssigneeUserId(Long userId, int limit) {

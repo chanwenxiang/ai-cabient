@@ -10,14 +10,14 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface WarehouseInTransitMapper extends BaseTradeMapper<WarehouseInTransit> {
 
-    List<WarehouseInTransit> _findByOutboundIdAndDeviceIdAndStatusForUpdateRaw(
+    List<WarehouseInTransit> findByOutboundIdAndDeviceIdAndStatusForUpdateRaw(
             @Param("outboundId") Long outboundId,
             @Param("deviceId") String deviceId,
             @Param("status") String status);
 
     default List<WarehouseInTransit> findByOutboundIdAndDeviceIdAndStatusForUpdate(
             Long outboundId, String deviceId, String status) {
-        return _findByOutboundIdAndDeviceIdAndStatusForUpdateRaw(outboundId, deviceId, status);
+        return findByOutboundIdAndDeviceIdAndStatusForUpdateRaw(outboundId, deviceId, status);
     }
 
     default List<WarehouseInTransit> findByDeviceIdAndStatus(String deviceId, String status) {

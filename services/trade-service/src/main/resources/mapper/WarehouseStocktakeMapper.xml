@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.WarehouseStocktakeMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.WarehouseStocktake">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.WarehouseStocktake">
     <![CDATA[
     SELECT s.* FROM warehouse_stocktake s WHERE s.stocktake_id = #{stocktakeId} FOR UPDATE
     ]]>

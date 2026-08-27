@@ -9,10 +9,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface OpsRoleMapper extends BaseTradeMapper<OpsRole> {
 
-    OpsRole _findByIdForUpdateRaw(@Param("roleId") Long roleId);
+    OpsRole findByIdForUpdateRaw(@Param("roleId") Long roleId);
 
     default Optional<OpsRole> findByIdForUpdate(Long roleId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(roleId));
+        return Optional.ofNullable(findByIdForUpdateRaw(roleId));
     }
 
     default Optional<OpsRole> findByRoleKey(String roleKey) {

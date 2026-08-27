@@ -12,16 +12,16 @@ import java.util.Optional;
 @Mapper
 public interface SiteContractMapper extends BaseTradeMapper<SiteContract> {
 
-    SiteContract _findByDeviceIdForUpdateRaw(@Param("deviceId") String deviceId);
+    SiteContract findByDeviceIdForUpdateRaw(@Param("deviceId") String deviceId);
 
     default Optional<SiteContract> findByDeviceIdForUpdate(String deviceId) {
-        return Optional.ofNullable(_findByDeviceIdForUpdateRaw(deviceId));
+        return Optional.ofNullable(findByDeviceIdForUpdateRaw(deviceId));
     }
 
-    SiteContract _findByIdForUpdateRaw(@Param("contractId") Long contractId);
+    SiteContract findByIdForUpdateRaw(@Param("contractId") Long contractId);
 
     default Optional<SiteContract> findByIdForUpdate(Long contractId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(contractId));
+        return Optional.ofNullable(findByIdForUpdateRaw(contractId));
     }
 
     default List<SiteContract> findAllOrderByUpdatedDesc() {

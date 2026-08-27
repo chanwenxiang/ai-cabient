@@ -13,10 +13,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTask> {
 
-    ReplenishmentTask _findByIdForUpdateRaw(@Param("taskId") Long taskId);
+    ReplenishmentTask findByIdForUpdateRaw(@Param("taskId") Long taskId);
 
     default Optional<ReplenishmentTask> findByIdForUpdate(Long taskId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(taskId));
+        return Optional.ofNullable(findByIdForUpdateRaw(taskId));
     }
 
     default List<ReplenishmentTask> findByRouteId(Long routeId) {
@@ -91,10 +91,10 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
                 .last("LIMIT " + lim));
     }
 
-    Instant _findLastCompletedAtByDeviceId(@Param("deviceId") String deviceId);
+    Instant selectLastCompletedAtByDeviceId(@Param("deviceId") String deviceId);
 
     default Optional<Instant> findLastCompletedAtByDeviceId(String deviceId) {
-        return Optional.ofNullable(_findLastCompletedAtByDeviceId(deviceId));
+        return Optional.ofNullable(selectLastCompletedAtByDeviceId(deviceId));
     }
 
     default List<ReplenishmentTask> findByCreatedAtAfter(Instant since) {

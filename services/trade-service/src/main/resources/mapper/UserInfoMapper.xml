@@ -15,7 +15,7 @@
     ]]>
   </select>
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.UserInfo">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.UserInfo">
     <![CDATA[
     SELECT u.* FROM user_info u WHERE u.user_id = #{userId} FOR UPDATE
     ]]>

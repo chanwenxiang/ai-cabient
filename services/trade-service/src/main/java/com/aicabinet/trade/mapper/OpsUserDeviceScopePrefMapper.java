@@ -8,9 +8,9 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface OpsUserDeviceScopePrefMapper extends BaseTradeMapper<OpsUserDeviceScopePref> {
 
-    OpsUserDeviceScopePref _findByIdForUpdateRaw(@Param("userId") Long userId);
+    OpsUserDeviceScopePref findByIdForUpdateRaw(@Param("userId") Long userId);
 
     default Optional<OpsUserDeviceScopePref> findByIdForUpdate(Long userId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(userId));
+        return Optional.ofNullable(findByIdForUpdateRaw(userId));
     }
 }

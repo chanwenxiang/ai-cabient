@@ -16,7 +16,7 @@
     <foreach collection="merchantIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
   </select>
 
-  <select id="_searchByMerchantsAll" resultType="com.aicabinet.trade.domain.OrderRevenueSplit">
+  <select id="searchByMerchantsAll" resultType="com.aicabinet.trade.domain.OrderRevenueSplit">
     SELECT s.* FROM order_revenue_split s
     WHERE s.merchant_id IN
     <foreach collection="merchantIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
@@ -41,7 +41,7 @@
     AND s.status = 'SUCCESS' AND s.created_at &gt;= #{since}
   </select>
 
-  <select id="_aggregateDailyByMerchants" resultType="java.util.LinkedHashMap">
+  <select id="selectAggregateDailyByMerchants" resultType="java.util.LinkedHashMap">
     SELECT DATE(timezone('Asia/Shanghai', s.created_at)) AS c0,
            CAST(COUNT(*) AS bigint) AS c1,
            CAST(COALESCE(SUM(s.gross_cents), 0) AS bigint) AS c2,
@@ -59,7 +59,7 @@
     ORDER BY c0 DESC
   </select>
 
-  <select id="_aggregateBatchByMerchants" resultType="java.util.LinkedHashMap">
+  <select id="selectAggregateBatchByMerchants" resultType="java.util.LinkedHashMap">
     SELECT s.settlement_batch_no AS c0,
            s.merchant_id AS c1,
            MIN(s.settle_after) AS c2,
@@ -81,7 +81,7 @@
     ORDER BY MIN(s.created_at) DESC
   </select>
 
-  <select id="_findByOrderIdForUpdateRaw" resultType="com.aicabinet.trade.domain.OrderRevenueSplit">
+  <select id="findByOrderIdForUpdateRaw" resultType="com.aicabinet.trade.domain.OrderRevenueSplit">
     <![CDATA[
     SELECT s.* FROM order_revenue_split s WHERE s.order_id = #{orderId} FOR UPDATE
     ]]>

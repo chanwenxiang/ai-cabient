@@ -12,10 +12,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface MerchantReplenishmentRequestMapper extends BaseTradeMapper<MerchantReplenishmentRequest> {
 
-    MerchantReplenishmentRequest _findByIdForUpdateRaw(@Param("requestId") Long requestId);
+    MerchantReplenishmentRequest findByIdForUpdateRaw(@Param("requestId") Long requestId);
 
     default Optional<MerchantReplenishmentRequest> findByIdForUpdate(Long requestId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(requestId));
+        return Optional.ofNullable(findByIdForUpdateRaw(requestId));
     }
 
     default List<MerchantReplenishmentRequest> findByDeviceIdInOrderBySubmittedAtDesc(Collection<String> deviceIds) {

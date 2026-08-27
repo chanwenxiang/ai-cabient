@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.IdempotencyKeyMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.IdempotencyKey">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.IdempotencyKey">
     <![CDATA[
     SELECT k.* FROM idempotency_key k WHERE k.idempotency_key = #{idempotencyKey} FOR UPDATE
     ]]>

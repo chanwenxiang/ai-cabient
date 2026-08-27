@@ -11,16 +11,16 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface MemberMapper extends BaseTradeMapper<Member> {
 
-    Member _findByUserIdForUpdateRaw(@Param("userId") Long userId);
+    Member findByUserIdForUpdateRaw(@Param("userId") Long userId);
 
-    Member _findByIdForUpdateRaw(@Param("memberId") Long memberId);
+    Member findByIdForUpdateRaw(@Param("memberId") Long memberId);
 
     default Optional<Member> findByUserIdForUpdate(Long userId) {
-        return Optional.ofNullable(_findByUserIdForUpdateRaw(userId));
+        return Optional.ofNullable(findByUserIdForUpdateRaw(userId));
     }
 
     default Optional<Member> findByIdForUpdate(Long memberId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(memberId));
+        return Optional.ofNullable(findByIdForUpdateRaw(memberId));
     }
 
     default List<Member> findByUserIds(Collection<Long> userIds) {

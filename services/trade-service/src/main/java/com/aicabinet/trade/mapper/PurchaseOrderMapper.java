@@ -11,10 +11,10 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface PurchaseOrderMapper extends BaseTradeMapper<PurchaseOrder> {
 
-    PurchaseOrder _findByIdForUpdateRaw(@Param("purchaseOrderId") Long purchaseOrderId);
+    PurchaseOrder findByIdForUpdateRaw(@Param("purchaseOrderId") Long purchaseOrderId);
 
     default Optional<PurchaseOrder> findByIdForUpdate(Long purchaseOrderId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(purchaseOrderId));
+        return Optional.ofNullable(findByIdForUpdateRaw(purchaseOrderId));
     }
 
     default List<PurchaseOrder> findAllByOrderByCreatedAtDesc() {

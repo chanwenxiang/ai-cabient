@@ -3,13 +3,13 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.MemberLevelRuleMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.MemberLevelRule">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.MemberLevelRule">
     <![CDATA[
     SELECT r.* FROM member_level_rule r WHERE r.id = #{id} FOR UPDATE
     ]]>
   </select>
 
-  <select id="_findByLevelCodeForUpdateRaw" resultType="com.aicabinet.trade.domain.MemberLevelRule">
+  <select id="findByLevelCodeForUpdateRaw" resultType="com.aicabinet.trade.domain.MemberLevelRule">
     <![CDATA[
     SELECT r.* FROM member_level_rule r WHERE r.level_code = #{levelCode} FOR UPDATE
     ]]>

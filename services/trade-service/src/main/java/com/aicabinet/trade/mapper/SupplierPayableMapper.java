@@ -12,16 +12,16 @@ import java.util.Optional;
 @Mapper
 public interface SupplierPayableMapper extends BaseTradeMapper<SupplierPayable> {
 
-    SupplierPayable _findByIdForUpdateRaw(@Param("payableId") Long payableId);
+    SupplierPayable findByIdForUpdateRaw(@Param("payableId") Long payableId);
 
-    SupplierPayable _findByPurchaseOrderIdForUpdateRaw(@Param("purchaseOrderId") Long purchaseOrderId);
+    SupplierPayable findByPurchaseOrderIdForUpdateRaw(@Param("purchaseOrderId") Long purchaseOrderId);
 
     default Optional<SupplierPayable> findByIdForUpdate(Long payableId) {
-        return Optional.ofNullable(_findByIdForUpdateRaw(payableId));
+        return Optional.ofNullable(findByIdForUpdateRaw(payableId));
     }
 
     default Optional<SupplierPayable> findByPurchaseOrderIdForUpdate(Long purchaseOrderId) {
-        return Optional.ofNullable(_findByPurchaseOrderIdForUpdateRaw(purchaseOrderId));
+        return Optional.ofNullable(findByPurchaseOrderIdForUpdateRaw(purchaseOrderId));
     }
 
     default Optional<SupplierPayable> findByPurchaseOrderId(Long purchaseOrderId) {

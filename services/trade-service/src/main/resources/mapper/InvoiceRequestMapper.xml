@@ -3,13 +3,13 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.InvoiceRequestMapper">
 
-  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.InvoiceRequest">
+  <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.InvoiceRequest">
     <![CDATA[
     SELECT i.* FROM invoice_request i WHERE i.invoice_id = #{invoiceId} FOR UPDATE
     ]]>
   </select>
 
-  <select id="_findActiveByOrderIdForUpdateRaw" resultType="com.aicabinet.trade.domain.InvoiceRequest">
+  <select id="findActiveByOrderIdForUpdateRaw" resultType="com.aicabinet.trade.domain.InvoiceRequest">
     <![CDATA[
     SELECT i.* FROM invoice_request i
     WHERE i.order_id = #{orderId}
