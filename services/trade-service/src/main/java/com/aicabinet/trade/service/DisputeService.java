@@ -1111,15 +1111,9 @@ private final UserInfoMapper userInfoRepository;
         String r = reason != null ? reason : "";
         String version = recognition != null && recognition.modelVersion() != null
                 ? recognition.modelVersion().toLowerCase() : "";
-        if (version.contains("gravity-mismatch") || r.contains("视觉与重力")) {
-            return "GRAVITY_MISMATCH";
-        }
-        if (version.contains("mock") || version.contains("fallback")
-                || r.contains("模拟") || r.contains("非生产精度")) {
-            return "MOCK";
-        }
-        if (version.contains("gravity-fill") || r.contains("仅有重力")) {
-            return "GRAVITY_FILL";
+        String gravityOrMock = reviewCodeForGravityOrMock(version, r);
+        if (gravityOrMock != null) {
+            return gravityOrMock;
         }
         if (emptyItems && !detected.isEmpty()) {
             return "UNMAPPED";
@@ -1134,6 +1128,20 @@ private final UserInfoMapper userInfoRepository;
             return "WHITELIST";
         }
         return "NEED_REVIEW";
+    }
+
+    private static String reviewCodeForGravityOrMock(String version, String reason) {
+        if (version.contains("gravity-mismatch") || reason.contains("视觉与重力")) {
+            return "GRAVITY_MISMATCH";
+        }
+        if (version.contains("mock") || version.contains("fallback")
+                || reason.contains("模拟") || reason.contains("非生产精度")) {
+            return "MOCK";
+        }
+        if (version.contains("gravity-fill") || reason.contains("仅有重力")) {
+            return "GRAVITY_FILL";
+        }
+        return null;
     }
 
     private static String resolveReviewCode(DisputeTicket ticket) {

@@ -159,6 +159,16 @@ public class DeviceSlotService {
     @Transactional(readOnly = true)
     public List<ReplenishmentShortageRowDto> listShortageRows(Long operatorId, String deviceIdFilter) {
         LinkedHashMap<String, ReplenishmentShortageRowDto> byKey = new LinkedHashMap<>();
+        collectDiscrepancyShortageRows(operatorId, deviceIdFilter, byKey);
+        collectLowStockShortageRows(operatorId, deviceIdFilter, byKey);
+        return byKey.values().stream()
+                .sorted(Comparator.comparing(ReplenishmentShortageRowDto::deviceId)
+                        .thenComparing(ReplenishmentShortageRowDto::slotCode))
+                .toList();
+    }
+
+    private void collectDiscrepancyShortageRows(Long operatorId, String deviceIdFilter,
+                                                LinkedHashMap<String, ReplenishmentShortageRowDto> byKey) {
         for (SlotDiscrepancyAlertDto alert : self.listDiscrepancyAlerts(operatorId, deviceIdFilter)) {
             String key = shortageRowKey(alert.deviceId(), alert.slotCode());
             DeviceSlot slot = slotRepository.findById(new DeviceSlotId(alert.deviceId(), alert.slotCode()))
@@ -171,38 +181,46 @@ public class DeviceSlotService {
                     alert.assignedSkuId(), alert.assignedSkuName(),
                     alert.bookQty(), minLevel, parLevel, status, key));
         }
+    }
+
+    private void collectLowStockShortageRows(Long operatorId, String deviceIdFilter,
+                                             LinkedHashMap<String, ReplenishmentShortageRowDto> byKey) {
         for (DeviceInfo device : resolveDevicesForShortage(operatorId, deviceIdFilter)) {
             String deviceId = device.getDeviceId();
             Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
             for (DeviceSlot slot : slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId)) {
-                if (!slot.isEnabled()) {
-                    continue;
-                }
-                String skuId = slot.getAssignedSkuId();
-                if (skuId == null || skuId.isBlank()) {
-                    continue;
-                }
-                String slotCode = slot.getId().getSlotCode();
-                String key = shortageRowKey(deviceId, slotCode);
-                if (byKey.containsKey(key)) {
-                    continue;
-                }
-                int bookQty = bookBySlot.getOrDefault(slotCode, 0);
-                String status = resolveStockStatus(slot, bookQty);
-                if (bookQty <= slot.getMinLevel() || "OOS".equals(status) || "LOW".equals(status)) {
-                    String skuName = skuCatalogRepository.findById(skuId)
-                            .map(SkuCatalog::getSkuName)
-                            .orElse(null);
-                    byKey.put(key, new ReplenishmentShortageRowDto(
-                            deviceId, device.getDeviceName(), slotCode, skuId, skuName,
-                            bookQty, slot.getMinLevel(), slot.getParLevel(), status, key));
-                }
+                maybePutLowStockShortageRow(device, slot, bookBySlot, byKey);
             }
         }
-        return byKey.values().stream()
-                .sorted(Comparator.comparing(ReplenishmentShortageRowDto::deviceId)
-                        .thenComparing(ReplenishmentShortageRowDto::slotCode))
-                .toList();
+    }
+
+    private void maybePutLowStockShortageRow(DeviceInfo device, DeviceSlot slot,
+                                             Map<String, Integer> bookBySlot,
+                                             LinkedHashMap<String, ReplenishmentShortageRowDto> byKey) {
+        if (!slot.isEnabled()) {
+            return;
+        }
+        String skuId = slot.getAssignedSkuId();
+        if (skuId == null || skuId.isBlank()) {
+            return;
+        }
+        String deviceId = device.getDeviceId();
+        String slotCode = slot.getId().getSlotCode();
+        String key = shortageRowKey(deviceId, slotCode);
+        if (byKey.containsKey(key)) {
+            return;
+        }
+        int bookQty = bookBySlot.getOrDefault(slotCode, 0);
+        String status = resolveStockStatus(slot, bookQty);
+        if (bookQty > slot.getMinLevel() && !"OOS".equals(status) && !"LOW".equals(status)) {
+            return;
+        }
+        String skuName = skuCatalogRepository.findById(skuId)
+                .map(SkuCatalog::getSkuName)
+                .orElse(null);
+        byKey.put(key, new ReplenishmentShortageRowDto(
+                deviceId, device.getDeviceName(), slotCode, skuId, skuName,
+                bookQty, slot.getMinLevel(), slot.getParLevel(), status, key));
     }
 
     private List<DeviceInfo> resolveDevicesForShortage(Long operatorId, String deviceIdFilter) {
@@ -338,30 +356,45 @@ public class DeviceSlotService {
             if (remaining <= 0 || entry.getKey() == null || entry.getKey().isBlank()) {
                 continue;
             }
-            List<DeviceSlot> slots = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
-                    .filter(s -> s.isEnabled() && entry.getKey().equals(s.getAssignedSkuId()))
-                    .sorted((a, b) -> Integer.compare(
-                            bookBySlot.getOrDefault(b.getId().getSlotCode(), 0),
-                            bookBySlot.getOrDefault(a.getId().getSlotCode(), 0)))
-                    .toList();
-            if (slots.isEmpty()) {
-                continue;
-            }
-            for (DeviceSlot slot : slots) {
-                if (remaining <= 0) {
-                    break;
-                }
-                String code = slot.getId().getSlotCode();
-                int book = bookBySlot.getOrDefault(code, 0);
-                int take = (slots.size() == 1 || book <= 0) ? remaining : Math.min(book, remaining);
-                slotQtySold.merge(code, take, Integer::sum);
-                remaining -= take;
-            }
-            if (remaining > 0) {
-                slotQtySold.merge(slots.get(0).getId().getSlotCode(), remaining, Integer::sum);
-            }
+            Map<String, Integer> allocated = allocateSkuSaleToSlots(deviceId, entry.getKey(), remaining, bookBySlot);
+            allocated.forEach((code, take) -> slotQtySold.merge(code, take, Integer::sum));
         }
         self.applyPhysicalAfterSale(deviceId, slotQtySold, refId);
+    }
+
+    /** 按账面从高到低将销售件数分摊到同 SKU 货道。 */
+    private Map<String, Integer> allocateSkuSaleToSlots(String deviceId, String skuId, int quantity,
+                                                        Map<String, Integer> bookBySlot) {
+        List<DeviceSlot> slots = sortedSlotsForSku(deviceId, skuId, bookBySlot);
+        if (slots.isEmpty() || quantity <= 0) {
+            return Map.of();
+        }
+        Map<String, Integer> slotQtySold = new LinkedHashMap<>();
+        int remaining = quantity;
+        for (DeviceSlot slot : slots) {
+            if (remaining <= 0) {
+                break;
+            }
+            String code = slot.getId().getSlotCode();
+            int book = bookBySlot.getOrDefault(code, 0);
+            int take = (slots.size() == 1 || book <= 0) ? remaining : Math.min(book, remaining);
+            slotQtySold.merge(code, take, Integer::sum);
+            remaining -= take;
+        }
+        if (remaining > 0) {
+            slotQtySold.merge(slots.get(0).getId().getSlotCode(), remaining, Integer::sum);
+        }
+        return slotQtySold;
+    }
+
+    private List<DeviceSlot> sortedSlotsForSku(String deviceId, String skuId,
+                                               Map<String, Integer> bookBySlot) {
+        return slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
+                .filter(s -> s.isEnabled() && skuId.equals(s.getAssignedSkuId()))
+                .sorted((a, b) -> Integer.compare(
+                        bookBySlot.getOrDefault(b.getId().getSlotCode(), 0),
+                        bookBySlot.getOrDefault(a.getId().getSlotCode(), 0)))
+                .toList();
     }
 
     /** 退货/免单回库后同步货道实测（已有实测值则加回）。 */
@@ -916,13 +949,55 @@ public class DeviceSlotService {
         List<DeviceSlot> active = slots.stream()
                 .filter(s -> s.isEnabled() && s.getParLevel() > 0)
                 .toList();
+        SlotFillStats fillStats = accumulateSlotFillStats(active, bookBySlot);
+        int fillRate = fillStats.totalPar() > 0 ? (fillStats.totalBook() * 100 / fillStats.totalPar()) : 0;
+        int oosRate = active.isEmpty() ? 0 : (fillStats.oosCount() * 100 / active.size());
+        int accuracy = fillStats.accuracySlots() > 0
+                ? (fillStats.accuracySum() / fillStats.accuracySlots()) : 100;
+
+        Instant lastRestock = slots.stream()
+                .map(DeviceSlot::getLastRestockAt)
+                .filter(Objects::nonNull)
+                .max(Instant::compareTo)
+                .orElseGet(() -> taskRepository.findLastCompletedAtByDeviceId(deviceId).orElse(null));
+
+        return new DeviceOpsMetricsDto(
+                deviceId,
+                slots.size(),
+                active.size(),
+                fillRate,
+                oosRate,
+                fillStats.oosCount(),
+                fillStats.lowCount(),
+                bookBySlot.values().stream().mapToInt(Integer::intValue).sum(),
+                fillStats.totalPar(),
+                lastRestock,
+                accuracy,
+                device.getAddress(),
+                device.getCurrentTempC(),
+                device.getTargetTempC(),
+                device.getTempReportedAt(),
+                device.salesLockedEnabled(),
+                device.getAppVersion(),
+                device.getFirmwareVersion(),
+                device.getAlertContactName(),
+                device.getAlertContactPhone(),
+                countNearExpiryLots(deviceId)
+        );
+    }
+
+    private record SlotFillStats(int totalPar, int totalBook, int oosCount, int lowCount,
+                                 int accuracySum, int accuracySlots) {
+    }
+
+    private static SlotFillStats accumulateSlotFillStats(List<DeviceSlot> active,
+                                                         Map<String, Integer> bookBySlot) {
         int totalPar = 0;
         int totalBook = 0;
         int oosCount = 0;
         int lowCount = 0;
         int accuracySum = 0;
         int accuracySlots = 0;
-
         for (DeviceSlot slot : active) {
             String code = slot.getId().getSlotCode();
             int par = slot.getParLevel();
@@ -936,56 +1011,31 @@ public class DeviceSlotService {
             }
             if (slot.getLastPhysicalQty() != null) {
                 accuracySlots++;
-                if (book == 0 && slot.getLastPhysicalQty() == 0) {
-                    accuracySum += 100;
-                } else if (book > 0) {
-                    int diff = Math.abs(book - slot.getLastPhysicalQty());
-                    accuracySum += Math.max(0, 100 - (diff * 100 / book));
-                }
+                accuracySum += physicalAccuracyPercent(book, slot.getLastPhysicalQty());
             }
         }
+        return new SlotFillStats(totalPar, totalBook, oosCount, lowCount, accuracySum, accuracySlots);
+    }
 
-        int fillRate = totalPar > 0 ? (totalBook * 100 / totalPar) : 0;
-        int oosRate = active.isEmpty() ? 0 : (oosCount * 100 / active.size());
-        int accuracy = accuracySlots > 0 ? (accuracySum / accuracySlots) : 100;
+    private static int physicalAccuracyPercent(int book, int physicalQty) {
+        if (book == 0 && physicalQty == 0) {
+            return 100;
+        }
+        if (book <= 0) {
+            return 0;
+        }
+        int diff = Math.abs(book - physicalQty);
+        return Math.max(0, 100 - (diff * 100 / book));
+    }
 
-        Instant lastRestock = slots.stream()
-                .map(DeviceSlot::getLastRestockAt)
-                .filter(Objects::nonNull)
-                .max(Instant::compareTo)
-                .orElseGet(() -> taskRepository.findLastCompletedAtByDeviceId(deviceId).orElse(null));
-
+    private int countNearExpiryLots(String deviceId) {
         LocalDate nearCutoff = LocalDate.now().plusDays(7);
-        int nearExpiryLotCount = (int) lotRepository.findByDeviceId(deviceId).stream()
+        return (int) lotRepository.findByDeviceId(deviceId).stream()
                 .filter(l -> l.getQuantity() > 0)
                 .filter(l -> "NEAR_EXPIRY".equals(l.getStatus())
                         || (l.getExpiryDate() != null && !l.getExpiryDate().isAfter(nearCutoff)
                         && l.getExpiryDate().isAfter(LocalDate.now().minusDays(1))))
                 .count();
-
-        return new DeviceOpsMetricsDto(
-                deviceId,
-                slots.size(),
-                active.size(),
-                fillRate,
-                oosRate,
-                oosCount,
-                lowCount,
-                bookBySlot.values().stream().mapToInt(Integer::intValue).sum(),
-                totalPar,
-                lastRestock,
-                accuracy,
-                device.getAddress(),
-                device.getCurrentTempC(),
-                device.getTargetTempC(),
-                device.getTempReportedAt(),
-                device.salesLockedEnabled(),
-                device.getAppVersion(),
-                device.getFirmwareVersion(),
-                device.getAlertContactName(),
-                device.getAlertContactPhone(),
-                nearExpiryLotCount
-        );
     }
 
     private DeviceSlotDto toSlotDto(DeviceSlot slot, int bookQty) {
