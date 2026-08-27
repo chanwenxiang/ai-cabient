@@ -442,7 +442,7 @@ async function loadSupportPhone() {
     const phone = String(cfg?.servicePhone || cfg?.['consumer.service_phone'] || '').trim();
     if (phone) {
       supportPhoneDisplay.value = phone;
-      supportPhoneDial.value = phone.replace(/[^\d+]/g, '');
+      supportPhoneDial.value = phone.replaceAll(/[^\d+]/g, '');
     }
   } catch {
     /* keep defaults */

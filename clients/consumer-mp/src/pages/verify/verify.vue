@@ -181,7 +181,7 @@ function maskRealName(name?: string) {
 }
 
 function maskPhone(phone?: string | number) {
-  const p = String(phone || '').replace(/\D/g, '');
+  const p = String(phone || '').replaceAll(/\D/g, '');
   if (p.length < 7) return String(phone || '');
   return p.slice(0, 3) + '****' + p.slice(-4);
 }

@@ -60,10 +60,10 @@ function promptNative(opts: TextPromptOptions): Promise<string | null> {
 
 function escapeAttr(value: string): string {
   return value
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replaceAll(/&/g, '&amp;')
+    .replaceAll(/"/g, '&quot;')
+    .replaceAll(/</g, '&lt;')
+    .replaceAll(/>/g, '&gt;');
 }
 
 function promptH5(opts: TextPromptOptions): Promise<string | null> {

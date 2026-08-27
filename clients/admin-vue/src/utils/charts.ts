@@ -377,10 +377,10 @@ export function buildDonutChart(opts: {
 
 function escapeXml(v: string | number): string {
   return String(v ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replaceAll(/&/g, '&amp;')
+    .replaceAll(/</g, '&lt;')
+    .replaceAll(/"/g, '&quot;')
+    .replaceAll(/'/g, '&#39;');
 }
 
 /**
@@ -392,12 +392,12 @@ export function sanitizeChartSvg(raw: string): string {
   if (!s.startsWith('<svg')) return '';
   return (
     s
-      .replace(/<script\b[\s\S]*?<\/script>/gi, '')
-      .replace(/<\/?(?:foreignObject|iframe|object|embed|link|meta|base)\b[^>]*>/gi, '')
-      .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      .replaceAll(/<script\b[\s\S]*?<\/script>/gi, '')
+      .replaceAll(/<\/?(?:foreignObject|iframe|object|embed|link|meta|base)\b[^>]*>/gi, '')
+      .replaceAll(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
       // 仅保留页内锚点 href；外链 / javascript / data URI 一并去掉
-      .replace(/\s(?:href|xlink:href)\s*=\s*("(?!#)[^"]*"|'(?!#)[^']*')/gi, '')
-      .replace(/javascript:/gi, '')
+      .replaceAll(/\s(?:href|xlink:href)\s*=\s*("(?!#)[^"]*"|'(?!#)[^']*')/gi, '')
+      .replaceAll(/javascript:/gi, '')
   );
 }
 

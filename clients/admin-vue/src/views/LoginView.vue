@@ -325,7 +325,7 @@ function focusPassword() {
 }
 
 function onPhoneInput() {
-  phone.value = phone.value.replace(/\D/g, '');
+  phone.value = phone.value.replaceAll(/\D/g, '');
   err.value = '';
 }
 

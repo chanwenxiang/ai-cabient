@@ -718,7 +718,7 @@ const skuStatusByLabel: Record<string, string> = {
 
 function parseConfidence(raw: string | undefined, fallback: number) {
   if (raw == null || !String(raw).trim()) return fallback;
-  const n = Number(String(raw).replace(/%/g, '').trim());
+  const n = Number(String(raw).replaceAll(/%/g, '').trim());
   if (Number.isNaN(n)) return fallback;
   return n > 1 ? n / 100 : n;
 }
@@ -759,7 +759,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         if (!skuId || !skuName) continue;
         const yoloClassName =
           (row['识别类名'] || row.yoloClassName || '').trim() ||
-          skuId.toLowerCase().replace(/[^a-z0-9_]+/g, '_');
+          skuId.toLowerCase().replaceAll(/[^a-z0-9_]+/g, '_');
         const priceCents = Math.round((Number(row['基准价'] || row.priceYuan) || 0) * 100);
         const visionEnrollmentStatus = enrollmentStatusCode(
           row['识别状态'] || row.visionEnrollmentStatus

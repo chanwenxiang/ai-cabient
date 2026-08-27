@@ -540,7 +540,7 @@ async function exportCsv() {
   const from = range.value?.[0];
   const to = range.value?.[1];
   const prefix =
-    from && to ? `资金日账单_${from.replace(/-/g, '')}-${to.replace(/-/g, '')}` : '资金日账单';
+    from && to ? `资金日账单_${from.replaceAll(/-/g, '')}-${to.replaceAll(/-/g, '')}` : '资金日账单';
   try {
     await downloadAuthFile(`/api/v2/ops/admin/fund/daily-bills/export?${q}`, csvFileName(prefix));
     ElMessage.success('已导出日账单');
