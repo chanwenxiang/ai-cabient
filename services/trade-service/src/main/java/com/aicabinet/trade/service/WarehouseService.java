@@ -809,7 +809,9 @@ public class WarehouseService {
                             case "empty" -> cancelledEmptyDrafts++;
                             case "terminal-draft" -> cancelledTerminalDrafts++;
                             case "orphan-shipped" -> cancelledOrphanShipped++;
-                            default -> { }
+                            default -> {
+                                // classifyStaleOutbound only returns empty/terminal-draft/orphan-shipped.
+                            }
                         }
                     } catch (ResponseStatusException ex) {
                         skipped++;

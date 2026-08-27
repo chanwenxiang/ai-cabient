@@ -1251,9 +1251,7 @@ public class SettlementService {
         }
         try {
             return action.get();
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (DisputeRequiredException | BalanceInsufficientException e) {
+        } catch (ResponseStatusException | DisputeRequiredException | BalanceInsufficientException e) {
             throw e;
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);

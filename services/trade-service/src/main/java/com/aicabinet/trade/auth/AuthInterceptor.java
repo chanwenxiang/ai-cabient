@@ -52,8 +52,6 @@ public class AuthInterceptor implements HandlerInterceptor {
             Long userId = jwtService.validateAndGetUserId(auth.substring(7));
             request.setAttribute(ATTR_USER_ID, userId);
             return true;
-        } catch (JwtService.InvalidSessionTokenException e) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.INVALID_TOKEN);
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.INVALID_TOKEN);
         }

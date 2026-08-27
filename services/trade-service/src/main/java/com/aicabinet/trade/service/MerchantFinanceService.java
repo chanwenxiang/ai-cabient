@@ -239,7 +239,7 @@ public class MerchantFinanceService {
         merchantPortalGuard.requireAccess(userId);
         Set<String> allowed = merchantFeaturePackService.allowedMerchantIdsForPack(
                 userId, MerchantFeaturePacks.BIZ);
-        if (allowed == null || allowed.isEmpty()) {
+        if (allowed.isEmpty()) {
             return new PageResult<>(List.of(), page, size, 0);
         }
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
