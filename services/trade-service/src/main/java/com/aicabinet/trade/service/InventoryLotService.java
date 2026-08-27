@@ -159,28 +159,49 @@ public class InventoryLotService {
         String primaryBatch = null;
         Map<String, Integer> slotQty = new LinkedHashMap<>();
         for (DeviceSkuLot lot : lots) {
-            if (remaining > 0 && isSellable(lot, minExpiry)) {
-                int take = Math.min(lot.getQuantity(), remaining);
-                if (take > 0) {
-                    if (primaryBatch == null) {
-                        primaryBatch = lot.getBatchNo();
-                    }
-                    lot.setQuantity(lot.getQuantity() - take);
-                    if (lot.getQuantity() == 0) {
-                        lot.setStatus(DEPLETED);
-                    }
-                    lotRepository.save(lot);
-                    recordMovement(deviceId, skuId, new InventoryMovementCommand(
-                            lot.getBatchNo(), "SALE", -take, new LotMovementRef(refType, refId, null)));
-                    if (lot.getSlotId() != null && !lot.getSlotId().isBlank()) {
-                        String slotCode = lot.getSlotId().trim().toUpperCase();
-                        slotQty.merge(slotCode, take, Integer::sum);
-                    }
-                    remaining -= take;
-                }
+            if (remaining <= 0) {
+                break;
             }
+            LotDeductionStep step = tryDeductFromSellableLot(
+                    deviceId, skuId, lot, remaining, refType, refId, minExpiry);
+            if (step == null) {
+                continue;
+            }
+            if (primaryBatch == null) {
+                primaryBatch = step.batchNo();
+            }
+            if (step.slotCode() != null) {
+                slotQty.merge(step.slotCode(), step.taken(), Integer::sum);
+            }
+            remaining -= step.taken();
         }
         return new DeductionAccumulator(primaryBatch, slotQty, remaining);
+    }
+
+    private record LotDeductionStep(int taken, String batchNo, String slotCode) {}
+
+    private LotDeductionStep tryDeductFromSellableLot(String deviceId, String skuId, DeviceSkuLot lot,
+                                                      int remaining, String refType, String refId,
+                                                      LocalDate minExpiry) {
+        if (!isSellable(lot, minExpiry)) {
+            return null;
+        }
+        int take = Math.min(lot.getQuantity(), remaining);
+        if (take <= 0) {
+            return null;
+        }
+        lot.setQuantity(lot.getQuantity() - take);
+        if (lot.getQuantity() == 0) {
+            lot.setStatus(DEPLETED);
+        }
+        lotRepository.save(lot);
+        recordMovement(deviceId, skuId, new InventoryMovementCommand(
+                lot.getBatchNo(), "SALE", -take, new LotMovementRef(refType, refId, null)));
+        String slotCode = null;
+        if (lot.getSlotId() != null && !lot.getSlotId().isBlank()) {
+            slotCode = lot.getSlotId().trim().toUpperCase();
+        }
+        return new LotDeductionStep(take, lot.getBatchNo(), slotCode);
     }
 
     public record FefoDeductResult(String primaryBatch, Map<String, Integer> slotQtyDeducted) {}

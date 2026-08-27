@@ -978,47 +978,66 @@ public class WarehouseService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "仓库分配繁忙，请稍后重试");
         }
         try {
-            int remaining = needQty;
-            int lines = 0;
-            List<WarehouseInventory> lots = inventoryRepository
-                    .findByWarehouseIdAndSkuIdOrderByExpiryDateAsc(warehouseId, skuId);
-            for (WarehouseInventory lot : lots) {
-                if (remaining <= 0) {
-                    break;
-                }
-                if (lot.getQuantity() > 0 && !lot.getExpiryDate().isBefore(LocalDate.now())) {
-                    WarehouseInventory lockedLot = inventoryRepository
-                            .findByWarehouseIdAndSkuIdAndBatchNoForUpdate(warehouseId, skuId, lot.getBatchNo())
-                            .orElse(lot);
-                    int allocated = outboundLineRepository.sumAllocatedQty(warehouseId, skuId, lockedLot.getBatchNo());
-                    int available = Math.max(0, lockedLot.getQuantity() - allocated);
-                    if (available > 0) {
-                        int take = Math.min(available, remaining);
-                        WarehouseOutboundLine line = new WarehouseOutboundLine();
-                        line.setOutboundId(outboundId);
-                        line.setDeviceId(deviceId);
-                        line.setSkuId(skuId);
-                        line.setBatchNo(lockedLot.getBatchNo());
-                        line.setExpiryDate(lockedLot.getExpiryDate());
-                        line.setQuantity(take);
-                        line.setPicked(false);
-                        if (slotId != null && !slotId.isBlank()) {
-                            line.setSlotId(slotId.trim().toUpperCase());
-                        }
-                        outboundLineRepository.save(line);
-                        remaining -= take;
-                        lines++;
-                    }
-                }
-            }
-            if (remaining > 0 && requireFull) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT,
-                        "warehouse stock insufficient for outbound sku=" + skuId + " need=" + needQty + " remaining=" + remaining);
-            }
-            return new FefoAllocResult(lines, needQty - remaining);
+            return doAllocateFefoLots(outboundId, warehouseId, deviceId, skuId, needQty, slotId, requireFull);
         } finally {
             distributedLockService.unlock(lockKey);
         }
+    }
+
+    private FefoAllocResult doAllocateFefoLots(Long outboundId, String warehouseId, String deviceId,
+                                               String skuId, int needQty, String slotId, boolean requireFull) {
+        int remaining = needQty;
+        int lines = 0;
+        List<WarehouseInventory> lots = inventoryRepository
+                .findByWarehouseIdAndSkuIdOrderByExpiryDateAsc(warehouseId, skuId);
+        for (WarehouseInventory lot : lots) {
+            if (remaining <= 0) {
+                break;
+            }
+            FefoLotTake take = tryTakeFromWarehouseLot(
+                    outboundId, warehouseId, deviceId, skuId, slotId, lot, remaining);
+            if (take != null) {
+                remaining -= take.qty();
+                lines += take.lines();
+            }
+        }
+        if (remaining > 0 && requireFull) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "warehouse stock insufficient for outbound sku=" + skuId + " need=" + needQty + " remaining=" + remaining);
+        }
+        return new FefoAllocResult(lines, needQty - remaining);
+    }
+
+    private record FefoLotTake(int qty, int lines) {}
+
+    private FefoLotTake tryTakeFromWarehouseLot(Long outboundId, String warehouseId, String deviceId,
+                                                String skuId, String slotId, WarehouseInventory lot,
+                                                int remaining) {
+        if (lot.getQuantity() <= 0 || lot.getExpiryDate().isBefore(LocalDate.now())) {
+            return null;
+        }
+        WarehouseInventory lockedLot = inventoryRepository
+                .findByWarehouseIdAndSkuIdAndBatchNoForUpdate(warehouseId, skuId, lot.getBatchNo())
+                .orElse(lot);
+        int allocated = outboundLineRepository.sumAllocatedQty(warehouseId, skuId, lockedLot.getBatchNo());
+        int available = Math.max(0, lockedLot.getQuantity() - allocated);
+        if (available <= 0) {
+            return null;
+        }
+        int take = Math.min(available, remaining);
+        WarehouseOutboundLine line = new WarehouseOutboundLine();
+        line.setOutboundId(outboundId);
+        line.setDeviceId(deviceId);
+        line.setSkuId(skuId);
+        line.setBatchNo(lockedLot.getBatchNo());
+        line.setExpiryDate(lockedLot.getExpiryDate());
+        line.setQuantity(take);
+        line.setPicked(false);
+        if (slotId != null && !slotId.isBlank()) {
+            line.setSlotId(slotId.trim().toUpperCase());
+        }
+        outboundLineRepository.save(line);
+        return new FefoLotTake(take, 1);
     }
 
     /** 发运前按货道余量截断出库行；数量归零的行删除。 */

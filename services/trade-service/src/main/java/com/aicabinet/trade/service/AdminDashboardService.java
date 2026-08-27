@@ -1565,29 +1565,44 @@ public class AdminDashboardService {
         LocalDate start = today.minusDays(window - 1L);
         Instant since = start.atStartOfDay(zone).toInstant();
 
+        Map<LocalDate, long[]> buckets = initDailyCountBuckets(start, window);
+        Set<String> scopedDevices = merchantScopeService.allowedDeviceIds(operatorId);
+        accumulateOpsTrendSessions(buckets,
+                sessionRepository.findByStateInAndUpdatedAtAfter(CLOSED_STATES, since),
+                scopedDevices, zone);
+        return new AdminOpsTrendDto(toOpsDailyPoints(buckets));
+    }
+
+    private static Map<LocalDate, long[]> initDailyCountBuckets(LocalDate start, int window) {
         Map<LocalDate, long[]> buckets = new java.util.LinkedHashMap<>();
         for (int i = 0; i < window; i++) {
             buckets.put(start.plusDays(i), new long[]{0, 0});
         }
+        return buckets;
+    }
 
-        Set<String> scopedDevices = merchantScopeService.allowedDeviceIds(operatorId);
-        List<ShoppingSession> closedSessions = sessionRepository.findByStateInAndUpdatedAtAfter(
-                CLOSED_STATES, since);
-        for (ShoppingSession session : closedSessions) {
-            if (scopedDevices == null || scopedDevices.contains(session.getDeviceId())) {
-                LocalDate day = session.getUpdatedAt().atZone(zone).toLocalDate();
-                long[] bucket = buckets.get(day);
-                if (bucket != null) {
-                    if (session.getState() == SessionState.COMPLETED) {
-                        bucket[0]++;
-                    } else if (session.getState() == SessionState.DISPUTED) {
-                        bucket[1]++;
-                    }
-                }
+    private static void accumulateOpsTrendSessions(Map<LocalDate, long[]> buckets,
+                                                   List<ShoppingSession> sessions,
+                                                   Set<String> scopedDevices, ZoneId zone) {
+        for (ShoppingSession session : sessions) {
+            if (scopedDevices != null && !scopedDevices.contains(session.getDeviceId())) {
+                continue;
+            }
+            LocalDate day = session.getUpdatedAt().atZone(zone).toLocalDate();
+            long[] bucket = buckets.get(day);
+            if (bucket == null) {
+                continue;
+            }
+            if (session.getState() == SessionState.COMPLETED) {
+                bucket[0]++;
+            } else if (session.getState() == SessionState.DISPUTED) {
+                bucket[1]++;
             }
         }
+    }
 
-        List<AdminOpsDailyDto> points = buckets.entrySet().stream()
+    private static List<AdminOpsDailyDto> toOpsDailyPoints(Map<LocalDate, long[]> buckets) {
+        return buckets.entrySet().stream()
                 .map(e -> {
                     long completed = e.getValue()[0];
                     long disputed = e.getValue()[1];
@@ -1595,15 +1610,9 @@ public class AdminDashboardService {
                     double recognitionRate = total > 0 ? (double) completed / total : 1.0;
                     double disputeRate = total > 0 ? (double) disputed / total : 0.0;
                     return new AdminOpsDailyDto(
-                            e.getKey().toString(),
-                            completed,
-                            disputed,
-                            recognitionRate,
-                            disputeRate
-                    );
+                            e.getKey().toString(), completed, disputed, recognitionRate, disputeRate);
                 })
                 .toList();
-        return new AdminOpsTrendDto(points);
     }
 
     @Transactional
