@@ -3,7 +3,6 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.domain.DisputeTicket;
 import com.aicabinet.trade.mapper.DisputeTicketMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -25,20 +24,20 @@ public class DisputeSlaScheduler {
     private final DisputeSlaProperties disputeSlaProperties;
     private final DisputeTicketMapper disputeRepository;
     private final DisputeSlaAlertService alertService;
+    private final ScheduledTaskService taskService;
+    private final SystemConfigService systemConfigService;
 
     public DisputeSlaScheduler(DisputeSlaProperties disputeSlaProperties,
                                  DisputeTicketMapper disputeRepository,
-                                 DisputeSlaAlertService alertService) {
+                                 DisputeSlaAlertService alertService,
+                                 ScheduledTaskService taskService,
+                                 SystemConfigService systemConfigService) {
         this.disputeSlaProperties = disputeSlaProperties;
         this.disputeRepository = disputeRepository;
         this.alertService = alertService;
+        this.taskService = taskService;
+        this.systemConfigService = systemConfigService;
     }
-
-    @Autowired
-    private ScheduledTaskService taskService;
-
-    @Autowired
-    private SystemConfigService systemConfigService;
 
     @Scheduled(fixedRate = 900_000)
     @Transactional

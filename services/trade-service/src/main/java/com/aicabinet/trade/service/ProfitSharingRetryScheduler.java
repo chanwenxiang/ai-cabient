@@ -8,7 +8,6 @@ import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,18 +27,18 @@ public class ProfitSharingRetryScheduler {
     private final OrderRevenueSplitMapper splitRepository;
     private final MerchantMapper merchantRepository;
     private final WeChatProfitSharingService profitSharingService;
-
-    @Autowired
-    private ScheduledTaskService taskService;
+    private final ScheduledTaskService taskService;
 
     public ProfitSharingRetryScheduler(ProfitSharingProperties profitSharingProperties,
                                        OrderRevenueSplitMapper splitRepository,
                                        MerchantMapper merchantRepository,
-                                       WeChatProfitSharingService profitSharingService) {
+                                       WeChatProfitSharingService profitSharingService,
+                                       ScheduledTaskService taskService) {
         this.profitSharingProperties = profitSharingProperties;
         this.splitRepository = splitRepository;
         this.merchantRepository = merchantRepository;
         this.profitSharingService = profitSharingService;
+        this.taskService = taskService;
     }
 
     @Scheduled(fixedRate = 900_000)

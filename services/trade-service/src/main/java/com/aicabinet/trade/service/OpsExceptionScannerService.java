@@ -4,7 +4,6 @@ import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.config.OpsMonitoringProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -21,19 +20,19 @@ public class OpsExceptionScannerService {
     private final ShoppingSessionMapper sessionRepository;
     private final OpsExceptionService exceptionService;
     private final OpsMonitoringProperties properties;
-
-    @Autowired
-    private ScheduledTaskService taskService;
-
-    @Autowired
-    private SystemConfigService systemConfigService;
+    private final ScheduledTaskService taskService;
+    private final SystemConfigService systemConfigService;
 
     public OpsExceptionScannerService(ShoppingSessionMapper sessionRepository,
                                       OpsExceptionService exceptionService,
-                                      OpsMonitoringProperties properties) {
+                                      OpsMonitoringProperties properties,
+                                      ScheduledTaskService taskService,
+                                      SystemConfigService systemConfigService) {
         this.sessionRepository = sessionRepository;
         this.exceptionService = exceptionService;
         this.properties = properties;
+        this.taskService = taskService;
+        this.systemConfigService = systemConfigService;
     }
 
     @Scheduled(fixedDelayString = "${aicabinet.ops-monitoring.scan-interval-ms:30000}")

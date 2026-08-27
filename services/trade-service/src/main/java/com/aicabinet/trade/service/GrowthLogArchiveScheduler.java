@@ -2,7 +2,6 @@ package com.aicabinet.trade.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -23,14 +22,14 @@ public class GrowthLogArchiveScheduler {
 
     private final JdbcTemplate jdbcTemplate;
     private final SystemConfigService systemConfigService;
-
-    @Autowired
-    private ScheduledTaskService taskService;
+    private final ScheduledTaskService taskService;
 
     public GrowthLogArchiveScheduler(JdbcTemplate jdbcTemplate,
-                                     SystemConfigService systemConfigService) {
+                                     SystemConfigService systemConfigService,
+                                     ScheduledTaskService taskService) {
         this.jdbcTemplate = jdbcTemplate;
         this.systemConfigService = systemConfigService;
+        this.taskService = taskService;
     }
 
     @Scheduled(fixedRate = 24 * 3_600_000L)

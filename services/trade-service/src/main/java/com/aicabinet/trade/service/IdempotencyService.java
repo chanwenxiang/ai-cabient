@@ -5,7 +5,6 @@ import com.aicabinet.trade.mapper.IdempotencyKeyMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -33,18 +32,20 @@ public class IdempotencyService {
 
     private static final Logger log = LoggerFactory.getLogger(IdempotencyService.class);
 
-    @Autowired
-    private IdempotencyKeyMapper repository;
+    private final IdempotencyKeyMapper repository;
+    private final ObjectMapper objectMapper;
+    private final DistributedLockService distributedLockService;
+    private final IdempotencyService self;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
-    private DistributedLockService distributedLockService;
-
-    @Autowired
-    @Lazy
-    private IdempotencyService self;
+    public IdempotencyService(IdempotencyKeyMapper repository,
+                              ObjectMapper objectMapper,
+                              DistributedLockService distributedLockService,
+                              @Lazy IdempotencyService self) {
+        this.repository = repository;
+        this.objectMapper = objectMapper;
+        this.distributedLockService = distributedLockService;
+        this.self = self;
+    }
 
     private static final int DEFAULT_EXPIRE_HOURS = 24;
 

@@ -35,11 +35,10 @@ class DataConsistencyConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        service = new DataConsistencyService();
-        ReflectionTestUtils.setField(service, "changeLogRepository", changeLogRepository);
-        ReflectionTestUtils.setField(service, "consistencyRepository", consistencyRepository);
-        ReflectionTestUtils.setField(service, "jdbcTemplate", jdbcTemplate);
-        ReflectionTestUtils.setField(service, "distributedLockService", distributedLockService);
+        service = new DataConsistencyService(changeLogRepository, consistencyRepository, jdbcTemplate,
+                new com.fasterxml.jackson.databind.ObjectMapper(), null, distributedLockService,
+                null, null, null, null);
+        ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

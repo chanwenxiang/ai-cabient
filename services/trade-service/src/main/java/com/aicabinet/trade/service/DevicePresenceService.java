@@ -8,7 +8,6 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DeviceTemperatureReadingMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -37,9 +36,7 @@ public class DevicePresenceService {
     private final DistributedLockService distributedLockService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DevicePresenceService self;
-
-    @Autowired
-    private ScheduledTaskService taskService;
+    private final ScheduledTaskService taskService;
 
     public DevicePresenceService(DeviceInfoMapper deviceRepository,
                                  DeviceTemperatureReadingMapper temperatureReadingRepository,
@@ -48,7 +45,8 @@ public class DevicePresenceService {
                                  SystemConfigService systemConfigService,
                                  AdminAuditService auditService,
                                  DistributedLockService distributedLockService,
-                                 @Lazy DevicePresenceService self) {
+                                 @Lazy DevicePresenceService self,
+                                 ScheduledTaskService taskService) {
         this.deviceRepository = deviceRepository;
         this.temperatureReadingRepository = temperatureReadingRepository;
         this.cabinetMetrics = cabinetMetrics;
@@ -57,6 +55,7 @@ public class DevicePresenceService {
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
         this.self = self;
+        this.taskService = taskService;
     }
 
     @Transactional

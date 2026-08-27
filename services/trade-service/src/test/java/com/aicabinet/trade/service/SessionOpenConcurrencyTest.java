@@ -25,7 +25,7 @@ class SessionOpenConcurrencyTest {
     void setUp() {
         service = new SessionService(
                 null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, distributedLockService);
+                null, null, null, null, null, null, null, null, distributedLockService, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

@@ -4,7 +4,6 @@ import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.domain.DisputeTicket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -16,14 +15,14 @@ public class DisputeSlaAlertService {
 
     private final DisputeSlaProperties disputeSlaProperties;
     private final OpsAlertDispatcher opsAlertDispatcher;
-
-    @Autowired
-    private SystemConfigService systemConfigService;
+    private final SystemConfigService systemConfigService;
 
     public DisputeSlaAlertService(DisputeSlaProperties disputeSlaProperties,
-                                  OpsAlertDispatcher opsAlertDispatcher) {
+                                  OpsAlertDispatcher opsAlertDispatcher,
+                                  SystemConfigService systemConfigService) {
         this.disputeSlaProperties = disputeSlaProperties;
         this.opsAlertDispatcher = opsAlertDispatcher;
+        this.systemConfigService = systemConfigService;
     }
 
     public void sendReminder(DisputeTicket ticket) {

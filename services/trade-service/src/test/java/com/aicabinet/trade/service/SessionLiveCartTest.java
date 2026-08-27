@@ -32,13 +32,12 @@ class SessionLiveCartTest {
     void setUp() {
         sessionService = new SessionService(
                 repository, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, distributedLockService);
+                null, null, null, null, null, null, null, null, distributedLockService, null, new ObjectMapper());
         org.springframework.test.util.ReflectionTestUtils.setField(sessionService, "self", sessionService);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
-        ReflectionTestUtils.setField(sessionService, "objectMapper", new ObjectMapper());
     }
 
     @Test

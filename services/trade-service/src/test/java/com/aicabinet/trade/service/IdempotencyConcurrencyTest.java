@@ -27,10 +27,7 @@ class IdempotencyConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        service = new IdempotencyService();
-        ReflectionTestUtils.setField(service, "repository", repository);
-        ReflectionTestUtils.setField(service, "objectMapper", new ObjectMapper());
-        ReflectionTestUtils.setField(service, "distributedLockService", distributedLockService);
+        service = new IdempotencyService(repository, new ObjectMapper(), distributedLockService, null);
         ReflectionTestUtils.setField(service, "self", service);
     }
 

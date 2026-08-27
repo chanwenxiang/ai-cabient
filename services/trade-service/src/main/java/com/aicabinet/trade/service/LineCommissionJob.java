@@ -10,7 +10,6 @@ import com.aicabinet.trade.mapper.LineDeviceMapper;
 import com.aicabinet.trade.mapper.LineManagerMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,22 +35,22 @@ public class LineCommissionJob {
     private final LineCommissionDailyMapper commissionDailyMapper;
     private final LineWalletService lineWalletService;
     private final DistributedLockService distributedLockService;
-
-    @Autowired
-    private ScheduledTaskService taskService;
+    private final ScheduledTaskService taskService;
 
     public LineCommissionJob(LineManagerMapper managerMapper,
                              LineDeviceMapper deviceMapper,
                              CabinetOrderMapper orderMapper,
                              LineCommissionDailyMapper commissionDailyMapper,
                              LineWalletService lineWalletService,
-                             DistributedLockService distributedLockService) {
+                             DistributedLockService distributedLockService,
+                             ScheduledTaskService taskService) {
         this.managerMapper = managerMapper;
         this.deviceMapper = deviceMapper;
         this.orderMapper = orderMapper;
         this.commissionDailyMapper = commissionDailyMapper;
         this.lineWalletService = lineWalletService;
         this.distributedLockService = distributedLockService;
+        this.taskService = taskService;
     }
 
     @Scheduled(cron = "0 20 0 * * *", zone = "Asia/Shanghai")

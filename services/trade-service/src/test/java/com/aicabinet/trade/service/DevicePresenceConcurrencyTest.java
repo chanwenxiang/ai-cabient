@@ -26,6 +26,7 @@ class DevicePresenceConcurrencyTest {
     @Mock private SystemConfigService systemConfigService;
     @Mock private AdminAuditService auditService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private ScheduledTaskService taskService;
 
     private DevicePresenceService service;
 
@@ -33,7 +34,7 @@ class DevicePresenceConcurrencyTest {
     void setUp() {
         service = new DevicePresenceService(deviceRepository, temperatureReadingRepository,
                 cabinetMetrics, opsExceptionService, systemConfigService, auditService,
-                distributedLockService, null);
+                distributedLockService, null, taskService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

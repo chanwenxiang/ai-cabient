@@ -11,7 +11,6 @@ import com.aicabinet.trade.mapper.DeviceTempPlanEntryMapper;
 import com.aicabinet.trade.mapper.DeviceTempPlanMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.context.annotation.Lazy;
@@ -47,9 +46,7 @@ public class DeviceTempPlanService {
     private final DistributedLockService distributedLockService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DeviceTempPlanService self;
-
-    @Autowired
-    private ScheduledTaskService taskService;
+    private final ScheduledTaskService taskService;
 
     public DeviceTempPlanService(PermissionService permissionService,
                                  DeviceTempPlanMapper planRepository,
@@ -57,7 +54,9 @@ public class DeviceTempPlanService {
                                  DeviceInfoMapper deviceRepository,
                                  DeviceServiceClient deviceClient,
                                  AdminAuditService auditService,
-                                 DistributedLockService distributedLockService, @Lazy DeviceTempPlanService self) {
+                                 DistributedLockService distributedLockService,
+                                 @Lazy DeviceTempPlanService self,
+                                 ScheduledTaskService taskService) {
         this.permissionService = permissionService;
         this.planRepository = planRepository;
         this.entryRepository = entryRepository;
@@ -66,6 +65,7 @@ public class DeviceTempPlanService {
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
         this.self = self;
+        this.taskService = taskService;
     }
 
     @Transactional(readOnly = true)

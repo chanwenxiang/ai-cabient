@@ -2,7 +2,6 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.mapper.DisputeTicketMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,14 +13,14 @@ public class DisputeSlaService {
 
     private final DisputeTicketMapper disputeRepository;
     private final DisputeSlaProperties disputeSlaProperties;
-
-    @Autowired
-    private SystemConfigService systemConfigService;
+    private final SystemConfigService systemConfigService;
 
     public DisputeSlaService(DisputeTicketMapper disputeRepository,
-                             DisputeSlaProperties disputeSlaProperties) {
+                             DisputeSlaProperties disputeSlaProperties,
+                             SystemConfigService systemConfigService) {
         this.disputeRepository = disputeRepository;
         this.disputeSlaProperties = disputeSlaProperties;
+        this.systemConfigService = systemConfigService;
     }
 
     @Transactional(readOnly = true)

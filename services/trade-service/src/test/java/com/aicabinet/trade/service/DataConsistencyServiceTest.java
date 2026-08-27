@@ -37,6 +37,7 @@ class DataConsistencyServiceTest {
     @Mock DataConsistencyRecordMapper consistencyRepository;
     @Mock JdbcTemplate jdbcTemplate;
     @Mock DistributedLockService distributedLockService;
+    @Mock ScheduledTaskService taskService;
     @Mock CouponService couponService;
     @Mock CabinetOrderMapper cabinetOrderRepository;
     @Mock OrderPaymentService orderPaymentService;
@@ -50,15 +51,9 @@ class DataConsistencyServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new DataConsistencyService();
-        ReflectionTestUtils.setField(service, "changeLogRepository", changeLogRepository);
-        ReflectionTestUtils.setField(service, "consistencyRepository", consistencyRepository);
-        ReflectionTestUtils.setField(service, "jdbcTemplate", jdbcTemplate);
-        ReflectionTestUtils.setField(service, "objectMapper", new ObjectMapper());
-        ReflectionTestUtils.setField(service, "distributedLockService", distributedLockService);
-        ReflectionTestUtils.setField(service, "couponService", couponService);
-        ReflectionTestUtils.setField(service, "cabinetOrderRepository", cabinetOrderRepository);
-        ReflectionTestUtils.setField(service, "orderPaymentService", orderPaymentService);
+        service = new DataConsistencyService(changeLogRepository, consistencyRepository, jdbcTemplate,
+                new ObjectMapper(), taskService, distributedLockService, couponService,
+                cabinetOrderRepository, orderPaymentService, null);
         ReflectionTestUtils.setField(service, "self", service);
         when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }

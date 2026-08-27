@@ -3,7 +3,6 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.config.ReconciliationProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -18,14 +17,14 @@ public class ReconciliationScheduler {
 
     private final ReconciliationService reconciliationService;
     private final ReconciliationProperties properties;
-
-    @Autowired
-    private ScheduledTaskService taskService;
+    private final ScheduledTaskService taskService;
 
     public ReconciliationScheduler(ReconciliationService reconciliationService,
-                                   ReconciliationProperties properties) {
+                                   ReconciliationProperties properties,
+                                   ScheduledTaskService taskService) {
         this.reconciliationService = reconciliationService;
         this.properties = properties;
+        this.taskService = taskService;
     }
 
     @Scheduled(cron = "${aicabinet.reconciliation.scheduled-cron:0 30 1 * * *}")

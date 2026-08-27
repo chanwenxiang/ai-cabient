@@ -34,11 +34,8 @@ class MemberStatsConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        memberService = new MemberService();
-        ReflectionTestUtils.setField(memberService, "memberRepository", memberRepository);
-        ReflectionTestUtils.setField(memberService, "levelRuleRepository", levelRuleRepository);
-        ReflectionTestUtils.setField(memberService, "pointsLogRepository", pointsLogRepository);
-        ReflectionTestUtils.setField(memberService, "distributedLockService", distributedLockService);
+        memberService = new MemberService(memberRepository, levelRuleRepository, pointsLogRepository,
+                distributedLockService, null);
     }
 
     @Test

@@ -8,7 +8,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.redisson.api.RLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,12 +15,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
-import lombok.Getter;
-import lombok.Setter;
 
 @Service
-@Getter
-@Setter
 public class TccTransactionCoordinator {
     private static final Logger log = LoggerFactory.getLogger(TccTransactionCoordinator.class);
     
@@ -34,18 +29,20 @@ public class TccTransactionCoordinator {
     public static final String STEP_TYPE_CONFIRM = "CONFIRM";
     public static final String STEP_TYPE_CANCEL = "CANCEL";
     
-    @Autowired
-    private DistributedTransactionMapper txRepository;
-    
-    @Autowired
-    private TransactionStepMapper stepRepository;
-    
-    @Autowired
-    private DistributedLockService lockService;
-    
-    @Autowired
-    private ObjectMapper objectMapper;
-    
+    private final DistributedTransactionMapper txRepository;
+    private final TransactionStepMapper stepRepository;
+    private final DistributedLockService lockService;
+    private final ObjectMapper objectMapper;
+
+    public TccTransactionCoordinator(DistributedTransactionMapper txRepository,
+                                     TransactionStepMapper stepRepository,
+                                     DistributedLockService lockService,
+                                     ObjectMapper objectMapper) {
+        this.txRepository = txRepository;
+        this.stepRepository = stepRepository;
+        this.lockService = lockService;
+        this.objectMapper = objectMapper;
+    }
     public String beginTransaction(String txType, Object payload) {
         String txId = UUID.randomUUID().toString().replace("-", "");
         
