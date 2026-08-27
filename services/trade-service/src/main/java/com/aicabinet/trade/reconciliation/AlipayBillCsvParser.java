@@ -109,31 +109,38 @@ public final class AlipayBillCsvParser {
             if (!line.contains("商户订单号") && !line.contains("支付宝交易号")) {
                 continue;
             }
-            int platformCol = -1;
-            int merchantCol = -1;
-            int amountCol = -1;
-            int finishCol = -1;
-            String[] headers = line.split(",");
-            for (int c = 0; c < headers.length; c++) {
-                String h = headers[c].trim();
-                if (h.contains("支付宝交易号")) {
-                    platformCol = c;
-                } else if (h.contains("商户订单号")) {
-                    merchantCol = c;
-                } else if (h.contains("商家实收")) {
-                    amountCol = c;
-                } else if (h.contains("订单金额") && amountCol < 0) {
-                    amountCol = c;
-                } else if (h.contains("完成时间")) {
-                    finishCol = c;
-                }
+            CsvHeader header = parseHeaderColumns(i, line);
+            if (header != null) {
+                return header;
             }
-            if (merchantCol < 0) {
-                return null;
-            }
-            return new CsvHeader(i, platformCol, merchantCol, amountCol, finishCol);
         }
         return null;
+    }
+
+    private static CsvHeader parseHeaderColumns(int headerIdx, String line) {
+        int platformCol = -1;
+        int merchantCol = -1;
+        int amountCol = -1;
+        int finishCol = -1;
+        String[] headers = line.split(",");
+        for (int c = 0; c < headers.length; c++) {
+            String h = headers[c].trim();
+            if (h.contains("支付宝交易号")) {
+                platformCol = c;
+            } else if (h.contains("商户订单号")) {
+                merchantCol = c;
+            } else if (h.contains("商家实收")) {
+                amountCol = c;
+            } else if (h.contains("订单金额") && amountCol < 0) {
+                amountCol = c;
+            } else if (h.contains("完成时间")) {
+                finishCol = c;
+            }
+        }
+        if (merchantCol < 0) {
+            return null;
+        }
+        return new CsvHeader(headerIdx, platformCol, merchantCol, amountCol, finishCol);
     }
 
     private static PlatformBillLine parseDataLine(String line, CsvHeader header, LocalDate billDate, ZoneId zone) {

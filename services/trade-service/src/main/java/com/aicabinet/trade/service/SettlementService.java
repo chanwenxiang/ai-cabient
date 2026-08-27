@@ -581,50 +581,56 @@ public class SettlementService {
 
     private int waiveAndRefundUnlocked(ShoppingSession session, boolean restoreInventory) {
         return orderRepository.findBySessionId(session.getSessionId())
-                .map(order -> {
-                    hydrateOrderLines(order);
-                    if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
-                        return 0;
-                    }
-                    int netPaid = orderPaymentService.netCompletedCents(order.getOrderId());
-                    int amount = netPaid > 0 ? netPaid : 0;
-                    boolean didRestore = false;
-                    List<VisionServiceClient.RecognizedItem> items = order.getLines().stream()
-                            .map(l -> new VisionServiceClient.RecognizedItem(l.getSkuId(), l.getQuantity(), 1f))
-                            .toList();
-                    var batchBySku = order.getLines().stream()
-                            .filter(l -> l.getBatchNo() != null && !l.getBatchNo().isBlank())
-                            .collect(java.util.stream.Collectors.toMap(
-                                    com.aicabinet.trade.domain.CabinetOrderLine::getSkuId,
-                                    com.aicabinet.trade.domain.CabinetOrderLine::getBatchNo,
-                                    (a, b) -> a));
-                    if (restoreInventory && order.isInventoryDeducted()) {
-                        inventoryService.restoreForOrder(order.getDeviceId(), items, batchBySku);
-                        order.setInventoryDeducted(false);
-                        didRestore = true;
-                    } else if (!restoreInventory && order.isInventoryDeducted()) {
-                        // 销售时已扣库；仅退款不回库 → 记 REFUND_KEPT 审计流水，禁止二次报损扣库
-                        inventoryService.recordRefundKeptGoods(
-                                order.getDeviceId(), items, batchBySku, order.getOrderId());
-                    }
-                    if (amount > 0) {
-                        orderPaymentService.refundOrder(order, amount,
-                                restoreInventory ? "争议免单退款(回库)" : "争议免单退款(不回库)");
-                    } else {
-                        log.warn("waive skip refund: no net charge order={}", order.getOrderId());
-                    }
-                    if (order.getRefundedAt() == null) {
-                        order.setRefundedAt(java.time.Instant.now());
-                    }
-                    order.setStatus(CabinetConstants.ORDER_STATUS_REFUNDED);
-                    orderRepository.save(order);
-                    revenueSplitService.voidSplitOnFullRefund(order.getOrderId());
-                    log.info("争议免单退款 session={} order={} refund={} channel={} restoreInventory={} didRestore={}",
-                            session.getSessionId(), order.getOrderId(), amount, order.getPayChannel(),
-                            restoreInventory, didRestore);
-                    return amount;
-                })
+                .map(order -> executeWaiveRefund(session, order, restoreInventory))
                 .orElse(0);
+    }
+
+    private int executeWaiveRefund(ShoppingSession session, CabinetOrder order, boolean restoreInventory) {
+        hydrateOrderLines(order);
+        if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
+            return 0;
+        }
+        int amount = Math.max(0, orderPaymentService.netCompletedCents(order.getOrderId()));
+        boolean didRestore = applyWaiveInventoryPolicy(order, restoreInventory);
+        if (amount > 0) {
+            orderPaymentService.refundOrder(order, amount,
+                    restoreInventory ? "争议免单退款(回库)" : "争议免单退款(不回库)");
+        } else {
+            log.warn("waive skip refund: no net charge order={}", order.getOrderId());
+        }
+        if (order.getRefundedAt() == null) {
+            order.setRefundedAt(java.time.Instant.now());
+        }
+        order.setStatus(CabinetConstants.ORDER_STATUS_REFUNDED);
+        orderRepository.save(order);
+        revenueSplitService.voidSplitOnFullRefund(order.getOrderId());
+        log.info("争议免单退款 session={} order={} refund={} channel={} restoreInventory={} didRestore={}",
+                session.getSessionId(), order.getOrderId(), amount, order.getPayChannel(),
+                restoreInventory, didRestore);
+        return amount;
+    }
+
+    private boolean applyWaiveInventoryPolicy(CabinetOrder order, boolean restoreInventory) {
+        if (!order.isInventoryDeducted()) {
+            return false;
+        }
+        List<VisionServiceClient.RecognizedItem> items = order.getLines().stream()
+                .map(l -> new VisionServiceClient.RecognizedItem(l.getSkuId(), l.getQuantity(), 1f))
+                .toList();
+        var batchBySku = order.getLines().stream()
+                .filter(l -> l.getBatchNo() != null && !l.getBatchNo().isBlank())
+                .collect(java.util.stream.Collectors.toMap(
+                        com.aicabinet.trade.domain.CabinetOrderLine::getSkuId,
+                        com.aicabinet.trade.domain.CabinetOrderLine::getBatchNo,
+                        (a, b) -> a));
+        if (restoreInventory) {
+            inventoryService.restoreForOrder(order.getDeviceId(), items, batchBySku);
+            order.setInventoryDeducted(false);
+            return true;
+        }
+        inventoryService.recordRefundKeptGoods(
+                order.getDeviceId(), items, batchBySku, order.getOrderId());
+        return false;
     }
 
     /**
@@ -678,28 +684,25 @@ public class SettlementService {
             List<OrderRefundRequest.PartialRefundLine> refundLines,
             boolean defaultRestore) {
         Map<String, CabinetOrderLine> bySku = mergeLinesBySku(order.getLines());
+        Map<String, Integer> refundQtyBySku = validatePartialRefundQuantities(bySku, refundLines);
+        return buildPartialRefundPartition(bySku, refundLines, defaultRestore, refundQtyBySku);
+    }
+
+    private static PartialRefundPartition buildPartialRefundPartition(
+            Map<String, CabinetOrderLine> bySku,
+            List<OrderRefundRequest.PartialRefundLine> refundLines,
+            boolean defaultRestore,
+            Map<String, Integer> refundQtyBySku) {
         List<VisionServiceClient.RecognizedItem> restoreItems = new java.util.ArrayList<>();
         List<VisionServiceClient.RecognizedItem> keptItems = new java.util.ArrayList<>();
         Map<String, String> batchBySku = new java.util.HashMap<>();
-        Map<String, Integer> refundQtyBySku = new java.util.LinkedHashMap<>();
         boolean anyRestored = false;
-
         for (OrderRefundRequest.PartialRefundLine req : refundLines) {
-            if (req == null || req.skuId() == null || req.skuId().isBlank() || req.quantity() <= 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款行 SKU/数量无效");
+            if (req == null || req.skuId() == null || req.skuId().isBlank()) {
+                continue;
             }
             String sku = req.skuId().trim();
             CabinetOrderLine line = bySku.get(sku);
-            if (line == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "订单不含商品：" + sku);
-            }
-            int already = refundQtyBySku.getOrDefault(sku, 0);
-            int need = already + req.quantity();
-            if (need > line.getQuantity()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "退款数量超过订单行：" + sku + " 可退 " + (line.getQuantity() - already));
-            }
-            refundQtyBySku.put(sku, need);
             boolean restore = req.restoreInventory() != null ? req.restoreInventory() : defaultRestore;
             if (line.getBatchNo() != null && !line.getBatchNo().isBlank()) {
                 batchBySku.putIfAbsent(sku, line.getBatchNo());

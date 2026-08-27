@@ -262,27 +262,34 @@ public class InventoryService {
         Map<String, Integer> oldQty = toQtyMap(oldItems);
         Map<String, Integer> newQty = toQtyMap(newItems);
         for (String skuId : unionKeys(oldQty, newQty)) {
-            int delta = newQty.getOrDefault(skuId, 0) - oldQty.getOrDefault(skuId, 0);
-            if (delta == 0) {
-                continue;
-            }
-            if (delta > 0) {
-                Map<String, String> deducted = doDeductForOrder(
-                        deviceId, List.of(new VisionServiceClient.RecognizedItem(skuId, delta, 1f)), null, null);
-                deducted.forEach(resultBatches::putIfAbsent);
-            } else {
-                Map<String, String> restoreBatch = Map.of();
-                if (batchBySku != null) {
-                    String batch = batchBySku.get(skuId);
-                    if (batch != null && !batch.isBlank()) {
-                        restoreBatch = Map.of(skuId, batch);
-                    }
-                }
-                doRestoreForOrder(deviceId,
-                        List.of(new VisionServiceClient.RecognizedItem(skuId, -delta, 1f)), restoreBatch);
-            }
+            applySkuInventoryDelta(deviceId, skuId, newQty, oldQty, batchBySku, resultBatches);
         }
         return resultBatches;
+    }
+
+    private void applySkuInventoryDelta(String deviceId, String skuId,
+                                        Map<String, Integer> newQty, Map<String, Integer> oldQty,
+                                        Map<String, String> batchBySku,
+                                        Map<String, String> resultBatches) {
+        int delta = newQty.getOrDefault(skuId, 0) - oldQty.getOrDefault(skuId, 0);
+        if (delta == 0) {
+            return;
+        }
+        if (delta > 0) {
+            Map<String, String> deducted = doDeductForOrder(
+                    deviceId, List.of(new VisionServiceClient.RecognizedItem(skuId, delta, 1f)), null, null);
+            deducted.forEach(resultBatches::putIfAbsent);
+            return;
+        }
+        Map<String, String> restoreBatch = Map.of();
+        if (batchBySku != null) {
+            String batch = batchBySku.get(skuId);
+            if (batch != null && !batch.isBlank()) {
+                restoreBatch = Map.of(skuId, batch);
+            }
+        }
+        doRestoreForOrder(deviceId,
+                List.of(new VisionServiceClient.RecognizedItem(skuId, -delta, 1f)), restoreBatch);
     }
 
     private void applyDelta(String deviceId, String skuId, int delta) {

@@ -140,10 +140,24 @@ public class InventoryLotService {
                 ? lotRepository.findByDeviceIdAndSkuIdAndSlotIdOrderByExpiryDateAsc(
                         deviceId, skuId, slotId.trim().toUpperCase())
                 : lotRepository.findByDeviceIdAndSkuIdOrderByExpiryDateAsc(deviceId, skuId);
+        DeductionAccumulator acc = deductSellableLots(
+                deviceId, skuId, quantity, refType, refId, minExpiry, lots);
+        if (acc.remaining() > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "sellable lot inventory insufficient for sku=" + skuId + " need=" + quantity);
+        }
+        self.syncAggregateInventory(deviceId, skuId);
+        return new FefoDeductResult(acc.primaryBatch(), acc.slotQty());
+    }
+
+    private record DeductionAccumulator(String primaryBatch, Map<String, Integer> slotQty, int remaining) {}
+
+    private DeductionAccumulator deductSellableLots(String deviceId, String skuId, int quantity,
+                                                    String refType, String refId, LocalDate minExpiry,
+                                                    List<DeviceSkuLot> lots) {
         int remaining = quantity;
         String primaryBatch = null;
         Map<String, Integer> slotQty = new LinkedHashMap<>();
-
         for (DeviceSkuLot lot : lots) {
             if (remaining <= 0) {
                 break;
@@ -170,13 +184,7 @@ public class InventoryLotService {
             }
             remaining -= take;
         }
-
-        if (remaining > 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "sellable lot inventory insufficient for sku=" + skuId + " need=" + quantity);
-        }
-        self.syncAggregateInventory(deviceId, skuId);
-        return new FefoDeductResult(primaryBatch, slotQty);
+        return new DeductionAccumulator(primaryBatch, slotQty, remaining);
     }
 
     public record FefoDeductResult(String primaryBatch, Map<String, Integer> slotQtyDeducted) {}

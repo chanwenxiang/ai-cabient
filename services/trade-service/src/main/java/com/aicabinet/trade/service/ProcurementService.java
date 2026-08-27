@@ -342,45 +342,56 @@ public class ProcurementService {
                 ? request.lines()
                 : existing.stream().map(this::toPurchaseLineDto).toList();
         long receivedValueCents = 0L;
-
+        String warehouseId = resolveReceiveWarehouse(order, request);
         for (PurchaseOrderLineDto receiveLine : received) {
-            PurchaseOrderLine line = matchLine(existing, receiveLine);
-            int qty = receiveLine.receivedQty() > 0 ? receiveLine.receivedQty() : line.getOrderedQty();
-            if (qty <= 0 || qty > line.getOrderedQty()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid receive qty for sku=" + line.getSkuId());
-            }
-            if (qty <= line.getReceivedQty()) {
-                continue;
-            }
-            int deltaQty = qty - line.getReceivedQty();
-            QualityResult quality = inspectPurchaseLine(line, deltaQty);
-            if (!quality.accepted()) {
-                line.setQualityStatus("REJECTED");
-                line.setQualityNote(quality.note());
-                line.setRejectedQty(deltaQty);
-                purchaseOrderLineRepository.save(line);
-                throw new ResponseStatusException(HttpStatus.CONFLICT,
-                        "purchase quality rejected sku=" + line.getSkuId() + " reason=" + quality.note());
-            }
-            line.setReceivedQty(qty);
-            line.setQualityStatus("PASSED");
-            line.setQualityNote(quality.note());
-            line.setRejectedQty(0);
-            purchaseOrderLineRepository.save(line);
-            warehouseService.receivePurchaseStock(
-                    resolveReceiveWarehouse(order, request),
-                    line.getSkuId(),
-                    line.getBatchNo(),
-                    line.getProductionDate(),
-                    line.getExpiryDate(),
-                    deltaQty,
-                    line.getUnitCostCents(),
-                    operatorId,
-                    BIZ_PURCHASE_ORDER,
-                    String.valueOf(order.getPurchaseOrderId())
-            );
-            receivedValueCents += (long) deltaQty * line.getUnitCostCents();
+            receivedValueCents += processReceiveLine(operatorId, order, existing, receiveLine, warehouseId);
         }
+        finalizePurchaseOrderReceive(operatorId, purchaseOrderId, order, request, receivedValueCents);
+        return toPurchaseDto(purchaseOrderRepository.save(order));
+    }
+
+    private long processReceiveLine(Long operatorId, PurchaseOrder order, List<PurchaseOrderLine> existing,
+                                    PurchaseOrderLineDto receiveLine, String warehouseId) {
+        PurchaseOrderLine line = matchLine(existing, receiveLine);
+        int qty = receiveLine.receivedQty() > 0 ? receiveLine.receivedQty() : line.getOrderedQty();
+        if (qty <= 0 || qty > line.getOrderedQty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid receive qty for sku=" + line.getSkuId());
+        }
+        if (qty <= line.getReceivedQty()) {
+            return 0L;
+        }
+        int deltaQty = qty - line.getReceivedQty();
+        QualityResult quality = inspectPurchaseLine(line, deltaQty);
+        if (!quality.accepted()) {
+            line.setQualityStatus("REJECTED");
+            line.setQualityNote(quality.note());
+            line.setRejectedQty(deltaQty);
+            purchaseOrderLineRepository.save(line);
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "purchase quality rejected sku=" + line.getSkuId() + " reason=" + quality.note());
+        }
+        line.setReceivedQty(qty);
+        line.setQualityStatus("PASSED");
+        line.setQualityNote(quality.note());
+        line.setRejectedQty(0);
+        purchaseOrderLineRepository.save(line);
+        warehouseService.receivePurchaseStock(
+                warehouseId,
+                line.getSkuId(),
+                line.getBatchNo(),
+                line.getProductionDate(),
+                line.getExpiryDate(),
+                deltaQty,
+                line.getUnitCostCents(),
+                operatorId,
+                BIZ_PURCHASE_ORDER,
+                String.valueOf(order.getPurchaseOrderId())
+        );
+        return (long) deltaQty * line.getUnitCostCents();
+    }
+
+    private void finalizePurchaseOrderReceive(Long operatorId, Long purchaseOrderId, PurchaseOrder order,
+                                              ReceivePurchaseOrderRequest request, long receivedValueCents) {
         boolean allReceived = purchaseOrderLineRepository.findByPurchaseOrderIdOrderByLineIdAsc(purchaseOrderId)
                 .stream()
                 .allMatch(line -> line.getReceivedQty() >= line.getOrderedQty());
@@ -392,7 +403,6 @@ public class ProcurementService {
             order.setNotes(request.notes().trim());
         }
         supplierPayableService.recordReceive(operatorId, order, receivedValueCents);
-        return toPurchaseDto(purchaseOrderRepository.save(order));
     }
 
     private String resolveReceiveWarehouse(PurchaseOrder order, ReceivePurchaseOrderRequest request) {

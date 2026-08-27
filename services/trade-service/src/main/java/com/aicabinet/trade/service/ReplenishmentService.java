@@ -668,57 +668,49 @@ public class ReplenishmentService {
 
     private List<ReplenishmentTaskLineDto> doSubmitTaskLines(Long operatorId, Long taskId,
                                                              SubmitReplenishmentLinesRequest request) {
-
         ReplenishmentTask task = requireTaskForUpdate(taskId);
-
         if (STATUS_COMPLETED.equals(task.getStatus())) {
-
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_TASK_ALREADY_COMPLETED);
-
         }
-
         taskLineRepository.deleteByTaskIdAndAppliedFalse(taskId);
-
         if (request.lines() != null) {
-
             for (ReplenishmentTaskLineDto dto : request.lines()) {
-
-                // 小程序/联调常省略 lineType，默认按上架（RESTOCK）处理
-                String lineType = (dto.lineType() == null || dto.lineType().isBlank())
-                        ? RESTOCK
-                        : dto.lineType().trim().toUpperCase();
-                if (RESTOCK.equals(lineType)) {
-                    persistRestockLines(task, taskId, dto);
-                } else {
-                    ReplenishmentTaskLine line = new ReplenishmentTaskLine();
-                    line.setTaskId(taskId);
-                    line.setLineType(lineType);
-                    line.setSkuId(dto.skuId());
-                    line.setBatchNo(dto.batchNo());
-                    line.setProductionDate(dto.productionDate());
-                    line.setExpiryDate(dto.expiryDate());
-                    line.setQuantity(dto.quantity());
-                    line.setSlotId(dto.slotId() != null && !dto.slotId().isBlank()
-                            ? dto.slotId().trim().toUpperCase() : null);
-                    line.setApplied(false);
-                    taskLineRepository.save(line);
-                }
-
+                persistSubmittedTaskLine(task, taskId, dto);
             }
-
         }
-
         if (!STATUS_IN_PROGRESS.equals(task.getStatus())) {
-
             task.setStatus(STATUS_IN_PROGRESS);
-
             taskRepository.save(task);
-
         }
         reopenRouteIfActive(task.getRouteId());
-
         return self.listTaskLines(taskId);
+    }
 
+    private void persistSubmittedTaskLine(ReplenishmentTask task, Long taskId, ReplenishmentTaskLineDto dto) {
+        // 小程序/联调常省略 lineType，默认按上架（RESTOCK）处理
+        String lineType = normalizeTaskLineType(dto.lineType());
+        if (RESTOCK.equals(lineType)) {
+            persistRestockLines(task, taskId, dto);
+            return;
+        }
+        ReplenishmentTaskLine line = new ReplenishmentTaskLine();
+        line.setTaskId(taskId);
+        line.setLineType(lineType);
+        line.setSkuId(dto.skuId());
+        line.setBatchNo(dto.batchNo());
+        line.setProductionDate(dto.productionDate());
+        line.setExpiryDate(dto.expiryDate());
+        line.setQuantity(dto.quantity());
+        line.setSlotId(dto.slotId() != null && !dto.slotId().isBlank()
+                ? dto.slotId().trim().toUpperCase() : null);
+        line.setApplied(false);
+        taskLineRepository.save(line);
+    }
+
+    private static String normalizeTaskLineType(String rawLineType) {
+        return (rawLineType == null || rawLineType.isBlank())
+                ? RESTOCK
+                : rawLineType.trim().toUpperCase();
     }
 
 
@@ -1044,27 +1036,43 @@ public class ReplenishmentService {
         ReplenishmentRoute route = routeRepository.findByIdForUpdate(routeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.REPLENISHMENT_ROUTE_NOT_FOUND));
         List<ReplenishmentTask> tasks = taskRepository.findByRouteId(routeId);
-        // 终态路线仍允许幂等收口脏出库（如历史 SHIPPED + 任务已取消）
-        if (STATUS_CANCELLED.equals(route.getStatus()) || STATUS_COMPLETED.equals(route.getStatus())) {
-            for (ReplenishmentTask task : tasks) {
-                if (task.getOutboundId() != null && !STATUS_COMPLETED.equals(task.getStatus())) {
-                    warehouseService.cancelUnreceivedOutboundForDevice(
-                            task.getOutboundId(), task.getDeviceId(), operatorId);
-                }
-            }
+        if (isTerminalRouteStatus(route.getStatus())) {
+            cleanupOrphanOutboundsForTasks(operatorId, tasks);
             log.info("cancelEmptyRoute orphan-cleanup routeId={} operatorId={} status={}",
                     routeId, operatorId, route.getStatus());
             return toRouteDto(route);
         }
+        cancelOpenTasksOnRoute(operatorId, tasks);
+        finalizeRouteIfReady(routeId);
+        route = routeRepository.findById(routeId).orElse(route);
+        if (!isTerminalRouteStatus(route.getStatus())) {
+            route.setStatus(STATUS_CANCELLED);
+            route = routeRepository.save(route);
+        }
+        log.info("cancelEmptyRoute routeId={} operatorId={} status={}", routeId, operatorId, route.getStatus());
+        return toRouteDto(route);
+    }
+
+    private static boolean isTerminalRouteStatus(String status) {
+        return STATUS_CANCELLED.equals(status) || STATUS_COMPLETED.equals(status);
+    }
+
+    private void cleanupOrphanOutboundsForTasks(Long operatorId, List<ReplenishmentTask> tasks) {
+        for (ReplenishmentTask task : tasks) {
+            if (task.getOutboundId() != null && !STATUS_COMPLETED.equals(task.getStatus())) {
+                warehouseService.cancelUnreceivedOutboundForDevice(
+                        task.getOutboundId(), task.getDeviceId(), operatorId);
+            }
+        }
+    }
+
+    private void cancelOpenTasksOnRoute(Long operatorId, List<ReplenishmentTask> tasks) {
         for (ReplenishmentTask task : tasks) {
             if (STATUS_COMPLETED.equals(task.getStatus())) {
                 continue;
             }
             if (STATUS_CANCELLED.equals(task.getStatus())) {
-                if (task.getOutboundId() != null) {
-                    warehouseService.cancelUnreceivedOutboundForDevice(
-                            task.getOutboundId(), task.getDeviceId(), operatorId);
-                }
+                cancelTaskOutboundIfPresent(operatorId, task);
                 continue;
             }
             try {
@@ -1072,24 +1080,20 @@ public class ReplenishmentService {
             } catch (ResponseStatusException ex) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_ROUTE_CANCEL_BLOCKED);
             }
-            if (task.getOutboundId() != null) {
-                warehouseService.cancelUnreceivedOutboundForDevice(task.getOutboundId(), task.getDeviceId(), operatorId);
-            }
+            cancelTaskOutboundIfPresent(operatorId, task);
             task.setStatus(STATUS_CANCELLED);
             taskRepository.save(task);
             if (sessionService != null) {
                 sessionService.closeRestockSessionsForTask(task.getTaskId(), "补货任务已取消，自动关闭开门会话");
             }
         }
-        finalizeRouteIfReady(routeId);
-        route = routeRepository.findById(routeId).orElse(route);
-        // 仍开放则强制标 CANCELLED（任务已全部取消）
-        if (!STATUS_CANCELLED.equals(route.getStatus()) && !STATUS_COMPLETED.equals(route.getStatus())) {
-            route.setStatus(STATUS_CANCELLED);
-            route = routeRepository.save(route);
+    }
+
+    private void cancelTaskOutboundIfPresent(Long operatorId, ReplenishmentTask task) {
+        if (task.getOutboundId() != null) {
+            warehouseService.cancelUnreceivedOutboundForDevice(
+                    task.getOutboundId(), task.getDeviceId(), operatorId);
         }
-        log.info("cancelEmptyRoute routeId={} operatorId={} status={}", routeId, operatorId, route.getStatus());
-        return toRouteDto(route);
     }
 
     private void assertTaskCancellableEmpty(ReplenishmentTask task) {
@@ -1394,34 +1398,43 @@ public class ReplenishmentService {
         if (route.getTotalDistanceM() != null && route.getTotalDistanceM() > 0) {
             return route.getTotalDistanceM();
         }
+        double dist = waypoints != null && !waypoints.isEmpty()
+                ? distanceFromWaypoints(waypoints)
+                : distanceFromTaskDevices(tasks);
+        return (int) Math.round(dist);
+    }
+
+    private static double distanceFromWaypoints(List<RouteWaypointDto> waypoints) {
         double dist = 0;
-        if (waypoints != null && !waypoints.isEmpty()) {
-            for (int i = 1; i < waypoints.size(); i++) {
-                RouteWaypointDto a = waypoints.get(i - 1);
-                RouteWaypointDto b = waypoints.get(i);
-                if ((a.latitude() != 0 || a.longitude() != 0) && (b.latitude() != 0 || b.longitude() != 0)) {
-                    dist += haversineMeters(a.latitude(), a.longitude(), b.latitude(), b.longitude());
-                }
-            }
-        } else {
-            java.util.List<DeviceInfo> ordered = new java.util.ArrayList<>();
-            for (ReplenishmentTaskDto t : tasks) {
-                if (t.deviceId() == null || t.deviceId().isBlank()) {
-                    continue;
-                }
-                deviceRepository.findById(t.deviceId()).ifPresent(d -> {
-                    if (d.getLatitude() != null && d.getLongitude() != null) {
-                        ordered.add(d);
-                    }
-                });
-            }
-            for (int i = 1; i < ordered.size(); i++) {
-                DeviceInfo a = ordered.get(i - 1);
-                DeviceInfo b = ordered.get(i);
-                dist += haversineMeters(a.getLatitude(), a.getLongitude(), b.getLatitude(), b.getLongitude());
+        for (int i = 1; i < waypoints.size(); i++) {
+            RouteWaypointDto a = waypoints.get(i - 1);
+            RouteWaypointDto b = waypoints.get(i);
+            if ((a.latitude() != 0 || a.longitude() != 0) && (b.latitude() != 0 || b.longitude() != 0)) {
+                dist += haversineMeters(a.latitude(), a.longitude(), b.latitude(), b.longitude());
             }
         }
-        return (int) Math.round(dist);
+        return dist;
+    }
+
+    private double distanceFromTaskDevices(List<ReplenishmentTaskDto> tasks) {
+        java.util.List<DeviceInfo> ordered = new java.util.ArrayList<>();
+        for (ReplenishmentTaskDto t : tasks) {
+            if (t.deviceId() == null || t.deviceId().isBlank()) {
+                continue;
+            }
+            deviceRepository.findById(t.deviceId()).ifPresent(d -> {
+                if (d.getLatitude() != null && d.getLongitude() != null) {
+                    ordered.add(d);
+                }
+            });
+        }
+        double dist = 0;
+        for (int i = 1; i < ordered.size(); i++) {
+            DeviceInfo a = ordered.get(i - 1);
+            DeviceInfo b = ordered.get(i);
+            dist += haversineMeters(a.getLatitude(), a.getLongitude(), b.getLatitude(), b.getLongitude());
+        }
+        return dist;
     }
 
 
