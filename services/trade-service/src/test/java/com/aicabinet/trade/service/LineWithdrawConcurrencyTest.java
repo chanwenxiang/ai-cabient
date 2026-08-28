@@ -56,7 +56,7 @@ class LineWithdrawConcurrencyTest {
         manager.setManagerName("线长7");
         when(lineManagerService.requireManager(7L)).thenReturn(manager);
         when(distributedLockService.tryLock(
-                eq(LineWithdrawService.lineWalletLockKey(7L)), eq(60L), eq(5L)))
+                LineWithdrawService.lineWalletLockKey(7L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -78,7 +78,7 @@ class LineWithdrawConcurrencyTest {
 
         when(lineManagerService.requireManager(8L)).thenReturn(manager);
         when(distributedLockService.tryLock(
-                eq(LineWithdrawService.lineWalletLockKey(8L)), eq(60L), eq(5L)))
+                LineWithdrawService.lineWalletLockKey(8L), 60L, 5L))
                 .thenReturn(true);
         when(withdrawMapper.findByRequestNo("REQ-2")).thenReturn(Optional.empty());
         when(deviceMapper.selectCount(any())).thenReturn(1L);

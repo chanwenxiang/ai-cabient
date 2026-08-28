@@ -18,7 +18,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -49,7 +48,7 @@ class SystemConfigConcurrencyTest {
     @Test
     void upsert_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(SystemConfigService.systemConfigLockKey("test.key")), eq(60L), eq(5L)))
+                SystemConfigService.systemConfigLockKey("test.key"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -61,7 +60,7 @@ class SystemConfigConcurrencyTest {
     @Test
     void delete_whenNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(SystemConfigService.systemConfigLockKey("missing.key")), eq(60L), eq(5L)))
+                SystemConfigService.systemConfigLockKey("missing.key"), 60L, 5L))
                 .thenReturn(true);
         when(repository.findByIdForUpdate("missing.key")).thenReturn(java.util.Optional.empty());
 

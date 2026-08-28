@@ -13,7 +13,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -38,7 +37,7 @@ class SysDictConcurrencyTest {
     @Test
     void upsertType_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(SysDictService.dictTypeLockKey("order_status")), eq(60L), eq(5L)))
+                SysDictService.dictTypeLockKey("order_status"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -51,7 +50,7 @@ class SysDictConcurrencyTest {
     @Test
     void deleteItem_whenNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(SysDictService.dictDataIdLockKey(9L)), eq(60L), eq(5L)))
+                SysDictService.dictDataIdLockKey(9L), 60L, 5L))
                 .thenReturn(true);
         when(dataRepository.findByIdForUpdate(9L)).thenReturn(java.util.Optional.empty());
 

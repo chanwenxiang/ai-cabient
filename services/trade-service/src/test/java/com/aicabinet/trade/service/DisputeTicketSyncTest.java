@@ -60,7 +60,7 @@ class DisputeTicketSyncTest {
                 new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService,
                 null, null, videoArchiveService, orderPaymentService, distributedLockService, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
-        org.mockito.Mockito.lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong()))
+        org.mockito.Mockito.lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L)))
                 .thenReturn(true);
     }
 

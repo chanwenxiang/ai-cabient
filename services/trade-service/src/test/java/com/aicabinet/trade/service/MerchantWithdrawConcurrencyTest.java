@@ -59,7 +59,7 @@ class MerchantWithdrawConcurrencyTest {
         merchant.setMerchantName("商户1");
         when(merchantMapper.findById("M-1")).thenReturn(Optional.of(merchant));
         when(distributedLockService.tryLock(
-                eq(MerchantWithdrawService.merchantWalletLockKey("M-1")), eq(60L), eq(5L)))
+                MerchantWithdrawService.merchantWalletLockKey("M-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -81,7 +81,7 @@ class MerchantWithdrawConcurrencyTest {
 
         when(merchantMapper.findById("M-1")).thenReturn(Optional.of(merchant));
         when(distributedLockService.tryLock(
-                eq(MerchantWithdrawService.merchantWalletLockKey("M-1")), eq(60L), eq(5L)))
+                MerchantWithdrawService.merchantWalletLockKey("M-1"), 60L, 5L))
                 .thenReturn(true);
         when(withdrawMapper.findByRequestNo("REQ-2")).thenReturn(Optional.empty());
         when(merchantWalletService.ensureAccount("M-1")).thenReturn(account);

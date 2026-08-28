@@ -30,7 +30,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -57,7 +56,7 @@ class WarehouseStocktakeServiceTest {
                 lineRepository, warehouseRepository, inventoryRepository, skuCatalogRepository,
                 warehouseService, visionServiceClient, distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
-        lenient().when(distributedLockService.tryLock(any(), anyLong(), anyLong())).thenReturn(true);
+        lenient().when(distributedLockService.tryLock(any(), eq(60L), eq(5L))).thenReturn(true);
     }
 
     @Test

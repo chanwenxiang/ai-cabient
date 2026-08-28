@@ -29,7 +29,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -65,7 +64,7 @@ class AuthConcurrencyTest {
         when(weChatMiniAppClient.code2Session("wx-code"))
                 .thenReturn(new WeChatMiniAppClient.Code2SessionResult("openid-1", "sess"));
         when(distributedLockService.tryLock(
-                eq(AuthService.wxOpenIdLockKey("openid-1")), eq(60L), eq(5L)))
+                AuthService.wxOpenIdLockKey("openid-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -78,7 +77,7 @@ class AuthConcurrencyTest {
     void alipayLogin_whenLockBusy_rejectsWithConflict() {
         when(alipayOauthClient.resolveUserId("ali-code")).thenReturn("alipay-user-1");
         when(distributedLockService.tryLock(
-                eq(AuthService.alipayUserLockKey("alipay-user-1")), eq(60L), eq(5L)))
+                AuthService.alipayUserLockKey("alipay-user-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -97,8 +96,7 @@ class AuthConcurrencyTest {
         when(userInfoRepository.findById(CabinetConstants.OPERATOR_USER_ID_START)).thenReturn(Optional.of(operator));
         when(smsCodeService.verifyCode("13900000001", "123456")).thenReturn(true);
         when(distributedLockService.tryLock(
-                eq(AccountService.userAccountLockKey(CabinetConstants.OPERATOR_USER_ID_START)),
-                eq(60L), eq(5L)))
+                AccountService.userAccountLockKey(CabinetConstants.OPERATOR_USER_ID_START), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,

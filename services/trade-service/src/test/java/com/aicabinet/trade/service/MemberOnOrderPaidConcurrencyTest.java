@@ -18,7 +18,6 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -42,7 +41,7 @@ class MemberOnOrderPaidConcurrencyTest {
     @Test
     void onOrderPaid_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(MemberService.memberUserLockKey(10001L)), eq(60L), eq(5L)))
+                MemberService.memberUserLockKey(10001L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -54,7 +53,7 @@ class MemberOnOrderPaidConcurrencyTest {
     @Test
     void onOrderPaid_unlocksLockAfterSuccess() {
         when(distributedLockService.tryLock(
-                eq(MemberService.memberUserLockKey(10001L)), eq(60L), eq(5L)))
+                MemberService.memberUserLockKey(10001L), 60L, 5L))
                 .thenReturn(true);
         Member member = new Member();
         member.setMemberId(1L);

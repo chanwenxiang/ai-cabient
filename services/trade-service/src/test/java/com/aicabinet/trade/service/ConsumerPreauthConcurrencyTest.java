@@ -18,7 +18,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,7 +50,7 @@ class ConsumerPreauthConcurrencyTest {
         session.setDeviceId("CAB-1");
 
         when(distributedLockService.tryLock(
-                eq(ConsumerPreauthService.preauthLockKey(10001L)), eq(60L), eq(5L)))
+                ConsumerPreauthService.preauthLockKey(10001L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -80,7 +79,7 @@ class ConsumerPreauthConcurrencyTest {
         account.setFrozenCents(0);
 
         when(distributedLockService.tryLock(
-                eq(ConsumerPreauthService.preauthLockKey(10002L)), eq(60L), eq(5L)))
+                ConsumerPreauthService.preauthLockKey(10002L), 60L, 5L))
                 .thenReturn(true);
         when(sessionRepository.findByIdForUpdate("S-2")).thenReturn(Optional.of(locked));
         when(accountRepository.findByIdForUpdate(10002L)).thenReturn(Optional.of(account));

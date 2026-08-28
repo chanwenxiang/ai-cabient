@@ -5,7 +5,7 @@
       <view v-if="error" class="state">
         <text class="state-title">视频加载失败</text>
         <text class="state-desc">{{ error }}</text>
-        <button class="btn-primary" @click="copyUrl">复制链接</button>
+        <button type="button" class="btn-primary" @click="copyUrl">复制链接</button>
       </view>
       <view v-else-if="!src" class="state">
         <text class="state-title">缺少视频地址</text>
@@ -37,7 +37,7 @@
       <view v-if="src" class="tips">
         <text v-if="metaLine" class="meta">{{ metaLine }}</text>
         <text class="tip">若无法播放，可复制链接到浏览器打开</text>
-        <button class="copy-btn" size="mini" @click="copyUrl">复制链接</button>
+        <button type="button" class="copy-btn" size="mini" @click="copyUrl">复制链接</button>
       </view>
       <view v-if="orderId" class="back-row">
         <text class="back-link" @click="goOrder">返回订单详情 ›</text>
@@ -111,7 +111,7 @@ function goOrder() {
   box-sizing: border-box;
 }
 .page-body {
-  padding: 20rpx;
+  padding: 10px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -122,7 +122,7 @@ function goOrder() {
   width: 100%;
   height: 56vh;
   background: #111;
-  border-radius: 16rpx;
+  border-radius: 8px;
 }
 .state {
   margin-top: 30vh;
@@ -131,45 +131,45 @@ function goOrder() {
 }
 .state-title {
   display: block;
-  font-size: 32rpx;
+  font-size: 16px;
   font-weight: 600;
   color: #e2e8f0;
 }
 .state-desc {
   display: block;
-  margin-top: 12rpx;
-  font-size: 26rpx;
+  margin-top: 6px;
+  font-size: 13px;
 }
 .state .btn-primary {
-  margin-top: 40rpx;
+  margin-top: 20px;
 }
 .tips {
-  margin-top: 24rpx;
+  margin-top: 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12rpx;
+  gap: 6px;
 }
 .meta {
   color: #cbd5e1;
-  font-size: 22rpx;
+  font-size: 11px;
 }
 .tip {
   color: #94a3b8;
-  font-size: 24rpx;
+  font-size: 12px;
 }
 .copy-btn {
   background: rgba(15, 23, 42, 0.45);
   color: #f8fafc;
-  border: 1rpx solid rgba(255, 255, 255, 0.25);
-  border-radius: 999rpx;
-  font-size: 24rpx;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  font-size: 12px;
 }
 .back-row {
-  margin-top: 28rpx;
+  margin-top: 14px;
 }
 .back-link {
   color: #34d399;
-  font-size: 26rpx;
+  font-size: 13px;
 }
 </style>

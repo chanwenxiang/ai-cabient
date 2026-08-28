@@ -13,7 +13,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -34,7 +33,7 @@ class IdempotencyConcurrencyTest {
     @Test
     void saveIdempotency_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(IdempotencyService.idempotencyLockKey("key-1")), eq(60L), eq(5L)))
+                IdempotencyService.idempotencyLockKey("key-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -46,7 +45,7 @@ class IdempotencyConcurrencyTest {
     @Test
     void deleteIdempotency_whenLockAcquired_unlocksAfterDelete() {
         when(distributedLockService.tryLock(
-                eq(IdempotencyService.idempotencyLockKey("key-2")), eq(60L), eq(5L)))
+                IdempotencyService.idempotencyLockKey("key-2"), 60L, 5L))
                 .thenReturn(true);
 
         service.deleteIdempotency("key-2");

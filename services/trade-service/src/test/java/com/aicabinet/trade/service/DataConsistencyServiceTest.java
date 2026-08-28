@@ -44,9 +44,8 @@ class DataConsistencyServiceTest {
 
     DataConsistencyService service;
 
-    @SuppressWarnings("unchecked")
     private static ResultSetExtractor<Integer> anyIntExtractor() {
-        return any(ResultSetExtractor.class);
+        return org.mockito.ArgumentMatchers.<ResultSetExtractor<Integer>>any();
     }
 
     @BeforeEach
@@ -263,9 +262,9 @@ class DataConsistencyServiceTest {
         when(jdbcTemplate.query(startsWith("SELECT COUNT(*)"), anyIntExtractor(), eq("O-NOPAY")))
                 .thenReturn(1);
         when(jdbcTemplate.update(
-                eq("UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?"),
-                eq(120),
-                eq("O-NOPAY"))).thenReturn(1);
+                "UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?",
+                120,
+                "O-NOPAY")).thenReturn(1);
 
         assertTrue(service.fixInconsistency(5L));
         assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
@@ -501,7 +500,7 @@ class DataConsistencyServiceTest {
         when(consistencyRepository.findByIdForUpdate(11L)).thenReturn(java.util.Optional.of(consistencyRecord));
         when(jdbcTemplate.query(startsWith("SELECT COALESCE(coupon_discount_cents"), anyIntExtractor(), eq("O-COUP")))
                 .thenReturn(0);
-        when(jdbcTemplate.query(startsWith("SELECT coupon_id"), any(ResultSetExtractor.class), eq("O-COUP")))
+        when(jdbcTemplate.query(startsWith("SELECT coupon_id"), anyIntExtractor(), eq("O-COUP")))
                 .thenReturn(null);
         when(couponService.releaseStaleUsedCouponsForOrder("O-COUP")).thenReturn(6);
         when(jdbcTemplate.update(startsWith("UPDATE cabinet_order SET coupon_id = NULL"), eq("O-COUP")))

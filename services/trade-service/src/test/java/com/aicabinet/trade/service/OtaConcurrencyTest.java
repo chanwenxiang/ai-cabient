@@ -13,7 +13,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,7 +39,7 @@ class OtaConcurrencyTest {
     @Test
     void unpublishRelease_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(OtaService.otaReleaseLockKey(7L)), eq(60L), eq(5L)))
+                OtaService.otaReleaseLockKey(7L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -52,7 +51,7 @@ class OtaConcurrencyTest {
     @Test
     void reportVersion_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(OtaService.otaDeviceVersionLockKey("DEV-001")), eq(60L), eq(5L)))
+                OtaService.otaDeviceVersionLockKey("DEV-001"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -64,7 +63,7 @@ class OtaConcurrencyTest {
     @Test
     void unpublishRelease_whenNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(OtaService.otaReleaseLockKey(8L)), eq(60L), eq(5L)))
+                OtaService.otaReleaseLockKey(8L), 60L, 5L))
                 .thenReturn(true);
         when(releaseRepository.findByIdForUpdate(8L)).thenReturn(java.util.Optional.empty());
 

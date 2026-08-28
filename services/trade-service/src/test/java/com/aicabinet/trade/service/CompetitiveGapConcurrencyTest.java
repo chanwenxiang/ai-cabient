@@ -15,7 +15,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -54,7 +53,7 @@ class CompetitiveGapConcurrencyTest {
     @Test
     void assignUserDeviceScope_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(CompetitiveGapService.opsDeviceScopeLockKey(300L)), eq(60L), eq(5L)))
+                CompetitiveGapService.opsDeviceScopeLockKey(300L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -67,7 +66,7 @@ class CompetitiveGapConcurrencyTest {
     @Test
     void saveOpsConfig_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(MerchantService.merchantLockKey("M-100")), eq(60L), eq(5L)))
+                MerchantService.merchantLockKey("M-100"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -82,7 +81,7 @@ class CompetitiveGapConcurrencyTest {
     @Test
     void deletePhoneVerify_whenRecordMissing_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(CompetitiveGapService.phoneVerifyLogLockKey(55L)), eq(60L), eq(5L)))
+                CompetitiveGapService.phoneVerifyLogLockKey(55L), 60L, 5L))
                 .thenReturn(true);
         when(phoneVerifyLogMapper.findByIdForUpdate(55L)).thenReturn(java.util.Optional.empty());
 
@@ -94,7 +93,7 @@ class CompetitiveGapConcurrencyTest {
     @Test
     void updatePhoneVerify_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(CompetitiveGapService.phoneVerifyLogLockKey(66L)), eq(60L), eq(5L)))
+                CompetitiveGapService.phoneVerifyLogLockKey(66L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -107,7 +106,7 @@ class CompetitiveGapConcurrencyTest {
     @Test
     void updateDevicePolicy_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(DeviceSalesLockService.deviceSalesLockKey("CAB-POLICY")), eq(60L), eq(5L)))
+                DeviceSalesLockService.deviceSalesLockKey("CAB-POLICY"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,

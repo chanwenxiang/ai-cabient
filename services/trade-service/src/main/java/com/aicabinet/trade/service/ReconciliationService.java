@@ -31,6 +31,7 @@ import java.util.Set;
 @Service
 public class ReconciliationService {
 
+    private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private static final Logger log = LoggerFactory.getLogger(ReconciliationService.class);
 
     private final PaymentReconciliationMapper reconRepository;
@@ -53,7 +54,7 @@ public class ReconciliationService {
     @Transactional(readOnly = true)
     public List<PaymentReconciliationDto> list(Long operatorId, LocalDate from, LocalDate to,
                                              String channel, String status, String keyword) {
-        LocalDate end = to != null ? to : LocalDate.now();
+        LocalDate end = to != null ? to : LocalDate.now(ZONE);
         LocalDate start = from != null ? from : end.minusDays(30);
         String ch = channel != null && !channel.isBlank() ? channel.trim().toUpperCase() : null;
         return reconRepository.findByReconDateBetweenOrderByReconDateDesc(start, end).stream()
@@ -67,7 +68,7 @@ public class ReconciliationService {
 
     @Transactional(readOnly = true)
     public PageResult<PaymentReconciliationDto> listPage(Long operatorId, ReconListPageQuery query) {
-        LocalDate end = query.to() != null ? query.to() : LocalDate.now();
+        LocalDate end = query.to() != null ? query.to() : LocalDate.now(ZONE);
         LocalDate start = query.from() != null ? query.from() : end.minusDays(30);
         int p = Math.max(query.page(), 0);
         int s = Math.min(Math.max(query.size(), 1), 100);

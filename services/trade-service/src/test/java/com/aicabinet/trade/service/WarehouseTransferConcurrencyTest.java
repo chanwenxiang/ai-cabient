@@ -13,7 +13,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,7 +39,7 @@ class WarehouseTransferConcurrencyTest {
     @Test
     void ship_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(WarehouseTransferService.transferLockKey(7L)), eq(60L), eq(5L)))
+                WarehouseTransferService.transferLockKey(7L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -52,7 +51,7 @@ class WarehouseTransferConcurrencyTest {
     @Test
     void ship_whenTransferNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(WarehouseTransferService.transferLockKey(7L)), eq(60L), eq(5L)))
+                WarehouseTransferService.transferLockKey(7L), 60L, 5L))
                 .thenReturn(true);
         when(orderMapper.findByIdForUpdate(7L)).thenReturn(java.util.Optional.empty());
 

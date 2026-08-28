@@ -57,7 +57,7 @@ class PaymentServiceTest {
         weChatPayProperties = new WeChatPayProperties(
                 false, "", "", "", "", "", "", "", true);
         securityProperties = new SecurityProperties(true);
-        lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
         paymentService = new PaymentService(
                 rechargeOrderRepository, userInfoRepository, userAccountRepository,
                 weChatPayProperties, securityProperties,
@@ -269,7 +269,7 @@ class PaymentServiceTest {
     @Test
     void createRechargePrepay_whenIdempotencyLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(PaymentService.rechargeIdempotencyLockKey("idem-1")), eq(60L), eq(5L)))
+                PaymentService.rechargeIdempotencyLockKey("idem-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -281,7 +281,7 @@ class PaymentServiceTest {
     @Test
     void cancelRecharge_whenOrderLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(PaymentService.rechargeLockKey("R-BUSY")), eq(60L), eq(5L)))
+                PaymentService.rechargeLockKey("R-BUSY"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -293,7 +293,7 @@ class PaymentServiceTest {
     @Test
     void cancelRecharge_whenOrderNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(PaymentService.rechargeLockKey("R-MISS")), eq(60L), eq(5L)))
+                PaymentService.rechargeLockKey("R-MISS"), 60L, 5L))
                 .thenReturn(true);
         when(rechargeOrderRepository.findByIdForUpdate("R-MISS")).thenReturn(Optional.empty());
 
@@ -306,7 +306,7 @@ class PaymentServiceTest {
     @Test
     void confirmRechargeMock_whenOrderLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(PaymentService.rechargeLockKey("R-CONF")), eq(60L), eq(5L)))
+                PaymentService.rechargeLockKey("R-CONF"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,

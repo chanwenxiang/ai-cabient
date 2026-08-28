@@ -13,7 +13,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -38,7 +37,7 @@ class ConsumerMarketingConcurrencyTest {
     @Test
     void claimCampaign_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(ConsumerMarketingService.campaignClaimLockKey(500L, 42L)), eq(60L), eq(5L)))
+                ConsumerMarketingService.campaignClaimLockKey(500L, 42L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,

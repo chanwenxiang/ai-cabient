@@ -19,7 +19,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -50,7 +49,7 @@ class DeviceAssetConcurrencyTest {
     @Test
     void applyLifecycle_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(DeviceAssetService.deviceAssetLockKey("DEV-ASSET-1")), eq(60L), eq(5L)))
+                DeviceAssetService.deviceAssetLockKey("DEV-ASSET-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -63,7 +62,7 @@ class DeviceAssetConcurrencyTest {
     @Test
     void applyLifecycle_whenDeviceNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(DeviceAssetService.deviceAssetLockKey("DEV-ASSET-2")), eq(60L), eq(5L)))
+                DeviceAssetService.deviceAssetLockKey("DEV-ASSET-2"), 60L, 5L))
                 .thenReturn(true);
         when(deviceInfoMapper.findByIdForUpdate("DEV-ASSET-2")).thenReturn(Optional.empty());
 

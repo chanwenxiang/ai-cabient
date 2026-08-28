@@ -15,7 +15,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -42,7 +41,7 @@ class FileAttachmentConcurrencyTest {
     @Test
     void bindEvidenceToDispute_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(DisputeService.disputeTicketLockKey("TK-1")), eq(60L), eq(5L)))
+                DisputeService.disputeTicketLockKey("TK-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -54,7 +53,7 @@ class FileAttachmentConcurrencyTest {
     @Test
     void uploadReplenishmentEvidence_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(ReplenishmentService.replenishmentTaskLockKey(5L)), eq(60L), eq(5L)))
+                ReplenishmentService.replenishmentTaskLockKey(5L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -66,7 +65,7 @@ class FileAttachmentConcurrencyTest {
     @Test
     void bindEvidenceToDispute_whenTooManyFiles_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(DisputeService.disputeTicketLockKey("TK-2")), eq(60L), eq(5L)))
+                DisputeService.disputeTicketLockKey("TK-2"), 60L, 5L))
                 .thenReturn(true);
 
         assertThrows(ResponseStatusException.class,

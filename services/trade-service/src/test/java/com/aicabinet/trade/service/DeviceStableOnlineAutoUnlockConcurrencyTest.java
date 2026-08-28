@@ -65,7 +65,7 @@ class DeviceStableOnlineAutoUnlockConcurrencyTest {
         when(tickets.selectCount(any())).thenReturn(0L);
         when(sessions.selectCount(any())).thenReturn(0L);
         when(distributedLockService.tryLock(
-                eq(DeviceSalesLockService.deviceSalesLockKey("CAB-AU")), eq(60L), eq(5L)))
+                DeviceSalesLockService.deviceSalesLockKey("CAB-AU"), 60L, 5L))
                 .thenReturn(false);
 
         assertEquals(0, service.autoUnlockStableOnlineDevices());

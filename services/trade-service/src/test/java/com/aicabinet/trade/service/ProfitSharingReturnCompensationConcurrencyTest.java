@@ -8,7 +8,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,8 +31,7 @@ class ProfitSharingReturnCompensationConcurrencyTest {
         split.setSplitId("SPLIT-1");
         split.setWechatPendingReturnNo("RET-1");
         when(distributedLockService.tryLock(
-                eq(ProfitSharingReturnCompensationService.returnCompensationLockKey("SPLIT-1")),
-                eq(60L), eq(5L)))
+                ProfitSharingReturnCompensationService.returnCompensationLockKey("SPLIT-1"), 60L, 5L))
                 .thenReturn(false);
 
         service.scheduleReturnRetry(split, 60);
@@ -47,8 +45,7 @@ class ProfitSharingReturnCompensationConcurrencyTest {
         split.setSplitId("SPLIT-2");
         split.setWechatPendingReturnNo("RET-2");
         when(distributedLockService.tryLock(
-                eq(ProfitSharingReturnCompensationService.returnCompensationLockKey("SPLIT-2")),
-                eq(60L), eq(5L)))
+                ProfitSharingReturnCompensationService.returnCompensationLockKey("SPLIT-2"), 60L, 5L))
                 .thenReturn(true);
         when(taskRepository.existsPending("SPLIT-2", ProfitSharingReturnCompensationService.TASK_TYPE))
                 .thenReturn(false);

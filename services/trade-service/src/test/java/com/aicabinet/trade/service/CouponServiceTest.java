@@ -48,7 +48,7 @@ class CouponServiceTest {
                 orderLineRepository, distributedLockService, promotionService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(couponService, "self", couponService);
         lenient().when(taskService.tryBegin(anyString(), anyLong())).thenReturn(true);
-        lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }
 
     @Test

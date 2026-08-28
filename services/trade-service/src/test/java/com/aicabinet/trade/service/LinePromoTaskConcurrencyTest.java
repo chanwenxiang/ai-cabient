@@ -14,7 +14,6 @@ import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,7 +36,7 @@ class LinePromoTaskConcurrencyTest {
     @Test
     void upsert_whenTaskLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(LinePromoTaskService.linePromoTaskLockKey(9L)), eq(60L), eq(5L)))
+                LinePromoTaskService.linePromoTaskLockKey(9L), 60L, 5L))
                 .thenReturn(false);
 
         UpsertLinePromoTaskRequest req = new UpsertLinePromoTaskRequest(
@@ -52,7 +51,7 @@ class LinePromoTaskConcurrencyTest {
     @Test
     void upsert_whenManagerLockBusyOnCreate_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(LinePromoTaskService.linePromoManagerLockKey(2L)), eq(60L), eq(5L)))
+                LinePromoTaskService.linePromoManagerLockKey(2L), 60L, 5L))
                 .thenReturn(false);
 
         UpsertLinePromoTaskRequest req = new UpsertLinePromoTaskRequest(

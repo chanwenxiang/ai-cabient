@@ -19,7 +19,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -62,7 +61,7 @@ class UnpaidOrderConcurrencyTest {
     @Test
     void collectByUser_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(OrderPaymentService.orderPaymentLockKey("O-PEND")), eq(60L), eq(5L)))
+                OrderPaymentService.orderPaymentLockKey("O-PEND"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -81,7 +80,7 @@ class UnpaidOrderConcurrencyTest {
         order.setTotalAmountCents(500);
 
         when(distributedLockService.tryLock(
-                eq(OrderPaymentService.orderPaymentLockKey("O-OK")), eq(60L), eq(5L)))
+                OrderPaymentService.orderPaymentLockKey("O-OK"), 60L, 5L))
                 .thenReturn(true);
         when(orderRepository.findByIdForUpdate("O-OK")).thenReturn(Optional.of(order));
         when(orderLineRepository.findByOrderId("O-OK")).thenReturn(java.util.List.of());

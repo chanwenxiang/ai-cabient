@@ -11,7 +11,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -34,7 +33,7 @@ class DeviceSlotConcurrencyTest {
     @Test
     void applyPhysicalSnapshot_whenSlotLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(DeviceSlotService.deviceSlotLockKey("CAB-SLOT-1")), eq(60L), eq(5L)))
+                DeviceSlotService.deviceSlotLockKey("CAB-SLOT-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,

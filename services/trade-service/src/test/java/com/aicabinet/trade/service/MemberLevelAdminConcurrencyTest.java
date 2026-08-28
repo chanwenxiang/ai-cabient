@@ -14,7 +14,6 @@ import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -34,7 +33,7 @@ class MemberLevelAdminConcurrencyTest {
     @Test
     void upsert_whenLevelCodeLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(MemberLevelAdminService.levelCodeLockKey("GOLD")), eq(60L), eq(5L)))
+                MemberLevelAdminService.levelCodeLockKey("GOLD"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -48,7 +47,7 @@ class MemberLevelAdminConcurrencyTest {
     @Test
     void setStatus_whenLevelIdLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(MemberLevelAdminService.levelIdLockKey(3L)), eq(60L), eq(5L)))
+                MemberLevelAdminService.levelIdLockKey(3L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -60,7 +59,7 @@ class MemberLevelAdminConcurrencyTest {
     @Test
     void setStatus_whenLevelNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(MemberLevelAdminService.levelIdLockKey(4L)), eq(60L), eq(5L)))
+                MemberLevelAdminService.levelIdLockKey(4L), 60L, 5L))
                 .thenReturn(true);
         when(levelRuleRepository.findByIdForUpdate(4L)).thenReturn(java.util.Optional.empty());
 

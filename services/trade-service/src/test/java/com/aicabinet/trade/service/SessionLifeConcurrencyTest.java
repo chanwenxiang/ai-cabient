@@ -15,7 +15,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -38,7 +37,7 @@ class SessionLifeConcurrencyTest {
     @Test
     void settleAfterClose_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(SessionService.sessionLifeLockKey("S-LOCK-1")), eq(60L), eq(5L)))
+                SessionService.sessionLifeLockKey("S-LOCK-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -50,7 +49,7 @@ class SessionLifeConcurrencyTest {
     @Test
     void cancelSession_whenSessionNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(SessionService.sessionLifeLockKey("S-LOCK-2")), eq(60L), eq(5L)))
+                SessionService.sessionLifeLockKey("S-LOCK-2"), 60L, 5L))
                 .thenReturn(true);
         when(repository.findByIdForUpdate("S-LOCK-2")).thenReturn(Optional.empty());
 
@@ -66,7 +65,7 @@ class SessionLifeConcurrencyTest {
         session.setSessionId("S-LOCK-3");
         session.setState(SessionState.COMPLETED);
         when(distributedLockService.tryLock(
-                eq(SessionService.sessionLifeLockKey("S-LOCK-3")), eq(60L), eq(5L)))
+                SessionService.sessionLifeLockKey("S-LOCK-3"), 60L, 5L))
                 .thenReturn(true);
         when(repository.findByIdForUpdate("S-LOCK-3")).thenReturn(Optional.of(session));
 

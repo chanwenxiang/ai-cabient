@@ -1,7 +1,6 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.mapper.OpsExceptionMapper;
-import com.aicabinet.trade.service.support.OpsExceptionServiceSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,7 +13,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,7 +34,7 @@ class OpsExceptionConcurrencyTest {
     @Test
     void claim_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(OpsExceptionService.exceptionLockKey("EX-1")), eq(60L), eq(5L)))
+                OpsExceptionService.exceptionLockKey("EX-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -48,7 +46,7 @@ class OpsExceptionConcurrencyTest {
     @Test
     void resolve_whenExceptionNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(OpsExceptionService.exceptionLockKey("EX-2")), eq(60L), eq(5L)))
+                OpsExceptionService.exceptionLockKey("EX-2"), 60L, 5L))
                 .thenReturn(true);
         when(repository.findByIdForUpdate("EX-2")).thenReturn(Optional.empty());
 
@@ -62,13 +60,12 @@ class OpsExceptionConcurrencyTest {
     void report_whenDedupLockBusy_rejectsWithConflict() {
         String dedup = "OPEN_TIMEOUT:S-1";
         when(distributedLockService.tryLock(
-                eq(OpsExceptionService.exceptionDedupLockKey(dedup)), eq(60L), eq(5L)))
+                OpsExceptionService.exceptionDedupLockKey(dedup), 60L, 5L))
                 .thenReturn(false);
 
+        var refs = new OpsExceptionService.ExceptionReport.ExceptionRefs("CAB-1", "S-1", null, 1L);
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.report("OPEN_TIMEOUT", "HIGH",
-                        new OpsExceptionService.ExceptionReport.ExceptionRefs("CAB-1", "S-1", null, 1L),
-                        "title", "detail"));
+                () -> service.report("OPEN_TIMEOUT", "HIGH", refs, "title", "detail"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }

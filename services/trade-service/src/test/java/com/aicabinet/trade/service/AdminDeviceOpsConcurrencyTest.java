@@ -14,7 +14,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,7 +42,7 @@ class AdminDeviceOpsConcurrencyTest {
         device.setDeviceId("CAB-OPS-1");
         when(deviceRepository.findById("CAB-OPS-1")).thenReturn(java.util.Optional.of(device));
         when(distributedLockService.tryLock(
-                eq(SessionService.sessionOpenLockKey("CAB-OPS-1")), eq(60L), eq(5L)))
+                SessionService.sessionOpenLockKey("CAB-OPS-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,

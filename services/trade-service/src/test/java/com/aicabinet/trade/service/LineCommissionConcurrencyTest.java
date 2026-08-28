@@ -13,7 +13,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -21,7 +20,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,7 +42,7 @@ class LineCommissionConcurrencyTest {
     void setUp() {
         job = new LineCommissionJob(managerMapper, deviceMapper, orderMapper,
                 commissionDailyMapper, lineWalletService, distributedLockService, taskService);
-        when(taskService.tryBegin(eq("line-commission"), eq(1800L))).thenReturn(true);
+        when(taskService.tryBegin("line-commission", 1800L)).thenReturn(true);
     }
 
     @Test
@@ -61,7 +59,7 @@ class LineCommissionConcurrencyTest {
         when(managerMapper.findById(7L)).thenReturn(Optional.of(manager));
         LocalDate bizDate = LocalDate.now(ZoneId.of("Asia/Shanghai")).minusDays(1);
         when(distributedLockService.tryLock(
-                eq(LineCommissionJob.lineCommissionDailyLockKey(7L, "CAB-LC", bizDate)), eq(60L), eq(5L)))
+                LineCommissionJob.lineCommissionDailyLockKey(7L, "CAB-LC", bizDate), 60L, 5L))
                 .thenReturn(false);
 
         job.postDailyCommission();

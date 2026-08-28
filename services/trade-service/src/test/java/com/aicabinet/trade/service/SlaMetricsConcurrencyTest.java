@@ -11,7 +11,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 
@@ -42,7 +41,7 @@ class SlaMetricsConcurrencyTest {
         service = new SlaMetricsService(sessionRepository, deviceRepository, snapshotRepository,
                 merchantScopeService, disputeRepository, disputeSlaService, distributedLockService, null, taskService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
-        when(taskService.tryBegin(eq("sla-snapshot"), eq(600L))).thenReturn(true);
+        when(taskService.tryBegin("sla-snapshot", 600L)).thenReturn(true);
         when(sessionRepository.countCreatedBetween(any(), any())).thenReturn(0L);
         when(sessionRepository.countCreatedBetweenAndStateIn(any(), any(), any())).thenReturn(0L);
         when(sessionRepository.avgDoorOpenMsBetween(any(), any())).thenReturn(0L);
@@ -55,7 +54,7 @@ class SlaMetricsConcurrencyTest {
     void snapshotDaily_whenLockBusy_skipsPersist() {
         LocalDate yesterday = LocalDate.now().minusDays(1);
         when(distributedLockService.tryLock(
-                eq(SlaMetricsService.slaSnapshotDailyLockKey(yesterday)), eq(60L), eq(5L)))
+                SlaMetricsService.slaSnapshotDailyLockKey(yesterday), 60L, 5L))
                 .thenReturn(false);
 
         service.snapshotDaily();

@@ -15,7 +15,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -56,7 +55,7 @@ class WarehouseStockConcurrencyTest {
         wh.setWarehouseId("WH-1");
         when(warehouseRepository.findById("WH-1")).thenReturn(Optional.of(wh));
         when(distributedLockService.tryLock(
-                eq(WarehouseService.stockLockKey("WH-1", "SKU-1", "B-1")), eq(60L), eq(5L)))
+                WarehouseService.stockLockKey("WH-1", "SKU-1", "B-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -74,7 +73,7 @@ class WarehouseStockConcurrencyTest {
         wh.setWarehouseId("WH-2");
         when(warehouseRepository.findById("WH-2")).thenReturn(Optional.of(wh));
         when(distributedLockService.tryLock(
-                eq(WarehouseService.stockLockKey("WH-2", "SKU-2", "B-2")), eq(60L), eq(5L)))
+                WarehouseService.stockLockKey("WH-2", "SKU-2", "B-2"), 60L, 5L))
                 .thenReturn(true);
         when(inventoryRepository.findByWarehouseIdAndSkuIdAndBatchNoForUpdate("WH-2", "SKU-2", "B-2"))
                 .thenReturn(Optional.empty());

@@ -17,7 +17,6 @@ import org.springframework.web.server.ResponseStatusException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,7 +43,7 @@ class DataConsistencyConcurrencyTest {
     @Test
     void fixInconsistency_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(DataConsistencyService.recordLockKey(5L)), eq(60L), eq(5L)))
+                DataConsistencyService.recordLockKey(5L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -56,8 +55,7 @@ class DataConsistencyConcurrencyTest {
     @Test
     void recordInconsistency_whenCheckLockBusy_skipsPersist() {
         when(distributedLockService.tryLock(
-                eq(DataConsistencyService.consistencyCheckLockKey("ORDER_AMOUNT", "O-BUSY")),
-                eq(60L), eq(5L)))
+                DataConsistencyService.consistencyCheckLockKey("ORDER_AMOUNT", "O-BUSY"), 60L, 5L))
                 .thenReturn(false);
 
         service.recordInconsistency("ORDER_AMOUNT", "cabinet_order", "O-BUSY", "100", "90");

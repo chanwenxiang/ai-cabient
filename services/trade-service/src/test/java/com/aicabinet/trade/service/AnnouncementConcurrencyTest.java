@@ -11,7 +11,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,7 +30,7 @@ class AnnouncementConcurrencyTest {
     @Test
     void publish_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(AnnouncementService.announcementLockKey(1L)), eq(60L), eq(5L)))
+                AnnouncementService.announcementLockKey(1L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -43,7 +42,7 @@ class AnnouncementConcurrencyTest {
     @Test
     void archive_whenNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(AnnouncementService.announcementLockKey(2L)), eq(60L), eq(5L)))
+                AnnouncementService.announcementLockKey(2L), 60L, 5L))
                 .thenReturn(true);
         when(repository.findByIdForUpdate(2L)).thenReturn(java.util.Optional.empty());
 

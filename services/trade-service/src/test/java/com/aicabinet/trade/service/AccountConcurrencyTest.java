@@ -12,7 +12,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,7 +36,7 @@ class AccountConcurrencyTest {
     @Test
     void bindWxOpenId_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(AccountService.userAccountLockKey(100L)), eq(60L), eq(5L)))
+                AccountService.userAccountLockKey(100L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -49,7 +48,7 @@ class AccountConcurrencyTest {
     @Test
     void bindWxOpenId_whenUserMissing_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(AccountService.userAccountLockKey(101L)), eq(60L), eq(5L)))
+                AccountService.userAccountLockKey(101L), 60L, 5L))
                 .thenReturn(true);
         when(userInfoRepository.findByIdForUpdate(101L)).thenReturn(java.util.Optional.empty());
 

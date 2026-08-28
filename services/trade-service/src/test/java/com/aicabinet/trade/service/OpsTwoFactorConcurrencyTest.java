@@ -14,7 +14,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,7 +40,7 @@ class OpsTwoFactorConcurrencyTest {
     @Test
     void enroll_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(OpsTwoFactorService.opsTwoFactorLockKey(OPERATOR_ID)), eq(60L), eq(5L)))
+                OpsTwoFactorService.opsTwoFactorLockKey(OPERATOR_ID), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -53,7 +52,7 @@ class OpsTwoFactorConcurrencyTest {
     @Test
     void confirm_whenNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(OpsTwoFactorService.opsTwoFactorLockKey(OPERATOR_ID)), eq(60L), eq(5L)))
+                OpsTwoFactorService.opsTwoFactorLockKey(OPERATOR_ID), 60L, 5L))
                 .thenReturn(true);
         when(userInfoRepository.findByIdForUpdate(OPERATOR_ID)).thenReturn(java.util.Optional.empty());
 

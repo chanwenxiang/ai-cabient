@@ -17,7 +17,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -47,7 +46,7 @@ class MerchantOnboardingConcurrencyTest {
     @Test
     void upsert_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(MerchantOnboardingService.onboardingLockKey("M-1", "WECHAT")), eq(60L), eq(5L)))
+                MerchantOnboardingService.onboardingLockKey("M-1", "WECHAT"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -60,7 +59,7 @@ class MerchantOnboardingConcurrencyTest {
     @Test
     void upsert_whenMerchantNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(MerchantOnboardingService.onboardingLockKey("M-2", "ALIPAY")), eq(60L), eq(5L)))
+                MerchantOnboardingService.onboardingLockKey("M-2", "ALIPAY"), 60L, 5L))
                 .thenReturn(true);
         when(merchantMapper.findById("M-2")).thenReturn(java.util.Optional.empty());
 

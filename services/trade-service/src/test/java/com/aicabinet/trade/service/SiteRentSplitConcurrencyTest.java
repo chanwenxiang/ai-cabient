@@ -15,7 +15,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,7 +39,7 @@ class SiteRentSplitConcurrencyTest {
     @Test
     void replaceRules_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(SiteRentSplitService.contractRulesLockKey(5L)), eq(60L), eq(5L)))
+                SiteRentSplitService.contractRulesLockKey(5L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -55,7 +54,7 @@ class SiteRentSplitConcurrencyTest {
     @Test
     void replaceRules_whenContractNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(SiteRentSplitService.contractRulesLockKey(6L)), eq(60L), eq(5L)))
+                SiteRentSplitService.contractRulesLockKey(6L), 60L, 5L))
                 .thenReturn(true);
         when(contractMapper.findByIdForUpdate(6L)).thenReturn(java.util.Optional.empty());
 

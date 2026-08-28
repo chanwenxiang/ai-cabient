@@ -11,7 +11,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,7 +32,7 @@ class ScheduledTaskConcurrencyTest {
     @Test
     void setEnabled_whenAdminLockBusy_rejectsWithConflict() {
         when(lockService.tryLock(
-                eq(ScheduledTaskService.scheduledTaskAdminLockKey("x")), eq(60L), eq(5L)))
+                ScheduledTaskService.scheduledTaskAdminLockKey("x"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -45,7 +44,7 @@ class ScheduledTaskConcurrencyTest {
     @Test
     void setRemark_whenNotFound_unlocksAdminLock() {
         when(lockService.tryLock(
-                eq(ScheduledTaskService.scheduledTaskAdminLockKey("missing")), eq(60L), eq(5L)))
+                ScheduledTaskService.scheduledTaskAdminLockKey("missing"), 60L, 5L))
                 .thenReturn(true);
         when(taskRepository.findByIdForUpdate("missing")).thenReturn(java.util.Optional.empty());
 

@@ -17,7 +17,6 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,7 +46,7 @@ class RiskAutoDispositionConcurrencyTest {
         event.setCreatedAt(Instant.now().minusSeconds(3600 * 100));
         when(riskEventRepository.selectList(any())).thenReturn(List.of(event));
         when(distributedLockService.tryLock(
-                eq(RiskAutoDispositionService.riskEventLockKey(11L)), eq(60L), eq(5L)))
+                RiskAutoDispositionService.riskEventLockKey(11L), 60L, 5L))
                 .thenReturn(false);
 
         assertEquals(0, service.autoClearInfo());
@@ -64,7 +63,7 @@ class RiskAutoDispositionConcurrencyTest {
         event.setCreatedAt(Instant.now().minusSeconds(3600 * 200));
         when(riskEventRepository.selectList(any())).thenReturn(List.of(event));
         when(distributedLockService.tryLock(
-                eq(RiskAutoDispositionService.riskEventLockKey(22L)), eq(60L), eq(5L)))
+                RiskAutoDispositionService.riskEventLockKey(22L), 60L, 5L))
                 .thenReturn(true);
         RiskEvent alreadyHandled = new RiskEvent();
         alreadyHandled.setEventId(22L);

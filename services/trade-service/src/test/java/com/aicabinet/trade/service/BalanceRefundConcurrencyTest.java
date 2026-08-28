@@ -18,7 +18,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,7 +47,7 @@ class BalanceRefundConcurrencyTest {
     @Test
     void apply_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(BalanceRefundService.balanceRefundLockKey(10001L)), eq(60L), eq(5L)))
+                BalanceRefundService.balanceRefundLockKey(10001L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -65,7 +64,7 @@ class BalanceRefundConcurrencyTest {
         account.setFrozenCents(0);
 
         when(distributedLockService.tryLock(
-                eq(BalanceRefundService.balanceRefundLockKey(10001L)), eq(60L), eq(5L)))
+                BalanceRefundService.balanceRefundLockKey(10001L), 60L, 5L))
                 .thenReturn(true);
         when(requestMapper.countByUserIdAndStatus(10001L, "PENDING_REVIEW")).thenReturn(0L);
         when(accountMapper.findByIdForUpdate(10001L)).thenReturn(Optional.of(account));

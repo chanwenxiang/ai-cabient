@@ -11,7 +11,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,7 +46,7 @@ class SkuVisionEnrollmentConcurrencyTest {
     @Test
     void advanceEnrollment_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(SkuVisionEnrollmentService.skuVisionLockKey("SKU-A")), eq(60L), eq(5L)))
+                SkuVisionEnrollmentService.skuVisionLockKey("SKU-A"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -59,7 +58,7 @@ class SkuVisionEnrollmentConcurrencyTest {
     @Test
     void advanceEnrollment_whenNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(SkuVisionEnrollmentService.skuVisionLockKey("SKU-MISS")), eq(60L), eq(5L)))
+                SkuVisionEnrollmentService.skuVisionLockKey("SKU-MISS"), 60L, 5L))
                 .thenReturn(true);
         when(skuCatalogRepository.findByIdForUpdate("SKU-MISS")).thenReturn(java.util.Optional.empty());
 

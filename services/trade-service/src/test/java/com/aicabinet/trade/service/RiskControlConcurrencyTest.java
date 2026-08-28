@@ -17,7 +17,6 @@ import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -42,7 +41,7 @@ class RiskControlConcurrencyTest {
     @Test
     void addBlacklist_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(RiskControlService.blacklistLockKey(10001L)), eq(60L), eq(5L)))
+                RiskControlService.blacklistLockKey(10001L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -54,7 +53,7 @@ class RiskControlConcurrencyTest {
     @Test
     void removeBlacklist_whenLockAcquired_deletesRow() {
         when(distributedLockService.tryLock(
-                eq(RiskControlService.blacklistLockKey(10002L)), eq(60L), eq(5L)))
+                RiskControlService.blacklistLockKey(10002L), 60L, 5L))
                 .thenReturn(true);
         com.aicabinet.trade.domain.UserBlacklist bl = new com.aicabinet.trade.domain.UserBlacklist();
         bl.setUserId(10002L);
