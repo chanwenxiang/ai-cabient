@@ -667,7 +667,8 @@ function sessionDurationMs(row: SessionRow) {
 function waitReasonForWaitingUpload(upload: string, stuck: boolean) {
   if (upload === 'FAILED') return '录像上传失败，待设备侧重试';
   if (upload === 'UPLOADING') return stuck ? '上传中断或极慢' : '等待录像上传完成';
-  if (upload === 'LOCAL_QUEUED') return stuck ? '本地排队超时，可能弱网/离线' : '设备本地排队待推送';
+  if (upload === 'LOCAL_QUEUED')
+    return stuck ? '本地排队超时，可能弱网/离线' : '设备本地排队待推送';
   return stuck ? '关门后长期待上传' : '关门后等待录像上报';
 }
 
@@ -961,13 +962,7 @@ async function cancelSession(sessionId: string) {
   }
 }
 
-const SESSION_ROUTE_KEYWORD_KEYS = [
-  'keyword',
-  'q',
-  'deviceId',
-  'qSessionId',
-  'userId'
-] as const;
+const SESSION_ROUTE_KEYWORD_KEYS = ['keyword', 'q', 'deviceId', 'qSessionId', 'userId'] as const;
 
 function resolveSessionRouteKeyword(): string {
   for (const key of SESSION_ROUTE_KEYWORD_KEYS) {

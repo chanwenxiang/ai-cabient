@@ -36,7 +36,10 @@ function columnSumWidth(table: HTMLElement | null): number {
     // gutter 列不计入：本布局纵滚在 .table-scroll，gutter 宽应为 0
     if (col.getAttribute('name') === 'gutter' || col.classList.contains('gutter')) return;
     const el = col as HTMLElement;
-    const w = Number.parseFloat(el.style.width || '') || Number.parseFloat(col.getAttribute('width') || '') || 0;
+    const w =
+      Number.parseFloat(el.style.width || '') ||
+      Number.parseFloat(col.getAttribute('width') || '') ||
+      0;
     sum += w;
   });
   return sum;

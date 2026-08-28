@@ -151,10 +151,7 @@ const statusText = computed(() => {
   return displayLabel('dispute_status', s, '处理中');
 });
 
-function reviewStepDetail(
-  t: NonNullable<typeof ticket.value>,
-  resolved: boolean
-): string {
+function reviewStepDetail(t: NonNullable<typeof ticket.value>, resolved: boolean): string {
   const note = (t as { operatorNote?: string }).operatorNote;
   if (note) return note;
   if (resolved) return '审核结论已生成';
@@ -302,9 +299,7 @@ async function reloadFromListFallback(primaryError: unknown) {
   if (!found) {
     ticket.value = null;
     error.value =
-      primaryError instanceof Error
-        ? primaryError.message
-        : '未找到该审核单，可能已归档或尚未生成';
+      primaryError instanceof Error ? primaryError.message : '未找到该审核单，可能已归档或尚未生成';
     return;
   }
   applyFoundTicket(found);

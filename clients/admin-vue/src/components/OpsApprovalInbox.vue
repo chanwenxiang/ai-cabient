@@ -32,7 +32,9 @@
               @click="openTask(task)"
             >
               <div class="item-title">{{ task.title || task.bizType }}</div>
-              <div class="item-meta">{{ task.nodeName }} · {{ formatDateTime(task.createdAt) }}</div>
+              <div class="item-meta">
+                {{ task.nodeName }} · {{ formatDateTime(task.createdAt) }}
+              </div>
             </button>
           </li>
         </ul>

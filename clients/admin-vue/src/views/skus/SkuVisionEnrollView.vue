@@ -1292,7 +1292,8 @@ async function onImageUpload(options: UploadRequestOptions) {
 }
 
 async function uploadMultipart<T>(path: string, fields: Record<string, string | File>): Promise<T> {
-  const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
+  const base =
+    (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
   const form = new FormData();
   for (const [key, val] of Object.entries(fields)) {
     form.append(key === 'image' ? 'image' : key, val);

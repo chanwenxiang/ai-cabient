@@ -770,7 +770,7 @@ select {
   max-width: 100% !important;
   min-width: 0 !important;
   box-sizing: border-box !important;
-  // override global .page-card overflow:visible
+  /* override global .page-card overflow:visible */
   overflow-x: hidden !important;
   overflow-y: visible !important;
   border: 1px solid var(--layout-border) !important;

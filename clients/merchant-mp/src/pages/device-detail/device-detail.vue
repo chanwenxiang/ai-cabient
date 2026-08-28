@@ -244,7 +244,9 @@ function formatTempDisplay(value: number | null | undefined, emptyLabel: string)
   return value == null ? emptyLabel : `${value}°C`;
 }
 
-function readExtendedDeviceFields(settings: Awaited<ReturnType<typeof merchantApi.deviceSettings>>) {
+function readExtendedDeviceFields(
+  settings: Awaited<ReturnType<typeof merchantApi.deviceSettings>>
+) {
   const ext = settings as {
     salesLocked?: boolean;
     salesLockReason?: string;

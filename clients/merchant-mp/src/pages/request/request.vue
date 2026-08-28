@@ -222,7 +222,9 @@ onShow(() => {
 });
 
 onPullDownRefresh(() => {
-  bootstrap().finally(() => uni.stopPullDownRefresh()).catch(() => {});
+  bootstrap()
+    .finally(() => uni.stopPullDownRefresh())
+    .catch(() => {});
 });
 
 watch(selectedDeviceId, (id, prev) => {
@@ -364,7 +366,11 @@ async function loadDraft() {
     const suggestMap = buildSuggestMap(suggest);
     const bySku = new Map<string, DraftLine>();
     for (const slot of slots || []) {
-      const skuId = mergeSlotDraftLine(bySku, slot, suggestMap.get(String(slot.assignedSkuId || '').trim()));
+      const skuId = mergeSlotDraftLine(
+        bySku,
+        slot,
+        suggestMap.get(String(slot.assignedSkuId || '').trim())
+      );
       if (skuId) suggestMap.delete(skuId);
     }
     appendOrphanSuggestions(bySku, suggestMap);

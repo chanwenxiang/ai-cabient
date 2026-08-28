@@ -585,7 +585,10 @@ function syncRefundLines() {
 function onPartialQty(row: RefundLineRow, e: any) {
   const n = Math.max(
     0,
-    Math.min(row.maxQty, Number.parseInt(String(e?.detail?.value ?? e?.target?.value ?? 0), 10) || 0)
+    Math.min(
+      row.maxQty,
+      Number.parseInt(String(e?.detail?.value ?? e?.target?.value ?? 0), 10) || 0
+    )
   );
   row.qty = n;
 }
@@ -728,7 +731,11 @@ async function submitDispute() {
   }
 }
 
-function refundConfirmContent(isPartial: boolean, restoreInventory: boolean, lineCount: number): string {
+function refundConfirmContent(
+  isPartial: boolean,
+  restoreInventory: boolean,
+  lineCount: number
+): string {
   if (isPartial) {
     if (restoreInventory) {
       return `将退款所选 ${lineCount} 行商品并回库。是否继续？`;
