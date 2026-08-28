@@ -125,7 +125,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest
-          PYTHONPATH=vision-service pytest -q vision-service/tests/test_delta_recognizer.py
+          PYTHONPATH=vision-service pytest -q vision-service/tests/test_mock_recognizer.py
         working-directory: ${{ github.workspace }}
 
       - name: Upload test results
