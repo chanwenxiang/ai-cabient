@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">充值管理</span>
-            <span class="hint">按状态 / 用户筛选充值单；金额右对齐</span>
+            <span class="hint">按状态 / 用户筛选充值单；金额居中展示</span>
           </div>
         </div>
         <div class="page-card-head__actions">
