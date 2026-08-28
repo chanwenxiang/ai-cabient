@@ -10,6 +10,7 @@ import com.aicabinet.trade.domain.PromotionActivity;
 import com.aicabinet.trade.mapper.CouponDefinitionMapper;
 import com.aicabinet.trade.mapper.PromotionActivityMapper;
 import com.aicabinet.trade.mapper.UserCouponMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,9 +25,6 @@ import java.util.function.Supplier;
 @Service
 public class ConsumerMarketingService {
     private static final String DISCOUNT = "DISCOUNT";
-    private static final String COUPONS_PAGE_PATH = "/pages/coupons/coupons";
-
-
     private static final Map<String, String> TYPE_LABELS = Map.of(
             DISCOUNT, "满减",
             "NEW_USER", "新客",
@@ -49,19 +47,22 @@ public class ConsumerMarketingService {
     private final UserCouponMapper userCouponRepository;
     private final CouponService couponService;
     private final DistributedLockService distributedLockService;
+    private final String couponsPagePath;
 
     public ConsumerMarketingService(PromotionService promotionService,
                                     PromotionActivityMapper activityRepository,
                                     CouponDefinitionMapper couponDefinitionRepository,
                                     UserCouponMapper userCouponRepository,
                                     CouponService couponService,
-                                    DistributedLockService distributedLockService) {
+                                    DistributedLockService distributedLockService,
+                                    @Value("${aicabinet.consumer.coupons-page-path:/pages/coupons/coupons}") String couponsPagePath) {
         this.promotionService = promotionService;
         this.activityRepository = activityRepository;
         this.couponDefinitionRepository = couponDefinitionRepository;
         this.userCouponRepository = userCouponRepository;
         this.couponService = couponService;
         this.distributedLockService = distributedLockService;
+        this.couponsPagePath = couponsPagePath;
     }
 
     public List<MarketingCampaignDto> activeCampaigns() {
@@ -105,7 +106,7 @@ public class ConsumerMarketingService {
                     "mint",
                     "🎫",
                     null,
-                    "/pages/coupons/coupons"
+                    couponsPagePath
             ));
         }
         return banners;
@@ -178,7 +179,7 @@ public class ConsumerMarketingService {
 
     private MarketingCampaignDto toCampaign(PromotionActivityDto p, Long userId) {
         String type = p.activityType() != null ? p.activityType() : DISCOUNT;
-        String ctaPath = COUPONS_PAGE_PATH;
+        String ctaPath = couponsPagePath;
         // 「去领券」易被理解成仅跳转券包；实际点击会发券，文案用「立即领取」。
         String ctaLabel = "立即领取";
         Boolean claimed = null;

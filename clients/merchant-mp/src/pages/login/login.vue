@@ -56,17 +56,15 @@
           />
         </view>
 
-        <view
-          class="remember-row"
-          role="checkbox"
-          :aria-checked="rememberCredentials ? 'true' : 'false'"
-          data-testid="login-remember"
-          @click="rememberCredentials = !rememberCredentials"
-        >
-          <view class="remember-box" :class="{ on: rememberCredentials }">
-            <text v-if="rememberCredentials" class="remember-check">✓</text>
-          </view>
-          <text class="remember-label">记住账号和密码</text>
+        <view class="remember-row" data-testid="login-remember">
+          <checkbox
+            :checked="rememberCredentials"
+            color="#0f766e"
+            @tap="rememberCredentials = !rememberCredentials"
+          />
+          <text class="remember-label" @tap="rememberCredentials = !rememberCredentials"
+            >记住账号和密码</text
+          >
         </view>
 
         <view

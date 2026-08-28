@@ -149,18 +149,6 @@ export function buildSidebarTree(canAccess: (item: NavItem) => boolean): Sidebar
   });
 }
 
-/** @deprecated 兼容旧引用；请改用 buildSidebarTree */
-export function buildSidebarGroups(canAccess: (item: NavItem) => boolean) {
-  return buildSidebarTree(canAccess).map((node) => ({
-    key: node.key,
-    label: node.label,
-    icon: node.icon,
-    items: (node.children || [])
-      .filter((leaf) => leaf.path)
-      .map((leaf) => ({ path: leaf.path!, title: leaf.label, icon: leaf.icon }))
-  }));
-}
-
 /** 返回当前路径需要展开的全部祖先 key */
 export function sidebarOpenKeysForPath(path: string): string[] {
   const normalized = path.startsWith('/devices/') ? '/devices' : path;
@@ -169,5 +157,3 @@ export function sidebarOpenKeysForPath(path: string): string[] {
   const groupKey = GROUP_KEY[item.group];
   return groupKey ? [groupKey] : [];
 }
-
-export const SIDEBAR_GROUPS = buildSidebarGroups(() => true);
