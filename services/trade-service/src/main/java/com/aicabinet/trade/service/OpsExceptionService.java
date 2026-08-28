@@ -129,7 +129,7 @@ public class OpsExceptionService {
     }
 
     /** @deprecated Prefer {@link #list(Long, String, String, boolean, int, int)} with severity/overdue. */
-    @Deprecated
+    @Deprecated(since = "0.1.0", forRemoval = false)
     @Transactional(readOnly = true)
     public PageResult<OpsExceptionDto> list(Long operatorId, String status, int page, int size) {
         return self.list(operatorId, status, null, false, page, size);
@@ -556,8 +556,22 @@ public class OpsExceptionService {
             i.getTitle(), i.getDetail(), i.getAssigneeUserId(), i.getResolution(), i.getCreatedAt(), i.getUpdatedAt(),
             i.getResolvedAt(), sla, overdue, Boolean.TRUE.equals(i.getArchived()), i.getArchivedAt());
     }
-    private static String first(String... values) { for (String v : values) if (v != null && !v.isBlank() && !"null".equals(v)) return v; return "GLOBAL"; }
-    private static String trim(String v) { if (v == null) return null; v=v.trim(); return v.length()>1000?v.substring(0,1000):v; }
+    private static String first(String... values) {
+        for (String v : values) {
+            if (v != null && !v.isBlank() && !"null".equals(v)) {
+                return v;
+            }
+        }
+        return "GLOBAL";
+    }
+
+    private static String trim(String v) {
+        if (v == null) {
+            return null;
+        }
+        v = v.trim();
+        return v.length() > 1000 ? v.substring(0, 1000) : v;
+    }
 
     private void requireExceptionRead(Long operatorId) {
         permissionService.requireAnyPermission(operatorId, "ops:exception:list", "ops:exception:handle");

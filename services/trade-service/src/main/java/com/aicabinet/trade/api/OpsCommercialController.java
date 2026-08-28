@@ -136,7 +136,7 @@ public class OpsCommercialController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(name = "title", required = false) String title,
             @RequestParam(name = "durationSeconds", defaultValue = "0") int durationSeconds,
-            @RequestParam(name = "assetType", required = false) String assetType) throws IOException {
+            @RequestParam(name = "assetType", required = false) String assetType) {
         return ApiResponse.ok(support.mediaAssetService().upload(
                 operatorId(request), file, title, durationSeconds, assetType));
     }

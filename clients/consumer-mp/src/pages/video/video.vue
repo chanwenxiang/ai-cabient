@@ -20,7 +20,20 @@
         object-fit="contain"
         show-center-play-btn
         @error="onError"
-      />
+      >
+        <track
+          kind="captions"
+          srclang="zh"
+          label="现场录像无对白字幕"
+          src="data:text/vtt,WEBVTT"
+        />
+        <track
+          kind="descriptions"
+          srclang="zh"
+          label="购物过程监控录像"
+          src="data:text/vtt,WEBVTT"
+        />
+      </video>
       <view v-if="src" class="tips">
         <text v-if="metaLine" class="meta">{{ metaLine }}</text>
         <text class="tip">若无法播放，可复制链接到浏览器打开</text>

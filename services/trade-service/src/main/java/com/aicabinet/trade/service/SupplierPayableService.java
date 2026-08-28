@@ -139,7 +139,7 @@ public class SupplierPayableService {
     @Transactional
     public SupplierPayableDto pay(Long operatorId, Long payableId, PaySupplierRequest request) {
         permissionService.requirePermission(operatorId, "ops:procurement:edit");
-        if (request.amountCents() == null || request.amountCents() <= 0) {
+        if (request.amountCents() <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amountCents must be positive");
         }
         String idemKey = normalizeIdempotencyKey(request.idempotencyKey());

@@ -127,6 +127,8 @@ const components = [
 ];
 
 export function installElementPlus(app: App) {
-  for (const component of components) app.component(component.name!, component);
+  for (const component of components) {
+    if (component.name) app.component(component.name, component);
+  }
   app.directive('loading', ElLoading.directive);
 }

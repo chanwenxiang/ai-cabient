@@ -1085,8 +1085,9 @@ import TableActions from '@/components/TableActions.vue';
 import SlotGrid from '@/components/SlotGrid.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
-import type { DeviceEnvReading, DeviceTempPlan } from '@aicabinet/shared-types';
 import type {
+  DeviceEnvReading,
+  DeviceTempPlan,
   DeviceInfo,
   DeviceSlot,
   PageResult,

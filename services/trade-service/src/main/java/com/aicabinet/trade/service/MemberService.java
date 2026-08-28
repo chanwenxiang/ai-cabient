@@ -107,10 +107,10 @@ public class MemberService {
         List<MemberLevelRule> rules = levelRuleRepository.findByStatusOrderBySortorderAsc("ACTIVE");
 
         for (MemberLevelRule rule : rules) {
-            if (rule.getMinSpent() != null && totalSpent.compareTo(rule.getMinSpent()) >= 0) {
-                if (rule.getMaxSpent() == null || totalSpent.compareTo(rule.getMaxSpent()) < 0) {
-                    return rule.getLevelCode();
-                }
+            if (rule.getMinSpent() != null
+                    && totalSpent.compareTo(rule.getMinSpent()) >= 0
+                    && (rule.getMaxSpent() == null || totalSpent.compareTo(rule.getMaxSpent()) < 0)) {
+                return rule.getLevelCode();
             }
         }
 
@@ -181,15 +181,15 @@ public class MemberService {
         member.setUpdatedAt(Instant.now());
         memberRepository.save(member);
 
-        MemberPointsLog log = new MemberPointsLog();
-        log.setMemberId(member.getMemberId());
-        log.setPoints(points);
-        log.setPointsType("EARN");
-        log.setSourceType("ORDER");
-        log.setSourceId(sourceId);
-        log.setDescription("购物返积分");
-        log.setExpireAt(Instant.now().plus(365, ChronoUnit.DAYS));
-        pointsLogRepository.save(log);
+        MemberPointsLog pointsLog = new MemberPointsLog();
+        pointsLog.setMemberId(member.getMemberId());
+        pointsLog.setPoints(points);
+        pointsLog.setPointsType("EARN");
+        pointsLog.setSourceType("ORDER");
+        pointsLog.setSourceId(sourceId);
+        pointsLog.setDescription("购物返积分");
+        pointsLog.setExpireAt(Instant.now().plus(365, ChronoUnit.DAYS));
+        pointsLogRepository.save(pointsLog);
     }
 
     /**

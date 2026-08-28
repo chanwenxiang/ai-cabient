@@ -364,7 +364,7 @@ function resolveOrderId(opt?: Record<string, string | undefined>): string {
   const merged = { ...currentPageOptions(), ...opt };
   const fromOpt = String(merged.orderId || merged.id || '').trim();
   if (fromOpt) return fromOpt;
-  if (typeof globalThis !== 'undefined' && typeof globalThis.location !== 'undefined') {
+  if (globalThis.location != null) {
     try {
       const hash = String(globalThis.location.hash || '');
       const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';

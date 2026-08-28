@@ -211,7 +211,8 @@ const pageIndex = ref(0);
 const hasMore = ref(false);
 const ordersTotal = ref(0);
 const PAGE_SIZE = 20;
-const filter = ref<'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'cancelled'>('all');
+type OrderStatusFilter = 'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'cancelled';
+const filter = ref<OrderStatusFilter>('all');
 type TimeRange = 'all' | 'today' | '7d' | '30d';
 const timeRange = ref<TimeRange>('all');
 const reviewingDisputes = computed(() =>
@@ -244,7 +245,7 @@ function startOfTodayShanghai(): number {
 }
 
 function matchesTimeRange(createdAt: string | undefined, range: TimeRange) {
-  if (range === 'all' || !createdAt) return range === 'all' ? true : false;
+  if (range === 'all' || !createdAt) return range === 'all';
   const ts = new Date(createdAt).getTime();
   if (Number.isNaN(ts)) return false;
   const now = Date.now();

@@ -196,17 +196,19 @@ async function load() {
       warehouses.value = whs;
       skus.value = skuRows;
     } else if (mode.value === 'labels') {
-      const ids = String(route.query.ids || '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const ids = new Set(
+        String(route.query.ids || '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      );
       const rows =
         (
           await api
             .request<{ items: Row[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET')
             .catch(() => ({ items: [] as Row[] }))
         ).items || [];
-      labels.value = rows.filter((r) => ids.includes(String(r.skuId)));
+      labels.value = rows.filter((r) => ids.has(String(r.skuId)));
     }
   } catch (e) {
     console.error('打印数据加载失败', e);

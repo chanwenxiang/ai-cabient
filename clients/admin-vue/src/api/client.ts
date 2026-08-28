@@ -19,10 +19,10 @@ export function clearSession() {
 }
 
 /** Cookie 会话或 Bearer：统一鉴权头（写操作必须带 X-Requested-With）。 */
-export function authHeaders(extra?: Record<string, string>): Record<string, string> {
+export function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
   const headers: Record<string, string> = {
     'X-Requested-With': 'XMLHttpRequest',
-    ...(extra || {})
+    ...extra
   };
   const token = localStorage.getItem(TOKEN_KEY);
   if (token) {

@@ -231,8 +231,10 @@ public class PurchaseSuggestionService {
         }
         for (int i = 1; i < table.length; i++) {
             if (level <= table[i][0]) {
-                double x0 = table[i - 1][0], y0 = table[i - 1][1];
-                double x1 = table[i][0], y1 = table[i][1];
+                double x0 = table[i - 1][0];
+                double y0 = table[i - 1][1];
+                double x1 = table[i][0];
+                double y1 = table[i][1];
                 return y0 + (level - x0) / (x1 - x0) * (y1 - y0);
             }
         }
@@ -264,7 +266,10 @@ public class PurchaseSuggestionService {
         if (n < 2) {
             return 0;
         }
-        double sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+        double sumX = 0;
+        double sumY = 0;
+        double sumXY = 0;
+        double sumXX = 0;
         for (int i = series.length - n; i < series.length; i++) {
             double x = (double) i - (series.length - n);
             double y = series[i];

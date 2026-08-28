@@ -672,7 +672,8 @@ public class DeviceSlotService {
             suggestQty = headroom;
             if (ropLow && !parLow) {
                 reason = "ROP";
-            } else if (ropLow && parLow) {
+            } else if (ropLow) {
+                // 走到此处时 parLow 恒为 true（见上方分支）
                 reason = "PAR+ROP";
             }
         }

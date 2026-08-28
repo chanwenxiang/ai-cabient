@@ -171,7 +171,7 @@ public class OtaService {
 
     private int parseIntSafe(String s) {
         try {
-            return Integer.parseInt(s.replaceAll("[^0-9].*", ""));
+            return Integer.parseInt(s.replaceAll("\\D.*", ""));
         } catch (NumberFormatException e) {
             return 0;
         }

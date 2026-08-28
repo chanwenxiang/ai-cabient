@@ -751,7 +751,7 @@ public class ReplenishmentService {
         task.setStatus(STATUS_COMPLETED);
         task.setCompletedAt(Instant.now());
         if (expectReceive) {
-            appliedRestockQty = receiveOutboundHandover(task, operatorId, appliedRestockQty, pending.isEmpty());
+            receiveOutboundHandover(task, operatorId, appliedRestockQty, pending.isEmpty());
         }
         task = taskRepository.save(task);
         return finishCompletedTaskSideEffects(task, taskId);

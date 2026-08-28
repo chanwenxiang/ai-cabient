@@ -283,9 +283,12 @@ function syncOpenedMenusForRoute(path: string, collapsed: boolean) {
 function collectOpenedWithParent(key: string, parent: string): Set<string> {
   const next = new Set<string>();
   for (const opened of openedMenus.value) {
-    if (opened === parent || opened === key || opened.startsWith(`${key}:`)) {
-      next.add(opened);
-    } else if (!opened.startsWith(`${parent}:`)) {
+    if (
+      opened === parent ||
+      opened === key ||
+      opened.startsWith(`${key}:`) ||
+      !opened.startsWith(`${parent}:`)
+    ) {
       next.add(opened);
     }
   }
@@ -346,7 +349,7 @@ watch(
   (path) => {
     if (path === '/login') return;
     const t = (route.meta.title as string) || path;
-    if (!tags.value.find((x) => x.path === path)) {
+    if (!tags.value.some((x) => x.path === path)) {
       tags.value.push({ path, title: t });
     }
     // 超出上限时关闭最旧的非当前标签，避免标签栏无限堆积
@@ -367,7 +370,7 @@ function scrollActiveTagIntoView() {
     const escaped =
       typeof CSS !== 'undefined' && CSS.escape
         ? CSS.escape(route.path)
-        : route.path.replaceAll('"', '\\"');
+        : route.path.replaceAll('"', String.raw`\"`);
     const active = root.querySelector(`.tag-wrap[data-path="${escaped}"]`) as HTMLElement | null;
     if (!active) return;
     // 只用标签条横向滚动；禁止 scrollIntoView，避免带动右侧主内容区纵向跳动

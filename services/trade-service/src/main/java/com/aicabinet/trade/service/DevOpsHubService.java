@@ -124,6 +124,10 @@ public class DevOpsHubService {
                     dashboard,
                     "Queued GitHub Actions workflow '" + workflow + "' on ref '" + ref
                             + "'. Check Actions tab when finished.");
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "Failed to trigger GitHub Actions: " + safeMessage(ex), ex);
         } catch (Exception ex) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "Failed to trigger GitHub Actions: " + safeMessage(ex), ex);

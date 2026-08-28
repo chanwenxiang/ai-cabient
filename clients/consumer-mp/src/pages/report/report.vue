@@ -111,7 +111,7 @@ function onSubmit() {
     err.value = '请输入柜机编号';
     return;
   }
-  if (!/^[A-Z0-9][A-Z0-9\-]{2,31}$/.test(id)) {
+  if (!/^[A-Z0-9][A-Z0-9-]{2,31}$/.test(id)) {
     err.value = '柜机编号格式不正确，例如 CAB-001';
     return;
   }

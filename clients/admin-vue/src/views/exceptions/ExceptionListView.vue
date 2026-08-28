@@ -306,7 +306,20 @@
                   controls
                   playsinline
                   preload="metadata"
-                />
+                >
+                  <track
+                    kind="captions"
+                    srclang="zh"
+                    label="现场录像无对白字幕"
+                    src="data:text/vtt,WEBVTT"
+                  />
+                  <track
+                    kind="descriptions"
+                    srclang="zh"
+                    label="异常复核监控录像"
+                    src="data:text/vtt,WEBVTT"
+                  />
+                </video>
               </div>
               <el-empty
                 v-else-if="videoAttempted && !videoLoading && detail.exception.sessionId"

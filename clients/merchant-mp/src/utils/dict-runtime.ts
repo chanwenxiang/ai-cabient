@@ -1,7 +1,4 @@
-import {
-  loadRuntimeDict as sharedLoadRuntimeDict,
-  resetRuntimeDict as sharedResetRuntimeDict
-} from '@aicabinet/shared-uni/dict-runtime';
+import { loadRuntimeDict as sharedLoadRuntimeDict } from '@aicabinet/shared-uni/dict-runtime';
 import { getToken, request } from '@/utils/merchant-api';
 
 export function loadRuntimeDict() {
@@ -11,4 +8,4 @@ export function loadRuntimeDict() {
   });
 }
 
-export const resetRuntimeDict = sharedResetRuntimeDict;
+export { resetRuntimeDict } from '@aicabinet/shared-uni/dict-runtime';

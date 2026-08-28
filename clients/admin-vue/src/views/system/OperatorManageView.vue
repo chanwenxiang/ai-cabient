@@ -578,8 +578,10 @@ function rowActions(row: OperatorRow): TableAction[] {
     auth.hasPerm('ops:rbac:assign:device') ||
     auth.hasPerm('ops:rbac:assign')
   ) {
-    acts.push({ key: 'merchants', label: '商户范围', icon: OfficeBuilding, overflow: true });
-    acts.push({ key: 'devices', label: '货柜范围', icon: Monitor, overflow: true });
+    acts.push(
+      { key: 'merchants', label: '商户范围', icon: OfficeBuilding, overflow: true },
+      { key: 'devices', label: '货柜范围', icon: Monitor, overflow: true }
+    );
   }
   if (
     auth.hasPerm('ops:rbac:assign:disable') &&
