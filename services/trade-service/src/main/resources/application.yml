@@ -52,6 +52,8 @@ aicabinet:
     web-key: ${AMAP_WEB_KEY:}
   staging-mode: ${AICABINET_STAGING_MODE:false}
   gravity-fallback-settle: ${AICABINET_GRAVITY_FALLBACK_SETTLE:false}
+  consumer:
+    coupons-page-path: ${AICABINET_CONSUMER_COUPONS_PAGE_PATH:/pages/coupons/coupons}
   internal-api:
     key: ${INTERNAL_API_KEY:dev-internal-key-change-me}
   device-service:

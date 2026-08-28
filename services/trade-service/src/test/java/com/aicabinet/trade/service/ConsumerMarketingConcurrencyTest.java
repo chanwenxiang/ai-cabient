@@ -31,7 +31,8 @@ class ConsumerMarketingConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new ConsumerMarketingService(promotionService, activityRepository,
-                couponDefinitionRepository, userCouponRepository, couponService, distributedLockService);
+                couponDefinitionRepository, userCouponRepository, couponService, distributedLockService,
+                "/pages/coupons/coupons");
     }
 
     @Test
