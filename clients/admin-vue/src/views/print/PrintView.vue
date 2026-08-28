@@ -263,8 +263,8 @@ onMounted(load);
   font-size: 14px;
 }
 .toolbar-btn.primary {
-  background: #409eff;
-  border-color: #409eff;
+  background: #2563eb;
+  border-color: #2563eb;
   color: #fff;
 }
 .loading,

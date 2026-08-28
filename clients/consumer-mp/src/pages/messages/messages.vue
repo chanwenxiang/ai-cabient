@@ -340,12 +340,12 @@ function formatTime(t: string) {
   padding: 10rpx 22rpx;
   border-radius: 999rpx;
   background: #f1f5f9;
-  color: #64748b;
+  color: #475569;
   font-size: 24rpx;
 }
 .filter-chip.active {
   background: #ecfdf5;
-  color: #059669;
+  color: #047857;
   font-weight: 600;
 }
 .loading {
@@ -394,7 +394,7 @@ function formatTime(t: string) {
 .biz-tag {
   flex-shrink: 0;
   font-size: 20rpx;
-  color: #059669;
+  color: #047857;
   background: #ecfdf5;
   padding: 2rpx 10rpx;
   border-radius: 8rpx;

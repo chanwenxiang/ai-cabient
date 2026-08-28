@@ -243,7 +243,7 @@ async function onSubmit() {
   font-size: 26rpx;
 }
 .tab.active {
-  background: #059669;
+  background: #047857;
   color: #fff;
   font-weight: 650;
 }
@@ -296,7 +296,7 @@ async function onSubmit() {
 }
 .issue-chip.active {
   background: #e8f8ef;
-  color: #07c160;
+  color: #047857;
   font-weight: 600;
 }
 .textarea {
@@ -360,7 +360,7 @@ async function onSubmit() {
   font-size: 28rpx;
 }
 .retry {
-  background: #059669;
+  background: #047857;
   color: #fff;
   border: none;
 }
@@ -399,7 +399,7 @@ async function onSubmit() {
   background: #fef3c7;
 }
 .history-status.muted {
-  color: #64748b;
+  color: #475569;
   background: #f1f5f9;
 }
 .history-content {

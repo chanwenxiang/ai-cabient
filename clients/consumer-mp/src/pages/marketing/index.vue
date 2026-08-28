@@ -305,7 +305,7 @@ function remainText(end?: string) {
   width: 96rpx;
   height: 96rpx;
   border-radius: 28rpx;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(6, 78, 59, 0.55);
   border: 2rpx solid rgba(255, 255, 255, 0.28);
   display: flex;
   align-items: center;
@@ -438,7 +438,7 @@ function remainText(end?: string) {
   min-height: 72rpx;
   height: 72rpx;
   line-height: 1.2;
-  background: #059669;
+  background: #047857;
   color: #fff;
   border-radius: 36rpx;
   font-size: 28rpx;
@@ -450,8 +450,8 @@ function remainText(end?: string) {
 }
 .empty-btn.ghost {
   background: #fff;
-  color: #059669;
-  border: 2rpx solid #059669;
+  color: #047857;
+  border: 2rpx solid #047857;
 }
 .empty-btn::after {
   border: none;

@@ -251,7 +251,7 @@ function pickForNextOpen(c: CouponDto) {
 }
 .coupon-limit {
   font-size: 24rpx;
-  color: #999;
+  color: #64748b;
   margin-top: 4rpx;
   display: block;
 }
@@ -292,10 +292,10 @@ function pickForNextOpen(c: CouponDto) {
 }
 .coupon-status-badge.used {
   background: #e8f5e9;
-  color: #07c160;
+  color: #047857;
 }
 .coupon-status-badge.expired {
   background: #f5f5f5;
-  color: #999;
+  color: #64748b;
 }
 </style>

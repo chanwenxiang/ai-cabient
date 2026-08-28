@@ -616,7 +616,7 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   padding: 8rpx 20rpx;
   border-radius: 24rpx;
   background: #f1f5f9;
-  color: #64748b;
+  color: #475569;
   font-size: 22rpx;
 }
 .report-dim.active {

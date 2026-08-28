@@ -769,27 +769,27 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .chip.paid {
   background: #e8f8ef;
-  color: var(--brand, #047857);
+  color: #065f46;
 }
 .chip.pending {
   background: #fff8e6;
-  color: #d97706;
+  color: #b45309;
 }
 .chip.disputed {
   background: #ffecec;
-  color: #ef4444;
+  color: #dc2626;
 }
 .chip.refunded {
   background: #fff3e0;
-  color: #ea580c;
+  color: #c2410c;
 }
 .chip.cancelled {
   background: #f3f4f6;
-  color: #6b7280;
+  color: #4b5563;
 }
 .chip.default {
   background: #f0f0f0;
-  color: #888;
+  color: #64748b;
 }
 .order-mid {
   display: flex;

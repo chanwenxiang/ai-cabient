@@ -527,7 +527,7 @@ function onDetail(item: MerchantOrderSummary) {
   padding: 8rpx 20rpx;
   border-radius: 999rpx;
   font-size: 23rpx;
-  color: #64748b;
+  color: #475569;
   background: #f1f5f9;
   flex-shrink: 0;
 }

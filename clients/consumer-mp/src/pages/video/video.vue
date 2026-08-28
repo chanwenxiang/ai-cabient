@@ -159,8 +159,8 @@ function goOrder() {
   font-size: 24rpx;
 }
 .copy-btn {
-  background: rgba(255, 255, 255, 0.12);
-  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.45);
+  color: #f8fafc;
   border: 1rpx solid rgba(255, 255, 255, 0.25);
   border-radius: 999rpx;
   font-size: 24rpx;

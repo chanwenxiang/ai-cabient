@@ -2264,7 +2264,7 @@ onPullDownRefresh(load);
 .slot-chip.disabled {
   opacity: 0.4;
   background: #f1f5f9;
-  color: #94a3b8;
+  color: #64748b;
   border-color: #e2e8f0;
 }
 .slot-empty {
@@ -2436,7 +2436,7 @@ onPullDownRefresh(load);
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  color: #64748b;
+  color: #475569;
   background: #e2e8f0;
   font-size: 24rpx;
 }

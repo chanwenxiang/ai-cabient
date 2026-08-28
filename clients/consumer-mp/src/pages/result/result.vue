@@ -895,7 +895,7 @@ function goHelp() {
   border: none;
 }
 .ghost-btn.warn {
-  color: #d48806;
+  color: #92400e;
   border: 1rpx solid #ffd591;
   background: #fffbeb;
 }
@@ -908,7 +908,7 @@ function goHelp() {
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.2;
-  background: #ef4444;
+  background: #dc2626;
   color: #fff;
   border-radius: 12rpx;
   font-size: 30rpx;

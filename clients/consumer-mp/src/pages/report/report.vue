@@ -209,7 +209,7 @@ function onSubmit() {
 }
 .issue-chip.active {
   background: #e8f8ef;
-  color: #07c160;
+  color: #047857;
   font-weight: 600;
 }
 .textarea {

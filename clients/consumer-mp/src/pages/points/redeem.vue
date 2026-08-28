@@ -264,7 +264,7 @@ function goPoints() {
   border-radius: 999rpx;
   font-size: 24rpx;
   color: #fff;
-  background: #059669;
+  background: #047857;
 }
 .redeem-btn.disabled {
   background: #c7d1cb;

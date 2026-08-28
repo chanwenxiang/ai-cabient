@@ -1035,8 +1035,8 @@ function callSupport() {
   box-sizing: border-box;
   height: 80rpx;
   line-height: 1.2;
-  border: 2rpx solid #059669;
-  color: #059669;
+  border: 2rpx solid #047857;
+  color: #047857;
   border-radius: 44rpx;
   background: #fff;
   font-size: 28rpx;
@@ -1199,7 +1199,7 @@ function callSupport() {
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.2;
-  background: #ef4444;
+  background: #dc2626;
   color: #fff;
   border-radius: 44rpx;
   font-size: 30rpx;
