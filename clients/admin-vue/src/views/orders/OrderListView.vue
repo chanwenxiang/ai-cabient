@@ -1191,9 +1191,7 @@ function onStatusTab(name: string | number) {
 }
 
 function onOverdueToggle() {
-  page.value = 1;
-  syncRouteQuery();
-  load();
+  search();
 }
 
 async function load() {

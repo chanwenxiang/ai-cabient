@@ -6,9 +6,8 @@
     v-bind="drawerAttrs"
   >
     <div class="resizable-drawer-shell">
-      <div
+      <hr
         class="resizable-drawer-resize"
-        role="separator"
         aria-orientation="vertical"
         aria-label="拖动调整抽屉宽度"
         title="拖动调整宽度"
@@ -71,7 +70,11 @@ const { width, onResizeStart } = useResizableDrawer({
   top: 0;
   bottom: 0;
   width: 10px;
+  height: auto;
   margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
   cursor: col-resize;
   z-index: 5;
   touch-action: none;

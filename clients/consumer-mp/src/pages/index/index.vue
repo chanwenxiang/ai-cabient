@@ -124,7 +124,6 @@
           <button
             class="btn-primary btn-block"
             hover-class="btn-hover"
-            role="button"
             data-testid="open-door-confirm"
             :loading="opening"
             :disabled="opening"
@@ -333,7 +332,6 @@
           v-else-if="canReopen"
           class="cart-cta"
           hover-class="btn-hover"
-          role="button"
           data-testid="open-door-again"
           :loading="opening"
           :disabled="opening"
@@ -1436,9 +1434,7 @@ function onProductCellTap(e: { currentTarget?: { dataset?: Record<string, string
 }
 
 function onAddProductTap(e: { currentTarget?: { dataset?: Record<string, string> } }) {
-  const skuId = String(e?.currentTarget?.dataset?.skuId ?? '');
-  const p = productBySkuId(skuId);
-  if (p) addProduct(p);
+  onProductCellTap(e);
 }
 
 function onRemoveProductTap(e: { currentTarget?: { dataset?: Record<string, string> } }) {

@@ -1,21 +1,18 @@
 <template>
   <el-container class="layout-main">
     <el-aside :width="sidebarCollapsed ? '64px' : '220px'" class="sidebar">
-      <div
+      <button
+        type="button"
         class="brand"
-        role="button"
-        tabindex="0"
         :class="{ collapsed: sidebarCollapsed }"
         :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
         :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
         @click="toggleSidebar"
-        @keydown.enter.prevent="toggleSidebar"
-        @keydown.space.prevent="toggleSidebar"
       >
         <el-icon class="brand-toggle"><Expand v-if="sidebarCollapsed" /><Fold v-else /></el-icon>
         <span class="brand-text" :class="{ hidden: sidebarCollapsed }">AI开门柜 OPS</span>
         <span class="brand-mini" :class="{ hidden: !sidebarCollapsed }">柜</span>
-      </div>
+      </button>
       <el-scrollbar class="sidebar-scroll">
         <el-menu
           ref="menuRef"
@@ -558,6 +555,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
   color: #f8fafc;
   font-weight: 700;
   padding: 14px 16px;
@@ -567,7 +565,11 @@ onUnmounted(() => {
   cursor: pointer;
   user-select: none;
   flex-shrink: 0;
+  border: none;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: transparent;
+  text-align: left;
+  font-family: inherit;
 }
 .brand:hover {
   background: rgba(255, 255, 255, 0.06);

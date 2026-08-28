@@ -1791,7 +1791,7 @@
             >
           </div>
           <div class="line-grid">
-            <label class="line-field">
+            <div class="line-field">
               <span>商品</span>
               <el-select v-model="line.skuId" filterable placeholder="选择商品">
                 <el-option
@@ -1801,13 +1801,13 @@
                   :value="sku.skuId"
                 />
               </el-select>
-            </label>
-            <label class="line-field"><span>批次号</span><el-input v-model="line.batchNo" /></label>
-            <label class="line-field"
+            </div>
+            <div class="line-field"><span>批次号</span><el-input v-model="line.batchNo" /></div>
+            <div class="line-field"
               ><span>数量（件）</span
               ><el-input-number v-model="line.orderedQty" :min="1" controls-position="right"
-            /></label>
-            <label class="line-field"
+            /></div>
+            <div class="line-field"
               ><span>单价（元）</span
               ><el-input-number
                 v-model="line.unitCostYuan"
@@ -1815,7 +1815,7 @@
                 :step="0.01"
                 :precision="2"
                 controls-position="right"
-            /></label>
+            /></div>
             <label class="line-field"
               ><span>生产日期</span
               ><input v-model="line.productionDate" class="native-date" type="date"
@@ -2052,7 +2052,7 @@
             >
           </div>
           <div class="line-grid">
-            <label class="line-field">
+            <div class="line-field">
               <span>商品</span>
               <el-select v-model="line.skuId" filterable>
                 <el-option
@@ -2062,12 +2062,12 @@
                   :value="sku.skuId"
                 />
               </el-select>
-            </label>
-            <label class="line-field"><span>批次</span><el-input v-model="line.batchNo" /></label>
-            <label class="line-field"
+            </div>
+            <div class="line-field"><span>批次</span><el-input v-model="line.batchNo" /></div>
+            <div class="line-field"
               ><span>数量</span
               ><el-input-number v-model="line.quantity" :min="1" controls-position="right"
-            /></label>
+            /></div>
             <label class="line-field"
               ><span>生产日期</span
               ><input v-model="line.productionDate" class="native-date" type="date"

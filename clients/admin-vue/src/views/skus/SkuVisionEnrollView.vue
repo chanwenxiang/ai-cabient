@@ -48,7 +48,7 @@
     </template>
 
     <div class="list-lead">
-      <div class="enroll-chips" role="group" aria-label="识别入驻状态筛选">
+      <fieldset class="enroll-chips" aria-label="识别入驻状态筛选">
         <button
           type="button"
           class="enroll-chip"
@@ -78,7 +78,7 @@
         >
           {{ helpOpen ? '收起说明' : '入驻说明' }}
         </el-button>
-      </div>
+      </fieldset>
       <el-collapse-transition>
         <div v-show="helpOpen" class="sku-help">
           <el-alert
@@ -1415,6 +1415,10 @@ onActivated(() => {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  border: none;
 }
 .enroll-chip {
   appearance: none;

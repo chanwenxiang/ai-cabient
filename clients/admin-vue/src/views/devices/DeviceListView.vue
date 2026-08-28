@@ -65,7 +65,7 @@
       </div>
     </template>
 
-    <div class="ops-board" role="group" aria-label="设备运营状态看板">
+    <fieldset class="ops-board" aria-label="设备运营状态看板">
       <button
         v-for="tile in boardTiles"
         :key="tile.key"
@@ -83,7 +83,7 @@
           boardHydrated ? tile.hint : '加载中…'
         }}</span>
       </button>
-    </div>
+    </fieldset>
 
     <el-alert
       v-if="boardHydrated && attentionCount > 0 && boardTab === 'ALL'"
@@ -1092,7 +1092,10 @@ onActivated(() => {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
-  margin-bottom: 12px;
+  margin: 0 0 12px;
+  padding: 0;
+  min-width: 0;
+  border: none;
 }
 .ops-board__tile {
   appearance: none;

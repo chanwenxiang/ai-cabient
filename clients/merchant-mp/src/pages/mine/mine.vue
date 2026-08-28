@@ -108,14 +108,15 @@
         >未配置订阅消息模板，当前仅可保存偏好，无法向微信申请推送授权。</view
       >
       <view class="notify-types">
-        <label v-for="t in alertTypeOptions" :key="t.value" class="notify-type">
+        <view v-for="t in alertTypeOptions" :key="t.value" class="notify-type">
           <switch
             :checked="enabledTypes.includes(t.value)"
             color="#0f766e"
+            :aria-label="t.label"
             @change="(e) => onToggleType(t.value, switchEnabled(e))"
           />
           <text>{{ t.label }}</text>
-        </label>
+        </view>
       </view>
       <button class="save-btn" :loading="notifyBusy" @click="onSaveSubscribe">保存提醒偏好</button>
     </view>
