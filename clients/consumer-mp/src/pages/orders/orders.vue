@@ -255,10 +255,7 @@ function matchesTimeRange(createdAt: string | undefined, range: TimeRange) {
   return true;
 }
 
-function matchesFilter(
-  order: OrderSummary,
-  value: 'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'cancelled'
-) {
+function matchesFilter(order: OrderSummary, value: OrderStatusFilter) {
   if (value === 'paid') return order.status === 'PAID' || order.status === 'COMPLETED';
   if (value === 'pending') return order.status === 'PENDING' || order.status === 'PROCESSING';
   if (value === 'issue') return order.status === 'DISPUTED' || order.status === 'FAILED';
@@ -267,14 +264,14 @@ function matchesFilter(
   if (value === 'cancelled') return order.status === 'CANCELLED';
   return true;
 }
-function countBy(value: 'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'cancelled') {
+function countBy(value: OrderStatusFilter) {
   return orders.value.filter(
     (order) => matchesFilter(order, value) && matchesTimeRange(order.createdAt, timeRange.value)
   ).length;
 }
 
 /** Avoid showing partial page counts as if they were globals while more pages remain. */
-function filterCountSuffix(value: 'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'cancelled') {
+function filterCountSuffix(value: OrderStatusFilter) {
   if (hasMore.value) {
     if (value === 'all' && timeRange.value === 'all' && ordersTotal.value > 0) {
       return ` ${ordersTotal.value}`;

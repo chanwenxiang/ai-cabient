@@ -59,7 +59,7 @@ public class OpsExceptionService {
     @Transactional
     public OpsExceptionDto report(String type, String severity, ExceptionReport.ExceptionRefs refs,
                                   String title, String detail) {
-        return report(ExceptionReport.of(type, severity, refs, title, detail));
+        return self.report(ExceptionReport.of(type, severity, refs, title, detail));
     }
 
     @Transactional
@@ -126,13 +126,6 @@ public class OpsExceptionService {
     @Transactional(readOnly = true)
     public PageResult<OpsExceptionDto> list(Long operatorId, String status, String severity, int page, int size) {
         return self.list(operatorId, status, severity, false, page, size);
-    }
-
-    /** @deprecated Prefer {@link #list(Long, String, String, boolean, int, int)} with severity/overdue. */
-    @Deprecated(since = "0.1.0", forRemoval = false)
-    @Transactional(readOnly = true)
-    public PageResult<OpsExceptionDto> list(Long operatorId, String status, int page, int size) {
-        return self.list(operatorId, status, null, false, page, size);
     }
 
     @Transactional(readOnly = true)

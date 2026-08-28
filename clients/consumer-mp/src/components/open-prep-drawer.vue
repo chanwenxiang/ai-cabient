@@ -192,27 +192,25 @@ watch(
   }
 );
 
-consumerApi
-  .consumerPublicConfig()
-  .then((cfg) => {
-    mockRechargeEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
-    alipayRechargeEnabled.value = resolveSandboxRecharge(cfg?.alipayRechargeEnabled);
-    wechatPayLive.value = cfg?.wechatPayLive === 'true';
-    wechatRechargeEnabled.value = resolveWechatRechargeVisible({
-      wechatRechargeEnabled: cfg?.wechatRechargeEnabled,
-      wechatPayLive: cfg?.wechatPayLive
-    });
-    payScoreSignEnabled.value = cfg?.payScoreSignEnabled !== 'false';
-    const p = Number(cfg?.preauthCents);
-    configPreauthCents.value = Number.isFinite(p) && p > 0 ? p : null;
-  })
-  .catch(() => {
-    mockRechargeEnabled.value = false;
-    alipayRechargeEnabled.value = false;
-    wechatRechargeEnabled.value = false;
-    wechatPayLive.value = false;
-    payScoreSignEnabled.value = true;
+try {
+  const cfg = await consumerApi.consumerPublicConfig();
+  mockRechargeEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
+  alipayRechargeEnabled.value = resolveSandboxRecharge(cfg?.alipayRechargeEnabled);
+  wechatPayLive.value = cfg?.wechatPayLive === 'true';
+  wechatRechargeEnabled.value = resolveWechatRechargeVisible({
+    wechatRechargeEnabled: cfg?.wechatRechargeEnabled,
+    wechatPayLive: cfg?.wechatPayLive
   });
+  payScoreSignEnabled.value = cfg?.payScoreSignEnabled !== 'false';
+  const p = Number(cfg?.preauthCents);
+  configPreauthCents.value = Number.isFinite(p) && p > 0 ? p : null;
+} catch {
+  mockRechargeEnabled.value = false;
+  alipayRechargeEnabled.value = false;
+  wechatRechargeEnabled.value = false;
+  wechatPayLive.value = false;
+  payScoreSignEnabled.value = true;
+}
 
 const entryChannel = computed(
   () => normalizeEntryChannel(props.entryChannel) || pickedChannel.value

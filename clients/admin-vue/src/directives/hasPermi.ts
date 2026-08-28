@@ -22,9 +22,7 @@ function applyPermi(el: ElWithPermi, binding: DirectiveBinding<string | string[]
   const codes = normalizeCodes(binding.value);
   if (!codes.length) return;
 
-  if (el.__hasPermiDisplay === undefined) {
-    el.__hasPermiDisplay = el.style.display;
-  }
+  el.__hasPermiDisplay ??= el.style.display;
 
   const auth = useAuthStore();
   const sync = () => {

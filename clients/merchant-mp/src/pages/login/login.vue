@@ -59,7 +59,7 @@
         <view
           class="remember-row"
           role="checkbox"
-          :aria-checked="rememberCredentials"
+          :aria-checked="rememberCredentials ? 'true' : 'false'"
           data-testid="login-remember"
           @click="rememberCredentials = !rememberCredentials"
         >

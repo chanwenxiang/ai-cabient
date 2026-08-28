@@ -170,9 +170,4 @@ export function sidebarOpenKeysForPath(path: string): string[] {
   return groupKey ? [groupKey] : [];
 }
 
-/** @deprecated 请用 sidebarOpenKeysForPath */
-export function sidebarGroupKeyForPath(path: string): string | null {
-  return sidebarOpenKeysForPath(path)[0] ?? null;
-}
-
 export const SIDEBAR_GROUPS = buildSidebarGroups(() => true);

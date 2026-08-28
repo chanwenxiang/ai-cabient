@@ -24,6 +24,7 @@ import java.util.function.Supplier;
 @Service
 public class ConsumerMarketingService {
     private static final String DISCOUNT = "DISCOUNT";
+    private static final String COUPONS_PAGE_PATH = "/pages/coupons/coupons";
 
 
     private static final Map<String, String> TYPE_LABELS = Map.of(
@@ -177,7 +178,7 @@ public class ConsumerMarketingService {
 
     private MarketingCampaignDto toCampaign(PromotionActivityDto p, Long userId) {
         String type = p.activityType() != null ? p.activityType() : DISCOUNT;
-        String ctaPath = "/pages/coupons/coupons";
+        String ctaPath = COUPONS_PAGE_PATH;
         // 「去领券」易被理解成仅跳转券包；实际点击会发券，文案用「立即领取」。
         String ctaLabel = "立即领取";
         Boolean claimed = null;

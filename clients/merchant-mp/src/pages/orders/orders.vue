@@ -129,13 +129,7 @@
               </view>
             </view>
           </view>
-          <view
-            v-if="hasMore"
-            class="load-more"
-            role="button"
-            aria-label="加载更多订单"
-            @click="loadMore"
-          >
+          <view v-if="hasMore" class="load-more" role="button" @click="loadMore">
             {{ loadingMore ? '加载中…' : `加载更多（已显示 ${list.length}/${listTotal}）` }}
           </view>
           <text v-else-if="listTruncated" class="trunc-hint"

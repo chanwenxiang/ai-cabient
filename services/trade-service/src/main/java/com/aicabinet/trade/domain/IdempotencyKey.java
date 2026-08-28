@@ -12,8 +12,8 @@ import lombok.Setter;
 @Setter
 public class IdempotencyKey {
     
-    @TableId(type = IdType.INPUT)
-    private String idempotencyKey;
+    @TableId(value = "idempotency_key", type = IdType.INPUT)
+    private String key;
 
     
     private String businessType;

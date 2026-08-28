@@ -96,7 +96,7 @@ public class IdempotencyService {
             return;
         }
         IdempotencyKey entity = new IdempotencyKey();
-        entity.setIdempotencyKey(idempotencyKey);
+        entity.setKey(idempotencyKey);
         entity.setBusinessType(businessType);
         entity.setBusinessId(businessId);
         entity.setExpireAt(Instant.now().plus(DEFAULT_EXPIRE_HOURS, ChronoUnit.HOURS));
