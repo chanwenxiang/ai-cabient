@@ -1,6 +1,7 @@
 package com.aicabinet.trade.support;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -125,6 +126,54 @@ public final class ApiMessages {
     private static final Pattern TRANSITION_PATTERN = Pattern.compile(
             "cannot transition from (\\w+) to (\\w+)", Pattern.CASE_INSENSITIVE);
 
+    private static final Map<String, String> EXACT_TRANSLATIONS = Map.ofEntries(
+            Map.entry("missing token", MISSING_TOKEN),
+            Map.entry("invalid token", INVALID_TOKEN),
+            Map.entry("invalid phone", INVALID_PHONE),
+            Map.entry("invalid code", INVALID_CODE),
+            Map.entry("invalid userid", INVALID_REQUEST),
+            Map.entry("user not found", USER_NOT_FOUND),
+            Map.entry("user not verified", USER_NOT_VERIFIED),
+            Map.entry("account not found", ACCOUNT_NOT_FOUND),
+            Map.entry("access denied", ACCESS_DENIED),
+            Map.entry("operator permission required", OPERATOR_REQUIRED),
+            Map.entry("permission denied", PERMISSION_DENIED),
+            Map.entry("device not found", DEVICE_NOT_FOUND),
+            Map.entry("task not found", REPLENISHMENT_TASK_NOT_FOUND),
+            Map.entry("task already completed", REPLENISHMENT_TASK_ALREADY_COMPLETED),
+            Map.entry("device has active session", DEVICE_BUSY),
+            Map.entry("device mismatch", DEVICE_MISMATCH),
+            Map.entry("session not found", SESSION_NOT_FOUND),
+            Map.entry("session already finished", SESSION_FINISHED),
+            Map.entry("order not found", ORDER_NOT_FOUND),
+            Map.entry("order access denied", ORDER_ACCESS_DENIED),
+            Map.entry("order not pending", ORDER_NOT_PENDING),
+            Map.entry("order already paid", ORDER_ALREADY_PAID),
+            Map.entry("order not paid", ORDER_NOT_PAID),
+            Map.entry("insufficient balance", INSUFFICIENT_BALANCE),
+            Map.entry("insufficient balance for refund", INSUFFICIENT_REFUND),
+            Map.entry("insufficient balance.", INSUFFICIENT_BALANCE),
+            Map.entry("wechat pay not configured", WECHAT_PAY_NOT_CONFIGURED),
+            Map.entry("wx openid not bound", WX_OPENID_NOT_BOUND),
+            Map.entry("ticket not found", TICKET_NOT_FOUND),
+            Map.entry("ticket already resolved", TICKET_ALREADY_RESOLVED),
+            Map.entry("sku not found", SKU_NOT_FOUND),
+            Map.entry("sku already exists", SKU_EXISTS),
+            Map.entry("device already exists", DEVICE_EXISTS),
+            Map.entry("role not found", ROLE_NOT_FOUND),
+            Map.entry("not an operator account", NOT_OPERATOR_ACCOUNT),
+            Map.entry("cannot modify admin role permissions", CANNOT_MODIFY_ADMIN_ROLE),
+            Map.entry("deviceids required", DEVICE_IDS_REQUIRED),
+            Map.entry("bind-openid disabled in production", BIND_OPENID_DISABLED),
+            Map.entry("wechat miniapp not configured", WECHAT_MINIAPP_NOT_CONFIGURED),
+            Map.entry("reconciliation not found", RECONCILIATION_NOT_FOUND),
+            Map.entry("missing out_trade_no", MISSING_OUT_TRADE_NO),
+            Map.entry("balance cannot be negative", BALANCE_NEGATIVE),
+            Map.entry("balance too large", BALANCE_TOO_LARGE),
+            Map.entry("cannot adjust operator balance", CANNOT_ADJUST_OPERATOR_BALANCE),
+            Map.entry("internal error", INTERNAL_ERROR),
+            Map.entry("too many door open attempts, please try later", TOO_MANY_OPENS));
+
     /** 将 Bean Validation 字段错误格式化为用户可读中文（避免 phoneNumber: 不能为空）。 */
     public static String formatValidationFieldError(String field, String defaultMessage) {
         String label = validationFieldLabel(field);
@@ -186,55 +235,11 @@ public final class ApiMessages {
         String msg = raw.trim();
         String lower = msg.toLowerCase(Locale.ROOT);
 
-        return switch (lower) {
-            case "missing token" -> MISSING_TOKEN;
-            case "invalid token" -> INVALID_TOKEN;
-            case "invalid phone" -> INVALID_PHONE;
-            case "invalid code" -> INVALID_CODE;
-            case "invalid userid" -> INVALID_REQUEST;
-            case "user not found" -> USER_NOT_FOUND;
-            case "user not verified" -> USER_NOT_VERIFIED;
-            case "account not found" -> ACCOUNT_NOT_FOUND;
-            case "access denied" -> ACCESS_DENIED;
-            case "operator permission required" -> OPERATOR_REQUIRED;
-            case "permission denied" -> PERMISSION_DENIED;
-            case "device not found" -> DEVICE_NOT_FOUND;
-            case "task not found" -> REPLENISHMENT_TASK_NOT_FOUND;
-            case "task already completed" -> REPLENISHMENT_TASK_ALREADY_COMPLETED;
-            case "device has active session" -> DEVICE_BUSY;
-            case "device mismatch" -> DEVICE_MISMATCH;
-            case "session not found" -> SESSION_NOT_FOUND;
-            case "session already finished" -> SESSION_FINISHED;
-            case "order not found" -> ORDER_NOT_FOUND;
-            case "order access denied" -> ORDER_ACCESS_DENIED;
-            case "order not pending" -> ORDER_NOT_PENDING;
-            case "order already paid" -> ORDER_ALREADY_PAID;
-            case "order not paid" -> ORDER_NOT_PAID;
-            case "insufficient balance" -> INSUFFICIENT_BALANCE;
-            case "insufficient balance for refund" -> INSUFFICIENT_REFUND;
-            case "insufficient balance." -> INSUFFICIENT_BALANCE;
-            case "wechat pay not configured" -> WECHAT_PAY_NOT_CONFIGURED;
-            case "wx openid not bound" -> WX_OPENID_NOT_BOUND;
-            case "ticket not found" -> TICKET_NOT_FOUND;
-            case "ticket already resolved" -> TICKET_ALREADY_RESOLVED;
-            case "sku not found" -> SKU_NOT_FOUND;
-            case "sku already exists" -> SKU_EXISTS;
-            case "device already exists" -> DEVICE_EXISTS;
-            case "role not found" -> ROLE_NOT_FOUND;
-            case "not an operator account" -> NOT_OPERATOR_ACCOUNT;
-            case "cannot modify admin role permissions" -> CANNOT_MODIFY_ADMIN_ROLE;
-            case "deviceids required" -> DEVICE_IDS_REQUIRED;
-            case "bind-openid disabled in production" -> BIND_OPENID_DISABLED;
-            case "wechat miniapp not configured" -> WECHAT_MINIAPP_NOT_CONFIGURED;
-            case "reconciliation not found" -> RECONCILIATION_NOT_FOUND;
-            case "missing out_trade_no" -> MISSING_OUT_TRADE_NO;
-            case "balance cannot be negative" -> BALANCE_NEGATIVE;
-            case "balance too large" -> BALANCE_TOO_LARGE;
-            case "cannot adjust operator balance" -> CANNOT_ADJUST_OPERATOR_BALANCE;
-            case "internal error" -> INTERNAL_ERROR;
-            case "too many door open attempts, please try later" -> TOO_MANY_OPENS;
-            default -> translatePattern(msg, lower);
-        };
+        String exact = EXACT_TRANSLATIONS.get(lower);
+        if (exact != null) {
+            return exact;
+        }
+        return translatePattern(msg, lower);
     }
 
     private static String translatePattern(String msg, String lower) {
