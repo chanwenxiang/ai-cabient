@@ -625,8 +625,8 @@ async function promptRepairDoneUnlock(row: Ticket): Promise<boolean | null> {
       }
     );
     return true;
-  } catch (action) {
-    if (action === 'close') return null;
+  } catch (error_) {
+    if (error_ === 'close') return null;
     return false;
   }
 }

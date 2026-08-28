@@ -80,7 +80,7 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
     const singleLine = !!opts.singleLine;
     const host = document.createElement('div');
     host.id = HOST_ID;
-    host.setAttribute('data-testid', testId);
+    host.dataset.testid = testId;
     host.setAttribute('role', 'dialog');
     host.setAttribute('aria-modal', 'true');
     host.setAttribute('aria-label', opts.title);

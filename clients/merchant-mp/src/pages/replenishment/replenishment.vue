@@ -1392,12 +1392,12 @@ function stockDeltaText(line: Line): string {
   const qty = Math.max(0, Number(line.quantity) || 0);
   if (isPullOffType(line.lineType)) {
     const after = Math.max(0, cap.bookQty - qty);
-    return `账面 ${cap.bookQty} → 下架后 ${after}${
-      cap.maxLevel > 0 ? ` / 容量 ${cap.maxLevel}` : ''
-    }`;
+    const capacityHint = cap.maxLevel > 0 ? ` / 容量 ${cap.maxLevel}` : '';
+    return `账面 ${cap.bookQty} → 下架后 ${after}${capacityHint}`;
   }
   const after = cap.bookQty + qty;
-  return `账面 ${cap.bookQty} → 补后 ${after}${cap.maxLevel > 0 ? ` / 容量 ${cap.maxLevel}` : ''}`;
+  const capacityHint = cap.maxLevel > 0 ? ` / 容量 ${cap.maxLevel}` : '';
+  return `账面 ${cap.bookQty} → 补后 ${after}${capacityHint}`;
 }
 
 async function refreshLineSummaries(taskRows: Task[]) {
@@ -1543,9 +1543,9 @@ async function handleCheckInDistanceFailure(msg: string) {
   if (!retry) return;
   try {
     await retryCheckInWithoutDistance();
-  } catch (e2) {
+  } catch (error_) {
     uni.showToast({
-      title: e2 instanceof Error ? e2.message : '签到失败',
+      title: error_ instanceof Error ? error_.message : '签到失败',
       icon: 'none',
       duration: 3600
     });
@@ -1693,9 +1693,10 @@ async function ensureLinesWithinCapacity(): Promise<boolean> {
     (l) => !l.applied && !isPullOffType(l.lineType) && (Number(l.quantity) || 0) > slotHeadroom(l)
   );
   if (!over.length) return true;
+  const overSummary = over.map((l) => `${l.slotId || '?'} 最多再补 ${slotHeadroom(l)}`).join('；');
   const ok = await askConfirm({
     title: '货道容量不足',
-    content: `${over.map((l) => `${l.slotId || '?'} 最多再补 ${slotHeadroom(l)}`).join('；')}。是否自动调低数量后继续？`,
+    content: `${overSummary}。是否自动调低数量后继续？`,
     confirmText: '自动调低',
     cancelText: '手动改'
   });

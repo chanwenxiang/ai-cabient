@@ -291,8 +291,8 @@ async function runMiniProgramWxLogin() {
       return;
     }
     finishLogin();
-  } catch (caught) {
-    err.value = caughtErrorMessage(caught, '微信授权失败');
+  } catch (error_) {
+    err.value = caughtErrorMessage(error_, '微信授权失败');
     showPhoneForm.value = true;
   } finally {
     loading.value = false;

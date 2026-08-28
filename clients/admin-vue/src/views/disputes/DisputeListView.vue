@@ -1104,8 +1104,8 @@ async function promptRestoreInventoryOnWaive(): Promise<boolean | undefined> {
       }
     );
     return true;
-  } catch (action) {
-    if (action === 'cancel') return false;
+  } catch (error_) {
+    if (error_ === 'cancel') return false;
     return undefined;
   }
 }
