@@ -225,8 +225,11 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
     };
     activeH5Finish = finish;
 
-    const fieldEl = () =>
-      host.querySelector('.mtp-field') as HTMLInputElement | HTMLTextAreaElement | null;
+    const fieldEl = (): HTMLInputElement | HTMLTextAreaElement | null => {
+      const el = host.querySelector('.mtp-field');
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return el;
+      return null;
+    };
 
     const readValue = () => String(fieldEl()?.value || '').trim();
 

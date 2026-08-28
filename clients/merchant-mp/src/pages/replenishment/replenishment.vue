@@ -2323,6 +2323,8 @@ onPullDownRefresh(load);
 
 .empty {
   padding: 80rpx 20rpx;
+  margin-left: 24rpx;
+  margin-right: 24rpx;
   text-align: center;
   color: #94a3b8;
   font-size: 28rpx;
@@ -2767,10 +2769,6 @@ button[disabled] {
 .page-body {
   padding: 0 0 calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
-}
-.empty {
-  margin-left: 24rpx;
-  margin-right: 24rpx;
 }
 :deep(.empty-state) {
   margin-left: 24rpx;

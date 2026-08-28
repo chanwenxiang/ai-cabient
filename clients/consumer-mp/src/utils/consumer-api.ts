@@ -55,14 +55,20 @@ export function clearConsumerSession() {
 
 type OpenAttempt = { deviceId: string; idempotencyKey: string; createdAt: number };
 
+function isOpenAttempt(value: unknown): value is OpenAttempt {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as OpenAttempt;
+  return typeof row.deviceId === 'string' && typeof row.idempotencyKey === 'string';
+}
+
 function randomId() {
   return `${Date.now().toString(36)}-${secureRandomToken(6)}-${secureRandomToken(6)}`;
 }
 
 export function getOrCreateOpenAttempt(deviceId: string): OpenAttempt {
   const normalized = deviceId.trim().toUpperCase();
-  const saved = uni.getStorageSync(OPEN_ATTEMPT_KEY) as OpenAttempt | '';
-  if (saved && saved.deviceId === normalized && saved.idempotencyKey) return saved;
+  const saved = uni.getStorageSync(OPEN_ATTEMPT_KEY);
+  if (isOpenAttempt(saved) && saved.deviceId === normalized && saved.idempotencyKey) return saved;
   const attempt = {
     deviceId: normalized,
     idempotencyKey: `consumer-open-${randomId()}`,

@@ -6,23 +6,28 @@ export function eventInputValue(e: unknown): string {
   return String(raw ?? '');
 }
 
+function readInputValue(el: Element | null): string {
+  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+    return el.value.trim();
+  }
+  return '';
+}
+
 /** 仅 H5：从原生 input/textarea 读取当前值（提交前兜底）。 */
 export function readDomFieldValue(kind: 'input' | 'textarea' | 'password' = 'input'): string {
   // #ifdef H5
   if (typeof document === 'undefined') return '';
   if (kind === 'textarea') {
-    const ta = document.querySelector('textarea') as HTMLTextAreaElement | null;
-    return (ta?.value || '').trim();
+    return readInputValue(document.querySelector('textarea'));
   }
   if (kind === 'password') {
-    const pwd = document.querySelector('input[type="password"]') as HTMLInputElement | null;
-    return (pwd?.value || '').trim();
+    return readInputValue(document.querySelector('input[type="password"]'));
   }
-  const el =
-    (document.querySelector('.uni-input-input') as HTMLInputElement | null) ||
-    (document.querySelector('uni-input input') as HTMLInputElement | null) ||
-    (document.querySelector('input') as HTMLInputElement | null);
-  return (el?.value || '').trim();
+  return readInputValue(
+    document.querySelector('.uni-input-input') ||
+      document.querySelector('uni-input input') ||
+      document.querySelector('input')
+  );
   // #endif
   // #ifndef H5
   return '';

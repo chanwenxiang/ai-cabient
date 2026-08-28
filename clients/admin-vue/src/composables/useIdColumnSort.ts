@@ -16,7 +16,7 @@ export function useIdColumnSort<T = any>(
 
   const idDefaultSort = computed(() => ({
     prop: idProp,
-    order: (idSortDir.value === 'desc' ? 'descending' : 'ascending') as 'ascending' | 'descending'
+    order: idSortDir.value === 'desc' ? 'descending' : 'ascending'
   }));
 
   function onIdSortChange(payload: Sort) {
