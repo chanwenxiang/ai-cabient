@@ -317,7 +317,7 @@ export function buildBarChart(opts: {
   color?: string;
   formatY?: (v: number) => string;
 }): string {
-  const { labels, values, height = 240, color = '#3b82f6', formatY = (v) => String(v) } = opts;
+  const { labels, values, height = 240, color = '#3b82f6', formatY = String } = opts;
   return buildGroupedBarChart({
     labels,
     series: [{ name: '值', values, color }],

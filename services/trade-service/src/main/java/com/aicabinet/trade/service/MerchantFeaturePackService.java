@@ -98,7 +98,7 @@ public class MerchantFeaturePackService {
 
     @Transactional(readOnly = true)
     public List<String> enabledPacksList(Long userId) {
-        return self.enabledPacksForUser(userId).stream().sorted().collect(Collectors.toList());
+        return self.enabledPacksForUser(userId).stream().sorted().toList();
     }
 
     /** 数据范围 ∩ 开了指定功能包的商户；全局账号返回库内启用该包的商户集合。 */

@@ -105,13 +105,15 @@ export function parseCsv(text: string): string[][] {
     .replaceAll('\r\n', '\n')
     .replaceAll('\r', '\n');
   const state: CsvParseState = { rows: [], row: [], cell: '', inQuotes: false };
-  for (let i = 0; i < raw.length; i++) {
+  let i = 0;
+  while (i < raw.length) {
     const ch = raw[i];
     if (state.inQuotes) {
-      i = handleQuotedChar(state, raw, i);
+      i = handleQuotedChar(state, raw, i) + 1;
       continue;
     }
     handleUnquotedChar(state, ch);
+    i += 1;
   }
   state.row.push(state.cell);
   if (state.row.some((c) => c.trim() !== '')) state.rows.push(state.row);

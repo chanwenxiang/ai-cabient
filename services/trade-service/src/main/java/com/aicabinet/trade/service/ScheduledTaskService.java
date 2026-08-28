@@ -222,7 +222,7 @@ public class ScheduledTaskService {
     private static boolean invokedByXxlJob() {
         try {
             return XxlJobContext.getXxlJobContext() != null;
-        } catch (Throwable ignored) {
+        } catch (Exception ignored) {
             return false;
         }
     }

@@ -260,14 +260,9 @@ export async function runWeChatRecharge(
   const mode = wxPayMode(prepay) === 'live' ? 'live' : 'mock';
   if (mode === 'live' && prepay.wxPay) {
     savePendingRechargeOrder(prepay.orderId);
-    try {
-      await invokeWxRequestPayment(prepay.wxPay as WxPayLike);
-      await pollRechargePaid(prepay.orderId, 20, 1500);
-      clearPendingRechargeOrder();
-    } catch (e) {
-      // 保留 pending，返回页可 resume；用户取消则不强制清
-      throw e;
-    }
+    await invokeWxRequestPayment(prepay.wxPay as WxPayLike);
+    await pollRechargePaid(prepay.orderId, 20, 1500);
+    clearPendingRechargeOrder();
     return { orderId: prepay.orderId, mode };
   }
   await consumerApi.confirmMockRecharge(prepay.orderId);

@@ -155,7 +155,7 @@ public class AdminDeviceOpsService {
         device.setTargetTempC(targetTempC);
         deviceRepository.save(device);
         String commandId = "LOCAL-" + UUID.randomUUID().toString().substring(0, 8);
-        String message = "目标温度已保存为 " + targetTempC + "°C";
+        String message;
         if ("ONLINE".equalsIgnoreCase(device.getOnlineStatus())) {
             try {
                 commandId = deviceClient.requestSetTargetTemp(device.getDeviceId(), targetTempC);

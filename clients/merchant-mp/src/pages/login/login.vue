@@ -97,7 +97,7 @@ const REMEMBER_KEY = 'merchant_remember_credentials';
 /** 本地轻量混淆：Storage 无法真正加密，仅避免明文直读。不用 btoa，兼容微信小程序。 */
 function encodePassword(raw: string): string {
   const hex = Array.from(encodeURIComponent(raw))
-    .map((c) => c.charCodeAt(0).toString(16).padStart(2, '0'))
+    .map((c) => (c.codePointAt(0) ?? 0).toString(16).padStart(2, '0'))
     .join('');
   return `v1:${hex}`;
 }
@@ -109,7 +109,7 @@ function decodePassword(stored: unknown): string {
     if (!hex || hex.length % 2 !== 0) return '';
     let encoded = '';
     for (let i = 0; i < hex.length; i += 2) {
-      encoded += String.fromCharCode(Number.parseInt(hex.slice(i, i + 2), 16));
+      encoded += String.fromCodePoint(Number.parseInt(hex.slice(i, i + 2), 16));
     }
     return decodeURIComponent(encoded);
   } catch {

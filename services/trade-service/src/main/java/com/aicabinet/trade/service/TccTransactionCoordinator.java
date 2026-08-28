@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
 
 @Service
 public class TccTransactionCoordinator {
@@ -64,7 +64,7 @@ public class TccTransactionCoordinator {
     }
     
     @Transactional
-    public boolean executeTryStep(String txId, String stepName, Supplier<Boolean> tryAction) {
+    public boolean executeTryStep(String txId, String stepName, BooleanSupplier tryAction) {
         RLock lock = lockService.acquireLock("tx:" + txId, 30);
         if (lock == null) {
             log.warn("Failed to acquire lock for transaction: {}", txId);
@@ -79,7 +79,7 @@ public class TccTransactionCoordinator {
             step.setStatus(STATUS_PENDING);
             stepRepository.save(step);
             
-            boolean success = tryAction.get();
+            boolean success = tryAction.getAsBoolean();
             
             step.setStatus(success ? STATUS_CONFIRMED : STATUS_FAILED);
             step.setExecutedAt(Instant.now());

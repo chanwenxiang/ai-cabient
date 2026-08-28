@@ -296,7 +296,7 @@ public class MerchantPortalService {
         if (merchantIds != null && !merchantIds.isEmpty()) {
             for (OrderRevenueSplit split : splitRepository.findByMerchantIdInAndCreatedAtAfter(merchantIds, since)) {
                 LocalDate day = split.getCreatedAt().atZone(zone).toLocalDate();
-                incomeByDay.merge(day, (long) split.getMerchantCents(), Long::sum);
+                incomeByDay.merge(day, split.getMerchantCents(), Long::sum);
             }
         }
 

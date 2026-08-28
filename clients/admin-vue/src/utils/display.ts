@@ -20,7 +20,7 @@ export function textOrNone(v: unknown, fallback = EMPTY_TEXT): string {
     return fallback;
   }
   s = s.trim();
-  return s ? s : fallback;
+  return s || fallback;
 }
 
 /** 计数类：null/undefined → 0 */
@@ -79,9 +79,4 @@ export function yuanText(cents: unknown, empty = EMPTY_STAT): string {
   const n = Number(cents);
   if (!Number.isFinite(n)) return empty;
   return `¥${(n / 100).toFixed(2)}`;
-}
-
-/** 首屏未 hydrate 时占位 */
-export function waitOr(ready: boolean, value: string | number, loading = EMPTY_LOADING): string {
-  return ready ? String(value) : loading;
 }

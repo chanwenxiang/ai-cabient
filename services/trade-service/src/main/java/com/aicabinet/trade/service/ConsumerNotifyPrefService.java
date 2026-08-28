@@ -49,9 +49,8 @@ public class ConsumerNotifyPrefService {
                 .map(e -> new NotifyPrefDto(
                         e.getKey(),
                         e.getValue(),
-                        saved.containsKey(e.getKey())
-                                ? Boolean.TRUE.equals(saved.get(e.getKey()).getEnabled())
-                                : true))
+                        !saved.containsKey(e.getKey())
+                                || Boolean.TRUE.equals(saved.get(e.getKey()).getEnabled())))
                 .toList();
     }
 

@@ -883,10 +883,9 @@ function rowMeta(row: SkuCatalog) {
 
 function shortEnrollmentLabel(label: string) {
   const s = String(label || '');
-  const cut = Math.min(
-    s.indexOf('（') >= 0 ? s.indexOf('（') : s.length,
-    s.indexOf('(') >= 0 ? s.indexOf('(') : s.length
-  );
+  const cutCn = s.includes('（') ? s.indexOf('（') : s.length;
+  const cutEn = s.includes('(') ? s.indexOf('(') : s.length;
+  const cut = Math.min(cutCn, cutEn);
   const head = s.slice(0, cut).trim();
   return head || label;
 }

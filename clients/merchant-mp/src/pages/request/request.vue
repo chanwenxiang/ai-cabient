@@ -259,7 +259,7 @@ async function bootstrap(preferDeviceId?: string) {
             .toUpperCase() === preferKey
       )
     : -1;
-  deviceIndex.value = idx >= 0 ? idx : 0;
+  deviceIndex.value = Math.max(0, idx);
   if (mode.value === 'create') await loadDraft();
   else await loadRequests();
 }

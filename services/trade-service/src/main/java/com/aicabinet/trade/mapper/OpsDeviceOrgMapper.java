@@ -14,6 +14,7 @@ public interface OpsDeviceOrgMapper extends BaseTradeMapper<OpsDeviceOrg> {
                 .eq(OpsDeviceOrg::getNodeId, nodeId));
     }
 
+    @Override
     default List<OpsDeviceOrg> findAll() {
         return selectList(Wrappers.<OpsDeviceOrg>lambdaQuery());
     }

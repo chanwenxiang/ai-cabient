@@ -320,8 +320,10 @@ function rowActions(row: StockHealthRow): TableAction[] {
     row.lotId &&
     (auth.hasPerm('ops:replenishment:edit') || canAccessPath('/replenishment'))
   ) {
-    actions.push({ key: 'pull-off', label: '下架', icon: Remove, type: 'warning' });
-    actions.push({ key: 'write-off', label: '报损', icon: Delete, type: 'danger' });
+    actions.push(
+      { key: 'pull-off', label: '下架', icon: Remove, type: 'warning' },
+      { key: 'write-off', label: '报损', icon: Delete, type: 'danger' }
+    );
   }
   return actions;
 }

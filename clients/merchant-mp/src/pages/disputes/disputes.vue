@@ -158,7 +158,20 @@
                 controls
                 object-fit="contain"
                 :show-center-play-btn="true"
-              />
+              >
+                <track
+                  kind="captions"
+                  srclang="zh"
+                  label="现场录像无对白字幕"
+                  src="data:text/vtt,WEBVTT"
+                />
+                <track
+                  kind="descriptions"
+                  srclang="zh"
+                  label="购物过程监控录像"
+                  src="data:text/vtt,WEBVTT"
+                />
+              </video>
             </view>
           </scroll-view>
           <view class="detail-actions">

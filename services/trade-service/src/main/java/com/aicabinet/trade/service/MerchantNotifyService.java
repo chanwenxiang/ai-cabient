@@ -225,8 +225,7 @@ public class MerchantNotifyService {
         if (enabledTypes.contains(EXPIRY) && wb.expiryAlerts() > 0) return true;
         if (enabledTypes.contains(SLOT_DISCREPANCY) && wb.slotDiscrepancies() > 0) return true;
         if (enabledTypes.contains(REPLENISHMENT) && countActionType(wb, REPLENISHMENT) > 0) return true;
-        if (enabledTypes.contains(EXCEPTION) && openExceptions > 0) return true;
-        return false;
+        return enabledTypes.contains(EXCEPTION) && openExceptions > 0;
     }
 
     private static String buildSummary(MerchantWorkbenchDto wb, Set<String> enabledTypes, long openExceptions) {

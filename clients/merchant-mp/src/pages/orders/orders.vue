@@ -232,7 +232,7 @@ const timeOptions = [
 ];
 const deviceIndex = computed(() => {
   const i = deviceOptions.value.findIndex((d) => d.value === filterDeviceId.value);
-  return i < 0 ? 0 : i;
+  return Math.max(0, i);
 });
 const deviceLabel = computed(() => {
   const hit = deviceOptions.value.find((d) => d.value === filterDeviceId.value);

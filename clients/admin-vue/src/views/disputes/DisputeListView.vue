@@ -291,7 +291,20 @@
         <section class="workbench-media">
           <div class="items-title">会话录像</div>
           <div v-if="embedVideoUrl" class="video-wrap">
-            <video :src="embedVideoUrl" controls playsinline class="session-video" />
+            <video :src="embedVideoUrl" controls playsinline class="session-video">
+              <track
+                kind="captions"
+                srclang="zh"
+                label="现场录像无对白字幕"
+                src="data:text/vtt,WEBVTT"
+              />
+              <track
+                kind="descriptions"
+                srclang="zh"
+                label="购物过程监控录像"
+                src="data:text/vtt,WEBVTT"
+              />
+            </video>
           </div>
           <el-empty
             v-else-if="videoAttempted && !videoLoading"
@@ -1063,14 +1076,16 @@ function validateResolveVideoReview(): boolean {
   return false;
 }
 
-function resolveActionLabel(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'ADJUST'): string {
+type DisputeResolutionType = 'KEEP' | 'WAIVE' | 'CONFIRM' | 'ADJUST';
+
+function resolveActionLabel(resolutionType: DisputeResolutionType): string {
   if (resolutionType === 'KEEP') return '维持原账单';
   if (resolutionType === 'WAIVE') return '免单并退回全部已扣余额';
   return '按调整明细落账（可能补扣或退差）';
 }
 
 async function confirmResolveAction(
-  resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'ADJUST',
+  resolutionType: DisputeResolutionType,
   action: string
 ): Promise<boolean> {
   try {
@@ -1110,9 +1125,7 @@ async function promptRestoreInventoryOnWaive(): Promise<boolean | undefined> {
   }
 }
 
-function validateResolveDraftItems(
-  resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'ADJUST'
-): boolean {
+function validateResolveDraftItems(resolutionType: DisputeResolutionType): boolean {
   if (
     (resolutionType !== 'ADJUST' && resolutionType !== 'CONFIRM') ||
     draftConfirmItems.value.length
@@ -1128,10 +1141,7 @@ async function collectWaiveRestoreInventory(): Promise<boolean | undefined> {
   return choice;
 }
 
-async function submitDisputeResolve(
-  resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'ADJUST',
-  restoreInventory?: boolean
-) {
+async function submitDisputeResolve(resolutionType: DisputeResolutionType, restoreInventory?: boolean) {
   if (!selected.value) return;
   const result = await api.request<ResolveDisputeResultDto>(
     `/api/v2/ops/disputes/${encodeURIComponent(selected.value.ticketId)}/resolve`,
@@ -1147,7 +1157,7 @@ async function submitDisputeResolve(
   ElMessage.success(result.message || '争议已处理');
 }
 
-async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'ADJUST') {
+async function resolveSelected(resolutionType: DisputeResolutionType) {
   if (!selected.value || resolving.value) return;
   if (!validateResolveVideoReview()) return;
   const action = resolveActionLabel(resolutionType);
