@@ -9,8 +9,26 @@ export function csvFileName(prefix: string, d = new Date()): string {
   return `${prefix}_${fileStamp(d)}.csv`;
 }
 
+/** Safe display string for CSV / UI — never rely on Object.toString(). */
+function unknownToDisplayString(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
+  }
+  if (typeof value === 'symbol') return value.description ?? '';
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return '';
+    }
+  }
+  return '';
+}
+
 export function escapeCsvCell(value: unknown): string {
-  const s = value == null ? '' : String(value);
+  const s = unknownToDisplayString(value);
   if (/[",\n\r]/.test(s)) return `"${s.replaceAll('"', '""')}"`;
   return s;
 }

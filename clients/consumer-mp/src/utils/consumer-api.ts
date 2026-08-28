@@ -640,9 +640,8 @@ export const consumerApi = {
     ]
       .filter(Boolean)
       .join('&');
-    return request<import('@aicabinet/shared-types').DisputeTicketDto>(
-      `/api/v2/disputes/mine/detail${q ? `?${q}` : ''}`
-    );
+    const path = q ? `/api/v2/disputes/mine/detail?${q}` : '/api/v2/disputes/mine/detail';
+    return request<import('@aicabinet/shared-types').DisputeTicketDto>(path);
   },
   uploadDisputeEvidence: (filePath: string) => uploadDisputeEvidenceFile(filePath),
   refundOrder: (orderId: string, body: import('@aicabinet/shared-types').OrderRefundRequest) =>

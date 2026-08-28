@@ -255,7 +255,7 @@ function disputeRedirectPath() {
   ]
     .filter(Boolean)
     .join('&');
-  return `/pages/dispute/detail${q ? `?${q}` : ''}`;
+  return q ? `/pages/dispute/detail?${q}` : '/pages/dispute/detail';
 }
 
 async function bootstrap() {
@@ -346,8 +346,8 @@ async function reload() {
     // 旧后端无 detail 接口时回退列表查找
     try {
       await reloadFromListFallback(e);
-    } catch (e2) {
-      error.value = e2 instanceof Error ? e2.message : '加载失败';
+    } catch (error_) {
+      error.value = error_ instanceof Error ? error_.message : '加载失败';
     }
   } finally {
     loading.value = false;

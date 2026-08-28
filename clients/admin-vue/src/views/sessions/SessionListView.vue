@@ -555,10 +555,10 @@ async function onExport() {
     const q = new URLSearchParams();
     appendSessionFilters(q);
     const qs = q.toString();
-    await downloadAuthFile(
-      `/api/v2/ops/admin/sessions/export${qs ? `?${qs}` : ''}`,
-      csvFileName('开门记录')
-    );
+    const exportPath = qs
+      ? `/api/v2/ops/admin/sessions/export?${qs}`
+      : '/api/v2/ops/admin/sessions/export';
+    await downloadAuthFile(exportPath, csvFileName('开门记录'));
     ElMessage.success('已导出');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '导出失败');

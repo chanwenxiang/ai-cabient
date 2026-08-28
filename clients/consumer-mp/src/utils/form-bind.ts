@@ -3,7 +3,11 @@
 export function eventInputValue(e: unknown): string {
   const ev = e as { detail?: { value?: unknown }; target?: { value?: unknown } };
   const raw = ev?.detail?.value ?? ev?.target?.value ?? '';
-  return String(raw ?? '');
+  if (typeof raw === 'string') return raw;
+  if (typeof raw === 'number' || typeof raw === 'boolean' || typeof raw === 'bigint') {
+    return String(raw);
+  }
+  return '';
 }
 
 function readInputValue(el: Element | null): string {

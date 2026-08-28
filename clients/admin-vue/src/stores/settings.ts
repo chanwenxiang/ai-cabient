@@ -46,8 +46,8 @@ function mixHex(hex: string, target: string, weight: number): string {
 
 function applyDom(theme: ThemeMode, fontSize: FontSize, primaryId: string) {
   const root = document.documentElement;
-  root.setAttribute('data-theme', theme);
-  root.setAttribute('data-font-size', fontSize);
+  root.dataset.theme = theme;
+  root.dataset.fontSize = fontSize;
   const color = PRIMARY_COLORS[primaryId] || PRIMARY_COLORS.teal;
   root.style.setProperty('--app-primary', color);
   root.style.setProperty('--el-color-primary', color);

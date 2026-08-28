@@ -102,14 +102,14 @@ function onMove(e: PointerEvent) {
     hit.classList.add('is-active');
     // column hover lights all series points at same x index
     if (hit.classList.contains('chart-col')) {
-      const i = hit.getAttribute('data-i');
+      const i = hit.dataset.i;
       hostRef.value.querySelectorAll(`.chart-pt[data-i="${i}"]`).forEach((pt) => {
         pt.classList.add('is-lit');
       });
     }
   }
 
-  const parsed = parseTip(hit.getAttribute('data-tip') || '');
+  const parsed = parseTip(hit.dataset.tip || '');
   tip.title = parsed.title;
   tip.rows = parsed.rows;
   tip.show = true;

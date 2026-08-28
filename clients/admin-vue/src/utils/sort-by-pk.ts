@@ -23,12 +23,28 @@ function compareDigitIds(sa: string, sb: string): number {
   }
 }
 
+function asComparableKey(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'string') return v.trim();
+  if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint') {
+    return String(v).trim();
+  }
+  if (typeof v === 'object') {
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return '';
+    }
+  }
+  return '';
+}
+
 export function comparePrimaryKey(a: unknown, b: unknown): number {
   if (a == null && b == null) return 0;
   if (a == null) return 1;
   if (b == null) return -1;
-  const sa = String(a).trim();
-  const sb = String(b).trim();
+  const sa = asComparableKey(a);
+  const sb = asComparableKey(b);
 
   if (sa !== '' && sb !== '' && INT_RE.test(sa) && INT_RE.test(sb)) {
     return compareDigitIds(sa, sb);

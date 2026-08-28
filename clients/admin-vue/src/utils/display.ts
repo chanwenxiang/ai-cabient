@@ -7,7 +7,19 @@ export const EMPTY_LOADING = '…';
 /** 可选文案：空则「暂无」 */
 export function textOrNone(v: unknown, fallback = EMPTY_TEXT): string {
   if (v == null) return fallback;
-  const s = String(v).trim();
+  let s = '';
+  if (typeof v === 'string') s = v;
+  else if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint') s = String(v);
+  else if (typeof v === 'object') {
+    try {
+      s = JSON.stringify(v);
+    } catch {
+      return fallback;
+    }
+  } else {
+    return fallback;
+  }
+  s = s.trim();
   return s ? s : fallback;
 }
 

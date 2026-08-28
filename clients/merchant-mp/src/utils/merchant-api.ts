@@ -350,10 +350,12 @@ export const merchantApi = {
     ),
   upsertSlots: (id: string, body: import('@aicabinet/shared-types').UpsertDeviceSlotRequest[]) =>
     request(`/api/v2/merchant/devices/${encodeURIComponent(id)}/slots`, 'PUT', body),
-  pricing: (deviceId?: string) =>
-    request<import('@aicabinet/shared-types').MerchantSkuPricing[]>(
-      `/api/v2/merchant/pricing/skus${deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : ''}`
-    ),
+  pricing: (deviceId?: string) => {
+    const path = deviceId
+      ? `/api/v2/merchant/pricing/skus?deviceId=${encodeURIComponent(deviceId)}`
+      : '/api/v2/merchant/pricing/skus';
+    return request<import('@aicabinet/shared-types').MerchantSkuPricing[]>(path);
+  },
   updatePricing: (skuId: string, body: { deviceId: string; priceCents: number | null }) =>
     request<import('@aicabinet/shared-types').MerchantSkuPricing>(
       `/api/v2/merchant/pricing/skus/${encodeURIComponent(skuId)}`,
@@ -583,10 +585,12 @@ export const merchantApi = {
     lines: { skuId: string; requestedQty: number }[];
   }) =>
     request<MerchantReplenishmentRequest>('/api/v2/merchant/replenishment/requests', 'POST', body),
-  replenishmentTasks: (status?: string) =>
-    request<Record<string, unknown>[]>(
-      `/api/v2/merchant/replenishment/tasks${status ? `?status=${encodeURIComponent(status)}` : ''}`
-    ),
+  replenishmentTasks: (status?: string) => {
+    const path = status
+      ? `/api/v2/merchant/replenishment/tasks?status=${encodeURIComponent(status)}`
+      : '/api/v2/merchant/replenishment/tasks';
+    return request<Record<string, unknown>[]>(path);
+  },
   replenishmentTaskLines: (taskId: number) =>
     request<Record<string, unknown>[]>(`/api/v2/merchant/replenishment/tasks/${taskId}/lines`),
   checkInReplenishmentTask: (taskId: number, body?: { latitude?: number; longitude?: number }) =>

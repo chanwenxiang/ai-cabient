@@ -975,8 +975,8 @@ async function promptRefundInventoryRestore(): Promise<boolean | undefined> {
       }
     );
     return true;
-  } catch (action) {
-    if (action === 'cancel') return false;
+  } catch (error_) {
+    if (error_ === 'cancel') return false;
     return undefined;
   }
 }
@@ -1151,8 +1151,8 @@ async function cancelUnpaid(row: { orderId: string }) {
         type: 'warning'
       });
       blacklist = true;
-    } catch (inner: any) {
-      if (inner !== 'cancel' && inner !== 'close') throw inner;
+    } catch (error_: unknown) {
+      if (error_ !== 'cancel' && error_ !== 'close') throw error_;
     }
     const result = await api.request<{ message?: string }>(
       `/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}/cancel`,
