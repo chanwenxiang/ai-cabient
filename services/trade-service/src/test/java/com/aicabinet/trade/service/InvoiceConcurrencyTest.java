@@ -15,7 +15,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,7 +40,7 @@ class InvoiceConcurrencyTest {
     @Test
     void applyByConsumer_whenOrderLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(InvoiceService.orderInvoiceLockKey("O-1")), eq(60L), eq(5L)))
+                InvoiceService.orderInvoiceLockKey("O-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -53,7 +52,7 @@ class InvoiceConcurrencyTest {
     @Test
     void issue_whenRequestLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(InvoiceService.invoiceRequestLockKey(9L)), eq(60L), eq(5L)))
+                InvoiceService.invoiceRequestLockKey(9L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -65,7 +64,7 @@ class InvoiceConcurrencyTest {
     @Test
     void issue_whenRequestNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(InvoiceService.invoiceRequestLockKey(10L)), eq(60L), eq(5L)))
+                InvoiceService.invoiceRequestLockKey(10L), 60L, 5L))
                 .thenReturn(true);
         when(invoiceRepository.findByIdForUpdate(10L)).thenReturn(java.util.Optional.empty());
 

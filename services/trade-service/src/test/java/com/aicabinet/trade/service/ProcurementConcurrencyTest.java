@@ -18,7 +18,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,7 +50,7 @@ class ProcurementConcurrencyTest {
     @Test
     void receivePurchaseOrder_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(ProcurementService.purchaseOrderLockKey(42L)), eq(60L), eq(5L)))
+                ProcurementService.purchaseOrderLockKey(42L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -63,7 +62,7 @@ class ProcurementConcurrencyTest {
     @Test
     void receivePurchaseOrder_whenNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(ProcurementService.purchaseOrderLockKey(42L)), eq(60L), eq(5L)))
+                ProcurementService.purchaseOrderLockKey(42L), 60L, 5L))
                 .thenReturn(true);
         when(purchaseOrderRepository.findByIdForUpdate(42L)).thenReturn(java.util.Optional.empty());
 

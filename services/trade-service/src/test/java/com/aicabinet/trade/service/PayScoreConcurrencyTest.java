@@ -16,7 +16,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -41,7 +40,7 @@ class PayScoreConcurrencyTest {
     @Test
     void signWeChatPayScore_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(PayScoreService.payScoreUserLockKey(900L)), eq(60L), eq(5L)))
+                PayScoreService.payScoreUserLockKey(900L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -53,7 +52,7 @@ class PayScoreConcurrencyTest {
     @Test
     void signAlipayAgreement_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(PayScoreService.payScoreUserLockKey(901L)), eq(60L), eq(5L)))
+                PayScoreService.payScoreUserLockKey(901L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,

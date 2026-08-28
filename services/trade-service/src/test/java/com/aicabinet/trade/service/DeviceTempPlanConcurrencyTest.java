@@ -20,7 +20,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,7 +47,7 @@ class DeviceTempPlanConcurrencyTest {
     @Test
     void upsert_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(DeviceTempPlanService.tempPlanLockKey("CAB-001")), eq(60L), eq(5L)))
+                DeviceTempPlanService.tempPlanLockKey("CAB-001"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -61,7 +60,7 @@ class DeviceTempPlanConcurrencyTest {
     @Test
     void applyNow_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(DeviceTempPlanService.tempPlanLockKey("CAB-002")), eq(60L), eq(5L)))
+                DeviceTempPlanService.tempPlanLockKey("CAB-002"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -77,7 +76,7 @@ class DeviceTempPlanConcurrencyTest {
         plan.setDeviceId("CAB-003");
         plan.setEnabled(true);
         when(distributedLockService.tryLock(
-                eq(DeviceTempPlanService.tempPlanLockKey("CAB-003")), eq(60L), eq(5L)))
+                DeviceTempPlanService.tempPlanLockKey("CAB-003"), 60L, 5L))
                 .thenReturn(true);
         when(planRepository.findByDeviceId("CAB-003")).thenReturn(Optional.of(plan));
         when(entryRepository.findByPlanId(10L)).thenReturn(List.of(entry(1L, 0, 5)));

@@ -13,7 +13,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -34,7 +33,7 @@ class InTransitConcurrencyTest {
     @Test
     void receiveForDevice_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(InTransitService.inTransitLockKey(10L, "CAB-1")), eq(60L), eq(5L)))
+                InTransitService.inTransitLockKey(10L, "CAB-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -46,7 +45,7 @@ class InTransitConcurrencyTest {
     @Test
     void cancelOpenForDevice_whenNoRows_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(InTransitService.inTransitLockKey(11L, "CAB-2")), eq(60L), eq(5L)))
+                InTransitService.inTransitLockKey(11L, "CAB-2"), 60L, 5L))
                 .thenReturn(true);
         when(transitRepository.findByOutboundIdAndDeviceIdAndStatusForUpdate(11L, "CAB-2", "IN_TRANSIT"))
                 .thenReturn(List.of());

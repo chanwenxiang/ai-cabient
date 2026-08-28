@@ -12,7 +12,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -70,7 +69,7 @@ class MerchantPortalConcurrencyTest {
     @Test
     void updateDeviceSettings_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(DeviceAssetService.deviceAssetLockKey("CAB-MP")), eq(60L), eq(5L)))
+                DeviceAssetService.deviceAssetLockKey("CAB-MP"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -83,7 +82,7 @@ class MerchantPortalConcurrencyTest {
     @Test
     void createTeamUser_whenPhoneLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(MerchantPortalService.merchantTeamPhoneLockKey("13900009999")), eq(60L), eq(5L)))
+                MerchantPortalService.merchantTeamPhoneLockKey("13900009999"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,

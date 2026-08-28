@@ -14,7 +14,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,7 +36,7 @@ class OrgConcurrencyTest {
 
     @Test
     void toggleNode_whenLockBusy_rejectsWithConflict() {
-        when(distributedLockService.tryLock(eq(OrgService.orgNodeLockKey(2L)), eq(60L), eq(5L)))
+        when(distributedLockService.tryLock(OrgService.orgNodeLockKey(2L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -48,7 +47,7 @@ class OrgConcurrencyTest {
 
     @Test
     void assignDevices_whenNodeLockBusy_rejectsWithConflict() {
-        when(distributedLockService.tryLock(eq(OrgService.orgNodeLockKey(2L)), eq(60L), eq(5L)))
+        when(distributedLockService.tryLock(OrgService.orgNodeLockKey(2L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -59,7 +58,7 @@ class OrgConcurrencyTest {
 
     @Test
     void toggleNode_whenNodeNotFound_unlocksLock() {
-        when(distributedLockService.tryLock(eq(OrgService.orgNodeLockKey(3L)), eq(60L), eq(5L)))
+        when(distributedLockService.tryLock(OrgService.orgNodeLockKey(3L), 60L, 5L))
                 .thenReturn(true);
         when(nodeRepository.findByIdForUpdate(3L)).thenReturn(java.util.Optional.empty());
 

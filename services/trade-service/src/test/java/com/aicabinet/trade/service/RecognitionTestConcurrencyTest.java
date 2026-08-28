@@ -49,7 +49,7 @@ class RecognitionTestConcurrencyTest {
                         "S-REC-1", 1L, "CAB-R", com.aicabinet.common.enums.SessionState.SHOPPING,
                         null, null, null, null, null, null));
         when(distributedLockService.tryLock(
-                eq(SessionService.sessionLifeLockKey("S-REC-1")), eq(60L), eq(5L)))
+                SessionService.sessionLifeLockKey("S-REC-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,

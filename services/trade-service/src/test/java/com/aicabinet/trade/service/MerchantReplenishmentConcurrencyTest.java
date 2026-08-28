@@ -12,7 +12,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -38,7 +37,7 @@ class MerchantReplenishmentConcurrencyTest {
     @Test
     void acceptRequest_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(MerchantReplenishmentService.replenishmentRequestLockKey(5L)), eq(60L), eq(5L)))
+                MerchantReplenishmentService.replenishmentRequestLockKey(5L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -50,7 +49,7 @@ class MerchantReplenishmentConcurrencyTest {
     @Test
     void submitRequest_whenDeviceLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(MerchantReplenishmentService.replenishmentDeviceLockKey("CAB-001")), eq(60L), eq(5L)))
+                MerchantReplenishmentService.replenishmentDeviceLockKey("CAB-001"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -66,7 +65,7 @@ class MerchantReplenishmentConcurrencyTest {
     @Test
     void rejectRequest_whenRequestNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(MerchantReplenishmentService.replenishmentRequestLockKey(5L)), eq(60L), eq(5L)))
+                MerchantReplenishmentService.replenishmentRequestLockKey(5L), 60L, 5L))
                 .thenReturn(true);
         when(requestRepository.findByIdForUpdate(5L)).thenReturn(java.util.Optional.empty());
 

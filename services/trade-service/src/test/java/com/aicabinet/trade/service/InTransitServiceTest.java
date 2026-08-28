@@ -13,7 +13,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,7 +34,7 @@ class InTransitServiceTest {
     @Test
     void recordFromOutbound_persistsInTransitRows() {
         when(distributedLockService.tryLock(
-                eq(InTransitService.inTransitLockKey(88L, "CAB-001")), eq(60L), eq(5L)))
+                InTransitService.inTransitLockKey(88L, "CAB-001"), 60L, 5L))
                 .thenReturn(true);
         WarehouseOutboundLine line = new WarehouseOutboundLine();
         line.setDeviceId("CAB-001");

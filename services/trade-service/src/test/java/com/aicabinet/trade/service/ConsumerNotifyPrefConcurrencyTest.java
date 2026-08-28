@@ -11,7 +11,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,7 +30,7 @@ class ConsumerNotifyPrefConcurrencyTest {
     @Test
     void update_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(ConsumerNotifyPrefService.notifyPrefLockKey(42L, "ORDER")), eq(60L), eq(5L)))
+                ConsumerNotifyPrefService.notifyPrefLockKey(42L, "ORDER"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -43,7 +42,7 @@ class ConsumerNotifyPrefConcurrencyTest {
     @Test
     void update_whenLockAcquired_unlocksAfterSave() {
         when(distributedLockService.tryLock(
-                eq(ConsumerNotifyPrefService.notifyPrefLockKey(42L, "ORDER")), eq(60L), eq(5L)))
+                ConsumerNotifyPrefService.notifyPrefLockKey(42L, "ORDER"), 60L, 5L))
                 .thenReturn(true);
         when(prefRepository.findByUserIdAndCategoryForUpdate(42L, "ORDER"))
                 .thenReturn(java.util.Optional.empty());

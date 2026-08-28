@@ -22,7 +22,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -67,7 +66,7 @@ class OrderPaymentConcurrencyTest {
         order.setOrderId("O-LOCK");
         order.setUserId(10001L);
         when(distributedLockService.tryLock(
-                eq(OrderPaymentService.orderPaymentLockKey("O-LOCK")), eq(60L), eq(5L)))
+                OrderPaymentService.orderPaymentLockKey("O-LOCK"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -83,7 +82,7 @@ class OrderPaymentConcurrencyTest {
         order.setUserId(10001L);
         order.setPayChannel("BALANCE");
         when(distributedLockService.tryLock(
-                eq(OrderPaymentService.orderPaymentLockKey("O-OK")), eq(60L), eq(5L)))
+                OrderPaymentService.orderPaymentLockKey("O-OK"), 60L, 5L))
                 .thenReturn(true);
         when(cabinetOrderRepository.findByIdForUpdate("O-OK")).thenReturn(Optional.of(order));
         when(paymentOperationRepository.netCompletedCents("O-OK")).thenReturn(0);

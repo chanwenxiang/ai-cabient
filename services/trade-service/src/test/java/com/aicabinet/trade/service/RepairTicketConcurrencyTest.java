@@ -16,7 +16,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,7 +43,7 @@ class RepairTicketConcurrencyTest {
     void create_whenLockBusy_rejectsWithConflict() {
         when(deviceInfoMapper.selectById("CAB-001")).thenReturn(new DeviceInfo());
         when(distributedLockService.tryLock(
-                eq(RepairTicketService.repairDeviceLockKey("CAB-001")), eq(60L), eq(5L)))
+                RepairTicketService.repairDeviceLockKey("CAB-001"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -56,7 +55,7 @@ class RepairTicketConcurrencyTest {
     @Test
     void transition_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(RepairTicketService.ticketLockKey(42L)), eq(60L), eq(5L)))
+                RepairTicketService.ticketLockKey(42L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -68,7 +67,7 @@ class RepairTicketConcurrencyTest {
     @Test
     void update_whenTicketNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(RepairTicketService.ticketLockKey(7L)), eq(60L), eq(5L)))
+                RepairTicketService.ticketLockKey(7L), 60L, 5L))
                 .thenReturn(true);
         when(ticketMapper.findByIdForUpdate(7L)).thenReturn(Optional.empty());
 

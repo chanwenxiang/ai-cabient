@@ -30,7 +30,7 @@ class PromotionServiceTest {
     void setUp() {
         promotionService = new PromotionService(repository, distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(promotionService, "self", promotionService);
-        lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }
 
     @Test

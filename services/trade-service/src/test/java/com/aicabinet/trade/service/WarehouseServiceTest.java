@@ -49,7 +49,7 @@ class WarehouseServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
         warehouseService = new WarehouseService(warehouseRepository, inventoryRepository,
                 inboundRepository, inboundLineRepository, outboundRepository, outboundLineRepository,
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,

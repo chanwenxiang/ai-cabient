@@ -52,7 +52,7 @@ class SkuDelistReviewConcurrencyTest {
     @Test
     void decide_whenSkuLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(SkuDelistReviewService.skuReviewLockKey("SKU-A")), eq(60L), eq(5L)))
+                SkuDelistReviewService.skuReviewLockKey("SKU-A"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -64,7 +64,7 @@ class SkuDelistReviewConcurrencyTest {
     @Test
     void decide_whenReviewNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(SkuDelistReviewService.skuReviewLockKey("SKU-B")), eq(60L), eq(5L)))
+                SkuDelistReviewService.skuReviewLockKey("SKU-B"), 60L, 5L))
                 .thenReturn(true);
         when(reviewRepository.findBySkuIdForUpdate("SKU-B")).thenReturn(java.util.Optional.empty());
 

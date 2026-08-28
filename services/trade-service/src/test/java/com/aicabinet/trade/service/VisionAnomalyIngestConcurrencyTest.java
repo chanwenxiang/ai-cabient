@@ -35,7 +35,7 @@ class VisionAnomalyIngestConcurrencyTest {
     @Test
     void ingest_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(VisionAnomalyIngestService.visionAnomalyDeviceLockKey("CAB-900")), eq(60L), eq(5L)))
+                VisionAnomalyIngestService.visionAnomalyDeviceLockKey("CAB-900"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -49,7 +49,7 @@ class VisionAnomalyIngestConcurrencyTest {
     @Test
     void ingest_whenRecordMissing_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(VisionAnomalyIngestService.visionAnomalyDeviceLockKey("CAB-901")), eq(60L), eq(5L)))
+                VisionAnomalyIngestService.visionAnomalyDeviceLockKey("CAB-901"), 60L, 5L))
                 .thenReturn(true);
         when(opsExceptionService.report(
                 eq("VISION_ANOMALY"), eq("MEDIUM"),

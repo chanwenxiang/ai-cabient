@@ -14,7 +14,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,7 +35,7 @@ class MediaAssetConcurrencyTest {
     @Test
     void update_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(MediaAssetService.mediaAssetLockKey(3L)), eq(60L), eq(5L)))
+                MediaAssetService.mediaAssetLockKey(3L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -48,7 +47,7 @@ class MediaAssetConcurrencyTest {
     @Test
     void delete_whenNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(MediaAssetService.mediaAssetLockKey(4L)), eq(60L), eq(5L)))
+                MediaAssetService.mediaAssetLockKey(4L), 60L, 5L))
                 .thenReturn(true);
         when(assetRepository.findByIdForUpdate(4L)).thenReturn(java.util.Optional.empty());
 

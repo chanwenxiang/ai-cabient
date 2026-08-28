@@ -342,7 +342,7 @@ class OrderPaymentIdempotencyTest {
     }
 
     private void stubOrderLock(CabinetOrder order) {
-        when(distributedLockService.tryLock(eq(OrderPaymentService.orderPaymentLockKey(order.getOrderId())), eq(60L), eq(5L)))
+        when(distributedLockService.tryLock(OrderPaymentService.orderPaymentLockKey(order.getOrderId()), 60L, 5L))
                 .thenReturn(true);
         when(cabinetOrderRepository.findByIdForUpdate(order.getOrderId())).thenReturn(Optional.of(order));
     }

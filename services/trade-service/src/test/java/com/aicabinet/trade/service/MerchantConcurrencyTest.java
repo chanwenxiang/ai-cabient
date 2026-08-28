@@ -17,7 +17,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,7 +47,7 @@ class MerchantConcurrencyTest {
     @Test
     void upsertMerchant_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(MerchantService.merchantLockKey("M-1")), eq(60L), eq(5L)))
+                MerchantService.merchantLockKey("M-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -62,7 +61,7 @@ class MerchantConcurrencyTest {
     @Test
     void upsertMerchant_whenPermissionDenied_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(MerchantService.merchantLockKey("M-2")), eq(60L), eq(5L)))
+                MerchantService.merchantLockKey("M-2"), 60L, 5L))
                 .thenReturn(true);
         org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "denied"))
                 .when(permissionService).requirePermission(1L, "ops:merchant:edit");

@@ -11,7 +11,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,7 +30,7 @@ class DeviceEnvConcurrencyTest {
     @Test
     void record_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(DeviceEnvService.deviceEnvLockKey("CAB-001")), eq(60L), eq(5L)))
+                DeviceEnvService.deviceEnvLockKey("CAB-001"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -43,7 +42,7 @@ class DeviceEnvConcurrencyTest {
     @Test
     void record_whenLockAcquired_unlocksAfterInsert() {
         when(distributedLockService.tryLock(
-                eq(DeviceEnvService.deviceEnvLockKey("CAB-002")), eq(60L), eq(5L)))
+                DeviceEnvService.deviceEnvLockKey("CAB-002"), 60L, 5L))
                 .thenReturn(true);
 
         service.saveReading("CAB-002", 50.0, null, null);

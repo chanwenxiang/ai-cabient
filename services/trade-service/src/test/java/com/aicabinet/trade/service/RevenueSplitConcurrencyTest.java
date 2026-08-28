@@ -19,7 +19,6 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -49,7 +48,7 @@ class RevenueSplitConcurrencyTest {
         CabinetOrder order = new CabinetOrder();
         order.setOrderId("O-LOCK");
         when(distributedLockService.tryLock(
-                eq(RevenueSplitService.orderSplitLockKey("O-LOCK")), eq(60L), eq(5L)))
+                RevenueSplitService.orderSplitLockKey("O-LOCK"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -72,7 +71,7 @@ class RevenueSplitConcurrencyTest {
         split.setMerchantCents(400);
 
         when(distributedLockService.tryLock(
-                eq(RevenueSplitService.orderSplitLockKey("O-OK")), eq(60L), eq(5L)))
+                RevenueSplitService.orderSplitLockKey("O-OK"), 60L, 5L))
                 .thenReturn(true);
         when(splitRepository.findByOrderIdForUpdate("O-OK")).thenReturn(Optional.of(split));
         com.aicabinet.trade.domain.Merchant merchant = new com.aicabinet.trade.domain.Merchant();

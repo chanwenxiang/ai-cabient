@@ -48,7 +48,7 @@ class PointsRedeemServiceTest {
 
     private void stubRedeemLocks(long userId, long itemId) {
         lenient().when(distributedLockService.tryLock(
-                eq(MemberService.memberUserLockKey(userId)), eq(60L), eq(5L))).thenReturn(true);
+                MemberService.memberUserLockKey(userId), 60L, 5L)).thenReturn(true);
         lenient().when(distributedLockService.tryLock(
                 eq("redeem:item:" + itemId + ":user:" + userId), eq(30L), eq(3L))).thenReturn(true);
     }

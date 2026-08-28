@@ -22,6 +22,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -46,7 +48,7 @@ class DeviceEnvServiceTest {
     void record_shouldSkipNullMetrics() {
         service.saveReading("CAB-001", null, null, null);
 
-        verify(readingRepository, org.mockito.Mockito.never()).insert(any());
+        verify(readingRepository, never()).insert(any());
     }
 
     @Test
@@ -54,7 +56,7 @@ class DeviceEnvServiceTest {
         service.saveReading("CAB-001", 45.5, 12.3, 88.0);
 
         ArgumentCaptor<DeviceEnvReading> captor = ArgumentCaptor.forClass(DeviceEnvReading.class);
-        verify(readingRepository, org.mockito.Mockito.times(3)).insert(captor.capture());
+        verify(readingRepository, times(3)).insert(captor.capture());
         assertEquals(3, captor.getAllValues().size());
         assertTrue(captor.getAllValues().stream().anyMatch(r -> "HUMIDITY".equals(r.getMetricType())));
         assertTrue(captor.getAllValues().stream().anyMatch(r -> "VOLTAGE".equals(r.getMetricType())));

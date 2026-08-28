@@ -13,7 +13,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,7 +35,7 @@ class UserRecallConcurrencyTest {
     @Test
     void recall_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(UserRecallService.recallCouponLockKey(77L)), eq(60L), eq(5L)))
+                UserRecallService.recallCouponLockKey(77L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,

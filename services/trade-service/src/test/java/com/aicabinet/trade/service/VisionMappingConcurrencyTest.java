@@ -14,7 +14,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,7 +41,7 @@ class VisionMappingConcurrencyTest {
     @Test
     void upsertYolo_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(VisionMappingService.yoloMappingLockKey("cola")), eq(60L), eq(5L)))
+                VisionMappingService.yoloMappingLockKey("cola"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -54,7 +53,7 @@ class VisionMappingConcurrencyTest {
     @Test
     void deleteAliyun_whenNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(VisionMappingService.aliyunMappingLockKey("cat-1")), eq(60L), eq(5L)))
+                VisionMappingService.aliyunMappingLockKey("cat-1"), 60L, 5L))
                 .thenReturn(true);
         when(aliyunRepository.findByIdForUpdate("cat-1")).thenReturn(java.util.Optional.empty());
 

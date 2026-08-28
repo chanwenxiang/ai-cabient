@@ -14,7 +14,6 @@ import org.mockito.quality.Strictness;
 
 import java.time.LocalDate;
 
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,7 +40,7 @@ class DeviceAvailabilityKpiConcurrencyTest {
     void snapshotDaily_whenLockBusy_returnsExistingWithoutWrite() {
         LocalDate date = LocalDate.parse("2026-08-18");
         when(distributedLockService.tryLock(
-                eq(DeviceAvailabilityKpiService.deviceKpiDailyLockKey(date)), eq(60L), eq(5L)))
+                DeviceAvailabilityKpiService.deviceKpiDailyLockKey(date), 60L, 5L))
                 .thenReturn(false);
 
         service.snapshotDaily(date);

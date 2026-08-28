@@ -31,7 +31,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -92,7 +91,7 @@ class AdminDashboardBalanceAdjustTest {
     @Test
     void adjustBalance_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(AdminDashboardService.userBalanceLockKey(10001L)), eq(60L), eq(5L)))
+                AdminDashboardService.userBalanceLockKey(10001L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -105,7 +104,7 @@ class AdminDashboardBalanceAdjustTest {
     @Test
     void adjustBalance_whenUserNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(AdminDashboardService.userBalanceLockKey(10001L)), eq(60L), eq(5L)))
+                AdminDashboardService.userBalanceLockKey(10001L), 60L, 5L))
                 .thenReturn(true);
         when(userInfoRepository.findById(10001L)).thenReturn(java.util.Optional.empty());
 

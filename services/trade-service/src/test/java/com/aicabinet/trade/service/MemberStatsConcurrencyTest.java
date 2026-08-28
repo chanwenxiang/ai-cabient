@@ -10,7 +10,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
@@ -18,7 +17,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,7 +39,7 @@ class MemberStatsConcurrencyTest {
     @Test
     void createMember_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(MemberService.memberUserLockKey(200L)), eq(60L), eq(5L)))
+                MemberService.memberUserLockKey(200L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -53,7 +51,7 @@ class MemberStatsConcurrencyTest {
     @Test
     void clawbackPointsOnRefund_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(MemberService.memberUserLockKey(201L)), eq(60L), eq(5L)))
+                MemberService.memberUserLockKey(201L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -69,7 +67,7 @@ class MemberStatsConcurrencyTest {
         preview.setUserId(202L);
         when(memberRepository.findById(10L)).thenReturn(Optional.of(preview));
         when(distributedLockService.tryLock(
-                eq(MemberService.memberUserLockKey(202L)), eq(60L), eq(5L)))
+                MemberService.memberUserLockKey(202L), 60L, 5L))
                 .thenReturn(true);
         Member locked = new Member();
         locked.setMemberId(10L);

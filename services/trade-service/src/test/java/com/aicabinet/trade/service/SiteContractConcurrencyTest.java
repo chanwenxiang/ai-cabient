@@ -16,7 +16,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,7 +39,7 @@ class SiteContractConcurrencyTest {
     @Test
     void upsert_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(SiteContractService.contractLockKey("CAB-001")), eq(60L), eq(5L)))
+                SiteContractService.contractLockKey("CAB-001"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -54,7 +53,7 @@ class SiteContractConcurrencyTest {
     @Test
     void upsert_whenDeviceNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(SiteContractService.contractLockKey("CAB-002")), eq(60L), eq(5L)))
+                SiteContractService.contractLockKey("CAB-002"), 60L, 5L))
                 .thenReturn(true);
         when(deviceRepository.findById("CAB-002")).thenReturn(Optional.empty());
 

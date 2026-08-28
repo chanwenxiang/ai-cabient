@@ -16,7 +16,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -46,7 +45,7 @@ class WarehouseStocktakeConcurrencyTest {
     @Test
     void complete_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(WarehouseStocktakeService.stocktakeLockKey(3L)), eq(60L), eq(5L)))
+                WarehouseStocktakeService.stocktakeLockKey(3L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -58,7 +57,7 @@ class WarehouseStocktakeConcurrencyTest {
     @Test
     void complete_whenStocktakeNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(WarehouseStocktakeService.stocktakeLockKey(3L)), eq(60L), eq(5L)))
+                WarehouseStocktakeService.stocktakeLockKey(3L), 60L, 5L))
                 .thenReturn(true);
         when(stocktakeRepository.findByIdForUpdate(3L)).thenReturn(java.util.Optional.empty());
 

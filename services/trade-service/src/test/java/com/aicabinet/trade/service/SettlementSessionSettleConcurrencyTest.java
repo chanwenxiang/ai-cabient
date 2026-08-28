@@ -13,7 +13,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,7 +43,7 @@ class SettlementSessionSettleConcurrencyTest {
         session.setSessionId("S-LOCK-1");
         session.setDeviceId("CAB-001");
         when(distributedLockService.tryLock(
-                eq(SettlementService.sessionSettleLockKey("S-LOCK-1")), eq(60L), eq(5L)))
+                SettlementService.sessionSettleLockKey("S-LOCK-1"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -58,7 +57,7 @@ class SettlementSessionSettleConcurrencyTest {
         ShoppingSession session = new ShoppingSession();
         session.setSessionId("S-LOCK-2");
         when(distributedLockService.tryLock(
-                eq(SettlementService.sessionSettleLockKey("S-LOCK-2")), eq(60L), eq(5L)))
+                SettlementService.sessionSettleLockKey("S-LOCK-2"), 60L, 5L))
                 .thenReturn(true);
         when(sessionRepository.findByIdForUpdate("S-LOCK-2")).thenReturn(java.util.Optional.of(session));
         when(orderRepository.findBySessionId("S-LOCK-2")).thenReturn(java.util.Optional.empty());

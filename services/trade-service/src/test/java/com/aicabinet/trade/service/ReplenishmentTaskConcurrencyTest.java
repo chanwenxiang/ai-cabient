@@ -14,7 +14,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,7 +39,7 @@ class ReplenishmentTaskConcurrencyTest {
     @Test
     void completeTask_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(ReplenishmentService.replenishmentTaskLockKey(9L)), eq(60L), eq(5L)))
+                ReplenishmentService.replenishmentTaskLockKey(9L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -52,7 +51,7 @@ class ReplenishmentTaskConcurrencyTest {
     @Test
     void completeTask_whenTaskNotFound_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(ReplenishmentService.replenishmentTaskLockKey(9L)), eq(60L), eq(5L)))
+                ReplenishmentService.replenishmentTaskLockKey(9L), 60L, 5L))
                 .thenReturn(true);
         when(taskRepository.findByIdForUpdate(9L)).thenReturn(java.util.Optional.empty());
 

@@ -13,7 +13,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -46,7 +45,7 @@ class MerchantSkuPricingConcurrencyTest {
     @Test
     void updatePricing_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(MerchantSkuPricingService.skuPriceLockKey("CAB-1", "SKU-A")), eq(60L), eq(5L)))
+                MerchantSkuPricingService.skuPriceLockKey("CAB-1", "SKU-A"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -59,7 +58,7 @@ class MerchantSkuPricingConcurrencyTest {
     @Test
     void updatePricing_whenDeviceMissing_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(MerchantSkuPricingService.skuPriceLockKey("CAB-2", "SKU-B")), eq(60L), eq(5L)))
+                MerchantSkuPricingService.skuPriceLockKey("CAB-2", "SKU-B"), 60L, 5L))
                 .thenReturn(true);
         when(skuCatalogRepository.findById("SKU-B")).thenReturn(java.util.Optional.empty());
 

@@ -11,7 +11,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -32,7 +31,7 @@ class PromotionBudgetConcurrencyTest {
     @Test
     void reserveBudget_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(PromotionService.promotionActivityLockKey(5L)), eq(60L), eq(5L)))
+                PromotionService.promotionActivityLockKey(5L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -44,7 +43,7 @@ class PromotionBudgetConcurrencyTest {
     @Test
     void releaseBudget_whenActivityMissing_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(PromotionService.promotionActivityLockKey(5L)), eq(60L), eq(5L)))
+                PromotionService.promotionActivityLockKey(5L), 60L, 5L))
                 .thenReturn(true);
         when(repository.findByIdForUpdate(5L)).thenReturn(java.util.Optional.empty());
 

@@ -15,7 +15,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -42,7 +41,7 @@ class NotificationConcurrencyTest {
     @Test
     void markConsumerRead_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(NotificationService.notificationLogLockKey(99L)), eq(60L), eq(5L)))
+                NotificationService.notificationLogLockKey(99L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -54,7 +53,7 @@ class NotificationConcurrencyTest {
     @Test
     void markConsumerAllRead_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(NotificationService.consumerNotificationLockKey(101L)), eq(60L), eq(5L)))
+                NotificationService.consumerNotificationLockKey(101L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -66,7 +65,7 @@ class NotificationConcurrencyTest {
     @Test
     void markMerchantRead_whenLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(NotificationService.notificationLogLockKey(88L)), eq(60L), eq(5L)))
+                NotificationService.notificationLogLockKey(88L), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -78,7 +77,7 @@ class NotificationConcurrencyTest {
     @Test
     void markConsumerRead_whenRecordMissing_unlocksLock() {
         when(distributedLockService.tryLock(
-                eq(NotificationService.notificationLogLockKey(77L)), eq(60L), eq(5L)))
+                NotificationService.notificationLogLockKey(77L), 60L, 5L))
                 .thenReturn(true);
         when(logRepository.findByIdForUpdate(77L)).thenReturn(java.util.Optional.empty());
 
