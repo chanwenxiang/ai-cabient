@@ -159,21 +159,19 @@ public class InventoryLotService {
         String primaryBatch = null;
         Map<String, Integer> slotQty = new LinkedHashMap<>();
         for (DeviceSkuLot lot : lots) {
-            if (remaining <= 0) {
-                break;
+            if (remaining > 0) {
+                LotDeductionStep step = tryDeductFromSellableLot(
+                        deviceId, skuId, lot, remaining, refType, refId, minExpiry);
+                if (step != null) {
+                    if (primaryBatch == null) {
+                        primaryBatch = step.batchNo();
+                    }
+                    if (step.slotCode() != null) {
+                        slotQty.merge(step.slotCode(), step.taken(), Integer::sum);
+                    }
+                    remaining -= step.taken();
+                }
             }
-            LotDeductionStep step = tryDeductFromSellableLot(
-                    deviceId, skuId, lot, remaining, refType, refId, minExpiry);
-            if (step == null) {
-                continue;
-            }
-            if (primaryBatch == null) {
-                primaryBatch = step.batchNo();
-            }
-            if (step.slotCode() != null) {
-                slotQty.merge(step.slotCode(), step.taken(), Integer::sum);
-            }
-            remaining -= step.taken();
         }
         return new DeductionAccumulator(primaryBatch, slotQty, remaining);
     }

@@ -159,20 +159,6 @@ public class AlipayOpenApiClient {
                 + "<script>document.forms['alipay-submit'].submit();</script>";
     }
 
-    /** @deprecated 保留兼容；新流程请用 {@link #buildPagePayFormHtml} */
-    @Deprecated(since = "0.1.0", forRemoval = false)
-    public String buildPagePayUrl(String method, Map<String, Object> bizContent) {
-        if (!properties.isConfigured()) {
-            throw new IllegalStateException("alipay not configured");
-        }
-        Map<String, String> params = buildCommonParams(method, bizContent, properties.returnUrl(), null);
-        params.put("sign", signUtil.signRsa2(params, properties.privateKey()));
-        String query = params.entrySet().stream()
-                .map(e -> e.getKey() + "=" + urlEncode(e.getValue()))
-                .collect(java.util.stream.Collectors.joining("&"));
-        return properties.gatewayUrl() + "?" + query;
-    }
-
     private Map<String, String> buildCommonParams(String method, Map<String, Object> bizContent,
                                                   String returnUrl, String notifyUrlOverride) {
         Map<String, String> params = new TreeMap<>();

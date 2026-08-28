@@ -40,7 +40,7 @@ class SkuDelistReviewConcurrencyTest {
     @Test
     void runReview_whenBatchLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                eq(SkuDelistReviewService.reviewBatchLockKey()), eq(120L), eq(5L)))
+                eq(SkuDelistReviewService.REVIEW_BATCH_LOCK_KEY), eq(120L), eq(5L)))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,

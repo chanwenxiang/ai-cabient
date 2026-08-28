@@ -32,6 +32,7 @@ import java.util.Map;
  */
 @Service
 public class SkuDelistReviewService {
+    static final String REVIEW_BATCH_LOCK_KEY = "sku:delist-review:batch";
 
     private static final Logger log = LoggerFactory.getLogger(SkuDelistReviewService.class);
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
@@ -63,13 +64,13 @@ public class SkuDelistReviewService {
     /** 基于近 N 天订单生成/刷新全量 SKU 评审行。 */
     @Transactional
     public List<SkuDelistReviewDto> runReview(int days) {
-        if (!distributedLockService.tryLock(reviewBatchLockKey(), 120, 5)) {
+        if (!distributedLockService.tryLock(REVIEW_BATCH_LOCK_KEY, 120, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "选品评审刷新中，请稍后重试");
         }
         try {
             return doRunReview(days);
         } finally {
-            distributedLockService.unlock(reviewBatchLockKey());
+            distributedLockService.unlock(REVIEW_BATCH_LOCK_KEY);
         }
     }
 
@@ -279,10 +280,6 @@ public class SkuDelistReviewService {
         } catch (NumberFormatException e) {
             return 0L;
         }
-    }
-
-    static String reviewBatchLockKey() {
-        return "sku:delist-review:batch";
     }
 
     static String skuReviewLockKey(String skuId) {

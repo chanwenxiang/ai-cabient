@@ -1586,17 +1586,17 @@ public class AdminDashboardService {
                                                    Set<String> scopedDevices, ZoneId zone) {
         for (ShoppingSession session : sessions) {
             if (scopedDevices != null && !scopedDevices.contains(session.getDeviceId())) {
-                continue;
-            }
-            LocalDate day = session.getUpdatedAt().atZone(zone).toLocalDate();
-            long[] bucket = buckets.get(day);
-            if (bucket == null) {
-                continue;
-            }
-            if (session.getState() == SessionState.COMPLETED) {
-                bucket[0]++;
-            } else if (session.getState() == SessionState.DISPUTED) {
-                bucket[1]++;
+                // skip out-of-scope devices
+            } else {
+                LocalDate day = session.getUpdatedAt().atZone(zone).toLocalDate();
+                long[] bucket = buckets.get(day);
+                if (bucket != null) {
+                    if (session.getState() == SessionState.COMPLETED) {
+                        bucket[0]++;
+                    } else if (session.getState() == SessionState.DISPUTED) {
+                        bucket[1]++;
+                    }
+                }
             }
         }
     }
