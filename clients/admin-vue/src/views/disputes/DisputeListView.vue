@@ -797,7 +797,10 @@ function confidenceHintFromCode(code: string): string {
   return REVIEW_CODE_HINTS[code] || '';
 }
 
-const RECOGNITION_HINT_RULES: Array<{ test: (text: string, row: { category?: string }) => boolean; hint: string }> = [
+const RECOGNITION_HINT_RULES: Array<{
+  test: (text: string, row: { category?: string }) => boolean;
+  hint: string;
+}> = [
   { test: (text) => /模拟|非生产精度|mock/i.test(text), hint: '模拟识别' },
   { test: (text) => /视觉与重力|重力.*不一致|错配/.test(text), hint: '重力错配' },
   { test: (text) => /仅有重力|重力信号/.test(text), hint: '重力回填' },
@@ -808,10 +811,7 @@ const RECOGNITION_HINT_RULES: Array<{ test: (text: string, row: { category?: str
   { test: (_text, row) => row.category === 'RECOGNITION', hint: '识别争议' }
 ];
 
-function confidenceHintFromRecognitionText(row: {
-  category?: string;
-  reason?: string;
-}): string {
+function confidenceHintFromRecognitionText(row: { category?: string; reason?: string }): string {
   const text = `${row.reason || ''} ${row.category || ''}`;
   if (row.category !== 'RECOGNITION' && !/识别|置信|未映射|存疑|模拟|重力/.test(text)) {
     return '';
@@ -1017,7 +1017,8 @@ async function onDisputeImagePick(ev: Event) {
   suggestingDispute.value = true;
   disputeSuggestHint.value = '';
   try {
-    const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
+    const base =
+      (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
     const form = new FormData();
     form.append('deviceId', selected.value.deviceId);
     form.append('image', file);
@@ -1141,7 +1142,10 @@ async function collectWaiveRestoreInventory(): Promise<boolean | undefined> {
   return choice;
 }
 
-async function submitDisputeResolve(resolutionType: DisputeResolutionType, restoreInventory?: boolean) {
+async function submitDisputeResolve(
+  resolutionType: DisputeResolutionType,
+  restoreInventory?: boolean
+) {
   if (!selected.value) return;
   const result = await api.request<ResolveDisputeResultDto>(
     `/api/v2/ops/disputes/${encodeURIComponent(selected.value.ticketId)}/resolve`,
@@ -1190,7 +1194,11 @@ function classifyKeyword(raw: string): { orderId?: string; sessionId?: string; d
 }
 
 function appendDisputeRouteReviewCode(query: Record<string, string>) {
-  if (categoryTab.value !== 'RECOGNITION' || !reviewCodeTab.value || reviewCodeTab.value === 'ALL') {
+  if (
+    categoryTab.value !== 'RECOGNITION' ||
+    !reviewCodeTab.value ||
+    reviewCodeTab.value === 'ALL'
+  ) {
     return;
   }
   query.reviewCode = reviewCodeTab.value;
@@ -1220,7 +1228,11 @@ function onReviewCodeTab() {
 }
 
 function appendDisputeListReviewCode(q: URLSearchParams) {
-  if (categoryTab.value !== 'RECOGNITION' || !reviewCodeTab.value || reviewCodeTab.value === 'ALL') {
+  if (
+    categoryTab.value !== 'RECOGNITION' ||
+    !reviewCodeTab.value ||
+    reviewCodeTab.value === 'ALL'
+  ) {
     return;
   }
   q.set('reviewCode', reviewCodeTab.value);

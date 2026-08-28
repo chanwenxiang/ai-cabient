@@ -1064,17 +1064,19 @@ async function readProductBarcode(): Promise<string | null> {
   } catch (err) {
     const msg = String((err as { errMsg?: string })?.errMsg || '');
     if (/cancel|取消/i.test(msg)) return null;
-    return String(
-      (await promptText({
-        title: '输入商品条码',
-        placeholder: '扫描商品包装条码',
-        required: true,
-        requiredMessage: '条码无效',
-        maxLength: 64,
-        singleLine: true,
-        testId: 'product-barcode-prompt'
-      })) || ''
-    ).trim() || null;
+    return (
+      String(
+        (await promptText({
+          title: '输入商品条码',
+          placeholder: '扫描商品包装条码',
+          required: true,
+          requiredMessage: '条码无效',
+          maxLength: 64,
+          singleLine: true,
+          testId: 'product-barcode-prompt'
+        })) || ''
+      ).trim() || null
+    );
   }
 }
 
@@ -1498,7 +1500,10 @@ async function obtainCheckInLocation(): Promise<{
 } | null> {
   try {
     const location = await getLocationWithTimeout(5000);
-    return { body: { latitude: location.latitude, longitude: location.longitude }, locationOk: true };
+    return {
+      body: { latitude: location.latitude, longitude: location.longitude },
+      locationOk: true
+    };
   } catch {
     const cont = await askConfirm({
       title: '定位失败',
@@ -1525,10 +1530,7 @@ async function submitCheckIn(body: Record<string, number>, locationOk: boolean) 
 
 async function retryCheckInWithoutDistance() {
   if (!selected.value) return;
-  selected.value = (await merchantApi.checkInReplenishmentTask(
-    selected.value.taskId,
-    {}
-  )) as Task;
+  selected.value = (await merchantApi.checkInReplenishmentTask(selected.value.taskId, {})) as Task;
   syncTaskInList(selected.value);
   uni.showToast({ title: '已签到（未校验距离）', icon: 'none' });
 }

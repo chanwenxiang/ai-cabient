@@ -652,14 +652,10 @@ async function collectDoneTransitionInput(
 }
 
 async function collectOtherTransitionRemark(next: string): Promise<string | undefined | null> {
-  const { value } = await ElMessageBox.prompt(
-    `将工单流转为「${statusLabel(next)}」`,
-    '状态流转',
-    {
-      inputPlaceholder: '可选备注',
-      confirmButtonText: '确认'
-    }
-  ).catch(() => ({ value: null as string | null }));
+  const { value } = await ElMessageBox.prompt(`将工单流转为「${statusLabel(next)}」`, '状态流转', {
+    inputPlaceholder: '可选备注',
+    confirmButtonText: '确认'
+  }).catch(() => ({ value: null as string | null }));
   if (value === null) return null;
   return value || undefined;
 }

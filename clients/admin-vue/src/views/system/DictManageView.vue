@@ -530,7 +530,8 @@ function syncRouteQuery() {
 
 function scrollDetailIntoViewIfStacked() {
   // 仅在极窄叠栏时滚到右侧；与样式断点 720px 对齐
-  if (typeof globalThis === 'undefined' || !globalThis.matchMedia('(max-width: 720px)').matches) return;
+  if (typeof globalThis === 'undefined' || !globalThis.matchMedia('(max-width: 720px)').matches)
+    return;
   void nextTick(() => {
     const el = detailColRef.value as HTMLElement | null;
     el?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });

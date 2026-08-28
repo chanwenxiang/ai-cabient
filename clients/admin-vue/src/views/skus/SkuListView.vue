@@ -487,7 +487,8 @@ async function onImageUpload(options: UploadRequestOptions) {
   }
   imageUploading.value = true;
   try {
-    const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
+    const base =
+      (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
     const formData = new FormData();
     formData.append('file', file);
     const res = await authFetch(`${base}/api/v2/ops/admin/skus/image`, {

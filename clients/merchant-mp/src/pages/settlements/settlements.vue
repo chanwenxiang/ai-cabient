@@ -274,16 +274,13 @@ function applySettlementResponses(
   batchRes: PromiseSettledResult<MerchantSettlementBatch[]>
 ) {
   if (overviewRes.status === 'rejected' && daysRes.status === 'rejected') {
-    throw overviewRes.reason instanceof Error
-      ? overviewRes.reason
-      : new Error('结算数据加载失败');
+    throw overviewRes.reason instanceof Error ? overviewRes.reason : new Error('结算数据加载失败');
   }
 
   const days = daysRes.status === 'fulfilled' ? daysRes.value || [] : [];
   daily.value = days;
   if (daysRes.status === 'rejected') {
-    loadError.value =
-      daysRes.reason instanceof Error ? daysRes.reason.message : '按日汇总加载失败';
+    loadError.value = daysRes.reason instanceof Error ? daysRes.reason.message : '按日汇总加载失败';
   }
 
   if (batchRes.status === 'fulfilled') {

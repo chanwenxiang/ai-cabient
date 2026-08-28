@@ -21,12 +21,7 @@
         show-center-play-btn
         @error="onError"
       >
-        <track
-          kind="captions"
-          srclang="zh"
-          label="现场录像无对白字幕"
-          src="data:text/vtt,WEBVTT"
-        />
+        <track kind="captions" srclang="zh" label="现场录像无对白字幕" src="data:text/vtt,WEBVTT" />
         <track
           kind="descriptions"
           srclang="zh"

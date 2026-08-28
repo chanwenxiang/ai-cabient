@@ -425,10 +425,12 @@ function openKey(row: Row) {
   if (kind === 'device') {
     const deviceId = row.checkKey.split('|', 2)[0];
     if (deviceId) {
-      router.push({
-        path: `/devices/${encodeURIComponent(deviceId)}`,
-        query: { id: deviceId }
-      }).catch(() => {});
+      router
+        .push({
+          path: `/devices/${encodeURIComponent(deviceId)}`,
+          query: { id: deviceId }
+        })
+        .catch(() => {});
     }
     return;
   }

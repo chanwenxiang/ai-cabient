@@ -216,7 +216,8 @@ async function doUploadFile(file: File) {
   }
   uploading.value = true;
   try {
-    const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
+    const base =
+      (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
     const fd = new FormData();
     fd.append('file', file);
     fd.append('title', uploadForm.value.title.trim());

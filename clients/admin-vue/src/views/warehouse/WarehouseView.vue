@@ -1803,19 +1803,20 @@
               </el-select>
             </div>
             <div class="line-field"><span>批次号</span><el-input v-model="line.batchNo" /></div>
-            <div class="line-field"
-              ><span>数量（件）</span
-              ><el-input-number v-model="line.orderedQty" :min="1" controls-position="right"
-            /></div>
-            <div class="line-field"
-              ><span>单价（元）</span
+            <div class="line-field">
+              <span>数量（件）</span
+              ><el-input-number v-model="line.orderedQty" :min="1" controls-position="right" />
+            </div>
+            <div class="line-field">
+              <span>单价（元）</span
               ><el-input-number
                 v-model="line.unitCostYuan"
                 :min="0.01"
                 :step="0.01"
                 :precision="2"
                 controls-position="right"
-            /></div>
+              />
+            </div>
             <label class="line-field"
               ><span>生产日期</span
               ><input v-model="line.productionDate" class="native-date" type="date"
@@ -2064,10 +2065,10 @@
               </el-select>
             </div>
             <div class="line-field"><span>批次</span><el-input v-model="line.batchNo" /></div>
-            <div class="line-field"
-              ><span>数量</span
-              ><el-input-number v-model="line.quantity" :min="1" controls-position="right"
-            /></div>
+            <div class="line-field">
+              <span>数量</span
+              ><el-input-number v-model="line.quantity" :min="1" controls-position="right" />
+            </div>
             <label class="line-field"
               ><span>生产日期</span
               ><input v-model="line.productionDate" class="native-date" type="date"
@@ -3672,7 +3673,8 @@ async function onStocktakePhoto(event: Event) {
   }
   scanningPhoto.value = true;
   try {
-    const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
+    const base =
+      (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
     const form = new FormData();
     form.append('file', file);
     const res = await authFetch(
