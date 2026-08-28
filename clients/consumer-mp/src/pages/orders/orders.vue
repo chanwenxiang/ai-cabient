@@ -777,7 +777,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .chip.disputed {
   background: #ffecec;
-  color: #dc2626;
+  color: #991b1b;
 }
 .chip.refunded {
   background: #fff3e0;
@@ -789,7 +789,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .chip.default {
   background: #f0f0f0;
-  color: #64748b;
+  color: #475569;
 }
 .order-mid {
   display: flex;

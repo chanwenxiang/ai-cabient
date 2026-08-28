@@ -2262,10 +2262,9 @@ onPullDownRefresh(load);
   border-color: #0f766e;
 }
 .slot-chip.disabled {
-  opacity: 0.4;
-  background: #f1f5f9;
-  color: #64748b;
-  border-color: #e2e8f0;
+  background: #e2e8f0;
+  color: #475569;
+  border-color: #cbd5e1;
 }
 .slot-empty {
   font-size: 22rpx;

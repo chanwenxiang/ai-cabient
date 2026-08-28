@@ -292,7 +292,7 @@ function pickForNextOpen(c: CouponDto) {
 }
 .coupon-status-badge.used {
   background: #e8f5e9;
-  color: #047857;
+  color: #065f46;
 }
 .coupon-status-badge.expired {
   background: #f5f5f5;
