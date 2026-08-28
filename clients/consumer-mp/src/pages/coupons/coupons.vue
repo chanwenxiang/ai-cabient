@@ -296,6 +296,6 @@ function pickForNextOpen(c: CouponDto) {
 }
 .coupon-status-badge.expired {
   background: #f5f5f5;
-  color: #64748b;
+  color: #475569;
 }
 </style>
