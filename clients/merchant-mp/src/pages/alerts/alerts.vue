@@ -476,11 +476,11 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .tag.stock {
   background: #fde68a;
-  color: #b45309;
+  color: #92400e;
 }
 .tag.expiry {
   background: #a7f3d0;
-  color: #047857;
+  color: #065f46;
 }
 .tag.default {
   background: #e2e8f0;

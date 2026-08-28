@@ -347,8 +347,8 @@ function goShop() {
   width: 56rpx;
   height: 56rpx;
   border-radius: 50%;
-  background: #e5e5e5;
-  color: #64748b;
+  background: #d4d4d4;
+  color: #334155;
   font-size: 28rpx;
   display: flex;
   align-items: center;

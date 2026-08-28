@@ -2537,7 +2537,7 @@ function stopDevicePoll() {
   justify-content: center;
   border-radius: 50%;
   color: #fff;
-  background: #ea580c;
+  background: #c2410c;
   font-weight: 800;
   font-size: 24rpx;
 }
@@ -2605,7 +2605,7 @@ function stopDevicePoll() {
   background: #e8f8ef;
 }
 .cart-status-chip.error {
-  color: #dc2626;
+  color: #991b1b;
   background: #ffecec;
 }
 

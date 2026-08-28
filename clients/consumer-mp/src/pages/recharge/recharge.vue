@@ -918,7 +918,7 @@ async function onAlipayRecharge() {
 .record-status.FAILED,
 .record-status.REFUNDED,
 .record-status.CANCELLED {
-  color: #dc2626;
+  color: #991b1b;
   background: #fff0ee;
 }
 .cancel-link {

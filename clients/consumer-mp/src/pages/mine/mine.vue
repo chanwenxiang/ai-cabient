@@ -1034,7 +1034,7 @@ function onLogout() {
 }
 .menu-badge {
   font-size: 22rpx;
-  color: #dc2626;
+  color: #991b1b;
   background: #fff1f0;
   padding: 4rpx 12rpx;
   border-radius: 999rpx;
