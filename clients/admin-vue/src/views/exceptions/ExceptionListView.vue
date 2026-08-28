@@ -1039,16 +1039,14 @@ async function load() {
   }
 }
 
-function onOverdueToggle() {
+function search() {
   page.value = 1;
   syncRouteQuery();
   load();
 }
 
-function search() {
-  page.value = 1;
-  syncRouteQuery();
-  load();
+function onOverdueToggle() {
+  search();
 }
 function reset() {
   status.value = 'OPEN';

@@ -210,7 +210,6 @@
           <button
             v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
             class="primary-btn"
-            role="button"
             data-testid="replenish-checkin"
             :disabled="submitting"
             @click="checkIn"
@@ -220,7 +219,6 @@
           <button
             v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
             class="primary-btn"
-            role="button"
             data-testid="replenish-open-door"
             :disabled="submitting"
             @click="openDoor"
@@ -449,7 +447,6 @@
             <button
               v-if="!linesConfirmed"
               class="secondary-btn"
-              role="button"
               data-testid="replenish-confirm-lines"
               :disabled="submitting || !lines.length"
               @click="confirmLines"
@@ -458,7 +455,6 @@
             </button>
             <button
               class="primary-btn"
-              role="button"
               data-testid="replenish-complete"
               :disabled="submitting || !lines.length || !linesConfirmed"
               @click="completeTask"
@@ -494,7 +490,6 @@
             <button
               type="button"
               class="confirm-btn cancel"
-              role="button"
               :aria-label="confirmDialog.cancelText"
               data-testid="confirm-cancel"
               @click.stop="resolveConfirm(false)"
@@ -504,7 +499,6 @@
             <button
               type="button"
               class="confirm-btn ok"
-              role="button"
               :aria-label="confirmDialog.confirmText"
               data-testid="confirm-ok"
               @click.stop="resolveConfirm(true)"

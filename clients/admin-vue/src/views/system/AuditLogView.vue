@@ -320,9 +320,7 @@ function reset() {
 }
 
 function onMineChange() {
-  page.value = 1;
-  syncRouteQuery();
-  load();
+  search();
 }
 
 function onPageChange() {

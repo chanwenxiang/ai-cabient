@@ -928,9 +928,7 @@ function onStatusTab(name: string | number) {
 }
 
 function onStuckToggle() {
-  page.value = 1;
-  syncRouteQuery();
-  load();
+  search();
 }
 
 function reset() {

@@ -30,14 +30,13 @@
         clearable
         @keydown.enter="pickFirst"
       />
-      <div class="result-list" role="listbox" aria-label="搜索结果">
+      <div class="result-list" aria-label="搜索结果">
         <div v-if="results.length" class="result-section">页面</div>
         <button
           v-for="item in results"
           :key="item.path"
           type="button"
           class="result-item"
-          role="option"
           @click="go(item.path)"
         >
           <span class="result-title">{{ item.title }}</span>
@@ -49,7 +48,6 @@
           :key="hit.type + hit.title"
           type="button"
           class="result-item"
-          role="option"
           @click="goRecord(hit)"
         >
           <span class="result-title">{{ hit.title }}</span>

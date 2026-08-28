@@ -119,7 +119,7 @@
     <div class="chart-grid chart-grid--2">
       <ChartPanel title="营收趋势" :hint="`近 ${days} 天 · 元`">
         <template #actions>
-          <div class="chart-type-switch" role="group" aria-label="图表类型">
+          <fieldset class="chart-type-switch" aria-label="图表类型">
             <button
               type="button"
               :class="{ active: revenueKind === 'line' }"
@@ -141,7 +141,7 @@
             >
               柱状
             </button>
-          </div>
+          </fieldset>
         </template>
         <Transition name="chart-fade" mode="out-in">
           <ChartBox v-if="revenueSvg" :key="revenueKind" :svg="revenueSvg" />
@@ -159,7 +159,7 @@
 
       <ChartPanel title="订单量" :hint="`近 ${days} 天 · 单`">
         <template #actions>
-          <div class="chart-type-switch" role="group" aria-label="图表类型">
+          <fieldset class="chart-type-switch" aria-label="图表类型">
             <button
               type="button"
               :class="{ active: orderKind === 'line' }"
@@ -181,7 +181,7 @@
             >
               柱状
             </button>
-          </div>
+          </fieldset>
         </template>
         <Transition name="chart-fade" mode="out-in">
           <ChartBox v-if="orderSvg" :key="orderKind" :svg="orderSvg" />
@@ -231,7 +231,7 @@
     <div class="chart-grid chart-grid--split">
       <ChartPanel title="识别质量" :hint="`近 ${days} 天 · 识别率 vs 争议率`">
         <template #actions>
-          <div class="chart-type-switch" role="group" aria-label="图表类型">
+          <fieldset class="chart-type-switch" aria-label="图表类型">
             <button type="button" :class="{ active: opsKind === 'line' }" @click="opsKind = 'line'">
               折线
             </button>
@@ -241,7 +241,7 @@
             <button type="button" :class="{ active: opsKind === 'bar' }" @click="opsKind = 'bar'">
               柱状
             </button>
-          </div>
+          </fieldset>
         </template>
         <Transition name="chart-fade" mode="out-in">
           <ChartBox v-if="opsSvg" :key="opsKind" :svg="opsSvg" />

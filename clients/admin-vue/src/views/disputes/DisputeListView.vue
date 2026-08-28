@@ -1206,9 +1206,7 @@ function onCategoryTab(name: string | number) {
 }
 
 function onReviewCodeTab() {
-  page.value = 1;
-  syncRouteQuery();
-  load(false);
+  search();
 }
 
 function appendDisputeListReviewCode(q: URLSearchParams) {

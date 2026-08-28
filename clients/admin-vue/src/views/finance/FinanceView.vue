@@ -76,7 +76,7 @@
       <div class="chart-grid chart-grid--split">
         <ChartPanel title="毛利趋势" :hint="`近 ${days} 天 · 营收 / 成本 / 毛利`">
           <template #actions>
-            <div class="chart-type-switch" role="group" aria-label="图表类型">
+            <fieldset class="chart-type-switch" aria-label="图表类型">
               <button
                 type="button"
                 :class="{ active: chartKind === 'line' }"
@@ -98,7 +98,7 @@
               >
                 柱状
               </button>
-            </div>
+            </fieldset>
           </template>
           <Transition name="chart-fade" mode="out-in">
             <ChartBox v-if="chartSvg" :key="chartKind" :svg="chartSvg" />

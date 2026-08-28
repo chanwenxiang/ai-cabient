@@ -24,18 +24,16 @@
       <section v-if="tasks.length" class="inbox-section">
         <div class="section-label">待审批 ({{ pendingTaskCount }})</div>
         <ul class="inbox-list">
-          <li
-            v-for="task in tasks"
-            :key="'t-' + task.taskId"
-            class="inbox-item"
-            :class="{ unread: !task.readAt }"
-            role="button"
-            tabindex="0"
-            @click="openTask(task)"
-            @keydown.enter.prevent="openTask(task)"
-          >
-            <div class="item-title">{{ task.title || task.bizType }}</div>
-            <div class="item-meta">{{ task.nodeName }} · {{ formatDateTime(task.createdAt) }}</div>
+          <li v-for="task in tasks" :key="'t-' + task.taskId" class="inbox-item-wrap">
+            <button
+              type="button"
+              class="inbox-item"
+              :class="{ unread: !task.readAt }"
+              @click="openTask(task)"
+            >
+              <div class="item-title">{{ task.title || task.bizType }}</div>
+              <div class="item-meta">{{ task.nodeName }} · {{ formatDateTime(task.createdAt) }}</div>
+            </button>
           </li>
         </ul>
       </section>
@@ -43,18 +41,16 @@
       <section v-if="messages.length" class="inbox-section">
         <div class="section-label">站内消息 ({{ unreadMessageCount }} 未读)</div>
         <ul class="inbox-list">
-          <li
-            v-for="msg in messages"
-            :key="'m-' + msg.id"
-            class="inbox-item"
-            :class="{ unread: !msg.read }"
-            role="button"
-            tabindex="0"
-            @click="openMessage(msg)"
-            @keydown.enter.prevent="openMessage(msg)"
-          >
-            <div class="item-title">{{ msg.title }}</div>
-            <div class="item-meta">{{ msg.body }} · {{ formatDateTime(msg.createdAt) }}</div>
+          <li v-for="msg in messages" :key="'m-' + msg.id" class="inbox-item-wrap">
+            <button
+              type="button"
+              class="inbox-item"
+              :class="{ unread: !msg.read }"
+              @click="openMessage(msg)"
+            >
+              <div class="item-title">{{ msg.title }}</div>
+              <div class="item-meta">{{ msg.body }} · {{ formatDateTime(msg.createdAt) }}</div>
+            </button>
           </li>
         </ul>
       </section>
@@ -221,9 +217,19 @@ onUnmounted(() => {
   margin: 0;
   padding: 0;
 }
+.inbox-item-wrap {
+  margin: 0;
+}
 .inbox-item {
+  display: block;
+  width: 100%;
   padding: 8px 10px;
+  border: none;
   border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 .inbox-item:hover {

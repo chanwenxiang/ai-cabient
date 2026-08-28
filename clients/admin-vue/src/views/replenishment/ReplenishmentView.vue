@@ -1979,7 +1979,7 @@ async function maybeAutoPlanFromQuery() {
   }
   if (!target.length) {
     ElMessage.warning('暂无缺货柜机可规划，请先刷新缺货建议');
-    clearPlanQuery();
+    syncRouteQuery();
     return;
   }
   Object.assign(planForm, {
@@ -1990,13 +1990,7 @@ async function maybeAutoPlanFromQuery() {
   });
   void loadAssignees();
   planDialog.value = true;
-  clearPlanQuery();
-}
-
-function clearPlanQuery() {
-  const query: Record<string, string> = { tab: tab.value };
-  if (focusDeviceId.value.trim()) query.deviceId = focusDeviceId.value.trim();
-  router.replace({ query });
+  syncRouteQuery();
 }
 
 async function planFromShortage() {
