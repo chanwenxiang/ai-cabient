@@ -376,7 +376,7 @@ function goMessages() {
 }
 .points-action {
   font-size: 22rpx;
-  color: #059669;
+  color: #047857;
 }
 
 .quick-grid {
@@ -403,7 +403,7 @@ function goMessages() {
   background: #f0fdf4;
   font-size: 26rpx;
   font-weight: 700;
-  color: #059669;
+  color: #047857;
 }
 .quick-title {
   display: block;
@@ -452,7 +452,7 @@ function goMessages() {
   justify-content: center;
   font-size: 26rpx;
   font-weight: 700;
-  color: #059669;
+  color: #047857;
 }
 .benefit-title {
   display: block;
@@ -496,11 +496,11 @@ function goMessages() {
   display: block;
   margin-top: 4rpx;
   font-size: 20rpx;
-  color: #059669;
+  color: #047857;
 }
 .level-badge {
   font-size: 24rpx;
-  color: #059669;
+  color: #047857;
   font-weight: 700;
 }
 </style>

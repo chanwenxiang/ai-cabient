@@ -456,7 +456,7 @@ function onCancel() {
   height: 48rpx;
   border-radius: 50%;
   background: #e5e5e5;
-  color: #888;
+  color: #64748b;
   font-size: 24rpx;
   display: flex;
   align-items: center;
@@ -542,7 +542,7 @@ function onCancel() {
 .btn-alipay {
   margin: 16rpx 0 0;
   width: 100%;
-  background: #1677ff;
+  background: #0958d9;
   color: #fff;
   border-radius: 12rpx;
   font-size: 30rpx;
@@ -562,7 +562,7 @@ function onCancel() {
 .btn-wechat {
   margin: 16rpx 0 0;
   width: 100%;
-  background: #07c160;
+  background: #048746;
   color: #fff;
   border-radius: 12rpx;
   font-size: 30rpx;
@@ -633,7 +633,7 @@ function onCancel() {
   padding: 20rpx;
   border-radius: 12rpx;
   background: #fff7e6;
-  color: #ad6800;
+  color: #92400e;
   font-size: 25rpx;
   line-height: 1.5;
 }

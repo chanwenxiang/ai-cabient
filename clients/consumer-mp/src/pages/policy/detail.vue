@@ -271,13 +271,13 @@ onLoad((query) => {
 }
 .related-link {
   font-size: 24rpx;
-  color: #059669;
+  color: #047857;
   padding: 8rpx 16rpx;
   border-radius: 999rpx;
   background: #ecfdf5;
 }
 .related-link.on {
-  background: #059669;
+  background: #047857;
   color: #fff;
   font-weight: 650;
 }

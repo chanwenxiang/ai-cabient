@@ -378,7 +378,7 @@ async function onEnable() {
   flex-direction: column;
   align-items: center;
   gap: 16rpx;
-  color: #64748b;
+  color: #475569;
 }
 .err {
   color: #b91c1c;
@@ -418,7 +418,7 @@ async function onEnable() {
   display: block;
   margin-top: 6rpx;
   font-size: 24rpx;
-  color: #64748b;
+  color: #475569;
 }
 .status-line {
   color: #94a3b8;
@@ -440,7 +440,7 @@ async function onEnable() {
 }
 .more {
   background: #f1f5f9;
-  color: #64748b;
+  color: #475569;
 }
 .empty-btn {
   margin-top: 16rpx;
@@ -475,7 +475,7 @@ async function onEnable() {
 .hint {
   display: block;
   font-size: 24rpx;
-  color: #64748b;
+  color: #475569;
   margin-bottom: 20rpx;
 }
 .input {
@@ -505,7 +505,7 @@ async function onEnable() {
   padding: 12rpx 24rpx;
   border-radius: 999rpx;
   background: #f1f5f9;
-  color: #64748b;
+  color: #475569;
   font-size: 26rpx;
 }
 .role-chip.active {

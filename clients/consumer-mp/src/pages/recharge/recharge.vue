@@ -791,7 +791,7 @@ async function onAlipayRecharge() {
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.2;
-  background: #1677ff;
+  background: #0958d9;
   color: #fff;
   border-radius: 44rpx;
   font-size: 30rpx;
@@ -908,17 +908,17 @@ async function onAlipayRecharge() {
 }
 .record-status.PAID,
 .record-status.SUCCESS {
-  color: #07c160;
+  color: #047857;
   background: #f0fff4;
 }
 .record-status.PENDING {
-  color: #ff9500;
+  color: #c2410c;
   background: #fff8e8;
 }
 .record-status.FAILED,
 .record-status.REFUNDED,
 .record-status.CANCELLED {
-  color: #ff3b30;
+  color: #dc2626;
   background: #fff0ee;
 }
 .cancel-link {

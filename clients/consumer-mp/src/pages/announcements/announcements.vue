@@ -115,7 +115,7 @@ onShow(() => {
 }
 .retry {
   margin-top: 8rpx;
-  background: #059669;
+  background: #047857;
   color: #fff;
   border: none;
 }
@@ -161,7 +161,7 @@ onShow(() => {
 }
 .unread-dot {
   color: #fff;
-  background: #ef4444;
+  background: #dc2626;
   font-size: 20rpx;
   line-height: 1;
   padding: 6rpx 10rpx;

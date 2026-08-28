@@ -780,7 +780,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   height: 32rpx;
   padding: 0 8rpx;
   border-radius: 16rpx;
-  background: #ef4444;
+  background: #dc2626;
   color: #fff;
   font-size: 20rpx;
   line-height: 32rpx;

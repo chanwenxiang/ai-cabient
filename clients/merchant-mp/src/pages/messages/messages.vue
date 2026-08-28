@@ -179,7 +179,7 @@ function formatTime(t: string) {
   padding: 10rpx 22rpx;
   border-radius: 999rpx;
   background: #f1f5f9;
-  color: #64748b;
+  color: #475569;
   font-size: 24rpx;
 }
 .filter-chip.active {

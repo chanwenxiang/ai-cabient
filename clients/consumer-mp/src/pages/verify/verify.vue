@@ -348,7 +348,7 @@ function goShop() {
   height: 56rpx;
   border-radius: 50%;
   background: #e5e5e5;
-  color: #888;
+  color: #64748b;
   font-size: 28rpx;
   display: flex;
   align-items: center;
@@ -440,7 +440,7 @@ function goShop() {
 }
 .btn-alipay {
   margin: 16rpx 0 0;
-  background: #1677ff;
+  background: #0958d9;
   color: #fff;
   border-radius: 44rpx;
   font-size: 30rpx;

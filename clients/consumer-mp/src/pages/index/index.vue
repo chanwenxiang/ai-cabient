@@ -1874,7 +1874,7 @@ function stopDevicePoll() {
   margin-top: 12rpx;
   padding: 6rpx 16rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(6, 78, 59, 0.55);
   border: 1rpx solid rgba(255, 255, 255, 0.32);
 }
 .pay-badge-icon {
@@ -1989,7 +1989,7 @@ function stopDevicePoll() {
   color: #ffffff;
   padding: 8rpx 20rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(6, 78, 59, 0.55);
   border: 1rpx solid rgba(255, 255, 255, 0.32);
 }
 .nearby-link {
@@ -2345,7 +2345,7 @@ function stopDevicePoll() {
   height: 32rpx;
   padding: 0 8rpx;
   border-radius: 16rpx;
-  background: var(--brand-wx, #07c160);
+  background: var(--brand-wx, #048746);
   color: #fff;
   font-size: 20rpx;
   font-weight: 700;
@@ -2537,7 +2537,7 @@ function stopDevicePoll() {
   justify-content: center;
   border-radius: 50%;
   color: #fff;
-  background: #f97316;
+  background: #ea580c;
   font-weight: 800;
   font-size: 24rpx;
 }
@@ -2593,19 +2593,19 @@ function stopDevicePoll() {
   border-radius: 40rpx;
   font-size: 28rpx;
   font-weight: 600;
-  color: var(--brand-wx, #07c160);
+  color: #047857;
   background: #e8f8ef;
 }
 .cart-status-chip.wait {
-  color: #fa9d3b;
+  color: #b45309;
   background: #fff7e6;
 }
 .cart-status-chip.active {
-  color: var(--brand-wx, #07c160);
+  color: #047857;
   background: #e8f8ef;
 }
 .cart-status-chip.error {
-  color: #fa5151;
+  color: #dc2626;
   background: #ffecec;
 }
 
@@ -2757,7 +2757,7 @@ function stopDevicePoll() {
   justify-content: center;
   border-radius: 50%;
   color: #fff;
-  background: rgba(239, 68, 68, 0.85);
+  background: #dc2626;
   font-weight: 800;
   font-size: 22rpx;
 }
@@ -2792,7 +2792,7 @@ function stopDevicePoll() {
   border: 1rpx solid rgba(255, 255, 255, 0.32);
   color: #ffffff;
   font-size: 22rpx;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(6, 78, 59, 0.55);
 }
 .error-action.primary {
   border-color: rgba(255, 255, 255, 0.4);

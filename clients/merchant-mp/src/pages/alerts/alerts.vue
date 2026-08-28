@@ -468,7 +468,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .tag.dispute {
   background: #fecaca;
-  color: #dc2626;
+  color: #991b1b;
 }
 .tag.offline {
   background: #e2e8f0;
@@ -476,15 +476,15 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .tag.stock {
   background: #fde68a;
-  color: #d97706;
+  color: #b45309;
 }
 .tag.expiry {
   background: #a7f3d0;
-  color: var(--brand, #0f766e);
+  color: #047857;
 }
 .tag.default {
   background: #e2e8f0;
-  color: #64748b;
+  color: #475569;
 }
 .title {
   font-weight: 600;

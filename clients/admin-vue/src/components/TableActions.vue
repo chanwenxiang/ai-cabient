@@ -189,16 +189,16 @@ const more = computed(() => {
 .action-icon-wrap:hover .action-icon-btn.is-success:not(:disabled),
 .action-icon-btn.is-success:hover:not(:disabled),
 .action-icon-btn.is-success:focus-visible:not(:disabled) {
-  color: #059669;
-  background: color-mix(in srgb, #10b981 14%, var(--layout-card, #ffffff));
+  color: #047857;
+  background: color-mix(in srgb, #10b981 22%, var(--layout-card, #ffffff));
   border-color: color-mix(in srgb, #10b981 45%, var(--layout-border, #ebeef5));
   box-shadow: 0 0 0 1px color-mix(in srgb, #10b981 16%, transparent);
 }
 .action-icon-wrap:hover .action-icon-btn.is-warning:not(:disabled),
 .action-icon-btn.is-warning:hover:not(:disabled),
 .action-icon-btn.is-warning:focus-visible:not(:disabled) {
-  color: #d97706;
-  background: color-mix(in srgb, #f59e0b 14%, var(--layout-card, #ffffff));
+  color: #b45309;
+  background: color-mix(in srgb, #f59e0b 22%, var(--layout-card, #ffffff));
   border-color: color-mix(in srgb, #f59e0b 45%, var(--layout-border, #ebeef5));
   box-shadow: 0 0 0 1px color-mix(in srgb, #f59e0b 16%, transparent);
 }
