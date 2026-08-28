@@ -21,50 +21,68 @@
       </div>
     </template>
 
-    <el-table
-      v-loading="loading"
-      :data="list"
-      stripe
-      border
-      row-key="skuId"
-      empty-text=" "
-      class="report-table"
-    >
-      <template #empty>
-        <el-empty v-if="!loading" description="暂无诊断数据，点击「运行诊断」生成" />
-      </template>
-      <el-table-column prop="skuId" label="SKU" width="110" align="center" class-name="col-text" />
-      <el-table-column prop="skuName" label="商品" min-width="140" align="center" />
-      <el-table-column prop="category" label="分类" width="100" align="center" />
-      <el-table-column label="动销表现" width="110" align="center">
-        <template #default="{ row }">
-          <el-tag :type="perfTag(row.performanceLevel)">{{
-            perfLabel(row.performanceLevel)
-          }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="salesQty" label="销量" width="80" align="center" />
-      <el-table-column label="营收(元)" width="110" align="center">
-        <template #default="{ row }">{{ (row.revenueCents / 100).toFixed(2) }}</template>
-      </el-table-column>
-      <el-table-column prop="stockDays" label="库存天数" width="100" align="center">
-        <template #default="{ row }">{{ row.stockDays ?? '暂无' }}</template>
-      </el-table-column>
-      <el-table-column label="评审状态" width="130" align="center">
-        <template #default="{ row }">
-          <el-tag :type="reviewTag(row.reviewStatus)">{{ reviewLabel(row.reviewStatus) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="220" align="center">
-        <template #default="{ row }">
-          <el-button link type="warning" @click="decide(row, 'RECOMMEND_DELIST')"
-            >建议下架</el-button
+    <div class="table-scroll">
+      <div class="table-scroll-inner">
+        <el-table
+          v-loading="loading"
+          :data="list"
+          stripe
+          border
+          row-key="skuId"
+          empty-text=" "
+          class="report-table"
+        >
+          <template #empty>
+            <el-empty v-if="!loading" description="暂无诊断数据，点击「运行诊断」生成" />
+          </template>
+          <el-table-column
+            prop="skuId"
+            label="SKU"
+            width="110"
+            align="center"
+            class-name="col-text"
+          />
+          <el-table-column prop="skuName" label="商品" min-width="140" align="center" />
+          <el-table-column prop="category" label="分类" width="100" align="center" />
+          <el-table-column label="动销表现" width="110" align="center">
+            <template #default="{ row }">
+              <el-tag :type="perfTag(row.performanceLevel)">{{
+                perfLabel(row.performanceLevel)
+              }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="salesQty" label="销量" width="80" align="center" />
+          <el-table-column label="营收(元)" width="110" align="center">
+            <template #default="{ row }">{{ (row.revenueCents / 100).toFixed(2) }}</template>
+          </el-table-column>
+          <el-table-column prop="stockDays" label="库存天数" width="100" align="center">
+            <template #default="{ row }">{{ row.stockDays ?? '暂无' }}</template>
+          </el-table-column>
+          <el-table-column label="评审状态" width="130" align="center">
+            <template #default="{ row }">
+              <el-tag :type="reviewTag(row.reviewStatus)">{{
+                reviewLabel(row.reviewStatus)
+              }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="操作"
+            width="220"
+            align="center"
+            class-name="col-action"
+            fixed="right"
           >
-          <el-button link type="success" @click="decide(row, 'KEEP')">保留</el-button>
-          <el-button link type="danger" @click="confirmDelist(row)">确认下架</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+            <template #default="{ row }">
+              <el-button link type="warning" @click="decide(row, 'RECOMMEND_DELIST')"
+                >建议下架</el-button
+              >
+              <el-button link type="success" @click="decide(row, 'KEEP')">保留</el-button>
+              <el-button link type="danger" @click="confirmDelist(row)">确认下架</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
 
     <PagePager
       :hydrated="listHydrated"

@@ -231,7 +231,7 @@
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="96" class-name="col-action" align="center">
+          <el-table-column label="操作" width="96" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions
                 :actions="skuActions(row)"

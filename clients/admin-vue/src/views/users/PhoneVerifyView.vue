@@ -9,6 +9,9 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <el-button v-hasPermi="['ops:phone-verify:list']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
           <el-button type="primary" @click="openCreate">登记验证</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
@@ -34,54 +37,57 @@
       </el-form-item>
     </el-form>
 
-    <el-table
-      v-loading="loading"
-      :data="displayItems"
-      :default-sort="idDefaultSort"
-      @sort-change="onIdSortChange"
-      stripe
-      border
-      class="report-table"
-      empty-text=" "
-    >
-      <template #empty
-        ><el-empty v-if="listHydrated && !loading" description="暂无验证记录"
-      /></template>
-      <el-table-column prop="logId" label="记录ID" width="100" align="center" sortable="custom" />
-      <el-table-column prop="phone" label="手机号" width="140" align="center" />
-      <el-table-column prop="userId" label="用户ID" width="120" align="center" />
-      <el-table-column prop="channel" label="渠道" width="120" align="center">
-        <template #default="{ row }">{{ dictLabel('verify_channel', row.channel) }}</template>
-      </el-table-column>
-      <el-table-column
-        prop="merchantId"
-        label="商户"
-        min-width="160"
-        align="center"
-        show-overflow-tooltip
-      >
-        <template #default="{ row }">{{
-          row.merchantId
-            ? row.merchantName
-              ? `${row.merchantName}（${row.merchantId}）`
-              : row.merchantId
-            : '—'
-        }}</template>
-      </el-table-column>
-      <el-table-column label="验证时间" width="170" align="center">
-        <template #default="{ row }">{{
-          String(row.verifiedAt || '')
-            .replace('T', ' ')
-            .slice(0, 19)
-        }}</template>
-      </el-table-column>
-      <el-table-column label="操作" width="140" align="center">
-        <template #default="{ row }">
-          <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-          <el-button link type="danger" @click="removeRow(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div class="table-scroll">
+      <div class="table-scroll-inner">
+        <el-table
+          v-loading="loading"
+          :data="displayItems"
+          :default-sort="idDefaultSort"
+          row-key="logId"
+          stripe
+          border
+          class="report-table"
+          empty-text=" "
+          @sort-change="onIdSortChange"
+          @selection-change="onSelectionChange"
+        >
+          <template #empty
+            ><el-empty v-if="listHydrated && !loading" description="暂无验证记录"
+          /></template>
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column
+            prop="logId"
+            label="记录ID"
+            width="100"
+            align="center"
+            sortable="custom"
+          />
+          <el-table-column prop="phone" label="手机号" width="140" align="center" />
+          <el-table-column prop="userId" label="用户ID" width="120" align="center" />
+          <el-table-column prop="channel" label="渠道" width="120" align="center">
+            <template #default="{ row }">{{ dictLabel('verify_channel', row.channel) }}</template>
+          </el-table-column>
+          <el-table-column
+            prop="merchantId"
+            label="商户"
+            min-width="160"
+            align="center"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">{{ merchantCell(row) }}</template>
+          </el-table-column>
+          <el-table-column label="验证时间" width="170" align="center">
+            <template #default="{ row }">{{ formatVerifiedAt(row.verifiedAt) }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="140" align="center" class-name="col-action" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+              <el-button link type="danger" @click="removeRow(row)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
 
     <PagePager
       :hydrated="listHydrated"
@@ -138,6 +144,18 @@ import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { useListCsv } from '@/composables/useListCsv';
+import { useTableSelection } from '@/composables/useTableSelection';
+
+interface PhoneVerifyRow {
+  logId: number;
+  phone?: string;
+  userId?: number | null;
+  channel?: string;
+  merchantId?: string | null;
+  merchantName?: string | null;
+  verifiedAt?: string;
+}
 
 const loading = ref(false);
 const listHydrated = ref(false);
@@ -147,19 +165,49 @@ const channel = ref('');
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
-const items = ref<any[]>([]);
+const items = ref<PhoneVerifyRow[]>([]);
 const {
   defaultSort: idDefaultSort,
   onSortChange: onIdSortChange,
   sortById
 } = useIdColumnSort('logId');
 const displayItems = computed(() => sortById(items.value));
+
+const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
+  useTableSelection<PhoneVerifyRow>((r) => r.logId);
+
+const { onExport } = useListCsv({
+  filePrefix: '手机验证流水',
+  headers: ['记录ID', '手机号', '用户ID', '渠道', '商户', '验证时间'],
+  toRows: () =>
+    pickSelected(displayItems.value).map((row) => [
+      row.logId,
+      row.phone || '',
+      row.userId ?? '',
+      dictLabel('verify_channel', row.channel),
+      merchantCell(row),
+      formatVerifiedAt(row.verifiedAt)
+    ])
+});
+
 const dlg = ref(false);
 const editingId = ref<number | null>(null);
 const form = reactive({ phone: '', userId: '', channel: 'SMS', merchantId: '' });
 
+function merchantCell(row: PhoneVerifyRow) {
+  if (!row.merchantId) return '—';
+  return row.merchantName ? `${row.merchantName}（${row.merchantId}）` : row.merchantId;
+}
+
+function formatVerifiedAt(value?: string) {
+  return String(value || '')
+    .replace('T', ' ')
+    .slice(0, 19);
+}
+
 async function load() {
   loading.value = true;
+  clearSelection();
   try {
     const q = new URLSearchParams({
       page: String(page.value - 1),
@@ -167,7 +215,7 @@ async function load() {
     });
     if (phone.value) q.set('phone', phone.value);
     if (channel.value) q.set('channel', channel.value);
-    const data = await api.request<{ items: any[]; total: number }>(
+    const data = await api.request<{ items: PhoneVerifyRow[]; total: number }>(
       `/api/v2/ops/admin/phone-verify/logs?${q}`,
       'GET'
     );
@@ -200,7 +248,7 @@ function openCreate() {
   dlg.value = true;
 }
 
-function openEdit(row: any) {
+function openEdit(row: PhoneVerifyRow) {
   editingId.value = row.logId;
   form.phone = row.phone || '';
   form.userId = row.userId == null ? '' : String(row.userId);
@@ -234,7 +282,7 @@ async function save() {
   }
 }
 
-async function removeRow(row: any) {
+async function removeRow(row: PhoneVerifyRow) {
   try {
     await ElMessageBox.confirm(`确认删除验证记录 #${row.logId}？`, '删除记录', {
       type: 'warning'

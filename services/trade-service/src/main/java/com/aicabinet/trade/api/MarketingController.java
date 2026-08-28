@@ -60,7 +60,8 @@ public class MarketingController {
     private Long resolveOptionalUserId(HttpServletRequest request) {
         String auth = request.getHeader("Authorization");
         if (auth == null || !auth.startsWith(BEARER)) {
-            String cookieToken = sessionCookieService.resolveToken(request);
+            String cookieToken = sessionCookieService.resolveToken(
+                    request, SessionCookieService.Realm.CONSUMER);
             if (cookieToken != null && !cookieToken.isBlank()) {
                 auth = BEARER + cookieToken;
             }

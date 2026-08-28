@@ -47,8 +47,20 @@ public class DeviceSalesLockService {
         if (device == null || device.getDeviceId() == null || device.getDeviceId().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备不存在");
         }
-        return runWithDeviceSalesLock(device.getDeviceId(),
+        String commandId = runWithDeviceSalesLock(device.getDeviceId(),
                 () -> doApplySalesLock(operatorId, device.getDeviceId(), locked, reason, notifyEdge));
+        // 与库态对齐，避免调用方仍读到旧的 salesLocked
+        device.setSalesLocked(locked);
+        if (locked) {
+            device.setSalesUnlockedAt(null);
+            device.setSalesLockReason(
+                    reason == null || reason.isBlank() ? "营业锁机" : reason.trim());
+        } else {
+            device.setSaleForbidden(false);
+            device.setSalesLockReason(null);
+            device.setSalesUnlockedAt(java.time.Instant.now());
+        }
+        return commandId;
     }
 
     static String deviceSalesLockKey(String deviceId) {

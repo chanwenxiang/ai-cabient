@@ -125,4 +125,34 @@ class NotificationServiceTest {
         verify(logRepository, never()).save(any(NotificationLog.class));
         verify(externalDispatcher, never()).dispatch(any());
     }
+
+    @Test
+    void updateManual_shouldUpdateTitleAndBody() {
+        NotificationService service = service(false);
+        NotificationLog existing = new NotificationLog();
+        existing.setId(9L);
+        existing.setTitle("旧标题");
+        existing.setBody("旧内容");
+        existing.setAudience("CONSUMER");
+        when(logRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(existing));
+
+        var dto = service.updateManual(1L, 9L,
+                new com.aicabinet.common.dto.AdminUpdateNotificationRequest("新标题", "新内容"));
+
+        assertEquals("新标题", dto.title());
+        assertEquals("新内容", dto.body());
+        verify(logRepository).updateById(existing);
+    }
+
+    @Test
+    void deleteManual_shouldDeleteById() {
+        NotificationService service = service(false);
+        NotificationLog existing = new NotificationLog();
+        existing.setId(11L);
+        when(logRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(existing));
+
+        service.deleteManual(1L, 11L);
+
+        verify(logRepository).deleteById(11L);
+    }
 }

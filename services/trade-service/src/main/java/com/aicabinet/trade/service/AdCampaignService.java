@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.AdCampaignDto;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.ScreenContentDto;
 import com.aicabinet.common.dto.ScreenContentItemDto;
 import com.aicabinet.common.dto.UpsertAdCampaignRequest;
@@ -14,6 +15,7 @@ import com.aicabinet.trade.mapper.AdCampaignItemMapper;
 import com.aicabinet.trade.mapper.AdCampaignMapper;
 import com.aicabinet.trade.mapper.AdPlayEventMapper;
 import com.aicabinet.trade.mapper.MediaAssetMapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,10 +61,18 @@ public class AdCampaignService {
     }
 
     @Transactional(readOnly = true)
+    public PageResult<AdCampaignDto> list(int page, int size) {
+        int p = Math.max(0, page);
+        int s = Math.min(Math.max(1, size), 500);
+        Page<AdCampaign> result = campaignRepository.searchPage(p, s);
+        List<AdCampaignDto> items = result.getRecords().stream().map(this::toDto).toList();
+        return new PageResult<>(items, p, s, result.getTotal());
+    }
+
+    /** 兼容旧调用：全量列表。 */
+    @Transactional(readOnly = true)
     public List<AdCampaignDto> list() {
-        return campaignRepository.findAllOrderByCreatedDesc().stream()
-                .map(this::toDto)
-                .toList();
+        return list(0, 500).items();
     }
 
     @Transactional(readOnly = true)

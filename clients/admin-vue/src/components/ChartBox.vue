@@ -20,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { sanitizeChartSvg } from '@/utils/charts';
 
 const props = defineProps<{
@@ -40,20 +40,25 @@ const tip = reactive({
   rows: [] as { name: string; value: string; color?: string }[]
 });
 
-/** 经 sanitize 后用 DOMParser 挂载 SVG，避免 v-html 绕过 Vue 转义。 */
+/**
+ * 经 sanitize 后挂载 SVG。
+ * 使用 HTML template 解析（与历史 v-html 一致），保证 SVG 命名空间正确；
+ * image/svg+xml DOMParser 对属性内换行等更苛刻，失败时会整图空白只剩文字流。
+ */
 function mountSafeSvg(html: string) {
   const el = svgBoxRef.value;
   if (!el) return;
   el.replaceChildren();
   if (!html) return;
-  const doc = new DOMParser().parseFromString(html, 'image/svg+xml');
-  if (doc.querySelector('parsererror')) return;
-  const root = doc.documentElement;
-  if (!root || root.tagName.toLowerCase() !== 'svg') return;
-  el.appendChild(document.importNode(root, true));
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  const root = tpl.content.querySelector('svg');
+  if (!root) return;
+  el.appendChild(root);
 }
 
-watch([safeSvg, svgBoxRef], ([html]) => mountSafeSvg(html), { immediate: true, flush: 'post' });
+watch(safeSvg, (html) => mountSafeSvg(html), { flush: 'post' });
+onMounted(() => mountSafeSvg(safeSvg.value));
 
 let activeEl: Element | null = null;
 

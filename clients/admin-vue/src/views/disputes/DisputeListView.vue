@@ -243,7 +243,7 @@
               <span class="cell-datetime">{{ formatDateTime(row.resolvedAt) || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="220" class-name="col-action" align="center">
+          <el-table-column label="操作" width="220" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions :actions="rowActions(row)" @action="(key) => onRowAction(key, row)" />
             </template>

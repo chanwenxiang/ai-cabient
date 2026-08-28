@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.AdminManualNotificationRequest;
+import com.aicabinet.common.dto.AdminUpdateNotificationRequest;
 import com.aicabinet.common.dto.NotificationDto;
 import com.aicabinet.common.dto.NotificationDispatchMessage;
 import com.aicabinet.common.dto.PageResult;
@@ -311,6 +312,69 @@ public class NotificationService {
         }
         return runWithMerchantNotificationLock(merchantId, () -> doSendManual(operatorId, body, audience,
                 title, content, userId, merchantId));
+    }
+
+    /** 运营修正站内信标题/正文（不改受众与关联单）。 */
+    @Transactional
+    public NotificationDto updateManual(Long operatorId, Long id, AdminUpdateNotificationRequest body) {
+        if (id == null || id <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "消息 ID 无效");
+        }
+        if (body == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体不能为空");
+        }
+        String title = body.title() == null ? "" : body.title().trim();
+        String content = body.body() == null ? "" : body.body().trim();
+        if (title.isEmpty() || content.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "标题与内容不能为空");
+        }
+        return runWithNotificationLogLock(id, () -> {
+            NotificationLog logEntry = logRepository.findByIdForUpdate(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
+            logEntry.setTitle(title);
+            logEntry.setBody(content);
+            logRepository.updateById(logEntry);
+            log.info("manual notification updated by={} id={}", operatorId, id);
+            return toDto(logEntry);
+        });
+    }
+
+    /** 运营删除站内信记录。 */
+    @Transactional
+    public void deleteManual(Long operatorId, Long id) {
+        if (id == null || id <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "消息 ID 无效");
+        }
+        runWithNotificationLogLock(id, () -> {
+            NotificationLog logEntry = logRepository.findByIdForUpdate(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
+            logRepository.deleteById(logEntry.getId());
+            log.info("manual notification deleted by={} id={}", operatorId, id);
+            return null;
+        });
+    }
+
+    /** 批量删除；逐条加锁，已删除的跳过。 */
+    @Transactional
+    public int deleteManualBatch(Long operatorId, List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        int deleted = 0;
+        for (Long id : ids) {
+            if (id == null || id <= 0) {
+                continue;
+            }
+            try {
+                deleteManual(operatorId, id);
+                deleted++;
+            } catch (ResponseStatusException e) {
+                if (e.getStatusCode() != HttpStatus.NOT_FOUND) {
+                    throw e;
+                }
+            }
+        }
+        return deleted;
     }
 
     private NotificationDto doSendManual(Long operatorId, AdminManualNotificationRequest body, String audience,

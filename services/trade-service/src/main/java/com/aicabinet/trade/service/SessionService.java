@@ -298,9 +298,9 @@ public class SessionService {
     }
 
     /**
-     * 演示/联调用关门结算：无柜机硬件时由用户端主动触发关门，走同一套结算链路。
+     * 演示/联调用关门结算：无柜机硬件时由用户端主动触发关门。
      * 仅允许本人正在 SHOPPING 的会话，且由 Controller 按 mockEnabled 开关放行。
-     * 扣款以会话购物车（点选同步的重力证据）为准；未选商品则零元结算，不再注入演示可乐。
+     * 扣款以会话购物车（点选同步的重力证据）为准；未选商品则零元结案，不走视觉 mock（避免「未选却出牛奶审单」）。
      */
     @Transactional
     public SessionDto demoCloseSession(Long userId, String sessionId) {
@@ -312,6 +312,10 @@ public class SessionService {
         if (session.getState() != SessionState.SHOPPING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前会话状态不可关门结算");
         }
+        // 未点选：直接零元完成，禁止视觉 mock 注入商品进入争议/扣款
+        if (gravityHelper.toRecognizedItems(session.getGravityDeltas()).isEmpty()) {
+            return self.completeDemoZeroSettle(userId, sessionId);
+        }
         return self.handleDoorEvent(new DoorEventRequest(
                 session.getSessionId(),
                 session.getDeviceId(),
@@ -322,6 +326,31 @@ public class SessionService {
                 null,
                 null,
                 null));
+    }
+
+    /**
+     * 演示关门且购物车为空：零元订单并完结会话（与文案「未选则不扣款」一致）。
+     */
+    @Transactional
+    public SessionDto completeDemoZeroSettle(Long userId, String sessionId) {
+        return runWithSessionLifeLock(sessionId, () -> {
+            ShoppingSession session = repository.findByIdForUpdate(sessionId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+            if (!session.getUserId().equals(userId)) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND);
+            }
+            if (session.getState() != SessionState.SHOPPING) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "当前会话状态不可关门结算");
+            }
+            log.info("demo-close zero-settle session={} device={}", sessionId, session.getDeviceId());
+            transition(session, SessionState.RECOGNIZING);
+            transition(session, SessionState.SETTLING);
+            OrderDto order = settlementService.settleManual(session, List.of());
+            session.setOrderId(order.orderId());
+            transition(session, SessionState.COMPLETED);
+            cabinetMetrics.recordSettlementSuccess();
+            return toDto(session);
+        });
     }
 
     @Transactional

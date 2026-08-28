@@ -17,67 +17,78 @@
       </div>
     </template>
 
-    <el-table
-      v-loading="loading"
-      :data="list"
-      stripe
-      border
-      row-key="id"
-      empty-text=" "
-      class="report-table"
-    >
-      <template #empty><el-empty v-if="!loading" description="暂无等级规则" /></template>
-      <el-table-column
-        prop="levelCode"
-        label="等级编码"
-        width="120"
-        align="center"
-        class-name="col-text"
-      />
-      <el-table-column prop="levelName" label="等级名称" min-width="120" align="center" />
-      <el-table-column label="累计消费区间(元)" width="180" align="center">
-        <template #default="{ row }"
-          >{{ yuan(row.minSpent) }} ~
-          {{ row.maxSpent != null ? yuan(row.maxSpent) : '+' }}</template
+    <div class="table-scroll">
+      <div class="table-scroll-inner">
+        <el-table
+          v-loading="loading"
+          :data="list"
+          stripe
+          border
+          row-key="id"
+          empty-text=" "
+          class="report-table"
         >
-      </el-table-column>
-      <el-table-column label="累计积分区间" width="150" align="center">
-        <template #default="{ row }"
-          >{{ row.minPoints ?? 0 }} ~ {{ row.maxPoints != null ? row.maxPoints : '+' }}</template
-        >
-      </el-table-column>
-      <el-table-column label="积分倍率" width="100" align="center">
-        <template #default="{ row }">{{ row.pointsRate ?? 1 }}</template>
-      </el-table-column>
-      <el-table-column label="会员折扣" width="100" align="center">
-        <template #default="{ row }">
-          <span v-if="row.priceDiscountPct != null && Number(row.priceDiscountPct) > 0">
-            {{ row.priceDiscountPct }}%
-          </span>
-          <span v-else class="muted">无</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="sortOrder" label="排序" width="70" align="center" />
-      <el-table-column label="状态" width="90" align="center">
-        <template #default="{ row }">
-          <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{
-            row.status === 'ACTIVE' ? '启用' : '停用'
-          }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="150" align="center">
-        <template #default="{ row }">
-          <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-          <el-button
-            v-if="auth.hasPerm('ops:member-level:edit')"
-            link
-            :type="row.status === 'ACTIVE' ? 'danger' : 'success'"
-            @click="toggleStatus(row)"
-            >{{ row.status === 'ACTIVE' ? '停用' : '启用' }}</el-button
+          <template #empty><el-empty v-if="!loading" description="暂无等级规则" /></template>
+          <el-table-column
+            prop="levelCode"
+            label="等级编码"
+            width="120"
+            align="center"
+            class-name="col-text"
+          />
+          <el-table-column prop="levelName" label="等级名称" min-width="120" align="center" />
+          <el-table-column label="累计消费区间(元)" width="180" align="center">
+            <template #default="{ row }"
+              >{{ yuan(row.minSpent) }} ~
+              {{ row.maxSpent != null ? yuan(row.maxSpent) : '+' }}</template
+            >
+          </el-table-column>
+          <el-table-column label="累计积分区间" width="150" align="center">
+            <template #default="{ row }"
+              >{{ row.minPoints ?? 0 }} ~
+              {{ row.maxPoints != null ? row.maxPoints : '+' }}</template
+            >
+          </el-table-column>
+          <el-table-column label="积分倍率" width="100" align="center">
+            <template #default="{ row }">{{ row.pointsRate ?? 1 }}</template>
+          </el-table-column>
+          <el-table-column label="会员折扣" width="100" align="center">
+            <template #default="{ row }">
+              <span v-if="row.priceDiscountPct != null && Number(row.priceDiscountPct) > 0">
+                {{ row.priceDiscountPct }}%
+              </span>
+              <span v-else class="muted">无</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="sortOrder" label="排序" width="70" align="center" />
+          <el-table-column label="状态" width="90" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{
+                row.status === 'ACTIVE' ? '启用' : '停用'
+              }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="操作"
+            width="150"
+            align="center"
+            class-name="col-action"
+            fixed="right"
           >
-        </template>
-      </el-table-column>
-    </el-table>
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+              <el-button
+                v-if="auth.hasPerm('ops:member-level:edit')"
+                link
+                :type="row.status === 'ACTIVE' ? 'danger' : 'success'"
+                @click="toggleStatus(row)"
+                >{{ row.status === 'ACTIVE' ? '停用' : '启用' }}</el-button
+              >
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
 
     <el-dialog
       v-model="dialogVisible"

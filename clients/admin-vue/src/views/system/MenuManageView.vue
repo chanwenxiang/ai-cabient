@@ -124,7 +124,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120" class-name="col-action" align="center">
+          <el-table-column label="操作" width="120" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions :actions="menuActions(row)" @action="(k) => onMenuAction(k, row)" />
             </template>

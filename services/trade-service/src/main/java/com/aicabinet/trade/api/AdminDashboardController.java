@@ -457,9 +457,15 @@ public class AdminDashboardController {
 
     @RequiresPermissions("ops:report:device")
     @GetMapping("/reports/devices")
-    public ApiResponse<List<AdminDeviceReportDto>> deviceReports(HttpServletRequest request) {
-        Long opId = operatorId(request);
-        return ApiResponse.ok(support.cacheService().get("admin:reports", "all", 60_000L, () -> adminService.deviceReports(opId)));
+    public ApiResponse<PageResult<AdminDeviceReportDto>> deviceReports(
+            HttpServletRequest request,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "online", required = false) String online,
+            @RequestParam(name = "deviceId", required = false) String deviceId) {
+        return ApiResponse.ok(adminService.deviceReports(
+                operatorId(request), page, size, keyword, online, deviceId));
     }
 
     @RequiresPermissions("ops:audit:list")

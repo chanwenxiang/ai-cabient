@@ -124,10 +124,9 @@ public class AdminDeviceOpsService {
 
     private DeviceOpsCommandResultDto lock(Long operatorId, DeviceInfo device, String reason, boolean locked) {
         String commandId = salesLockService.applySalesLock(operatorId, device, locked, reason, true);
-        // reload after save
-        boolean nowLocked = device.salesLockedEnabled();
+        // applySalesLock 内部 reload 写库，勿用调用方持有的旧实体判断结果
         return new DeviceOpsCommandResultDto(device.getDeviceId(), locked ? "LOCK" : "UNLOCK", commandId,
-                nowLocked ? "已锁机，消费者无法开门" : "已解锁，恢复营业", nowLocked);
+                locked ? "已锁机，消费者无法开门" : "已解锁，恢复营业", locked);
     }
 
     private DeviceOpsCommandResultDto reboot(Long operatorId, DeviceInfo device, String reason) {

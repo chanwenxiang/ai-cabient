@@ -14,6 +14,7 @@ import com.aicabinet.trade.auth.JwtService;
 import com.aicabinet.trade.auth.SessionCookieService;
 import com.aicabinet.trade.service.AuthService;
 import com.aicabinet.trade.service.CaptchaService;
+import com.aicabinet.trade.service.OperatorAuth;
 import com.aicabinet.trade.service.OpsTwoFactorService;
 import com.aicabinet.trade.support.ApiMessages;
 import jakarta.servlet.http.HttpServletRequest;
@@ -59,26 +60,30 @@ public class AuthController {
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request,
                                             HttpServletResponse response) {
-        return ApiResponse.ok(withSessionCookie(response, authService.login(request)));
+        return ApiResponse.ok(withSessionCookie(response, authService.login(request),
+                SessionCookieService.Realm.CONSUMER));
     }
 
     @PostMapping("/admin-login")
     public ApiResponse<LoginResponse> adminLogin(@Valid @RequestBody LoginRequest request,
                                                  HttpServletResponse response) {
-        return ApiResponse.ok(withSessionCookie(response, authService.adminLogin(request)));
+        return ApiResponse.ok(withSessionCookie(response, authService.adminLogin(request),
+                SessionCookieService.Realm.ADMIN));
     }
 
     @PostMapping("/password-login")
     public ApiResponse<LoginResponse> passwordLogin(@Valid @RequestBody PasswordLoginRequest request,
                                                     HttpServletResponse response) {
-        return ApiResponse.ok(withSessionCookie(response, authService.loginByPassword(request)));
+        return ApiResponse.ok(withSessionCookie(response, authService.loginByPassword(request),
+                SessionCookieService.Realm.CONSUMER));
     }
 
     @PostMapping("/admin-password-login")
     public ApiResponse<LoginResponse> adminPasswordLogin(@Valid @RequestBody PasswordLoginRequest request,
                                                          HttpServletResponse response) {
         captchaService.verifyOrThrow(request.captchaId(), request.captchaCode());
-        return ApiResponse.ok(withSessionCookie(response, authService.adminLoginByPassword(request)));
+        return ApiResponse.ok(withSessionCookie(response, authService.adminLoginByPassword(request),
+                SessionCookieService.Realm.ADMIN));
     }
 
     /** 双因子认证：动态码完成登录（challengeToken 由 admin-password-login 返回）。 */
@@ -86,7 +91,8 @@ public class AuthController {
     public ApiResponse<LoginResponse> verifyTwoFactor(@Valid @RequestBody VerifyTwoFactorRequest request,
                                                       HttpServletResponse response) {
         return ApiResponse.ok(withSessionCookie(response,
-                opsTwoFactorService.verifyChallenge(request.challengeToken(), request.code())));
+                opsTwoFactorService.verifyChallenge(request.challengeToken(), request.code()),
+                SessionCookieService.Realm.ADMIN));
     }
 
     /** 双因子认证：后备码完成登录。 */
@@ -94,7 +100,8 @@ public class AuthController {
     public ApiResponse<LoginResponse> recoveryTwoFactor(@Valid @RequestBody RecoveryTwoFactorRequest request,
                                                         HttpServletResponse response) {
         return ApiResponse.ok(withSessionCookie(response,
-                opsTwoFactorService.verifyRecovery(request.challengeToken(), request.recoveryCode())));
+                opsTwoFactorService.verifyRecovery(request.challengeToken(), request.recoveryCode()),
+                SessionCookieService.Realm.ADMIN));
     }
 
     /** 运营后台忘记密码：短信验证码 + 图形验证码后重置密码。 */
@@ -109,13 +116,15 @@ public class AuthController {
     @PostMapping("/merchant-password-login")
     public ApiResponse<LoginResponse> merchantPasswordLogin(@Valid @RequestBody PasswordLoginRequest request,
                                                             HttpServletResponse response) {
-        return ApiResponse.ok(withSessionCookie(response, authService.adminLoginByPassword(request)));
+        return ApiResponse.ok(withSessionCookie(response, authService.adminLoginByPassword(request),
+                SessionCookieService.Realm.ADMIN));
     }
 
     @PostMapping("/wx-login")
     public ApiResponse<LoginResponse> wxLogin(@Valid @RequestBody WxLoginRequest request,
                                               HttpServletResponse response) {
-        return ApiResponse.ok(withSessionCookie(response, authService.wxLogin(request)));
+        return ApiResponse.ok(withSessionCookie(response, authService.wxLogin(request),
+                SessionCookieService.Realm.CONSUMER));
     }
 
     /** H5 微信网页授权登录（公众号 OAuth code）。 */
@@ -123,13 +132,15 @@ public class AuthController {
     public ApiResponse<LoginResponse> wxH5Login(@Valid @RequestBody WxLoginRequest request,
                                                 HttpServletResponse response) {
         return ApiResponse.ok(withSessionCookie(
-                response, authService.wxH5Login(request.code(), request.phoneNumber())));
+                response, authService.wxH5Login(request.code(), request.phoneNumber()),
+                SessionCookieService.Realm.CONSUMER));
     }
 
     @PostMapping("/alipay/login")
     public ApiResponse<LoginResponse> alipayLogin(@Valid @RequestBody AlipayLoginRequest request,
                                                   HttpServletResponse response) {
-        return ApiResponse.ok(withSessionCookie(response, authService.alipayLogin(request)));
+        return ApiResponse.ok(withSessionCookie(response, authService.alipayLogin(request),
+                SessionCookieService.Realm.CONSUMER));
     }
 
     @GetMapping("/server-boot")
@@ -143,11 +154,17 @@ public class AuthController {
             HttpServletRequest request,
             HttpServletResponse response) {
         String token = null;
+        SessionCookieService.Realm cookieRealm = null;
         if (authorization != null && authorization.startsWith("Bearer ")) {
             token = authorization.substring(7);
         }
         if (token == null) {
-            token = sessionCookieService.resolveToken(request);
+            SessionCookieService.PresentedSession presented =
+                    sessionCookieService.resolvePresentedSession(request);
+            if (presented != null) {
+                token = presented.token();
+                cookieRealm = presented.realm();
+            }
         }
         if (token == null || token.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.MISSING_TOKEN);
@@ -155,21 +172,32 @@ public class AuthController {
         try {
             Long userId = jwtService.validateAndGetUserId(token);
             LoginResponse refreshed = authService.refreshSession(userId);
-            return ApiResponse.ok(withSessionCookie(response, refreshed));
+            SessionCookieService.Realm writeRealm = cookieRealm != null
+                    ? cookieRealm
+                    : (OperatorAuth.isOperator(userId)
+                    ? SessionCookieService.Realm.ADMIN
+                    : SessionCookieService.Realm.CONSUMER);
+            return ApiResponse.ok(withSessionCookie(response, refreshed, writeRealm));
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.INVALID_TOKEN);
         }
     }
 
-    /** 登出：清除会话 Cookie（幂等；纯 Bearer 客户端调用无副作用）。 */
+    /** 登出：清除运营/商户会话 Cookie（幂等；不影响消费者 Cookie）。 */
     @PostMapping("/logout")
     public ApiResponse<Void> logout(HttpServletResponse response) {
-        sessionCookieService.clearSessionCookie(response);
+        sessionCookieService.clearSessionCookie(response, SessionCookieService.Realm.ADMIN);
         return ApiResponse.ok(null);
     }
 
-    private LoginResponse withSessionCookie(HttpServletResponse response, LoginResponse loginResponse) {
-        sessionCookieService.writeSessionCookie(response, loginResponse.token());
+    private LoginResponse withSessionCookie(HttpServletResponse response,
+                                            LoginResponse loginResponse,
+                                            SessionCookieService.Realm realm) {
+        // 2FA challenge 不是正式会话，不写 Cookie
+        if (loginResponse.twoFactorRequired()) {
+            return loginResponse;
+        }
+        sessionCookieService.writeSessionCookie(response, loginResponse.token(), realm);
         return loginResponse;
     }
 }

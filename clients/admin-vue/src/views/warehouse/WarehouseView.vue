@@ -329,6 +329,7 @@
                 width="88"
                 class-name="col-action"
                 align="center"
+                fixed="right"
               >
                 <template #default="{ row }">
                   <TableActions
@@ -409,7 +410,7 @@
               <el-table-column label="备注" min-width="100" show-overflow-tooltip>
                 <template #default="{ row }">{{ row.notes || '' }}</template>
               </el-table-column>
-              <el-table-column v-if="canWarehouseEdit" label="操作" width="200" align="center">
+              <el-table-column v-if="canWarehouseEdit" label="操作" width="200" align="center" fixed="right">
                 <template #default="{ row }">
                   <el-button
                     v-if="row.status === 'DRAFT'"
@@ -503,6 +504,7 @@
                 width="88"
                 class-name="col-action"
                 align="center"
+                fixed="right"
               >
                 <template #default="{ row }">
                   <TableActions
@@ -617,6 +619,7 @@
                 min-width="220"
                 class-name="col-action"
                 align="center"
+                fixed="right"
               >
                 <template #default="{ row }">
                   <el-button
@@ -885,7 +888,7 @@
                   <span v-else class="muted">未逾期</span>
                 </template>
               </el-table-column>
-              <el-table-column v-if="canEdit" label="操作" width="100" align="center">
+              <el-table-column v-if="canEdit" label="操作" width="100" align="center" fixed="right">
                 <template #default="{ row }">
                   <el-button
                     link
@@ -953,7 +956,7 @@
               <el-table-column label="创建时间" min-width="160" align="center">
                 <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
               </el-table-column>
-              <el-table-column v-if="canWarehouseEdit" label="操作" width="110" align="center">
+              <el-table-column v-if="canWarehouseEdit" label="操作" width="110" align="center" fixed="right">
                 <template #default="{ row }">
                   <el-button link type="primary" @click="openStocktakeDetail(row)">
                     {{ ['DRAFT', 'IN_PROGRESS'].includes(row.status) ? '盘点' : '查看/调整' }}
@@ -999,7 +1002,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column v-if="canWarehouseEdit" label="操作" width="80" align="center">
+            <el-table-column v-if="canWarehouseEdit" label="操作" width="80" align="center" fixed="right">
               <template #default="{ row }">
                 <el-button link type="primary" @click="openBinDialog(row)">编辑</el-button>
               </template>
@@ -1121,6 +1124,7 @@
                 width="180"
                 class-name="col-action"
                 align="center"
+                fixed="right"
               >
                 <template #default="{ row }">
                   <div :data-testid="`outbound-row-${row.outboundId}`">
@@ -2382,9 +2386,9 @@ const pageHint = computed(() => {
   return '仓库 / 供应商 / 库存 / 采购与退货';
 });
 
+/** 仅真正有筛选项的 Tab 才挂 filter-bar，避免空条占位像「中间少了字」 */
 const showFilterBar = computed(() =>
   [
-    'warehouses',
     'suppliers',
     'purchase',
     'returns',

@@ -202,6 +202,7 @@
                         :width="canEdit ? 210 : 70"
                         align="center"
                         class-name="col-action"
+                        fixed="right"
                       >
                         <template #default="scope">
                           <el-button link type="primary" @click="openTaskLines(scope.row)"
@@ -300,6 +301,7 @@
                 width="100"
                 align="center"
                 class-name="col-action"
+                fixed="right"
               >
                 <template #default="{ row }">
                   <el-button
@@ -470,7 +472,7 @@
               <el-table-column label="备注" min-width="140" align="center" show-overflow-tooltip>
                 <template #default="{ row }">{{ formatTaskNotesBrief(row.notes) }}</template>
               </el-table-column>
-              <el-table-column label="操作" width="120" align="center" class-name="col-action">
+              <el-table-column label="操作" width="120" align="center" class-name="col-action" fixed="right">
                 <template #default="{ row }">
                   <el-button link type="primary" @click="openTaskLines(row)">
                     理货明细
@@ -634,6 +636,7 @@
                 width="200"
                 class-name="col-action"
                 align="center"
+                fixed="right"
               >
                 <template #default="{ row }">
                   <TableActions
@@ -730,6 +733,7 @@
                 width="100"
                 align="center"
                 class-name="col-action"
+                fixed="right"
               >
                 <template #default="{ row }">
                   <el-button link type="primary" @click="planSingleDevice(row.deviceId)"
@@ -844,7 +848,7 @@
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="240" align="center" class-name="col-action">
+              <el-table-column label="操作" width="240" align="center" class-name="col-action" fixed="right">
                 <template #default="{ row }">
                   <el-button
                     v-if="canEdit"

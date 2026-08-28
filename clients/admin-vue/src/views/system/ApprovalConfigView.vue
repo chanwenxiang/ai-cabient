@@ -82,6 +82,7 @@
             width="160"
             align="center"
             class-name="col-action"
+            fixed="right"
           >
             <template #default="{ row }">
               <TableActions :actions="rowActions()" @action="(k) => onRowAction(String(k), row)" />

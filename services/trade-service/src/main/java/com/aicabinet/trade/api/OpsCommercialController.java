@@ -125,8 +125,11 @@ public class OpsCommercialController {
     // --- 广告/多媒体运营：素材库 + 投放计划（读写沿用设备权限码，避免新建角色权限） ---
     @RequiresPermissions("ops:ad:list")
     @GetMapping("/ad/assets")
-    public ApiResponse<List<MediaAssetDto>> adAssets(HttpServletRequest request) {
-        return ApiResponse.ok(support.mediaAssetService().list());
+    public ApiResponse<PageResult<MediaAssetDto>> adAssets(
+            HttpServletRequest request,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(support.mediaAssetService().list(page, size));
     }
 
     @RequiresPermissions("ops:ad:edit")
@@ -160,8 +163,11 @@ public class OpsCommercialController {
 
     @RequiresPermissions("ops:ad:list")
     @GetMapping("/ad/campaigns")
-    public ApiResponse<List<AdCampaignDto>> adCampaigns(HttpServletRequest request) {
-        return ApiResponse.ok(support.adCampaignService().list());
+    public ApiResponse<PageResult<AdCampaignDto>> adCampaigns(
+            HttpServletRequest request,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(support.adCampaignService().list(page, size));
     }
 
     @RequiresPermissions("ops:ad:list")
