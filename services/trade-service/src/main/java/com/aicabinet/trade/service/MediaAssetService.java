@@ -1,11 +1,13 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.MediaAssetDto;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.UpsertMediaAssetRequest;
 import com.aicabinet.trade.domain.MediaAsset;
 import com.aicabinet.trade.mapper.AdCampaignItemMapper;
 import com.aicabinet.trade.mapper.MediaAssetMapper;
 import com.aicabinet.trade.storage.MinioVideoService;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
@@ -45,10 +47,18 @@ public class MediaAssetService {
     }
 
     @Transactional(readOnly = true)
+    public PageResult<MediaAssetDto> list(int page, int size) {
+        int p = Math.max(0, page);
+        int s = Math.min(Math.max(1, size), 500);
+        Page<MediaAsset> result = assetRepository.searchPage(p, s);
+        List<MediaAssetDto> items = result.getRecords().stream().map(this::toDto).toList();
+        return new PageResult<>(items, p, s, result.getTotal());
+    }
+
+    /** 兼容旧调用：全量列表（内部/下拉用）。 */
+    @Transactional(readOnly = true)
     public List<MediaAssetDto> list() {
-        return assetRepository.findAllOrderByCreatedDesc().stream()
-                .map(this::toDto)
-                .toList();
+        return list(0, 500).items();
     }
 
     @Transactional

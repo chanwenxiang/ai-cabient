@@ -626,6 +626,9 @@ onUnmounted(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* 与侧栏分层隔离，避免鼠标在侧栏移动时主内容合成层亚像素上下抖 */
+  isolation: isolate;
+  contain: layout style;
 }
 .topbar {
   display: flex;
@@ -798,10 +801,15 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--admin-space-md, 12px);
+  /* 覆盖 EP .el-main 默认 padding，避免双 padding 叠高导致亚像素溢出 */
+  --el-main-padding: 0;
   padding: var(--admin-space-md, 12px) var(--admin-space-lg, 16px);
+  /* 滚到底时分页完整露出，不贴视口裁切边 */
+  padding-bottom: 24px;
   box-sizing: border-box;
   /* 页面级滚动：内容超宽时由页面横向滚动，而非表格内部滚动 */
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: scroll;
   /* 切页时滚动条显隐不再挤动内容宽度 */
   scrollbar-gutter: stable;
   /* 侧栏展开/滚动条变化时，禁止浏览器滚动锚定带动主区上下跳 */
@@ -809,6 +817,9 @@ onUnmounted(() => {
   background: var(--layout-bg);
   color: var(--layout-text);
   overscroll-behavior: contain;
+  /* 独立合成层，减轻与侧栏 hover 重绘时的相对抖动 */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 /* 页面根节点横向铺满主区；允许超宽内容撑开触发页面级横向滚动 */

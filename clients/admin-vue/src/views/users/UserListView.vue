@@ -133,6 +133,7 @@
             class-name="col-action"
             label-class-name="col-action"
             align="center"
+            fixed="right"
           >
             <template #default="{ row }">
               <TableActions

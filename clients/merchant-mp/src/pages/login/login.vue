@@ -57,11 +57,15 @@
         </view>
 
         <view class="remember-row" data-testid="login-remember">
-          <checkbox
-            :checked="rememberCredentials"
-            color="#0f766e"
+          <view
+            class="remember-box"
+            :class="{ on: rememberCredentials }"
+            role="checkbox"
+            :aria-checked="rememberCredentials"
             @tap="rememberCredentials = !rememberCredentials"
-          />
+          >
+            <text v-if="rememberCredentials" class="remember-check">✓</text>
+          </view>
           <text class="remember-label" @tap="rememberCredentials = !rememberCredentials"
             >记住账号和密码</text
           >
@@ -443,9 +447,9 @@ async function onLogin() {
   align-self: flex-start;
 }
 .remember-box {
-  width: 32rpx;
-  height: 32rpx;
-  border-radius: 8rpx;
+  width: 28rpx;
+  height: 28rpx;
+  border-radius: 6rpx;
   border: 2rpx solid rgba(148, 210, 198, 0.45);
   background: rgba(8, 24, 30, 0.35);
   display: flex;
@@ -459,8 +463,8 @@ async function onLogin() {
   background: rgba(15, 118, 110, 0.75);
 }
 .remember-check {
-  color: #fff;
-  font-size: 22rpx;
+  color: #ecfdf5;
+  font-size: 18rpx;
   line-height: 1;
   font-weight: 700;
 }

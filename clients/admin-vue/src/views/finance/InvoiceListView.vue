@@ -168,10 +168,19 @@ onMounted(load);
       </el-form-item>
     </el-form>
 
-    <el-table :data="rows" v-loading="loading" stripe border empty-text=" ">
-      <template #empty>
-        <el-empty v-if="hydrated && !loading" :description="emptyHint()" />
-      </template>
+    <div class="table-scroll">
+      <div class="table-scroll-inner">
+        <el-table
+          :data="rows"
+          v-loading="loading"
+          stripe
+          border
+          empty-text=" "
+          class="report-table"
+        >
+          <template #empty>
+            <el-empty v-if="hydrated && !loading" :description="emptyHint()" />
+          </template>
       <el-table-column label="申请号" width="100" align="center">
         <template #default="{ row }">{{ row.invoiceId }}</template>
       </el-table-column>
@@ -207,12 +216,20 @@ onMounted(load);
           row.issuedAt ? formatDateTime(row.issuedAt) : ''
         }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="140" fixed="right" align="center">
-        <template #default="{ row }">
-          <TableActions :actions="rowActions(row)" @action="(k) => onRowAction(k, row)" />
-        </template>
-      </el-table-column>
-    </el-table>
+          <el-table-column
+            label="操作"
+            width="140"
+            fixed="right"
+            align="center"
+            class-name="col-action"
+          >
+            <template #default="{ row }">
+              <TableActions :actions="rowActions(row)" @action="(k) => onRowAction(k, row)" />
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
 
     <PagePager
       :hydrated="hydrated"

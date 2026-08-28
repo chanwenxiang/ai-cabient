@@ -146,10 +146,12 @@
       :hydrated="listHydrated"
       v-model:current-page="page"
       v-model:page-size="size"
-      layout="total, prev, pager, next"
       :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
       @current-change="load"
-      @size-change="search"
+      @size-change="onSizeChange"
     />
   </el-card>
 </template>
@@ -286,6 +288,11 @@ async function load() {
 function search() {
   page.value = 1;
   load();
+}
+
+function onSizeChange() {
+  page.value = 1;
+  void load();
 }
 
 onMounted(async () => {

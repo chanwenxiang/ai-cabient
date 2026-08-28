@@ -36,6 +36,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
@@ -939,14 +940,35 @@ public class AdminDashboardService {
         minioVideoService.streamTo(videoUri, request, response);
     }
 
-    public List<AdminDeviceReportDto> deviceReports(Long operatorId) {
+    public PageResult<AdminDeviceReportDto> deviceReports(
+            Long operatorId,
+            int page,
+            int size,
+            String keyword,
+            String online,
+            String deviceId) {
         permissionService.requirePermission(operatorId, "ops:report:device");
         Instant todayStart = LocalDate.now(ZoneId.systemDefault())
                 .atStartOfDay(ZoneId.systemDefault()).toInstant();
         Map<String, ShoppingSession> activeByDevice = sessionRepository.findByStateIn(ACTIVE_STATES, 2000).stream()
                 .collect(Collectors.toMap(ShoppingSession::getDeviceId, s -> s, (a, b) -> a));
 
-        return merchantScopeService.allowedDevices(operatorId).stream()
+        String kw = keyword == null ? "" : keyword.trim().toLowerCase();
+        String onlineNorm = online == null || online.isBlank() ? null : online.trim().toUpperCase();
+        String deviceFilter = deviceId == null || deviceId.isBlank() ? null : deviceId.trim();
+
+        List<AdminDeviceReportDto> filtered = merchantScopeService.allowedDevices(operatorId).stream()
+                .filter(d -> deviceFilter == null || deviceFilter.equals(d.getDeviceId()))
+                .filter(d -> onlineNorm == null
+                        || onlineNorm.equalsIgnoreCase(d.getOnlineStatus() == null ? "" : d.getOnlineStatus()))
+                .filter(d -> {
+                    if (kw.isEmpty()) {
+                        return true;
+                    }
+                    String id = d.getDeviceId() == null ? "" : d.getDeviceId().toLowerCase();
+                    String name = d.getDeviceName() == null ? "" : d.getDeviceName().toLowerCase();
+                    return id.contains(kw) || name.contains(kw);
+                })
                 .map(d -> {
                     String id = d.getDeviceId();
                     return new AdminDeviceReportDto(
@@ -961,7 +983,21 @@ public class AdminDashboardService {
                             activeByDevice.containsKey(id) ? 1 : 0
                     );
                 })
+                .sorted(Comparator.comparing(AdminDeviceReportDto::deviceId, Comparator.nullsLast(String::compareTo)))
                 .toList();
+
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        long total = filtered.size();
+        int from = Math.min(p * s, filtered.size());
+        int to = Math.min(from + s, filtered.size());
+        return new PageResult<>(filtered.subList(from, to), p, s, total);
+    }
+
+    /** @deprecated 兼容旧调用：返回全量列表 */
+    @Deprecated
+    public List<AdminDeviceReportDto> deviceReports(Long operatorId) {
+        return deviceReports(operatorId, 0, 10_000, null, null, null).items();
     }
 
     public PageResult<AdminAuditLogDto> listAuditLogs(Long operatorId, int page, int size, boolean logIdAsc) {

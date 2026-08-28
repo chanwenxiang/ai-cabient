@@ -110,6 +110,7 @@
             width="120"
             class-name="col-action"
             align="center"
+            fixed="right"
           >
             <template #default="{ row }">
               <TableActions
@@ -160,7 +161,7 @@
         <el-table-column label="最低置信度" width="110" align="center">
           <template #default="{ row }">{{ row.minConfidence }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="150" align="center">
+        <el-table-column label="操作" width="150" align="center" fixed="right">
           <template #default="{ row }">
             <el-button v-hasPermi="['ops:vision:edit']" size="small" @click="openAliyunEdit(row)"
               >编辑</el-button

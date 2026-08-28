@@ -103,8 +103,16 @@ $useWarehouse = $false
 # plan 常会同步生成出库单；即使 -FieldOnly 也必须先发运，否则 complete 会 409
 Write-Host "==> 4. Resolve warehouse outbound (if any)$(if ($FieldOnly) { ' [FieldOnly: still ship when linked]' })"
 try {
-    $outbounds = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/ops/admin/warehouse/outbounds" -Headers $opsAuth
-    $linked = @($outbounds) | Where-Object { $_.routeId -eq $routeId } | Select-Object -First 1
+    # API 返回 PageResult，须取 items；勿把整页对象当出库单数组过滤
+    $outboundPage = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
+        -Path "/api/v2/ops/admin/warehouse/outbounds?page=0&size=200" -Headers $opsAuth
+    $outboundRows = @()
+    if ($null -ne $outboundPage) {
+        if ($outboundPage.items) { $outboundRows = @($outboundPage.items) }
+        elseif ($outboundPage -is [System.Array]) { $outboundRows = @($outboundPage) }
+        else { $outboundRows = @($outboundPage) }
+    }
+    $linked = $outboundRows | Where-Object { [long]$_.routeId -eq [long]$routeId } | Select-Object -First 1
     if (-not $linked) {
         Write-Host "    no outbound for route — field restock path"
     } else {

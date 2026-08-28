@@ -57,10 +57,19 @@
       </el-form-item>
     </el-form>
 
-    <el-table :data="rows" v-loading="loading" stripe border empty-text=" ">
-      <template #empty>
-        <el-empty v-if="hydrated && !loading" description="暂无进件记录" />
-      </template>
+    <div class="table-scroll">
+      <div class="table-scroll-inner">
+        <el-table
+          :data="rows"
+          v-loading="loading"
+          stripe
+          border
+          empty-text=" "
+          class="report-table"
+        >
+          <template #empty>
+            <el-empty v-if="hydrated && !loading" description="暂无进件记录" />
+          </template>
       <el-table-column prop="merchantId" label="商户" min-width="140">
         <template #default="{ row }">
           <div>{{ row.merchantName || row.merchantId }}</div>
@@ -103,23 +112,25 @@
       <el-table-column label="更新时间" width="160">
         <template #default="{ row }">{{ formatDateTime(row.updatedAt) || '' }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
-        <template #default="{ row }">
-          <el-button
-            v-if="canEdit && row.status !== 'SUBMITTED'"
-            link
-            type="primary"
-            @click="openEdit(row)"
-          >
-            编辑
-          </el-button>
-          <template v-if="row.status === 'SUBMITTED' && row.approvalStatus === 'PENDING'">
-            <el-button link type="success" @click="review(row, true)">通过</el-button>
-            <el-button link type="danger" @click="review(row, false)">驳回</el-button>
-          </template>
-        </template>
-      </el-table-column>
-    </el-table>
+          <el-table-column label="操作" width="180" fixed="right" class-name="col-action" align="center">
+            <template #default="{ row }">
+              <el-button
+                v-if="canEdit && row.status !== 'SUBMITTED'"
+                link
+                type="primary"
+                @click="openEdit(row)"
+              >
+                编辑
+              </el-button>
+              <template v-if="row.status === 'SUBMITTED' && row.approvalStatus === 'PENDING'">
+                <el-button link type="success" @click="review(row, true)">通过</el-button>
+                <el-button link type="danger" @click="review(row, false)">驳回</el-button>
+              </template>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
 
     <PagePager
       :hydrated="hydrated"

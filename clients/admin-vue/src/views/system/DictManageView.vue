@@ -66,6 +66,7 @@
                   width="110"
                   class-name="col-action"
                   align="center"
+                  fixed="right"
                 >
                   <template #default="{ row }">
                     <el-button link type="primary" @click.stop="openType(row)">编辑</el-button>
@@ -202,6 +203,7 @@
                   width="120"
                   class-name="col-action"
                   align="center"
+                  fixed="right"
                 >
                   <template #default="{ row }">
                     <el-button link type="primary" @click="openItem(row)">编辑</el-button>

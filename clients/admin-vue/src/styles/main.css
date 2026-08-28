@@ -192,6 +192,85 @@ select {
   background: transparent;
 }
 
+/*
+ * 全局统一细滚动条（第二种）：圆角滑块 + 浅轨。
+ * 真正滚动的是 .table-scroll / .layout-main-scroll / el-scrollbar__wrap，
+ * 不能只写在已 overflow:visible 的表内 wrap 上。
+ */
+.table-scroll,
+.layout-main-scroll,
+.el-scrollbar__wrap,
+.tags-scroll,
+.el-drawer__body,
+.el-dialog__body,
+.el-aside {
+  scrollbar-width: thin;
+  scrollbar-color: var(--admin-scrollbar) var(--admin-scrollbar-track);
+}
+
+.table-scroll::-webkit-scrollbar,
+.layout-main-scroll::-webkit-scrollbar,
+.el-scrollbar__wrap::-webkit-scrollbar,
+.tags-scroll::-webkit-scrollbar,
+.el-drawer__body::-webkit-scrollbar,
+.el-dialog__body::-webkit-scrollbar,
+.el-aside::-webkit-scrollbar {
+  width: var(--admin-scrollbar-size);
+  height: var(--admin-scrollbar-size);
+}
+
+.table-scroll::-webkit-scrollbar-track,
+.layout-main-scroll::-webkit-scrollbar-track,
+.el-scrollbar__wrap::-webkit-scrollbar-track,
+.tags-scroll::-webkit-scrollbar-track,
+.el-drawer__body::-webkit-scrollbar-track,
+.el-dialog__body::-webkit-scrollbar-track,
+.el-aside::-webkit-scrollbar-track {
+  background: var(--admin-scrollbar-track);
+  border-radius: 999px;
+}
+
+.table-scroll::-webkit-scrollbar-thumb,
+.layout-main-scroll::-webkit-scrollbar-thumb,
+.el-scrollbar__wrap::-webkit-scrollbar-thumb,
+.tags-scroll::-webkit-scrollbar-thumb,
+.el-drawer__body::-webkit-scrollbar-thumb,
+.el-dialog__body::-webkit-scrollbar-thumb,
+.el-aside::-webkit-scrollbar-thumb {
+  background: var(--admin-scrollbar);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+.table-scroll::-webkit-scrollbar-thumb:hover,
+.layout-main-scroll::-webkit-scrollbar-thumb:hover,
+.el-scrollbar__wrap::-webkit-scrollbar-thumb:hover,
+.tags-scroll::-webkit-scrollbar-thumb:hover,
+.el-drawer__body::-webkit-scrollbar-thumb:hover,
+.el-dialog__body::-webkit-scrollbar-thumb:hover,
+.el-aside::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--layout-muted) 70%, transparent);
+}
+
+.table-scroll::-webkit-scrollbar-button,
+.layout-main-scroll::-webkit-scrollbar-button,
+.el-scrollbar__wrap::-webkit-scrollbar-button,
+.tags-scroll::-webkit-scrollbar-button,
+.el-drawer__body::-webkit-scrollbar-button,
+.el-dialog__body::-webkit-scrollbar-button,
+.el-aside::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.table-scroll::-webkit-scrollbar-corner,
+.layout-main-scroll::-webkit-scrollbar-corner,
+.el-scrollbar__wrap::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* Element Plus 按钮：圆角与主色权重与后台卡片一致 */
 .el-button {
   --el-border-radius-base: 8px;
@@ -299,7 +378,11 @@ select {
   font-size: 13px;
   color: var(--layout-text);
   --el-table-font-size: 13px;
-  --el-table-row-hover-bg-color: color-mix(in srgb, var(--app-primary, #0f766e) 6%, transparent);
+  --el-table-row-hover-bg-color: color-mix(
+    in srgb,
+    var(--app-primary, #0f766e) 6%,
+    var(--el-table-bg-color, #ffffff)
+  );
 }
 
 .layout-main-scroll .el-table th.el-table__cell,
@@ -334,7 +417,7 @@ select {
   font-size: inherit;
 }
 
-/* 操作列：不裁剪图标按钮 */
+/* 操作列：不裁剪图标按钮（fixed 叠字靠实心底遮挡，勿 overflow:hidden 裁按钮） */
 .layout-main-scroll .el-table th.col-action > .cell,
 .layout-main-scroll .el-table td.col-action > .cell,
 .page-card .el-table th.col-action > .cell,
@@ -500,25 +583,51 @@ select {
   display: flex;
   justify-content: flex-end;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin-top: var(--admin-space-md, 12px);
   max-width: 100%;
-  /* 分页可换行；禁止再出一条横滚条（与 .table-scroll 叠成「双滚动栏」） */
-  overflow-x: hidden;
-  /* 防止上方表格 overflow:visible 时盖住分页（含浏览器缩放） */
+  /*
+   * 勿 overflow-x:hidden：会把 overflow-y 算成 auto，裁掉「前往 n 页」底部笔画。
+   * 横溢出靠 flex-wrap + max-width 消化。
+   */
+  overflow: visible;
   position: relative;
-  z-index: 2;
+  /* 高于表格 fixed 列/阴影，避免右下角「页」被盖住或看起来像裁切 */
+  z-index: 20;
   flex-shrink: 0;
   isolation: isolate;
   background: var(--layout-card, var(--el-bg-color, #fff));
-  padding-top: 4px;
+  padding: 8px 0 12px;
+  min-height: 44px;
+  box-sizing: border-box;
 }
 
 .page-pager .el-pagination {
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
   row-gap: 8px;
   max-width: 100%;
+  line-height: 32px;
+  overflow: visible;
+  height: auto !important;
+  /* EP 默认 nowrap：带 jumper 时「页」会被裁在卡片右下角 */
+  white-space: normal !important;
+}
+
+.page-pager .el-pagination__jump,
+.page-pager .el-pagination__sizes,
+.page-pager .el-pagination__total {
+  height: auto !important;
+  line-height: 32px;
+  overflow: visible !important;
+  display: inline-flex;
+  align-items: center;
+}
+
+.page-pager .el-pagination__editor.el-input {
+  margin: 0 8px;
 }
 
 .muted {
@@ -701,7 +810,7 @@ select {
 
 .layout-main-scroll > .page-card,
 .layout-main-scroll > .page-fill > .page-card {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   align-self: stretch;
   margin-bottom: 0;
   display: flex;
@@ -716,9 +825,9 @@ select {
 
 .layout-main-scroll > .page-card.el-card,
 .layout-main-scroll > .page-fill > .page-card.el-card {
-  /* 至少铺满主区；内容过高时由 .layout-main-scroll 纵滚，避免表体被压没 */
+  /* 高度只跟内容走；min-height:100% 会与主区 padding 叠出多余可滚空白，并导致底部分页贴边被裁 */
   height: auto;
-  min-height: 100%;
+  min-height: 0;
   max-height: none;
 }
 
@@ -729,11 +838,17 @@ select {
 
 .layout-main-scroll > .page-card > .el-card__body,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: visible;
+}
+
+/* 有底部分页时，卡片 body 多留底边，避免「前往 n 页」贴视口/卡片底边被裁 */
+.layout-main-scroll > .page-card > .el-card__body:has(> .page-pager),
+.layout-main-scroll > .page-fill > .page-card > .el-card__body:has(> .page-pager) {
+  padding-bottom: 20px;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .filter-bar,
@@ -800,8 +915,9 @@ select {
 
 .layout-main-scroll > .page-card > .el-card__body > .table-scroll,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll {
-  flex: 1 1 auto;
-  min-height: 240px;
+  /* 勿 flex:1 撑高：会在表体与底部分页之间留下大块空白，分页像「丢了」 */
+  flex: 0 0 auto;
+  min-height: 0;
   max-height: none;
   overflow: visible;
 }
@@ -826,7 +942,8 @@ select {
   > .el-tabs:not(.status-tabs)
   .table-scroll.table-scroll--h {
   overflow-x: auto !important;
-  overflow-y: visible !important;
+  /* visible + overflow-x:auto 会被算成 overflow-y:auto，表底易多出细缝/裁切分页 */
+  overflow-y: hidden !important;
 }
 .layout-main-scroll
   > .page-card
@@ -881,16 +998,26 @@ select {
 }
 
 /*
- * 整页列表：卡片不再被 flex 压缩（表格自然高度铺满整页）。
- * 若保留 flex-shrink，内容超高时卡片会被压回视口高度，
- * 表格会溢出 .table-scroll 边框和卡片底部；改为不收缩后，
- * 表格边框完整包裹所有行，页面整体由 .layout-main-scroll 滚动。
- * 仅作用于“卡片 body 直接挂表格”的列表页，内容包裹型 tabs 不受影响。
+ * 整页列表：卡片高度跟内容走，由 .layout-main-scroll 纵滚。
+ * 勿再 min-height:100%：会与主区 padding 叠出「多拉一截」空白。
+ * 勿 flex-grow：避免卡片被撑高后分页下方再空一截。
  */
-.layout-main-scroll > .page-card:has(> .el-card__body > .table-scroll),
-.layout-main-scroll > .page-fill > .page-card:has(> .el-card__body > .table-scroll),
+.layout-main-scroll > .page-card.el-card:has(> .el-card__body > .table-scroll),
+.layout-main-scroll > .page-fill > .page-card.el-card:has(> .el-card__body > .table-scroll),
 .layout-main-scroll > .page-fill:has(> .page-card > .el-card__body > .table-scroll) {
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  height: auto;
+  min-height: auto;
+  max-height: none;
+}
+
+.layout-main-scroll > .page-card:has(> .el-card__body > .table-scroll) > .el-card__body,
+.layout-main-scroll
+  > .page-fill
+  > .page-card:has(> .el-card__body > .table-scroll)
+  > .el-card__body {
+  flex: 0 0 auto;
+  min-height: auto;
 }
 
 /*
@@ -1064,6 +1191,8 @@ select {
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .page-pager {
   flex-shrink: 0;
   margin-top: 12px;
+  margin-bottom: 0;
+  padding-bottom: 4px;
 }
 
 .page-card-head {
@@ -1119,7 +1248,7 @@ select {
 
 /*
  * 表格滚动（全局统一）：
- * 1. 筛选/页头留在卡片上方；.table-scroll 占剩余高度并纵滚 + 横滚
+ * 1. 筛选/页头留在卡片上方；表格区高度跟内容走，由 .layout-main-scroll 纵滚
  * 2. 表头 sticky 贴 .table-scroll 顶部（兼容 EP 2.x body-header）
  * 3. 关掉 EP 内部滚动条容器，避免打断 sticky；横滚也由 .table-scroll 承担
  */
@@ -1127,7 +1256,7 @@ select {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  min-height: 240px;
+  min-height: 0;
   display: block;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
@@ -1221,6 +1350,30 @@ select {
   height: auto !important;
   max-height: none !important;
   overflow: visible !important;
+}
+
+/*
+ * EP 默认为表体纵滚在表头预留 gutter 列；本布局纵滚在 .table-scroll，
+ * 表体 overflow:visible 后不再需要 gutter。只压宽度，勿 display:none
+ * （display:none 时表头 inline width 仍含 gutter，内容列会二次拉伸）。
+ */
+.table-scroll .el-table colgroup col[name='gutter'],
+.table-scroll .el-table__header colgroup col[name='gutter'],
+.table-scroll .el-table__body colgroup col[name='gutter'],
+.table-scroll .el-table__footer colgroup col[name='gutter'] {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+}
+.table-scroll .el-table th.gutter,
+.table-scroll .el-table td.gutter,
+.table-scroll .el-table col.gutter {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  overflow: hidden !important;
 }
 
 /*
@@ -1532,10 +1685,16 @@ select {
   background-color: #1c2636 !important;
 }
 
-/* fixed 列（EP 2.x sticky）：实心底 + 左侧阴影分隔，对齐库存健康截图 */
-.el-table {
-  --el-table-fixed-right-column: inset -10px 0 12px -8px rgba(15, 23, 42, 0.16);
-  --el-table-fixed-left-column: inset 10px 0 12px -8px rgba(15, 23, 42, 0.16);
+/*
+ * fixed 列左侧阴影：须高于 el-table-column chunk 的 .el-table 变量
+ *（该 chunk 常晚于 main 加载，会把弱默认 inset 盖回来）。
+ * 用 inset（非 outset）：::before 宽约 10px 且在 overflow 区域外，outset 会被裁掉。
+ */
+.layout-main-scroll .el-table,
+.page-card .el-table,
+.report-page .el-table {
+  --el-table-fixed-right-column: inset -10px 0 14px -6px rgba(15, 23, 42, 0.22);
+  --el-table-fixed-left-column: inset 10px 0 14px -6px rgba(15, 23, 42, 0.22);
 }
 
 /* 旧版 patch 表（兼容） */
@@ -1551,13 +1710,15 @@ select {
 /*
  * EP 默认仅在 is-scrolling-left/middle 时给右侧固定列加阴影；
  * is-scrolling-none / 滚到最右时会清掉。业务上操作列需要始终可见分隔。
+ * 直接写 inset，避免依赖被 EP 晚加载 chunk 覆盖的 CSS 变量。
  */
 .el-table .el-table-fixed-column--right.is-first-column::before {
-  box-shadow: var(--el-table-fixed-right-column) !important;
+  box-shadow: inset -10px 0 14px -6px rgba(15, 23, 42, 0.22) !important;
+  pointer-events: none;
 }
 .el-table.is-scrolling-none .el-table-fixed-column--right.is-first-column::before,
 .el-table.is-scrolling-right .el-table-fixed-column--right.is-first-column::before {
-  box-shadow: var(--el-table-fixed-right-column) !important;
+  box-shadow: inset -10px 0 14px -6px rgba(15, 23, 42, 0.22) !important;
 }
 
 /*
@@ -1572,6 +1733,7 @@ select {
 .el-table__footer-wrapper tr td.el-table-fixed-column--right,
 .el-table__fixed .el-table__cell,
 .el-table__fixed-right .el-table__cell {
+  /* 实心底：横滑时挡住下层单元格，避免备注/时间透视叠字 */
   background: var(--el-table-bg-color, #ffffff) !important;
   background-color: var(--el-table-bg-color, #ffffff) !important;
   z-index: calc(var(--el-table-index, 0) + 3) !important;
@@ -1592,8 +1754,17 @@ select {
 .el-table__body tr.hover-row > td.el-table-fixed-column--right,
 .el-table__body tr:hover > td.el-table-fixed-column--left,
 .el-table__body tr:hover > td.el-table-fixed-column--right {
-  background: var(--el-table-row-hover-bg-color, #f5f7fa) !important;
-  background-color: var(--el-table-row-hover-bg-color, #f5f7fa) !important;
+  /* 禁止用 transparent 的 color-mix：固定列底下是滑过来的时间/金额，半透明会「透视叠字」 */
+  background: color-mix(
+    in srgb,
+    var(--app-primary, #0f766e) 8%,
+    var(--el-table-bg-color, #ffffff)
+  ) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--app-primary, #0f766e) 8%,
+    var(--el-table-bg-color, #ffffff)
+  ) !important;
 }
 [data-theme='dark'] .el-table__header-wrapper tr th.el-table-fixed-column--left,
 [data-theme='dark'] .el-table__header-wrapper tr th.el-table-fixed-column--right,

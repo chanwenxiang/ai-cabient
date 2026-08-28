@@ -289,7 +289,7 @@
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="180" align="center" class-name="col-action">
+          <el-table-column label="操作" width="180" align="center" class-name="col-action" fixed="right">
             <template #default="{ row }">
               <TableActions :actions="rowActions(row)" @action="(key) => onRowAction(key, row)" />
             </template>

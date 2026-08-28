@@ -254,11 +254,6 @@
               <text class="product-name">{{ p.skuName }}</text>
               <text class="product-price">{{ fmtMoney(p.priceCents) }}</text>
               <text v-if="p.category" class="product-cat">{{ p.category }}</text>
-              <text
-                v-if="sessionActive && state === 'SHOPPING' && (mockEnabled || stockOf(p) > 0)"
-                class="product-stock"
-                >{{ stockLabel(p) }}</text
-              >
               <view
                 v-if="sessionActive && state === 'SHOPPING' && mockEnabled"
                 class="product-stepper"
@@ -1458,11 +1453,6 @@ function stockOf(p: DeviceProduct) {
   return 0;
 }
 
-function stockLabel(p: DeviceProduct) {
-  const n = stockOf(p);
-  return n > 0 ? `库存仅 ${n} 件` : '暂无库存';
-}
-
 function canAddProduct(p: DeviceProduct) {
   return selectedQty(p) < stockOf(p);
 }
@@ -1472,11 +1462,11 @@ function addProduct(p: DeviceProduct) {
   const max = stockOf(p);
   const cur = selected.value[p.skuId] || 0;
   if (max <= 0) {
-    uni.showToast({ title: '暂无库存', icon: 'none' });
+    uni.showToast({ title: '暂无可选', icon: 'none' });
     return;
   }
   if (cur >= max) {
-    uni.showToast({ title: `库存仅 ${max} 件，无法再加`, icon: 'none' });
+    uni.showToast({ title: '无法再加', icon: 'none' });
     return;
   }
   selected.value = { ...selected.value, [p.skuId]: cur + 1 };
@@ -1540,9 +1530,8 @@ async function closeDoorDemo() {
       selected.value = nextSel;
       uni.showToast({ title: '已按库存调整数量', icon: 'none' });
     }
-    if (items.length) {
-      await consumerApi.updateSessionCart(sid, { items });
-    }
+    // 始终同步点选（含空列表），避免上次点选残留导致误扣/进审单
+    await consumerApi.updateSessionCart(sid, { items });
     const s = await consumerApi.demoCloseSession(sid);
     applySessionView(s);
     if (s.state === 'COMPLETED' || s.state === 'DISPUTED') {
@@ -2376,12 +2365,6 @@ function stopDevicePoll() {
   font-size: 18rpx;
   color: #94a3b8;
   margin-top: 2rpx;
-  line-height: 1.2;
-}
-.product-stock {
-  font-size: 18rpx;
-  color: #b45309;
-  font-weight: 600;
   line-height: 1.2;
 }
 .product-stepper {

@@ -158,7 +158,8 @@ function areaPath(box: PlotBox, values: number[]): string {
 }
 
 function tipAttr(lines: string[]): string {
-  return escapeXml(lines.filter(Boolean).join('\n'));
+  // 属性内换行写成 &#10;，避免 DOMParser(image/svg+xml) 对字面换行过敏
+  return escapeXml(lines.filter(Boolean).join('\n')).replaceAll('\n', '&#10;');
 }
 
 /** Column hit zones + crosshair for line/area (easier hover than tiny dots). */
@@ -237,7 +238,7 @@ export function buildSeriesChart(opts: {
 
   const hits = lineHitZones(box, series, formatY);
 
-  return `<svg viewBox="0 0 ${box.W} ${box.H}" preserveAspectRatio="xMidYMid meet" role="img" class="chart-svg chart-interactive">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${box.W} ${box.H}" preserveAspectRatio="xMidYMid meet" role="img" class="chart-svg chart-interactive">
     <defs>${defs}</defs>
     ${gridSvg(box, formatY)}${bodies}${hits}${xLabelsSvg(box)}
   </svg>`;
@@ -304,7 +305,7 @@ export function buildGroupedBarChart(opts: {
     )
     .join('');
 
-  return `<svg viewBox="0 0 ${box.W} ${box.H}" preserveAspectRatio="xMidYMid meet" role="img" class="chart-svg chart-interactive">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${box.W} ${box.H}" preserveAspectRatio="xMidYMid meet" role="img" class="chart-svg chart-interactive">
     <defs>${defs}</defs>
     ${gridSvg(box, formatY)}${bars}${xLabelsSvg(box)}
   </svg>`;
@@ -350,24 +351,28 @@ export function buildDonutChart(opts: {
     .map((p) => {
       const sweep = (Math.max(p.value, 0) / total) * Math.PI * 2;
       if (sweep <= 0) return '';
+      const raw = Math.max(p.value, 0);
+      const shown = formatValue ? formatValue(raw) : String(raw);
+      const pct = ((raw / total) * 100).toFixed(1);
+      const tip = tipAttr([
+        p.label,
+        `${valueLabel}|${shown}|${p.color}`,
+        `占比|${pct}%|${p.color}`
+      ]);
+      // 整圆 path 起止点重合时多数浏览器不绘制；改用 circle
+      if (sweep >= Math.PI * 2 - 1e-6) {
+        return `<circle class="chart-arc" data-tip="${tip}" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${p.color}" stroke-width="${stroke}"/>`;
+      }
       const x1 = cx + r * Math.cos(angle);
       const y1 = cy + r * Math.sin(angle);
       angle += sweep;
       const x2 = cx + r * Math.cos(angle);
       const y2 = cy + r * Math.sin(angle);
       const large = sweep > Math.PI ? 1 : 0;
-      const pct = ((Math.max(p.value, 0) / total) * 100).toFixed(1);
-      const raw = Math.max(p.value, 0);
-      const shown = formatValue ? formatValue(raw) : String(raw);
-      const tip = tipAttr([
-        p.label,
-        `${valueLabel}|${shown}|${p.color}`,
-        `占比|${pct}%|${p.color}`
-      ]);
       return `<path class="chart-arc" data-tip="${tip}" d="M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}" fill="none" stroke="${p.color}" stroke-width="${stroke}" stroke-linecap="butt"/>`;
     })
     .join('');
-  return `<svg viewBox="0 0 ${size} ${size}" role="img" class="chart-svg chart-interactive">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" role="img" class="chart-svg chart-interactive">
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--layout-border)" stroke-width="${stroke}" opacity="0.35" pointer-events="none"/>
     ${arcs}
     <text x="${cx}" y="${cy - 2}" text-anchor="middle" fill="var(--layout-text)" font-size="22" font-weight="700" font-family="inherit" pointer-events="none">${escapeXml(centerText)}</text>

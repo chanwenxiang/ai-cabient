@@ -49,59 +49,77 @@
       <p class="muted">图片建议时长 10s；视频留 0 使用原始时长。文件不超过 50MB。</p>
     </div>
 
-    <el-table
-      v-loading="loading"
-      :data="displayRows"
-      stripe
-      border
-      :default-sort="idDefaultSort"
-      @sort-change="onIdSortChange"
-    >
-      <el-table-column prop="assetId" label="ID" width="80" align="center" sortable="custom" />
-      <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
-      <el-table-column label="类型" width="90" align="center">
-        <template #default="{ row }">{{ typeLabel(row.assetType) }}</template>
-      </el-table-column>
-      <el-table-column label="预览" width="120" align="center">
-        <template #default="{ row }">
-          <el-image
-            v-if="row.assetType === 'IMAGE' && row.previewUrl"
-            :src="row.previewUrl"
-            fit="cover"
-            class="asset-thumb"
-            :preview-src-list="[row.previewUrl]"
-            preview-teleported
+    <div class="table-scroll">
+      <div class="table-scroll-inner">
+        <el-table
+          v-loading="loading"
+          :data="displayRows"
+          stripe
+          border
+          row-key="assetId"
+          class="report-table"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
+        >
+          <el-table-column
+            prop="assetId"
+            label="ID"
+            width="80"
+            align="center"
+            sortable="custom"
           />
-          <el-tag v-else-if="row.assetType === 'VIDEO'" size="small">视频</el-tag>
-          <span v-else>暂无</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="时长(秒)" prop="durationSeconds" width="90" align="center" />
-      <el-table-column label="状态" width="90" align="center">
-        <template #default="{ row }">
-          <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
-            {{ row.status === 'ACTIVE' ? '在用' : '停用' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="上传时间" width="170" align="center">
-        <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-      </el-table-column>
-      <el-table-column label="操作" width="200" align="center" fixed="right">
-        <template #default="{ row }">
-          <el-button v-hasPermi="['ops:ad:edit']" size="small" @click="openEdit(row)"
-            >编辑</el-button
+          <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
+          <el-table-column label="类型" width="90" align="center">
+            <template #default="{ row }">{{ typeLabel(row.assetType) }}</template>
+          </el-table-column>
+          <el-table-column label="预览" width="120" align="center">
+            <template #default="{ row }">
+              <el-image
+                v-if="row.assetType === 'IMAGE' && row.previewUrl"
+                :src="row.previewUrl"
+                fit="cover"
+                class="asset-thumb"
+                :preview-src-list="[row.previewUrl]"
+                preview-teleported
+              />
+              <el-tag v-else-if="row.assetType === 'VIDEO'" size="small">视频</el-tag>
+              <span v-else>暂无</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="时长(秒)" prop="durationSeconds" width="90" align="center" />
+          <el-table-column label="状态" width="90" align="center">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
+                {{ row.status === 'ACTIVE' ? '在用' : '停用' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="上传时间" width="170" align="center">
+            <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+          </el-table-column>
+          <el-table-column
+            label="操作"
+            width="200"
+            align="center"
+            class-name="col-action"
+            fixed="right"
           >
-          <el-button
-            v-hasPermi="['ops:ad:edit']"
-            size="small"
-            type="danger"
-            @click="removeAsset(row)"
-            >删除</el-button
-          >
-        </template>
-      </el-table-column>
-    </el-table>
+            <template #default="{ row }">
+              <el-button v-hasPermi="['ops:ad:edit']" size="small" @click="openEdit(row)"
+                >编辑</el-button
+              >
+              <el-button
+                v-hasPermi="['ops:ad:edit']"
+                size="small"
+                type="danger"
+                @click="removeAsset(row)"
+                >删除</el-button
+              >
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
 
     <PagePager
       :hydrated="listHydrated"

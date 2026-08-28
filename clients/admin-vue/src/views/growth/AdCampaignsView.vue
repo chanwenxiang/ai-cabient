@@ -17,86 +17,106 @@
       </div>
     </template>
 
-    <el-table
-      v-loading="loading"
-      :data="displayRows"
-      stripe
-      border
-      :default-sort="idDefaultSort"
-      @sort-change="onIdSortChange"
-    >
-      <el-table-column prop="campaignId" label="ID" width="80" align="center" sortable="custom" />
-      <el-table-column prop="name" label="名称" min-width="160" show-overflow-tooltip />
-      <el-table-column label="状态" width="100" align="center">
-        <template #default="{ row }">
-          <el-tag size="small" :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="范围" width="120" align="center">
-        <template #default="{ row }">
-          {{ row.deviceScope === 'SPECIFIC' ? `${row.deviceIds.length} 台定向` : '全部设备' }}
-        </template>
-      </el-table-column>
-      <el-table-column label="素材" width="90" align="center">
-        <template #default="{ row }">{{ row.assetIds.length }} 个</template>
-      </el-table-column>
-      <el-table-column label="曝光" width="80" align="center">
-        <template #default="{ row }">{{ row.impressionCount ?? 0 }}</template>
-      </el-table-column>
-      <el-table-column label="完播" width="80" align="center">
-        <template #default="{ row }">{{ row.completeCount ?? 0 }}</template>
-      </el-table-column>
-      <el-table-column label="完播率" width="90" align="center">
-        <template #default="{ row }">
-          {{
-            Number(row.impressionCount) > 0
-              ? `${((Number(row.completeCount || 0) / Number(row.impressionCount)) * 100).toFixed(1)}%`
-              : '暂无'
-          }}
-        </template>
-      </el-table-column>
-      <el-table-column label="柜机数" width="80" align="center">
-        <template #default="{ row }">{{
-          Array.isArray(row.deviceIds) ? row.deviceIds.length : '暂无'
-        }}</template>
-      </el-table-column>
-      <el-table-column label="时间窗" min-width="220" align="center">
-        <template #default="{ row }">
-          {{ formatRange(row) }}
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="280" align="center" fixed="right">
-        <template #default="{ row }">
-          <el-button v-hasPermi="['ops:ad:edit']" size="small" @click="openEdit(row)"
-            >编辑</el-button
+    <div class="table-scroll">
+      <div class="table-scroll-inner">
+        <el-table
+          v-loading="loading"
+          :data="displayRows"
+          stripe
+          border
+          row-key="campaignId"
+          class="report-table"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
+        >
+          <el-table-column
+            prop="campaignId"
+            label="ID"
+            width="80"
+            align="center"
+            sortable="custom"
+          />
+          <el-table-column prop="name" label="名称" min-width="160" show-overflow-tooltip />
+          <el-table-column label="状态" width="100" align="center">
+            <template #default="{ row }">
+              <el-tag size="small" :type="statusType(row.status)">{{
+                statusLabel(row.status)
+              }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="范围" width="120" align="center">
+            <template #default="{ row }">
+              {{ row.deviceScope === 'SPECIFIC' ? `${row.deviceIds.length} 台定向` : '全部设备' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="素材" width="90" align="center">
+            <template #default="{ row }">{{ row.assetIds.length }} 个</template>
+          </el-table-column>
+          <el-table-column label="曝光" width="80" align="center">
+            <template #default="{ row }">{{ row.impressionCount ?? 0 }}</template>
+          </el-table-column>
+          <el-table-column label="完播" width="80" align="center">
+            <template #default="{ row }">{{ row.completeCount ?? 0 }}</template>
+          </el-table-column>
+          <el-table-column label="完播率" width="90" align="center">
+            <template #default="{ row }">
+              {{
+                Number(row.impressionCount) > 0
+                  ? `${((Number(row.completeCount || 0) / Number(row.impressionCount)) * 100).toFixed(1)}%`
+                  : '暂无'
+              }}
+            </template>
+          </el-table-column>
+          <el-table-column label="柜机数" width="80" align="center">
+            <template #default="{ row }">{{
+              Array.isArray(row.deviceIds) ? row.deviceIds.length : '暂无'
+            }}</template>
+          </el-table-column>
+          <el-table-column label="时间窗" min-width="220" align="center" show-overflow-tooltip>
+            <template #default="{ row }">
+              {{ formatRange(row) }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="操作"
+            width="200"
+            align="center"
+            class-name="col-action"
+            fixed="right"
           >
-          <el-button
-            v-if="row.status === 'DRAFT' || row.status === 'STOPPED'"
-            v-hasPermi="['ops:ad:edit']"
-            size="small"
-            type="primary"
-            @click="launch(row)"
-            >上线</el-button
-          >
-          <el-button
-            v-if="row.status === 'RUNNING'"
-            v-hasPermi="['ops:ad:edit']"
-            size="small"
-            type="warning"
-            @click="stop(row)"
-            >停止</el-button
-          >
-          <el-button
-            v-if="row.status !== 'RUNNING'"
-            v-hasPermi="['ops:ad:edit']"
-            size="small"
-            type="danger"
-            @click="removeCampaign(row)"
-            >删除</el-button
-          >
-        </template>
-      </el-table-column>
-    </el-table>
+            <template #default="{ row }">
+              <el-button v-hasPermi="['ops:ad:edit']" size="small" @click="openEdit(row)"
+                >编辑</el-button
+              >
+              <el-button
+                v-if="row.status === 'DRAFT' || row.status === 'STOPPED'"
+                v-hasPermi="['ops:ad:edit']"
+                size="small"
+                type="primary"
+                @click="launch(row)"
+                >上线</el-button
+              >
+              <el-button
+                v-if="row.status === 'RUNNING'"
+                v-hasPermi="['ops:ad:edit']"
+                size="small"
+                type="warning"
+                @click="stop(row)"
+                >停止</el-button
+              >
+              <el-button
+                v-if="row.status !== 'RUNNING'"
+                v-hasPermi="['ops:ad:edit']"
+                size="small"
+                type="danger"
+                @click="removeCampaign(row)"
+                >删除</el-button
+              >
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
 
     <PagePager
       :hydrated="listHydrated"

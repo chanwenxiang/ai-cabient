@@ -112,8 +112,9 @@ export function observeTableScrollFit(root: HTMLElement): void {
   observer = new MutationObserver(scheduleSync);
   syncTableScrollFit();
   window.addEventListener('resize', scheduleSync);
+  // 只跟窗口/缩放尺寸，不跟 visualViewport scroll：桌面端鼠标移动偶发触发
+  // visualViewport scroll，会反复测表宽/强制 reflow，主区看起来上下抖 1～2px。
   window.visualViewport?.addEventListener('resize', scheduleSync);
-  window.visualViewport?.addEventListener('scroll', scheduleSync);
 }
 
 export function stopTableScrollFit(): void {
@@ -122,7 +123,6 @@ export function stopTableScrollFit(): void {
   observedRoot = null;
   window.removeEventListener('resize', scheduleSync);
   window.visualViewport?.removeEventListener('resize', scheduleSync);
-  window.visualViewport?.removeEventListener('scroll', scheduleSync);
   if (rafId) cancelAnimationFrame(rafId);
   rafId = 0;
   syncing = false;

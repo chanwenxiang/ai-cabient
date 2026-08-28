@@ -1,5 +1,5 @@
 <template>
-  <el-card class="page-card" shadow="never">
+  <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
         <div class="page-card-head__meta">
@@ -165,32 +165,34 @@
           <el-table-column label="关闭时间" width="104" align="center">
             <template #default="{ row }">{{ formatDateTime(row.closedAt) || '无' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="170" align="center" class-name="col-action">
+          <el-table-column label="操作" width="220" align="center" class-name="col-action" fixed="right">
             <template #default="{ row }">
-              <el-button link type="primary" @click="openDetail(row)">详情</el-button>
-              <template v-if="auth.hasPerm('ops:repair:edit')">
-                <el-button
-                  v-if="row.status === 'OPEN'"
-                  link
-                  type="warning"
-                  @click="transition(row, 'IN_PROGRESS')"
-                  >开始处理</el-button
-                >
-                <el-button
-                  v-if="row.status === 'IN_PROGRESS'"
-                  link
-                  type="success"
-                  @click="transition(row, 'DONE')"
-                  >完成</el-button
-                >
-                <el-button
-                  v-if="row.status === 'OPEN' || row.status === 'IN_PROGRESS'"
-                  link
-                  type="danger"
-                  @click="transition(row, 'CANCELLED')"
-                  >取消</el-button
-                >
-              </template>
+              <div class="repair-actions">
+                <el-button link type="primary" @click="openDetail(row)">详情</el-button>
+                <template v-if="auth.hasPerm('ops:repair:edit')">
+                  <el-button
+                    v-if="row.status === 'OPEN'"
+                    link
+                    type="warning"
+                    @click="transition(row, 'IN_PROGRESS')"
+                    >开始处理</el-button
+                  >
+                  <el-button
+                    v-if="row.status === 'IN_PROGRESS'"
+                    link
+                    type="success"
+                    @click="transition(row, 'DONE')"
+                    >完成</el-button
+                  >
+                  <el-button
+                    v-if="row.status === 'OPEN' || row.status === 'IN_PROGRESS'"
+                    link
+                    type="danger"
+                    @click="transition(row, 'CANCELLED')"
+                    >取消</el-button
+                  >
+                </template>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -201,13 +203,15 @@
       :hydrated="listHydrated"
       v-model:current-page="page1"
       v-model:page-size="size"
-      layout="total, prev, pager, next"
       :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
       @current-change="load"
-      @size-change="search"
+      @size-change="onSizeChange"
     />
 
-    <el-dialog v-model="createVisible" title="新建维修工单" width="560px" destroy-on-close>
+  <el-dialog v-model="createVisible" title="新建维修工单" width="560px" destroy-on-close append-to-body>
       <el-form label-width="90px">
         <el-form-item label="设备" required>
           <el-select
@@ -274,6 +278,7 @@
       storage-key="admin.drawer.repair.detail"
       :default-width="480"
       :min-width="420"
+      append-to-body
     >
       <div v-loading="!detailHydrated" class="repair-detail-pane">
         <template v-if="detail">
@@ -326,13 +331,13 @@
         <el-empty v-else-if="detailHydrated" description="详情加载失败" :image-size="64" />
       </div>
     </ResizableDrawer>
-  </el-card>
 
   <el-dialog
     v-model="assignVisible"
     title="批量指派"
     width="420px"
     destroy-on-close
+    append-to-body
     :close-on-click-modal="false"
   >
     <el-alert
@@ -352,6 +357,7 @@
       <el-button type="primary" :loading="assignSaving" @click="submitAssign">确认指派</el-button>
     </template>
   </el-dialog>
+  </el-card>
 </template>
 
 <script setup lang="ts">
@@ -563,6 +569,11 @@ function search() {
   load();
 }
 
+function onSizeChange() {
+  page1.value = 1;
+  void load();
+}
+
 function openCreate() {
   form.deviceId = deviceId.value || '';
   form.title = '';
@@ -731,11 +742,6 @@ watch(
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
-.page-pager {
-  margin-top: 12px;
-  display: flex;
-  justify-content: flex-end;
-}
 .event-title {
   margin: 16px 0 8px;
   font-weight: 600;
@@ -745,5 +751,14 @@ watch(
 }
 .assign-alert {
   margin-bottom: 4px;
+}
+.repair-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  box-sizing: border-box;
 }
 </style>

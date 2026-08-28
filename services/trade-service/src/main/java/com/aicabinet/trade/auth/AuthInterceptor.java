@@ -28,7 +28,7 @@ public class AuthInterceptor implements HandlerInterceptor {
         String auth = request.getHeader("Authorization");
         boolean viaCookie = false;
         if (auth == null || !auth.startsWith(BEARER)) {
-            String cookieToken = sessionCookieService.resolveToken(request);
+            String cookieToken = sessionCookieService.resolveTokenForPath(request, request.getRequestURI());
             if (cookieToken != null) {
                 auth = BEARER + cookieToken;
                 viaCookie = true;

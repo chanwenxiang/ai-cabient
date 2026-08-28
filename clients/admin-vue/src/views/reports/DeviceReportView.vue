@@ -152,6 +152,7 @@
             width="96"
             class-name="col-action"
             align="center"
+            fixed="right"
           >
             <template #default="{ row }">
               <TableActions

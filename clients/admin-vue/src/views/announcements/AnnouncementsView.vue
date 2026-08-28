@@ -149,7 +149,7 @@
               <span class="cell-datetime">{{ formatTime(row.publishAt) || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="160" class-name="col-action" align="center">
+          <el-table-column label="操作" width="160" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions
                 :actions="rowActions(row)"
@@ -420,9 +420,9 @@ async function load() {
     if (keyword.value.trim()) q.set('q', keyword.value.trim());
     if (statusFilter.value) q.set('status', statusFilter.value);
     if (priorityFilter.value) q.set('priority', priorityFilter.value);
-    const res = await get<{ items: any[]; total: number }>(`/api/v2/ops/announcements?${q}`);
-    list.value = res.data?.items ?? [];
-    total.value = res.data?.total ?? 0;
+    const res = await get(`/api/v2/ops/announcements?${q}`);
+    list.value = (res.data?.items as any[]) ?? [];
+    total.value = Number(res.data?.total ?? 0);
     clearSelection();
   } catch (e: any) {
     error.value = e?.message || '加载失败';

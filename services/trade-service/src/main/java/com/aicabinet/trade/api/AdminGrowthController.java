@@ -2,6 +2,7 @@ package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.AdminManualNotificationRequest;
+import com.aicabinet.common.dto.AdminUpdateNotificationRequest;
 import com.aicabinet.common.dto.MemberLevelRuleDto;
 import com.aicabinet.common.dto.MarketingRoiRowDto;
 import com.aicabinet.common.dto.NotificationDto;
@@ -21,6 +22,7 @@ import com.aicabinet.trade.service.SkuDelistReviewService;
 import com.aicabinet.trade.service.UserBehaviorAnalyticsService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -164,6 +166,34 @@ public class AdminGrowthController {
             HttpServletRequest request,
             @Valid @RequestBody AdminManualNotificationRequest body) {
         return ApiResponse.ok(notificationService.sendManual(operatorId(request), body));
+    }
+
+    @RequiresPermissions("ops:notify:list")
+    @PutMapping("/notifications/{id}")
+    public ApiResponse<NotificationDto> updateNotification(
+            HttpServletRequest request,
+            @PathVariable Long id,
+            @Valid @RequestBody AdminUpdateNotificationRequest body) {
+        return ApiResponse.ok(notificationService.updateManual(operatorId(request), id, body));
+    }
+
+    @RequiresPermissions("ops:notify:list")
+    @DeleteMapping("/notifications/{id}")
+    public ApiResponse<Void> deleteNotification(
+            HttpServletRequest request,
+            @PathVariable Long id) {
+        notificationService.deleteManual(operatorId(request), id);
+        return ApiResponse.ok(null);
+    }
+
+    @RequiresPermissions("ops:notify:list")
+    @PostMapping("/notifications/batch-delete")
+    public ApiResponse<Map<String, Integer>> batchDeleteNotifications(
+            HttpServletRequest request,
+            @RequestBody Map<String, List<Long>> body) {
+        List<Long> ids = body == null ? List.of() : body.getOrDefault("ids", List.of());
+        int deleted = notificationService.deleteManualBatch(operatorId(request), ids);
+        return ApiResponse.ok(Map.of("deleted", deleted));
     }
 
     // ---------- 会员等级规则 ----------

@@ -125,7 +125,7 @@
           <el-table-column label="备注" min-width="100" show-overflow-tooltip>
             <template #default="{ row }">{{ row.remark || '暂无' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="220" align="center">
+          <el-table-column label="操作" width="220" align="center" fixed="right">
             <template #default="{ row }">
               <el-button v-hasPermi="['ops:org:edit']" size="small" @click="openContract(row)">
                 编辑
