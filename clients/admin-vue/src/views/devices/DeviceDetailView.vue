@@ -2037,8 +2037,8 @@ onActivated(() => {
   margin-top: 12px;
 }
 .muted {
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+  font-size: 13px;
 }
 
 .device-ops {
@@ -2225,10 +2225,6 @@ onActivated(() => {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-}
-.muted {
-  color: var(--el-text-color-placeholder);
-  font-size: 13px;
 }
 .asset-form {
   margin-bottom: 4px;

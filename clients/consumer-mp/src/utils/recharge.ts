@@ -102,9 +102,7 @@ export function openAlipayPayForm(payFormHtml: string) {
     const input = document.createElement('input');
     input.type = 'hidden';
     input.name = name;
-    input.value = String(
-      (node as HTMLInputElement).value || node.getAttribute('value') || ''
-    ).slice(0, 8192);
+    input.value = String(node.value || node.getAttribute('value') || '').slice(0, 8192);
     form.appendChild(input);
   }
   if (!form.querySelector('input')) {

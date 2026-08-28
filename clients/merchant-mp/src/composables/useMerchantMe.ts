@@ -39,7 +39,7 @@ export function useMerchantMe() {
     if (getToken()) {
       refreshMerchantMe().catch(() => {
         if (!getToken()) return;
-        meRef.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+        meRef.value = uni.getStorageSync('merchant_me') || null;
       });
     }
   });
