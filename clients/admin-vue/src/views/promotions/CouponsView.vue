@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">优惠券</span>
-            <span class="hint">券定义与发券；面值 / 门槛右对齐</span>
+            <span class="hint">券定义与发券；面值 / 门槛等金额列居中</span>
           </div>
         </div>
         <div class="page-card-head__actions">

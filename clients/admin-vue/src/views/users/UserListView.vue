@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">用户余额</span>
-            <span class="hint">按手机号 / 姓名 / ID 筛选；余额右对齐；有权限可调整余额</span>
+            <span class="hint">按手机号 / 姓名 / ID 筛选；有权限可调整余额</span>
           </div>
         </div>
         <div class="page-card-head__actions">

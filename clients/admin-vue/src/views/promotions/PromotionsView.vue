@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">营销活动</span>
-            <span class="hint">满减 / 折扣等活动；预算与已使用右对齐</span>
+            <span class="hint">满减 / 折扣等活动；预算与已使用居中展示</span>
           </div>
         </div>
         <div class="page-card-head__actions">
