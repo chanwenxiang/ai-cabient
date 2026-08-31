@@ -234,7 +234,7 @@ public class ApprovalWorkflowService {
     }
 
     /**
-     * 顶栏收件箱：待审批为真实任务；站内消息剔除与当前待办同业务的审批提醒，避免重复。
+     * 顶栏收件箱：待审批为真实 PENDING 任务；站内消息剔除与待办重复项，以及已办结流程的过期审批提醒。
      */
     @Transactional(readOnly = true)
     public ApprovalInboxDto inbox(Long userId, int limit) {
@@ -244,15 +244,39 @@ public class ApprovalWorkflowService {
         Set<String> pendingBizKeys = pendingBizKeys(userId);
         int fetchCap = Math.min(100, Math.max(safeLimit * 3, safeLimit));
         List<NotificationDto> messages = notificationService.opsNotifications(userId, fetchCap).stream()
-                .filter(m -> !pendingBizKeys.contains(bizKey(m.bizType(), m.bizId())))
+                .filter(m -> shouldShowOpsMessage(m, pendingBizKeys))
                 .limit(safeLimit)
                 .toList();
-        long unreadMessages = pendingBizKeys.isEmpty()
-                ? notificationService.opsUnreadCount(userId)
-                : notificationService.opsUnread(userId, 500).stream()
-                        .filter(m -> !pendingBizKeys.contains(bizKey(m.bizType(), m.bizId())))
-                        .count();
+        long unreadMessages = notificationService.opsUnread(userId, 500).stream()
+                .filter(m -> shouldShowOpsMessage(m, pendingBizKeys))
+                .count();
         return new ApprovalInboxDto(pendingCount, unreadMessages, tasks, messages);
+    }
+
+    /**
+     * 站内信是否展示：与当前待办同业务的不展示；标题为审批提醒且流程已结束的也不展示。
+     */
+    boolean shouldShowOpsMessage(NotificationDto message, Set<String> pendingBizKeys) {
+        if (message == null) {
+            return false;
+        }
+        String key = bizKey(message.bizType(), message.bizId());
+        if (key != null && pendingBizKeys != null && pendingBizKeys.contains(key)) {
+            return false;
+        }
+        if (!isApprovalReminderTitle(message.title()) || key == null) {
+            return true;
+        }
+        return instanceRepository.findByBizTypeAndBizId(message.bizType().trim(), message.bizId().trim())
+                .map(inst -> STATUS_PENDING.equals(inst.getStatus()))
+                .orElse(true);
+    }
+
+    static boolean isApprovalReminderTitle(String title) {
+        if (title == null || title.isBlank()) {
+            return false;
+        }
+        return title.startsWith("审批提醒：") || title.startsWith("待审批：");
     }
 
     @Transactional(readOnly = true)

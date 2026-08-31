@@ -113,7 +113,9 @@ const visible = computed(
   () => auth.hasPerm('ops:approval:list') || auth.hasPerm('ops:replenishment:list')
 );
 
-const badgeCount = computed(() => pendingTaskCount.value + unreadMessageCount.value);
+/** 角标只计未读（未点开过的待办 + 未读站内信），避免「已看过仍挂红点」。 */
+const unreadTaskCount = computed(() => tasks.value.filter((t) => !t.readAt).length);
+const badgeCount = computed(() => unreadTaskCount.value + unreadMessageCount.value);
 
 async function loadInbox() {
   if (!visible.value) return;
@@ -131,8 +133,46 @@ async function loadInbox() {
   }
 }
 
-function onOpen() {
-  void loadInbox();
+/**
+ * 打开面板即视为已读：红点消失；「待审批 (N)」仍表示未办结任务数。
+ */
+async function onOpen() {
+  await loadInbox();
+  await markVisibleAsRead();
+}
+
+/** 将面板内未读待办/消息批量标记已读。 */
+async function markVisibleAsRead() {
+  const jobs: Promise<void>[] = [];
+  for (const task of tasks.value) {
+    if (task.readAt) continue;
+    jobs.push(
+      (async () => {
+        try {
+          await api.request(`/api/v2/ops/admin/approvals/tasks/${task.taskId}/read`, 'POST');
+          task.readAt = new Date().toISOString();
+        } catch {
+          /* 忽略单条失败，仍继续 */
+        }
+      })()
+    );
+  }
+  for (const msg of messages.value) {
+    if (msg.read) continue;
+    jobs.push(
+      (async () => {
+        try {
+          await api.request(`/api/v2/ops/admin/approvals/messages/${msg.id}/read`, 'POST');
+          msg.read = true;
+        } catch {
+          /* 忽略单条失败，仍继续 */
+        }
+      })()
+    );
+  }
+  if (!jobs.length) return;
+  await Promise.all(jobs);
+  unreadMessageCount.value = 0;
 }
 
 function resolvePath(task: ApprovalTask | InboxMessage): string {
@@ -144,6 +184,7 @@ function resolvePath(task: ApprovalTask | InboxMessage): string {
   }
   if (task.bizType === 'LINE_WITHDRAW') return '/line-managers?tab=withdraws';
   if (task.bizType === 'BALANCE_REFUND') return '/balance-refunds';
+  if (task.bizType === 'MERCHANT_ONBOARD') return '/merchant-onboarding';
   return '/replenishment?tab=requests';
 }
 
