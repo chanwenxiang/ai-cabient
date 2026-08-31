@@ -135,8 +135,12 @@ edge/device-simulator/sim-*/
 
 # Local scratch / leaked tokens / unpack leftovers
 .tmp/
+.tmp-*
+..tmp-*
+**/.tmp-*
 .tmp-*.png
 tmp-tsc-out.txt
+tmp-*.html
 BOOT-INF/
 clients/admin-vue/eyJhbGciOiJIUzI1NiJ9.*
 
