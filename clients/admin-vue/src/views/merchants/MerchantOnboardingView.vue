@@ -66,6 +66,7 @@
           border
           empty-text=" "
           class="report-table"
+          :row-class-name="rowClassName"
         >
           <template #empty>
             <el-empty v-if="hydrated && !loading" description="暂无进件记录" />
@@ -194,6 +195,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
@@ -217,6 +219,7 @@ interface OnboardRow {
   approvalStatus?: string;
 }
 
+const route = useRoute();
 const auth = useAuthStore();
 const canEdit = computed(() => auth.hasPerm('ops:merchant:onboard:edit'));
 const loading = ref(false);
@@ -230,6 +233,7 @@ const merchantId = ref('');
 const channel = ref('');
 const status = ref('');
 const hints = ref<Record<string, any> | null>(null);
+const highlightId = ref<number | null>(null);
 const dlg = ref(false);
 const form = reactive({
   onboardingId: null as number | null,
@@ -275,6 +279,15 @@ function statusTag(s?: string): 'info' | 'warning' | 'success' | 'danger' {
   }
 }
 
+/**
+ * @param {{ row: OnboardRow }} param
+ */
+function rowClassName({ row }: { row: OnboardRow }) {
+  return highlightId.value != null && row.onboardingId === highlightId.value
+    ? 'is-highlight-row'
+    : '';
+}
+
 async function load() {
   loading.value = true;
   try {
@@ -286,7 +299,8 @@ async function load() {
     if (channel.value) q.set('channel', channel.value);
     if (status.value) q.set('status', status.value);
     const [list, h] = await Promise.all([
-      api.request<{ items: OnboardRow[]; total: number }>(
+      // 后端当前返回 List；兼容将来 PageResult({ items, total })
+      api.request<OnboardRow[] | { items: OnboardRow[]; total: number }>(
         `/api/v2/ops/admin/merchant-onboarding?${q}`,
         'GET'
       ),
@@ -294,15 +308,32 @@ async function load() {
         .request<Record<string, any>>('/api/v2/ops/admin/merchant-onboarding/live-hints', 'GET')
         .catch(() => null)
     ]);
-    rows.value = list.items || [];
-    total.value = Number(list.total) || 0;
+    if (Array.isArray(list)) {
+      rows.value = list;
+      total.value = list.length;
+    } else {
+      rows.value = list?.items ?? [];
+      total.value = Number(list?.total) || 0;
+    }
     hints.value = h;
+    applyRouteHighlight();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
     loading.value = false;
     hydrated.value = true;
   }
+}
+
+/** 从审批历史深链带入 onboardingId 时高亮对应行。 */
+function applyRouteHighlight() {
+  const raw = route.query.onboardingId;
+  const id = Number(Array.isArray(raw) ? raw[0] : raw);
+  if (!Number.isFinite(id) || id <= 0) {
+    highlightId.value = null;
+    return;
+  }
+  highlightId.value = id;
 }
 
 function onSizeChange() {
@@ -405,5 +436,8 @@ onMounted(load);
 .muted {
   color: var(--el-text-color-secondary);
   font-size: 12px;
+}
+:deep(.is-highlight-row) > td {
+  background: rgba(245, 158, 11, 0.12) !important;
 }
 </style>

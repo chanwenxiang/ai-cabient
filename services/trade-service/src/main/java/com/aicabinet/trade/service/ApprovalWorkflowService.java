@@ -604,7 +604,7 @@ public class ApprovalWorkflowService {
                 task.getNodeName(),
                 task.getNodeSeq(),
                 task.getStatus(),
-                actionPath(bizType),
+                actionPath(bizType, bizId),
                 task.getCreatedAt(),
                 task.getReadAt());
     }
@@ -633,7 +633,7 @@ public class ApprovalWorkflowService {
                 instanceStatus,
                 currentNodeName,
                 buildProgressText(myStatus, myNode, instanceStatus, currentNodeName),
-                actionPath(bizType),
+                actionPath(bizType, bizId),
                 actedAt);
     }
 
@@ -673,17 +673,28 @@ public class ApprovalWorkflowService {
     }
 
     static String actionPath(String bizType) {
+        return actionPath(bizType, null);
+    }
+
+    static String actionPath(String bizType, String bizId) {
         if (bizType == null) {
             return "/approvals";
         }
+        String id = bizId == null ? "" : bizId.trim();
         return switch (bizType) {
-            case "MERCHANT_REPLEN_REQUEST" -> "/replenishment?tab=requests";
-            case "PURCHASE_ORDER" -> "/warehouse?tab=purchase";
+            case "MERCHANT_REPLEN_REQUEST" -> id.isEmpty()
+                    ? "/replenishment?tab=requests"
+                    : "/replenishment?tab=requests&requestId=" + id;
+            case "PURCHASE_ORDER" -> id.isEmpty()
+                    ? "/warehouse?tab=purchase"
+                    : "/warehouse?tab=purchase&orderId=" + id;
             case "MERCHANT_WITHDRAW" -> "/merchant-withdraw";
             case "LINE_WITHDRAW" -> "/line-managers?tab=withdraws";
             case "BALANCE_REFUND" -> "/balance-refunds";
             case "MERCHANT_WALLET_ADJUST" -> "/merchant-withdraw";
-            case "MERCHANT_ONBOARD" -> "/merchant-onboarding";
+            case "MERCHANT_ONBOARD" -> id.isEmpty()
+                    ? "/merchant-onboarding"
+                    : "/merchant-onboarding?onboardingId=" + id;
             default -> "/approvals";
         };
     }
