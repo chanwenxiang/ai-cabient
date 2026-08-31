@@ -58,7 +58,9 @@ public class DeviceInternalController {
         String appVersion = body != null ? body.appVersion() : null;
         String firmwareVersion = body != null ? body.firmwareVersion() : null;
         Integer currentTempC = body != null ? body.currentTempC() : null;
-        presenceService.heartbeat(deviceId, appVersion, firmwareVersion, currentTempC);
+        String imei = body != null ? body.imei() : null;
+        String boardSn = body != null ? body.boardSn() : null;
+        presenceService.heartbeat(deviceId, appVersion, firmwareVersion, currentTempC, imei, boardSn);
         if (body != null) {
             envService.saveReading(deviceId, body.humidityPct(), body.voltageV(), body.powerW());
         }
@@ -81,5 +83,6 @@ public class DeviceInternalController {
     }
 
     record HeartbeatRequest(String appVersion, String firmwareVersion, Integer currentTempC,
-                            Double humidityPct, Double voltageV, Double powerW) {}
+                            Double humidityPct, Double voltageV, Double powerW,
+                            String imei, String boardSn) {}
 }

@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.AdjustBalanceRequest;
 import com.aicabinet.trade.mapper.AdminAuditLogMapper;
+import com.aicabinet.trade.mapper.AliyunCategoryMappingMapper;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
@@ -70,6 +71,8 @@ class AdminDashboardBalanceAdjustTest {
     @Mock private MemberMapper memberRepository;
     @Mock private UserBlacklistMapper blacklistRepository;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private AliyunCategoryMappingMapper aliyunCategoryMappingRepository;
+    @Mock private DeviceIdService deviceIdService;
 
     private AdminDashboardService service;
 
@@ -84,7 +87,7 @@ class AdminDashboardBalanceAdjustTest {
                 disputeSlaService, inventoryLotService, deviceSlotService, replenishmentTaskRepository,
                 reconciliationRepository, inTransitRepository, balanceLedgerService, refundPolicyService,
                 exceptionRepository, fileAttachmentService, memberRepository, blacklistRepository,
-                distributedLockService, null, null);
+                distributedLockService, aliyunCategoryMappingRepository, deviceIdService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
