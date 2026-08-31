@@ -214,16 +214,28 @@ async function markVisibleAsRead() {
   unreadMessageCount.value = 0;
 }
 
-function resolvePath(item: { actionPath?: string; bizType?: string }): string {
+function resolvePath(item: { actionPath?: string; bizType?: string; bizId?: string }): string {
   if (item.actionPath) return item.actionPath;
-  if (item.bizType === 'MERCHANT_REPLEN_REQUEST') return '/replenishment?tab=requests';
-  if (item.bizType === 'PURCHASE_ORDER') return '/warehouse?tab=purchase';
+  if (item.bizType === 'MERCHANT_REPLEN_REQUEST') {
+    return item.bizId
+      ? `/replenishment?tab=requests&requestId=${encodeURIComponent(item.bizId)}`
+      : '/replenishment?tab=requests';
+  }
+  if (item.bizType === 'PURCHASE_ORDER') {
+    return item.bizId
+      ? `/warehouse?tab=purchase&orderId=${encodeURIComponent(item.bizId)}`
+      : '/warehouse?tab=purchase';
+  }
   if (item.bizType === 'MERCHANT_WITHDRAW' || item.bizType === 'MERCHANT_WALLET_ADJUST') {
     return '/merchant-withdraw';
   }
   if (item.bizType === 'LINE_WITHDRAW') return '/line-managers?tab=withdraws';
   if (item.bizType === 'BALANCE_REFUND') return '/balance-refunds';
-  if (item.bizType === 'MERCHANT_ONBOARD') return '/merchant-onboarding';
+  if (item.bizType === 'MERCHANT_ONBOARD') {
+    return item.bizId
+      ? `/merchant-onboarding?onboardingId=${encodeURIComponent(item.bizId)}`
+      : '/merchant-onboarding';
+  }
   return '/replenishment?tab=requests';
 }
 
