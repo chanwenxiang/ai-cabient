@@ -6,6 +6,8 @@ import com.aicabinet.trade.domain.MerchantWalletAccount;
 
 import com.aicabinet.trade.domain.MerchantWalletLedger;
 
+import com.aicabinet.trade.mapper.MerchantMapper;
+
 import com.aicabinet.trade.mapper.MerchantWalletAccountMapper;
 
 import com.aicabinet.trade.mapper.MerchantWalletLedgerMapper;
@@ -34,6 +36,8 @@ public class MerchantWalletService {
 
     private final MerchantWalletLedgerMapper ledgerMapper;
 
+    private final MerchantMapper merchantMapper;
+
     private final DistributedLockService distributedLockService;
 
 
@@ -42,11 +46,15 @@ public class MerchantWalletService {
 
                                  MerchantWalletLedgerMapper ledgerMapper,
 
+                                 MerchantMapper merchantMapper,
+
                                  DistributedLockService distributedLockService) {
 
         this.accountMapper = accountMapper;
 
         this.ledgerMapper = ledgerMapper;
+
+        this.merchantMapper = merchantMapper;
 
         this.distributedLockService = distributedLockService;
 
@@ -474,6 +482,14 @@ public class MerchantWalletService {
         MerchantWalletLedger ledger = new MerchantWalletLedger();
 
         ledger.setMerchantId(line.merchantId());
+
+        var merchant = merchantMapper.selectById(line.merchantId());
+
+        if (merchant != null) {
+
+            ledger.setMerchantName(merchant.getMerchantName());
+
+        }
 
         ledger.setEntryType(line.entryType());
 

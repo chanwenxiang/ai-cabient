@@ -22,12 +22,14 @@ class InTransitServiceTest {
     private WarehouseInTransitMapper transitRepository;
     @Mock
     private DistributedLockService distributedLockService;
+    @Mock
+    private DisplaySnapshotHelper displaySnapshotHelper;
 
     private InTransitService inTransitService;
 
     @BeforeEach
     void setUp() {
-        inTransitService = new InTransitService(transitRepository, distributedLockService, null);
+        inTransitService = new InTransitService(transitRepository, distributedLockService, displaySnapshotHelper, null);
         org.springframework.test.util.ReflectionTestUtils.setField(inTransitService, "self", inTransitService);
     }
 

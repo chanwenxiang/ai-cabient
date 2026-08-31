@@ -284,6 +284,7 @@ public class MerchantWithdrawService {
         MerchantWithdrawRequest request = new MerchantWithdrawRequest();
         request.setRequestNo(no);
         request.setMerchantId(merchant.getMerchantId());
+        request.setMerchantName(merchant.getMerchantName());
         request.setAmountCents(amountCents);
         request.setFeeCents(0L);
         request.setPayChannel(properties.mockEnabled() ? "MOCK" : "WECHAT");
@@ -395,12 +396,16 @@ public class MerchantWithdrawService {
     }
 
     private MerchantWithdrawRequestDto toDto(MerchantWithdrawRequest request) {
-        Merchant merchant = merchantMapper.findById(request.getMerchantId()).orElse(null);
+        String merchantName = request.getMerchantName();
+        if (merchantName == null || merchantName.isBlank()) {
+            Merchant merchant = merchantMapper.findById(request.getMerchantId()).orElse(null);
+            merchantName = merchant == null ? null : merchant.getMerchantName();
+        }
         return new MerchantWithdrawRequestDto(
                 request.getRequestId(),
                 request.getRequestNo(),
                 request.getMerchantId(),
-                merchant == null ? null : merchant.getMerchantName(),
+                merchantName,
                 request.getAmountCents(),
                 request.getStatus(),
                 request.getPayChannel(),
@@ -420,6 +425,7 @@ public class MerchantWithdrawService {
         return new MerchantWalletLedgerDto(
                 ledger.getLedgerId(),
                 ledger.getMerchantId(),
+                ledger.getMerchantName(),
                 ledger.getEntryType(),
                 ledger.getAmountCents(),
                 ledger.getBalanceAfter(),

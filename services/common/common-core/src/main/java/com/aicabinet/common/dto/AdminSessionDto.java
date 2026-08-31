@@ -32,7 +32,8 @@ public record AdminSessionDto(
         /** 开门→关门时长（毫秒），无关门则为 null */
         Long shoppingDurationMs,
         /** 关门→会话更新（识别/结算）时长（毫秒） */
-        Long recognitionDurationMs
+        Long recognitionDurationMs,
+        String deviceName
 ) {
     public AdminSessionDto(
             String sessionId,
@@ -54,7 +55,7 @@ public record AdminSessionDto(
     ) {
         this(sessionId, userId, deviceId, state, openTime, closeTime, orderId, videoUri,
                 uploadStatus, cameraFusionMode, videoPreviewUrl, failReason, createdAt, updatedAt,
-                sessionKind, replenishmentTaskId, null, null, null, null, null, null);
+                sessionKind, replenishmentTaskId, null, null, null, null, null, null, null);
     }
 
     public AdminSessionDto(
@@ -79,6 +80,36 @@ public record AdminSessionDto(
     ) {
         this(sessionId, userId, deviceId, state, openTime, closeTime, orderId, videoUri,
                 uploadStatus, cameraFusionMode, videoPreviewUrl, failReason, createdAt, updatedAt,
-                sessionKind, replenishmentTaskId, entryChannel, payChannel, null, null, null, null);
+                sessionKind, replenishmentTaskId, entryChannel, payChannel, null, null, null, null, null);
+    }
+
+    public AdminSessionDto(
+            String sessionId,
+            Long userId,
+            String deviceId,
+            SessionState state,
+            Instant openTime,
+            Instant closeTime,
+            String orderId,
+            String videoUri,
+            String uploadStatus,
+            String cameraFusionMode,
+            String videoPreviewUrl,
+            String failReason,
+            Instant createdAt,
+            Instant updatedAt,
+            String sessionKind,
+            Long replenishmentTaskId,
+            String entryChannel,
+            String payChannel,
+            Integer preauthCents,
+            String preauthStatus,
+            Long shoppingDurationMs,
+            Long recognitionDurationMs
+    ) {
+        this(sessionId, userId, deviceId, state, openTime, closeTime, orderId, videoUri,
+                uploadStatus, cameraFusionMode, videoPreviewUrl, failReason, createdAt, updatedAt,
+                sessionKind, replenishmentTaskId, entryChannel, payChannel, preauthCents, preauthStatus,
+                shoppingDurationMs, recognitionDurationMs, null);
     }
 }

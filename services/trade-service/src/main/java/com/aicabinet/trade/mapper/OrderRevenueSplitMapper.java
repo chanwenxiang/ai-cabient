@@ -23,6 +23,13 @@ public interface OrderRevenueSplitMapper extends BaseTradeMapper<OrderRevenueSpl
     return Optional.ofNullable(selectOne(Wrappers.<OrderRevenueSplit>lambdaQuery().eq(OrderRevenueSplit::getOrderId, orderId)));
     }
 
+    default List<OrderRevenueSplit> findByOrderIdIn(Collection<String> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<OrderRevenueSplit>lambdaQuery().in(OrderRevenueSplit::getOrderId, orderIds));
+    }
+
     default long countByStatusIn(Collection<String> statuses) {
     Long c = selectCount(Wrappers.<OrderRevenueSplit>lambdaQuery().in(OrderRevenueSplit::getStatus, statuses));
     return c == null ? 0 : c;

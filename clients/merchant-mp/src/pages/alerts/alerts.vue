@@ -197,24 +197,48 @@ async function load() {
   error.value = '';
   try {
     const [wb, exceptionPage, expiryRows, slotRows] = await Promise.all([
-      merchantApi.workbench().catch(() => ({
-        offlineDevices: 0,
-        openDisputes: 0,
-        lowStockItems: 0,
-        expiryAlerts: 0,
-        slotDiscrepancies: 0,
-        actionItems: [] as {
-          type: string;
-          title: string;
-          detail?: string;
-          deviceId?: string;
-          ticketId?: string;
-          exceptionId?: string;
-        }[]
-      })),
-      merchantApi.openExceptions(100).catch(() => ({ items: [], total: 0 })),
-      merchantApi.expiryAlerts().catch(() => []),
-      merchantApi.slotDiscrepancies().catch(() => [] as MerchantSlotDiscrepancy[])
+      merchantApi.workbench().catch((e) => {
+        uni.showToast({
+          title: (e instanceof Error ? e.message : '待办加载失败').slice(0, 40),
+          icon: 'none'
+        });
+        return {
+          offlineDevices: 0,
+          openDisputes: 0,
+          lowStockItems: 0,
+          expiryAlerts: 0,
+          slotDiscrepancies: 0,
+          actionItems: [] as {
+            type: string;
+            title: string;
+            detail?: string;
+            deviceId?: string;
+            ticketId?: string;
+            exceptionId?: string;
+          }[]
+        };
+      }),
+      merchantApi.openExceptions(100).catch((e) => {
+        uni.showToast({
+          title: (e instanceof Error ? e.message : '异常加载失败').slice(0, 40),
+          icon: 'none'
+        });
+        return { items: [], total: 0 };
+      }),
+      merchantApi.expiryAlerts().catch((e) => {
+        uni.showToast({
+          title: (e instanceof Error ? e.message : '效期告警加载失败').slice(0, 40),
+          icon: 'none'
+        });
+        return [];
+      }),
+      merchantApi.slotDiscrepancies().catch((e) => {
+        uni.showToast({
+          title: (e instanceof Error ? e.message : '货道差异加载失败').slice(0, 40),
+          icon: 'none'
+        });
+        return [] as MerchantSlotDiscrepancy[];
+      })
     ]);
     if (seq !== loadSeq) return;
     const deduped = mergeTodoItems({

@@ -413,6 +413,31 @@ public class MerchantPortalController {
         return ApiResponse.ok(support.merchantReplenishmentService().listSuggestions(userId(request), deviceId));
     }
 
+    @RequiresPermissions("merchant:replenishment:request")
+    @PostMapping(value = "/replenishment/requests/evidence", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<FileAttachmentDto> uploadPendingReplenishmentRequestEvidence(
+            HttpServletRequest request,
+            @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
+        return ApiResponse.ok(support.merchantReplenishmentService().uploadPendingRequestEvidence(userId(request), file));
+    }
+
+    @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/replenishment/requests/{requestId}/evidence")
+    public ApiResponse<List<FileAttachmentDto>> listReplenishmentRequestEvidence(
+            HttpServletRequest request, @PathVariable Long requestId) {
+        return ApiResponse.ok(support.merchantReplenishmentService().listRequestEvidence(userId(request), requestId));
+    }
+
+    @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/replenishment/requests/{requestId}/evidence/{fileId}")
+    public void streamReplenishmentRequestEvidence(
+            HttpServletRequest request,
+            @PathVariable Long requestId,
+            @PathVariable Long fileId,
+            jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        support.merchantReplenishmentService().streamRequestEvidence(userId(request), requestId, fileId, response);
+    }
+
     @RequiresPermissions("merchant:replenishment:view")
     @GetMapping("/replenishment/requests")
     public ApiResponse<List<MerchantReplenishmentRequestDto>> replenishmentRequests(

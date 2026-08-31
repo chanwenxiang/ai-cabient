@@ -746,6 +746,8 @@ export type MemberProfileDto = {
     minPoints: number;
     maxPoints?: number | null;
     pointsRate: number;
+    /** 会员价折扣百分比，0 表示无折扣 */
+    priceDiscountPct?: number;
     sortOrder: number;
   }>;
   createdAt?: string;

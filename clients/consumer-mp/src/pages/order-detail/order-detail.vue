@@ -80,7 +80,7 @@
           <view class="info-row"
             ><text class="info-label">扣款时间</text
             ><text class="info-value">{{
-              formatTime(order?.payTime || order?.createdAt)
+              formatTime(order?.paidAt || order?.payTime || order?.createdAt)
             }}</text></view
           >
           <view
@@ -111,9 +111,9 @@
             ><text class="info-value mono">{{ displayBizNo(order?.orderId) }}</text></view
           >
           <view class="info-row"
-            ><text class="info-label">柜机编号</text
+            ><text class="info-label">柜机</text
             ><text class="info-value mono">{{
-              emptyDisplay(order?.deviceId, 'device')
+              emptyDisplay(order?.deviceName || order?.deviceId, 'device')
             }}</text></view
           >
         </view>

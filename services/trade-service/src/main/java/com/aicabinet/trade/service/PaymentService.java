@@ -889,6 +889,28 @@ public class PaymentService {
         return "recharge:idem:" + idempotencyKey;
     }
 
+    /** 按支付操作号查网关流水号（微信 transaction_id / 支付宝 trade_no）。 */
+    @Transactional(readOnly = true)
+    public java.util.Optional<String> findGatewayTradeNo(String paymentOperationId) {
+        if (paymentOperationId == null || paymentOperationId.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        return paymentOperationRepository.findById(paymentOperationId.trim())
+                .map(PaymentOperation::getGatewayTradeNo)
+                .filter(no -> no != null && !no.isBlank());
+    }
+
+    /** 支付操作创建时间，用作订单 paidAt 近似值。 */
+    @Transactional(readOnly = true)
+    public java.util.Optional<java.time.Instant> findOperationCreatedAt(String paymentOperationId) {
+        if (paymentOperationId == null || paymentOperationId.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        return paymentOperationRepository.findById(paymentOperationId.trim())
+                .map(PaymentOperation::getCreatedAt)
+                .filter(at -> at != null);
+    }
+
     private <T> T runWithRechargeLock(String orderId, long leaseSeconds, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(rechargeLockKey(orderId), leaseSeconds, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "充值单处理中，请稍后重试");

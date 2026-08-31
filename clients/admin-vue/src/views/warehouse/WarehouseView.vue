@@ -1073,7 +1073,7 @@
                     <el-table :data="row.lines || []" size="small" border class="line-table">
                       <el-table-column label="目标设备" min-width="180" align="center">
                         <template #default="scope">
-                          {{ deviceName(scope.row.deviceId) }}
+                          {{ deviceName(scope.row.deviceId, scope.row.deviceName) }}
                         </template>
                       </el-table-column>
                       <el-table-column label="商品" min-width="180" align="center">
@@ -1185,7 +1185,7 @@
               <el-table-column prop="outboundId" label="出库单" min-width="96" align="center" />
               <el-table-column label="目标设备" min-width="180" align="center">
                 <template #default="{ row }">
-                  {{ deviceName(row.deviceId) }}
+                  {{ deviceName(row.deviceId, row.deviceName) }}
                 </template>
               </el-table-column>
               <el-table-column label="商品" min-width="180" align="center">
@@ -2811,7 +2811,7 @@ const { onExport: exportTransit } = useListCsv({
   toRows: () =>
     pickSelected(filteredInTransit.value).map((row) => [
       row.outboundId,
-      deviceName(row.deviceId),
+      deviceName(row.deviceId, row.deviceName),
       skuName(row.skuId),
       row.batchNo || '',
       row.quantity,
@@ -2941,8 +2941,12 @@ function transferStatusLabel(status?: string) {
     )[String(status).toUpperCase()] || status
   );
 }
-function deviceName(id: string) {
-  return devices.value.find((d) => d.deviceId === id)?.deviceName || id || '无';
+function deviceName(id?: string, snapshot?: string | null) {
+  const snap = snapshot != null ? String(snapshot).trim() : '';
+  if (snap) return snap;
+  const deviceId = id != null ? String(id) : '';
+  if (!deviceId) return '无';
+  return devices.value.find((d) => d.deviceId === deviceId)?.deviceName || deviceId;
 }
 function skuName(id: string) {
   return skus.value.find((s) => s.skuId === id)?.skuName || id || '无';

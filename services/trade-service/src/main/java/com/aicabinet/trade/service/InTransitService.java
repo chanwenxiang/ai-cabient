@@ -28,13 +28,16 @@ public class InTransitService {
 
     private final WarehouseInTransitMapper transitRepository;
     private final DistributedLockService distributedLockService;
+    private final DisplaySnapshotHelper displaySnapshotHelper;
     private final InTransitService self;
 
     public InTransitService(WarehouseInTransitMapper transitRepository,
                             DistributedLockService distributedLockService,
+                            DisplaySnapshotHelper displaySnapshotHelper,
                             @Lazy InTransitService self) {
         this.transitRepository = transitRepository;
         this.distributedLockService = distributedLockService;
+        this.displaySnapshotHelper = displaySnapshotHelper;
         this.self = self;
     }
 
@@ -183,7 +186,8 @@ public class InTransitService {
         return new com.aicabinet.common.dto.WarehouseInTransitDto(
                 row.getTransitId(), row.getOutboundId(), row.getDeviceId(), row.getSkuId(),
                 row.getBatchNo(), row.getQuantity(), row.getStatus(),
-                row.getCreatedAt(), row.getReceivedAt()
+                row.getCreatedAt(), row.getReceivedAt(),
+                displaySnapshotHelper.resolveDeviceName(row.getDeviceId())
         );
     }
 }

@@ -50,6 +50,7 @@ public class RepairTicketService {
     private final DistributedLockService distributedLockService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final RepairTicketService self;
+    private final DisplaySnapshotHelper displaySnapshotHelper;
 
     public RepairTicketService(RepairTicketMapper ticketMapper,
                                RepairTicketEventMapper eventMapper,
@@ -57,7 +58,9 @@ public class RepairTicketService {
                                PermissionService permissionService,
                                DeviceSalesLockService salesLockService,
                                @Lazy OpsExceptionService opsExceptionService,
-                               DistributedLockService distributedLockService, @Lazy RepairTicketService self) {
+                               DistributedLockService distributedLockService,
+                               @Lazy RepairTicketService self,
+                               DisplaySnapshotHelper displaySnapshotHelper) {
         this.ticketMapper = ticketMapper;
         this.eventMapper = eventMapper;
         this.deviceInfoMapper = deviceInfoMapper;
@@ -66,11 +69,18 @@ public class RepairTicketService {
         this.opsExceptionService = opsExceptionService;
         this.distributedLockService = distributedLockService;
         this.self = self;
+        this.displaySnapshotHelper = displaySnapshotHelper;
     }
 
     @Transactional(readOnly = true)
     public PageResult<RepairTicketDto> list(Long operatorId, String status, String deviceId,
                                             String priority, int page, int size) {
+        return list(operatorId, status, deviceId, priority, null, page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<RepairTicketDto> list(Long operatorId, String status, String deviceId,
+                                            String priority, String faultType, int page, int size) {
         permissionService.requireAnyPermission(operatorId, PERM_OPS_REPAIR_LIST, PERM_OPS_DEVICE_LIST);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
@@ -83,6 +93,9 @@ public class RepairTicketService {
         }
         if (priority != null && !priority.isBlank()) {
             q.eq(RepairTicket::getPriority, priority.trim().toUpperCase(Locale.ROOT));
+        }
+        if (faultType != null && !faultType.isBlank() && !"ALL".equalsIgnoreCase(faultType)) {
+            q.eq(RepairTicket::getFaultType, faultType.trim());
         }
         q.orderByDesc(RepairTicket::getCreatedAt);
         Page<RepairTicket> result = ticketMapper.selectPage(new Page<>(p + 1L, s), q);
@@ -135,6 +148,7 @@ public class RepairTicketService {
         Instant now = Instant.now();
         RepairTicket ticket = new RepairTicket();
         ticket.setDeviceId(deviceId);
+        displaySnapshotHelper.applyRepairSnapshot(ticket);
         ticket.setTitle(title.trim());
         ticket.setFaultType(trimToNull(faultType));
         ticket.setStatus("OPEN");
@@ -324,7 +338,8 @@ public class RepairTicketService {
 
     private RepairTicketDto toDto(RepairTicket t) {
         return new RepairTicketDto(
-                t.getTicketId(), t.getDeviceId(), t.getTitle(), t.getFaultType(), t.getStatus(),
+                t.getTicketId(), t.getDeviceId(), t.getDeviceName(), t.getMerchantId(), t.getMerchantName(),
+                t.getTitle(), t.getFaultType(), t.getStatus(),
                 t.getAssignee(), t.getPriority(), t.getRemark(), t.getCreatedBy(),
                 t.getCreatedAt(), t.getUpdatedAt(), t.getClosedAt());
     }

@@ -1472,12 +1472,25 @@ public class ReplenishmentService {
 
 
     private ReplenishmentTaskDto toTaskDto(ReplenishmentTask t) {
+        String deviceName = null;
+        if (t.getDeviceId() != null) {
+            DeviceInfo device = deviceRepository.findById(t.getDeviceId()).orElse(null);
+            if (device != null) {
+                deviceName = device.getDeviceName();
+            }
+        }
+        ReplenishmentRoute route = t.getRouteId() == null
+                ? null
+                : routeRepository.findById(t.getRouteId()).orElse(null);
         return new ReplenishmentTaskDto(
                 t.getTaskId(), t.getRouteId(), t.getDeviceId(), t.getAssigneeUserId(),
                 t.getStatus(), t.getNotes(), t.getCompletedAt(),
                 t.getCheckInAt(), t.getCheckInLat(), t.getCheckInLng(),
                 resolveCheckInDistanceM(t),
-                t.getRequestId(), t.getOutboundId(), t.getCreatedAt()
+                t.getRequestId(), t.getOutboundId(), t.getCreatedAt(),
+                deviceName,
+                route != null ? route.getRouteName() : null,
+                route != null ? route.getPlannedDate() : null
         );
     }
 
@@ -1508,7 +1521,8 @@ public class ReplenishmentService {
                 base.checkInDistanceM(),
                 base.requestId(),
                 base.outboundId(),
-                base.createdAt()
+                base.createdAt(),
+                base.deviceName()
         );
     }
 

@@ -1,8 +1,10 @@
 package com.aicabinet.trade.domain;
 
+import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.aicabinet.common.dto.SkuCatalogDto;
 import java.time.Instant;
@@ -71,7 +73,15 @@ public class SkuCatalog {
 
     private Integer maxPriceCents;
 
+    @TableField(fill = FieldFill.INSERT)
     private Instant createdAt;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private Instant updatedAt;
+
+    @TableLogic(value = "false", delval = "true")
+    @TableField("is_deleted")
+    private Boolean deleted;
 
     @TableField("updated_by_user_id")
     private Long updatedByUserId;

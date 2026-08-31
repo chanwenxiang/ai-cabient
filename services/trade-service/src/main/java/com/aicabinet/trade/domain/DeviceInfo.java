@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
 import lombok.Getter;
@@ -95,8 +96,15 @@ public class DeviceInfo {
 
     private String lifecycleRemark;
 
+    @TableField(fill = FieldFill.INSERT)
+    private Instant createdAt;
+
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private Instant updatedAt;
+
+    @TableLogic(value = "false", delval = "true")
+    @TableField("is_deleted")
+    private Boolean deleted;
 
     public boolean salesLockedEnabled() { return Boolean.TRUE.equals(salesLocked); }
     public void markHeartbeatReceived() { updatedAt = Instant.now(); }

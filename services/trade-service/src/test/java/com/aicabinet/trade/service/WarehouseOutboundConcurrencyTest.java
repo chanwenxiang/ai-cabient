@@ -35,6 +35,7 @@ class WarehouseOutboundConcurrencyTest {
     @Mock private InTransitService inTransitService;
     @Mock private InventoryLotService inventoryLotService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private DisplaySnapshotHelper displaySnapshotHelper;
 
     private WarehouseService service;
 
@@ -43,7 +44,8 @@ class WarehouseOutboundConcurrencyTest {
         service = new WarehouseService(warehouseRepository, inventoryRepository,
                 inboundRepository, inboundLineRepository, outboundRepository, outboundLineRepository,
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
-                deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService, null);
+                deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService,
+                displaySnapshotHelper, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

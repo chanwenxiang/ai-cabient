@@ -11,5 +11,20 @@ public record WarehouseInTransitDto(
         int quantity,
         String status,
         Instant createdAt,
-        Instant receivedAt
-) {}
+        Instant receivedAt,
+        String deviceName
+) {
+    public WarehouseInTransitDto(
+            Long transitId,
+            Long outboundId,
+            String deviceId,
+            String skuId,
+            String batchNo,
+            int quantity,
+            String status,
+            Instant createdAt,
+            Instant receivedAt
+    ) {
+        this(transitId, outboundId, deviceId, skuId, batchNo, quantity, status, createdAt, receivedAt, null);
+    }
+}

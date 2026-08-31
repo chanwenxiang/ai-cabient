@@ -35,11 +35,14 @@ RUN --mount=type=cache,target=/root/.m2,sharing=locked \
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
-RUN apk add --no-cache wget
-RUN addgroup -S app && adduser -S app -G app
-USER app
+RUN apk add --no-cache wget \
+    && addgroup -S app && adduser -S app -G app \
+    && mkdir -p /app/logs \
+    && chown -R app:app /app
 
-COPY --from=build /build/services/trade-service/target/trade-service-*.jar app.jar
+COPY --chown=app:app --from=build /build/services/trade-service/target/trade-service-*.jar app.jar
+
+USER app
 
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

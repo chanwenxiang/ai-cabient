@@ -1,5 +1,6 @@
 package com.aicabinet.trade.domain;
 
+import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -21,6 +22,9 @@ public class ShoppingSession {
     private Long userId;
 
     private String deviceId;
+
+    /** 设备名称冗余（开门写入） */
+    private String deviceName;
 
     private SessionState state;
 
@@ -67,7 +71,9 @@ public class ShoppingSession {
     /** 开门前用户指定优惠券 ID（结算优先；无效回退自动择优） */
     private Long preferredCouponId;
 
+    @TableField(fill = FieldFill.INSERT)
     private Instant createdAt;
 
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private Instant updatedAt;
 }

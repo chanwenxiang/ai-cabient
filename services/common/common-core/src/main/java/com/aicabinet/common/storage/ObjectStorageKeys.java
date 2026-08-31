@@ -78,6 +78,27 @@ public final class ObjectStorageKeys {
                 Locale.ROOT, "replenishment-evidence/%s/task-%d/user-%d/%s%s", date, taskId, userId, token, ext);
     }
 
+    /** 商户要货申请附图（提交前暂存）。 */
+    public static String replenishmentRequestPendingEvidenceKey(long userId, String fileToken, String extension) {
+        ZonedDateTime zdt = Instant.now().atZone(ZONE);
+        String date = String.format(
+                Locale.ROOT, V_04D_02D_02D, zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
+        String token = sanitize(fileToken, "file");
+        String ext = normalizeExtension(extension);
+        return String.format(Locale.ROOT, "replenishment-request/%s/user-%d/pending/%s%s", date, userId, token, ext);
+    }
+
+    /** 商户要货申请附图（已绑定要货单）。 */
+    public static String replenishmentRequestEvidenceKey(long requestId, long userId, String fileToken, String extension) {
+        ZonedDateTime zdt = Instant.now().atZone(ZONE);
+        String date = String.format(
+                Locale.ROOT, V_04D_02D_02D, zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
+        String token = sanitize(fileToken, "file");
+        String ext = normalizeExtension(extension);
+        return String.format(
+                Locale.ROOT, "replenishment-request/%s/request-%d/user-%d/%s%s", date, requestId, userId, token, ext);
+    }
+
     /** 商品主图（运营后台上传）。 */
     public static String skuImageKey(long operatorId, String fileToken, String extension) {
         ZonedDateTime zdt = Instant.now().atZone(ZONE);

@@ -57,7 +57,8 @@ class MerchantReplenishmentConcurrencyTest {
                         "CAB-001",
                         null,
                         java.util.List.of(new com.aicabinet.common.dto.CreateMerchantReplenishmentRequest.Line(
-                                "SKU-1", 1)))));
+                                "SKU-1", 1)),
+                        null)));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }

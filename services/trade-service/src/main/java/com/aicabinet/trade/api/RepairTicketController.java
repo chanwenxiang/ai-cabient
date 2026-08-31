@@ -33,9 +33,11 @@ public class RepairTicketController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String deviceId,
             @RequestParam(required = false) String priority,
+            @RequestParam(required = false) String faultType,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(repairTicketService.list(operator(request), status, deviceId, priority, page, size));
+        return ApiResponse.ok(repairTicketService.list(
+                operator(request), status, deviceId, priority, faultType, page, size));
     }
 
     @RequiresPermissions(value = {"ops:repair:list", "ops:device:list"}, logical = RequiresPermissions.Logical.OR)

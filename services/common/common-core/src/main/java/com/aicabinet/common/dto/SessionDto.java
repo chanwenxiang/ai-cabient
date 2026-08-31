@@ -14,5 +14,22 @@ public record SessionDto(
         String orderId,
         Instant createdAt,
         String failReason,
-        String payChannel
-) {}
+        String payChannel,
+        String deviceName
+) {
+    public SessionDto(
+            String sessionId,
+            Long userId,
+            String deviceId,
+            SessionState state,
+            Instant openTime,
+            Instant closeTime,
+            String orderId,
+            Instant createdAt,
+            String failReason,
+            String payChannel
+    ) {
+        this(sessionId, userId, deviceId, state, openTime, closeTime, orderId, createdAt,
+                failReason, payChannel, null);
+    }
+}

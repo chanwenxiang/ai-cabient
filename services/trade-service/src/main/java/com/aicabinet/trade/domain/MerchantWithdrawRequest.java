@@ -17,6 +17,8 @@ public class MerchantWithdrawRequest {
     private Long requestId;
     private String requestNo;
     private String merchantId;
+    /** 商户名称冗余 */
+    private String merchantName;
     private Long amountCents;
     /** 提现手续费（分）；演示默认 0 */
     private Long feeCents;

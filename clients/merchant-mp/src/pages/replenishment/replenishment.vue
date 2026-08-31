@@ -137,7 +137,7 @@
         <view class="task-accent" />
         <view class="task-head">
           <view>
-            <text class="device-name">{{ deviceName(task.deviceId) }}</text>
+            <text class="device-name">{{ deviceName(task.deviceId, task.deviceName) }}</text>
             <text class="device-code">{{ task.deviceId }}</text>
           </view>
           <text class="status" :class="task.status.toLowerCase()">
@@ -149,7 +149,8 @@
           <text>{{ formatTime(task.createdAt) }}</text>
         </view>
         <view class="task-meta soft">
-          <text v-if="task.routeId">线路 #{{ task.routeId }}</text>
+          <text v-if="task.routeName || task.routeId">{{ routeLabel(task) }}</text>
+          <text v-if="task.plannedDate">计划 {{ formatDateOnly(task.plannedDate) }}</text>
           <text v-if="task.checkInAt">已签到</text>
           <text v-if="task.outboundId">出库 #{{ task.outboundId }}</text>
           <text v-if="evidenceCountOf(task.taskId) > 0" class="evidence-badge"
@@ -175,9 +176,13 @@
           <view class="sheet-handle" />
           <view class="sheet-head">
             <view>
-              <text class="sheet-title">{{ deviceName(selected?.deviceId) }}</text>
+              <text class="sheet-title">{{ deviceName(selected?.deviceId, selected?.deviceName) }}</text>
               <text class="device-code"
                 >任务 #{{ selected?.taskId }} · {{ selected?.deviceId }}</text
+              >
+              <text v-if="selected && (selected.routeName || selected.routeId || selected.plannedDate)" class="device-code"
+                >{{ routeLabel(selected)
+                }}{{ selected.plannedDate ? ` · 计划 ${formatDateOnly(selected.plannedDate)}` : '' }}</text
               >
             </view>
             <text class="close" role="button" aria-label="关闭" @click="closeDetail">×</text>
@@ -539,9 +544,13 @@ const preferredId = ref(getPreferredDeviceId());
 type Task = {
   taskId: number;
   deviceId: string;
+  deviceName?: string;
   status: string;
   notes?: string;
   routeId?: number;
+  routeName?: string;
+  /** 线路计划日 YYYY-MM-DD */
+  plannedDate?: string;
   outboundId?: number;
   checkInAt?: string;
   createdAt?: string;
@@ -858,7 +867,8 @@ onLoad((opts) => {
   preferredId.value = getPreferredDeviceId();
 });
 
-function deviceName(id?: string) {
+function deviceName(id?: string, snapshot?: string) {
+  if (snapshot) return snapshot;
   const d = devices.value.find((item) => item.deviceId === id) as
     { deviceName?: string } | undefined;
   return d?.deviceName || emptyDisplay(id, 'device');
@@ -899,6 +909,20 @@ function productGlyph(id: string) {
 
 function formatTime(value?: string) {
   return formatDateTimeShort(value, '暂无');
+}
+
+function formatDateOnly(value?: string) {
+  if (!value) return '';
+  const raw = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  return formatDateTimeShort(raw, raw).slice(0, 10);
+}
+
+function routeLabel(task: { routeId?: number; routeName?: string }) {
+  if (task.routeName && String(task.routeName).trim()) {
+    return String(task.routeName).trim();
+  }
+  return task.routeId != null ? `线路 #${task.routeId}` : '';
 }
 
 async function ensureReplenishmentMe(seq: number): Promise<boolean> {

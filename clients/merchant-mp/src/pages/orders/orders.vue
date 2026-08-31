@@ -86,8 +86,15 @@
               <view class="card-copy">
                 <text class="card-goods">{{ lineSummaryText(item) }}</text>
                 <text class="card-meta">
-                  {{ emptyDisplay(item.deviceId, 'device') }} · {{ item.lineCount || 0 }} 件 ·
+                  {{ emptyDisplay(item.deviceName || item.deviceId, 'device') }} · {{ item.lineCount || 0 }} 件 ·
                   {{ channelText(item.payChannel) }}
+                </text>
+                <text v-if="item.splitStatus" class="card-meta">分账 {{ splitStatusText(item.splitStatus) }}</text>
+                <text
+                  v-if="item.payTradeNo || item.paymentOperationId"
+                  class="card-meta mono"
+                >
+                  流水 {{ shortId(item.payTradeNo || item.paymentOperationId) }}
                 </text>
                 <text
                   v-if="
@@ -419,6 +426,25 @@ function channelText(channel?: string) {
         UNKNOWN: '未知'
       } as Record<string, string>
     )[String(channel || '').toUpperCase()] || '其他渠道'
+  );
+}
+
+function splitStatusText(status?: string) {
+  return (
+    (
+      {
+        PENDING: '待处理',
+        LEDGER_ONLY: '仅记账',
+        ACCRUED: '待分账',
+        WECHAT_SUBMITTED: '已提交',
+        WECHAT_FAILED: '失败',
+        SUBMITTED: '已提交',
+        SUCCESS: '成功',
+        FAILED: '失败',
+        SETTLED: '已完结',
+        VOIDED: '已冲正'
+      } as Record<string, string>
+    )[String(status || '').toUpperCase()] || String(status || '')
   );
 }
 

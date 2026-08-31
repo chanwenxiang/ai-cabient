@@ -1,5 +1,6 @@
 package com.aicabinet.trade.domain;
 
+import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -21,6 +22,15 @@ public class CabinetOrder {
     private Long userId;
 
     private String deviceId;
+
+    /** 设备名称冗余（结算写入） */
+    private String deviceName;
+
+    /** 商户 ID 冗余（结算写入） */
+    private String merchantId;
+
+    /** 商户名称冗余（结算写入） */
+    private String merchantName;
 
     private int totalAmountCents;
 
@@ -55,7 +65,11 @@ public class CabinetOrder {
     @TableField(exist = false)
     private List<CabinetOrderLine> lines = new ArrayList<>();
 
+    @TableField(fill = FieldFill.INSERT)
     private Instant createdAt;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private Instant updatedAt;
 
     public void addLine(CabinetOrderLine line) {
         line.setOrderId(this.orderId);

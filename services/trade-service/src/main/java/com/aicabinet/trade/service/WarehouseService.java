@@ -51,6 +51,7 @@ public class WarehouseService {
     private final InTransitService inTransitService;
     private final InventoryLotService inventoryLotService;
     private final DistributedLockService distributedLockService;
+    private final DisplaySnapshotHelper displaySnapshotHelper;
     private final WarehouseService self;
 
     public WarehouseService(WarehouseMapper warehouseRepository,
@@ -69,6 +70,7 @@ public class WarehouseService {
                             InTransitService inTransitService,
                             InventoryLotService inventoryLotService,
                             DistributedLockService distributedLockService,
+                            DisplaySnapshotHelper displaySnapshotHelper,
                             @Lazy WarehouseService self) {
         this.warehouseRepository = warehouseRepository;
         this.inventoryRepository = inventoryRepository;
@@ -86,6 +88,7 @@ public class WarehouseService {
         this.inTransitService = inTransitService;
         this.inventoryLotService = inventoryLotService;
         this.distributedLockService = distributedLockService;
+        this.displaySnapshotHelper = displaySnapshotHelper;
         this.self = self;
     }
 
@@ -1260,7 +1263,8 @@ public class WarehouseService {
                 line.getLineId(), line.getDeviceId(), line.getSkuId(), line.getBatchNo(),
                 line.getExpiryDate(), line.getQuantity(), line.isPicked(),
                 line.getHandoverStatus() == null ? "PENDING" : line.getHandoverStatus(),
-                line.getSlotId()
+                line.getSlotId(),
+                displaySnapshotHelper.resolveDeviceName(line.getDeviceId())
         );
     }
 

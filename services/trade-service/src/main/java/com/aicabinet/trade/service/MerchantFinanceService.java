@@ -81,16 +81,20 @@ public class MerchantFinanceService {
                 query.fromDate(), query.toDate(), query.keyword(), pageable);
         Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(
                 result.getContent().stream().map(CabinetOrder::getOrderId).toList());
-        Map<String, List<CabinetOrderLine>> linesByOrder = orderLineRepository.findByOrderIds(
-                        result.getContent().stream().map(CabinetOrder::getOrderId).toList())
+        List<String> orderIds = result.getContent().stream().map(CabinetOrder::getOrderId).toList();
+        Map<String, List<CabinetOrderLine>> linesByOrder = orderLineRepository.findByOrderIds(orderIds)
                 .stream()
                 .collect(Collectors.groupingBy(CabinetOrderLine::getOrderId));
+        Map<String, String> splitStatusByOrder = splitRepository.findByOrderIdIn(orderIds).stream()
+                .filter(s -> s.getOrderId() != null && s.getStatus() != null && !s.getStatus().isBlank())
+                .collect(Collectors.toMap(OrderRevenueSplit::getOrderId, OrderRevenueSplit::getStatus, (a, b) -> a));
         return new PageResult<>(
                 result.getContent().stream()
                         .map(o -> toMerchantOrderSummary(
                                 o,
                                 qtyByOrder.getOrDefault(o.getOrderId(), 0),
-                                buildLineSummary(linesByOrder.getOrDefault(o.getOrderId(), List.of()))))
+                                buildLineSummary(linesByOrder.getOrDefault(o.getOrderId(), List.of())),
+                                splitStatusByOrder.get(o.getOrderId())))
                         .toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements()
         );
@@ -316,7 +320,8 @@ public class MerchantFinanceService {
     }
 
     /** lineCount 口径与运营侧一致：商品件数（quantity 合计），非行数。 */
-    private MerchantOrderSummaryDto toMerchantOrderSummary(CabinetOrder o, int itemQty, String lineSummary) {
+    private MerchantOrderSummaryDto toMerchantOrderSummary(
+            CabinetOrder o, int itemQty, String lineSummary, String splitStatus) {
         int coupon = Math.max(0, o.getCouponDiscountCents());
         int member = Math.max(0, o.getMemberDiscountCents());
         int original = o.getOriginalAmountCents() > 0
@@ -336,7 +341,12 @@ public class MerchantFinanceService {
                 member,
                 original,
                 o.getRefundedAt(),
-                Math.max(0, o.getRefundedCents())
+                Math.max(0, o.getRefundedCents()),
+                o.getDeviceName(),
+                o.getMerchantName(),
+                o.getPayTradeNo(),
+                o.getPaymentOperationId(),
+                splitStatus
         );
     }
 
@@ -375,12 +385,20 @@ public class MerchantFinanceService {
     }
 
     private RevenueSplitDto toSplitDto(OrderRevenueSplit s, String merchantName) {
+        String deviceName = null;
+        if (s.getOrderId() != null && !s.getOrderId().isBlank()) {
+            deviceName = orderRepository.findById(s.getOrderId())
+                    .map(CabinetOrder::getDeviceName)
+                    .filter(n -> n != null && !n.isBlank())
+                    .orElse(null);
+        }
         return new RevenueSplitDto(
                 s.getSplitId(), s.getOrderId(), s.getMerchantId(), merchantName,
                 s.getDeviceId(), s.getGrossCents(), s.getPlatformCents(),
                 s.getMerchantCents(), s.getStatus(), s.getWechatOutOrderNo(),
                 s.getWechatTransactionId(), s.getFailureReason(), s.getCreatedAt(),
-                s.getSettlementBatchNo(), s.getSettleAfter(), s.getSettledAt()
+                s.getSettlementBatchNo(), s.getSettleAfter(), s.getSettledAt(),
+                deviceName
         );
     }
 

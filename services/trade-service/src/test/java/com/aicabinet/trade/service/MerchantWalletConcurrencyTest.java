@@ -25,7 +25,7 @@ class MerchantWalletConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        service = new MerchantWalletService(accountMapper, ledgerMapper, distributedLockService);
+        service = new MerchantWalletService(accountMapper, ledgerMapper, null, distributedLockService);
     }
 
     @Test

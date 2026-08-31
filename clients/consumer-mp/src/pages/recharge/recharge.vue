@@ -872,6 +872,10 @@ async function onAlipayRecharge() {
   padding: 20rpx 0;
   border-bottom: 1rpx solid #f0f0f0;
 }
+.record-row > view:first-child {
+  flex: 1;
+  min-width: 0;
+}
 .record-amount {
   font-size: 30rpx;
   font-weight: 600;
@@ -900,11 +904,15 @@ async function onAlipayRecharge() {
   flex-direction: column;
   align-items: flex-end;
   gap: 8rpx;
+  flex-shrink: 0;
+  margin-left: 16rpx;
 }
 .record-status {
   font-size: 24rpx;
   padding: 4rpx 12rpx;
   border-radius: 8rpx;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 .record-status.PAID,
 .record-status.SUCCESS {

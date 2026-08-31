@@ -98,7 +98,7 @@ public class CouponExpiryReminderScheduler {
                         "coupon_expiring",
                         Map.of("couponName", couponName, "expireAt", expireAt),
                         "COUPON",
-                        null);
+                        first.getCouponId() == null ? null : String.valueOf(first.getCouponId()));
             } catch (Exception ex) {
                 log.warn("coupon expiry remind failed userId={}", e.getKey(), ex);
             }

@@ -39,7 +39,7 @@
           </thead>
           <tbody>
             <tr v-for="(line, idx) in outbound.lines || []" :key="line.lineId || idx">
-              <td>{{ nameOf(devices, 'deviceId', 'deviceName', line.deviceId) }}</td>
+              <td>{{ line.deviceName || nameOf(devices, 'deviceId', 'deviceName', line.deviceId) }}</td>
               <td>{{ nameOf(skus, 'skuId', 'skuName', line.skuId) }}</td>
               <td>{{ line.batchNo || '暂无' }}</td>
               <td>{{ line.slotId || '待分配' }}</td>
