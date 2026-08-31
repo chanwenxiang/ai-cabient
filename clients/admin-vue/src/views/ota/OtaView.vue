@@ -172,6 +172,7 @@ import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { normalizeListPage } from '@/utils/normalize-list-page';
 
 function statusLabel(s?: string) {
   const m: Record<string, string> = {
@@ -236,12 +237,13 @@ async function load() {
       page: String(page.value - 1),
       size: String(size.value)
     });
-    const data = await api.request<{ items: OtaRelease[]; total: number }>(
+    const data = await api.request<OtaRelease[] | { items: OtaRelease[]; total: number }>(
       `/api/v2/ops/admin/ota/releases?${q}`,
       'GET'
     );
-    items.value = data.items || [];
-    total.value = Number(data.total) || 0;
+    const pageData = normalizeListPage(data);
+    items.value = pageData.items;
+    total.value = pageData.total;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {

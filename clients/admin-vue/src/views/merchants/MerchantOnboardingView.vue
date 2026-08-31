@@ -202,6 +202,7 @@ import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { normalizeListPage } from '@/utils/normalize-list-page';
 
 interface OnboardRow {
   onboardingId: number;
@@ -299,7 +300,6 @@ async function load() {
     if (channel.value) q.set('channel', channel.value);
     if (status.value) q.set('status', status.value);
     const [list, h] = await Promise.all([
-      // 后端当前返回 List；兼容将来 PageResult({ items, total })
       api.request<OnboardRow[] | { items: OnboardRow[]; total: number }>(
         `/api/v2/ops/admin/merchant-onboarding?${q}`,
         'GET'
@@ -308,13 +308,9 @@ async function load() {
         .request<Record<string, any>>('/api/v2/ops/admin/merchant-onboarding/live-hints', 'GET')
         .catch(() => null)
     ]);
-    if (Array.isArray(list)) {
-      rows.value = list;
-      total.value = list.length;
-    } else {
-      rows.value = list?.items ?? [];
-      total.value = Number(list?.total) || 0;
-    }
+    const pageData = normalizeListPage(list);
+    rows.value = pageData.items;
+    total.value = pageData.total;
     hints.value = h;
     applyRouteHighlight();
   } catch (e) {

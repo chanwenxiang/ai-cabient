@@ -296,6 +296,7 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { normalizeListPage } from '@/utils/normalize-list-page';
 
 type Row = Record<string, any>;
 const route = useRoute();
@@ -373,12 +374,13 @@ async function load() {
     if (channel.value) q.set('channel', channel.value);
     if (statusFilter.value) q.set('status', statusFilter.value);
     if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
-    const data = await api.request<{ items: Row[]; total: number }>(
+    const data = await api.request<Row[] | { items: Row[]; total: number }>(
       `/api/v2/ops/admin/reconciliation?${q}`,
       'GET'
     );
-    items.value = data.items || [];
-    total.value = Number(data.total) || 0;
+    const pageData = normalizeListPage(data);
+    items.value = pageData.items;
+    total.value = pageData.total;
     clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
