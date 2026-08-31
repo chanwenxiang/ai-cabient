@@ -634,7 +634,7 @@
       <div v-loading="assignDevicesLoading">
         <p class="dialog-hint">
           将设备归属到 <strong>{{ assignTarget?.merchantName || assignTarget?.merchantId }}</strong
-          >。 已归属其它商户的设备会改挂到当前商户。
+          >。已投放他商户的柜会先解绑再绑定；返厂/退役柜不可挂载。换商户请在设备详情走「解绑 → 绑定」。
         </p>
         <el-select
           v-model="assignDeviceIds"
@@ -647,10 +647,11 @@
           :disabled="assignDevicesLoading"
         >
           <el-option
-            v-for="d in allDevices"
+            v-for="d in assignableDevices"
             :key="d.deviceId"
-            :label="`${d.deviceName || d.deviceId}${d.merchantId ? ` · 当前 ${d.merchantId}` : ''}`"
+            :label="assignDeviceLabel(d)"
             :value="d.deviceId"
+            :disabled="isLifecycleBlockedForAssign(d)"
           />
         </el-select>
         <el-empty
@@ -773,7 +774,46 @@ const assignSaving = ref(false);
 const assignDevicesLoading = ref(false);
 const assignTarget = ref<MerchantDto | null>(null);
 const assignDeviceIds = ref<string[]>([]);
-const allDevices = ref<{ deviceId: string; deviceName?: string; merchantId?: string }[]>([]);
+const allDevices = ref<
+  Array<{
+    deviceId: string;
+    deviceName?: string;
+    merchantId?: string;
+    lifecycleStatus?: string;
+  }>
+>([]);
+
+const assignableDevices = computed(() => allDevices.value);
+
+function normalizeAssignLifecycle(status?: string) {
+  const s = String(status || 'DEPLOYED').trim().toUpperCase();
+  return s || 'DEPLOYED';
+}
+
+function isLifecycleBlockedForAssign(d: { lifecycleStatus?: string }) {
+  const s = normalizeAssignLifecycle(d.lifecycleStatus);
+  return s === 'RETURNING' || s === 'RETIRED';
+}
+
+function assignDeviceLabel(d: {
+  deviceId: string;
+  deviceName?: string;
+  merchantId?: string;
+  lifecycleStatus?: string;
+}) {
+  const life = displayLabel('device_lifecycle', normalizeAssignLifecycle(d.lifecycleStatus), '');
+  const merchant = d.merchantId ? ` · 当前 ${d.merchantId}` : '';
+  const blocked = isLifecycleBlockedForAssign(d) ? ' · 不可挂载' : '';
+  return `${d.deviceName || d.deviceId}${merchant}${life ? ` · ${life}` : ''}${blocked}`;
+}
+
+async function postDeviceLifecycle(deviceId: string, action: string, merchantId?: string) {
+  return api.request(`/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/lifecycle`, 'POST', {
+    action,
+    merchantId,
+    remark: action === 'UNBIND' ? '商户页卸载货柜' : '商户页挂载货柜'
+  });
+}
 
 type OrgNode = MerchantDto & { label: string; children: OrgNode[] };
 
@@ -1366,26 +1406,43 @@ async function saveAssignDevices() {
   try {
     const targetId = assignTarget.value.merchantId;
     const selected = new Set(assignDeviceIds.value);
-    const jobs: Promise<unknown>[] = [];
+    let ok = 0;
+    let skipped = 0;
+    const errors: string[] = [];
     for (const d of allDevices.value) {
       const shouldBelong = selected.has(d.deviceId);
       const belongs = d.merchantId === targetId;
-      if (shouldBelong && !belongs) {
-        jobs.push(
-          api.request(`/api/v2/ops/admin/devices/${encodeURIComponent(d.deviceId)}`, 'PATCH', {
-            merchantId: targetId
-          })
-        );
-      } else if (!shouldBelong && belongs) {
-        jobs.push(
-          api.request(`/api/v2/ops/admin/devices/${encodeURIComponent(d.deviceId)}`, 'PATCH', {
-            merchantId: ''
-          })
-        );
+      if (shouldBelong === belongs) continue;
+      if (isLifecycleBlockedForAssign(d)) {
+        skipped += 1;
+        errors.push(`${d.deviceId} 返厂/退役不可改归属`);
+        continue;
+      }
+      try {
+        if (shouldBelong && !belongs) {
+          const status = normalizeAssignLifecycle(d.lifecycleStatus);
+          if (status === 'DEPLOYED' && d.merchantId) {
+            await postDeviceLifecycle(d.deviceId, 'UNBIND');
+          }
+          await postDeviceLifecycle(d.deviceId, 'BIND', targetId);
+          ok += 1;
+        } else if (!shouldBelong && belongs) {
+          await postDeviceLifecycle(d.deviceId, 'UNBIND');
+          ok += 1;
+        }
+      } catch (e) {
+        errors.push(`${d.deviceId}: ${e instanceof Error ? e.message : '失败'}`);
       }
     }
-    await Promise.all(jobs);
-    ElMessage.success('货柜归属已更新');
+    if (ok > 0) {
+      ElMessage.success(`货柜归属已更新（成功 ${ok}${skipped ? `，跳过 ${skipped}` : ''}）`);
+    }
+    if (errors.length) {
+      ElMessage.warning(errors.slice(0, 3).join('；') + (errors.length > 3 ? '…' : ''));
+    }
+    if (ok === 0 && errors.length === 0) {
+      ElMessage.info('归属无变化');
+    }
     assignDialog.value = false;
     allDevices.value = [];
     await loadMerchants();

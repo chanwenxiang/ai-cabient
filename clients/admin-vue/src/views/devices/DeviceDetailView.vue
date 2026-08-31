@@ -353,57 +353,149 @@
       </el-form>
       <div class="cmd-section-label">生命周期操作</div>
       <div class="cmd-bar">
-        <el-button
-          v-hasPermi="['ops:device:edit']"
-          :loading="lifeLoading === 'BIND'"
-          @click="lifecycleBind"
-          >绑定商户</el-button
+        <el-tooltip
+          :disabled="canLifecycle('BIND')"
+          :content="lifecycleDisabledReason('BIND')"
+          placement="top"
         >
-        <el-button
-          v-hasPermi="['ops:device:edit']"
-          :loading="lifeLoading === 'UNBIND'"
-          @click="runLifecycle('UNBIND')"
-          >解绑</el-button
+          <span class="life-btn-wrap">
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              :loading="lifeLoading === 'BIND'"
+              :disabled="!canLifecycle('BIND')"
+              @click="openBindDialog"
+              >绑定商户</el-button
+            >
+          </span>
+        </el-tooltip>
+        <el-tooltip
+          :disabled="canLifecycle('UNBIND')"
+          :content="lifecycleDisabledReason('UNBIND')"
+          placement="top"
         >
-        <el-button
-          v-hasPermi="['ops:device:edit']"
-          type="primary"
-          plain
-          :loading="lifeLoading === 'DEPLOY'"
-          @click="runLifecycle('DEPLOY')"
-          >投放</el-button
+          <span class="life-btn-wrap">
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              :loading="lifeLoading === 'UNBIND'"
+              :disabled="!canLifecycle('UNBIND')"
+              @click="runLifecycle('UNBIND')"
+              >解绑</el-button
+            >
+          </span>
+        </el-tooltip>
+        <el-tooltip
+          :disabled="canLifecycle('DEPLOY')"
+          :content="lifecycleDisabledReason('DEPLOY')"
+          placement="top"
         >
-        <el-button
-          v-hasPermi="['ops:device:edit']"
-          plain
-          :loading="lifeLoading === 'UNDEPLOY'"
-          @click="runLifecycle('UNDEPLOY')"
-          >撤回未投放</el-button
+          <span class="life-btn-wrap">
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              :type="canLifecycle('DEPLOY') ? 'primary' : undefined"
+              plain
+              :loading="lifeLoading === 'DEPLOY'"
+              :disabled="!canLifecycle('DEPLOY')"
+              @click="runLifecycle('DEPLOY')"
+              >投放</el-button
+            >
+          </span>
+        </el-tooltip>
+        <el-tooltip
+          :disabled="canLifecycle('UNDEPLOY')"
+          :content="lifecycleDisabledReason('UNDEPLOY')"
+          placement="top"
         >
-        <el-button
-          v-hasPermi="['ops:device:edit']"
-          type="warning"
-          plain
-          :loading="lifeLoading === 'RETURN'"
-          @click="runLifecycle('RETURN')"
-          >返厂</el-button
+          <span class="life-btn-wrap">
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              plain
+              :loading="lifeLoading === 'UNDEPLOY'"
+              :disabled="!canLifecycle('UNDEPLOY')"
+              @click="runLifecycle('UNDEPLOY')"
+              >撤回未投放</el-button
+            >
+          </span>
+        </el-tooltip>
+        <el-tooltip
+          :disabled="canLifecycle('RETURN')"
+          :content="lifecycleDisabledReason('RETURN')"
+          placement="top"
         >
-        <el-button
-          v-hasPermi="['ops:device:edit']"
-          type="danger"
-          plain
-          :loading="lifeLoading === 'RETIRE'"
-          @click="runLifecycle('RETIRE', true)"
-          >退役</el-button
+          <span class="life-btn-wrap">
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              type="warning"
+              plain
+              :loading="lifeLoading === 'RETURN'"
+              :disabled="!canLifecycle('RETURN')"
+              @click="runLifecycle('RETURN')"
+              >返厂</el-button
+            >
+          </span>
+        </el-tooltip>
+        <el-tooltip
+          :disabled="canLifecycle('RETIRE')"
+          :content="lifecycleDisabledReason('RETIRE')"
+          placement="top"
         >
-        <el-button
-          v-hasPermi="['ops:device:edit']"
-          plain
-          :loading="lifeLoading === 'INBOUND'"
-          @click="runLifecycle('INBOUND')"
-          >入库</el-button
+          <span class="life-btn-wrap">
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              type="danger"
+              plain
+              :loading="lifeLoading === 'RETIRE'"
+              :disabled="!canLifecycle('RETIRE')"
+              @click="runLifecycle('RETIRE', true)"
+              >退役</el-button
+            >
+          </span>
+        </el-tooltip>
+        <el-tooltip
+          :disabled="canLifecycle('INBOUND')"
+          :content="lifecycleDisabledReason('INBOUND')"
+          placement="top"
         >
+          <span class="life-btn-wrap">
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              plain
+              :loading="lifeLoading === 'INBOUND'"
+              :disabled="!canLifecycle('INBOUND')"
+              @click="runLifecycle('INBOUND')"
+              >入库</el-button
+            >
+          </span>
+        </el-tooltip>
       </div>
+
+      <el-dialog v-model="bindDialogVisible" title="绑定商户" width="480px" destroy-on-close>
+        <p class="dialog-hint">选择要绑定的商户。绑定成功后柜机将进入投放状态。</p>
+        <el-select
+          v-model="bindMerchantId"
+          filterable
+          clearable
+          placeholder="请选择商户"
+          style="width: 100%"
+          :loading="bindMerchantsLoading"
+        >
+          <el-option
+            v-for="m in bindMerchantOptions"
+            :key="m.merchantId"
+            :label="`${m.merchantName || m.merchantId}（${m.merchantId}）`"
+            :value="m.merchantId"
+          />
+        </el-select>
+        <template #footer>
+          <el-button @click="bindDialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            :loading="lifeLoading === 'BIND'"
+            :disabled="!bindMerchantId"
+            @click="confirmBindMerchant"
+            >确认绑定</el-button
+          >
+        </template>
+      </el-dialog>
     </el-card>
 
     <el-card class="page-card" shadow="never">
@@ -1310,6 +1402,10 @@ const assetSaving = ref(false);
 const geoLoading = ref(false);
 const geoConfigured = ref(false);
 const lifeLoading = ref('');
+const bindDialogVisible = ref(false);
+const bindMerchantId = ref('');
+const bindMerchantsLoading = ref(false);
+const bindMerchantOptions = ref<Array<{ merchantId: string; merchantName?: string }>>([]);
 const cmdLoading = ref('');
 const tempDraft = ref<number | undefined>(undefined);
 const tab = ref('overview');
@@ -1693,19 +1789,95 @@ async function loadGeoStatus() {
   }
 }
 
-async function lifecycleBind() {
-  try {
-    const { value: merchantId } = await ElMessageBox.prompt('请输入要绑定的商户编号', '绑定商户', {
-      inputValue: asset.merchantId || '',
-      inputValidator: (v) => !!String(v || '').trim() || '商户编号必填',
-      confirmButtonText: '确认绑定'
-    });
-    await runLifecycle('BIND', false, String(merchantId).trim());
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '绑定失败');
-    }
+function normalizedLifecycleStatus() {
+  return String(asset.lifecycleStatus || '').trim().toUpperCase();
+}
+
+function hasBoundMerchant() {
+  return !!String(asset.merchantId || '').trim();
+}
+
+/** 与后端 DeviceAssetService 状态机对齐；状态未加载时全部不可点 */
+function canLifecycle(action: string) {
+  const status = normalizedLifecycleStatus();
+  if (!status) return false;
+  const hasMerchant = hasBoundMerchant();
+  switch (action) {
+    case 'BIND':
+      return status === 'INBOUND' || status === 'IDLE';
+    case 'UNBIND':
+      return status === 'DEPLOYED' || (status === 'IDLE' && hasMerchant);
+    case 'DEPLOY':
+      return (status === 'INBOUND' || status === 'IDLE') && hasMerchant;
+    case 'UNDEPLOY':
+      return status === 'DEPLOYED';
+    case 'RETURN':
+      return status === 'INBOUND' || status === 'IDLE' || status === 'DEPLOYED';
+    case 'RETIRE':
+      return status !== 'RETIRED';
+    case 'INBOUND':
+      return status === 'INBOUND' || status === 'IDLE' || status === 'RETURNING';
+    default:
+      return false;
   }
+}
+
+function lifecycleDisabledReason(action: string) {
+  const status = normalizedLifecycleStatus();
+  if (!status) return '设备状态加载中';
+  if (canLifecycle(action)) return '';
+  if (status === 'RETIRED') return '已退役，不可再操作生命周期';
+  switch (action) {
+    case 'BIND':
+      if (status === 'DEPLOYED') return '已投放，请先解绑再换商户';
+      return '当前状态不可绑定商户';
+    case 'UNBIND':
+      return hasBoundMerchant() ? '当前状态不可解绑' : '当前未绑定商户';
+    case 'DEPLOY':
+      if (status === 'DEPLOYED') return '已是投放状态';
+      if (!hasBoundMerchant()) return '请先绑定商户再投放';
+      return '当前状态不可投放';
+    case 'UNDEPLOY':
+      return '仅投放中的柜可撤回未投放';
+    case 'RETURN':
+      return '当前状态不可返厂';
+    case 'RETIRE':
+      return '当前状态不可退役';
+    case 'INBOUND':
+      if (status === 'DEPLOYED') return '投放中请先撤回或解绑后再入库';
+      return '当前状态不可入库';
+    default:
+      return '当前不可操作';
+  }
+}
+
+async function openBindDialog() {
+  if (!canLifecycle('BIND')) return;
+  bindMerchantId.value = '';
+  bindDialogVisible.value = true;
+  bindMerchantsLoading.value = true;
+  try {
+    const data = await api.request<{ items?: Array<{ merchantId: string; merchantName?: string }> }>(
+      '/api/v2/ops/admin/merchants?page=0&size=500',
+      'GET'
+    );
+    bindMerchantOptions.value = data.items || [];
+  } catch (e) {
+    bindMerchantOptions.value = [];
+    ElMessage.error(e instanceof Error ? e.message : '加载商户失败');
+  } finally {
+    bindMerchantsLoading.value = false;
+  }
+}
+
+async function confirmBindMerchant() {
+  const merchantId = String(bindMerchantId.value || '').trim();
+  if (!merchantId) {
+    ElMessage.warning('请选择商户');
+    return;
+  }
+  bindDialogVisible.value = false;
+  await runLifecycle('BIND', false, merchantId);
 }
 
 async function runLifecycle(action: string, requireRemark = false, merchantId?: string) {
@@ -2274,6 +2446,15 @@ onActivated(() => {
   gap: 8px;
   margin-bottom: 12px;
   align-items: center;
+}
+.life-btn-wrap {
+  display: inline-flex;
+}
+.dialog-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
 }
 .policy-lock-alert {
   margin-bottom: 12px;

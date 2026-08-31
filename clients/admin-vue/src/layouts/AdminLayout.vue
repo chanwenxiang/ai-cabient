@@ -173,7 +173,11 @@ import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
 import { dictRuntimeEpoch } from '@/stores/dict-runtime';
 import { PRIMARY_OPTIONS, useSettingsStore } from '@/stores/settings';
-import { observeTableScrollFit, stopTableScrollFit } from '@/utils/table-scroll-fit';
+import {
+  observeTableScrollFit,
+  stopTableScrollFit,
+  syncTableScrollFit
+} from '@/utils/table-scroll-fit';
 import AppBreadcrumb from '@/components/AppBreadcrumb.vue';
 import GlobalSearch from '@/components/GlobalSearch.vue';
 import OpsApprovalInbox from '@/components/OpsApprovalInbox.vue';
@@ -361,6 +365,8 @@ watch(
       tags.value.splice(dropIdx, 1);
     }
     scrollActiveTagIntoView();
+    // 切页后重测表宽（不再靠监听 class，避免 hover-row 连环触发）
+    nextTick(() => syncTableScrollFit());
   },
   { immediate: true }
 );
@@ -819,9 +825,7 @@ onUnmounted(() => {
   background: var(--layout-bg);
   color: var(--layout-text);
   overscroll-behavior: contain;
-  /* 独立合成层，减轻与侧栏 hover 重绘时的相对抖动 */
-  transform: translateZ(0);
-  backface-visibility: hidden;
+  /* 勿再用 translateZ(0) 强开合成层：偶发亚像素错位，刷新才消，像「随机跳动」 */
 }
 
 /* 页面根节点横向铺满主区；允许超宽内容撑开触发页面级横向滚动 */

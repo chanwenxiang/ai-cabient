@@ -7,20 +7,20 @@
  * - 必须用内层列宽 / table 宽度判断。若容器曾被设成 overflow:visible，
  *   用容器 scrollWidth/clientWidth 会误判，并与 .table-scroll--h 的
  *   width:max-content 形成正反馈，把表格越撑越宽。
+ * - 只观察 childList：EP 在行上切换 hover-row / current-row 时会狂写 class，
+ *   若监听 attributes 会在鼠标上下移动时反复测宽/强制 reflow，主区上下抖。
  * - 同步期间断开 MutationObserver，且不监听 style（EP 写列宽会连环触发）。
  * - 浏览器缩放会改 clientWidth/列宽亚像素；用回滞避免 --h 反复开关导致白框右边「断掉」。
  */
 let rafId = 0;
+let debounceTimer = 0;
 let observer: MutationObserver | null = null;
 let observedRoot: HTMLElement | null = null;
 let syncing = false;
 
 const OBSERVE_OPTIONS: MutationObserverInit = {
   childList: true,
-  subtree: true,
-  attributes: true,
-  // 不监听 style：Element Plus 写列宽/表宽会与 max-content 互相追逐
-  attributeFilter: ['class']
+  subtree: true
 };
 
 /** 取表头 colgroup 声明宽度之和（稳定，不受 max-content 膨胀影响） */
@@ -56,19 +56,26 @@ function forceReflow(el: HTMLElement): number {
 function measureOverflow(el: HTMLElement): boolean {
   const table = el.querySelector<HTMLElement>('.el-table');
   const hadH = el.classList.contains('table-scroll--h');
-  if (hadH) el.classList.remove('table-scroll--h');
-  // 强制回到 width:100% 布局再读
-  forceReflow(el);
-
-  const colsW = columnSumWidth(table);
-  const headerW = table?.querySelector('.el-table__header table')?.scrollWidth ?? 0;
-  const bodyW = table?.querySelector('.el-table__body table')?.scrollWidth ?? 0;
-  // 不用 el.scrollWidth：overflow:visible 时会跟着子项一起涨，形成反馈环
-  const contentW = Math.max(colsW, headerW, bodyW, table?.scrollWidth ?? 0);
   const clientW = el.clientWidth;
   // 缩放亚像素约 1～3px；回滞避免 100% / 90% / 110% 来回切换布局
   const enterPx = 2;
   const leavePx = 6;
+
+  // 优先用 colgroup 声明宽：不依赖 max-content，不必临时拆 --h（避免可见闪跳）
+  const colsW = columnSumWidth(table);
+  if (colsW > 0 && clientW > 0) {
+    if (hadH) return colsW > clientW - leavePx;
+    return colsW > clientW + enterPx;
+  }
+
+  if (hadH) el.classList.remove('table-scroll--h');
+  // 强制回到 width:100% 布局再读
+  forceReflow(el);
+
+  const headerW = table?.querySelector('.el-table__header table')?.scrollWidth ?? 0;
+  const bodyW = table?.querySelector('.el-table__body table')?.scrollWidth ?? 0;
+  // 不用 el.scrollWidth：overflow:visible 时会跟着子项一起涨，形成反馈环
+  const contentW = Math.max(colsW, headerW, bodyW, table?.scrollWidth ?? 0);
 
   if (hadH) {
     return contentW > clientW - leavePx;
@@ -102,8 +109,15 @@ export function syncTableScrollFit(): void {
 }
 
 function scheduleSync(): void {
-  if (rafId || syncing) return;
-  rafId = requestAnimationFrame(syncTableScrollFit);
+  if (syncing) return;
+  // 合并同帧 + 短防抖：表格批量插入行时只测一次，避免连续 reflow
+  if (rafId) return;
+  if (debounceTimer) globalThis.clearTimeout(debounceTimer);
+  debounceTimer = globalThis.setTimeout(() => {
+    debounceTimer = 0;
+    if (rafId || syncing) return;
+    rafId = requestAnimationFrame(syncTableScrollFit);
+  }, 48);
 }
 
 export function observeTableScrollFit(root: HTMLElement): void {
@@ -123,6 +137,8 @@ export function stopTableScrollFit(): void {
   observedRoot = null;
   window.removeEventListener('resize', scheduleSync);
   window.visualViewport?.removeEventListener('resize', scheduleSync);
+  if (debounceTimer) globalThis.clearTimeout(debounceTimer);
+  debounceTimer = 0;
   if (rafId) cancelAnimationFrame(rafId);
   rafId = 0;
   syncing = false;
