@@ -23,6 +23,18 @@ public interface ApprovalTaskMapper extends BaseTradeMapper<ApprovalTask> {
                 .last("LIMIT " + Math.max(1, Math.min(limit, 100))));
     }
 
+    /**
+     * 本人已通过/驳回的最近任务（不含 SKIPPED），按处理时间倒序。
+     */
+    default List<ApprovalTask> findRecentActedByAssigneeUserId(Long userId, int limit) {
+        return selectList(Wrappers.<ApprovalTask>lambdaQuery()
+                .eq(ApprovalTask::getAssigneeUserId, userId)
+                .in(ApprovalTask::getStatus, List.of("APPROVED", "REJECTED"))
+                .orderByDesc(ApprovalTask::getActedAt)
+                .orderByDesc(ApprovalTask::getCreatedAt)
+                .last("LIMIT " + Math.max(1, Math.min(limit, 100))));
+    }
+
     default long countPendingByAssigneeUserId(Long userId) {
         Long c = selectCount(Wrappers.<ApprovalTask>lambdaQuery()
                 .eq(ApprovalTask::getAssigneeUserId, userId)

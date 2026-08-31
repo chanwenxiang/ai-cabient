@@ -2,7 +2,7 @@
   <el-popover
     v-if="visible"
     placement="bottom-end"
-    :width="360"
+    :width="380"
     trigger="click"
     popper-class="ops-inbox-popper"
     @show="onOpen"
@@ -57,7 +57,27 @@
         </ul>
       </section>
 
-      <el-empty v-if="!loading && !tasks.length && !messages.length" description="暂无待办" />
+      <section v-if="history.length" class="inbox-section">
+        <div class="section-label">审批历史 ({{ history.length }})</div>
+        <ul class="inbox-list">
+          <li v-for="item in history" :key="'h-' + item.taskId" class="inbox-item-wrap">
+            <button type="button" class="inbox-item history" @click="openHistory(item)">
+              <div class="item-title">
+                <span class="status-chip" :class="historyChipClass(item)">{{ historyChipLabel(item) }}</span>
+                {{ item.title || item.bizType }}
+              </div>
+              <div class="item-meta">
+                {{ item.progressText }} · {{ formatDateTime(item.actedAt) }}
+              </div>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <el-empty
+        v-if="!loading && !tasks.length && !messages.length && !history.length"
+        description="暂无待办"
+      />
     </div>
   </el-popover>
 </template>
@@ -91,11 +111,28 @@ type InboxMessage = {
   createdAt?: string;
 };
 
+/** 本人已处理节点 + 整单流程进度。 */
+type ApprovalHistoryItem = {
+  taskId: number;
+  instanceId?: number;
+  bizType: string;
+  bizId: string;
+  title: string;
+  myNodeName?: string;
+  myStatus?: string;
+  instanceStatus?: string;
+  currentNodeName?: string | null;
+  progressText?: string;
+  actionPath?: string;
+  actedAt?: string;
+};
+
 type InboxDto = {
   pendingTaskCount: number;
   unreadMessageCount: number;
   pendingTasks: ApprovalTask[];
   recentMessages: InboxMessage[];
+  historyItems?: ApprovalHistoryItem[];
 };
 
 const POLL_MS = 60_000;
@@ -107,6 +144,7 @@ const pendingTaskCount = ref(0);
 const unreadMessageCount = ref(0);
 const tasks = ref<ApprovalTask[]>([]);
 const messages = ref<InboxMessage[]>([]);
+const history = ref<ApprovalHistoryItem[]>([]);
 let pollTimer: ReturnType<typeof setInterval> | undefined;
 
 const visible = computed(
@@ -126,6 +164,7 @@ async function loadInbox() {
     unreadMessageCount.value = Number(data?.unreadMessageCount ?? 0);
     tasks.value = data?.pendingTasks ?? [];
     messages.value = data?.recentMessages ?? [];
+    history.value = data?.historyItems ?? [];
   } catch {
     // ignore transient errors; badge keeps last value
   } finally {
@@ -175,16 +214,16 @@ async function markVisibleAsRead() {
   unreadMessageCount.value = 0;
 }
 
-function resolvePath(task: ApprovalTask | InboxMessage): string {
-  if ('actionPath' in task && task.actionPath) return task.actionPath;
-  if (task.bizType === 'MERCHANT_REPLEN_REQUEST') return '/replenishment?tab=requests';
-  if (task.bizType === 'PURCHASE_ORDER') return '/warehouse?tab=purchase';
-  if (task.bizType === 'MERCHANT_WITHDRAW' || task.bizType === 'MERCHANT_WALLET_ADJUST') {
+function resolvePath(item: { actionPath?: string; bizType?: string }): string {
+  if (item.actionPath) return item.actionPath;
+  if (item.bizType === 'MERCHANT_REPLEN_REQUEST') return '/replenishment?tab=requests';
+  if (item.bizType === 'PURCHASE_ORDER') return '/warehouse?tab=purchase';
+  if (item.bizType === 'MERCHANT_WITHDRAW' || item.bizType === 'MERCHANT_WALLET_ADJUST') {
     return '/merchant-withdraw';
   }
-  if (task.bizType === 'LINE_WITHDRAW') return '/line-managers?tab=withdraws';
-  if (task.bizType === 'BALANCE_REFUND') return '/balance-refunds';
-  if (task.bizType === 'MERCHANT_ONBOARD') return '/merchant-onboarding';
+  if (item.bizType === 'LINE_WITHDRAW') return '/line-managers?tab=withdraws';
+  if (item.bizType === 'BALANCE_REFUND') return '/balance-refunds';
+  if (item.bizType === 'MERCHANT_ONBOARD') return '/merchant-onboarding';
   return '/replenishment?tab=requests';
 }
 
@@ -195,6 +234,24 @@ function resolvePath(task: ApprovalTask | InboxMessage): string {
 function displayMessageTitle(title?: string): string {
   if (!title) return '';
   return title.startsWith('待审批：') ? `审批提醒：${title.slice('待审批：'.length)}` : title;
+}
+
+/**
+ * @param {ApprovalHistoryItem} item
+ */
+function historyChipLabel(item: ApprovalHistoryItem): string {
+  if (item.myStatus === 'REJECTED') return '已驳回';
+  if (item.myStatus === 'APPROVED') return '已通过';
+  return '已处理';
+}
+
+/**
+ * @param {ApprovalHistoryItem} item
+ */
+function historyChipClass(item: ApprovalHistoryItem): string {
+  if (item.myStatus === 'REJECTED') return 'is-rejected';
+  if (item.instanceStatus === 'PENDING') return 'is-ongoing';
+  return 'is-done';
 }
 
 async function openTask(task: ApprovalTask) {
@@ -217,6 +274,13 @@ async function openMessage(msg: InboxMessage) {
     // still navigate
   }
   router.push(resolvePath(msg));
+}
+
+/**
+ * @param {ApprovalHistoryItem} item
+ */
+function openHistory(item: ApprovalHistoryItem) {
+  router.push(resolvePath(item));
 }
 
 function onWindowFocus() {
@@ -290,6 +354,9 @@ onUnmounted(() => {
 .inbox-item.unread .item-title {
   font-weight: 600;
 }
+.inbox-item.history .item-title {
+  font-weight: 500;
+}
 .item-title {
   font-size: 13px;
   line-height: 1.35;
@@ -301,5 +368,27 @@ onUnmounted(() => {
   color: var(--layout-muted, #64748b);
   line-height: 1.35;
   word-break: break-word;
+}
+.status-chip {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  vertical-align: 1px;
+}
+.status-chip.is-done {
+  color: #15803d;
+  background: rgba(34, 197, 94, 0.12);
+}
+.status-chip.is-ongoing {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.14);
+}
+.status-chip.is-rejected {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.12);
 }
 </style>

@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.ApprovalDefinitionDto;
+import com.aicabinet.common.dto.ApprovalHistoryItemDto;
 import com.aicabinet.common.dto.ApprovalInboxDto;
 import com.aicabinet.common.dto.ApprovalNodeDto;
 import com.aicabinet.common.dto.ApprovalTaskDto;
@@ -43,6 +44,7 @@ public class ApprovalWorkflowService {
     private static final String STATUS_APPROVED = "APPROVED";
     private static final String STATUS_PENDING = "PENDING";
     private static final String STATUS_SKIPPED = "SKIPPED";
+    private static final String STATUS_REJECTED = "REJECTED";
 
 
     private static final Logger log = LoggerFactory.getLogger(ApprovalWorkflowService.class);
@@ -217,7 +219,7 @@ public class ApprovalWorkflowService {
         for (ApprovalTask task : currentTasks) {
             if (STATUS_PENDING.equals(task.getStatus())) {
                 if (actorUserId.equals(task.getAssigneeUserId())) {
-                    task.setStatus("REJECTED");
+                    task.setStatus(STATUS_REJECTED);
                     task.setActedAt(now);
                     task.setRemark(trim(remark));
                 } else {
@@ -227,14 +229,14 @@ public class ApprovalWorkflowService {
                 taskRepository.save(task);
             }
         }
-        instance.setStatus("REJECTED");
+        instance.setStatus(STATUS_REJECTED);
         instance.setRemark(trim(remark));
         instance.setFinishedAt(now);
         instanceRepository.save(instance);
     }
 
     /**
-     * 顶栏收件箱：待审批为真实 PENDING 任务；站内消息剔除与待办重复项，以及已办结流程的过期审批提醒。
+     * 顶栏收件箱：待审批为真实 PENDING 任务；站内消息剔除重复/过期提醒；历史含本人已办与流程进度。
      */
     @Transactional(readOnly = true)
     public ApprovalInboxDto inbox(Long userId, int limit) {
@@ -250,7 +252,16 @@ public class ApprovalWorkflowService {
         long unreadMessages = notificationService.opsUnread(userId, 500).stream()
                 .filter(m -> shouldShowOpsMessage(m, pendingBizKeys))
                 .count();
-        return new ApprovalInboxDto(pendingCount, unreadMessages, tasks, messages);
+        List<ApprovalHistoryItemDto> history = self.listHistoryItems(userId, safeLimit);
+        return new ApprovalInboxDto(pendingCount, unreadMessages, tasks, messages, history);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ApprovalHistoryItemDto> listHistoryItems(Long userId, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 100));
+        return taskRepository.findRecentActedByAssigneeUserId(userId, safeLimit).stream()
+                .map(this::toHistoryItemDto)
+                .toList();
     }
 
     /**
@@ -596,6 +607,69 @@ public class ApprovalWorkflowService {
                 actionPath(bizType),
                 task.getCreatedAt(),
                 task.getReadAt());
+    }
+
+    private ApprovalHistoryItemDto toHistoryItemDto(ApprovalTask task) {
+        ApprovalInstance instance = instanceRepository.findById(task.getInstanceId()).orElse(null);
+        String bizType = instance != null ? instance.getBizType() : "";
+        String bizId = instance != null ? instance.getBizId() : "";
+        String title = instance != null ? instance.getTitle() : "";
+        String instanceStatus = instance != null ? instance.getStatus() : "";
+        String currentNodeName = null;
+        if (instance != null && STATUS_PENDING.equals(instance.getStatus())) {
+            currentNodeName = resolveNodeName(instance.getDefId(), instance.getCurrentNodeSeq());
+        }
+        String myStatus = task.getStatus() != null ? task.getStatus() : "";
+        String myNode = task.getNodeName() != null ? task.getNodeName() : "";
+        Instant actedAt = task.getActedAt() != null ? task.getActedAt() : task.getCreatedAt();
+        return new ApprovalHistoryItemDto(
+                task.getTaskId(),
+                task.getInstanceId(),
+                bizType,
+                bizId,
+                title,
+                myNode,
+                myStatus,
+                instanceStatus,
+                currentNodeName,
+                buildProgressText(myStatus, myNode, instanceStatus, currentNodeName),
+                actionPath(bizType),
+                actedAt);
+    }
+
+    private String resolveNodeName(Long defId, Integer nodeSeq) {
+        if (defId == null || nodeSeq == null) {
+            return null;
+        }
+        return nodeRepository.findByDefIdAndSeq(defId, nodeSeq).stream()
+                .findFirst()
+                .map(ApprovalNode::getNodeName)
+                .orElse(null);
+    }
+
+    /**
+     * 组装历史进度文案。
+     */
+    static String buildProgressText(String myStatus, String myNodeName, String instanceStatus,
+                                    String currentNodeName) {
+        String node = (myNodeName == null || myNodeName.isBlank()) ? "节点" : myNodeName;
+        if (STATUS_REJECTED.equals(myStatus)) {
+            return "已驳回「" + node + "」· 流程已结束";
+        }
+        String action = STATUS_APPROVED.equals(myStatus) ? "已通过「" + node + "」" : "已处理「" + node + "」";
+        if (STATUS_APPROVED.equals(instanceStatus)) {
+            return action + "· 流程已结束";
+        }
+        if (STATUS_REJECTED.equals(instanceStatus)) {
+            return action + "· 流程已驳回";
+        }
+        if (STATUS_PENDING.equals(instanceStatus)) {
+            if (currentNodeName != null && !currentNodeName.isBlank()) {
+                return action + "· 当前：" + currentNodeName;
+            }
+            return action + "· 流程进行中";
+        }
+        return action;
     }
 
     static String actionPath(String bizType) {
