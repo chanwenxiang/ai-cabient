@@ -89,6 +89,16 @@
       <el-tab-pane label="场地合同" name="contracts">
         <div class="org-toolbar">
           <el-button
+            v-if="contractHasSelection"
+            v-hasPermi="['ops:org:edit']"
+            type="danger"
+            :loading="contractBatchLoading"
+            @click="batchDeleteContracts"
+          >
+            批量删除
+          </el-button>
+          <el-button @click="onExportContracts">{{ contractExportLabel }}</el-button>
+          <el-button
             v-hasPermi="['ops:org:edit']"
             size="small"
             type="primary"
@@ -97,7 +107,32 @@
             新增合同
           </el-button>
         </div>
-        <el-table v-loading="loading" :data="contracts" stripe border>
+        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="searchContracts">
+          <el-form-item label="关键词">
+            <el-input
+              v-model="contractKeyword"
+              clearable
+              placeholder="柜机 / 设备ID / 场地 / 场地主"
+              style="width: 240px"
+              @keyup.enter="searchContracts"
+              @clear="searchContracts"
+            />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="searchContracts">查询</el-button>
+            <el-button @click="resetContracts">重置</el-button>
+          </el-form-item>
+        </el-form>
+        <el-table
+          ref="contractTableRef"
+          v-loading="loading"
+          :data="displayContracts"
+          stripe
+          border
+          row-key="contractId"
+          @selection-change="onContractSelectionChange"
+        >
+          <el-table-column type="selection" width="48" align="center" reserve-selection />
           <el-table-column prop="deviceName" label="柜机" min-width="140" show-overflow-tooltip />
           <el-table-column prop="deviceId" label="设备ID" min-width="110" show-overflow-tooltip />
           <el-table-column prop="siteName" label="场地" min-width="140" show-overflow-tooltip />
@@ -352,11 +387,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
+import { useAdminListTable } from '@/composables/useAdminListTable';
+import { useListCsv } from '@/composables/useListCsv';
 import type { OrgNodeDto, SiteContractDto } from '@aicabinet/shared-types';
 import { displayLabel } from '@aicabinet/shared-dict';
 
@@ -365,6 +402,54 @@ const saving = ref(false);
 const tab = ref('org');
 const orgTree = ref<OrgNodeDto[]>([]);
 const contracts = ref<SiteContractDto[]>([]);
+const contractBatchLoading = ref(false);
+const {
+  tableRef: contractTableRef,
+  keyword: contractKeyword,
+  hasSelection: contractHasSelection,
+  onSelectionChange: onContractSelectionChange,
+  pickSelected: pickContracts,
+  exportButtonLabel: contractExportLabel,
+  clearSelection: clearContractSelection,
+  filterByKeyword: filterContracts,
+  resetKeyword: resetContractKeyword
+} = useAdminListTable<SiteContractDto>((r) => r.contractId);
+
+const displayContracts = computed(() =>
+  filterContracts(contracts.value, (row, kw) => {
+    return (
+      String(row.deviceName || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(row.deviceId || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(row.siteName || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(row.landlordName || '')
+        .toLowerCase()
+        .includes(kw)
+    );
+  })
+);
+
+const { onExport: onExportContracts } = useListCsv({
+  filePrefix: '场地合同',
+  headers: ['柜机', '设备ID', '场地', '地址', '场地主', '月费(元)', '起租', '到期', '状态'],
+  toRows: () =>
+    pickContracts(displayContracts.value).map((r) => [
+      r.deviceName || '',
+      r.deviceId,
+      r.siteName,
+      r.address || '',
+      r.landlordName || '',
+      (r.monthlyFeeCents / 100).toFixed(2),
+      r.startDate || '',
+      r.endDate || '',
+      contractStatusLabel(r.status)
+    ])
+});
 const contractsHydrated = ref(false);
 const contractPage = ref(1);
 const contractSize = ref(20);
@@ -453,6 +538,7 @@ async function loadContracts() {
     );
     contracts.value = data.items || [];
     contractTotal.value = Number(data.total) || 0;
+    clearContractSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '合同加载失败');
   } finally {
@@ -464,6 +550,40 @@ async function loadContracts() {
 function onContractSizeChange() {
   contractPage.value = 1;
   loadContracts();
+}
+
+function searchContracts() {
+  contractPage.value = 1;
+  loadContracts();
+}
+
+function resetContracts() {
+  resetContractKeyword();
+  contractPage.value = 1;
+  loadContracts();
+}
+
+async function batchDeleteContracts() {
+  const targets = pickContracts(displayContracts.value);
+  if (!targets.length) {
+    ElMessage.warning('请先勾选合同');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(`确认删除选中的 ${targets.length} 份场地合同？`, '批量删除', {
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+  contractBatchLoading.value = true;
+  const results = await Promise.allSettled(
+    targets.map((row) => api.request(`/api/v2/ops/admin/site-contracts/${row.contractId}`, 'DELETE'))
+  );
+  contractBatchLoading.value = false;
+  const ok = results.filter((r) => r.status === 'fulfilled').length;
+  ElMessage.success(`批量删除完成：成功 ${ok}，失败 ${targets.length - ok}`);
+  await loadAll();
 }
 
 async function loadDevices() {

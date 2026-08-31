@@ -16,22 +16,31 @@
             <el-radio-button :value="30">近 30 天</el-radio-button>
             <el-radio-button :value="90">近 90 天</el-radio-button>
           </el-radio-group>
-          <el-button @click="onExport">导出 CSV</el-button>
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
 
+    <el-form inline class="filter-bar filter-bar--compact">
+      <el-form-item label="关键词">
+        <el-input v-model="keyword" clearable placeholder="活动名称" style="width: 180px" />
+      </el-form-item>
+    </el-form>
+
     <el-table
+      ref="tableRef"
       v-loading="loading"
-      :data="list"
+      :data="displayList"
       stripe
       border
       row-key="activityId"
       empty-text=" "
       class="report-table"
+      @selection-change="onSelectionChange"
     >
       <template #empty><el-empty v-if="!loading" description="暂无活动数据" /></template>
+      <el-table-column type="selection" width="48" align="center" />
       <el-table-column prop="activityName" label="活动" min-width="170" align="center" />
       <el-table-column label="类型" width="90" align="center">
         <template #default="{ row }">{{ typeLabel(row.activityType) }}</template>
@@ -68,11 +77,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useListCsv } from '@/composables/useListCsv';
 
 type RoiRow = {
@@ -94,6 +104,20 @@ const loading = ref(false);
 const days = ref(30);
 const list = ref<RoiRow[]>([]);
 
+const {
+  tableRef,
+  keyword,
+  onSelectionChange,
+  pickSelected,
+  exportButtonLabel,
+  clearSelection,
+  filterByKeyword
+} = useAdminListTable<RoiRow>((r) => r.activityId);
+
+const displayList = computed(() =>
+  filterByKeyword(list.value, (row, kw) => (row.activityName || '').toLowerCase().includes(kw))
+);
+
 const { onExport } = useListCsv({
   filePrefix: '活动效果分析',
   headers: [
@@ -110,7 +134,7 @@ const { onExport } = useListCsv({
     '带动营收(元)'
   ],
   toRows: () =>
-    list.value.map((r) => [
+    pickSelected(displayList.value).map((r) => [
       r.activityName,
       typeLabel(r.activityType),
       displayLabel('enable_status', r.status, '未知'),
@@ -133,6 +157,7 @@ async function load() {
     list.value = await api.request<RoiRow[]>(
       `/api/v2/ops/admin/growth/marketing-roi?days=${days.value}`
     );
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {

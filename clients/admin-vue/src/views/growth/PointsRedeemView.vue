@@ -9,27 +9,65 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <el-button
+            v-if="hasSelection"
+            v-hasPermi="['ops:points:edit']"
+            type="success"
+            :loading="batchLoading === 'enable'"
+            @click="batchToggle('ACTIVE')"
+          >
+            批量上架
+          </el-button>
+          <el-button
+            v-if="hasSelection"
+            v-hasPermi="['ops:points:edit']"
+            type="warning"
+            :loading="batchLoading === 'disable'"
+            @click="batchToggle('INACTIVE')"
+          >
+            批量下架
+          </el-button>
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button v-hasPermi="['ops:points:edit']" type="primary" @click="openCreate"
             >新建兑换项</el-button
           >
-          <el-button @click="onExport">导出 CSV</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
 
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
+      <el-form-item label="关键词">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="商品名 / 券名"
+          style="width: 200px"
+          @keyup.enter="search"
+          @clear="search"
+        />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+        <el-button @click="reset">重置</el-button>
+      </el-form-item>
+    </el-form>
+
     <div class="table-scroll">
       <div class="table-scroll-inner">
         <el-table
+          ref="tableRef"
           v-loading="loading"
-          :data="list"
+          :data="displayList"
           stripe
           border
           row-key="itemId"
           empty-text=" "
           class="report-table"
+          @selection-change="onSelectionChange"
         >
           <template #empty><el-empty v-if="!loading" description="暂无兑换项" /></template>
+          <el-table-column type="selection" width="48" align="center" />
           <el-table-column
             prop="itemId"
             label="ID"
@@ -77,20 +115,16 @@
           </el-table-column>
           <el-table-column
             label="操作"
-            width="150"
+            width="120"
             align="center"
             class-name="col-action"
             fixed="right"
           >
             <template #default="{ row }">
-              <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-              <el-button
-                v-if="auth.hasPerm('ops:points:edit')"
-                link
-                :type="row.status === 'ACTIVE' ? 'danger' : 'success'"
-                @click="toggleStatus(row)"
-                >{{ row.status === 'ACTIVE' ? '停用' : '启用' }}</el-button
-              >
+              <TableActions
+                :actions="rowActions(row)"
+                @action="(k) => onRowAction(String(k), row)"
+              />
             </template>
           </el-table-column>
         </el-table>
@@ -145,12 +179,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
+import { EditPen, Refresh, SwitchButton } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
-import { useAuthStore } from '@/stores/auth';
+import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useListCsv } from '@/composables/useListCsv';
+import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 type RedeemItem = {
@@ -165,6 +201,8 @@ type RedeemItem = {
   redeemedCount: number;
   sortOrder: number;
   status: string;
+  createdAt?: string;
+  availableStock?: number;
 };
 
 type CouponDef = {
@@ -175,17 +213,46 @@ type CouponDef = {
 
 const loading = ref(false);
 const saving = ref(false);
+const batchLoading = ref<'enable' | 'disable' | ''>('');
 const list = ref<RedeemItem[]>([]);
 const couponDefs = ref<CouponDef[]>([]);
 const dialogVisible = ref(false);
 const editing = ref(false);
 const auth = useAuthStore();
 
+const {
+  tableRef,
+  keyword,
+  hasSelection,
+  onSelectionChange,
+  pickSelected,
+  exportButtonLabel,
+  clearSelection,
+  filterByKeyword,
+  resetKeyword
+} = useAdminListTable<RedeemItem>((r) => r.itemId);
+
+const displayList = computed(() =>
+  filterByKeyword(list.value, (row, kw) => {
+    return (
+      String(row.title || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(row.couponName || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(row.subtitle || '')
+        .toLowerCase()
+        .includes(kw)
+    );
+  })
+);
+
 const { onExport } = useListCsv({
   filePrefix: '积分兑换管理',
   headers: ['ID', '标题', '副标题', '所需积分', '兑换优惠券', '库存', '已兑', '排序', '状态'],
   toRows: () =>
-    list.value.map((r) => [
+    pickSelected(displayList.value).map((r) => [
       r.itemId,
       r.title,
       r.subtitle || '',
@@ -214,10 +281,39 @@ onMounted(async () => {
   await Promise.all([load(), loadCouponDefs()]);
 });
 
+function search() {
+  /* client-side filter */
+}
+
+function reset() {
+  resetKeyword();
+}
+
+function rowActions(row: RedeemItem): TableAction[] {
+  if (!auth.hasPerm('ops:points:edit')) {
+    return [{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }];
+  }
+  return [
+    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' },
+    {
+      key: 'toggle',
+      label: row.status === 'ACTIVE' ? '停用' : '启用',
+      icon: SwitchButton,
+      type: row.status === 'ACTIVE' ? 'danger' : 'success'
+    }
+  ];
+}
+
+function onRowAction(key: string, row: RedeemItem) {
+  if (key === 'edit') openEdit(row);
+  else if (key === 'toggle') void toggleStatus(row);
+}
+
 async function load() {
   loading.value = true;
   try {
     list.value = await api.request<RedeemItem[]>('/api/v2/ops/admin/growth/points-redeem');
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -305,6 +401,30 @@ async function toggleStatus(row: RedeemItem) {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '操作失败');
   }
+}
+
+async function batchToggle(status: 'ACTIVE' | 'INACTIVE') {
+  const targets = pickSelected(displayList.value).filter((r) =>
+    status === 'ACTIVE' ? r.status !== 'ACTIVE' : r.status === 'ACTIVE'
+  );
+  if (!targets.length) {
+    ElMessage.warning(status === 'ACTIVE' ? '请先勾选停用的兑换项' : '请先勾选启用的兑换项');
+    return;
+  }
+  batchLoading.value = status === 'ACTIVE' ? 'enable' : 'disable';
+  const results = await Promise.allSettled(
+    targets.map((row) =>
+      api.request(`/api/v2/ops/admin/growth/points-redeem/${row.itemId}/status`, 'POST', {
+        status
+      })
+    )
+  );
+  batchLoading.value = '';
+  const ok = results.filter((r) => r.status === 'fulfilled').length;
+  ElMessage.success(
+    `批量${status === 'ACTIVE' ? '上架' : '下架'}完成：成功 ${ok}，失败 ${targets.length - ok}`
+  );
+  await load();
 }
 </script>
 

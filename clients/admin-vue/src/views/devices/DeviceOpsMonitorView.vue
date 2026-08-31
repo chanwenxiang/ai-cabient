@@ -12,6 +12,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -68,22 +69,34 @@
           />
         </el-select>
       </el-form-item>
+      <el-form-item label="关键词">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="事件 ID / 详情"
+          style="width: 180px"
+        />
+      </el-form-item>
     </el-form>
 
     <div class="table-scroll">
       <el-table
+        ref="tableRef"
         v-loading="loading"
         :data="displayItems"
         stripe
         border
         class="report-table"
+        row-key="eventId"
         :default-sort="{ prop: 'eventId', order: 'ascending' }"
         @sort-change="onSortChange"
+        @selection-change="onSelectionChange"
         empty-text=" "
       >
         <template #empty
           ><el-empty v-if="listHydrated && !loading" description="暂无运维事件"
         /></template>
+        <el-table-column type="selection" width="48" align="center" />
         <el-table-column prop="eventId" label="事件ID" width="110" align="center" sortable="custom">
           <template #default="{ row }">
             <span class="cell-id">{{ row.eventId }}</span>
@@ -162,7 +175,9 @@ import PagePager from '@/components/PagePager.vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, type Sort } from 'element-plus';
 import { api } from '@/api/client';
+import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
+import { useListCsv } from '@/composables/useListCsv';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
@@ -198,7 +213,41 @@ const severityOptions = computed(() =>
   riskSeverityDict.value.filter((o) => ['INFO', 'WARN', 'CRITICAL', 'HIGH'].includes(o.value))
 );
 
-const displayItems = computed(() => items.value);
+const {
+  tableRef,
+  keyword,
+  onSelectionChange,
+  pickSelected,
+  exportButtonLabel,
+  clearSelection,
+  filterByKeyword
+} = useAdminListTable<OpsEvent>((r) => r.eventId);
+
+const displayItems = computed(() =>
+  filterByKeyword(items.value, (row, kw) => {
+    const idMatch = String(row.eventId).includes(kw);
+    const rawDetail = (row.detail || '').toLowerCase();
+    const detailMatch =
+      rawDetail.includes(kw) || formatEventDetail(row.detail).toLowerCase().includes(kw);
+    return idMatch || detailMatch;
+  })
+);
+
+const { onExport } = useListCsv({
+  filePrefix: '设备运维事件',
+  headers: ['事件ID', '类型', '级别', '设备名称', '设备编号', '标题', '详情', '时间'],
+  toRows: () =>
+    pickSelected(displayItems.value).map((row) => [
+      row.eventId,
+      eventTypeLabel(row.eventType),
+      severityLabel(row.severity),
+      row.deviceName || '无',
+      row.deviceId || '',
+      row.title || '',
+      formatEventDetail(row.detail),
+      formatDateTime(row.createdAt)
+    ])
+});
 
 function eventTypeLabel(t?: string) {
   return displayLabel('device_ops_event', t, '未知');
@@ -277,6 +326,7 @@ async function load() {
     );
     items.value = data.items || [];
     total.value = Number(data.total ?? items.value.length);
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {

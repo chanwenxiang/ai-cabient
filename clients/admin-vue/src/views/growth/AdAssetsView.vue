@@ -9,6 +9,25 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <el-button
+            v-if="hasSelection"
+            v-hasPermi="['ops:ad:edit']"
+            type="warning"
+            :loading="batchLoading === 'deactivate'"
+            @click="batchDeactivate"
+          >
+            批量停用
+          </el-button>
+          <el-button
+            v-if="hasSelection"
+            v-hasPermi="['ops:ad:edit']"
+            type="danger"
+            :loading="batchLoading === 'delete'"
+            @click="batchDelete"
+          >
+            批量删除
+          </el-button>
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <input
             ref="fileInput"
             type="file"
@@ -49,9 +68,27 @@
       <p class="muted">图片建议时长 10s；视频留 0 使用原始时长。文件不超过 50MB。</p>
     </div>
 
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
+      <el-form-item label="关键词">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="标题 / 类型"
+          style="width: 200px"
+          @keyup.enter="search"
+          @clear="search"
+        />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+        <el-button @click="reset">重置</el-button>
+      </el-form-item>
+    </el-form>
+
     <div class="table-scroll">
       <div class="table-scroll-inner">
         <el-table
+          ref="tableRef"
           v-loading="loading"
           :data="displayRows"
           stripe
@@ -60,7 +97,9 @@
           class="report-table"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
+          @selection-change="onSelectionChange"
         >
+          <el-table-column type="selection" width="48" align="center" reserve-selection />
           <el-table-column
             prop="assetId"
             label="ID"
@@ -105,16 +144,10 @@
             fixed="right"
           >
             <template #default="{ row }">
-              <el-button v-hasPermi="['ops:ad:edit']" size="small" @click="openEdit(row)"
-                >编辑</el-button
-              >
-              <el-button
-                v-hasPermi="['ops:ad:edit']"
-                size="small"
-                type="danger"
-                @click="removeAsset(row)"
-                >删除</el-button
-              >
+              <TableActions
+                :actions="rowActions(row)"
+                @action="(k) => onRowAction(String(k), row)"
+              />
             </template>
           </el-table-column>
         </el-table>
@@ -155,15 +188,20 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { Refresh } from '@element-plus/icons-vue';
+import { Delete, EditPen, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, authFetch } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
+import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import { useAdminListTable } from '@/composables/useAdminListTable';
+import { useListCsv } from '@/composables/useListCsv';
+import { useAuthStore } from '@/stores/auth';
 import { displayLabel } from '@aicabinet/shared-dict';
 import type { MediaAssetDto } from '@aicabinet/shared-types';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const loading = ref(false);
+const auth = useAuthStore();
 const listHydrated = ref(false);
 const page = ref(1);
 const size = ref(20);
@@ -171,8 +209,48 @@ const total = ref(0);
 const uploading = ref(false);
 const saving = ref(false);
 const rows = ref<MediaAssetDto[]>([]);
+const batchLoading = ref<'delete' | 'deactivate' | ''>('');
+const {
+  tableRef,
+  keyword,
+  hasSelection,
+  onSelectionChange,
+  pickSelected,
+  exportButtonLabel,
+  clearSelection,
+  filterByKeyword,
+  resetKeyword
+} = useAdminListTable<MediaAssetDto>((r) => r.assetId);
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort<MediaAssetDto>('assetId');
-const displayRows = computed(() => sortById(rows.value));
+const displayRows = computed(() =>
+  sortById(
+    filterByKeyword(rows.value, (row, kw) => {
+      return (
+        String(row.title || '')
+          .toLowerCase()
+          .includes(kw) ||
+        String(row.assetType || '')
+          .toLowerCase()
+          .includes(kw) ||
+        typeLabel(row.assetType).toLowerCase().includes(kw)
+      );
+    })
+  )
+);
+
+const { onExport } = useListCsv({
+  filePrefix: '素材库',
+  headers: ['ID', '标题', '类型', '时长(秒)', '状态', '上传时间'],
+  toRows: () =>
+    pickSelected(displayRows.value).map((r) => [
+      r.assetId,
+      r.title,
+      typeLabel(r.assetType),
+      r.durationSeconds ?? '',
+      r.status === 'ACTIVE' ? '在用' : '停用',
+      formatDateTime(r.createdAt)
+    ])
+});
 const fileInput = ref<HTMLInputElement | null>(null);
 const uploadOpen = ref(false);
 const uploadForm = ref({ title: '', assetType: 'IMAGE', durationSeconds: 10 });
@@ -180,6 +258,30 @@ const editVisible = ref(false);
 const editForm = ref({ assetId: 0, title: '', durationSeconds: 10, active: true });
 
 onMounted(load);
+
+function search() {
+  page.value = 1;
+  load();
+}
+
+function reset() {
+  resetKeyword();
+  page.value = 1;
+  load();
+}
+
+function rowActions(_row: MediaAssetDto): TableAction[] {
+  if (!auth.hasPerm('ops:ad:edit')) return [];
+  return [
+    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' },
+    { key: 'delete', label: '删除', icon: Delete, type: 'danger' }
+  ];
+}
+
+function onRowAction(key: string, row: MediaAssetDto) {
+  if (key === 'edit') openEdit(row);
+  else if (key === 'delete') void removeAsset(row);
+}
 
 async function load() {
   loading.value = true;
@@ -194,6 +296,7 @@ async function load() {
     );
     rows.value = data.items || [];
     total.value = Number(data.total) || 0;
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -305,6 +408,51 @@ async function removeAsset(row: MediaAssetDto) {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '删除失败');
   }
+}
+
+async function batchDelete() {
+  const targets = pickSelected(displayRows.value);
+  if (!targets.length) {
+    ElMessage.warning('请先勾选素材');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(`确认删除选中的 ${targets.length} 个素材？`, '批量删除', {
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+  batchLoading.value = 'delete';
+  const results = await Promise.allSettled(
+    targets.map((row) => api.request(`/api/v2/ops/admin/ad/assets/${row.assetId}`, 'DELETE'))
+  );
+  batchLoading.value = '';
+  const ok = results.filter((r) => r.status === 'fulfilled').length;
+  ElMessage.success(`批量删除完成：成功 ${ok}，失败 ${targets.length - ok}`);
+  await load();
+}
+
+async function batchDeactivate() {
+  const targets = pickSelected(displayRows.value).filter((r) => r.status === 'ACTIVE');
+  if (!targets.length) {
+    ElMessage.warning('请先勾选在用素材');
+    return;
+  }
+  batchLoading.value = 'deactivate';
+  const results = await Promise.allSettled(
+    targets.map((row) =>
+      api.request(`/api/v2/ops/admin/ad/assets/${row.assetId}`, 'PUT', {
+        title: row.title,
+        durationSeconds: row.durationSeconds,
+        status: 'INACTIVE'
+      })
+    )
+  );
+  batchLoading.value = '';
+  const ok = results.filter((r) => r.status === 'fulfilled').length;
+  ElMessage.success(`批量停用完成：成功 ${ok}，失败 ${targets.length - ok}`);
+  await load();
 }
 
 function typeLabel(type: string) {
