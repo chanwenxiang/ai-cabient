@@ -12,6 +12,31 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <el-button
+            v-if="hasSelection && canEdit"
+            type="success"
+            :loading="batchLoading === 'enable'"
+            @click="batchToggle(true)"
+          >
+            批量启用
+          </el-button>
+          <el-button
+            v-if="hasSelection && canEdit"
+            type="warning"
+            :loading="batchLoading === 'disable'"
+            @click="batchToggle(false)"
+          >
+            批量停用
+          </el-button>
+          <el-button
+            v-if="hasSelection && canRun"
+            type="primary"
+            :loading="batchLoading === 'run'"
+            @click="batchRun"
+          >
+            批量执行
+          </el-button>
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button v-if="canEdit" type="primary" @click="openCreate">新增</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
@@ -38,6 +63,7 @@
     <div class="table-scroll">
       <div class="table-scroll-inner">
         <el-table
+          ref="tableRef"
           v-loading="loading"
           :data="paged"
           stripe
@@ -45,10 +71,12 @@
           class="report-table"
           row-key="taskKey"
           empty-text=" "
+          @selection-change="onSelectionChange"
         >
           <template #empty>
             <el-empty v-if="listHydrated && !loading" description="暂无定时任务" />
           </template>
+          <el-table-column type="selection" width="48" align="center" />
           <el-table-column label="任务名称" min-width="170" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.taskName }}</span>
@@ -190,6 +218,8 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import { useAdminListTable } from '@/composables/useAdminListTable';
+import { useListCsv } from '@/composables/useListCsv';
 import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -211,10 +241,21 @@ interface ScheduledTaskRow {
 const auth = useAuthStore();
 const loading = ref(false);
 const listHydrated = ref(false);
-const keyword = ref('');
 const page = ref(1);
 const size = ref(20);
 const items = ref<ScheduledTaskRow[]>([]);
+const batchLoading = ref<'enable' | 'disable' | 'run' | ''>('');
+const {
+  tableRef,
+  keyword,
+  hasSelection,
+  onSelectionChange,
+  pickSelected,
+  exportButtonLabel,
+  clearSelection,
+  filterByKeyword,
+  resetKeyword
+} = useAdminListTable<ScheduledTaskRow>((r) => r.taskKey);
 const togglingKey = ref('');
 const runningKey = ref('');
 const editVisible = ref(false);
@@ -234,16 +275,29 @@ const canRun = computed(() => auth.hasPerm('ops:task:run'));
 const showActionColumn = computed(() => canEdit.value || canRun.value);
 const groupOptions = computed(() => dictOptions('scheduled_task_group'));
 
-const filtered = computed(() => {
-  const q = keyword.value.trim().toLowerCase();
-  if (!q) return items.value;
-  return items.value.filter((row) =>
+const filtered = computed(() =>
+  filterByKeyword(items.value, (row, kw) =>
     [row.taskName, row.taskKey, row.taskGroup, row.scheduleDesc].some((x) =>
       String(x || '')
         .toLowerCase()
-        .includes(q)
+        .includes(kw)
     )
-  );
+  )
+);
+
+const { onExport } = useListCsv({
+  filePrefix: '定时任务',
+  headers: ['任务名称', '任务标识', '分组', '调度说明', '状态', '最近执行', '最近结果'],
+  toRows: () =>
+    pickSelected(filtered.value).map((r) => [
+      r.taskName,
+      r.taskKey,
+      dictLabel('scheduled_task_group', r.taskGroup),
+      r.scheduleDesc || '',
+      r.enabled ? '启用' : '停用',
+      r.lastRunAt ? formatDateTime(r.lastRunAt) : '',
+      r.lastMessage || ''
+    ])
 });
 
 const paged = computed(() => {
@@ -272,7 +326,7 @@ function search() {
 }
 
 function reset() {
-  keyword.value = '';
+  resetKeyword();
   page.value = 1;
 }
 
@@ -307,11 +361,62 @@ async function load() {
   try {
     items.value = await api.request<ScheduledTaskRow[]>('/api/v2/ops/admin/scheduled-tasks', 'GET');
     listHydrated.value = true;
+    clearSelection();
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
     loading.value = false;
   }
+}
+
+async function batchToggle(enabled: boolean) {
+  const targets = pickSelected(filtered.value);
+  if (!targets.length) {
+    ElMessage.warning('请先勾选任务');
+    return;
+  }
+  batchLoading.value = enabled ? 'enable' : 'disable';
+  const results = await Promise.allSettled(
+    targets.map((row) =>
+      api.request(
+        `/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}/enabled`,
+        'PUT',
+        { enabled }
+      )
+    )
+  );
+  batchLoading.value = '';
+  const ok = results.filter((r) => r.status === 'fulfilled').length;
+  ElMessage.success(`批量${enabled ? '启用' : '停用'}完成：成功 ${ok}，失败 ${targets.length - ok}`);
+  await load();
+}
+
+async function batchRun() {
+  const targets = pickSelected(filtered.value).filter((r) => r.registryBound);
+  if (!targets.length) {
+    ElMessage.warning('请先勾选已绑定 runner 的任务');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(`确认立即执行选中的 ${targets.length} 个任务？`, '批量执行', {
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+  batchLoading.value = 'run';
+  const results = await Promise.allSettled(
+    targets.map((row) =>
+      api.request(
+        `/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}/run`,
+        'POST'
+      )
+    )
+  );
+  batchLoading.value = '';
+  const ok = results.filter((r) => r.status === 'fulfilled').length;
+  ElMessage.success(`批量执行完成：成功 ${ok}，失败 ${targets.length - ok}`);
+  await load();
 }
 
 async function onToggle(row: ScheduledTaskRow, enabled: boolean) {

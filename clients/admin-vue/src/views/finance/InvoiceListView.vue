@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { CircleCheck, CircleClose, Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
+import { useAdminListTable } from '@/composables/useAdminListTable';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
@@ -30,7 +31,34 @@ const page = ref(1);
 const size = ref(20);
 const total = ref(0);
 const statusTab = ref(localStorage.getItem('ops_invoice_status_tab') ?? '');
+const batchLoading = ref<'issue' | 'reject' | ''>('');
+
+const {
+  tableRef,
+  keyword,
+  hasSelection,
+  onSelectionChange,
+  pickSelected,
+  clearSelection,
+  filterByKeyword,
+  resetKeyword
+} = useAdminListTable<InvoiceRow>((r) => r.invoiceId);
+
 const canEdit = computed(() => auth.hasPerm('ops:invoice:edit'));
+
+const displayRows = computed(() =>
+  filterByKeyword(rows.value, (row, kw) => {
+    return (
+      String(row.invoiceId).includes(kw) ||
+      String(row.orderId || '').toLowerCase().includes(kw) ||
+      displayBizNo(row.orderId).toLowerCase().includes(kw) ||
+      String(row.userId ?? '').includes(kw) ||
+      String(row.title || '').toLowerCase().includes(kw) ||
+      String(row.taxNo || '').toLowerCase().includes(kw) ||
+      String(row.email || '').toLowerCase().includes(kw)
+    );
+  })
+);
 
 const statusOptions = [
   { value: '', label: '全部' },
@@ -106,6 +134,76 @@ async function onRowAction(key: string, row: InvoiceRow) {
   }
 }
 
+async function batchIssue() {
+  const targets = pickSelected(displayRows.value).filter((r) => r.status === 'PENDING');
+  if (!targets.length) {
+    ElMessage.warning('请先勾选待开具申请');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(`确认批量开具 ${targets.length} 张发票？`, '批量开具', {
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+  batchLoading.value = 'issue';
+  try {
+    const results = await Promise.allSettled(
+      targets.map((row) =>
+        api.request(`/api/v2/ops/admin/invoices/${row.invoiceId}/issue`, 'POST')
+      )
+    );
+    const ok = results.filter((r) => r.status === 'fulfilled').length;
+    const fail = results.length - ok;
+    if (fail === 0) ElMessage.success(`已开具 ${ok} 张`);
+    else ElMessage.warning(`批量开具完成：成功 ${ok}，失败 ${fail}`);
+    clearSelection();
+    await load();
+  } finally {
+    batchLoading.value = '';
+  }
+}
+
+async function batchReject() {
+  const targets = pickSelected(displayRows.value).filter((r) => r.status === 'PENDING');
+  if (!targets.length) {
+    ElMessage.warning('请先勾选待开具申请');
+    return;
+  }
+  let reason = '不符合开票条件';
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `确认批量驳回 ${targets.length} 张开票申请？`,
+      '批量驳回',
+      {
+        inputPlaceholder: '驳回原因',
+        confirmButtonText: '驳回',
+        inputValue: reason
+      }
+    );
+    reason = value || reason;
+  } catch {
+    return;
+  }
+  batchLoading.value = 'reject';
+  try {
+    const results = await Promise.allSettled(
+      targets.map((row) =>
+        api.request(`/api/v2/ops/admin/invoices/${row.invoiceId}/reject`, 'POST', { reason })
+      )
+    );
+    const ok = results.filter((r) => r.status === 'fulfilled').length;
+    const fail = results.length - ok;
+    if (fail === 0) ElMessage.success(`已驳回 ${ok} 张`);
+    else ElMessage.warning(`批量驳回完成：成功 ${ok}，失败 ${fail}`);
+    clearSelection();
+    await load();
+  } finally {
+    batchLoading.value = '';
+  }
+}
+
 async function load() {
   loading.value = true;
   try {
@@ -119,10 +217,22 @@ async function load() {
     );
     rows.value = data.items || [];
     total.value = Number(data.total) || 0;
+    clearSelection();
   } finally {
     loading.value = false;
     hydrated.value = true;
   }
+}
+
+function search() {
+  page.value = 1;
+  load();
+}
+
+function resetFilters() {
+  resetKeyword();
+  page.value = 1;
+  load();
 }
 
 function onSizeChange() {
@@ -150,12 +260,30 @@ onMounted(load);
           </div>
         </div>
         <div class="page-card-head__actions">
+          <template v-if="canEdit">
+            <el-button
+              type="success"
+              plain
+              :disabled="!hasSelection"
+              :loading="batchLoading === 'issue'"
+              @click="batchIssue"
+              >批量开具</el-button
+            >
+            <el-button
+              type="danger"
+              plain
+              :disabled="!hasSelection"
+              :loading="batchLoading === 'reject'"
+              @click="batchReject"
+              >批量驳回</el-button
+            >
+          </template>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
 
-    <el-form inline class="filter-bar filter-bar--compact">
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="状态">
         <el-select v-model="statusTab" style="width: 140px" @change="onStatusChange">
           <el-option
@@ -166,56 +294,73 @@ onMounted(load);
           />
         </el-select>
       </el-form-item>
+      <el-form-item label="关键词">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="申请号 / 订单 / 抬头"
+          style="width: 200px"
+          @keyup.enter="search"
+        />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+        <el-button @click="resetFilters">重置</el-button>
+      </el-form-item>
     </el-form>
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
         <el-table
-          :data="rows"
+          ref="tableRef"
+          :data="displayRows"
           v-loading="loading"
           stripe
           border
+          row-key="invoiceId"
           empty-text=" "
           class="report-table"
+          @selection-change="onSelectionChange"
         >
           <template #empty>
             <el-empty v-if="hydrated && !loading" :description="emptyHint()" />
           </template>
-      <el-table-column label="申请号" width="100" align="center">
-        <template #default="{ row }">{{ row.invoiceId }}</template>
-      </el-table-column>
-      <el-table-column label="订单" min-width="140">
-        <template #default="{ row }">{{ displayBizNo(row.orderId) }}</template>
-      </el-table-column>
-      <el-table-column label="用户" width="90" align="center">
-        <template #default="{ row }">{{ row.userId ?? '' }}</template>
-      </el-table-column>
-      <el-table-column prop="title" label="抬头" min-width="140" show-overflow-tooltip />
-      <el-table-column label="税号" width="140" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.taxNo || '' }}</template>
-      </el-table-column>
-      <el-table-column label="邮箱" min-width="140" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.email || '' }}</template>
-      </el-table-column>
-      <el-table-column label="金额" width="100" align="right">
-        <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
-      </el-table-column>
-      <el-table-column label="状态" width="100" align="center">
-        <template #default="{ row }">
-          <el-tag :type="statusTag(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="驳回原因" min-width="120" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.rejectReason || '' }}</template>
-      </el-table-column>
-      <el-table-column label="申请时间" width="150">
-        <template #default="{ row }">{{ formatDateTime(row.createdAt) || '' }}</template>
-      </el-table-column>
-      <el-table-column label="开票时间" width="150">
-        <template #default="{ row }">{{
-          row.issuedAt ? formatDateTime(row.issuedAt) : ''
-        }}</template>
-      </el-table-column>
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column label="申请号" width="100" align="center">
+            <template #default="{ row }">{{ row.invoiceId }}</template>
+          </el-table-column>
+          <el-table-column label="订单" min-width="140">
+            <template #default="{ row }">{{ displayBizNo(row.orderId) }}</template>
+          </el-table-column>
+          <el-table-column label="用户" width="90" align="center">
+            <template #default="{ row }">{{ row.userId ?? '' }}</template>
+          </el-table-column>
+          <el-table-column prop="title" label="抬头" min-width="140" show-overflow-tooltip />
+          <el-table-column label="税号" width="140" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.taxNo || '' }}</template>
+          </el-table-column>
+          <el-table-column label="邮箱" min-width="140" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.email || '' }}</template>
+          </el-table-column>
+          <el-table-column label="金额" width="100" align="right">
+            <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="100" align="center">
+            <template #default="{ row }">
+              <el-tag :type="statusTag(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="驳回原因" min-width="120" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.rejectReason || '' }}</template>
+          </el-table-column>
+          <el-table-column label="申请时间" width="150">
+            <template #default="{ row }">{{ formatDateTime(row.createdAt) || '' }}</template>
+          </el-table-column>
+          <el-table-column label="开票时间" width="150">
+            <template #default="{ row }">{{
+              row.issuedAt ? formatDateTime(row.issuedAt) : ''
+            }}</template>
+          </el-table-column>
           <el-table-column
             label="操作"
             width="140"

@@ -9,6 +9,16 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <el-button
+            v-if="hasSelection"
+            v-hasPermi="['ops:ad:edit']"
+            type="warning"
+            :loading="batchLoading === 'stop'"
+            @click="batchStop"
+          >
+            批量停止
+          </el-button>
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button v-hasPermi="['ops:ad:edit']" type="primary" @click="openCreate">
             新建投放
           </el-button>
@@ -17,9 +27,27 @@
       </div>
     </template>
 
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
+      <el-form-item label="关键词">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="名称 / 状态"
+          style="width: 200px"
+          @keyup.enter="search"
+          @clear="search"
+        />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+        <el-button @click="reset">重置</el-button>
+      </el-form-item>
+    </el-form>
+
     <div class="table-scroll">
       <div class="table-scroll-inner">
         <el-table
+          ref="tableRef"
           v-loading="loading"
           :data="displayRows"
           stripe
@@ -28,7 +56,9 @@
           class="report-table"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
+          @selection-change="onSelectionChange"
         >
+          <el-table-column type="selection" width="48" align="center" reserve-selection />
           <el-table-column
             prop="campaignId"
             label="ID"
@@ -85,33 +115,10 @@
             fixed="right"
           >
             <template #default="{ row }">
-              <el-button v-hasPermi="['ops:ad:edit']" size="small" @click="openEdit(row)"
-                >编辑</el-button
-              >
-              <el-button
-                v-if="row.status === 'DRAFT' || row.status === 'STOPPED'"
-                v-hasPermi="['ops:ad:edit']"
-                size="small"
-                type="primary"
-                @click="launch(row)"
-                >上线</el-button
-              >
-              <el-button
-                v-if="row.status === 'RUNNING'"
-                v-hasPermi="['ops:ad:edit']"
-                size="small"
-                type="warning"
-                @click="stop(row)"
-                >停止</el-button
-              >
-              <el-button
-                v-if="row.status !== 'RUNNING'"
-                v-hasPermi="['ops:ad:edit']"
-                size="small"
-                type="danger"
-                @click="removeCampaign(row)"
-                >删除</el-button
-              >
+              <TableActions
+                :actions="rowActions(row)"
+                @action="(k) => onRowAction(String(k), row)"
+              />
             </template>
           </el-table-column>
         </el-table>
@@ -187,23 +194,70 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { Refresh } from '@element-plus/icons-vue';
+import { Delete, EditPen, Refresh, VideoPause, VideoPlay } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
+import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import { useAdminListTable } from '@/composables/useAdminListTable';
+import { useListCsv } from '@/composables/useListCsv';
+import { useAuthStore } from '@/stores/auth';
 import { displayLabel } from '@aicabinet/shared-dict';
 import type { AdCampaignDto, MediaAssetDto } from '@aicabinet/shared-types';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
+const auth = useAuthStore();
 const loading = ref(false);
 const listHydrated = ref(false);
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
 const saving = ref(false);
+const batchLoading = ref<'stop' | ''>('');
 const rows = ref<AdCampaignDto[]>([]);
+const {
+  tableRef,
+  keyword,
+  hasSelection,
+  onSelectionChange,
+  pickSelected,
+  exportButtonLabel,
+  clearSelection,
+  filterByKeyword,
+  resetKeyword
+} = useAdminListTable<AdCampaignDto>((r) => r.campaignId);
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort<AdCampaignDto>('campaignId');
-const displayRows = computed(() => sortById(rows.value));
+const displayRows = computed(() =>
+  sortById(
+    filterByKeyword(rows.value, (row, kw) => {
+      return (
+        String(row.name || '')
+          .toLowerCase()
+          .includes(kw) ||
+        statusLabel(row.status).toLowerCase().includes(kw) ||
+        String(row.status || '')
+          .toLowerCase()
+          .includes(kw)
+      );
+    })
+  )
+);
+
+const { onExport } = useListCsv({
+  filePrefix: '投放计划',
+  headers: ['ID', '名称', '状态', '范围', '素材数', '曝光', '完播', '时间窗'],
+  toRows: () =>
+    pickSelected(displayRows.value).map((r) => [
+      r.campaignId,
+      r.name,
+      statusLabel(r.status),
+      r.deviceScope === 'SPECIFIC' ? `${r.deviceIds.length} 台定向` : '全部设备',
+      r.assetIds.length,
+      r.impressionCount ?? 0,
+      r.completeCount ?? 0,
+      formatRange(r)
+    ])
+});
 const assets = ref<MediaAssetDto[]>([]);
 const deviceOptions = ref<{ deviceId: string; deviceName?: string }[]>([]);
 const dialogVisible = ref(false);
@@ -220,6 +274,41 @@ onMounted(async () => {
   await Promise.all([load(), loadAssets(), loadDevices()]);
 });
 
+function search() {
+  page.value = 1;
+  load();
+}
+
+function reset() {
+  resetKeyword();
+  page.value = 1;
+  load();
+}
+
+function rowActions(row: AdCampaignDto): TableAction[] {
+  if (!auth.hasPerm('ops:ad:edit')) return [];
+  const actions: TableAction[] = [
+    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }
+  ];
+  if (row.status === 'DRAFT' || row.status === 'STOPPED') {
+    actions.push({ key: 'launch', label: '上线', icon: VideoPlay, type: 'success' });
+  }
+  if (row.status === 'RUNNING') {
+    actions.push({ key: 'stop', label: '停止', icon: VideoPause, type: 'warning' });
+  }
+  if (row.status !== 'RUNNING') {
+    actions.push({ key: 'delete', label: '删除', icon: Delete, type: 'danger', overflow: true });
+  }
+  return actions;
+}
+
+function onRowAction(key: string, row: AdCampaignDto) {
+  if (key === 'edit') openEdit(row);
+  else if (key === 'launch') void launch(row);
+  else if (key === 'stop') void stop(row);
+  else if (key === 'delete') void removeCampaign(row);
+}
+
 async function load() {
   loading.value = true;
   try {
@@ -233,6 +322,7 @@ async function load() {
     );
     rows.value = data.items || [];
     total.value = Number(data.total) || 0;
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -345,6 +435,31 @@ async function stop(row: AdCampaignDto) {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '停止失败');
   }
+}
+
+async function batchStop() {
+  const targets = pickSelected(displayRows.value).filter((r) => r.status === 'RUNNING');
+  if (!targets.length) {
+    ElMessage.warning('请先勾选运行中的投放计划');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(`确认停止选中的 ${targets.length} 个投放计划？`, '批量停止', {
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+  batchLoading.value = 'stop';
+  const results = await Promise.allSettled(
+    targets.map((row) =>
+      api.request(`/api/v2/ops/admin/ad/campaigns/${row.campaignId}/stop`, 'POST')
+    )
+  );
+  batchLoading.value = '';
+  const ok = results.filter((r) => r.status === 'fulfilled').length;
+  ElMessage.success(`批量停止完成：成功 ${ok}，失败 ${targets.length - ok}`);
+  await load();
 }
 
 async function removeCampaign(row: AdCampaignDto) {

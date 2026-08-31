@@ -11,25 +11,54 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <el-button
+            v-if="hasSelection && canDelete"
+            type="danger"
+            :loading="batchLoading"
+            @click="batchDelete"
+          >
+            批量删除
+          </el-button>
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button v-if="canEdit" type="primary" @click="openCreate">新增</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
 
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
+      <el-form-item label="关键词">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="分组 / 配置键 / 说明"
+          style="width: 220px"
+          @keyup.enter="search"
+          @clear="search"
+        />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+        <el-button @click="reset">重置</el-button>
+      </el-form-item>
+    </el-form>
+
     <div v-loading="loading" class="table-scroll">
       <div class="table-scroll-inner">
         <el-table
-          :data="rows"
+          ref="tableRef"
+          :data="displayRows"
           stripe
           border
           class="report-table"
           row-key="configKey"
           empty-text=" "
+          @selection-change="onSelectionChange"
         >
           <template #empty>
             <el-empty description="暂无告警规则" />
           </template>
+          <el-table-column type="selection" width="48" align="center" />
           <el-table-column label="分组" width="140" align="center">
             <template #default="{ row }">{{ row.group }}</template>
           </el-table-column>
@@ -136,6 +165,8 @@ import { Delete, EditPen, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import { useAdminListTable } from '@/composables/useAdminListTable';
+import { useListCsv } from '@/composables/useListCsv';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
@@ -173,7 +204,48 @@ const GROUP_META_KEY = 'ops.alert.rule_groups_json';
 const auth = useAuthStore();
 const loading = ref(false);
 const saving = ref(false);
+const batchLoading = ref(false);
 const rows = ref<RuleRow[]>([]);
+const {
+  tableRef,
+  keyword,
+  hasSelection,
+  onSelectionChange,
+  pickSelected,
+  exportButtonLabel,
+  clearSelection,
+  filterByKeyword,
+  resetKeyword
+} = useAdminListTable<RuleRow>((r) => r.configKey);
+
+const displayRows = computed(() =>
+  filterByKeyword(rows.value, (row, kw) => {
+    return (
+      String(row.group || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(row.configKey || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(row.description || '')
+        .toLowerCase()
+        .includes(kw)
+    );
+  })
+);
+
+const { onExport } = useListCsv({
+  filePrefix: '告警规则',
+  headers: ['分组', '配置键', '规则说明', '当前值', '更新时间'],
+  toRows: () =>
+    pickSelected(displayRows.value).map((r) => [
+      r.group,
+      r.configKey,
+      r.description || '',
+      displayValue(r),
+      r.updatedAt ? formatDateTime(r.updatedAt) : ''
+    ])
+});
 const customGroupMap = ref<Record<string, string>>({});
 const dialogVisible = ref(false);
 const creating = ref(false);
@@ -241,15 +313,60 @@ function ruleUnitHint(key: string) {
   return '暂无';
 }
 
-function rowActions(_row: RuleRow): TableAction[] {
+function rowActions(row: RuleRow): TableAction[] {
   const acts: TableAction[] = [];
   if (canEdit.value) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
   }
-  if (canDelete.value) {
+  if (canDelete.value && isCustomKey(row.configKey)) {
     acts.push({ key: 'delete', label: '删除', icon: Delete, type: 'danger' });
   }
   return acts;
+}
+
+function isCustomKey(key: string) {
+  return !builtinGroupOf(key);
+}
+
+function search() {
+  /* client-side filter only */
+}
+
+function reset() {
+  resetKeyword();
+}
+
+async function batchDelete() {
+  const targets = pickSelected(displayRows.value).filter((r) => isCustomKey(r.configKey));
+  if (!targets.length) {
+    ElMessage.warning('请先勾选自定义告警规则（内置键不可批量删除）');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(`确认删除选中的 ${targets.length} 条自定义规则？`, '批量删除', {
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+  batchLoading.value = true;
+  const results = await Promise.allSettled(
+    targets.map(async (row) => {
+      await api.request(
+        `/api/v2/ops/admin/system-configs/${encodeURIComponent(row.configKey)}`,
+        'DELETE'
+      );
+      if (customGroupMap.value[row.configKey]) {
+        const next = { ...customGroupMap.value };
+        delete next[row.configKey];
+        await persistCustomGroups(next);
+      }
+    })
+  );
+  batchLoading.value = false;
+  const ok = results.filter((r) => r.status === 'fulfilled').length;
+  ElMessage.success(`批量删除完成：成功 ${ok}，失败 ${targets.length - ok}`);
+  await load();
 }
 
 async function onRowAction(key: string, row: RuleRow) {
@@ -298,6 +415,7 @@ async function load() {
       out.push({ ...row, group: resolveGroup(row.configKey) });
     }
     rows.value = out;
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {

@@ -9,6 +9,24 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <template v-if="tab === 'withdraws' && auth.hasPerm('ops:line-withdraw:review')">
+            <el-button
+              type="success"
+              plain
+              :disabled="!wdHasSelection"
+              :loading="wdBatchLoading === 'approve'"
+              @click="batchReviewWithdraws(true)"
+              >批量通过</el-button
+            >
+            <el-button
+              type="danger"
+              plain
+              :disabled="!wdHasSelection"
+              :loading="wdBatchLoading === 'reject'"
+              @click="batchReviewWithdraws(false)"
+              >批量驳回</el-button
+            >
+          </template>
           <el-button v-hasPermi="['ops:line-manager:edit']" type="primary" @click="openCreate"
             >新建线长</el-button
           >
@@ -189,16 +207,20 @@
 
         <div class="table-scroll">
           <el-table
+            ref="wdTableRef"
             :data="withdraws"
             v-loading="withdrawsLoading"
             stripe
             border
+            row-key="requestId"
             class="report-table"
             empty-text=" "
+            @selection-change="onWdSelectionChange"
           >
             <template #empty
               ><el-empty v-if="withdrawsHydrated && !withdrawsLoading" description="暂无提现申请"
             /></template>
+            <el-table-column type="selection" width="48" align="center" />
             <el-table-column prop="requestId" label="单号" width="80" align="center" />
             <el-table-column
               prop="requestNo"
@@ -487,6 +509,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
+import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
@@ -580,6 +603,15 @@ const form = reactive({
   commissionRateBps: 200,
   commissionFixedCents: 0
 });
+const wdBatchLoading = ref<'approve' | 'reject' | ''>('');
+
+const {
+  tableRef: wdTableRef,
+  hasSelection: wdHasSelection,
+  onSelectionChange: onWdSelectionChange,
+  pickSelected: pickWdSelected,
+  clearSelection: clearWdSelection
+} = useAdminListTable<Withdraw>((r) => r.requestId);
 
 const withdrawStatusOptions = useDictOptions('line_withdraw_status');
 
@@ -630,6 +662,7 @@ async function loadWithdraws() {
     );
     withdraws.value = res.items || [];
     wTotal.value = Number(res.total || 0);
+    clearWdSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -859,7 +892,47 @@ async function review(row: Withdraw, approve: boolean) {
     ElMessage.success(approve ? '已通过并尝试打款' : '已驳回');
     await loadWithdraws();
   } catch (e) {
+    if (e === 'cancel' || e === 'close') return;
     ElMessage.error(e instanceof Error ? e.message : '失败');
+  }
+}
+
+async function batchReviewWithdraws(approve: boolean) {
+  const targets = pickWdSelected(withdraws.value).filter((r) => r.status === 'PENDING_REVIEW');
+  if (!targets.length) {
+    ElMessage.warning('请先勾选待审核提现申请');
+    return;
+  }
+  const label = approve ? '通过并打款' : '驳回';
+  try {
+    await ElMessageBox.confirm(
+      approve
+        ? `确认批量通过 ${targets.length} 条线长提现申请并打款？`
+        : `确认批量驳回 ${targets.length} 条线长提现申请？`,
+      `批量${label}`,
+      { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  wdBatchLoading.value = approve ? 'approve' : 'reject';
+  try {
+    const results = await Promise.allSettled(
+      targets.map((row) =>
+        api.request(`/api/v2/ops/admin/line-withdraws/${row.requestId}/review`, 'POST', {
+          approve,
+          remark: approve ? '批量审核通过' : '批量审核驳回'
+        })
+      )
+    );
+    const ok = results.filter((r) => r.status === 'fulfilled').length;
+    const fail = results.length - ok;
+    if (fail === 0) ElMessage.success(`已${approve ? '通过' : '驳回'} ${ok} 条`);
+    else ElMessage.warning(`批量${label}完成：成功 ${ok}，失败 ${fail}`);
+    clearWdSelection();
+    await loadWithdraws();
+  } finally {
+    wdBatchLoading.value = '';
   }
 }
 

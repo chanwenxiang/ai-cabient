@@ -343,10 +343,19 @@
               仅待分配货道{{ unassignedHintCount ? ` (${unassignedHintCount})` : '' }}
             </el-checkbox>
           </el-form-item>
+          <el-form-item label="关键词">
+            <el-input
+              v-model="fulfillmentKeyword"
+              clearable
+              placeholder="设备 / 任务"
+              style="width: 160px"
+            />
+          </el-form-item>
         </el-form>
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
+              ref="fulfillmentTableRef"
               v-loading="isTabLoading('fulfillment')"
               :data="pagedFulfillment"
               stripe
@@ -356,12 +365,14 @@
               row-key="taskId"
               :default-sort="taskIdDefaultSort"
               @sort-change="onTaskIdSortChange"
+              @selection-change="onFulfillmentSelectionChange"
             >
               <template #empty
                 ><el-empty
                   v-if="listHydrated && !isTabLoading('fulfillment')"
                   :description="fulfillmentEmptyText"
               /></template>
+              <el-table-column type="selection" width="48" align="center" />
               <el-table-column
                 prop="taskId"
                 label="任务"
@@ -1243,6 +1254,7 @@ import { api, authFetch, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
+import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -1406,9 +1418,28 @@ const requestsEmptyText = computed(() => {
 const plannedCount = computed(() => summary.value.plannedRouteCount);
 const pendingTaskCount = computed(() => summary.value.pendingTaskCount);
 const fulfillmentTasksBase = computed(() => fulfillmentTasksList.value);
+
+const {
+  tableRef: fulfillmentTableRef,
+  keyword: fulfillmentKeyword,
+  onSelectionChange: onFulfillmentSelectionChange,
+  pickSelected: pickFulfillment,
+  exportButtonLabel: fulfillmentExportLabel,
+  clearSelection: clearFulfillmentSelection,
+  filterByKeyword: filterFulfillmentByKeyword
+} = useAdminListTable<Row>((r) => r.taskId);
+
 const fulfillmentTasks = computed(() => {
-  if (!fulfillmentUnassignedOnly.value) return fulfillmentTasksBase.value;
-  return fulfillmentTasksBase.value.filter((t) => taskUnassignedHint.value[Number(t.taskId)]);
+  let rows = fulfillmentTasksBase.value;
+  if (fulfillmentUnassignedOnly.value) {
+    rows = rows.filter((t) => taskUnassignedHint.value[Number(t.taskId)]);
+  }
+  return filterFulfillmentByKeyword(rows, (row, kw) => {
+    const taskMatch = String(row.taskId ?? '').includes(kw);
+    const deviceIdMatch = String(row.deviceId ?? '').toLowerCase().includes(kw);
+    const deviceNameMatch = deviceName(row.deviceId, row.deviceName).toLowerCase().includes(kw);
+    return taskMatch || deviceIdMatch || deviceNameMatch;
+  });
 });
 const unassignedHintCount = computed(
   () => fulfillmentTasksBase.value.filter((t) => taskUnassignedHint.value[Number(t.taskId)]).length
@@ -1574,7 +1605,7 @@ const exportButtonLabel = computed(() => {
   if (tab.value === 'requests') return requestsExportLabel.value;
   if (tab.value === 'shortage') return shortageExportLabel.value;
   if (tab.value === 'expiry') return expiryExportLabel.value;
-  if (tab.value === 'fulfillment') return '导出履约记录';
+  if (tab.value === 'fulfillment') return fulfillmentExportLabel.value;
   return routesExportLabel.value;
 });
 
@@ -1607,7 +1638,7 @@ const { onExport: exportFulfillment } = useListCsv({
     '完成时间'
   ],
   toRows: () =>
-    fulfillmentTasks.value.map((row) => [
+    pickFulfillment(fulfillmentTasks.value).map((row) => [
       row.taskId,
       row.deviceId || '',
       deviceName(row.deviceId, row.deviceName),
@@ -1905,6 +1936,7 @@ async function loadFulfillment() {
   );
   fulfillmentTasksList.value = data.items || [];
   tabTotals.value = { ...tabTotals.value, fulfillment: Number(data.total) || 0 };
+  clearFulfillmentSelection();
   void prefetchUnassignedHints();
 }
 

@@ -9,32 +9,67 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <el-button
+            type="warning"
+            plain
+            :disabled="!hasSelection"
+            :loading="batchLoading === 'delist'"
+            @click="batchDecide('DELIST')"
+            >批量下架</el-button
+          >
+          <el-button
+            type="success"
+            plain
+            :disabled="!hasSelection"
+            :loading="batchLoading === 'keep'"
+            @click="batchDecide('KEEP')"
+            >批量保留</el-button
+          >
           <el-select v-model="days" style="width: 110px">
             <el-option label="近 7 天" :value="7" />
             <el-option label="近 30 天" :value="30" />
             <el-option label="近 90 天" :value="90" />
           </el-select>
           <el-button type="primary" :loading="running" @click="run">运行诊断</el-button>
-          <el-button @click="onExport">导出 CSV</el-button>
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
 
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
+      <el-form-item label="关键词">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="SKU / 商品名 / 分类"
+          style="width: 200px"
+          @keyup.enter="search"
+        />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+        <el-button @click="resetFilters">重置</el-button>
+      </el-form-item>
+    </el-form>
+
     <div class="table-scroll">
       <div class="table-scroll-inner">
         <el-table
+          ref="tableRef"
           v-loading="loading"
-          :data="list"
+          :data="displayList"
           stripe
           border
           row-key="skuId"
           empty-text=" "
           class="report-table"
+          @selection-change="onSelectionChange"
         >
           <template #empty>
             <el-empty v-if="!loading" description="暂无诊断数据，点击「运行诊断」生成" />
           </template>
+          <el-table-column type="selection" width="48" align="center" />
           <el-table-column
             prop="skuId"
             label="SKU"
@@ -99,11 +134,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
+import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useListCsv } from '@/composables/useListCsv';
 import { displayLabel } from '@aicabinet/shared-dict';
 
@@ -125,11 +161,34 @@ type ReviewRow = {
 const loading = ref(false);
 const running = ref(false);
 const listHydrated = ref(false);
+const batchLoading = ref<'delist' | 'keep' | ''>('');
 const days = ref(30);
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
 const list = ref<ReviewRow[]>([]);
+
+const {
+  tableRef,
+  keyword,
+  hasSelection,
+  onSelectionChange,
+  pickSelected,
+  exportButtonLabel,
+  clearSelection,
+  filterByKeyword,
+  resetKeyword
+} = useAdminListTable<ReviewRow>((r) => r.skuId);
+
+const displayList = computed(() =>
+  filterByKeyword(list.value, (row, kw) => {
+    return (
+      String(row.skuId || '').toLowerCase().includes(kw) ||
+      String(row.skuName || '').toLowerCase().includes(kw) ||
+      String(row.category || '').toLowerCase().includes(kw)
+    );
+  })
+);
 
 const { onExport } = useListCsv({
   filePrefix: '选品诊断',
@@ -147,7 +206,7 @@ const { onExport } = useListCsv({
     '替换SKU'
   ],
   toRows: () =>
-    list.value.map((r) => [
+    pickSelected(displayList.value).map((r) => [
       r.skuId,
       r.skuName,
       r.category || '',
@@ -176,12 +235,24 @@ async function load() {
     );
     list.value = data.items || [];
     total.value = Number(data.total) || 0;
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
     listHydrated.value = true;
     loading.value = false;
   }
+}
+
+function search() {
+  page.value = 1;
+  load();
+}
+
+function resetFilters() {
+  resetKeyword();
+  page.value = 1;
+  load();
 }
 
 function onSizeChange() {
@@ -241,6 +312,61 @@ async function confirmDelist(row: ReviewRow) {
     await load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '操作失败');
+  }
+}
+
+async function batchDecide(action: 'DELIST' | 'KEEP') {
+  const targets = pickSelected(displayList.value);
+  if (!targets.length) {
+    ElMessage.warning('请先勾选 SKU');
+    return;
+  }
+  const label = action === 'KEEP' ? '保留' : '下架';
+  let replaceSkuId: string | undefined;
+  let reason = action === 'KEEP' ? '选品诊断批量保留' : '选品诊断批量下架';
+  try {
+    if (action === 'DELIST') {
+      const { value } = await ElMessageBox.prompt(
+        `确认批量下架 ${targets.length} 个 SKU？商品将停止销售。可填写统一替换 SKU（选填）。`,
+        '批量下架',
+        {
+          confirmButtonText: '确认下架',
+          cancelButtonText: '取消',
+          inputPlaceholder: '替换 SKU（选填）'
+        }
+      );
+      replaceSkuId = value?.trim() || undefined;
+    } else {
+      await ElMessageBox.confirm(`确认批量保留 ${targets.length} 个 SKU？`, '批量保留', {
+        type: 'warning'
+      });
+    }
+  } catch {
+    return;
+  }
+  batchLoading.value = action === 'KEEP' ? 'keep' : 'delist';
+  try {
+    const results = await Promise.allSettled(
+      targets.map((row) =>
+        api.request<ReviewRow>(
+          `/api/v2/ops/admin/growth/sku-review/${encodeURIComponent(row.skuId)}/decide`,
+          'POST',
+          {
+            action,
+            reason,
+            replaceSkuId: action === 'DELIST' ? replaceSkuId : undefined
+          }
+        )
+      )
+    );
+    const ok = results.filter((r) => r.status === 'fulfilled').length;
+    const fail = results.length - ok;
+    if (fail === 0) ElMessage.success(`已批量${label} ${ok} 个`);
+    else ElMessage.warning(`批量${label}完成：成功 ${ok}，失败 ${fail}`);
+    clearSelection();
+    await load();
+  } finally {
+    batchLoading.value = '';
   }
 }
 
