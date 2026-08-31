@@ -70,6 +70,16 @@ public interface NotificationLogMapper extends BaseTradeMapper<NotificationLog> 
                 .last("LIMIT " + Math.min(Math.max(limit, 1), 100)));
     }
 
+    /** 未读运营站内信，按时间倒序；limit 上限 500。 */
+    default List<NotificationLog> findOpsUnread(Long userId, int limit) {
+        return selectList(Wrappers.<NotificationLog>lambdaQuery()
+                .eq(NotificationLog::getAudience, "OPS")
+                .eq(NotificationLog::getUserId, userId)
+                .isNull(NotificationLog::getReadAt)
+                .orderByDesc(NotificationLog::getCreatedAt)
+                .last("LIMIT " + Math.min(Math.max(limit, 1), 500)));
+    }
+
     default long countUnreadOps(Long userId) {
         Long c = selectCount(Wrappers.<NotificationLog>lambdaQuery()
                 .eq(NotificationLog::getAudience, "OPS")
