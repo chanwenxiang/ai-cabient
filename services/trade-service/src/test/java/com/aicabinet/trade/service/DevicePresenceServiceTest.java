@@ -105,4 +105,27 @@ class DevicePresenceServiceTest {
         verify(devices).save(device);
         verify(exceptions).resolveSystem("DEVICE_OFFLINE", "CAB-001", "设备心跳恢复，已自动上线");
     }
+
+    @Test
+    void heartbeatBindsImeiWhenEmpty() {
+        DeviceInfoMapper devices = mock(DeviceInfoMapper.class);
+        DeviceTemperatureReadingMapper temperatures = mock(DeviceTemperatureReadingMapper.class);
+        CabinetMetrics metrics = mock(CabinetMetrics.class);
+        OpsExceptionService exceptions = mock(OpsExceptionService.class);
+        SystemConfigService systemConfig = mock(SystemConfigService.class);
+        AdminAuditService audit = mock(AdminAuditService.class);
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("100001");
+        device.setOnlineStatus("OFFLINE");
+        when(devices.findByIdForUpdate("100001")).thenReturn(Optional.of(device));
+        when(devices.findByImei("860000000000001")).thenReturn(Optional.empty());
+        when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DevicePresenceService service = new DevicePresenceService(
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        service.heartbeat("100001", "1.0.0", null, null, "860000000000001", null);
+
+        assertEquals("860000000000001", device.getImei());
+    }
 }

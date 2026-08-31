@@ -70,14 +70,22 @@ public class DevicePresenceService {
 
     @Transactional
     public void heartbeat(String deviceId, String appVersion, String firmwareVersion, Integer currentTempC) {
+        self.heartbeat(deviceId, appVersion, firmwareVersion, currentTempC, null, null);
+    }
+
+    @Transactional
+    public void heartbeat(String deviceId, String appVersion, String firmwareVersion, Integer currentTempC,
+                          String imei, String boardSn) {
         runWithPresenceLock(deviceId, () -> {
-            doHeartbeat(deviceId, appVersion, firmwareVersion, currentTempC);
+            doHeartbeat(deviceId, appVersion, firmwareVersion, currentTempC, imei, boardSn);
             return null;
         });
     }
 
-    private void doHeartbeat(String deviceId, String appVersion, String firmwareVersion, Integer currentTempC) {
+    private void doHeartbeat(String deviceId, String appVersion, String firmwareVersion, Integer currentTempC,
+                             String imei, String boardSn) {
         DeviceInfo device = deviceRepository.findByIdForUpdate(deviceId).orElseGet(() -> registerUnknown(deviceId));
+        bindHardwareFingerprint(device, imei, boardSn);
         boolean wasOnline = CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(device.getOnlineStatus());
         device.setOnlineStatus(CabinetConstants.DEVICE_ONLINE);
         if (!wasOnline || device.getOnlineSince() == null) {
@@ -201,7 +209,40 @@ public class DevicePresenceService {
         device.setDeviceType("AI_CABINET_V1");
         device.setOnlineStatus(CabinetConstants.DEVICE_ONLINE);
         device.setOnlineSince(Instant.now());
+        device.setLifecycleStatus("INBOUND");
         return deviceRepository.save(device);
+    }
+
+    private void bindHardwareFingerprint(DeviceInfo device, String imei, String boardSn) {
+        String fingerprint = firstNonBlank(trimToNull(imei), trimToNull(boardSn));
+        if (fingerprint == null) {
+            return;
+        }
+        deviceRepository.findByImei(fingerprint).ifPresent(other -> {
+            if (!other.getDeviceId().equals(device.getDeviceId())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "硬件指纹已绑定设备 " + other.getDeviceId());
+            }
+        });
+        if (device.getImei() == null || device.getImei().isBlank()) {
+            device.setImei(fingerprint);
+            log.info("device hardware bound device={} fingerprint={}", device.getDeviceId(), fingerprint);
+        } else if (!fingerprint.equals(device.getImei())) {
+            log.warn("device hardware fingerprint mismatch device={} stored={} reported={}",
+                    device.getDeviceId(), device.getImei(), fingerprint);
+        }
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static String firstNonBlank(String first, String second) {
+        return first != null ? first : second;
     }
 
     static String devicePresenceLockKey(String deviceId) {

@@ -389,8 +389,16 @@
       align-center
     >
       <el-form label-width="88px">
-        <el-form-item label="设备编号" required>
-          <el-input v-model="createForm.deviceId" placeholder="例如 CAB-001…" />
+        <el-form-item label="设备编号">
+          <el-input
+            v-model="createForm.deviceId"
+            placeholder="留空则系统自动分配（6–10 位数字）"
+            maxlength="10"
+            inputmode="numeric"
+          />
+          <p v-if="suggestedDeviceId" class="form-hint muted">
+            建议编号 {{ suggestedDeviceId }}（与机身贴码一致）；柜机首次联网时将自动绑定 IMEI / 主板 SN
+          </p>
         </el-form-item>
         <el-form-item label="设备名称">
           <el-input v-model="createForm.deviceName" placeholder="可选…" />
@@ -520,6 +528,7 @@ const policyVisible = ref(false);
 const policySaving = ref(false);
 const createVisible = ref(false);
 const createSaving = ref(false);
+const suggestedDeviceId = ref('');
 const merchantOptions = ref<MerchantOption[]>([]);
 const createForm = reactive({
   deviceId: '',
@@ -978,20 +987,28 @@ function openCreate() {
   createForm.deviceName = '';
   createForm.deviceType = '';
   createForm.merchantId = '';
+  suggestedDeviceId.value = '';
   createVisible.value = true;
   void loadMerchants();
+  void loadSuggestedDeviceId();
+}
+
+async function loadSuggestedDeviceId() {
+  try {
+    const data = await api.request<{ deviceId: string }>('/api/v2/ops/admin/devices/next-id', 'GET');
+    suggestedDeviceId.value = data.deviceId;
+    createForm.deviceId = data.deviceId;
+  } catch {
+    suggestedDeviceId.value = '';
+  }
 }
 
 async function saveCreate() {
   const deviceId = createForm.deviceId.trim();
-  if (!deviceId) {
-    ElMessage.warning('请填写设备编号');
-    return;
-  }
   createSaving.value = true;
   try {
     await api.request('/api/v2/ops/admin/devices', 'POST', {
-      deviceId,
+      ...(deviceId ? { deviceId } : {}),
       deviceName: createForm.deviceName.trim() || undefined,
       deviceType: createForm.deviceType || undefined,
       merchantId: createForm.merchantId || undefined
@@ -1202,6 +1219,11 @@ onActivated(() => {
 .policy-hint {
   margin: 8px 0 0;
   color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.form-hint {
+  margin: 6px 0 0;
   font-size: 12px;
   line-height: 1.5;
 }

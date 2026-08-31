@@ -126,6 +126,12 @@ public class AdminDashboardController {
                         page, size, q, online, salesLocked, lifecycleStatus, coopMode, routeCode)));
     }
 
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/next-id")
+    public ApiResponse<NextDeviceIdDto> nextDeviceId(HttpServletRequest request) {
+        return ApiResponse.ok(adminService.peekNextDeviceId(operatorId(request)));
+    }
+
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/commands")
     public ApiResponse<DeviceOpsCommandResultDto> deviceCommand(

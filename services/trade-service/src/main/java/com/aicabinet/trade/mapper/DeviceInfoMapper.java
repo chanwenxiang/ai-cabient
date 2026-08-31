@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Select;
 
 @Mapper
 public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
@@ -135,6 +137,23 @@ public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
             return List.of();
         }
         return selectList(Wrappers.<DeviceInfo>lambdaQuery().in(DeviceInfo::getDeviceId, deviceIds));
+    }
+
+    @Select("""
+            SELECT COALESCE(MAX(CAST(device_id AS BIGINT)), 0)
+            FROM device_info
+            WHERE device_id ~ '^[0-9]+$'
+              AND LENGTH(device_id) BETWEEN 6 AND 10
+              AND is_deleted = false
+            """)
+    Long maxNumericDeviceIdRaw();
+
+    default Optional<DeviceInfo> findByImei(String imei) {
+        if (imei == null || imei.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(selectOne(Wrappers.<DeviceInfo>lambdaQuery()
+                .eq(DeviceInfo::getImei, imei.trim())));
     }
 
 }

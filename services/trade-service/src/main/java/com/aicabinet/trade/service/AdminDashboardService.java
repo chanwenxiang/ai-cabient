@@ -58,6 +58,7 @@ public class AdminDashboardService {
     private static final String CREATEDAT = "createdAt";
     private static final String CRITICAL = "CRITICAL";
     private static final String DEPLOYED = "DEPLOYED";
+    private static final String INBOUND = "INBOUND";
     private static final String STATUS_PENDING = "PENDING";
     private static final String MEDIUM = "MEDIUM";
 
@@ -116,6 +117,7 @@ public class AdminDashboardService {
     private final UserBlacklistMapper blacklistRepository;
     private final DistributedLockService distributedLockService;
     private final AliyunCategoryMappingMapper aliyunCategoryMappingRepository;
+    private final DeviceIdService deviceIdService;
     private final AdminDashboardService self;
 
     public AdminDashboardService(DeviceInfoMapper deviceRepository,
@@ -152,6 +154,7 @@ public class AdminDashboardService {
                                  UserBlacklistMapper blacklistRepository,
                                  DistributedLockService distributedLockService,
                                  AliyunCategoryMappingMapper aliyunCategoryMappingRepository,
+                                 DeviceIdService deviceIdService,
                                  @Lazy AdminDashboardService self) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
@@ -187,6 +190,7 @@ public class AdminDashboardService {
         this.blacklistRepository = blacklistRepository;
         this.distributedLockService = distributedLockService;
         this.aliyunCategoryMappingRepository = aliyunCategoryMappingRepository;
+        this.deviceIdService = deviceIdService;
         this.self = self;
     }
 
@@ -1296,7 +1300,7 @@ public class AdminDashboardService {
     @Transactional
     public AdminDeviceDto createDevice(Long operatorId, UpsertDeviceRequest request) {
         permissionService.requirePermission(operatorId, "ops:device:edit");
-        String deviceId = request.deviceId().trim();
+        String deviceId = deviceIdService.resolveForCreate(request.deviceId());
         if (deviceRepository.existsById(deviceId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DEVICE_EXISTS);
         }
@@ -1314,12 +1318,18 @@ public class AdminDashboardService {
             device.setLifecycleStatus(DEPLOYED);
             device.setDeployedAt(Instant.now());
         } else {
-            device.setLifecycleStatus("IDLE");
+            device.setLifecycleStatus(INBOUND);
         }
         deviceRepository.save(device);
         deviceSlotService.ensureDefaultSlots(deviceId, device.getDeviceType());
         auditService.appendLog(operatorId, "DEVICE_CREATE", "DEVICE", deviceId, device.getDeviceName());
         return toDeviceDto(device, null, false);
+    }
+
+    @Transactional(readOnly = true)
+    public NextDeviceIdDto peekNextDeviceId(Long operatorId) {
+        permissionService.requireAnyPermission(operatorId, "ops:device:create", "ops:device:edit");
+        return new NextDeviceIdDto(deviceIdService.peekNextNumericDeviceId());
     }
 
     @Transactional
