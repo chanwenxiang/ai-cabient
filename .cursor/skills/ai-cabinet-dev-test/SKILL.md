@@ -53,6 +53,7 @@ description: >-
 | 面 | URL / 方式 |
 |----|------------|
 | 运营后台 | `http://localhost/admin/index.html`（`13900000001` / `123456` + 验证码） |
+| Admin 构建 | 根目录 `node scripts/build-admin.mjs`（Cursor 下 `pnpm run build:admin` 可能因 script-shell 失败，直接用 node） |
 | Gateway | `http://localhost` |
 | trade-service | `:8080` 或 `:18080` |
 | 消费者 H5 | `pnpm --filter @aicabinet/consumer-mp dev:h5` → `:3002` |

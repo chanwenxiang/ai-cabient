@@ -4,7 +4,7 @@
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev:admin": "pnpm --filter @aicabinet/admin-vue dev",
-    "build:admin": "pnpm --filter @aicabinet/admin-vue build",
+    "build:admin": "node scripts/build-admin.mjs",
     "build:admin:typecheck": "pnpm --filter @aicabinet/admin-vue type-check",
     "dev:consumer-mp": "pnpm --filter @aicabinet/consumer-mp dev:mp-weixin",
     "dev:consumer-h5": "pnpm --filter @aicabinet/consumer-mp dev:h5",
