@@ -118,6 +118,7 @@ public class AdminDashboardService {
     private final DistributedLockService distributedLockService;
     private final AliyunCategoryMappingMapper aliyunCategoryMappingRepository;
     private final DeviceIdService deviceIdService;
+    private final DeviceIdRenameService deviceIdRenameService;
     private final AdminDashboardService self;
 
     public AdminDashboardService(DeviceInfoMapper deviceRepository,
@@ -155,6 +156,7 @@ public class AdminDashboardService {
                                  DistributedLockService distributedLockService,
                                  AliyunCategoryMappingMapper aliyunCategoryMappingRepository,
                                  DeviceIdService deviceIdService,
+                                 DeviceIdRenameService deviceIdRenameService,
                                  @Lazy AdminDashboardService self) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
@@ -191,6 +193,7 @@ public class AdminDashboardService {
         this.distributedLockService = distributedLockService;
         this.aliyunCategoryMappingRepository = aliyunCategoryMappingRepository;
         this.deviceIdService = deviceIdService;
+        this.deviceIdRenameService = deviceIdRenameService;
         this.self = self;
     }
 
@@ -1301,9 +1304,6 @@ public class AdminDashboardService {
     public AdminDeviceDto createDevice(Long operatorId, UpsertDeviceRequest request) {
         permissionService.requirePermission(operatorId, "ops:device:edit");
         String deviceId = deviceIdService.resolveForCreate(request.deviceId());
-        if (deviceRepository.existsById(deviceId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DEVICE_EXISTS);
-        }
         DeviceInfo device = new DeviceInfo();
         device.setDeviceId(deviceId);
         device.setDeviceName(request.deviceName() != null ? request.deviceName().trim() : deviceId);
@@ -1326,10 +1326,52 @@ public class AdminDashboardService {
         return toDeviceDto(device, null, false);
     }
 
-    @Transactional(readOnly = true)
-    public NextDeviceIdDto peekNextDeviceId(Long operatorId) {
-        permissionService.requireAnyPermission(operatorId, "ops:device:create", "ops:device:edit");
-        return new NextDeviceIdDto(deviceIdService.peekNextNumericDeviceId());
+    @Transactional
+    public AdminDeviceDto resetHardwareBinding(Long operatorId, String deviceId) {
+        permissionService.requirePermission(operatorId, "ops:device:edit");
+        DeviceInfo device = deviceRepository.findByIdForUpdate(deviceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
+        device.setImei(null);
+        device.setOnlineStatus("OFFLINE");
+        device.setOnlineSince(null);
+        deviceRepository.clearOnlineSince(deviceId);
+        device.markHeartbeatReceived();
+        deviceRepository.save(device);
+        auditService.appendLog(operatorId, "DEVICE_RESET_HARDWARE", "DEVICE", deviceId, "cleared imei for rebind");
+        return toDeviceDto(device, null, replenishingDeviceIds().contains(deviceId));
+    }
+
+    @Transactional
+    public AdminDeviceDto regenerateDeviceId(Long operatorId, String oldDeviceId) {
+        permissionService.requirePermission(operatorId, "ops:device:edit");
+        DeviceInfo device = deviceRepository.findByIdForUpdate(oldDeviceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
+        merchantScopeService.requireDeviceAccess(operatorId, oldDeviceId);
+        if (!INBOUND.equalsIgnoreCase(device.getLifecycleStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅入库状态设备可重新生成编号");
+        }
+        deviceIdRenameService.assertRenumberAllowed(oldDeviceId);
+        String newDeviceId = deviceIdService.allocateRandomDeviceId();
+        String remark = appendRenumberRemark(device.getLifecycleRemark(), oldDeviceId, newDeviceId);
+        deviceIdRenameService.renameInPlace(oldDeviceId, newDeviceId);
+        Instant now = Instant.now();
+        deviceRepository.update(null, Wrappers.<DeviceInfo>lambdaUpdate()
+                .eq(DeviceInfo::getDeviceId, newDeviceId)
+                .set(DeviceInfo::getLifecycleRemark, remark)
+                .set(DeviceInfo::getUpdatedAt, now));
+        DeviceInfo renamed = deviceRepository.findById(newDeviceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "设备编号更新失败"));
+        auditService.appendLog(operatorId, "DEVICE_REGENERATE_ID", "DEVICE", newDeviceId, "from=" + oldDeviceId);
+        return toDeviceDto(renamed, null, false);
+    }
+
+    private static String appendRenumberRemark(String existing, String oldDeviceId, String newDeviceId) {
+        String line = "编号已由 " + oldDeviceId + " 更换为 " + newDeviceId;
+        if (existing == null || existing.isBlank()) {
+            return line;
+        }
+        return existing.trim() + "；" + line;
     }
 
     @Transactional
@@ -1393,7 +1435,8 @@ public class AdminDashboardService {
 
     private static void applyUpdateDeviceOptionalFields(DeviceInfo device, UpdateDeviceRequest request) {
         if (request.imei() != null) {
-            device.setImei(trimToNull(request.imei()));
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "IMEI 仅能通过柜机心跳自动绑定，请使用「解绑硬件」后由柜机重新上报");
         }
         if (request.assetOwner() != null) {
             device.setAssetOwner(trimToNull(request.assetOwner()));

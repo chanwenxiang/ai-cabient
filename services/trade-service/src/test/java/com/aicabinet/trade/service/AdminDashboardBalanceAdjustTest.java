@@ -73,6 +73,7 @@ class AdminDashboardBalanceAdjustTest {
     @Mock private DistributedLockService distributedLockService;
     @Mock private AliyunCategoryMappingMapper aliyunCategoryMappingRepository;
     @Mock private DeviceIdService deviceIdService;
+    @Mock private DeviceIdRenameService deviceIdRenameService;
 
     private AdminDashboardService service;
 
@@ -87,7 +88,7 @@ class AdminDashboardBalanceAdjustTest {
                 disputeSlaService, inventoryLotService, deviceSlotService, replenishmentTaskRepository,
                 reconciliationRepository, inTransitRepository, balanceLedgerService, refundPolicyService,
                 exceptionRepository, fileAttachmentService, memberRepository, blacklistRepository,
-                distributedLockService, aliyunCategoryMappingRepository, deviceIdService, null);
+                distributedLockService, aliyunCategoryMappingRepository, deviceIdService, deviceIdRenameService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

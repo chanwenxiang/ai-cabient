@@ -1,24 +1,29 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import java.security.SecureRandom;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * 柜机业务编号：新设备默认系统分配 6–10 位纯数字（与机身贴码一致）。
- * 演示/历史 CAB-* 编号仍保留，不参与自动递增序列。
+ * 柜机业务编号：系统随机分配 12 位纯数字（无序、不可手填）。
+ * 历史 CAB-* 或旧版 6–10 位递增编号仍保留。
  */
 @Service
 public class DeviceIdService {
 
-    public static final long MIN_NUMERIC_DEVICE_ID = 100_001L;
-    public static final int MIN_DIGITS = 6;
-    public static final int MAX_DIGITS = 10;
-    private static final Pattern NUMERIC_DEVICE_ID = Pattern.compile("^[0-9]{6,10}$");
+    public static final int DEVICE_ID_DIGITS = 12;
+    /** 新编号首位 1–9，避免全零与过短展示歧义。 */
+    private static final int FIRST_DIGIT_MIN = 1;
+    private static final int FIRST_DIGIT_MAX = 9;
+    private static final Pattern STANDARD_DEVICE_ID = Pattern.compile("^[0-9]{12}$");
+    private static final Pattern LEGACY_NUMERIC_DEVICE_ID = Pattern.compile("^[0-9]{6,10}$");
     private static final String ALLOC_LOCK = "device:id:allocate";
+    private static final int MAX_ALLOC_ATTEMPTS = 48;
 
+    private final SecureRandom secureRandom = new SecureRandom();
     private final DeviceInfoMapper deviceRepository;
     private final DistributedLockService distributedLockService;
 
@@ -27,54 +32,45 @@ public class DeviceIdService {
         this.distributedLockService = distributedLockService;
     }
 
-    public static boolean isNumericDeviceId(String deviceId) {
-        return deviceId != null && NUMERIC_DEVICE_ID.matcher(deviceId.trim()).matches();
+    public static boolean isStandardDeviceId(String deviceId) {
+        return deviceId != null && STANDARD_DEVICE_ID.matcher(deviceId.trim()).matches();
     }
 
-    /** 预览下一个建议编号（不占用）。 */
-    public String peekNextNumericDeviceId() {
-        return String.valueOf(nextNumericValue());
+    public static boolean isLegacyNumericDeviceId(String deviceId) {
+        return deviceId != null && LEGACY_NUMERIC_DEVICE_ID.matcher(deviceId.trim()).matches();
     }
 
-    /** 创建时解析：空则系统分配，非空则校验为纯数字。 */
+    /** 创建时仅允许系统分配，拒绝运营手填。 */
     public String resolveForCreate(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return allocateNextNumericDeviceId();
+        if (raw != null && !raw.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备编号由系统自动生成，不可指定");
         }
-        String normalized = raw.trim();
-        if (!isNumericDeviceId(normalized)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备编号须为 6–10 位数字");
-        }
-        return normalized;
+        return allocateRandomDeviceId();
     }
 
-    public String allocateNextNumericDeviceId() {
+    public String allocateRandomDeviceId() {
         if (!distributedLockService.tryLock(ALLOC_LOCK, 30, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "设备编号分配中，请稍后重试");
         }
         try {
-            long candidate = nextNumericValue();
-            while (deviceRepository.selectById(String.valueOf(candidate)) != null) {
-                candidate++;
-                assertWithinDigitLimit(candidate);
+            for (int attempt = 0; attempt < MAX_ALLOC_ATTEMPTS; attempt++) {
+                String candidate = randomDeviceId();
+                if (deviceRepository.selectById(candidate) == null) {
+                    return candidate;
+                }
             }
-            return String.valueOf(candidate);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备编号分配失败，请稍后重试");
         } finally {
             distributedLockService.unlock(ALLOC_LOCK);
         }
     }
 
-    private long nextNumericValue() {
-        Long max = deviceRepository.maxNumericDeviceIdRaw();
-        long base = max == null ? 0L : max;
-        long next = Math.max(MIN_NUMERIC_DEVICE_ID, base + 1);
-        assertWithinDigitLimit(next);
-        return next;
-    }
-
-    private static void assertWithinDigitLimit(long value) {
-        if (String.valueOf(value).length() > MAX_DIGITS) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "数字设备编号已用尽");
+    private String randomDeviceId() {
+        char[] digits = new char[DEVICE_ID_DIGITS];
+        digits[0] = (char) ('0' + FIRST_DIGIT_MIN + secureRandom.nextInt(FIRST_DIGIT_MAX - FIRST_DIGIT_MIN + 1));
+        for (int i = 1; i < DEVICE_ID_DIGITS; i++) {
+            digits[i] = (char) ('0' + secureRandom.nextInt(10));
         }
+        return new String(digits);
     }
 }
