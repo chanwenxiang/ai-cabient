@@ -82,19 +82,52 @@ class ApprovalInboxDedupeTest {
 
         NotificationDto dup = msg(1L, "审批提醒：商户要货 #40 · CAB-001",
                 "MERCHANT_REPLEN_REQUEST", "40", false);
-        NotificationDto other = msg(2L, "审批提醒：采购单 PO-1",
+        NotificationDto finished = msg(2L, "审批提醒：采购单 PO-1",
                 "PURCHASE_ORDER", "PO-1", true);
-        when(notificationService.opsNotifications(eq(userId), anyInt())).thenReturn(List.of(dup, other));
-        when(notificationService.opsUnread(eq(userId), anyInt())).thenReturn(List.of(dup));
+        NotificationDto liveNote = msg(3L, "系统维护通知", "OPS_NOTICE", "1", false);
+
+        ApprovalInstance finishedInst = new ApprovalInstance();
+        finishedInst.setBizType("PURCHASE_ORDER");
+        finishedInst.setBizId("PO-1");
+        finishedInst.setStatus("APPROVED");
+
+        when(notificationService.opsNotifications(eq(userId), anyInt()))
+                .thenReturn(List.of(dup, finished, liveNote));
+        when(notificationService.opsUnread(eq(userId), anyInt())).thenReturn(List.of(dup, liveNote));
+        when(instanceRepository.findByBizTypeAndBizId("PURCHASE_ORDER", "PO-1"))
+                .thenReturn(Optional.of(finishedInst));
 
         ApprovalInboxDto inbox = service.inbox(userId, 15);
 
         assertEquals(1L, inbox.pendingTaskCount());
         assertEquals(1, inbox.pendingTasks().size());
         assertEquals(1, inbox.recentMessages().size());
-        assertEquals(2L, inbox.recentMessages().get(0).id());
-        assertEquals(0L, inbox.unreadMessageCount());
+        assertEquals(3L, inbox.recentMessages().get(0).id());
+        assertEquals(1L, inbox.unreadMessageCount());
         assertTrue(inbox.pendingTasks().get(0).title().contains("#40"));
+    }
+
+    @Test
+    void inbox_hidesStaleApprovalReminderWhenInstanceFinished() {
+        Long userId = 10001L;
+        when(taskRepository.findPendingByAssigneeUserId(eq(userId), anyInt())).thenReturn(List.of());
+        when(taskRepository.countPendingByAssigneeUserId(userId)).thenReturn(0L);
+
+        NotificationDto stale = msg(9L, "审批提醒：商户进件 默认直营商户",
+                "MERCHANT_ONBOARD", "1", true);
+        ApprovalInstance approved = new ApprovalInstance();
+        approved.setBizType("MERCHANT_ONBOARD");
+        approved.setBizId("1");
+        approved.setStatus("APPROVED");
+
+        when(notificationService.opsNotifications(eq(userId), anyInt())).thenReturn(List.of(stale));
+        when(notificationService.opsUnread(eq(userId), anyInt())).thenReturn(List.of());
+        when(instanceRepository.findByBizTypeAndBizId("MERCHANT_ONBOARD", "1"))
+                .thenReturn(Optional.of(approved));
+
+        ApprovalInboxDto inbox = service.inbox(userId, 15);
+        assertEquals(0, inbox.recentMessages().size());
+        assertEquals(0L, inbox.unreadMessageCount());
     }
 
     private static NotificationDto msg(Long id, String title, String bizType, String bizId, boolean read) {
