@@ -1423,14 +1423,9 @@ public class AdminDashboardService {
         if (merchantId == null) {
             return;
         }
-        if (merchantId.isBlank()) {
-            device.setMerchantId(null);
-            return;
-        }
-        String mid = merchantId.trim();
-        requireMerchant(mid);
-        merchantScopeService.requireMerchantAccess(operatorId, mid);
-        device.setMerchantId(mid);
+        // 归属变更统一走生命周期 BIND/UNBIND，避免旁路绕过状态机
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "请通过设备生命周期「绑定商户 / 解绑」变更归属，勿直接改 merchantId");
     }
 
     private static void applyUpdateDeviceOptionalFields(DeviceInfo device, UpdateDeviceRequest request) {
