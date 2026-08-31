@@ -1,7 +1,7 @@
 package com.aicabinet.common.dto;
 
 public record UpsertDeviceRequest(
-        /** 留空则系统自动分配 6–10 位纯数字编号（贴码/扫码用）。 */
+        /** 已废弃：编号由系统自动分配 12 位纯数字，传入将被拒绝。 */
         String deviceId,
         String deviceName,
         String deviceType,

@@ -165,6 +165,23 @@
             @click="saveAsset"
             >保存资产</el-button
           >
+          <el-button
+            v-if="canEditDevice && asset.imei"
+            v-hasPermi="['ops:device:edit']"
+            size="small"
+            :loading="hardwareResetLoading"
+            @click="resetHardwareBinding"
+            >解绑硬件</el-button
+          >
+          <el-button
+            v-if="canRegenerateDeviceId"
+            v-hasPermi="['ops:device:edit']"
+            size="small"
+            type="warning"
+            :loading="regenerateIdLoading"
+            @click="regenerateDeviceId"
+            >重新生成编号</el-button
+          >
         </div>
       </template>
       <el-form label-width="100px" class="asset-form" @submit.prevent>
@@ -172,11 +189,11 @@
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="IMEI">
               <el-input
-                v-model="asset.imei"
-                :disabled="!canEditDevice"
-                clearable
-                placeholder="主板/通信识别"
+                :model-value="asset.imei || '未绑定'"
+                disabled
+                placeholder="柜机心跳自动绑定"
               />
+              <p v-if="canEditDevice" class="form-hint muted">仅柜机联网上报或「解绑硬件」后重新绑定</p>
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
@@ -1147,7 +1164,7 @@ interface DeviceDetail {
 
 const route = useRoute();
 const auth = useAuthStore();
-const { canAccessPath, goPath } = useNavAccess();
+const { canAccessPath, goPath, router } = useNavAccess();
 const deviceId = route.params.id as string;
 
 const canEditTempPlan = computed(() => auth.hasPerm('ops:device:edit'));
@@ -1244,6 +1261,10 @@ function envUnit(type: string) {
 }
 const canEditSlots = computed(() => auth.hasPerm('ops:device:edit'));
 const canEditDevice = computed(() => auth.hasPerm('ops:device:edit'));
+const sessionTotal = ref(0);
+const orderTotal = ref(0);
+const hardwareResetLoading = ref(false);
+const regenerateIdLoading = ref(false);
 const refundPolicyDraft = ref('INHERIT');
 const refundPolicySaving = ref(false);
 const globalRefundPolicy = ref('AUTO_REFUND');
@@ -1324,6 +1345,14 @@ const asset = reactive({
   lifecycleRemark: '' as string,
   merchantId: '' as string
 });
+const canRegenerateDeviceId = computed(
+  () =>
+    canEditDevice.value &&
+    asset.lifecycleStatus === 'INBOUND' &&
+    relatedHydrated.value &&
+    sessionTotal.value === 0 &&
+    orderTotal.value === 0
+);
 const lifecycleEvents = ref<LifecycleEventRow[]>([]);
 const repairTickets = ref<
   Array<{
@@ -1600,7 +1629,6 @@ async function saveAsset() {
       `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}`,
       'PATCH',
       {
-        imei: asset.imei || null,
         assetOwner: asset.assetOwner || null,
         coopMode: asset.coopMode || null,
         depositCents: asset.depositCents ?? null,
@@ -1724,6 +1752,59 @@ async function runLifecycle(action: string, requireRemark = false, merchantId?: 
   }
 }
 
+async function resetHardwareBinding() {
+  if (!canEditDevice.value) return;
+  try {
+    await ElMessageBox.confirm(
+      '解绑后 IMEI 将清空，柜机下次联网心跳将重新绑定硬件。是否继续？',
+      '解绑硬件',
+      { type: 'warning', confirmButtonText: '解绑', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  hardwareResetLoading.value = true;
+  try {
+    const row = await api.request<DeviceInfo>(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/reset-hardware-binding`,
+      'POST'
+    );
+    fillAsset(row);
+    device.value = row;
+    ElMessage.success('硬件绑定已解除，请让柜机重新联网');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '解绑失败');
+  } finally {
+    hardwareResetLoading.value = false;
+  }
+}
+
+async function regenerateDeviceId() {
+  if (!canRegenerateDeviceId.value) return;
+  try {
+    await ElMessageBox.confirm(
+      '将废弃当前编号并分配新的 12 位数字编号，仅适用于入库且无业务记录的设备。是否继续？',
+      '重新生成编号',
+      { type: 'warning', confirmButtonText: '重新生成', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  regenerateIdLoading.value = true;
+  try {
+    const row = await api.request<DeviceInfo>(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/regenerate-id`,
+      'POST'
+    );
+    ElMessage.success(`新编号 ${row.deviceId}`);
+    await router.replace(`/devices/${encodeURIComponent(row.deviceId)}`);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '重新生成失败');
+  } finally {
+    regenerateIdLoading.value = false;
+  }
+}
+
 async function savePolicy() {
   if (!policy.value || !canEditDevice.value) return;
   try {
@@ -1757,6 +1838,8 @@ async function loadRelated() {
     ]);
     sessions.value = sess.items || [];
     orders.value = ord.items || [];
+    sessionTotal.value = 'total' in sess ? (sess.total ?? 0) : sessions.value.length;
+    orderTotal.value = 'total' in ord ? (ord.total ?? 0) : orders.value.length;
   } finally {
     relatedHydrated.value = true;
   }

@@ -10,6 +10,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -20,34 +22,22 @@ class DeviceIdServiceTest {
     @Mock private DistributedLockService distributedLockService;
 
     @Test
-    void peekNextNumericDeviceId_startsAtMinimumWhenEmpty() {
-        when(deviceRepository.maxNumericDeviceIdRaw()).thenReturn(null);
-        DeviceIdService service = new DeviceIdService(deviceRepository, distributedLockService);
-        assertEquals("100001", service.peekNextNumericDeviceId());
-    }
-
-    @Test
-    void resolveForCreate_blankAllocatesWithLock() {
-        when(distributedLockService.tryLock("device:id:allocate", 30L, 5L)).thenReturn(true);
-        when(deviceRepository.maxNumericDeviceIdRaw()).thenReturn(100_005L);
-        when(deviceRepository.selectById("100006")).thenReturn(null);
-
-        DeviceIdService service = new DeviceIdService(deviceRepository, distributedLockService);
-        assertEquals("100006", service.resolveForCreate(null));
-        verify(distributedLockService).unlock("device:id:allocate");
-    }
-
-    @Test
-    void resolveForCreate_rejectsNonNumeric() {
+    void resolveForCreate_rejectsManualInput() {
         DeviceIdService service = new DeviceIdService(deviceRepository, distributedLockService);
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.resolveForCreate("CAB-001"));
+                () -> service.resolveForCreate("100099"));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
     }
 
     @Test
-    void resolveForCreate_acceptsNumericInput() {
+    void allocateRandomDeviceId_returnsTwelveDigits() {
+        when(distributedLockService.tryLock("device:id:allocate", 30L, 5L)).thenReturn(true);
+        when(deviceRepository.selectById(anyString())).thenReturn(null);
+
         DeviceIdService service = new DeviceIdService(deviceRepository, distributedLockService);
-        assertEquals("100099", service.resolveForCreate("100099"));
+        String id = service.resolveForCreate(null);
+
+        assertTrue(DeviceIdService.isStandardDeviceId(id));
+        verify(distributedLockService).unlock("device:id:allocate");
     }
 }

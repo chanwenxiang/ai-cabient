@@ -390,14 +390,8 @@
     >
       <el-form label-width="88px">
         <el-form-item label="设备编号">
-          <el-input
-            v-model="createForm.deviceId"
-            placeholder="留空则系统自动分配（6–10 位数字）"
-            maxlength="10"
-            inputmode="numeric"
-          />
-          <p v-if="suggestedDeviceId" class="form-hint muted">
-            建议编号 {{ suggestedDeviceId }}（与机身贴码一致）；柜机首次联网时将自动绑定 IMEI / 主板 SN
+          <p class="form-hint muted">
+            创建后由系统自动分配 12 位数字编号（无序、不可修改）；柜机首次联网时将自动绑定 IMEI / 主板 SN
           </p>
         </el-form-item>
         <el-form-item label="设备名称">
@@ -528,10 +522,8 @@ const policyVisible = ref(false);
 const policySaving = ref(false);
 const createVisible = ref(false);
 const createSaving = ref(false);
-const suggestedDeviceId = ref('');
 const merchantOptions = ref<MerchantOption[]>([]);
 const createForm = reactive({
-  deviceId: '',
   deviceName: '',
   deviceType: '',
   merchantId: ''
@@ -983,37 +975,22 @@ async function loadMerchants() {
 }
 
 function openCreate() {
-  createForm.deviceId = '';
   createForm.deviceName = '';
   createForm.deviceType = '';
   createForm.merchantId = '';
-  suggestedDeviceId.value = '';
   createVisible.value = true;
   void loadMerchants();
-  void loadSuggestedDeviceId();
-}
-
-async function loadSuggestedDeviceId() {
-  try {
-    const data = await api.request<{ deviceId: string }>('/api/v2/ops/admin/devices/next-id', 'GET');
-    suggestedDeviceId.value = data.deviceId;
-    createForm.deviceId = data.deviceId;
-  } catch {
-    suggestedDeviceId.value = '';
-  }
 }
 
 async function saveCreate() {
-  const deviceId = createForm.deviceId.trim();
   createSaving.value = true;
   try {
-    await api.request('/api/v2/ops/admin/devices', 'POST', {
-      ...(deviceId ? { deviceId } : {}),
+    const created = await api.request<{ deviceId: string }>('/api/v2/ops/admin/devices', 'POST', {
       deviceName: createForm.deviceName.trim() || undefined,
       deviceType: createForm.deviceType || undefined,
       merchantId: createForm.merchantId || undefined
     });
-    ElMessage.success('设备已创建');
+    ElMessage.success(`设备已创建，编号 ${created.deviceId}`);
     createVisible.value = false;
     await load(false);
   } catch (e) {

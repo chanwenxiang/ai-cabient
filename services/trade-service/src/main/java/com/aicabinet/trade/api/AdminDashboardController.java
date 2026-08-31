@@ -126,10 +126,20 @@ public class AdminDashboardController {
                         page, size, q, online, salesLocked, lifecycleStatus, coopMode, routeCode)));
     }
 
-    @RequiresPermissions("ops:device:list")
-    @GetMapping("/devices/next-id")
-    public ApiResponse<NextDeviceIdDto> nextDeviceId(HttpServletRequest request) {
-        return ApiResponse.ok(adminService.peekNextDeviceId(operatorId(request)));
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/reset-hardware-binding")
+    public ApiResponse<AdminDeviceDto> resetHardwareBinding(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(adminService.resetHardwareBinding(operatorId(request), deviceId));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/regenerate-id")
+    public ApiResponse<AdminDeviceDto> regenerateDeviceId(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(adminService.regenerateDeviceId(operatorId(request), deviceId));
     }
 
     @RequiresPermissions("ops:device:edit")
