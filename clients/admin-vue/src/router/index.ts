@@ -399,6 +399,12 @@ const bizChildren: any[] = [
     name: 'profile',
     component: () => import('@/views/profile/ProfileView.vue'),
     meta: { title: '个人中心', group: '系统' }
+  },
+  {
+    path: 'forbidden',
+    name: 'forbidden',
+    component: () => import('@/views/error/ForbiddenView.vue'),
+    meta: { title: '无权访问', group: '系统' }
   }
 ];
 
@@ -431,7 +437,15 @@ const router = createRouter({
       path: '/',
       component: () => import('@/layouts/AdminLayout.vue'),
       redirect: '/dashboard',
-      children: [...bizChildren, { path: ':pathMatch(.*)*', redirect: '/dashboard' }]
+      children: [
+        ...bizChildren,
+        {
+          path: ':pathMatch(.*)*',
+          name: 'not-found',
+          component: () => import('@/views/error/NotFoundView.vue'),
+          meta: { title: '页面不存在', group: '系统' }
+        }
+      ]
     }
   ]
 });
@@ -443,26 +457,23 @@ router.beforeEach(async (to) => {
   if (to.meta.public) return true;
   if (!isLoggedIn()) return { name: 'login', query: { redirect: to.fullPath } };
 
+  // 错误页本身不做权限拦截，避免循环跳转
+  if (to.name === 'forbidden' || to.name === 'not-found') return true;
+
   const auth = useAuthStore();
   if (!auth.permissions.length) {
     await auth.restore();
   }
   const nav = findNavByPath(to.path);
   if (nav?.perm && !auth.canAccessNav(nav)) {
-    // 按业务优先级回退：补货员等窄权限角色应落在自己常用页面而非个人中心
-    const fallback = [
-      '/dashboard',
-      '/replenishment',
-      '/warehouse',
-      '/stock-health',
-      '/devices',
-      '/orders',
-      '/profile'
-    ].find((p) => {
-      const item = findNavByPath(p);
-      return !item?.perm || auth.canAccessNav(item);
-    });
-    return { path: fallback || '/profile' };
+    return {
+      name: 'forbidden',
+      query: {
+        from: to.fullPath,
+        title: String(to.meta.title || nav.title || '')
+      },
+      replace: true
+    };
   }
   return true;
 });

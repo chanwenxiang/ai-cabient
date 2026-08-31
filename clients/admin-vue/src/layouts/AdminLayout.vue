@@ -348,6 +348,8 @@ watch(
   () => route.path,
   (path) => {
     if (path === '/login') return;
+    // 404/403 不进标签栏，避免错误页污染多标签并干扰「返回」
+    if (route.name === 'not-found' || route.name === 'forbidden') return;
     const t = (route.meta.title as string) || path;
     if (!tags.value.some((x) => x.path === path)) {
       tags.value.push({ path, title: t });
