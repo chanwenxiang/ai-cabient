@@ -28,7 +28,7 @@ COPY services/common/common-core/src services/common/common-core/src
 COPY services/trade-service/src services/trade-service/src
 
 # 使用宿主机已构建的 static/admin（vite outDir），避免 BuildKit frontend 缓存导致运营台 CSS/JS 陈旧。
-# 改 admin-vue 后请先在仓库根执行: npm --prefix clients/admin-vue run build
+# 改 admin-vue 后请先在仓库根执行: node scripts/build-admin.mjs
 RUN --mount=type=cache,target=/root/.m2,sharing=locked \
     mvn package -DskipTests -pl services/trade-service -am -B -Pskip-admin-ui
 

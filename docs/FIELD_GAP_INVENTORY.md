@@ -24,7 +24,12 @@
 
 ### 0.2 剩余高优先
 
-见 §1；本轮 FIELD_GAP P0/P1 主线已收口，余量多为体验增强。
+**§6 推荐落地 1–9 已全部闭合**（2026-08-31）。跨端 P0/P1 主线无未闭合项；余量为零散体验增强（Sonar rpx 噪声、软删恢复 UI 等），见各页面「建议补齐」中未划线条目（多为 P2 或文档生成滞后，实现前以源码为准复核）。
+
+### 0.3 工具链
+
+- Admin 构建：`node scripts/build-admin.mjs`（根目录 `pnpm run build:admin`），规避 Windows 下 pnpm script-shell 导致 lifecycle 失败
+- trade-service 镜像：改 admin 静态或后端后 `docker build -f infra/docker/trade-service.Dockerfile -t ai-cabinet/trade-service:latest .`
 
 ## 1. 高优先差距（跨端共性，先修）
 
@@ -1436,6 +1441,8 @@ DTO 字段（15）：`deviceId`, `deviceName`, `address`, `latitude`, `longitude
 7. ~~P2：券/钱包/争议/附近柜/订单体验项复核~~（多数已在 UI；线长钱包流水对齐商户钱包）
 8. ~~消息未读分类 + 深链~~（消费/商户消息分类未读角标；bizId 跳转；临期券提醒带 couponId）
 9. ~~可选余量：要货申请拍照（非主路径）~~（提交前可选上传最多 5 张；Admin 审批流可预览）
+
+**下一波（非阻塞）**：上线配置（AppID/真实支付/短信模板）；软删恢复 UI；Sonar 小程序 rpx 规则降噪。
 
 ---
 
