@@ -95,6 +95,12 @@ public class NotificationService {
         return logRepository.findOpsRecent(userId, limit).stream().map(this::toDto).toList();
     }
 
+    /** 未读运营站内信列表（倒序），供收件箱与待办去重计数。 */
+    @Transactional(readOnly = true)
+    public List<NotificationDto> opsUnread(Long userId, int limit) {
+        return logRepository.findOpsUnread(userId, limit).stream().map(this::toDto).toList();
+    }
+
     @Transactional(readOnly = true)
     public long opsUnreadCount(Long userId) {
         return logRepository.countUnreadOps(userId);

@@ -50,7 +50,7 @@
               :class="{ unread: !msg.read }"
               @click="openMessage(msg)"
             >
-              <div class="item-title">{{ msg.title }}</div>
+              <div class="item-title">{{ displayMessageTitle(msg.title) }}</div>
               <div class="item-meta">{{ msg.body }} · {{ formatDateTime(msg.createdAt) }}</div>
             </button>
           </li>
@@ -147,10 +147,19 @@ function resolvePath(task: ApprovalTask | InboxMessage): string {
   return '/replenishment?tab=requests';
 }
 
+/**
+ * 历史数据可能仍为「待审批：」前缀，展示时统一成「审批提醒：」以免与上方待办混淆。
+ * @param {string | undefined} title
+ */
+function displayMessageTitle(title?: string): string {
+  if (!title) return '';
+  return title.startsWith('待审批：') ? `审批提醒：${title.slice('待审批：'.length)}` : title;
+}
+
 async function openTask(task: ApprovalTask) {
   try {
     await api.request(`/api/v2/ops/admin/approvals/tasks/${task.taskId}/read`, 'POST');
-    if (!task.readAt) pendingTaskCount.value = Math.max(0, pendingTaskCount.value - 1);
+    // 仅标记已读样式；待审批数量仍按 PENDING 任务计，不因点开而减少
     task.readAt = new Date().toISOString();
   } catch {
     // still navigate

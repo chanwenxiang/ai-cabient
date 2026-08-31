@@ -28,10 +28,13 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class ApprovalWorkflowService {
@@ -230,12 +233,25 @@ public class ApprovalWorkflowService {
         instanceRepository.save(instance);
     }
 
+    /**
+     * 顶栏收件箱：待审批为真实任务；站内消息剔除与当前待办同业务的审批提醒，避免重复。
+     */
     @Transactional(readOnly = true)
     public ApprovalInboxDto inbox(Long userId, int limit) {
-        List<ApprovalTaskDto> tasks = self.listPendingTasks(userId, limit);
+        int safeLimit = Math.max(1, Math.min(limit, 100));
+        List<ApprovalTaskDto> tasks = self.listPendingTasks(userId, safeLimit);
         long pendingCount = taskRepository.countPendingByAssigneeUserId(userId);
-        List<NotificationDto> messages = notificationService.opsNotifications(userId, limit);
-        long unreadMessages = notificationService.opsUnreadCount(userId);
+        Set<String> pendingBizKeys = pendingBizKeys(userId);
+        int fetchCap = Math.min(100, Math.max(safeLimit * 3, safeLimit));
+        List<NotificationDto> messages = notificationService.opsNotifications(userId, fetchCap).stream()
+                .filter(m -> !pendingBizKeys.contains(bizKey(m.bizType(), m.bizId())))
+                .limit(safeLimit)
+                .toList();
+        long unreadMessages = pendingBizKeys.isEmpty()
+                ? notificationService.opsUnreadCount(userId)
+                : notificationService.opsUnread(userId, 500).stream()
+                        .filter(m -> !pendingBizKeys.contains(bizKey(m.bizType(), m.bizId())))
+                        .count();
         return new ApprovalInboxDto(pendingCount, unreadMessages, tasks, messages);
     }
 
@@ -474,11 +490,33 @@ public class ApprovalWorkflowService {
             taskRepository.save(task);
             notificationService.notifyOpsInApp(
                     assigneeId,
-                    "待审批：" + instance.getTitle(),
+                    "审批提醒：" + instance.getTitle(),
                     body,
                     instance.getBizType(),
                     instance.getBizId());
         }
+    }
+
+    /** 当前用户全部待办的 bizType|bizId，用于站内信去重。 */
+    private Set<String> pendingBizKeys(Long userId) {
+        return taskRepository.findPendingByAssigneeUserId(userId, 100).stream()
+                .map(this::toTaskDto)
+                .map(t -> bizKey(t.bizType(), t.bizId()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(HashSet::new));
+    }
+
+    /** @return {@code bizType|bizId}；缺字段时返回 null（不去重） */
+    static String bizKey(String bizType, String bizId) {
+        if (bizType == null || bizId == null) {
+            return null;
+        }
+        String type = bizType.trim();
+        String id = bizId.trim();
+        if (type.isEmpty() || id.isEmpty()) {
+            return null;
+        }
+        return type + "|" + id;
     }
 
     private Set<Long> resolveAssignees(ApprovalNode node) {
