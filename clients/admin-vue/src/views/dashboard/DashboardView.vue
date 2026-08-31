@@ -296,6 +296,7 @@ import { useNavAccess } from '@/composables/useNavAccess';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { shortBizNo } from '@aicabinet/shared-uni/format';
 import type { OpsWorkbench, PageResult } from '@aicabinet/shared-types';
+import { normalizeListPage } from '@/utils/normalize-list-page';
 
 interface OpsStats {
   deviceTotal?: number;
@@ -697,11 +698,11 @@ async function loadOnboardPending() {
     return;
   }
   try {
-    const data = await api.request<{ items?: { status?: string }[]; total?: number }>(
-      '/api/v2/ops/admin/merchant-onboarding?status=SUBMITTED&page=0&size=1',
-      'GET'
-    );
-    onboardPending.value = Number(data?.total) || (data?.items || []).length;
+    const data = await api.request<
+      { status?: string }[] | { items?: { status?: string }[]; total?: number }
+    >('/api/v2/ops/admin/merchant-onboarding?status=SUBMITTED&page=0&size=1', 'GET');
+    const pageData = normalizeListPage(data);
+    onboardPending.value = pageData.total;
   } catch {
     onboardPending.value = 0;
   }

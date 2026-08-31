@@ -258,6 +258,7 @@ import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
+import { normalizeListPage } from '@/utils/normalize-list-page';
 import type { PageResult } from '@aicabinet/shared-types';
 import {
   dictLabel,
@@ -402,13 +403,9 @@ async function loadEvents() {
       `/api/v2/ops/admin/risk/events?${q}`,
       'GET'
     );
-    if (Array.isArray(ev)) {
-      events.value = ev;
-      eventTotal.value = ev.length;
-    } else {
-      events.value = ev?.items || [];
-      eventTotal.value = ev?.total ?? events.value.length;
-    }
+    const pageData = normalizeListPage(ev);
+    events.value = pageData.items;
+    eventTotal.value = pageData.total;
     clearEventsSelection();
     loaded.value.add('events');
   } catch (e) {
@@ -441,13 +438,9 @@ async function loadBlacklist() {
       `/api/v2/ops/admin/risk/blacklist?${q}`,
       'GET'
     );
-    if (Array.isArray(data)) {
-      blacklist.value = data;
-      blacklistTotal.value = data.length;
-    } else {
-      blacklist.value = data?.items || [];
-      blacklistTotal.value = data?.total ?? blacklist.value.length;
-    }
+    const pageData = normalizeListPage(data);
+    blacklist.value = pageData.items;
+    blacklistTotal.value = pageData.total;
     clearBlacklistSelection();
     loaded.value.add('blacklist');
   } catch (e) {
