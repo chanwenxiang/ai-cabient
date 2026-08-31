@@ -6,6 +6,7 @@ import com.aicabinet.common.dto.ProfitSharingStatusDto;
 import com.aicabinet.common.dto.RevenueSplitDto;
 import com.aicabinet.common.dto.SubmitProfitSharingRequest;
 import com.aicabinet.common.dto.UpsertMerchantRequest;
+import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
 import com.aicabinet.trade.config.ProfitSharingProperties;
@@ -345,12 +346,19 @@ public class MerchantService {
     }
 
     private RevenueSplitDto toSplitDto(OrderRevenueSplit s, String merchantName) {
+        String deviceName = null;
+        if (s.getDeviceId() != null && !s.getDeviceId().isBlank()) {
+            deviceName = deviceRepository.findById(s.getDeviceId())
+                    .map(DeviceInfo::getDeviceName)
+                    .orElse(null);
+        }
         return new RevenueSplitDto(
                 s.getSplitId(), s.getOrderId(), s.getMerchantId(), merchantName,
                 s.getDeviceId(), s.getGrossCents(), s.getPlatformCents(),
                 s.getMerchantCents(), s.getStatus(), s.getWechatOutOrderNo(),
                 s.getWechatTransactionId(), s.getFailureReason(), s.getCreatedAt(),
-                s.getSettlementBatchNo(), s.getSettleAfter(), s.getSettledAt());
+                s.getSettlementBatchNo(), s.getSettleAfter(), s.getSettledAt(),
+                deviceName);
     }
 
     private Page<OrderRevenueSplit> querySplits(Set<String> allowed, String merchantId,

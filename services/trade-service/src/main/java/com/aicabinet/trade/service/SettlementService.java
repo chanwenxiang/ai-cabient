@@ -22,9 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 @Service
+@SuppressWarnings("java:S6539")
 public class SettlementService {
     private static final String GRAVITY_MISMATCH = "gravity-mismatch";
     private static final String GRAVITY_FILL = "gravity-fill";
@@ -61,6 +63,7 @@ public class SettlementService {
     private final DistributedLockService distributedLockService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final SettlementService self;
+    private final DisplaySnapshotHelper displaySnapshotHelper;
 
     public SettlementService(ShoppingSessionMapper sessionRepository,
                              SkuCatalogMapper skuCatalogRepository,
@@ -88,7 +91,9 @@ public class SettlementService {
                              DeviceSlotMapper slotRepository,
                              ConsumerPreauthService consumerPreauthService,
                              SystemConfigService systemConfigService,
-                             DistributedLockService distributedLockService, @Lazy SettlementService self) {
+                             DistributedLockService distributedLockService,
+                             @Lazy SettlementService self,
+                             DisplaySnapshotHelper displaySnapshotHelper) {
         this.sessionRepository = sessionRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.orderRepository = orderRepository;
@@ -117,6 +122,7 @@ public class SettlementService {
         this.systemConfigService = systemConfigService;
         this.distributedLockService = distributedLockService;
         this.self = self;
+        this.displaySnapshotHelper = displaySnapshotHelper;
     }
 
     /** 人工审核后确认清单：无订单则首次扣款；有订单则按差额退/补。 */
@@ -1138,6 +1144,10 @@ public class SettlementService {
         order.setSessionId(session.getSessionId());
         order.setUserId(session.getUserId());
         order.setDeviceId(session.getDeviceId());
+        if (session.getDeviceName() != null && !session.getDeviceName().isBlank()) {
+            order.setDeviceName(session.getDeviceName());
+        }
+        displaySnapshotHelper.applyOrderSnapshot(order);
         order.setStatus("PAID");
         applyItemsToOrder(order, items);
         return order;
@@ -1209,13 +1219,10 @@ public class SettlementService {
                     + order.getCouponDiscountCents()
                     + order.getMemberDiscountCents();
         }
-        String merchantId = null;
-        try {
-            DeviceInfo device = deviceValidationService.requireDevice(order.getDeviceId());
-            merchantId = device.getMerchantId();
-        } catch (Exception ignored) {
-            // 详情仍可返回，商户号留空
-        }
+        displaySnapshotHelper.applyOrderSnapshot(order);
+        String merchantId = order.getMerchantId();
+        String deviceName = order.getDeviceName();
+        String merchantName = order.getMerchantName();
         return new OrderDto(
                 order.getOrderId(),
                 order.getSessionId(),
@@ -1237,8 +1244,30 @@ public class SettlementService {
                 order.getRefundedAt(),
                 order.isInventoryDeducted(),
                 merchantId,
-                Math.max(0, order.getRefundedCents())
+                Math.max(0, order.getRefundedCents()),
+                deviceName,
+                merchantName,
+                resolvePaidAt(order),
+                revenueSplitService.findStatusByOrderId(order.getOrderId()).orElse(null)
         );
+    }
+
+    private Instant resolvePaidAt(CabinetOrder order) {
+        String status = order.getStatus();
+        if (status == null
+                || "PENDING".equals(status)
+                || "CANCELLED".equals(status)
+                || CabinetConstants.ORDER_STATUS_FAILED.equals(status)) {
+            return null;
+        }
+        String opId = order.getPaymentOperationId();
+        if (opId != null && !opId.isBlank()) {
+            Instant at = orderPaymentService.findOperationCreatedAt(opId).orElse(null);
+            if (at != null) {
+                return at;
+            }
+        }
+        return order.getCreatedAt();
     }
 
     static String sessionSettleLockKey(String sessionId) {

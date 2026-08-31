@@ -152,7 +152,7 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="金额" width="100" align="center">
+          <el-table-column label="金额" width="110" align="center">
             <template #default="{ row }">
               <div class="amount-cell">
                 <span>¥{{ money(row.totalAmountCents) }}</span>
@@ -160,6 +160,9 @@
                   v-if="Number(row.originalAmountCents || 0) > Number(row.totalAmountCents || 0)"
                   class="muted"
                   >原 ¥{{ money(row.originalAmountCents) }}</small
+                >
+                <small v-if="Number(row.refundedCents || 0) > 0" class="muted refund-amt"
+                  >已退 ¥{{ money(row.refundedCents) }}</small
                 >
               </div>
             </template>
@@ -189,7 +192,7 @@
           <el-table-column label="用户" width="96" align="center">
             <template #default="{ row }">{{ row.userId ?? '无' }}</template>
           </el-table-column>
-          <el-table-column label="设备" min-width="100" align="center">
+          <el-table-column label="设备" min-width="120" align="center" show-overflow-tooltip>
             <template #default="{ row }">
               <button
                 v-if="row.deviceId"
@@ -197,14 +200,14 @@
                 class="link-cell"
                 @click="goDevice(row.deviceId)"
               >
-                {{ row.deviceId }}
+                {{ row.deviceName || row.deviceId }}
               </button>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="商户" min-width="100" align="center" show-overflow-tooltip>
+          <el-table-column label="商户" min-width="120" align="center" show-overflow-tooltip>
             <template #default="{ row }">
-              <span>{{ row.merchantId || '无' }}</span>
+              <span>{{ row.merchantName || row.merchantId || '无' }}</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -246,6 +249,19 @@
               <el-tag size="small" effect="plain">
                 {{ displayLabel('pay_channel', row.payChannel, '未知渠道') }}
               </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="分账" width="88" align="center">
+            <template #default="{ row }">
+              <el-tag
+                v-if="row.splitStatus"
+                size="small"
+                effect="plain"
+                :type="splitStatusTagType(row.splitStatus)"
+              >
+                {{ displayLabel('split_status', row.splitStatus, row.splitStatus) }}
+              </el-tag>
+              <span v-else class="muted">—</span>
             </template>
           </el-table-column>
           <el-table-column label="扣库存" width="88" align="center">
@@ -342,15 +358,26 @@
                 class="link-cell"
                 @click="goDevice(detail.deviceId)"
               >
-                {{ detail.deviceId }}
+                {{ detail.deviceName || detail.deviceId }}
               </button>
               <span v-else class="muted">暂无</span>
+            </el-descriptions-item>
+            <el-descriptions-item
+              v-if="detail.merchantName || detail.merchantId"
+              label="商户"
+            >
+              {{ detail.merchantName || detail.merchantId }}
             </el-descriptions-item>
             <el-descriptions-item label="状态">
               {{ dictLabel('order_status', detail.status) }}
             </el-descriptions-item>
             <el-descriptions-item label="金额"
               >¥{{ money(detail.totalAmountCents) }}</el-descriptions-item
+            >
+            <el-descriptions-item
+              v-if="Number(detail.refundedCents || 0) > 0"
+              label="已退金额"
+              >¥{{ money(detail.refundedCents) }}</el-descriptions-item
             >
             <el-descriptions-item v-if="Number(detail.originalAmountCents || 0) > 0" label="原价"
               >¥{{ money(detail.originalAmountCents) }}</el-descriptions-item
@@ -366,14 +393,25 @@
             <el-descriptions-item label="支付渠道">
               {{ displayLabel('pay_channel', detail.payChannel, '未知渠道') }}
             </el-descriptions-item>
+            <el-descriptions-item v-if="detail.paidAt" label="支付时间">{{
+              formatDateTime(detail.paidAt)
+            }}</el-descriptions-item>
+            <el-descriptions-item label="分账状态">
+              <el-tag
+                v-if="detail.splitStatus"
+                size="small"
+                effect="plain"
+                :type="splitStatusTagType(detail.splitStatus)"
+              >
+                {{ displayLabel('split_status', detail.splitStatus, detail.splitStatus) }}
+              </el-tag>
+              <span v-else class="muted">无</span>
+            </el-descriptions-item>
             <el-descriptions-item label="流水号">
               <span class="mono">{{
                 displayBizNo(detail.payTradeNo || detail.paymentOperationId, '无')
               }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="商户">{{
-              detail.merchantId || '无'
-            }}</el-descriptions-item>
             <el-descriptions-item label="退款策略">{{
               refundPolicyLabel(detail.refundPolicy)
             }}</el-descriptions-item>
@@ -685,15 +723,18 @@ const { onExport: exportSelectedCsv } = useListCsv({
     '会话',
     '用户ID',
     '设备',
+    '商户',
     '流水号',
     '订单状态',
     '支付状态',
     '退款状态',
     '支付渠道',
+    '分账状态',
     '扣库存',
     '商品摘要',
     '商品行',
     '金额',
+    '已退金额',
     '创建时间'
   ],
   toRows: () =>
@@ -701,16 +742,21 @@ const { onExport: exportSelectedCsv } = useListCsv({
       row.orderId,
       row.sessionId,
       row.userId,
-      row.deviceId,
+      row.deviceName || row.deviceId,
+      row.merchantName || row.merchantId || '',
       displayBizNo(row.payTradeNo || row.paymentOperationId, ''),
       displayLabel('order_status', row.status, '未知状态'),
       paymentStatusLabel(row.status),
       refundColumnLabel(row.status),
       displayLabel('pay_channel', row.payChannel, '未知渠道'),
+      row.splitStatus
+        ? displayLabel('split_status', row.splitStatus, row.splitStatus)
+        : '',
       row.inventoryDeducted ? '已扣' : '未扣',
       row.lineSummary || '',
       row.lineCount,
       money(row.totalAmountCents),
+      Number(row.refundedCents || 0) > 0 ? money(row.refundedCents) : '',
       formatDateTime(row.createdAt)
     ])
 });
@@ -761,6 +807,17 @@ function refundPolicyLabel(policy?: string | null) {
   if (policy === 'AUTO_REFUND') return '自助退';
   if (policy === 'DISPUTE_ONLY') return '仅争议';
   return policy;
+}
+
+function splitStatusTagType(status?: string | null) {
+  const s = String(status || '').toUpperCase();
+  if (s === 'SETTLED' || s === 'SUCCESS') return 'success';
+  if (s === 'WECHAT_FAILED' || s === 'FAILED') return 'danger';
+  if (s === 'VOIDED' || s === 'REVERSED') return 'info';
+  if (s === 'ACCRUED' || s === 'PENDING' || s === 'WECHAT_SUBMITTED' || s === 'SUBMITTED') {
+    return 'warning';
+  }
+  return '';
 }
 
 function orderStatusType(s?: string) {

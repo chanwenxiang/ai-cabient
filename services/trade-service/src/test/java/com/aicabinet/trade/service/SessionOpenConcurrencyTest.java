@@ -24,7 +24,7 @@ class SessionOpenConcurrencyTest {
     void setUp() {
         service = new SessionService(
                 null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, distributedLockService, null, null);
+                null, null, null, null, null, null, null, null, distributedLockService, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
@@ -34,8 +34,9 @@ class SessionOpenConcurrencyTest {
                 SessionService.sessionOpenLockKey("CAB-001"), 60L, 5L))
                 .thenReturn(false);
 
+        CreateSessionRequest request = new CreateSessionRequest("CAB-001", null);
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.createSession(1L, new CreateSessionRequest("CAB-001", null)));
+                () -> service.createSession(1L, request));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }

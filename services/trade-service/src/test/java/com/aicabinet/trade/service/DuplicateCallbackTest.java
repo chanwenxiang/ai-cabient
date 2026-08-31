@@ -63,7 +63,7 @@ class DuplicateCallbackTest {
         sessionService = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
                 gravityHelper, restockSnapshotService, null, opsExceptionService, null, orderRepository,
-                null, null, null, null, distributedLockService, null, null);
+                null, null, null, null, distributedLockService, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(sessionService, "self", sessionService);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
@@ -115,9 +115,9 @@ class DuplicateCallbackTest {
         when(repository.findById("S-DUP-03")).thenReturn(Optional.of(shoppingSession));
         when(disputeRepository.findBySessionId("S-DUP-03")).thenReturn(Optional.of(new com.aicabinet.trade.domain.DisputeTicket()));
 
+        FileDisputeRequest request = new FileDisputeRequest("S-DUP-03", "wrong-charge", "BILL", "NORMAL");
         assertConflict(
-                assertThrows(ResponseStatusException.class,
-                        () -> disputeService.fileByConsumer(7L, new FileDisputeRequest("S-DUP-03", "wrong-charge", "BILL", "NORMAL"))),
+                assertThrows(ResponseStatusException.class, () -> disputeService.fileByConsumer(7L, request)),
                 ApiMessages.DISPUTE_ALREADY_EXISTS);
     }
 
@@ -129,9 +129,9 @@ class DuplicateCallbackTest {
         when(repository.findById("S-DUP-04")).thenReturn(Optional.of(shoppingSession));
         when(disputeRepository.findBySessionId("S-DUP-04")).thenReturn(Optional.of(ticket));
 
+        FileDisputeRequest request = new FileDisputeRequest("S-DUP-04", "re-appeal", "BILL", "NORMAL");
         assertConflict(
-                assertThrows(ResponseStatusException.class,
-                        () -> disputeService.fileByConsumer(7L, new FileDisputeRequest("S-DUP-04", "re-appeal", "BILL", "NORMAL"))),
+                assertThrows(ResponseStatusException.class, () -> disputeService.fileByConsumer(7L, request)),
                 ApiMessages.DISPUTE_APPEAL_CLOSED);
     }
 

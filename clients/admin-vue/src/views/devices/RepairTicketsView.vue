@@ -120,7 +120,7 @@
             align="center"
             sortable="custom"
           />
-          <el-table-column prop="deviceId" label="设备" min-width="96" align="center">
+          <el-table-column prop="deviceId" label="设备" min-width="120" align="center">
             <template #default="{ row }">
               <el-button
                 v-if="canAccessPath('/devices')"
@@ -128,10 +128,13 @@
                 type="primary"
                 @click="goPath(`/devices/${encodeURIComponent(row.deviceId)}`)"
               >
-                {{ row.deviceId }}
+                {{ row.deviceName || row.deviceId }}
               </el-button>
-              <span v-else>{{ row.deviceId }}</span>
+              <span v-else>{{ row.deviceName || row.deviceId }}</span>
             </template>
+          </el-table-column>
+          <el-table-column prop="merchantName" label="商户" min-width="100" show-overflow-tooltip align="center">
+            <template #default="{ row }">{{ row.merchantName || row.merchantId || '无' }}</template>
           </el-table-column>
           <el-table-column
             prop="title"
@@ -284,7 +287,10 @@
         <template v-if="detail">
           <el-descriptions :column="1" border>
             <el-descriptions-item label="工单号">{{ detail.ticket.ticketId }}</el-descriptions-item>
-            <el-descriptions-item label="设备">{{ detail.ticket.deviceId }}</el-descriptions-item>
+            <el-descriptions-item label="设备">{{ detail.ticket.deviceName || detail.ticket.deviceId }}</el-descriptions-item>
+            <el-descriptions-item v-if="detail.ticket.merchantName || detail.ticket.merchantId" label="商户">
+              {{ detail.ticket.merchantName || detail.ticket.merchantId }}
+            </el-descriptions-item>
             <el-descriptions-item label="标题">{{ detail.ticket.title }}</el-descriptions-item>
             <el-descriptions-item label="故障类型">{{
               faultLabel(detail.ticket.faultType)
@@ -379,6 +385,9 @@ import { useDictOptions } from '@/composables/useDictOptions';
 interface Ticket {
   ticketId: number;
   deviceId: string;
+  deviceName?: string;
+  merchantId?: string;
+  merchantName?: string;
   title: string;
   faultType?: string;
   status: string;
@@ -546,15 +555,12 @@ async function load() {
     if (status.value) q.set('status', status.value);
     if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
     if (priority.value) q.set('priority', priority.value);
+    if (faultType.value) q.set('faultType', faultType.value);
     const res = await api.request<{ items: Ticket[]; total: number }>(
       `/api/v2/ops/admin/repair-tickets?${q}`,
       'GET'
     );
-    let items = res.items || [];
-    if (faultType.value) {
-      items = items.filter((t) => t.faultType === faultType.value);
-    }
-    rows.value = items;
+    rows.value = res.items || [];
     total.value = Number(res.total || 0);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');

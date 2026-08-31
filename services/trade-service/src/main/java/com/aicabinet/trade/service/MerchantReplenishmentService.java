@@ -288,6 +288,10 @@ public class MerchantReplenishmentService {
                 String.valueOf(request.getRequestId()),
                 userId,
                 "商户要货 #" + request.getRequestId() + " · " + deviceId);
+        if (body.evidenceFileIds() != null && !body.evidenceFileIds().isEmpty()) {
+            fileAttachmentService.bindEvidenceToReplenishmentRequest(
+                    userId, request.getRequestId(), body.evidenceFileIds());
+        }
         return toRequestDto(request);
     }
 
@@ -480,7 +484,8 @@ public class MerchantReplenishmentService {
                 request.getRejectReason(),
                 request.getReplenishmentTaskId(),
                 request.getOutboundId(),
-                lines
+                lines,
+                fileAttachmentService.countReplenishmentRequestEvidence(request.getRequestId())
         );
     }
 
@@ -489,6 +494,36 @@ public class MerchantReplenishmentService {
         if (user.getName() != null && !user.getName().isBlank()) return user.getName().trim();
         if (user.getPhoneNumber() != null && !user.getPhoneNumber().isBlank()) return user.getPhoneNumber().trim();
         return user.getUserId() != null ? String.valueOf(user.getUserId()) : null;
+    }
+
+    @Transactional
+    public FileAttachmentDto uploadPendingRequestEvidence(Long userId, org.springframework.web.multipart.MultipartFile file) {
+        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_REQUEST);
+        merchantPortalGuard.requireAccess(userId);
+        return fileAttachmentService.uploadPendingReplenishmentRequestEvidence(userId, file);
+    }
+
+    @Transactional(readOnly = true)
+    public List<FileAttachmentDto> listRequestEvidence(Long userId, Long requestId) {
+        MerchantReplenishmentRequest request = requireScopedRequest(userId, requestId);
+        return fileAttachmentService.listReplenishmentRequestEvidence(request.getRequestId());
+    }
+
+    @Transactional(readOnly = true)
+    public void streamRequestEvidence(Long userId, Long requestId, Long fileId,
+                                      jakarta.servlet.http.HttpServletResponse response)
+            throws java.io.IOException {
+        requireScopedRequest(userId, requestId);
+        FileAttachment row = fileAttachmentService.requireReplenishmentRequestEvidence(requestId, fileId);
+        fileAttachmentService.stream(row, response);
+    }
+
+    private MerchantReplenishmentRequest requireScopedRequest(Long userId, Long requestId) {
+        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
+        merchantPortalGuard.requireAccess(userId);
+        MerchantReplenishmentRequest request = requireRequest(requestId);
+        merchantFeaturePackService.requireDevicePack(userId, request.getDeviceId(), MerchantFeaturePacks.FIELD);
+        return request;
     }
 
     @Transactional

@@ -8,6 +8,7 @@ import com.aicabinet.trade.domain.CabinetOrderLine;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.DisputeTicket;
 import com.aicabinet.trade.domain.Member;
+import com.aicabinet.trade.domain.OrderRevenueSplit;
 import com.aicabinet.trade.domain.RechargeOrder;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
@@ -45,6 +46,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
+@SuppressWarnings("java:S6539")
 public class AdminDashboardService {
     private static final String PERM_OPS_DASHBOARD_VIEW = "ops:dashboard:view";
     private static final String PERM_OPS_ANALYTICS_VIEW = "ops:analytics:view";
@@ -870,12 +872,14 @@ public class AdminDashboardService {
         List<String> orderIds = result.getContent().stream().map(CabinetOrder::getOrderId).toList();
         Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(orderIds);
         Map<String, List<CabinetOrderLine>> linesByOrder = loadOrderLinesByOrderIds(orderIds);
+        Map<String, String> splitStatusByOrder = loadSplitStatusByOrderIds(orderIds);
         return new PageResult<>(
                 result.getContent().stream()
                         .map(o -> toOrderSummary(
                                 o,
                                 qtyByOrder.getOrDefault(o.getOrderId(), 0),
-                                linesByOrder.getOrDefault(o.getOrderId(), List.of())))
+                                linesByOrder.getOrDefault(o.getOrderId(), List.of()),
+                                splitStatusByOrder.get(o.getOrderId())))
                         .toList(),
                 result.getNumber(),
                 result.getSize(),
@@ -957,32 +961,15 @@ public class AdminDashboardService {
         String onlineNorm = online == null || online.isBlank() ? null : online.trim().toUpperCase();
         String deviceFilter = deviceId == null || deviceId.isBlank() ? null : deviceId.trim();
 
+        Map<String, String> merchantNames = merchantRepository.findAll().stream()
+                .collect(Collectors.toMap(
+                        com.aicabinet.trade.domain.Merchant::getMerchantId,
+                        m -> m.getMerchantName() == null ? "" : m.getMerchantName(),
+                        (a, b) -> a));
+
         List<AdminDeviceReportDto> filtered = merchantScopeService.allowedDevices(operatorId).stream()
-                .filter(d -> deviceFilter == null || deviceFilter.equals(d.getDeviceId()))
-                .filter(d -> onlineNorm == null
-                        || onlineNorm.equalsIgnoreCase(d.getOnlineStatus() == null ? "" : d.getOnlineStatus()))
-                .filter(d -> {
-                    if (kw.isEmpty()) {
-                        return true;
-                    }
-                    String id = d.getDeviceId() == null ? "" : d.getDeviceId().toLowerCase();
-                    String name = d.getDeviceName() == null ? "" : d.getDeviceName().toLowerCase();
-                    return id.contains(kw) || name.contains(kw);
-                })
-                .map(d -> {
-                    String id = d.getDeviceId();
-                    return new AdminDeviceReportDto(
-                            id,
-                            d.getDeviceName(),
-                            d.getOnlineStatus(),
-                            orderRepository.countByDeviceId(id),
-                            orderRepository.sumAmountByDeviceId(id),
-                            orderRepository.countByDeviceIdAndCreatedAtAfter(id, todayStart),
-                            orderRepository.sumAmountByDeviceIdSince(id, todayStart),
-                            sessionRepository.countByDeviceId(id),
-                            activeByDevice.containsKey(id) ? 1 : 0
-                    );
-                })
+                .filter(d -> matchesDeviceReportFilter(d, deviceFilter, onlineNorm, kw))
+                .map(d -> toDeviceReportDto(d, todayStart, activeByDevice, merchantNames))
                 .sorted(Comparator.comparing(AdminDeviceReportDto::deviceId, Comparator.nullsLast(String::compareTo)))
                 .toList();
 
@@ -994,8 +981,63 @@ public class AdminDashboardService {
         return new PageResult<>(filtered.subList(from, to), p, s, total);
     }
 
+    private static boolean matchesDeviceReportFilter(DeviceInfo d, String deviceFilter, String onlineNorm, String kw) {
+        if (deviceFilter != null && !deviceFilter.equals(d.getDeviceId())) {
+            return false;
+        }
+        if (onlineNorm != null
+                && !onlineNorm.equalsIgnoreCase(d.getOnlineStatus() == null ? "" : d.getOnlineStatus())) {
+            return false;
+        }
+        if (kw.isEmpty()) {
+            return true;
+        }
+        String id = d.getDeviceId() == null ? "" : d.getDeviceId().toLowerCase();
+        String name = d.getDeviceName() == null ? "" : d.getDeviceName().toLowerCase();
+        return id.contains(kw) || name.contains(kw);
+    }
+
+    private AdminDeviceReportDto toDeviceReportDto(
+            DeviceInfo d,
+            Instant todayStart,
+            Map<String, ShoppingSession> activeByDevice,
+            Map<String, String> merchantNames) {
+        String id = d.getDeviceId();
+        long orderTotal = orderRepository.countByDeviceId(id);
+        long revenueTotal = orderRepository.sumAmountByDeviceId(id);
+        long orderToday = orderRepository.countByDeviceIdAndCreatedAtAfter(id, todayStart);
+        long revenueToday = orderRepository.sumAmountByDeviceIdSince(id, todayStart);
+        String merchantId = d.getMerchantId();
+        String merchantName = merchantId == null ? null : merchantNames.get(merchantId);
+        if (merchantName != null && merchantName.isBlank()) {
+            merchantName = null;
+        }
+        return new AdminDeviceReportDto(
+                id,
+                d.getDeviceName(),
+                d.getOnlineStatus(),
+                orderTotal,
+                revenueTotal,
+                orderToday,
+                revenueToday,
+                sessionRepository.countByDeviceId(id),
+                activeByDevice.containsKey(id) ? 1 : 0,
+                merchantId,
+                merchantName,
+                d.getRouteCode(),
+                d.getAddress(),
+                d.salesLockedEnabled(),
+                d.getSalesLockReason(),
+                d.getCurrentTempC(),
+                d.getFirmwareVersion(),
+                orderToday > 0 ? revenueToday / orderToday : 0,
+                orderTotal > 0 ? revenueTotal / orderTotal : 0
+        );
+    }
+
     /** @deprecated 兼容旧调用：返回全量列表 */
-    @Deprecated
+    @Deprecated(since = "2026-08", forRemoval = false)
+    @SuppressWarnings("java:S1133")
     public List<AdminDeviceReportDto> deviceReports(Long operatorId) {
         return deviceReports(operatorId, 0, 10_000, null, null, null).items();
     }
@@ -1430,15 +1472,17 @@ public class AdminDashboardService {
         List<String> orderIds = page.getContent().stream().map(CabinetOrder::getOrderId).toList();
         Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(orderIds);
         Map<String, List<CabinetOrderLine>> linesByOrder = loadOrderLinesByOrderIds(orderIds);
+        Map<String, String> splitStatusByOrder = loadSplitStatusByOrderIds(orderIds);
         StringBuilder sb = new StringBuilder(
                 "orderId,sessionId,userId,deviceId,merchantId,totalAmountCents,originalAmountCents,status,payChannel,"
                         + "payTradeNo,paymentOperationId,lineCount,lineSummary,inventoryDeducted,"
-                        + "couponDiscountCents,memberDiscountCents,refundPolicy,refundedAt,createdAt\n");
+                        + "couponDiscountCents,memberDiscountCents,refundPolicy,refundedCents,refundedAt,createdAt,splitStatus\n");
         for (CabinetOrder o : page.getContent()) {
             AdminOrderSummaryDto row = toOrderSummary(
                     o,
                     qtyByOrder.getOrDefault(o.getOrderId(), 0),
-                    linesByOrder.getOrDefault(o.getOrderId(), List.of()));
+                    linesByOrder.getOrDefault(o.getOrderId(), List.of()),
+                    splitStatusByOrder.get(o.getOrderId()));
             sb.append(csv(row.orderId())).append(',')
                     .append(csv(row.sessionId())).append(',')
                     .append(row.userId()).append(',')
@@ -1456,8 +1500,10 @@ public class AdminDashboardService {
                     .append(row.couponDiscountCents()).append(',')
                     .append(row.memberDiscountCents()).append(',')
                     .append(csv(row.refundPolicy())).append(',')
+                    .append(row.refundedCents()).append(',')
                     .append(csv(row.refundedAt() == null ? "" : String.valueOf(row.refundedAt()))).append(',')
-                    .append(csv(String.valueOf(row.createdAt()))).append('\n');
+                    .append(csv(String.valueOf(row.createdAt()))).append(',')
+                    .append(csv(row.splitStatus() == null ? "" : row.splitStatus())).append('\n');
         }
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
@@ -1968,7 +2014,11 @@ public class AdminDashboardService {
                 d.getLatitude(),
                 d.getLongitude(),
                 d.getAddress(),
-                d.getId()
+                d.getId(),
+                d.getCurrentTempC(),
+                d.getTargetTempC(),
+                d.getFirmwareVersion(),
+                d.getSalesLockReason()
         );
     }
 
@@ -2032,39 +2082,27 @@ public class AdminDashboardService {
                 s.getPreauthCents() > 0 ? s.getPreauthCents() : null,
                 s.getPreauthStatus(),
                 shoppingMs,
-                recognitionMs
+                recognitionMs,
+                s.getDeviceName()
         );
     }
 
-    private AdminOrderSummaryDto toOrderSummary(CabinetOrder o, int lineCount, List<CabinetOrderLine> lines) {
-        String payChannel = o.getPayChannel();
-        // 余额账本扣款以 BL- 操作号为准，避免入口渠道误标为微信/支付宝
-        if (o.getPaymentOperationId() != null && o.getPaymentOperationId().startsWith("BL-")) {
-            payChannel = "BALANCE";
-        }
-        String merchantId = null;
-        if (o.getDeviceId() != null) {
-            merchantId = deviceRepository.findById(o.getDeviceId())
-                    .map(DeviceInfo::getMerchantId)
-                    .orElse(null);
-        }
+    private AdminOrderSummaryDto toOrderSummary(
+            CabinetOrder o, int lineCount, List<CabinetOrderLine> lines, String splitStatus) {
+        String payChannel = resolveOrderPayChannel(o);
+        OrderDisplaySnapshot display = resolveOrderDisplaySnapshot(o);
         int coupon = Math.max(0, o.getCouponDiscountCents());
         int member = Math.max(0, o.getMemberDiscountCents());
         int original = o.getOriginalAmountCents() > 0
                 ? o.getOriginalAmountCents()
                 : o.getTotalAmountCents() + coupon + member;
-        String refundPolicy = null;
-        try {
-            refundPolicy = refundPolicyService.resolveForDevice(o.getDeviceId()).name();
-        } catch (Exception ignored) {
-            // leave null
-        }
+        String refundPolicy = resolveRefundPolicyName(o.getDeviceId());
         return new AdminOrderSummaryDto(
                 o.getOrderId(),
                 o.getSessionId(),
                 o.getUserId(),
                 o.getDeviceId(),
-                merchantId,
+                display.merchantId(),
                 o.getTotalAmountCents(),
                 original,
                 coupon,
@@ -2073,14 +2111,115 @@ public class AdminDashboardService {
                 payChannel,
                 lineCount,
                 buildAdminLineSummary(lines),
-                o.getPayTradeNo(),
+                resolvePayTradeNo(o),
                 o.getPaymentOperationId(),
                 o.getRefundedAt(),
                 o.isInventoryDeducted(),
                 refundPolicy,
-                o.getCreatedAt()
+                o.getCreatedAt(),
+                display.deviceName(),
+                display.merchantName(),
+                Math.max(0, o.getRefundedCents()),
+                resolvePaidAt(o),
+                splitStatus
         );
     }
+
+    private Map<String, String> loadSplitStatusByOrderIds(List<String> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            return Map.of();
+        }
+        return splitRepository.findByOrderIdIn(orderIds).stream()
+                .filter(s -> s.getOrderId() != null && s.getStatus() != null && !s.getStatus().isBlank())
+                .collect(Collectors.toMap(OrderRevenueSplit::getOrderId, OrderRevenueSplit::getStatus, (a, b) -> a));
+    }
+
+    /** 优先订单上的渠道流水号；空则回退支付操作上的网关单号。 */
+    private String resolvePayTradeNo(CabinetOrder o) {
+        if (o.getPayTradeNo() != null && !o.getPayTradeNo().isBlank()) {
+            return o.getPayTradeNo();
+        }
+        String opId = o.getPaymentOperationId();
+        if (opId == null || opId.isBlank()) {
+            return null;
+        }
+        try {
+            return paymentService.findGatewayTradeNo(opId).orElse(null);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 已产生扣款的订单返回支付完成时间：优先支付操作创建时间，否则回退订单创建时间。
+     * 待支付/关单/失败返回 null。
+     */
+    private Instant resolvePaidAt(CabinetOrder o) {
+        String status = o.getStatus();
+        if (status == null
+                || STATUS_PENDING.equals(status)
+                || "CANCELLED".equals(status)
+                || CabinetConstants.ORDER_STATUS_FAILED.equals(status)) {
+            return null;
+        }
+        String opId = o.getPaymentOperationId();
+        if (opId != null && !opId.isBlank()) {
+            try {
+                Instant at = paymentService.findOperationCreatedAt(opId).orElse(null);
+                if (at != null) {
+                    return at;
+                }
+            } catch (Exception ignored) {
+                // fall through
+            }
+        }
+        return o.getCreatedAt();
+    }
+
+    private static String resolveOrderPayChannel(CabinetOrder o) {
+        String payChannel = o.getPayChannel();
+        if (o.getPaymentOperationId() != null && o.getPaymentOperationId().startsWith("BL-")) {
+            return "BALANCE";
+        }
+        return payChannel;
+    }
+
+    private String resolveRefundPolicyName(String deviceId) {
+        try {
+            return refundPolicyService.resolveForDevice(deviceId).name();
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private OrderDisplaySnapshot resolveOrderDisplaySnapshot(CabinetOrder o) {
+        String merchantId = o.getMerchantId();
+        String deviceName = o.getDeviceName();
+        String merchantName = o.getMerchantName();
+        boolean needLookup = isBlank(merchantId) || isBlank(deviceName) || isBlank(merchantName);
+        if (!needLookup || o.getDeviceId() == null) {
+            return new OrderDisplaySnapshot(merchantId, deviceName, merchantName);
+        }
+        return deviceRepository.findById(o.getDeviceId())
+                .map(device -> {
+                    String mid = isBlank(merchantId) ? device.getMerchantId() : merchantId;
+                    String dname = isBlank(deviceName) ? device.getDeviceName() : deviceName;
+                    String mname = merchantName;
+                    if (isBlank(mname) && mid != null) {
+                        mname = merchantRepository.findById(mid)
+                                .map(com.aicabinet.trade.domain.Merchant::getMerchantName)
+                                .orElse(null);
+                    }
+                    return new OrderDisplaySnapshot(mid, dname, mname);
+                })
+                .orElse(new OrderDisplaySnapshot(merchantId, deviceName, merchantName));
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private record OrderDisplaySnapshot(String merchantId, String deviceName, String merchantName) {}
 
     private static String formatDisputeReasonText(String reason) {
         if (reason == null || reason.isBlank()) {

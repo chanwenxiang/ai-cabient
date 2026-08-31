@@ -33,7 +33,12 @@ public record AdminDeviceDto(
         Double longitude,
         String address,
         /** 库表自增数字 ID（展示用，业务主键仍为 deviceId） */
-        Long id
+        Long id,
+        Integer currentTempC,
+        Integer targetTempC,
+        String firmwareVersion,
+        /** 锁机停售原因（运营态文案） */
+        String salesLockReason
 ) {
     public AdminDeviceDto(
             String deviceId,
@@ -50,7 +55,7 @@ public record AdminDeviceDto(
         this(deviceId, deviceName, deviceType, onlineStatus, merchantId, merchantName,
                 activeSessionId, activeSessionState, updatedAt, replenishmentInProgress,
                 null, null, false, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null, null, null, null);
     }
 
     public AdminDeviceDto(
@@ -71,7 +76,7 @@ public record AdminDeviceDto(
                 activeSessionId, activeSessionState, updatedAt, replenishmentInProgress,
                 refundPolicy, effectiveRefundPolicy, false,
                 null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null, null, null, null);
     }
 
     public AdminDeviceDto(
@@ -93,6 +98,6 @@ public record AdminDeviceDto(
                 activeSessionId, activeSessionState, updatedAt, replenishmentInProgress,
                 refundPolicy, effectiveRefundPolicy, salesLocked,
                 null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null, null, null, null);
     }
 }

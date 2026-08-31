@@ -174,7 +174,7 @@
                 class="link-cell"
                 @click="goPath(`/devices/${encodeURIComponent(row.deviceId)}`)"
               >
-                {{ row.deviceId }}
+                {{ row.deviceName || row.deviceId }}
               </button>
               <span v-else class="muted">无</span>
             </template>
@@ -300,7 +300,7 @@
               class="link-cell"
               @click="goPath(`/devices/${encodeURIComponent(timelineRow.deviceId)}`)"
             >
-              {{ timelineRow.deviceId }}
+              {{ timelineRow.deviceName || timelineRow.deviceId }}
             </button>
             <span v-else class="muted">暂无</span>
           </el-descriptions-item>
@@ -413,6 +413,7 @@ interface SessionRow {
   sessionId: string;
   userId?: string;
   deviceId?: string;
+  deviceName?: string;
   state?: string;
   orderId?: string;
   failureReason?: string;

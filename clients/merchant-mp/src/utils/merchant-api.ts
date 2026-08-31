@@ -63,6 +63,10 @@ export type MerchantDeviceReport = {
   avgOrderValueTotalCents?: number;
   routeCode?: string;
   address?: string;
+  salesLocked?: boolean;
+  salesLockReason?: string;
+  currentTempC?: number | null;
+  firmwareVersion?: string | null;
 };
 
 export type MerchantProfileUpdate = {
@@ -98,6 +102,7 @@ export type MerchantReplenishmentRequest = {
   replenishmentTaskId?: number;
   outboundId?: number;
   dueAt?: string;
+  evidenceCount?: number;
   lines?: MerchantReplenishmentRequestLine[];
 };
 
@@ -325,9 +330,58 @@ export function uploadReplenishmentEvidenceFile(
   });
 }
 
+export function uploadReplenishmentRequestEvidenceFile(
+  filePath: string
+): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
+  return new Promise((resolve, reject) => {
+    if (!getToken()) {
+      reject(new Error('请先登录'));
+      return;
+    }
+    uni.uploadFile({
+      url: `${API_BASE_URL}/api/v2/merchant/replenishment/requests/evidence`,
+      filePath,
+      name: 'file',
+      header: { Authorization: 'Bearer ' + getToken() },
+      timeout: 30_000,
+      success(res) {
+        if (res.statusCode === 401) {
+          reject(handleUnauthorized());
+          return;
+        }
+        try {
+          const body = JSON.parse(String(res.data || '{}')) as {
+            code?: number;
+            message?: string;
+            data?: import('@aicabinet/shared-types').FileAttachmentDto;
+          };
+          if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0 && body.data) {
+            resolve(body.data);
+            return;
+          }
+          reject(new Error(localizeApiMessage(body?.message, `上传失败 (${res.statusCode})`)));
+        } catch {
+          reject(new Error('上传响应解析失败'));
+        }
+      },
+      fail(err) {
+        reject(new Error(err.errMsg || '网络错误'));
+      }
+    });
+  });
+}
+
 /** Auth-aware download for evidence stream URLs (image tags cannot send Bearer). */
 export function downloadReplenishmentEvidenceFile(taskId: number, fileId: number): Promise<string> {
   const url = `${API_BASE_URL}/api/v2/merchant/replenishment/tasks/${taskId}/evidence/${fileId}`;
+  return downloadAuthedFile(url);
+}
+
+export function downloadReplenishmentRequestEvidenceFile(
+  requestId: number,
+  fileId: number
+): Promise<string> {
+  const url = `${API_BASE_URL}/api/v2/merchant/replenishment/requests/${requestId}/evidence/${fileId}`;
   return downloadAuthedFile(url);
 }
 
@@ -583,8 +637,17 @@ export const merchantApi = {
     deviceId: string;
     notes?: string;
     lines: { skuId: string; requestedQty: number }[];
+    evidenceFileIds?: number[];
   }) =>
     request<MerchantReplenishmentRequest>('/api/v2/merchant/replenishment/requests', 'POST', body),
+  listReplenishmentRequestEvidence: (requestId: number) =>
+    request<import('@aicabinet/shared-types').FileAttachmentDto[]>(
+      `/api/v2/merchant/replenishment/requests/${requestId}/evidence`
+    ),
+  uploadReplenishmentRequestEvidence: (filePath: string) =>
+    uploadReplenishmentRequestEvidenceFile(filePath),
+  downloadReplenishmentRequestEvidence: (requestId: number, fileId: number) =>
+    downloadReplenishmentRequestEvidenceFile(requestId, fileId),
   replenishmentTasks: (status?: string) => {
     const path = status
       ? `/api/v2/merchant/replenishment/tasks?status=${encodeURIComponent(status)}`
@@ -696,6 +759,8 @@ export type MerchantOrderSummary = {
   orderId: string;
   sessionId?: string;
   deviceId?: string;
+  deviceName?: string;
+  merchantName?: string;
   status?: string;
   totalAmountCents?: number;
   originalAmountCents?: number;
@@ -708,6 +773,10 @@ export type MerchantOrderSummary = {
   /** 累计已退款（分） */
   refundedCents?: number;
   createdAt?: string;
+  payTradeNo?: string;
+  paymentOperationId?: string;
+  /** 分账状态；无分账记录为空 */
+  splitStatus?: string;
 };
 
 export type MerchantDisputeTicket = {
@@ -715,6 +784,7 @@ export type MerchantDisputeTicket = {
   status?: string;
   reason?: string;
   deviceId?: string;
+  deviceName?: string;
   createdAt?: string;
   resolvedAt?: string;
   slaDueAt?: string;

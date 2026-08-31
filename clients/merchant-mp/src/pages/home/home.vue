@@ -416,42 +416,90 @@ async function fetchHomeTrend() {
   if (!canTrend.value) return { last7Days: [] as { date: string; revenueCents: number }[] };
   return (
     merchantApi.trend(7) as Promise<{ last7Days?: { date: string; revenueCents: number }[] }>
-  ).catch(() => ({ last7Days: [] }));
+  ).catch((e) => {
+    uni.showToast({
+      title: (e instanceof Error ? e.message : '趋势加载失败').slice(0, 40),
+      icon: 'none'
+    });
+    return { last7Days: [] };
+  });
 }
 
 async function fetchHomeWorkbench() {
   if (!canAlerts.value) return EMPTY_WORKBENCH;
-  return merchantApi.workbench().catch(() => EMPTY_WORKBENCH);
+  return merchantApi.workbench().catch((e) => {
+    uni.showToast({
+      title: (e instanceof Error ? e.message : '待办加载失败').slice(0, 40),
+      icon: 'none'
+    });
+    return EMPTY_WORKBENCH;
+  });
 }
 
 async function fetchHomeExceptions() {
   if (!canAlerts.value) return { items: [], total: 0 };
-  return merchantApi.openExceptions(100).catch(() => ({ items: [], total: 0 }));
+  return merchantApi.openExceptions(100).catch((e) => {
+    uni.showToast({
+      title: (e instanceof Error ? e.message : '异常加载失败').slice(0, 40),
+      icon: 'none'
+    });
+    return { items: [], total: 0 };
+  });
 }
 
 async function fetchHomeExpiryRows() {
   if (!canAlerts.value) return [];
-  return merchantApi.expiryAlerts().catch(() => []);
+  return merchantApi.expiryAlerts().catch((e) => {
+    uni.showToast({
+      title: (e instanceof Error ? e.message : '效期告警加载失败').slice(0, 40),
+      icon: 'none'
+    });
+    return [];
+  });
 }
 
 async function fetchHomeDevices() {
   if (!canDevices.value && !canReplenishment.value) return [];
-  return merchantApi.devices().catch(() => []);
+  return merchantApi.devices().catch((e) => {
+    uni.showToast({
+      title: (e instanceof Error ? e.message : '柜机加载失败').slice(0, 40),
+      icon: 'none'
+    });
+    return [];
+  });
 }
 
 async function fetchHomeReplenishmentTasks() {
   if (!canReplenishment.value) return [];
-  return merchantApi.replenishmentTasks().catch(() => []);
+  return merchantApi.replenishmentTasks().catch((e) => {
+    uni.showToast({
+      title: (e instanceof Error ? e.message : '补货任务加载失败').slice(0, 40),
+      icon: 'none'
+    });
+    return [];
+  });
 }
 
 async function fetchHomeAnalytics() {
   if (!canBusiness.value) return null;
-  return merchantApi.analytics(7).catch(() => null);
+  return merchantApi.analytics(7).catch((e) => {
+    uni.showToast({
+      title: (e instanceof Error ? e.message : '经营数据加载失败').slice(0, 40),
+      icon: 'none'
+    });
+    return null;
+  });
 }
 
 async function fetchHomeDashboardBundle() {
   return Promise.all([
-    merchantApi.stats().catch(() => ({}) as Record<string, number>),
+    merchantApi.stats().catch((e) => {
+      uni.showToast({
+        title: (e instanceof Error ? e.message : '统计加载失败').slice(0, 40),
+        icon: 'none'
+      });
+      return {} as Record<string, number>;
+    }),
     fetchHomeTrend(),
     fetchHomeWorkbench(),
     fetchHomeExceptions(),

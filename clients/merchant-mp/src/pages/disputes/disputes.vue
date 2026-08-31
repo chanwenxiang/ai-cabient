@@ -40,7 +40,7 @@
           </view>
           <text class="card-title">{{ localizeDisputeReason(item.reason) || '争议' }}</text>
           <view class="card-meta">
-            <text>{{ item.deviceId || '无柜机' }}</text>
+            <text>{{ item.deviceName || item.deviceId || '无柜机' }}</text>
             <text>{{ formatTime(item.createdAt) }}</text>
             <text :class="item.slaOverdue ? 'sla-overdue' : 'sla-ok'">{{
               item.slaOverdue
@@ -51,18 +51,27 @@
             }}</text>
           </view>
           <view
-            v-if="item.billedAmountCents != null || item.refundedAmountCents != null"
+            v-if="
+              item.billedAmountCents != null ||
+              item.claimedAmountCents != null ||
+              item.refundedAmountCents != null
+            "
             class="card-amount-line"
           >
             <text v-if="item.billedAmountCents != null"
               >已扣 {{ fmtMoney(item.billedAmountCents) }}</text
+            >
+            <text v-if="item.claimedAmountCents != null"
+              >建议 {{ fmtMoney(item.claimedAmountCents) }}</text
             >
             <text v-if="item.refundedAmountCents != null"
               >已退 {{ fmtMoney(item.refundedAmountCents) }}</text
             >
             <text v-if="item.orderId" class="card-order">订单 {{ shortId(item.orderId) }}</text>
           </view>
-          <view v-if="item.videoUri || item.videoPreviewUrl" class="card-video-hint">有录像</view>
+          <view v-if="item.hasVideo || item.videoUri || item.videoPreviewUrl" class="card-video-hint"
+            >有录像</view
+          >
           <view v-if="item.lastMessage" class="card-msg"
             ><text>{{ item.lastMessage }}</text></view
           >
@@ -105,7 +114,7 @@
               <view class="detail-row"
                 ><text class="detail-lbl">柜机</text
                 ><text class="detail-val">{{
-                  emptyDisplay(detail?.deviceId, 'device')
+                  emptyDisplay(detail?.deviceName || detail?.deviceId, 'device')
                 }}</text></view
               >
               <view v-if="detail?.orderId" class="detail-row"
@@ -115,6 +124,10 @@
               <view v-if="detail?.billedAmountCents != null" class="detail-row">
                 <text class="detail-lbl">已扣金额</text
                 ><text class="detail-val">{{ fmtMoney(detail.billedAmountCents) }}</text>
+              </view>
+              <view v-if="detail?.claimedAmountCents != null" class="detail-row">
+                <text class="detail-lbl">建议金额</text
+                ><text class="detail-val">{{ fmtMoney(detail.claimedAmountCents) }}</text>
               </view>
               <view v-if="detail?.refundedAmountCents != null" class="detail-row">
                 <text class="detail-lbl">已退金额</text

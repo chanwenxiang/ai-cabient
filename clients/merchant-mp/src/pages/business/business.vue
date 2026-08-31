@@ -180,16 +180,31 @@
         <view v-if="deviceReports.length" class="card">
           <view class="section-head"
             ><text class="section-title">柜机报表</text
-            ><text class="section-sub">在线状态 · 订单 · 营收 · 会话</text></view
+            ><text class="section-sub">在线 · 线路 · 温度 · 固件 · 客单</text></view
           >
           <view v-for="r in deviceReports" :key="r.deviceId" class="report-row">
             <view class="report-main">
               <text class="sku-name">{{ r.deviceName }}</text>
               <text class="meta"
                 >{{ r.deviceId }} · {{ r.onlineStatus === 'ONLINE' ? '在线' : '离线'
-                }}{{ r.routeCode ? ` · 线路 ${r.routeCode}` : '' }}</text
+                }}{{ r.routeCode ? ` · 线路 ${r.routeCode}` : ''
+                }}{{ r.salesLocked ? ' · 停售' : '' }}</text
               >
               <text v-if="r.address" class="meta">{{ r.address }}</text>
+              <text
+                v-if="r.currentTempC != null || r.firmwareVersion || r.salesLockReason"
+                class="meta"
+              >
+                <template v-if="r.currentTempC != null">温度 {{ r.currentTempC }}°C</template>
+                <template v-if="r.currentTempC != null && r.firmwareVersion"> · </template>
+                <template v-if="r.firmwareVersion">固件 {{ r.firmwareVersion }}</template>
+                <template
+                  v-if="(r.currentTempC != null || r.firmwareVersion) && r.salesLockReason"
+                >
+                  ·
+                </template>
+                <template v-if="r.salesLockReason">{{ r.salesLockReason }}</template>
+              </text>
             </view>
             <view class="report-data">
               <text

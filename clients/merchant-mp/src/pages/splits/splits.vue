@@ -28,7 +28,7 @@
           </view>
           <text class="title">订单 {{ displayBizNo(s.orderId) }}</text>
           <text class="meta"
-            >柜机 {{ emptyDisplay(s.deviceId, 'device') }} · 商户所得 ¥{{
+            >柜机 {{ emptyDisplay(s.deviceName || s.deviceId, 'device') }} · 商户所得 ¥{{
               money(s.merchantCents)
             }}</text
           >

@@ -136,13 +136,47 @@
               </el-tag>
             </template>
           </el-table-column>
+          <el-table-column label="商户" min-width="120" align="center" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.merchantName || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="线路" width="100" align="center" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.routeCode || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="地址" min-width="140" align="center" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.address || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="停售" width="88" align="center">
+            <template #default="{ row }">
+              <el-tag v-if="row.salesLocked" type="danger" size="small" effect="plain">停售</el-tag>
+              <span v-else class="muted">否</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="温度" width="80" align="center">
+            <template #default="{ row }">
+              <span v-if="row.currentTempC != null">{{ row.currentTempC }}°C</span>
+              <span v-else class="muted">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="固件" width="88" align="center" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.firmwareVersion || '—' }}</template>
+          </el-table-column>
           <el-table-column prop="orderTotal" label="累计订单" min-width="96" align="center" />
           <el-table-column label="累计营收" min-width="108" align="center">
             <template #default="{ row }">¥{{ (row.revenueTotalCents / 100).toFixed(2) }}</template>
           </el-table-column>
+          <el-table-column label="累计客单" min-width="96" align="center">
+            <template #default="{ row }"
+              >¥{{ ((row.avgOrderValueTotalCents || 0) / 100).toFixed(2) }}</template
+            >
+          </el-table-column>
           <el-table-column prop="orderToday" label="今日订单" min-width="96" align="center" />
           <el-table-column label="今日营收" min-width="108" align="center">
             <template #default="{ row }">¥{{ (row.revenueTodayCents / 100).toFixed(2) }}</template>
+          </el-table-column>
+          <el-table-column label="今日客单" min-width="96" align="center">
+            <template #default="{ row }"
+              >¥{{ ((row.avgOrderValueTodayCents || 0) / 100).toFixed(2) }}</template
+            >
           </el-table-column>
           <el-table-column prop="sessionTotal" label="累计会话" min-width="96" align="center" />
           <el-table-column prop="sessionActive" label="进行中" min-width="88" align="center" />
@@ -207,6 +241,16 @@ interface DeviceReportRow {
   revenueTodayCents: number;
   sessionTotal: number;
   sessionActive: number;
+  merchantId?: string;
+  merchantName?: string;
+  routeCode?: string;
+  address?: string;
+  salesLocked?: boolean;
+  salesLockReason?: string;
+  currentTempC?: number | null;
+  firmwareVersion?: string | null;
+  avgOrderValueTodayCents?: number;
+  avgOrderValueTotalCents?: number;
 }
 
 const route = useRoute();
@@ -316,10 +360,19 @@ const { onExport } = useListCsv({
     '设备编号',
     '设备名称',
     '状态',
+    '商户',
+    '线路',
+    '地址',
+    '停售',
+    '停售原因',
+    '温度',
+    '固件',
     '累计订单',
     '累计营收',
+    '累计客单',
     '今日订单',
     '今日营收',
+    '今日客单',
     '累计会话',
     '进行中'
   ],
@@ -328,10 +381,19 @@ const { onExport } = useListCsv({
       row.deviceId,
       row.deviceName || '',
       dictLabel('online_status', row.onlineStatus),
+      row.merchantName || '',
+      row.routeCode || '',
+      row.address || '',
+      row.salesLocked ? '是' : '否',
+      row.salesLockReason || '',
+      row.currentTempC == null ? '' : `${row.currentTempC}°C`,
+      row.firmwareVersion || '',
       row.orderTotal,
       `¥${(row.revenueTotalCents / 100).toFixed(2)}`,
+      `¥${((row.avgOrderValueTotalCents || 0) / 100).toFixed(2)}`,
       row.orderToday,
       `¥${(row.revenueTodayCents / 100).toFixed(2)}`,
+      `¥${((row.avgOrderValueTodayCents || 0) / 100).toFixed(2)}`,
       row.sessionTotal,
       row.sessionActive
     ])

@@ -3,18 +3,22 @@
     <app-nav-bar title="消息中心" />
     <view class="page-body">
       <view class="filter-row">
-        <text
-          v-for="f in filters"
-          :key="f.key"
-          class="filter-chip"
-          :class="{ active: filter === f.key }"
-          @click="filter = f.key"
-          >{{ f.label }}</text
-        >
+        <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false" enable-flex>
+          <view class="filter-inner">
+            <text
+              v-for="f in filters"
+              :key="f.key"
+              class="filter-chip"
+              :class="{ active: filter === f.key }"
+              @click="filter = f.key"
+              >{{ f.label }}{{ filterCountSuffix(f.key) }}</text
+            >
+          </view>
+        </scroll-view>
       </view>
       <view v-if="loading && !list.length" class="loading"><text>加载中…</text></view>
       <view v-else-if="!visibleList.length" class="empty">
-        <text class="empty-title">{{ filter === 'unread' ? '暂无未读消息' : '暂无消息' }}</text>
+        <text class="empty-title">{{ emptyTitle }}</text>
         <text class="empty-hint"
           >补货任务指派、结算到账等消息会出现在这里；争议/库存待办请看「待办」页</text
         >
@@ -40,13 +44,13 @@
           <view v-if="m.bizId" class="msg-biz">关联单号：{{ displayBizNo(m.bizId) }}</view>
         </view>
       </view>
-    </view></view
-  >
+    </view>
+  </view>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import { merchantApi, type MerchantNotificationDto } from '@/utils/merchant-api';
 import {
   displayBizNo,
@@ -57,15 +61,92 @@ import {
 
 const loading = ref(false);
 const list = ref<MerchantNotificationDto[]>([]);
-const filter = ref<'all' | 'unread'>('all');
-const filters = [
-  { key: 'all' as const, label: '全部' },
-  { key: 'unread' as const, label: '未读' }
+type MsgFilter =
+  | 'all'
+  | 'unread'
+  | 'REPLENISHMENT'
+  | 'DISPUTE'
+  | 'ORDER'
+  | 'SETTLEMENT'
+  | 'WALLET'
+  | 'OTHER';
+const filter = ref<MsgFilter>('all');
+const filters: Array<{ key: MsgFilter; label: string }> = [
+  { key: 'all', label: '全部' },
+  { key: 'unread', label: '未读' },
+  { key: 'REPLENISHMENT', label: '补货' },
+  { key: 'DISPUTE', label: '争议' },
+  { key: 'ORDER', label: '订单' },
+  { key: 'SETTLEMENT', label: '结算' },
+  { key: 'WALLET', label: '钱包' },
+  { key: 'OTHER', label: '其他' }
 ];
 
-const visibleList = computed(() =>
-  filter.value === 'unread' ? list.value.filter((m) => !m.read) : list.value
-);
+function matchBizFilter(m: MerchantNotificationDto, key: MsgFilter) {
+  const t = String(m.bizType || '').toUpperCase();
+  if (key === 'REPLENISHMENT') return t === 'REPLENISHMENT';
+  if (key === 'DISPUTE') return t === 'DISPUTE';
+  if (key === 'ORDER') return t === 'ORDER';
+  if (key === 'SETTLEMENT') return t === 'SETTLEMENT' || t === 'SPLIT';
+  if (key === 'WALLET') return t === 'WALLET' || t === 'WITHDRAW';
+  if (key === 'OTHER') {
+    return ![
+      'REPLENISHMENT',
+      'DISPUTE',
+      'ORDER',
+      'SETTLEMENT',
+      'SPLIT',
+      'WALLET',
+      'WITHDRAW'
+    ].includes(t);
+  }
+  return true;
+}
+
+const visibleList = computed(() => {
+  if (filter.value === 'all') return list.value;
+  if (filter.value === 'unread') return list.value.filter((m) => !m.read);
+  return list.value.filter((m) => matchBizFilter(m, filter.value));
+});
+
+const emptyTitle = computed(() => {
+  if (filter.value === 'unread') return '暂无未读消息';
+  if (filter.value === 'all') return '暂无消息';
+  return `暂无${filters.find((f) => f.key === filter.value)?.label || ''}消息`;
+});
+
+function filterCountSuffix(key: MsgFilter) {
+  if (key === 'all') return list.value.length ? ` ${list.value.length}` : '';
+  if (key === 'unread') {
+    const n = list.value.filter((m) => !m.read).length;
+    return n ? ` ${n}` : '';
+  }
+  const unreadN = list.value.filter((m) => !m.read && matchBizFilter(m, key)).length;
+  if (unreadN > 0) return ` ·${unreadN}`;
+  const n = list.value.filter((m) => matchBizFilter(m, key)).length;
+  return n ? ` ${n}` : '';
+}
+
+function applyEntryQuery(opts?: Record<string, string | undefined>) {
+  const raw = String(opts?.filter || opts?.bizType || opts?.type || '')
+    .trim()
+    .toUpperCase();
+  if (!raw) return;
+  if (raw === 'SPLIT') {
+    filter.value = 'SETTLEMENT';
+    return;
+  }
+  if (raw === 'WITHDRAW') {
+    filter.value = 'WALLET';
+    return;
+  }
+  const hit = filters.find((f) => f.key === raw);
+  if (hit) filter.value = hit.key;
+}
+
+onLoad((opts) => {
+  applyEntryQuery(opts as Record<string, string | undefined>);
+});
 
 onShow(load);
 
@@ -103,8 +184,11 @@ async function markNotificationReadIfNeeded(m: MerchantNotificationDto) {
 }
 
 function navigateReplenishment(id: string) {
-  if (!id) return;
-  uni.navigateTo({ url: `/pages/replenishment/replenishment?taskId=${id}` });
+  uni.navigateTo({
+    url: id
+      ? `/pages/replenishment/replenishment?taskId=${id}`
+      : '/pages/replenishment/replenishment'
+  });
 }
 
 function navigateDispute(id: string) {
@@ -114,25 +198,29 @@ function navigateDispute(id: string) {
 }
 
 function navigateOrder(id: string) {
-  if (!id) return;
-  uni.navigateTo({ url: `/pages/order-detail/order-detail?orderId=${id}` });
+  uni.navigateTo({
+    url: id ? `/pages/order-detail/order-detail?orderId=${id}` : '/pages/orders/orders'
+  });
 }
 
-function navigateSettlement() {
-  uni.navigateTo({ url: '/pages/settlements/settlements' });
+function navigateSettlement(id: string) {
+  uni.navigateTo({
+    url: id ? `/pages/splits/splits?status=FAILED&orderId=${id}` : '/pages/settlements/settlements'
+  });
 }
 
-function navigateWallet() {
+function navigateWallet(_id: string) {
   uni.navigateTo({ url: '/pages/wallet/wallet' });
 }
 
-function navigateAlerts() {
+function navigateAlerts(_id: string) {
   uni.switchTab({ url: '/pages/alerts/alerts' });
 }
 
 function navigateAnnouncement(id: string) {
-  if (!id) return;
-  uni.navigateTo({ url: `/pages/announcements/detail?id=${id}` });
+  uni.navigateTo({
+    url: id ? `/pages/announcements/detail?id=${id}` : '/pages/announcements/announcements'
+  });
 }
 
 const NOTIFICATION_NAVIGATORS: Record<string, (id: string) => void> = {
@@ -171,9 +259,16 @@ function formatTime(t: string) {
   box-sizing: border-box;
 }
 .filter-row {
-  display: flex;
-  gap: 12rpx;
   margin-bottom: 8rpx;
+}
+.filter-scroll {
+  width: 100%;
+  white-space: nowrap;
+}
+.filter-inner {
+  display: inline-flex;
+  gap: 12rpx;
+  padding: 4rpx 0 8rpx;
 }
 .filter-chip {
   padding: 10rpx 22rpx;
@@ -181,6 +276,7 @@ function formatTime(t: string) {
   background: #f1f5f9;
   color: #475569;
   font-size: 24rpx;
+  flex-shrink: 0;
 }
 .filter-chip.active {
   background: #ecfdf5;

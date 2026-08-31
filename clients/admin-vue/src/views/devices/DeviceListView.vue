@@ -253,6 +253,15 @@
               >
             </template>
           </el-table-column>
+          <el-table-column label="停售原因" min-width="140" align="center" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span v-if="row.salesLocked && row.salesLockReason">{{ row.salesLockReason }}</span>
+              <span v-else class="muted">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="固件" width="88" align="center" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.firmwareVersion || '暂无' }}</template>
+          </el-table-column>
           <el-table-column
             label="地址"
             min-width="160"
@@ -624,6 +633,9 @@ const { onExport } = useListCsv({
     '类型',
     '在线',
     '运营态',
+    '停售原因',
+    '柜内温度',
+    '固件',
     '生命周期',
     'IMEI',
     '资产方',
@@ -642,6 +654,9 @@ const { onExport } = useListCsv({
       dictLabel('device_type', row.deviceType),
       dictLabel('online_status', row.onlineStatus),
       row.salesLocked ? '停售' : '在售',
+      row.salesLocked ? row.salesLockReason || '' : '',
+      row.currentTempC != null ? `${row.currentTempC}` : '',
+      row.firmwareVersion || '',
       lifecycleLabel(row.lifecycleStatus),
       row.imei,
       row.assetOwner,

@@ -86,6 +86,7 @@ public class MerchantPortalService {
     private final ShoppingSessionMapper sessionRepository;
     private final ReplenishmentTaskMapper replenishmentTaskRepository;
     private final ReplenishmentTaskLineMapper replenishmentTaskLineRepository;
+    private final ReplenishmentRouteMapper replenishmentRouteRepository;
     private final DisputeTicketMapper disputeRepository;
     private final DeviceSkuInventoryMapper inventoryRepository;
     private final PullOffTaskMapper pullOffTaskRepository;
@@ -102,6 +103,7 @@ public class MerchantPortalService {
     private final MerchantSelfServiceGate merchantSelfServiceGate;
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final DistributedLockService distributedLockService;
+    private final DisputeService disputeService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final MerchantPortalService self;
 
@@ -122,6 +124,7 @@ public class MerchantPortalService {
                                  ShoppingSessionMapper sessionRepository,
                                  ReplenishmentTaskMapper replenishmentTaskRepository,
                                  ReplenishmentTaskLineMapper replenishmentTaskLineRepository,
+                                 ReplenishmentRouteMapper replenishmentRouteRepository,
                                  DisputeTicketMapper disputeRepository,
                                  DeviceSkuInventoryMapper inventoryRepository,
                                  PullOffTaskMapper pullOffTaskRepository,
@@ -137,7 +140,9 @@ public class MerchantPortalService {
                                  OperatorUserIdAllocator operatorUserIdAllocator,
                                  MerchantSelfServiceGate merchantSelfServiceGate,
                                  MerchantFeaturePackService merchantFeaturePackService,
-                                 DistributedLockService distributedLockService, @Lazy MerchantPortalService self) {
+                                 DistributedLockService distributedLockService,
+                                 @Lazy DisputeService disputeService,
+                                 @Lazy MerchantPortalService self) {
         this.merchantFinanceService = merchantFinanceService;
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
@@ -155,6 +160,7 @@ public class MerchantPortalService {
         this.sessionRepository = sessionRepository;
         this.replenishmentTaskRepository = replenishmentTaskRepository;
         this.replenishmentTaskLineRepository = replenishmentTaskLineRepository;
+        this.replenishmentRouteRepository = replenishmentRouteRepository;
         this.disputeRepository = disputeRepository;
         this.inventoryRepository = inventoryRepository;
         this.pullOffTaskRepository = pullOffTaskRepository;
@@ -171,6 +177,7 @@ public class MerchantPortalService {
         this.merchantSelfServiceGate = merchantSelfServiceGate;
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.distributedLockService = distributedLockService;
+        this.disputeService = disputeService;
         this.self = self;
     }
 
@@ -580,7 +587,11 @@ public class MerchantPortalService {
                             orderToday > 0 ? revenueToday / orderToday : 0,
                             orderTotal > 0 ? revenueTotal / orderTotal : 0,
                             d.getRouteCode(),
-                            d.getAddress()
+                            d.getAddress(),
+                            d.salesLockedEnabled(),
+                            d.getSalesLockReason(),
+                            d.getCurrentTempC(),
+                            d.getFirmwareVersion()
                     );
                 })
                 .toList();
@@ -920,13 +931,17 @@ public class MerchantPortalService {
         permissionService.requirePermission(userId, "merchant:reports:export");
         merchantPortalGuard.requireAccess(userId);
         StringBuilder sb = new StringBuilder(
-                "deviceId,deviceName,onlineStatus,routeCode,address,orderTotal,revenueTotalCents,avgOrderValueTotalCents,orderToday,revenueTodayCents,avgOrderValueTodayCents,sessionTotal,sessionActive\n");
+                "deviceId,deviceName,onlineStatus,routeCode,address,salesLocked,salesLockReason,currentTempC,firmwareVersion,orderTotal,revenueTotalCents,avgOrderValueTotalCents,orderToday,revenueTodayCents,avgOrderValueTodayCents,sessionTotal,sessionActive\n");
         for (MerchantDeviceReportDto r : self.deviceReports(userId)) {
             sb.append(csv(r.deviceId())).append(',')
                     .append(csv(r.deviceName())).append(',')
                     .append(csv(r.onlineStatus())).append(',')
                     .append(csv(r.routeCode())).append(',')
                     .append(csv(r.address())).append(',')
+                    .append(r.salesLocked()).append(',')
+                    .append(csv(r.salesLockReason())).append(',')
+                    .append(r.currentTempC() == null ? "" : r.currentTempC()).append(',')
+                    .append(csv(r.firmwareVersion())).append(',')
                     .append(r.orderTotal()).append(',')
                     .append(r.revenueTotalCents()).append(',')
                     .append(r.avgOrderValueTotalCents()).append(',')
@@ -955,12 +970,15 @@ public class MerchantPortalService {
         List<String> statuses = status != null && !status.isBlank()
                 ? List.of(status.trim().toUpperCase())
                 : List.of(STATUS_PENDING, STATUS_IN_PROGRESS, "COMPLETED");
-        return replenishmentTaskRepository.findByStatusIn(statuses).stream()
+        List<ReplenishmentTask> tasks = replenishmentTaskRepository.findByStatusIn(statuses).stream()
                 .filter(t -> inDeviceScope(allowed, t.getDeviceId()))
                 .filter(t -> deviceId == null || deviceId.isBlank() || deviceId.trim().equals(t.getDeviceId()))
                 .sorted(Comparator.comparing(ReplenishmentTask::getCreatedAt).reversed())
                 .limit(100)
-                .map(this::toReplenishmentTaskDto)
+                .toList();
+        Map<Long, ReplenishmentRoute> routesById = loadRoutesById(tasks);
+        return tasks.stream()
+                .map(t -> toReplenishmentTaskDto(t, routesById.get(t.getRouteId())))
                 .toList();
     }
 
@@ -1238,7 +1256,10 @@ public class MerchantPortalService {
                 d.getLifecycleStatus(),
                 null,
                 null,
-                d.getSalesLockReason()
+                d.getSalesLockReason(),
+                d.getLatitude(),
+                d.getLongitude(),
+                d.getFirmwareVersion()
         );
     }
 
@@ -1255,18 +1276,49 @@ public class MerchantPortalService {
                 d.salesLockedEnabled(),
                 d.getRouteCode(),
                 d.getLifecycleStatus(),
-                d.getSalesLockReason()
+                d.getSalesLockReason(),
+                d.getLatitude(),
+                d.getLongitude(),
+                d.getFirmwareVersion()
         );
     }
 
     private ReplenishmentTaskDto toReplenishmentTaskDto(ReplenishmentTask t) {
+        ReplenishmentRoute route = t.getRouteId() == null
+                ? null
+                : replenishmentRouteRepository.findById(t.getRouteId()).orElse(null);
+        return toReplenishmentTaskDto(t, route);
+    }
+
+    private ReplenishmentTaskDto toReplenishmentTaskDto(ReplenishmentTask t, ReplenishmentRoute route) {
+        String deviceName = null;
+        if (t.getDeviceId() != null) {
+            deviceName = deviceRepository.findById(t.getDeviceId())
+                    .map(DeviceInfo::getDeviceName)
+                    .orElse(null);
+        }
         return new ReplenishmentTaskDto(
                 t.getTaskId(), t.getRouteId(), t.getDeviceId(), t.getAssigneeUserId(),
                 t.getStatus(), t.getNotes(), t.getCompletedAt(),
                 t.getCheckInAt(), t.getCheckInLat(), t.getCheckInLng(),
                 resolveCheckInDistanceM(t),
-                t.getRequestId(), t.getOutboundId(), t.getCreatedAt()
+                t.getRequestId(), t.getOutboundId(), t.getCreatedAt(),
+                deviceName,
+                route != null ? route.getRouteName() : null,
+                route != null ? route.getPlannedDate() : null
         );
+    }
+
+    private Map<Long, ReplenishmentRoute> loadRoutesById(Collection<ReplenishmentTask> tasks) {
+        Set<Long> routeIds = tasks.stream()
+                .map(ReplenishmentTask::getRouteId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (routeIds.isEmpty()) {
+            return Map.of();
+        }
+        return replenishmentRouteRepository.findAllById(routeIds).stream()
+                .collect(Collectors.toMap(ReplenishmentRoute::getRouteId, r -> r, (a, b) -> a));
     }
 
     private Double resolveCheckInDistanceM(ReplenishmentTask t) {
@@ -1332,18 +1384,35 @@ public class MerchantPortalService {
         String deviceId = session != null ? session.getDeviceId() : null;
         String orderId = session != null ? session.getOrderId() : null;
         Integer billedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
-                .filter(o -> !"REFUNDED".equals(o.getStatus()))
-                .map(CabinetOrder::getTotalAmountCents)
+                .map(o -> {
+                    int original = Math.max(0, o.getOriginalAmountCents());
+                    if (original > 0) {
+                        return original;
+                    }
+                    int total = Math.max(0, o.getTotalAmountCents());
+                    int refunded = Math.max(0, o.getRefundedCents());
+                    if (total <= 0 && refunded > 0) {
+                        return refunded;
+                    }
+                    return total > 0 ? total : null;
+                })
                 .orElse(null);
         Integer refundedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
                 .map(o -> {
                     int r = Math.max(0, o.getRefundedCents());
-                    if (r <= 0 && "REFUNDED".equals(o.getStatus())) {
-                        return o.getTotalAmountCents();
+                    if (r > 0) {
+                        return r;
                     }
-                    return r > 0 ? r : null;
+                    if ("REFUNDED".equals(o.getStatus())) {
+                        int original = Math.max(0, o.getOriginalAmountCents());
+                        int total = Math.max(0, o.getTotalAmountCents());
+                        int amount = original > 0 ? original : total;
+                        return amount > 0 ? amount : null;
+                    }
+                    return null;
                 })
                 .orElse(null);
+        Integer claimedAmountCents = disputeService.resolveClaimedAmountCents(ticket);
         Instant now = Instant.now();
         boolean slaOverdue = "OPEN".equals(ticket.getStatus())
                 && ticket.getSlaDueAt() != null
@@ -1358,17 +1427,33 @@ public class MerchantPortalService {
                 orderId, billedAmountCents,
                 ticket.getSlaDueAt(), slaOverdue, slaHoursRemaining,
                 ticket.getCategory(),
-                refundedAmountCents
+                refundedAmountCents,
+                session != null ? session.getDeviceName() : null,
+                claimedAmountCents,
+                session != null && session.getVideoUri() != null && !session.getVideoUri().isBlank()
         );
     }
 
     private RevenueSplitDto toSplitDto(OrderRevenueSplit s, String merchantName) {
+        String deviceName = null;
+        if (s.getOrderId() != null && !s.getOrderId().isBlank()) {
+            deviceName = orderRepository.findById(s.getOrderId())
+                    .map(CabinetOrder::getDeviceName)
+                    .filter(n -> n != null && !n.isBlank())
+                    .orElse(null);
+        }
+        if ((deviceName == null || deviceName.isBlank()) && s.getDeviceId() != null) {
+            deviceName = deviceRepository.findById(s.getDeviceId())
+                    .map(DeviceInfo::getDeviceName)
+                    .orElse(null);
+        }
         return new RevenueSplitDto(
                 s.getSplitId(), s.getOrderId(), s.getMerchantId(), merchantName,
                 s.getDeviceId(), s.getGrossCents(), s.getPlatformCents(),
                 s.getMerchantCents(), s.getStatus(), s.getWechatOutOrderNo(),
                 s.getWechatTransactionId(), s.getFailureReason(), s.getCreatedAt(),
-                s.getSettlementBatchNo(), s.getSettleAfter(), s.getSettledAt()
+                s.getSettlementBatchNo(), s.getSettleAfter(), s.getSettledAt(),
+                deviceName
         );
     }
 

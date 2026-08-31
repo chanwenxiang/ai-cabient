@@ -59,6 +59,7 @@ public class MemberLevelAdminService {
         rule.setMinPoints(dto.minPoints());
         rule.setMaxPoints(dto.maxPoints());
         rule.setPointsRate(dto.pointsRate() == null ? BigDecimal.ONE : dto.pointsRate());
+        rule.setPriceDiscountPct(dto.priceDiscountPct() == null ? BigDecimal.ZERO : dto.priceDiscountPct());
         rule.setSortorder(dto.sortOrder());
         rule.setStatus(dto.status() == null ? CabinetConstants.PROMOTION_STATUS_ACTIVE : dto.status());
         rule.setUpdatedAt(Instant.now());

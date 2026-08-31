@@ -65,7 +65,7 @@
           >
           <view class="info-row"
             ><text class="lbl">柜机</text
-            ><text class="val mono">{{ emptyDisplay(order.deviceId, 'device') }}</text></view
+            ><text class="val mono">{{ emptyDisplay(order.deviceName || order.deviceId, 'device') }}</text></view
           >
           <view class="info-row"
             ><text class="lbl">支付方式</text><text class="val">{{ payChannelText }}</text></view
@@ -75,6 +75,10 @@
             ><text class="val mono">{{
               displayBizNo(order.payTradeNo || order.paymentOperationId)
             }}</text></view
+          >
+          <view v-if="order.splitStatus" class="info-row"
+            ><text class="lbl">分账状态</text
+            ><text class="val">{{ splitStatusText(order.splitStatus) }}</text></view
           >
           <view v-if="order.refundPolicy" class="info-row"
             ><text class="lbl">退款策略</text
@@ -140,6 +144,7 @@ type OrderDetail = {
   orderId?: string;
   sessionId?: string;
   deviceId?: string;
+  deviceName?: string;
   status?: string;
   payChannel?: string;
   payTradeNo?: string;
@@ -153,6 +158,7 @@ type OrderDetail = {
   refundedCents?: number;
   lines?: OrderLine[];
   createdAt?: string;
+  splitStatus?: string;
 };
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -227,6 +233,25 @@ function refundPolicyText(policy?: string) {
   if (!policy) return '默认规则';
   if (/^[A-Z][A-Z0-9_]*$/.test(policy)) return '默认规则';
   return policy;
+}
+
+function splitStatusText(status?: string) {
+  return (
+    (
+      {
+        PENDING: '待处理',
+        LEDGER_ONLY: '仅记账',
+        ACCRUED: '待分账',
+        WECHAT_SUBMITTED: '已提交',
+        WECHAT_FAILED: '失败',
+        SUBMITTED: '已提交',
+        SUCCESS: '成功',
+        FAILED: '失败',
+        SETTLED: '已完结',
+        VOIDED: '已冲正'
+      } as Record<string, string>
+    )[String(status || '').toUpperCase()] || String(status || '')
+  );
 }
 
 function money(cents?: number) {

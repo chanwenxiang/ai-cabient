@@ -197,6 +197,18 @@
             </template>
           </el-table-column>
           <el-table-column
+            label="处理人"
+            width="110"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">
+              <span v-if="row.assignee">{{ row.assignee }}</span>
+              <span v-else class="muted">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column
             label="分类"
             width="100"
             align="center"
@@ -219,8 +231,32 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="已扣金额" width="110" align="center" class-name="col-money">
+          <el-table-column label="已扣金额" width="100" align="center" class-name="col-money">
             <template #default="{ row }">¥{{ money(row.billedAmountCents) }}</template>
+          </el-table-column>
+          <el-table-column label="建议金额" width="100" align="center" class-name="col-money">
+            <template #default="{ row }">
+              <span v-if="row.claimedAmountCents != null">¥{{ money(row.claimedAmountCents) }}</span>
+              <span v-else class="muted">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="已退金额" width="100" align="center" class-name="col-money">
+            <template #default="{ row }">
+              <span v-if="row.refundedAmountCents != null"
+                >¥{{ money(row.refundedAmountCents) }}</span
+              >
+              <span v-else class="muted">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="SLA" width="110" align="center">
+            <template #default="{ row }">
+              <el-tag v-if="row.slaOverdue" type="danger" size="small" effect="plain">已超时</el-tag>
+              <span v-else-if="row.slaHoursRemaining != null" class="muted"
+                >剩 {{ row.slaHoursRemaining }}h</span
+              >
+              <span v-else-if="row.slaDueAt" class="muted">{{ formatDateTime(row.slaDueAt) }}</span>
+              <span v-else class="muted">—</span>
+            </template>
           </el-table-column>
           <el-table-column label="证据" width="88" align="center">
             <template #default="{ row }">
@@ -427,6 +463,26 @@
             <el-descriptions-item label="已扣金额"
               >¥{{ money(selected.billedAmountCents) }}</el-descriptions-item
             >
+            <el-descriptions-item label="建议金额">
+              <span v-if="selected.claimedAmountCents != null"
+                >¥{{ money(selected.claimedAmountCents) }}</span
+              >
+              <span v-else class="muted">—</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="已退金额">
+              <span v-if="selected.refundedAmountCents != null"
+                >¥{{ money(selected.refundedAmountCents) }}</span
+              >
+              <span v-else class="muted">—</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="SLA">
+              <el-tag v-if="selected.slaOverdue" type="danger" size="small">已超时</el-tag>
+              <span v-else-if="selected.slaHoursRemaining != null"
+                >剩余 {{ selected.slaHoursRemaining }} 小时</span
+              >
+              <span v-else-if="selected.slaDueAt">{{ formatDateTime(selected.slaDueAt) }}</span>
+              <span v-else class="muted">—</span>
+            </el-descriptions-item>
             <el-descriptions-item label="状态">
               <el-tag
                 v-if="resolveFeedback || selected.status !== 'OPEN'"
@@ -439,6 +495,10 @@
               <el-tag v-else size="small" type="warning">
                 {{ dictLabel('dispute_status', selected.status) }}
               </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="处理人">
+              <span v-if="selected.assignee">{{ selected.assignee }}</span>
+              <span v-else class="muted">—</span>
             </el-descriptions-item>
             <el-descriptions-item v-if="selected.resolvedAt" label="处理时间">
               {{ formatDateTime(selected.resolvedAt) }}
@@ -655,9 +715,13 @@ const { onExport } = useListCsv({
     '会话',
     '关联订单',
     '状态',
+    '处理人',
     '分类',
     '优先级',
     '已扣金额',
+    '建议金额',
+    '已退金额',
+    'SLA',
     '原因',
     '创建时间',
     '结案时间'
@@ -669,9 +733,19 @@ const { onExport } = useListCsv({
       row.sessionId,
       row.orderId,
       displayLabel('dispute_status', row.status, '未知'),
+      row.assignee || '',
       displayLabel('dispute_category', row.category, '未知'),
       displayLabel('dispute_priority', row.priority, '未知'),
       money(row.billedAmountCents),
+      row.claimedAmountCents != null ? money(row.claimedAmountCents) : '',
+      row.refundedAmountCents != null ? money(row.refundedAmountCents) : '',
+      row.slaOverdue
+        ? '已超时'
+        : row.slaHoursRemaining != null
+          ? `剩${row.slaHoursRemaining}h`
+          : row.slaDueAt
+            ? formatDateTime(row.slaDueAt)
+            : '',
       row.reason,
       formatDateTime(row.createdAt),
       formatDateTime(row.resolvedAt)

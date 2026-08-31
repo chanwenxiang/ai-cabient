@@ -16,6 +16,8 @@ public class MerchantWalletLedger {
     @TableId(type = IdType.AUTO)
     private Long ledgerId;
     private String merchantId;
+    /** 商户名称冗余 */
+    private String merchantName;
     private String entryType;
     private Long amountCents;
     private Long balanceAfter;

@@ -124,7 +124,7 @@
                       </el-table-column>
                       <el-table-column label="设备" min-width="110" align="center">
                         <template #default="scope">
-                          {{ deviceName(scope.row.deviceId) }}
+                          {{ deviceName(scope.row.deviceId, scope.row.deviceName) }}
                           <el-tag
                             size="small"
                             :type="deviceOnline(scope.row.deviceId) ? 'success' : 'info'"
@@ -383,7 +383,7 @@
               >
                 <template #default="{ row }">
                   <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
-                    {{ deviceName(row.deviceId) }}
+                    {{ deviceName(row.deviceId, row.deviceName) }}
                   </button>
                 </template>
               </el-table-column>
@@ -544,7 +544,7 @@
               >
                 <template #default="{ row }">
                   <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
-                    {{ deviceName(row.deviceId) }}
+                    {{ deviceName(row.deviceId, row.deviceName) }}
                   </button>
                 </template>
               </el-table-column>
@@ -695,7 +695,7 @@
               >
                 <template #default="{ row }">
                   <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
-                    {{ deviceName(row.deviceId) }}
+                    {{ deviceName(row.deviceId, row.deviceName) }}
                   </button>
                 </template>
               </el-table-column>
@@ -785,7 +785,7 @@
               >
                 <template #default="{ row }">
                   <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
-                    {{ deviceName(row.deviceId) }}
+                    {{ deviceName(row.deviceId, row.deviceName) }}
                   </button>
                 </template>
               </el-table-column>
@@ -908,7 +908,7 @@
       <div v-loading="linesLoading" class="lines-drawer">
         <el-descriptions v-if="linesTask" :column="1" border size="small" class="lines-meta">
           <el-descriptions-item label="设备"
-            >{{ deviceName(linesTask.deviceId) }}（{{ linesTask.deviceId }}）</el-descriptions-item
+            >{{ deviceName(linesTask.deviceId, linesTask.deviceName) }}（{{ linesTask.deviceId }}）</el-descriptions-item
           >
           <el-descriptions-item label="人员">{{
             assigneeLabel(linesTask.assigneeUserId, '无')
@@ -1100,7 +1100,7 @@
             requestFlowRow.merchantName || requestFlowRow.merchantId || '—'
           }}</el-descriptions-item>
           <el-descriptions-item label="设备"
-            >{{ deviceName(requestFlowRow.deviceId) }}（{{
+            >{{ deviceName(requestFlowRow.deviceId, requestFlowRow.deviceName) }}（{{
               requestFlowRow.deviceId
             }}）</el-descriptions-item
           >
@@ -1116,6 +1116,21 @@
             <span class="reject-reason">{{ requestFlowRow.rejectReason }}</span>
           </el-descriptions-item>
         </el-descriptions>
+        <div v-if="requestEvidence.length" class="request-evidence">
+          <div class="lines-photo-hint">要货附图 · {{ requestEvidence.length }} 张</div>
+          <div class="evidence-grid">
+            <div v-for="f in requestEvidence" :key="f.fileId" class="evidence-item">
+              <a
+                :href="f.previewUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="evidence-thumb"
+              >
+                <img :src="f.previewUrl" :alt="f.fileName || '要货附图'" loading="lazy" />
+              </a>
+            </div>
+          </div>
+        </div>
         <div v-if="canEdit && requestFlowRow.status === 'SUBMITTED'" class="request-flow-actions">
           <el-button type="primary" @click="onRequestAction(requestFlowRow, 'accept')"
             >接单</el-button
@@ -1331,6 +1346,16 @@ const expiryAlerts = ref<Row[]>([]);
 const linesDrawer = ref(false);
 const requestFlowDrawer = ref(false);
 const requestFlowRow = ref<Row | null>(null);
+const requestEvidence = ref<
+  {
+    fileId: number;
+    fileName?: string;
+    fileSize?: number;
+    contentType?: string;
+    previewUrl?: string;
+  }[]
+>([]);
+const requestEvidenceObjectUrls = ref<string[]>([]);
 const linesLoading = ref(false);
 const slotSaving = ref(false);
 const linesTask = ref<Row | null>(null);
@@ -1585,7 +1610,7 @@ const { onExport: exportFulfillment } = useListCsv({
     fulfillmentTasks.value.map((row) => [
       row.taskId,
       row.deviceId || '',
-      deviceName(row.deviceId),
+      deviceName(row.deviceId, row.deviceName),
       row.routeName || row.routeId || '',
       dictLabel('replenishment_task_status', row.status),
       row.assigneeUserId || '',
@@ -1604,7 +1629,7 @@ const { onExport: exportRequests } = useListCsv({
     pickRequests(requests.value).map((row) => [
       row.requestId,
       row.merchantName || '',
-      deviceName(row.deviceId),
+      deviceName(row.deviceId, row.deviceName),
       dictLabel('replenishment_request_status', row.status),
       row.reviewerName || row.reviewerId || '',
       row.reviewedAt ? formatDateTime(row.reviewedAt) : '',
@@ -1755,10 +1780,15 @@ async function loadAssignees() {
   }
 }
 
-function deviceName(deviceId: string) {
-  const fromShortage = shortages.value.find((item) => item.deviceId === deviceId)?.deviceName;
+/** Prefer API snapshot name; fall back to shortage/device list join. */
+function deviceName(deviceId?: string, snapshot?: string | null) {
+  const snap = snapshot != null ? String(snapshot).trim() : '';
+  if (snap) return snap;
+  const id = deviceId != null ? String(deviceId) : '';
+  if (!id) return '无';
+  const fromShortage = shortages.value.find((item) => item.deviceId === id)?.deviceName;
   if (fromShortage) return fromShortage;
-  return devices.value.find((item) => item.deviceId === deviceId)?.deviceName || deviceId || '无';
+  return devices.value.find((item) => item.deviceId === id)?.deviceName || id;
 }
 function localDate() {
   const now = new Date();
@@ -2388,7 +2418,7 @@ async function checkInRestockTask(task: Row) {
   }
   try {
     await ElMessageBox.confirm(
-      `确认对 ${deviceName(task.deviceId)}（任务 ${task.taskId}）做运营代签到？\n现场补货员应在商户小程序带 GPS 签到；后台代签到用于联调/应急，不强制 GPS。`,
+      `确认对 ${deviceName(task.deviceId, task.deviceName)}（任务 ${task.taskId}）做运营代签到？\n现场补货员应在商户小程序带 GPS 签到；后台代签到用于联调/应急，不强制 GPS。`,
       '补货签到',
       { type: 'warning', confirmButtonText: '确认签到' }
     );
@@ -2458,13 +2488,13 @@ async function openRestockDoor(task: Row) {
     return;
   }
   if (!deviceOnline(task.deviceId)) {
-    ElMessage.warning(`${deviceName(task.deviceId)} 当前离线，无法下发补货开门`);
+    ElMessage.warning(`${deviceName(task.deviceId, task.deviceName)} 当前离线，无法下发补货开门`);
     return;
   }
   const locked = deviceSalesLocked(task.deviceId);
   try {
     await ElMessageBox.confirm(
-      `确认对 ${deviceName(task.deviceId)}（${task.deviceId}）下发补货开门？\n将绑定任务 ${task.taskId}，不产生消费者账单。\n（与设备详情「远程开门」不同）` +
+      `确认对 ${deviceName(task.deviceId, task.deviceName)}（${task.deviceId}）下发补货开门？\n将绑定任务 ${task.taskId}，不产生消费者账单。\n（与设备详情「远程开门」不同）` +
         (locked
           ? '\n\n注意：该柜当前锁机停售，消费者无法开门；补货开门仅供上架，完成后请视情况解锁恢复售卖。'
           : ''),
@@ -2504,7 +2534,7 @@ async function completeRestockTask(task: Row) {
   }
   try {
     await ElMessageBox.confirm(
-      `确认完成任务 ${task.taskId}（${deviceName(task.deviceId)}）上架？\n未签到将被后端拒绝；完成后将写入库存。`,
+      `确认完成任务 ${task.taskId}（${deviceName(task.deviceId, task.deviceName)}）上架？\n未签到将被后端拒绝；完成后将写入库存。`,
       '完成上架',
       { type: 'warning', confirmButtonText: '确认完成' }
     );
@@ -2569,7 +2599,7 @@ async function createPlan() {
 async function acceptReplenishmentRequest(row: Row) {
   const linesPreview = formatRequestLines(row);
   await ElMessageBox.confirm(
-    `确认接单要货 ${row.requestId}？\n设备：${deviceName(row.deviceId)}（${row.deviceId}）\n明细：${linesPreview}`,
+    `确认接单要货 ${row.requestId}？\n设备：${deviceName(row.deviceId, row.deviceName)}（${row.deviceId}）\n明细：${linesPreview}`,
     '接单',
     { type: 'warning', confirmButtonText: '确认接单' }
   );
@@ -2735,6 +2765,58 @@ const requestFlowFulfillDesc = computed(() => {
 function openRequestFlow(row: Row) {
   requestFlowRow.value = row;
   requestFlowDrawer.value = true;
+  void loadRequestEvidence(row);
+}
+
+function revokeRequestEvidenceUrls() {
+  for (const url of requestEvidenceObjectUrls.value) {
+    URL.revokeObjectURL(url);
+  }
+  requestEvidenceObjectUrls.value = [];
+  requestEvidence.value = [];
+}
+
+async function loadRequestEvidence(row: Row) {
+  revokeRequestEvidenceUrls();
+  const requestId = Number(row.requestId);
+  if (!requestId) return;
+  try {
+    const files = await api.request<
+      { fileId: number; fileName?: string; fileSize?: number; contentType?: string; url?: string }[]
+    >(`/api/v2/ops/admin/replenishment/requests/${requestId}/evidence`, 'GET');
+    if (!files?.length) return;
+    const base = globalThis.location.origin;
+    const urls: string[] = [];
+    const mapped = await Promise.all(
+      files.map(async (f) => {
+        const fileId = Number(f.fileId);
+        const item = { ...f, previewUrl: f.url };
+        const looksImage =
+          String(f.contentType || '').startsWith('image/') ||
+          /\.(png|jpe?g|gif|webp|bmp)$/i.test(String(f.fileName || ''));
+        if (looksImage) {
+          try {
+            const res = await authFetch(
+              `${base}/api/v2/ops/admin/replenishment/requests/${requestId}/evidence/${fileId}`
+            );
+            if (res.ok) {
+              const blob = await res.blob();
+              const objectUrl = URL.createObjectURL(blob);
+              urls.push(objectUrl);
+              item.previewUrl = objectUrl;
+            }
+          } catch {
+            /* list-only fallback */
+          }
+        }
+        return item;
+      })
+    );
+    requestEvidenceObjectUrls.value = urls;
+    requestEvidence.value = mapped;
+  } catch {
+    requestEvidence.value = [];
+  }
 }
 /** 履约开放任务：预拉明细，标出待分配货道红点（最多 24 个，避免打爆接口） */
 async function prefetchUnassignedHints() {
@@ -2785,6 +2867,10 @@ watch(
     void reloadFromRouteQuery();
   }
 );
+
+watch(requestFlowDrawer, (open) => {
+  if (!open) revokeRequestEvidenceUrls();
+});
 
 onMounted(async () => {
   applyRouteQuery();

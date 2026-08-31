@@ -1640,6 +1640,12 @@ function applySessionView(s: SessionDto) {
   stateLabel.value = sessionStateLabel(s.state);
   stateHint.value = sessionStateHint(s.state);
   stateTone.value = sessionStateTone(s.state);
+  if (s.deviceName) {
+    deviceName.value = s.deviceName;
+  }
+  if (s.deviceId && !deviceId.value) {
+    deviceId.value = s.deviceId;
+  }
   if (s.state === 'OPENING' || s.state === 'CREATED') startOpeningCountdown(s.createdAt);
   else stopOpeningCountdown();
   if (['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(s.state)) {

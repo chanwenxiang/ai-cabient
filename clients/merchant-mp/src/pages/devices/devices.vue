@@ -75,6 +75,7 @@
               <template v-if="d.currentTempC != null">{{ d.currentTempC }}°C</template>
             </text>
             <text v-if="stockSummary(d)" class="meta stock-warn">{{ stockSummary(d) }}</text>
+            <text v-if="d.firmwareVersion" class="meta">固件 {{ d.firmwareVersion }}</text>
           </view>
         </view>
         <view class="device-right">
@@ -85,6 +86,13 @@
             :class="{ on: preferredId === d.deviceId }"
             @click.stop="togglePreferred(d.deviceId)"
             >★</text
+          >
+          <button
+            v-if="d.latitude != null && d.longitude != null"
+            class="nav-btn"
+            size="mini"
+            @click.stop="openNav(d)"
+            >导航</button
           >
           <text v-if="d.salesLocked" class="status-locked">停售</text>
           <text v-if="d.salesLocked && d.salesLockReason" class="status-lock-reason">{{
@@ -247,6 +255,28 @@ function goDetail(id: string) {
   uni.navigateTo({ url: `/pages/device-detail/device-detail?id=${encodeURIComponent(id)}` });
 }
 
+function openNav(d: DeviceInfo) {
+  if (d.latitude == null || d.longitude == null) {
+    uni.showToast({ title: '暂无坐标', icon: 'none' });
+    return;
+  }
+  // #ifdef H5
+  const q = encodeURIComponent(d.address || d.deviceName || d.deviceId);
+  window.open(
+    `https://uri.amap.com/marker?position=${d.longitude},${d.latitude}&name=${q}`,
+    '_blank'
+  );
+  // #endif
+  // #ifndef H5
+  uni.openLocation({
+    latitude: Number(d.latitude),
+    longitude: Number(d.longitude),
+    name: d.deviceName || d.deviceId,
+    address: d.address || ''
+  });
+  // #endif
+}
+
 function goReplenishment() {
   if (!canReplenishment.value) {
     uni.showToast({ title: '无补货权限', icon: 'none' });
@@ -358,8 +388,20 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 }
 .device-right {
   display: flex;
-  align-items: center;
-  gap: 16rpx;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10rpx;
+}
+.nav-btn {
+  margin: 0;
+  padding: 0 16rpx;
+  height: 48rpx;
+  line-height: 48rpx;
+  font-size: 22rpx;
+  color: #0f766e;
+  background: #ecfdf5;
+  border: 1rpx solid #99f6e4;
+  border-radius: 999rpx;
 }
 .star {
   color: #cbd5e1;

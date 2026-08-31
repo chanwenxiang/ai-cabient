@@ -944,6 +944,32 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.rejectMerchantReplenishmentRequest(operatorId(request), requestId, body));
     }
 
+    @RequiresPermissions("ops:replenishment:list")
+    @GetMapping("/replenishment/requests/{requestId}/evidence")
+    public ApiResponse<List<FileAttachmentDto>> listReplenishmentRequestEvidence(
+            HttpServletRequest request, @PathVariable Long requestId) {
+        List<FileAttachmentDto> items = support.fileAttachmentService().listReplenishmentRequestEvidence(requestId).stream()
+                .map(d -> FileAttachmentDto.of(
+                        d.fileId(),
+                        d.fileName(),
+                        d.contentType(),
+                        d.fileSize(),
+                        "/api/v2/ops/admin/replenishment/requests/" + requestId + "/evidence/" + d.fileId()))
+                .toList();
+        return ApiResponse.ok(items);
+    }
+
+    @RequiresPermissions("ops:replenishment:list")
+    @GetMapping("/replenishment/requests/{requestId}/evidence/{fileId}")
+    public void streamReplenishmentRequestEvidence(
+            HttpServletRequest request,
+            @PathVariable Long requestId,
+            @PathVariable Long fileId,
+            HttpServletResponse response) throws IOException {
+        support.fileAttachmentService().stream(
+                support.fileAttachmentService().requireReplenishmentRequestEvidence(requestId, fileId), response);
+    }
+
     @RequiresPermissions("ops:finance:view")
     @GetMapping("/finance/stats")
     public ApiResponse<FinanceStatsDto> financeStats(HttpServletRequest request) {

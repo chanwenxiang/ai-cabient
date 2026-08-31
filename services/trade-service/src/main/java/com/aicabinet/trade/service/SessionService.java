@@ -88,6 +88,7 @@ public class SessionService {
     private final DistributedLockService distributedLockService;
     private final ScheduledTaskService taskService;
     private final ObjectMapper objectMapper;
+    private final DisplaySnapshotHelper displaySnapshotHelper;
 
     public SessionService(ShoppingSessionMapper repository,
                           DeviceServiceClient deviceClient,
@@ -109,7 +110,8 @@ public class SessionService {
                           MerchantOpsPolicyService opsPolicyService,
                           DistributedLockService distributedLockService,
                           ScheduledTaskService taskService,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          DisplaySnapshotHelper displaySnapshotHelper) {
         this.repository = repository;
         this.deviceClient = deviceClient;
         this.userValidationService = userValidationService;
@@ -131,6 +133,7 @@ public class SessionService {
         this.distributedLockService = distributedLockService;
         this.taskService = taskService;
         this.objectMapper = objectMapper;
+        this.displaySnapshotHelper = displaySnapshotHelper;
     }
 
     @Transactional
@@ -156,6 +159,7 @@ public class SessionService {
         session.setSessionId(generateSessionId());
         session.setUserId(userId);
         session.setDeviceId(request.deviceId());
+        displaySnapshotHelper.applySessionDeviceName(session);
         session.setState(SessionState.CREATED);
         session.setEntryChannel(entryChannel);
         session.setPreferredCouponId(request.preferredCouponId());
@@ -191,6 +195,7 @@ public class SessionService {
         session.setSessionId(generateSessionId());
         session.setUserId(userId);
         session.setDeviceId(request.deviceId());
+        displaySnapshotHelper.applySessionDeviceName(session);
         session.setState(SessionState.CREATED);
         session.setEntryChannel(entryChannel);
         session.setPreferredCouponId(request.preferredCouponId());
@@ -1229,7 +1234,7 @@ public class SessionService {
         return new SessionDto(
                 s.getSessionId(), s.getUserId(), s.getDeviceId(), s.getState(),
                 s.getOpenTime(), s.getCloseTime(), s.getOrderId(), s.getCreatedAt(),
-                s.getFailReason(), payChannel
+                s.getFailReason(), payChannel, s.getDeviceName()
         );
     }
 

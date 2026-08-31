@@ -83,9 +83,9 @@
           <text class="info-label">订单编号</text>
           <text class="info-value">{{ order.orderId }}</text>
         </view>
-        <view v-if="order.deviceId" class="info-row">
-          <text class="info-label">柜机编号</text>
-          <text class="info-value">{{ order.deviceId }}</text>
+        <view v-if="order.deviceId || order.deviceName" class="info-row">
+          <text class="info-label">柜机</text>
+          <text class="info-value">{{ order.deviceName || order.deviceId }}</text>
         </view>
         <view v-if="order.payTime" class="info-row">
           <text class="info-label">扣款时间</text>

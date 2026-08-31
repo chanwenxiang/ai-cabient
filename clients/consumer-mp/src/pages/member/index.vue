@@ -105,6 +105,9 @@
             }}{{ lv.maxSpent != null ? ' - ' + formatYuan(Number(lv.maxSpent)) : '+' }}</text
           >
           <text class="level-rate">积分倍率 ¥1 = {{ lv.pointsRate }} 分</text>
+          <text v-if="Number(lv.priceDiscountPct || 0) > 0" class="level-rate"
+            >会员折扣 {{ lv.priceDiscountPct }}%</text
+          >
         </view>
         <text v-if="lv.levelCode === profile?.levelCode" class="level-badge">当前</text>
       </view>
@@ -125,11 +128,46 @@ const expireSoonCoupons = ref(0);
 const progressWidth = computed(
   () => `${Math.min(100, Math.max(0, profile.value?.progressPercent || 0))}%`
 );
-const currentLevelRate = computed(() => {
+const currentLevel = computed(() => {
   const code = profile.value?.levelCode;
-  const lv = (profile.value?.levels || []).find((x) => x.levelCode === code);
-  return lv?.pointsRate ?? null;
+  return (profile.value?.levels || []).find((x) => x.levelCode === code) || null;
 });
+const currentLevelRate = computed(() => currentLevel.value?.pointsRate ?? null);
+
+/** 权益文案由当前档位规则生成（积分倍率 / 会员折扣 / 升级进度），不再写死营销话术。 */
+const benefits = computed(() => {
+  const rows: Array<{ mark: string; title: string; desc: string }> = [];
+  const lv = currentLevel.value;
+  const rate = Number(lv?.pointsRate ?? 1);
+  rows.push({
+    mark: 'member',
+    title: '积分加速',
+    desc: `当前档位消费 ¥1 = ${Number.isFinite(rate) ? rate : 1} 积分`
+  });
+  const discount = Number(lv?.priceDiscountPct ?? 0);
+  if (Number.isFinite(discount) && discount > 0) {
+    rows.push({
+      mark: 'coupons',
+      title: '会员价折扣',
+      desc: `结算享 ${discount}% 会员折扣（以商品与活动规则为准）`
+    });
+  }
+  if (profile.value?.nextLevelName) {
+    rows.push({
+      mark: 'hot',
+      title: '消费升级',
+      desc: `距${profile.value.nextLevelName}还差约 ${formatYuan(Number(profile.value.spentToNextLevel || 0))} 累计消费`
+    });
+  } else {
+    rows.push({
+      mark: 'hot',
+      title: '最高档位',
+      desc: '已达当前最高会员等级，继续消费可累计更多积分'
+    });
+  }
+  return rows;
+});
+
 function formatYuan(n: number) {
   const v = Number.isFinite(n) ? n : 0;
   return (
@@ -141,12 +179,6 @@ function formatYuan(n: number) {
   );
 }
 const spentText = computed(() => formatYuan(Number(profile.value?.totalSpent || 0)));
-
-const benefits = [
-  { mark: 'coupons', title: '优惠券立减', desc: '结算时自动选用可用优惠券' },
-  { mark: 'member', title: '消费升级', desc: '累计消费提升会员等级' },
-  { mark: 'hot', title: '活动优先', desc: '会员专享满减与新客礼，活动页直达' }
-];
 
 onShow(async () => {
   if (!(await ensureConsumerAuth())) {

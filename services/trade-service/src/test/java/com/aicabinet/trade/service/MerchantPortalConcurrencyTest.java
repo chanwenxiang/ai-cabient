@@ -34,6 +34,7 @@ class MerchantPortalConcurrencyTest {
     @Mock private com.aicabinet.trade.mapper.ShoppingSessionMapper sessionRepository;
     @Mock private com.aicabinet.trade.mapper.ReplenishmentTaskMapper replenishmentTaskRepository;
     @Mock private com.aicabinet.trade.mapper.ReplenishmentTaskLineMapper replenishmentTaskLineRepository;
+    @Mock private com.aicabinet.trade.mapper.ReplenishmentRouteMapper replenishmentRouteRepository;
     @Mock private com.aicabinet.trade.mapper.DisputeTicketMapper disputeRepository;
     @Mock private com.aicabinet.trade.mapper.DeviceSkuInventoryMapper inventoryRepository;
     @Mock private com.aicabinet.trade.mapper.PullOffTaskMapper pullOffTaskRepository;
@@ -50,6 +51,7 @@ class MerchantPortalConcurrencyTest {
     @Mock private MerchantSelfServiceGate merchantSelfServiceGate;
     @Mock private MerchantFeaturePackService merchantFeaturePackService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private DisputeService disputeService;
 
     private MerchantPortalService service;
 
@@ -59,10 +61,11 @@ class MerchantPortalConcurrencyTest {
                 merchantPortalGuard, userInfoRepository, userAccountRepository, userMerchantRepository,
                 userRoleRepository, roleRepository, permissionRepository, merchantRepository, deviceRepository,
                 orderRepository, splitRepository, sessionRepository, replenishmentTaskRepository,
-                replenishmentTaskLineRepository, disputeRepository, inventoryRepository, pullOffTaskRepository,
+                replenishmentTaskLineRepository, replenishmentRouteRepository, disputeRepository, inventoryRepository, pullOffTaskRepository,
                 deviceSlotService, inventoryLotService, auditService, passwordEncoder, temperatureReadingRepository,
                 deviceServiceClient, profitSharingService, profitSharingProperties, weChatPayProperties,
-                operatorUserIdAllocator, merchantSelfServiceGate, merchantFeaturePackService, distributedLockService, null);
+                operatorUserIdAllocator, merchantSelfServiceGate, merchantFeaturePackService, distributedLockService,
+                disputeService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

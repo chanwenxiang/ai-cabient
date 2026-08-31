@@ -80,7 +80,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import {
   consumerApi,
   ensureConsumerAuth,
@@ -103,7 +103,14 @@ const subscribeTemplateId = ref('');
 const subscribing = ref(false);
 const pendingCount = ref(0);
 type MsgFilter =
-  'all' | 'unread' | 'ORDER' | 'DISPUTE' | 'COUPON' | 'POINTS' | 'RECHARGE' | 'OTHER';
+  | 'all'
+  | 'unread'
+  | 'ORDER'
+  | 'DISPUTE'
+  | 'COUPON'
+  | 'POINTS'
+  | 'RECHARGE'
+  | 'OTHER';
 const filter = ref<MsgFilter>('all');
 const filters: Array<{ key: MsgFilter; label: string }> = [
   { key: 'all', label: '全部' },
@@ -141,15 +148,31 @@ const emptyTitle = computed(() => {
   return `暂无${filters.find((f) => f.key === filter.value)?.label || ''}消息`;
 });
 
+/** 分类角标：业务类优先展示未读数（·N），无未读时展示总数。 */
 function filterCountSuffix(key: MsgFilter) {
   if (key === 'all') return list.value.length ? ` ${list.value.length}` : '';
   if (key === 'unread') {
     const n = list.value.filter((m) => !m.read).length;
     return n ? ` ${n}` : '';
   }
+  const unreadN = list.value.filter((m) => !m.read && matchBizFilter(m, key)).length;
+  if (unreadN > 0) return ` ·${unreadN}`;
   const n = list.value.filter((m) => matchBizFilter(m, key)).length;
   return n ? ` ${n}` : '';
 }
+
+function applyEntryQuery(opts?: Record<string, string | undefined>) {
+  const raw = String(opts?.filter || opts?.bizType || opts?.type || '')
+    .trim()
+    .toUpperCase();
+  if (!raw) return;
+  const hit = filters.find((f) => f.key === raw);
+  if (hit) filter.value = hit.key;
+}
+
+onLoad((opts) => {
+  applyEntryQuery(opts as Record<string, string | undefined>);
+});
 
 onShow(async () => {
   if (!(await ensureConsumerAuth())) {
@@ -240,31 +263,55 @@ async function onOpen(m: NotificationDto) {
 }
 
 function goByBiz(m: NotificationDto) {
-  const id = m.bizId ? encodeURIComponent(m.bizId) : '';
+  const rawId = String(m.bizId || '').trim();
+  const id = rawId ? encodeURIComponent(rawId) : '';
   const type = String(m.bizType || '').toUpperCase();
+  const tpl = String(m.templateCode || '').toLowerCase();
   switch (type) {
     case 'ORDER':
-      if (id) uni.navigateTo({ url: `/pages/order-detail/order-detail?orderId=${id}` });
-      else uni.navigateTo({ url: '/pages/orders/orders' });
+      if (id) {
+        uni.navigateTo({ url: `/pages/order-detail/order-detail?orderId=${id}` });
+      } else if (tpl.includes('unpaid') || tpl.includes('pending')) {
+        uni.navigateTo({ url: '/pages/orders/orders?status=PENDING' });
+      } else {
+        uni.navigateTo({ url: '/pages/orders/orders' });
+      }
       break;
     case 'DISPUTE':
-      uni.navigateTo({
-        url: id ? `/pages/dispute/detail?ticketId=${id}` : '/pages/orders/orders'
-      });
+      if (id) {
+        // ticketId 数字走工单；否则按 sessionId 打开审核详情
+        const looksTicket = /^\d+$/.test(rawId);
+        uni.navigateTo({
+          url: looksTicket
+            ? `/pages/dispute/detail?ticketId=${id}`
+            : `/pages/dispute/detail?sessionId=${id}`
+        });
+      } else {
+        uni.navigateTo({ url: '/pages/orders/orders' });
+      }
       break;
     case 'RECHARGE':
-      uni.navigateTo({ url: '/pages/recharge/recharge' });
+      uni.navigateTo({
+        url: id ? `/pages/recharge/recharge?orderId=${id}` : '/pages/recharge/recharge'
+      });
       break;
     case 'COUPON':
+      if (id) uni.setStorageSync('preferred_coupon_id', rawId);
       uni.navigateTo({ url: '/pages/coupons/coupons' });
       break;
     case 'POINTS':
-      uni.navigateTo({ url: '/pages/points/points' });
+      uni.navigateTo({
+        url: tpl.includes('redeem') || tpl.includes('exchange')
+          ? '/pages/points/redeem'
+          : '/pages/points/points'
+      });
       break;
     case 'RECALL':
     case 'CAMPAIGN':
     case 'MARKETING':
-      uni.navigateTo({ url: '/pages/marketing/index' });
+      uni.navigateTo({
+        url: id ? `/pages/marketing/index?campaignId=${id}` : '/pages/marketing/index'
+      });
       break;
     case 'ANNOUNCEMENT':
       uni.navigateTo({

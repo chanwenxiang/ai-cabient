@@ -60,7 +60,7 @@ class SettlementConfirmDisputeTest {
                 null, null, inventoryService, orderPaymentService,
                 null, null, null, skuPricingService, userValidationService,
                 null, null, couponService, memberService, null, null,
-                slotRepository, null, null, distributedLockService, null);
+                slotRepository, null, null, distributedLockService, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(settlementService, "self", settlementService);
         lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
         lenient().when(sessionRepository.findByIdForUpdate(anyString())).thenAnswer(inv -> {

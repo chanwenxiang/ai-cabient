@@ -91,7 +91,9 @@ public class OrderService {
                 order.getRefundedAt(),
                 Math.max(0, order.getRefundedCents()),
                 order.getPayTradeNo(),
-                order.getPaymentOperationId()
+                order.getPaymentOperationId(),
+                order.getDeviceName(),
+                order.getMerchantName()
         );
     }
 

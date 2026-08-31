@@ -9,6 +9,20 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <el-button
+            v-if="selectedIds.length && auth.hasPerm('ops:member-level:edit')"
+            type="success"
+            @click="batchSetStatus('ACTIVE')"
+          >
+            批量启用 ({{ selectedIds.length }})
+          </el-button>
+          <el-button
+            v-if="selectedIds.length && auth.hasPerm('ops:member-level:edit')"
+            type="warning"
+            @click="batchSetStatus('INACTIVE')"
+          >
+            批量停用 ({{ selectedIds.length }})
+          </el-button>
           <el-button v-hasPermi="['ops:member-level:edit']" type="primary" @click="openCreate"
             >新建等级</el-button
           >
@@ -27,15 +41,15 @@
           row-key="id"
           empty-text=" "
           class="report-table"
+          @selection-change="onSelectionChange"
         >
           <template #empty><el-empty v-if="!loading" description="暂无等级规则" /></template>
-          <el-table-column
-            prop="levelCode"
-            label="等级编码"
-            width="120"
-            align="center"
-            class-name="col-text"
-          />
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column label="等级编码" width="120" align="center" class-name="col-text">
+            <template #default="{ row }">
+              {{ levelCodeLabel(row.levelCode, row.levelName) }}
+            </template>
+          </el-table-column>
           <el-table-column prop="levelName" label="等级名称" min-width="120" align="center" />
           <el-table-column label="累计消费区间(元)" width="180" align="center">
             <template #default="{ row }"
@@ -101,9 +115,12 @@
           <el-input
             v-model="form.levelCode"
             :disabled="editing"
-            placeholder="如 GOLD"
+            placeholder="内部编码，如 GOLD"
             style="text-transform: uppercase"
           />
+          <div v-if="form.levelCode" class="form-hint">
+            展示名：{{ levelCodeLabel(form.levelCode, form.levelName) }}
+          </div>
         </el-form-item>
         <el-form-item label="等级名称" required>
           <el-input v-model="form.levelName" placeholder="如 金卡会员" />
@@ -134,6 +151,9 @@
         <el-form-item label="积分倍率">
           <el-input-number v-model="form.pointsRate" :min="0" :precision="2" :step="0.1" />
         </el-form-item>
+        <el-form-item label="会员折扣(%)">
+          <el-input-number v-model="form.priceDiscountPct" :min="0" :max="100" :precision="2" :step="1" />
+        </el-form-item>
         <el-form-item label="排序">
           <el-input-number v-model="form.sortOrder" :min="0" />
         </el-form-item>
@@ -151,10 +171,12 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
+import { useTableSelection } from '@/composables/useTableSelection';
 
 type LevelRule = {
   id?: number;
@@ -165,6 +187,7 @@ type LevelRule = {
   minPoints?: number;
   maxPoints?: number | null;
   pointsRate?: number;
+  priceDiscountPct?: number;
   sortOrder: number;
   status: string;
 };
@@ -175,6 +198,16 @@ const list = ref<LevelRule[]>([]);
 const dialogVisible = ref(false);
 const editing = ref(false);
 const auth = useAuthStore();
+const { selectedKeys: selectedIds, onSelectionChange, clearSelection } = useTableSelection<LevelRule>(
+  (row) => row.id ?? row.levelCode
+);
+
+function levelCodeLabel(code?: string, fallbackName?: string) {
+  if (!code) return fallbackName || '—';
+  const label = displayLabel('member_level', code, '');
+  if (label && label !== code) return label;
+  return fallbackName || code;
+}
 
 const form = reactive({
   id: undefined as number | undefined,
@@ -185,6 +218,7 @@ const form = reactive({
   minPoints: 0,
   maxPoints: null as number | null,
   pointsRate: 1,
+  priceDiscountPct: 0,
   sortOrder: 0,
   status: 'ACTIVE'
 });
@@ -195,6 +229,7 @@ async function load() {
   loading.value = true;
   try {
     list.value = await api.request<LevelRule[]>('/api/v2/ops/admin/growth/member-levels');
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -213,6 +248,7 @@ function openCreate() {
     minPoints: 0,
     maxPoints: null,
     pointsRate: 1,
+    priceDiscountPct: 0,
     sortOrder: 0,
     status: 'ACTIVE'
   });
@@ -230,6 +266,7 @@ function openEdit(row: LevelRule) {
     minPoints: row.minPoints ?? 0,
     maxPoints: row.maxPoints ?? null,
     pointsRate: row.pointsRate ?? 1,
+    priceDiscountPct: row.priceDiscountPct ?? 0,
     sortOrder: row.sortOrder,
     status: row.status
   });
@@ -273,7 +310,47 @@ async function toggleStatus(row: LevelRule) {
   }
 }
 
+async function batchSetStatus(next: 'ACTIVE' | 'INACTIVE') {
+  const selected = list.value.filter((r) =>
+    selectedIds.value.map(String).includes(String(r.id ?? r.levelCode))
+  );
+  const targets = selected.filter((r) => r.status !== next);
+  if (!targets.length) {
+    ElMessage.info(next === 'ACTIVE' ? '选中项均已启用' : '选中项均已停用');
+    return;
+  }
+  const action = next === 'ACTIVE' ? '启用' : '停用';
+  try {
+    await ElMessageBox.confirm(`确认批量${action}选中的 ${targets.length} 条等级规则？`, `批量${action}`, {
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+  try {
+    for (const row of targets) {
+      await api.request<LevelRule>(
+        `/api/v2/ops/admin/growth/member-levels/${row.id}/status`,
+        'POST',
+        { status: next }
+      );
+    }
+    ElMessage.success(`已批量${action} ${targets.length} 条`);
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : `批量${action}失败`);
+  }
+}
+
 function yuan(v?: number) {
   return v == null ? '暂无' : `¥${Number(v).toFixed(2)}`;
 }
 </script>
+
+<style scoped>
+.form-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+</style>

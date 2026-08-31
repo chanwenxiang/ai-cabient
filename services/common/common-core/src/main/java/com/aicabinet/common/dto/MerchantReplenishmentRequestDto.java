@@ -20,5 +20,6 @@ public record MerchantReplenishmentRequestDto(
         String rejectReason,
         Long replenishmentTaskId,
         Long outboundId,
-        List<MerchantReplenishmentRequestLineDto> lines
+        List<MerchantReplenishmentRequestLineDto> lines,
+        Integer evidenceCount
 ) {}

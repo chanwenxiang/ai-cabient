@@ -75,6 +75,12 @@
               @click="timeRange = t.value"
               >{{ t.label }}</text
             >
+            <text
+              class="filter-chip time zero-toggle"
+              :class="{ active: hideZeroOrders }"
+              @click="toggleHideZeroOrders"
+              >隐藏零元单</text
+            >
           </view>
         </view>
 
@@ -97,7 +103,7 @@
           <view v-for="o in visibleOrders" :key="o.orderId" class="order-card" @click="goDetail(o)">
             <view class="order-top">
               <view class="order-meta">
-                <text class="order-device-name">{{ deviceDisplay(o.deviceId) }}</text>
+                <text class="order-device-name">{{ deviceDisplay(o) }}</text>
                 <text class="order-id">{{ shortId(o.orderId) }}</text>
               </view>
               <text class="chip" :class="chipClass(o.status)">{{ statusLabel(o.status) }}</text>
@@ -164,7 +170,11 @@
             v-if="!visibleOrders.length"
             compact
             title="当前筛选暂无订单"
-            hint="可切换时间或状态再试"
+            :hint="
+              hideZeroOrders
+                ? '可关闭「隐藏零元单」或切换时间/状态再试'
+                : '可切换时间或状态再试'
+            "
           />
           <view v-if="loadingMore" class="load-more">加载中…</view>
           <view v-else-if="hasMore && orders.length" class="load-more hint" @click="loadMore"
@@ -215,6 +225,8 @@ type OrderStatusFilter = 'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'ca
 const filter = ref<OrderStatusFilter>('all');
 type TimeRange = 'all' | 'today' | '7d' | '30d';
 const timeRange = ref<TimeRange>('all');
+const HIDE_ZERO_STORAGE_KEY = 'consumer_orders_hide_zero';
+const hideZeroOrders = ref(readHideZeroPreference());
 const reviewingDisputes = computed(() =>
   disputes.value.filter(
     (d) => d.status === 'OPEN' && !orders.value.some((o) => o.sessionId === d.sessionId)
@@ -236,9 +248,39 @@ const timeFilters = [
 ];
 const visibleOrders = computed(() =>
   orders.value.filter(
-    (o) => matchesFilter(o, filter.value) && matchesTimeRange(o.createdAt, timeRange.value)
+    (o) =>
+      matchesFilter(o, filter.value) &&
+      matchesTimeRange(o.createdAt, timeRange.value) &&
+      matchesZeroFilter(o)
   )
 );
+
+function readHideZeroPreference(): boolean {
+  try {
+    const raw = uni.getStorageSync(HIDE_ZERO_STORAGE_KEY);
+    if (raw === false || raw === '0' || raw === 'false') return false;
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
+function toggleHideZeroOrders() {
+  hideZeroOrders.value = !hideZeroOrders.value;
+  try {
+    uni.setStorageSync(HIDE_ZERO_STORAGE_KEY, hideZeroOrders.value);
+  } catch {
+    /* ignore */
+  }
+}
+
+function isZeroAmountOrder(order: OrderSummary) {
+  return Number(order.totalAmountCents || 0) <= 0;
+}
+
+function matchesZeroFilter(order: OrderSummary) {
+  return !hideZeroOrders.value || !isZeroAmountOrder(order);
+}
 
 function startOfTodayShanghai(): number {
   return startOfTodayShanghaiMs();
@@ -266,7 +308,10 @@ function matchesFilter(order: OrderSummary, value: OrderStatusFilter) {
 }
 function countBy(value: OrderStatusFilter) {
   return orders.value.filter(
-    (order) => matchesFilter(order, value) && matchesTimeRange(order.createdAt, timeRange.value)
+    (order) =>
+      matchesFilter(order, value) &&
+      matchesTimeRange(order.createdAt, timeRange.value) &&
+      matchesZeroFilter(order)
   ).length;
 }
 
@@ -285,13 +330,20 @@ function filterCountSuffix(value: OrderStatusFilter) {
 function shortId(id?: string) {
   return shortBizNo(id, 12, '暂无单号');
 }
-function deviceDisplay(deviceId?: string) {
-  if (!deviceId) return '无柜机';
+function deviceDisplay(o: { deviceId?: string; deviceName?: string } | string | undefined) {
+  if (!o) return '无柜机';
+  if (typeof o === 'string') {
+    const lastId = uni.getStorageSync('last_device_id');
+    const lastName = uni.getStorageSync('last_device_name');
+    if (lastId === o && lastName) return String(lastName);
+    return o;
+  }
+  if (o.deviceName) return o.deviceName;
+  if (!o.deviceId) return '无柜机';
   const lastId = uni.getStorageSync('last_device_id');
   const lastName = uni.getStorageSync('last_device_name');
-  if (lastId === deviceId && lastName) return String(lastName);
-  // 无点位名时展示真实柜机编号，避免「测试柜」等硬编码演示文案
-  return deviceId;
+  if (lastId === o.deviceId && lastName) return String(lastName);
+  return o.deviceId;
 }
 function orderSummaryText(o: OrderSummary) {
   const summary = cleanLineSummary(o.lineSummary);
@@ -725,6 +777,9 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   background: var(--brand, #047857);
   border-color: var(--brand, #047857);
   box-shadow: 0 6rpx 16rpx rgba(4, 120, 87, 0.18);
+}
+.filter-chip.zero-toggle {
+  margin-left: auto;
 }
 
 .list-inner {

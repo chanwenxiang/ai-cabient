@@ -485,4 +485,15 @@ public class OrderPaymentService {
         }
         return Math.max(charged, refundCents);
     }
+
+    /** 支付操作创建时间，用作订单 paidAt。 */
+    @Transactional(readOnly = true)
+    public java.util.Optional<Instant> findOperationCreatedAt(String paymentOperationId) {
+        if (paymentOperationId == null || paymentOperationId.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        return paymentOperationRepository.findById(paymentOperationId.trim())
+                .map(PaymentOperation::getCreatedAt)
+                .filter(at -> at != null);
+    }
 }

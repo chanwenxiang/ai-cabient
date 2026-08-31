@@ -5,7 +5,8 @@ import java.util.List;
 public record CreateMerchantReplenishmentRequest(
         String deviceId,
         String notes,
-        List<Line> lines
+        List<Line> lines,
+        List<Long> evidenceFileIds
 ) {
     public record Line(String skuId, Integer requestedQty) {}
 }

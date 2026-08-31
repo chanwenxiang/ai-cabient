@@ -21,12 +21,13 @@ class InTransitConcurrencyTest {
 
     @Mock private WarehouseInTransitMapper transitRepository;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private DisplaySnapshotHelper displaySnapshotHelper;
 
     private InTransitService service;
 
     @BeforeEach
     void setUp() {
-        service = new InTransitService(transitRepository, distributedLockService, null);
+        service = new InTransitService(transitRepository, distributedLockService, displaySnapshotHelper, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

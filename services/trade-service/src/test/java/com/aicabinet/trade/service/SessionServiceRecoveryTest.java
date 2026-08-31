@@ -50,7 +50,7 @@ class SessionServiceRecoveryTest {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
                 gravityHelper, restockSnapshotService, null, opsExceptionService, userInfoRepository, orderRepository,
-                null, null, null, null, distributedLockService, null, null);
+                null, null, null, null, distributedLockService, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
@@ -77,8 +77,8 @@ class SessionServiceRecoveryTest {
         ShoppingSession existing = session("S1", 8L, "CAB-002", SessionState.OPENING);
         when(repository.findByIdempotencyKey("open-1")).thenReturn(Optional.of(existing));
 
-        assertThrows(ResponseStatusException.class,
-                () -> service.createSession(7L, new CreateSessionRequest("CAB-001", "open-1")));
+        CreateSessionRequest request = new CreateSessionRequest("CAB-001", "open-1");
+        assertThrows(ResponseStatusException.class, () -> service.createSession(7L, request));
     }
 
     @Test

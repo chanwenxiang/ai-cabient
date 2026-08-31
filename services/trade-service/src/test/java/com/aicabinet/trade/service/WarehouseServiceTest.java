@@ -44,6 +44,7 @@ class WarehouseServiceTest {
     @Mock private InTransitService inTransitService;
     @Mock private InventoryLotService inventoryLotService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private DisplaySnapshotHelper displaySnapshotHelper;
 
     private WarehouseService warehouseService;
 
@@ -53,7 +54,8 @@ class WarehouseServiceTest {
         warehouseService = new WarehouseService(warehouseRepository, inventoryRepository,
                 inboundRepository, inboundLineRepository, outboundRepository, outboundLineRepository,
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
-                deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService, null);
+                deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService,
+                displaySnapshotHelper, null);
         org.springframework.test.util.ReflectionTestUtils.setField(warehouseService, "self", warehouseService);
     }
 

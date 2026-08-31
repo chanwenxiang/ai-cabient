@@ -65,6 +65,38 @@
           />
         </view>
 
+        <view class="card">
+          <view class="row-between">
+            <text class="label">现场照片（可选）</text>
+            <text class="hint">{{ evidenceItems.length }}/5</text>
+          </view>
+          <text class="hint block-hint">缺货柜况、陈列等，便于运营审核</text>
+          <view class="evidence-row">
+            <view
+              v-for="(item, idx) in evidenceItems"
+              :key="item.fileId || item.localPath"
+              class="evidence-thumb-wrap"
+              @click="previewEvidence(idx)"
+            >
+              <image
+                class="evidence-thumb"
+                :src="item.localPath"
+                mode="aspectFill"
+                :aria-label="`现场照片 ${idx + 1}`"
+              />
+            </view>
+            <view
+              v-if="evidenceItems.length < 5"
+              class="evidence-add"
+              aria-label="添加现场照片"
+              @click="addEvidence"
+            >
+              <text class="evidence-add-plus">+</text>
+              <text class="evidence-add-label">拍照</text>
+            </view>
+          </view>
+        </view>
+
         <view
           class="btn-primary btn-block"
           :class="{ disabled: submitting || !canSubmit }"
@@ -115,6 +147,7 @@
           <text v-if="req.reviewedAt" class="sku-meta">审核 {{ formatTime(req.reviewedAt) }}</text>
           <text v-if="req.rejectReason" class="reject">驳回：{{ req.rejectReason }}</text>
           <text v-if="req.notes" class="notes">备注：{{ req.notes }}</text>
+          <text v-if="req.evidenceCount" class="notes">附图 {{ req.evidenceCount }} 张</text>
           <view v-if="req.status === 'ACCEPTED' && req.replenishmentTaskId" class="detail-btn"
             >去补货 ›</view
           >
@@ -177,6 +210,7 @@ let listSeq = 0;
 const draftLines = ref<DraftLine[]>([]);
 const notes = ref('');
 const submitting = ref(false);
+const evidenceItems = ref<{ localPath: string; fileId?: number }[]>([]);
 
 const statusTabs = [
   { value: '', label: '全部' },
@@ -412,13 +446,18 @@ async function submit() {
   }
   submitting.value = true;
   try {
+    const evidenceFileIds = evidenceItems.value
+      .map((item) => item.fileId)
+      .filter((id): id is number => typeof id === 'number' && id > 0);
     const created = await merchantApi.submitReplenishmentRequest({
       deviceId,
       notes: notes.value.trim() || undefined,
-      lines
+      lines,
+      evidenceFileIds: evidenceFileIds.length ? evidenceFileIds : undefined
     });
     uni.showToast({ title: `已提交 #${created.requestId}`, icon: 'success' });
     notes.value = '';
+    evidenceItems.value = [];
     mode.value = 'list';
     listStatus.value = 'SUBMITTED';
     await loadRequests();
@@ -427,6 +466,44 @@ async function submit() {
   } finally {
     submitting.value = false;
   }
+}
+
+async function addEvidence() {
+  if (!canRequest.value) return;
+  if (evidenceItems.value.length >= 5) {
+    uni.showToast({ title: '最多 5 张', icon: 'none' });
+    return;
+  }
+  const paths = await new Promise<string[]>((resolve) => {
+    uni.chooseImage({
+      count: 5 - evidenceItems.value.length,
+      sizeType: ['compressed'],
+      sourceType: ['album', 'camera'],
+      success: (res) => {
+        const raw = res.tempFilePaths || [];
+        resolve(Array.isArray(raw) ? raw : [raw]);
+      },
+      fail: () => resolve([])
+    });
+  });
+  for (const path of paths) {
+    try {
+      const uploaded = await merchantApi.uploadReplenishmentRequestEvidence(path);
+      evidenceItems.value.push({ localPath: path, fileId: uploaded.fileId });
+    } catch (e) {
+      uni.showToast({
+        title: e instanceof Error ? e.message : '上传失败',
+        icon: 'none'
+      });
+      break;
+    }
+  }
+}
+
+function previewEvidence(index: number) {
+  const urls = evidenceItems.value.map((i) => i.localPath).filter(Boolean);
+  if (!urls.length) return;
+  uni.previewImage({ urls, current: urls[index] || urls[0] });
 }
 
 async function loadRequests() {
@@ -741,6 +818,44 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 .notes {
   font-size: 22rpx;
   color: #64748b;
+}
+.block-hint {
+  display: block;
+  margin-bottom: 12rpx;
+}
+.evidence-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+.evidence-thumb-wrap,
+.evidence-add {
+  width: 128rpx;
+  height: 128rpx;
+  border-radius: 12rpx;
+  overflow: hidden;
+}
+.evidence-thumb {
+  width: 100%;
+  height: 100%;
+}
+.evidence-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx dashed #cbd5e1;
+  background: #f8fafc;
+}
+.evidence-add-plus {
+  font-size: 40rpx;
+  color: #64748b;
+  line-height: 1;
+}
+.evidence-add-label {
+  font-size: 22rpx;
+  color: #64748b;
+  margin-top: 4rpx;
 }
 .req-card.clickable .req-id,
 .req-card.clickable .status,

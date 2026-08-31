@@ -21,6 +21,7 @@
             }}{{ salesLocked ? ' · 停售中' : '' }}</text
           >
           <text v-if="address" class="meta">{{ address }}</text>
+          <text v-if="firmwareVersion" class="meta">固件 {{ firmwareVersion }}</text>
           <text v-if="routeCode || lifecycleLabel" class="meta">
             <template v-if="routeCode">线路 {{ routeCode }}</template>
             <template v-if="routeCode && lifecycleLabel"> · </template>
@@ -38,6 +39,12 @@
             <text>{{ isPreferred ? '常驻柜（点击取消）' : '设为常驻柜' }}</text>
           </view>
           <view class="action-row">
+            <view
+              v-if="latitude != null && longitude != null"
+              class="btn-primary action-btn"
+              @click="openNav"
+              >导航到柜</view
+            >
             <view v-if="canReplenishView" class="btn-primary action-btn" @click="goReplenishment"
               >补货任务</view
             >
@@ -166,6 +173,9 @@ const salesLockReason = ref('');
 const address = ref('');
 const routeCode = ref('');
 const lifecycleStatus = ref('');
+const firmwareVersion = ref('');
+const latitude = ref<number | null>(null);
+const longitude = ref<number | null>(null);
 const currentTemp = ref('暂无');
 const targetTemp = ref('未设置');
 const formName = ref('');
@@ -253,13 +263,20 @@ function readExtendedDeviceFields(
     address?: string;
     routeCode?: string;
     lifecycleStatus?: string;
+    firmwareVersion?: string;
+    latitude?: number | null;
+    longitude?: number | null;
   };
   return {
     salesLocked: !!ext.salesLocked,
     salesLockReason: String(ext.salesLockReason || ''),
     address: String(ext.address || ''),
     routeCode: String(ext.routeCode || ''),
-    lifecycleStatus: String(ext.lifecycleStatus || '')
+    lifecycleStatus: String(ext.lifecycleStatus || ''),
+    firmwareVersion: String(ext.firmwareVersion || ''),
+    latitude: ext.latitude == null || Number.isNaN(Number(ext.latitude)) ? null : Number(ext.latitude),
+    longitude:
+      ext.longitude == null || Number.isNaN(Number(ext.longitude)) ? null : Number(ext.longitude)
   };
 }
 
@@ -273,6 +290,9 @@ function applyDeviceSettings(settings: Awaited<ReturnType<typeof merchantApi.dev
   address.value = ext.address;
   routeCode.value = ext.routeCode;
   lifecycleStatus.value = ext.lifecycleStatus;
+  firmwareVersion.value = ext.firmwareVersion;
+  latitude.value = ext.latitude;
+  longitude.value = ext.longitude;
   currentTemp.value = formatTempDisplay(settings.currentTempC, '暂无');
   targetTemp.value = formatTempDisplay(settings.targetTempC, '未设置');
   formName.value = (settings.deviceName as string) || '';
@@ -363,6 +383,28 @@ function togglePreferred() {
   setPreferredDeviceId(deviceId.value);
   isPreferred.value = true;
   uni.showToast({ title: '已设为常驻柜', icon: 'success' });
+}
+
+function openNav() {
+  if (latitude.value == null || longitude.value == null) {
+    uni.showToast({ title: '暂无坐标', icon: 'none' });
+    return;
+  }
+  // #ifdef H5
+  const q = encodeURIComponent(address.value || deviceName.value || deviceId.value);
+  window.open(
+    `https://uri.amap.com/marker?position=${longitude.value},${latitude.value}&name=${q}`,
+    '_blank'
+  );
+  // #endif
+  // #ifndef H5
+  uni.openLocation({
+    latitude: Number(latitude.value),
+    longitude: Number(longitude.value),
+    name: deviceName.value || deviceId.value,
+    address: address.value || ''
+  });
+  // #endif
 }
 
 function goReplenishment() {

@@ -587,6 +587,7 @@ public class DisputeService {
             String type = normalizeResolutionType(resolutionType);
             ticket.setStatus(STATUS_RESOLVED);
             ticket.setResolvedAt(Instant.now());
+            applyAssignee(ticket, operatorId);
             if (WAIVE.equals(type)) {
                 ticket.setResolutionItems("[]");
             } else if ("KEEP".equals(type)) {
@@ -676,6 +677,7 @@ public class DisputeService {
         ticket.setStatus(STATUS_RESOLVED);
         ticket.setResolutionItems("[]");
         ticket.setResolvedAt(Instant.now());
+        applyAssignee(ticket, operatorId);
         disputeRepository.save(ticket);
         auditService.appendLog(operatorId, "DISPUTE_WAIVE", DISPUTE, ticket.getTicketId(),
                 "refund=" + refunded + "; restoreInventory=" + restore);
@@ -697,6 +699,7 @@ public class DisputeService {
         ticket.setStatus(STATUS_RESOLVED);
         ticket.setResolutionItems(ticket.getItems() != null ? ticket.getItems() : "[]");
         ticket.setResolvedAt(Instant.now());
+        applyAssignee(ticket, operatorId);
         disputeRepository.save(ticket);
         auditService.appendLog(operatorId, "DISPUTE_KEEP_BILL", DISPUTE, ticket.getTicketId(),
                 SESSION + ticket.getSessionId() + " amount=" + originalAmount);
@@ -724,6 +727,7 @@ public class DisputeService {
         ticket.setStatus(STATUS_RESOLVED);
         ticket.setResolutionItems(toJson(manualItems));
         ticket.setResolvedAt(Instant.now());
+        applyAssignee(ticket, operatorId);
         disputeRepository.save(ticket);
 
         session.setOrderId(settled.order().orderId());
@@ -795,18 +799,12 @@ public class DisputeService {
         String sessionState = session != null ? session.getState().name() : null;
         String orderId = session != null ? session.getOrderId() : null;
         Integer billedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
-                .filter(o -> !CabinetConstants.ORDER_STATUS_REFUNDED.equals(o.getStatus()))
-                .map(CabinetOrder::getTotalAmountCents)
+                .map(DisputeService::resolveBilledAmountCents)
                 .orElse(null);
         Integer refundedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
-                .map(o -> {
-                    int r = Math.max(0, o.getRefundedCents());
-                    if (r <= 0 && CabinetConstants.ORDER_STATUS_REFUNDED.equals(o.getStatus())) {
-                        return o.getTotalAmountCents();
-                    }
-                    return r > 0 ? r : null;
-                })
+                .map(DisputeService::resolveRefundedAmountCents)
                 .orElse(null);
+        Integer claimedAmountCents = sumLineAmountCents(suggested);
         String previewUrl = minioVideoService.presignPlaybackUrl(videoUri).orElse(null);
         Instant now = Instant.now();
         boolean slaOverdue = "OPEN".equals(ticket.getStatus())
@@ -829,7 +827,10 @@ public class DisputeService {
                 fileAttachmentService.listDisputeEvidence(ticket.getTicketId()),
                 reviewCode,
                 parseDetectedClasses(ticket.getDetectedClasses()),
-                refundedAmountCents);
+                refundedAmountCents,
+                claimedAmountCents,
+                session != null ? session.getDeviceName() : null,
+                ticket.getAssignee());
     }
 
     @Transactional(readOnly = true)
@@ -944,18 +945,12 @@ public class DisputeService {
         String videoUri = session != null ? session.getVideoUri() : null;
         String previewUrl = minioVideoService.presignPlaybackUrl(videoUri).orElse(null);
         Integer billedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
-                .filter(o -> !CabinetConstants.ORDER_STATUS_REFUNDED.equals(o.getStatus()))
-                .map(CabinetOrder::getTotalAmountCents)
+                .map(DisputeService::resolveBilledAmountCents)
                 .orElse(null);
         Integer refundedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
-                .map(o -> {
-                    int r = Math.max(0, o.getRefundedCents());
-                    if (r <= 0 && CabinetConstants.ORDER_STATUS_REFUNDED.equals(o.getStatus())) {
-                        return o.getTotalAmountCents();
-                    }
-                    return r > 0 ? r : null;
-                })
+                .map(DisputeService::resolveRefundedAmountCents)
                 .orElse(null);
+        Integer claimedAmountCents = sumLineAmountCents(suggested);
         Instant now = Instant.now();
         boolean slaOverdue = "OPEN".equals(ticket.getStatus())
                 && ticket.getSlaDueAt() != null
@@ -977,7 +972,65 @@ public class DisputeService {
                 fileAttachmentService.listDisputeEvidence(ticket.getTicketId()),
                 reviewCode,
                 parseDetectedClasses(ticket.getDetectedClasses()),
-                refundedAmountCents);
+                refundedAmountCents,
+                claimedAmountCents,
+                session != null ? session.getDeviceName() : null,
+                ticket.getAssignee());
+    }
+
+    private static Integer resolveBilledAmountCents(CabinetOrder order) {
+        if (order == null) {
+            return null;
+        }
+        int original = Math.max(0, order.getOriginalAmountCents());
+        if (original > 0) {
+            return original;
+        }
+        int total = Math.max(0, order.getTotalAmountCents());
+        int refunded = Math.max(0, order.getRefundedCents());
+        if (total <= 0 && refunded > 0) {
+            return refunded;
+        }
+        return total > 0 ? total : null;
+    }
+
+    private static Integer resolveRefundedAmountCents(CabinetOrder order) {
+        if (order == null) {
+            return null;
+        }
+        int refunded = Math.max(0, order.getRefundedCents());
+        if (refunded > 0) {
+            return refunded;
+        }
+        if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
+            int original = Math.max(0, order.getOriginalAmountCents());
+            int total = Math.max(0, order.getTotalAmountCents());
+            int amount = original > 0 ? original : total;
+            return amount > 0 ? amount : null;
+        }
+        return null;
+    }
+
+    private static Integer sumLineAmountCents(List<OrderLineDto> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return null;
+        }
+        int sum = 0;
+        for (OrderLineDto line : lines) {
+            if (line == null) {
+                continue;
+            }
+            sum += Math.max(0, line.lineAmountCents());
+        }
+        return sum > 0 ? sum : null;
+    }
+
+    /** 争议建议行金额合计（SKU 现价 × 数量），供商户列表等轻量映射复用。 */
+    public Integer resolveClaimedAmountCents(DisputeTicket ticket) {
+        if (ticket == null) {
+            return null;
+        }
+        return sumLineAmountCents(enrichLines(parseItems(ticket.getItems())));
     }
 
     private DisputeTicket requireTicket(String ticketId) {
@@ -1030,6 +1083,28 @@ public class DisputeService {
             case "SYSTEM" -> "系统";
             default -> message.getAuthorType();
         };
+    }
+
+    /** 结案时写入处理人展示名（姓名优先，否则手机号，再否则 userId）。 */
+    private void applyAssignee(DisputeTicket ticket, Long actorId) {
+        if (ticket == null || actorId == null) {
+            return;
+        }
+        ticket.setAssignee(resolveActorDisplayName(actorId));
+    }
+
+    private String resolveActorDisplayName(Long actorId) {
+        return userInfoRepository.findById(actorId)
+                .map(u -> {
+                    if (u.getName() != null && !u.getName().isBlank()) {
+                        return u.getName().trim();
+                    }
+                    if (u.getPhoneNumber() != null && !u.getPhoneNumber().isBlank()) {
+                        return u.getPhoneNumber().trim();
+                    }
+                    return String.valueOf(actorId);
+                })
+                .orElse(String.valueOf(actorId));
     }
 
     private List<OrderLineDto> parseItems(String json) {

@@ -45,6 +45,9 @@ public class DisputeTicket {
 
     private String operatorNote;
 
+    /** 处理人展示名（结案时写入，问责用） */
+    private String assignee;
+
     private Instant closedAt;
 
     private Instant reopenedAt;

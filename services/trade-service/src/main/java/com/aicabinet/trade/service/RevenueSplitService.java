@@ -67,6 +67,17 @@ public class RevenueSplitService {
         return runWithOrderSplitLock(order.getOrderId(), () -> doRecordSplit(order));
     }
 
+    /** 按订单查分账状态码；无分账记录返回 empty。 */
+    @Transactional(readOnly = true)
+    public Optional<String> findStatusByOrderId(String orderId) {
+        if (orderId == null || orderId.isBlank()) {
+            return Optional.empty();
+        }
+        return splitRepository.findByOrderId(orderId.trim())
+                .map(OrderRevenueSplit::getStatus)
+                .filter(s -> s != null && !s.isBlank());
+    }
+
     private Optional<OrderRevenueSplit> doRecordSplit(CabinetOrder order) {
         Optional<OrderRevenueSplit> existing = splitRepository.findByOrderIdForUpdate(order.getOrderId());
         if (existing.isPresent()) {

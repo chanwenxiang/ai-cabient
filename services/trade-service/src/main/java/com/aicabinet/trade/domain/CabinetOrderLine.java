@@ -1,9 +1,11 @@
 package com.aicabinet.trade.domain;
 
+import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.IdType;
+import java.time.Instant;
 import lombok.Data;
 
 @Data
@@ -33,5 +35,8 @@ public class CabinetOrderLine {
     private String slotId;
 
     private Integer unitCostCents;
+
+    @TableField(fill = FieldFill.INSERT)
+    private Instant createdAt;
 
 }
