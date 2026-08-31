@@ -96,6 +96,7 @@ class ApprovalInboxDedupeTest {
         when(notificationService.opsUnread(eq(userId), anyInt())).thenReturn(List.of(dup, liveNote));
         when(instanceRepository.findByBizTypeAndBizId("PURCHASE_ORDER", "PO-1"))
                 .thenReturn(Optional.of(finishedInst));
+        when(taskRepository.findRecentActedByAssigneeUserId(eq(userId), anyInt())).thenReturn(List.of());
 
         ApprovalInboxDto inbox = service.inbox(userId, 15);
 
@@ -105,6 +106,7 @@ class ApprovalInboxDedupeTest {
         assertEquals(3L, inbox.recentMessages().get(0).id());
         assertEquals(1L, inbox.unreadMessageCount());
         assertTrue(inbox.pendingTasks().get(0).title().contains("#40"));
+        assertEquals(0, inbox.historyItems().size());
     }
 
     @Test
@@ -112,6 +114,7 @@ class ApprovalInboxDedupeTest {
         Long userId = 10001L;
         when(taskRepository.findPendingByAssigneeUserId(eq(userId), anyInt())).thenReturn(List.of());
         when(taskRepository.countPendingByAssigneeUserId(userId)).thenReturn(0L);
+        when(taskRepository.findRecentActedByAssigneeUserId(eq(userId), anyInt())).thenReturn(List.of());
 
         NotificationDto stale = msg(9L, "审批提醒：商户进件 默认直营商户",
                 "MERCHANT_ONBOARD", "1", true);
@@ -128,6 +131,20 @@ class ApprovalInboxDedupeTest {
         ApprovalInboxDto inbox = service.inbox(userId, 15);
         assertEquals(0, inbox.recentMessages().size());
         assertEquals(0L, inbox.unreadMessageCount());
+    }
+
+    @Test
+    void buildProgressText_showsCurrentNodeWhenStillPending() {
+        String text = ApprovalWorkflowService.buildProgressText(
+                "APPROVED", "采购申请", "PENDING", "财务审核");
+        assertEquals("已通过「采购申请」· 当前：财务审核", text);
+    }
+
+    @Test
+    void buildProgressText_finishedAfterApprove() {
+        String text = ApprovalWorkflowService.buildProgressText(
+                "APPROVED", "总部审核", "APPROVED", null);
+        assertEquals("已通过「总部审核」· 流程已结束", text);
     }
 
     private static NotificationDto msg(Long id, String title, String bizType, String bizId, boolean read) {

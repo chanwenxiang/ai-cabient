@@ -81,7 +81,7 @@ flowchart LR
 | 审批流配置 | `/approvals` | `ops:approval:config`（**节点流程图**：开始 → 审批节点卡片 → 通过/驳回，可插入/上下移） |
 | 顶栏待办 | `OpsApprovalInbox` | `ops:approval:list`（按钮权限，无独立菜单 path；勿与配置页 `/approvals` 混淆） |
 
-登录后顶栏 **待办与消息**：上方「待审批」为当前可处理任务；下方「站内消息」为通知历史（审批提醒），并会剔除与当前待办同业务的重复项。点击待办仅标记已读，**不会**减少待审批数量（办结后才减少）。可跳到对应业务页（进件 `/merchant-onboarding`、采购 `/warehouse?tab=purchase`、提现 `/merchant-withdraw` 等）。
+登录后顶栏 **待办与消息**：上方「待审批」为当前可处理任务；「站内消息」为通知（审批提醒会剔除与待办重复及已办结项）；「审批历史」展示本人已通过/驳回记录及流程进度（当前节点或已结束）。点击待办仅标记已读，**不会**减少待审批数量（办结后才减少）。可跳到对应业务页（进件 `/merchant-onboarding`、采购 `/warehouse?tab=purchase`、提现 `/merchant-withdraw` 等）。
 
 更多审批关系、以及与若依权限模型的差异（交易数据仍用商户/设备范围）见 [RBAC_VS_RUOYI.md](RBAC_VS_RUOYI.md)。
 
