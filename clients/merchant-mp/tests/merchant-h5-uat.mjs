@@ -7,6 +7,7 @@
  *   MERCHANT_H5_URL    base URL (default http://127.0.0.1:3001)
  *   MERCHANT_PHONE     登录手机号（默认 13800138001）
  *   MERCHANT_PASSWORD  登录密码（默认 123456，若演示账号密码被重置请用环境变量覆盖）
+ *   MERCHANT_DEMO_ORDER_ID  含购物录像的订单号（可选；未设则 UAT 自动从 API 探测）
  *   PW_CHANNEL         browser channel (default "chrome" = 系统 Chrome；可改 "chromium")
  *   PW_HEADED=1        有头模式，便于人工观察
  *
@@ -25,6 +26,8 @@ const HEADED = process.env.PW_HEADED === '1';
 const OUT = path.resolve(__dirname, '../output/playwright');
 const DEMO_PHONE = process.env.MERCHANT_PHONE || '13800138001';
 const DEMO_PASSWORD = process.env.MERCHANT_PASSWORD || '123456';
+/** 本地 demo 栈常见含录像订单（可通过 MERCHANT_DEMO_ORDER_ID 覆盖） */
+const DEMO_ORDER_WITH_VIDEO = process.env.MERCHANT_DEMO_ORDER_ID || '1788233752744411094';
 
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -484,6 +487,97 @@ async function main() {
       text.split('\n').slice(0, 10).join(' | '),
       e10d
     );
+
+    // —— M-10v 订单购物视频（Bearer 鉴权拉流，禁止假地址冒充通过）——
+    const videoOrderHint = DEMO_ORDER_WITH_VIDEO;
+    const videoOrderId = await page.evaluate(async (hint) => {
+      const token = localStorage.getItem('merchant_token');
+      if (!token) return '';
+      const probe = async (oid) => {
+        if (!oid) return false;
+        try {
+          const r = await fetch(`/api/v2/merchant/orders/${encodeURIComponent(oid)}/video`, {
+            headers: { Authorization: 'Bearer ' + token }
+          });
+          return r.ok;
+        } catch {
+          return false;
+        }
+      };
+      if (hint && (await probe(hint))) return hint;
+      try {
+        const listRes = await fetch('/api/v2/merchant/orders?deviceId=CAB-001&size=30', {
+          headers: { Authorization: 'Bearer ' + token }
+        });
+        const list = (await listRes.json())?.data?.content || [];
+        for (const row of list) {
+          const oid = String(row.orderId || '');
+          if (await probe(oid)) return oid;
+        }
+      } catch {
+        /* fall through */
+      }
+      return '';
+    }, videoOrderHint);
+
+    if (!videoOrderId) {
+      record(
+        'M-10v',
+        '订单购物视频',
+        '功能',
+        'SKIP',
+        '未找到含录像的订单（可先执行 scripts/seed-demo-shopping-video.ps1）',
+        null
+      );
+    } else {
+      await gotoPath(
+        page,
+        `/pages/order-detail/order-detail?orderId=${encodeURIComponent(videoOrderId)}`
+      );
+      await page.waitForTimeout(2000);
+      const hasVideoBtn = (await bodyText(page)).includes('查看购物视频');
+      const clickedVideo = hasVideoBtn && (await clickByText(page, '查看购物视频', { exact: true }));
+      await page.waitForTimeout(3500);
+      text = await bodyText(page);
+      const videoState = await page.evaluate(() => {
+        const v = document.querySelector('video');
+        if (!v) {
+          return {
+            hasVideo: false,
+            readyState: 0,
+            errCode: null,
+            failedUi: /视频加载失败|缺少视频地址|缺少订单号/.test(document.body?.innerText || '')
+          };
+        }
+        return {
+          hasVideo: true,
+          readyState: v.readyState,
+          errCode: v.error ? v.error.code : null,
+          currentSrc: v.currentSrc || v.src || '',
+          failedUi: /视频加载失败/.test(document.body?.innerText || '')
+        };
+      });
+      const videoOk =
+        clickedVideo &&
+        videoState.hasVideo &&
+        !videoState.failedUi &&
+        videoState.errCode == null &&
+        Number(videoState.readyState) >= 2;
+      const e10v = await shot(page, '10v-order-video');
+      record(
+        'M-10v',
+        '订单购物视频',
+        '功能',
+        videoOk ? 'PASS' : 'FAIL',
+        videoOk
+          ? `orderId=${videoOrderId} readyState=${videoState.readyState} src=${String(videoState.currentSrc).slice(0, 80)}`
+          : `orderId=${videoOrderId} btn=${hasVideoBtn} click=${clickedVideo} state=${JSON.stringify(videoState)} body=${text
+              .split('\n')
+              .slice(0, 6)
+              .join(' | ')}`,
+        e10v
+      );
+    }
 
     // —— M-10c 柜机详情 ——
     await gotoPath(page, '/pages/device-detail/device-detail?id=CAB-001');
