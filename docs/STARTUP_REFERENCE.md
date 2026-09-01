@@ -192,7 +192,7 @@ $env:APIFOX_PROJECT_ID = '8780097'   # 可选
 
 - 导出文件：`.tmp/live-openapi.json`（须用 **trade** 端口 `:18080` 或 `:8080`，网关 `/v3/api-docs` 常无 paths）
 - 无令牌时仅导出，可在 Apifox 手动 Import → OpenAPI
-- **Mock 冒烟场景（对齐 Apifox S01–S10）**：`.\scripts\apifox-smoke-scenario.ps1`；可选 `-WithOpenDoor` 试开门并取消
+- **Mock 冒烟场景（对齐 Apifox S01–S10）**：`.\scripts\apifox-smoke-scenario.ps1`；可选 `-WithOpenDoor` 试开门并取消。手工建场景见 [APIFOX_MOCK_SCENARIO.md](APIFOX_MOCK_SCENARIO.md)
 - **三端联调（含争议 KEEP/WAIVE/CONFIRM）**：`.\scripts\e2e-three-end.ps1`（加 `-IncludeHappyPath` 含 happy-path）
 
 ---
@@ -203,4 +203,5 @@ $env:APIFOX_PROJECT_ID = '8780097'   # 可选
 |------|------|
 | [MODULES.md](MODULES.md) | 模块索引 |
 | [LOCAL_SETUP.md](LOCAL_SETUP.md) | 完整本地联调步骤 |
+| [APIFOX_MOCK_SCENARIO.md](APIFOX_MOCK_SCENARIO.md) | Apifox Mock 场景步骤（S01–S10） |
 | [PRODUCTION.md](PRODUCTION.md) | 上生产环境变量与安全清单 |
