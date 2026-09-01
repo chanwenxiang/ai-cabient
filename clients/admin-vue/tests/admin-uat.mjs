@@ -72,15 +72,22 @@ async function waitPageCaptchaId(page, timeoutMs = 8000) {
 }
 
 async function captchaForPage(page) {
-  let capId = await waitPageCaptchaId(page);
-  try {
-    return { captchaId: capId, captchaCode: captchaFromRedis(capId) };
-  } catch {
-    await page.locator('button.captcha-img-btn').first().click();
-    await page.waitForTimeout(600);
-    capId = await waitPageCaptchaId(page);
-    return { captchaId: capId, captchaCode: captchaFromRedis(capId) };
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const capId = await waitPageCaptchaId(page, 5000);
+      return { captchaId: capId, captchaCode: captchaFromRedis(capId) };
+    } catch {
+      // Redis 偶发未写入：刷新图形码；仍失败则整页重载
+      try {
+        await page.locator('button.captcha-img-btn').first().click({ timeout: 3000, force: true });
+        await page.waitForTimeout(800);
+      } catch {
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(1200);
+      }
+    }
   }
+  throw new Error('unable to resolve admin captcha from redis');
 }
 
 async function fillElInput(page, placeholder, value) {
@@ -200,6 +207,47 @@ async function main() {
       e5
     );
     dashOk ? pass++ : fail++;
+
+    // —— 订单 / 开门记录 / 设备：三端履约运营主路径 ——
+    const bizPages = [
+      { id: 'A-06', name: '订单管理', path: '/orders', expect: /订单管理|订单号|状态|暂无/ },
+      { id: 'A-07', name: '开门记录', path: '/sessions', expect: /开门记录|会话|柜机|暂无/ },
+      { id: 'A-08', name: '设备列表', path: '/devices', expect: /设备|CAB-|在线|离线|暂无/ }
+    ];
+    for (const p of bizPages) {
+      await page.goto(`${ADMIN}${p.path}`, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(1800);
+      text = await bodyText(page);
+      const ok = p.expect.test(text);
+      const evidence = await shot(page, p.id.toLowerCase());
+      record(p.id, p.name, '功能', ok ? 'PASS' : 'FAIL', text.split('\n').slice(0, 10).join(' | '), evidence);
+      ok ? pass++ : fail++;
+    }
+
+    // 争议列表点开首行（若有）看详情抽屉/页
+    await page.goto(`${ADMIN}/disputes`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(1500);
+    const openedDispute = await page.evaluate(() => {
+      const row = document.querySelector('.el-table__body tr, .el-table__row');
+      if (!row) return false;
+      row.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      return true;
+    });
+    await page.waitForTimeout(1500);
+    text = await bodyText(page);
+    const detailOk =
+      !openedDispute ||
+      /工单|会话|识别|录像|商品|免单|确认|KEEP|WAIVE|CONFIRM|详情/.test(text);
+    const e9 = await shot(page, '09-dispute-detail');
+    record(
+      'A-09',
+      '争议详情可打开',
+      '功能',
+      detailOk ? 'PASS' : 'FAIL',
+      `opened=${openedDispute} body=${text.split('\n').slice(0, 8).join(' | ')}`,
+      e9
+    );
+    detailOk ? pass++ : fail++;
 
     const severe = await page.evaluate(() => {
       const entries = performance.getEntriesByType('resource') || [];
