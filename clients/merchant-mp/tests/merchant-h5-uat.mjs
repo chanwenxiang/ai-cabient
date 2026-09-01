@@ -503,11 +503,18 @@ async function main() {
           const r = await fetch(`/api/v2/merchant/orders/${encodeURIComponent(oid)}/video`, {
             headers: { Authorization: 'Bearer ' + token }
           });
-          return r.ok;
+          if (!r.ok) return false;
+          const buf = await r.arrayBuffer();
+          // 过短或非 MP4 ftyp 的「假成功」会在 video 里报 MEDIA_ERR_SRC_NOT_SUPPORTED
+          if (buf.byteLength < 1024) return false;
+          const u8 = new Uint8Array(buf.slice(4, 8));
+          const tag = String.fromCharCode(...u8);
+          return tag === 'ftyp';
         } catch {
           return false;
         }
       };
+      if (hint && (await probe(hint))) return hint;
       try {
         const listRes = await fetch('/api/v2/merchant/orders?deviceId=CAB-001&size=30', {
           headers: { Authorization: 'Bearer ' + token }
@@ -522,7 +529,6 @@ async function main() {
       } catch {
         /* fall through */
       }
-      if (hint && (await probe(hint))) return hint;
       return '';
     }, videoOrderHint);
 
@@ -543,26 +549,39 @@ async function main() {
       await page.waitForTimeout(2000);
       const hasVideoBtn = (await bodyText(page)).includes('查看购物视频');
       const clickedVideo = hasVideoBtn && (await clickByText(page, '查看购物视频', { exact: true }));
-      await page.waitForTimeout(3500);
-      text = await bodyText(page);
-      const videoState = await page.evaluate(() => {
-        const v = document.querySelector('video');
-        if (!v) {
+      // 等 video 元数据/可播放；MIME 修正后通常 readyState>=2
+      const deadline = Date.now() + 10000;
+      let videoState = null;
+      while (Date.now() < deadline) {
+        videoState = await page.evaluate(() => {
+          const v = document.querySelector('video');
+          if (!v) {
+            return {
+              hasVideo: false,
+              readyState: 0,
+              errCode: null,
+              failedUi: /视频加载失败|缺少视频地址|缺少订单号/.test(document.body?.innerText || '')
+            };
+          }
           return {
-            hasVideo: false,
-            readyState: 0,
-            errCode: null,
-            failedUi: /视频加载失败|缺少视频地址|缺少订单号/.test(document.body?.innerText || '')
+            hasVideo: true,
+            readyState: v.readyState,
+            errCode: v.error ? v.error.code : null,
+            currentSrc: v.currentSrc || v.src || '',
+            failedUi: /视频加载失败/.test(document.body?.innerText || '')
           };
+        });
+        if (
+          videoState.hasVideo &&
+          !videoState.failedUi &&
+          videoState.errCode == null &&
+          Number(videoState.readyState) >= 2
+        ) {
+          break;
         }
-        return {
-          hasVideo: true,
-          readyState: v.readyState,
-          errCode: v.error ? v.error.code : null,
-          currentSrc: v.currentSrc || v.src || '',
-          failedUi: /视频加载失败/.test(document.body?.innerText || '')
-        };
-      });
+        await page.waitForTimeout(400);
+      }
+      text = await bodyText(page);
       const videoOk =
         clickedVideo &&
         videoState.hasVideo &&

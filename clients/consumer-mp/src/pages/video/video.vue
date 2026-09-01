@@ -108,7 +108,12 @@ async function loadOrderVideo(oid: string) {
       if (res.status === 404) throw new Error('该订单暂无购物视频');
       throw new Error(`播放失败（HTTP ${res.status}）`);
     }
-    const blob = await res.blob();
+    const raw = await res.blob();
+    // Vite 代理/部分网关可能把 Content-Type 变成 octet-stream，Chrome 会 MEDIA_ERR_SRC_NOT_SUPPORTED
+    const blob =
+      raw.type && raw.type.startsWith('video/')
+        ? raw
+        : new Blob([await raw.arrayBuffer()], { type: 'video/mp4' });
     blobUrl = URL.createObjectURL(blob);
     src.value = blobUrl;
     // #endif
