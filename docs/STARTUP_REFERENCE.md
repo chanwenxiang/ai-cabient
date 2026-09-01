@@ -1,34 +1,39 @@
 # 本地启动速查表
 
 > 默认 **dev** 环境，验证码固定 `123456`。完整说明见 [LOCAL_SETUP.md](LOCAL_SETUP.md)。
+>
+> **先核对本机端口再启动**：不要盲跑 `docker-up.ps1` 与 IDEA 混用。全栈 Docker（trade `:18080`）与 IDEA 本地（trade `:8080`）二选一。
 
 ---
 
-## 一、启动顺序
+## 一、启动顺序（推荐：IDEA 本地 + Docker 仅基础设施）
 
 | 顺序 | 组件 | 如何启动 |
 |------|------|----------|
-| 1 | Docker 全栈 | 仓库根目录 `.\docker-up.ps1`（**不要** `cd infra && docker compose up`） |
-| 2 | vision-service | `cd vision-service && uvicorn app.main:app --reload --port 8082` |
-| 3 | trade-service | IDEA Run `TradeServiceApplication`（:8080） |
-| 4 | device-service | IDEA Run `DeviceServiceApplication`（:8081） |
+| 1 | Docker **基础设施** | 仓库根目录：`docker compose -p ai-cabinet -f infra/docker-compose.yml up -d`（postgres / redis / emqx / minio…）。**不要**默认 `.\docker-up.ps1`（那是 full 栈，会起 Docker 版 trade `:18080`） |
+| 2 | vision-service | `cd vision-service && .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8082`（**必启**：trade 的 `/actuator/health` 含 vision 探针，vision 挂则 trade=DOWN） |
+| 3 | trade-service | IDEA Run `trade-service`（:8080）；需能连 **Redis `:6379`** 与 Postgres `:15433` |
+| 4 | device-service | IDEA Run `device-service`（:8081）；MQTT 默认 `tcp://localhost:11883` |
 | 5 | 设备模拟器 | IDEA Run `DeviceSimulator`，参数 `CAB-001` |
 | 6 | 消费者小程序 | 微信：`pnpm --filter @aicabinet/consumer-mp dev:mp-weixin`；**浏览器 H5**：`pnpm --filter @aicabinet/consumer-mp dev:h5` → http://127.0.0.1:3002 |
 | 7 | 商户小程序 | 微信：`pnpm --filter @aicabinet/merchant-mp dev:mp-weixin`；**浏览器 H5**：`pnpm --filter @aicabinet/merchant-mp dev:h5` → http://127.0.0.1:3001 |
-| 8 | 运营控制台 | 浏览器 http://localhost/admin/index.html（Gateway）或 http://localhost:8080/admin/index.html |
+| 8 | 运营控制台 | 有 Gateway 时 http://localhost/admin/index.html；仅 IDEA trade 时用 http://localhost:8080/admin/index.html |
+
+可选全栈：`.\docker-up.ps1`（`infra/docker-compose.full.yml`）→ Admin/API 走 Gateway / `:18080`，此时不要再起 IDEA trade。
 
 ---
 
 ## 二、服务与端口
 
-### 必启（完整购物流程）
+### 必启（完整购物流程 · IDEA 模式）
 
 | 服务 | 端口 | 健康检查 / 入口 |
 |------|------|-----------------|
 | PostgreSQL | **15433** | Docker 内 5432，宿主机 15433 |
-| **EMQX MQTT** | 11883 | 设备通信 |
+| **Redis** | **6379** | trade/device 默认 `REDIS_PORT=6379`；**会进 health**，不是「未使用」 |
+| **EMQX MQTT** | 11883 | 设备通信（device-service） |
 | **MinIO API** | 9000（Windows 常需 **19000**） | 视频存储；若 `bind: access permissions` 见下方 Windows 说明 |
-| **trade-service** | **8080**（全栈 Docker 常为 **18080**） | http://localhost:8080/actuator/health 或 :18080 |
+| **trade-service** | **8080**（全栈 Docker 常为 **18080**） | http://localhost:8080/actuator/health 须为 **UP**（依赖 Redis + vision） |
 | **device-service** | **8081**（Docker 常为 **18081**） | http://localhost:8081/actuator/health |
 | **vision-service** | **8082**（Docker 常为 **18082**） | http://localhost:8082/health |
 | **设备模拟器** | — | 程序参数 `CAB-001`，每 30s 心跳 |
@@ -37,11 +42,18 @@
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
-| Redis | 6379 | 预留，当前未用 |
 | Redpanda/Kafka | 9092 | 异步识别用，默认关闭 |
-| Nginx Gateway | 80 | http://localhost/admin/index.html |
+| Nginx Gateway | 80 | http://localhost/admin/index.html（full 栈或单独起 gateway） |
 | EMQX 控制台 | 28083 | http://localhost:28083 |
 | MinIO 控制台 | 9001（Windows 常需 **19001**） | http://localhost:9001 或 http://localhost:19001 |
+
+### 已知坑（2026-09 实测）
+
+| 现象 | 原因 | 处理 |
+|------|------|------|
+| trade health=`DOWN`，但 `/v3/api-docs` 仍 200 | Redis 连不上，和/或 vision `:8082` 未起（`VisionServiceHealthIndicator`） | 先确认 `127.0.0.1:6379` 与 `:8082/health`，再看 trade health |
+| Redis 在 **16379** 而应用默认 6379 | 旧容器端口与仓库 `docker-compose*.yml`（`6379:6379`）不一致 | 按仓库 compose **重建 redis**，或 IDEA 环境变量 `REDIS_PORT=16379`（勿长期分叉） |
+| 盲跑 `docker-up.ps1` + IDEA trade | 双 trade / 端口与心智模型混乱 | 选一种模式 |
 
 ### Windows MinIO 端口（Hyper-V 预留）
 

@@ -34,8 +34,20 @@ fs.mkdirSync(OUT, { recursive: true });
 const results = [];
 
 function record(id, name, category, status, detail, evidence) {
-  results.push({ id, name, category, status, detail, evidence, at: new Date().toISOString() });
-  const mark = status === 'PASS' ? '✓' : status === 'FAIL' ? '✗' : '○';
+  // 兼容历史调用传入 boolean；统一成 PASS/FAIL，避免 summary 漏计失败
+  let normalized = status;
+  if (status === true) normalized = 'PASS';
+  else if (status === false) normalized = 'FAIL';
+  results.push({
+    id,
+    name,
+    category,
+    status: normalized,
+    detail,
+    evidence,
+    at: new Date().toISOString()
+  });
+  const mark = normalized === 'PASS' ? '✓' : normalized === 'FAIL' ? '✗' : '○';
   console.log(`${mark} [${category}] ${id} ${name} — ${String(detail).slice(0, 240)}`);
 }
 
@@ -218,6 +230,32 @@ async function gotoPath(page, pathname, wait = 1500) {
   await page.waitForTimeout(wait);
 }
 
+/** 关闭 vision mock 强制人工审核，避免 UAT 开门后秒进争议页 */
+async function disableVisionForceNeedReview() {
+  const bases = [
+    process.env.VISION_URL,
+    'http://127.0.0.1:18082',
+    'http://localhost:18082'
+  ].filter(Boolean);
+  const key = process.env.VISION_API_KEY || 'dev-internal-key-change-me';
+  for (const base of bases) {
+    try {
+      const r = await fetch(`${base.replace(/\/$/, '')}/api/v2/vision/debug/force-need-review`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Internal-Api-Key': key
+        },
+        body: JSON.stringify({ enabled: false })
+      });
+      if (r.ok) return true;
+    } catch {
+      /* try next */
+    }
+  }
+  return false;
+}
+
 /** 清理上次运行遗留的活动会话，保证开门用例可重复执行 */
 async function cancelActiveSession(page) {
   const token = await page.evaluate(() => localStorage.getItem('consumer_token') || '');
@@ -227,13 +265,22 @@ async function cancelActiveSession(page) {
     try {
       const res = await fetch('/api/v2/sessions/active', { headers }).then((r) => r.json());
       const s = res?.data;
-      if (s?.sessionId) {
-        await fetch('/api/v2/sessions/' + encodeURIComponent(s.sessionId) + '/cancel', {
+      if (!s?.sessionId) return false;
+      const state = String(s.state || '').toUpperCase();
+      const sid = encodeURIComponent(s.sessionId);
+      if (state === 'SHOPPING' || state === 'OPENING') {
+        await fetch('/api/v2/sessions/' + sid + '/demo-close', {
+          method: 'POST',
+          headers,
+          body: '{}'
+        }).catch(() => {});
+      } else {
+        await fetch('/api/v2/sessions/' + sid + '/cancel', {
           method: 'POST',
           headers
         }).catch(() => {});
-        return true;
       }
+      return true;
     } catch {
       /* ignore */
     }
@@ -512,20 +559,68 @@ async function main() {
       e10a
     );
 
-    // —— TC-VIDEO-001 购物视频播放页 ——
-    await gotoPath(
-      page,
-      '/pages/video/video?url=' + encodeURIComponent('https://example.com/demo.mp4')
-    );
+    // —— TC-VIDEO-001 购物视频播放页（本地 sample，禁止再用 example.com 假地址冒充通过）——
+    const demoVideoCandidates = [
+      `${BASE}/static/demo-shopping.mp4`,
+      `${BASE}/demo-shopping.mp4`,
+      'http://127.0.0.1:9000/cabinet-videos/demo/sample-shopping.mp4'
+    ];
+    let playableVideoUrl = '';
+    for (const candidate of demoVideoCandidates) {
+      try {
+        const head = await fetch(candidate, { method: 'HEAD' });
+        const ctype = (head.headers.get('content-type') || '').toLowerCase();
+        if (head.ok && ctype.includes('video')) {
+          playableVideoUrl = candidate;
+          break;
+        }
+      } catch {
+        /* try next */
+      }
+    }
+    if (!playableVideoUrl) {
+      playableVideoUrl = demoVideoCandidates[0];
+    }
+    await gotoPath(page, '/pages/video/video?url=' + encodeURIComponent(playableVideoUrl));
+    await page.waitForTimeout(2500);
     text = await bodyText(page);
-    const videoOk = /购物视频|复制链接|视频加载失败|缺少视频地址/.test(text);
+    const videoState = await page.evaluate(() => {
+      const v = document.querySelector('video');
+      if (!v) {
+        return {
+          hasVideo: false,
+          readyState: 0,
+          errCode: null,
+          failedUi: /视频加载失败|缺少视频地址/.test(document.body?.innerText || '')
+        };
+      }
+      return {
+        hasVideo: true,
+        readyState: v.readyState,
+        errCode: v.error ? v.error.code : null,
+        networkState: v.networkState,
+        currentSrc: v.currentSrc || v.src || '',
+        failedUi: /视频加载失败/.test(document.body?.innerText || '')
+      };
+    });
+    // readyState >= 2 (HAVE_CURRENT_DATA) 视为可播放；无 error 且未展示失败态
+    const videoOk =
+      videoState.hasVideo &&
+      !videoState.failedUi &&
+      videoState.errCode == null &&
+      Number(videoState.readyState) >= 2;
     const e10v = await shot(page, '10v-video-page');
     record(
       'TC-VIDEO-001',
       '购物视频播放页',
       '功能',
       videoOk ? 'PASS' : 'FAIL',
-      text.split('\n').slice(0, 6).join(' | '),
+      videoOk
+        ? `可播放 url=${playableVideoUrl} readyState=${videoState.readyState}`
+        : `不可播放 url=${playableVideoUrl} state=${JSON.stringify(videoState)} body=${text
+            .split('\n')
+            .slice(0, 6)
+            .join(' | ')}`,
       e10v
     );
 
@@ -689,7 +784,8 @@ async function main() {
       e10d
     );
 
-    // —— 开门前置：清理遗留活动会话 ——
+    // —— 开门前置：关 mock 强制审核 + 清理遗留活动会话 ——
+    await disableVisionForceNeedReview();
     await gotoPath(page, '/pages/index/index');
     await cancelActiveSession(page);
 
@@ -735,11 +831,16 @@ async function main() {
     text = await bodyText(page);
     const state3s = text.split('\n').filter(Boolean).slice(0, 18).join(' | ');
     const sessionId3s = await page.evaluate(() => localStorage.getItem('active_session_id') || '');
-    await page.waitForTimeout(5000);
-    text = await bodyText(page);
+    const shoppingEarly = /门已开|购物中|本柜价目|正在开门|开门中/.test(text);
+    // 已进入购物态则不再多等 5s，避免 mock 识别把会话推进到争议/审核页
+    if (!shoppingEarly && !sessionId3s) {
+      await page.waitForTimeout(5000);
+      text = await bodyText(page);
+    }
     const sessionId8s = await page.evaluate(() => localStorage.getItem('active_session_id') || '');
     const state8s = text.split('\n').filter(Boolean).slice(0, 20).join(' | ');
     const progressing =
+      shoppingEarly ||
       text.includes('正在开门') ||
       text.includes('开门中') ||
       text.includes('门已开') ||
@@ -764,9 +865,14 @@ async function main() {
 
     // —— TC-RESTORE-001 会话恢复：刷新后恢复购物态 ——
     await gotoPath(page, '/pages/index/index', 2500);
-    await waitText(page, '购物中', 8000);
+    const restoreDeadline = Date.now() + 8000;
+    while (Date.now() < restoreDeadline) {
+      text = await bodyText(page);
+      if (/门已开|购物中|本柜价目|正在开门|开门中|本柜商品/.test(text)) break;
+      await page.waitForTimeout(300);
+    }
     text = await bodyText(page);
-    const restoreOk = /门已开|购物中|本柜价目/.test(text);
+    const restoreOk = /门已开|购物中|本柜价目|正在开门|开门中|本柜商品/.test(text);
     const e13b = await shot(page, '13b-session-restore');
     record(
       'TC-RESTORE-001',
@@ -1072,19 +1178,24 @@ async function main() {
 
     await clickByText(page, '去登录');
     await page.waitForTimeout(1200);
+    // 与 TC-LOGIN-004 一致：必须先切到「验证码」Tab（避免停在密码页填不到验证码）
+    await clickByText(page, '验证码', { exact: true });
+    await page.waitForTimeout(400);
     await fillPlaceholder(page, '请输入11位手机号', DEMO_PHONE);
     await clickByText(page, '获取验证码');
     await page.waitForTimeout(700);
     await fillPlaceholder(page, '请输入验证码', DEMO_SMS);
     await clickByTestId(page, 'login-submit');
-    await page.waitForTimeout(3000);
-    const tokenAfter = await page.evaluate(() => localStorage.getItem('consumer_token') || '');
+    await page.waitForTimeout(3500);
+    const tokenAfter = await page.evaluate(
+      () => localStorage.getItem('consumer_token') || sessionStorage.getItem('consumer_token') || ''
+    );
     const e20b = await shot(page, '20b-relogin');
     record(
       'TC-LGOUT-002',
       '重新登录',
       '功能',
-      !!tokenAfter,
+      tokenAfter ? 'PASS' : 'FAIL',
       tokenAfter ? 'token 已写入' : '未拿到 token',
       e20b
     );

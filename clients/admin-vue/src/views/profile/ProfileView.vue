@@ -9,6 +9,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <el-button type="primary" plain @click="openEditDialog">编辑资料</el-button>
           <el-button type="primary" plain @click="openPasswordDialog">修改密码</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="reload">刷新资料</el-button>
         </div>
@@ -16,24 +17,33 @@
     </template>
 
     <div class="profile-head">
-      <el-avatar :size="64" class="avatar">{{ initial }}</el-avatar>
+      <el-avatar :size="64" class="avatar" :src="auth.avatarUrl || undefined">
+        {{ initial }}
+      </el-avatar>
       <div class="name-cell">
         <strong class="display-name">{{ profileReady ? auth.displayName : '…' }}</strong>
         <small>{{ profileReady ? auth.phone || '无' : '…' }}</small>
+        <small v-if="profileReady && auth.email">{{ auth.email }}</small>
         <small class="cell-id">ID {{ profileReady ? auth.userId || '无' : '…' }}</small>
       </div>
     </div>
 
     <el-descriptions :column="1" border class="profile-desc">
+      <el-descriptions-item label="姓名">{{
+        profileReady ? auth.displayName : '…'
+      }}</el-descriptions-item>
+      <el-descriptions-item label="手机号">{{
+        profileReady ? auth.phone || '无' : '…'
+      }}</el-descriptions-item>
+      <el-descriptions-item label="邮箱">{{
+        profileReady ? auth.email || '未设置' : '…'
+      }}</el-descriptions-item>
       <el-descriptions-item label="角色">{{
         profileReady ? auth.roleText : '…'
       }}</el-descriptions-item>
       <el-descriptions-item label="数据范围">{{
         profileReady ? auth.dataScopeText : '…'
       }}</el-descriptions-item>
-      <el-descriptions-item label="权限数">
-        {{ profileReady ? (auth.profile?.permissionCount ?? permissions.length) : '暂无' }}
-      </el-descriptions-item>
       <el-descriptions-item label="主题">
         <el-tag size="small" :type="settings.theme === 'dark' ? 'info' : 'success'" effect="plain">
           {{ settings.theme === 'dark' ? '深色' : '浅色' }}
@@ -108,24 +118,47 @@
       </div>
     </div>
 
-    <div v-if="permissions.length" class="perm-block">
-      <div class="perm-head">
-        <h4>权限码（节选）</h4>
-        <span class="meta">共 {{ permissions.length }} 项</span>
-      </div>
-      <div class="perm-tags">
-        <el-tag
-          v-for="p in permissions.slice(0, 30)"
-          :key="p"
-          size="small"
-          effect="plain"
-          class="perm-tag"
-        >
-          {{ p }}
-        </el-tag>
-      </div>
-      <p v-if="permissions.length > 30" class="meta">…仅展示前 30 项</p>
-    </div>
+    <el-dialog v-model="editVisible" title="编辑资料" width="440px" :close-on-click-modal="false">
+      <el-form label-position="top" @submit.prevent="submitProfile">
+        <el-form-item label="头像 / Logo">
+          <div class="logo-edit">
+            <el-avatar :size="56" class="avatar" :src="editForm.avatarUrl || undefined">
+              {{ (editForm.name || '运').slice(0, 1) }}
+            </el-avatar>
+            <el-upload
+              :show-file-list="false"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              :http-request="uploadAvatar"
+              :disabled="avatarUploading"
+            >
+              <el-button :loading="avatarUploading">上传图片</el-button>
+            </el-upload>
+            <el-button v-if="editForm.avatarUrl" link type="danger" @click="editForm.avatarUrl = ''"
+              >清除</el-button
+            >
+          </div>
+        </el-form-item>
+        <el-form-item label="姓名" required>
+          <el-input v-model="editForm.name" maxlength="64" placeholder="显示名称" />
+        </el-form-item>
+        <el-form-item label="手机号" required>
+          <el-input
+            v-model="editForm.phoneNumber"
+            type="tel"
+            maxlength="11"
+            inputmode="numeric"
+            placeholder="11 位手机号"
+          />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="editForm.email" maxlength="128" placeholder="选填，如 name@example.com" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="editSaving" @click="submitProfile">保存</el-button>
+      </template>
+    </el-dialog>
 
     <el-dialog v-model="pwdVisible" title="修改密码" width="420px" :close-on-click-modal="false">
       <el-form label-position="top" @submit.prevent="submitPassword">
@@ -166,10 +199,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { api } from '@/api/client';
+import type { UploadRequestOptions } from 'element-plus';
+import { api, authFetch } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { useSettingsStore } from '@/stores/settings';
 import type { TwoFactorEnroll, TwoFactorStatus } from '@aicabinet/shared-types';
@@ -179,12 +213,22 @@ const settings = useSettingsStore();
 const loading = ref(false);
 const profileHydrated = ref(!!auth.profile);
 
-const permissions = computed(() => auth.permissions);
 /** 有缓存资料则直接展示；首屏未拉完前不闪「无 / 未分配角色」 */
 const profileReady = computed(() => !!auth.profile || (profileHydrated.value && !loading.value));
 const initial = computed(() => (auth.displayName || '运').slice(0, 1));
 const fontLabel = computed(() => ({ sm: '小', md: '中', lg: '大' })[settings.fontSize]);
 const actionLabel = computed(() => (settings.tableActionMode === 'label' ? '图标+文字' : '图标'));
+
+const editVisible = ref(false);
+const editSaving = ref(false);
+const avatarUploading = ref(false);
+const editForm = reactive({
+  name: '',
+  phoneNumber: '',
+  email: '',
+  avatarUrl: ''
+});
+
 const pwdVisible = ref(false);
 const pwdSaving = ref(false);
 const pwdForm = ref({ oldPassword: '', newPassword: '', confirmPassword: '' });
@@ -268,6 +312,84 @@ function copyText(text: string) {
     ?.writeText(text)
     .then(() => ElMessage.success('已复制'))
     .catch(() => ElMessage.warning('复制失败'));
+}
+
+function openEditDialog() {
+  editForm.name = auth.profile?.name || auth.displayName || '';
+  editForm.phoneNumber = auth.phone || auth.profile?.phoneNumber || '';
+  editForm.email = auth.email || '';
+  editForm.avatarUrl = auth.avatarUrl || '';
+  editVisible.value = true;
+}
+
+async function uploadAvatar(options: UploadRequestOptions) {
+  const file = options.file as File;
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.warning('图片不能超过 5MB');
+    return;
+  }
+  avatarUploading.value = true;
+  try {
+    const base =
+      (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
+    const form = new FormData();
+    form.append('file', file);
+    const res = await authFetch(`${base}/api/v2/ops/admin/rbac/me/avatar`, {
+      method: 'POST',
+      body: form
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json.code !== 0) {
+      throw new Error(json.message || `上传失败 (${res.status})`);
+    }
+    const uploaded = json.data as { url?: string };
+    if (!uploaded?.url) {
+      throw new Error('上传失败：未返回地址');
+    }
+    editForm.avatarUrl = uploaded.url;
+    options.onSuccess?.(uploaded as never);
+    ElMessage.success('头像已上传，请保存资料');
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '上传失败';
+    options.onError?.(e as never);
+    ElMessage.error(msg);
+  } finally {
+    avatarUploading.value = false;
+  }
+}
+
+async function submitProfile() {
+  const name = editForm.name.trim();
+  const phoneNumber = editForm.phoneNumber.trim();
+  const email = editForm.email.trim();
+  if (!name) {
+    ElMessage.warning('请填写姓名');
+    return;
+  }
+  if (!/^1\d{10}$/.test(phoneNumber)) {
+    ElMessage.warning('请输入 11 位手机号');
+    return;
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    ElMessage.warning('邮箱格式不正确');
+    return;
+  }
+  editSaving.value = true;
+  try {
+    await auth.updateProfile({
+      name,
+      phoneNumber,
+      email: email || null,
+      avatarUrl: editForm.avatarUrl.trim() || null
+    });
+    ElMessage.success('资料已保存');
+    editVisible.value = false;
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+  } finally {
+    editSaving.value = false;
+  }
 }
 
 function openPasswordDialog() {
@@ -386,6 +508,7 @@ onActivated(() => {
 .page-card-head__actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .profile-head {
@@ -422,9 +545,6 @@ onActivated(() => {
   max-width: 560px;
 }
 
-.perm-block {
-  margin-top: 24px;
-}
 .perm-head {
   display: flex;
   align-items: baseline;
@@ -435,17 +555,19 @@ onActivated(() => {
   margin: 0;
   font-size: 14px;
 }
-.perm-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.perm-tag {
-  font-family: var(--app-font-mono);
-}
 .meta {
   color: var(--el-text-color-secondary);
   margin: 8px 0 0;
   font-size: 12px;
+}
+
+.logo-edit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.logo-edit .avatar {
+  font-size: 20px;
 }
 </style>

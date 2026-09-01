@@ -1,0 +1,31 @@
+---
+description: UI 验证与浏览器操作优先 Playwright MCP / CLI；不可用时回退 Cursor 内置 Browser
+alwaysApply: true
+---
+
+# Playwright UI 验收（优先）
+
+用户要求：**UI 验收 / 冒烟 / 联调 / 回归优先使用 Playwright MCP 或 Playwright CLI。**
+
+## 优先级
+
+1. **Playwright MCP**（已启用时首选）：导航、点击、填表、截图、断言。
+2. **Playwright CLI**（`playwright-cli` / `@playwright/cli`）：MCP 未启用时用 CLI 驱动真实浏览器。
+3. **回退**：Playwright 均不可用时，再用 Cursor IDE Browser（`cursor-ide-browser`），并告知用户。
+
+## 必须
+
+1. 宣称 UI 通过前：真实打开页面、完成关键步骤（登录、点击、填表、跳转），并说明实际看到的结果。
+2. 优先有头（headed）模式，便于用户看见过程；CI/无显示环境可用 headless，但须在报告中注明。
+3. 仅凭 curl、API、日志或代码推理不得声称 UI 通过。
+
+## 禁止
+
+- 在 Playwright 可用时故意只用 curl/日志冒充浏览器验收。
+- 未实际打开/操作页面却描述「页面正常」。
+- 用 `browser-use` 等第三方浏览器 harness 替代已约定的 Playwright 路径（除非用户当场指定）。
+
+## 例外
+
+- 纯后端、无 UI：curl / health / actuator 即可。
+- Playwright MCP 未启用：先尝试 CLI；再不可用则回退内置 Browser，并请用户启用 Playwright MCP。

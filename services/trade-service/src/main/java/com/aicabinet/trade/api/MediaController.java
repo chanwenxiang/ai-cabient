@@ -35,6 +35,18 @@ public class MediaController {
         fileAttachmentService.stream(row, response);
     }
 
+    @GetMapping("/ops-avatars/{fileId}")
+    public void opsAvatar(@PathVariable("fileId") Long fileId, HttpServletResponse response) throws IOException {
+        FileAttachment row = fileAttachmentService.requireOpsAvatar(fileId);
+        fileAttachmentService.stream(row, response);
+    }
+
+    @GetMapping("/ops-brand/{fileId}")
+    public void opsBrand(@PathVariable("fileId") Long fileId, HttpServletResponse response) throws IOException {
+        FileAttachment row = fileAttachmentService.requireOpsBrandLogo(fileId);
+        fileAttachmentService.stream(row, response);
+    }
+
     @GetMapping("/ad-assets/{assetId}")
     public void adAsset(@PathVariable("assetId") Long assetId,
                         HttpServletRequest request,

@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.OpsBrandDto;
 import com.aicabinet.common.dto.SystemConfigDto;
 import com.aicabinet.common.dto.UpsertSystemConfigRequest;
 import com.aicabinet.trade.config.AlipayProperties;
@@ -61,6 +62,14 @@ public class SystemConfigService {
     public static final String OPS_SCAN_UPLOAD_STUCK_MINUTES = "ops.scan.upload_stuck_minutes";
     public static final String OPS_SCAN_RECOGNITION_STUCK_MINUTES = "ops.scan.recognition_stuck_minutes";
     public static final String OPS_SCAN_SETTLEMENT_STUCK_MINUTES = "ops.scan.settlement_stuck_minutes";
+    /** 运营后台品牌标题（登录页主标题 / 浏览器标题前缀）。 */
+    public static final String OPS_BRAND_TITLE = "ops.brand.title";
+    /** 运营后台副标题（登录页副文案）。 */
+    public static final String OPS_BRAND_SUBTITLE = "ops.brand.subtitle";
+    /** 侧栏展开时品牌文案。 */
+    public static final String OPS_BRAND_SIDEBAR_TITLE = "ops.brand.sidebar_title";
+    /** 品牌 Logo URL（空则用标题首字占位）。 */
+    public static final String OPS_BRAND_LOGO_URL = "ops.brand.logo_url";
     /** 消费者开门预授权冻结金额(分), 优先于配置文件, 柜机押金可覆盖. */
     public static final String CHECKOUT_PREAUTH_CENTS = "checkout.preauth_cents";
     /** 纯视觉柜（会话无重力字段）空车是否自动零结；默认 false 进争议。 */
@@ -181,6 +190,16 @@ public class SystemConfigService {
         return map;
     }
 
+    /** 运营后台品牌（登录页无需鉴权）。 */
+    @Transactional(readOnly = true)
+    public OpsBrandDto opsBrandPublic() {
+        String title = self.getValue(OPS_BRAND_TITLE, "AI开门柜");
+        String subtitle = self.getValue(OPS_BRAND_SUBTITLE, "运营管理系统");
+        String sidebar = self.getValue(OPS_BRAND_SIDEBAR_TITLE, title + "运营");
+        String logoUrl = self.getValue(OPS_BRAND_LOGO_URL, "");
+        return new OpsBrandDto(title, subtitle, sidebar, logoUrl == null ? "" : logoUrl);
+    }
+
     private String buildWechatH5OauthUrl() {
         String redirect = qrProperties.normalizedConsumerH5Base();
         try {
@@ -219,7 +238,7 @@ public class SystemConfigService {
     private SystemConfigDto doUpsert(String key, String value, String description) {
         SystemConfig config = repository.findByIdForUpdate(key).orElseGet(SystemConfig::new);
         config.setConfigKey(key);
-        config.setConfigValue(value);
+        config.setConfigValue(value == null ? "" : value);
         if (description != null && !description.isBlank()) {
             config.setDescription(description);
         } else if (config.getDescription() == null) {
@@ -297,6 +316,26 @@ public class SystemConfigService {
         upsertIfAbsent(OPS_SCAN_UPLOAD_STUCK_MINUTES, "5", "视频上传卡点告警分钟数");
         upsertIfAbsent(OPS_SCAN_RECOGNITION_STUCK_MINUTES, "3", "识别卡点告警分钟数");
         upsertIfAbsent(OPS_SCAN_SETTLEMENT_STUCK_MINUTES, "3", "结算卡点告警分钟数");
+        upsertIfAbsent(OPS_BRAND_TITLE, "AI开门柜", "运营后台品牌标题（登录页主标题）");
+        upsertIfAbsent(OPS_BRAND_SUBTITLE, "运营管理系统", "运营后台副标题（登录页副文案）");
+        upsertIfAbsent(OPS_BRAND_SIDEBAR_TITLE, "AI开门柜运营", "侧栏展开时的品牌文案");
+        upsertIfAbsent(OPS_BRAND_LOGO_URL, "", "品牌标志图片地址（留空则用标题末字）");
+        // 兼容旧默认值中的英文 OPS
+        repository.findById(OPS_BRAND_SIDEBAR_TITLE).ifPresent(row -> {
+            if ("AI开门柜 OPS".equals(row.getConfigValue())) {
+                row.setConfigValue("AI开门柜运营");
+                row.setDescription("侧栏展开时的品牌文案");
+                row.setUpdatedAt(Instant.now());
+                repository.save(row);
+            }
+        });
+        repository.findById(OPS_BRAND_LOGO_URL).ifPresent(row -> {
+            if (row.getDescription() != null && row.getDescription().contains("Logo URL")) {
+                row.setDescription("品牌标志图片地址（留空则用标题末字）");
+                row.setUpdatedAt(Instant.now());
+                repository.save(row);
+            }
+        });
         upsertIfAbsent(CHECKOUT_PREAUTH_CENTS,
                 String.valueOf(com.aicabinet.common.constants.CabinetConstants.MIN_BALANCE_CENTS),
                 "消费者开门预授权冻结金额(分)");

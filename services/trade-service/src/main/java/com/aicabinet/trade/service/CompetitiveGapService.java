@@ -363,23 +363,35 @@ public class CompetitiveGapService {
         return switch (dimension) {
             case "CABINET", DEVICE -> aggregateByDevice(deviceIds, start, end);
             case "MERCHANT" -> aggregateByMerchant(deviceIds, start, end);
-            case "MARGIN", PRODUCT, "SKU" -> aggregateByProduct(deviceIds, start, end);
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dim 支持 PRODUCT/SKU/CABINET/MERCHANT/MARGIN");
+            case "CHANNEL", "PAY_CHANNEL" -> aggregateByChannel(deviceIds, start, end);
+            case "MARGIN" -> sortByMargin(aggregateByProduct(deviceIds, start, end));
+            case PRODUCT, "SKU" -> aggregateByProduct(deviceIds, start, end);
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "dim 支持 PRODUCT/SKU/CABINET/MERCHANT/CHANNEL/MARGIN");
         };
     }
 
     @Transactional(readOnly = true)
-    public PageResult<SalesReportRowDto> salesReportPage(Long operatorId, String dim, String fromDate,
-                                                         String toDate, String deviceId, int page, int size) {
-        List<SalesReportRowDto> all = self.salesReport(operatorId, dim, fromDate, toDate, deviceId);
+    public SalesReportPageDto salesReportPage(Long operatorId, String dim, String fromDate,
+                                              String toDate, String deviceId, int page, int size) {
+        return self.salesReportPage(operatorId, dim, fromDate, toDate, deviceId, null, null, page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public SalesReportPageDto salesReportPage(Long operatorId, String dim, String fromDate,
+                                              String toDate, String deviceId, String sortBy,
+                                              String sortDir, int page, int size) {
+        List<SalesReportRowDto> all = sortSalesRows(
+                self.salesReport(operatorId, dim, fromDate, toDate, deviceId), sortBy, sortDir);
+        SalesReportSummaryDto summary = SalesReportSummaryDto.from(all);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
         int from = p * s;
         if (from >= all.size()) {
-            return new PageResult<>(List.of(), p, s, all.size());
+            return new SalesReportPageDto(List.of(), p, s, all.size(), summary);
         }
         int to = Math.min(from + s, all.size());
-        return new PageResult<>(all.subList(from, to), p, s, all.size());
+        return new SalesReportPageDto(all.subList(from, to), p, s, all.size(), summary);
     }
 
     /** 商户可读子集：商品 / 货柜 / 毛利（不含跨商户 MERCHANT 维）。 */
@@ -396,8 +408,54 @@ public class CompetitiveGapService {
         String dimension = dim == null ? PRODUCT : dim.trim().toUpperCase();
         return switch (dimension) {
             case "CABINET", DEVICE -> aggregateByDevice(scoped, start, end);
-            case "MARGIN", PRODUCT, "SKU" -> aggregateByProduct(scoped, start, end);
+            case "MARGIN" -> sortByMargin(aggregateByProduct(scoped, start, end));
+            case PRODUCT, "SKU" -> aggregateByProduct(scoped, start, end);
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商户报表 dim 支持 PRODUCT/CABINET/MARGIN");
+        };
+    }
+
+    private static List<SalesReportRowDto> sortByMargin(List<SalesReportRowDto> rows) {
+        return rows.stream()
+                .sorted((a, b) -> Long.compare(b.marginCents(), a.marginCents()))
+                .toList();
+    }
+
+    /** 表头排序：营收 / 退款 / 毛利；未指定时保持聚合默认顺序。 */
+    private static List<SalesReportRowDto> sortSalesRows(List<SalesReportRowDto> rows, String sortBy,
+                                                         String sortDir) {
+        if (rows == null || rows.isEmpty() || sortBy == null || sortBy.isBlank()) {
+            return rows;
+        }
+        String key = sortBy.trim().toUpperCase();
+        java.util.Comparator<SalesReportRowDto> cmp = switch (key) {
+            case "REVENUE", "REVENUECENTS" -> java.util.Comparator.comparingLong(SalesReportRowDto::revenueCents);
+            case "REFUND", "REFUNDED", "REFUNDEDCENTS" ->
+                    java.util.Comparator.comparingLong(SalesReportRowDto::refundedCents);
+            case "MARGIN", "MARGINCENTS" -> java.util.Comparator.comparingLong(SalesReportRowDto::marginCents);
+            default -> null;
+        };
+        if (cmp == null) {
+            return rows;
+        }
+        boolean asc = "asc".equalsIgnoreCase(sortDir);
+        if (!asc) {
+            cmp = cmp.reversed();
+        }
+        return rows.stream().sorted(cmp).toList();
+    }
+
+    private static String payChannelLabel(String code) {
+        if (code == null || code.isBlank()) {
+            return "未知";
+        }
+        return switch (code.trim().toUpperCase()) {
+            case "WECHAT" -> "微信";
+            case "ALIPAY" -> "支付宝";
+            case "BALANCE" -> "余额";
+            case "PAYSCORE" -> "支付分";
+            case "MOCK" -> "Mock";
+            case "UNKNOWN" -> "未知";
+            default -> code.trim().toUpperCase();
         };
     }
 
@@ -416,7 +474,8 @@ public class CompetitiveGapService {
     }
 
     public String salesReportCsv(List<SalesReportRowDto> rows) {
-        StringBuilder sb = new StringBuilder("dimKey,dimLabel,orderCount,qty,revenueCents,cogsCents,marginCents\n");
+        StringBuilder sb = new StringBuilder(
+                "dimKey,dimLabel,orderCount,qty,revenueCents,cogsCents,marginCents,refundedCents,refundOrderCount,netRevenueCents\n");
         for (SalesReportRowDto r : rows) {
             sb.append(csv(r.dimKey())).append(',')
                     .append(csv(r.dimLabel())).append(',')
@@ -424,7 +483,10 @@ public class CompetitiveGapService {
                     .append(r.qty()).append(',')
                     .append(r.revenueCents()).append(',')
                     .append(r.cogsCents()).append(',')
-                    .append(r.marginCents()).append('\n');
+                    .append(r.marginCents()).append(',')
+                    .append(r.refundedCents()).append(',')
+                    .append(r.refundOrderCount()).append(',')
+                    .append(r.netRevenueCents()).append('\n');
         }
         return sb.toString();
     }
@@ -641,7 +703,9 @@ public class CompetitiveGapService {
             long qty = ((Number) row[2]).longValue();
             long revenue = ((Number) row[3]).longValue();
             long cogs = ((Number) row[4]).longValue();
-            long orderCount = row.length > 5 && row[5] instanceof Number n ? n.longValue() : 0L;
+            long orderCount = row.length > 5 && row[5] instanceof Number ? ((Number) row[5]).longValue() : 0L;
+            long refunded = row.length > 6 && row[6] instanceof Number ? ((Number) row[6]).longValue() : 0L;
+            long refundOrders = row.length > 7 && row[7] instanceof Number ? ((Number) row[7]).longValue() : 0L;
             out.add(new SalesReportRowDto(
                     String.valueOf(row[0]),
                     String.valueOf(row[1]),
@@ -649,7 +713,9 @@ public class CompetitiveGapService {
                     qty,
                     revenue,
                     cogs,
-                    revenue - cogs
+                    revenue - cogs,
+                    refunded,
+                    refundOrders
             ));
         }
         return out;
@@ -670,9 +736,33 @@ public class CompetitiveGapService {
                     long revenue = ((Number) r[2]).longValue();
                     long cogs = ((Number) r[3]).longValue();
                     long orderCount = ((Number) r[4]).longValue();
+                    long refunded = r.length > 5 && r[5] instanceof Number ? ((Number) r[5]).longValue() : 0L;
+                    long refundOrders = r.length > 6 && r[6] instanceof Number ? ((Number) r[6]).longValue() : 0L;
                     return new SalesReportRowDto(
                             did, names.getOrDefault(did, did),
-                            orderCount, qty, revenue, cogs, revenue - cogs);
+                            orderCount, qty, revenue, cogs, revenue - cogs, refunded, refundOrders);
+                })
+                .sorted((a, b) -> Long.compare(b.revenueCents(), a.revenueCents()))
+                .toList();
+    }
+
+    private List<SalesReportRowDto> aggregateByChannel(Set<String> deviceIds, Instant start, Instant end) {
+        if (deviceIds != null && deviceIds.isEmpty()) {
+            return List.of();
+        }
+        List<Object[]> rows = lineMapper.channelBreakdownBetween(deviceIds, start, end);
+        return rows.stream()
+                .map(r -> {
+                    String channel = String.valueOf(r[0]);
+                    long qty = ((Number) r[1]).longValue();
+                    long revenue = ((Number) r[2]).longValue();
+                    long cogs = ((Number) r[3]).longValue();
+                    long orderCount = ((Number) r[4]).longValue();
+                    long refunded = r.length > 5 && r[5] instanceof Number ? ((Number) r[5]).longValue() : 0L;
+                    long refundOrders = r.length > 6 && r[6] instanceof Number ? ((Number) r[6]).longValue() : 0L;
+                    return new SalesReportRowDto(
+                            channel, payChannelLabel(channel),
+                            orderCount, qty, revenue, cogs, revenue - cogs, refunded, refundOrders);
                 })
                 .sorted((a, b) -> Long.compare(b.revenueCents(), a.revenueCents()))
                 .toList();
@@ -700,6 +790,8 @@ public class CompetitiveGapService {
             a.qty += ((Number) r[1]).longValue();
             a.revenue += ((Number) r[2]).longValue();
             a.cogs += ((Number) r[3]).longValue();
+            a.refunded += r.length > 5 && r[5] instanceof Number ? ((Number) r[5]).longValue() : 0L;
+            a.refundOrders += r.length > 6 && r[6] instanceof Number ? ((Number) r[6]).longValue() : 0L;
         }
         Set<String> merchantIds = map.keySet().stream()
                 .filter(id -> id != null && !id.isBlank())
@@ -713,7 +805,8 @@ public class CompetitiveGapService {
                         e.getKey(),
                         names.getOrDefault(e.getKey(), e.getKey().isBlank() ? "(未绑定)" : e.getKey()),
                         e.getValue().orderCount, e.getValue().qty, e.getValue().revenue,
-                        e.getValue().cogs, e.getValue().revenue - e.getValue().cogs))
+                        e.getValue().cogs, e.getValue().revenue - e.getValue().cogs,
+                        e.getValue().refunded, e.getValue().refundOrders))
                 .sorted((a, b) -> Long.compare(b.revenueCents(), a.revenueCents()))
                 .toList();
     }
@@ -767,5 +860,7 @@ public class CompetitiveGapService {
         long qty;
         long revenue;
         long cogs;
+        long refunded;
+        long refundOrders;
     }
 }

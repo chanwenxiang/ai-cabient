@@ -10,8 +10,15 @@
         @click="toggleSidebar"
       >
         <el-icon class="brand-toggle"><Expand v-if="sidebarCollapsed" /><Fold v-else /></el-icon>
-        <span class="brand-text" :class="{ hidden: sidebarCollapsed }">AI开门柜 OPS</span>
-        <span class="brand-mini" :class="{ hidden: !sidebarCollapsed }">柜</span>
+        <img
+          v-if="brand.logoUrl"
+          class="brand-logo"
+          :class="{ mini: sidebarCollapsed }"
+          :src="brand.logoUrl"
+          alt=""
+        />
+        <span v-if="!sidebarCollapsed" class="brand-text">{{ brand.sidebarTitle }}</span>
+        <span v-else-if="!brand.logoUrl" class="brand-mini">{{ markChar }}</span>
       </button>
       <el-scrollbar class="sidebar-scroll">
         <el-menu
@@ -52,6 +59,14 @@
         <div class="topbar-right">
           <GlobalSearch />
           <OpsApprovalInbox />
+          <el-button
+            text
+            :title="isFullscreen ? '退出全屏' : '全屏'"
+            :aria-label="isFullscreen ? '退出全屏' : '全屏'"
+            @click="toggleFullscreen"
+          >
+            <el-icon><FullScreen /></el-icon>
+          </el-button>
           <el-dropdown trigger="click" @command="onSettingCommand">
             <el-button text title="外观设置" aria-label="外观设置">
               <el-icon><Brush /></el-icon>
@@ -62,9 +77,9 @@
                   settings.theme === 'dark' ? '切换浅色' : '切换深色'
                 }}</el-dropdown-item>
                 <el-dropdown-item divided disabled>字号</el-dropdown-item>
-                <el-dropdown-item command="font-sm">字号：小</el-dropdown-item>
-                <el-dropdown-item command="font-md">字号：中</el-dropdown-item>
-                <el-dropdown-item command="font-lg">字号：大</el-dropdown-item>
+                <el-dropdown-item command="font-sm" class="font-opt--sm">字号：小</el-dropdown-item>
+                <el-dropdown-item command="font-md" class="font-opt--md">字号：中</el-dropdown-item>
+                <el-dropdown-item command="font-lg" class="font-opt--lg">字号：大</el-dropdown-item>
                 <el-dropdown-item divided disabled>操作列</el-dropdown-item>
                 <el-dropdown-item command="action-icon">操作列：图标</el-dropdown-item>
                 <el-dropdown-item command="action-label">操作列：图标+文字</el-dropdown-item>
@@ -81,7 +96,9 @@
           </el-dropdown>
           <el-dropdown trigger="click" @command="onUserCommand">
             <button type="button" class="user-trigger" aria-label="用户菜单">
-              <el-avatar :size="32" class="user-avatar">{{ userInitial }}</el-avatar>
+              <el-avatar :size="32" class="user-avatar" :src="auth.avatarUrl || undefined">{{
+                userInitial
+              }}</el-avatar>
               <div class="user-text">
                 <span class="user-name">{{ auth.displayName }}</span>
                 <span class="user-detail">{{ auth.phone || '暂无' }} · {{ auth.roleText }}</span>
@@ -165,12 +182,14 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessageBox, type MenuInstance } from 'element-plus';
-import { Fold, Expand, Brush } from '@element-plus/icons-vue';
+import { Fold, Expand, Brush, FullScreen } from '@element-plus/icons-vue';
 import { buildSidebarTree, sidebarOpenKeysForPath } from '@/config/sidebar';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
+import { useBrandStore } from '@/stores/brand';
 import { dictRuntimeEpoch } from '@/stores/dict-runtime';
 import { PRIMARY_OPTIONS, useSettingsStore } from '@/stores/settings';
 import {
@@ -186,6 +205,8 @@ import SidebarMenuTree from '@/components/SidebarMenuTree.vue';
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const brandStore = useBrandStore();
+const { brand, markChar } = storeToRefs(brandStore);
 const { firstAccessiblePath, goPath } = useNavAccess();
 const settings = useSettingsStore();
 const MAX_TAGS = 12;
@@ -201,6 +222,19 @@ const tagMenu = ref({ visible: false, x: 0, y: 0, path: '' });
 const compactViewport = ref(false);
 /** 窄屏自动收起时，用户临时展开不写 localStorage */
 const userExpandedInCompact = ref(false);
+const isFullscreen = ref(!!document.fullscreenElement);
+
+function toggleFullscreen() {
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {});
+    return;
+  }
+  document.documentElement.requestFullscreen().catch(() => {});
+}
+
+function onFullscreenChange() {
+  isFullscreen.value = !!document.fullscreenElement;
+}
 
 const sidebarCollapsed = computed(() => {
   if (compactViewport.value && !userExpandedInCompact.value) return true;
@@ -528,6 +562,7 @@ onMounted(() => {
   globalThis.addEventListener('scroll', hideTagMenu, true);
   globalThis.addEventListener('resize', syncSidebarWithViewport);
   globalThis.addEventListener('focus', onWindowFocus);
+  document.addEventListener('fullscreenchange', onFullscreenChange);
 });
 
 onUnmounted(() => {
@@ -536,6 +571,7 @@ onUnmounted(() => {
   globalThis.removeEventListener('scroll', hideTagMenu, true);
   globalThis.removeEventListener('resize', syncSidebarWithViewport);
   globalThis.removeEventListener('focus', onWindowFocus);
+  document.removeEventListener('fullscreenchange', onFullscreenChange);
 });
 </script>
 
@@ -594,6 +630,18 @@ onUnmounted(() => {
   color: #94a3b8;
   flex-shrink: 0;
 }
+.brand-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+.brand-logo.mini {
+  width: 28px;
+  height: 28px;
+}
 .brand-text {
   flex: 1;
   min-width: 0;
@@ -608,7 +656,7 @@ onUnmounted(() => {
   height: 32px;
   border-radius: 8px;
   background: var(--app-primary);
-  font-size: 14px;
+  font-size: 1rem;
 }
 .brand-text.hidden,
 .brand-mini.hidden {
@@ -713,7 +761,7 @@ onUnmounted(() => {
 }
 .user-name {
   display: block;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -721,7 +769,7 @@ onUnmounted(() => {
 }
 .user-detail {
   display: block;
-  font-size: 11px;
+  font-size: var(--admin-font-size-xs);
   color: var(--layout-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -729,7 +777,7 @@ onUnmounted(() => {
 }
 .user-scope {
   display: block;
-  font-size: 10px;
+  font-size: var(--admin-font-size-xs);
   color: var(--layout-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -876,6 +924,7 @@ onUnmounted(() => {
 :deep(.el-sub-menu__title),
 :deep(.el-menu-item) {
   height: 44px;
+  font-size: var(--admin-font-size-menu);
 }
 :deep(.sidebar-scroll .el-scrollbar__view) {
   padding-bottom: 8px;
@@ -912,7 +961,7 @@ onUnmounted(() => {
 }
 .tag-context-menu li {
   padding: 8px 14px;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   cursor: pointer;
 }
 .tag-context-menu li:hover {

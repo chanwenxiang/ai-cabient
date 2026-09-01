@@ -515,6 +515,10 @@ public class OpsCommercialFacade {
         return rbacService.myProfile(operatorId);
     }
 
+    public OpsMeDto updateMyProfile(Long operatorId, UpdateOpsMeRequest request) {
+        return rbacService.updateMyProfile(operatorId, request);
+    }
+
     public void changeMyPassword(Long operatorId, ChangePasswordRequest request) {
         rbacService.changeMyPassword(operatorId, request);
     }

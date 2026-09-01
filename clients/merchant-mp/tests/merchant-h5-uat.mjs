@@ -60,12 +60,13 @@ async function waitText(page, substr, timeout = 10000) {
   return bodyText(page);
 }
 
-/** 真实鼠标点击：文本长度升序 → 元素类型（button 优先）→ 叶子优先 */
+/** 真实鼠标点击：文本长度升序 → 元素类型（button 优先）→ 叶子优先；避开底部 Tab 误触 */
 async function clickByText(page, text, { exact = false, timeout = 6000 } = {}) {
   const deadline = Date.now() + timeout;
+  const tabBarGuardPx = 72;
   while (Date.now() < deadline) {
     const target = await page.evaluate(
-      ({ text, exact }) => {
+      ({ text, exact, tabBarGuardPx }) => {
         const nodes = [
           ...document.querySelectorAll(
             'uni-text, uni-view, uni-button, button, span, div, a, text, view'
@@ -76,6 +77,10 @@ async function clickByText(page, text, { exact = false, timeout = 6000 } = {}) {
           if (t === 'A') return 1;
           if (t === 'UNI-TEXT' || t === 'TEXT' || t === 'SPAN') return 2;
           return 3;
+        };
+        const clickableAncestor = (el) => {
+          const selectors = '.ops-card, .quick-item, [role="button"], uni-button, button, a';
+          return el.closest?.(selectors) || el;
         };
         const hits = nodes
           .map((e, i) => {
@@ -91,27 +96,25 @@ async function clickByText(page, text, { exact = false, timeout = 6000 } = {}) {
           .filter((h) => h.match && h.len > 0)
           .sort((a, b) => a.len - b.len || a.rank - b.rank || a.kids - b.kids);
         if (!hits.length) return null;
-        const el = nodes[hits[0].i];
+        const el = clickableAncestor(nodes[hits[0].i]);
+        el.scrollIntoView({ block: 'center', inline: 'nearest' });
         const r = el.getBoundingClientRect();
-        if (
-          r.width > 0 &&
-          r.height > 0 &&
-          r.top >= 0 &&
-          r.top < window.innerHeight &&
-          r.left >= 0 &&
-          r.left < window.innerWidth
-        ) {
-          return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        if (r.width <= 0 || r.height <= 0) {
+          el.click();
+          return { clicked: true };
         }
-        el.click();
-        return { clicked: true };
+        let y = r.top + r.height / 2;
+        const maxY = window.innerHeight - tabBarGuardPx;
+        if (y > maxY) y = Math.max(r.top + 8, maxY - 8);
+        return { x: r.left + r.width / 2, y, scrolled: true };
       },
-      { text, exact }
+      { text, exact, tabBarGuardPx }
     );
     if (target === null) {
       await page.waitForTimeout(300);
       continue;
     }
+    if (target.scrolled) await page.waitForTimeout(350);
     if (target.clicked) return true;
     await page.mouse.click(target.x, target.y);
     return true;

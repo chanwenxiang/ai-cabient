@@ -11,6 +11,25 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <el-button
+            type="success"
+            plain
+            :disabled="!hasReviewableSelection"
+            :loading="batching === 'approve'"
+            @click="batchReview(true)"
+          >
+            批量通过
+          </el-button>
+          <el-button
+            type="danger"
+            plain
+            :disabled="!hasReviewableSelection"
+            :loading="batching === 'reject'"
+            @click="batchReview(false)"
+          >
+            批量驳回
+          </el-button>
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
           <el-button v-if="canEdit" type="primary" @click="openCreate">新建进件</el-button>
         </div>
@@ -60,17 +79,21 @@
     <div class="table-scroll">
       <div class="table-scroll-inner">
         <el-table
+          ref="tableRef"
           :data="rows"
           v-loading="loading"
           stripe
           border
           empty-text=" "
           class="report-table"
+          row-key="onboardingId"
           :row-class-name="rowClassName"
+          @selection-change="onSelectionChange"
         >
           <template #empty>
             <el-empty v-if="hydrated && !loading" description="暂无进件记录" />
           </template>
+          <el-table-column type="selection" width="48" align="center" />
       <el-table-column prop="merchantId" label="商户" min-width="140">
         <template #default="{ row }">
           <div>{{ row.merchantName || row.merchantId }}</div>
@@ -200,6 +223,8 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
+import { useAdminListTable } from '@/composables/useAdminListTable';
+import { useListCsv } from '@/composables/useListCsv';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { normalizeListPage } from '@/utils/normalize-list-page';
@@ -226,6 +251,8 @@ const canEdit = computed(() => auth.hasPerm('ops:merchant:onboard:edit'));
 const loading = ref(false);
 const hydrated = ref(false);
 const saving = ref(false);
+/** 批量审批 loading：通过 / 驳回 */
+const batching = ref<'approve' | 'reject' | ''>('');
 const rows = ref<OnboardRow[]>([]);
 const page = ref(1);
 const pageSize = ref(20);
@@ -235,6 +262,59 @@ const channel = ref('');
 const status = ref('');
 const hints = ref<Record<string, any> | null>(null);
 const highlightId = ref<number | null>(null);
+
+const {
+  tableRef,
+  hasSelection,
+  onSelectionChange,
+  pickSelected,
+  exportButtonLabel,
+  clearSelection
+} = useAdminListTable<OnboardRow>((r) => r.onboardingId);
+
+/** 勾选中可审批的行（已提交且审批中）；未勾选时为空。 */
+const reviewableSelected = computed(() => {
+  if (!hasSelection.value) return [];
+  return pickSelected(rows.value).filter(
+    (r) => r.status === 'SUBMITTED' && r.approvalStatus === 'PENDING'
+  );
+});
+const hasReviewableSelection = computed(() => reviewableSelected.value.length > 0);
+
+const { onExport } = useListCsv({
+  filePrefix: '进件工作台',
+  headers: [
+    '进件ID',
+    '商户ID',
+    '商户名',
+    '渠道',
+    '状态',
+    '审批状态',
+    '外部商户号',
+    '外部单号',
+    '支付模式',
+    '备注',
+    '最近同步',
+    '创建时间',
+    '更新时间'
+  ],
+  toRows: () =>
+    pickSelected(rows.value).map((r) => [
+      r.onboardingId,
+      r.merchantId,
+      r.merchantName || '',
+      channelLabel(r.channel),
+      statusLabel(r.status),
+      r.approvalStatus || '',
+      r.externalMchId || '',
+      r.externalRef || '',
+      r.payLiveHint ? '正式' : '演示',
+      r.note || '',
+      r.lastSyncedAt ? formatDateTime(r.lastSyncedAt) : '',
+      formatDateTime(r.createdAt) || '',
+      formatDateTime(r.updatedAt) || ''
+    ])
+});
 const dlg = ref(false);
 const form = reactive({
   onboardingId: null as number | null,
@@ -312,6 +392,7 @@ async function load() {
     rows.value = pageData.items;
     total.value = pageData.total;
     hints.value = h;
+    clearSelection();
     applyRouteHighlight();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -419,6 +500,59 @@ async function review(row: OnboardRow, approve: boolean) {
     await load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '审批失败');
+  }
+}
+
+/**
+ * 批量审批勾选中的「已提交且审批中」进件。
+ * @param approve 是否通过
+ */
+async function batchReview(approve: boolean) {
+  const targets = reviewableSelected.value;
+  if (!targets.length) {
+    ElMessage.warning(
+      hasSelection.value
+        ? '勾选行中没有「已提交且审批中」的进件'
+        : '请先勾选需要审批的进件'
+    );
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认对 ${targets.length} 条进件执行「${approve ? '通过' : '驳回'}」？`,
+      approve ? '批量通过' : '批量驳回',
+      { type: approve ? 'info' : 'warning' }
+    );
+  } catch {
+    return;
+  }
+  batching.value = approve ? 'approve' : 'reject';
+  let ok = 0;
+  let fail = 0;
+  try {
+    for (const row of targets) {
+      try {
+        await api.request(
+          `/api/v2/ops/admin/merchant-onboarding/${row.onboardingId}/review`,
+          'POST',
+          {
+            approve,
+            remark: approve ? '批量审批通过' : '批量审批驳回'
+          }
+        );
+        ok += 1;
+      } catch {
+        fail += 1;
+      }
+    }
+    if (fail === 0) {
+      ElMessage.success(approve ? `已通过 ${ok} 条` : `已驳回 ${ok} 条`);
+    } else {
+      ElMessage.warning(`成功 ${ok} 条，失败 ${fail} 条`);
+    }
+    await load();
+  } finally {
+    batching.value = '';
   }
 }
 

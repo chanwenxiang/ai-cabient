@@ -1,6 +1,7 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.OpsBrandDto;
 import com.aicabinet.trade.service.SystemConfigService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,5 +22,11 @@ public class PublicConfigController {
     @GetMapping("/consumer-config")
     public ApiResponse<Map<String, String>> consumerConfig() {
         return ApiResponse.ok(systemConfigService.consumerPublicConfig());
+    }
+
+    /** 运营后台登录页 / 侧栏品牌（无需登录）。 */
+    @GetMapping("/ops-branding")
+    public ApiResponse<OpsBrandDto> opsBranding() {
+        return ApiResponse.ok(systemConfigService.opsBrandPublic());
     }
 }

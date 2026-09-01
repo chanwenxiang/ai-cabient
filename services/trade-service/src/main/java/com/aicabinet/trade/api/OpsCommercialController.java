@@ -1297,6 +1297,22 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.myProfile(operatorId(request)));
     }
 
+    /** 个人中心：自助更新姓名 / 手机号 / 邮箱 / 头像。 */
+    @PutMapping("/rbac/me")
+    public ApiResponse<OpsMeDto> updateMyProfile(
+            @Valid @RequestBody UpdateOpsMeRequest body,
+            HttpServletRequest request) {
+        return ApiResponse.ok(facade.updateMyProfile(operatorId(request), body));
+    }
+
+    /** 个人中心：上传头像 / Logo。 */
+    @PostMapping(value = "/rbac/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<FileAttachmentDto> uploadMyAvatar(
+            HttpServletRequest request,
+            @RequestPart("file") MultipartFile file) {
+        return ApiResponse.ok(support.fileAttachmentService().uploadOpsAvatar(operatorId(request), file));
+    }
+
     /** 个人中心：自助修改登录密码。 */
     @PutMapping("/rbac/me/password")
     public ApiResponse<Void> changeMyPassword(

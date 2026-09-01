@@ -81,14 +81,79 @@
   --admin-scrollbar-track: color-mix(in srgb, #1e293b 70%, transparent);
 }
 
+/*
+ * 外观字号：写到 CSS 变量，供 body / 表格 / 页头 / Element Plus 共用。
+ * 旧写法只改 html { font-size }，但 body/#app 与表格写死 px，导致仅 rem 标题（如侧栏品牌）会变。
+ */
+:root {
+  --admin-font-size-xs: 11px;
+  --admin-font-size-sm: 12px;
+  --admin-font-size-table: 13px;
+  --admin-font-size-title: 15px;
+  --admin-font-size-hint: 12px;
+  --admin-font-size-menu: 14px;
+}
+
 [data-font-size='sm'] {
-  font-size: 13px;
+  --app-font-size-root: 13px;
+  --el-font-size-extra-small: 11px;
+  --el-font-size-small: 12px;
+  --el-font-size-base: 13px;
+  --el-font-size-medium: 13px;
+  --el-font-size-large: 14px;
+  --el-font-size-extra-large: 16px;
+  --el-menu-item-font-size: 13px;
+  --admin-font-size-xs: 10px;
+  --admin-font-size-sm: 11px;
+  --admin-font-size-table: 12px;
+  --admin-font-size-title: 14px;
+  --admin-font-size-hint: 11px;
+  --admin-font-size-menu: 13px;
 }
+
 [data-font-size='md'] {
-  font-size: 14px;
+  --app-font-size-root: 14px;
+  --el-font-size-extra-small: 12px;
+  --el-font-size-small: 13px;
+  --el-font-size-base: 14px;
+  --el-font-size-medium: 14px;
+  --el-font-size-large: 16px;
+  --el-font-size-extra-large: 18px;
+  --el-menu-item-font-size: 14px;
+  --admin-font-size-xs: 11px;
+  --admin-font-size-sm: 12px;
+  --admin-font-size-table: 13px;
+  --admin-font-size-title: 15px;
+  --admin-font-size-hint: 12px;
+  --admin-font-size-menu: 14px;
 }
+
 [data-font-size='lg'] {
-  font-size: 16px;
+  --app-font-size-root: 16px;
+  --el-font-size-extra-small: 13px;
+  --el-font-size-small: 14px;
+  --el-font-size-base: 16px;
+  --el-font-size-medium: 16px;
+  --el-font-size-large: 18px;
+  --el-font-size-extra-large: 20px;
+  --el-menu-item-font-size: 15px;
+  --admin-font-size-xs: 12px;
+  --admin-font-size-sm: 13px;
+  --admin-font-size-table: 15px;
+  --admin-font-size-title: 17px;
+  --admin-font-size-hint: 13px;
+  --admin-font-size-menu: 15px;
+}
+
+/* 外观菜单内字号选项预览（固定三档，不受当前选中值影响） */
+.el-dropdown-menu .font-opt--sm {
+  font-size: 13px !important;
+}
+.el-dropdown-menu .font-opt--md {
+  font-size: 14px !important;
+}
+.el-dropdown-menu .font-opt--lg {
+  font-size: 16px !important;
 }
 
 html,
@@ -375,9 +440,9 @@ select {
 .layout-main-scroll .el-table,
 .page-card .el-table {
   font-family: var(--app-font);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--layout-text);
-  --el-table-font-size: 13px;
+  --el-table-font-size: var(--admin-font-size-table);
   --el-table-row-hover-bg-color: color-mix(
     in srgb,
     var(--app-primary, #0f766e) 6%,
@@ -391,7 +456,7 @@ select {
 .page-card .el-table td.el-table__cell {
   text-align: center !important;
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   padding: 8px 0;
 }
 
@@ -683,7 +748,7 @@ select {
 
 .el-empty__description p {
   color: var(--layout-muted);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 
 .el-drawer__header {
@@ -1216,13 +1281,13 @@ select {
 
 .page-card-head__title .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
   line-height: 1.35;
 }
 
 .page-card-head__title .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-hint);
   line-height: 1.4;
 }
 

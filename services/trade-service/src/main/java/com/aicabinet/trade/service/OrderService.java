@@ -6,9 +6,14 @@ import com.aicabinet.common.dto.OrderRefundResultDto;
 import com.aicabinet.common.dto.OrderSummaryDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.domain.CabinetOrder;
+import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -23,15 +28,21 @@ public class OrderService {
 
     private final CabinetOrderMapper orderRepository;
     private final CabinetOrderLineMapper orderLineRepository;
+    private final ShoppingSessionMapper sessionRepository;
+    private final MinioVideoService minioVideoService;
     private final SettlementService settlementService;
     private final DisputeService disputeService;
 
     public OrderService(CabinetOrderMapper orderRepository,
                         CabinetOrderLineMapper orderLineRepository,
+                        ShoppingSessionMapper sessionRepository,
+                        MinioVideoService minioVideoService,
                         SettlementService settlementService,
                         @Lazy DisputeService disputeService) {
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
+        this.sessionRepository = sessionRepository;
+        this.minioVideoService = minioVideoService;
         this.settlementService = settlementService;
         this.disputeService = disputeService;
     }
@@ -56,6 +67,29 @@ public class OrderService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND);
         }
         return settlementService.getOrderBySession(order.getSessionId());
+    }
+
+    /** 消费者端播放本单购物录像（鉴权后流式输出，避免 minio:// 直连失败）。 */
+    @Transactional(readOnly = true)
+    public void streamMyOrderVideo(Long userId, String orderId,
+                                   HttpServletRequest request,
+                                   HttpServletResponse response) {
+        CabinetOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        if (!order.getUserId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND);
+        }
+        String sessionId = order.getSessionId();
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "该订单没有关联会话");
+        }
+        ShoppingSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        String videoUri = session.getVideoUri();
+        if (videoUri == null || videoUri.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "该订单暂无购物视频");
+        }
+        minioVideoService.streamTo(videoUri, request, response);
     }
 
     @Transactional

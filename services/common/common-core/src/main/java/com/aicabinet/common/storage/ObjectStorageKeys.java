@@ -109,6 +109,26 @@ public final class ObjectStorageKeys {
         return String.format(Locale.ROOT, "sku-images/%s/op-%d/%s%s", date, operatorId, token, ext);
     }
 
+    /** 运营账号头像 / Logo。 */
+    public static String opsAvatarKey(long operatorId, String fileToken, String extension) {
+        ZonedDateTime zdt = Instant.now().atZone(ZONE);
+        String date = String.format(
+                Locale.ROOT, V_04D_02D_02D, zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
+        String token = sanitize(fileToken, "file");
+        String ext = normalizeExtension(extension);
+        return String.format(Locale.ROOT, "ops-avatars/%s/op-%d/%s%s", date, operatorId, token, ext);
+    }
+
+    /** 运营后台品牌 Logo。 */
+    public static String opsBrandLogoKey(long operatorId, String fileToken, String extension) {
+        ZonedDateTime zdt = Instant.now().atZone(ZONE);
+        String date = String.format(
+                Locale.ROOT, V_04D_02D_02D, zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
+        String token = sanitize(fileToken, "file");
+        String ext = normalizeExtension(extension);
+        return String.format(Locale.ROOT, "ops-brand/%s/op-%d/%s%s", date, operatorId, token, ext);
+    }
+
     private static String prefix(
             String root,
             String deviceId,

@@ -18,7 +18,7 @@ alwaysApply: true
 
 ## MCP（与 Skill 配合）
 
-- **cursor-ide-browser**：唯一允许的 UI 自动化（禁止 Playwright MCP）
+- **Playwright MCP / CLI**：UI 自动化首选（见 `playwright-ui-testing`）；不可用时回退 `cursor-ide-browser`
 - **Context7**：库/框架 API 文档
 - **fetch**：拉外部规范页
 - **Sentry / GitHub**：线上问题、PR
@@ -26,7 +26,7 @@ alwaysApply: true
 ## 执行顺序
 
 ```
-ai-cabinet-dev-test → 命中 skill → MCP 取事实 → 改代码 → browser/测试验证 → verification-before-completion
+ai-cabinet-dev-test → 命中 skill → MCP 取事实 → 改代码 → Playwright/测试验证 → verification-before-completion
 ```
 
-项目其它规则（project-core、builtin-browser-only）优先于通用 skill 中的 Playwright 类建议。
+项目规则（`playwright-ui-testing`）优先于「仅内置 Browser」类旧约定。

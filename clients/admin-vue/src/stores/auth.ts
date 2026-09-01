@@ -42,6 +42,8 @@ export interface OpsProfile {
   userId: string;
   phoneNumber?: string;
   name?: string;
+  email?: string;
+  avatarUrl?: string;
   roleNames?: string[];
   permissionCount?: number;
   globalDataScope?: boolean;
@@ -64,6 +66,8 @@ export const useAuthStore = defineStore('auth', () => {
     if (profile.value?.name) return profile.value.name;
     return profileHydrated.value ? '运营账号' : '…';
   });
+  const email = computed(() => profile.value?.email || '');
+  const avatarUrl = computed(() => profile.value?.avatarUrl || '');
   const roleText = computed(() => {
     if (!profile.value) return profileHydrated.value ? '未分配角色' : '…';
     const names = (profile.value.roleNames || []).filter(Boolean);
@@ -166,6 +170,8 @@ export const useAuthStore = defineStore('auth', () => {
         userId: number | string;
         phoneNumber?: string;
         name?: string;
+        email?: string;
+        avatarUrl?: string;
         roleNames?: string[];
         permissionCount?: number;
         globalDataScope?: boolean;
@@ -176,6 +182,8 @@ export const useAuthStore = defineStore('auth', () => {
         userId: String(me.userId),
         phoneNumber: me.phoneNumber,
         name: me.name,
+        email: me.email || '',
+        avatarUrl: me.avatarUrl || '',
         roleNames: me.roleNames,
         permissionCount: me.permissionCount,
         globalDataScope: me.globalDataScope !== false,
@@ -185,6 +193,7 @@ export const useAuthStore = defineStore('auth', () => {
       userId.value = String(me.userId);
       if (me.phoneNumber) {
         phone.value = me.phoneNumber;
+        localStorage.setItem('admin_phone', me.phoneNumber);
       }
       localStorage.setItem('admin_userId', String(me.userId));
     } catch {
@@ -192,6 +201,49 @@ export const useAuthStore = defineStore('auth', () => {
     } finally {
       profileHydrated.value = true;
     }
+  }
+
+  async function updateProfile(payload: {
+    name: string;
+    phoneNumber: string;
+    email?: string | null;
+    avatarUrl?: string | null;
+  }) {
+    const me = await api.request<{
+      userId: number | string;
+      phoneNumber?: string;
+      name?: string;
+      email?: string;
+      avatarUrl?: string;
+      roleNames?: string[];
+      permissionCount?: number;
+      globalDataScope?: boolean;
+      merchantIds?: string[];
+      merchantNames?: string[];
+    }>('/api/v2/ops/admin/rbac/me', 'PUT', {
+      name: payload.name,
+      phoneNumber: payload.phoneNumber,
+      email: payload.email || null,
+      avatarUrl: payload.avatarUrl || null
+    });
+    profile.value = {
+      userId: String(me.userId),
+      phoneNumber: me.phoneNumber,
+      name: me.name,
+      email: me.email || '',
+      avatarUrl: me.avatarUrl || '',
+      roleNames: me.roleNames,
+      permissionCount: me.permissionCount,
+      globalDataScope: me.globalDataScope !== false,
+      merchantIds: me.merchantIds || [],
+      merchantNames: me.merchantNames || []
+    };
+    userId.value = String(me.userId);
+    if (me.phoneNumber) {
+      phone.value = me.phoneNumber;
+      localStorage.setItem('admin_phone', me.phoneNumber);
+    }
+    localStorage.setItem('admin_userId', String(me.userId));
   }
 
   async function logout() {
@@ -243,6 +295,8 @@ export const useAuthStore = defineStore('auth', () => {
     activeNavPerms,
     activeNavLoaded,
     phone,
+    email,
+    avatarUrl,
     profile,
     profileHydrated,
     displayName,
@@ -254,10 +308,11 @@ export const useAuthStore = defineStore('auth', () => {
     loadPermissions,
     loadActiveNav,
     loadProfile,
+    updateProfile,
     refreshPermissions,
+    restore,
     hasPerm,
     isNavMenuActive,
-    canAccessNav,
-    restore
+    canAccessNav
   };
 });

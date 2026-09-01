@@ -9,6 +9,17 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <el-button
+            v-hasPermi="['ops:ota:publish']"
+            type="danger"
+            plain
+            :disabled="!hasUnpublishableSelection"
+            :loading="batchUnpublishing"
+            @click="batchUnpublish"
+          >
+            批量下架
+          </el-button>
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button v-hasPermi="['ops:ota:publish']" type="primary" @click="openPublish"
             >发布版本</el-button
           >
@@ -20,6 +31,7 @@
     <div class="table-scroll">
       <div class="table-scroll-inner">
         <el-table
+          ref="tableRef"
           v-loading="loading"
           :data="items"
           stripe
@@ -27,10 +39,12 @@
           class="report-table"
           row-key="releaseId"
           empty-text=" "
+          @selection-change="onSelectionChange"
         >
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无固件版本"
           /></template>
+          <el-table-column type="selection" width="48" align="center" />
           <el-table-column
             prop="appVersion"
             label="版本"
@@ -165,12 +179,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
+import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
+import { useListCsv } from '@/composables/useListCsv';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { normalizeListPage } from '@/utils/normalize-list-page';
 
@@ -216,6 +232,7 @@ const page = ref(1);
 const size = ref(20);
 const total = ref(0);
 const saving = ref(false);
+const batchUnpublishing = ref(false);
 const items = ref<OtaRelease[]>([]);
 const dialog = ref(false);
 const form = reactive({
@@ -228,6 +245,51 @@ const form = reactive({
   minVersion: '',
   grayPercent: 100,
   deviceAllowlist: [] as string[]
+});
+
+const {
+  tableRef,
+  hasSelection,
+  onSelectionChange,
+  pickSelected,
+  exportButtonLabel,
+  clearSelection
+} = useAdminListTable<OtaRelease>((r) => r.releaseId ?? `${r.appVersion}-${r.channel}`);
+
+/** 勾选中可下架的已发布版本；未勾选时为空。 */
+const unpublishableSelected = computed(() => {
+  if (!hasSelection.value) return [];
+  return pickSelected(items.value).filter((r) => r.status === 'PUBLISHED' && r.releaseId != null);
+});
+const hasUnpublishableSelection = computed(() => unpublishableSelected.value.length > 0);
+
+const { onExport } = useListCsv({
+  filePrefix: '固件版本',
+  headers: [
+    '发布ID',
+    '版本',
+    '渠道',
+    '状态',
+    '强制',
+    '灰度%',
+    '定向设备数',
+    '最低版本',
+    '发布时间',
+    '说明'
+  ],
+  toRows: () =>
+    pickSelected(items.value).map((r) => [
+      r.releaseId ?? '',
+      r.appVersion || '',
+      channelLabel(r.channel),
+      statusLabel(r.status),
+      r.mandatory ? '是' : '否',
+      r.grayPercent ?? 100,
+      r.deviceAllowlist?.length ?? 0,
+      r.minVersion || '',
+      formatDateTime(r.publishedAt) || '',
+      r.releaseNotes || ''
+    ])
 });
 
 async function load() {
@@ -244,6 +306,7 @@ async function load() {
     const pageData = normalizeListPage(data);
     items.value = pageData.items;
     total.value = pageData.total;
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -320,6 +383,51 @@ async function unpublish(row: OtaRelease) {
     await load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '下架失败');
+  }
+}
+
+/** 批量下架勾选中的已发布版本。 */
+async function batchUnpublish() {
+  const targets = unpublishableSelected.value;
+  if (!targets.length) {
+    ElMessage.warning(
+      hasSelection.value ? '勾选行中没有「已发布」的版本' : '请先勾选需要下架的版本'
+    );
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认下架 ${targets.length} 个已发布版本？设备端将停止收到这些版本。`,
+      '批量下架',
+      {
+        type: 'warning',
+        confirmButtonText: '下架',
+        cancelButtonText: '取消'
+      }
+    );
+  } catch {
+    return;
+  }
+  batchUnpublishing.value = true;
+  let ok = 0;
+  let fail = 0;
+  try {
+    for (const row of targets) {
+      try {
+        await api.request(`/api/v2/ops/admin/ota/releases/${row.releaseId}/unpublish`, 'POST', {});
+        ok += 1;
+      } catch {
+        fail += 1;
+      }
+    }
+    if (fail === 0) {
+      ElMessage.success(`已下架 ${ok} 个版本`);
+    } else {
+      ElMessage.warning(`成功 ${ok} 个，失败 ${fail} 个`);
+    }
+    await load();
+  } finally {
+    batchUnpublishing.value = false;
   }
 }
 

@@ -78,7 +78,14 @@ if (-not $SkipShopping) {
     Assert-True ($toggle.mock_force_need_review -eq $true) "force-need-review enabled"
 
     try {
-        & (Join-Path $RepoRoot "scripts\set-simulator-cart.ps1") -Items @("SKU-DEMO-001:1") -ShoppingSeconds 8 -NoRecreate
+        # Docker stack (:18080): recreate container simulator with cart env.
+        # IDEA stack (:8080): only export env for local DeviceSimulator process.
+        $useDockerSim = ($BaseUrl -match ':18080$') -or ($env:E2E_USE_DOCKER_SIMULATOR -eq '1')
+        if ($useDockerSim) {
+            & (Join-Path $RepoRoot "scripts\set-simulator-cart.ps1") -Items @("SKU-DEMO-001:1") -ShoppingSeconds 8
+        } else {
+            & (Join-Path $RepoRoot "scripts\set-simulator-cart.ps1") -Items @("SKU-DEMO-001:1") -ShoppingSeconds 8 -SkipDocker
+        }
         $auth = Get-ConsumerAuth
         $result = Invoke-E2eMqttShopping -BaseUrl $BaseUrl -DeviceId $DeviceId -Auth $auth `
             -RepoRoot $RepoRoot -KeepSimulator
@@ -135,8 +142,16 @@ if ($sessionId) {
 }
 
 Write-Host "Ticket=$ticketId session=$sessionId reviewCode=$($match.reviewCode)"
-Write-Host "Admin UI: http://localhost/admin/index.html#/disputes (MOCK filter)"
-Write-Host "          http://localhost/admin/index.html#/exceptions"
+# admin-vue 使用 createWebHistory('/admin/')，勿用 #/hash；Gateway :80 优先，否则 trade 直连。
+$adminOrigin = 'http://localhost'
+try {
+    $null = Invoke-WebRequest -Uri 'http://localhost/actuator/health' -UseBasicParsing -TimeoutSec 2
+} catch {
+    if ($BaseUrl -match '18080') { $adminOrigin = 'http://localhost:18080' }
+    else { $adminOrigin = 'http://localhost:8080' }
+}
+Write-Host "Admin UI: $adminOrigin/admin/disputes?status=OPEN (MOCK/识别争议 filter)"
+Write-Host "          $adminOrigin/admin/exceptions?status=OPEN"
 
 Write-Host "==> Resolve $Resolution"
 $body = @{ resolutionType = $Resolution; items = @() }

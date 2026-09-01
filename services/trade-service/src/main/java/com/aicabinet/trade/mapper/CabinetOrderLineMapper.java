@@ -97,7 +97,7 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
             @Param("start") Instant start, @Param("end") Instant end);
 
     default List<Object[]> skuBreakdownBetween(Instant start, Instant end) {
-        return ColumnMapRows.toObjectRows(selectSkuBreakdownBetween(start, end), 6);
+        return ColumnMapRows.toObjectRows(selectSkuBreakdownBetween(start, end), 8);
     }
 
     List<LinkedHashMap<String, Object>> selectSkuBreakdownByDevicesSince(
@@ -113,7 +113,7 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
             @Param("end") Instant end);
 
     default List<Object[]> skuBreakdownByDevicesBetween(Collection<String> deviceIds, Instant start, Instant end) {
-        return ColumnMapRows.toObjectRows(selectSkuBreakdownByDevicesBetween(deviceIds, start, end), 6);
+        return ColumnMapRows.toObjectRows(selectSkuBreakdownByDevicesBetween(deviceIds, start, end), 8);
     }
 
     List<LinkedHashMap<String, Object>> selectDeviceBreakdownBetween(
@@ -122,7 +122,16 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
             @Param("end") Instant end);
 
     default List<Object[]> deviceBreakdownBetween(Collection<String> deviceIds, Instant start, Instant end) {
-        return ColumnMapRows.toObjectRows(selectDeviceBreakdownBetween(deviceIds, start, end), 5);
+        return ColumnMapRows.toObjectRows(selectDeviceBreakdownBetween(deviceIds, start, end), 7);
+    }
+
+    List<LinkedHashMap<String, Object>> selectChannelBreakdownBetween(
+            @Param("deviceIds") Collection<String> deviceIds,
+            @Param("start") Instant start,
+            @Param("end") Instant end);
+
+    default List<Object[]> channelBreakdownBetween(Collection<String> deviceIds, Instant start, Instant end) {
+        return ColumnMapRows.toObjectRows(selectChannelBreakdownBetween(deviceIds, start, end), 7);
     }
 
     long sumCogsByDeviceIdsSince(

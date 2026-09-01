@@ -51,7 +51,8 @@ services:
   redpanda:
     image: redpandadata/redpanda:v24.1.1
     command: ["redpanda", "start", "--smp", "1", "--memory", "512M", "--overprovisioned", "--kafka-addr", "PLAINTEXT://0.0.0.0:9092", "--advertise-kafka-addr", "PLAINTEXT://redpanda:9092"]
-    ports: ["9092:9092"]
+    # Host 9092 often in Windows Hyper-V excluded ranges (e.g. 9083–9182); default 19092.
+    ports: ["${REDPANDA_PORT:-19092}:9092"]
 
   vision-service:
     build:

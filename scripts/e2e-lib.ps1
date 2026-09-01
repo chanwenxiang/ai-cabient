@@ -29,26 +29,52 @@ function Exit-E2eLock {
     try { Remove-Item -Force (Get-E2eLockPath) -ErrorAction SilentlyContinue } catch { }
 }
 
+function Test-E2eHttpOk {
+    param([string]$Url, [int]$TimeoutSec = 2)
+    try {
+        $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec $TimeoutSec
+        return ($response.StatusCode -ge 200 -and $response.StatusCode -lt 400)
+    } catch {
+        return $false
+    }
+}
+
 function Get-E2eBaseUrl {
-    param([string]$Fallback = "http://localhost:18080")
+    param([string]$Fallback = "http://localhost:8080")
     if (-not [string]::IsNullOrWhiteSpace($env:E2E_BASE_URL)) {
         return $env:E2E_BASE_URL.Trim().TrimEnd('/')
+    }
+    # Prefer live IDEA (:8080) over Docker full-stack (:18080)
+    foreach ($candidate in @("http://localhost:8080", "http://localhost:18080")) {
+        if (Test-E2eHttpOk -Url "$candidate/actuator/health") {
+            return $candidate
+        }
     }
     return $Fallback.TrimEnd('/')
 }
 
 function Get-E2eVisionUrl {
-    param([string]$Fallback = "http://localhost:18082")
+    param([string]$Fallback = "http://localhost:8082")
     if (-not [string]::IsNullOrWhiteSpace($env:E2E_VISION_URL)) {
         return $env:E2E_VISION_URL.Trim().TrimEnd('/')
+    }
+    foreach ($candidate in @("http://localhost:8082", "http://127.0.0.1:8082", "http://localhost:18082")) {
+        if (Test-E2eHttpOk -Url "$candidate/health") {
+            return $candidate
+        }
     }
     return $Fallback.TrimEnd('/')
 }
 
 function Get-E2eDeviceUrl {
-    param([string]$Fallback = "http://localhost:18081")
+    param([string]$Fallback = "http://localhost:8081")
     if (-not [string]::IsNullOrWhiteSpace($env:E2E_DEVICE_URL)) {
         return $env:E2E_DEVICE_URL.Trim().TrimEnd('/')
+    }
+    foreach ($candidate in @("http://localhost:8081", "http://localhost:18081")) {
+        if (Test-E2eHttpOk -Url "$candidate/actuator/health") {
+            return $candidate
+        }
     }
     return $Fallback.TrimEnd('/')
 }
@@ -280,13 +306,17 @@ function Start-E2eDeviceSimulator {
         [string]$InternalApiKey = "dev-internal-key-change-me"
     )
     $env:TRADE_SERVICE_URL = $BaseUrl
-    $env:DEVICE_SERVICE_URL = "http://localhost:8081"
+    $env:DEVICE_SERVICE_URL = (Get-E2eDeviceUrl)
     $env:INTERNAL_API_KEY = $InternalApiKey
     $env:MINIO_ENDPOINT = "http://localhost:9000"
     $env:MINIO_ACCESS_KEY = "minioadmin"
     $env:MINIO_SECRET_KEY = "minioadmin"
-    $env:AICABINET_SIM_GRAVITY_SKU = "SKU-DEMO-001"
-    $env:AICABINET_SIM_SHOPPING_MS = "5000"
+    if ([string]::IsNullOrWhiteSpace($env:AICABINET_SIM_GRAVITY_SKU)) {
+        $env:AICABINET_SIM_GRAVITY_SKU = "SKU-DEMO-001"
+    }
+    if ([string]::IsNullOrWhiteSpace($env:AICABINET_SIM_SHOPPING_MS)) {
+        $env:AICABINET_SIM_SHOPPING_MS = "5000"
+    }
     return Start-Process powershell -PassThru -WindowStyle Hidden -ArgumentList @(
         "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
         "Set-Location '$RepoRoot'; mvn -q -f edge/device-simulator/pom.xml exec:java " +

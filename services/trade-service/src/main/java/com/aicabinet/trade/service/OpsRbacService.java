@@ -572,12 +572,47 @@ public class OpsRbacService {
                 operatorId,
                 user.getPhoneNumber(),
                 user.getName(),
+                user.getEmail(),
+                user.getAvatarUrl(),
                 roleNames,
                 permCount,
                 global,
                 merchantIds,
                 merchantNames
         );
+    }
+
+    /** 运营账号自助更新个人资料（姓名 / 手机 / 邮箱 / 头像）。 */
+    @Transactional
+    public OpsMeDto updateMyProfile(Long operatorId, UpdateOpsMeRequest request) {
+        permissionService.requireOperator(operatorId);
+        String phone = normalizePhone(request.phoneNumber());
+        return runWithOperatorLock(operatorId, () -> doUpdateMyProfile(operatorId, request, phone));
+    }
+
+    private OpsMeDto doUpdateMyProfile(Long operatorId, UpdateOpsMeRequest request, String phone) {
+        UserInfo user = userInfoRepository.findByIdForUpdate(operatorId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        userInfoRepository.findByPhoneNumber(phone).ifPresent(existing -> {
+            if (!existing.getUserId().equals(operatorId)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.PHONE_ALREADY_EXISTS);
+            }
+        });
+        String name = request.name() == null ? "" : request.name().trim();
+        if (name.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "姓名不能为空");
+        }
+        String email = blankToNull(request.email());
+        String avatarUrl = blankToNull(request.avatarUrl());
+        if (avatarUrl != null && avatarUrl.length() > 512) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "头像地址过长");
+        }
+        user.setPhoneNumber(phone);
+        user.setName(name);
+        user.setEmail(email);
+        user.setAvatarUrl(avatarUrl);
+        userInfoRepository.save(user);
+        return myProfile(operatorId);
     }
 
     private OpsOperatorDto toOperatorDto(UserInfo user) {

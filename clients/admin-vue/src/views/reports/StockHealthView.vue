@@ -17,7 +17,9 @@
           >
             一键补货规划（{{ planDeviceIds.length }} 台）
           </el-button>
-          <el-button v-hasPermi="['ops:stock-health:export']" @click="onExport">导出</el-button>
+          <el-button v-hasPermi="['ops:stock-health:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -131,16 +133,20 @@
     <div class="table-scroll">
       <div class="table-scroll-inner">
         <el-table
+          ref="tableRef"
           v-loading="loading"
           :data="rows"
           stripe
           border
           class="report-table"
+          row-key="rowKey"
           empty-text=" "
+          @selection-change="onSelectionChange"
         >
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无异常库存"
           /></template>
+          <el-table-column type="selection" width="48" align="center" />
           <el-table-column label="维度" width="96" align="center">
             <template #default="{ row }">
               <el-tag :type="dimTag(row.dimension)" size="small">{{
@@ -258,11 +264,15 @@ import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import { useAdminListTable } from '@/composables/useAdminListTable';
+import { useDeviceOptions } from '@/composables/useDeviceOptions';
+import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
-import { useDeviceOptions } from '@/composables/useDeviceOptions';
+import { csvFileName } from '@/utils/csv';
 
 interface StockHealthRow {
+  rowKey?: string;
   dimension: string;
   deviceId: string;
   deviceName?: string;
@@ -280,6 +290,10 @@ interface StockHealthRow {
   updatedAt?: string;
   lotId?: string;
   batchNo?: string;
+}
+
+function stockRowKey(row: StockHealthRow) {
+  return [row.dimension, row.deviceId, row.skuId || '', row.lotId || row.batchNo || ''].join('|');
 }
 
 const route = useRoute();
@@ -303,6 +317,50 @@ const nearExpiryCount = ref(0);
 const deviceCount = ref(0);
 const planDeviceIds = ref<string[]>([]);
 const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
+
+const {
+  tableRef,
+  selectedKeys,
+  onSelectionChange,
+  pickSelected,
+  exportButtonLabel,
+  clearSelection
+} = useAdminListTable<StockHealthRow>((r) => r.rowKey || stockRowKey(r));
+
+const { onExport: exportSelectedCsv } = useListCsv({
+  filePrefix: '库存健康',
+  headers: [
+    '维度',
+    '设备',
+    '设备ID',
+    '商户',
+    '路线',
+    'SKU',
+    'SKU ID',
+    '库存',
+    '容量',
+    '阈值',
+    '缺货率%',
+    '断货天',
+    '到期日'
+  ],
+  toRows: () =>
+    pickSelected(rows.value).map((r) => [
+      dimLabel(r.dimension),
+      r.deviceName || '',
+      r.deviceId || '',
+      r.merchantId || '',
+      r.routeCode || '',
+      r.skuName || '',
+      r.skuId || '',
+      r.quantity ?? '',
+      r.capacity ?? '',
+      r.lowThreshold ?? '',
+      Number(r.stockoutRatePct || 0).toFixed(1),
+      r.daysOutOfStock ?? '',
+      r.expiryDate || ''
+    ])
+});
 
 function rowActions(row: StockHealthRow): TableAction[] {
   const actions: TableAction[] = [];
@@ -451,13 +509,14 @@ async function load() {
       deviceCount: number;
       planDeviceIds: string[];
     }>(`/api/v2/ops/admin/reports/stock-health?${queryString(true)}`, 'GET');
-    rows.value = data.items || [];
+    rows.value = (data.items || []).map((r) => ({ ...r, rowKey: stockRowKey(r) }));
     total.value = Number(data.total) || 0;
     stockoutCount.value = Number(data.stockoutCount) || 0;
     lowCount.value = Number(data.lowCount) || 0;
     nearExpiryCount.value = Number(data.nearExpiryCount) || 0;
     deviceCount.value = Number(data.deviceCount) || 0;
     planDeviceIds.value = data.planDeviceIds || [];
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -477,10 +536,14 @@ function search() {
 }
 
 async function onExport() {
+  if (selectedKeys.value.length) {
+    exportSelectedCsv();
+    return;
+  }
   try {
     await downloadAuthFile(
       `/api/v2/ops/admin/reports/stock-health/export?${queryString()}`,
-      'stock-health.csv'
+      csvFileName('库存健康')
     );
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '导出失败');

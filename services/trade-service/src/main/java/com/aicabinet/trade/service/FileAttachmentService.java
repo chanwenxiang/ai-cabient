@@ -47,6 +47,8 @@ public class FileAttachmentService {
     public static final String REF_PENDING_REPLENISHMENT_REQUEST = "PENDING_REPLENISHMENT_REQUEST";
     public static final String REF_REPLENISHMENT_REQUEST = "REPLENISHMENT_REQUEST";
     public static final String REF_SKU_IMAGE = "SKU_IMAGE";
+    public static final String REF_OPS_AVATAR = "OPS_AVATAR";
+    public static final String REF_OPS_BRAND_LOGO = "OPS_BRAND_LOGO";
     private static final long MAX_BYTES = 5 * 1024 * 1024L;
     private static final int MAX_EVIDENCE = 5;
     private static final Set<String> ALLOWED_TYPES = Set.of(
@@ -400,6 +402,114 @@ public class FileAttachmentService {
         return toDto(row);
     }
 
+    /** 运营个人中心头像 / Logo 上传。 */
+    @Transactional
+    public FileAttachmentDto uploadOpsAvatar(Long operatorId, MultipartFile file) {
+        if (operatorId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择图片");
+        }
+        if (file.getSize() > MAX_BYTES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "单张图片不能超过 5MB");
+        }
+        String contentType = normalizeContentType(file.getContentType(), file.getOriginalFilename());
+        if (!ALLOWED_TYPES.contains(contentType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅支持 jpg/png/webp/gif");
+        }
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "读取上传文件失败");
+        }
+        String sha = sha256Hex(bytes);
+        if (sha != null) {
+            FileAttachment existing = fileAttachmentMapper.findByContentSha256(sha).stream()
+                    .filter(r -> REF_OPS_AVATAR.equals(r.getRefType()))
+                    .filter(r -> r.getStoragePath() != null && !r.getStoragePath().isBlank())
+                    .filter(r -> !r.getStoragePath().startsWith(MINIO)
+                            || minioVideoService.objectExists(r.getStoragePath()))
+                    .findFirst()
+                    .orElse(null);
+            if (existing != null) {
+                return toDto(existing);
+            }
+        }
+        String ext = extensionFor(contentType, file.getOriginalFilename());
+        String token = UUID.randomUUID().toString().replace("-", "");
+        String objectKey = ObjectStorageKeys.opsAvatarKey(operatorId, token, ext);
+        String storagePath = storeOrReuse(sha, objectKey, bytes, contentType);
+        FileAttachment row = new FileAttachment();
+        row.setRefType(REF_OPS_AVATAR);
+        row.setRefId(String.valueOf(operatorId));
+        row.setFileName(safeName(file.getOriginalFilename(), token + ext));
+        row.setFileSize((long) bytes.length);
+        row.setContentType(contentType);
+        row.setStoragePath(storagePath);
+        row.setStorageBucket(storagePath.startsWith(MINIO) ? minioProperties.bucket() : LOCAL);
+        row.setContentSha256(sha);
+        row.setUploadedBy(operatorId);
+        row.setCreatedAt(Instant.now());
+        fileAttachmentMapper.insert(row);
+        return toDto(row);
+    }
+
+    /** 运营后台品牌 Logo 上传。 */
+    @Transactional
+    public FileAttachmentDto uploadOpsBrandLogo(Long operatorId, MultipartFile file) {
+        if (operatorId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择图片");
+        }
+        if (file.getSize() > MAX_BYTES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "单张图片不能超过 5MB");
+        }
+        String contentType = normalizeContentType(file.getContentType(), file.getOriginalFilename());
+        if (!ALLOWED_TYPES.contains(contentType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅支持 jpg/png/webp/gif");
+        }
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "读取上传文件失败");
+        }
+        String sha = sha256Hex(bytes);
+        if (sha != null) {
+            FileAttachment existing = fileAttachmentMapper.findByContentSha256(sha).stream()
+                    .filter(r -> REF_OPS_BRAND_LOGO.equals(r.getRefType()))
+                    .filter(r -> r.getStoragePath() != null && !r.getStoragePath().isBlank())
+                    .filter(r -> !r.getStoragePath().startsWith(MINIO)
+                            || minioVideoService.objectExists(r.getStoragePath()))
+                    .findFirst()
+                    .orElse(null);
+            if (existing != null) {
+                return toDto(existing);
+            }
+        }
+        String ext = extensionFor(contentType, file.getOriginalFilename());
+        String token = UUID.randomUUID().toString().replace("-", "");
+        String objectKey = ObjectStorageKeys.opsBrandLogoKey(operatorId, token, ext);
+        String storagePath = storeOrReuse(sha, objectKey, bytes, contentType);
+        FileAttachment row = new FileAttachment();
+        row.setRefType(REF_OPS_BRAND_LOGO);
+        row.setRefId(String.valueOf(operatorId));
+        row.setFileName(safeName(file.getOriginalFilename(), token + ext));
+        row.setFileSize((long) bytes.length);
+        row.setContentType(contentType);
+        row.setStoragePath(storagePath);
+        row.setStorageBucket(storagePath.startsWith(MINIO) ? minioProperties.bucket() : LOCAL);
+        row.setContentSha256(sha);
+        row.setUploadedBy(operatorId);
+        row.setCreatedAt(Instant.now());
+        fileAttachmentMapper.insert(row);
+        return toDto(row);
+    }
+
     /**
      * 商品主图被替换/移除时释放旧图：同对象仍被其它附件引用则仅删记录，
      * 无引用时同时删除对象存储里的旧文件（含本地回退文件）。
@@ -498,6 +608,22 @@ public class FileAttachmentService {
         return row;
     }
 
+    public FileAttachment requireOpsAvatar(Long fileId) {
+        FileAttachment row = fileAttachmentMapper.selectById(fileId);
+        if (row == null || !REF_OPS_AVATAR.equals(row.getRefType())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "头像不存在");
+        }
+        return row;
+    }
+
+    public FileAttachment requireOpsBrandLogo(Long fileId) {
+        FileAttachment row = fileAttachmentMapper.selectById(fileId);
+        if (row == null || !REF_OPS_BRAND_LOGO.equals(row.getRefType())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "品牌 Logo 不存在");
+        }
+        return row;
+    }
+
     @Transactional(readOnly = true)
     public FileAttachment requireReadable(Long requesterId, Long fileId, boolean operator) {
         FileAttachment row = fileAttachmentMapper.selectById(fileId);
@@ -548,6 +674,10 @@ public class FileAttachmentService {
             url = "/api/v2/merchant/replenishment/tasks/" + row.getRefId() + "/evidence/" + row.getFileId();
         } else if (REF_SKU_IMAGE.equals(row.getRefType())) {
             url = "/api/v2/media/sku-images/" + row.getFileId();
+        } else if (REF_OPS_AVATAR.equals(row.getRefType())) {
+            url = "/api/v2/media/ops-avatars/" + row.getFileId();
+        } else if (REF_OPS_BRAND_LOGO.equals(row.getRefType())) {
+            url = "/api/v2/media/ops-brand/" + row.getFileId();
         } else {
             url = "/api/v2/disputes/evidence/" + row.getFileId();
         }
