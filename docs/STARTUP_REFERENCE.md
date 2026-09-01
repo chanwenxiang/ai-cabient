@@ -83,6 +83,7 @@ docker compose --env-file infra\.env -f infra\docker-compose.full.yml -f infra\d
 | 运营控制台 | http://localhost/admin/index.html |
 | 运营 UAT | `cd clients/consumer-mp && node ../admin-vue/tests/admin-uat.mjs`（`13900000001` / `123456` + Redis 图形验证码） |
 | 三端业务 UI UAT | `cd clients/consumer-mp && node ../admin-vue/tests/three-end-business-uat.mjs`（消费者订单视频 → 商户订单视频 → 运营争议/异常/订单） |
+| 争议结案 UI UAT | 先 `.\scripts\create-open-dispute.ps1`，再 `node ../admin-vue/tests/three-end-dispute-ui-uat.mjs`（**运营后台**含图形验证码；商户端无验证码） |
 | 消费者小程序 H5 | http://127.0.0.1:3002 （`dev:h5`，账号 `13800138000` / 验证码 `123456`） |
 | 商户小程序 H5 | http://127.0.0.1:3001 （`dev:h5`，账号 `13800138001` / 验证码 `123456`） |
 | 小程序 API | H5 经 Vite 同源代理到 Gateway；微信端用 `VITE_API_BASE_URL` |

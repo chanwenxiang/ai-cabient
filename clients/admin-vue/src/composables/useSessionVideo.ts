@@ -19,7 +19,12 @@ async function fetchSessionVideoBlob(sessionId?: string | null): Promise<Session
     if (res.status === 403) throw new Error('无录像查看权限');
     throw new Error(`播放失败（HTTP ${res.status}）`);
   }
-  const blob = await res.blob();
+  const blobRaw = await res.blob();
+  // Gateway/代理偶发把 Content-Type 变成 octet-stream，Chrome 无法解码
+  const blob =
+    blobRaw.type && blobRaw.type.startsWith('video/')
+      ? blobRaw
+      : new Blob([await blobRaw.arrayBuffer()], { type: 'video/mp4' });
   const url = URL.createObjectURL(blob);
   return {
     url,
