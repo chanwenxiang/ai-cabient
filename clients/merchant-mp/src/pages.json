@@ -121,6 +121,13 @@
       "path": "pages/order-detail/order-detail"
     },
     {
+      "path": "pages/video/video",
+      "style": {
+        "navigationBarTitleText": "购物视频",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/messages/messages",
       "style": {
         "navigationBarTitleText": "消息中心",

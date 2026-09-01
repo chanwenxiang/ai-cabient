@@ -107,6 +107,7 @@
 
         <view class="actions">
           <button v-if="order.deviceId" class="btn-primary" @click="goDevice">查看柜机</button>
+          <button v-if="canShowVideo" class="btn-outline" @click="playVideo">查看购物视频</button>
           <button class="btn-outline" @click="goDisputes">相关争议</button>
         </view>
       </view>
@@ -180,6 +181,14 @@ const refundCents = computed(() => {
   if (n > 0) return n;
   if (o.status === 'REFUNDED') return Number(o.totalAmountCents || 0);
   return 0;
+});
+
+/** 有会话且已产生账单的订单可查看录像（由后端 /merchant/orders/{id}/video 鉴权拉流） */
+const canShowVideo = computed(() => {
+  const o = order.value;
+  if (!o?.sessionId || !o.orderId) return false;
+  const s = String(o.status || '').toUpperCase();
+  return s === 'PAID' || s === 'COMPLETED' || s === 'REFUNDED' || s === 'PARTIAL_REFUNDED';
 });
 
 onLoad((opt) => {
@@ -279,6 +288,15 @@ function goDisputes() {
     return;
   }
   uni.navigateTo({ url: '/pages/disputes/disputes' });
+}
+
+function playVideo() {
+  const oid = order.value?.orderId;
+  const did = order.value?.deviceId || '';
+  if (!oid) return;
+  uni.navigateTo({
+    url: `/pages/video/video?orderId=${encodeURIComponent(oid)}&deviceId=${encodeURIComponent(did)}`
+  });
 }
 </script>
 

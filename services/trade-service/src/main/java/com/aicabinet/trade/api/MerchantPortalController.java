@@ -8,6 +8,7 @@ import com.aicabinet.trade.service.MerchantFinanceService;
 import com.aicabinet.trade.service.MerchantPortalService;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -130,6 +131,15 @@ public class MerchantPortalController {
     public ApiResponse<OrderDto> order(
             HttpServletRequest request, @PathVariable String orderId) {
         return ApiResponse.ok(support.merchantFinanceService().getOrder(userId(request), orderId));
+    }
+
+    @RequiresPermissions("merchant:orders:list")
+    @GetMapping(value = "/orders/{orderId}/video", produces = {MediaType.APPLICATION_OCTET_STREAM_VALUE, "video/mp4", "video/webm"})
+    public void orderVideo(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            @PathVariable String orderId) {
+        support.merchantFinanceService().streamOrderVideo(userId(request), orderId, request, response);
     }
 
     @RequiresPermissions("merchant:disputes:list")
