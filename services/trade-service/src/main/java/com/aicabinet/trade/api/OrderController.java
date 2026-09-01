@@ -13,7 +13,9 @@ import com.aicabinet.trade.service.InvoiceService;
 import com.aicabinet.trade.service.OrderService;
 import com.aicabinet.trade.service.UnpaidOrderService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -53,6 +55,15 @@ public class OrderController {
             @PathVariable("orderId") String orderId) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return ApiResponse.ok(orderService.getMyOrder(userId, orderId));
+    }
+
+    @GetMapping(value = "/{orderId}/video", produces = {MediaType.APPLICATION_OCTET_STREAM_VALUE, "video/mp4", "video/webm"})
+    public void streamVideo(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            @PathVariable("orderId") String orderId) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        orderService.streamMyOrderVideo(userId, orderId, request, response);
     }
 
     @PostMapping("/{orderId}/pay")

@@ -35,6 +35,6 @@ withDefaults(
 }
 .page-pager__hint {
   color: var(--layout-muted, var(--el-text-color-secondary));
-  font-size: 13px;
+  font-size: var(--admin-font-size-table, 13px);
 }
 </style>

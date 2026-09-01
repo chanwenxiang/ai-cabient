@@ -168,8 +168,8 @@ const wxBtnLabel = computed(() => '微信授权登录');
 const isDev = showDevTools();
 const demoPhone = String(import.meta.env.VITE_DEMO_PHONE || '').trim();
 const demoPassword = String(import.meta.env.VITE_DEMO_PASSWORD || '').trim();
-// H5/本地联调：演示账号已设密码；短信万能码依赖后端 mock，默认走密码更稳
-const mode = ref<'password' | 'sms'>(isDev ? 'password' : 'sms');
+// 演示账号主路径是短信万能码；密码页仍可选手动切。避免 H5 默认停在密码导致「获取验证码」不可见。
+const mode = ref<'password' | 'sms'>('sms');
 const demoHint = computed(() => {
   if (!isDev) return '';
   if (mode.value === 'password' && demoPhone && demoPassword) {

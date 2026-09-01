@@ -4,12 +4,19 @@ param(
     [int]$ShoppingSeconds = 20,
     [string]$EnvFile = "",
     [string]$VideoFile = "",
-    [switch]$NoRecreate
+    [switch]$NoRecreate,
+    # IDEA / local DeviceSimulator mode: only export env vars; do not touch docker simulator
+    [switch]$SkipDocker
 )
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 $ComposeFile = Join-Path $Root 'infra\docker-compose.full.yml'
+$WinPortsFile = Join-Path $Root 'infra\docker-compose.win-ports.yml'
+$composeFileArgs = @('-f', $ComposeFile)
+if (($env:OS -match 'Windows' -or $IsWindows) -and (Test-Path $WinPortsFile)) {
+    $composeFileArgs += @('-f', $WinPortsFile)
+}
 if (-not $EnvFile) {
     $EnvFile = Join-Path $Root 'infra\.env.sandbox'
     if (-not (Test-Path $EnvFile)) {
@@ -47,13 +54,18 @@ $deltas | ForEach-Object {
 }
 Write-Host "Shopping duration: $ShoppingSeconds seconds"
 
+if ($SkipDocker -or $env:E2E_USE_DOCKER_SIMULATOR -eq '0') {
+    Write-Host 'SkipDocker: env exported for local DeviceSimulator (no docker compose).'
+    exit 0
+}
+
 # docker compose writes progress to stderr; do not treat that as a terminating error in PowerShell.
 $prevEap = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
 if ($NoRecreate) {
-    docker compose -p ai-cabinet --env-file $EnvFile -f $ComposeFile up -d --no-deps device-simulator 2>&1 | Out-Null
+    docker compose -p ai-cabinet --env-file $EnvFile @composeFileArgs up -d --no-deps device-simulator 2>&1 | Out-Null
 } else {
-    docker compose -p ai-cabinet --env-file $EnvFile -f $ComposeFile up -d --no-deps --force-recreate device-simulator 2>&1 | Out-Null
+    docker compose -p ai-cabinet --env-file $EnvFile @composeFileArgs up -d --no-deps --force-recreate device-simulator 2>&1 | Out-Null
 }
 $composeExit = $LASTEXITCODE
 $ErrorActionPreference = $prevEap

@@ -184,16 +184,18 @@ public class OpsGapFeaturesController {
 
     @RequiresPermissions("ops:sales-report:list")
     @GetMapping("/sales-reports")
-    public ApiResponse<PageResult<SalesReportRowDto>> salesReports(
+    public ApiResponse<SalesReportPageDto> salesReports(
             HttpServletRequest request,
             @RequestParam(defaultValue = "PRODUCT") String dim,
             @RequestParam(required = false) String fromDate,
             @RequestParam(required = false) String toDate,
             @RequestParam(required = false) String deviceId,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(required = false) String sortDir,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.ok(gapService.salesReportPage(
-                operatorId(request), dim, fromDate, toDate, deviceId, page, size));
+                operatorId(request), dim, fromDate, toDate, deviceId, sortBy, sortDir, page, size));
     }
 
     @RequiresPermissions("ops:sales-report:list")

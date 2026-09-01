@@ -5,6 +5,10 @@
     <option name="ACTIVE_PROFILES" value="dev" />
     <envs>
       <env name="SPRING_PROFILES_ACTIVE" value="dev" />
+      <env name="REDIS_HOST" value="localhost" />
+      <env name="REDIS_PORT" value="6379" />
+      <env name="MQTT_BROKER" value="tcp://localhost:11883" />
+      <env name="AICABINET_MOCK_ENABLED" value="true" />
     </envs>
     <method v="2">
       <option name="Make" enabled="true" />

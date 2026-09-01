@@ -2,11 +2,13 @@ package com.aicabinet.common.dto;
 
 import java.util.List;
 
-/** 当前登录运营账号概要（顶栏展示） */
+/** 当前登录运营账号概要（顶栏 / 个人中心） */
 public record OpsMeDto(
         Long userId,
         String phoneNumber,
         String name,
+        String email,
+        String avatarUrl,
         List<String> roleNames,
         int permissionCount,
         /** true = 全局可见；false = 仅绑定商户下设备 */

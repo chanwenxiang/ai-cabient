@@ -35,6 +35,59 @@
       </div>
     </template>
 
+    <el-card class="brand-card" shadow="never">
+      <template #header>
+        <div class="brand-card-head">
+          <span>品牌外观</span>
+          <span class="hint">用于登录页、侧栏与浏览器标题；保存后刷新页面即可生效</span>
+        </div>
+      </template>
+      <el-form label-width="100px" class="brand-form" @submit.prevent="saveBrand">
+        <el-form-item label="品牌标志">
+          <div class="brand-logo-row">
+            <div class="brand-logo-preview">
+              <img v-if="brandForm.logoUrl" :src="brandForm.logoUrl" alt="品牌标志" />
+              <span v-else>{{ brandMarkPreview }}</span>
+            </div>
+            <el-upload
+              v-if="auth.hasPerm('ops:config:edit')"
+              :show-file-list="false"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              :http-request="uploadBrandLogo"
+              :disabled="brandLogoUploading"
+            >
+              <el-button :loading="brandLogoUploading">上传标志</el-button>
+            </el-upload>
+            <el-button
+              v-if="brandForm.logoUrl && auth.hasPerm('ops:config:edit')"
+              link
+              type="danger"
+              @click="brandForm.logoUrl = ''"
+              >清除</el-button
+            >
+          </div>
+        </el-form-item>
+        <el-form-item label="主标题" required>
+          <el-input v-model="brandForm.title" maxlength="64" placeholder="例如：AI开门柜" />
+        </el-form-item>
+        <el-form-item label="副标题">
+          <el-input v-model="brandForm.subtitle" maxlength="64" placeholder="例如：运营管理系统" />
+        </el-form-item>
+        <el-form-item label="侧栏标题">
+          <el-input v-model="brandForm.sidebarTitle" maxlength="64" placeholder="例如：AI开门柜运营" />
+        </el-form-item>
+        <el-form-item>
+          <el-button
+            v-hasPermi="['ops:config:edit']"
+            type="primary"
+            :loading="brandSaving"
+            @click="saveBrand"
+            >保存品牌</el-button
+          >
+        </el-form-item>
+      </el-form>
+    </el-card>
+
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="关键词">
         <el-input
@@ -171,15 +224,23 @@ import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Delete, EditPen, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { api } from '@/api/client';
+import type { UploadRequestOptions } from 'element-plus';
+import { api, authFetch } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
+import { useBrandStore } from '@/stores/brand';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { sortByPrimaryKey } from '@/utils/sort-by-pk';
 
+const BRAND_KEYS = {
+  title: 'ops.brand.title',
+  subtitle: 'ops.brand.subtitle',
+  sidebarTitle: 'ops.brand.sidebar_title',
+  logoUrl: 'ops.brand.logo_url'
+} as const;
 interface SystemConfigRow {
   configKey: string;
   configValue: string;
@@ -190,9 +251,12 @@ interface SystemConfigRow {
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const brandStore = useBrandStore();
 const loading = ref(false);
 const listHydrated = ref(false);
 const saving = ref(false);
+const brandSaving = ref(false);
+const brandLogoUploading = ref(false);
 const keyword = ref('');
 const page = ref(1);
 const size = ref(20);
@@ -200,6 +264,17 @@ const items = ref<SystemConfigRow[]>([]);
 const dialogVisible = ref(false);
 const creating = ref(false);
 const form = reactive({ configKey: '', configValue: '', description: '' });
+const brandForm = reactive({
+  title: 'AI开门柜',
+  subtitle: '运营管理系统',
+  sidebarTitle: 'AI开门柜运营',
+  logoUrl: ''
+});
+
+const brandMarkPreview = computed(() => {
+  const t = brandForm.title.trim();
+  return t ? t.slice(-1) : '柜';
+});
 
 const ENUM_VALUE_OPTIONS: Record<string, { value: string; label: string }[]> = {
   'settlement.recognition_mode': [
@@ -296,7 +371,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
       for (const row of rows) {
         const configKey = (row['配置键'] || row.configKey || '').trim();
         const configValue = (row['配置值'] || row.configValue || '').trim();
-        if (!configKey || !configValue) continue;
+        if (!configKey) continue;
         await api.request('/api/v2/ops/admin/system-configs', 'PUT', {
           configKey,
           configValue,
@@ -328,12 +403,105 @@ async function load() {
   loading.value = true;
   try {
     items.value = await api.request<SystemConfigRow[]>('/api/v2/ops/admin/system-configs', 'GET');
+    syncBrandFormFromItems();
     clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
     listHydrated.value = true;
     loading.value = false;
+  }
+}
+
+function valueOfKey(key: string, fallback = '') {
+  return items.value.find((r) => r.configKey === key)?.configValue ?? fallback;
+}
+
+function syncBrandFormFromItems() {
+  brandForm.title = valueOfKey(BRAND_KEYS.title, 'AI开门柜') || 'AI开门柜';
+  brandForm.subtitle = valueOfKey(BRAND_KEYS.subtitle, '运营管理系统') || '运营管理系统';
+  brandForm.sidebarTitle = valueOfKey(BRAND_KEYS.sidebarTitle, 'AI开门柜运营') || 'AI开门柜运营';
+  brandForm.logoUrl = valueOfKey(BRAND_KEYS.logoUrl, '');
+}
+
+async function upsertBrandKey(configKey: string, configValue: string, description: string) {
+  await api.request('/api/v2/ops/admin/system-configs', 'PUT', {
+    configKey,
+    configValue: configValue ?? '',
+    description
+  });
+}
+
+async function saveBrand() {
+  const title = brandForm.title.trim();
+  if (!title) {
+    ElMessage.warning('请填写主标题');
+    return;
+  }
+  brandSaving.value = true;
+  try {
+    await upsertBrandKey(BRAND_KEYS.title, title, '运营后台品牌标题（登录页主标题）');
+    await upsertBrandKey(
+      BRAND_KEYS.subtitle,
+      brandForm.subtitle.trim() || '运营管理系统',
+      '运营后台副标题（登录页副文案）'
+    );
+    await upsertBrandKey(
+      BRAND_KEYS.sidebarTitle,
+      brandForm.sidebarTitle.trim() || `${title}运营`,
+      '侧栏展开时的品牌文案'
+    );
+    await upsertBrandKey(
+      BRAND_KEYS.logoUrl,
+      brandForm.logoUrl.trim(),
+      '品牌标志图片地址（留空则用标题末字）'
+    );
+    brandStore.applyLocal({
+      title,
+      subtitle: brandForm.subtitle.trim() || '运营管理系统',
+      sidebarTitle: brandForm.sidebarTitle.trim() || `${title}运营`,
+      logoUrl: brandForm.logoUrl.trim()
+    });
+    ElMessage.success('品牌已保存');
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+  } finally {
+    brandSaving.value = false;
+  }
+}
+
+async function uploadBrandLogo(options: UploadRequestOptions) {
+  const file = options.file as File;
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.warning('图片不能超过 5MB');
+    return;
+  }
+  brandLogoUploading.value = true;
+  try {
+    const base =
+      (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await authFetch(`${base}/api/v2/ops/admin/system-configs/brand-logo`, {
+      method: 'POST',
+      body: formData
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json.code !== 0) {
+      throw new Error(json.message || `上传失败 (${res.status})`);
+    }
+    const uploaded = json.data as { url?: string };
+    if (!uploaded?.url) throw new Error('上传失败：未返回地址');
+    brandForm.logoUrl = uploaded.url;
+    options.onSuccess?.(uploaded as never);
+    ElMessage.success('标志已上传，请点击保存品牌');
+  } catch (e) {
+    options.onError?.(e as never);
+    ElMessage.error(e instanceof Error ? e.message : '上传失败');
+  } finally {
+    brandLogoUploading.value = false;
   }
 }
 
@@ -365,8 +533,8 @@ function openEdit(row: SystemConfigRow) {
 }
 
 async function save() {
-  if (!form.configKey.trim() || !form.configValue.trim()) {
-    ElMessage.warning('请填写配置键与配置值');
+  if (!form.configKey.trim()) {
+    ElMessage.warning('请填写配置键');
     return;
   }
   saving.value = true;
@@ -379,6 +547,9 @@ async function save() {
     ElMessage.success('已保存');
     dialogVisible.value = false;
     await load();
+    if (form.configKey.startsWith('ops.brand.')) {
+      await brandStore.load();
+    }
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -440,5 +611,41 @@ onActivated(() => {
 }
 .hidden-input {
   display: none;
+}
+.brand-card {
+  margin-bottom: 16px;
+  border: 1px solid var(--el-border-color-lighter);
+}
+.brand-card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 600;
+}
+.brand-form {
+  max-width: 560px;
+}
+.brand-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.brand-logo-preview {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  background: linear-gradient(145deg, #14b8a6, var(--app-primary, #0f766e));
+}
+.brand-logo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 </style>

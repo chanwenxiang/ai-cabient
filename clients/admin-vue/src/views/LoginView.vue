@@ -13,9 +13,12 @@
     <div class="login-overlay" aria-hidden="true" />
     <div class="login-card">
       <div class="card-header">
-        <div class="brand-mark" aria-hidden="true">柜</div>
-        <h1>AI开门柜</h1>
-        <p class="sub">运营管理系统</p>
+        <div v-if="brand.logoUrl" class="brand-mark brand-mark--img" aria-hidden="true">
+          <img :src="brand.logoUrl" alt="" />
+        </div>
+        <div v-else class="brand-mark" aria-hidden="true">{{ markChar }}</div>
+        <h1>{{ brand.title }}</h1>
+        <p class="sub">{{ brand.subtitle }}</p>
       </div>
       <el-form v-if="!twoFactorStep" label-position="top" @submit.prevent="onSubmit">
         <el-form-item label="手机号">
@@ -143,6 +146,8 @@
       v-model="resetVisible"
       title="重置密码"
       width="440px"
+      class="login-reset-dialog"
+      modal-class="login-reset-modal"
       append-to-body
       destroy-on-close
       :close-on-click-modal="false"
@@ -231,13 +236,18 @@
 
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
+import { useBrandStore } from '@/stores/brand';
 import { api } from '@/api/client';
 import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
 import { safeRedirectPath } from '@/utils/safe-redirect';
 import bgVendingNight from '@/assets/bg-vending-night.jpg';
+
+const brandStore = useBrandStore();
+const { brand, markChar } = storeToRefs(brandStore);
 
 /** 登录页动态背景粒子：固定参数，避免每次渲染随机跳动。 */
 const particles = Array.from({ length: 16 }, (_, i) => {
@@ -439,6 +449,7 @@ async function submitReset() {
 }
 
 onMounted(async () => {
+  void brandStore.load();
   await loadCaptcha();
   await nextTick();
   if (phone.value) {
@@ -686,6 +697,17 @@ async function onSubmitTwoFactor() {
   color: #ecfeff;
   background: linear-gradient(145deg, #14b8a6, var(--app-primary, #0f766e));
   box-shadow: 0 10px 24px rgba(15, 118, 110, 0.35);
+  overflow: hidden;
+}
+.brand-mark--img {
+  padding: 0;
+  background: rgba(8, 24, 30, 0.35);
+}
+.brand-mark--img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .card-header h1 {
   margin: 0 0 6px;
@@ -856,5 +878,114 @@ async function onSubmitTwoFactor() {
   font-size: 0.8rem;
   margin: 20px 0 0;
   text-align: center;
+}
+</style>
+
+<!-- append-to-body：需非 scoped 才能命中弹层；透明度对齐 .login-card -->
+<style>
+.login-reset-modal {
+  background: rgba(4, 22, 28, 0.28) !important;
+  backdrop-filter: blur(6px);
+}
+.login-reset-dialog.el-dialog {
+  --el-dialog-bg-color: transparent;
+  --el-dialog-border-radius: 16px;
+  --el-border-color: transparent;
+  --el-border-color-light: transparent;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 210, 198, 0.22);
+  background: rgba(8, 24, 30, 0.58) !important;
+  backdrop-filter: blur(26px);
+  box-shadow: 0 24px 64px rgba(2, 10, 14, 0.38);
+}
+.login-reset-dialog .el-dialog__header {
+  margin-right: 0;
+  padding-bottom: 4px;
+  border-bottom: none !important;
+  box-shadow: none !important;
+}
+.login-reset-dialog .el-dialog__header.show-close {
+  border-bottom: none !important;
+}
+.login-reset-dialog .el-dialog__title {
+  color: #ecfeff;
+  font-weight: 650;
+  text-shadow: 0 1px 10px rgba(2, 10, 14, 0.65);
+}
+.login-reset-dialog .el-dialog__headerbtn .el-dialog__close {
+  color: rgba(207, 250, 254, 0.72);
+}
+.login-reset-dialog .el-dialog__headerbtn:hover .el-dialog__close {
+  color: #99f6e4;
+}
+.login-reset-dialog .el-dialog__body {
+  color: rgba(207, 250, 254, 0.88);
+  padding-top: 12px;
+  border-top: none !important;
+}
+.login-reset-dialog .el-form-item__label {
+  color: rgba(204, 251, 241, 0.88) !important;
+  text-shadow: 0 1px 8px rgba(2, 10, 14, 0.55);
+}
+.login-reset-dialog .el-input__wrapper {
+  border-radius: 10px;
+  background: rgba(8, 24, 30, 0.42) !important;
+  box-shadow: 0 0 0 1px rgba(148, 210, 198, 0.26) inset !important;
+  backdrop-filter: blur(8px);
+}
+.login-reset-dialog .el-input__inner {
+  color: #f0fdfa !important;
+}
+.login-reset-dialog .el-input__inner::placeholder {
+  color: rgba(148, 210, 198, 0.55);
+}
+.login-reset-dialog .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.42) inset !important;
+}
+.login-reset-dialog .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.5) inset !important;
+}
+.login-reset-dialog .el-input__password {
+  color: rgba(148, 210, 198, 0.72);
+}
+.login-reset-dialog .captcha-img-btn {
+  border: 1px solid rgba(148, 210, 198, 0.3);
+  border-radius: 10px;
+  background: rgba(8, 24, 30, 0.42);
+  color: rgba(207, 250, 254, 0.8);
+  backdrop-filter: blur(8px);
+}
+.login-reset-dialog .sms-row .el-button {
+  --el-button-bg-color: rgba(8, 24, 30, 0.42);
+  --el-button-border-color: rgba(148, 210, 198, 0.3);
+  --el-button-text-color: rgba(207, 250, 254, 0.9);
+  --el-button-hover-bg-color: rgba(20, 48, 54, 0.65);
+  --el-button-hover-border-color: rgba(94, 234, 212, 0.45);
+  --el-button-hover-text-color: #ecfeff;
+  --el-button-disabled-bg-color: rgba(8, 24, 30, 0.35);
+  --el-button-disabled-border-color: rgba(148, 210, 198, 0.18);
+  --el-button-disabled-text-color: rgba(207, 250, 254, 0.45);
+  border-radius: 10px;
+}
+.login-reset-dialog .el-dialog__footer {
+  border-top: none !important;
+  box-shadow: none !important;
+  padding-top: 8px;
+}
+.login-reset-dialog .el-dialog__header::before,
+.login-reset-dialog .el-dialog__header::after,
+.login-reset-dialog .el-dialog__body::before,
+.login-reset-dialog .el-dialog__footer::before {
+  display: none !important;
+  content: none !important;
+  border: none !important;
+}
+.login-reset-dialog .el-dialog__footer .el-button:not(.el-button--primary) {
+  --el-button-bg-color: rgba(8, 24, 30, 0.42);
+  --el-button-border-color: rgba(148, 210, 198, 0.28);
+  --el-button-text-color: rgba(207, 250, 254, 0.88);
+  --el-button-hover-bg-color: rgba(20, 40, 46, 0.65);
+  --el-button-hover-border-color: rgba(94, 234, 212, 0.45);
+  --el-button-hover-text-color: #ecfeff;
 }
 </style>

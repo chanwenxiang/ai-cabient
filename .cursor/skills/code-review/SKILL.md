@@ -52,4 +52,4 @@ description: >-
 ## 与 UI 审查配合
 
 - 涉及页面：追加 `web-design-guidelines` 或 `frontend-design`
-- 需真实点击：`browser-real-testing`（仅 Cursor IDE Browser）
+- 需真实点击：`browser-real-testing`（优先 Playwright MCP/CLI）

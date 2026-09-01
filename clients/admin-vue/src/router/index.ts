@@ -3,6 +3,7 @@ import { isLoggedIn } from '@/api/client';
 import { findNavByPath } from '@/config/menu';
 import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
 import { useAuthStore } from '@/stores/auth';
+import { useBrandStore } from '@/stores/brand';
 import { safeRedirectPath } from '@/utils/safe-redirect';
 
 const bizChildren: any[] = [
@@ -479,10 +480,11 @@ router.beforeEach(async (to) => {
 });
 
 // 动态页面标题：每个路由的 meta.title 会拼到浏览器标签页上
-const BASE_TITLE = 'AI开门柜 · 运营管理系统';
 router.afterEach((to) => {
+  const brand = useBrandStore();
+  const base = brand.documentBaseTitle || 'AI开门柜 · 运营管理系统';
   const pageTitle = to.meta.title as string | undefined;
-  document.title = pageTitle ? `${pageTitle} · ${BASE_TITLE}` : BASE_TITLE;
+  document.title = pageTitle ? `${pageTitle} · ${base}` : base;
 });
 
 export default router;

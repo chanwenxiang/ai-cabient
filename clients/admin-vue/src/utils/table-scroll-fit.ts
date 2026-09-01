@@ -7,8 +7,8 @@
  * - 必须用内层列宽 / table 宽度判断。若容器曾被设成 overflow:visible，
  *   用容器 scrollWidth/clientWidth 会误判，并与 .table-scroll--h 的
  *   width:max-content 形成正反馈，把表格越撑越宽。
- * - 只观察 childList：EP 在行上切换 hover-row / current-row 时会狂写 class，
- *   若监听 attributes 会在鼠标上下移动时反复测宽/强制 reflow，主区上下抖。
+ * - 只观察 childList，且忽略 tbody 行增删：EP hover-row 是 class；行数据轮询
+ *   也不该反复测宽。测宽会强制 reflow，鼠标移动时主区会上下抖。
  * - 同步期间断开 MutationObserver，且不监听 style（EP 写列宽会连环触发）。
  * - 浏览器缩放会改 clientWidth/列宽亚像素；用回滞避免 --h 反复开关导致白框右边「断掉」。
  */
@@ -22,6 +22,23 @@ const OBSERVE_OPTIONS: MutationObserverInit = {
   childList: true,
   subtree: true
 };
+
+/** 表体行增删不影响列宽，跳过以免轮询/虚拟滚动连环 reflow */
+function isTableBodyChurn(target: Node): boolean {
+  if (!(target instanceof Element)) return false;
+  return !!target.closest(
+    '.el-table__body, .el-table__body-wrapper, .el-table__fixed-body-wrapper, tbody'
+  );
+}
+
+function mutationsNeedSync(mutations: MutationRecord[]): boolean {
+  for (const mutation of mutations) {
+    if (mutation.type !== 'childList') continue;
+    if (isTableBodyChurn(mutation.target)) continue;
+    return true;
+  }
+  return false;
+}
 
 /** 取表头 colgroup 声明宽度之和（稳定，不受 max-content 膨胀影响） */
 function columnSumWidth(table: HTMLElement | null): number {
@@ -100,7 +117,10 @@ export function syncTableScrollFit(): void {
         el.classList.remove('table-scroll--h');
         return;
       }
-      el.classList.toggle('table-scroll--h', measureOverflow(el));
+      const next = measureOverflow(el);
+      // 状态未变时不要 toggle，避免无意义 class 变更与布局抖动
+      if (el.classList.contains('table-scroll--h') === next) return;
+      el.classList.toggle('table-scroll--h', next);
     });
   } finally {
     syncing = false;
@@ -123,7 +143,10 @@ function scheduleSync(): void {
 export function observeTableScrollFit(root: HTMLElement): void {
   observedRoot = root;
   observer?.disconnect();
-  observer = new MutationObserver(scheduleSync);
+  observer = new MutationObserver((mutations) => {
+    if (!mutationsNeedSync(mutations)) return;
+    scheduleSync();
+  });
   syncTableScrollFit();
   window.addEventListener('resize', scheduleSync);
   // 只跟窗口/缩放尺寸，不跟 visualViewport scroll：桌面端鼠标移动偶发触发

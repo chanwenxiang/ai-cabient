@@ -8,11 +8,7 @@
       </div>
       <div class="bs-actions">
         <span class="bs-clock">{{ clock }}</span>
-        <el-button size="small" :icon="FullScreen" @click="toggleFullscreen">
-          {{ isFullscreen ? '退出全屏' : '全屏' }}
-        </el-button>
         <el-button size="small" :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
-        <el-button size="small" plain @click="goBack">返回后台</el-button>
       </div>
     </header>
 
@@ -231,6 +227,48 @@
         </div>
       </div>
 
+      <div class="bs-panel">
+        <div class="bs-panel-title">履约异常速览</div>
+        <div class="bs-panel-body">
+          <div class="bs-row">
+            <span>待上传</span>
+            <b :class="{ warn: (workbench?.waitingUploads ?? 0) > 0 }">{{
+              workbench?.waitingUploads ?? 0
+            }}</b>
+          </div>
+          <div class="bs-row">
+            <span>卡点会话</span>
+            <b :class="{ warn: (workbench?.staleSessions ?? 0) > 0 }">{{
+              workbench?.staleSessions ?? 0
+            }}</b>
+          </div>
+          <div class="bs-row">
+            <span>补货待办</span>
+            <b :class="{ warn: (workbench?.pendingReplenishments ?? 0) > 0 }">{{
+              workbench?.pendingReplenishments ?? 0
+            }}</b>
+          </div>
+          <div class="bs-row">
+            <span>临期批次</span>
+            <b :class="{ warn: (stats?.nearExpiryLotCount ?? 0) > 0 }">{{
+              stats?.nearExpiryLotCount ?? 0
+            }}</b>
+          </div>
+          <div class="bs-row">
+            <span>对账差异</span>
+            <b :class="{ warn: (workbench?.reconciliationMismatches ?? 0) > 0 }">{{
+              workbench?.reconciliationMismatches ?? 0
+            }}</b>
+          </div>
+          <div class="bs-row">
+            <span>槽位差异</span>
+            <b :class="{ warn: (stats?.slotDiscrepancyCount ?? 0) > 0 }">{{
+              stats?.slotDiscrepancyCount ?? 0
+            }}</b>
+          </div>
+        </div>
+      </div>
+
       <div class="bs-panel bs-panel--wide">
         <div class="bs-panel-title">货柜排行（今日营收）</div>
         <div class="bs-panel-body bs-rank-grid">
@@ -268,7 +306,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { FullScreen, Refresh } from '@element-plus/icons-vue';
+import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { displayBizNo } from '@aicabinet/shared-uni/format';
@@ -425,14 +463,6 @@ function severityClass(severity?: string) {
   return 'is-muted';
 }
 
-function goBack() {
-  if (globalThis.history.length > 1) {
-    globalThis.history.back();
-  } else {
-    globalThis.location.href = '/admin/#/dashboard';
-  }
-}
-
 function todayStr() {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -528,19 +558,6 @@ function tick() {
   clock.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-function toggleFullscreen() {
-  if (document.fullscreenElement) {
-    document.exitFullscreen().catch(() => {});
-  } else {
-    document.documentElement
-      .requestFullscreen()
-      .then(() => {
-        isFullscreen.value = true;
-      })
-      .catch(() => {});
-  }
-}
-
 function onFullscreenChange() {
   isFullscreen.value = !!document.fullscreenElement;
 }
@@ -550,6 +567,7 @@ let refreshTimer = 0;
 onMounted(() => {
   tick();
   load();
+  isFullscreen.value = !!document.fullscreenElement;
   clockTimer = globalThis.setInterval(tick, 1000);
   refreshTimer = globalThis.setInterval(load, 30_000);
   document.addEventListener('fullscreenchange', onFullscreenChange);
@@ -584,6 +602,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: baseline;
   gap: 12px;
+  flex-wrap: wrap;
 }
 .bs-logo {
   font-size: 24px;

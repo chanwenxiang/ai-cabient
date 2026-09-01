@@ -8,7 +8,7 @@ description: >-
 
 # 智谱辅助 UI 验收识图
 
-在 Cursor 内置浏览器验收界面时，用智谱视觉模型对截图做第二意见评审（布局过高、底栏突兀、对比度、间距等）。
+在 Playwright（优先）或 Cursor 内置浏览器验收界面时，用智谱视觉模型对截图做第二意见评审（布局过高、底栏突兀、对比度、间距等）。
 
 ## 前置条件
 
@@ -34,16 +34,17 @@ $env:ZHIPU_VISION_MODEL = "glm-4v-flash"
 ## 标准流程
 
 ```
-browser 打开页面 → browser_take_screenshot 保存图
+Playwright（或回退 browser）打开页面 → 截图保存
 → node scripts/zhipu-vision-review.mjs <截图路径> [可选补充问题]
 → 结合智谱结论 + 自己的 DOM/截图判断 → 改代码 → 再截图复验
 ```
 
 ### 1. 截图
 
-优先用 Cursor `cursor-ide-browser`：
+优先 Playwright MCP/CLI 截图；不可用再回退 Cursor `cursor-ide-browser`：
 
-- `browser_navigate` → `browser_lock` → 操作 → `browser_take_screenshot`
+- Playwright：导航 → 操作 → screenshot
+- IDE Browser：`browser_navigate` → `browser_lock` → 操作 → `browser_take_screenshot`
 - 记下返回的截图本地路径（或复制到仓库 `.tmp/` 下再传给脚本）
 
 小程序：优先 H5 预览验收（`consumer-mp` / `merchant-mp` 的 `dev:h5`）；无法覆盖的原生能力需说明限制。

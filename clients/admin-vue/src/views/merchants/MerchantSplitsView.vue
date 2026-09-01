@@ -392,6 +392,16 @@
           class="filter-bar filter-bar--compact"
           @submit.prevent="onSplitFilterChange"
         >
+          <el-form-item label="商户">
+            <el-input
+              v-model="splitMerchantId"
+              clearable
+              placeholder="商户ID"
+              style="width: 180px"
+              @keyup.enter="onSplitFilterChange"
+              @clear="onSplitFilterChange"
+            />
+          </el-form-item>
           <el-form-item label="状态">
             <el-select
               v-model="status"
@@ -726,6 +736,8 @@ const merchantPage = ref(1);
 const merchantSize = ref(20);
 const merchantTotal = ref(0);
 const merchantTabItems = ref<MerchantDto[]>([]);
+/** 分账明细按商户筛选（支持从销售报表等深链带入） */
+const splitMerchantId = ref('');
 
 const pagedMerchants = computed(() => merchantTabItems.value);
 
@@ -966,6 +978,9 @@ const showSplitActionColumn = computed(
 function syncRouteQuery() {
   const query: Record<string, string> = { tab: tab.value };
   if (tab.value === 'splits' && status.value) query.status = status.value;
+  if (tab.value === 'splits' && splitMerchantId.value.trim()) {
+    query.merchantId = splitMerchantId.value.trim();
+  }
   router.replace({ query });
 }
 
@@ -1054,6 +1069,7 @@ async function loadSplits() {
       size: String(splitSize.value)
     });
     if (status.value) q.set('status', status.value);
+    if (splitMerchantId.value.trim()) q.set('merchantId', splitMerchantId.value.trim());
     const data = await api.request<PageResult<RevenueSplit>>(
       `/api/v2/ops/admin/merchants/revenue-splits?${q}`,
       'GET'
@@ -1082,6 +1098,7 @@ function onSplitFilterChange() {
 
 function resetSplitFilter() {
   status.value = '';
+  splitMerchantId.value = '';
   splitPage.value = 1;
   syncRouteQuery();
   loadSplits();
@@ -1470,6 +1487,11 @@ function applyRouteQuery() {
     status.value = qStatus;
     changed = true;
   }
+  const qMerchantId = typeof route.query.merchantId === 'string' ? route.query.merchantId : '';
+  if (qMerchantId !== splitMerchantId.value) {
+    splitMerchantId.value = qMerchantId;
+    changed = true;
+  }
   return changed;
 }
 
@@ -1483,7 +1505,7 @@ async function reloadFromRouteQuery() {
 }
 
 watch(
-  () => [route.query.tab, route.query.status] as const,
+  () => [route.query.tab, route.query.status, route.query.merchantId] as const,
   () => {
     void reloadFromRouteQuery();
   }

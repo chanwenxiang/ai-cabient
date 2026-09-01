@@ -20,6 +20,12 @@ public class UserInfo {
 
     private String name;
 
+    /** 运营账号联系邮箱（个人中心可改） */
+    private String email;
+
+    /** 头像 / Logo URL（个人中心可改） */
+    private String avatarUrl;
+
     private boolean verified;
 
     private String wxOpenId;

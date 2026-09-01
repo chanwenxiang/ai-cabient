@@ -88,7 +88,13 @@
            COALESCE(SUM(l.quantity), 0) AS c2,
            COALESCE(SUM(l.line_amount_cents), 0) AS c3,
            COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c4,
-           COUNT(DISTINCT o.order_id) AS c5
+           COUNT(DISTINCT o.order_id) AS c5,
+           COALESCE(SUM(
+             CASE WHEN COALESCE(o.total_amount_cents, 0) > 0
+               THEN (CAST(o.refunded_cents AS bigint) * l.line_amount_cents) / o.total_amount_cents
+               ELSE 0 END
+           ), 0) AS c6,
+           COUNT(DISTINCT CASE WHEN COALESCE(o.refunded_cents, 0) > 0 THEN o.order_id END) AS c7
     FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
     WHERE o.created_at >= #{start} AND o.created_at < #{end}
     GROUP BY l.sku_id, l.sku_name
@@ -115,7 +121,13 @@
            COALESCE(SUM(l.quantity), 0) AS c2,
            COALESCE(SUM(l.line_amount_cents), 0) AS c3,
            COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c4,
-           COUNT(DISTINCT o.order_id) AS c5
+           COUNT(DISTINCT o.order_id) AS c5,
+           COALESCE(SUM(
+             CASE WHEN COALESCE(o.total_amount_cents, 0) &gt; 0
+               THEN (CAST(o.refunded_cents AS bigint) * l.line_amount_cents) / o.total_amount_cents
+               ELSE 0 END
+           ), 0) AS c6,
+           COUNT(DISTINCT CASE WHEN COALESCE(o.refunded_cents, 0) &gt; 0 THEN o.order_id END) AS c7
     FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
     WHERE o.device_id IN
     <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
@@ -129,14 +141,59 @@
            COALESCE(SUM(l.quantity), 0) AS c1,
            COALESCE(SUM(l.line_amount_cents), 0) AS c2,
            COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c3,
-           COUNT(DISTINCT o.order_id) AS c4
+           COUNT(DISTINCT o.order_id) AS c4,
+           COALESCE(MAX(rf.refunded_cents), 0) AS c5,
+           COALESCE(MAX(rf.refund_order_count), 0) AS c6
     FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
+    LEFT JOIN (
+      SELECT device_id,
+             SUM(COALESCE(refunded_cents, 0)) AS refunded_cents,
+             COUNT(*) FILTER (WHERE COALESCE(refunded_cents, 0) &gt; 0) AS refund_order_count
+      FROM cabinet_order
+      WHERE created_at &gt;= #{start} AND created_at &lt; #{end}
+      <if test="deviceIds != null and deviceIds.size() &gt; 0">
+        AND device_id IN
+        <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+      </if>
+      GROUP BY device_id
+    ) rf ON rf.device_id = o.device_id
     WHERE o.created_at &gt;= #{start} AND o.created_at &lt; #{end}
     <if test="deviceIds != null and deviceIds.size() &gt; 0">
       AND o.device_id IN
       <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
     </if>
     GROUP BY o.device_id
+    ORDER BY SUM(l.line_amount_cents) DESC
+  </select>
+
+  <!-- 按支付渠道汇总；退款按订单维度关联，避免行级重复累加 -->
+  <select id="selectChannelBreakdownBetween" resultType="java.util.LinkedHashMap">
+    SELECT UPPER(COALESCE(NULLIF(TRIM(o.pay_channel), ''), 'UNKNOWN')) AS c0,
+           COALESCE(SUM(l.quantity), 0) AS c1,
+           COALESCE(SUM(l.line_amount_cents), 0) AS c2,
+           COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c3,
+           COUNT(DISTINCT o.order_id) AS c4,
+           COALESCE(MAX(rf.refunded_cents), 0) AS c5,
+           COALESCE(MAX(rf.refund_order_count), 0) AS c6
+    FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
+    LEFT JOIN (
+      SELECT UPPER(COALESCE(NULLIF(TRIM(pay_channel), ''), 'UNKNOWN')) AS pay_channel,
+             SUM(COALESCE(refunded_cents, 0)) AS refunded_cents,
+             COUNT(*) FILTER (WHERE COALESCE(refunded_cents, 0) &gt; 0) AS refund_order_count
+      FROM cabinet_order
+      WHERE created_at &gt;= #{start} AND created_at &lt; #{end}
+      <if test="deviceIds != null and deviceIds.size() &gt; 0">
+        AND device_id IN
+        <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+      </if>
+      GROUP BY UPPER(COALESCE(NULLIF(TRIM(pay_channel), ''), 'UNKNOWN'))
+    ) rf ON rf.pay_channel = UPPER(COALESCE(NULLIF(TRIM(o.pay_channel), ''), 'UNKNOWN'))
+    WHERE o.created_at &gt;= #{start} AND o.created_at &lt; #{end}
+    <if test="deviceIds != null and deviceIds.size() &gt; 0">
+      AND o.device_id IN
+      <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    </if>
+    GROUP BY UPPER(COALESCE(NULLIF(TRIM(o.pay_channel), ''), 'UNKNOWN'))
     ORDER BY SUM(l.line_amount_cents) DESC
   </select>
 

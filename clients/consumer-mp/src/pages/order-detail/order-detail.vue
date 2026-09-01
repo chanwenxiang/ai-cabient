@@ -130,7 +130,7 @@
           >
             {{ paying ? '支付中…' : '去支付' }}
           </button>
-          <button v-if="videoUrl" class="btn-outline" @click="playVideo">查看购物视频</button>
+          <button v-if="canShowVideo" class="btn-outline" @click="playVideo">查看购物视频</button>
           <button
             v-if="canRefund"
             class="btn-refund"
@@ -513,6 +513,14 @@ const canDispute = computed(() => {
 
 const autoRefundEnabled = computed(() => order.value?.refundPolicy !== 'DISPUTE_ONLY');
 
+/** 有会话且已产生账单的订单可查看录像（由后端 /orders/{id}/video 鉴权拉流） */
+const canShowVideo = computed(() => {
+  const o = order.value;
+  if (!o?.sessionId || !o.orderId) return false;
+  const s = String(o.status || '').toUpperCase();
+  return s === 'PAID' || s === 'COMPLETED' || s === 'REFUNDED' || s === 'PARTIAL_REFUNDED';
+});
+
 const canRefund = computed(() => {
   const s = order.value?.status;
   return (
@@ -620,12 +628,11 @@ function formatTime(t?: string) {
 }
 
 function playVideo() {
-  if (!videoUrl.value) return;
-  // 统一进入原生视频播放页（H5 / 小程序均可）
-  const oid = encodeURIComponent(String(order.value?.orderId || ''));
+  const oid = String(order.value?.orderId || '').trim();
+  if (!oid) return;
   const did = encodeURIComponent(String(order.value?.deviceId || ''));
   uni.navigateTo({
-    url: `/pages/video/video?url=${encodeURIComponent(videoUrl.value)}&orderId=${oid}&deviceId=${did}`
+    url: `/pages/video/video?orderId=${encodeURIComponent(oid)}&deviceId=${did}`
   });
 }
 
