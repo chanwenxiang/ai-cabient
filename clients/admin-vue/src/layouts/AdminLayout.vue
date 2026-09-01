@@ -578,17 +578,18 @@ onUnmounted(() => {
 <style scoped>
 .layout-main {
   width: 100%;
+  /* svh：稳定小视口。dvh 会随浏览器栏/任务栏显隐变高，鼠标移到上下边缘时整页抖 */
   height: 100vh;
-  height: 100dvh;
+  height: 100svh;
   max-height: 100vh;
-  max-height: 100dvh;
+  max-height: 100svh;
   overflow: hidden;
   background: var(--layout-bg);
 }
 .sidebar {
   background: var(--layout-sidebar);
   height: 100vh;
-  height: 100dvh;
+  height: 100svh;
   transition: width 0.15s ease;
   overflow: hidden;
   display: flex;
@@ -676,9 +677,9 @@ onUnmounted(() => {
   width: auto;
   min-width: 0;
   height: 100vh;
-  height: 100dvh;
+  height: 100svh;
   max-height: 100vh;
-  max-height: 100dvh;
+  max-height: 100svh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
