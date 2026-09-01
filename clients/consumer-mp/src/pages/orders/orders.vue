@@ -30,9 +30,11 @@
         @scrolltolower="loadMore"
       >
         <view v-if="reviewingDisputes.length" class="review-section">
-          <text class="section-label">需要关注</text>
+          <text class="section-label"
+            >需要关注{{ reviewingDisputes.length > 3 ? `（${reviewingDisputes.length}）` : '' }}</text
+          >
           <view
-            v-for="d in reviewingDisputes"
+            v-for="d in reviewingDisputesPreview"
             :key="d.ticketId"
             class="review-card"
             :class="'tone-' + reviewCopy(d).tone"
@@ -50,6 +52,13 @@
                 <text class="review-link">查看详情 ›</text>
               </view>
             </view>
+          </view>
+          <view
+            v-if="reviewingDisputesMore > 0"
+            class="review-more"
+            @click="filter = 'issue'"
+          >
+            <text>还有 {{ reviewingDisputesMore }} 条待确认，可在「有疑问」筛选查看 ›</text>
           </view>
         </view>
 
@@ -231,6 +240,12 @@ const reviewingDisputes = computed(() =>
   disputes.value.filter(
     (d) => d.status === 'OPEN' && !orders.value.some((o) => o.sessionId === d.sessionId)
   )
+);
+/** 关注区最多展示 3 条，避免联调残留工单挤占购买记录 */
+const REVIEW_PREVIEW_LIMIT = 3;
+const reviewingDisputesPreview = computed(() => reviewingDisputes.value.slice(0, REVIEW_PREVIEW_LIMIT));
+const reviewingDisputesMore = computed(() =>
+  Math.max(0, reviewingDisputes.value.length - REVIEW_PREVIEW_LIMIT)
 );
 const filters = [
   { label: '全部', value: 'all' as const },
@@ -710,6 +725,16 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   font-size: 24rpx;
   color: var(--brand, #047857);
   font-weight: 600;
+}
+.review-more {
+  margin-top: 8rpx;
+  padding: 16rpx 20rpx;
+  border-radius: 16rpx;
+  background: rgba(4, 120, 87, 0.06);
+  color: var(--brand, #047857);
+  font-size: 24rpx;
+  font-weight: 600;
+  text-align: center;
 }
 
 .filter-block {
