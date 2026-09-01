@@ -73,8 +73,40 @@ try {
             notes       = "full flow procurement"
             lines       = @($line)
         }
+        # V228+：采购单先 PENDING_APPROVAL，须按节点处理人审批至 CREATED 才能收货
+        $poId = $po.purchaseOrderId
+        $poStatus = [string]$po.status
+        $reviewPhones = @("13900000001", "13900000002") # PROCUREMENT / FINANCE demo accounts
+        for ($approveAttempt = 0; $approveAttempt -lt 6 -and $poStatus -eq "PENDING_APPROVAL"; $approveAttempt++) {
+            $advanced = $false
+            foreach ($phone in $reviewPhones) {
+                try {
+                    $reviewer = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/auth/admin-password-login" -Body @{
+                        phoneNumber = $phone; password = "123456"
+                    }
+                    $rh = @{ Authorization = "Bearer $($reviewer.token)" }
+                    $po = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
+                        -Path "/api/v2/ops/admin/purchase-orders/$poId/review" -Headers $rh -Body @{
+                        approve = $true
+                        remark  = "e2e full flow approve"
+                    }
+                    $poStatus = [string]$po.status
+                    Write-Host "    PO=$poId reviewed by $phone -> $poStatus"
+                    $advanced = $true
+                    break
+                } catch {
+                    # 非当前节点处理人则换下一账号
+                }
+            }
+            if (-not $advanced) {
+                throw "PO=$poId still PENDING_APPROVAL; no reviewer could advance"
+            }
+        }
+        if ($poStatus -ne "CREATED" -and $poStatus -ne "PARTIAL_RECEIVED") {
+            throw "PO=$poId expected CREATED after approval, got $poStatus"
+        }
         $recv = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
-            -Path "/api/v2/ops/admin/purchase-orders/$($po.purchaseOrderId)/receive" -Headers $h -Body @{
+            -Path "/api/v2/ops/admin/purchase-orders/$poId/receive" -Headers $h -Body @{
             lines = @(@{
                 skuId          = $SkuId
                 batchNo        = $BatchNo
@@ -86,7 +118,7 @@ try {
             })
             notes = "e2e full flow receive"
         }
-        Record-Step "1-procurement" ($recv.status -eq "RECEIVED") "PO=$($po.purchaseOrderId) status=$($recv.status)"
+        Record-Step "1-procurement" ($recv.status -eq "RECEIVED") "PO=$poId status=$($recv.status)"
     } catch {
         Record-Step "1-procurement" $false $_.Exception.Message
     }

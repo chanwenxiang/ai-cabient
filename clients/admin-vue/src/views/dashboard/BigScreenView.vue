@@ -562,8 +562,8 @@ function onFullscreenChange() {
   isFullscreen.value = !!document.fullscreenElement;
 }
 
-let clockTimer = 0;
-let refreshTimer = 0;
+let clockTimer: ReturnType<typeof globalThis.setInterval> | 0 = 0;
+let refreshTimer: ReturnType<typeof globalThis.setInterval> | 0 = 0;
 onMounted(() => {
   tick();
   load();

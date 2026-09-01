@@ -13,7 +13,7 @@
  * - 浏览器缩放会改 clientWidth/列宽亚像素；用回滞避免 --h 反复开关导致白框右边「断掉」。
  */
 let rafId = 0;
-let debounceTimer = 0;
+let debounceTimer: ReturnType<typeof globalThis.setTimeout> | 0 = 0;
 let observer: MutationObserver | null = null;
 let observedRoot: HTMLElement | null = null;
 let syncing = false;
@@ -149,9 +149,8 @@ export function observeTableScrollFit(root: HTMLElement): void {
   });
   syncTableScrollFit();
   window.addEventListener('resize', scheduleSync);
-  // 只跟窗口/缩放尺寸，不跟 visualViewport scroll：桌面端鼠标移动偶发触发
-  // visualViewport scroll，会反复测表宽/强制 reflow，主区看起来上下抖 1～2px。
-  window.visualViewport?.addEventListener('resize', scheduleSync);
+  // 不监听 visualViewport：桌面端鼠标移动/缩放条偶发触发 resize+scroll，
+  // 会反复测表宽/强制 reflow，主区上下抖。窗口缩放已由 window.resize 覆盖。
 }
 
 export function stopTableScrollFit(): void {
@@ -159,7 +158,6 @@ export function stopTableScrollFit(): void {
   observer = null;
   observedRoot = null;
   window.removeEventListener('resize', scheduleSync);
-  window.visualViewport?.removeEventListener('resize', scheduleSync);
   if (debounceTimer) globalThis.clearTimeout(debounceTimer);
   debounceTimer = 0;
   if (rafId) cancelAnimationFrame(rafId);
