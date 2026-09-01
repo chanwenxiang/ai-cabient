@@ -34,8 +34,11 @@ fs.mkdirSync(OUT, { recursive: true });
 const results = [];
 
 function record(id, name, category, status, detail, evidence) {
-  results.push({ id, name, category, status, detail, evidence, at: new Date().toISOString() });
-  const mark = status === 'PASS' ? '✓' : status === 'FAIL' ? '✗' : '○';
+  let normalized = status;
+  if (status === true) normalized = 'PASS';
+  else if (status === false) normalized = 'FAIL';
+  results.push({ id, name, category, status: normalized, detail, evidence, at: new Date().toISOString() });
+  const mark = normalized === 'PASS' ? '✓' : normalized === 'FAIL' ? '✗' : '○';
   console.log(`${mark} [${category}] ${id} ${name} — ${String(detail).slice(0, 240)}`);
 }
 
@@ -469,8 +472,9 @@ async function main() {
 
     // —— M-10b 订单详情 ——
     await gotoPath(page, '/pages/orders/orders');
+    await page.waitForTimeout(2000);
     const clickedOrder = await page.evaluate(() => {
-      const card = document.querySelector('.card');
+      const card = document.querySelector('.page-body .card, .order-card, .card');
       if (!card) return false;
       card.click();
       return true;
@@ -504,12 +508,13 @@ async function main() {
           return false;
         }
       };
-      if (hint && (await probe(hint))) return hint;
       try {
         const listRes = await fetch('/api/v2/merchant/orders?deviceId=CAB-001&size=30', {
           headers: { Authorization: 'Bearer ' + token }
         });
-        const list = (await listRes.json())?.data?.content || [];
+        const listJson = await listRes.json();
+        const data = listJson?.data;
+        const list = data?.items || data?.content || [];
         for (const row of list) {
           const oid = String(row.orderId || '');
           if (await probe(oid)) return oid;
@@ -517,6 +522,7 @@ async function main() {
       } catch {
         /* fall through */
       }
+      if (hint && (await probe(hint))) return hint;
       return '';
     }, videoOrderHint);
 
