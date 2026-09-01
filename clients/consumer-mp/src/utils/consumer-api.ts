@@ -43,6 +43,37 @@ export function getConsumerToken() {
   return uni.getStorageSync(TOKEN_KEY) || '';
 }
 
+/** 带鉴权下载到本地临时路径（小程序 video/导出等无法带 Authorization 的场景） */
+export function downloadAuthedFile(url: string, timeoutMs = 60_000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const token = getConsumerToken();
+    if (!token) {
+      reject(new Error('请先登录'));
+      return;
+    }
+    uni.downloadFile({
+      url,
+      header: { Authorization: `Bearer ${token}` },
+      timeout: timeoutMs,
+      success(res) {
+        if (res.statusCode === 401) {
+          clearConsumerSession();
+          reject(new Error(localizeApiMessage('', '登录已失效')));
+          return;
+        }
+        if (res.statusCode >= 200 && res.statusCode < 300 && res.tempFilePath) {
+          resolve(res.tempFilePath);
+          return;
+        }
+        reject(new Error(`下载失败 (${res.statusCode})`));
+      },
+      fail(err) {
+        reject(new Error(err.errMsg || '下载失败'));
+      }
+    });
+  });
+}
+
 export function clearConsumerSession() {
   uni.removeStorageSync(TOKEN_KEY);
   uni.removeStorageSync(USER_KEY);

@@ -58,7 +58,7 @@
 import { computed, ref } from 'vue';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { API_BASE_URL } from '@/config/api';
-import { getConsumerToken } from '@/utils/consumer-api';
+import { downloadAuthedFile, getConsumerToken } from '@/utils/consumer-api';
 
 const src = ref('');
 const error = ref('');
@@ -113,8 +113,7 @@ async function loadOrderVideo(oid: string) {
     src.value = blobUrl;
     // #endif
     // #ifndef H5
-    // 小程序：video 组件无法带 Authorization，需后端 presign 或 downloadFile；暂用 API URL 占位
-    src.value = apiUrl;
+    src.value = await downloadAuthedFile(apiUrl, 120_000);
     // #endif
   } catch (e) {
     error.value = e instanceof Error ? e.message : '视频地址无法访问，请复制链接后到浏览器打开';

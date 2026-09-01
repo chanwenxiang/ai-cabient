@@ -195,7 +195,7 @@ export function handleUnauthorized(message?: string) {
  * 带鉴权的文件下载（导出/证据等）。
  * 成功返回 tempFilePath；失败抛错。
  */
-export function downloadAuthedFile(url: string): Promise<string> {
+export function downloadAuthedFile(url: string, timeoutMs = 60_000): Promise<string> {
   return new Promise((resolve, reject) => {
     const token = getToken();
     if (!token) {
@@ -205,7 +205,7 @@ export function downloadAuthedFile(url: string): Promise<string> {
     uni.downloadFile({
       url,
       header: { Authorization: 'Bearer ' + token },
-      timeout: 60_000,
+      timeout: timeoutMs,
       success(res) {
         if (res.statusCode === 401) {
           reject(handleUnauthorized());

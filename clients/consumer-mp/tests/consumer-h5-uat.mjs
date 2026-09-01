@@ -203,15 +203,37 @@ async function fillPlaceholder(page, placeholder, value) {
   return (await input.inputValue()) === value;
 }
 
-/** 通过 data-testid 定位输入框，用真实键盘输入 */
+/** 通过 data-testid 定位输入框；H5 uni-input 键入易截断，需校验并重试或 DOM 直写 */
 async function fillByTestId(page, testId, value) {
   const input = page
     .locator(`[data-testid="${testId}"] .uni-input-input, [data-testid="${testId}"] input`)
     .first();
-  await input.click();
-  await page.keyboard.press('ControlOrMeta+a');
-  await page.keyboard.type(value, { delay: 25 });
-  return input.inputValue();
+  const wrap = page.locator(`[data-testid="${testId}"]`).first();
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if ((await input.inputValue()) === value) return true;
+    await wrap.click().catch(() => input.click());
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(120);
+    await page.keyboard.type(value, { delay: 45 });
+    await page.waitForTimeout(500);
+    if ((await input.inputValue()) === value) return true;
+  }
+
+  await page.evaluate(
+    ({ tid, val }) => {
+      const root = document.querySelector(`[data-testid="${tid}"]`);
+      const el = root?.querySelector('.uni-input-input, input');
+      if (!el) return;
+      el.value = val;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    },
+    { tid: testId, val: value }
+  );
+  await page.waitForTimeout(400);
+  return (await input.inputValue()) === value;
 }
 
 /** 真实键盘输入 textarea（uni-app H5 渲染为 uni-textarea 包装） */
@@ -825,7 +847,9 @@ async function main() {
     );
 
     // —— TC-OPEN-002 CAB-001 开门主路径（柜机已起售）——
-    await fillByTestId(page, 'device-code-input', DEVICE_ID);
+    await clickByText(page, '手动输入柜机编号');
+    await page.waitForTimeout(600);
+    const deviceFilled = await fillByTestId(page, 'device-code-input', DEVICE_ID);
     await clickByTestId(page, 'open-door-confirm');
     await page.waitForTimeout(3000);
     text = await bodyText(page);
@@ -859,7 +883,7 @@ async function main() {
       `${DEVICE_ID} 开门主路径`,
       '功能',
       sessionCreated || progressing ? 'PASS' : 'FAIL',
-      `session=${sessionCreated ? '已创建' : '无'} | 3s:${state3s} | 8s:${state8s}`,
+      `filled=${deviceFilled} session=${sessionCreated ? '已创建' : '无'} | 3s:${state3s} | 8s:${state8s}`,
       e13
     );
 
