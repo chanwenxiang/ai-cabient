@@ -8,25 +8,25 @@
           <text class="sub">{{ merchantNames }}</text>
           <text v-if="phone" class="phone">{{ phone }}</text>
         </view>
-        <text v-if="canEditProfile" class="edit-btn" @click="openProfileEdit">编辑资料</text>
+        <text v-if="canEditProfile" class="edit-btn" @click="openProfileEdit">????</text>
       </view>
     </view>
 
     <view v-if="profileEditVisible" class="mask" @click="profileEditVisible = false">
       <view class="dialog" @click.stop>
-        <text class="dialog-title">编辑资料</text>
-        <text class="hint">维护联系电话与告警联系人，用于异常通知与现场联系</text>
+        <text class="dialog-title">????</text>
+        <text class="hint">????????????????????????</text>
         <input
           class="input"
           type="number"
           maxlength="11"
-          placeholder="联系电话"
+          placeholder="????"
           :value="profileForm.contactPhone"
           @input="profileForm.contactPhone = eventInput($event)"
         />
         <input
           class="input"
-          placeholder="告警联系人"
+          placeholder="?????"
           :value="profileForm.alertContactName"
           @input="profileForm.alertContactName = eventInput($event)"
         />
@@ -34,18 +34,18 @@
           class="input"
           type="number"
           maxlength="11"
-          placeholder="告警电话"
+          placeholder="????"
           :value="profileForm.alertContactPhone"
           @input="profileForm.alertContactPhone = eventInput($event)"
         />
         <view class="dialog-actions">
-          <button class="btn ghost" @click="profileEditVisible = false">取消</button>
-          <button class="btn" :loading="profileSaving" @click="saveProfileEdit">保存</button>
+          <button class="btn ghost" @click="profileEditVisible = false">??</button>
+          <button class="btn" :loading="profileSaving" @click="saveProfileEdit">??</button>
         </view>
       </view>
     </view>
 
-    <view v-if="fieldNav.length" class="section-label">现场作业</view>
+    <view v-if="fieldNav.length" class="section-label">????</view>
     <view v-if="fieldNav.length" class="menu-list">
       <view
         v-for="item in fieldNav"
@@ -59,11 +59,11 @@
           <text class="menu-title">{{ item.title }}</text>
           <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <text class="menu-arrow">?</text>
       </view>
     </view>
 
-    <view v-if="teamNav.length" class="section-label">团队与设置</view>
+    <view v-if="teamNav.length" class="section-label">?????</view>
     <view v-if="teamNav.length" class="menu-list">
       <view v-for="item in teamNav" :key="item.key" class="menu-cell" @click="goNav(item)">
         <image class="menu-icon" :src="menuIcon(item.icon)" mode="aspectFit" />
@@ -71,41 +71,40 @@
           <text class="menu-title">{{ item.title }}</text>
           <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <text class="menu-arrow">?</text>
       </view>
     </view>
 
-    <view class="section-label">平台公告</view>
+    <view class="section-label">????</view>
     <view class="menu-list">
       <view class="menu-cell" @click="goAnnouncements">
         <image class="menu-icon" :src="menuIcon('notice')" mode="aspectFit" />
         <view class="menu-text">
-          <text class="menu-title">通知公告</text>
-          <text class="menu-desc">运营发布的维护、活动与规则通知</text>
+          <text class="menu-title">????</text>
+          <text class="menu-desc">???????????????</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <text class="menu-arrow">?</text>
       </view>
     </view>
 
-    <view v-if="canAlerts" class="section-label">消息提醒</view>
+    <view v-if="canAlerts" class="section-label">????</view>
     <view v-if="canAlerts" class="menu-list notify-card">
       <view class="notify-head">
         <view class="menu-text">
-          <text class="menu-title">微信订阅提醒</text>
+          <text class="menu-title">??????</text>
           <text class="menu-desc">{{ notifyDesc }}</text>
         </view>
         <button
           class="bind-btn"
-          size="mini"
           :loading="notifyBusy"
           :disabled="!subscribeReady"
           @click="onBindWx"
         >
-          {{ wxBound ? '重新绑定' : '开启提醒' }}
+          {{ wxBound ? '????' : '????' }}
         </button>
       </view>
       <view v-if="!subscribeReady" class="notify-warn"
-        >未配置订阅消息模板，当前仅可保存偏好，无法向微信申请推送授权。</view
+        >???????????????????????????????</view
       >
       <view class="notify-types">
         <view v-for="t in alertTypeOptions" :key="t.value" class="notify-type">
@@ -118,10 +117,10 @@
           <text>{{ t.label }}</text>
         </view>
       </view>
-      <button class="save-btn" :loading="notifyBusy" @click="onSaveSubscribe">保存提醒偏好</button>
+      <button class="save-btn" :loading="notifyBusy" @click="onSaveSubscribe">??????</button>
     </view>
 
-    <view v-if="bizNav.length" class="section-label">经营工具</view>
+    <view v-if="bizNav.length" class="section-label">????</view>
     <view v-if="bizNav.length" class="menu-list">
       <view v-for="item in bizNav" :key="item.key" class="menu-cell" @click="goNav(item)">
         <image class="menu-icon" :src="menuIcon(item.icon)" mode="aspectFit" />
@@ -129,7 +128,7 @@
           <text class="menu-title">{{ item.title }}</text>
           <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <text class="menu-arrow">?</text>
       </view>
     </view>
 
@@ -137,9 +136,9 @@
       <view class="menu-cell danger-cell" @click="onLogout">
         <image class="menu-icon" :src="menuIcon('logout')" mode="aspectFit" />
         <view class="menu-text">
-          <text class="menu-title danger">退出登录</text>
+          <text class="menu-title danger">????</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <text class="menu-arrow">?</text>
       </view>
     </view>
   </view>
@@ -148,7 +147,7 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
-import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
+import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import {
   clearSession,
   hasPerm,
@@ -173,7 +172,7 @@ import { formatMerchantNames } from '@/utils/merchant-display';
 import { menuIcon } from '@/utils/menu-icon';
 
 const headerPadStyle = {
-  borderTop: getStatusBarPadPx() + 'px solid var(--brand-deep, #134e4a)'
+  paddingTop: getBelowCapsulePadPx(8) + 'px'
 };
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -184,16 +183,16 @@ const canEditProfile = computed(() => hasPerm(me.value, 'merchant:profile:edit')
 const profileEditVisible = ref(false);
 const profileSaving = ref(false);
 const profileForm = ref<MerchantProfileUpdate>({});
-const avatarText = computed(() => (meName.value || '商').slice(0, 1));
+const avatarText = computed(() => (meName.value || '?').slice(0, 1));
 const notifyBusy = ref(false);
 const wxBound = ref(false);
 const enabledTypes = ref<string[]>([]);
 const alertTypeOptions = MERCHANT_ALERT_TYPES;
 const subscribeReady = hasSubscribeTemplates();
 const notifyDesc = computed(() => {
-  if (!subscribeReady) return '未配置订阅模板，偏好可保存但无法申请微信推送授权';
-  if (wxBound.value) return '已绑定微信，可接收待办推送';
-  return '绑定微信后可接收待办推送';
+  if (!subscribeReady) return '????????????????????????';
+  if (wxBound.value) return '?????????????';
+  return '????????????';
 });
 
 const fieldNav = computed(() => MERCHANT_FIELD_NAV.filter((i) => canAccessNav(me.value, i)));
@@ -222,10 +221,10 @@ async function saveProfileEdit() {
       alertContactName: profileForm.value.alertContactName || undefined,
       alertContactPhone: profileForm.value.alertContactPhone || undefined
     });
-    uni.showToast({ title: '已保存', icon: 'success' });
+    uni.showToast({ title: '???', icon: 'success' });
     profileEditVisible.value = false;
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '保存失败', icon: 'none' });
+    uni.showToast({ title: e instanceof Error ? e.message : '????', icon: 'none' });
   } finally {
     profileSaving.value = false;
   }
@@ -247,7 +246,7 @@ async function loadNotifyPrefs() {
     wxBound.value = !!prefs.wxBound;
     enabledTypes.value = [...(prefs.enabledAlertTypes || [])];
   } catch {
-    /* ignore — page still usable */
+    /* ignore ? page still usable */
   }
 }
 
@@ -263,8 +262,8 @@ onShow(async () => {
     me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
   }
   const profile = me.value || ((uni.getStorageSync('merchant_me') || {}) as MerchantMe);
-  meName.value = profile.displayName || profile.phoneNumber || '商户';
-  merchantNames.value = formatMerchantNames(profile.merchants, '未绑定');
+  meName.value = profile.displayName || profile.phoneNumber || '??';
+  merchantNames.value = formatMerchantNames(profile.merchants, '???');
   phone.value = profile.phoneNumber || '';
   await loadNotifyPrefs();
 });
@@ -283,23 +282,23 @@ function switchEnabled(e: unknown) {
 
 async function onBindWx() {
   if (!subscribeReady) {
-    uni.showToast({ title: '未配置订阅模板，无法开启推送', icon: 'none' });
+    uni.showToast({ title: '??????????????', icon: 'none' });
     return;
   }
   notifyBusy.value = true;
   try {
     const sub = await requestMerchantSubscribe();
     if (sub === 'failed') {
-      uni.showToast({ title: '微信授权未完成，仍可继续绑定账号', icon: 'none' });
+      uni.showToast({ title: '????????????????', icon: 'none' });
     }
     const code = await wxLoginCode();
     const prefs = await merchantApi.notifyWxBind(code);
     wxBound.value = !!prefs.wxBound;
     enabledTypes.value = [...(prefs.enabledAlertTypes || [])];
-    uni.showToast({ title: '已绑定微信提醒', icon: 'success' });
+    uni.showToast({ title: '???????', icon: 'success' });
   } catch (e) {
     uni.showToast({
-      title: e instanceof Error ? e.message : '绑定失败',
+      title: e instanceof Error ? e.message : '????',
       icon: 'none'
     });
   } finally {
@@ -313,18 +312,18 @@ async function onSaveSubscribe() {
     if (subscribeReady) {
       const sub = await requestMerchantSubscribe();
       if (sub === 'failed') {
-        uni.showToast({ title: '微信授权未完成，偏好仍会保存', icon: 'none' });
+        uni.showToast({ title: '??????????????', icon: 'none' });
       }
     }
     const prefs = await merchantApi.notifySubscribe(enabledTypes.value);
     enabledTypes.value = [...(prefs.enabledAlertTypes || [])];
     uni.showToast({
-      title: subscribeReady ? '提醒偏好已保存' : '偏好已保存（未配置推送模板）',
+      title: subscribeReady ? '???????' : '??????????????',
       icon: 'success'
     });
   } catch (e) {
     uni.showToast({
-      title: e instanceof Error ? e.message : '保存失败',
+      title: e instanceof Error ? e.message : '????',
       icon: 'none'
     });
   } finally {
@@ -334,9 +333,9 @@ async function onSaveSubscribe() {
 
 function onLogout() {
   uni.showModal({
-    title: '退出登录',
-    content: '确定退出当前账户吗？',
-    confirmText: '退出',
+    title: '????',
+    content: '??????????',
+    confirmText: '??',
     success(res) {
       if (!res.confirm) return;
       clearSession();
@@ -563,7 +562,16 @@ function onLogout() {
   background: #ecfdf5;
   color: var(--brand, #0f766e);
   border: none;
-  font-size: 22rpx;
+  font-size: 24rpx;
+  font-weight: 600;
+  min-height: 72rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  padding: 0 24rpx;
+  border-radius: 36rpx;
+}
+.bind-btn::after {
+  border: none;
 }
 .notify-warn {
   margin-bottom: 16rpx;

@@ -1,5 +1,5 @@
 import { useRouter } from 'vue-router';
-import { findNavByPath } from '@/config/menu';
+import { resolveHomePath } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
 
 /** 错误页：回退到可访问首页，或浏览器上一页（仅当同会话确有后退栈）。 */
@@ -8,19 +8,7 @@ export function useErrorPageActions() {
   const auth = useAuthStore();
 
   function resolveHome() {
-    const fallback = [
-      '/dashboard',
-      '/replenishment',
-      '/warehouse',
-      '/stock-health',
-      '/devices',
-      '/orders',
-      '/profile'
-    ].find((p) => {
-      const item = findNavByPath(p);
-      return !item?.perm || auth.canAccessNav(item);
-    });
-    return fallback || '/profile';
+    return resolveHomePath(auth);
   }
 
   function goHome() {

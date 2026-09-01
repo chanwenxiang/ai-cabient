@@ -59,13 +59,9 @@
           >
         </view>
         <view class="card-actions">
-          <button class="btn ghost" size="mini" @click.stop="openNav(d)">导航</button>
-          <button
-            class="btn primary"
-            size="mini"
-            :disabled="!d.available"
-            @click.stop="openDevice(d)"
-          >
+          <!-- 不用 size=mini：微信原生 mini 热区过小，自定义 72rpx 行内双按钮 -->
+          <button class="btn ghost" @click.stop="openNav(d)">导航</button>
+          <button class="btn primary" :disabled="!d.available" @click.stop="openDevice(d)">
             去开门
           </button>
         </view>
@@ -348,29 +344,44 @@ onMounted(() => {
 }
 .card-actions {
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
+  flex-direction: row;
+  align-items: stretch;
+  margin-top: 20rpx;
+}
+.card-actions .btn + .btn {
+  margin-left: 16rpx;
 }
 .btn {
+  flex: 1 1 0;
   margin: 0;
-  border-radius: 18px;
-  font-size: 12px;
-  padding: 0 14px;
-  line-height: 28px;
+  padding: 0 20rpx;
+  min-width: 0;
+  min-height: 72rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  border-radius: 36rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  text-align: center;
+  box-sizing: border-box;
+}
+.btn::after {
+  border: none;
 }
 .btn.ghost {
-  background: #f1f5f4;
-  color: #334155;
+  background: #ecfdf5;
+  color: #0f766e;
+  border: 1rpx solid #99f6e4;
 }
 .btn.primary {
-  background: #064e3b;
+  background: #0f766e;
   color: #fff;
+  border: none;
 }
 .btn[disabled] {
   opacity: 0.45;
 }
 .list-pad {
-  height: 24px;
+  height: 48rpx;
 }
 </style>

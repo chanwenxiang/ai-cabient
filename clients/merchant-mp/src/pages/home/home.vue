@@ -241,7 +241,7 @@ import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
-import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
+import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import { formatMerchantNames } from '@/utils/merchant-display';
 import { menuIcon } from '@/utils/menu-icon';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
@@ -252,7 +252,7 @@ type TaskRow = { taskId: number; deviceId: string; status: string };
 
 /** Tab 页底栏已有「工作台」：去掉重复标题，只留状态栏占位 */
 const headerPadStyle = {
-  borderTop: getStatusBarPadPx() + 'px solid var(--brand-deep, #134e4a)'
+  paddingTop: getBelowCapsulePadPx(8) + 'px'
 };
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -730,10 +730,11 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .scan-btn {
   margin: 0;
   flex-shrink: 0;
-  height: 68rpx;
-  line-height: 68rpx;
+  min-height: 72rpx;
+  height: 72rpx;
+  line-height: 72rpx;
   padding: 0 28rpx;
-  border-radius: 34rpx;
+  border-radius: 36rpx;
   background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
   color: #fff;
   font-size: 28rpx;
@@ -895,11 +896,11 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .empty-btn {
   margin: 0;
   padding: 0 22rpx;
-  min-height: 64rpx;
-  height: 64rpx;
+  min-height: 80rpx;
+  height: 80rpx;
   line-height: 1.2;
   border-radius: 999rpx;
-  font-size: 24rpx;
+  font-size: 26rpx;
   color: var(--brand, #0f766e);
   background: #ecfdf5;
   border: none;

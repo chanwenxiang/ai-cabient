@@ -5,6 +5,7 @@ import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
 import { useAuthStore } from '@/stores/auth';
 import { useBrandStore } from '@/stores/brand';
 import { safeRedirectPath } from '@/utils/safe-redirect';
+import { resolveHomePath } from '@/composables/useNavAccess';
 
 const bizChildren: any[] = [
   {
@@ -453,7 +454,15 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   if (to.name === 'login' && isLoggedIn()) {
-    return { path: safeRedirectPath(to.query.redirect) };
+    const auth = useAuthStore();
+    if (!auth.permissions.length) {
+      await auth.restore();
+    }
+    const home = resolveHomePath(auth);
+    const requested = safeRedirectPath(to.query.redirect, home);
+    const nav = findNavByPath(requested);
+    const ok = !nav?.perm || auth.canAccessNav(nav);
+    return { path: ok ? requested : home };
   }
   if (to.meta.public) return true;
   if (!isLoggedIn()) return { name: 'login', query: { redirect: to.fullPath } };
@@ -467,6 +476,10 @@ router.beforeEach(async (to) => {
   }
   const nav = findNavByPath(to.path);
   if (nav?.perm && !auth.canAccessNav(nav)) {
+    // 默认工作台等落页无权限时，落到首个可进菜单（补货员等），避免一登录就「无权」
+    if (to.path === '/dashboard' || to.path === '/') {
+      return { path: resolveHomePath(auth), replace: true };
+    }
     return {
       name: 'forbidden',
       query: {

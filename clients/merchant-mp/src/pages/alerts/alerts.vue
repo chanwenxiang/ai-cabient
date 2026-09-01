@@ -1,35 +1,35 @@
 <template>
   <view class="alerts-page">
-    <app-nav-bar title="待办" />
+    <app-nav-bar title="??" />
     <view v-if="preferredId" class="pref-bar">
-      <text>常驻柜优先：{{ preferredId }}</text>
+      <text>??????{{ preferredId }}</text>
       <text class="pref-toggle" @click="onlyPreferred = !onlyPreferred">
-        {{ onlyPreferred ? '显示全部' : '仅看常驻' }}
+        {{ onlyPreferred ? '????' : '????' }}
       </text>
     </view>
     <view class="kpi-grid">
       <view class="kpi-card dispute"
         ><text class="n">{{ counts.disputes }}</text
-        ><text class="l">审核</text></view
+        ><text class="l">??</text></view
       >
       <view class="kpi-card offline"
         ><text class="n">{{ counts.offline }}</text
-        ><text class="l">故障</text></view
+        ><text class="l">??</text></view
       >
       <view class="kpi-card stock"
         ><text class="n">{{ counts.lowStock }}</text
-        ><text class="l">库存</text></view
+        ><text class="l">??</text></view
       >
       <view class="kpi-card expiry"
         ><text class="n">{{ counts.expiry }}</text
-        ><text class="l">临期</text></view
+        ><text class="l">??</text></view
       >
     </view>
 
-    <view v-if="loading && !items.length" class="card">加载中…</view>
+    <view v-if="loading && !items.length" class="card">????</view>
     <view v-else-if="error && !items.length" class="card">
       <text class="err">{{ error }}</text>
-      <button class="retry" size="mini" @click="load">重试</button>
+      <button class="retry" @click="load">??</button>
     </view>
     <view v-else>
       <view
@@ -42,40 +42,39 @@
       >
         <text class="tag" :class="tagClass(a.type)">{{ a.typeLabel }}</text>
         <text class="title">{{ a.title }}</text>
-        <text v-if="a.deviceId" class="meta">柜机 {{ a.deviceId }}</text>
+        <text v-if="a.deviceId" class="meta">?? {{ a.deviceId }}</text>
         <text v-if="a.detail" class="meta">{{ a.detail }}</text>
         <text v-if="a.dueAt" class="meta due" :class="{ overdue: isOverdue(a.dueAt) }">{{
           dueText(a.dueAt)
         }}</text>
-        <text v-if="a.severity" class="meta sev">优先级 {{ severityText(a.severity) }}</text>
+        <text v-if="a.severity" class="meta sev">??? {{ severityText(a.severity) }}</text>
         <text v-if="actionHint(a)" class="action">{{ actionHint(a) }}</text>
         <button
           v-if="canResolveInventory && a.exceptionId && isInventoryException(a.type)"
           class="resolve-btn"
-          size="mini"
           @click.stop="resolveInventory(a)"
         >
-          完成库存核对
+          ??????
         </button>
       </view>
       <empty-state
         v-if="!visibleItems.length"
         icon="/static/menu/check-circle.png"
-        title="暂无待办事项"
-        hint="争议、离线、低库存与临期告警都会集中显示在这里"
+        title="??????"
+        hint="???????????????????????"
       >
-        <button class="empty-btn primary" @click="goDevices">查看柜机</button>
+        <button class="empty-btn primary" @click="goDevices">????</button>
       </empty-state>
 
       <view v-if="slotDiscrepancies.length" class="card section-card">
-        <text class="section-title">货道差异（账实不符）</text>
+        <text class="section-title">??????????</text>
         <view v-for="(s, i) in slotDiscrepancies" :key="i" class="slot-row">
           <view class="slot-main">
-            <text class="slot-name">{{ s.deviceName || s.deviceId }} · {{ s.slotCode }}</text>
-            <text class="slot-sku">{{ s.assignedSkuName || s.assignedSkuId || '未绑定商品' }}</text>
+            <text class="slot-name">{{ s.deviceName || s.deviceId }} � {{ s.slotCode }}</text>
+            <text class="slot-sku">{{ s.assignedSkuName || s.assignedSkuId || '?????' }}</text>
           </view>
           <text class="slot-diff"
-            >账 {{ s.bookQty }} / 实 {{ s.physicalQty }} · 差 {{ s.qtyDiff }}</text
+            >? {{ s.bookQty }} / ? {{ s.physicalQty }} � ? {{ s.qtyDiff }}</text
           >
         </view>
       </view>
@@ -135,17 +134,17 @@ function isOverdue(dueAt?: string) {
 function dueText(dueAt?: string) {
   if (!dueAt) return '';
   const d = new Date(dueAt);
-  if (Number.isNaN(d.getTime())) return `时限 ${dueAt}`;
+  if (Number.isNaN(d.getTime())) return `?? ${dueAt}`;
   const p = (n: number) => String(n).padStart(2, '0');
   const label = `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-  return isOverdue(dueAt) ? `已超时 · ${label}` : `截止 ${label}`;
+  return isOverdue(dueAt) ? `??? � ${label}` : `?? ${label}`;
 }
 
 function severityText(sev?: string) {
   const s = String(sev || '').toUpperCase();
-  if (s === 'HIGH' || s === 'CRITICAL') return '高';
-  if (s === 'MEDIUM') return '中';
-  if (s === 'LOW') return '低';
+  if (s === 'HIGH' || s === 'CRITICAL') return '?';
+  if (s === 'MEDIUM') return '?';
+  if (s === 'LOW') return '?';
   return sev || '';
 }
 
@@ -160,14 +159,14 @@ function tagClass(type: string) {
 
 function actionHint(item: { type: string; deviceId?: string; ticketId?: string }) {
   const type = String(item.type || '').toUpperCase();
-  if (type === 'DISPUTE') return item.ticketId ? '去处理争议 ›' : '查看争议 ›';
-  if (type.startsWith('RECOGNITION')) return item.deviceId ? '查看柜机 ›' : '查看争议 ›';
-  if (type === 'EXPIRY') return '去处理临期任务 ›';
-  if (type === 'LOW_STOCK') return '去发起要货 ›';
-  if (type === 'REPLENISHMENT' || type === 'REPLENISHMENT_REQUIRED') return '去补货任务 ›';
-  if (type === 'DEVICE_OFFLINE' || type === 'DEVICE_FAULT') return '查看柜机 ›';
-  if (item.deviceId) return '查看柜机 ›';
-  return '查看详情 ›';
+  if (type === 'DISPUTE') return item.ticketId ? '????? ?' : '???? ?';
+  if (type.startsWith('RECOGNITION')) return item.deviceId ? '???? ?' : '???? ?';
+  if (type === 'EXPIRY') return '??????? ?';
+  if (type === 'LOW_STOCK') return '????? ?';
+  if (type === 'REPLENISHMENT' || type === 'REPLENISHMENT_REQUIRED') return '????? ?';
+  if (type === 'DEVICE_OFFLINE' || type === 'DEVICE_FAULT') return '???? ?';
+  if (item.deviceId) return '???? ?';
+  return '???? ?';
 }
 
 async function load() {
@@ -187,19 +186,19 @@ async function load() {
     me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
   }
   if (!canViewAlerts.value) {
-    uni.showToast({ title: '无待办权限', icon: 'none' });
+    uni.showToast({ title: '?????', icon: 'none' });
     uni.switchTab({ url: '/pages/home/home' });
     return;
   }
   preferredId.value = getPreferredDeviceId();
-  // 已有列表时静默刷新，避免 Tab 切换时整页先缩成「加载中」再撑开（先小后大）
+  // ???????????? Tab ??????????????????????
   if (!items.value.length) loading.value = true;
   error.value = '';
   try {
     const [wb, exceptionPage, expiryRows, slotRows] = await Promise.all([
       merchantApi.workbench().catch((e) => {
         uni.showToast({
-          title: (e instanceof Error ? e.message : '待办加载失败').slice(0, 40),
+          title: (e instanceof Error ? e.message : '??????').slice(0, 40),
           icon: 'none'
         });
         return {
@@ -220,21 +219,21 @@ async function load() {
       }),
       merchantApi.openExceptions(100).catch((e) => {
         uni.showToast({
-          title: (e instanceof Error ? e.message : '异常加载失败').slice(0, 40),
+          title: (e instanceof Error ? e.message : '??????').slice(0, 40),
           icon: 'none'
         });
         return { items: [], total: 0 };
       }),
       merchantApi.expiryAlerts().catch((e) => {
         uni.showToast({
-          title: (e instanceof Error ? e.message : '效期告警加载失败').slice(0, 40),
+          title: (e instanceof Error ? e.message : '????????').slice(0, 40),
           icon: 'none'
         });
         return [];
       }),
       merchantApi.slotDiscrepancies().catch((e) => {
         uni.showToast({
-          title: (e instanceof Error ? e.message : '货道差异加载失败').slice(0, 40),
+          title: (e instanceof Error ? e.message : '????????').slice(0, 40),
           icon: 'none'
         });
         return [] as MerchantSlotDiscrepancy[];
@@ -283,7 +282,7 @@ async function load() {
     setAlertsTabBadge(deduped.length);
   } catch (e) {
     if (seq !== loadSeq) return;
-    error.value = e instanceof Error ? e.message : '加载失败';
+    error.value = e instanceof Error ? e.message : '????';
   } finally {
     if (seq === loadSeq) loading.value = false;
   }
@@ -301,7 +300,7 @@ function handleItem(item: {
     return;
   }
   if (type.startsWith('RECOGNITION')) {
-    // 识别存疑：有柜机则看柜机详情，否则进争议列表继续处理
+    // ??????????????????????????
     if (item.deviceId) {
       uni.navigateTo({
         url: `/pages/device-detail/device-detail?id=${encodeURIComponent(item.deviceId)}`
@@ -327,7 +326,7 @@ function handleItem(item: {
     });
     return;
   }
-  uni.showToast({ title: '暂无跳转目标', icon: 'none' });
+  uni.showToast({ title: '??????', icon: 'none' });
 }
 
 function goDevices() {
@@ -343,25 +342,25 @@ function isInventoryException(type: string) {
 async function resolveInventory(item: { exceptionId?: string; deviceId?: string }) {
   if (!item.exceptionId) return;
   if (!canResolveInventory.value) {
-    uni.showToast({ title: '无库存处理权限', icon: 'none' });
+    uni.showToast({ title: '???????', icon: 'none' });
     return;
   }
   const resolution = await promptText({
-    title: '确认完成库存核对',
-    hint: '请填写盘点结果或补货说明，便于后台留痕',
-    placeholder: '填写盘点结果或补货说明',
+    title: '????????',
+    hint: '???????????????????',
+    placeholder: '???????????',
     required: true,
-    requiredMessage: '必须填写处理结果',
+    requiredMessage: '????????',
     maxLength: 200,
     testId: 'inventory-resolve-prompt'
   });
   if (resolution == null) return;
   try {
     await merchantApi.resolveInventoryException(item.exceptionId!, resolution);
-    uni.showToast({ title: '库存异常已处理', icon: 'success' });
+    uni.showToast({ title: '???????', icon: 'success' });
     await load();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '处理失败', icon: 'none' });
+    uni.showToast({ title: e instanceof Error ? e.message : '????', icon: 'none' });
   }
 }
 
@@ -561,12 +560,22 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   background: var(--brand, #0f766e);
   color: #fff;
   border: 0;
+  min-height: 72rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  border-radius: 36rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  padding: 0 28rpx;
+}
+.resolve-btn::after {
+  border: none;
 }
 .empty-btn {
   margin: 0;
   padding: 0 28rpx;
-  min-height: 64rpx;
-  height: 64rpx;
+  min-height: 80rpx;
+  height: 80rpx;
   line-height: 1.2;
   border-radius: 999rpx;
   font-size: 24rpx;

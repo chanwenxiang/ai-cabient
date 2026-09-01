@@ -30,6 +30,7 @@
         <el-input
           v-model="keyword"
           clearable
+          data-testid="session-keyword"
           placeholder="会话 / 设备 / 用户 / 订单…"
           style="width: 260px"
           @keyup.enter="search"

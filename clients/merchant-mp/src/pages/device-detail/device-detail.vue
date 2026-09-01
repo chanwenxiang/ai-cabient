@@ -16,24 +16,26 @@
             aria-hidden="true"
           />
           <text class="title">{{ deviceName }}</text>
-          <text class="meta"
-            >{{ deviceId }} · {{ online ? '在线' : '离线'
-            }}{{ salesLocked ? ' · 停售中' : '' }}</text
-          >
-          <text v-if="address" class="meta">{{ address }}</text>
-          <text v-if="firmwareVersion" class="meta">固件 {{ firmwareVersion }}</text>
-          <text v-if="routeCode || lifecycleLabel" class="meta">
-            <template v-if="routeCode">线路 {{ routeCode }}</template>
-            <template v-if="routeCode && lifecycleLabel"> · </template>
-            <template v-if="lifecycleLabel">{{ lifecycleLabel }}</template>
-          </text>
+          <view class="meta-block">
+            <text class="meta-line"
+              >{{ deviceId }} · {{ online ? '在线' : '离线'
+              }}{{ salesLocked ? ' · 停售中' : '' }}</text
+            >
+            <text v-if="address" class="meta-line">{{ address }}</text>
+            <text v-if="firmwareVersion" class="meta-line">固件 {{ firmwareVersion }}</text>
+            <text v-if="routeCode || lifecycleLabel" class="meta-line">
+              <template v-if="routeCode">线路 {{ routeCode }}</template>
+              <template v-if="routeCode && lifecycleLabel"> · </template>
+              <template v-if="lifecycleLabel">{{ lifecycleLabel }}</template>
+            </text>
+            <text class="meta-line">当前 {{ currentTemp }} · 目标 {{ targetTemp }}</text>
+            <text v-if="slotStockHint" class="meta-line stock-warn">{{ slotStockHint }}</text>
+          </view>
           <text v-if="salesLocked" class="locked-banner"
             >柜机已锁机停售，消费者无法开门；补货仍可按任务操作{{
               salesLockReason ? `（${salesLockReason}）` : ''
             }}</text
           >
-          <text class="meta">当前 {{ currentTemp }} / 目标 {{ targetTemp }}</text>
-          <text v-if="slotStockHint" class="meta stock-warn">{{ slotStockHint }}</text>
           <view class="pref-row" @click="togglePreferred">
             <text class="pref-star" :class="{ on: isPreferred }">★</text>
             <text>{{ isPreferred ? '常驻柜（点击取消）' : '设为常驻柜' }}</text>
@@ -201,9 +203,9 @@ const slotStockHint = computed(() => {
     const min = Number(s.minLevel || 0);
     return !!s.assignedSkuId && qty > 0 && min > 0 && qty <= min;
   }).length;
-  if (oos > 0 && low > 0) return `缺货 ${oos} 道 · 低库存 ${low} 道`;
-  if (oos > 0) return `缺货货道 ${oos}`;
-  if (low > 0) return `低库存货道 ${low}`;
+  if (oos > 0 && low > 0) return `缺货 ${oos} 个货道 · 低库存 ${low} 个货道`;
+  if (oos > 0) return `缺货 ${oos} 个货道`;
+  if (low > 0) return `低库存 ${low} 个货道`;
   return '';
 });
 
@@ -563,6 +565,23 @@ async function saveSlots() {
   font-weight: 600;
   display: block;
 }
+.meta-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 10rpx;
+  gap: 8rpx;
+}
+.meta-line {
+  display: block;
+  color: #64748b;
+  font-size: 24rpx;
+  line-height: 1.45;
+  margin-top: 0;
+}
+.meta-line + .meta-line {
+  margin-top: 8rpx;
+}
 .locked-banner {
   display: block;
   margin-top: 12rpx;
@@ -573,6 +592,7 @@ async function saveSlots() {
   font-size: 24rpx;
   line-height: 1.4;
 }
+.meta-line.stock-warn,
 .meta.stock-warn {
   color: #b45309;
   font-weight: 600;

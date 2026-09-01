@@ -535,6 +535,8 @@ const boardCounts = reactive({
   ON_SALE: 0,
   LOCKED: 0
 });
+/** 离线且停售的交集，用于「需关注」去重：|离线 ∪ 停售| = 离线 + 停售 − 交集 */
+const attentionOverlap = ref(0);
 /** 避免首屏看板/Tab 在请求完成前误显「0」 */
 const boardHydrated = ref(false);
 const boardTiles: { key: BoardTab; label: string; hint?: string; warn?: boolean }[] = [
@@ -550,7 +552,9 @@ const policyForm = reactive({
   refundPolicy: 'INHERIT'
 });
 
-const attentionCount = computed(() => boardCounts.OFFLINE + boardCounts.LOCKED);
+const attentionCount = computed(() =>
+  Math.max(boardCounts.OFFLINE + boardCounts.LOCKED - attentionOverlap.value, 0)
+);
 
 function formatBoardCount(key: BoardTab) {
   return boardHydrated.value ? String(boardCounts[key]) : '暂无';
@@ -672,6 +676,10 @@ const { onExport } = useListCsv({
 });
 
 async function batchLifecycle(action: 'DEPLOY' | 'UNDEPLOY') {
+  if (!auth.hasPerm('ops:device:edit')) {
+    ElMessage.warning('无设备编辑权限');
+    return;
+  }
   const targets = devices.value.filter((d) => selectedKeys.value.map(String).includes(d.deviceId));
   if (!targets.length) {
     ElMessage.warning('请先勾选设备');
@@ -713,6 +721,10 @@ async function batchLifecycle(action: 'DEPLOY' | 'UNDEPLOY') {
 }
 
 async function batchRetire() {
+  if (!auth.hasPerm('ops:device:edit')) {
+    ElMessage.warning('无设备编辑权限');
+    return;
+  }
   const targets = devices.value.filter((d) => selectedKeys.value.map(String).includes(d.deviceId));
   if (!targets.length) {
     ElMessage.warning('请先勾选设备');
@@ -760,6 +772,10 @@ async function batchRetire() {
 }
 
 async function batchCommand(command: 'LOCK' | 'UNLOCK') {
+  if (!auth.hasPerm('ops:device:edit')) {
+    ElMessage.warning('无设备编辑权限');
+    return;
+  }
   const targets = devices.value.filter((d) => selectedKeys.value.map(String).includes(d.deviceId));
   if (!targets.length) {
     ElMessage.warning('请先勾选设备');
@@ -894,8 +910,8 @@ async function refreshBoardCounts() {
     { key: 'LOCKED', salesLocked: 'true' }
   ];
   try {
-    await Promise.all(
-      specs.map(async (spec) => {
+    await Promise.all([
+      ...specs.map(async (spec) => {
         try {
           const q = new URLSearchParams({ page: '0', size: '1' });
           if (keyword.value.trim()) q.set('q', keyword.value.trim());
@@ -909,8 +925,26 @@ async function refreshBoardCounts() {
         } catch {
           /* keep previous */
         }
-      })
-    );
+      }),
+      (async () => {
+        try {
+          const q = new URLSearchParams({
+            page: '0',
+            size: '1',
+            online: 'OFFLINE',
+            salesLocked: 'true'
+          });
+          if (keyword.value.trim()) q.set('q', keyword.value.trim());
+          const data = await api.request<PageResult<DeviceInfo>>(
+            `/api/v2/ops/admin/devices?${q}`,
+            'GET'
+          );
+          attentionOverlap.value = data.total || 0;
+        } catch {
+          /* keep previous */
+        }
+      })()
+    ]);
   } finally {
     boardHydrated.value = true;
   }
@@ -975,6 +1009,10 @@ async function loadMerchants() {
 }
 
 function openCreate() {
+  if (!auth.hasPerm('ops:device:create')) {
+    ElMessage.warning('无新建设备权限');
+    return;
+  }
   createForm.deviceName = '';
   createForm.deviceType = '';
   createForm.merchantId = '';
@@ -983,6 +1021,10 @@ function openCreate() {
 }
 
 async function saveCreate() {
+  if (!auth.hasPerm('ops:device:create')) {
+    ElMessage.warning('无新建设备权限');
+    return;
+  }
   createSaving.value = true;
   try {
     const created = await api.request<{ deviceId: string }>('/api/v2/ops/admin/devices', 'POST', {

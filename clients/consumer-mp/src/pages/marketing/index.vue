@@ -39,7 +39,7 @@
           title="暂无进行中活动"
           hint="可先领券，或扫码开门购物"
         >
-          <button class="empty-btn" @click="goShop">去扫码购物</button>
+          <button class="empty-btn primary" @click="goShop">去扫码购物</button>
           <button class="empty-btn ghost" @click="goCoupons">去领券</button>
         </empty-state>
         <view v-else>
@@ -430,29 +430,7 @@ function remainText(end?: string) {
   padding: 60rpx 0;
   color: #999;
 }
-.empty-btn {
-  margin-left: 0;
-  margin-right: 0;
-  margin-bottom: 0;
-  width: 100%;
-  min-height: 72rpx;
-  height: 72rpx;
-  line-height: 1.2;
-  background: #047857;
-  color: #fff;
-  border-radius: 36rpx;
-  font-size: 28rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-}
-.empty-btn.ghost {
-  background: #fff;
-  color: #047857;
-  border: 2rpx solid #047857;
-}
+/* 高度/通栏由 App.vue + empty-actions 统一（微信 88rpx 触控） */
 .empty-btn::after {
   border: none;
 }

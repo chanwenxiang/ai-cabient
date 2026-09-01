@@ -39,6 +39,7 @@
         <el-input
           v-model="keyword"
           clearable
+          data-testid="order-keyword"
           placeholder="订单号 / 设备 / 会话 / 用户 / 流水…"
           style="width: 260px"
           @keyup.enter="search"
@@ -259,7 +260,7 @@
                 effect="plain"
                 :type="splitStatusTagType(row.splitStatus)"
               >
-                {{ displayLabel('split_status', row.splitStatus, row.splitStatus) }}
+                {{ displayLabel('split_status', row.splitStatus, '未知') }}
               </el-tag>
               <span v-else class="muted">—</span>
             </template>
@@ -403,7 +404,7 @@
                 effect="plain"
                 :type="splitStatusTagType(detail.splitStatus)"
               >
-                {{ displayLabel('split_status', detail.splitStatus, detail.splitStatus) }}
+                {{ displayLabel('split_status', detail.splitStatus, '未知') }}
               </el-tag>
               <span v-else class="muted">无</span>
             </el-descriptions-item>
@@ -750,7 +751,7 @@ const { onExport: exportSelectedCsv } = useListCsv({
       refundColumnLabel(row.status),
       displayLabel('pay_channel', row.payChannel, '未知渠道'),
       row.splitStatus
-        ? displayLabel('split_status', row.splitStatus, row.splitStatus)
+        ? displayLabel('split_status', row.splitStatus, '未知')
         : '',
       row.inventoryDeducted ? '已扣' : '未扣',
       row.lineSummary || '',

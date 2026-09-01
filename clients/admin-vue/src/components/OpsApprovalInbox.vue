@@ -31,11 +31,29 @@
               :class="{ unread: !task.readAt }"
               @click="openTask(task)"
             >
-              <div class="item-title">{{ task.title || task.bizType }}</div>
+              <div class="item-title">{{ task.title || approvalBizLabel(task.bizType) }}</div>
               <div class="item-meta">
                 {{ task.nodeName }} · {{ formatDateTime(task.createdAt) }}
               </div>
             </button>
+            <!-- 无业务页权限时仍可在待办内办结（如财务批采购却进不了仓库页） -->
+            <div v-if="canInlineReview(task)" class="inbox-actions">
+              <el-button
+                size="small"
+                type="primary"
+                :loading="reviewingTaskId === task.taskId"
+                @click.stop="inlineReview(task, true)"
+                >通过</el-button
+              >
+              <el-button
+                size="small"
+                type="danger"
+                plain
+                :loading="reviewingTaskId === task.taskId"
+                @click.stop="inlineReview(task, false)"
+                >驳回</el-button
+              >
+            </div>
           </li>
         </ul>
       </section>
@@ -64,7 +82,7 @@
             <button type="button" class="inbox-item history" @click="openHistory(item)">
               <div class="item-title">
                 <span class="status-chip" :class="historyChipClass(item)">{{ historyChipLabel(item) }}</span>
-                {{ item.title || item.bizType }}
+                {{ item.title || approvalBizLabel(item.bizType) }}
               </div>
               <div class="item-meta">
                 {{ item.progressText }} · {{ formatDateTime(item.actedAt) }}
@@ -85,8 +103,10 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { Bell } from '@element-plus/icons-vue';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 
@@ -140,6 +160,7 @@ const router = useRouter();
 const auth = useAuthStore();
 
 const loading = ref(false);
+const reviewingTaskId = ref<number | null>(null);
 const pendingTaskCount = ref(0);
 const unreadMessageCount = ref(0);
 const tasks = ref<ApprovalTask[]>([]);
@@ -214,6 +235,10 @@ async function markVisibleAsRead() {
   unreadMessageCount.value = 0;
 }
 
+function approvalBizLabel(bizType?: string) {
+  return displayLabel('approval_biz_type', bizType, '审批事项');
+}
+
 function resolvePath(item: { actionPath?: string; bizType?: string; bizId?: string }): string {
   if (item.actionPath) return item.actionPath;
   if (item.bizType === 'MERCHANT_REPLEN_REQUEST') {
@@ -266,13 +291,60 @@ function historyChipClass(item: ApprovalHistoryItem): string {
   return 'is-done';
 }
 
+/**
+ * 待办可内联审批的业务：避免「有节点权限、无菜单权限」时点进无权页。
+ */
+function canInlineReview(task: ApprovalTask): boolean {
+  if (!task.bizId) return false;
+  if (task.bizType === 'PURCHASE_ORDER') return true;
+  return false;
+}
+
+/** 无对应业务菜单权限时，点标题不要跳无权页。 */
+function canNavigateTask(task: ApprovalTask): boolean {
+  if (task.bizType === 'PURCHASE_ORDER') return auth.hasPerm('ops:warehouse:list');
+  return true;
+}
+
+async function inlineReview(task: ApprovalTask, approve: boolean) {
+  if (task.bizType !== 'PURCHASE_ORDER' || !task.bizId) return;
+  try {
+    await ElMessageBox.confirm(
+      approve
+        ? `确认通过采购单 ${task.title || task.bizId}（${task.nodeName || '当前节点'}）？`
+        : `确认驳回采购单 ${task.title || task.bizId}？`,
+      approve ? '审批通过' : '审批驳回',
+      { type: approve ? 'info' : 'warning' }
+    );
+  } catch {
+    return;
+  }
+  reviewingTaskId.value = task.taskId;
+  try {
+    await api.request(`/api/v2/ops/admin/purchase-orders/${task.bizId}/review`, 'POST', {
+      approve,
+      remark: approve ? '审批通过' : '审批驳回'
+    });
+    ElMessage.success(approve ? '已通过' : '已驳回');
+    await loadInbox();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '审批失败');
+  } finally {
+    reviewingTaskId.value = null;
+  }
+}
+
 async function openTask(task: ApprovalTask) {
   try {
     await api.request(`/api/v2/ops/admin/approvals/tasks/${task.taskId}/read`, 'POST');
     // 仅标记已读样式；待审批数量仍按 PENDING 任务计，不因点开而减少
     task.readAt = new Date().toISOString();
   } catch {
-    // still navigate
+    // still navigate when allowed
+  }
+  if (!canNavigateTask(task)) {
+    ElMessage.info('当前账号无业务页权限，请使用下方「通过 / 驳回」完成审批');
+    return;
   }
   router.push(resolvePath(task));
 }
@@ -347,6 +419,11 @@ onUnmounted(() => {
 }
 .inbox-item-wrap {
   margin: 0;
+}
+.inbox-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 10px 8px;
 }
 .inbox-item {
   display: block;
