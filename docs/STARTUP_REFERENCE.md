@@ -157,6 +157,43 @@ docker compose --env-file infra\.env -f infra\docker-compose.full.yml -f infra\d
 
 ---
 
+## 四（补2）、演示购物视频 & OpenAPI 同步
+
+### MinIO 演示录像（容器重建后）
+
+订单购物视频依赖 `shopping_session.video_uri`（MinIO 对象）。MinIO 数据卷清空后需重新上传：
+
+```powershell
+.\scripts\seed-demo-shopping-video.ps1
+# 指定会话：.\scripts\seed-demo-shopping-video.ps1 -SessionId 1788233611382431271
+```
+
+| 项 | 值 |
+|----|-----|
+| 演示会话 | `1788233611382431271` |
+| 演示订单 | `1788233752744411094` |
+| 柜机 | `CAB-001` |
+| MinIO 对象 | `cabinet-videos/demo/sample-shopping.mp4` |
+
+消费者 / 商户 H5 订单详情 →「查看购物视频」；API：`GET /api/v2/orders/{id}/video`、`GET /api/v2/merchant/orders/{id}/video`。
+
+### Apifox OpenAPI 同步
+
+从 trade-service 导出并可选导入 Apifox（项目默认 `8780097`）：
+
+```powershell
+.\scripts\sync-apifox-oas.ps1
+# 带令牌自动导入：
+$env:APIFOX_ACCESS_TOKEN = '<系统级访问令牌>'
+$env:APIFOX_PROJECT_ID = '8780097'   # 可选
+.\scripts\sync-apifox-oas.ps1
+```
+
+- 导出文件：`.tmp/live-openapi.json`（须用 **trade** 端口 `:18080` 或 `:8080`，网关 `/v3/api-docs` 常无 paths）
+- 无令牌时仅导出，可在 Apifox 手动 Import → OpenAPI
+
+---
+
 ## 五、相关文档
 
 | 文档 | 内容 |

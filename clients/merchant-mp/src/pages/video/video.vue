@@ -50,7 +50,7 @@
 import { computed, ref } from 'vue';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { API_BASE_URL } from '@/config/api';
-import { getToken } from '@/utils/merchant-api';
+import { downloadAuthedFile, getToken } from '@/utils/merchant-api';
 
 const src = ref('');
 const error = ref('');
@@ -96,7 +96,7 @@ async function loadOrderVideo(oid: string) {
     src.value = blobUrl;
     // #endif
     // #ifndef H5
-    src.value = apiUrl;
+    src.value = await downloadAuthedFile(apiUrl, 120_000);
     // #endif
   } catch (e) {
     error.value = e instanceof Error ? e.message : '视频地址无法访问，请复制链接后到浏览器打开';

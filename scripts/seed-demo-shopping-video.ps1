@@ -31,7 +31,7 @@ $user = if ($env:MINIO_ROOT_USER) { $env:MINIO_ROOT_USER } else { "minioadmin" }
 $pass = if ($env:MINIO_ROOT_PASSWORD) { $env:MINIO_ROOT_PASSWORD } else { "minioadmin" }
 $videoUri = "minio://$Bucket/$ObjectKey"
 
-Write-Host "==> 上传 $localFile -> $Bucket/$ObjectKey"
+Write-Host "==> Upload $localFile -> $Bucket/$ObjectKey"
 docker run --rm `
     --network $network `
     -v "${localFile}:/upload.mp4:ro" `
@@ -39,7 +39,7 @@ docker run --rm `
     $McImage `
     -c "mc alias set local http://minio:9000 '$user' '$pass' >/dev/null 2>&1 && mc mb --ignore-existing local/$Bucket && mc cp /upload.mp4 local/$Bucket/$ObjectKey"
 
-Write-Host "==> MinIO 对象已就绪：$videoUri"
+Write-Host "==> MinIO object ready: $videoUri"
 
 if ($SessionId) {
     if (-not $PostgresContainer) {
@@ -48,7 +48,7 @@ if ($SessionId) {
     }
     if (-not $PostgresContainer) { $PostgresContainer = "ai-cabinet-postgres-1" }
     $sql = "UPDATE shopping_session SET video_uri = '$videoUri' WHERE session_id = '$SessionId';"
-    Write-Host "==> 挂载会话 $SessionId"
+    Write-Host "==> Bind session $SessionId"
     docker exec $PostgresContainer psql -U aicabinet -d aicabinet -c $sql | Out-Host
     Write-Host "Done. Open order detail in consumer/merchant H5 and tap view shopping video."
 } else {
