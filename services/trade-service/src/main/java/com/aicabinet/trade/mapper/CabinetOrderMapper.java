@@ -257,6 +257,9 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
         q.and(w -> {
             w.like(CabinetOrder::getOrderId, kw)
                     .or().like(CabinetOrder::getDeviceId, kw)
+                    .or().like(CabinetOrder::getDeviceName, kw)
+                    .or().like(CabinetOrder::getMerchantId, kw)
+                    .or().like(CabinetOrder::getMerchantName, kw)
                     .or().like(CabinetOrder::getSessionId, kw)
                     .or().like(CabinetOrder::getPayTradeNo, kw)
                     .or().like(CabinetOrder::getPaymentOperationId, kw);

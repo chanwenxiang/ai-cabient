@@ -35,7 +35,7 @@
     <view v-if="loading && !devices.length" class="card">加载中…</view>
     <view v-else-if="error && !devices.length" class="card">
       <text class="err">{{ error }}</text>
-      <button class="retry" size="mini" @click="load">重试</button>
+      <button class="retry" @click="load">重试</button>
     </view>
     <view v-else>
       <view
@@ -90,7 +90,6 @@
           <button
             v-if="d.latitude != null && d.longitude != null"
             class="nav-btn"
-            size="mini"
             @click.stop="openNav(d)"
             >导航</button
           >

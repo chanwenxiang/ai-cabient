@@ -178,7 +178,24 @@ input {
   box-sizing: border-box;
 }
 
-/* 主按钮：单独出现时收窄居中；通栏用 .btn-block；横向行内均分 */
+/* 微信触控建议 ≥44pt：750 设计稿用 88rpx；避免依赖 size=mini */
+.empty-btn,
+.empty-btn.primary,
+.empty-btn.ghost,
+uni-button.empty-btn {
+  min-height: 88rpx;
+  height: 88rpx;
+  line-height: 1.2;
+  font-size: 28rpx;
+  font-weight: 600;
+  border-radius: 44rpx;
+  padding-left: 36rpx;
+  padding-right: 36rpx;
+  box-sizing: border-box;
+}
+
+/* 主按钮：单独出现时收窄居中；通栏用 .btn-block / .empty-actions；横向行内均分
+ * 不用 width:fit-content（旧版微信基础库支持不稳），用固定/百分比宽度 */
 .btn-primary,
 .btn-outline,
 .btn-refund,
@@ -187,13 +204,15 @@ input {
 .ghost-btn,
 .empty-btn.primary,
 .empty-btn.ghost,
+.empty-btn,
 uni-button.btn-primary,
 uni-button.btn-outline,
 uni-button.btn-refund,
 uni-button.btn-ghost,
 uni-button.action-btn,
-uni-button.ghost-btn {
-  width: fit-content;
+uni-button.ghost-btn,
+uni-button.empty-btn {
+  width: 60%;
   min-width: 240rpx;
   max-width: 100%;
   padding-left: 36rpx;
@@ -315,7 +334,21 @@ uni-button.btn-block {
 .empty-actions > .btn-outline + .btn-primary,
 .empty-actions > uni-button + uni-button,
 .empty-actions > button + button {
-  margin-top: 16rpx !important;
+  margin-top: 24rpx !important;
+}
+/* uni 插槽扁平：组件根下相邻空态按钮也要拉开 */
+empty-state .empty-btn + .empty-btn,
+.state-wrap .empty-btn + .empty-btn,
+uni-button.empty-btn + uni-button.empty-btn,
+button.empty-btn + button.empty-btn {
+  margin-top: 24rpx !important;
+}
+empty-state .empty-btn,
+.state-wrap .empty-btn {
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 }
 .empty-actions > .empty-btn,
 .empty-actions > .btn-primary,

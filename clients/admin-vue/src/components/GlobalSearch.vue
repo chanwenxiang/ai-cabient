@@ -69,6 +69,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Search } from '@element-plus/icons-vue';
 import type { ElInput } from 'element-plus';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { searchNavItems } from '@/config/menu';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/api/client';
@@ -142,7 +143,7 @@ async function searchRecords(q: string) {
         items.map((d: any) => ({
           type: 'device',
           title: d.deviceName || d.deviceId,
-          meta: `设备 ${d.deviceId} · ${d.onlineStatus === 'ONLINE' ? '在线' : '离线'}`,
+          meta: `设备 ${d.deviceId} · ${displayLabel('online_status', String(d.onlineStatus || ''), '未知')}`,
           path: `/devices/${encodeURIComponent(d.deviceId)}`
         }))
     ),
@@ -153,7 +154,13 @@ async function searchRecords(q: string) {
         items.map((o: any) => ({
           type: 'order',
           title: String(o.orderId || ''),
-          meta: `订单 · ${o.payChannel || o.channel || ''} · ${o.status || ''}`,
+          meta: [
+            '订单',
+            displayLabel('pay_channel', String(o.payChannel || o.channel || ''), ''),
+            displayLabel('order_status', String(o.status || ''), '')
+          ]
+            .filter(Boolean)
+            .join(' · '),
           path: '/orders',
           query: { orderId: String(o.orderId) }
         }))
@@ -165,7 +172,13 @@ async function searchRecords(q: string) {
         items.map((s: any) => ({
           type: 'session',
           title: String(s.sessionId || ''),
-          meta: `会话 · ${s.deviceId || ''} · ${s.state || ''}`,
+          meta: [
+            '会话',
+            s.deviceId || '',
+            displayLabel('session_state', String(s.state || ''), '')
+          ]
+            .filter(Boolean)
+            .join(' · '),
           path: '/sessions',
           query: { sessionId: String(s.sessionId) }
         }))

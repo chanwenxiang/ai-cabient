@@ -379,6 +379,7 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
         q.and(w -> {
             w.like(ShoppingSession::getSessionId, kw)
                     .or().like(ShoppingSession::getDeviceId, kw)
+                    .or().like(ShoppingSession::getDeviceName, kw)
                     .or().like(ShoppingSession::getOrderId, kw);
             if (finalKwUserId != null) {
                 w.or().eq(ShoppingSession::getUserId, finalKwUserId);

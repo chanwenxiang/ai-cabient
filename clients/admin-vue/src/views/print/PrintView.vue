@@ -23,7 +23,7 @@
               仓库：{{ nameOf(warehouses, 'warehouseId', 'warehouseName', outbound.warehouseId) }}
             </p>
             <p>路线：{{ outbound.routeId || '暂无' }}</p>
-            <p>状态：{{ outbound.status }}</p>
+            <p>状态：{{ displayLabel('warehouse_outbound_status', outbound.status, '未知') }}</p>
           </div>
         </div>
         <table class="print-table">
@@ -68,7 +68,7 @@
               }}
             </p>
             <p v-if="purchase.refNo">外部单号：{{ purchase.refNo }}</p>
-            <p>状态：{{ purchase.status }}</p>
+            <p>状态：{{ displayLabel('purchase_order_status', purchase.status, '未知') }}</p>
           </div>
         </div>
         <table class="print-table">
@@ -125,6 +125,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 
 type Row = Record<string, any>;

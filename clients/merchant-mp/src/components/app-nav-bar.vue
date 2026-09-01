@@ -1,6 +1,6 @@
 <template>
   <view class="app-nav" :style="wrapStyle">
-    <view class="app-nav-row">
+    <view class="app-nav-row" :style="rowStyle">
       <view
         class="app-nav-back"
         hover-class="app-nav-back-hover"
@@ -8,10 +8,14 @@
         aria-label="返回"
         @click="onBack"
       >
-        <text class="app-nav-chevron" :style="{ color: color }">‹</text>
+        <text class="app-nav-chevron" :style="{ color: color, lineHeight: rowStyle.height }">‹</text>
       </view>
-      <text class="app-nav-title" :style="{ color: color }">{{ title }}</text>
-      <view class="app-nav-side">
+      <text
+        class="app-nav-title"
+        :style="{ color: color, lineHeight: rowStyle.height, paddingRight: sidePad }"
+        >{{ title }}</text
+      >
+      <view class="app-nav-side" :style="{ minWidth: sidePad, height: rowStyle.height }">
         <slot name="right" />
       </view>
     </view>
@@ -38,16 +42,50 @@ const props = withDefaults(
   }
 );
 
-const statusPad = getStatusBarPadPx();
+/** 顶栏与微信胶囊对齐：paddingTop≈胶囊 top，行高≈胶囊高，右侧预留胶囊宽度 */
+function readCapsuleLayout() {
+  try {
+    if (typeof uni.getMenuButtonBoundingClientRect === 'function') {
+      const menu = uni.getMenuButtonBoundingClientRect();
+      const info = uni.getSystemInfoSync();
+      const winW = Number(info?.windowWidth) || 375;
+      const top = Number(menu?.top) || 0;
+      const height = Number(menu?.height) || 0;
+      const left = Number(menu?.left) || 0;
+      if (top > 0 && height > 0 && left > 0) {
+        return {
+          paddingTop: Math.ceil(top) + 'px',
+          rowHeight: Math.ceil(height) + 'px',
+          sideMin: Math.max(44, Math.ceil(winW - left + 8)) + 'px'
+        };
+      }
+    }
+  } catch {
+    /* fall through */
+  }
+  return {
+    paddingTop: getStatusBarPadPx() + 'px',
+    rowHeight: '48px',
+    sideMin: '44px'
+  };
+}
+
+const layout = readCapsuleLayout();
 
 const wrapStyle = computed(() => ({
   background: props.bg,
   color: props.color,
-  borderTop: statusPad + 'px solid ' + props.bg,
+  paddingTop: layout.paddingTop,
   boxSizing: 'border-box' as const,
   width: '100%',
   flexShrink: 0
 }));
+
+const rowStyle = computed(() => ({
+  height: layout.rowHeight
+}));
+
+const sidePad = layout.sideMin;
 
 function onBack() {
   navigateBackOrHome(props.homeUrl);
@@ -68,7 +106,6 @@ export default { name: 'AppNavBar' };
 }
 .app-nav-row {
   position: relative;
-  height: 48px;
   padding: 0 8px;
   display: flex;
   align-items: center;
@@ -78,7 +115,6 @@ export default { name: 'AppNavBar' };
 .app-nav-back,
 .app-nav-side {
   min-width: 44px;
-  height: 48px;
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -86,14 +122,13 @@ export default { name: 'AppNavBar' };
 }
 .app-nav-back {
   justify-content: center;
+  height: 100%;
 }
 .app-nav-side {
   justify-content: flex-end;
-  padding-right: 8px;
 }
 .app-nav-chevron {
   font-size: 36px;
-  line-height: 48px;
   font-weight: 300;
 }
 .app-nav-back-hover {
@@ -106,12 +141,11 @@ export default { name: 'AppNavBar' };
   text-align: center;
   font-size: 17px;
   font-weight: 600;
-  line-height: 48px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: none;
-  padding: 0 52px;
+  padding-left: 52px;
   box-sizing: border-box;
 }
 </style>

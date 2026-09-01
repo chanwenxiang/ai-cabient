@@ -244,6 +244,8 @@ import { useBrandStore } from '@/stores/brand';
 import { api } from '@/api/client';
 import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
 import { safeRedirectPath } from '@/utils/safe-redirect';
+import { resolveHomePath } from '@/composables/useNavAccess';
+import { findNavByPath } from '@/config/menu';
 import bgVendingNight from '@/assets/bg-vending-night.jpg';
 
 const brandStore = useBrandStore();
@@ -472,7 +474,11 @@ async function finishLogin(normalizedPhone: string) {
     localStorage.setItem(PW_FLAG_KEY, '0');
     localStorage.removeItem(PW_STORE_KEY);
   }
-  router.replace(safeRedirectPath(route.query.redirect));
+  const home = resolveHomePath(auth);
+  const requested = safeRedirectPath(route.query.redirect, home);
+  const nav = findNavByPath(requested);
+  const ok = !nav?.perm || auth.canAccessNav(nav);
+  router.replace(ok ? requested : home);
 }
 
 async function onSubmit() {
@@ -742,9 +748,26 @@ async function onSubmitTwoFactor() {
 }
 .login-card :deep(.el-input__inner) {
   color: #f0fdfa;
+  /* 覆盖 Chrome 自动填充浅色底，否则会露出浅蓝块盖住玻璃态 wrapper */
+  background-color: transparent !important;
+  box-shadow: none !important;
+  -webkit-text-fill-color: #f0fdfa;
+  caret-color: #f0fdfa;
+  transition: background-color 99999s ease-out;
+}
+.login-card :deep(.el-input__inner:-webkit-autofill),
+.login-card :deep(.el-input__inner:-webkit-autofill:hover),
+.login-card :deep(.el-input__inner:-webkit-autofill:focus),
+.login-card :deep(input.el-input__inner:-webkit-autofill) {
+  -webkit-text-fill-color: #f0fdfa !important;
+  caret-color: #f0fdfa;
+  /* 用极大 inset shadow 盖住浏览器默认 autofill 底色 */
+  box-shadow: 0 0 0 1000px rgba(8, 24, 30, 0.42) inset !important;
+  transition: background-color 99999s ease-out;
 }
 .login-card :deep(.el-input__inner::placeholder) {
   color: rgba(148, 210, 198, 0.55);
+  -webkit-text-fill-color: rgba(148, 210, 198, 0.55);
 }
 .login-card :deep(.el-input__wrapper:hover) {
   box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.42) inset;

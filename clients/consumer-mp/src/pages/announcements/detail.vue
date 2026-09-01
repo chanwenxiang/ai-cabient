@@ -4,7 +4,7 @@
     <view v-if="loading && !item" class="state">加载中…</view>
     <view v-else-if="error && !item" class="state">
       <text class="err">{{ error }}</text>
-      <button class="retry" size="mini" @click="() => load()">重试</button>
+      <button class="retry" @click="() => load()">重试</button>
     </view>
     <view v-else-if="item" class="article">
       <view class="meta">

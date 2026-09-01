@@ -1,72 +1,71 @@
 <template>
   <view class="page">
-    <app-nav-bar title="团队成员" />
+    <app-nav-bar title="????" />
     <view class="page-body">
       <view class="toolbar">
         <button
           v-if="canInvite"
           class="invite-btn"
-          size="mini"
           :loading="saving"
           @click="openInvite"
         >
-          邀请成员
+          ????
         </button>
       </view>
 
-      <view v-if="loading && !list.length" class="card state">加载中…</view>
+      <view v-if="loading && !list.length" class="card state">????</view>
       <view v-else-if="error && !list.length" class="card state">
         <text class="err">{{ error }}</text>
-        <button class="retry" size="mini" @click="load">重试</button>
+        <button class="retry" @click="load">??</button>
       </view>
       <empty-state
         v-else-if="!list.length"
         icon="/static/menu/team.png"
-        title="暂无团队成员"
-        hint="可邀请同事登录商户端协同补货与经营"
+        title="??????"
+        hint="?????????????????"
       >
-        <button v-if="canInvite" class="empty-btn" @click="openInvite">邀请成员</button>
+        <button v-if="canInvite" class="empty-btn" @click="openInvite">????</button>
       </empty-state>
       <view v-else>
         <view v-for="u in list" :key="u.userId" class="card row" @click="openManage(u)">
-          <view class="avatar">{{ (u.displayName || u.phoneNumber || '员').slice(0, 1) }}</view>
+          <view class="avatar">{{ (u.displayName || u.phoneNumber || '?').slice(0, 1) }}</view>
           <view class="meta">
-            <text class="name">{{ u.displayName || u.phoneNumber || '用户 ' + u.userId }}</text>
+            <text class="name">{{ u.displayName || u.phoneNumber || '?? ' + u.userId }}</text>
             <text class="sub"
-              >{{ u.phoneNumber || '无手机号' }} · {{ u.roleName || roleLabel(u.roleKey) }}</text
+              >{{ u.phoneNumber || '????' }} � {{ u.roleName || roleLabel(u.roleKey) }}</text
             >
             <text class="sub status-line"
-              >{{ u.status === 'INACTIVE' ? '已停用' : '启用中'
-              }}{{ u.roleKey ? ` · ${u.roleKey}` : '' }}</text
+              >{{ u.status === 'INACTIVE' ? '???' : '???'
+              }}{{ u.roleKey ? ` � ${u.roleKey}` : '' }}</text
             >
-            <text v-if="u.status === 'INACTIVE'" class="inactive">点击可重新启用</text>
+            <text v-if="u.status === 'INACTIVE'" class="inactive">???????</text>
           </view>
-          <text v-if="u.self" class="self-tag">我</text>
-          <text v-else-if="canManage" class="more">管理</text>
+          <text v-if="u.self" class="self-tag">?</text>
+          <text v-else-if="canManage" class="more">??</text>
         </view>
       </view>
 
       <view v-if="inviteVisible" class="mask" @click="inviteVisible = false">
         <view class="dialog" @click.stop>
-          <text class="dialog-title">邀请成员</text>
+          <text class="dialog-title">????</text>
           <input
             class="input"
             type="number"
             maxlength="11"
-            placeholder="手机号"
+            placeholder="???"
             :value="form.phoneNumber"
             @input="form.phoneNumber = eventInput($event)"
           />
           <input
             class="input"
             password
-            placeholder="初始密码（至少 6 位）"
+            placeholder="??????? 6 ??"
             :value="form.password"
             @input="form.password = eventInput($event)"
           />
           <input
             class="input"
-            placeholder="显示名（选填）"
+            placeholder="???????"
             :value="form.displayName"
             @input="form.displayName = eventInput($event)"
           />
@@ -81,8 +80,8 @@
             >
           </view>
           <view class="dialog-actions">
-            <button class="btn ghost" @click="inviteVisible = false">取消</button>
-            <button class="btn" :loading="saving" @click="onInvite">确认邀请</button>
+            <button class="btn ghost" @click="inviteVisible = false">??</button>
+            <button class="btn" :loading="saving" @click="onInvite">????</button>
           </view>
         </view>
       </view>
@@ -91,12 +90,12 @@
         <view class="dialog" @click.stop>
           <text class="dialog-title">{{ manageUser.displayName || manageUser.phoneNumber }}</text>
           <text class="hint"
-            >{{ manageUser.phoneNumber }} ·
+            >{{ manageUser.phoneNumber }} �
             {{ manageUser.roleName || roleLabel(manageUser.roleKey) }}</text
           >
 
           <view v-if="canEdit" class="section">
-            <text class="section-title">角色</text>
+            <text class="section-title">??</text>
             <view class="role-row wrap">
               <text
                 v-for="r in roles"
@@ -107,19 +106,19 @@
                 >{{ r.roleName }}</text
               >
             </view>
-            <button class="btn block" :loading="saving" @click="onSaveRole">保存角色</button>
+            <button class="btn block" :loading="saving" @click="onSaveRole">????</button>
           </view>
 
           <view v-if="canReset" class="section">
-            <text class="section-title">重置密码</text>
+            <text class="section-title">????</text>
             <input
               class="input"
               password
-              placeholder="新密码（至少 6 位）"
+              placeholder="?????? 6 ??"
               :value="resetPassword"
               @input="resetPassword = eventInput($event)"
             />
-            <button class="btn block" :loading="saving" @click="onResetPassword">确认重置</button>
+            <button class="btn block" :loading="saving" @click="onResetPassword">????</button>
           </view>
 
           <view v-if="canDisable && !manageUser.self" class="section">
@@ -129,12 +128,12 @@
               :loading="saving"
               @click="onDisable"
             >
-              停用该成员
+              ?????
             </button>
-            <button v-else class="btn block" :loading="saving" @click="onEnable">重新启用</button>
+            <button v-else class="btn block" :loading="saving" @click="onEnable">????</button>
           </view>
 
-          <button class="btn ghost block" @click="manageVisible = false">关闭</button>
+          <button class="btn ghost block" @click="manageVisible = false">??</button>
         </view>
       </view>
     </view></view
@@ -160,11 +159,11 @@ const saving = ref(false);
 const error = ref('');
 const list = ref<MerchantUserDto[]>([]);
 const roles = ref<MerchantTeamRoleDto[]>([
-  { roleKey: 'merchant', roleName: '商户管理员' },
-  { roleKey: 'merchant_store_manager', roleName: '店长' },
-  { roleKey: 'merchant_finance', roleName: '财务' },
-  { roleKey: 'merchant_replenisher', roleName: '补货员' },
-  { roleKey: 'merchant_staff', roleName: '店员' }
+  { roleKey: 'merchant', roleName: '?????' },
+  { roleKey: 'merchant_store_manager', roleName: '??' },
+  { roleKey: 'merchant_finance', roleName: '??' },
+  { roleKey: 'merchant_replenisher', roleName: '???' },
+  { roleKey: 'merchant_staff', roleName: '??' }
 ]);
 const inviteVisible = ref(false);
 const manageVisible = ref(false);
@@ -202,9 +201,9 @@ function eventInput(e: unknown) {
 function roleLabel(roleKey?: string) {
   const hit = roles.value.find((r) => r.roleKey === roleKey);
   if (hit) return hit.roleName;
-  if (roleKey === 'merchant_admin' || roleKey === 'merchant') return '商户管理员';
-  if (roleKey === 'merchant_staff') return '店员';
-  return roleKey || '成员';
+  if (roleKey === 'merchant_admin' || roleKey === 'merchant') return '?????';
+  if (roleKey === 'merchant_staff') return '??';
+  return roleKey || '??';
 }
 
 function openInvite() {
@@ -229,7 +228,7 @@ async function load() {
   try {
     await refreshMe();
     if (!hasPerm(me.value, 'merchant:users:list')) {
-      error.value = '无团队成员权限';
+      error.value = '???????';
       list.value = [];
       return;
     }
@@ -247,7 +246,7 @@ async function load() {
     me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
     if (!list.value.length) {
       list.value = [];
-      error.value = e instanceof Error ? e.message : '加载失败';
+      error.value = e instanceof Error ? e.message : '????';
     }
   } finally {
     loading.value = false;
@@ -258,11 +257,11 @@ async function onInvite() {
   const phone = form.phoneNumber.trim();
   const password = form.password.trim();
   if (!/^1\d{10}$/.test(phone)) {
-    uni.showToast({ title: '请输入正确手机号', icon: 'none' });
+    uni.showToast({ title: '????????', icon: 'none' });
     return;
   }
   if (password.length < 6) {
-    uni.showToast({ title: '密码至少 6 位', icon: 'none' });
+    uni.showToast({ title: '???? 6 ?', icon: 'none' });
     return;
   }
   saving.value = true;
@@ -273,11 +272,11 @@ async function onInvite() {
       displayName: form.displayName.trim() || undefined,
       roleKey: form.roleKey
     });
-    uni.showToast({ title: '已邀请', icon: 'success' });
+    uni.showToast({ title: '???', icon: 'success' });
     inviteVisible.value = false;
     await load();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '邀请失败', icon: 'none' });
+    uni.showToast({ title: e instanceof Error ? e.message : '????', icon: 'none' });
   } finally {
     saving.value = false;
   }
@@ -288,11 +287,11 @@ async function onSaveRole() {
   saving.value = true;
   try {
     await merchantApi.updateTeamUser(manageUser.value.userId, { roleKey: manageRoleKey.value });
-    uni.showToast({ title: '已更新角色', icon: 'success' });
+    uni.showToast({ title: '?????', icon: 'success' });
     manageVisible.value = false;
     await load();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '更新失败', icon: 'none' });
+    uni.showToast({ title: e instanceof Error ? e.message : '????', icon: 'none' });
   } finally {
     saving.value = false;
   }
@@ -302,16 +301,16 @@ async function onResetPassword() {
   if (!manageUser.value) return;
   const pwd = resetPassword.value.trim();
   if (pwd.length < 6) {
-    uni.showToast({ title: '密码至少 6 位', icon: 'none' });
+    uni.showToast({ title: '???? 6 ?', icon: 'none' });
     return;
   }
   saving.value = true;
   try {
     await merchantApi.resetTeamUserPassword(manageUser.value.userId, pwd);
-    uni.showToast({ title: '密码已重置', icon: 'success' });
+    uni.showToast({ title: '?????', icon: 'success' });
     resetPassword.value = '';
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '重置失败', icon: 'none' });
+    uni.showToast({ title: e instanceof Error ? e.message : '????', icon: 'none' });
   } finally {
     saving.value = false;
   }
@@ -322,11 +321,11 @@ async function onDisable() {
   saving.value = true;
   try {
     await merchantApi.disableTeamUser(manageUser.value.userId);
-    uni.showToast({ title: '已停用', icon: 'success' });
+    uni.showToast({ title: '???', icon: 'success' });
     manageVisible.value = false;
     await load();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '停用失败', icon: 'none' });
+    uni.showToast({ title: e instanceof Error ? e.message : '????', icon: 'none' });
   } finally {
     saving.value = false;
   }
@@ -337,11 +336,11 @@ async function onEnable() {
   saving.value = true;
   try {
     await merchantApi.enableTeamUser(manageUser.value.userId);
-    uni.showToast({ title: '已启用', icon: 'success' });
+    uni.showToast({ title: '???', icon: 'success' });
     manageVisible.value = false;
     await load();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '启用失败', icon: 'none' });
+    uni.showToast({ title: e instanceof Error ? e.message : '????', icon: 'none' });
   } finally {
     saving.value = false;
   }
@@ -365,6 +364,14 @@ async function onEnable() {
   border: none;
   border-radius: 999rpx;
   padding: 0 28rpx;
+  min-height: 72rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+}
+.invite-btn::after {
+  border: none;
 }
 .card {
   background: #fff;

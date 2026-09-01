@@ -1024,7 +1024,7 @@ function callSupport() {
   padding-right: 36rpx;
 }
 .btn-primary {
-  width: fit-content;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1041,7 +1041,7 @@ function callSupport() {
   box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
 }
 .btn-outline {
-  width: fit-content;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1061,7 +1061,7 @@ function callSupport() {
   color: #b91c1c;
 }
 .btn-refund {
-  width: fit-content;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;

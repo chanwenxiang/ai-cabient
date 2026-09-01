@@ -63,13 +63,23 @@ withDefaults(
 }
 .empty-actions {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12rpx;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16rpx;
   margin-top: 20rpx;
   width: 100%;
 }
 .empty-actions > *:not(:first-child) {
-  margin-top: 12rpx;
+  margin-top: 16rpx;
+}
+:deep(.empty-btn + .empty-btn),
+:deep(uni-button.empty-btn + uni-button.empty-btn),
+:deep(button.empty-btn + button.empty-btn) {
+  margin-top: 24rpx !important;
+}
+:deep(.empty-btn),
+:deep(uni-button.empty-btn) {
+  width: 100% !important;
+  max-width: none !important;
 }
 </style>

@@ -70,7 +70,7 @@
           >
           <view class="metric"
             ><text class="metric-value danger">{{ analytics.stockoutSkuCount || 0 }}</text
-            ><text class="metric-label">缺货 SKU</text></view
+            ><text class="metric-label">缺货商品数</text></view
           >
         </view>
         <view class="card">

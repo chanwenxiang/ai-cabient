@@ -70,9 +70,23 @@ withDefaults(
   gap: 16rpx;
   margin-top: 28rpx;
   width: 100%;
-  max-width: 420rpx;
+  box-sizing: border-box;
 }
 .empty-actions > *:not(:first-child) {
   margin-top: 16rpx;
+}
+/* uni 插槽按钮可能落在组件根下：保证空态竖排间距与通栏 */
+:deep(.empty-btn + .empty-btn),
+:deep(uni-button.empty-btn + uni-button.empty-btn),
+:deep(button.empty-btn + button.empty-btn) {
+  margin-top: 24rpx !important;
+}
+:deep(.empty-btn),
+:deep(uni-button.empty-btn) {
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  align-self: stretch !important;
 }
 </style>

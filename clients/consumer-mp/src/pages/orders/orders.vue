@@ -18,7 +18,7 @@
       hint="登录后可查看购物账单与审核进度"
     >
       <button class="empty-btn primary" hover-class="btn-hover" @click="onAuth">去登录</button>
-      <button class="empty-btn ghost" hover-class="btn-hover" @click="goShop">先去扫码购物</button>
+      <button class="empty-btn ghost" hover-class="btn-hover" @click="goShop">扫码购物</button>
     </empty-state>
     <view v-else class="orders-main">
       <!-- 关注区 + 筛选 + 列表同一滚动，避免上半区固定挤占购买记录 -->

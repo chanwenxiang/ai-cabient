@@ -72,7 +72,7 @@
         <view v-if="historyLoading" class="state">加载中…</view>
         <view v-else-if="historyError" class="state">
           <text class="err">{{ historyError }}</text>
-          <button class="retry" size="mini" @click="loadHistory">重试</button>
+          <button class="retry" @click="loadHistory">重试</button>
         </view>
         <empty-state
           v-else-if="!history.length"

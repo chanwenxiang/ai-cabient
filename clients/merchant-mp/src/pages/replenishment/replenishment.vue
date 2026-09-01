@@ -67,7 +67,7 @@
         <view class="patrol-head">
           <view>
             <text class="patrol-title">缺货巡柜</text>
-            <text class="patrol-sub">按缺货严重度推荐 · 点击发起要货</text>
+            <text class="patrol-sub">按缺货严重度推荐，点此发起要货</text>
           </view>
           <text class="patrol-count">{{ lowStockList.length }} 台</text>
         </view>
@@ -84,7 +84,7 @@
             <text class="device-code">{{ d.deviceId }}</text>
           </view>
           <view class="patrol-meta">
-            <text class="patrol-badge">{{ d.skuCount }} SKU 缺货</text>
+            <text class="patrol-badge">{{ d.skuCount }} 个 SKU 缺货</text>
             <text class="patrol-shortage">缺口 {{ d.shortageQty }} 件</text>
           </view>
         </view>
@@ -1987,7 +1987,7 @@ onPullDownRefresh(load);
 .hero-secondary {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  width: 100%;
   gap: 14rpx;
 }
 .scan-primary {
@@ -2010,19 +2010,22 @@ onPullDownRefresh(load);
 .scan-primary::after {
   border: none;
 }
+/* 与主按钮同高同宽基线；多个次要操作时均分一行 */
 .clear-pill {
+  flex: 1 1 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 64rpx;
+  min-width: 0;
+  min-height: 88rpx;
   padding: 0 28rpx;
-  border-radius: 999rpx;
+  border-radius: 44rpx;
   background: #f0fdf4;
   color: #0f766e;
-  font-size: 26rpx;
+  font-size: 28rpx;
   font-weight: 600;
   box-sizing: border-box;
-  border: 1rpx solid #bbf7d0;
+  border: 2rpx solid #99f6e4;
 }
 .clear-pill-hover {
   opacity: 0.82;
@@ -2117,8 +2120,10 @@ onPullDownRefresh(load);
 }
 .patrol-meta {
   display: flex;
-  align-items: center;
-  gap: 12rpx;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  margin-left: 16rpx;
 }
 .patrol-badge {
   padding: 6rpx 12rpx;
@@ -2129,6 +2134,7 @@ onPullDownRefresh(load);
   font-weight: 700;
 }
 .patrol-shortage {
+  margin-top: 8rpx;
   font-size: 22rpx;
   color: #b45309;
   font-weight: 700;

@@ -155,8 +155,10 @@ input {
   box-sizing: border-box;
 }
 
-/* 主按钮：单独出现时收窄居中；通栏用 .btn-block；横向行内用 .btn-inline */
+/* 单独出现收窄居中；通栏交给 .btn-block / .empty-actions
+ * 避免 width:fit-content（旧版微信基础库不稳） */
 .btn-primary,
+.retry,
 .btn-outline,
 .empty-btn.primary,
 .empty-btn.ghost,
@@ -167,7 +169,7 @@ uni-button.btn-primary,
 uni-button.btn-outline,
 uni-button.primary-btn,
 uni-button.empty-btn {
-  width: fit-content;
+  width: 60%;
   min-width: 240rpx;
   max-width: 100%;
   padding-left: 36rpx;
@@ -181,6 +183,8 @@ uni-button.empty-btn {
   text-align: center;
   box-sizing: border-box;
   line-height: 1.2;
+  min-height: 88rpx;
+  height: 88rpx;
 }
 
 .btn-block,
@@ -246,12 +250,14 @@ uni-button.btn-block {
 .empty-actions-row > .empty-btn,
 .empty-actions-row > .btn-primary,
 .empty-btns > .empty-btn {
-  min-width: 0;
-  max-width: none;
-  margin-left: 0;
-  margin-right: 0;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
   margin-bottom: 0;
-  flex: 0 1 auto;
+  flex: none;
+  align-self: stretch !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -261,7 +267,15 @@ uni-button.btn-block {
 .empty-actions > .empty-btn + .empty-btn,
 .empty-actions > uni-button + uni-button,
 .empty-actions > button + button {
-  margin-top: 16rpx;
+  margin-top: 24rpx !important;
+}
+
+/* uni 插槽扁平时：empty-state 根下直接相邻的空态按钮 */
+empty-state .empty-btn + .empty-btn,
+.empty-state .empty-btn + .empty-btn,
+uni-button.empty-btn + uni-button.empty-btn,
+button.empty-btn + button.empty-btn {
+  margin-top: 24rpx !important;
 }
 
 .btn-outline,
