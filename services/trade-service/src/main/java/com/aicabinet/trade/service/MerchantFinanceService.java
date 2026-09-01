@@ -6,8 +6,11 @@ import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
 import com.aicabinet.trade.mapper.*;
+import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.MerchantPortalGuard;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.data.domain.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.context.annotation.Lazy;
@@ -44,6 +47,8 @@ public class MerchantFinanceService {
     private final WeChatProfitSharingService profitSharingService;
     private final ProfitSharingProperties profitSharingProperties;
     private final WeChatPayProperties weChatPayProperties;
+    private final ShoppingSessionMapper sessionRepository;
+    private final MinioVideoService minioVideoService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final MerchantFinanceService self;
 
@@ -57,7 +62,10 @@ public class MerchantFinanceService {
                                   SettlementService settlementService,
                                   WeChatProfitSharingService profitSharingService,
                                   ProfitSharingProperties profitSharingProperties,
-                                  WeChatPayProperties weChatPayProperties, @Lazy MerchantFinanceService self) {
+                                  WeChatPayProperties weChatPayProperties,
+                                  ShoppingSessionMapper sessionRepository,
+                                  MinioVideoService minioVideoService,
+                                  @Lazy MerchantFinanceService self) {
         this.permissionService = permissionService;
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.merchantPortalGuard = merchantPortalGuard;
@@ -69,6 +77,8 @@ public class MerchantFinanceService {
         this.profitSharingService = profitSharingService;
         this.profitSharingProperties = profitSharingProperties;
         this.weChatPayProperties = weChatPayProperties;
+        this.sessionRepository = sessionRepository;
+        this.minioVideoService = minioVideoService;
         this.self = self;
     }
 
@@ -111,6 +121,29 @@ public class MerchantFinanceService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         merchantFeaturePackService.requireDevicePack(userId, order.getDeviceId(), MerchantFeaturePacks.BIZ);
         return settlementService.getOrderBySession(order.getSessionId());
+    }
+
+    /** 商户端播放本商户柜机订单购物录像（鉴权后流式输出）。 */
+    @Transactional(readOnly = true)
+    public void streamOrderVideo(Long userId, String orderId,
+                                 HttpServletRequest request,
+                                 HttpServletResponse response) {
+        permissionService.requirePermission(userId, "merchant:orders:list");
+        merchantPortalGuard.requireAccess(userId);
+        CabinetOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        merchantFeaturePackService.requireDevicePack(userId, order.getDeviceId(), MerchantFeaturePacks.BIZ);
+        String sessionId = order.getSessionId();
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "该订单没有关联会话");
+        }
+        ShoppingSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        String videoUri = session.getVideoUri();
+        if (videoUri == null || videoUri.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "该订单暂无购物视频");
+        }
+        minioVideoService.streamTo(videoUri, request, response);
     }
 
     @Transactional(readOnly = true)
