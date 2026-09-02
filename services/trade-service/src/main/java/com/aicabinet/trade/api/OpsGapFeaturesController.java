@@ -74,10 +74,11 @@ public class OpsGapFeaturesController {
             @RequestParam(required = false) String toDate,
             @RequestParam(required = false) String financialType,
             @RequestParam(required = false) String direction,
+            @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.ok(fundBillService.listLedger(
-                operatorId(request), fromDate, toDate, financialType, direction, page, size));
+                operatorId(request), fromDate, toDate, financialType, direction, keyword, page, size));
     }
 
     @RequiresPermissions("ops:fund:export")

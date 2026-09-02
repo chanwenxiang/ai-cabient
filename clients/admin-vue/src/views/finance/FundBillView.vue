@@ -45,6 +45,7 @@
         <el-input
           v-model="keyword"
           clearable
+          data-testid="fund-keyword"
           :placeholder="tab === 'ledger' ? '分录号 / 订单 / 货柜 / 商户' : '商户编号 / 名称'"
           style="width: 200px"
           @keyup.enter="onSearch"
@@ -177,7 +178,7 @@
           <div class="table-scroll-inner">
             <el-table
               v-loading="ledgerLoading"
-              :data="filteredLedger"
+              :data="displayLedger"
               :default-sort="ledgerIdDefaultSort"
               @sort-change="onLedgerIdSortChange"
               stripe
@@ -243,7 +244,7 @@
           :hydrated="ledgerHydrated"
           v-model:current-page="ledgerPage"
           v-model:page-size="ledgerSize"
-          :total="ledgerPagerTotal"
+          :total="ledgerTotal"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next"
           background
@@ -320,33 +321,6 @@ const {
 const displayBills = computed(() => sortBillsById(bills.value));
 const displayLedger = computed(() => sortLedgerById(ledger.value));
 
-const filteredLedger = computed(() => {
-  const q = keyword.value.trim().toLowerCase();
-  let rows = displayLedger.value;
-  if (q) {
-    rows = rows.filter(
-      (r) =>
-        String(r.orderId || '')
-          .toLowerCase()
-          .includes(q) ||
-        String(r.deviceId || '')
-          .toLowerCase()
-          .includes(q) ||
-        String(r.merchantName || '')
-          .toLowerCase()
-          .includes(q) ||
-        String(r.entryId || '')
-          .toLowerCase()
-          .includes(q)
-    );
-  }
-  return rows;
-});
-
-const ledgerPagerTotal = computed(() =>
-  keyword.value.trim() ? filteredLedger.value.length : ledgerTotal.value
-);
-
 const ledgerTotal = ref(0);
 const ledgerPage = ref(1);
 const ledgerSize = ref(20);
@@ -420,7 +394,7 @@ const { onExport: exportLedgerCsv } = useListCsv({
   filePrefix: '资金账务明细',
   headers: ['财务类型', '收支', '金额', '订单', '货柜', '商户', '时间'],
   toRows: () =>
-    pickLedger(filteredLedger.value).map((row) => [
+    pickLedger(displayLedger.value).map((row) => [
       dictLabel('fund_ledger_type', row.financialType),
       dictLabel('fund_direction', row.direction),
       yuan(row.amountCents),
@@ -509,6 +483,7 @@ async function loadLedger() {
     const q = queryDates();
     if (financialType.value) q.set('financialType', financialType.value);
     if (direction.value) q.set('direction', direction.value);
+    if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
     q.set('page', String(Math.max(0, ledgerPage.value - 1)));
     q.set('size', String(ledgerSize.value));
     const data = await api.request<{ items: LedgerRow[]; total: number }>(
@@ -551,6 +526,7 @@ async function exportCsv() {
 
 watch(keyword, () => {
   billPage.value = 1;
+  ledgerPage.value = 1;
 });
 
 watch(tab, (v) => {
