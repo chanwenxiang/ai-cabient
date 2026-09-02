@@ -80,9 +80,19 @@
                 <el-dropdown-item command="font-sm" class="font-opt--sm">字号：小</el-dropdown-item>
                 <el-dropdown-item command="font-md" class="font-opt--md">字号：中</el-dropdown-item>
                 <el-dropdown-item command="font-lg" class="font-opt--lg">字号：大</el-dropdown-item>
-                <el-dropdown-item divided disabled>操作列</el-dropdown-item>
-                <el-dropdown-item command="action-icon">操作列：图标</el-dropdown-item>
-                <el-dropdown-item command="action-label">操作列：图标+文字</el-dropdown-item>
+                <el-dropdown-item divided disabled>操作列（推荐图标+文字）</el-dropdown-item>
+                <el-dropdown-item
+                  command="action-label"
+                  :class="{ 'is-active-pref': settings.tableActionMode === 'label' }"
+                >
+                  操作列：图标+文字{{ settings.tableActionMode === 'label' ? ' · 当前' : '' }}
+                </el-dropdown-item>
+                <el-dropdown-item
+                  command="action-icon"
+                  :class="{ 'is-active-pref': settings.tableActionMode === 'icon' }"
+                >
+                  操作列：仅图标{{ settings.tableActionMode === 'icon' ? ' · 当前' : '' }}
+                </el-dropdown-item>
                 <el-dropdown-item divided disabled>主题色</el-dropdown-item>
                 <el-dropdown-item
                   v-for="c in PRIMARY_OPTIONS"
@@ -162,6 +172,15 @@
       </Teleport>
 
       <el-main id="main-content" class="layout-main-scroll" tabindex="-1">
+        <el-alert
+          v-if="showNarrowViewportHint"
+          class="narrow-viewport-hint"
+          type="warning"
+          show-icon
+          :closable="true"
+          title="当前窗口较窄，列表操作列可能拥挤。建议浏览器宽度 ≥1280px 做运营验收。"
+          @close="dismissNarrowViewportHint"
+        />
         <router-view v-slot="{ Component, route: viewRoute }">
           <!-- 字典启停后 bump epoch，重建其他缓存页；字典管理页本身不重建以免丢选中 -->
           <keep-alive :max="12">
@@ -221,9 +240,27 @@ const ignoreMenuClose = ref(false);
 const OPENED_MENUS_KEY = 'admin_vue_sidebar_openeds';
 const tagMenu = ref({ visible: false, x: 0, y: 0, path: '' });
 const compactViewport = ref(false);
+/** 列表验收建议宽度：低于此值提示（IMP-048） */
+const narrowOpsViewport = ref(false);
 /** 窄屏自动收起时，用户临时展开不写 localStorage */
 const userExpandedInCompact = ref(false);
 const isFullscreen = ref(!!document.fullscreenElement);
+const NARROW_HINT_KEY = 'admin_vue_narrow_viewport_hint_dismissed';
+const narrowHintDismissed = ref(
+  typeof sessionStorage !== 'undefined' && sessionStorage.getItem(NARROW_HINT_KEY) === '1'
+);
+const showNarrowViewportHint = computed(
+  () => narrowOpsViewport.value && !narrowHintDismissed.value
+);
+
+function dismissNarrowViewportHint() {
+  narrowHintDismissed.value = true;
+  try {
+    sessionStorage.setItem(NARROW_HINT_KEY, '1');
+  } catch {
+    /* ignore quota */
+  }
+}
 
 function toggleFullscreen() {
   if (document.fullscreenElement) {
@@ -549,6 +586,7 @@ function syncSidebarWithViewport() {
     userExpandedInCompact.value = false;
   }
   compactViewport.value = compact;
+  narrowOpsViewport.value = globalThis.innerWidth < 1280;
 }
 
 function onWindowFocus() {
@@ -886,6 +924,10 @@ onUnmounted(() => {
   overscroll-behavior: contain;
   /* 勿再用 translateZ(0) 强开合成层：偶发亚像素错位，刷新才消，像「随机跳动」 */
 }
+.narrow-viewport-hint {
+  flex-shrink: 0;
+  margin: 0;
+}
 
 /* 页面根节点横向铺满主区；允许超宽内容撑开触发页面级横向滚动 */
 .layout-main-scroll > * {
@@ -905,6 +947,10 @@ onUnmounted(() => {
   height: 10px;
   border-radius: 50%;
   margin-right: 6px;
+}
+:deep(.el-dropdown-menu__item.is-active-pref) {
+  color: var(--el-color-primary);
+  font-weight: 600;
 }
 :deep(.el-menu--collapse) {
   width: 64px;

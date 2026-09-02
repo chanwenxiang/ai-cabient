@@ -391,6 +391,9 @@
               label="会员优惠"
               >-¥{{ money(detail.memberDiscountCents) }}</el-descriptions-item
             >
+            <el-descriptions-item v-if="selectedOrderAmountDiffNote" label="差额说明">
+              <span class="amount-diff">{{ selectedOrderAmountDiffNote }}</span>
+            </el-descriptions-item>
             <el-descriptions-item label="支付渠道">
               {{ displayLabel('pay_channel', detail.payChannel, '未知渠道') }}
             </el-descriptions-item>
@@ -624,6 +627,7 @@ import { useAuthStore } from '@/stores/auth';
 import type { OrderSummary, PageResult } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
+import { orderAmountDiffNote } from '@/utils/dispute-amount-note';
 const UNPAID_OVERDUE_MS = 30 * 60 * 1000;
 
 type GoodsLine = { title: string; qty: string };
@@ -702,6 +706,7 @@ const total = ref(0);
 const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detail = ref<any>(null);
+const selectedOrderAmountDiffNote = computed(() => orderAmountDiffNote(detail.value));
 
 const displayItems = computed(() => {
   let list = [...items.value];
@@ -1545,6 +1550,11 @@ onActivated(() => {
 }
 .muted {
   color: var(--el-text-color-secondary);
+}
+.amount-diff {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.5;
 }
 .chase-banner {
   margin: 0 0 10px;

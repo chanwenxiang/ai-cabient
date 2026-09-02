@@ -160,13 +160,15 @@ const more = computed(() => {
 .action-icon-btn.is-with-label {
   width: auto;
   min-width: 32px;
-  padding: 0 8px;
+  min-height: 32px;
+  padding: 0 10px;
   gap: 4px;
 }
 .action-label {
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1;
   white-space: nowrap;
+  font-weight: 500;
 }
 .action-icon-wrap:hover .action-icon-btn:not(:disabled),
 .action-icon-btn:hover:not(:disabled),
