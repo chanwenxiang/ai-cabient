@@ -2128,6 +2128,14 @@ select {
   border-radius: var(--admin-radius, 8px);
 }
 
+/* 全局 button 为 inline-flex，KPI 用 button 时标签/数值会被挤成一行 */
+button.kpi-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+}
+
 .kpi-tile.warn,
 .ops-board__tile.warn:not(.active),
 .stat-tile.warn {
