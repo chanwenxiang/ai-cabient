@@ -1121,7 +1121,7 @@
               <el-table-column
                 v-if="canEdit"
                 label="操作"
-                width="180"
+                min-width="240"
                 class-name="col-action"
                 align="center"
                 fixed="right"
@@ -1136,14 +1136,29 @@
                       @click="openPrint('picking', { outboundId: row.outboundId })"
                       >打印拣货单</el-button
                     >
+                    <el-button
+                      v-if="row.status === 'DRAFT' && row.lines?.length"
+                      link
+                      type="primary"
+                      class="print-btn"
+                      :data-testid="`outbound-${row.outboundId}-pick`"
+                      @click="changeOutbound(row, 'pick')"
+                      >确认拣货</el-button
+                    >
+                    <el-button
+                      v-if="row.status === 'PICKED' && row.lines?.length"
+                      link
+                      type="danger"
+                      class="print-btn"
+                      :data-testid="`outbound-${row.outboundId}-ship`"
+                      @click="changeOutbound(row, 'ship')"
+                      >确认发运</el-button
+                    >
                     <TableActions
-                      v-if="outboundActions(row).length"
-                      :actions="outboundActions(row)"
+                      v-if="outboundSecondaryActions(row).length"
+                      :actions="outboundSecondaryActions(row)"
                       :test-id-prefix="`outbound-${row.outboundId}`"
-                      @action="
-                        (k) =>
-                          changeOutbound(row, String(k) as 'pick' | 'ship' | 'cancel-unreceived')
-                      "
+                      @action="(k) => changeOutbound(row, String(k) as 'cancel-unreceived')"
                     />
                     <span v-else-if="!row.lines?.length && row.status !== 'SHIPPED'" class="muted"
                       >无明细</span
@@ -2133,7 +2148,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Box, EditPen, Refresh, RefreshLeft, Van } from '@element-plus/icons-vue';
+import { EditPen, Refresh, RefreshLeft } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, authFetch, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
@@ -3049,15 +3064,9 @@ function expiryType(value: string) {
   return 'success';
 }
 
-function outboundActions(row: Row): TableAction[] {
+function outboundSecondaryActions(row: Row): TableAction[] {
   const acts: TableAction[] = [];
   const hasLines = (row.lines?.length || 0) > 0;
-  if (row.status === 'DRAFT' && hasLines) {
-    acts.push({ key: 'pick', label: '确认拣货', icon: Box, type: 'primary' });
-  }
-  if (row.status === 'PICKED' && hasLines) {
-    acts.push({ key: 'ship', label: '确认发运', icon: Van, type: 'danger' });
-  }
   if (['DRAFT', 'PICKED', 'SHIPPED'].includes(String(row.status || '')) && hasLines) {
     const handed = (row.lines || []).some((l: Row) =>
       ['RECEIVED', 'PARTIAL'].includes(String(l.handoverStatus || ''))
@@ -3067,8 +3076,7 @@ function outboundActions(row: Row): TableAction[] {
         key: 'cancel-unreceived',
         label: row.status === 'SHIPPED' ? '作废回仓' : '作废出库',
         icon: RefreshLeft,
-        type: 'warning',
-        overflow: acts.length >= 2
+        type: 'warning'
       });
     }
   }

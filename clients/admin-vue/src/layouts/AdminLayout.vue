@@ -542,7 +542,7 @@ function onSettingCommand(cmd: string) {
 }
 
 function syncSidebarWithViewport() {
-  const compact = globalThis.innerWidth <= 1200;
+  const compact = globalThis.innerWidth <= 992;
   if (!compact) {
     userExpandedInCompact.value = false;
   }
@@ -556,6 +556,14 @@ function onWindowFocus() {
 onMounted(() => {
   settings.init();
   syncSidebarWithViewport();
+  // 窄屏且用户从未保存侧栏偏好时，首次进入默认展开（IMP-003）
+  if (
+    compactViewport.value &&
+    !localStorage.getItem('admin_vue_sidebar_collapsed') &&
+    localStorage.getItem('admin_vue_sidebar_user_set') !== '1'
+  ) {
+    userExpandedInCompact.value = true;
+  }
   auth.refreshPermissions().catch(() => {});
   observeTableScrollFit(document.getElementById('main-content') as HTMLElement);
   globalThis.addEventListener('click', hideTagMenu);
