@@ -139,6 +139,9 @@
           <view>
             <text class="device-name">{{ deviceName(task.deviceId, task.deviceName) }}</text>
             <text class="device-code">{{ task.deviceId }}</text>
+            <text v-if="deviceAddressLine(task.deviceId)" class="task-addr">{{
+              deviceAddressLine(task.deviceId)
+            }}</text>
           </view>
           <text class="status" :class="task.status.toLowerCase()">
             {{ displayLabel('replenishment_task_status', task.status, '未知状态') }}
@@ -187,6 +190,37 @@
             </view>
             <text class="close" role="button" aria-label="关闭" @click="closeDetail">×</text>
           </view>
+
+          <view v-if="selected?.deviceId" class="cabinet-card">
+            <text class="cabinet-addr">{{
+              deviceAddressLine(selected.deviceId) ||
+              '暂无点位地址，请对照编号或扫码核对柜机'
+            }}</text>
+            <view class="cabinet-actions">
+              <view
+                class="cabinet-chip"
+                role="button"
+                data-testid="copy-device-id"
+                @click.stop="copyDeviceId(selected.deviceId)"
+                >复制编号</view
+              >
+              <view
+                class="cabinet-chip"
+                role="button"
+                data-testid="navigate-device"
+                @click.stop="navigateToDevice(selected.deviceId)"
+                >导航</view
+              >
+              <view
+                class="cabinet-chip primary"
+                role="button"
+                data-testid="verify-cabinet-scan"
+                @click.stop="verifyCabinetScan"
+                >扫码核对</view
+              >
+            </view>
+          </view>
+
           <view class="step-row four">
             <view class="step" :class="stepClass(1)">
               <text class="step-num">{{
@@ -210,6 +244,23 @@
               <text class="step-num">{{ selected?.status === 'COMPLETED' ? '✓' : '4' }}</text>
               <text class="step-label">{{ detailIsPullOff ? '下架' : '上架' }}</text>
             </view>
+          </view>
+
+          <view
+            v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
+            class="skip-loc-row"
+            role="switch"
+            :aria-checked="skipLocationCheck"
+            data-testid="skip-location-toggle"
+            @click="toggleSkipLocation"
+          >
+            <view class="skip-loc-copy">
+              <text class="skip-loc-label">跳过定位验证</text>
+              <text class="skip-loc-hint">室内 / H5 / 无 GPS 时可直接签到</text>
+            </view>
+            <text class="skip-loc-switch" :class="{ on: skipLocationCheck }">{{
+              skipLocationCheck ? '开' : '关'
+            }}</text>
           </view>
 
           <button
@@ -491,6 +542,17 @@
         <view class="confirm-card" @click.stop>
           <text class="confirm-title">{{ confirmDialog.title }}</text>
           <text class="confirm-body">{{ confirmDialog.content }}</text>
+          <view
+            v-if="confirmDialog.rememberLabel"
+            class="confirm-remember"
+            role="checkbox"
+            :aria-checked="confirmDialog.rememberChecked"
+            data-testid="confirm-remember"
+            @click.stop="confirmDialog.rememberChecked = !confirmDialog.rememberChecked"
+          >
+            <text class="remember-box">{{ confirmDialog.rememberChecked ? '☑' : '☐' }}</text>
+            <text>{{ confirmDialog.rememberLabel }}</text>
+          </view>
           <view class="confirm-actions">
             <button
               type="button"
@@ -533,6 +595,10 @@ import { useMerchantMe } from '@/composables/useMerchantMe';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { promptText } from '@/utils/text-prompt';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
+import {
+  getSkipCheckInLocation,
+  setSkipCheckInLocation
+} from '@/utils/checkin-location-pref';
 import { API_BASE_URL } from '@/config/api';
 import type { DeviceSlot } from '@aicabinet/shared-types';
 
@@ -597,6 +663,16 @@ const openSessionId = ref('');
 /** slotCode -> { maxLevel, bookQty } */
 const slotCaps = ref<Record<string, { maxLevel: number; bookQty: number }>>({});
 const deviceSlotsList = ref<DeviceSlot[]>([]);
+const skipLocationCheck = ref(getSkipCheckInLocation());
+
+type DeviceMeta = {
+  deviceId?: string;
+  deviceName?: string;
+  address?: string;
+  routeCode?: string;
+  latitude?: number;
+  longitude?: number;
+};
 
 const heroSubtitle = computed(() => '扫码到柜 → 签到 → 开门 → 核对履约');
 const efficiencyRateText = computed(() =>
@@ -673,6 +749,8 @@ type ConfirmDialogState = {
   content: string;
   confirmText: string;
   cancelText: string;
+  rememberLabel?: string;
+  rememberChecked: boolean;
   resolve: ((ok: boolean) => void) | null;
 };
 const confirmDialog = ref<ConfirmDialogState>({
@@ -681,6 +759,8 @@ const confirmDialog = ref<ConfirmDialogState>({
   content: '',
   confirmText: '确定',
   cancelText: '取消',
+  rememberLabel: undefined,
+  rememberChecked: false,
   resolve: null
 });
 
@@ -689,6 +769,8 @@ function askConfirm(opts: {
   content: string;
   confirmText?: string;
   cancelText?: string;
+  rememberLabel?: string;
+  rememberDefault?: boolean;
 }): Promise<boolean> {
   return new Promise((resolve) => {
     if (confirmDialog.value.visible && confirmDialog.value.resolve) {
@@ -700,6 +782,8 @@ function askConfirm(opts: {
       content: opts.content,
       confirmText: opts.confirmText || '确定',
       cancelText: opts.cancelText || '取消',
+      rememberLabel: opts.rememberLabel,
+      rememberChecked: opts.rememberDefault ?? false,
       resolve
     };
   });
@@ -707,12 +791,18 @@ function askConfirm(opts: {
 
 function resolveConfirm(ok: boolean) {
   const resolver = confirmDialog.value.resolve;
+  if (ok && confirmDialog.value.rememberLabel && confirmDialog.value.rememberChecked) {
+    skipLocationCheck.value = true;
+    setSkipCheckInLocation(true);
+  }
   confirmDialog.value = {
     visible: false,
     title: '',
     content: '',
     confirmText: '确定',
     cancelText: '取消',
+    rememberLabel: undefined,
+    rememberChecked: false,
     resolve: null
   };
   resolver?.(ok);
@@ -869,9 +959,85 @@ onLoad((opts) => {
 
 function deviceName(id?: string, snapshot?: string) {
   if (snapshot) return snapshot;
-  const d = devices.value.find((item) => item.deviceId === id) as
-    { deviceName?: string } | undefined;
+  const d = deviceMeta(id);
   return d?.deviceName || emptyDisplay(id, 'device');
+}
+
+function deviceMeta(id?: string): DeviceMeta | undefined {
+  if (!id) return undefined;
+  return devices.value.find((item) => item.deviceId === id) as DeviceMeta | undefined;
+}
+
+function deviceAddressLine(id?: string): string {
+  const m = deviceMeta(id);
+  if (!m) return '';
+  const parts = [m.address, m.routeCode ? `线路 ${m.routeCode}` : ''].filter(Boolean);
+  return parts.join(' · ');
+}
+
+function toggleSkipLocation() {
+  skipLocationCheck.value = !skipLocationCheck.value;
+  setSkipCheckInLocation(skipLocationCheck.value);
+}
+
+function copyDeviceId(id?: string) {
+  const code = String(id || selected.value?.deviceId || '').trim();
+  if (!code) return;
+  uni.setClipboardData({
+    data: code,
+    success: () => uni.showToast({ title: '已复制柜机编号', icon: 'none' })
+  });
+}
+
+function navigateToDevice(id?: string) {
+  const m = deviceMeta(id || selected.value?.deviceId);
+  if (!m?.latitude || !m?.longitude) {
+    uni.showToast({ title: '暂无坐标，请按地址或编号找柜', icon: 'none' });
+    return;
+  }
+  const name = encodeURIComponent(m.deviceName || m.deviceId || '柜机');
+  const addr = encodeURIComponent(m.address || m.deviceName || m.deviceId || '');
+  // #ifdef H5
+  if (typeof window !== 'undefined') {
+    window.open(
+      `https://uri.amap.com/marker?position=${m.longitude},${m.latitude}&name=${name}`,
+      '_blank'
+    );
+    return;
+  }
+  // #endif
+  uni.openLocation({
+    latitude: Number(m.latitude),
+    longitude: Number(m.longitude),
+    name: m.deviceName || m.deviceId || '柜机',
+    address: m.address || ''
+  });
+}
+
+async function verifyCabinetScan() {
+  if (scanning.value) return;
+  scanning.value = true;
+  try {
+    const id = await scanCabinetDeviceId();
+    if (!id) return;
+    const expected = String(selected.value?.deviceId || '')
+      .trim()
+      .toUpperCase();
+    const scanned = id.trim().toUpperCase();
+    if (!expected) return;
+    if (scanned !== expected) {
+      await askConfirm({
+        title: '柜机不符',
+        content: `扫到 ${scanned}，本任务柜机为 ${expected}。请确认是否找错柜。`,
+        confirmText: '知道了',
+        cancelText: '关闭'
+      });
+      return;
+    }
+    uni.showToast({ title: '柜机核对一致', icon: 'success' });
+  } finally {
+    scanning.value = false;
+  }
 }
 
 function skuName(id: string) {
@@ -1522,6 +1688,10 @@ async function obtainCheckInLocation(): Promise<{
   body: Record<string, number>;
   locationOk: boolean;
 } | null> {
+  if (skipLocationCheck.value || getSkipCheckInLocation()) {
+    skipLocationCheck.value = true;
+    return { body: {}, locationOk: false };
+  }
   try {
     const location = await getLocationWithTimeout(5000);
     return {
@@ -1531,9 +1701,12 @@ async function obtainCheckInLocation(): Promise<{
   } catch {
     const cont = await askConfirm({
       title: '定位失败',
-      content: '无法获取当前位置，仍可继续签到，但无法校验是否到店。是否继续？',
+      content:
+        '无法获取当前位置，仍可继续签到。补货柜机见上方地址/编号，建议先「扫码核对」确认到柜。',
       confirmText: '继续签到',
-      cancelText: '取消'
+      cancelText: '取消',
+      rememberLabel: '本机不再获取定位，直接签到',
+      rememberDefault: false
     });
     return cont ? { body: {}, locationOk: false } : null;
   }
@@ -1562,9 +1735,11 @@ async function retryCheckInWithoutDistance() {
 async function handleCheckInDistanceFailure(msg: string) {
   const retry = await askConfirm({
     title: '距离柜机过远',
-    content: `${msg}\n\n若你已在柜前（定位漂移），可改为不校验距离继续签到。`,
+    content: `${msg}\n\n若你已在柜前（定位漂移），可改为不校验距离继续签到。也可先「扫码核对」确认柜机。`,
     confirmText: '继续签到',
-    cancelText: '取消'
+    cancelText: '取消',
+    rememberLabel: '本机不再获取定位，直接签到',
+    rememberDefault: skipLocationCheck.value
   });
   if (!retry) return;
   try {
@@ -2224,6 +2399,89 @@ onPullDownRefresh(load);
   color: #94a3b8;
   font-size: 21rpx;
 }
+.task-addr {
+  display: block;
+  margin-top: 6rpx;
+  color: #64748b;
+  font-size: 21rpx;
+  line-height: 1.4;
+  pointer-events: none;
+}
+.cabinet-card {
+  margin: 0 0 20rpx;
+  padding: 20rpx 22rpx;
+  border-radius: 18rpx;
+  background: #f0fdf4;
+  border: 1rpx solid #99f6e4;
+}
+.cabinet-addr {
+  display: block;
+  color: #134e4a;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+.cabinet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 16rpx;
+}
+.cabinet-chip {
+  padding: 10rpx 20rpx;
+  border-radius: 999rpx;
+  background: #fff;
+  border: 1rpx solid #cbd5e1;
+  color: #334155;
+  font-size: 22rpx;
+  font-weight: 600;
+}
+.cabinet-chip.primary {
+  background: #ecfdf5;
+  border-color: #0f766e;
+  color: #0f766e;
+}
+.skip-loc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin: 0 0 16rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 16rpx;
+  background: #f8fafc;
+  border: 1rpx solid #e2e8f0;
+}
+.skip-loc-copy {
+  flex: 1;
+  min-width: 0;
+}
+.skip-loc-label {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #0f172a;
+}
+.skip-loc-hint {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 21rpx;
+  color: #64748b;
+}
+.skip-loc-switch {
+  flex-shrink: 0;
+  min-width: 56rpx;
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  text-align: center;
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #64748b;
+  background: #e2e8f0;
+}
+.skip-loc-switch.on {
+  color: #fff;
+  background: #0f766e;
+}
 .status {
   padding: 8rpx 16rpx;
   border-radius: 999rpx;
@@ -2765,6 +3023,23 @@ onPullDownRefresh(load);
   font-size: 26rpx;
   line-height: 1.55;
   white-space: pre-wrap;
+}
+.confirm-remember {
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
+  margin-top: 20rpx;
+  padding: 16rpx 14rpx;
+  border-radius: 12rpx;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+.remember-box {
+  flex-shrink: 0;
+  color: #0f766e;
+  font-size: 28rpx;
 }
 .confirm-actions {
   display: flex;
