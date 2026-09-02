@@ -155,6 +155,7 @@ import {
   getPreferredDeviceId,
   setPreferredDeviceId
 } from '@/utils/preferred-device';
+import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
 import type {
   DeviceSlot,
   DeviceTemperatureReading,
@@ -388,25 +389,13 @@ function togglePreferred() {
 }
 
 function openNav() {
-  if (latitude.value == null || longitude.value == null) {
-    uni.showToast({ title: '暂无坐标', icon: 'none' });
-    return;
-  }
-  // #ifdef H5
-  const q = encodeURIComponent(address.value || deviceName.value || deviceId.value);
-  window.open(
-    `https://uri.amap.com/marker?position=${longitude.value},${latitude.value}&name=${q}`,
-    '_blank'
-  );
-  // #endif
-  // #ifndef H5
-  uni.openLocation({
-    latitude: Number(latitude.value),
-    longitude: Number(longitude.value),
-    name: deviceName.value || deviceId.value,
-    address: address.value || ''
+  void confirmOpenDeviceNavigation({
+    latitude: latitude.value,
+    longitude: longitude.value,
+    name: deviceName.value,
+    address: address.value,
+    deviceId: deviceId.value
   });
-  // #endif
 }
 
 function goReplenishment() {
