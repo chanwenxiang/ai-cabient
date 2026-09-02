@@ -111,12 +111,22 @@ public class ProcurementService {
 
     @Transactional(readOnly = true)
     public PageResult<PurchaseOrderDto> listPurchaseOrdersPage(
-            Long operatorId, String keyword, String warehouseId, boolean returnableOnly, int page, int size) {
+            Long operatorId, String keyword, String warehouseId, boolean returnableOnly,
+            boolean excludeTestRef, int page, int size) {
         requireWarehouseRead(operatorId);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
-        var result = purchaseOrderRepository.searchPage(keyword, warehouseId, returnableOnly, p, s);
-        List<PurchaseOrderDto> items = result.getRecords().stream().map(this::toPurchaseDto).toList();
+        var result = purchaseOrderRepository.searchPage(keyword, warehouseId, returnableOnly, excludeTestRef, p, s);
+        List<PurchaseOrder> records = result.getRecords();
+        List<String> pendingBizIds = records.stream()
+                .filter(o -> PENDING_APPROVAL.equals(o.getStatus()))
+                .map(o -> String.valueOf(o.getPurchaseOrderId()))
+                .toList();
+        java.util.Map<String, ApprovalWorkflowService.ApprovalPendingView> pendingViews =
+                approvalWorkflowService.pendingViewsForBiz(BIZ_PURCHASE_ORDER, pendingBizIds, operatorId);
+        List<PurchaseOrderDto> items = records.stream()
+                .map(o -> toPurchaseDto(o, pendingViews.get(String.valueOf(o.getPurchaseOrderId()))))
+                .toList();
         return new PageResult<>(items, p, s, result.getTotal());
     }
 
@@ -125,7 +135,13 @@ public class ProcurementService {
         requireWarehouseRead(operatorId);
         PurchaseOrder order = purchaseOrderRepository.findById(purchaseOrderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, PURCHASE_ORDER_NOT_FOUND));
-        return toPurchaseDto(order);
+        ApprovalWorkflowService.ApprovalPendingView view = null;
+        if (PENDING_APPROVAL.equals(order.getStatus())) {
+            view = approvalWorkflowService.pendingViewsForBiz(
+                    BIZ_PURCHASE_ORDER, List.of(String.valueOf(purchaseOrderId)), operatorId)
+                    .get(String.valueOf(purchaseOrderId));
+        }
+        return toPurchaseDto(order, view);
     }
 
     @Transactional
@@ -230,7 +246,13 @@ public class ProcurementService {
         } else {
             auditService.appendLog(operatorId, "PURCHASE_ORDER_APPROVE", BIZ_PURCHASE_ORDER, bizId, "审批节点通过");
         }
-        return toPurchaseDto(purchaseOrderRepository.save(order));
+        order = purchaseOrderRepository.save(order);
+        ApprovalWorkflowService.ApprovalPendingView view = null;
+        if (PENDING_APPROVAL.equals(order.getStatus())) {
+            view = approvalWorkflowService.pendingViewsForBiz(BIZ_PURCHASE_ORDER, List.of(bizId), operatorId)
+                    .get(bizId);
+        }
+        return toPurchaseDto(order, view);
     }
 
     @Transactional(readOnly = true)
@@ -468,6 +490,10 @@ public class ProcurementService {
     }
 
     private PurchaseOrderDto toPurchaseDto(PurchaseOrder order) {
+        return toPurchaseDto(order, null);
+    }
+
+    private PurchaseOrderDto toPurchaseDto(PurchaseOrder order, ApprovalWorkflowService.ApprovalPendingView view) {
         return new PurchaseOrderDto(
                 order.getPurchaseOrderId(),
                 order.getSupplierId(),
@@ -479,7 +505,9 @@ public class ProcurementService {
                 order.getCreatedAt(),
                 order.getReceivedAt(),
                 purchaseOrderLineRepository.findByPurchaseOrderIdOrderByLineIdAsc(order.getPurchaseOrderId())
-                        .stream().map(this::toPurchaseLineDto).toList()
+                        .stream().map(this::toPurchaseLineDto).toList(),
+                view != null ? view.currentNodeName() : null,
+                view != null ? view.pendingForUser() : null
         );
     }
 

@@ -929,6 +929,17 @@ select {
   padding-bottom: 20px;
 }
 
+.layout-main-scroll > .page-card > .el-card__body > .warehouse-tab-groups,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .warehouse-tab-groups {
+  flex-shrink: 0;
+}
+
+/* 仓库页：分组导航 + tabs，避免 min-height:100% 撑出大片空白 */
+.layout-main-scroll > .page-fill.warehouse-page > .page-card.warehouse-page-card,
+.layout-main-scroll > .page-fill:has(> .warehouse-page-card) {
+  min-height: 0;
+}
+
 .layout-main-scroll > .page-card > .el-card__body > .filter-bar,
 .layout-main-scroll > .page-card > .el-card__body > .el-form,
 .layout-main-scroll > .page-card > .el-card__body > .el-alert,

@@ -1,5 +1,6 @@
 <template>
-  <el-card class="page-card report-page" shadow="never">
+  <div class="page-fill warehouse-page">
+  <el-card class="page-card report-page warehouse-page-card" shadow="never">
     <template #header>
       <div class="page-card-head">
         <div class="page-card-head__meta">
@@ -144,6 +145,14 @@
         label="关键词"
       >
         <el-input v-model="keyword" clearable placeholder="搜索关键词" style="width: 200px" />
+      </el-form-item>
+      <el-form-item v-if="tab === 'purchase'" label="列表">
+        <el-checkbox
+          v-model="hideTestPurchaseOrders"
+          data-testid="purchase-hide-test-ref"
+          @change="onPurchaseFilterChange"
+          >隐藏 E2E/冒烟测试单</el-checkbox
+        >
       </el-form-item>
       <el-form-item v-if="tab === 'suggestions'" label="采购前置期(天)">
         <el-input-number
@@ -638,6 +647,21 @@
                 </template>
               </el-table-column>
               <el-table-column
+                v-if="canProcurementList"
+                label="审批节点"
+                min-width="140"
+                align="center"
+                show-overflow-tooltip
+              >
+                <template #default="{ row }">
+                  <span v-if="row.status === 'PENDING_APPROVAL' && row.approvalCurrentNodeName">{{
+                    row.approvalCurrentNodeName
+                  }}</span>
+                  <span v-else-if="row.status === 'PENDING_APPROVAL'" class="muted">待审批</span>
+                  <span v-else class="muted">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column
                 v-if="canEdit"
                 label="操作"
                 min-width="220"
@@ -655,14 +679,14 @@
                     >打印收货单</el-button
                   >
                   <el-button
-                    v-if="row.status === 'PENDING_APPROVAL' && canReviewPurchase"
+                    v-if="row.status === 'PENDING_APPROVAL' && canReviewPurchaseRow(row)"
                     link
                     type="success"
                     @click="reviewPurchase(row, true)"
                     >通过</el-button
                   >
                   <el-button
-                    v-if="row.status === 'PENDING_APPROVAL' && canReviewPurchase"
+                    v-if="row.status === 'PENDING_APPROVAL' && canReviewPurchaseRow(row)"
                     link
                     type="danger"
                     @click="reviewPurchase(row, false)"
@@ -2184,6 +2208,7 @@
       </template>
     </el-dialog>
   </el-card>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -2212,6 +2237,12 @@ const canProcurementList = computed(() => auth.hasPerm('ops:procurement:list'));
 const canReviewPurchase = computed(
   () => canProcurementEdit.value || auth.hasPerm('ops:finance:view')
 );
+function canReviewPurchaseRow(row: Row) {
+  if (!canReviewPurchase.value || row.status !== 'PENDING_APPROVAL') return false;
+  if (row.approvalPendingForMe === true) return true;
+  if (row.approvalPendingForMe === false) return false;
+  return canProcurementEdit.value;
+}
 const canEdit = computed(() => {
   if (['suppliers', 'purchase', 'returns', 'suggestions'].includes(tab.value))
     return canProcurementEdit.value;
@@ -2383,6 +2414,10 @@ const tabTotals = ref<Record<string, number>>({});
 const page = ref(1);
 const size = ref(20);
 const keyword = ref('');
+const HIDE_TEST_PO_KEY = 'admin_warehouse_hide_test_po';
+const hideTestPurchaseOrders = ref(
+  localStorage.getItem(HIDE_TEST_PO_KEY) !== '0'
+);
 const filterWarehouseId = ref('');
 /** 默认「待处理」：有明细的 DRAFT + PICKED，避免历史草稿淹没操作列 */
 const filterOutboundStatus = ref<string>('actionable');
@@ -3271,8 +3306,10 @@ async function loadSuppliersSoft() {
   }
 }
 async function loadPurchase() {
+  const q = warehouseListParams();
+  if (hideTestPurchaseOrders.value) q.set('excludeTestRef', 'true');
   const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/purchase-orders?${warehouseListParams()}`,
+    `/api/v2/ops/admin/purchase-orders?${q}`,
     'GET'
   );
   purchaseOrders.value = data.items || [];
@@ -3577,6 +3614,12 @@ function onWarehouseFilter() {
     loadedTabs.value.delete(tab.value);
     loadTab(tab.value, true);
   }
+}
+function onPurchaseFilterChange() {
+  localStorage.setItem(HIDE_TEST_PO_KEY, hideTestPurchaseOrders.value ? '1' : '0');
+  page.value = 1;
+  loadedTabs.value.delete('purchase');
+  loadTab('purchase', true);
 }
 function onSuggestionParamsChange() {
   page.value = 1;
@@ -4051,7 +4094,8 @@ async function removePurchaseLine(index: number) {
     await ElMessageBox.confirm('确定删除该采购行吗？', '删除行', {
       type: 'warning',
       confirmButtonText: '删除',
-      cancelButtonText: '取消'
+      cancelButtonText: '取消',
+      appendTo: document.body
     });
   } catch {
     return;
@@ -4064,7 +4108,8 @@ async function removeInboundLine(index: number) {
     await ElMessageBox.confirm('确定删除该入库行吗？', '删除行', {
       type: 'warning',
       confirmButtonText: '删除',
-      cancelButtonText: '取消'
+      cancelButtonText: '取消',
+      appendTo: document.body
     });
   } catch {
     return;
@@ -4116,17 +4161,32 @@ async function reviewPurchase(row: Row, approve: boolean) {
         ? `确认通过采购单 ${label}？`
         : `确认驳回采购单 ${label}？`,
       approve ? '审批通过' : '审批驳回',
-      { type: approve ? 'info' : 'warning' }
+      { type: approve ? 'info' : 'warning', appendTo: document.body }
     );
   } catch {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/admin/purchase-orders/${row.purchaseOrderId}/review`, 'POST', {
-      approve,
-      remark: approve ? '审批通过' : '审批驳回'
-    });
-    ElMessage.success(approve ? '已通过' : '已驳回');
+    const updated = await api.request<Row>(
+      `/api/v2/ops/admin/purchase-orders/${row.purchaseOrderId}/review`,
+      'POST',
+      {
+        approve,
+        remark: approve ? '审批通过' : '审批驳回'
+      }
+    );
+    if (approve) {
+      if (updated?.status === 'PENDING_APPROVAL') {
+        const node = updated.approvalCurrentNodeName;
+        ElMessage.success(
+          node ? `已通过本节点，仍待「${node}」审批` : '已通过本节点，仍待下一节点审批'
+        );
+      } else {
+        ElMessage.success('审批已全部通过');
+      }
+    } else {
+      ElMessage.success('已驳回');
+    }
     loadedTabs.value.delete('purchase');
     await loadTab('purchase', true);
   } catch (e) {
@@ -4151,7 +4211,10 @@ function openReceive(row: Row) {
 async function saveReceive() {
   saving.value = true;
   try {
-    await ElMessageBox.confirm('确认按累计收货数量入库？', '采购收货', { type: 'warning' });
+    await ElMessageBox.confirm('确认按累计收货数量入库？', '采购收货', {
+      type: 'warning',
+      appendTo: document.body
+    });
     await api.request(
       `/api/v2/ops/admin/purchase-orders/${receiveForm.purchaseOrderId}/receive`,
       'POST',
@@ -4225,7 +4288,10 @@ async function saveReturn() {
   }
   saving.value = true;
   try {
-    await ElMessageBox.confirm('确认退货并扣减仓库库存？', '采购退货', { type: 'warning' });
+    await ElMessageBox.confirm('确认退货并扣减仓库库存？', '采购退货', {
+      type: 'warning',
+      appendTo: document.body
+    });
     await api.request('/api/v2/ops/admin/purchase-returns', 'POST', {
       purchaseOrderId: returnForm.purchaseOrderId,
       notes: returnForm.notes,
@@ -4288,7 +4354,7 @@ async function cleanupStaleOutbounds() {
     await ElMessageBox.confirm(
       '将安全作废：空草稿/已拣货、终态路线上的未发运草稿、终态路线上未签收且无已完成任务的发运单（回仓并取消在途）。不硬删业务行；已签收或任务已完成的单据跳过。',
       '清理空草稿/脏在途',
-      { type: 'warning', confirmButtonText: '确认清理' }
+      { type: 'warning', confirmButtonText: '确认清理', appendTo: document.body }
     );
   } catch {
     return;
@@ -4510,6 +4576,13 @@ watch(
 }
 .warehouse-tab-groups {
   margin: 0 0 12px;
+  flex-shrink: 0;
+}
+.warehouse-page-card {
+  min-height: 0;
+}
+.warehouse-page :deep(.el-tabs__content) {
+  min-height: 0;
 }
 .warehouse-tab-groups :deep(.el-radio-button__inner) {
   padding: 8px 14px;

@@ -321,10 +321,11 @@ public class OpsCommercialController {
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "warehouseId", required = false) String warehouseId,
             @RequestParam(name = "returnableOnly", defaultValue = "false") boolean returnableOnly,
+            @RequestParam(name = "excludeTestRef", defaultValue = "false") boolean excludeTestRef,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size) {
         return ApiResponse.ok(support.procurementService().listPurchaseOrdersPage(
-                operatorId(request), q, warehouseId, returnableOnly, page, size));
+                operatorId(request), q, warehouseId, returnableOnly, excludeTestRef, page, size));
     }
 
     @RequiresPermissions("ops:procurement:list")
