@@ -1211,7 +1211,7 @@
                 :data-testid="`plan-device-option-${device.deviceId}`"
               >
                 <el-checkbox :label="device.deviceId">
-                  {{ device.deviceName || device.deviceId }}（{{ device.deviceId }}）
+                  {{ planDeviceLabel(device) }}
                 </el-checkbox>
               </div>
             </el-checkbox-group>
@@ -1815,14 +1815,29 @@ async function loadAssignees() {
 }
 
 /** Prefer API snapshot name; fall back to shortage/device list join. */
+function isGarbledDeviceName(name?: string | null): boolean {
+  const s = name != null ? String(name).trim() : '';
+  if (!s) return true;
+  // UTF-8 误读/损坏常见：全问号、替换符、大量不可打印字符
+  if (/[\uFFFD]/.test(s) || /^\?+$/.test(s) || /\?{3,}/.test(s)) return true;
+  if (/^[\x00-\x08\x0B\x0C\x0E-\x1F]+$/.test(s)) return true;
+  return false;
+}
+
 function deviceName(deviceId?: string, snapshot?: string | null) {
   const snap = snapshot != null ? String(snapshot).trim() : '';
-  if (snap) return snap;
+  if (snap && !isGarbledDeviceName(snap)) return snap;
   const id = deviceId != null ? String(deviceId) : '';
   if (!id) return '无';
   const fromShortage = shortages.value.find((item) => item.deviceId === id)?.deviceName;
-  if (fromShortage) return fromShortage;
-  return devices.value.find((item) => item.deviceId === id)?.deviceName || id;
+  if (fromShortage && !isGarbledDeviceName(fromShortage)) return fromShortage;
+  const fromDevices = devices.value.find((item) => item.deviceId === id)?.deviceName;
+  if (fromDevices && !isGarbledDeviceName(fromDevices)) return fromDevices;
+  return id;
+}
+
+function planDeviceLabel(device: Row) {
+  return `${deviceName(device.deviceId, device.deviceName)}（${device.deviceId}）`;
 }
 function localDate() {
   const now = new Date();
