@@ -686,7 +686,9 @@
                   show-overflow-tooltip
                 >
                   <template #default="{ row }">
-                    <template v-if="row.status === 'PENDING_APPROVAL' && row.approvalCurrentNodeName">
+                    <template
+                      v-if="row.status === 'PENDING_APPROVAL' && row.approvalCurrentNodeName"
+                    >
                       <span>{{ row.approvalCurrentNodeName }}</span>
                       <span v-if="row.approvalPendingForMe === false" class="muted">
                         （待他人处理）
