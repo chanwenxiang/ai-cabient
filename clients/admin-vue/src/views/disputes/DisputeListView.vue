@@ -469,6 +469,9 @@
               >
               <span v-else class="muted">—</span>
             </el-descriptions-item>
+            <el-descriptions-item v-if="selectedAmountDiffNote" label="差额说明">
+              <span class="amount-diff">{{ selectedAmountDiffNote }}</span>
+            </el-descriptions-item>
             <el-descriptions-item label="已退金额">
               <span v-if="selected.refundedAmountCents != null"
                 >¥{{ money(selected.refundedAmountCents) }}</span
@@ -647,6 +650,7 @@ import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
+import { disputeAmountDiffNote } from '@/utils/dispute-amount-note';
 import { useTableSelection } from '@/composables/useTableSelection';
 import type {
   DevRecognitionPreviewDto,
@@ -760,6 +764,7 @@ const emptyHint = computed(() => {
 });
 
 const hasPriorBill = computed(() => (selected.value?.billedAmountCents || 0) > 0);
+const selectedAmountDiffNote = computed(() => disputeAmountDiffNote(selected.value));
 
 const draftConfirmItems = computed(() =>
   draftLines.value
@@ -1618,6 +1623,11 @@ onMounted(async () => {
 }
 .muted {
   color: var(--el-text-color-secondary);
+}
+.amount-diff {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.5;
 }
 .resolve-feedback {
   margin-bottom: 16px;

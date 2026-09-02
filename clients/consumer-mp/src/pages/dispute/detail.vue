@@ -94,6 +94,7 @@
           <text class="bill-label">最终扣款</text>
           <text class="bill-amount">{{ fmtMoney(ticket.billedAmountCents ?? 0) }}</text>
         </view>
+        <text v-if="amountDiffNote" class="amount-diff">{{ amountDiffNote }}</text>
       </view>
 
       <view class="actions">
@@ -117,7 +118,7 @@
 import { computed, ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { consumerApi, getConsumerToken, requireConsumerAuth } from '@/utils/consumer-api';
-import { consumerDisputeReviewCopy, shouldShowConsumerRefundChannel } from '@/utils/dispute-copy';
+import { consumerDisputeReviewCopy, shouldShowConsumerRefundChannel, disputeAmountDiffNote } from '@/utils/dispute-copy';
 import { fetchEvidenceLocalPath } from '@/utils/dispute-evidence';
 import { displayLabel } from '@aicabinet/shared-dict';
 import {
@@ -143,6 +144,10 @@ const isResolved = computed(() => ticket.value?.status === 'RESOLVED');
 const suggestedLines = computed<OrderLineDto[]>(() => ticket.value?.suggestedItems || []);
 const resolutionLines = computed<OrderLineDto[]>(() => ticket.value?.resolutionItems || []);
 const refundChannelText = ref('');
+const orderDiscount = ref<{ memberDiscountCents?: number; couponDiscountCents?: number }>({});
+const amountDiffNote = computed(() =>
+  disputeAmountDiffNote(ticket.value, orderDiscount.value)
+);
 const statusText = computed(() => {
   const s = ticket.value?.status || '';
   if (s === 'OPEN') return '审核中 · 暂未扣款';
@@ -285,10 +290,25 @@ function applyFoundTicket(found: DisputeTicketDto) {
   sessionId.value = found.sessionId || sessionId.value;
   ticketId.value = found.ticketId || ticketId.value;
   void hydrateEvidencePreviews();
+  void loadOrderDiscount(found.orderId);
   if (shouldShowConsumerRefundChannel(found)) {
     void loadRefundChannel(found.orderId);
   } else {
     refundChannelText.value = '';
+  }
+}
+
+async function loadOrderDiscount(orderId?: string) {
+  orderDiscount.value = {};
+  if (!orderId) return;
+  try {
+    const order = await consumerApi.getOrder(orderId);
+    orderDiscount.value = {
+      memberDiscountCents: Number(order?.memberDiscountCents || 0) || undefined,
+      couponDiscountCents: Number(order?.couponDiscountCents || 0) || undefined
+    };
+  } catch {
+    orderDiscount.value = {};
   }
 }
 
@@ -634,6 +654,13 @@ function previewEvidence(img: FileAttachmentDto) {
   font-size: 40rpx;
   font-weight: 800;
   color: #047857;
+}
+.amount-diff {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  line-height: 1.5;
+  color: #64748b;
 }
 .actions {
   padding: 28rpx 24rpx 8rpx;

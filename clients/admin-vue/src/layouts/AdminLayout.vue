@@ -170,7 +170,7 @@
               :key="
                 viewRoute.name === 'dicts'
                   ? String(viewRoute.path)
-                  : `${viewRoute.path}#d${dictRuntimeEpoch}`
+                  : `${String(viewRoute.name || viewRoute.path)}#${viewRoute.path}#d${dictRuntimeEpoch}`
               "
             />
           </keep-alive>
@@ -197,6 +197,7 @@ import {
   stopTableScrollFit,
   syncTableScrollFit
 } from '@/utils/table-scroll-fit';
+import { dismissPageOverlays } from '@/utils/dismiss-page-overlays';
 import AppBreadcrumb from '@/components/AppBreadcrumb.vue';
 import GlobalSearch from '@/components/GlobalSearch.vue';
 import OpsApprovalInbox from '@/components/OpsApprovalInbox.vue';
@@ -385,6 +386,7 @@ watch(sidebarCollapsed, (collapsed) => syncOpenedMenusForRoute(route.path, colla
 watch(
   () => route.path,
   (path) => {
+    dismissPageOverlays();
     if (path === '/login') return;
     // 404/403 不进标签栏，避免错误页污染多标签并干扰「返回」
     if (route.name === 'not-found' || route.name === 'forbidden') return;
