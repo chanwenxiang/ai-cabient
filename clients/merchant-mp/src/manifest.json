@@ -22,6 +22,12 @@
       "postcss": true
     },
     "usingComponents": true,
-    "lazyCodeLoading": "requiredComponents"
+    "lazyCodeLoading": "requiredComponents",
+    "permission": {
+      "scope.userLocation": {
+        "desc": "用于补货签到校验是否到达柜机位置"
+      }
+    },
+    "requiredPrivateInfos": ["getLocation"]
   }
 }
