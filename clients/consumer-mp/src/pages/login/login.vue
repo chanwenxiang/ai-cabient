@@ -145,7 +145,7 @@
 </template>
 
 <script setup lang="ts">
-import { onLoad, onReady, onUnload } from '@dcloudio/uni-app';
+import { onLoad, onReady, onShow, onUnload } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import {
@@ -155,6 +155,7 @@ import {
   consumerWxH5Login,
   consumerWxLogin,
   ensureConsumerAuth,
+  getConsumerToken,
   sendSmsCode
 } from '@/utils/consumer-api';
 import { eventInputValue, readDomFieldValue, readDomPassword } from '@/utils/form-bind';
@@ -204,6 +205,17 @@ function clearCodeTimer() {
 onLoad((opts) => {
   refreshLoginPad();
   if (opts?.redirect) redirect.value = decodeRedirectParam(String(opts.redirect));
+});
+
+/** 已登录时不应停留在 login URL（IMP-004） */
+onShow(async () => {
+  if (!getConsumerToken()) return;
+  try {
+    const ok = await ensureConsumerAuth();
+    if (ok) finishLogin();
+  } catch {
+    /* 保留登录页供手动重试 */
+  }
 });
 
 onReady(() => refreshLoginPad());

@@ -9,6 +9,19 @@
   <body>
     <a class="skip-link" href="#main-content">跳到主内容</a>
     <div id="app"></div>
+    <script>
+      (function () {
+        var p = location.pathname || '';
+        if (!/\/index\.html$/i.test(p)) return;
+        var h = location.hash || '';
+        if (h.indexOf('#/') !== 0) return;
+        var r = h.slice(1);
+        if (!r || r.charAt(0) !== '/') return;
+        var b = p.replace(/\/index\.html$/i, '');
+        if (b.slice(-1) !== '/') b += '/';
+        location.replace(b + r.replace(/^\//, '') + (location.search || ''));
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

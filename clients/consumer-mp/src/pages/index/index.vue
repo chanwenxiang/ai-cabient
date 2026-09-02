@@ -263,6 +263,7 @@
                   class="stepper-btn"
                   role="button"
                   :aria-label="`减少 ${p.skuName}`"
+                  :data-testid="`product-step-minus-${p.skuId}`"
                   :data-sku-id="p.skuId"
                   @click.stop="onRemoveProductTap"
                   >−</text
@@ -274,6 +275,7 @@
                   role="button"
                   :aria-disabled="(!canAddProduct(p)).toString()"
                   :aria-label="`增加 ${p.skuName}`"
+                  :data-testid="`product-step-plus-${p.skuId}`"
                   :data-sku-id="p.skuId"
                   @click.stop="onAddProductTap"
                   >+</text

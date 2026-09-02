@@ -1,6 +1,7 @@
 <template>
   <el-popover
     v-if="visible"
+    v-model:visible="popoverVisible"
     placement="bottom-end"
     :width="380"
     trigger="click"
@@ -101,7 +102,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Bell } from '@element-plus/icons-vue';
@@ -160,6 +161,7 @@ const router = useRouter();
 const auth = useAuthStore();
 
 const loading = ref(false);
+const popoverVisible = ref(false);
 const reviewingTaskId = ref<number | null>(null);
 const pendingTaskCount = ref(0);
 const unreadMessageCount = ref(0);
@@ -306,15 +308,28 @@ function canNavigateTask(task: ApprovalTask): boolean {
   return true;
 }
 
+function purchaseConfirmSubject(task: ApprovalTask): string {
+  const title = String(task.title || '').trim();
+  if (title) {
+    if (/采购单/.test(title)) return title;
+    return title;
+  }
+  const id = String(task.bizId || '').trim();
+  return id ? `采购单 ${id}` : '该采购单';
+}
+
 async function inlineReview(task: ApprovalTask, approve: boolean) {
   if (task.bizType !== 'PURCHASE_ORDER' || !task.bizId) return;
+  popoverVisible.value = false;
+  await nextTick();
+  const subject = purchaseConfirmSubject(task);
   try {
     await ElMessageBox.confirm(
       approve
-        ? `确认通过采购单 ${task.title || task.bizId}（${task.nodeName || '当前节点'}）？`
-        : `确认驳回采购单 ${task.title || task.bizId}？`,
+        ? `确认通过 ${subject}（${task.nodeName || '当前节点'}）？`
+        : `确认驳回 ${subject}？`,
       approve ? '审批通过' : '审批驳回',
-      { type: approve ? 'info' : 'warning' }
+      { type: approve ? 'info' : 'warning', appendTo: 'body' }
     );
   } catch {
     return;
