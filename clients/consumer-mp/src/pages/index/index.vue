@@ -2379,17 +2379,20 @@ function stopDevicePoll() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8rpx;
   margin-top: 6rpx;
+  min-height: 72rpx;
 }
 .stepper-btn {
-  width: 44rpx;
-  height: 44rpx;
+  flex: 0 0 72rpx;
+  width: 72rpx;
+  height: 72rpx;
   border-radius: 50%;
   background: #eef6f2;
   color: var(--brand, #047857);
-  font-size: 28rpx;
+  font-size: 32rpx;
   font-weight: 700;
-  line-height: 44rpx;
+  line-height: 72rpx;
   text-align: center;
 }
 .stepper-btn.plus {
