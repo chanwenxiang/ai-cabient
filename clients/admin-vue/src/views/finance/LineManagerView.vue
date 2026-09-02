@@ -144,7 +144,13 @@
             <el-table-column label="创建时间" width="170" align="center">
               <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="360" align="center" class-name="col-action" fixed="right">
+            <el-table-column
+              label="操作"
+              width="360"
+              align="center"
+              class-name="col-action"
+              fixed="right"
+            >
               <template #default="{ row }">
                 <el-button
                   v-hasPermi="['ops:line-manager:edit']"
@@ -269,7 +275,13 @@
             <el-table-column label="打款时间" width="170" align="center">
               <template #default="{ row }">{{ formatDateTime(row.paidAt) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="200" align="center" class-name="col-action" fixed="right">
+            <el-table-column
+              label="操作"
+              width="200"
+              align="center"
+              class-name="col-action"
+              fixed="right"
+            >
               <template #default="{ row }">
                 <template
                   v-if="row.status === 'PENDING_REVIEW' && auth.hasPerm('ops:line-withdraw:review')"

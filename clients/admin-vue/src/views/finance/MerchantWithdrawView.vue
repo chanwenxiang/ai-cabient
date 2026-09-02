@@ -9,9 +9,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <template
-            v-if="tab === 'withdraws' && auth.hasPerm('ops:merchant-withdraw:review')"
-          >
+          <template v-if="tab === 'withdraws' && auth.hasPerm('ops:merchant-withdraw:review')">
             <el-button
               type="success"
               plain
@@ -93,7 +91,13 @@
                 displayLabel('merchant_status', row.status, '暂无')
               }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="260" align="center" class-name="col-action" fixed="right">
+            <el-table-column
+              label="操作"
+              width="260"
+              align="center"
+              class-name="col-action"
+              fixed="right"
+            >
               <template #default="{ row }">
                 <el-button
                   v-hasPermi="['ops:merchant-withdraw:adjust']"
@@ -217,7 +221,13 @@
             <el-table-column label="申请时间" width="170" align="center">
               <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="200" align="center" class-name="col-action" fixed="right">
+            <el-table-column
+              label="操作"
+              width="200"
+              align="center"
+              class-name="col-action"
+              fixed="right"
+            >
               <template #default="{ row }">
                 <template
                   v-if="

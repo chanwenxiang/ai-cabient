@@ -125,7 +125,13 @@
           >
             <template #default="{ row }">{{ row.remark || '无' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="160" class-name="col-action" align="center" fixed="right">
+          <el-table-column
+            label="操作"
+            width="160"
+            class-name="col-action"
+            align="center"
+            fixed="right"
+          >
             <template #default="{ row }">
               <TableActions :actions="roleActions(row)" @action="(k) => onRoleAction(k, row)" />
             </template>

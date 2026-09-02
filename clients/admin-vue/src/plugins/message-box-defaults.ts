@@ -9,7 +9,11 @@ function withBodyAppend(options?: ElMessageBoxOptions | null): ElMessageBoxOptio
 type AnyMsg = (...args: any[]) => ReturnType<typeof ElMessageBox.confirm>;
 
 function wrap(method: AnyMsg): AnyMsg {
-  return (message: string, titleOrOptions?: string | ElMessageBoxOptions, options?: ElMessageBoxOptions) => {
+  return (
+    message: string,
+    titleOrOptions?: string | ElMessageBoxOptions,
+    options?: ElMessageBoxOptions
+  ) => {
     if (typeof titleOrOptions === 'object' && titleOrOptions !== null) {
       return method(message, withBodyAppend(titleOrOptions as ElMessageBoxOptions));
     }
@@ -18,7 +22,9 @@ function wrap(method: AnyMsg): AnyMsg {
 }
 
 export function installMessageBoxDefaults(): void {
-  ElMessageBox.confirm = wrap(ElMessageBox.confirm.bind(ElMessageBox)) as typeof ElMessageBox.confirm;
+  ElMessageBox.confirm = wrap(
+    ElMessageBox.confirm.bind(ElMessageBox)
+  ) as typeof ElMessageBox.confirm;
   ElMessageBox.alert = wrap(ElMessageBox.alert.bind(ElMessageBox)) as typeof ElMessageBox.alert;
   ElMessageBox.prompt = wrap(ElMessageBox.prompt.bind(ElMessageBox)) as typeof ElMessageBox.prompt;
 }

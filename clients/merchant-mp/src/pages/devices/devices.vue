@@ -91,8 +91,9 @@
             v-if="d.latitude != null && d.longitude != null"
             class="nav-btn"
             @click.stop="openNav(d)"
-            >导航</button
           >
+            导航
+          </button>
           <text v-if="d.salesLocked" class="status-locked">停售</text>
           <text v-if="d.salesLocked && d.salesLockReason" class="status-lock-reason">{{
             d.salesLockReason

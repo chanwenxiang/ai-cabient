@@ -62,14 +62,7 @@ import {
 const loading = ref(false);
 const list = ref<MerchantNotificationDto[]>([]);
 type MsgFilter =
-  | 'all'
-  | 'unread'
-  | 'REPLENISHMENT'
-  | 'DISPUTE'
-  | 'ORDER'
-  | 'SETTLEMENT'
-  | 'WALLET'
-  | 'OTHER';
+  'all' | 'unread' | 'REPLENISHMENT' | 'DISPUTE' | 'ORDER' | 'SETTLEMENT' | 'WALLET' | 'OTHER';
 const filter = ref<MsgFilter>('all');
 const filters: Array<{ key: MsgFilter; label: string }> = [
   { key: 'all', label: '全部' },

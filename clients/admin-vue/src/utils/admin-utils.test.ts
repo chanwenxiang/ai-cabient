@@ -29,7 +29,13 @@ describe('csv helpers', () => {
   });
 
   it('builds BOM csv and parses round-trip', () => {
-    const csv = toCsv(['name', 'qty'], [['可乐', 2], ['薯片,原味', 1]]);
+    const csv = toCsv(
+      ['name', 'qty'],
+      [
+        ['可乐', 2],
+        ['薯片,原味', 1]
+      ]
+    );
     expect(csv.startsWith('\uFEFF')).toBe(true);
     const rows = parseCsv(csv);
     expect(rows[0]).toEqual(['name', 'qty']);
@@ -64,8 +70,22 @@ describe('display helpers', () => {
 describe('rbac-tree', () => {
   it('builds sorted tree with labels', () => {
     const tree = buildPermTree([
-      { permissionId: 2, parentId: 1, permCode: 'c', permName: '菜单', permType: 'C', sortOrder: 2 },
-      { permissionId: 1, parentId: 0, permCode: 'm', permName: '目录', permType: 'M', sortOrder: 1 },
+      {
+        permissionId: 2,
+        parentId: 1,
+        permCode: 'c',
+        permName: '菜单',
+        permType: 'C',
+        sortOrder: 2
+      },
+      {
+        permissionId: 1,
+        parentId: 0,
+        permCode: 'm',
+        permName: '目录',
+        permType: 'M',
+        sortOrder: 1
+      },
       { permissionId: 3, parentId: 1, permCode: 'f', permName: '按钮', permType: 'F', sortOrder: 1 }
     ]);
     expect(tree).toHaveLength(1);

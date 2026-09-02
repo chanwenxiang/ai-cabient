@@ -387,7 +387,9 @@ async function batchToggle(enabled: boolean) {
   );
   batchLoading.value = '';
   const ok = results.filter((r) => r.status === 'fulfilled').length;
-  ElMessage.success(`批量${enabled ? '启用' : '停用'}完成：成功 ${ok}，失败 ${targets.length - ok}`);
+  ElMessage.success(
+    `批量${enabled ? '启用' : '停用'}完成：成功 ${ok}，失败 ${targets.length - ok}`
+  );
   await load();
 }
 

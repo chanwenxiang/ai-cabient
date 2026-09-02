@@ -49,7 +49,10 @@ function captchaFromRedis(captchaId) {
 async function waitPageCaptchaId(page, timeoutMs = 8000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const id = await page.locator('button.captcha-img-btn[data-captcha-id]').first().getAttribute('data-captcha-id');
+    const id = await page
+      .locator('button.captcha-img-btn[data-captcha-id]')
+      .first()
+      .getAttribute('data-captcha-id');
     if (id) return id;
     await page.waitForTimeout(200);
   }
@@ -62,7 +65,11 @@ async function captchaForPage(page) {
       const capId = await waitPageCaptchaId(page, 5000);
       return { captchaId: capId, captchaCode: captchaFromRedis(capId) };
     } catch {
-      await page.locator('button.captcha-img-btn').first().click({ force: true }).catch(() => {});
+      await page
+        .locator('button.captcha-img-btn')
+        .first()
+        .click({ force: true })
+        .catch(() => {});
       await page.waitForTimeout(800);
     }
   }
@@ -85,13 +92,17 @@ async function loginAdmin(page) {
   await fillElInput(page, '图形验证码…', cap.captchaCode);
   await page.locator('button.submit-btn, button:has-text("登录")').first().click();
   await page.waitForTimeout(2500);
-  let token = await page.evaluate(() => localStorage.getItem('admin_token') || localStorage.getItem('admin_cookie_auth'));
+  let token = await page.evaluate(
+    () => localStorage.getItem('admin_token') || localStorage.getItem('admin_cookie_auth')
+  );
   if (!token) {
     const cap2 = await captchaForPage(page);
     await fillElInput(page, '图形验证码…', cap2.captchaCode);
     await page.locator('button.submit-btn, button:has-text("登录")').first().click();
     await page.waitForTimeout(2500);
-    token = await page.evaluate(() => localStorage.getItem('admin_token') || localStorage.getItem('admin_cookie_auth'));
+    token = await page.evaluate(
+      () => localStorage.getItem('admin_token') || localStorage.getItem('admin_cookie_auth')
+    );
   }
   return !!token || !page.url().includes('/login');
 }
@@ -105,7 +116,13 @@ async function main() {
   try {
     const loggedIn = await loginAdmin(page);
     const eLogin = await shot(page, '00-login');
-    record('B-00', '超管登录', loggedIn ? 'PASS' : 'FAIL', loggedIn ? page.url() : 'login failed', eLogin);
+    record(
+      'B-00',
+      '超管登录',
+      loggedIn ? 'PASS' : 'FAIL',
+      loggedIn ? page.url() : 'login failed',
+      eLogin
+    );
     loggedIn ? pass++ : fail++;
     if (!loggedIn) throw new Error('login failed');
 
@@ -117,8 +134,13 @@ async function main() {
       groupText: document.querySelector('[data-testid="warehouse-tab-groups"]')?.innerText || '',
       hint: document.querySelector('[data-testid="transit-flow-hint"]')?.innerText || '',
       pageHint: document.querySelector('.page-card-head .hint')?.innerText || '',
-      overdueLabel: document.querySelector('[data-testid="transit-overdue-only"]')?.closest('label')?.innerText || '',
-      js: [...document.querySelectorAll('script[src*="/assets/"]')].map((s) => s.getAttribute('src')).find((s) => /WarehouseView|index-/.test(s || '')) || ''
+      overdueLabel:
+        document.querySelector('[data-testid="transit-overdue-only"]')?.closest('label')
+          ?.innerText || '',
+      js:
+        [...document.querySelectorAll('script[src*="/assets/"]')]
+          .map((s) => s.getAttribute('src'))
+          .find((s) => /WarehouseView|index-/.test(s || '')) || ''
     }));
     const whOk =
       wh.groups &&
@@ -126,19 +148,16 @@ async function main() {
       /在途|柜机|补货|回仓/.test(wh.hint) &&
       /仓→柜|在途/.test(wh.pageHint);
     const eWh = await shot(page, '01-warehouse-transit');
-    record(
-      'B-01',
-      '仓库分组+在途文案',
-      whOk ? 'PASS' : 'FAIL',
-      JSON.stringify(wh),
-      eWh
-    );
+    record('B-01', '仓库分组+在途文案', whOk ? 'PASS' : 'FAIL', JSON.stringify(wh), eWh);
     whOk ? pass++ : fail++;
 
     // IMP-028 fund bill keyword
     await page.goto(`${ADMIN}/fund-bills`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2000);
-    await page.locator('[data-testid="fund-keyword"] input, [data-testid="fund-keyword"]').first().fill('139');
+    await page
+      .locator('[data-testid="fund-keyword"] input, [data-testid="fund-keyword"]')
+      .first()
+      .fill('139');
     await page.getByRole('button', { name: '查询' }).click();
     await page.waitForTimeout(2000);
     const fund = await page.evaluate(() => ({
@@ -157,9 +176,13 @@ async function main() {
     const orderScan = await page.evaluate(async () => {
       const rows = [...document.querySelectorAll('.el-table__body tr')];
       const withDiscount = rows.find((r) => /原\s*¥|含会员/.test(r.innerText));
-      const targets = withDiscount ? [withDiscount, ...rows.filter((r) => r !== withDiscount)] : rows.slice(0, 12);
+      const targets = withDiscount
+        ? [withDiscount, ...rows.filter((r) => r !== withDiscount)]
+        : rows.slice(0, 12);
       const clickDetail = (row) => {
-        const btn = [...row.querySelectorAll('button, .el-link')].find((b) => /详情/.test(b.textContent || ''));
+        const btn = [...row.querySelectorAll('button, .el-link')].find((b) =>
+          /详情/.test(b.textContent || '')
+        );
         if (btn) btn.click();
         else row.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       };
@@ -169,7 +192,12 @@ async function main() {
         const diffEl = document.querySelector('.amount-diff');
         const label = document.body.innerText.includes('差额说明');
         if (label && diffEl?.innerText) {
-          return { opened: true, diff: true, diffText: diffEl.innerText, rowHint: row.innerText.slice(0, 100) };
+          return {
+            opened: true,
+            diff: true,
+            diffText: diffEl.innerText,
+            rowHint: row.innerText.slice(0, 100)
+          };
         }
         document.querySelector('.el-drawer__close-btn, .drawer-close')?.click();
         await new Promise((r) => setTimeout(r, 400));
@@ -215,7 +243,9 @@ async function main() {
     await page.goto(`${ADMIN}/fund-bills`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);
     const gs = await page.evaluate(() => {
-      const input = document.querySelector('.global-search-trigger input, [data-testid="global-search"] input, .global-search input');
+      const input = document.querySelector(
+        '.global-search-trigger input, [data-testid="global-search"] input, .global-search input'
+      );
       return {
         readonly: input?.hasAttribute('readonly') ?? null,
         placeholder: input?.getAttribute('placeholder') || ''

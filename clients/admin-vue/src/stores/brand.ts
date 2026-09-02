@@ -27,7 +27,8 @@ export const useBrandStore = defineStore('brand', () => {
   });
 
   const documentBaseTitle = computed(
-    () => `${brand.value.title || DEFAULT_BRAND.title} · ${brand.value.subtitle || DEFAULT_BRAND.subtitle}`
+    () =>
+      `${brand.value.title || DEFAULT_BRAND.title} · ${brand.value.subtitle || DEFAULT_BRAND.subtitle}`
   );
 
   async function load() {
@@ -56,7 +57,7 @@ export const useBrandStore = defineStore('brand', () => {
     }
   }
 
-  function applyLocal( partial: Partial<OpsBrand>) {
+  function applyLocal(partial: Partial<OpsBrand>) {
     brand.value = {
       ...brand.value,
       ...partial,

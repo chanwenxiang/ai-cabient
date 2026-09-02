@@ -287,9 +287,7 @@ function reset() {
 
 function rowActions(row: AdCampaignDto): TableAction[] {
   if (!auth.hasPerm('ops:ad:edit')) return [];
-  const actions: TableAction[] = [
-    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }
-  ];
+  const actions: TableAction[] = [{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }];
   if (row.status === 'DRAFT' || row.status === 'STOPPED') {
     actions.push({ key: 'launch', label: '上线', icon: VideoPlay, type: 'success' });
   }

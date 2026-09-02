@@ -37,7 +37,15 @@ function record(id, name, category, status, detail, evidence) {
   let normalized = status;
   if (status === true) normalized = 'PASS';
   else if (status === false) normalized = 'FAIL';
-  results.push({ id, name, category, status: normalized, detail, evidence, at: new Date().toISOString() });
+  results.push({
+    id,
+    name,
+    category,
+    status: normalized,
+    detail,
+    evidence,
+    at: new Date().toISOString()
+  });
   const mark = normalized === 'PASS' ? '✓' : normalized === 'FAIL' ? '✗' : '○';
   console.log(`${mark} [${category}] ${id} ${name} — ${String(detail).slice(0, 240)}`);
 }
@@ -548,7 +556,8 @@ async function main() {
       );
       await page.waitForTimeout(2000);
       const hasVideoBtn = (await bodyText(page)).includes('查看购物视频');
-      const clickedVideo = hasVideoBtn && (await clickByText(page, '查看购物视频', { exact: true }));
+      const clickedVideo =
+        hasVideoBtn && (await clickByText(page, '查看购物视频', { exact: true }));
       // 等 video 元数据/可播放；MIME 修正后通常 readyState>=2
       const deadline = Date.now() + 10000;
       let videoState = null;

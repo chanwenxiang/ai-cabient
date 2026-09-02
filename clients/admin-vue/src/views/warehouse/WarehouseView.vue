@@ -1,2102 +1,2080 @@
 <template>
   <div class="page-fill warehouse-page">
-  <el-card class="page-card report-page warehouse-page-card" shadow="never">
-    <template #header>
-      <div class="page-card-head">
-        <div class="page-card-head__meta">
-          <div class="page-card-head__title">
-            <span class="title">仓库</span>
-            <span class="hint">{{ pageHint }}</span>
+    <el-card class="page-card report-page warehouse-page-card" shadow="never">
+      <template #header>
+        <div class="page-card-head">
+          <div class="page-card-head__meta">
+            <div class="page-card-head__title">
+              <span class="title">仓库</span>
+              <span class="hint">{{ pageHint }}</span>
+            </div>
           </div>
-        </div>
-        <div class="page-card-head__actions">
-          <el-button v-if="canEdit && tab === 'warehouses'" type="primary" @click="openWarehouse()"
-            >新增仓库</el-button
-          >
-          <el-button
-            v-if="canWarehouseEdit && tab === 'transfers'"
-            type="primary"
-            @click="openTransferCreate"
-            >新建调拨</el-button
-          >
-          <el-button v-if="canEdit && tab === 'suppliers'" type="primary" @click="openSupplier()"
-            >新增供应商</el-button
-          >
-          <el-button v-if="canEdit && tab === 'purchase'" type="primary" @click="openPurchase()"
-            >新建采购单</el-button
-          >
-          <el-button
-            v-if="canEdit && tab === 'suggestions'"
-            type="primary"
-            data-testid="create-purchase-from-suggestions"
-            @click="openPurchaseFromSuggestions"
-            >按建议生成采购单</el-button
-          >
-          <el-button
-            v-if="canWarehouseEdit && tab === 'stocktakes'"
-            type="primary"
-            data-testid="create-stocktake"
-            @click="openStocktakeCreate"
-            >新建盘点</el-button
-          >
-          <el-button
-            v-if="canWarehouseEdit && tab === 'bins'"
-            type="primary"
-            @click="openBinDialog()"
-            >新增货位</el-button
-          >
-          <el-button
-            v-if="canWarehouseEdit && tab === 'bins'"
-            type="primary"
-            plain
-            @click="openBinInbound"
-            >入库到货位</el-button
-          >
-          <el-button
-            v-if="canWarehouseEdit && tab === 'bins'"
-            type="primary"
-            plain
-            @click="openBinMove"
-            >货位移库</el-button
-          >
-          <el-button v-if="canEdit && tab === 'returns'" type="primary" @click="openReturn()"
-            >新建退货</el-button
-          >
-          <el-button
-            v-if="canEdit && (tab === 'inventory' || tab === 'movements')"
-            type="primary"
-            @click="openInbound()"
-            >其他入库</el-button
-          >
-          <el-button
-            v-if="canEdit && tab === 'outbounds'"
-            :loading="cleanupStaleLoading"
-            data-testid="cleanup-stale-outbounds"
-            @click="cleanupStaleOutbounds"
-            >清理空草稿/脏在途</el-button
-          >
-          <el-button
-            v-if="canImportMaster"
-            v-hasPermi="['ops:warehouse:import']"
-            @click="onDownloadImportTemplate"
-            >导入模板</el-button
-          >
-          <el-button
-            v-if="canImportMaster"
-            v-hasPermi="['ops:warehouse:import']"
-            :loading="importing"
-            @click="triggerImport"
-            >导入</el-button
-          >
-          <input
-            ref="warehouseImportInput"
-            type="file"
-            accept=".csv,text/csv"
-            class="hidden-input"
-            @change="onWarehouseImportFile"
-          />
-          <input
-            ref="supplierImportInput"
-            type="file"
-            accept=".csv,text/csv"
-            class="hidden-input"
-            @change="onSupplierImportFile"
-          />
-          <el-button v-hasPermi="['ops:warehouse:export']" @click="onExport">
-            {{ selectedKeys.length ? `导出选中 (${selectedKeys.length})` : '导出' }}
-          </el-button>
-          <el-button :icon="Refresh" :loading="isTabLoading(tab)" @click="reloadCurrent"
-            >刷新</el-button
-          >
-        </div>
-      </div>
-    </template>
-
-    <el-form v-if="showFilterBar" inline class="filter-bar filter-bar--compact" @submit.prevent>
-      <el-form-item
-        v-if="
-          tab === 'inventory' ||
-          tab === 'movements' ||
-          tab === 'outbounds' ||
-          tab === 'purchase' ||
-          tab === 'suggestions' ||
-          tab === 'bins' ||
-          tab === 'returns'
-        "
-        label="仓库"
-      >
-        <el-select
-          v-model="filterWarehouseId"
-          clearable
-          placeholder="全部仓库"
-          style="width: 220px"
-          @change="onWarehouseFilter"
-        >
-          <el-option
-            v-for="w in warehouses"
-            :key="w.warehouseId"
-            :label="w.warehouseName"
-            :value="w.warehouseId"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item
-        v-if="tab === 'suppliers' || tab === 'purchase' || tab === 'returns'"
-        label="关键词"
-      >
-        <el-input v-model="keyword" clearable placeholder="搜索关键词" style="width: 200px" />
-      </el-form-item>
-      <el-form-item v-if="tab === 'purchase'" label="列表">
-        <el-checkbox
-          v-model="hideTestPurchaseOrders"
-          data-testid="purchase-hide-test-ref"
-          @change="onPurchaseFilterChange"
-          >隐藏 E2E/冒烟测试单</el-checkbox
-        >
-      </el-form-item>
-      <el-form-item v-if="tab === 'suggestions'" label="采购前置期(天)">
-        <el-input-number
-          v-model="suggestionLeadTimeDays"
-          :min="1"
-          :max="60"
-          size="small"
-          controls-position="right"
-          @change="onSuggestionParamsChange"
-        />
-      </el-form-item>
-      <el-form-item v-if="tab === 'suggestions'" label="覆盖天数">
-        <el-input-number
-          v-model="suggestionCoverageDays"
-          :min="1"
-          :max="365"
-          size="small"
-          controls-position="right"
-          @change="onSuggestionParamsChange"
-        />
-      </el-form-item>
-      <el-form-item v-if="tab === 'payables'" label="状态">
-        <el-select
-          v-model="payableStatusFilter"
-          clearable
-          placeholder="全部"
-          style="width: 140px"
-          @change="onPayableFilter"
-        >
-          <el-option label="未付" value="UNPAID" />
-          <el-option label="部分付款" value="PARTIAL" />
-          <el-option label="已付" value="PAID" />
-          <el-option label="已关闭" value="CLOSED" />
-        </el-select>
-      </el-form-item>
-      <el-form-item v-if="tab === 'payables'" label="逾期">
-        <el-checkbox
-          v-model="payableOverdueOnly"
-          data-testid="payable-overdue-only"
-          @change="onPayableFilter"
-          >仅看逾期</el-checkbox
-        >
-      </el-form-item>
-      <el-form-item v-if="tab === 'stocktakes'" label="状态">
-        <el-select
-          v-model="stocktakeStatusFilter"
-          clearable
-          placeholder="全部"
-          style="width: 140px"
-          @change="onStocktakeFilter"
-        >
-          <el-option label="草稿" value="DRAFT" />
-          <el-option label="盘点中" value="IN_PROGRESS" />
-          <el-option label="已完成" value="COMPLETED" />
-          <el-option label="已调整" value="ADJUSTED" />
-          <el-option label="已取消" value="CANCELLED" />
-        </el-select>
-      </el-form-item>
-      <el-form-item v-if="tab === 'bins'" label="货位">
-        <el-select
-          v-model="filterBinId"
-          clearable
-          placeholder="全部货位"
-          style="width: 160px"
-          @change="onBinFilter"
-        >
-          <el-option v-for="b in bins" :key="b.binId" :label="b.binCode" :value="b.binId" />
-        </el-select>
-      </el-form-item>
-      <el-form-item v-if="tab === 'outbounds'" label="状态">
-        <el-select
-          v-model="filterOutboundStatus"
-          style="width: 160px"
-          data-testid="outbound-status-filter"
-          @change="onOutboundStatusFilter"
-        >
-          <el-option label="待处理" value="actionable" />
-          <el-option label="全部" value="" />
-          <el-option
-            v-for="item in dictOptions('warehouse_outbound_status').filter((o) =>
-              ['DRAFT', 'PICKED', 'SHIPPED'].includes(o.value)
-            )"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item v-if="tab === 'transit' && focusDeviceId" label="设备">
-        <el-tag closable type="info" @close="clearFocusDevice">{{ focusDeviceId }}</el-tag>
-      </el-form-item>
-      <el-form-item v-if="tab === 'transit'" label="超时筛选">
-        <el-checkbox
-          v-model="overdueOnly"
-          data-testid="transit-overdue-only"
-          @change="onOverdueToggle"
-          >仅超时未到柜</el-checkbox
-        >
-      </el-form-item>
-    </el-form>
-
-    <el-alert
-      v-if="tab === 'transit'"
-      type="info"
-      :closable="false"
-      show-icon
-      class="transit-flow-hint"
-      data-testid="transit-flow-hint"
-      title="在途 = 已发往柜机、尚未在柜完成补货。到柜由补货员完成任务后自动签收并上架；本页不办理回仓入库。"
-    />
-
-    <el-alert
-      v-if="
-        tab === 'transit' &&
-        hydratedTabs.has('transit') &&
-        !isTabLoading('transit') &&
-        overdueTransitCount > 0
-      "
-      type="error"
-      :closable="false"
-      show-icon
-      class="sla-banner"
-      data-testid="transit-overdue-banner"
-      :title="
-        overdueOnly
-          ? `共 ${overdueTransitCount} 条到柜超时（发运超 ${TRANSIT_OVERDUE_HOURS} 小时未完成补货签收）`
-          : `共 ${overdueTransitCount} 条到柜超时，可勾选「仅超时未到柜」聚焦催办`
-      "
-    />
-
-    <div
-      v-if="visibleTabGroups.length"
-      class="warehouse-tab-groups"
-      data-testid="warehouse-tab-groups"
-    >
-      <el-radio-group v-model="tabGroup" size="small" @change="onTabGroupChange">
-        <el-radio-button v-for="g in visibleTabGroups" :key="g.id" :value="g.id">
-          {{ g.label }}
-          <span class="tab-group-count">{{ g.count }}</span>
-        </el-radio-button>
-      </el-radio-group>
-      <span class="tab-group-hint">当前「{{ currentTabGroupLabel }}」· 共 {{ currentGroupTabCount }} 个列表</span>
-    </div>
-
-    <el-tabs v-model="tab" @tab-change="onTabChange">
-      <el-tab-pane v-if="tabGroup === 'overview'" label="仓库概览" name="warehouses">
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <el-table
-              v-loading="isTabLoading('warehouses')"
-              :data="pagedWarehouses"
-              :default-sort="warehouseIdDefaultSort"
-              @sort-change="onWarehouseIdSortChange"
-              stripe
-              border
-              class="report-table"
-              row-key="warehouseId"
-              @selection-change="onSelectionChange"
-              empty-text=" "
+          <div class="page-card-head__actions">
+            <el-button
+              v-if="canEdit && tab === 'warehouses'"
+              type="primary"
+              @click="openWarehouse()"
+              >新增仓库</el-button
             >
-              <template #empty
-                ><el-empty
-                  v-if="hydratedTabs.has('warehouses') && !isTabLoading('warehouses')"
-                  description="暂无仓库"
-              /></template>
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column
-                prop="warehouseId"
-                label="仓库编号"
-                min-width="120"
-                align="center"
-                class-name="col-text"
-                show-overflow-tooltip
-                sortable="custom"
-              >
-                <template #default="{ row }">
-                  <span class="cell-id">{{ row.warehouseId }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column
-                label="仓库"
-                min-width="140"
-                align="center"
-                class-name="col-text"
-                show-overflow-tooltip
-              >
-                <template #default="{ row }">{{ row.warehouseName || '无' }}</template>
-              </el-table-column>
-              <el-table-column
-                prop="address"
-                label="地址"
-                min-width="220"
-                show-overflow-tooltip
-                align="center"
-                class-name="col-text"
-              />
-              <el-table-column label="状态" width="100" align="center">
-                <template #default="{ row }">
-                  <el-tag :type="dictTagType(row.status)" size="small">
-                    {{ dictLabel('warehouse_status', row.status || 'ACTIVE') }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column
-                v-if="canEdit"
-                label="操作"
-                width="88"
-                class-name="col-action"
-                align="center"
-                fixed="right"
-              >
-                <template #default="{ row }">
-                  <TableActions
-                    :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
-                    @action="() => openWarehouse(row)"
-                  />
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane
-        v-if="tabGroup === 'fulfillment' && canWarehouseList"
-        label="仓间调拨"
-        name="transfers"
-      >
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <el-table
-              v-loading="isTabLoading('transfers')"
-              :data="transfers"
-              stripe
-              border
-              class="report-table"
-              empty-text=" "
+            <el-button
+              v-if="canWarehouseEdit && tab === 'transfers'"
+              type="primary"
+              @click="openTransferCreate"
+              >新建调拨</el-button
             >
-              <template #empty>
-                <el-empty
-                  v-if="hydratedTabs.has('transfers') && !isTabLoading('transfers')"
-                  description="暂无调拨单"
-                />
-              </template>
-              <el-table-column
-                prop="transferNo"
-                label="调拨单号"
-                min-width="160"
-                show-overflow-tooltip
-              />
-              <el-table-column label="调出仓" min-width="120" show-overflow-tooltip>
-                <template #default="{ row }">{{
-                  warehouseName(row.fromWarehouseId) || row.fromWarehouseId
-                }}</template>
-              </el-table-column>
-              <el-table-column label="调入仓" min-width="120" show-overflow-tooltip>
-                <template #default="{ row }">{{
-                  warehouseName(row.toWarehouseId) || row.toWarehouseId
-                }}</template>
-              </el-table-column>
-              <el-table-column label="状态" width="100" align="center">
-                <template #default="{ row }">
-                  <el-tag size="small" effect="plain">{{ transferStatusLabel(row.status) }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="明细" min-width="180" show-overflow-tooltip>
-                <template #default="{ row }">
-                  {{
-                    (row.lines || [])
-                      .map(
-                        (l: any) =>
-                          `${skuName(l.skuId) || l.skuId}×${l.quantity}${l.batchNo ? '(' + l.batchNo + ')' : ''}`
-                      )
-                      .join(' · ') || ''
-                  }}
-                </template>
-              </el-table-column>
-              <el-table-column label="发运" width="150" align="center">
-                <template #default="{ row }">
-                  <span class="cell-datetime">{{
-                    row.shippedAt ? formatDateTime(row.shippedAt) : ''
-                  }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="收货" width="150" align="center">
-                <template #default="{ row }">
-                  <span class="cell-datetime">{{
-                    row.receivedAt ? formatDateTime(row.receivedAt) : ''
-                  }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="备注" min-width="100" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.notes || '' }}</template>
-              </el-table-column>
-              <el-table-column v-if="canWarehouseEdit" label="操作" width="200" align="center" fixed="right">
-                <template #default="{ row }">
-                  <el-button
-                    v-if="row.status === 'DRAFT'"
-                    link
-                    type="primary"
-                    @click="shipTransfer(row)"
-                    >发运</el-button
-                  >
-                  <el-button
-                    v-if="row.status === 'SHIPPED'"
-                    link
-                    type="success"
-                    @click="receiveTransfer(row)"
-                    >收货</el-button
-                  >
-                  <el-button
-                    v-if="row.status === 'DRAFT'"
-                    link
-                    type="danger"
-                    @click="cancelTransfer(row)"
-                    >取消</el-button
-                  >
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane
-        v-if="tabGroup === 'procurement' && canProcurementList"
-        label="供应商"
-        name="suppliers"
-      >
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <el-table
-              class="report-table"
-              v-loading="isTabLoading('suppliers')"
-              :data="pagedSuppliers"
-              :default-sort="supplierIdDefaultSort"
-              @sort-change="onSupplierIdSortChange"
-              stripe
-              border
-              row-key="supplierId"
-              @selection-change="onSelectionChange"
-              empty-text=" "
+            <el-button v-if="canEdit && tab === 'suppliers'" type="primary" @click="openSupplier()"
+              >新增供应商</el-button
             >
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column
-                prop="supplierId"
-                label="供应商编号"
-                min-width="120"
-                align="center"
-                class-name="col-text"
-                show-overflow-tooltip
-                sortable="custom"
-              >
-                <template #default="{ row }">
-                  <span class="cell-id">{{ row.supplierId }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column
-                label="供应商"
-                min-width="140"
-                align="center"
-                class-name="col-text"
-                show-overflow-tooltip
-              >
-                <template #default="{ row }">{{ row.supplierName || '无' }}</template>
-              </el-table-column>
-              <el-table-column prop="contactName" label="联系人" min-width="120" align="center" />
-              <el-table-column
-                prop="contactPhone"
-                label="联系电话"
-                min-width="150"
-                align="center"
-              />
-              <el-table-column
-                prop="paymentTermsDays"
-                label="账期(天)"
-                min-width="96"
-                align="center"
-              />
-              <el-table-column label="状态" min-width="100" align="center">
-                <template #default="{ row }">
-                  <el-tag :type="dictTagType(row.status)" size="small">{{
-                    dictLabel('supplier_status', row.status)
-                  }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column
-                v-if="canEdit"
-                label="操作"
-                width="88"
-                class-name="col-action"
-                align="center"
-                fixed="right"
-              >
-                <template #default="{ row }">
-                  <TableActions
-                    :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
-                    @action="() => openSupplier(row)"
-                  />
-                </template>
-              </el-table-column>
-              <template #empty
-                ><el-empty
-                  v-if="hydratedTabs.has('suppliers') && !isTabLoading('suppliers')"
-                  description="暂无供应商"
-              /></template>
-            </el-table>
-          </div>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane
-        v-if="tabGroup === 'procurement' && canProcurementList"
-        label="采购单"
-        name="purchase"
-      >
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <el-table
-              class="report-table"
-              v-loading="isTabLoading('purchase')"
-              :data="pagedPurchaseOrders"
-              stripe
-              border
-              row-key="purchaseOrderId"
-              @selection-change="onSelectionChange"
-              empty-text=" "
+            <el-button v-if="canEdit && tab === 'purchase'" type="primary" @click="openPurchase()"
+              >新建采购单</el-button
             >
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column type="expand" align="center">
-                <template #default="{ row }">
-                  <div class="expand-panel">
-                    <el-table :data="row.lines || []" size="small" border class="line-table">
-                      <el-table-column label="商品" min-width="180" align="center">
-                        <template #default="scope">
-                          {{ skuName(scope.row.skuId) }}
-                        </template>
-                      </el-table-column>
-                      <el-table-column prop="batchNo" label="批次" min-width="140" align="center" />
-                      <el-table-column
-                        prop="orderedQty"
-                        label="采购数"
-                        min-width="88"
-                        align="center"
-                      />
-                      <el-table-column
-                        prop="receivedQty"
-                        label="已收数"
-                        min-width="88"
-                        align="center"
-                      />
-                      <el-table-column
-                        prop="returnedQty"
-                        label="已退数"
-                        min-width="88"
-                        align="center"
-                      />
-                      <el-table-column label="成本" min-width="96" align="center">
-                        <template #default="scope">¥{{ money(scope.row.unitCostCents) }}</template>
-                      </el-table-column>
-                      <el-table-column
-                        prop="expiryDate"
-                        label="到期日期"
-                        min-width="120"
-                        align="center"
-                      />
-                    </el-table>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column
-                prop="purchaseOrderId"
-                label="采购单"
-                min-width="96"
-                align="center"
-              />
-              <el-table-column
-                prop="refNo"
-                label="外部单号"
-                min-width="140"
-                show-overflow-tooltip
-                align="center"
-              >
-                <template #default="{ row }">
-                  <span v-if="row.refNo">{{ row.refNo }}</span>
-                  <span v-else class="muted">未填写</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="供应商" min-width="160" align="center">
-                <template #default="{ row }">
-                  {{ supplierName(row.supplierId) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="入库仓库" min-width="160" align="center">
-                <template #default="{ row }">
-                  {{ warehouseName(row.warehouseId) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="状态" min-width="120" align="center">
-                <template #default="{ row }">
-                  <el-tag :type="dictTagType(row.status)" size="small">{{
-                    dictLabel('purchase_order_status', row.status)
-                  }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column
-                v-if="canProcurementList"
-                label="审批节点"
-                min-width="140"
-                align="center"
-                show-overflow-tooltip
-              >
-                <template #default="{ row }">
-                  <span v-if="row.status === 'PENDING_APPROVAL' && row.approvalCurrentNodeName">{{
-                    row.approvalCurrentNodeName
-                  }}</span>
-                  <span v-else-if="row.status === 'PENDING_APPROVAL'" class="muted">待审批</span>
-                  <span v-else class="muted">—</span>
-                </template>
-              </el-table-column>
-              <el-table-column
-                v-if="canEdit"
-                label="操作"
-                min-width="220"
-                class-name="col-action"
-                align="center"
-                fixed="right"
-              >
-                <template #default="{ row }">
-                  <el-button
-                    v-if="row.status !== 'PENDING_APPROVAL'"
-                    link
-                    type="primary"
-                    class="print-btn"
-                    @click="openPrint('purchase', { purchaseOrderId: row.purchaseOrderId })"
-                    >打印收货单</el-button
-                  >
-                  <el-button
-                    v-if="row.status === 'PENDING_APPROVAL' && canReviewPurchaseRow(row)"
-                    link
-                    type="success"
-                    @click="reviewPurchase(row, true)"
-                    >通过</el-button
-                  >
-                  <el-button
-                    v-if="row.status === 'PENDING_APPROVAL' && canReviewPurchaseRow(row)"
-                    link
-                    type="danger"
-                    @click="reviewPurchase(row, false)"
-                    >驳回</el-button
-                  >
-                  <el-button
-                    v-if="['CREATED', 'PARTIAL_RECEIVED'].includes(row.status)"
-                    link
-                    type="primary"
-                    @click="openReceive(row)"
-                    >采购收货</el-button
-                  >
-                </template>
-              </el-table-column>
-              <template #empty
-                ><el-empty
-                  v-if="hydratedTabs.has('purchase') && !isTabLoading('purchase')"
-                  description="暂无采购单"
-              /></template>
-            </el-table>
-          </div>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane
-        v-if="tabGroup === 'procurement' && canProcurementList"
-        label="采购建议"
-        name="suggestions"
-      >
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <el-table
-              class="report-table"
-              v-loading="isTabLoading('suggestions')"
-              :data="pagedSuggestions"
-              stripe
-              border
-              row-key="skuId"
-              @selection-change="onSelectionChange"
-              empty-text=" "
+            <el-button
+              v-if="canEdit && tab === 'suggestions'"
+              type="primary"
+              data-testid="create-purchase-from-suggestions"
+              @click="openPurchaseFromSuggestions"
+              >按建议生成采购单</el-button
             >
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column label="商品" min-width="170" align="center" show-overflow-tooltip>
-                <template #default="{ row }">{{ skuName(row.skuId) }}</template>
-              </el-table-column>
-              <el-table-column label="近7日销量" prop="soldQty7d" min-width="96" align="center" />
-              <el-table-column
-                label="近14日销量"
-                prop="soldQty14d"
-                min-width="104"
-                align="center"
-              />
-              <el-table-column label="日均销量" min-width="88" align="center">
-                <template #default="{ row }">
-                  {{ Number(row.avgDailySales ?? 0).toFixed(2) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="预测日均" min-width="88" align="center">
-                <template #default="{ row }">
-                  {{ Number(row.forecastDailySales ?? row.avgDailySales ?? 0).toFixed(2) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="日均趋势" min-width="88" align="center">
-                <template #default="{ row }">
-                  <span v-if="Number(row.trendPerDay ?? 0) > 0" class="trend-up"
-                    >+{{ Number(row.trendPerDay).toFixed(2) }}</span
-                  >
-                  <span v-else-if="Number(row.trendPerDay ?? 0) < 0" class="trend-down">{{
-                    Number(row.trendPerDay).toFixed(2)
-                  }}</span>
-                  <span v-else>暂无</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="仓库库存" prop="onHandQty" min-width="88" align="center" />
-              <el-table-column label="待收采购" prop="pendingPoQty" min-width="88" align="center" />
-              <el-table-column label="覆盖天数" prop="coverageDays" min-width="88" align="center" />
-              <el-table-column label="建议采购量" min-width="104" align="center">
-                <template #default="{ row }">
-                  <span class="cell-id">{{ row.suggestQty }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="安全库存" min-width="88" align="center">
-                <template #default="{ row }">
-                  {{ row.safetyStockQty ?? 0 }}
-                </template>
-              </el-table-column>
-              <el-table-column label="建议理由" min-width="110" align="center">
-                <template #default="{ row }">
-                  <el-tag size="small" type="warning">
-                    {{ suggestionReasonText(row.suggestReason) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <template #empty
-                ><el-empty
-                  v-if="hydratedTabs.has('suggestions') && !isTabLoading('suggestions')"
-                  description="暂无采购建议（近 14 日有动销且库存不足的商品才会出现）"
-              /></template>
-            </el-table>
-          </div>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane
-        v-if="tabGroup === 'procurement' && canProcurementList"
-        label="采购退货"
-        name="returns"
-      >
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <el-table
-              class="report-table"
-              v-loading="isTabLoading('returns')"
-              :data="pagedPurchaseReturns"
-              stripe
-              border
-              row-key="returnId"
-              @selection-change="onSelectionChange"
-              empty-text=" "
+            <el-button
+              v-if="canWarehouseEdit && tab === 'stocktakes'"
+              type="primary"
+              data-testid="create-stocktake"
+              @click="openStocktakeCreate"
+              >新建盘点</el-button
             >
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column type="expand" align="center">
-                <template #default="{ row }">
-                  <div class="expand-panel">
-                    <el-table :data="row.lines || []" size="small" border class="line-table">
-                      <el-table-column label="商品" min-width="180" align="center">
-                        <template #default="scope">
-                          {{ skuName(scope.row.skuId) }}
-                        </template>
-                      </el-table-column>
-                      <el-table-column prop="batchNo" label="批次" min-width="140" align="center" />
-                      <el-table-column
-                        prop="quantity"
-                        label="退货数"
-                        min-width="88"
-                        align="center"
-                      />
-                    </el-table>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column prop="returnId" label="退货单" min-width="96" align="center" />
-              <el-table-column
-                prop="purchaseOrderId"
-                label="采购单"
-                min-width="96"
-                align="center"
-              />
-              <el-table-column label="供应商" min-width="160" align="center">
-                <template #default="{ row }">
-                  {{ supplierName(row.supplierId) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="仓库" min-width="160" align="center">
-                <template #default="{ row }">
-                  {{ warehouseName(row.warehouseId) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="状态" min-width="100" align="center">
-                <template #default="{ row }">
-                  <el-tag type="success" size="small">{{ returnStatusLabel(row.status) }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="创建时间" min-width="170" align="center">
-                <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-              </el-table-column>
-              <template #empty
-                ><el-empty
-                  v-if="hydratedTabs.has('returns') && !isTabLoading('returns')"
-                  description="暂无采购退货"
-              /></template>
-            </el-table>
-          </div>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane
-        v-if="tabGroup === 'procurement' && canProcurementList"
-        label="应付账款"
-        name="payables"
-      >
-        <el-alert
-          v-if="hydratedTabs.has('payables') && !isTabLoading('payables')"
-          :closable="false"
-          show-icon
-          type="info"
-          class="payable-summary"
-          :title="payableSummaryText"
-        />
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <el-table
-              class="report-table"
-              v-loading="isTabLoading('payables')"
-              :data="pagedPayables"
-              stripe
-              border
-              row-key="payableId"
-              @selection-change="onSelectionChange"
-              empty-text=" "
+            <el-button
+              v-if="canWarehouseEdit && tab === 'bins'"
+              type="primary"
+              @click="openBinDialog()"
+              >新增货位</el-button
             >
-              <el-table-column type="expand" align="center">
-                <template #default="{ row }">
-                  <div class="expand-panel">
-                    <el-table
-                      v-if="row.payments?.length"
-                      :data="row.payments"
-                      size="small"
-                      border
-                      class="line-table"
-                    >
-                      <el-table-column label="付款时间" min-width="170" align="center">
-                        <template #default="scope">
-                          {{ formatDateTime(scope.row.createdAt) }}
-                        </template>
-                      </el-table-column>
-                      <el-table-column label="付款金额" min-width="110" align="center">
-                        <template #default="scope">¥{{ money(scope.row.amountCents) }}</template>
-                      </el-table-column>
-                      <el-table-column prop="notes" label="备注" min-width="180" align="center" />
-                    </el-table>
-                    <el-empty v-else description="暂无付款记录" :image-size="60" />
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column label="供应商" min-width="150" align="center" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.supplierName }}</template>
-              </el-table-column>
-              <el-table-column label="关联采购单" min-width="110" align="center">
-                <template #default="{ row }">
-                  <span class="cell-id">{{ row.purchaseOrderId }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="应付金额" min-width="110" align="center">
-                <template #default="{ row }">¥{{ money(row.amountCents) }}</template>
-              </el-table-column>
-              <el-table-column label="已付" min-width="100" align="center">
-                <template #default="{ row }">¥{{ money(row.paidAmountCents) }}</template>
-              </el-table-column>
-              <el-table-column label="未付余额" min-width="110" align="center">
-                <template #default="{ row }">
-                  <span class="cell-id">{{ money(row.balanceCents) }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="到期日" min-width="110" align="center">
-                <template #default="{ row }">{{ row.dueDate || '暂无' }}</template>
-              </el-table-column>
-              <el-table-column label="状态" min-width="100" align="center">
-                <template #default="{ row }">
-                  <el-tag :type="payableStatusType(row.status)" size="small">
-                    {{ payableStatusText(row.status) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="逾期" min-width="116" align="center">
-                <template #default="{ row }">
-                  <el-tag v-if="row.overdue" type="danger" size="small">
-                    逾期 {{ row.overdueDays }} 天
-                  </el-tag>
-                  <span v-else class="muted">未逾期</span>
-                </template>
-              </el-table-column>
-              <el-table-column v-if="canEdit" label="操作" width="100" align="center" fixed="right">
-                <template #default="{ row }">
-                  <el-button
-                    link
-                    type="primary"
-                    :disabled="row.balanceCents <= 0 || ['PAID', 'CLOSED'].includes(row.status)"
-                    data-testid="pay-payable"
-                    @click="openPay(row)"
-                    >登记付款</el-button
-                  >
-                </template>
-              </el-table-column>
-              <template #empty
-                ><el-empty
-                  v-if="hydratedTabs.has('payables') && !isTabLoading('payables')"
-                  description="暂无应付账款"
-              /></template>
-            </el-table>
-          </div>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane
-        v-if="tabGroup === 'inventory' && canWarehouseList"
-        label="盘点单"
-        name="stocktakes"
-      >
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <el-table
-              class="report-table"
-              v-loading="isTabLoading('stocktakes')"
-              :data="pagedStocktakes"
-              stripe
-              border
-              row-key="stocktakeId"
-              @selection-change="onSelectionChange"
-              empty-text=" "
+            <el-button
+              v-if="canWarehouseEdit && tab === 'bins'"
+              type="primary"
+              plain
+              @click="openBinInbound"
+              >入库到货位</el-button
             >
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column label="盘点单号" min-width="160" align="center">
-                <template #default="{ row }">
-                  <span class="cell-id">{{ row.stocktakeNo }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="仓库" min-width="140" align="center">
-                <template #default="{ row }">{{ row.warehouseName }}</template>
-              </el-table-column>
-              <el-table-column label="模式" min-width="80" align="center">
-                <template #default="{ row }">{{ stocktakeModeText(row.mode) }}</template>
-              </el-table-column>
-              <el-table-column label="状态" min-width="100" align="center">
-                <template #default="{ row }">
-                  <el-tag :type="stocktakeStatusType(row.status)" size="small">
-                    {{ stocktakeStatusText(row.status) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="账面件数" prop="bookQty" min-width="90" align="center" />
-              <el-table-column label="实盘件数" prop="countedQty" min-width="90" align="center" />
-              <el-table-column label="差异件数" min-width="90" align="center">
-                <template #default="{ row }">{{ row.diffQty }}</template>
-              </el-table-column>
-              <el-table-column
-                label="差异行数"
-                prop="diffLineCount"
-                min-width="90"
-                align="center"
-              />
-              <el-table-column label="创建时间" min-width="160" align="center">
-                <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-              </el-table-column>
-              <el-table-column v-if="canWarehouseEdit" label="操作" width="110" align="center" fixed="right">
-                <template #default="{ row }">
-                  <el-button link type="primary" @click="openStocktakeDetail(row)">
-                    {{ ['DRAFT', 'IN_PROGRESS'].includes(row.status) ? '盘点' : '查看/调整' }}
-                  </el-button>
-                </template>
-              </el-table-column>
-              <template #empty
-                ><el-empty
-                  v-if="hydratedTabs.has('stocktakes') && !isTabLoading('stocktakes')"
-                  description="暂无盘点单"
-              /></template>
-            </el-table>
-          </div>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane v-if="tabGroup === 'inventory' && canWarehouseList" label="货位" name="bins">
-        <div class="section-title">货位档案</div>
-        <div class="table-scroll compact">
-          <el-table
-            v-loading="isTabLoading('bins')"
-            :data="bins"
-            stripe
-            border
-            size="small"
-            empty-text=" "
-          >
-            <el-table-column label="货位编码" min-width="110" align="center">
-              <template #default="{ row }">
-                <span class="cell-id">{{ row.binCode }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="binName" label="货位名称" min-width="140" align="center">
-              <template #default="{ row }">{{ row.binName || '暂无' }}</template>
-            </el-table-column>
-            <el-table-column label="仓库" min-width="140" align="center">
-              <template #default="{ row }">{{ row.warehouseName }}</template>
-            </el-table-column>
-            <el-table-column label="状态" min-width="90" align="center">
-              <template #default="{ row }">
-                <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-                  {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column v-if="canWarehouseEdit" label="操作" width="80" align="center" fixed="right">
-              <template #default="{ row }">
-                <el-button link type="primary" @click="openBinDialog(row)">编辑</el-button>
-              </template>
-            </el-table-column>
-            <template #empty
-              ><el-empty
-                v-if="hydratedTabs.has('bins') && !isTabLoading('bins')"
-                description="暂无货位，请先新增货位"
-                :image-size="60"
-            /></template>
-          </el-table>
-        </div>
-        <div class="section-title">货位库存</div>
-        <div class="table-scroll">
-          <el-table
-            v-loading="isTabLoading('bins')"
-            :data="pagedBinStock"
-            stripe
-            border
-            empty-text=" "
-          >
-            <el-table-column label="货位" min-width="100" align="center">
-              <template #default="{ row }">
-                <span class="cell-id">{{ row.binCode }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="商品" min-width="170" align="center" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.skuName }}</template>
-            </el-table-column>
-            <el-table-column prop="batchNo" label="批次" min-width="130" align="center" />
-            <el-table-column
-              prop="productionDate"
-              label="生产日期"
-              min-width="110"
-              align="center"
+            <el-button
+              v-if="canWarehouseEdit && tab === 'bins'"
+              type="primary"
+              plain
+              @click="openBinMove"
+              >货位移库</el-button
+            >
+            <el-button v-if="canEdit && tab === 'returns'" type="primary" @click="openReturn()"
+              >新建退货</el-button
+            >
+            <el-button
+              v-if="canEdit && (tab === 'inventory' || tab === 'movements')"
+              type="primary"
+              @click="openInbound()"
+              >其他入库</el-button
+            >
+            <el-button
+              v-if="canEdit && tab === 'outbounds'"
+              :loading="cleanupStaleLoading"
+              data-testid="cleanup-stale-outbounds"
+              @click="cleanupStaleOutbounds"
+              >清理空草稿/脏在途</el-button
+            >
+            <el-button
+              v-if="canImportMaster"
+              v-hasPermi="['ops:warehouse:import']"
+              @click="onDownloadImportTemplate"
+              >导入模板</el-button
+            >
+            <el-button
+              v-if="canImportMaster"
+              v-hasPermi="['ops:warehouse:import']"
+              :loading="importing"
+              @click="triggerImport"
+              >导入</el-button
+            >
+            <input
+              ref="warehouseImportInput"
+              type="file"
+              accept=".csv,text/csv"
+              class="hidden-input"
+              @change="onWarehouseImportFile"
             />
-            <el-table-column prop="expiryDate" label="到期日" min-width="110" align="center" />
-            <el-table-column prop="quantity" label="数量" min-width="80" align="center" />
-            <template #empty
-              ><el-empty
-                v-if="hydratedTabs.has('bins') && !isTabLoading('bins')"
-                description="暂无货位库存"
-                :image-size="60"
-            /></template>
-          </el-table>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane v-if="tabGroup === 'fulfillment'" label="出库单" name="outbounds">
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <el-table
-              class="report-table"
-              v-loading="isTabLoading('outbounds')"
-              :data="pagedOutbounds"
-              stripe
-              border
-              row-key="outboundId"
-              :row-class-name="outboundRowClassName"
-              data-testid="outbound-table"
-              @selection-change="onSelectionChange"
-              empty-text=" "
+            <input
+              ref="supplierImportInput"
+              type="file"
+              accept=".csv,text/csv"
+              class="hidden-input"
+              @change="onSupplierImportFile"
+            />
+            <el-button v-hasPermi="['ops:warehouse:export']" @click="onExport">
+              {{ selectedKeys.length ? `导出选中 (${selectedKeys.length})` : '导出' }}
+            </el-button>
+            <el-button :icon="Refresh" :loading="isTabLoading(tab)" @click="reloadCurrent"
+              >刷新</el-button
             >
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column type="expand" align="center">
-                <template #default="{ row }">
-                  <div class="expand-panel" :data-testid="`outbound-expand-${row.outboundId}`">
-                    <el-table :data="row.lines || []" size="small" border class="line-table">
-                      <el-table-column label="目标设备" min-width="180" align="center">
-                        <template #default="scope">
-                          {{ deviceName(scope.row.deviceId, scope.row.deviceName) }}
-                        </template>
-                      </el-table-column>
-                      <el-table-column label="商品" min-width="180" align="center">
-                        <template #default="scope">
-                          {{ skuName(scope.row.skuId) }}
-                        </template>
-                      </el-table-column>
-                      <el-table-column label="货道" min-width="88" align="center">
-                        <template #default="scope">{{ scope.row.slotId || '无' }}</template>
-                      </el-table-column>
-                      <el-table-column prop="batchNo" label="批次" min-width="140" align="center" />
-                      <el-table-column prop="quantity" label="数量" min-width="88" align="center" />
-                      <el-table-column label="交接状态" min-width="110" align="center">
-                        <template #default="scope">{{
-                          dictLabel('handover_status', scope.row.handoverStatus || 'PENDING')
-                        }}</template>
-                      </el-table-column>
-                    </el-table>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column label="出库单" min-width="110" align="center">
-                <template #default="{ row }">
-                  <span :data-testid="`outbound-id-${row.outboundId}`" class="outbound-id-cell">{{
-                    row.outboundId
-                  }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column prop="routeId" label="路线" min-width="88" align="center" />
-              <el-table-column label="出库仓库" min-width="160" align="center">
-                <template #default="{ row }">
-                  {{ warehouseName(row.warehouseId) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="状态" min-width="110" align="center">
-                <template #default="{ row }">
-                  <el-tag :type="dictTagType(row.status)" size="small">{{
-                    dictLabel('warehouse_outbound_status', row.status)
-                  }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="创建时间" min-width="170" align="center">
-                <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-              </el-table-column>
-              <el-table-column
-                v-if="canEdit"
-                label="操作"
-                min-width="240"
-                class-name="col-action"
-                align="center"
-                fixed="right"
-              >
-                <template #default="{ row }">
-                  <div :data-testid="`outbound-row-${row.outboundId}`">
-                    <el-button
-                      v-if="row.lines?.length"
-                      link
-                      type="primary"
-                      class="print-btn"
-                      @click="openPrint('picking', { outboundId: row.outboundId })"
-                      >打印拣货单</el-button
-                    >
-                    <el-button
-                      v-if="row.status === 'DRAFT' && row.lines?.length"
-                      link
-                      type="primary"
-                      class="print-btn"
-                      :data-testid="`outbound-${row.outboundId}-pick`"
-                      @click="changeOutbound(row, 'pick')"
-                      >确认拣货</el-button
-                    >
-                    <el-button
-                      v-if="row.status === 'PICKED' && row.lines?.length"
-                      link
-                      type="danger"
-                      class="print-btn"
-                      :data-testid="`outbound-${row.outboundId}-ship`"
-                      @click="changeOutbound(row, 'ship')"
-                      >确认发运</el-button
-                    >
-                    <TableActions
-                      v-if="outboundSecondaryActions(row).length"
-                      :actions="outboundSecondaryActions(row)"
-                      :test-id-prefix="`outbound-${row.outboundId}`"
-                      @action="(k) => changeOutbound(row, String(k) as 'cancel-unreceived')"
-                    />
-                    <span v-else-if="!row.lines?.length && row.status !== 'SHIPPED'" class="muted"
-                      >无明细</span
-                    >
-                    <span v-else-if="row.status === 'SHIPPED'" class="muted">已发运</span>
-                  </div>
-                </template>
-              </el-table-column>
-              <template #empty
-                ><el-empty
-                  v-if="hydratedTabs.has('outbounds') && !isTabLoading('outbounds')"
-                  description="暂无出库单"
-              /></template>
-            </el-table>
           </div>
         </div>
-      </el-tab-pane>
+      </template>
 
-      <el-tab-pane v-if="tabGroup === 'fulfillment'" label="在途" name="transit">
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <el-table
-              class="report-table"
-              v-loading="isTabLoading('transit')"
-              :data="pagedInTransit"
-              stripe
-              border
-              :row-key="transitRowKey"
-              :row-class-name="transitRowClassName"
-              @selection-change="onSelectionChange"
-              empty-text=" "
-            >
-              <template #empty
-                ><el-empty
-                  v-if="hydratedTabs.has('transit') && !isTabLoading('transit')"
-                  :description="transitEmptyHint"
-              /></template>
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column prop="outboundId" label="出库单" min-width="96" align="center" />
-              <el-table-column label="目标设备" min-width="180" align="center">
-                <template #default="{ row }">
-                  {{ deviceName(row.deviceId, row.deviceName) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="商品" min-width="180" align="center">
-                <template #default="{ row }">
-                  {{ skuName(row.skuId) }}
-                </template>
-              </el-table-column>
-              <el-table-column prop="batchNo" label="批次" min-width="140" align="center" />
-              <el-table-column prop="quantity" label="数量" min-width="88" align="center" />
-              <el-table-column label="状态" min-width="110" align="center">
-                <template #default="{ row }">
-                  <el-tag :type="dictTagType(row.status)" size="small">{{
-                    dictLabel('in_transit_status', row.status)
-                  }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column
-                label="在途 / 时限"
-                min-width="160"
-                align="center"
-                class-name="col-text"
-              >
-                <template #default="{ row }">
-                  <div class="sla-cell">
-                    <template v-if="isTransitOverdue(row)">
-                      <el-tag type="danger" size="small">到柜超时</el-tag>
-                      <small class="sla-meta danger"
-                        >超 {{ formatAge(transitOverdueMs(row)) }}</small
-                      >
-                    </template>
-                    <template v-else-if="isTransitDueSoon(row)">
-                      <el-tag type="warning" size="small">临近超时</el-tag>
-                      <small class="sla-meta"
-                        >已运 {{ formatAge(transitAgeMs(row)) }} · 剩
-                        {{ formatAge(transitRemainMs(row)) }}</small
-                      >
-                    </template>
-                    <template v-else>
-                      <span class="cell-datetime">已运 {{ formatAge(transitAgeMs(row)) }}</span>
-                      <small class="sla-meta">待补货员到柜完成</small>
-                    </template>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column label="发运时间" min-width="170" align="center">
-                <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane v-if="tabGroup === 'inventory'" label="批次库存" name="inventory">
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <el-table
-              class="report-table"
-              v-loading="isTabLoading('inventory')"
-              :data="pagedInventory"
-              stripe
-              border
-              :row-key="inventoryRowKey"
-              @selection-change="onSelectionChange"
-              empty-text=" "
-            >
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column label="仓库" min-width="140" align="center">
-                <template #default="{ row }">{{ warehouseName(row.warehouseId) }}</template>
-              </el-table-column>
-              <el-table-column label="商品" min-width="180" align="center">
-                <template #default="{ row }">
-                  {{ skuName(row.skuId) }}
-                </template>
-              </el-table-column>
-              <el-table-column prop="batchNo" label="批次" min-width="150" align="center" />
-              <el-table-column
-                prop="productionDate"
-                label="生产日期"
-                min-width="120"
-                align="center"
-              />
-              <el-table-column prop="expiryDate" label="到期日期" min-width="120" align="center" />
-              <el-table-column prop="quantity" label="库存" min-width="88" align="center" />
-              <el-table-column label="效期" min-width="100" align="center">
-                <template #default="{ row }">
-                  <el-tag :type="expiryType(row.expiryDate)" size="small">{{
-                    expiryText(row.expiryDate)
-                  }}</el-tag>
-                </template>
-              </el-table-column>
-              <template #empty
-                ><el-empty
-                  v-if="hydratedTabs.has('inventory') && !isTabLoading('inventory')"
-                  description="暂无库存"
-              /></template>
-            </el-table>
-          </div>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane v-if="tabGroup === 'inventory'" label="库存流水" name="movements">
-        <p class="muted tip">仅显示最近 100 条</p>
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <el-table
-              class="report-table"
-              v-loading="isTabLoading('movements')"
-              :data="pagedMovements"
-              stripe
-              border
-              row-key="movementId"
-              @selection-change="onSelectionChange"
-              empty-text=" "
-            >
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column prop="movementId" label="流水" min-width="90" align="center" />
-              <el-table-column label="类型" min-width="130" align="center">
-                <template #default="{ row }">{{
-                  dictLabel('warehouse_movement_type', row.movementType)
-                }}</template>
-              </el-table-column>
-              <el-table-column label="商品" min-width="180" align="center">
-                <template #default="{ row }">
-                  {{ skuName(row.skuId) }}
-                </template>
-              </el-table-column>
-              <el-table-column prop="batchNo" label="批次" min-width="140" align="center" />
-              <el-table-column prop="deltaQty" label="变动" min-width="88" align="center">
-                <template #default="{ row }">
-                  <span :class="row.deltaQty >= 0 ? 'positive' : 'negative'"
-                    >{{ row.deltaQty > 0 ? '+' : '' }}{{ row.deltaQty }}</span
-                  >
-                </template>
-              </el-table-column>
-              <el-table-column label="关联业务" min-width="140" align="center">
-                <template #default="{ row }">{{
-                  dictLabel('business_reference_type', row.refType)
-                }}</template>
-              </el-table-column>
-              <el-table-column label="关联单号" min-width="120" align="center">
-                <template #default="{ row }">{{ displayBizNo(row.refId, '无') }}</template>
-              </el-table-column>
-              <el-table-column label="时间" min-width="170" align="center">
-                <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-              </el-table-column>
-              <template #empty
-                ><el-empty
-                  v-if="hydratedTabs.has('movements') && !isTabLoading('movements')"
-                  description="暂无流水"
-              /></template>
-            </el-table>
-          </div>
-        </div>
-      </el-tab-pane>
-    </el-tabs>
-    <PagePager
-      :hydrated="hydratedTabs.has(tab)"
-      v-model:current-page="page"
-      v-model:page-size="size"
-      :total="tabTotal"
-      :page-sizes="[10, 20, 50, 100]"
-      layout="total, sizes, prev, pager, next"
-      @current-change="onPagerChange"
-      @size-change="onPagerSizeChange"
-    />
-
-    <el-dialog
-      v-model="warehouseDialog"
-      :title="warehouseForm.editing ? '编辑仓库' : '新增仓库'"
-      width="480px"
-      destroy-on-close
-    >
-      <el-form label-width="88px">
-        <el-form-item label="仓库 ID" required>
-          <el-input
-            v-model="warehouseForm.warehouseId"
-            :disabled="warehouseForm.editing"
-            placeholder="如 WH-SH-001"
+      <el-form v-if="showFilterBar" inline class="filter-bar filter-bar--compact" @submit.prevent>
+        <el-form-item
+          v-if="
+            tab === 'inventory' ||
+            tab === 'movements' ||
+            tab === 'outbounds' ||
+            tab === 'purchase' ||
+            tab === 'suggestions' ||
+            tab === 'bins' ||
+            tab === 'returns'
+          "
+          label="仓库"
+        >
+          <el-select
+            v-model="filterWarehouseId"
+            clearable
+            placeholder="全部仓库"
+            style="width: 220px"
+            @change="onWarehouseFilter"
+          >
+            <el-option
+              v-for="w in warehouses"
+              :key="w.warehouseId"
+              :label="w.warehouseName"
+              :value="w.warehouseId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item
+          v-if="tab === 'suppliers' || tab === 'purchase' || tab === 'returns'"
+          label="关键词"
+        >
+          <el-input v-model="keyword" clearable placeholder="搜索关键词" style="width: 200px" />
+        </el-form-item>
+        <el-form-item v-if="tab === 'purchase'" label="列表">
+          <el-checkbox
+            v-model="hideTestPurchaseOrders"
+            data-testid="purchase-hide-test-ref"
+            @change="onPurchaseFilterChange"
+            >隐藏 E2E/冒烟测试单</el-checkbox
+          >
+        </el-form-item>
+        <el-form-item v-if="tab === 'suggestions'" label="采购前置期(天)">
+          <el-input-number
+            v-model="suggestionLeadTimeDays"
+            :min="1"
+            :max="60"
+            size="small"
+            controls-position="right"
+            @change="onSuggestionParamsChange"
           />
         </el-form-item>
-        <el-form-item label="名称" required>
-          <el-input v-model="warehouseForm.warehouseName" maxlength="64" />
-        </el-form-item>
-        <el-form-item label="地址">
-          <el-input v-model="warehouseForm.address" maxlength="255" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-radio-group v-model="warehouseForm.status">
-            <el-radio value="ACTIVE">正常</el-radio>
-            <el-radio value="INACTIVE">停用</el-radio>
-          </el-radio-group>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="warehouseDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveWarehouse">保存</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog
-      v-model="supplierDialog"
-      :title="supplierForm.editing ? '编辑供应商' : '新增供应商'"
-      width="520px"
-      destroy-on-close
-    >
-      <el-form label-width="92px">
-        <el-form-item label="供应商 ID"
-          ><el-input v-model="supplierForm.supplierId" :disabled="supplierForm.editing"
-        /></el-form-item>
-        <el-form-item label="供应商名称"
-          ><el-input v-model="supplierForm.supplierName"
-        /></el-form-item>
-        <el-form-item label="联系人"><el-input v-model="supplierForm.contactName" /></el-form-item>
-        <el-form-item label="联系电话"
-          ><el-input v-model="supplierForm.contactPhone"
-        /></el-form-item>
-        <el-form-item label="账期(天)"
-          ><el-input-number
-            v-model="supplierForm.paymentTermsDays"
-            :min="0"
+        <el-form-item v-if="tab === 'suggestions'" label="覆盖天数">
+          <el-input-number
+            v-model="suggestionCoverageDays"
+            :min="1"
             :max="365"
-            style="width: 100%"
-        /></el-form-item>
-        <el-form-item label="信用额度(元)"
-          ><el-input-number
-            v-model="supplierForm.creditLimitYuan"
-            :min="0"
-            :step="100"
-            :precision="2"
-            style="width: 100%"
-        /></el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="supplierForm.status" style="width: 100%">
+            size="small"
+            controls-position="right"
+            @change="onSuggestionParamsChange"
+          />
+        </el-form-item>
+        <el-form-item v-if="tab === 'payables'" label="状态">
+          <el-select
+            v-model="payableStatusFilter"
+            clearable
+            placeholder="全部"
+            style="width: 140px"
+            @change="onPayableFilter"
+          >
+            <el-option label="未付" value="UNPAID" />
+            <el-option label="部分付款" value="PARTIAL" />
+            <el-option label="已付" value="PAID" />
+            <el-option label="已关闭" value="CLOSED" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="tab === 'payables'" label="逾期">
+          <el-checkbox
+            v-model="payableOverdueOnly"
+            data-testid="payable-overdue-only"
+            @change="onPayableFilter"
+            >仅看逾期</el-checkbox
+          >
+        </el-form-item>
+        <el-form-item v-if="tab === 'stocktakes'" label="状态">
+          <el-select
+            v-model="stocktakeStatusFilter"
+            clearable
+            placeholder="全部"
+            style="width: 140px"
+            @change="onStocktakeFilter"
+          >
+            <el-option label="草稿" value="DRAFT" />
+            <el-option label="盘点中" value="IN_PROGRESS" />
+            <el-option label="已完成" value="COMPLETED" />
+            <el-option label="已调整" value="ADJUSTED" />
+            <el-option label="已取消" value="CANCELLED" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="tab === 'bins'" label="货位">
+          <el-select
+            v-model="filterBinId"
+            clearable
+            placeholder="全部货位"
+            style="width: 160px"
+            @change="onBinFilter"
+          >
+            <el-option v-for="b in bins" :key="b.binId" :label="b.binCode" :value="b.binId" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="tab === 'outbounds'" label="状态">
+          <el-select
+            v-model="filterOutboundStatus"
+            style="width: 160px"
+            data-testid="outbound-status-filter"
+            @change="onOutboundStatusFilter"
+          >
+            <el-option label="待处理" value="actionable" />
+            <el-option label="全部" value="" />
             <el-option
-              v-for="item in dictOptions('supplier_status')"
+              v-for="item in dictOptions('warehouse_outbound_status').filter((o) =>
+                ['DRAFT', 'PICKED', 'SHIPPED'].includes(o.value)
+              )"
               :key="item.value"
               :label="item.label"
               :value="item.value"
             />
           </el-select>
         </el-form-item>
+        <el-form-item v-if="tab === 'transit' && focusDeviceId" label="设备">
+          <el-tag closable type="info" @close="clearFocusDevice">{{ focusDeviceId }}</el-tag>
+        </el-form-item>
+        <el-form-item v-if="tab === 'transit'" label="超时筛选">
+          <el-checkbox
+            v-model="overdueOnly"
+            data-testid="transit-overdue-only"
+            @change="onOverdueToggle"
+            >仅超时未到柜</el-checkbox
+          >
+        </el-form-item>
       </el-form>
-      <template #footer>
-        <el-button @click="supplierDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveSupplier">保存</el-button>
-      </template>
-    </el-dialog>
 
-    <el-dialog v-model="paymentDialog" title="登记付款" width="480px" destroy-on-close>
-      <el-form label-width="92px">
-        <el-form-item label="供应商">{{ payTarget.supplierName }}</el-form-item>
-        <el-form-item label="关联采购单">
-          <span class="cell-id">{{ payTarget.purchaseOrderId }}</span>
-        </el-form-item>
-        <el-form-item label="未付余额">¥{{ money(payTarget.balanceCents) }}</el-form-item>
-        <el-form-item label="付款金额(元)" required>
-          <el-input-number
-            v-model="paymentForm.amountYuan"
-            :min="0.01"
-            :max="payMaxYuan"
-            :precision="2"
-            :step="100"
-            controls-position="right"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="备注"
-          ><el-input v-model="paymentForm.notes" maxlength="200"
-        /></el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="paymentDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="savePayment">确认付款</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="stocktakeDialog" title="新建盘点" width="480px" destroy-on-close>
-      <el-form label-width="92px">
-        <el-form-item label="仓库" required>
-          <el-select v-model="stocktakeForm.warehouseId" filterable style="width: 100%">
-            <el-option
-              v-for="w in activeWarehouses"
-              :key="w.warehouseId"
-              :label="w.warehouseName"
-              :value="w.warehouseId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="盘点模式">
-          <el-radio-group v-model="stocktakeForm.mode">
-            <el-radio value="OPEN">明盘（预填账面数）</el-radio>
-            <el-radio value="BLIND">盲盘（实盘留空）</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="备注"
-          ><el-input v-model="stocktakeForm.notes" maxlength="200"
-        /></el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="stocktakeDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveStocktake">创建</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog
-      v-model="stocktakeDetailDialog"
-      :title="`盘点单 ${stocktakeDetail.stocktakeNo || ''}`"
-      width="980px"
-      class="dialog-wide"
-      destroy-on-close
-    >
-      <el-form inline class="filter-bar filter-bar--compact" @submit.prevent>
-        <el-form-item label="仓库">{{ stocktakeDetail.warehouseName }}</el-form-item>
-        <el-form-item label="模式">{{ stocktakeModeText(stocktakeDetail.mode) }}</el-form-item>
-        <el-form-item label="状态">
-          <el-tag :type="stocktakeStatusType(stocktakeDetail.status)" size="small">
-            {{ stocktakeStatusText(stocktakeDetail.status) }}
-          </el-tag>
-        </el-form-item>
-        <el-form-item label="账面件数">{{ stocktakeDetail.bookQty ?? 0 }}</el-form-item>
-        <el-form-item label="实盘件数">{{ stocktakeDetail.countedQty ?? 0 }}</el-form-item>
-        <el-form-item label="差异件数">
-          <b>{{ stocktakeDetail.diffQty ?? 0 }}</b>
-        </el-form-item>
-        <el-form-item label="差异行数">{{ stocktakeDetail.diffLineCount ?? 0 }}</el-form-item>
-      </el-form>
-      <el-table
-        :data="stocktakeDetail.lines || []"
-        size="small"
-        border
-        max-height="420"
-        class="line-table"
-      >
-        <el-table-column label="商品" min-width="170">
-          <template #default="{ row }">{{ row.skuName }}</template>
-        </el-table-column>
-        <el-table-column prop="batchNo" label="批次" min-width="130" />
-        <el-table-column prop="productionDate" label="生产日期" min-width="110" />
-        <el-table-column prop="expiryDate" label="到期日" min-width="110" />
-        <el-table-column prop="bookQty" label="账面" min-width="70" align="center" />
-        <el-table-column label="实盘" min-width="130" align="center">
-          <template #default="{ row }">
-            <el-input-number
-              v-if="['DRAFT', 'IN_PROGRESS'].includes(stocktakeDetail.status)"
-              v-model="row.countedQty"
-              :min="0"
-              size="small"
-              controls-position="right"
-            />
-            <span v-else>{{ row.countedQty ?? '暂无' }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="差异" min-width="80" align="center">
-          <template #default="{ row }">{{ row.diffQty }}</template>
-        </el-table-column>
-        <el-table-column label="状态" min-width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="stocktakeLineStatusType(row.status)" size="small">
-              {{ stocktakeLineStatusText(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-      </el-table>
-      <template #footer>
-        <el-button @click="stocktakeDetailDialog = false">关闭</el-button>
-        <template v-if="['DRAFT', 'IN_PROGRESS'].includes(stocktakeDetail.status)">
-          <el-button
-            type="primary"
-            plain
-            :loading="scanningPhoto"
-            @click="triggerStocktakePhotoScan"
-            >拍照识别</el-button
-          >
-          <el-button type="primary" :loading="saving" @click="saveStocktakeLines"
-            >保存实盘</el-button
-          >
-          <el-button type="success" :loading="saving" @click="completeStocktakeAction"
-            >完成盘点</el-button
-          >
-          <el-button
-            v-if="stocktakeDetail.status === 'DRAFT'"
-            :loading="saving"
-            @click="cancelStocktakeAction"
-            >取消盘点</el-button
-          >
-        </template>
-        <el-button
-          v-if="stocktakeDetail.status === 'COMPLETED' && (stocktakeDetail.diffLineCount ?? 0) > 0"
-          type="warning"
-          :loading="saving"
-          @click="adjustStocktakeAction"
-          >复盘调整</el-button
-        >
-      </template>
-      <input
-        ref="stocktakePhotoInput"
-        type="file"
-        accept="image/*"
-        class="hidden-input"
-        @change="onStocktakePhoto"
+      <el-alert
+        v-if="tab === 'transit'"
+        type="info"
+        :closable="false"
+        show-icon
+        class="transit-flow-hint"
+        data-testid="transit-flow-hint"
+        title="在途 = 已发往柜机、尚未在柜完成补货。到柜由补货员完成任务后自动签收并上架；本页不办理回仓入库。"
       />
-    </el-dialog>
 
-    <el-dialog
-      v-model="binDialog"
-      :title="binForm.editing ? '编辑货位' : '新增货位'"
-      width="480px"
-      destroy-on-close
-    >
-      <el-form label-width="92px">
-        <el-form-item label="仓库" required>
-          <el-select
-            v-model="binForm.warehouseId"
-            filterable
-            :disabled="binForm.editing"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="w in activeWarehouses"
-              :key="w.warehouseId"
-              :label="w.warehouseName"
-              :value="w.warehouseId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="货位编码" required
-          ><el-input
-            v-model="binForm.binCode"
-            :disabled="binForm.editing"
-            placeholder="如 A-01"
-            maxlength="32"
-        /></el-form-item>
-        <el-form-item label="货位名称"
-          ><el-input v-model="binForm.binName" maxlength="64"
-        /></el-form-item>
-        <el-form-item label="状态">
-          <el-radio-group v-model="binForm.status">
-            <el-radio value="ACTIVE">启用</el-radio>
-            <el-radio value="INACTIVE">停用</el-radio>
-          </el-radio-group>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="binDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveBin">保存</el-button>
-      </template>
-    </el-dialog>
+      <el-alert
+        v-if="
+          tab === 'transit' &&
+          hydratedTabs.has('transit') &&
+          !isTabLoading('transit') &&
+          overdueTransitCount > 0
+        "
+        type="error"
+        :closable="false"
+        show-icon
+        class="sla-banner"
+        data-testid="transit-overdue-banner"
+        :title="
+          overdueOnly
+            ? `共 ${overdueTransitCount} 条到柜超时（发运超 ${TRANSIT_OVERDUE_HOURS} 小时未完成补货签收）`
+            : `共 ${overdueTransitCount} 条到柜超时，可勾选「仅超时未到柜」聚焦催办`
+        "
+      />
 
-    <el-dialog v-model="binInboundDialog" title="入库到货位" width="560px" destroy-on-close>
-      <el-form label-width="92px">
-        <el-form-item label="仓库" required>
-          <el-select
-            v-model="binInboundForm.warehouseId"
-            filterable
-            style="width: 100%"
-            @change="onBinInboundWarehouse"
-          >
-            <el-option
-              v-for="w in activeWarehouses"
-              :key="w.warehouseId"
-              :label="w.warehouseName"
-              :value="w.warehouseId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="货位" required>
-          <el-select v-model="binInboundForm.binCode" filterable style="width: 100%">
-            <el-option
-              v-for="b in activeBinsFor(binInboundForm.warehouseId)"
-              :key="b.binCode"
-              :label="b.binCode"
-              :value="b.binCode"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="商品" required>
-          <el-select v-model="binInboundForm.skuId" filterable style="width: 100%">
-            <el-option
-              v-for="sku in skus"
-              :key="sku.skuId"
-              :label="`${sku.skuName || sku.skuId}`"
-              :value="sku.skuId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="批次" required
-          ><el-input v-model="binInboundForm.batchNo" maxlength="64"
-        /></el-form-item>
-        <el-form-item label="生产日期"
-          ><input v-model="binInboundForm.productionDate" class="native-date" type="date"
-        /></el-form-item>
-        <el-form-item label="到期日" required
-          ><input v-model="binInboundForm.expiryDate" class="native-date" type="date"
-        /></el-form-item>
-        <el-form-item label="数量" required>
-          <el-input-number
-            v-model="binInboundForm.quantity"
-            :min="1"
-            controls-position="right"
-            style="width: 100%"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="binInboundDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveBinInbound">确认入库</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="binMoveDialog" title="货位移库" width="560px" destroy-on-close>
-      <el-form label-width="92px">
-        <el-form-item label="源货位" required>
-          <el-select
-            v-model="binMoveForm.fromBinId"
-            filterable
-            style="width: 100%"
-            @change="onBinMoveSource"
-          >
-            <el-option v-for="b in allBins" :key="b.binId" :label="binLabel(b)" :value="b.binId" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="目标货位" required>
-          <el-select v-model="binMoveForm.toBinId" filterable style="width: 100%">
-            <el-option v-for="b in allBins" :key="b.binId" :label="binLabel(b)" :value="b.binId" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="商品" required>
-          <el-select v-model="binMoveForm.skuId" filterable style="width: 100%">
-            <el-option
-              v-for="s in sourceBinSkus"
-              :key="s.skuId"
-              :label="s.skuName"
-              :value="s.skuId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="批次" required
-          ><el-input v-model="binMoveForm.batchNo" maxlength="64"
-        /></el-form-item>
-        <el-form-item label="数量" required>
-          <el-input-number
-            v-model="binMoveForm.quantity"
-            :min="1"
-            :max="sourceBinMaxQty"
-            controls-position="right"
-            style="width: 100%"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="binMoveDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveBinMove">确认移库</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog
-      v-model="purchaseDialog"
-      title="新建采购单"
-      width="760px"
-      class="dialog-wide"
-      destroy-on-close
-    >
-      <el-form v-loading="dialogBootLoading" label-width="90px">
-        <div class="form-grid">
-          <el-form-item label="供应商" :class="{ 'field-invalid': purchaseFieldErrors.supplierId }">
-            <el-select
-              v-model="purchaseForm.supplierId"
-              filterable
-              style="width: 100%"
-              @change="purchaseFieldErrors.supplierId = false"
-            >
-              <el-option
-                v-for="item in activeSuppliers"
-                :key="item.supplierId"
-                :label="item.supplierName"
-                :value="item.supplierId"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="入库仓库">
-            <el-select v-model="purchaseForm.warehouseId" style="width: 100%">
-              <el-option
-                v-for="item in activeWarehouses"
-                :key="item.warehouseId"
-                :label="item.warehouseName"
-                :value="item.warehouseId"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="外部单号">
-            <el-input
-              v-model="purchaseForm.refNo"
-              placeholder="选填：供应商合同号 / ERP 单号，留空则自动生成"
-              maxlength="64"
-            />
-          </el-form-item>
-          <el-form-item label="备注"><el-input v-model="purchaseForm.notes" /></el-form-item>
-        </div>
-        <div class="section-title">
-          <span>采购商品</span>
-          <el-button link type="primary" @click="addPurchaseLine">添加一行</el-button>
-        </div>
-        <div v-for="(line, index) in purchaseForm.lines" :key="index" class="purchase-line-card">
-          <div class="line-card-head">
-            <strong>明细 {{ index + 1 }}</strong>
-            <el-button
-              link
-              type="danger"
-              :disabled="purchaseForm.lines.length === 1"
-              @click="removePurchaseLine(index)"
-              >删除</el-button
-            >
-          </div>
-          <div class="line-grid">
-            <div
-              class="line-field"
-              :class="{ 'field-invalid': purchaseFieldErrors.lineErrors[index]?.skuId }"
-            >
-              <span>商品</span>
-              <el-select
-                v-model="line.skuId"
-                filterable
-                placeholder="选择商品"
-                @change="clearPurchaseLineError(index, 'skuId')"
-              >
-                <el-option
-                  v-for="sku in skus"
-                  :key="sku.skuId"
-                  :label="`${sku.skuName || sku.skuId}`"
-                  :value="sku.skuId"
-                />
-              </el-select>
-            </div>
-            <div
-              class="line-field"
-              :class="{ 'field-invalid': purchaseFieldErrors.lineErrors[index]?.batchNo }"
-            >
-              <span>批次号</span
-              ><el-input
-                v-model="line.batchNo"
-                @input="clearPurchaseLineError(index, 'batchNo')"
-              />
-            </div>
-            <div class="line-field">
-              <span>数量（件）</span
-              ><el-input-number v-model="line.orderedQty" :min="1" controls-position="right" />
-            </div>
-            <div class="line-field">
-              <span>单价（元）</span
-              ><el-input-number
-                v-model="line.unitCostYuan"
-                :min="0.01"
-                :step="0.01"
-                :precision="2"
-                controls-position="right"
-              />
-            </div>
-            <label class="line-field"
-              ><span>生产日期</span
-              ><input v-model="line.productionDate" class="native-date" type="date"
-            /></label>
-            <label
-              class="line-field"
-              :class="{ 'field-invalid': purchaseFieldErrors.lineErrors[index]?.expiryDate }"
-              ><span>到期日期</span
-              ><input
-                v-model="line.expiryDate"
-                class="native-date"
-                type="date"
-                @change="clearPurchaseLineError(index, 'expiryDate')"
-            /></label>
-          </div>
-        </div>
-      </el-form>
-      <template #footer>
-        <el-button @click="purchaseDialog = false">取消</el-button>
-        <el-button
-          type="primary"
-          :loading="saving"
-          :disabled="dialogBootLoading"
-          @click="savePurchase"
-          >创建</el-button
+      <div
+        v-if="visibleTabGroups.length"
+        class="warehouse-tab-groups"
+        data-testid="warehouse-tab-groups"
+      >
+        <el-radio-group v-model="tabGroup" size="small" @change="onTabGroupChange">
+          <el-radio-button v-for="g in visibleTabGroups" :key="g.id" :value="g.id">
+            {{ g.label }}
+            <span class="tab-group-count">{{ g.count }}</span>
+          </el-radio-button>
+        </el-radio-group>
+        <span class="tab-group-hint"
+          >当前「{{ currentTabGroupLabel }}」· 共 {{ currentGroupTabCount }} 个列表</span
         >
-      </template>
-    </el-dialog>
+      </div>
 
-    <el-dialog
-      v-model="receiveDialog"
-      title="采购收货"
-      width="700px"
-      class="dialog-wide"
-      destroy-on-close
-    >
-      <el-form label-width="100px" style="margin-bottom: 8px">
-        <el-form-item label="收货仓库">
-          <el-select v-model="receiveForm.receiveWarehouseId" filterable style="width: 100%">
-            <el-option
-              v-for="w in warehouses"
-              :key="w.warehouseId"
-              :label="`${w.warehouseName || w.warehouseId}（${w.warehouseId}）`"
-              :value="w.warehouseId"
+      <el-tabs v-model="tab" @tab-change="onTabChange">
+        <el-tab-pane v-if="tabGroup === 'overview'" label="仓库概览" name="warehouses">
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <el-table
+                v-loading="isTabLoading('warehouses')"
+                :data="pagedWarehouses"
+                :default-sort="warehouseIdDefaultSort"
+                @sort-change="onWarehouseIdSortChange"
+                stripe
+                border
+                class="report-table"
+                row-key="warehouseId"
+                @selection-change="onSelectionChange"
+                empty-text=" "
+              >
+                <template #empty
+                  ><el-empty
+                    v-if="hydratedTabs.has('warehouses') && !isTabLoading('warehouses')"
+                    description="暂无仓库"
+                /></template>
+                <el-table-column type="selection" width="48" align="center" />
+                <el-table-column
+                  prop="warehouseId"
+                  label="仓库编号"
+                  min-width="120"
+                  align="center"
+                  class-name="col-text"
+                  show-overflow-tooltip
+                  sortable="custom"
+                >
+                  <template #default="{ row }">
+                    <span class="cell-id">{{ row.warehouseId }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  label="仓库"
+                  min-width="140"
+                  align="center"
+                  class-name="col-text"
+                  show-overflow-tooltip
+                >
+                  <template #default="{ row }">{{ row.warehouseName || '无' }}</template>
+                </el-table-column>
+                <el-table-column
+                  prop="address"
+                  label="地址"
+                  min-width="220"
+                  show-overflow-tooltip
+                  align="center"
+                  class-name="col-text"
+                />
+                <el-table-column label="状态" width="100" align="center">
+                  <template #default="{ row }">
+                    <el-tag :type="dictTagType(row.status)" size="small">
+                      {{ dictLabel('warehouse_status', row.status || 'ACTIVE') }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  v-if="canEdit"
+                  label="操作"
+                  width="88"
+                  class-name="col-action"
+                  align="center"
+                  fixed="right"
+                >
+                  <template #default="{ row }">
+                    <TableActions
+                      :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
+                      @action="() => openWarehouse(row)"
+                    />
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane
+          v-if="tabGroup === 'fulfillment' && canWarehouseList"
+          label="仓间调拨"
+          name="transfers"
+        >
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <el-table
+                v-loading="isTabLoading('transfers')"
+                :data="transfers"
+                stripe
+                border
+                class="report-table"
+                empty-text=" "
+              >
+                <template #empty>
+                  <el-empty
+                    v-if="hydratedTabs.has('transfers') && !isTabLoading('transfers')"
+                    description="暂无调拨单"
+                  />
+                </template>
+                <el-table-column
+                  prop="transferNo"
+                  label="调拨单号"
+                  min-width="160"
+                  show-overflow-tooltip
+                />
+                <el-table-column label="调出仓" min-width="120" show-overflow-tooltip>
+                  <template #default="{ row }">{{
+                    warehouseName(row.fromWarehouseId) || row.fromWarehouseId
+                  }}</template>
+                </el-table-column>
+                <el-table-column label="调入仓" min-width="120" show-overflow-tooltip>
+                  <template #default="{ row }">{{
+                    warehouseName(row.toWarehouseId) || row.toWarehouseId
+                  }}</template>
+                </el-table-column>
+                <el-table-column label="状态" width="100" align="center">
+                  <template #default="{ row }">
+                    <el-tag size="small" effect="plain">{{
+                      transferStatusLabel(row.status)
+                    }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="明细" min-width="180" show-overflow-tooltip>
+                  <template #default="{ row }">
+                    {{
+                      (row.lines || [])
+                        .map(
+                          (l: any) =>
+                            `${skuName(l.skuId) || l.skuId}×${l.quantity}${l.batchNo ? '(' + l.batchNo + ')' : ''}`
+                        )
+                        .join(' · ') || ''
+                    }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="发运" width="150" align="center">
+                  <template #default="{ row }">
+                    <span class="cell-datetime">{{
+                      row.shippedAt ? formatDateTime(row.shippedAt) : ''
+                    }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="收货" width="150" align="center">
+                  <template #default="{ row }">
+                    <span class="cell-datetime">{{
+                      row.receivedAt ? formatDateTime(row.receivedAt) : ''
+                    }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="备注" min-width="100" show-overflow-tooltip>
+                  <template #default="{ row }">{{ row.notes || '' }}</template>
+                </el-table-column>
+                <el-table-column
+                  v-if="canWarehouseEdit"
+                  label="操作"
+                  width="200"
+                  align="center"
+                  fixed="right"
+                >
+                  <template #default="{ row }">
+                    <el-button
+                      v-if="row.status === 'DRAFT'"
+                      link
+                      type="primary"
+                      @click="shipTransfer(row)"
+                      >发运</el-button
+                    >
+                    <el-button
+                      v-if="row.status === 'SHIPPED'"
+                      link
+                      type="success"
+                      @click="receiveTransfer(row)"
+                      >收货</el-button
+                    >
+                    <el-button
+                      v-if="row.status === 'DRAFT'"
+                      link
+                      type="danger"
+                      @click="cancelTransfer(row)"
+                      >取消</el-button
+                    >
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane
+          v-if="tabGroup === 'procurement' && canProcurementList"
+          label="供应商"
+          name="suppliers"
+        >
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <el-table
+                class="report-table"
+                v-loading="isTabLoading('suppliers')"
+                :data="pagedSuppliers"
+                :default-sort="supplierIdDefaultSort"
+                @sort-change="onSupplierIdSortChange"
+                stripe
+                border
+                row-key="supplierId"
+                @selection-change="onSelectionChange"
+                empty-text=" "
+              >
+                <el-table-column type="selection" width="48" align="center" />
+                <el-table-column
+                  prop="supplierId"
+                  label="供应商编号"
+                  min-width="120"
+                  align="center"
+                  class-name="col-text"
+                  show-overflow-tooltip
+                  sortable="custom"
+                >
+                  <template #default="{ row }">
+                    <span class="cell-id">{{ row.supplierId }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  label="供应商"
+                  min-width="140"
+                  align="center"
+                  class-name="col-text"
+                  show-overflow-tooltip
+                >
+                  <template #default="{ row }">{{ row.supplierName || '无' }}</template>
+                </el-table-column>
+                <el-table-column prop="contactName" label="联系人" min-width="120" align="center" />
+                <el-table-column
+                  prop="contactPhone"
+                  label="联系电话"
+                  min-width="150"
+                  align="center"
+                />
+                <el-table-column
+                  prop="paymentTermsDays"
+                  label="账期(天)"
+                  min-width="96"
+                  align="center"
+                />
+                <el-table-column label="状态" min-width="100" align="center">
+                  <template #default="{ row }">
+                    <el-tag :type="dictTagType(row.status)" size="small">{{
+                      dictLabel('supplier_status', row.status)
+                    }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  v-if="canEdit"
+                  label="操作"
+                  width="88"
+                  class-name="col-action"
+                  align="center"
+                  fixed="right"
+                >
+                  <template #default="{ row }">
+                    <TableActions
+                      :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
+                      @action="() => openSupplier(row)"
+                    />
+                  </template>
+                </el-table-column>
+                <template #empty
+                  ><el-empty
+                    v-if="hydratedTabs.has('suppliers') && !isTabLoading('suppliers')"
+                    description="暂无供应商"
+                /></template>
+              </el-table>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane
+          v-if="tabGroup === 'procurement' && canProcurementList"
+          label="采购单"
+          name="purchase"
+        >
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <el-table
+                class="report-table"
+                v-loading="isTabLoading('purchase')"
+                :data="pagedPurchaseOrders"
+                stripe
+                border
+                row-key="purchaseOrderId"
+                @selection-change="onSelectionChange"
+                empty-text=" "
+              >
+                <el-table-column type="selection" width="48" align="center" />
+                <el-table-column type="expand" align="center">
+                  <template #default="{ row }">
+                    <div class="expand-panel">
+                      <el-table :data="row.lines || []" size="small" border class="line-table">
+                        <el-table-column label="商品" min-width="180" align="center">
+                          <template #default="scope">
+                            {{ skuName(scope.row.skuId) }}
+                          </template>
+                        </el-table-column>
+                        <el-table-column
+                          prop="batchNo"
+                          label="批次"
+                          min-width="140"
+                          align="center"
+                        />
+                        <el-table-column
+                          prop="orderedQty"
+                          label="采购数"
+                          min-width="88"
+                          align="center"
+                        />
+                        <el-table-column
+                          prop="receivedQty"
+                          label="已收数"
+                          min-width="88"
+                          align="center"
+                        />
+                        <el-table-column
+                          prop="returnedQty"
+                          label="已退数"
+                          min-width="88"
+                          align="center"
+                        />
+                        <el-table-column label="成本" min-width="96" align="center">
+                          <template #default="scope"
+                            >¥{{ money(scope.row.unitCostCents) }}</template
+                          >
+                        </el-table-column>
+                        <el-table-column
+                          prop="expiryDate"
+                          label="到期日期"
+                          min-width="120"
+                          align="center"
+                        />
+                      </el-table>
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  prop="purchaseOrderId"
+                  label="采购单"
+                  min-width="96"
+                  align="center"
+                />
+                <el-table-column
+                  prop="refNo"
+                  label="外部单号"
+                  min-width="140"
+                  show-overflow-tooltip
+                  align="center"
+                >
+                  <template #default="{ row }">
+                    <span v-if="row.refNo">{{ row.refNo }}</span>
+                    <span v-else class="muted">未填写</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="供应商" min-width="160" align="center">
+                  <template #default="{ row }">
+                    {{ supplierName(row.supplierId) }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="入库仓库" min-width="160" align="center">
+                  <template #default="{ row }">
+                    {{ warehouseName(row.warehouseId) }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="状态" min-width="120" align="center">
+                  <template #default="{ row }">
+                    <el-tag :type="dictTagType(row.status)" size="small">{{
+                      dictLabel('purchase_order_status', row.status)
+                    }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  v-if="canProcurementList"
+                  label="审批节点"
+                  min-width="140"
+                  align="center"
+                  show-overflow-tooltip
+                >
+                  <template #default="{ row }">
+                    <span v-if="row.status === 'PENDING_APPROVAL' && row.approvalCurrentNodeName">{{
+                      row.approvalCurrentNodeName
+                    }}</span>
+                    <span v-else-if="row.status === 'PENDING_APPROVAL'" class="muted">待审批</span>
+                    <span v-else class="muted">—</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  v-if="canEdit"
+                  label="操作"
+                  min-width="220"
+                  class-name="col-action"
+                  align="center"
+                  fixed="right"
+                >
+                  <template #default="{ row }">
+                    <el-button
+                      v-if="row.status !== 'PENDING_APPROVAL'"
+                      link
+                      type="primary"
+                      class="print-btn"
+                      @click="openPrint('purchase', { purchaseOrderId: row.purchaseOrderId })"
+                      >打印收货单</el-button
+                    >
+                    <el-button
+                      v-if="row.status === 'PENDING_APPROVAL' && canReviewPurchaseRow(row)"
+                      link
+                      type="success"
+                      @click="reviewPurchase(row, true)"
+                      >通过</el-button
+                    >
+                    <el-button
+                      v-if="row.status === 'PENDING_APPROVAL' && canReviewPurchaseRow(row)"
+                      link
+                      type="danger"
+                      @click="reviewPurchase(row, false)"
+                      >驳回</el-button
+                    >
+                    <el-button
+                      v-if="['CREATED', 'PARTIAL_RECEIVED'].includes(row.status)"
+                      link
+                      type="primary"
+                      @click="openReceive(row)"
+                      >采购收货</el-button
+                    >
+                  </template>
+                </el-table-column>
+                <template #empty
+                  ><el-empty
+                    v-if="hydratedTabs.has('purchase') && !isTabLoading('purchase')"
+                    description="暂无采购单"
+                /></template>
+              </el-table>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane
+          v-if="tabGroup === 'procurement' && canProcurementList"
+          label="采购建议"
+          name="suggestions"
+        >
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <el-table
+                class="report-table"
+                v-loading="isTabLoading('suggestions')"
+                :data="pagedSuggestions"
+                stripe
+                border
+                row-key="skuId"
+                @selection-change="onSelectionChange"
+                empty-text=" "
+              >
+                <el-table-column type="selection" width="48" align="center" />
+                <el-table-column label="商品" min-width="170" align="center" show-overflow-tooltip>
+                  <template #default="{ row }">{{ skuName(row.skuId) }}</template>
+                </el-table-column>
+                <el-table-column label="近7日销量" prop="soldQty7d" min-width="96" align="center" />
+                <el-table-column
+                  label="近14日销量"
+                  prop="soldQty14d"
+                  min-width="104"
+                  align="center"
+                />
+                <el-table-column label="日均销量" min-width="88" align="center">
+                  <template #default="{ row }">
+                    {{ Number(row.avgDailySales ?? 0).toFixed(2) }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="预测日均" min-width="88" align="center">
+                  <template #default="{ row }">
+                    {{ Number(row.forecastDailySales ?? row.avgDailySales ?? 0).toFixed(2) }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="日均趋势" min-width="88" align="center">
+                  <template #default="{ row }">
+                    <span v-if="Number(row.trendPerDay ?? 0) > 0" class="trend-up"
+                      >+{{ Number(row.trendPerDay).toFixed(2) }}</span
+                    >
+                    <span v-else-if="Number(row.trendPerDay ?? 0) < 0" class="trend-down">{{
+                      Number(row.trendPerDay).toFixed(2)
+                    }}</span>
+                    <span v-else>暂无</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="仓库库存" prop="onHandQty" min-width="88" align="center" />
+                <el-table-column
+                  label="待收采购"
+                  prop="pendingPoQty"
+                  min-width="88"
+                  align="center"
+                />
+                <el-table-column
+                  label="覆盖天数"
+                  prop="coverageDays"
+                  min-width="88"
+                  align="center"
+                />
+                <el-table-column label="建议采购量" min-width="104" align="center">
+                  <template #default="{ row }">
+                    <span class="cell-id">{{ row.suggestQty }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="安全库存" min-width="88" align="center">
+                  <template #default="{ row }">
+                    {{ row.safetyStockQty ?? 0 }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="建议理由" min-width="110" align="center">
+                  <template #default="{ row }">
+                    <el-tag size="small" type="warning">
+                      {{ suggestionReasonText(row.suggestReason) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <template #empty
+                  ><el-empty
+                    v-if="hydratedTabs.has('suggestions') && !isTabLoading('suggestions')"
+                    description="暂无采购建议（近 14 日有动销且库存不足的商品才会出现）"
+                /></template>
+              </el-table>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane
+          v-if="tabGroup === 'procurement' && canProcurementList"
+          label="采购退货"
+          name="returns"
+        >
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <el-table
+                class="report-table"
+                v-loading="isTabLoading('returns')"
+                :data="pagedPurchaseReturns"
+                stripe
+                border
+                row-key="returnId"
+                @selection-change="onSelectionChange"
+                empty-text=" "
+              >
+                <el-table-column type="selection" width="48" align="center" />
+                <el-table-column type="expand" align="center">
+                  <template #default="{ row }">
+                    <div class="expand-panel">
+                      <el-table :data="row.lines || []" size="small" border class="line-table">
+                        <el-table-column label="商品" min-width="180" align="center">
+                          <template #default="scope">
+                            {{ skuName(scope.row.skuId) }}
+                          </template>
+                        </el-table-column>
+                        <el-table-column
+                          prop="batchNo"
+                          label="批次"
+                          min-width="140"
+                          align="center"
+                        />
+                        <el-table-column
+                          prop="quantity"
+                          label="退货数"
+                          min-width="88"
+                          align="center"
+                        />
+                      </el-table>
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="returnId" label="退货单" min-width="96" align="center" />
+                <el-table-column
+                  prop="purchaseOrderId"
+                  label="采购单"
+                  min-width="96"
+                  align="center"
+                />
+                <el-table-column label="供应商" min-width="160" align="center">
+                  <template #default="{ row }">
+                    {{ supplierName(row.supplierId) }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="仓库" min-width="160" align="center">
+                  <template #default="{ row }">
+                    {{ warehouseName(row.warehouseId) }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="状态" min-width="100" align="center">
+                  <template #default="{ row }">
+                    <el-tag type="success" size="small">{{ returnStatusLabel(row.status) }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="创建时间" min-width="170" align="center">
+                  <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+                </el-table-column>
+                <template #empty
+                  ><el-empty
+                    v-if="hydratedTabs.has('returns') && !isTabLoading('returns')"
+                    description="暂无采购退货"
+                /></template>
+              </el-table>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane
+          v-if="tabGroup === 'procurement' && canProcurementList"
+          label="应付账款"
+          name="payables"
+        >
+          <el-alert
+            v-if="hydratedTabs.has('payables') && !isTabLoading('payables')"
+            :closable="false"
+            show-icon
+            type="info"
+            class="payable-summary"
+            :title="payableSummaryText"
+          />
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <el-table
+                class="report-table"
+                v-loading="isTabLoading('payables')"
+                :data="pagedPayables"
+                stripe
+                border
+                row-key="payableId"
+                @selection-change="onSelectionChange"
+                empty-text=" "
+              >
+                <el-table-column type="expand" align="center">
+                  <template #default="{ row }">
+                    <div class="expand-panel">
+                      <el-table
+                        v-if="row.payments?.length"
+                        :data="row.payments"
+                        size="small"
+                        border
+                        class="line-table"
+                      >
+                        <el-table-column label="付款时间" min-width="170" align="center">
+                          <template #default="scope">
+                            {{ formatDateTime(scope.row.createdAt) }}
+                          </template>
+                        </el-table-column>
+                        <el-table-column label="付款金额" min-width="110" align="center">
+                          <template #default="scope">¥{{ money(scope.row.amountCents) }}</template>
+                        </el-table-column>
+                        <el-table-column prop="notes" label="备注" min-width="180" align="center" />
+                      </el-table>
+                      <el-empty v-else description="暂无付款记录" :image-size="60" />
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  label="供应商"
+                  min-width="150"
+                  align="center"
+                  show-overflow-tooltip
+                >
+                  <template #default="{ row }">{{ row.supplierName }}</template>
+                </el-table-column>
+                <el-table-column label="关联采购单" min-width="110" align="center">
+                  <template #default="{ row }">
+                    <span class="cell-id">{{ row.purchaseOrderId }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="应付金额" min-width="110" align="center">
+                  <template #default="{ row }">¥{{ money(row.amountCents) }}</template>
+                </el-table-column>
+                <el-table-column label="已付" min-width="100" align="center">
+                  <template #default="{ row }">¥{{ money(row.paidAmountCents) }}</template>
+                </el-table-column>
+                <el-table-column label="未付余额" min-width="110" align="center">
+                  <template #default="{ row }">
+                    <span class="cell-id">{{ money(row.balanceCents) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="到期日" min-width="110" align="center">
+                  <template #default="{ row }">{{ row.dueDate || '暂无' }}</template>
+                </el-table-column>
+                <el-table-column label="状态" min-width="100" align="center">
+                  <template #default="{ row }">
+                    <el-tag :type="payableStatusType(row.status)" size="small">
+                      {{ payableStatusText(row.status) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="逾期" min-width="116" align="center">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.overdue" type="danger" size="small">
+                      逾期 {{ row.overdueDays }} 天
+                    </el-tag>
+                    <span v-else class="muted">未逾期</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  v-if="canEdit"
+                  label="操作"
+                  width="100"
+                  align="center"
+                  fixed="right"
+                >
+                  <template #default="{ row }">
+                    <el-button
+                      link
+                      type="primary"
+                      :disabled="row.balanceCents <= 0 || ['PAID', 'CLOSED'].includes(row.status)"
+                      data-testid="pay-payable"
+                      @click="openPay(row)"
+                      >登记付款</el-button
+                    >
+                  </template>
+                </el-table-column>
+                <template #empty
+                  ><el-empty
+                    v-if="hydratedTabs.has('payables') && !isTabLoading('payables')"
+                    description="暂无应付账款"
+                /></template>
+              </el-table>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane
+          v-if="tabGroup === 'inventory' && canWarehouseList"
+          label="盘点单"
+          name="stocktakes"
+        >
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <el-table
+                class="report-table"
+                v-loading="isTabLoading('stocktakes')"
+                :data="pagedStocktakes"
+                stripe
+                border
+                row-key="stocktakeId"
+                @selection-change="onSelectionChange"
+                empty-text=" "
+              >
+                <el-table-column type="selection" width="48" align="center" />
+                <el-table-column label="盘点单号" min-width="160" align="center">
+                  <template #default="{ row }">
+                    <span class="cell-id">{{ row.stocktakeNo }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="仓库" min-width="140" align="center">
+                  <template #default="{ row }">{{ row.warehouseName }}</template>
+                </el-table-column>
+                <el-table-column label="模式" min-width="80" align="center">
+                  <template #default="{ row }">{{ stocktakeModeText(row.mode) }}</template>
+                </el-table-column>
+                <el-table-column label="状态" min-width="100" align="center">
+                  <template #default="{ row }">
+                    <el-tag :type="stocktakeStatusType(row.status)" size="small">
+                      {{ stocktakeStatusText(row.status) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="账面件数" prop="bookQty" min-width="90" align="center" />
+                <el-table-column label="实盘件数" prop="countedQty" min-width="90" align="center" />
+                <el-table-column label="差异件数" min-width="90" align="center">
+                  <template #default="{ row }">{{ row.diffQty }}</template>
+                </el-table-column>
+                <el-table-column
+                  label="差异行数"
+                  prop="diffLineCount"
+                  min-width="90"
+                  align="center"
+                />
+                <el-table-column label="创建时间" min-width="160" align="center">
+                  <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+                </el-table-column>
+                <el-table-column
+                  v-if="canWarehouseEdit"
+                  label="操作"
+                  width="110"
+                  align="center"
+                  fixed="right"
+                >
+                  <template #default="{ row }">
+                    <el-button link type="primary" @click="openStocktakeDetail(row)">
+                      {{ ['DRAFT', 'IN_PROGRESS'].includes(row.status) ? '盘点' : '查看/调整' }}
+                    </el-button>
+                  </template>
+                </el-table-column>
+                <template #empty
+                  ><el-empty
+                    v-if="hydratedTabs.has('stocktakes') && !isTabLoading('stocktakes')"
+                    description="暂无盘点单"
+                /></template>
+              </el-table>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane v-if="tabGroup === 'inventory' && canWarehouseList" label="货位" name="bins">
+          <div class="section-title">货位档案</div>
+          <div class="table-scroll compact">
+            <el-table
+              v-loading="isTabLoading('bins')"
+              :data="bins"
+              stripe
+              border
+              size="small"
+              empty-text=" "
+            >
+              <el-table-column label="货位编码" min-width="110" align="center">
+                <template #default="{ row }">
+                  <span class="cell-id">{{ row.binCode }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="binName" label="货位名称" min-width="140" align="center">
+                <template #default="{ row }">{{ row.binName || '暂无' }}</template>
+              </el-table-column>
+              <el-table-column label="仓库" min-width="140" align="center">
+                <template #default="{ row }">{{ row.warehouseName }}</template>
+              </el-table-column>
+              <el-table-column label="状态" min-width="90" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
+                    {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column
+                v-if="canWarehouseEdit"
+                label="操作"
+                width="80"
+                align="center"
+                fixed="right"
+              >
+                <template #default="{ row }">
+                  <el-button link type="primary" @click="openBinDialog(row)">编辑</el-button>
+                </template>
+              </el-table-column>
+              <template #empty
+                ><el-empty
+                  v-if="hydratedTabs.has('bins') && !isTabLoading('bins')"
+                  description="暂无货位，请先新增货位"
+                  :image-size="60"
+              /></template>
+            </el-table>
+          </div>
+          <div class="section-title">货位库存</div>
+          <div class="table-scroll">
+            <el-table
+              v-loading="isTabLoading('bins')"
+              :data="pagedBinStock"
+              stripe
+              border
+              empty-text=" "
+            >
+              <el-table-column label="货位" min-width="100" align="center">
+                <template #default="{ row }">
+                  <span class="cell-id">{{ row.binCode }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="商品" min-width="170" align="center" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.skuName }}</template>
+              </el-table-column>
+              <el-table-column prop="batchNo" label="批次" min-width="130" align="center" />
+              <el-table-column
+                prop="productionDate"
+                label="生产日期"
+                min-width="110"
+                align="center"
+              />
+              <el-table-column prop="expiryDate" label="到期日" min-width="110" align="center" />
+              <el-table-column prop="quantity" label="数量" min-width="80" align="center" />
+              <template #empty
+                ><el-empty
+                  v-if="hydratedTabs.has('bins') && !isTabLoading('bins')"
+                  description="暂无货位库存"
+                  :image-size="60"
+              /></template>
+            </el-table>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane v-if="tabGroup === 'fulfillment'" label="出库单" name="outbounds">
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <el-table
+                class="report-table"
+                v-loading="isTabLoading('outbounds')"
+                :data="pagedOutbounds"
+                stripe
+                border
+                row-key="outboundId"
+                :row-class-name="outboundRowClassName"
+                data-testid="outbound-table"
+                @selection-change="onSelectionChange"
+                empty-text=" "
+              >
+                <el-table-column type="selection" width="48" align="center" />
+                <el-table-column type="expand" align="center">
+                  <template #default="{ row }">
+                    <div class="expand-panel" :data-testid="`outbound-expand-${row.outboundId}`">
+                      <el-table :data="row.lines || []" size="small" border class="line-table">
+                        <el-table-column label="目标设备" min-width="180" align="center">
+                          <template #default="scope">
+                            {{ deviceName(scope.row.deviceId, scope.row.deviceName) }}
+                          </template>
+                        </el-table-column>
+                        <el-table-column label="商品" min-width="180" align="center">
+                          <template #default="scope">
+                            {{ skuName(scope.row.skuId) }}
+                          </template>
+                        </el-table-column>
+                        <el-table-column label="货道" min-width="88" align="center">
+                          <template #default="scope">{{ scope.row.slotId || '无' }}</template>
+                        </el-table-column>
+                        <el-table-column
+                          prop="batchNo"
+                          label="批次"
+                          min-width="140"
+                          align="center"
+                        />
+                        <el-table-column
+                          prop="quantity"
+                          label="数量"
+                          min-width="88"
+                          align="center"
+                        />
+                        <el-table-column label="交接状态" min-width="110" align="center">
+                          <template #default="scope">{{
+                            dictLabel('handover_status', scope.row.handoverStatus || 'PENDING')
+                          }}</template>
+                        </el-table-column>
+                      </el-table>
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column label="出库单" min-width="110" align="center">
+                  <template #default="{ row }">
+                    <span :data-testid="`outbound-id-${row.outboundId}`" class="outbound-id-cell">{{
+                      row.outboundId
+                    }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="routeId" label="路线" min-width="88" align="center" />
+                <el-table-column label="出库仓库" min-width="160" align="center">
+                  <template #default="{ row }">
+                    {{ warehouseName(row.warehouseId) }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="状态" min-width="110" align="center">
+                  <template #default="{ row }">
+                    <el-tag :type="dictTagType(row.status)" size="small">{{
+                      dictLabel('warehouse_outbound_status', row.status)
+                    }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="创建时间" min-width="170" align="center">
+                  <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+                </el-table-column>
+                <el-table-column
+                  v-if="canEdit"
+                  label="操作"
+                  min-width="240"
+                  class-name="col-action"
+                  align="center"
+                  fixed="right"
+                >
+                  <template #default="{ row }">
+                    <div :data-testid="`outbound-row-${row.outboundId}`">
+                      <el-button
+                        v-if="row.lines?.length"
+                        link
+                        type="primary"
+                        class="print-btn"
+                        @click="openPrint('picking', { outboundId: row.outboundId })"
+                        >打印拣货单</el-button
+                      >
+                      <el-button
+                        v-if="row.status === 'DRAFT' && row.lines?.length"
+                        link
+                        type="primary"
+                        class="print-btn"
+                        :data-testid="`outbound-${row.outboundId}-pick`"
+                        @click="changeOutbound(row, 'pick')"
+                        >确认拣货</el-button
+                      >
+                      <el-button
+                        v-if="row.status === 'PICKED' && row.lines?.length"
+                        link
+                        type="danger"
+                        class="print-btn"
+                        :data-testid="`outbound-${row.outboundId}-ship`"
+                        @click="changeOutbound(row, 'ship')"
+                        >确认发运</el-button
+                      >
+                      <TableActions
+                        v-if="outboundSecondaryActions(row).length"
+                        :actions="outboundSecondaryActions(row)"
+                        :test-id-prefix="`outbound-${row.outboundId}`"
+                        @action="(k) => changeOutbound(row, String(k) as 'cancel-unreceived')"
+                      />
+                      <span v-else-if="!row.lines?.length && row.status !== 'SHIPPED'" class="muted"
+                        >无明细</span
+                      >
+                      <span v-else-if="row.status === 'SHIPPED'" class="muted">已发运</span>
+                    </div>
+                  </template>
+                </el-table-column>
+                <template #empty
+                  ><el-empty
+                    v-if="hydratedTabs.has('outbounds') && !isTabLoading('outbounds')"
+                    description="暂无出库单"
+                /></template>
+              </el-table>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane v-if="tabGroup === 'fulfillment'" label="在途" name="transit">
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <el-table
+                class="report-table"
+                v-loading="isTabLoading('transit')"
+                :data="pagedInTransit"
+                stripe
+                border
+                :row-key="transitRowKey"
+                :row-class-name="transitRowClassName"
+                @selection-change="onSelectionChange"
+                empty-text=" "
+              >
+                <template #empty
+                  ><el-empty
+                    v-if="hydratedTabs.has('transit') && !isTabLoading('transit')"
+                    :description="transitEmptyHint"
+                /></template>
+                <el-table-column type="selection" width="48" align="center" />
+                <el-table-column prop="outboundId" label="出库单" min-width="96" align="center" />
+                <el-table-column label="目标设备" min-width="180" align="center">
+                  <template #default="{ row }">
+                    {{ deviceName(row.deviceId, row.deviceName) }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="商品" min-width="180" align="center">
+                  <template #default="{ row }">
+                    {{ skuName(row.skuId) }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="batchNo" label="批次" min-width="140" align="center" />
+                <el-table-column prop="quantity" label="数量" min-width="88" align="center" />
+                <el-table-column label="状态" min-width="110" align="center">
+                  <template #default="{ row }">
+                    <el-tag :type="dictTagType(row.status)" size="small">{{
+                      dictLabel('in_transit_status', row.status)
+                    }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  label="在途 / 时限"
+                  min-width="160"
+                  align="center"
+                  class-name="col-text"
+                >
+                  <template #default="{ row }">
+                    <div class="sla-cell">
+                      <template v-if="isTransitOverdue(row)">
+                        <el-tag type="danger" size="small">到柜超时</el-tag>
+                        <small class="sla-meta danger"
+                          >超 {{ formatAge(transitOverdueMs(row)) }}</small
+                        >
+                      </template>
+                      <template v-else-if="isTransitDueSoon(row)">
+                        <el-tag type="warning" size="small">临近超时</el-tag>
+                        <small class="sla-meta"
+                          >已运 {{ formatAge(transitAgeMs(row)) }} · 剩
+                          {{ formatAge(transitRemainMs(row)) }}</small
+                        >
+                      </template>
+                      <template v-else>
+                        <span class="cell-datetime">已运 {{ formatAge(transitAgeMs(row)) }}</span>
+                        <small class="sla-meta">待补货员到柜完成</small>
+                      </template>
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column label="发运时间" min-width="170" align="center">
+                  <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane v-if="tabGroup === 'inventory'" label="批次库存" name="inventory">
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <el-table
+                class="report-table"
+                v-loading="isTabLoading('inventory')"
+                :data="pagedInventory"
+                stripe
+                border
+                :row-key="inventoryRowKey"
+                @selection-change="onSelectionChange"
+                empty-text=" "
+              >
+                <el-table-column type="selection" width="48" align="center" />
+                <el-table-column label="仓库" min-width="140" align="center">
+                  <template #default="{ row }">{{ warehouseName(row.warehouseId) }}</template>
+                </el-table-column>
+                <el-table-column label="商品" min-width="180" align="center">
+                  <template #default="{ row }">
+                    {{ skuName(row.skuId) }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="batchNo" label="批次" min-width="150" align="center" />
+                <el-table-column
+                  prop="productionDate"
+                  label="生产日期"
+                  min-width="120"
+                  align="center"
+                />
+                <el-table-column
+                  prop="expiryDate"
+                  label="到期日期"
+                  min-width="120"
+                  align="center"
+                />
+                <el-table-column prop="quantity" label="库存" min-width="88" align="center" />
+                <el-table-column label="效期" min-width="100" align="center">
+                  <template #default="{ row }">
+                    <el-tag :type="expiryType(row.expiryDate)" size="small">{{
+                      expiryText(row.expiryDate)
+                    }}</el-tag>
+                  </template>
+                </el-table-column>
+                <template #empty
+                  ><el-empty
+                    v-if="hydratedTabs.has('inventory') && !isTabLoading('inventory')"
+                    description="暂无库存"
+                /></template>
+              </el-table>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane v-if="tabGroup === 'inventory'" label="库存流水" name="movements">
+          <p class="muted tip">仅显示最近 100 条</p>
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <el-table
+                class="report-table"
+                v-loading="isTabLoading('movements')"
+                :data="pagedMovements"
+                stripe
+                border
+                row-key="movementId"
+                @selection-change="onSelectionChange"
+                empty-text=" "
+              >
+                <el-table-column type="selection" width="48" align="center" />
+                <el-table-column prop="movementId" label="流水" min-width="90" align="center" />
+                <el-table-column label="类型" min-width="130" align="center">
+                  <template #default="{ row }">{{
+                    dictLabel('warehouse_movement_type', row.movementType)
+                  }}</template>
+                </el-table-column>
+                <el-table-column label="商品" min-width="180" align="center">
+                  <template #default="{ row }">
+                    {{ skuName(row.skuId) }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="batchNo" label="批次" min-width="140" align="center" />
+                <el-table-column prop="deltaQty" label="变动" min-width="88" align="center">
+                  <template #default="{ row }">
+                    <span :class="row.deltaQty >= 0 ? 'positive' : 'negative'"
+                      >{{ row.deltaQty > 0 ? '+' : '' }}{{ row.deltaQty }}</span
+                    >
+                  </template>
+                </el-table-column>
+                <el-table-column label="关联业务" min-width="140" align="center">
+                  <template #default="{ row }">{{
+                    dictLabel('business_reference_type', row.refType)
+                  }}</template>
+                </el-table-column>
+                <el-table-column label="关联单号" min-width="120" align="center">
+                  <template #default="{ row }">{{ displayBizNo(row.refId, '无') }}</template>
+                </el-table-column>
+                <el-table-column label="时间" min-width="170" align="center">
+                  <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+                </el-table-column>
+                <template #empty
+                  ><el-empty
+                    v-if="hydratedTabs.has('movements') && !isTabLoading('movements')"
+                    description="暂无流水"
+                /></template>
+              </el-table>
+            </div>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+      <PagePager
+        :hydrated="hydratedTabs.has(tab)"
+        v-model:current-page="page"
+        v-model:page-size="size"
+        :total="tabTotal"
+        :page-sizes="[10, 20, 50, 100]"
+        layout="total, sizes, prev, pager, next"
+        @current-change="onPagerChange"
+        @size-change="onPagerSizeChange"
+      />
+
+      <el-dialog
+        v-model="warehouseDialog"
+        :title="warehouseForm.editing ? '编辑仓库' : '新增仓库'"
+        width="480px"
+        destroy-on-close
+      >
+        <el-form label-width="88px">
+          <el-form-item label="仓库 ID" required>
+            <el-input
+              v-model="warehouseForm.warehouseId"
+              :disabled="warehouseForm.editing"
+              placeholder="如 WH-SH-001"
             />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <div class="table-scroll">
-        <el-table :data="receiveForm.lines" class="receive-table">
-          <el-table-column label="商品" min-width="160" align="center">
-            <template #default="{ row }">
-              <div>{{ skuName(row.skuId) }}</div>
-              <small class="muted">{{ row.skuId }}</small>
-            </template>
+          </el-form-item>
+          <el-form-item label="名称" required>
+            <el-input v-model="warehouseForm.warehouseName" maxlength="64" />
+          </el-form-item>
+          <el-form-item label="地址">
+            <el-input v-model="warehouseForm.address" maxlength="255" />
+          </el-form-item>
+          <el-form-item label="状态">
+            <el-radio-group v-model="warehouseForm.status">
+              <el-radio value="ACTIVE">正常</el-radio>
+              <el-radio value="INACTIVE">停用</el-radio>
+            </el-radio-group>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="warehouseDialog = false">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="saveWarehouse">保存</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog
+        v-model="supplierDialog"
+        :title="supplierForm.editing ? '编辑供应商' : '新增供应商'"
+        width="520px"
+        destroy-on-close
+      >
+        <el-form label-width="92px">
+          <el-form-item label="供应商 ID"
+            ><el-input v-model="supplierForm.supplierId" :disabled="supplierForm.editing"
+          /></el-form-item>
+          <el-form-item label="供应商名称"
+            ><el-input v-model="supplierForm.supplierName"
+          /></el-form-item>
+          <el-form-item label="联系人"
+            ><el-input v-model="supplierForm.contactName"
+          /></el-form-item>
+          <el-form-item label="联系电话"
+            ><el-input v-model="supplierForm.contactPhone"
+          /></el-form-item>
+          <el-form-item label="账期(天)"
+            ><el-input-number
+              v-model="supplierForm.paymentTermsDays"
+              :min="0"
+              :max="365"
+              style="width: 100%"
+          /></el-form-item>
+          <el-form-item label="信用额度(元)"
+            ><el-input-number
+              v-model="supplierForm.creditLimitYuan"
+              :min="0"
+              :step="100"
+              :precision="2"
+              style="width: 100%"
+          /></el-form-item>
+          <el-form-item label="状态">
+            <el-select v-model="supplierForm.status" style="width: 100%">
+              <el-option
+                v-for="item in dictOptions('supplier_status')"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="supplierDialog = false">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="saveSupplier">保存</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="paymentDialog" title="登记付款" width="480px" destroy-on-close>
+        <el-form label-width="92px">
+          <el-form-item label="供应商">{{ payTarget.supplierName }}</el-form-item>
+          <el-form-item label="关联采购单">
+            <span class="cell-id">{{ payTarget.purchaseOrderId }}</span>
+          </el-form-item>
+          <el-form-item label="未付余额">¥{{ money(payTarget.balanceCents) }}</el-form-item>
+          <el-form-item label="付款金额(元)" required>
+            <el-input-number
+              v-model="paymentForm.amountYuan"
+              :min="0.01"
+              :max="payMaxYuan"
+              :precision="2"
+              :step="100"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+          <el-form-item label="备注"
+            ><el-input v-model="paymentForm.notes" maxlength="200"
+          /></el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="paymentDialog = false">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="savePayment">确认付款</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="stocktakeDialog" title="新建盘点" width="480px" destroy-on-close>
+        <el-form label-width="92px">
+          <el-form-item label="仓库" required>
+            <el-select v-model="stocktakeForm.warehouseId" filterable style="width: 100%">
+              <el-option
+                v-for="w in activeWarehouses"
+                :key="w.warehouseId"
+                :label="w.warehouseName"
+                :value="w.warehouseId"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="盘点模式">
+            <el-radio-group v-model="stocktakeForm.mode">
+              <el-radio value="OPEN">明盘（预填账面数）</el-radio>
+              <el-radio value="BLIND">盲盘（实盘留空）</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="备注"
+            ><el-input v-model="stocktakeForm.notes" maxlength="200"
+          /></el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="stocktakeDialog = false">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="saveStocktake">创建</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog
+        v-model="stocktakeDetailDialog"
+        :title="`盘点单 ${stocktakeDetail.stocktakeNo || ''}`"
+        width="980px"
+        class="dialog-wide"
+        destroy-on-close
+      >
+        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent>
+          <el-form-item label="仓库">{{ stocktakeDetail.warehouseName }}</el-form-item>
+          <el-form-item label="模式">{{ stocktakeModeText(stocktakeDetail.mode) }}</el-form-item>
+          <el-form-item label="状态">
+            <el-tag :type="stocktakeStatusType(stocktakeDetail.status)" size="small">
+              {{ stocktakeStatusText(stocktakeDetail.status) }}
+            </el-tag>
+          </el-form-item>
+          <el-form-item label="账面件数">{{ stocktakeDetail.bookQty ?? 0 }}</el-form-item>
+          <el-form-item label="实盘件数">{{ stocktakeDetail.countedQty ?? 0 }}</el-form-item>
+          <el-form-item label="差异件数">
+            <b>{{ stocktakeDetail.diffQty ?? 0 }}</b>
+          </el-form-item>
+          <el-form-item label="差异行数">{{ stocktakeDetail.diffLineCount ?? 0 }}</el-form-item>
+        </el-form>
+        <el-table
+          :data="stocktakeDetail.lines || []"
+          size="small"
+          border
+          max-height="420"
+          class="line-table"
+        >
+          <el-table-column label="商品" min-width="170">
+            <template #default="{ row }">{{ row.skuName }}</template>
           </el-table-column>
-          <el-table-column prop="batchNo" label="批次" min-width="120" align="center" />
-          <el-table-column prop="expiryDate" label="到期日" width="110" align="center">
-            <template #default="{ row }">{{ row.expiryDate || '暂无' }}</template>
-          </el-table-column>
-          <el-table-column prop="orderedQty" label="采购数" width="90" align="center" />
-          <el-table-column label="待收" width="80" align="center">
-            <template #default="{ row }">
-              {{ Math.max(0, Number(row.orderedQty || 0) - Number(row.receivedQty || 0)) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="累计收货" width="150" align="center">
+          <el-table-column prop="batchNo" label="批次" min-width="130" />
+          <el-table-column prop="productionDate" label="生产日期" min-width="110" />
+          <el-table-column prop="expiryDate" label="到期日" min-width="110" />
+          <el-table-column prop="bookQty" label="账面" min-width="70" align="center" />
+          <el-table-column label="实盘" min-width="130" align="center">
             <template #default="{ row }">
               <el-input-number
-                v-model="row.receivedQty"
-                :min="row.minReceived"
-                :max="row.orderedQty"
+                v-if="['DRAFT', 'IN_PROGRESS'].includes(stocktakeDetail.status)"
+                v-model="row.countedQty"
+                :min="0"
+                size="small"
                 controls-position="right"
               />
+              <span v-else>{{ row.countedQty ?? '暂无' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="差异" min-width="80" align="center">
+            <template #default="{ row }">{{ row.diffQty }}</template>
+          </el-table-column>
+          <el-table-column label="状态" min-width="100" align="center">
+            <template #default="{ row }">
+              <el-tag :type="stocktakeLineStatusType(row.status)" size="small">
+                {{ stocktakeLineStatusText(row.status) }}
+              </el-tag>
             </template>
           </el-table-column>
         </el-table>
-      </div>
-      <el-input
-        v-model="receiveForm.notes"
-        type="textarea"
-        placeholder="收货备注"
-        style="margin-top: 12px"
-      />
-      <template #footer>
-        <el-button @click="receiveDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveReceive">确认收货</el-button>
-      </template>
-    </el-dialog>
+        <template #footer>
+          <el-button @click="stocktakeDetailDialog = false">关闭</el-button>
+          <template v-if="['DRAFT', 'IN_PROGRESS'].includes(stocktakeDetail.status)">
+            <el-button
+              type="primary"
+              plain
+              :loading="scanningPhoto"
+              @click="triggerStocktakePhotoScan"
+              >拍照识别</el-button
+            >
+            <el-button type="primary" :loading="saving" @click="saveStocktakeLines"
+              >保存实盘</el-button
+            >
+            <el-button type="success" :loading="saving" @click="completeStocktakeAction"
+              >完成盘点</el-button
+            >
+            <el-button
+              v-if="stocktakeDetail.status === 'DRAFT'"
+              :loading="saving"
+              @click="cancelStocktakeAction"
+              >取消盘点</el-button
+            >
+          </template>
+          <el-button
+            v-if="
+              stocktakeDetail.status === 'COMPLETED' && (stocktakeDetail.diffLineCount ?? 0) > 0
+            "
+            type="warning"
+            :loading="saving"
+            @click="adjustStocktakeAction"
+            >复盘调整</el-button
+          >
+        </template>
+        <input
+          ref="stocktakePhotoInput"
+          type="file"
+          accept="image/*"
+          class="hidden-input"
+          @change="onStocktakePhoto"
+        />
+      </el-dialog>
 
-    <el-dialog v-model="transferDialog" title="新建仓间调拨" width="520px" destroy-on-close>
-      <el-form label-width="100px">
-        <el-form-item label="调出仓" required>
-          <el-select v-model="transferForm.fromWarehouseId" filterable style="width: 100%">
-            <el-option
-              v-for="w in warehouses"
-              :key="w.warehouseId"
-              :label="w.warehouseName || w.warehouseId"
-              :value="w.warehouseId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="调入仓" required>
-          <el-select v-model="transferForm.toWarehouseId" filterable style="width: 100%">
-            <el-option
-              v-for="w in warehouses"
-              :key="'to-' + w.warehouseId"
-              :label="w.warehouseName || w.warehouseId"
-              :value="w.warehouseId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="SKU" required>
-          <el-input v-model="transferForm.skuId" placeholder="商品 SKU" />
-        </el-form-item>
-        <el-form-item label="批次">
-          <el-input v-model="transferForm.batchNo" placeholder="可空" />
-        </el-form-item>
-        <el-form-item label="数量" required>
-          <el-input-number v-model="transferForm.quantity" :min="1" />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="transferForm.notes" type="textarea" :rows="2" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="transferDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveTransfer">创建</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog
-      v-model="returnDialog"
-      title="采购退货"
-      width="760px"
-      class="dialog-wide"
-      destroy-on-close
-    >
-      <div v-loading="dialogBootLoading">
-        <el-form label-width="90px">
-          <el-form-item label="采购单" required>
+      <el-dialog
+        v-model="binDialog"
+        :title="binForm.editing ? '编辑货位' : '新增货位'"
+        width="480px"
+        destroy-on-close
+      >
+        <el-form label-width="92px">
+          <el-form-item label="仓库" required>
             <el-select
-              v-model="returnForm.purchaseOrderId"
+              v-model="binForm.warehouseId"
               filterable
-              placeholder="选择已收货采购单"
+              :disabled="binForm.editing"
               style="width: 100%"
-              @change="onReturnPoChange"
             >
               <el-option
-                v-for="po in returnablePurchaseOrders"
-                :key="po.purchaseOrderId"
-                :label="`${po.purchaseOrderId} · ${supplierName(po.supplierId)} · ${warehouseName(po.warehouseId)}`"
-                :value="po.purchaseOrderId"
+                v-for="w in activeWarehouses"
+                :key="w.warehouseId"
+                :label="w.warehouseName"
+                :value="w.warehouseId"
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="备注">
-            <el-input v-model="returnForm.notes" type="textarea" placeholder="退货备注" />
+          <el-form-item label="货位编码" required
+            ><el-input
+              v-model="binForm.binCode"
+              :disabled="binForm.editing"
+              placeholder="如 A-01"
+              maxlength="32"
+          /></el-form-item>
+          <el-form-item label="货位名称"
+            ><el-input v-model="binForm.binName" maxlength="64"
+          /></el-form-item>
+          <el-form-item label="状态">
+            <el-radio-group v-model="binForm.status">
+              <el-radio value="ACTIVE">启用</el-radio>
+              <el-radio value="INACTIVE">停用</el-radio>
+            </el-radio-group>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="binDialog = false">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="saveBin">保存</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="binInboundDialog" title="入库到货位" width="560px" destroy-on-close>
+        <el-form label-width="92px">
+          <el-form-item label="仓库" required>
+            <el-select
+              v-model="binInboundForm.warehouseId"
+              filterable
+              style="width: 100%"
+              @change="onBinInboundWarehouse"
+            >
+              <el-option
+                v-for="w in activeWarehouses"
+                :key="w.warehouseId"
+                :label="w.warehouseName"
+                :value="w.warehouseId"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="货位" required>
+            <el-select v-model="binInboundForm.binCode" filterable style="width: 100%">
+              <el-option
+                v-for="b in activeBinsFor(binInboundForm.warehouseId)"
+                :key="b.binCode"
+                :label="b.binCode"
+                :value="b.binCode"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="商品" required>
+            <el-select v-model="binInboundForm.skuId" filterable style="width: 100%">
+              <el-option
+                v-for="sku in skus"
+                :key="sku.skuId"
+                :label="`${sku.skuName || sku.skuId}`"
+                :value="sku.skuId"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="批次" required
+            ><el-input v-model="binInboundForm.batchNo" maxlength="64"
+          /></el-form-item>
+          <el-form-item label="生产日期"
+            ><input v-model="binInboundForm.productionDate" class="native-date" type="date"
+          /></el-form-item>
+          <el-form-item label="到期日" required
+            ><input v-model="binInboundForm.expiryDate" class="native-date" type="date"
+          /></el-form-item>
+          <el-form-item label="数量" required>
+            <el-input-number
+              v-model="binInboundForm.quantity"
+              :min="1"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="binInboundDialog = false">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="saveBinInbound">确认入库</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="binMoveDialog" title="货位移库" width="560px" destroy-on-close>
+        <el-form label-width="92px">
+          <el-form-item label="源货位" required>
+            <el-select
+              v-model="binMoveForm.fromBinId"
+              filterable
+              style="width: 100%"
+              @change="onBinMoveSource"
+            >
+              <el-option
+                v-for="b in allBins"
+                :key="b.binId"
+                :label="binLabel(b)"
+                :value="b.binId"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="目标货位" required>
+            <el-select v-model="binMoveForm.toBinId" filterable style="width: 100%">
+              <el-option
+                v-for="b in allBins"
+                :key="b.binId"
+                :label="binLabel(b)"
+                :value="b.binId"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="商品" required>
+            <el-select v-model="binMoveForm.skuId" filterable style="width: 100%">
+              <el-option
+                v-for="s in sourceBinSkus"
+                :key="s.skuId"
+                :label="s.skuName"
+                :value="s.skuId"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="批次" required
+            ><el-input v-model="binMoveForm.batchNo" maxlength="64"
+          /></el-form-item>
+          <el-form-item label="数量" required>
+            <el-input-number
+              v-model="binMoveForm.quantity"
+              :min="1"
+              :max="sourceBinMaxQty"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="binMoveDialog = false">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="saveBinMove">确认移库</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog
+        v-model="purchaseDialog"
+        title="新建采购单"
+        width="760px"
+        class="dialog-wide"
+        destroy-on-close
+      >
+        <el-form v-loading="dialogBootLoading" label-width="90px">
+          <div class="form-grid">
+            <el-form-item
+              label="供应商"
+              :class="{ 'field-invalid': purchaseFieldErrors.supplierId }"
+            >
+              <el-select
+                v-model="purchaseForm.supplierId"
+                filterable
+                style="width: 100%"
+                @change="purchaseFieldErrors.supplierId = false"
+              >
+                <el-option
+                  v-for="item in activeSuppliers"
+                  :key="item.supplierId"
+                  :label="item.supplierName"
+                  :value="item.supplierId"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="入库仓库">
+              <el-select v-model="purchaseForm.warehouseId" style="width: 100%">
+                <el-option
+                  v-for="item in activeWarehouses"
+                  :key="item.warehouseId"
+                  :label="item.warehouseName"
+                  :value="item.warehouseId"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="外部单号">
+              <el-input
+                v-model="purchaseForm.refNo"
+                placeholder="选填：供应商合同号 / ERP 单号，留空则自动生成"
+                maxlength="64"
+              />
+            </el-form-item>
+            <el-form-item label="备注"><el-input v-model="purchaseForm.notes" /></el-form-item>
+          </div>
+          <div class="section-title">
+            <span>采购商品</span>
+            <el-button link type="primary" @click="addPurchaseLine">添加一行</el-button>
+          </div>
+          <div v-for="(line, index) in purchaseForm.lines" :key="index" class="purchase-line-card">
+            <div class="line-card-head">
+              <strong>明细 {{ index + 1 }}</strong>
+              <el-button
+                link
+                type="danger"
+                :disabled="purchaseForm.lines.length === 1"
+                @click="removePurchaseLine(index)"
+                >删除</el-button
+              >
+            </div>
+            <div class="line-grid">
+              <div
+                class="line-field"
+                :class="{ 'field-invalid': purchaseFieldErrors.lineErrors[index]?.skuId }"
+              >
+                <span>商品</span>
+                <el-select
+                  v-model="line.skuId"
+                  filterable
+                  placeholder="选择商品"
+                  @change="clearPurchaseLineError(index, 'skuId')"
+                >
+                  <el-option
+                    v-for="sku in skus"
+                    :key="sku.skuId"
+                    :label="`${sku.skuName || sku.skuId}`"
+                    :value="sku.skuId"
+                  />
+                </el-select>
+              </div>
+              <div
+                class="line-field"
+                :class="{ 'field-invalid': purchaseFieldErrors.lineErrors[index]?.batchNo }"
+              >
+                <span>批次号</span
+                ><el-input
+                  v-model="line.batchNo"
+                  @input="clearPurchaseLineError(index, 'batchNo')"
+                />
+              </div>
+              <div class="line-field">
+                <span>数量（件）</span
+                ><el-input-number v-model="line.orderedQty" :min="1" controls-position="right" />
+              </div>
+              <div class="line-field">
+                <span>单价（元）</span
+                ><el-input-number
+                  v-model="line.unitCostYuan"
+                  :min="0.01"
+                  :step="0.01"
+                  :precision="2"
+                  controls-position="right"
+                />
+              </div>
+              <label class="line-field"
+                ><span>生产日期</span
+                ><input v-model="line.productionDate" class="native-date" type="date"
+              /></label>
+              <label
+                class="line-field"
+                :class="{ 'field-invalid': purchaseFieldErrors.lineErrors[index]?.expiryDate }"
+                ><span>到期日期</span
+                ><input
+                  v-model="line.expiryDate"
+                  class="native-date"
+                  type="date"
+                  @change="clearPurchaseLineError(index, 'expiryDate')"
+              /></label>
+            </div>
+          </div>
+        </el-form>
+        <template #footer>
+          <el-button @click="purchaseDialog = false">取消</el-button>
+          <el-button
+            type="primary"
+            :loading="saving"
+            :disabled="dialogBootLoading"
+            @click="savePurchase"
+            >创建</el-button
+          >
+        </template>
+      </el-dialog>
+
+      <el-dialog
+        v-model="receiveDialog"
+        title="采购收货"
+        width="700px"
+        class="dialog-wide"
+        destroy-on-close
+      >
+        <el-form label-width="100px" style="margin-bottom: 8px">
+          <el-form-item label="收货仓库">
+            <el-select v-model="receiveForm.receiveWarehouseId" filterable style="width: 100%">
+              <el-option
+                v-for="w in warehouses"
+                :key="w.warehouseId"
+                :label="`${w.warehouseName || w.warehouseId}（${w.warehouseId}）`"
+                :value="w.warehouseId"
+              />
+            </el-select>
           </el-form-item>
         </el-form>
         <div class="table-scroll">
-          <el-table :data="returnForm.lines" class="receive-table">
+          <el-table :data="receiveForm.lines" class="receive-table">
             <el-table-column label="商品" min-width="160" align="center">
               <template #default="{ row }">
                 <div>{{ skuName(row.skuId) }}</div>
@@ -2107,147 +2085,259 @@
             <el-table-column prop="expiryDate" label="到期日" width="110" align="center">
               <template #default="{ row }">{{ row.expiryDate || '暂无' }}</template>
             </el-table-column>
-            <el-table-column prop="receivedQty" label="已收" width="80" align="center" />
-            <el-table-column prop="returnedQty" label="已退" width="80" align="center" />
-            <el-table-column label="可退" width="72" align="center">
-              <template #default="{ row }">{{ row.maxQty ?? '暂无' }}</template>
+            <el-table-column prop="orderedQty" label="采购数" width="90" align="center" />
+            <el-table-column label="待收" width="80" align="center">
+              <template #default="{ row }">
+                {{ Math.max(0, Number(row.orderedQty || 0) - Number(row.receivedQty || 0)) }}
+              </template>
             </el-table-column>
-            <el-table-column label="本次退货" width="150" align="center">
+            <el-table-column label="累计收货" width="150" align="center">
               <template #default="{ row }">
                 <el-input-number
-                  v-model="row.quantity"
-                  :min="0"
-                  :max="row.maxQty"
+                  v-model="row.receivedQty"
+                  :min="row.minReceived"
+                  :max="row.orderedQty"
                   controls-position="right"
                 />
               </template>
             </el-table-column>
           </el-table>
         </div>
-      </div>
-      <template #footer>
-        <el-button @click="returnDialog = false">取消</el-button>
-        <el-button
-          type="primary"
-          :loading="saving"
-          :disabled="dialogBootLoading"
-          @click="saveReturn"
-          >确认退货</el-button
-        >
-      </template>
-    </el-dialog>
+        <el-input
+          v-model="receiveForm.notes"
+          type="textarea"
+          placeholder="收货备注"
+          style="margin-top: 12px"
+        />
+        <template #footer>
+          <el-button @click="receiveDialog = false">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="saveReceive">确认收货</el-button>
+        </template>
+      </el-dialog>
 
-    <el-dialog
-      v-model="inboundDialog"
-      title="其他入库"
-      width="720px"
-      class="dialog-wide"
-      destroy-on-close
-    >
-      <el-form v-loading="dialogBootLoading" label-width="88px">
-        <div class="form-grid">
-          <el-form-item label="仓库" required>
-            <el-select v-model="inboundForm.warehouseId" style="width: 100%">
+      <el-dialog v-model="transferDialog" title="新建仓间调拨" width="520px" destroy-on-close>
+        <el-form label-width="100px">
+          <el-form-item label="调出仓" required>
+            <el-select v-model="transferForm.fromWarehouseId" filterable style="width: 100%">
               <el-option
-                v-for="w in activeWarehouses"
+                v-for="w in warehouses"
                 :key="w.warehouseId"
-                :label="w.warehouseName"
+                :label="w.warehouseName || w.warehouseId"
                 :value="w.warehouseId"
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="参考单号"><el-input v-model="inboundForm.refNo" /></el-form-item>
-        </div>
-        <el-form-item label="备注"><el-input v-model="inboundForm.notes" /></el-form-item>
-        <div class="section-title">
-          <span>入库明细</span>
-          <el-button link type="primary" @click="inboundForm.lines.push(newInboundLine())"
-            >添加一行</el-button
-          >
-        </div>
-        <div v-for="(line, index) in inboundForm.lines" :key="index" class="purchase-line-card">
-          <div class="line-card-head">
-            <strong>明细 {{ index + 1 }}</strong>
-            <el-button
-              link
-              type="danger"
-              :disabled="inboundForm.lines.length === 1"
-              @click="removeInboundLine(index)"
-              >删除</el-button
-            >
-          </div>
-          <div class="line-grid">
-            <div class="line-field">
-              <span>商品</span>
-              <el-select v-model="line.skuId" filterable>
+          <el-form-item label="调入仓" required>
+            <el-select v-model="transferForm.toWarehouseId" filterable style="width: 100%">
+              <el-option
+                v-for="w in warehouses"
+                :key="'to-' + w.warehouseId"
+                :label="w.warehouseName || w.warehouseId"
+                :value="w.warehouseId"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="SKU" required>
+            <el-input v-model="transferForm.skuId" placeholder="商品 SKU" />
+          </el-form-item>
+          <el-form-item label="批次">
+            <el-input v-model="transferForm.batchNo" placeholder="可空" />
+          </el-form-item>
+          <el-form-item label="数量" required>
+            <el-input-number v-model="transferForm.quantity" :min="1" />
+          </el-form-item>
+          <el-form-item label="备注">
+            <el-input v-model="transferForm.notes" type="textarea" :rows="2" />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="transferDialog = false">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="saveTransfer">创建</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog
+        v-model="returnDialog"
+        title="采购退货"
+        width="760px"
+        class="dialog-wide"
+        destroy-on-close
+      >
+        <div v-loading="dialogBootLoading">
+          <el-form label-width="90px">
+            <el-form-item label="采购单" required>
+              <el-select
+                v-model="returnForm.purchaseOrderId"
+                filterable
+                placeholder="选择已收货采购单"
+                style="width: 100%"
+                @change="onReturnPoChange"
+              >
                 <el-option
-                  v-for="sku in skus"
-                  :key="sku.skuId"
-                  :label="sku.skuName || sku.skuId"
-                  :value="sku.skuId"
+                  v-for="po in returnablePurchaseOrders"
+                  :key="po.purchaseOrderId"
+                  :label="`${po.purchaseOrderId} · ${supplierName(po.supplierId)} · ${warehouseName(po.warehouseId)}`"
+                  :value="po.purchaseOrderId"
                 />
               </el-select>
-            </div>
-            <div class="line-field"><span>批次</span><el-input v-model="line.batchNo" /></div>
-            <div class="line-field">
-              <span>数量</span
-              ><el-input-number v-model="line.quantity" :min="1" controls-position="right" />
-            </div>
-            <label class="line-field"
-              ><span>生产日期</span
-              ><input v-model="line.productionDate" class="native-date" type="date"
-            /></label>
-            <label class="line-field"
-              ><span>到期日期</span
-              ><input v-model="line.expiryDate" class="native-date" type="date"
-            /></label>
+            </el-form-item>
+            <el-form-item label="备注">
+              <el-input v-model="returnForm.notes" type="textarea" placeholder="退货备注" />
+            </el-form-item>
+          </el-form>
+          <div class="table-scroll">
+            <el-table :data="returnForm.lines" class="receive-table">
+              <el-table-column label="商品" min-width="160" align="center">
+                <template #default="{ row }">
+                  <div>{{ skuName(row.skuId) }}</div>
+                  <small class="muted">{{ row.skuId }}</small>
+                </template>
+              </el-table-column>
+              <el-table-column prop="batchNo" label="批次" min-width="120" align="center" />
+              <el-table-column prop="expiryDate" label="到期日" width="110" align="center">
+                <template #default="{ row }">{{ row.expiryDate || '暂无' }}</template>
+              </el-table-column>
+              <el-table-column prop="receivedQty" label="已收" width="80" align="center" />
+              <el-table-column prop="returnedQty" label="已退" width="80" align="center" />
+              <el-table-column label="可退" width="72" align="center">
+                <template #default="{ row }">{{ row.maxQty ?? '暂无' }}</template>
+              </el-table-column>
+              <el-table-column label="本次退货" width="150" align="center">
+                <template #default="{ row }">
+                  <el-input-number
+                    v-model="row.quantity"
+                    :min="0"
+                    :max="row.maxQty"
+                    controls-position="right"
+                  />
+                </template>
+              </el-table-column>
+            </el-table>
           </div>
         </div>
-      </el-form>
-      <template #footer>
-        <el-button @click="inboundDialog = false">取消</el-button>
-        <el-button
-          type="primary"
-          :loading="saving"
-          :disabled="dialogBootLoading"
-          @click="saveInbound"
-          >确认入库</el-button
-        >
-      </template>
-    </el-dialog>
+        <template #footer>
+          <el-button @click="returnDialog = false">取消</el-button>
+          <el-button
+            type="primary"
+            :loading="saving"
+            :disabled="dialogBootLoading"
+            @click="saveReturn"
+            >确认退货</el-button
+          >
+        </template>
+      </el-dialog>
 
-    <!-- 拣货/发运：用 el-dialog 替代 MessageBox，避免自动化偶发点不到确认钮 -->
-    <el-dialog
-      v-model="outboundConfirm.visible"
-      :title="outboundConfirm.title"
-      width="420px"
-      append-to-body
-      destroy-on-close
-      :close-on-click-modal="false"
-      data-testid="outbound-confirm-dialog"
-      @closed="onOutboundConfirmClosed"
-    >
-      <p class="outbound-confirm-body">
-        <span class="outbound-confirm-id" data-testid="outbound-confirm-id"
-          >出库单 {{ outboundConfirm.outboundId }}</span
-        >
-        <br />
-        {{ outboundConfirm.message }}
-      </p>
-      <template #footer>
-        <el-button data-testid="outbound-confirm-cancel" @click="cancelOutboundConfirm"
-          >取消</el-button
-        >
-        <el-button
-          type="primary"
-          :loading="outboundConfirm.saving"
-          data-testid="outbound-confirm-ok"
-          @click="submitOutboundConfirm"
-          >确定</el-button
-        >
-      </template>
-    </el-dialog>
-  </el-card>
+      <el-dialog
+        v-model="inboundDialog"
+        title="其他入库"
+        width="720px"
+        class="dialog-wide"
+        destroy-on-close
+      >
+        <el-form v-loading="dialogBootLoading" label-width="88px">
+          <div class="form-grid">
+            <el-form-item label="仓库" required>
+              <el-select v-model="inboundForm.warehouseId" style="width: 100%">
+                <el-option
+                  v-for="w in activeWarehouses"
+                  :key="w.warehouseId"
+                  :label="w.warehouseName"
+                  :value="w.warehouseId"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="参考单号"><el-input v-model="inboundForm.refNo" /></el-form-item>
+          </div>
+          <el-form-item label="备注"><el-input v-model="inboundForm.notes" /></el-form-item>
+          <div class="section-title">
+            <span>入库明细</span>
+            <el-button link type="primary" @click="inboundForm.lines.push(newInboundLine())"
+              >添加一行</el-button
+            >
+          </div>
+          <div v-for="(line, index) in inboundForm.lines" :key="index" class="purchase-line-card">
+            <div class="line-card-head">
+              <strong>明细 {{ index + 1 }}</strong>
+              <el-button
+                link
+                type="danger"
+                :disabled="inboundForm.lines.length === 1"
+                @click="removeInboundLine(index)"
+                >删除</el-button
+              >
+            </div>
+            <div class="line-grid">
+              <div class="line-field">
+                <span>商品</span>
+                <el-select v-model="line.skuId" filterable>
+                  <el-option
+                    v-for="sku in skus"
+                    :key="sku.skuId"
+                    :label="sku.skuName || sku.skuId"
+                    :value="sku.skuId"
+                  />
+                </el-select>
+              </div>
+              <div class="line-field"><span>批次</span><el-input v-model="line.batchNo" /></div>
+              <div class="line-field">
+                <span>数量</span
+                ><el-input-number v-model="line.quantity" :min="1" controls-position="right" />
+              </div>
+              <label class="line-field"
+                ><span>生产日期</span
+                ><input v-model="line.productionDate" class="native-date" type="date"
+              /></label>
+              <label class="line-field"
+                ><span>到期日期</span
+                ><input v-model="line.expiryDate" class="native-date" type="date"
+              /></label>
+            </div>
+          </div>
+        </el-form>
+        <template #footer>
+          <el-button @click="inboundDialog = false">取消</el-button>
+          <el-button
+            type="primary"
+            :loading="saving"
+            :disabled="dialogBootLoading"
+            @click="saveInbound"
+            >确认入库</el-button
+          >
+        </template>
+      </el-dialog>
+
+      <!-- 拣货/发运：用 el-dialog 替代 MessageBox，避免自动化偶发点不到确认钮 -->
+      <el-dialog
+        v-model="outboundConfirm.visible"
+        :title="outboundConfirm.title"
+        width="420px"
+        append-to-body
+        destroy-on-close
+        :close-on-click-modal="false"
+        data-testid="outbound-confirm-dialog"
+        @closed="onOutboundConfirmClosed"
+      >
+        <p class="outbound-confirm-body">
+          <span class="outbound-confirm-id" data-testid="outbound-confirm-id"
+            >出库单 {{ outboundConfirm.outboundId }}</span
+          >
+          <br />
+          {{ outboundConfirm.message }}
+        </p>
+        <template #footer>
+          <el-button data-testid="outbound-confirm-cancel" @click="cancelOutboundConfirm"
+            >取消</el-button
+          >
+          <el-button
+            type="primary"
+            :loading="outboundConfirm.saving"
+            data-testid="outbound-confirm-ok"
+            @click="submitOutboundConfirm"
+            >确定</el-button
+          >
+        </template>
+      </el-dialog>
+    </el-card>
   </div>
 </template>
 
@@ -2473,9 +2563,7 @@ const page = ref(1);
 const size = ref(20);
 const keyword = ref('');
 const HIDE_TEST_PO_KEY = 'admin_warehouse_hide_test_po';
-const hideTestPurchaseOrders = ref(
-  localStorage.getItem(HIDE_TEST_PO_KEY) !== '0'
-);
+const hideTestPurchaseOrders = ref(localStorage.getItem(HIDE_TEST_PO_KEY) !== '0');
 const filterWarehouseId = ref('');
 /** 默认「待处理」：有明细的 DRAFT + PICKED，避免历史草稿淹没操作列 */
 const filterOutboundStatus = ref<string>('actionable');
@@ -2598,9 +2686,10 @@ const purchaseForm = reactive<Row>({
   lines: []
 });
 type PurchaseLineFieldErrors = { skuId?: boolean; batchNo?: boolean; expiryDate?: boolean };
-const purchaseFieldErrors = reactive<{ supplierId: boolean; lineErrors: PurchaseLineFieldErrors[] }>(
-  { supplierId: false, lineErrors: [] }
-);
+const purchaseFieldErrors = reactive<{
+  supplierId: boolean;
+  lineErrors: PurchaseLineFieldErrors[];
+}>({ supplierId: false, lineErrors: [] });
 function resetPurchaseFieldErrors() {
   purchaseFieldErrors.supplierId = false;
   purchaseFieldErrors.lineErrors = (purchaseForm.lines || []).map(() => ({}));
@@ -3022,13 +3111,7 @@ function onDownloadImportTemplate() {
   if (tab.value === 'warehouses') {
     downloadWarehouseTemplate(['演示中心仓', 'WH-DEMO-001', '上海市示例路 1 号', '启用']);
   } else if (tab.value === 'suppliers') {
-    downloadSupplierTemplate([
-      '演示饮品供应商',
-      'SUP-DEMO-001',
-      '张三',
-      '13800000000',
-      '启用'
-    ]);
+    downloadSupplierTemplate(['演示饮品供应商', 'SUP-DEMO-001', '张三', '13800000000', '启用']);
   }
 }
 
@@ -4267,9 +4350,7 @@ async function reviewPurchase(row: Row, approve: boolean) {
   const label = row.refNo || row.purchaseOrderId;
   try {
     await ElMessageBox.confirm(
-      approve
-        ? `确认通过采购单 ${label}？`
-        : `确认驳回采购单 ${label}？`,
+      approve ? `确认通过采购单 ${label}？` : `确认驳回采购单 ${label}？`,
       approve ? '审批通过' : '审批驳回',
       { type: approve ? 'info' : 'warning', appendTo: document.body }
     );

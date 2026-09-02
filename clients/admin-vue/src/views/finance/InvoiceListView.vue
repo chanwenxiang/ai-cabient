@@ -50,12 +50,20 @@ const displayRows = computed(() =>
   filterByKeyword(rows.value, (row, kw) => {
     return (
       String(row.invoiceId).includes(kw) ||
-      String(row.orderId || '').toLowerCase().includes(kw) ||
+      String(row.orderId || '')
+        .toLowerCase()
+        .includes(kw) ||
       displayBizNo(row.orderId).toLowerCase().includes(kw) ||
       String(row.userId ?? '').includes(kw) ||
-      String(row.title || '').toLowerCase().includes(kw) ||
-      String(row.taxNo || '').toLowerCase().includes(kw) ||
-      String(row.email || '').toLowerCase().includes(kw)
+      String(row.title || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(row.taxNo || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(row.email || '')
+        .toLowerCase()
+        .includes(kw)
     );
   })
 );
@@ -150,9 +158,7 @@ async function batchIssue() {
   batchLoading.value = 'issue';
   try {
     const results = await Promise.allSettled(
-      targets.map((row) =>
-        api.request(`/api/v2/ops/admin/invoices/${row.invoiceId}/issue`, 'POST')
-      )
+      targets.map((row) => api.request(`/api/v2/ops/admin/invoices/${row.invoiceId}/issue`, 'POST'))
     );
     const ok = results.filter((r) => r.status === 'fulfilled').length;
     const fail = results.length - ok;
@@ -347,7 +353,9 @@ onMounted(load);
           </el-table-column>
           <el-table-column label="状态" width="100" align="center">
             <template #default="{ row }">
-              <el-tag :type="statusTag(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
+              <el-tag :type="statusTag(row.status)" size="small">{{
+                statusLabel(row.status)
+              }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="驳回原因" min-width="120" show-overflow-tooltip>

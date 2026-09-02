@@ -3,12 +3,7 @@
     <app-nav-bar title="????" />
     <view class="page-body">
       <view class="toolbar">
-        <button
-          v-if="canInvite"
-          class="invite-btn"
-          :loading="saving"
-          @click="openInvite"
-        >
+        <button v-if="canInvite" class="invite-btn" :loading="saving" @click="openInvite">
           ????
         </button>
       </view>
@@ -32,11 +27,11 @@
           <view class="meta">
             <text class="name">{{ u.displayName || u.phoneNumber || '?? ' + u.userId }}</text>
             <text class="sub"
-              >{{ u.phoneNumber || '????' }} · {{ u.roleName || roleLabel(u.roleKey) }}</text
+              >{{ u.phoneNumber || '????' }} ï¿½ {{ u.roleName || roleLabel(u.roleKey) }}</text
             >
             <text class="sub status-line"
               >{{ u.status === 'INACTIVE' ? '???' : '???'
-              }}{{ u.roleKey ? ` · ${u.roleKey}` : '' }}</text
+              }}{{ u.roleKey ? ` ï¿½ ${u.roleKey}` : '' }}</text
             >
             <text v-if="u.status === 'INACTIVE'" class="inactive">???????</text>
           </view>
@@ -90,7 +85,7 @@
         <view class="dialog" @click.stop>
           <text class="dialog-title">{{ manageUser.displayName || manageUser.phoneNumber }}</text>
           <text class="hint"
-            >{{ manageUser.phoneNumber }} ·
+            >{{ manageUser.phoneNumber }} ï¿½
             {{ manageUser.roleName || roleLabel(manageUser.roleKey) }}</text
           >
 

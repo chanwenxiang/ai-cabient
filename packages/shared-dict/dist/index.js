@@ -361,6 +361,16 @@ export const DICT = {
         INVENTORY_ADJUSTMENT: '库存调整',
         MANUAL: '人工操作'
     },
+    /** 审批待办 / approval_instance.biz_type（与 sys_dict approval_biz_type 对齐） */
+    approval_biz_type: {
+        MERCHANT_REPLEN_REQUEST: '商户要货',
+        PURCHASE_ORDER: '采购单',
+        MERCHANT_WITHDRAW: '商户提现',
+        LINE_WITHDRAW: '线长提现',
+        BALANCE_REFUND: '余额退款',
+        MERCHANT_WALLET_ADJUST: '商户调账',
+        MERCHANT_ONBOARD: '商户进件'
+    },
     replenishment_route_status: {
         PLANNED: '待执行',
         IN_PROGRESS: '执行中',

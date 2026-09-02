@@ -183,9 +183,15 @@ const {
 const displayList = computed(() =>
   filterByKeyword(list.value, (row, kw) => {
     return (
-      String(row.skuId || '').toLowerCase().includes(kw) ||
-      String(row.skuName || '').toLowerCase().includes(kw) ||
-      String(row.category || '').toLowerCase().includes(kw)
+      String(row.skuId || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(row.skuName || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(row.category || '')
+        .toLowerCase()
+        .includes(kw)
     );
   })
 );

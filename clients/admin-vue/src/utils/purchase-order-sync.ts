@@ -9,9 +9,7 @@ export type PurchaseOrderPatch = Record<string, unknown> & {
 
 export function emitPurchaseOrderReviewed(updated: PurchaseOrderPatch): void {
   if (!updated?.purchaseOrderId) return;
-  globalThis.dispatchEvent(
-    new CustomEvent(PURCHASE_ORDER_REVIEWED_EVENT, { detail: updated })
-  );
+  globalThis.dispatchEvent(new CustomEvent(PURCHASE_ORDER_REVIEWED_EVENT, { detail: updated }));
 }
 
 export function onPurchaseOrderReviewed(

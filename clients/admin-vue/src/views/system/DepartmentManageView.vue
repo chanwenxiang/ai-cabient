@@ -67,7 +67,13 @@
             show-overflow-tooltip
             align="center"
           />
-          <el-table-column label="操作" width="200" align="center" class-name="col-action" fixed="right">
+          <el-table-column
+            label="操作"
+            width="200"
+            align="center"
+            class-name="col-action"
+            fixed="right"
+          >
             <template #default="{ row }">
               <el-button v-hasPermi="['ops:dept:edit']" link type="primary" @click="openDept(row)"
                 >编辑</el-button

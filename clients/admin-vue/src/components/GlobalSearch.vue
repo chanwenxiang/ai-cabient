@@ -178,11 +178,7 @@ async function searchRecords(q: string) {
         items.map((s: any) => ({
           type: 'session',
           title: String(s.sessionId || ''),
-          meta: [
-            '会话',
-            s.deviceId || '',
-            displayLabel('session_state', String(s.state || ''), '')
-          ]
+          meta: ['会话', s.deviceId || '', displayLabel('session_state', String(s.state || ''), '')]
             .filter(Boolean)
             .join(' · '),
           path: '/sessions',

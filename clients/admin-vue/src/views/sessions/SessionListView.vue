@@ -257,7 +257,13 @@
           <el-table-column label="时长" width="110" align="center">
             <template #default="{ row }">{{ formatDuration(row) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="220" class-name="col-action" align="center" fixed="right">
+          <el-table-column
+            label="操作"
+            width="220"
+            class-name="col-action"
+            align="center"
+            fixed="right"
+          >
             <template #default="{ row }">
               <TableActions
                 :actions="sessionActions(row)"

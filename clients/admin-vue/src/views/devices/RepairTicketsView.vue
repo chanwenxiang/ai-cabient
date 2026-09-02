@@ -133,7 +133,13 @@
               <span v-else>{{ row.deviceName || row.deviceId }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="merchantName" label="商户" min-width="100" show-overflow-tooltip align="center">
+          <el-table-column
+            prop="merchantName"
+            label="商户"
+            min-width="100"
+            show-overflow-tooltip
+            align="center"
+          >
             <template #default="{ row }">{{ row.merchantName || row.merchantId || '无' }}</template>
           </el-table-column>
           <el-table-column
@@ -168,7 +174,13 @@
           <el-table-column label="关闭时间" width="104" align="center">
             <template #default="{ row }">{{ formatDateTime(row.closedAt) || '无' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="220" align="center" class-name="col-action" fixed="right">
+          <el-table-column
+            label="操作"
+            width="220"
+            align="center"
+            class-name="col-action"
+            fixed="right"
+          >
             <template #default="{ row }">
               <div class="repair-actions">
                 <el-button link type="primary" @click="openDetail(row)">详情</el-button>
@@ -214,7 +226,13 @@
       @size-change="onSizeChange"
     />
 
-  <el-dialog v-model="createVisible" title="新建维修工单" width="560px" destroy-on-close append-to-body>
+    <el-dialog
+      v-model="createVisible"
+      title="新建维修工单"
+      width="560px"
+      destroy-on-close
+      append-to-body
+    >
       <el-form label-width="90px">
         <el-form-item label="设备" required>
           <el-select
@@ -287,8 +305,13 @@
         <template v-if="detail">
           <el-descriptions :column="1" border>
             <el-descriptions-item label="工单号">{{ detail.ticket.ticketId }}</el-descriptions-item>
-            <el-descriptions-item label="设备">{{ detail.ticket.deviceName || detail.ticket.deviceId }}</el-descriptions-item>
-            <el-descriptions-item v-if="detail.ticket.merchantName || detail.ticket.merchantId" label="商户">
+            <el-descriptions-item label="设备">{{
+              detail.ticket.deviceName || detail.ticket.deviceId
+            }}</el-descriptions-item>
+            <el-descriptions-item
+              v-if="detail.ticket.merchantName || detail.ticket.merchantId"
+              label="商户"
+            >
               {{ detail.ticket.merchantName || detail.ticket.merchantId }}
             </el-descriptions-item>
             <el-descriptions-item label="标题">{{ detail.ticket.title }}</el-descriptions-item>
@@ -338,31 +361,31 @@
       </div>
     </ResizableDrawer>
 
-  <el-dialog
-    v-model="assignVisible"
-    title="批量指派"
-    width="420px"
-    destroy-on-close
-    append-to-body
-    :close-on-click-modal="false"
-  >
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      :title="`已选 ${selectedRows.length} 张未关闭工单`"
-      class="assign-alert"
-    />
-    <el-form label-position="top" style="margin-top: 14px" @submit.prevent="submitAssign">
-      <el-form-item label="指派人">
-        <el-input v-model="assignee" placeholder="填写负责维修的人员/班组" maxlength="32" />
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <el-button @click="assignVisible = false">取消</el-button>
-      <el-button type="primary" :loading="assignSaving" @click="submitAssign">确认指派</el-button>
-    </template>
-  </el-dialog>
+    <el-dialog
+      v-model="assignVisible"
+      title="批量指派"
+      width="420px"
+      destroy-on-close
+      append-to-body
+      :close-on-click-modal="false"
+    >
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        :title="`已选 ${selectedRows.length} 张未关闭工单`"
+        class="assign-alert"
+      />
+      <el-form label-position="top" style="margin-top: 14px" @submit.prevent="submitAssign">
+        <el-form-item label="指派人">
+          <el-input v-model="assignee" placeholder="填写负责维修的人员/班组" maxlength="32" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="assignVisible = false">取消</el-button>
+        <el-button type="primary" :loading="assignSaving" @click="submitAssign">确认指派</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 

@@ -374,6 +374,16 @@ export declare const DICT: {
         readonly INVENTORY_ADJUSTMENT: "库存调整";
         readonly MANUAL: "人工操作";
     };
+    /** 审批待办 / approval_instance.biz_type（与 sys_dict approval_biz_type 对齐） */
+    readonly approval_biz_type: {
+        readonly MERCHANT_REPLEN_REQUEST: "商户要货";
+        readonly PURCHASE_ORDER: "采购单";
+        readonly MERCHANT_WITHDRAW: "商户提现";
+        readonly LINE_WITHDRAW: "线长提现";
+        readonly BALANCE_REFUND: "余额退款";
+        readonly MERCHANT_WALLET_ADJUST: "商户调账";
+        readonly MERCHANT_ONBOARD: "商户进件";
+    };
     readonly replenishment_route_status: {
         readonly PLANNED: "待执行";
         readonly IN_PROGRESS: "执行中";

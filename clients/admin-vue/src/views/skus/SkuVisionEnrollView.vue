@@ -269,7 +269,13 @@
               formatConfidence(row.detectionMinConfidence ?? 0.5)
             }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="200" class-name="col-action" align="center" fixed="right">
+          <el-table-column
+            label="操作"
+            width="200"
+            class-name="col-action"
+            align="center"
+            fixed="right"
+          >
             <template #default="{ row }">
               <TableActions
                 :actions="skuActions(row)"

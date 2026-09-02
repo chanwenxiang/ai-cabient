@@ -236,7 +236,9 @@
           </el-table-column>
           <el-table-column label="建议金额" width="100" align="center" class-name="col-money">
             <template #default="{ row }">
-              <span v-if="row.claimedAmountCents != null">¥{{ money(row.claimedAmountCents) }}</span>
+              <span v-if="row.claimedAmountCents != null"
+                >¥{{ money(row.claimedAmountCents) }}</span
+              >
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
@@ -250,7 +252,9 @@
           </el-table-column>
           <el-table-column label="SLA" width="110" align="center">
             <template #default="{ row }">
-              <el-tag v-if="row.slaOverdue" type="danger" size="small" effect="plain">已超时</el-tag>
+              <el-tag v-if="row.slaOverdue" type="danger" size="small" effect="plain"
+                >已超时</el-tag
+              >
               <span v-else-if="row.slaHoursRemaining != null" class="muted"
                 >剩 {{ row.slaHoursRemaining }}h</span
               >
@@ -279,7 +283,13 @@
               <span class="cell-datetime">{{ formatDateTime(row.resolvedAt) || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="220" class-name="col-action" align="center" fixed="right">
+          <el-table-column
+            label="操作"
+            width="220"
+            class-name="col-action"
+            align="center"
+            fixed="right"
+          >
             <template #default="{ row }">
               <TableActions :actions="rowActions(row)" @action="(key) => onRowAction(key, row)" />
             </template>

@@ -86,14 +86,14 @@
               <view class="card-copy">
                 <text class="card-goods">{{ lineSummaryText(item) }}</text>
                 <text class="card-meta">
-                  {{ emptyDisplay(item.deviceName || item.deviceId, 'device') }} · {{ item.lineCount || 0 }} 件 ·
+                  {{ emptyDisplay(item.deviceName || item.deviceId, 'device') }} ·
+                  {{ item.lineCount || 0 }} 件 ·
                   {{ channelText(item.payChannel) }}
                 </text>
-                <text v-if="item.splitStatus" class="card-meta">分账 {{ splitStatusText(item.splitStatus) }}</text>
-                <text
-                  v-if="item.payTradeNo || item.paymentOperationId"
-                  class="card-meta mono"
+                <text v-if="item.splitStatus" class="card-meta"
+                  >分账 {{ splitStatusText(item.splitStatus) }}</text
                 >
+                <text v-if="item.payTradeNo || item.paymentOperationId" class="card-meta mono">
                   流水 {{ shortId(item.payTradeNo || item.paymentOperationId) }}
                 </text>
                 <text

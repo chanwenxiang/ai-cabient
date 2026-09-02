@@ -6,9 +6,7 @@ type DisputeAmountInput = {
   suggestedItems?: Array<{ lineAmountCents?: number | null }> | null;
 };
 
-function sumLineAmountCents(
-  lines?: Array<{ lineAmountCents?: number | null }> | null
-): number {
+function sumLineAmountCents(lines?: Array<{ lineAmountCents?: number | null }> | null): number {
   if (!lines?.length) return 0;
   return lines.reduce((sum, line) => sum + Math.max(0, Number(line.lineAmountCents ?? 0)), 0);
 }

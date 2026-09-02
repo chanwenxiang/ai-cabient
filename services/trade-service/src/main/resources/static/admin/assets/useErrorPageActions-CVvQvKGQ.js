@@ -1,0 +1,1 @@
+import{ab as u,cV as c,aj as s}from"./index-CWkkjuE8.js";function b(){const o=s(),n=u();function t(){return c(n)}function e(){o.replace(t())}function a(){var r;if(((r=window.history.state)==null?void 0:r.back)!=null){o.back();return}e()}return{resolveHome:t,goHome:e,goBack:a}}export{b as u};

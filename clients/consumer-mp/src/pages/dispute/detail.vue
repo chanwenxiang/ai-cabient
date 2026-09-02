@@ -118,7 +118,11 @@
 import { computed, ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { consumerApi, getConsumerToken, requireConsumerAuth } from '@/utils/consumer-api';
-import { consumerDisputeReviewCopy, shouldShowConsumerRefundChannel, disputeAmountDiffNote } from '@/utils/dispute-copy';
+import {
+  consumerDisputeReviewCopy,
+  shouldShowConsumerRefundChannel,
+  disputeAmountDiffNote
+} from '@/utils/dispute-copy';
 import { fetchEvidenceLocalPath } from '@/utils/dispute-evidence';
 import { displayLabel } from '@aicabinet/shared-dict';
 import {
@@ -145,16 +149,15 @@ const suggestedLines = computed<OrderLineDto[]>(() => ticket.value?.suggestedIte
 const resolutionLines = computed<OrderLineDto[]>(() => ticket.value?.resolutionItems || []);
 const refundChannelText = ref('');
 const orderDiscount = ref<{ memberDiscountCents?: number; couponDiscountCents?: number }>({});
-const amountDiffNote = computed(() =>
-  disputeAmountDiffNote(ticket.value, orderDiscount.value)
-);
+const amountDiffNote = computed(() => disputeAmountDiffNote(ticket.value, orderDiscount.value));
 const statusText = computed(() => {
   const s = ticket.value?.status || '';
   if (s === 'OPEN') return '审核中 · 暂未扣款';
   if (s === 'RESOLVED' || s === 'CLOSED') {
     const billed = Number(ticket.value?.billedAmountCents ?? 0);
     const refunded = Number(ticket.value?.refundedAmountCents ?? 0);
-    if (refunded > 0 && billed > 0) return `已结案 · 扣款 ${fmtMoney(billed)} / 退款 ${fmtMoney(refunded)}`;
+    if (refunded > 0 && billed > 0)
+      return `已结案 · 扣款 ${fmtMoney(billed)} / 退款 ${fmtMoney(refunded)}`;
     if (refunded > 0) return `已结案 · 退款 ${fmtMoney(refunded)}`;
     if (billed > 0) return `已结案 · 扣款 ${fmtMoney(billed)}`;
     return '已结案 · 未扣款';

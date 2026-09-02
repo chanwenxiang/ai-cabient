@@ -193,7 +193,9 @@
                 disabled
                 placeholder="柜机心跳自动绑定"
               />
-              <p v-if="canEditDevice" class="form-hint muted">仅柜机联网上报或「解绑硬件」后重新绑定</p>
+              <p v-if="canEditDevice" class="form-hint muted">
+                仅柜机联网上报或「解绑硬件」后重新绑定
+              </p>
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
@@ -1019,7 +1021,13 @@
                 <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="88" class-name="col-action" align="center" fixed="right">
+            <el-table-column
+              label="操作"
+              width="88"
+              class-name="col-action"
+              align="center"
+              fixed="right"
+            >
               <template #default="{ row }">
                 <TableActions
                   v-if="canAccessPath('/sessions')"
@@ -1101,7 +1109,13 @@
                 <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="88" class-name="col-action" align="center" fixed="right">
+            <el-table-column
+              label="操作"
+              width="88"
+              class-name="col-action"
+              align="center"
+              fixed="right"
+            >
               <template #default>
                 <TableActions
                   v-if="canAccessPath('/orders')"
@@ -1790,7 +1804,9 @@ async function loadGeoStatus() {
 }
 
 function normalizedLifecycleStatus() {
-  return String(asset.lifecycleStatus || '').trim().toUpperCase();
+  return String(asset.lifecycleStatus || '')
+    .trim()
+    .toUpperCase();
 }
 
 function hasBoundMerchant() {
@@ -1857,10 +1873,9 @@ async function openBindDialog() {
   bindDialogVisible.value = true;
   bindMerchantsLoading.value = true;
   try {
-    const data = await api.request<{ items?: Array<{ merchantId: string; merchantName?: string }> }>(
-      '/api/v2/ops/admin/merchants?page=0&size=500',
-      'GET'
-    );
+    const data = await api.request<{
+      items?: Array<{ merchantId: string; merchantName?: string }>;
+    }>('/api/v2/ops/admin/merchants?page=0&size=500', 'GET');
     bindMerchantOptions.value = data.items || [];
   } catch (e) {
     bindMerchantOptions.value = [];

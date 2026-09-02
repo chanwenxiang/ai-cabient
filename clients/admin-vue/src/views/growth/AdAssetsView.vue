@@ -100,13 +100,7 @@
           @selection-change="onSelectionChange"
         >
           <el-table-column type="selection" width="48" align="center" reserve-selection />
-          <el-table-column
-            prop="assetId"
-            label="ID"
-            width="80"
-            align="center"
-            sortable="custom"
-          />
+          <el-table-column prop="assetId" label="ID" width="80" align="center" sortable="custom" />
           <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
           <el-table-column label="类型" width="90" align="center">
             <template #default="{ row }">{{ typeLabel(row.assetType) }}</template>

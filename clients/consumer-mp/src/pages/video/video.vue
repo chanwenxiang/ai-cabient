@@ -29,12 +29,7 @@
           @error="onError"
         >
           <track kind="captions" srclang="zh" label="?????????" src="data:text/vtt,WEBVTT" />
-          <track
-            kind="descriptions"
-            srclang="zh"
-            label="????????"
-            src="data:text/vtt,WEBVTT"
-          />
+          <track kind="descriptions" srclang="zh" label="????????" src="data:text/vtt,WEBVTT" />
         </video>
         <view v-if="error" class="error-banner" role="alert">
           <text class="state-title">??????</text>
@@ -73,7 +68,7 @@ const metaLine = computed(() => {
   const parts: string[] = [];
   if (orderId.value) parts.push(`?? ${orderId.value}`);
   if (deviceId.value) parts.push(`?? ${deviceId.value}`);
-  return parts.join(' · ');
+  return parts.join(' ï¿½ ');
 });
 
 function normalizeVideoUrl(url: string): string {

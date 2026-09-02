@@ -173,6 +173,8 @@ export interface DeviceInfo {
     lifecycleRemark?: string;
     /** 柜机最近上报温度（℃） */
     currentTempC?: number | null;
+    /** 固件版本 */
+    firmwareVersion?: string | null;
     /** 商户端列表可选：缺货/低库存货道数 */
     oosSlotCount?: number | null;
     lowStockSlotCount?: number | null;
@@ -273,7 +275,9 @@ export interface OrderSummary {
     sessionId?: string;
     userId?: string | number;
     deviceId?: string;
+    deviceName?: string;
     merchantId?: string;
+    merchantName?: string;
     totalAmountCents: number;
     originalAmountCents?: number;
     status?: string;
@@ -289,11 +293,16 @@ export interface OrderSummary {
     inventoryDeducted?: boolean;
     refundPolicy?: string;
     createdAt?: string;
+    /** 支付完成时间 */
+    paidAt?: string;
+    /** 分账状态（联 order_revenue_split） */
+    splitStatus?: string;
 }
 export interface DisputeSummary {
     ticketId: string;
     sessionId?: string;
     deviceId?: string;
+    deviceName?: string;
     status: string;
     reason?: string;
     createdAt?: string;
@@ -773,6 +782,7 @@ export interface DisputeTicketDto {
     ticketId: string;
     sessionId?: string;
     deviceId?: string;
+    deviceName?: string;
     reason?: string;
     status: string;
     createdAt?: string;
@@ -782,17 +792,22 @@ export interface DisputeTicketDto {
     billedAmountCents?: number;
     /** 关联订单累计已退（分） */
     refundedAmountCents?: number;
+    /** 建议行金额合计（分） */
+    claimedAmountCents?: number;
     suggestedItems?: OrderLineDto[];
     resolutionItems?: OrderLineDto[];
     category?: string;
     priority?: string;
     operatorNote?: string;
+    slaDueAt?: string;
     slaOverdue?: boolean;
     slaHoursRemaining?: number;
     evidence?: FileAttachmentDto[];
     /** LOW_CONF | EMPTY | UNMAPPED | NEED_REVIEW | WHITELIST */
     reviewCode?: string;
     detectedClasses?: string[];
+    /** 处理人展示名（结案写入） */
+    assignee?: string;
 }
 export interface SessionCartRequest {
     items: {
@@ -835,6 +850,7 @@ export interface NearbyDeviceDto {
 export interface SessionDto {
     sessionId: string;
     deviceId: string;
+    deviceName?: string;
     state: string;
     orderId?: string;
     failureReason?: string;
@@ -868,10 +884,14 @@ export interface OrderDetailDto {
     orderId: string;
     sessionId?: string;
     deviceId?: string;
+    deviceName?: string;
     merchantId?: string;
+    merchantName?: string;
     status: string;
     payChannel?: string;
     payTime?: string;
+    /** 支付完成时间（与 payTime 同义，后端 OrderDto.paidAt） */
+    paidAt?: string;
     /** 柜机购物视频地址（可空） */
     videoUri?: string;
     paymentOperationId?: string;
@@ -889,4 +909,6 @@ export interface OrderDetailDto {
     inventoryDeducted?: boolean;
     /** 柜机生效退款策略：AUTO_REFUND | DISPUTE_ONLY */
     refundPolicy?: string;
+    /** 分账状态；无分账记录为空 */
+    splitStatus?: string;
 }

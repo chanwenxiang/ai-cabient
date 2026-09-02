@@ -97,7 +97,13 @@
             show-overflow-tooltip
             align="center"
           />
-          <el-table-column label="操作" width="100" align="center" class-name="col-action" fixed="right">
+          <el-table-column
+            label="操作"
+            width="100"
+            align="center"
+            class-name="col-action"
+            fixed="right"
+          >
             <template #default="{ row }">
               <el-button
                 v-if="row.status === 'PUBLISHED'"

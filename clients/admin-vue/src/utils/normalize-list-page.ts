@@ -3,7 +3,8 @@
  * 避免再出现「接口有数据、页面读 items 变空表」的问题。
  */
 
-export type ListPageLike<T> = T[] | { items?: T[] | null; total?: number | null } | null | undefined;
+export type ListPageLike<T> =
+  T[] | { items?: T[] | null; total?: number | null } | null | undefined;
 
 export type NormalizedListPage<T> = {
   items: T[];

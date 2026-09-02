@@ -355,9 +355,16 @@ function onRowClick(row: SalesRow) {
   if (canNavigateRow(row)) navigateRow(row);
 }
 
-function onSortChange(payload: { prop: string; order: string | null; column: TableColumnCtx<SalesRow> }) {
+function onSortChange(payload: {
+  prop: string;
+  order: string | null;
+  column: TableColumnCtx<SalesRow>;
+}) {
   const prop = payload.prop as SortProp;
-  if (!payload.order || (prop !== 'revenueCents' && prop !== 'refundedCents' && prop !== 'marginCents')) {
+  if (
+    !payload.order ||
+    (prop !== 'revenueCents' && prop !== 'refundedCents' && prop !== 'marginCents')
+  ) {
     sortBy.value = '';
     sortDir.value = '';
   } else {

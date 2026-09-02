@@ -70,12 +70,7 @@
         </el-select>
       </el-form-item>
       <el-form-item label="关键词">
-        <el-input
-          v-model="keyword"
-          clearable
-          placeholder="事件 ID / 详情"
-          style="width: 180px"
-        />
+        <el-input v-model="keyword" clearable placeholder="事件 ID / 详情" style="width: 180px" />
       </el-form-item>
     </el-form>
 

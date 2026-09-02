@@ -71,7 +71,9 @@
             >
             <text v-if="item.orderId" class="card-order">订单 {{ shortId(item.orderId) }}</text>
           </view>
-          <view v-if="item.hasVideo || item.videoUri || item.videoPreviewUrl" class="card-video-hint"
+          <view
+            v-if="item.hasVideo || item.videoUri || item.videoPreviewUrl"
+            class="card-video-hint"
             >有录像</view
           >
           <view v-if="item.lastMessage" class="card-msg"
@@ -231,11 +233,7 @@
 import { ref, computed } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
-import {
-  emptyDisplay,
-  formatDateTimeShort,
-  fmtMoney
-} from '@aicabinet/shared-uni/format';
+import { emptyDisplay, formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
 import { merchantDisputeDisplayCopy, merchantDisputeAmountDiffNote } from '@/utils/dispute-copy';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi, type MerchantDisputeTicket } from '@/utils/merchant-api';

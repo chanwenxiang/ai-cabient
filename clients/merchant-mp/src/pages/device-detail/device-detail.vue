@@ -277,7 +277,8 @@ function readExtendedDeviceFields(
     routeCode: String(ext.routeCode || ''),
     lifecycleStatus: String(ext.lifecycleStatus || ''),
     firmwareVersion: String(ext.firmwareVersion || ''),
-    latitude: ext.latitude == null || Number.isNaN(Number(ext.latitude)) ? null : Number(ext.latitude),
+    latitude:
+      ext.latitude == null || Number.isNaN(Number(ext.latitude)) ? null : Number(ext.latitude),
     longitude:
       ext.longitude == null || Number.isNaN(Number(ext.longitude)) ? null : Number(ext.longitude)
   };

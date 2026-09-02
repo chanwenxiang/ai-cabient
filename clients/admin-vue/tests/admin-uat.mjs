@@ -32,7 +32,15 @@ function record(id, name, category, status, detail, evidence) {
   let normalized = status;
   if (status === true) normalized = 'PASS';
   else if (status === false) normalized = 'FAIL';
-  results.push({ id, name, category, status: normalized, detail, evidence, at: new Date().toISOString() });
+  results.push({
+    id,
+    name,
+    category,
+    status: normalized,
+    detail,
+    evidence,
+    at: new Date().toISOString()
+  });
   const mark = normalized === 'PASS' ? '✓' : normalized === 'FAIL' ? '✗' : '○';
   console.log(`${mark} [${category}] ${id} ${name} — ${String(detail).slice(0, 240)}`);
 }
@@ -63,7 +71,10 @@ function captchaFromRedis(captchaId) {
 async function waitPageCaptchaId(page, timeoutMs = 8000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const id = await page.locator('button.captcha-img-btn[data-captcha-id]').first().getAttribute('data-captcha-id');
+    const id = await page
+      .locator('button.captcha-img-btn[data-captcha-id]')
+      .first()
+      .getAttribute('data-captcha-id');
     if (id) return id;
     await page.waitForTimeout(200);
   }
@@ -219,7 +230,14 @@ async function main() {
       text = await bodyText(page);
       const ok = p.expect.test(text);
       const evidence = await shot(page, p.id.toLowerCase());
-      record(p.id, p.name, '功能', ok ? 'PASS' : 'FAIL', text.split('\n').slice(0, 10).join(' | '), evidence);
+      record(
+        p.id,
+        p.name,
+        '功能',
+        ok ? 'PASS' : 'FAIL',
+        text.split('\n').slice(0, 10).join(' | '),
+        evidence
+      );
       ok ? pass++ : fail++;
     }
 
@@ -235,8 +253,7 @@ async function main() {
     await page.waitForTimeout(1500);
     text = await bodyText(page);
     const detailOk =
-      !openedDispute ||
-      /工单|会话|识别|录像|商品|免单|确认|KEEP|WAIVE|CONFIRM|详情/.test(text);
+      !openedDispute || /工单|会话|识别|录像|商品|免单|确认|KEEP|WAIVE|CONFIRM|详情/.test(text);
     const e9 = await shot(page, '09-dispute-detail');
     record(
       'A-09',
@@ -248,18 +265,13 @@ async function main() {
     );
     detailOk ? pass++ : fail++;
 
-    const severe = await page.evaluate(() => {
-      const entries = performance.getEntriesByType('resource') || [];
-      return entries.filter((e) => e.name.includes('/api/') && e.responseStatus >= 400).length;
-    }).catch(() => 0);
-    record(
-      'A-QUAL-01',
-      '控制台无阻断性错误',
-      '质量',
-      'PASS',
-      `http4xxResources=${severe}`,
-      null
-    );
+    const severe = await page
+      .evaluate(() => {
+        const entries = performance.getEntriesByType('resource') || [];
+        return entries.filter((e) => e.name.includes('/api/') && e.responseStatus >= 400).length;
+      })
+      .catch(() => 0);
+    record('A-QUAL-01', '控制台无阻断性错误', '质量', 'PASS', `http4xxResources=${severe}`, null);
     pass++;
   } finally {
     await browser.close();

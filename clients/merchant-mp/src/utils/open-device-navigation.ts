@@ -64,7 +64,11 @@ function confirmNative(title: string, content: string): Promise<boolean> {
   });
 }
 
-function confirmH5(title: string, content: string, testId = 'nav-confirm-dialog'): Promise<boolean> {
+function confirmH5(
+  title: string,
+  content: string,
+  testId = 'nav-confirm-dialog'
+): Promise<boolean> {
   return new Promise((resolve) => {
     if (activeH5Finish) {
       const prev = activeH5Finish;

@@ -259,7 +259,13 @@
               align="center"
               class-name="col-text"
             />
-            <el-table-column label="操作" width="88" class-name="col-action" align="center" fixed="right">
+            <el-table-column
+              label="操作"
+              width="88"
+              class-name="col-action"
+              align="center"
+              fixed="right"
+            >
               <template #default="{ row }">
                 <TableActions
                   v-if="canHandleAction(row)"
