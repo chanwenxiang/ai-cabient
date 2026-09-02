@@ -293,11 +293,13 @@ public class AdminDashboardController {
             @RequestParam(name = "payChannel", required = false) String payChannel,
             @RequestParam(name = "from", required = false) Instant from,
             @RequestParam(name = "to", required = false) Instant to,
-            @RequestParam(name = "q", required = false) String q) {
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "excludeZero", required = false) Boolean excludeZero) {
         return ApiResponse.ok(adminService.listOrders(
                 operatorId(request), new AdminDashboardService.OrderListQuery(
                         page, size, deviceId, status, Boolean.TRUE.equals(overdue),
-                        orderId, userId, sessionId, payTradeNo, payChannel, from, to, q)));
+                        orderId, userId, sessionId, payTradeNo, payChannel, from, to, q,
+                        Boolean.TRUE.equals(excludeZero))));
     }
 
     @RequiresPermissions("ops:order:export")
@@ -314,10 +316,12 @@ public class AdminDashboardController {
             @RequestParam(name = "payChannel", required = false) String payChannel,
             @RequestParam(name = "from", required = false) Instant from,
             @RequestParam(name = "to", required = false) Instant to,
-            @RequestParam(name = "q", required = false) String q) {
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "excludeZero", required = false) Boolean excludeZero) {
         byte[] csv = adminService.exportOrdersCsv(
                 operatorId(request), new AdminDashboardService.OrderExportQuery(
-                        deviceId, status, mode, orderId, userId, sessionId, payTradeNo, payChannel, from, to, q));
+                        deviceId, status, mode, orderId, userId, sessionId, payTradeNo, payChannel, from, to, q,
+                        Boolean.TRUE.equals(excludeZero)));
         String filename = "lines".equalsIgnoreCase(mode) || "product".equalsIgnoreCase(mode)
                 ? "order-lines.csv" : "orders.csv";
         return csvAttachment(filename, csv);

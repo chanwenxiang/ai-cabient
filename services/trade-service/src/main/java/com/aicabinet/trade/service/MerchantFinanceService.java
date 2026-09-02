@@ -348,7 +348,7 @@ public class MerchantFinanceService {
         return orderRepository.findByFiltersOrderByCreatedAtDesc(
                 new CabinetOrderMapper.OrderFilterCriteria(
                         normalizedDeviceId, deviceScope, normalizedStatus, null, from, to,
-                        null, null, null, null, null, keyword),
+                        null, null, null, null, null, keyword, false),
                 pageable);
     }
 

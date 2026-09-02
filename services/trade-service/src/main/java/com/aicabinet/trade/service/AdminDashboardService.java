@@ -840,21 +840,21 @@ public class AdminDashboardService {
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(Long operatorId, int page, int size, String deviceId) {
         return self.listOrders(operatorId, new OrderListQuery(
-                page, size, deviceId, null, false, null, null, null, null, null, null, null, null));
+                page, size, deviceId, null, false, null, null, null, null, null, null, null, null, false));
     }
 
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(
             Long operatorId, int page, int size, String deviceId, String status) {
         return self.listOrders(operatorId, new OrderListQuery(
-                page, size, deviceId, status, false, null, null, null, null, null, null, null, null));
+                page, size, deviceId, status, false, null, null, null, null, null, null, null, null, false));
     }
 
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(
             Long operatorId, int page, int size, String deviceId, String status, boolean overdueOnly) {
         return self.listOrders(operatorId, new OrderListQuery(
-                page, size, deviceId, status, overdueOnly, null, null, null, null, null, null, null, null));
+                page, size, deviceId, status, overdueOnly, null, null, null, null, null, null, null, null, false));
     }
 
     @Transactional(readOnly = true)
@@ -874,7 +874,8 @@ public class AdminDashboardService {
                 new OrderQueryCriteria(
                         query.deviceId(), status, createdBefore, query.from(), query.to(),
                         query.orderId(), query.userId(), query.sessionId(),
-                        query.payTradeNo(), query.payChannel(), query.keyword()),
+                        query.payTradeNo(), query.payChannel(), query.keyword(),
+                        query.excludeZeroAmount()),
                 pageable);
         List<String> orderIds = result.getContent().stream().map(CabinetOrder::getOrderId).toList();
         Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(orderIds);
@@ -897,7 +898,7 @@ public class AdminDashboardService {
     public record OrderListQuery(
             int page, int size, String deviceId, String status, boolean overdueOnly,
             String orderId, Long userId, String sessionId, String payTradeNo, String payChannel,
-            Instant from, Instant to, String keyword) {}
+            Instant from, Instant to, String keyword, boolean excludeZeroAmount) {}
 
     private long countOverdueUnpaidOrders(Long operatorId) {
         Instant cutoff = Instant.now().minus(UNPAID_OPS_OVERDUE_MINUTES, ChronoUnit.MINUTES);
@@ -1468,13 +1469,13 @@ public class AdminDashboardService {
     @Transactional(readOnly = true)
     public byte[] exportOrdersCsv(Long operatorId, String deviceId) {
         return self.exportOrdersCsv(operatorId, new OrderExportQuery(
-                deviceId, null, "orders", null, null, null, null, null, null, null, null));
+                deviceId, null, "orders", null, null, null, null, null, null, null, null, false));
     }
 
     @Transactional(readOnly = true)
     public byte[] exportOrdersCsv(Long operatorId, String deviceId, String status, String mode) {
         return self.exportOrdersCsv(operatorId, new OrderExportQuery(
-                deviceId, status, mode, null, null, null, null, null, null, null, null));
+                deviceId, status, mode, null, null, null, null, null, null, null, null, false));
     }
 
     @Transactional(readOnly = true)
@@ -1486,7 +1487,8 @@ public class AdminDashboardService {
                 new OrderQueryCriteria(
                         query.deviceId(), query.status(), null, query.from(), query.to(),
                         query.orderId(), query.userId(), query.sessionId(),
-                        query.payTradeNo(), query.payChannel(), query.keyword()),
+                        query.payTradeNo(), query.payChannel(), query.keyword(),
+                        query.excludeZeroAmount()),
                 pageable);
         boolean byLines = query.mode() != null
                 && (query.mode().equalsIgnoreCase("lines") || query.mode().equalsIgnoreCase("product"));
@@ -1559,7 +1561,7 @@ public class AdminDashboardService {
     public record OrderExportQuery(
             String deviceId, String status, String mode,
             String orderId, Long userId, String sessionId, String payTradeNo, String payChannel,
-            Instant from, Instant to, String keyword) {}
+            Instant from, Instant to, String keyword, boolean excludeZeroAmount) {}
 
     public record SessionExportQuery(
             String deviceId, SessionState state,
@@ -1917,7 +1919,8 @@ public class AdminDashboardService {
 
     private record OrderQueryCriteria(
             String deviceId, String status, Instant createdBefore, Instant createdFrom, Instant createdTo,
-            String orderId, Long userId, String sessionId, String payTradeNo, String payChannel, String keyword) {}
+            String orderId, Long userId, String sessionId, String payTradeNo, String payChannel,
+            String keyword, boolean excludeZeroAmount) {}
 
     private Page<ShoppingSession> querySessions(
             Long operatorId, SessionQueryCriteria criteria, Pageable pageable) {
@@ -1947,7 +1950,7 @@ public class AdminDashboardService {
             Long operatorId, String deviceId, String status, Instant createdBefore, Pageable pageable) {
         return queryOrders(operatorId,
                 new OrderQueryCriteria(deviceId, status, createdBefore, null, null,
-                        null, null, null, null, null, null),
+                        null, null, null, null, null, null, false),
                 pageable);
     }
 
@@ -1975,7 +1978,8 @@ public class AdminDashboardService {
                         blankToNull(criteria.sessionId()),
                         blankToNull(criteria.payTradeNo()),
                         blankToNull(criteria.payChannel()),
-                        blankToNull(criteria.keyword())),
+                        blankToNull(criteria.keyword()),
+                        criteria.excludeZeroAmount()),
                 pageable);
     }
 
