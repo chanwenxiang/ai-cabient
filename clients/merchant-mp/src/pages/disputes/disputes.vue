@@ -38,16 +38,18 @@
             <text class="card-id">#{{ shortId(item.ticketId) }}</text>
             <text class="card-status" :class="item.status">{{ statusText(item.status) }}</text>
           </view>
-          <text class="card-title">{{ localizeDisputeReason(item.reason) || '争议' }}</text>
+          <text class="card-title">{{ merchantDisputeDisplayCopy(item) || '争议' }}</text>
           <view class="card-meta">
             <text>{{ item.deviceName || item.deviceId || '无柜机' }}</text>
             <text>{{ formatTime(item.createdAt) }}</text>
             <text :class="item.slaOverdue ? 'sla-overdue' : 'sla-ok'">{{
-              item.slaOverdue
-                ? '已超时'
-                : item.slaHoursRemaining == null
-                  ? '处理中'
-                  : `剩余 ${item.slaHoursRemaining} 小时`
+              isTerminalDispute(item.status)
+                ? '已结案'
+                : item.slaOverdue
+                  ? '已超时'
+                  : item.slaHoursRemaining == null
+                    ? '处理中'
+                    : `剩余 ${item.slaHoursRemaining} 小时`
             }}</text>
           </view>
           <view
@@ -99,7 +101,7 @@
           <view class="detail-handle" />
           <text class="detail-title">{{ statusText(detail?.status) }}</text>
           <text class="detail-reason">{{
-            localizeDisputeReason(detail?.reason) || emptyDisplay(detail?.reason, 'reason')
+            merchantDisputeDisplayCopy(detail) || emptyDisplay(detail?.reason, 'reason')
           }}</text>
           <scroll-view scroll-y class="detail-scroll">
             <view class="detail-rows">
@@ -228,9 +230,9 @@ import { displayLabel } from '@aicabinet/shared-dict';
 import {
   emptyDisplay,
   formatDateTimeShort,
-  localizeDisputeReason,
   fmtMoney
 } from '@aicabinet/shared-uni/format';
+import { merchantDisputeDisplayCopy } from '@/utils/dispute-copy';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi, type MerchantDisputeTicket } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
@@ -282,6 +284,11 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 function switchTab(key: string) {
   activeTab.value = key;
   load();
+}
+
+function isTerminalDispute(status?: string | null) {
+  const s = (status || '').toUpperCase();
+  return s === 'RESOLVED' || s === 'CLOSED';
 }
 
 function canReplyTicket(item: MerchantDisputeTicket) {

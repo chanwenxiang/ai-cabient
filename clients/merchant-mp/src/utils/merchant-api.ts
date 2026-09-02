@@ -796,6 +796,7 @@ export type MerchantDisputeTicket = {
   orderId?: string;
   billedAmountCents?: number;
   refundedAmountCents?: number;
+  claimedAmountCents?: number;
   sessionId?: string;
   videoUri?: string;
   videoPreviewUrl?: string;
