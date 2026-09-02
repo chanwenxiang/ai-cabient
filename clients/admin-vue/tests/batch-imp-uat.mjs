@@ -1,5 +1,5 @@
 /**
- * UAT batch: IMP-012/028/048/026/transit-copy/015/016/020 (recent UX batch)
+ * UAT batch: IMP-012/028/048/026/transit-copy/015/016/020/001 (recent UX batch)
  * Run: cd clients/consumer-mp && node ../admin-vue/tests/batch-imp-uat.mjs
  */
 import { chromium } from 'playwright';
@@ -325,6 +325,17 @@ async function main() {
       record('B-07', '补货规划设备名编码', planOk ? 'PASS' : 'FAIL', JSON.stringify(plan), ePlan);
       planOk ? pass++ : fail++;
     }
+
+    // IMP-001 hash/index.html 入口应落到干净 path（或登录 redirect）
+    await page.goto(`${ADMIN}/index.html#/warehouse`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(1500);
+    const hashUrl = page.url();
+    const hashOk =
+      !/\/index\.html/i.test(new URL(hashUrl).pathname) &&
+      (/\/warehouse/.test(hashUrl) || /redirect=.*warehouse/.test(hashUrl));
+    const eHash = await shot(page, '08-hash-redirect');
+    record('B-08', 'index.html# 路由兼容', hashOk ? 'PASS' : 'FAIL', hashUrl, eHash);
+    hashOk ? pass++ : fail++;
   } catch (e) {
     console.error(e);
     record('B-ERR', '运行异常', 'FAIL', e.message, null);

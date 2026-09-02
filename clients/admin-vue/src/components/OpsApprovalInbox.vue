@@ -329,8 +329,14 @@ function purchaseConfirmSubject(task: ApprovalTask): string {
 
 async function inlineReview(task: ApprovalTask, approve: boolean) {
   if (task.bizType !== 'PURCHASE_ORDER' || !task.bizId) return;
+  // IMP-019：先关 Popover，再等焦点/动画释放，避免 MessageBox 被立刻关掉
   popoverVisible.value = false;
   await nextTick();
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      window.setTimeout(resolve, 80);
+    });
+  });
   const subject = purchaseConfirmSubject(task);
   try {
     await ElMessageBox.confirm(
