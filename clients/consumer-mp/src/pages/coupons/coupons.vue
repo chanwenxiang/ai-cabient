@@ -269,11 +269,14 @@ function pickForNextOpen(c: CouponDto) {
   color: #94a3b8;
 }
 .coupon-pick {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-top: 12rpx;
   font-size: 22rpx;
   color: #064e3b;
-  padding: 4rpx 12rpx;
+  padding: 8rpx 16rpx;
+  min-height: 48rpx;
   border-radius: 999rpx;
   background: #ecfdf5;
   border: 1rpx solid #a7f3d0;

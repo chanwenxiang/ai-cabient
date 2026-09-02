@@ -118,6 +118,16 @@ button::after {
   border: none !important;
 }
 
+/* H5/微信：原生 button 文案居中（theme.css 可能被 uni 默认 display 覆盖） */
+button,
+uni-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  line-height: 1.2 !important;
+}
+
 /* 微信/H5 input：避免仅靠 padding 导致占位符被裁切 */
 input {
   box-sizing: border-box;

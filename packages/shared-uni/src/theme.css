@@ -28,6 +28,20 @@
   --danger: #b91c1c;
 }
 
+/*
+ * 原生 button / uni-button：文案水平+垂直居中。
+ * 仅靠 line-height 在 H5/微信易出现文字偏上/偏下（用户反馈「按钮数据不居中」）。
+ */
+button,
+uni-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+  line-height: 1.2;
+}
+
 /* 等宽工具类：三端单号/代码统一引用 */
 .app-mono {
   font-family: var(--app-font-mono);

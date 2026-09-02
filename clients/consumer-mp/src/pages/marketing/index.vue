@@ -294,9 +294,12 @@ function remainText(end?: string) {
   max-width: 420rpx;
 }
 .banner-cta {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-top: 22rpx;
   padding: 8rpx 18rpx;
+  min-height: 48rpx;
   border-radius: 999rpx;
   background: rgba(255, 255, 255, 0.2);
   font-size: 22rpx;
