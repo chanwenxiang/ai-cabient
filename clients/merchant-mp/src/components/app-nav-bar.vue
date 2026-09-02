@@ -8,7 +8,9 @@
         aria-label="返回"
         @click="onBack"
       >
-        <text class="app-nav-chevron" :style="{ color: color, lineHeight: rowStyle.height }">‹</text>
+        <text class="app-nav-chevron" :style="{ color: color, lineHeight: rowStyle.height }"
+          >‹</text
+        >
       </view>
       <text
         class="app-nav-title"

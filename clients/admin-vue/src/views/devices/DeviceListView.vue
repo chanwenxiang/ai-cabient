@@ -356,7 +356,13 @@
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="140" class-name="col-action" align="center" fixed="right">
+          <el-table-column
+            label="操作"
+            width="140"
+            class-name="col-action"
+            align="center"
+            fixed="right"
+          >
             <template #default="{ row }">
               <TableActions
                 :actions="deviceActions(row)"
@@ -391,7 +397,8 @@
       <el-form label-width="88px">
         <el-form-item label="设备编号">
           <p class="form-hint muted">
-            创建后由系统自动分配 12 位数字编号（无序、不可修改）；柜机首次联网时将自动绑定 IMEI / 主板 SN
+            创建后由系统自动分配 12 位数字编号（无序、不可修改）；柜机首次联网时将自动绑定 IMEI /
+            主板 SN
           </p>
         </el-form-item>
         <el-form-item label="设备名称">

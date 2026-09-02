@@ -83,9 +83,7 @@
               empty-text=" "
             >
               <template #empty
-                ><el-empty
-                  v-if="listHydrated && !loading"
-                  :description="billEmptyDescription"
+                ><el-empty v-if="listHydrated && !loading" :description="billEmptyDescription"
               /></template>
               <el-table-column type="selection" width="48" align="center" />
               <el-table-column prop="bizDate" label="账期" width="120" align="center" />
@@ -387,15 +385,11 @@ const searchResultHint = computed(() => {
 });
 
 const billEmptyDescription = computed(() =>
-  appliedKeyword.value
-    ? `未找到匹配「${appliedKeyword.value}」的日账单`
-    : '暂无账单'
+  appliedKeyword.value ? `未找到匹配「${appliedKeyword.value}」的日账单` : '暂无账单'
 );
 
 const ledgerEmptyDescription = computed(() =>
-  appliedKeyword.value
-    ? `未找到匹配「${appliedKeyword.value}」的账务明细`
-    : '暂无流水'
+  appliedKeyword.value ? `未找到匹配「${appliedKeyword.value}」的账务明细` : '暂无流水'
 );
 
 const { onExport: exportBillsCsv } = useListCsv({

@@ -103,14 +103,7 @@ const subscribeTemplateId = ref('');
 const subscribing = ref(false);
 const pendingCount = ref(0);
 type MsgFilter =
-  | 'all'
-  | 'unread'
-  | 'ORDER'
-  | 'DISPUTE'
-  | 'COUPON'
-  | 'POINTS'
-  | 'RECHARGE'
-  | 'OTHER';
+  'all' | 'unread' | 'ORDER' | 'DISPUTE' | 'COUPON' | 'POINTS' | 'RECHARGE' | 'OTHER';
 const filter = ref<MsgFilter>('all');
 const filters: Array<{ key: MsgFilter; label: string }> = [
   { key: 'all', label: '全部' },
@@ -301,9 +294,10 @@ function goByBiz(m: NotificationDto) {
       break;
     case 'POINTS':
       uni.navigateTo({
-        url: tpl.includes('redeem') || tpl.includes('exchange')
-          ? '/pages/points/redeem'
-          : '/pages/points/points'
+        url:
+          tpl.includes('redeem') || tpl.includes('exchange')
+            ? '/pages/points/redeem'
+            : '/pages/points/points'
       });
       break;
     case 'RECALL':

@@ -644,7 +644,8 @@
       <div v-loading="assignDevicesLoading">
         <p class="dialog-hint">
           将设备归属到 <strong>{{ assignTarget?.merchantName || assignTarget?.merchantId }}</strong
-          >。已投放他商户的柜会先解绑再绑定；返厂/退役柜不可挂载。换商户请在设备详情走「解绑 → 绑定」。
+          >。已投放他商户的柜会先解绑再绑定；返厂/退役柜不可挂载。换商户请在设备详情走「解绑 →
+          绑定」。
         </p>
         <el-select
           v-model="assignDeviceIds"
@@ -798,7 +799,9 @@ const allDevices = ref<
 const assignableDevices = computed(() => allDevices.value);
 
 function normalizeAssignLifecycle(status?: string) {
-  const s = String(status || 'DEPLOYED').trim().toUpperCase();
+  const s = String(status || 'DEPLOYED')
+    .trim()
+    .toUpperCase();
   return s || 'DEPLOYED';
 }
 
@@ -820,11 +823,15 @@ function assignDeviceLabel(d: {
 }
 
 async function postDeviceLifecycle(deviceId: string, action: string, merchantId?: string) {
-  return api.request(`/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/lifecycle`, 'POST', {
-    action,
-    merchantId,
-    remark: action === 'UNBIND' ? '商户页卸载货柜' : '商户页挂载货柜'
-  });
+  return api.request(
+    `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/lifecycle`,
+    'POST',
+    {
+      action,
+      merchantId,
+      remark: action === 'UNBIND' ? '商户页卸载货柜' : '商户页挂载货柜'
+    }
+  );
 }
 
 type OrgNode = MerchantDto & { label: string; children: OrgNode[] };

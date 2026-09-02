@@ -74,7 +74,11 @@
           <el-input v-model="brandForm.subtitle" maxlength="64" placeholder="例如：运营管理系统" />
         </el-form-item>
         <el-form-item label="侧栏标题">
-          <el-input v-model="brandForm.sidebarTitle" maxlength="64" placeholder="例如：AI开门柜运营" />
+          <el-input
+            v-model="brandForm.sidebarTitle"
+            maxlength="64"
+            placeholder="例如：AI开门柜运营"
+          />
         </el-form-item>
         <el-form-item>
           <el-button

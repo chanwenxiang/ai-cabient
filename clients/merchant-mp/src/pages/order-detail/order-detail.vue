@@ -65,7 +65,9 @@
           >
           <view class="info-row"
             ><text class="lbl">柜机</text
-            ><text class="val mono">{{ emptyDisplay(order.deviceName || order.deviceId, 'device') }}</text></view
+            ><text class="val mono">{{
+              emptyDisplay(order.deviceName || order.deviceId, 'device')
+            }}</text></view
           >
           <view class="info-row"
             ><text class="lbl">支付方式</text><text class="val">{{ payChannelText }}</text></view

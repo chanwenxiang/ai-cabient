@@ -41,7 +41,9 @@ const displayRows = computed(() => {
   const list = filterByKeyword([...rows.value], (row, kw) => {
     return (
       String(row.requestId).includes(kw) ||
-      String(row.requestNo || '').toLowerCase().includes(kw) ||
+      String(row.requestNo || '')
+        .toLowerCase()
+        .includes(kw) ||
       displayBizNo(row.requestNo).toLowerCase().includes(kw) ||
       String(row.userId || '').includes(kw)
     );
@@ -52,16 +54,7 @@ const displayRows = computed(() => {
 
 const { onExport } = useListCsv({
   filePrefix: '余额退款申请',
-  headers: [
-    '申请号',
-    '用户ID',
-    '金额(元)',
-    '状态',
-    '申请原因',
-    '审核备注',
-    '失败原因',
-    '申请时间'
-  ],
+  headers: ['申请号', '用户ID', '金额(元)', '状态', '申请原因', '审核备注', '失败原因', '申请时间'],
   toRows: () =>
     pickSelected(displayRows.value).map((row) => [
       displayBizNo(row.requestNo),

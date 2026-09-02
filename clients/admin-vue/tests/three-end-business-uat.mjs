@@ -37,7 +37,9 @@ function record(id, name, status, detail, evidence) {
   if (status === true) s = 'PASS';
   if (status === false) s = 'FAIL';
   results.push({ id, name, status: s, detail, evidence, at: new Date().toISOString() });
-  console.log(`${s === 'PASS' ? '✓' : s === 'FAIL' ? '✗' : '○'} ${id} ${name} — ${String(detail).slice(0, 220)}`);
+  console.log(
+    `${s === 'PASS' ? '✓' : s === 'FAIL' ? '✗' : '○'} ${id} ${name} — ${String(detail).slice(0, 220)}`
+  );
 }
 
 async function shot(page, name) {
@@ -107,7 +109,10 @@ async function consumerLogin(page) {
   const n = await inputs.count();
   await inputs.nth(Math.min(1, n - 1)).click();
   await page.keyboard.type('123456', { delay: 20 });
-  await page.locator('[data-testid="login-submit"], button:has-text("验证并继续"), button:has-text("登录")').first().click();
+  await page
+    .locator('[data-testid="login-submit"], button:has-text("验证并继续"), button:has-text("登录")')
+    .first()
+    .click();
   await page.waitForTimeout(2500);
   return page.evaluate(() => localStorage.getItem('consumer_token') || '');
 }
@@ -115,8 +120,14 @@ async function consumerLogin(page) {
 async function merchantLogin(page) {
   await page.goto(`${MERCHANT}/pages/login/login`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(800);
-  const phone = page.locator('[data-testid="login-phone"] input, [data-testid="login-phone"] .uni-input-input').first();
-  const pwd = page.locator('[data-testid="login-password"] input, [data-testid="login-password"] .uni-input-input').first();
+  const phone = page
+    .locator('[data-testid="login-phone"] input, [data-testid="login-phone"] .uni-input-input')
+    .first();
+  const pwd = page
+    .locator(
+      '[data-testid="login-password"] input, [data-testid="login-password"] .uni-input-input'
+    )
+    .first();
   await phone.click();
   await page.keyboard.press('ControlOrMeta+a');
   await page.keyboard.type('13800138001', { delay: 25 });
@@ -135,7 +146,10 @@ async function adminLogin(page) {
   let capId = '';
   for (let i = 0; i < 4; i++) {
     try {
-      capId = await page.locator('button.captcha-img-btn[data-captcha-id]').first().getAttribute('data-captcha-id');
+      capId = await page
+        .locator('button.captcha-img-btn[data-captcha-id]')
+        .first()
+        .getAttribute('data-captcha-id');
       if (!capId) throw new Error('no id');
       const code = captchaCode(capId);
       await page.locator('.el-input input[placeholder="请输入11位手机号…"]').fill('13900000001');
@@ -148,7 +162,11 @@ async function adminLogin(page) {
         return true;
       }
     } catch {
-      await page.locator('button.captcha-img-btn').first().click({ force: true, timeout: 3000 }).catch(() => {});
+      await page
+        .locator('button.captcha-img-btn')
+        .first()
+        .click({ force: true, timeout: 3000 })
+        .catch(() => {});
       await page.waitForTimeout(700);
     }
   }
@@ -180,13 +198,18 @@ async function main() {
     await page.waitForTimeout(1800);
     let text = await bodyText(page);
     const ordersOk = /订单|已支付|已完成|暂无/.test(text);
-    record('T-C02', '消费者订单列表', ordersOk, text.split('\n').slice(0, 8).join(' | '), await shot(page, 'c02-orders'));
+    record(
+      'T-C02',
+      '消费者订单列表',
+      ordersOk,
+      text.split('\n').slice(0, 8).join(' | '),
+      await shot(page, 'c02-orders')
+    );
     ordersOk ? pass++ : fail++;
 
-    await page.goto(
-      `${CONSUMER}/pages/video/video?orderId=${encodeURIComponent(DEMO_ORDER)}`,
-      { waitUntil: 'domcontentloaded' }
-    );
+    await page.goto(`${CONSUMER}/pages/video/video?orderId=${encodeURIComponent(DEMO_ORDER)}`, {
+      waitUntil: 'domcontentloaded'
+    });
     const cVideo = await waitVideoPlayable(page);
     record(
       'T-C03',
@@ -199,14 +222,26 @@ async function main() {
 
     // —— 商户 ——
     const mToken = await merchantLogin(page);
-    record('T-M01', '商户登录', !!mToken, mToken ? 'token ok' : 'no token', await shot(page, 'm01-login'));
+    record(
+      'T-M01',
+      '商户登录',
+      !!mToken,
+      mToken ? 'token ok' : 'no token',
+      await shot(page, 'm01-login')
+    );
     mToken ? pass++ : fail++;
 
     await page.goto(`${MERCHANT}/pages/orders/orders`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1800);
     text = await bodyText(page);
     const mOrders = /柜机订单|订单|已支付|导出/.test(text);
-    record('T-M02', '商户柜机订单', mOrders, text.split('\n').slice(0, 8).join(' | '), await shot(page, 'm02-orders'));
+    record(
+      'T-M02',
+      '商户柜机订单',
+      mOrders,
+      text.split('\n').slice(0, 8).join(' | '),
+      await shot(page, 'm02-orders')
+    );
     mOrders ? pass++ : fail++;
 
     await page.goto(
@@ -231,7 +266,13 @@ async function main() {
 
     // —— 运营 ——
     const adminOk = await adminLogin(page);
-    record('T-A01', '运营登录', adminOk, adminOk ? page.url() : 'login failed', await shot(page, 'a01-login'));
+    record(
+      'T-A01',
+      '运营登录',
+      adminOk,
+      adminOk ? page.url() : 'login failed',
+      await shot(page, 'a01-login')
+    );
     adminOk ? pass++ : fail++;
 
     if (adminOk) {
@@ -244,7 +285,13 @@ async function main() {
         await page.waitForTimeout(1600);
         text = await bodyText(page);
         const ok = p.re.test(text);
-        record(p.id, p.name, ok, text.split('\n').slice(0, 8).join(' | '), await shot(page, p.id.toLowerCase()));
+        record(
+          p.id,
+          p.name,
+          ok,
+          text.split('\n').slice(0, 8).join(' | '),
+          await shot(page, p.id.toLowerCase())
+        );
         ok ? pass++ : fail++;
       }
     }

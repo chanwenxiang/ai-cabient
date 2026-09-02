@@ -578,7 +578,9 @@ async function batchDeleteContracts() {
   }
   contractBatchLoading.value = true;
   const results = await Promise.allSettled(
-    targets.map((row) => api.request(`/api/v2/ops/admin/site-contracts/${row.contractId}`, 'DELETE'))
+    targets.map((row) =>
+      api.request(`/api/v2/ops/admin/site-contracts/${row.contractId}`, 'DELETE')
+    )
   );
   contractBatchLoading.value = false;
   const ok = results.filter((r) => r.status === 'fulfilled').length;

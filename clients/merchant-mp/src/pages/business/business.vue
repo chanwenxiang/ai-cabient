@@ -198,9 +198,7 @@
                 <template v-if="r.currentTempC != null">温度 {{ r.currentTempC }}°C</template>
                 <template v-if="r.currentTempC != null && r.firmwareVersion"> · </template>
                 <template v-if="r.firmwareVersion">固件 {{ r.firmwareVersion }}</template>
-                <template
-                  v-if="(r.currentTempC != null || r.firmwareVersion) && r.salesLockReason"
-                >
+                <template v-if="(r.currentTempC != null || r.firmwareVersion) && r.salesLockReason">
                   ·
                 </template>
                 <template v-if="r.salesLockReason">{{ r.salesLockReason }}</template>

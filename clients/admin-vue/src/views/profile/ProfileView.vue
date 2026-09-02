@@ -151,7 +151,11 @@
           />
         </el-form-item>
         <el-form-item label="邮箱">
-          <el-input v-model="editForm.email" maxlength="128" placeholder="选填，如 name@example.com" />
+          <el-input
+            v-model="editForm.email"
+            maxlength="128"
+            placeholder="选填，如 name@example.com"
+          />
         </el-form-item>
       </el-form>
       <template #footer>

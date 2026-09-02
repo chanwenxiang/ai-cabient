@@ -94,49 +94,57 @@
             <el-empty v-if="hydrated && !loading" description="暂无进件记录" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-      <el-table-column prop="merchantId" label="商户" min-width="140">
-        <template #default="{ row }">
-          <div>{{ row.merchantName || row.merchantId }}</div>
-          <div v-if="row.merchantName" class="muted">{{ row.merchantId }}</div>
-        </template>
-      </el-table-column>
-      <el-table-column prop="channel" label="渠道" width="100">
-        <template #default="{ row }">{{ channelLabel(row.channel) }}</template>
-      </el-table-column>
-      <el-table-column prop="status" label="状态" width="110">
-        <template #default="{ row }">
-          <el-tag :type="statusTag(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
-          <div v-if="row.approvalStatus === 'PENDING'" class="muted">审批中</div>
-        </template>
-      </el-table-column>
-      <el-table-column label="外部商户号" min-width="140" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.externalMchId || '' }}</template>
-      </el-table-column>
-      <el-table-column label="外部单号" min-width="120" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.externalRef || '' }}</template>
-      </el-table-column>
-      <el-table-column label="支付模式" width="90">
-        <template #default="{ row }">
-          <el-tag :type="row.payLiveHint ? 'success' : 'info'" size="small">
-            {{ row.payLiveHint ? '正式' : '演示' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="备注" min-width="120" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.note || '' }}</template>
-      </el-table-column>
-      <el-table-column label="最近同步" width="160">
-        <template #default="{ row }">{{
-          row.lastSyncedAt ? formatDateTime(row.lastSyncedAt) : ''
-        }}</template>
-      </el-table-column>
-      <el-table-column label="创建时间" width="160">
-        <template #default="{ row }">{{ formatDateTime(row.createdAt) || '' }}</template>
-      </el-table-column>
-      <el-table-column label="更新时间" width="160">
-        <template #default="{ row }">{{ formatDateTime(row.updatedAt) || '' }}</template>
-      </el-table-column>
-          <el-table-column label="操作" width="180" fixed="right" class-name="col-action" align="center">
+          <el-table-column prop="merchantId" label="商户" min-width="140">
+            <template #default="{ row }">
+              <div>{{ row.merchantName || row.merchantId }}</div>
+              <div v-if="row.merchantName" class="muted">{{ row.merchantId }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="channel" label="渠道" width="100">
+            <template #default="{ row }">{{ channelLabel(row.channel) }}</template>
+          </el-table-column>
+          <el-table-column prop="status" label="状态" width="110">
+            <template #default="{ row }">
+              <el-tag :type="statusTag(row.status)" size="small">{{
+                statusLabel(row.status)
+              }}</el-tag>
+              <div v-if="row.approvalStatus === 'PENDING'" class="muted">审批中</div>
+            </template>
+          </el-table-column>
+          <el-table-column label="外部商户号" min-width="140" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.externalMchId || '' }}</template>
+          </el-table-column>
+          <el-table-column label="外部单号" min-width="120" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.externalRef || '' }}</template>
+          </el-table-column>
+          <el-table-column label="支付模式" width="90">
+            <template #default="{ row }">
+              <el-tag :type="row.payLiveHint ? 'success' : 'info'" size="small">
+                {{ row.payLiveHint ? '正式' : '演示' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="备注" min-width="120" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.note || '' }}</template>
+          </el-table-column>
+          <el-table-column label="最近同步" width="160">
+            <template #default="{ row }">{{
+              row.lastSyncedAt ? formatDateTime(row.lastSyncedAt) : ''
+            }}</template>
+          </el-table-column>
+          <el-table-column label="创建时间" width="160">
+            <template #default="{ row }">{{ formatDateTime(row.createdAt) || '' }}</template>
+          </el-table-column>
+          <el-table-column label="更新时间" width="160">
+            <template #default="{ row }">{{ formatDateTime(row.updatedAt) || '' }}</template>
+          </el-table-column>
+          <el-table-column
+            label="操作"
+            width="180"
+            fixed="right"
+            class-name="col-action"
+            align="center"
+          >
             <template #default="{ row }">
               <el-button
                 v-if="canEdit && row.status !== 'SUBMITTED'"
@@ -511,9 +519,7 @@ async function batchReview(approve: boolean) {
   const targets = reviewableSelected.value;
   if (!targets.length) {
     ElMessage.warning(
-      hasSelection.value
-        ? '勾选行中没有「已提交且审批中」的进件'
-        : '请先勾选需要审批的进件'
+      hasSelection.value ? '勾选行中没有「已提交且审批中」的进件' : '请先勾选需要审批的进件'
     );
     return;
   }

@@ -179,13 +179,19 @@
           <view class="sheet-handle" />
           <view class="sheet-head">
             <view>
-              <text class="sheet-title">{{ deviceName(selected?.deviceId, selected?.deviceName) }}</text>
+              <text class="sheet-title">{{
+                deviceName(selected?.deviceId, selected?.deviceName)
+              }}</text>
               <text class="device-code"
                 >任务 #{{ selected?.taskId }} · {{ selected?.deviceId }}</text
               >
-              <text v-if="selected && (selected.routeName || selected.routeId || selected.plannedDate)" class="device-code"
+              <text
+                v-if="selected && (selected.routeName || selected.routeId || selected.plannedDate)"
+                class="device-code"
                 >{{ routeLabel(selected)
-                }}{{ selected.plannedDate ? ` · 计划 ${formatDateOnly(selected.plannedDate)}` : '' }}</text
+                }}{{
+                  selected.plannedDate ? ` · 计划 ${formatDateOnly(selected.plannedDate)}` : ''
+                }}</text
               >
             </view>
             <text class="close" role="button" aria-label="关闭" @click="closeDetail">×</text>
@@ -193,8 +199,7 @@
 
           <view v-if="selected?.deviceId" class="cabinet-card">
             <text class="cabinet-addr">{{
-              deviceAddressLine(selected.deviceId) ||
-              '暂无点位地址，请对照编号或扫码核对柜机'
+              deviceAddressLine(selected.deviceId) || '暂无点位地址，请对照编号或扫码核对柜机'
             }}</text>
             <view class="cabinet-actions">
               <view
@@ -595,10 +600,7 @@ import { useMerchantMe } from '@/composables/useMerchantMe';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { promptText } from '@/utils/text-prompt';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
-import {
-  getSkipCheckInLocation,
-  setSkipCheckInLocation
-} from '@/utils/checkin-location-pref';
+import { getSkipCheckInLocation, setSkipCheckInLocation } from '@/utils/checkin-location-pref';
 import { API_BASE_URL } from '@/config/api';
 import type { DeviceSlot } from '@aicabinet/shared-types';
 

@@ -254,11 +254,9 @@ async function gotoPath(page, pathname, wait = 1500) {
 
 /** 关闭 vision mock 强制人工审核，避免 UAT 开门后秒进争议页 */
 async function disableVisionForceNeedReview() {
-  const bases = [
-    process.env.VISION_URL,
-    'http://127.0.0.1:18082',
-    'http://localhost:18082'
-  ].filter(Boolean);
+  const bases = [process.env.VISION_URL, 'http://127.0.0.1:18082', 'http://localhost:18082'].filter(
+    Boolean
+  );
   const key = process.env.VISION_API_KEY || 'dev-internal-key-change-me';
   for (const base of bases) {
     try {

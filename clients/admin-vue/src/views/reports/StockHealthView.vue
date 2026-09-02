@@ -232,7 +232,13 @@
           <el-table-column label="到期日" width="120" align="center" class-name="col-text">
             <template #default="{ row }">{{ row.expiryDate || '未填' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="220" class-name="col-action" align="center" fixed="right">
+          <el-table-column
+            label="操作"
+            width="220"
+            class-name="col-action"
+            align="center"
+            fixed="right"
+          >
             <template #default="{ row }">
               <TableActions :actions="rowActions(row)" @action="(key) => onRowAction(key, row)" />
             </template>

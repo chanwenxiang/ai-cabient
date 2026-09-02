@@ -306,7 +306,13 @@
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="180" align="center" class-name="col-action" fixed="right">
+          <el-table-column
+            label="操作"
+            width="180"
+            align="center"
+            class-name="col-action"
+            fixed="right"
+          >
             <template #default="{ row }">
               <TableActions :actions="rowActions(row)" @action="(key) => onRowAction(key, row)" />
             </template>
@@ -363,10 +369,7 @@
               </button>
               <span v-else class="muted">暂无</span>
             </el-descriptions-item>
-            <el-descriptions-item
-              v-if="detail.merchantName || detail.merchantId"
-              label="商户"
-            >
+            <el-descriptions-item v-if="detail.merchantName || detail.merchantId" label="商户">
               {{ detail.merchantName || detail.merchantId }}
             </el-descriptions-item>
             <el-descriptions-item label="状态">
@@ -375,9 +378,7 @@
             <el-descriptions-item label="金额"
               >¥{{ money(detail.totalAmountCents) }}</el-descriptions-item
             >
-            <el-descriptions-item
-              v-if="Number(detail.refundedCents || 0) > 0"
-              label="已退金额"
+            <el-descriptions-item v-if="Number(detail.refundedCents || 0) > 0" label="已退金额"
               >¥{{ money(detail.refundedCents) }}</el-descriptions-item
             >
             <el-descriptions-item v-if="Number(detail.originalAmountCents || 0) > 0" label="原价"
@@ -755,9 +756,7 @@ const { onExport: exportSelectedCsv } = useListCsv({
       paymentStatusLabel(row.status),
       refundColumnLabel(row.status),
       displayLabel('pay_channel', row.payChannel, '未知渠道'),
-      row.splitStatus
-        ? displayLabel('split_status', row.splitStatus, '未知')
-        : '',
+      row.splitStatus ? displayLabel('split_status', row.splitStatus, '未知') : '',
       row.inventoryDeducted ? '已扣' : '未扣',
       row.lineSummary || '',
       row.lineCount,

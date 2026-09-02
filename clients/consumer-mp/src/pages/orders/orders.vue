@@ -31,7 +31,9 @@
       >
         <view v-if="reviewingDisputes.length" class="review-section">
           <text class="section-label"
-            >需要关注{{ reviewingDisputes.length > 3 ? `（${reviewingDisputes.length}）` : '' }}</text
+            >需要关注{{
+              reviewingDisputes.length > 3 ? `（${reviewingDisputes.length}）` : ''
+            }}</text
           >
           <view
             v-for="d in reviewingDisputesPreview"
@@ -53,11 +55,7 @@
               </view>
             </view>
           </view>
-          <view
-            v-if="reviewingDisputesMore > 0"
-            class="review-more"
-            @click="filter = 'issue'"
-          >
+          <view v-if="reviewingDisputesMore > 0" class="review-more" @click="filter = 'issue'">
             <text>还有 {{ reviewingDisputesMore }} 条待确认，可在「有疑问」筛选查看 ›</text>
           </view>
         </view>
@@ -180,9 +178,7 @@
             compact
             title="当前筛选暂无订单"
             :hint="
-              hideZeroOrders
-                ? '可关闭「隐藏零元单」或切换时间/状态再试'
-                : '可切换时间或状态再试'
+              hideZeroOrders ? '可关闭「隐藏零元单」或切换时间/状态再试' : '可切换时间或状态再试'
             "
           />
           <view v-if="loadingMore" class="load-more">加载中…</view>
@@ -243,7 +239,9 @@ const reviewingDisputes = computed(() =>
 );
 /** 关注区最多展示 3 条，避免联调残留工单挤占购买记录 */
 const REVIEW_PREVIEW_LIMIT = 3;
-const reviewingDisputesPreview = computed(() => reviewingDisputes.value.slice(0, REVIEW_PREVIEW_LIMIT));
+const reviewingDisputesPreview = computed(() =>
+  reviewingDisputes.value.slice(0, REVIEW_PREVIEW_LIMIT)
+);
 const reviewingDisputesMore = computed(() =>
   Math.max(0, reviewingDisputes.value.length - REVIEW_PREVIEW_LIMIT)
 );

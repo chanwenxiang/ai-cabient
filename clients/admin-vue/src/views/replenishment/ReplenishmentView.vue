@@ -483,7 +483,13 @@
               <el-table-column label="备注" min-width="140" align="center" show-overflow-tooltip>
                 <template #default="{ row }">{{ formatTaskNotesBrief(row.notes) }}</template>
               </el-table-column>
-              <el-table-column label="操作" width="120" align="center" class-name="col-action" fixed="right">
+              <el-table-column
+                label="操作"
+                width="120"
+                align="center"
+                class-name="col-action"
+                fixed="right"
+              >
                 <template #default="{ row }">
                   <el-button link type="primary" @click="openTaskLines(row)">
                     理货明细
@@ -859,7 +865,13 @@
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="240" align="center" class-name="col-action" fixed="right">
+              <el-table-column
+                label="操作"
+                width="240"
+                align="center"
+                class-name="col-action"
+                fixed="right"
+              >
                 <template #default="{ row }">
                   <el-button
                     v-if="canEdit"
@@ -919,7 +931,9 @@
       <div v-loading="linesLoading" class="lines-drawer">
         <el-descriptions v-if="linesTask" :column="1" border size="small" class="lines-meta">
           <el-descriptions-item label="设备"
-            >{{ deviceName(linesTask.deviceId, linesTask.deviceName) }}（{{ linesTask.deviceId }}）</el-descriptions-item
+            >{{ deviceName(linesTask.deviceId, linesTask.deviceName) }}（{{
+              linesTask.deviceId
+            }}）</el-descriptions-item
           >
           <el-descriptions-item label="人员">{{
             assigneeLabel(linesTask.assigneeUserId, '无')
@@ -1442,7 +1456,9 @@ const fulfillmentTasks = computed(() => {
   }
   return filterFulfillmentByKeyword(rows, (row, kw) => {
     const taskMatch = String(row.taskId ?? '').includes(kw);
-    const deviceIdMatch = String(row.deviceId ?? '').toLowerCase().includes(kw);
+    const deviceIdMatch = String(row.deviceId ?? '')
+      .toLowerCase()
+      .includes(kw);
     const deviceNameMatch = deviceName(row.deviceId, row.deviceName).toLowerCase().includes(kw);
     return taskMatch || deviceIdMatch || deviceNameMatch;
   });

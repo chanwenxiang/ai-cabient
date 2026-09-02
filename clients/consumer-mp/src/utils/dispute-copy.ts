@@ -111,9 +111,7 @@ export function shouldShowConsumerRefundChannel(
   return Number(ticket.refundedAmountCents ?? 0) > 0;
 }
 
-function sumLineAmountCents(
-  lines?: Array<{ lineAmountCents?: number | null }> | null
-): number {
+function sumLineAmountCents(lines?: Array<{ lineAmountCents?: number | null }> | null): number {
   if (!lines?.length) return 0;
   return lines.reduce((sum, line) => sum + Math.max(0, Number(line.lineAmountCents ?? 0)), 0);
 }

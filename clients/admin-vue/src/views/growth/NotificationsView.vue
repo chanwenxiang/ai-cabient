@@ -77,7 +77,13 @@
           <el-table-column label="关联单号" width="150" align="center" class-name="col-text">
             <template #default="{ row }">{{ displayBizNo(row.bizId, '无') }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="140" align="center" class-name="col-action" fixed="right">
+          <el-table-column
+            label="操作"
+            width="140"
+            align="center"
+            class-name="col-action"
+            fixed="right"
+          >
             <template #default="{ row }">
               <el-button v-hasPermi="['ops:notify:list']" link type="primary" @click="openEdit(row)"
                 >编辑</el-button

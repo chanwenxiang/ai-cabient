@@ -152,7 +152,13 @@
           <el-input-number v-model="form.pointsRate" :min="0" :precision="2" :step="0.1" />
         </el-form-item>
         <el-form-item label="会员折扣(%)">
-          <el-input-number v-model="form.priceDiscountPct" :min="0" :max="100" :precision="2" :step="1" />
+          <el-input-number
+            v-model="form.priceDiscountPct"
+            :min="0"
+            :max="100"
+            :precision="2"
+            :step="1"
+          />
         </el-form-item>
         <el-form-item label="排序">
           <el-input-number v-model="form.sortOrder" :min="0" />
@@ -198,9 +204,11 @@ const list = ref<LevelRule[]>([]);
 const dialogVisible = ref(false);
 const editing = ref(false);
 const auth = useAuthStore();
-const { selectedKeys: selectedIds, onSelectionChange, clearSelection } = useTableSelection<LevelRule>(
-  (row) => row.id ?? row.levelCode
-);
+const {
+  selectedKeys: selectedIds,
+  onSelectionChange,
+  clearSelection
+} = useTableSelection<LevelRule>((row) => row.id ?? row.levelCode);
 
 function levelCodeLabel(code?: string, fallbackName?: string) {
   if (!code) return fallbackName || '—';
@@ -321,9 +329,13 @@ async function batchSetStatus(next: 'ACTIVE' | 'INACTIVE') {
   }
   const action = next === 'ACTIVE' ? '启用' : '停用';
   try {
-    await ElMessageBox.confirm(`确认批量${action}选中的 ${targets.length} 条等级规则？`, `批量${action}`, {
-      type: 'warning'
-    });
+    await ElMessageBox.confirm(
+      `确认批量${action}选中的 ${targets.length} 条等级规则？`,
+      `批量${action}`,
+      {
+        type: 'warning'
+      }
+    );
   } catch {
     return;
   }

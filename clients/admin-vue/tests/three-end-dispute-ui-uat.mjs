@@ -34,7 +34,9 @@ function record(id, name, status, detail, evidence) {
   if (status === true) s = 'PASS';
   if (status === false) s = 'FAIL';
   results.push({ id, name, status: s, detail, evidence, at: new Date().toISOString() });
-  console.log(`${s === 'PASS' ? '✓' : s === 'FAIL' ? '✗' : '○'} ${id} ${name} — ${String(detail).slice(0, 240)}`);
+  console.log(
+    `${s === 'PASS' ? '✓' : s === 'FAIL' ? '✗' : '○'} ${id} ${name} — ${String(detail).slice(0, 240)}`
+  );
 }
 
 async function shot(page, name) {
@@ -76,11 +78,18 @@ async function adminLogin(page) {
       await page.locator('button.submit-btn, button:has-text("登录")').first().click();
       await page.waitForTimeout(2200);
       const text = await bodyText(page);
-      if (/运营工作台|概览|交易履约|订单管理/.test(text) || /\/admin\/(dashboard|disputes)/.test(page.url())) {
+      if (
+        /运营工作台|概览|交易履约|订单管理/.test(text) ||
+        /\/admin\/(dashboard|disputes)/.test(page.url())
+      ) {
         return true;
       }
     } catch {
-      await page.locator('button.captcha-img-btn').first().click({ force: true, timeout: 3000 }).catch(() => {});
+      await page
+        .locator('button.captcha-img-btn')
+        .first()
+        .click({ force: true, timeout: 3000 })
+        .catch(() => {});
       await page.waitForTimeout(700);
     }
   }
@@ -91,8 +100,14 @@ async function merchantLogin(page) {
   // 商户端：密码登录，无图形验证码
   await page.goto(`${MERCHANT}/pages/login/login`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(700);
-  const phone = page.locator('[data-testid="login-phone"] input, [data-testid="login-phone"] .uni-input-input').first();
-  const pwd = page.locator('[data-testid="login-password"] input, [data-testid="login-password"] .uni-input-input').first();
+  const phone = page
+    .locator('[data-testid="login-phone"] input, [data-testid="login-phone"] .uni-input-input')
+    .first();
+  const pwd = page
+    .locator(
+      '[data-testid="login-password"] input, [data-testid="login-password"] .uni-input-input'
+    )
+    .first();
   await phone.click();
   await page.keyboard.press('ControlOrMeta+a');
   await page.keyboard.type('13800138001', { delay: 20 });
@@ -119,7 +134,10 @@ async function consumerLogin(page) {
   const inputs = page.locator('input');
   await inputs.nth(Math.min(1, (await inputs.count()) - 1)).click();
   await page.keyboard.type('123456', { delay: 20 });
-  await page.locator('[data-testid="login-submit"], button:has-text("验证并继续"), button:has-text("登录")').first().click();
+  await page
+    .locator('[data-testid="login-submit"], button:has-text("验证并继续"), button:has-text("登录")')
+    .first()
+    .click();
   await page.waitForTimeout(2200);
   return !!(await page.evaluate(() => localStorage.getItem('consumer_token') || ''));
 }
@@ -138,9 +156,7 @@ async function main() {
     console.error(`缺少 ${DISPUTE_FILE}，请先运行: .\\scripts\\create-open-dispute.ps1`);
     process.exit(2);
   }
-  const dispute = JSON.parse(
-    fs.readFileSync(DISPUTE_FILE, 'utf8').replace(/^\uFEFF/, '')
-  );
+  const dispute = JSON.parse(fs.readFileSync(DISPUTE_FILE, 'utf8').replace(/^\uFEFF/, ''));
   const ticketId = String(dispute.ticketId || '');
   const sessionId = String(dispute.sessionId || '');
   if (!ticketId || !sessionId) {
@@ -157,7 +173,13 @@ async function main() {
   try {
     // —— 运营后台结案（需要图形验证码）——
     const loggedIn = await adminLogin(page);
-    record('D-A01', '运营登录（含图形验证码）', loggedIn, loggedIn ? page.url() : 'fail', await shot(page, '01-admin-login'));
+    record(
+      'D-A01',
+      '运营登录（含图形验证码）',
+      loggedIn,
+      loggedIn ? page.url() : 'fail',
+      await shot(page, '01-admin-login')
+    );
     loggedIn ? pass++ : fail++;
     if (!loggedIn) throw new Error('admin login failed');
 
@@ -166,7 +188,13 @@ async function main() {
     await page.waitForTimeout(2200);
     let text = await bodyText(page);
     const listOk = text.includes('争议审核');
-    record('D-A02', '打开待审争议页', listOk, text.split('\n').slice(0, 8).join(' | '), await shot(page, '02-disputes'));
+    record(
+      'D-A02',
+      '打开待审争议页',
+      listOk,
+      text.split('\n').slice(0, 8).join(' | '),
+      await shot(page, '02-disputes')
+    );
     listOk ? pass++ : fail++;
 
     // 点开首行或已自动选中
@@ -182,7 +210,13 @@ async function main() {
     }, ticketId);
     await page.waitForTimeout(1800);
     text = await bodyText(page);
-    record('D-A03', '打开争议详情', clicked || /工单|会话|免单/.test(text), `click=${clicked}`, await shot(page, '03-detail'));
+    record(
+      'D-A03',
+      '打开争议详情',
+      clicked || /工单|会话|免单/.test(text),
+      `click=${clicked}`,
+      await shot(page, '03-detail')
+    );
     clicked || /工单|会话/.test(text) ? pass++ : fail++;
 
     // 无录像路径：勾选两个框（业务强制人工确认）
@@ -190,7 +224,10 @@ async function main() {
     // 先尝试加载录像；失败则走无录像勾选
     const reloadBtn = page.getByRole('button', { name: '重新加载录像' });
     if ((await reloadBtn.count()) > 0) {
-      await reloadBtn.first().click().catch(() => {});
+      await reloadBtn
+        .first()
+        .click()
+        .catch(() => {});
       await page.waitForTimeout(2500);
     }
     text = await bodyText(page);
@@ -221,7 +258,10 @@ async function main() {
     text = await bodyText(page);
     const resolvedUi =
       /已处理|已结案|争议已结案|已免单|RESOLVED|免单/.test(text) ||
-      !!(await page.locator('.resolve-feedback, .el-alert').filter({ hasText: /结案|免单|已处理/ }).count());
+      !!(await page
+        .locator('.resolve-feedback, .el-alert')
+        .filter({ hasText: /结案|免单|已处理/ })
+        .count());
     record(
       'D-A04',
       '运营 UI 免单结案',
@@ -233,32 +273,62 @@ async function main() {
 
     // —— 消费者 ——
     const cOk = await consumerLogin(page);
-    record('D-C01', '消费者登录（短信，无图形码）', cOk, cOk ? 'ok' : 'fail', await shot(page, '05-consumer-login'));
+    record(
+      'D-C01',
+      '消费者登录（短信，无图形码）',
+      cOk,
+      cOk ? 'ok' : 'fail',
+      await shot(page, '05-consumer-login')
+    );
     cOk ? pass++ : fail++;
     await page.goto(`${CONSUMER}/pages/orders/orders`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2000);
     text = await bodyText(page);
     // 免单后：可能显示已退款/已完成/¥0，或「需要关注」减少
     const cSee = /订单|已完成|已退款|免单|¥0|已支付|暂无/.test(text);
-    record('D-C02', '消费者订单页可见结算结果', cSee, text.split('\n').slice(0, 10).join(' | '), await shot(page, '06-consumer-orders'));
+    record(
+      'D-C02',
+      '消费者订单页可见结算结果',
+      cSee,
+      text.split('\n').slice(0, 10).join(' | '),
+      await shot(page, '06-consumer-orders')
+    );
     cSee ? pass++ : fail++;
 
     // —— 商户（无图形验证码）——
     const mOk = await merchantLogin(page);
-    record('D-M01', '商户登录（密码，无图形码）', mOk, mOk ? 'ok' : 'fail', await shot(page, '07-merchant-login'));
+    record(
+      'D-M01',
+      '商户登录（密码，无图形码）',
+      mOk,
+      mOk ? 'ok' : 'fail',
+      await shot(page, '07-merchant-login')
+    );
     mOk ? pass++ : fail++;
     await page.goto(`${MERCHANT}/pages/orders/orders`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2000);
     text = await bodyText(page);
     const mSee = /柜机订单|已支付|已退款|争议|导出|订单/.test(text);
-    record('D-M02', '商户订单页可打开', mSee, text.split('\n').slice(0, 10).join(' | '), await shot(page, '08-merchant-orders'));
+    record(
+      'D-M02',
+      '商户订单页可打开',
+      mSee,
+      text.split('\n').slice(0, 10).join(' | '),
+      await shot(page, '08-merchant-orders')
+    );
     mSee ? pass++ : fail++;
 
     await page.goto(`${MERCHANT}/pages/disputes/disputes`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1800);
     text = await bodyText(page);
     const mDisp = /争议|已结案|待处理|已关闭|暂无/.test(text);
-    record('D-M03', '商户争议页状态', mDisp, text.split('\n').slice(0, 10).join(' | '), await shot(page, '09-merchant-disputes'));
+    record(
+      'D-M03',
+      '商户争议页状态',
+      mDisp,
+      text.split('\n').slice(0, 10).join(' | '),
+      await shot(page, '09-merchant-disputes')
+    );
     mDisp ? pass++ : fail++;
   } finally {
     await browser.close();

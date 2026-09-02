@@ -149,7 +149,13 @@
               <span class="cell-datetime">{{ formatTime(row.publishAt) || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="160" class-name="col-action" align="center" fixed="right">
+          <el-table-column
+            label="操作"
+            width="160"
+            class-name="col-action"
+            align="center"
+            fixed="right"
+          >
             <template #default="{ row }">
               <TableActions
                 :actions="rowActions(row)"

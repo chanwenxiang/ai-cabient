@@ -82,7 +82,9 @@
           <li v-for="item in history" :key="'h-' + item.taskId" class="inbox-item-wrap">
             <button type="button" class="inbox-item history" @click="openHistory(item)">
               <div class="item-title">
-                <span class="status-chip" :class="historyChipClass(item)">{{ historyChipLabel(item) }}</span>
+                <span class="status-chip" :class="historyChipClass(item)">{{
+                  historyChipLabel(item)
+                }}</span>
                 {{ item.title || approvalBizLabel(item.bizType) }}
               </div>
               <div class="item-meta">
@@ -331,9 +333,7 @@ async function inlineReview(task: ApprovalTask, approve: boolean) {
   const subject = purchaseConfirmSubject(task);
   try {
     await ElMessageBox.confirm(
-      approve
-        ? `确认通过 ${subject}（${task.nodeName || '当前节点'}）？`
-        : `确认驳回 ${subject}？`,
+      approve ? `确认通过 ${subject}（${task.nodeName || '当前节点'}）？` : `确认驳回 ${subject}？`,
       approve ? '审批通过' : '审批驳回',
       { type: approve ? 'info' : 'warning', appendTo: 'body' }
     );
