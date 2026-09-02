@@ -1,5 +1,5 @@
--- IMP-020：修复演示设备 100001 名称乱码（????????）
--- 用 hex UTF-8 写入，避免 Windows Flyway 客户端编码误伤
+-- IMP-020: fix garbled demo device_name for 100001 (was ???????)
+-- Write via UTF-8 hex so Windows Flyway clients cannot corrupt the payload.
 
 UPDATE device_info
 SET device_name = convert_from(decode('e6bc94e7a4bae69f9c2d313030303031', 'hex'), 'UTF8')
