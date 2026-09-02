@@ -17,7 +17,6 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ADMIN = (process.env.ADMIN_URL || 'http://localhost/admin').replace(/\/$/, '');
-const API = (process.env.API_BASE || 'http://127.0.0.1:18080').replace(/\/$/, '');
 const CHANNEL = process.env.PW_CHANNEL || 'chrome';
 const HEADED = process.env.PW_HEADED === '1';
 const OUT = path.resolve(__dirname, '../output/playwright');
