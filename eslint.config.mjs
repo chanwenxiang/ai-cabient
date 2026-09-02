@@ -55,6 +55,21 @@ export default tseslint.config(
     }
   },
   {
+    // Playwright UAT 脚本：允许 `ok ? pass++ : fail++` 等计数写法
+    files: ['clients/**/tests/**/*.mjs'],
+    languageOptions: {
+      globals: { ...globals.node }
+    },
+    rules: {
+      '@typescript-eslint/no-unused-expressions': 'off',
+      'no-unused-expressions': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }
+      ]
+    }
+  },
+  {
     // 少量遗留 CJS/Node 脚本：允许 require
     files: ['**/*.cjs', 'scripts/**/*.js'],
     rules: {
