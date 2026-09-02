@@ -137,13 +137,15 @@ jobs:
 
   mini-programs:
     runs-on: ubuntu-latest
+    # 仓库 .npmrc 为 Windows/Cursor 配置了 script-shell=cmd.exe；Linux CI 须改回 bash
+    env:
+      npm_config_script_shell: /bin/bash
     steps:
       - uses: actions/checkout@v4
 
-      # Node 24 runner 上部分 postinstall（core-js/esbuild）会异常退出；小程序 job 用 22 LTS 稳定安装
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24.18.0'
 
       - name: Enable pnpm
         run: |
