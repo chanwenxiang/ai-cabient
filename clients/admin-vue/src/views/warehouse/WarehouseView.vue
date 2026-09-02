@@ -1830,8 +1830,13 @@
     >
       <el-form v-loading="dialogBootLoading" label-width="90px">
         <div class="form-grid">
-          <el-form-item label="供应商">
-            <el-select v-model="purchaseForm.supplierId" filterable style="width: 100%">
+          <el-form-item label="供应商" :class="{ 'field-invalid': purchaseFieldErrors.supplierId }">
+            <el-select
+              v-model="purchaseForm.supplierId"
+              filterable
+              style="width: 100%"
+              @change="purchaseFieldErrors.supplierId = false"
+            >
               <el-option
                 v-for="item in activeSuppliers"
                 :key="item.supplierId"
@@ -1875,9 +1880,17 @@
             >
           </div>
           <div class="line-grid">
-            <div class="line-field">
+            <div
+              class="line-field"
+              :class="{ 'field-invalid': purchaseFieldErrors.lineErrors[index]?.skuId }"
+            >
               <span>商品</span>
-              <el-select v-model="line.skuId" filterable placeholder="选择商品">
+              <el-select
+                v-model="line.skuId"
+                filterable
+                placeholder="选择商品"
+                @change="clearPurchaseLineError(index, 'skuId')"
+              >
                 <el-option
                   v-for="sku in skus"
                   :key="sku.skuId"
@@ -1886,7 +1899,16 @@
                 />
               </el-select>
             </div>
-            <div class="line-field"><span>批次号</span><el-input v-model="line.batchNo" /></div>
+            <div
+              class="line-field"
+              :class="{ 'field-invalid': purchaseFieldErrors.lineErrors[index]?.batchNo }"
+            >
+              <span>批次号</span
+              ><el-input
+                v-model="line.batchNo"
+                @input="clearPurchaseLineError(index, 'batchNo')"
+              />
+            </div>
             <div class="line-field">
               <span>数量（件）</span
               ><el-input-number v-model="line.orderedQty" :min="1" controls-position="right" />
@@ -1905,9 +1927,15 @@
               ><span>生产日期</span
               ><input v-model="line.productionDate" class="native-date" type="date"
             /></label>
-            <label class="line-field"
+            <label
+              class="line-field"
+              :class="{ 'field-invalid': purchaseFieldErrors.lineErrors[index]?.expiryDate }"
               ><span>到期日期</span
-              ><input v-model="line.expiryDate" class="native-date" type="date"
+              ><input
+                v-model="line.expiryDate"
+                class="native-date"
+                type="date"
+                @change="clearPurchaseLineError(index, 'expiryDate')"
             /></label>
           </div>
         </div>
@@ -2212,7 +2240,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, RefreshLeft } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -2225,6 +2253,11 @@ import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
 import { dictLabel, dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
+import {
+  emitPurchaseOrderReviewed,
+  onPurchaseOrderReviewed,
+  showPurchaseReviewToast
+} from '@/utils/purchase-order-sync';
 
 type Row = Record<string, any>;
 const route = useRoute();
@@ -2539,6 +2572,61 @@ const purchaseForm = reactive<Row>({
   notes: '',
   lines: []
 });
+type PurchaseLineFieldErrors = { skuId?: boolean; batchNo?: boolean; expiryDate?: boolean };
+const purchaseFieldErrors = reactive<{ supplierId: boolean; lineErrors: PurchaseLineFieldErrors[] }>(
+  { supplierId: false, lineErrors: [] }
+);
+function resetPurchaseFieldErrors() {
+  purchaseFieldErrors.supplierId = false;
+  purchaseFieldErrors.lineErrors = (purchaseForm.lines || []).map(() => ({}));
+}
+function clearPurchaseLineError(index: number, field: keyof PurchaseLineFieldErrors) {
+  const row = purchaseFieldErrors.lineErrors[index];
+  if (row) row[field] = false;
+}
+function validatePurchaseForm(): boolean {
+  resetPurchaseFieldErrors();
+  let ok = true;
+  if (!purchaseForm.supplierId) {
+    purchaseFieldErrors.supplierId = true;
+    ok = false;
+  }
+  purchaseFieldErrors.lineErrors = purchaseForm.lines.map((line: Row) => {
+    const err: PurchaseLineFieldErrors = {};
+    if (!line.skuId) {
+      err.skuId = true;
+      ok = false;
+    }
+    if (!String(line.batchNo || '').trim()) {
+      err.batchNo = true;
+      ok = false;
+    }
+    if (!line.expiryDate) {
+      err.expiryDate = true;
+      ok = false;
+    }
+    return err;
+  });
+  if (!ok) {
+    ElMessage.warning('请完整填写供应商、商品、批次和到期日期');
+    nextTick(() => {
+      document
+        .querySelector('.purchase-line-card .field-invalid, .form-grid .field-invalid')
+        ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }
+  return ok;
+}
+function patchPurchaseOrderRow(updated: Row) {
+  if (!updated?.purchaseOrderId) return;
+  const idx = purchaseOrders.value.findIndex(
+    (p) => String(p.purchaseOrderId) === String(updated.purchaseOrderId)
+  );
+  if (idx >= 0) {
+    purchaseOrders.value[idx] = { ...purchaseOrders.value[idx], ...updated };
+    purchaseOrders.value = [...purchaseOrders.value];
+  }
+}
 const receiveForm = reactive<Row>({
   purchaseOrderId: null,
   notes: '',
@@ -3729,6 +3817,7 @@ async function openPurchase() {
     notes: '',
     lines: [newLine()]
   });
+  resetPurchaseFieldErrors();
   purchaseDialog.value = true;
   dialogBootLoading.value = true;
   try {
@@ -3759,6 +3848,7 @@ async function openPurchaseFromSuggestions() {
       unitCostYuan: 1
     }))
   });
+  resetPurchaseFieldErrors();
   purchaseDialog.value = true;
   dialogBootLoading.value = true;
   try {
@@ -4117,12 +4207,7 @@ async function removeInboundLine(index: number) {
   inboundForm.lines.splice(index, 1);
 }
 async function savePurchase() {
-  if (
-    !purchaseForm.supplierId ||
-    purchaseForm.lines.some((l: Row) => !l.skuId || !l.batchNo || !l.expiryDate)
-  ) {
-    return ElMessage.warning('请完整填写供应商、商品、批次和到期日期');
-  }
+  if (!validatePurchaseForm()) return;
   saving.value = true;
   try {
     const refNo = String(purchaseForm.refNo || '').trim() || defaultPurchaseRefNo();
@@ -4175,18 +4260,9 @@ async function reviewPurchase(row: Row, approve: boolean) {
         remark: approve ? '审批通过' : '审批驳回'
       }
     );
-    if (approve) {
-      if (updated?.status === 'PENDING_APPROVAL') {
-        const node = updated.approvalCurrentNodeName;
-        ElMessage.success(
-          node ? `已通过本节点，仍待「${node}」审批` : '已通过本节点，仍待下一节点审批'
-        );
-      } else {
-        ElMessage.success('审批已全部通过');
-      }
-    } else {
-      ElMessage.success('已驳回');
-    }
+    patchPurchaseOrderRow(updated);
+    emitPurchaseOrderReviewed(updated);
+    showPurchaseReviewToast(updated, approve);
     loadedTabs.value.delete('purchase');
     await loadTab('purchase', true);
   } catch (e) {
@@ -4537,9 +4613,22 @@ function applyTabFromQuery() {
   }
 }
 
+let offPurchaseReviewed: (() => void) | undefined;
+
 onMounted(async () => {
+  offPurchaseReviewed = onPurchaseOrderReviewed((updated) => {
+    patchPurchaseOrderRow(updated as Row);
+    if (tab.value === 'purchase') {
+      loadedTabs.value.delete('purchase');
+      loadTab('purchase', true).catch(() => {});
+    }
+  });
   applyTabFromQuery();
   await loadTab(tab.value, true);
+});
+
+onUnmounted(() => {
+  offPurchaseReviewed?.();
 });
 
 onActivated(() => {
@@ -4731,13 +4820,24 @@ watch(
 }
 .line-field {
   display: grid;
-  gap: 7px;
-  color: var(--layout-muted);
+  gap: 6px;
   font-size: 13px;
+  color: var(--layout-muted);
 }
-.line-field :deep(.el-input-number),
-.line-field :deep(.el-select) {
+.line-field :deep(.el-select),
+.line-field :deep(.el-input),
+.line-field :deep(.el-input-number) {
   width: 100%;
+}
+.field-invalid :deep(.el-input__wrapper),
+.field-invalid :deep(.el-select__wrapper),
+.field-invalid .native-date {
+  box-shadow: 0 0 0 1px var(--el-color-danger) inset !important;
+  border-color: var(--el-color-danger);
+}
+.field-invalid > span:first-child,
+.field-invalid :deep(.el-form-item__label) {
+  color: var(--el-color-danger);
 }
 .native-date {
   width: 100%;
