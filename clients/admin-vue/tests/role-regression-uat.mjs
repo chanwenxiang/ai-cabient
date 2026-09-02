@@ -143,9 +143,7 @@ async function collectActionButtons(page, patterns) {
         // 排除「停售3已锁机」这类统计磁贴：须像操作按钮
         const tag = b.tagName.toLowerCase();
         const isBtn =
-          tag === 'button' ||
-          b.classList.contains('el-button') ||
-          b.classList.contains('el-link');
+          tag === 'button' || b.classList.contains('el-button') || b.classList.contains('el-link');
         if (!isBtn) return null;
         const st = getComputedStyle(b);
         const disabled = !!(
