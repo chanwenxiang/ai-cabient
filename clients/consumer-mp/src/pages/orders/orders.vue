@@ -9,7 +9,7 @@
       :hint="error"
     >
       <button class="empty-btn primary" hover-class="btn-hover" @click="load">重试</button>
-      <button class="empty-btn ghost" hover-class="btn-hover" @click="goShop">去扫码购物</button>
+      <button class="empty-btn ghost" hover-class="btn-hover" @click="goShop">扫码购物</button>
     </empty-state>
     <empty-state
       v-else-if="!authed"
@@ -105,7 +105,7 @@
           hint="扫码开门购物后，账单会显示在这里"
         >
           <button class="empty-btn primary" hover-class="btn-hover" @click="goShop">
-            去扫码购物
+            扫码购物
           </button>
         </empty-state>
         <view v-else class="list-inner">
@@ -569,55 +569,6 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .meta {
   color: #849087;
-}
-.empty-title {
-  font-size: 34rpx;
-  font-weight: 700;
-  color: #223029;
-}
-.empty-desc {
-  font-size: 26rpx;
-  color: #849087;
-  margin-top: 12rpx;
-  line-height: 1.55;
-}
-.action-btn {
-  margin: 40rpx 0 0;
-  width: 360rpx;
-  min-height: 88rpx;
-  height: 88rpx;
-  line-height: 1.2;
-  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
-  color: #fff;
-  border-radius: 44rpx;
-  font-size: 30rpx;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-}
-.action-btn::after,
-.ghost-btn::after {
-  border: none;
-}
-.ghost-btn {
-  margin: 20rpx 0 0;
-  width: 360rpx;
-  min-height: 88rpx;
-  height: 88rpx;
-  line-height: 1.2;
-  background: #fff;
-  color: #53645b;
-  border-radius: 44rpx;
-  font-size: 28rpx;
-  border: 1rpx solid #e4ebe7;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
 }
 .btn-hover {
   opacity: 0.88;

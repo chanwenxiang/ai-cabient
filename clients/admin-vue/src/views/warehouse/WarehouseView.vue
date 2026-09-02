@@ -264,8 +264,20 @@
       "
     />
 
+    <div
+      v-if="visibleTabGroups.length > 1"
+      class="warehouse-tab-groups"
+      data-testid="warehouse-tab-groups"
+    >
+      <el-radio-group v-model="tabGroup" size="small" @change="onTabGroupChange">
+        <el-radio-button v-for="g in visibleTabGroups" :key="g.id" :value="g.id">{{
+          g.label
+        }}</el-radio-button>
+      </el-radio-group>
+    </div>
+
     <el-tabs v-model="tab" @tab-change="onTabChange">
-      <el-tab-pane label="仓库概览" name="warehouses">
+      <el-tab-pane v-if="tabGroup === 'overview'" label="仓库概览" name="warehouses">
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
@@ -343,7 +355,11 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane v-if="canWarehouseList" label="仓间调拨" name="transfers">
+      <el-tab-pane
+        v-if="tabGroup === 'fulfillment' && canWarehouseList"
+        label="仓间调拨"
+        name="transfers"
+      >
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
@@ -440,7 +456,11 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane v-if="canProcurementList" label="供应商" name="suppliers">
+      <el-tab-pane
+        v-if="tabGroup === 'procurement' && canProcurementList"
+        label="供应商"
+        name="suppliers"
+      >
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
@@ -523,7 +543,11 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane v-if="canProcurementList" label="采购单" name="purchase">
+      <el-tab-pane
+        v-if="tabGroup === 'procurement' && canProcurementList"
+        label="采购单"
+        name="purchase"
+      >
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
@@ -662,7 +686,11 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane v-if="canProcurementList" label="采购建议" name="suggestions">
+      <el-tab-pane
+        v-if="tabGroup === 'procurement' && canProcurementList"
+        label="采购建议"
+        name="suggestions"
+      >
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
@@ -737,7 +765,11 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane v-if="canProcurementList" label="采购退货" name="returns">
+      <el-tab-pane
+        v-if="tabGroup === 'procurement' && canProcurementList"
+        label="采购退货"
+        name="returns"
+      >
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
@@ -806,7 +838,11 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane v-if="canProcurementList" label="应付账款" name="payables">
+      <el-tab-pane
+        v-if="tabGroup === 'procurement' && canProcurementList"
+        label="应付账款"
+        name="payables"
+      >
         <el-alert
           v-if="hydratedTabs.has('payables') && !isTabLoading('payables')"
           :closable="false"
@@ -910,7 +946,11 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane v-if="canWarehouseList" label="盘点单" name="stocktakes">
+      <el-tab-pane
+        v-if="tabGroup === 'inventory' && canWarehouseList"
+        label="盘点单"
+        name="stocktakes"
+      >
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
@@ -973,7 +1013,7 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane v-if="canWarehouseList" label="货位" name="bins">
+      <el-tab-pane v-if="tabGroup === 'inventory' && canWarehouseList" label="货位" name="bins">
         <div class="section-title">货位档案</div>
         <div class="table-scroll compact">
           <el-table
@@ -1051,7 +1091,7 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="出库单" name="outbounds">
+      <el-tab-pane v-if="tabGroup === 'fulfillment'" label="出库单" name="outbounds">
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
@@ -1177,7 +1217,7 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="在途" name="transit">
+      <el-tab-pane v-if="tabGroup === 'fulfillment'" label="在途" name="transit">
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
@@ -1253,7 +1293,7 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="批次库存" name="inventory">
+      <el-tab-pane v-if="tabGroup === 'inventory'" label="批次库存" name="inventory">
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
@@ -1301,7 +1341,7 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="库存流水" name="movements">
+      <el-tab-pane v-if="tabGroup === 'inventory'" label="库存流水" name="movements">
         <p class="muted tip">仅显示最近 100 条</p>
         <div class="table-scroll">
           <div class="table-scroll-inner">
@@ -2245,6 +2285,84 @@ function isTabLoading(name: string) {
 const saving = ref(false);
 const cleanupStaleLoading = ref(false);
 const tab = ref('warehouses');
+
+type WarehouseTabGroup = 'overview' | 'procurement' | 'inventory' | 'fulfillment';
+
+const TAB_GROUP_MAP: Record<string, WarehouseTabGroup> = {
+  warehouses: 'overview',
+  suppliers: 'procurement',
+  purchase: 'procurement',
+  suggestions: 'procurement',
+  returns: 'procurement',
+  payables: 'procurement',
+  stocktakes: 'inventory',
+  bins: 'inventory',
+  inventory: 'inventory',
+  movements: 'inventory',
+  transfers: 'fulfillment',
+  outbounds: 'fulfillment',
+  transit: 'fulfillment'
+};
+
+const TAB_GROUP_ORDER: Record<WarehouseTabGroup, string[]> = {
+  overview: ['warehouses'],
+  procurement: ['suppliers', 'purchase', 'suggestions', 'returns', 'payables'],
+  inventory: ['stocktakes', 'bins', 'inventory', 'movements'],
+  fulfillment: ['transfers', 'outbounds', 'transit']
+};
+
+const tabGroup = ref<WarehouseTabGroup>('overview');
+
+function tabGroupFor(name: string): WarehouseTabGroup {
+  return TAB_GROUP_MAP[name] || 'overview';
+}
+
+function isWarehouseTabAllowed(name: string): boolean {
+  if (['suppliers', 'purchase', 'suggestions', 'returns', 'payables'].includes(name)) {
+    return canProcurementList.value;
+  }
+  if (['transfers', 'stocktakes', 'bins'].includes(name)) {
+    return canWarehouseList.value;
+  }
+  return true;
+}
+
+function firstTabInGroup(group: WarehouseTabGroup): string {
+  for (const name of TAB_GROUP_ORDER[group]) {
+    if (isWarehouseTabAllowed(name)) return name;
+  }
+  return 'warehouses';
+}
+
+const visibleTabGroups = computed(() => {
+  const groups: { id: WarehouseTabGroup; label: string }[] = [
+    { id: 'overview', label: '概览' },
+    { id: 'procurement', label: '采购' },
+    { id: 'inventory', label: '库存' },
+    { id: 'fulfillment', label: '出库·在途' }
+  ];
+  return groups.filter((g) => {
+    if (g.id === 'procurement') return canProcurementList.value;
+    return TAB_GROUP_ORDER[g.id].some((name) => isWarehouseTabAllowed(name));
+  });
+});
+
+function syncTabGroupFromTab(name = tab.value) {
+  tabGroup.value = tabGroupFor(name);
+}
+
+function onTabGroupChange(group: WarehouseTabGroup) {
+  if (tabGroupFor(tab.value) === group) return;
+  const next = firstTabInGroup(group);
+  tab.value = next;
+  page.value = 1;
+  if (next !== 'transit') {
+    overdueOnly.value = false;
+    focusDeviceId.value = '';
+  }
+  syncRouteQuery(next);
+  loadTab(next);
+}
 const SERVER_PAGINATED_TABS = new Set([
   'warehouses',
   'suppliers',
@@ -3440,6 +3558,7 @@ async function loadTab(name: string, force = false) {
 function onTabChange(name: string | number) {
   page.value = 1;
   const next = String(name);
+  tabGroup.value = tabGroupFor(next);
   if (next !== 'transit') {
     overdueOnly.value = false;
     focusDeviceId.value = '';
@@ -4318,6 +4437,7 @@ function applyTabFromQuery() {
   const qDevice = typeof route.query.deviceId === 'string' ? route.query.deviceId : '';
   const allowed = [
     'warehouses',
+    'transfers',
     'suppliers',
     'purchase',
     'returns',
@@ -4338,6 +4458,7 @@ function applyTabFromQuery() {
   } else if (!qTab && tab.value !== 'warehouses' && !qDevice) {
     // keep current tab when user switched locally; only reset when query fully cleared
   }
+  syncTabGroupFromTab(tab.value);
   if (tab.value === 'transit') {
     applyQueryFilters();
   } else {
@@ -4382,6 +4503,12 @@ watch(
   align-items: flex-start;
   gap: 12px;
   flex-wrap: wrap;
+}
+.warehouse-tab-groups {
+  margin: 0 0 12px;
+}
+.warehouse-tab-groups :deep(.el-radio-button__inner) {
+  padding: 8px 14px;
 }
 .page-card-head__meta {
   min-width: 0;

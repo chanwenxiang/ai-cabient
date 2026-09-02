@@ -39,7 +39,7 @@
           title="暂无进行中活动"
           hint="可先领券，或扫码开门购物"
         >
-          <button class="empty-btn primary" @click="goShop">去扫码购物</button>
+          <button class="empty-btn primary" @click="goShop">扫码购物</button>
           <button class="empty-btn ghost" @click="goCoupons">去领券</button>
         </empty-state>
         <view v-else>

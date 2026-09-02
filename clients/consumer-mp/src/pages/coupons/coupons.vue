@@ -28,7 +28,7 @@
         :title="emptyTitle"
         :hint="emptyHint"
       >
-        <button class="empty-btn primary" @click="goShop">去扫码购物</button>
+        <button class="empty-btn primary" @click="goShop">扫码购物</button>
         <button class="empty-btn ghost" @click="goMarketing">看热门活动</button>
       </empty-state>
       <view v-else>
