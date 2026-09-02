@@ -21,7 +21,9 @@ const results = [];
 
 function record(id, name, status, detail) {
   results.push({ id, name, status, detail });
-  console.log(`${status === 'PASS' ? '✓' : status === 'FAIL' ? '✗' : '○'} ${id} ${name} — ${detail}`);
+  console.log(
+    `${status === 'PASS' ? '✓' : status === 'FAIL' ? '✗' : '○'} ${id} ${name} — ${detail}`
+  );
 }
 
 async function bodyText(page) {
@@ -37,7 +39,9 @@ async function shot(page, name) {
 async function clickByText(page, text, { exact = false } = {}) {
   const target = await page.evaluate(
     ({ text, exact }) => {
-      const nodes = [...document.querySelectorAll('uni-text, uni-view, uni-button, button, span, div')];
+      const nodes = [
+        ...document.querySelectorAll('uni-text, uni-view, uni-button, button, span, div')
+      ];
       const hit = nodes.find((e) => {
         const t = (e.innerText || e.textContent || '').trim();
         return t && (exact ? t === text : t.includes(text));
@@ -84,7 +88,11 @@ async function cancelActiveSession(page) {
       const state = String(s.state || '').toUpperCase();
       const sid = encodeURIComponent(s.sessionId);
       if (state === 'SHOPPING' || state === 'OPENING') {
-        await fetch('/api/v2/sessions/' + sid + '/demo-close', { method: 'POST', headers, body: '{}' });
+        await fetch('/api/v2/sessions/' + sid + '/demo-close', {
+          method: 'POST',
+          headers,
+          body: '{}'
+        });
       } else {
         await fetch('/api/v2/sessions/' + sid + '/cancel', { method: 'POST', headers });
       }
@@ -129,10 +137,7 @@ async function main() {
   await consumerLogin(cpage);
   await cancelActiveSession(cpage);
 
-  await gotoConsumer(
-    cpage,
-    `/pages/dispute/detail?ticketId=${encodeURIComponent(TICKET_BILLED)}`
-  );
+  await gotoConsumer(cpage, `/pages/dispute/detail?ticketId=${encodeURIComponent(TICKET_BILLED)}`);
   await cpage.waitForTimeout(3000);
   let text = await bodyText(cpage);
   const billedOk =
@@ -151,10 +156,7 @@ async function main() {
       : text.split('\n').filter(Boolean).slice(0, 14).join(' | ')
   );
 
-  await gotoConsumer(
-    cpage,
-    `/pages/dispute/detail?ticketId=${encodeURIComponent(TICKET_REFUND)}`
-  );
+  await gotoConsumer(cpage, `/pages/dispute/detail?ticketId=${encodeURIComponent(TICKET_REFUND)}`);
   await cpage.waitForTimeout(3000);
   text = await bodyText(cpage);
   const refundOk =
@@ -202,7 +204,12 @@ async function main() {
   }
   text = await bodyText(mpage);
   if (!probe.ok) {
-    record('TC-IMP-032', '商户已结案争议文案', 'SKIP', `争议详情 API 不可用: ${JSON.stringify(probe)}`);
+    record(
+      'TC-IMP-032',
+      '商户已结案争议文案',
+      'SKIP',
+      `争议详情 API 不可用: ${JSON.stringify(probe)}`
+    );
   } else if (!drawerVisible) {
     record(
       'TC-IMP-032',
