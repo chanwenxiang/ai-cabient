@@ -1217,7 +1217,10 @@
             </el-checkbox-group>
           </div>
           <div v-if="!shortageDevices.length" class="plan-hint">
-            当前无缺货建议：满柜时无法规划。请先盘点/消费产生缺口，或到「缺货建议」查看。
+            当前无缺货建议：满柜时无法规划。请先盘点/消费产生缺口，或
+            <el-button link type="primary" native-type="button" @click="goShortageFromPlan"
+              >查看缺货建议</el-button
+            >。
           </div>
           <div v-else-if="selectedDevicesWithoutShortage.length" class="plan-hint">
             所选设备中
@@ -1855,6 +1858,14 @@ function openPlan() {
   });
   void loadAssignees();
   planDialog.value = true;
+}
+
+function goShortageFromPlan() {
+  planDialog.value = false;
+  tab.value = 'shortage';
+  page.value = 1;
+  syncRouteQuery();
+  void loadTab('shortage', true);
 }
 
 function syncRouteQuery() {

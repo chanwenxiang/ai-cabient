@@ -22,13 +22,19 @@ public interface PurchaseOrderMapper extends BaseTradeMapper<PurchaseOrder> {
     }
 
     /** page 为 0-based；returnableOnly=true 时仅返回可退货采购单。 */
-    default Page<PurchaseOrder> searchPage(String keyword, String warehouseId, boolean returnableOnly, int page, int size) {
+    default Page<PurchaseOrder> searchPage(String keyword, String warehouseId, boolean returnableOnly,
+                                           boolean excludeTestRef, int page, int size) {
         var query = Wrappers.<PurchaseOrder>lambdaQuery().orderByDesc(PurchaseOrder::getCreatedAt);
         if (warehouseId != null && !warehouseId.isBlank()) {
             query.eq(PurchaseOrder::getWarehouseId, warehouseId.trim());
         }
         if (returnableOnly) {
             query.in(PurchaseOrder::getStatus, List.of("RECEIVED", "PARTIAL_RECEIVED"));
+        }
+        if (excludeTestRef) {
+            query.and(w -> w.isNull(PurchaseOrder::getRefNo)
+                    .or(sub -> sub.notLike(PurchaseOrder::getRefNo, "E2E%")
+                            .notLike(PurchaseOrder::getRefNo, "PO-SMOKE%")));
         }
         if (keyword != null && !keyword.isBlank()) {
             String kw = keyword.trim();

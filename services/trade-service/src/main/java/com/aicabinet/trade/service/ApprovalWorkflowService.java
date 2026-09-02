@@ -317,6 +317,31 @@ public class ApprovalWorkflowService {
                 .orElse(null);
     }
 
+    /** 批量查询待审批实例的当前节点与是否待指定用户处理（列表页用）。 */
+    public record ApprovalPendingView(String currentNodeName, boolean pendingForUser) {}
+
+    @Transactional(readOnly = true)
+    public java.util.Map<String, ApprovalPendingView> pendingViewsForBiz(
+            String bizType, java.util.Collection<String> bizIds, Long viewerUserId) {
+        if (bizType == null || bizType.isBlank() || bizIds == null || bizIds.isEmpty()) {
+            return java.util.Map.of();
+        }
+        java.util.Map<String, ApprovalPendingView> out = new java.util.HashMap<>();
+        for (ApprovalInstance instance : instanceRepository.findPendingByBizTypeAndBizIds(bizType, bizIds)) {
+            String nodeName = resolveNodeName(instance.getDefId(), instance.getCurrentNodeSeq());
+            boolean forMe = false;
+            if (viewerUserId != null) {
+                forMe = taskRepository.findByInstanceIdAndNodeSeq(
+                                instance.getInstanceId(), instance.getCurrentNodeSeq())
+                        .stream()
+                        .anyMatch(t -> STATUS_PENDING.equals(t.getStatus())
+                                && viewerUserId.equals(t.getAssigneeUserId()));
+            }
+            out.put(instance.getBizId(), new ApprovalPendingView(nodeName, forMe));
+        }
+        return out;
+    }
+
     @Transactional(readOnly = true)
     public java.util.Optional<String> instanceStatus(String bizType, String bizId) {
         return instanceRepository.findByBizTypeAndBizId(bizType, bizId)
