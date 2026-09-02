@@ -1,5 +1,5 @@
 /**
- * UAT batch: IMP-012/028/048/026/transit-copy/015/016 (recent UX batch)
+ * UAT batch: IMP-012/028/048/026/transit-copy/015/016/020 (recent UX batch)
  * Run: cd clients/consumer-mp && node ../admin-vue/tests/batch-imp-uat.mjs
  */
 import { chromium } from 'playwright';
@@ -295,6 +295,35 @@ async function main() {
         ePo
       );
       ok ? pass++ : fail++;
+    }
+
+    // IMP-020 补货规划对话框设备名不得乱码（???????）
+    await page.goto(`${ADMIN}/replenishment`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2500);
+    await page.locator('button:has-text("规划补货路线")').first().click({ timeout: 8000 });
+    await page.waitForSelector('[data-testid="plan-route-dialog"]', { timeout: 8000 });
+    await page.waitForTimeout(1500);
+    const plan = await page.evaluate(() => {
+      const opt =
+        document.querySelector('[data-testid="plan-device-option-100001"]') ||
+        [...document.querySelectorAll('.plan-device-option')].find((el) =>
+          (el.textContent || '').includes('100001')
+        );
+      const text = (opt?.textContent || '').replace(/\s+/g, ' ').trim();
+      return {
+        found: !!opt,
+        text,
+        hasGarbled: /\?{3,}/.test(text) || /\uFFFD/.test(text),
+        hasZh: /[\u4e00-\u9fff]/.test(text)
+      };
+    });
+    const ePlan = await shot(page, '07-plan-device-name');
+    if (!plan.found) {
+      record('B-07', '补货规划设备名编码', 'SKIP', '规划对话框无 100001 设备选项', ePlan);
+    } else {
+      const planOk = !plan.hasGarbled && plan.hasZh;
+      record('B-07', '补货规划设备名编码', planOk ? 'PASS' : 'FAIL', JSON.stringify(plan), ePlan);
+      planOk ? pass++ : fail++;
     }
   } catch (e) {
     console.error(e);
