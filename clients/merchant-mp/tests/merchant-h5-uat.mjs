@@ -28,6 +28,7 @@ const DEMO_PHONE = process.env.MERCHANT_PHONE || '13800138001';
 const DEMO_PASSWORD = process.env.MERCHANT_PASSWORD || '123456';
 /** 本地 demo 栈常见含录像订单（可通过 MERCHANT_DEMO_ORDER_ID 覆盖） */
 const DEMO_ORDER_WITH_VIDEO = process.env.MERCHANT_DEMO_ORDER_ID || '1788233752744411094';
+const DEMO_DISPUTE_TICKET_BILLED = process.env.DEMO_DISPUTE_TICKET_BILLED || '1788252219672817302';
 
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -670,6 +671,37 @@ async function main() {
       });
       await page.waitForTimeout(500);
     }
+
+    // —— TC-IMP-032 已结案争议文案 ——
+    await gotoPath(
+      page,
+      `/pages/disputes/disputes?ticketId=${encodeURIComponent(DEMO_DISPUTE_TICKET_BILLED)}`
+    );
+    const imp32Deadline = Date.now() + 12000;
+    let imp32Drawer = false;
+    while (Date.now() < imp32Deadline) {
+      imp32Drawer = await page.evaluate(() => !!document.querySelector('.detail-panel'));
+      if (imp32Drawer) break;
+      await page.waitForTimeout(400);
+    }
+    text = await bodyText(page);
+    const imp32Ok = imp32Drawer && /已结案：/.test(text) && !/暂未扣款/.test(text);
+    const e32 = await shot(page, '32-dispute-resolved-copy');
+    record(
+      'TC-IMP-032',
+      '已结案争议文案',
+      'UX',
+      imp32Ok ? 'PASS' : 'FAIL',
+      imp32Ok
+        ? '详情展示已结案摘要，无暂未扣款'
+        : `drawer=${imp32Drawer} | ${text.split('\n').filter(Boolean).slice(0, 10).join(' | ')}`,
+      e32
+    );
+    await page.evaluate(() => {
+      const el = document.querySelector('.detail-mask');
+      if (el) el.click();
+    });
+    await page.waitForTimeout(500);
 
     // —— M-11 网络容错：工作台 API 全断 ——
     aborting = true;
