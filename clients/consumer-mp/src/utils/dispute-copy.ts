@@ -1,5 +1,5 @@
 import type { DisputeTicketDto } from '@aicabinet/shared-types';
-import { localizeDisputeReason } from '@aicabinet/shared-uni/format';
+import { fmtMoney, localizeDisputeReason } from '@aicabinet/shared-uni/format';
 
 export interface ConsumerDisputeReviewCopy {
   icon: string;
@@ -24,6 +24,36 @@ function isRecognitionSucceeded(reason: string) {
 
 const GENERIC_MANUAL_REVIEW = '商品识别结果需要人工确认，本次暂未扣款。审核完成后会生成账单。';
 
+function isTerminalStatus(status?: string | null) {
+  const s = (status || '').toUpperCase();
+  return s === 'RESOLVED' || s === 'CLOSED';
+}
+
+/** 已结案：按金额生成结论，避免仍展示 OPEN 态「暂未扣款」 */
+function resolvedConsumerDetail(
+  ticket: Pick<DisputeTicketDto, 'reason' | 'billedAmountCents' | 'refundedAmountCents'>
+): string {
+  const billed = Number(ticket.billedAmountCents ?? 0);
+  const refunded = Number(ticket.refundedAmountCents ?? 0);
+  if (refunded > 0 && billed <= 0) {
+    return `已结案：已免单退款 ${fmtMoney(refunded)}`;
+  }
+  if (refunded > 0 && billed > 0) {
+    return `已结案：扣款 ${fmtMoney(billed)}，已退 ${fmtMoney(refunded)}`;
+  }
+  if (billed > 0) {
+    return `已结案：最终扣款 ${fmtMoney(billed)}`;
+  }
+  if (refunded > 0) {
+    return `已结案：已退款 ${fmtMoney(refunded)}`;
+  }
+  const reason = localizeDisputeReason(ticket.reason);
+  if (reason && !/暂未扣款|审核完成后会生成账单/i.test(reason)) {
+    return reason;
+  }
+  return '已结案：未产生扣款，可在订单中查看账单。';
+}
+
 /** 将后端/测试 reason 转成消费者可读中文，避免露出内部/英文话术 */
 export function localizeConsumerDisputeReason(reason?: string | null): string {
   return localizeDisputeReason(reason);
@@ -31,16 +61,19 @@ export function localizeConsumerDisputeReason(reason?: string | null): string {
 
 /** 消费者端：争议/人工审核卡片文案（与后端 ticket.reason 对齐） */
 export function consumerDisputeReviewCopy(
-  ticket?: Pick<DisputeTicketDto, 'reason' | 'status'> | null
+  ticket?: Pick<
+    DisputeTicketDto,
+    'reason' | 'status' | 'billedAmountCents' | 'refundedAmountCents'
+  > | null
 ): ConsumerDisputeReviewCopy {
   const raw = (ticket?.reason || '').trim();
   const reason = localizeDisputeReason(raw);
 
-  if (ticket?.status === 'RESOLVED') {
+  if (isTerminalStatus(ticket?.status)) {
     return {
       icon: '✓',
       title: '人工审核已完成',
-      detail: reason || '审核结果已生效，可在订单中查看账单。',
+      detail: resolvedConsumerDetail(ticket || {}),
       tone: 'success'
     };
   }
@@ -67,6 +100,15 @@ export function consumerDisputeReviewCopy(
     detail: reason || GENERIC_MANUAL_REVIEW,
     tone: 'wait'
   };
+}
+
+/** 仅退款结案时展示退款渠道；纯扣款结案不展示 */
+export function shouldShowConsumerRefundChannel(
+  ticket?: Pick<DisputeTicketDto, 'status' | 'refundedAmountCents'> | null
+): boolean {
+  if (!ticket) return false;
+  if (!isTerminalStatus(ticket.status)) return false;
+  return Number(ticket.refundedAmountCents ?? 0) > 0;
 }
 
 /** 消费者提交申诉/退款失败时的友好文案（覆盖后端 409 等冲突提示） */

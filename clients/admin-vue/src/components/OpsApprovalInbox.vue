@@ -181,9 +181,8 @@ const visible = computed(
   () => auth.hasPerm('ops:approval:list') || auth.hasPerm('ops:replenishment:list')
 );
 
-/** 角标只计未读（未点开过的待办 + 未读站内信），避免「已看过仍挂红点」。 */
-const unreadTaskCount = computed(() => tasks.value.filter((t) => !t.readAt).length);
-const badgeCount = computed(() => unreadTaskCount.value + unreadMessageCount.value);
+/** 角标：待审批任务数 + 未读消息（审批办结后 pending 立刻下降，避免「办完角标还在」） */
+const badgeCount = computed(() => pendingTaskCount.value + unreadMessageCount.value);
 
 async function loadInbox() {
   if (!visible.value) return;
