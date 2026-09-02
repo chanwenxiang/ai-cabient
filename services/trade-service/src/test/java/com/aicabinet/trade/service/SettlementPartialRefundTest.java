@@ -40,6 +40,7 @@ class SettlementPartialRefundTest {
     @Mock OrderPaymentService orderPaymentService;
     @Mock RevenueSplitService revenueSplitService;
     @Mock CouponService couponService;
+    @Mock DisplaySnapshotHelper displaySnapshotHelper;
 
     SettlementService settlementService;
 
@@ -51,7 +52,7 @@ class SettlementPartialRefundTest {
                 null, null, inventoryService, orderPaymentService,
                 null, null, null, null, null, null,
                 null, couponService, null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, displaySnapshotHelper);
         org.springframework.test.util.ReflectionTestUtils.setField(settlementService, "self", settlementService);
         lenient().doNothing().when(couponService).recalcOrRestoreAfterPartialRefund(any(), anyInt());
     }
