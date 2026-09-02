@@ -126,6 +126,7 @@ import {
   setPreferredDeviceId
 } from '@/utils/preferred-device';
 import { dictLabel } from '@aicabinet/shared-dict';
+import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
 import type { DeviceInfo, MerchantMe } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -255,25 +256,13 @@ function goDetail(id: string) {
 }
 
 function openNav(d: DeviceInfo) {
-  if (d.latitude == null || d.longitude == null) {
-    uni.showToast({ title: '暂无坐标', icon: 'none' });
-    return;
-  }
-  // #ifdef H5
-  const q = encodeURIComponent(d.address || d.deviceName || d.deviceId);
-  window.open(
-    `https://uri.amap.com/marker?position=${d.longitude},${d.latitude}&name=${q}`,
-    '_blank'
-  );
-  // #endif
-  // #ifndef H5
-  uni.openLocation({
-    latitude: Number(d.latitude),
-    longitude: Number(d.longitude),
-    name: d.deviceName || d.deviceId,
-    address: d.address || ''
+  void confirmOpenDeviceNavigation({
+    latitude: d.latitude,
+    longitude: d.longitude,
+    name: d.deviceName,
+    address: d.address,
+    deviceId: d.deviceId
   });
-  // #endif
 }
 
 function goReplenishment() {
