@@ -9,10 +9,12 @@ import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.FinanceMarginDailyLockMapper;
 import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
+import com.aicabinet.trade.domain.DeviceInfo;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -41,6 +43,7 @@ public class FundBillService {
     private static final double CHANNEL_FEE_RATE = 0.006;
 
     private final OrderRevenueSplitMapper splitMapper;
+    private final DeviceInfoMapper deviceInfoMapper;
     private final MerchantMapper merchantMapper;
     private final FinanceMarginDailyLockMapper marginLockMapper;
     private final CabinetOrderMapper orderMapper;
@@ -53,6 +56,7 @@ public class FundBillService {
     private final FundBillService self;
 
     public FundBillService(OrderRevenueSplitMapper splitMapper,
+                           DeviceInfoMapper deviceInfoMapper,
                            MerchantMapper merchantMapper,
                            FinanceMarginDailyLockMapper marginLockMapper,
                            CabinetOrderMapper orderMapper,
@@ -62,6 +66,7 @@ public class FundBillService {
                            PermissionService permissionService,
                            DistributedLockService distributedLockService, @Lazy FundBillService self) {
         this.splitMapper = splitMapper;
+        this.deviceInfoMapper = deviceInfoMapper;
         this.merchantMapper = merchantMapper;
         this.marginLockMapper = marginLockMapper;
         this.orderMapper = orderMapper;
@@ -156,20 +161,45 @@ public class FundBillService {
         return new PageResult<>(all.subList(from, to), p, s, all.size());
     }
 
-    private static List<FundDailyBillDto> filterDailyBills(List<FundDailyBillDto> rows, String keyword) {
+    static List<FundDailyBillDto> filterDailyBills(List<FundDailyBillDto> rows, String keyword) {
         if (keyword == null || keyword.isBlank()) {
             return rows;
         }
         String kw = keyword.trim().toLowerCase();
-        return rows.stream()
-                .filter(r -> r.merchantId() != null && r.merchantId().toLowerCase().contains(kw)
-                        || r.merchantName() != null && r.merchantName().toLowerCase().contains(kw))
-                .toList();
+        return rows.stream().filter(r -> matchesDailyBillKeyword(r, kw)).toList();
+    }
+
+    static boolean matchesDailyBillKeyword(FundDailyBillDto row, String kw) {
+        return containsIgnoreCase(row.merchantId(), kw)
+                || containsIgnoreCase(row.merchantName(), kw)
+                || containsIgnoreCase(row.bizDate(), kw);
+    }
+
+    static List<FundLedgerEntryDto> filterLedgerRows(List<FundLedgerEntryDto> rows, String keyword,
+                                                     Map<String, String> deviceNames) {
+        if (keyword == null || keyword.isBlank()) {
+            return rows;
+        }
+        String kw = keyword.trim().toLowerCase();
+        return rows.stream().filter(r -> matchesLedgerKeyword(r, kw, deviceNames)).toList();
+    }
+
+    static boolean matchesLedgerKeyword(FundLedgerEntryDto row, String kw, Map<String, String> deviceNames) {
+        return containsIgnoreCase(row.entryId(), kw)
+                || containsIgnoreCase(row.orderId(), kw)
+                || containsIgnoreCase(row.deviceId(), kw)
+                || containsIgnoreCase(row.merchantId(), kw)
+                || containsIgnoreCase(row.merchantName(), kw)
+                || containsIgnoreCase(deviceNames.get(row.deviceId()), kw);
+    }
+
+    private static boolean containsIgnoreCase(String value, String kw) {
+        return value != null && value.toLowerCase().contains(kw);
     }
 
     @Transactional(readOnly = true)
     public PageResult<FundLedgerEntryDto> listLedger(Long operatorId, String fromDate, String toDate,
-                                                     String financialType, String direction,
+                                                     String financialType, String direction, String keyword,
                                                      int page, int size) {
         permissionService.requireAnyPermission(operatorId, PERM_OPS_FUND_LIST, PERM_OPS_FINANCE_VIEW);
         LocalDate from = parseDate(fromDate, LocalDate.now(ZONE).minusDays(7));
@@ -213,9 +243,16 @@ public class FundBillService {
             String dir = direction.trim().toUpperCase();
             rows = rows.stream().filter(r -> dir.equals(r.direction())).collect(Collectors.toList());
         }
-        int fromIdx = Math.min(page * size, rows.size());
-        int toIdx = Math.min(fromIdx + size, rows.size());
-        return new PageResult<>(rows.subList(fromIdx, toIdx), page, size, rows.size());
+        Map<String, String> deviceNames = keyword == null || keyword.isBlank()
+                ? Map.of()
+                : deviceInfoMapper.findAllOrderByDeviceIdAsc().stream()
+                .collect(Collectors.toMap(DeviceInfo::getDeviceId, DeviceInfo::getDeviceName, (a, b) -> a));
+        rows = filterLedgerRows(rows, keyword, deviceNames);
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        int fromIdx = Math.min(p * s, rows.size());
+        int toIdx = Math.min(fromIdx + s, rows.size());
+        return new PageResult<>(rows.subList(fromIdx, toIdx), p, s, rows.size());
     }
 
     @Transactional(readOnly = true)
