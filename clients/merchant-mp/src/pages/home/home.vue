@@ -888,10 +888,12 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .empty-btns {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12rpx;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16rpx;
   margin-top: 20rpx;
+  width: 100%;
+  box-sizing: border-box;
 }
 .empty-btn {
   margin: 0;
@@ -904,10 +906,11 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: var(--brand, #0f766e);
   background: #ecfdf5;
   border: none;
-  min-width: 0;
-  max-width: none;
-  width: auto;
-  flex: 0 1 auto;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  flex: none;
+  align-self: stretch;
   display: flex;
   align-items: center;
   justify-content: center;

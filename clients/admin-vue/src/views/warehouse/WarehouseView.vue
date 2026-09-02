@@ -274,15 +274,17 @@
     />
 
     <div
-      v-if="visibleTabGroups.length > 1"
+      v-if="visibleTabGroups.length"
       class="warehouse-tab-groups"
       data-testid="warehouse-tab-groups"
     >
       <el-radio-group v-model="tabGroup" size="small" @change="onTabGroupChange">
-        <el-radio-button v-for="g in visibleTabGroups" :key="g.id" :value="g.id">{{
-          g.label
-        }}</el-radio-button>
+        <el-radio-button v-for="g in visibleTabGroups" :key="g.id" :value="g.id">
+          {{ g.label }}
+          <span class="tab-group-count">{{ g.count }}</span>
+        </el-radio-button>
       </el-radio-group>
+      <span class="tab-group-hint">当前「{{ currentTabGroupLabel }}」· 共 {{ currentGroupTabCount }} 个列表</span>
     </div>
 
     <el-tabs v-model="tab" @tab-change="onTabChange">
@@ -2399,18 +2401,31 @@ function firstTabInGroup(group: WarehouseTabGroup): string {
   return 'warehouses';
 }
 
+const TAB_GROUP_LABELS: Record<WarehouseTabGroup, string> = {
+  overview: '基础',
+  procurement: '采购',
+  inventory: '库存',
+  fulfillment: '履约'
+};
+
+function allowedTabsInGroup(group: WarehouseTabGroup): string[] {
+  return TAB_GROUP_ORDER[group].filter((name) => isWarehouseTabAllowed(name));
+}
+
 const visibleTabGroups = computed(() => {
-  const groups: { id: WarehouseTabGroup; label: string }[] = [
-    { id: 'overview', label: '概览' },
-    { id: 'procurement', label: '采购' },
-    { id: 'inventory', label: '库存' },
-    { id: 'fulfillment', label: '出库·在途' }
-  ];
-  return groups.filter((g) => {
-    if (g.id === 'procurement') return canProcurementList.value;
-    return TAB_GROUP_ORDER[g.id].some((name) => isWarehouseTabAllowed(name));
-  });
+  const groups: WarehouseTabGroup[] = ['overview', 'procurement', 'inventory', 'fulfillment'];
+  return groups
+    .map((id) => {
+      const tabs = allowedTabsInGroup(id);
+      return { id, label: TAB_GROUP_LABELS[id], count: tabs.length };
+    })
+    .filter((g) => g.count > 0);
 });
+
+const currentTabGroupLabel = computed(
+  () => TAB_GROUP_LABELS[tabGroup.value] || TAB_GROUP_LABELS.overview
+);
+const currentGroupTabCount = computed(() => allowedTabsInGroup(tabGroup.value).length);
 
 function syncTabGroupFromTab(name = tab.value) {
   tabGroup.value = tabGroupFor(name);
@@ -4664,8 +4679,22 @@ watch(
   flex-wrap: wrap;
 }
 .warehouse-tab-groups {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
   margin: 0 0 12px;
   flex-shrink: 0;
+}
+.tab-group-count {
+  margin-left: 4px;
+  font-size: 12px;
+  opacity: 0.72;
+}
+.tab-group-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
 }
 .warehouse-page-card {
   min-height: 0;

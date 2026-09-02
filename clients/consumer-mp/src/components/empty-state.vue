@@ -85,8 +85,11 @@ withDefaults(
 :deep(uni-button.empty-btn) {
   width: 100% !important;
   max-width: none !important;
+  min-width: 0 !important;
   margin-left: 0 !important;
   margin-right: 0 !important;
   align-self: stretch !important;
+  height: 88rpx !important;
+  min-height: 88rpx !important;
 }
 </style>
