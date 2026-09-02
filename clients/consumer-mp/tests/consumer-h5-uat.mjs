@@ -28,6 +28,8 @@ const OUT = path.resolve(__dirname, '../output/playwright');
 const DEMO_PHONE = '13800138000';
 const DEMO_SMS = '123456';
 const DEVICE_ID = 'CAB-001';
+const DEMO_DISPUTE_TICKET_BILLED = process.env.DEMO_DISPUTE_TICKET_BILLED || '1788252219672817302';
+const DEMO_DISPUTE_TICKET_REFUND = process.env.DEMO_DISPUTE_TICKET_REFUND || '1788247248295553600';
 
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -650,6 +652,53 @@ async function main() {
             .slice(0, 6)
             .join(' | ')}`,
       e10v
+    );
+
+    // —— TC-IMP-025 已结案争议文案（扣款/退款渠道）——
+    await cancelActiveSession(page);
+    await gotoPath(
+      page,
+      `/pages/dispute/detail?ticketId=${encodeURIComponent(DEMO_DISPUTE_TICKET_BILLED)}`
+    );
+    await page.waitForTimeout(3000);
+    text = await bodyText(page);
+    const imp25BilledOk =
+      /人工审核已完成|已结案/.test(text) &&
+      /扣款|¥4\.41/.test(text) &&
+      !/审核中 · 暂未扣款/.test(text) &&
+      !text.includes('退款渠道');
+    const e25a = await shot(page, '25-dispute-resolved-billed');
+    record(
+      'TC-IMP-025',
+      '已结案扣款争议文案',
+      'UX',
+      imp25BilledOk ? 'PASS' : 'FAIL',
+      imp25BilledOk
+        ? '无 OPEN 态暂未扣款/退款渠道'
+        : text.split('\n').filter(Boolean).slice(0, 12).join(' | '),
+      e25a
+    );
+
+    await gotoPath(
+      page,
+      `/pages/dispute/detail?ticketId=${encodeURIComponent(DEMO_DISPUTE_TICKET_REFUND)}`
+    );
+    await page.waitForTimeout(3000);
+    text = await bodyText(page);
+    const imp25RefundOk =
+      /已结案|人工审核已完成/.test(text) &&
+      (/退款|未扣款|已退/.test(text) || /¥3\.92/.test(text)) &&
+      text.includes('退款渠道');
+    const e25b = await shot(page, '25b-dispute-resolved-refund');
+    record(
+      'TC-IMP-025b',
+      '已结案退款争议文案',
+      'UX',
+      imp25RefundOk ? 'PASS' : 'FAIL',
+      imp25RefundOk
+        ? '展示退款结论与退款渠道'
+        : text.split('\n').filter(Boolean).slice(0, 12).join(' | '),
+      e25b
     );
 
     // —— TC-RFND-001 立即退款（PW_MUTATE=1 时执行）——
