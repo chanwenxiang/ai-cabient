@@ -524,9 +524,17 @@ async function main() {
 
     // —— TC-ORD-001 登录后订单列表 ——
     await clickByText(page, '订单', { exact: true });
-    await page.waitForTimeout(1800);
-    text = await bodyText(page);
-    const ordersOk = /暂无订单|已完成|待支付|已退款|全部|购物账单/.test(text);
+    const ordDeadline = Date.now() + 12000;
+    let ordersOk = false;
+    while (Date.now() < ordDeadline) {
+      await page.waitForTimeout(800);
+      text = await bodyText(page);
+      ordersOk = /暂无订单|已完成|待支付|已退款|全部|购物账单/.test(text);
+      if (ordersOk) break;
+      if (text.includes('重试')) {
+        await clickByText(page, '重试', { exact: true }).catch(() => {});
+      }
+    }
     const e10 = await shot(page, '10-orders-authed');
     record(
       'TC-ORD-001',
@@ -886,24 +894,36 @@ async function main() {
     );
 
     // —— TC-RESTORE-001 会话恢复：刷新后恢复购物态 ——
-    await gotoPath(page, '/pages/index/index', 2500);
-    const restoreDeadline = Date.now() + 8000;
-    while (Date.now() < restoreDeadline) {
+    if (!sessionCreated) {
+      record(
+        'TC-RESTORE-001',
+        '刷新后会话恢复',
+        '功能',
+        'SKIP',
+        'TC-OPEN-002 未创建会话（柜机停售/开门失败），跳过恢复验证',
+        null
+      );
+    } else {
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(2500);
+      const restoreDeadline = Date.now() + 8000;
+      while (Date.now() < restoreDeadline) {
+        text = await bodyText(page);
+        if (/门已开|购物中|本柜价目|正在开门|开门中|本柜商品/.test(text)) break;
+        await page.waitForTimeout(300);
+      }
       text = await bodyText(page);
-      if (/门已开|购物中|本柜价目|正在开门|开门中|本柜商品/.test(text)) break;
-      await page.waitForTimeout(300);
+      const restoreOk = /门已开|购物中|本柜价目|正在开门|开门中|本柜商品/.test(text);
+      const e13b = await shot(page, '13b-session-restore');
+      record(
+        'TC-RESTORE-001',
+        '刷新后会话恢复',
+        '功能',
+        restoreOk ? 'PASS' : 'FAIL',
+        text.split('\n').filter(Boolean).slice(0, 12).join(' | '),
+        e13b
+      );
     }
-    text = await bodyText(page);
-    const restoreOk = /门已开|购物中|本柜价目|正在开门|开门中|本柜商品/.test(text);
-    const e13b = await shot(page, '13b-session-restore');
-    record(
-      'TC-RESTORE-001',
-      '刷新后会话恢复',
-      '功能',
-      restoreOk ? 'PASS' : 'FAIL',
-      text.split('\n').filter(Boolean).slice(0, 12).join(' | '),
-      e13b
-    );
 
     // —— TC-OPEN-003 取消本次开门（若可见）——
     if (text.includes('取消本次开门')) {

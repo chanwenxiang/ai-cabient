@@ -629,28 +629,47 @@ async function main() {
 
     // —— M-10d 争议详情抽屉 ——
     await gotoPath(page, '/pages/disputes/disputes');
-    const clickedDispute = await page.evaluate(() => {
-      const card = document.querySelector('.card');
-      if (!card) return false;
-      card.click();
-      return true;
+    await page.waitForTimeout(1500);
+    text = await bodyText(page);
+    const hasDisputeCard = await page.evaluate(() => {
+      const cards = document.querySelectorAll('.card');
+      for (const card of cards) {
+        const t = (card.textContent || '').trim();
+        if (t && !/暂无待处理争议|用户申诉/.test(t)) return true;
+      }
+      return false;
     });
-    await page.waitForTimeout(1800);
-    const drawerVisible = await page.evaluate(() => !!document.querySelector('.detail-panel'));
-    const e10f = await shot(page, '10f-dispute-drawer');
-    record(
-      'M-10d',
-      '争议详情抽屉',
-      '功能',
-      clickedDispute && drawerVisible ? 'PASS' : 'FAIL',
-      `click=${clickedDispute} drawer=${drawerVisible} body=${(await bodyText(page)).split('\n').slice(0, 8).join(' | ')}`,
-      e10f
-    );
-    await page.evaluate(() => {
-      const el = document.querySelector('.detail-mask');
-      if (el) el.click();
-    });
-    await page.waitForTimeout(500);
+    if (!hasDisputeCard || text.includes('暂无待处理争议')) {
+      record('M-10d', '争议详情抽屉', '功能', 'SKIP', '当前无待处理争议单', null);
+    } else {
+      const clickedDispute = await page.evaluate(() => {
+        const cards = document.querySelectorAll('.card');
+        for (const card of cards) {
+          const t = (card.textContent || '').trim();
+          if (t && !/暂无待处理争议|用户申诉/.test(t)) {
+            card.click();
+            return true;
+          }
+        }
+        return false;
+      });
+      await page.waitForTimeout(1800);
+      const drawerVisible = await page.evaluate(() => !!document.querySelector('.detail-panel'));
+      const e10f = await shot(page, '10f-dispute-drawer');
+      record(
+        'M-10d',
+        '争议详情抽屉',
+        '功能',
+        clickedDispute && drawerVisible ? 'PASS' : 'FAIL',
+        `click=${clickedDispute} drawer=${drawerVisible} body=${(await bodyText(page)).split('\n').slice(0, 8).join(' | ')}`,
+        e10f
+      );
+      await page.evaluate(() => {
+        const el = document.querySelector('.detail-mask');
+        if (el) el.click();
+      });
+      await page.waitForTimeout(500);
+    }
 
     // —— M-11 网络容错：工作台 API 全断 ——
     aborting = true;
