@@ -996,7 +996,6 @@ function navigateToDevice(id?: string) {
     return;
   }
   const name = encodeURIComponent(m.deviceName || m.deviceId || '柜机');
-  const addr = encodeURIComponent(m.address || m.deviceName || m.deviceId || '');
   // #ifdef H5
   if (typeof window !== 'undefined') {
     window.open(
