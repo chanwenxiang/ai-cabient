@@ -9,13 +9,23 @@ const THEME_KEY = 'admin_vue_theme';
 const FONT_KEY = 'admin_vue_font_size';
 const PRIMARY_KEY = 'admin_vue_primary';
 const SIDEBAR_COLLAPSED_KEY = 'admin_vue_sidebar_collapsed';
+const SIDEBAR_USER_SET_KEY = 'admin_vue_sidebar_user_set';
 const TABLE_ACTION_KEY = 'admin_vue_table_action';
 
 function readSidebarCollapsed(): boolean {
   const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+  const userSet = localStorage.getItem(SIDEBAR_USER_SET_KEY) === '1';
+  // 未手动切换过侧栏时一律默认展开（IMP-003）
+  if (!userSet) return false;
   if (saved === '1') return true;
   if (saved === '0') return false;
   return false;
+}
+
+function readTableActionMode(): TableActionMode {
+  const saved = localStorage.getItem(TABLE_ACTION_KEY);
+  if (saved === 'icon' || saved === 'label') return saved;
+  return 'label';
 }
 
 const PRIMARY_COLORS: Record<string, string> = {
@@ -68,9 +78,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const fontSize = ref<FontSize>((localStorage.getItem(FONT_KEY) as FontSize) || 'md');
   const primaryColor = ref(localStorage.getItem(PRIMARY_KEY) || 'teal');
   const sidebarCollapsed = ref(readSidebarCollapsed());
-  const tableActionMode = ref<TableActionMode>(
-    (localStorage.getItem(TABLE_ACTION_KEY) as TableActionMode) === 'label' ? 'label' : 'icon'
-  );
+  const tableActionMode = ref<TableActionMode>(readTableActionMode());
 
   function persist() {
     localStorage.setItem(THEME_KEY, theme.value);
@@ -82,6 +90,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function toggleSidebarCollapsed() {
+    localStorage.setItem(SIDEBAR_USER_SET_KEY, '1');
     sidebarCollapsed.value = !sidebarCollapsed.value;
     persist();
   }
