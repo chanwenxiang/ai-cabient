@@ -344,8 +344,8 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   min-width: 0;
   max-width: none;
   margin: 0;
+  min-height: 72rpx;
   height: 72rpx;
-  line-height: 72rpx;
   border-radius: 36rpx;
   font-size: 26rpx;
   font-weight: 600;
@@ -382,14 +382,17 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 }
 .nav-btn {
   margin: 0;
-  padding: 0 16rpx;
-  height: 48rpx;
-  line-height: 48rpx;
-  font-size: 22rpx;
+  padding: 0 20rpx;
+  min-height: 64rpx;
+  height: 64rpx;
+  font-size: 24rpx;
   color: #0f766e;
   background: #ecfdf5;
   border: 1rpx solid #99f6e4;
   border-radius: 999rpx;
+}
+.nav-btn::after {
+  border: none;
 }
 .star {
   color: #cbd5e1;

@@ -340,6 +340,19 @@ select {
 .el-button {
   --el-border-radius-base: 8px;
   font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.el-button > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+.el-button .el-icon {
+  margin-right: 0;
 }
 .el-button--primary {
   font-weight: 600;
