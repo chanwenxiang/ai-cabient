@@ -56,13 +56,14 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
             String sessionId,
             String payTradeNo,
             String payChannel,
-            String keyword) {}
+            String keyword,
+            boolean excludeZeroAmount) {}
 
     default Page<CabinetOrder> findByFiltersOrderByCreatedAtDesc(
             String deviceId, Collection<String> deviceIds, String status, Pageable pageable) {
         return findByFiltersOrderByCreatedAtDesc(
                 new OrderFilterCriteria(deviceId, deviceIds, status, null, null, null,
-                        null, null, null, null, null, null), pageable);
+                        null, null, null, null, null, null, false), pageable);
     }
 
     default Page<CabinetOrder> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable) {
@@ -172,7 +173,7 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
             Instant createdBefore, Pageable pageable) {
         return findByFiltersOrderByCreatedAtDesc(
                 new OrderFilterCriteria(deviceId, deviceIds, status, createdBefore, null, null,
-                        null, null, null, null, null, null), pageable);
+                        null, null, null, null, null, null, false), pageable);
     }
 
     /**
@@ -242,6 +243,10 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
         }
         if (criteria.payChannel() != null && !criteria.payChannel().isBlank()) {
             q.eq(CabinetOrder::getPayChannel, criteria.payChannel().trim());
+        }
+        // 零元单多为开门未取货结案；运营列表可屏蔽以免淹没真实成交
+        if (criteria.excludeZeroAmount()) {
+            q.gt(CabinetOrder::getTotalAmountCents, 0);
         }
     }
 

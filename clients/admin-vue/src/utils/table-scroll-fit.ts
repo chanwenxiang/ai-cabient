@@ -3,6 +3,9 @@
  * 让表格在自身区域内横向滚动，页面保持窗口宽度、不再整体向右拉伸。
  * 未超宽时保持页面级滚动，列头继续吸顶。
  *
+ * 另：表底滚出主区时，在可视区底部贴浮动横滑条（与当前活跃表同步），
+ * 滚到表底原生横条可见时自动隐藏。
+ *
  * 注意：
  * - 必须用内层列宽 / table 宽度判断。若容器曾被设成 overflow:visible，
  *   用容器 scrollWidth/clientWidth 会误判，并与 .table-scroll--h 的
@@ -13,10 +16,18 @@
  * - 浏览器缩放会改 clientWidth/列宽亚像素；用回滞避免 --h 反复开关导致白框右边「断掉」。
  */
 let rafId = 0;
+let dockRafId = 0;
 let debounceTimer: ReturnType<typeof globalThis.setTimeout> | 0 = 0;
 let observer: MutationObserver | null = null;
 let observedRoot: HTMLElement | null = null;
 let syncing = false;
+
+let dockEl: HTMLElement | null = null;
+let dockScroller: HTMLElement | null = null;
+let dockSpacer: HTMLElement | null = null;
+let activeTable: HTMLElement | null = null;
+let scrollSyncing = false;
+const tableScrollBound = new WeakSet<HTMLElement>();
 
 const OBSERVE_OPTIONS: MutationObserverInit = {
   childList: true,
@@ -62,10 +73,6 @@ function columnSumWidth(table: HTMLElement | null): number {
   return sum;
 }
 
-/**
- * 在非 --h 布局下测量：临时去掉 max-content，避免把已膨胀的宽度当成「需要横滚」。
- * 带回滞：已是 --h 时略放宽「仍超宽」判定，减轻缩放时边框/滚动条闪断。
- */
 function forceReflow(el: HTMLElement): number {
   return el.offsetWidth;
 }
@@ -74,11 +81,9 @@ function measureOverflow(el: HTMLElement): boolean {
   const table = el.querySelector<HTMLElement>('.el-table');
   const hadH = el.classList.contains('table-scroll--h');
   const clientW = el.clientWidth;
-  // 缩放亚像素约 1～3px；回滞避免 100% / 90% / 110% 来回切换布局
   const enterPx = 2;
   const leavePx = 6;
 
-  // 优先用 colgroup 声明宽：不依赖 max-content，不必临时拆 --h（避免可见闪跳）
   const colsW = columnSumWidth(table);
   if (colsW > 0 && clientW > 0) {
     if (hadH) return colsW > clientW - leavePx;
@@ -86,12 +91,10 @@ function measureOverflow(el: HTMLElement): boolean {
   }
 
   if (hadH) el.classList.remove('table-scroll--h');
-  // 强制回到 width:100% 布局再读
   forceReflow(el);
 
   const headerW = table?.querySelector('.el-table__header table')?.scrollWidth ?? 0;
   const bodyW = table?.querySelector('.el-table__body table')?.scrollWidth ?? 0;
-  // 不用 el.scrollWidth：overflow:visible 时会跟着子项一起涨，形成反馈环
   const contentW = Math.max(colsW, headerW, bodyW, table?.scrollWidth ?? 0);
 
   if (hadH) {
@@ -105,6 +108,117 @@ function attachObserver(): void {
   observer.observe(observedRoot, OBSERVE_OPTIONS);
 }
 
+function ensureDock(): { dock: HTMLElement; scroller: HTMLElement; spacer: HTMLElement } {
+  if (dockEl && dockScroller && dockSpacer) {
+    return { dock: dockEl, scroller: dockScroller, spacer: dockSpacer };
+  }
+  const dock = document.createElement('div');
+  dock.className = 'table-hscroll-dock';
+  dock.setAttribute('data-testid', 'table-hscroll-dock');
+  dock.setAttribute('aria-hidden', 'true');
+  dock.hidden = true;
+  const scroller = document.createElement('div');
+  scroller.className = 'table-hscroll-dock__scroller';
+  const spacer = document.createElement('div');
+  spacer.className = 'table-hscroll-dock__spacer';
+  scroller.appendChild(spacer);
+  dock.appendChild(scroller);
+  document.body.appendChild(dock);
+
+  scroller.addEventListener(
+    'scroll',
+    () => {
+      if (scrollSyncing || !activeTable) return;
+      scrollSyncing = true;
+      activeTable.scrollLeft = scroller.scrollLeft;
+      scrollSyncing = false;
+    },
+    { passive: true }
+  );
+
+  dockEl = dock;
+  dockScroller = scroller;
+  dockSpacer = spacer;
+  return { dock, scroller, spacer };
+}
+
+function onTableScroll(event: Event): void {
+  const table = event.currentTarget as HTMLElement;
+  if (scrollSyncing || table !== activeTable || !dockScroller) return;
+  if (dockEl?.hidden) return;
+  scrollSyncing = true;
+  dockScroller.scrollLeft = table.scrollLeft;
+  scrollSyncing = false;
+}
+
+function bindTableScroll(el: HTMLElement): void {
+  if (tableScrollBound.has(el)) return;
+  el.addEventListener('scroll', onTableScroll, { passive: true });
+  tableScrollBound.add(el);
+}
+
+function hideDock(): void {
+  if (!dockEl) return;
+  dockEl.hidden = true;
+  activeTable = null;
+}
+
+function updateFloatingHScrollDock(): void {
+  const main = observedRoot || document.getElementById('main-content');
+  if (!main) {
+    hideDock();
+    return;
+  }
+  const mainRect = main.getBoundingClientRect();
+  let best: HTMLElement | null = null;
+  let bestScore = -1;
+
+  main.querySelectorAll<HTMLElement>('.table-scroll').forEach((el) => {
+    if (el.closest('.footfall-page')) return;
+    bindTableScroll(el);
+    if (el.scrollWidth <= el.clientWidth + 2) return;
+    const r = el.getBoundingClientRect();
+    const intersects = r.bottom > mainRect.top + 8 && r.top < mainRect.bottom - 8;
+    if (!intersects) return;
+    if (r.bottom <= mainRect.bottom - 8) return;
+    const visibleH = Math.min(r.bottom, mainRect.bottom) - Math.max(r.top, mainRect.top);
+    if (visibleH > bestScore) {
+      bestScore = visibleH;
+      best = el;
+    }
+  });
+
+  if (!best) {
+    hideDock();
+    return;
+  }
+
+  const target: HTMLElement = best;
+  const { dock, scroller, spacer } = ensureDock();
+  const tableRect = target.getBoundingClientRect();
+  const left = Math.max(tableRect.left, mainRect.left);
+  const right = Math.min(tableRect.right, mainRect.right);
+  activeTable = target;
+  spacer.style.width = `${target.scrollWidth}px`;
+  dock.style.left = `${left}px`;
+  dock.style.width = `${Math.max(0, right - left)}px`;
+  dock.style.bottom = `${Math.max(0, window.innerHeight - mainRect.bottom)}px`;
+  dock.hidden = false;
+  if (!scrollSyncing && Math.abs(scroller.scrollLeft - target.scrollLeft) > 1) {
+    scrollSyncing = true;
+    scroller.scrollLeft = target.scrollLeft;
+    scrollSyncing = false;
+  }
+}
+
+function scheduleDockUpdate(): void {
+  if (dockRafId) return;
+  dockRafId = requestAnimationFrame(() => {
+    dockRafId = 0;
+    updateFloatingHScrollDock();
+  });
+}
+
 export function syncTableScrollFit(): void {
   rafId = 0;
   if (syncing) return;
@@ -112,25 +226,23 @@ export function syncTableScrollFit(): void {
   observer?.disconnect();
   try {
     document.querySelectorAll<HTMLElement>('.table-scroll').forEach((el) => {
-      // 客流坪效等「卡片内嵌多表」页：禁止 --h（fit-content 会把整页撑出横向滚动，白框跟着滑）
       if (el.closest('.footfall-page')) {
         el.classList.remove('table-scroll--h');
         return;
       }
       const next = measureOverflow(el);
-      // 状态未变时不要 toggle，避免无意义 class 变更与布局抖动
       if (el.classList.contains('table-scroll--h') === next) return;
       el.classList.toggle('table-scroll--h', next);
     });
   } finally {
     syncing = false;
     attachObserver();
+    scheduleDockUpdate();
   }
 }
 
 function scheduleSync(): void {
   if (syncing) return;
-  // 合并同帧 + 短防抖：表格批量插入行时只测一次，避免连续 reflow
   if (rafId) return;
   if (debounceTimer) globalThis.clearTimeout(debounceTimer);
   debounceTimer = globalThis.setTimeout(() => {
@@ -149,18 +261,28 @@ export function observeTableScrollFit(root: HTMLElement): void {
   });
   syncTableScrollFit();
   window.addEventListener('resize', scheduleSync);
-  // 不监听 visualViewport：桌面端鼠标移动/缩放条偶发触发 resize+scroll，
-  // 会反复测表宽/强制 reflow，主区上下抖。窗口缩放已由 window.resize 覆盖。
+  root.addEventListener('scroll', scheduleDockUpdate, { passive: true });
 }
 
 export function stopTableScrollFit(): void {
   observer?.disconnect();
   observer = null;
+  if (observedRoot) {
+    observedRoot.removeEventListener('scroll', scheduleDockUpdate);
+  }
   observedRoot = null;
   window.removeEventListener('resize', scheduleSync);
   if (debounceTimer) globalThis.clearTimeout(debounceTimer);
   debounceTimer = 0;
   if (rafId) cancelAnimationFrame(rafId);
   rafId = 0;
+  if (dockRafId) cancelAnimationFrame(dockRafId);
+  dockRafId = 0;
   syncing = false;
+  hideDock();
+  dockEl?.remove();
+  dockEl = null;
+  dockScroller = null;
+  dockSpacer = null;
+  activeTable = null;
 }

@@ -81,6 +81,21 @@
           >仅超时未付（≥30 分钟）</el-checkbox
         >
       </el-form-item>
+      <el-form-item>
+        <el-checkbox
+          v-model="hideZeroOrders"
+          data-testid="order-hide-zero"
+          @change="onHideZeroToggle"
+        >
+          隐藏零元单
+          <el-tooltip
+            content="多为开门未取货结案（金额为 0），开启后列表与导出均不展示"
+            placement="top"
+          >
+            <span class="hide-zero-hint">?</span>
+          </el-tooltip>
+        </el-checkbox>
+      </el-form-item>
     </el-form>
 
     <el-alert
@@ -96,7 +111,7 @@
       "
     />
 
-    <div class="table-scroll">
+    <div class="table-scroll" data-testid="order-table-scroll">
       <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
@@ -698,6 +713,27 @@ const createdRange = ref<[string, string] | null>(null);
 const status = ref('');
 const statusTab = ref(localStorage.getItem('ops_order_status_tab') || 'ALL');
 const overdueOnly = ref(false);
+const HIDE_ZERO_STORAGE_KEY = 'ops_order_hide_zero';
+
+function readHideZeroPreference(): boolean {
+  try {
+    const raw = localStorage.getItem(HIDE_ZERO_STORAGE_KEY);
+    if (raw === '0' || raw === 'false') return false;
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
+function persistHideZeroPreference(value: boolean) {
+  try {
+    localStorage.setItem(HIDE_ZERO_STORAGE_KEY, value ? '1' : '0');
+  } catch {
+    /* ignore */
+  }
+}
+
+const hideZeroOrders = ref(readHideZeroPreference());
 const focusOrderId = ref('');
 const items = ref<OrderSummary[]>([]);
 
@@ -775,6 +811,7 @@ function appendOrderFilters(q: URLSearchParams) {
     if (Number.isFinite(fromMs)) q.set('from', new Date(fromMs).toISOString());
     if (Number.isFinite(toMs)) q.set('to', new Date(toMs).toISOString());
   }
+  if (hideZeroOrders.value) q.set('excludeZero', '1');
 }
 
 async function onExportMode(mode: string) {
@@ -1237,6 +1274,7 @@ function syncRouteQuery() {
   if (payChannel.value) query.payChannel = payChannel.value;
   if (status.value) query.status = status.value;
   if (statusTab.value === 'PENDING' && overdueOnly.value) query.overdue = '1';
+  if (hideZeroOrders.value) query.excludeZero = '1';
   if (focusOrderId.value) query.orderId = focusOrderId.value;
   router.replace({ query });
 }
@@ -1253,6 +1291,11 @@ function onStatusTab(name: string | number) {
 }
 
 function onOverdueToggle() {
+  search();
+}
+
+function onHideZeroToggle() {
+  persistHideZeroPreference(hideZeroOrders.value);
   search();
 }
 
@@ -1298,6 +1341,8 @@ function reset() {
   status.value = '';
   statusTab.value = 'ALL';
   overdueOnly.value = false;
+  hideZeroOrders.value = true;
+  persistHideZeroPreference(true);
   focusOrderId.value = '';
   page.value = 1;
   syncRouteQuery();
@@ -1372,6 +1417,16 @@ function syncOverdueFromRoute(changed: boolean): boolean {
   return true;
 }
 
+function syncHideZeroFromRoute(changed: boolean): boolean {
+  if (!('excludeZero' in route.query)) return changed;
+  const raw = route.query.excludeZero;
+  const wantHide = raw === '1' || raw === 'true';
+  if (wantHide === hideZeroOrders.value) return changed;
+  hideZeroOrders.value = wantHide;
+  persistHideZeroPreference(wantHide);
+  return true;
+}
+
 function syncFocusOrderFromRoute(changed: boolean): boolean {
   if (typeof route.query.orderId === 'string') {
     if (route.query.orderId === focusOrderId.value) return changed;
@@ -1389,6 +1444,7 @@ function applyRouteQuery() {
   changed = syncPayChannelFromRoute(changed);
   changed = syncStatusFromRoute(changed);
   changed = syncOverdueFromRoute(changed);
+  changed = syncHideZeroFromRoute(changed);
   changed = syncFocusOrderFromRoute(changed);
   return changed;
 }
@@ -1433,6 +1489,7 @@ watch(
       route.query.deviceId,
       route.query.status,
       route.query.overdue,
+      route.query.excludeZero,
       route.query.orderId
     ] as const,
   () => {
@@ -1557,6 +1614,21 @@ onActivated(() => {
 }
 .chase-banner {
   margin: 0 0 10px;
+}
+.hide-zero-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--el-border-color);
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  line-height: 1;
+  cursor: help;
+  vertical-align: middle;
 }
 .is-overdue-age {
   color: var(--el-color-danger);
