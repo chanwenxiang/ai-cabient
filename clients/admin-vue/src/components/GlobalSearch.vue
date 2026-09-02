@@ -1,16 +1,15 @@
 <template>
   <div class="global-search" title="全局搜索（Ctrl+K）">
     <el-input
-      v-model="keyword"
+      :model-value="''"
+      readonly
       aria-label="全局搜索"
       placeholder="搜索页面名称或关键词…"
       title="全局搜索（Ctrl+K）"
       :prefix-icon="Search"
-      clearable
-      class="search-input"
+      class="search-input search-trigger"
       @click="openPalette"
-      @input="openPalette"
-      @keydown.enter="pickFirst"
+      @keydown.enter.prevent="openPalette"
     />
     <el-dialog
       v-model="open"
@@ -18,6 +17,7 @@
       width="520px"
       append-to-body
       destroy-on-close
+      :close-on-click-modal="true"
       @opened="focusInput"
       @closed="onClosed"
     >
@@ -29,6 +29,7 @@
         :prefix-icon="Search"
         clearable
         @keydown.enter="pickFirst"
+        @keydown.esc.prevent="closePalette"
       />
       <div class="result-list" aria-label="搜索结果">
         <div v-if="results.length" class="result-section">页面</div>
@@ -99,6 +100,11 @@ const results = computed(() =>
 function openPalette() {
   if (Date.now() < suppressOpenUntil) return;
   open.value = true;
+}
+
+function closePalette() {
+  suppressOpenUntil = Date.now() + 250;
+  open.value = false;
 }
 
 function go(path: string) {
@@ -208,7 +214,7 @@ async function searchRecords(q: string) {
         }))
     )
   ]);
-  if (seq !== searchSeq) return; // 丢弃过期响应，避免旧结果覆盖新搜索
+  if (seq !== searchSeq) return;
   recordResults.value = hits.slice(0, 12);
 }
 
@@ -225,6 +231,7 @@ watch(keyword, (k) => {
 
 function pickFirst() {
   if (results.value[0]) go(results.value[0].path);
+  else if (recordResults.value[0]) goRecord(recordResults.value[0]);
 }
 
 function focusInput() {
@@ -234,6 +241,7 @@ function focusInput() {
 function onClosed() {
   suppressOpenUntil = Date.now() + 250;
   keyword.value = '';
+  recordResults.value = [];
   nextTick(() => {
     (document.activeElement as HTMLElement | null)?.blur?.();
   });
@@ -243,6 +251,11 @@ function onKeydown(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     e.preventDefault();
     openPalette();
+    return;
+  }
+  if (e.key === 'Escape' && open.value) {
+    e.preventDefault();
+    closePalette();
   }
 }
 
@@ -262,6 +275,12 @@ onUnmounted(() => {
 .search-input {
   width: clamp(108px, 16vw, 220px);
   max-width: 100%;
+}
+.search-trigger :deep(.el-input__wrapper) {
+  cursor: pointer;
+}
+.search-trigger :deep(.el-input__inner) {
+  cursor: pointer;
 }
 .result-list {
   margin-top: 12px;

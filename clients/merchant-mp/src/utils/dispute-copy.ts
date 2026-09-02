@@ -34,6 +34,21 @@ function resolvedDisputeSummary(ticket: MerchantDisputeCopyInput): string {
 }
 
 /**
+ * 建议价与实扣不一致时的说明。
+ */
+export function merchantDisputeAmountDiffNote(ticket?: MerchantDisputeCopyInput | null): string {
+  if (!ticket) return '';
+  const claimed = Number(ticket.claimedAmountCents ?? 0);
+  const billed = Number(ticket.billedAmountCents ?? 0);
+  if (claimed <= 0 || billed < 0 || claimed === billed) return '';
+  const diff = claimed - billed;
+  if (diff > 0) {
+    return `识别参考 ${fmtMoney(claimed)}，实扣 ${fmtMoney(billed)}（优惠/折扣 ${fmtMoney(diff)}）`;
+  }
+  return `识别参考 ${fmtMoney(claimed)}，实扣 ${fmtMoney(billed)}（差额 ${fmtMoney(Math.abs(diff))}）`;
+}
+
+/**
  * 商户争议列表/详情主文案：OPEN 展示 reason；已结案展示结论摘要。
  */
 export function merchantDisputeDisplayCopy(ticket?: MerchantDisputeCopyInput | null): string {

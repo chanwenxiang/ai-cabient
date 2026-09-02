@@ -135,6 +135,10 @@
                 <text class="detail-lbl">已退金额</text
                 ><text class="detail-val">{{ fmtMoney(detail.refundedAmountCents) }}</text>
               </view>
+              <view v-if="detailAmountDiffNote" class="detail-row amount-diff-row">
+                <text class="detail-lbl">差额说明</text
+                ><text class="detail-val amount-diff">{{ detailAmountDiffNote }}</text>
+              </view>
               <view
                 v-if="detail?.slaOverdue != null || detail?.slaHoursRemaining != null"
                 class="detail-row"
@@ -232,7 +236,7 @@ import {
   formatDateTimeShort,
   fmtMoney
 } from '@aicabinet/shared-uni/format';
-import { merchantDisputeDisplayCopy } from '@/utils/dispute-copy';
+import { merchantDisputeDisplayCopy, merchantDisputeAmountDiffNote } from '@/utils/dispute-copy';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi, type MerchantDisputeTicket } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
@@ -264,6 +268,7 @@ const pendingTicketId = ref('');
 const pendingSessionId = ref('');
 const detailVisible = ref(false);
 const detail = ref<MerchantDisputeTicket | null>(null);
+const detailAmountDiffNote = computed(() => merchantDisputeAmountDiffNote(detail.value));
 const canReplyDetail = ref(false);
 const canResolveDetail = ref(false);
 const resolving = ref(false);
@@ -779,6 +784,11 @@ async function onReply(item: MerchantDisputeTicket) {
   text-align: right;
   word-break: break-all;
   max-width: 70%;
+}
+.detail-val.amount-diff {
+  color: #64748b;
+  font-size: 22rpx;
+  line-height: 1.45;
 }
 .detail-actions {
   display: flex;

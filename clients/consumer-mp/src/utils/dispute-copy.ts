@@ -111,6 +111,45 @@ export function shouldShowConsumerRefundChannel(
   return Number(ticket.refundedAmountCents ?? 0) > 0;
 }
 
+function sumLineAmountCents(
+  lines?: Array<{ lineAmountCents?: number | null }> | null
+): number {
+  if (!lines?.length) return 0;
+  return lines.reduce((sum, line) => sum + Math.max(0, Number(line.lineAmountCents ?? 0)), 0);
+}
+
+/**
+ * 建议价与实扣不一致时的说明（会员/优惠差额）。
+ * 无差额时返回空串。
+ */
+export function disputeAmountDiffNote(
+  ticket?: Pick<
+    DisputeTicketDto,
+    'claimedAmountCents' | 'billedAmountCents' | 'suggestedItems'
+  > | null,
+  extras?: { memberDiscountCents?: number | null; couponDiscountCents?: number | null }
+): string {
+  if (!ticket) return '';
+  const claimed =
+    Number(ticket.claimedAmountCents ?? 0) || sumLineAmountCents(ticket.suggestedItems);
+  const billed = Number(ticket.billedAmountCents ?? 0);
+  if (claimed <= 0 || billed < 0 || claimed === billed) return '';
+  const diff = claimed - billed;
+  const member = Number(extras?.memberDiscountCents ?? 0);
+  const coupon = Number(extras?.couponDiscountCents ?? 0);
+  const knownDiscount = member + coupon;
+  if (diff > 0) {
+    if (knownDiscount > 0 && Math.abs(knownDiscount - diff) <= 1) {
+      const parts: string[] = [];
+      if (member > 0) parts.push(`会员优惠 ${fmtMoney(member)}`);
+      if (coupon > 0) parts.push(`优惠券 ${fmtMoney(coupon)}`);
+      return `识别参考 ${fmtMoney(claimed)}，实扣 ${fmtMoney(billed)}（${parts.join(' + ')}）`;
+    }
+    return `识别参考 ${fmtMoney(claimed)}，实扣 ${fmtMoney(billed)}（优惠/折扣 ${fmtMoney(diff)}）`;
+  }
+  return `识别参考 ${fmtMoney(claimed)}，实扣 ${fmtMoney(billed)}（差额 ${fmtMoney(Math.abs(diff))}）`;
+}
+
 /** 消费者提交申诉/退款失败时的友好文案（覆盖后端 409 等冲突提示） */
 export function consumerAppealErrorMessage(error: unknown, fallback = '提交失败'): string {
   let raw = '';
