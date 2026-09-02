@@ -4,6 +4,8 @@ import com.aicabinet.common.dto.LinePromoTaskDto;
 import com.aicabinet.common.dto.UpsertLinePromoTaskRequest;
 import com.aicabinet.trade.domain.LinePromoTask;
 import com.aicabinet.trade.mapper.LinePromoTaskMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,24 +18,31 @@ import java.util.Set;
 @Service
 public class LinePromoTaskService {
 
+    private static final Logger log = LoggerFactory.getLogger(LinePromoTaskService.class);
     private static final Set<String> STATUSES = Set.of("OPEN", "DONE", "CANCELLED");
+    private static final String STATUS_DONE = "DONE";
+    private static final String ENTRY_BOUNTY = "BOUNTY";
+    private static final String REF_LINE_PROMO = "LINE_PROMO";
 
     private final LinePromoTaskMapper taskMapper;
     private final LineManagerService lineManagerService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
+    private final LineWalletService lineWalletService;
 
     public LinePromoTaskService(LinePromoTaskMapper taskMapper,
                                 LineManagerService lineManagerService,
                                 PermissionService permissionService,
                                 AdminAuditService auditService,
-                                DistributedLockService distributedLockService) {
+                                DistributedLockService distributedLockService,
+                                LineWalletService lineWalletService) {
         this.taskMapper = taskMapper;
         this.lineManagerService = lineManagerService;
         this.permissionService = permissionService;
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
+        this.lineWalletService = lineWalletService;
     }
 
     @Transactional(readOnly = true)
@@ -54,9 +63,11 @@ public class LinePromoTaskService {
 
     private LinePromoTaskDto doUpsert(Long operatorId, Long taskId, UpsertLinePromoTaskRequest req) {
         LinePromoTask task;
+        String previousStatus = null;
         if (taskId != null) {
             task = taskMapper.findByIdForUpdate(taskId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "地推任务不存在"));
+            previousStatus = task.getStatus();
         } else {
             task = new LinePromoTask();
             task.setCreatedAt(Instant.now());
@@ -75,7 +86,7 @@ public class LinePromoTaskService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "非法 status");
         }
         if (task.getDoneQty() >= task.getTargetQty() && task.getTargetQty() > 0 && "OPEN".equals(status)) {
-            status = "DONE";
+            status = STATUS_DONE;
         }
         task.setStatus(status);
         task.setUpdatedAt(Instant.now());
@@ -84,8 +95,31 @@ public class LinePromoTaskService {
         } else {
             taskMapper.updateById(task);
         }
+        maybeCreditBounty(task, previousStatus);
         auditService.appendLog(operatorId, "LINE_PROMO_TASK", "TASK", String.valueOf(task.getTaskId()), status);
         return toDto(task);
+    }
+
+    /**
+     * OPEN→DONE（含完成量自动达标）时按赏金入账；幂等依赖钱包 creditIfAbsent(ref=taskId)。
+     */
+    private void maybeCreditBounty(LinePromoTask task, String previousStatus) {
+        if (!STATUS_DONE.equals(task.getStatus()) || STATUS_DONE.equals(previousStatus)) {
+            return;
+        }
+        int bounty = Math.max(0, task.getBountyCents());
+        if (bounty <= 0 || task.getTaskId() == null || task.getManagerId() == null) {
+            return;
+        }
+        boolean credited = lineWalletService.creditIfAbsent(
+                task.getManagerId(),
+                bounty,
+                ENTRY_BOUNTY,
+                REF_LINE_PROMO,
+                String.valueOf(task.getTaskId()),
+                "地推赏金：" + task.getTitle());
+        log.info("line promo bounty credit managerId={} taskId={} bountyCents={} credited={}",
+                task.getManagerId(), task.getTaskId(), bounty, credited);
     }
 
     static String linePromoTaskLockKey(Long taskId) {

@@ -98,81 +98,87 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="角色"
-            min-width="160"
-            align="center"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="角色" min-width="160" align="center" class-name="col-text">
             <template #default="{ row }">
-              <template v-if="(row.roleNames || []).length">
-                <el-tag
-                  v-for="name in row.roleNames"
-                  :key="name"
-                  size="small"
-                  effect="plain"
-                  class="role-tag"
-                >
-                  {{ name }}
-                </el-tag>
-              </template>
+              <el-tooltip
+                v-if="(row.roleNames || []).length"
+                :content="roleTip(row)"
+                placement="top"
+                :show-after="200"
+                :disabled="(row.roleNames || []).length < 2"
+              >
+                <div class="tag-cell">
+                  <el-tag
+                    v-for="name in row.roleNames"
+                    :key="name"
+                    size="small"
+                    effect="plain"
+                    class="role-tag"
+                  >
+                    {{ name }}
+                  </el-tag>
+                </div>
+              </el-tooltip>
               <span v-else class="muted">未分配</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="部门"
-            min-width="140"
-            align="center"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="部门" min-width="140" align="center" class-name="col-text">
             <template #default="{ row }">
-              <template v-if="row.primaryDeptName || (row.deptNames || []).length">
-                <el-tag
-                  v-if="row.primaryDeptName"
-                  size="small"
-                  type="primary"
-                  effect="plain"
-                  class="role-tag"
-                >
-                  主·{{ row.primaryDeptName }}
-                </el-tag>
-                <el-tag
-                  v-for="name in (row.deptNames || []).filter(
-                    (n: string) => n !== row.primaryDeptName
-                  )"
-                  :key="name"
-                  size="small"
-                  effect="plain"
-                  class="role-tag"
-                >
-                  {{ name }}
-                </el-tag>
-              </template>
+              <el-tooltip
+                v-if="row.primaryDeptName || (row.deptNames || []).length"
+                :content="deptTip(row)"
+                placement="top"
+                :show-after="200"
+                :disabled="deptTipParts(row).length < 2"
+              >
+                <div class="tag-cell">
+                  <el-tag
+                    v-if="row.primaryDeptName"
+                    size="small"
+                    type="primary"
+                    effect="plain"
+                    class="role-tag"
+                  >
+                    主·{{ row.primaryDeptName }}
+                  </el-tag>
+                  <el-tag
+                    v-for="name in (row.deptNames || []).filter(
+                      (n: string) => n !== row.primaryDeptName
+                    )"
+                    :key="name"
+                    size="small"
+                    effect="plain"
+                    class="role-tag"
+                  >
+                    {{ name }}
+                  </el-tag>
+                </div>
+              </el-tooltip>
               <span v-else class="muted">未归属</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="数据范围"
-            min-width="180"
-            align="center"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="数据范围" min-width="180" align="center" class-name="col-text">
             <template #default="{ row }">
-              <template v-if="(row.merchantNames || row.merchantIds || []).length">
-                <el-tag
-                  v-for="(name, idx) in row.merchantNames || row.merchantIds"
-                  :key="(row.merchantIds || [])[idx] || name"
-                  size="small"
-                  type="warning"
-                  effect="plain"
-                  class="role-tag"
-                >
-                  {{ name }}
-                </el-tag>
-              </template>
+              <el-tooltip
+                v-if="(row.merchantNames || row.merchantIds || []).length"
+                :content="scopeTip(row)"
+                placement="top"
+                :show-after="200"
+                :disabled="(row.merchantNames || row.merchantIds || []).length < 2"
+              >
+                <div class="tag-cell">
+                  <el-tag
+                    v-for="(name, idx) in row.merchantNames || row.merchantIds"
+                    :key="(row.merchantIds || [])[idx] || name"
+                    size="small"
+                    type="warning"
+                    effect="plain"
+                    class="role-tag"
+                  >
+                    {{ name }}
+                  </el-tag>
+                </div>
+              </el-tooltip>
               <el-tag v-else size="small" type="success" effect="plain">全局</el-tag>
             </template>
           </el-table-column>
@@ -570,6 +576,27 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
       return ok;
     }
   });
+
+function roleTip(row: OperatorRow): string {
+  return (row.roleNames || []).join('、');
+}
+
+function deptTipParts(row: OperatorRow): string[] {
+  const parts: string[] = [];
+  if (row.primaryDeptName) parts.push(`主·${row.primaryDeptName}`);
+  for (const name of row.deptNames || []) {
+    if (name && name !== row.primaryDeptName) parts.push(name);
+  }
+  return parts;
+}
+
+function deptTip(row: OperatorRow): string {
+  return deptTipParts(row).join('、');
+}
+
+function scopeTip(row: OperatorRow): string {
+  return (row.merchantNames || row.merchantIds || []).join('、');
+}
 
 function rowActions(row: OperatorRow): TableAction[] {
   const acts: TableAction[] = [];
@@ -971,6 +998,15 @@ onActivated(() => {
 }
 .role-tag {
   margin: 0 4px 4px 0;
+}
+.tag-cell {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  max-width: 100%;
+  vertical-align: middle;
+  line-height: 1.4;
 }
 .muted {
   color: var(--el-text-color-secondary);

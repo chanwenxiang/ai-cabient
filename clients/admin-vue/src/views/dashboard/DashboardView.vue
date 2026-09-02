@@ -856,6 +856,7 @@ onMounted(() => load({ silent: true }));
   padding: 14px 16px;
   height: 100%;
   box-sizing: border-box;
+  text-align: center;
 }
 .stat-tile.is-clickable {
   cursor: pointer;
@@ -900,7 +901,7 @@ onMounted(() => load({ silent: true }));
 .quick-tile {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   width: 100%;
   margin-bottom: 10px;
   padding: 12px 14px;

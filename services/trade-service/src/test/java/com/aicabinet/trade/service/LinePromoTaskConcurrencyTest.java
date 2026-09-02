@@ -24,13 +24,14 @@ class LinePromoTaskConcurrencyTest {
     @Mock private PermissionService permissionService;
     @Mock private AdminAuditService auditService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private LineWalletService lineWalletService;
 
     private LinePromoTaskService service;
 
     @BeforeEach
     void setUp() {
         service = new LinePromoTaskService(taskMapper, lineManagerService, permissionService,
-                auditService, distributedLockService);
+                auditService, distributedLockService, lineWalletService);
     }
 
     @Test

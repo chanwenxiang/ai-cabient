@@ -80,19 +80,6 @@
                 <el-dropdown-item command="font-sm" class="font-opt--sm">字号：小</el-dropdown-item>
                 <el-dropdown-item command="font-md" class="font-opt--md">字号：中</el-dropdown-item>
                 <el-dropdown-item command="font-lg" class="font-opt--lg">字号：大</el-dropdown-item>
-                <el-dropdown-item divided disabled>操作列（推荐图标+文字）</el-dropdown-item>
-                <el-dropdown-item
-                  command="action-label"
-                  :class="{ 'is-active-pref': settings.tableActionMode === 'label' }"
-                >
-                  操作列：图标+文字{{ settings.tableActionMode === 'label' ? ' · 当前' : '' }}
-                </el-dropdown-item>
-                <el-dropdown-item
-                  command="action-icon"
-                  :class="{ 'is-active-pref': settings.tableActionMode === 'icon' }"
-                >
-                  操作列：仅图标{{ settings.tableActionMode === 'icon' ? ' · 当前' : '' }}
-                </el-dropdown-item>
                 <el-dropdown-item divided disabled>主题色</el-dropdown-item>
                 <el-dropdown-item
                   v-for="c in PRIMARY_OPTIONS"
@@ -575,8 +562,6 @@ function onSettingCommand(cmd: string) {
   if (cmd === 'font-sm') settings.setFontSize('sm');
   if (cmd === 'font-md') settings.setFontSize('md');
   if (cmd === 'font-lg') settings.setFontSize('lg');
-  if (cmd === 'action-icon') settings.setTableActionMode('icon');
-  if (cmd === 'action-label') settings.setTableActionMode('label');
   if (cmd.startsWith('color-')) settings.setPrimaryColor(cmd.replace('color-', ''));
 }
 

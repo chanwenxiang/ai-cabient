@@ -586,7 +586,7 @@ onMounted(async () => {
   border: 1px solid var(--layout-border, #ebeef5);
   border-radius: 8px;
   padding: 12px 14px;
-  text-align: left;
+  text-align: center;
 }
 .kpi-tile.warn .kpi-value {
   color: var(--el-color-danger);

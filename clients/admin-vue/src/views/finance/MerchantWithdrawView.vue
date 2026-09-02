@@ -5,7 +5,9 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">商户提现</span>
-            <span class="hint">商户可提现余额 · 仅记账分账自动入账 · 默认模拟打款</span>
+            <span class="hint"
+              >商户可提现余额 · 手续费由 MERCHANT_WITHDRAW_FEE_CENTS / FEE_BPS 配置 · 到账=金额−手续费</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -188,6 +190,9 @@
             />
             <el-table-column label="金额(元)" width="100" align="center">
               <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
+            </el-table-column>
+            <el-table-column label="手续费" width="90" align="center">
+              <template #default="{ row }">{{ yuan(row.feeCents || 0) }}</template>
             </el-table-column>
             <el-table-column prop="status" label="状态" width="120" align="center">
               <template #default="{ row }">{{ withdrawStatusLabel(row.status) }}</template>

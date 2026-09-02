@@ -154,10 +154,16 @@ function goRedeem() {
   border: 1rpx solid #d1fae5;
   box-shadow: none;
 }
+.summary-main {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
 .summary-label {
   display: block;
   font-size: 24rpx;
   color: #64748b;
+  text-align: center;
 }
 .summary-value {
   display: block;
@@ -166,12 +172,14 @@ function goRedeem() {
   font-weight: 800;
   line-height: 1;
   color: #047857;
+  text-align: center;
 }
 .summary-sub {
   display: block;
   margin-top: 12rpx;
   font-size: 22rpx;
   color: #849087;
+  text-align: center;
 }
 .summary-meta {
   min-width: 210rpx;

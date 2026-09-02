@@ -665,7 +665,7 @@ watch(
 .kpi-tile {
   display: block;
   width: 100%;
-  text-align: left;
+  text-align: center;
   font: inherit;
   color: inherit;
   border: none;

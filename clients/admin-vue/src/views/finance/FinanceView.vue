@@ -557,6 +557,7 @@ onMounted(load);
   box-sizing: border-box;
   position: relative;
   overflow: hidden;
+  text-align: center;
 }
 .kpi-tile::before {
   content: '';

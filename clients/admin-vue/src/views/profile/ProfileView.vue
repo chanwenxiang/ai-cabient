@@ -50,7 +50,6 @@
         </el-tag>
       </el-descriptions-item>
       <el-descriptions-item label="字号">{{ fontLabel }}</el-descriptions-item>
-      <el-descriptions-item label="操作列">{{ actionLabel }}</el-descriptions-item>
     </el-descriptions>
 
     <div class="twofa-card">
@@ -221,7 +220,6 @@ const profileHydrated = ref(!!auth.profile);
 const profileReady = computed(() => !!auth.profile || (profileHydrated.value && !loading.value));
 const initial = computed(() => (auth.displayName || '运').slice(0, 1));
 const fontLabel = computed(() => ({ sm: '小', md: '中', lg: '大' })[settings.fontSize]);
-const actionLabel = computed(() => (settings.tableActionMode === 'label' ? '图标+文字' : '图标'));
 
 const editVisible = ref(false);
 const editSaving = ref(false);

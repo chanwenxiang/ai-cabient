@@ -1,4 +1,4 @@
-﻿# Shared E2E helpers: API client, device cleanup, MQTT shopping flow
+# Shared E2E helpers: API client, device cleanup, MQTT shopping flow
 
 function Get-E2eLockPath {
     return (Join-Path $env:TEMP "ai-cabinet-e2e.lock")

@@ -112,6 +112,26 @@ public class LineWalletService {
 
 
 
+    /**
+     * 幂等入账：相同 refType+refId 已存在流水则跳过。
+     * @return true 表示本次新入账，false 表示已存在跳过
+     */
+    @Transactional
+    public boolean creditIfAbsent(long managerId, long amountCents, String entryType,
+                                  String refType, String refId, String remark) {
+        return runWithWalletLock(managerId, () -> {
+            requirePositive(amountCents);
+            if (refType != null && refId != null
+                    && ledgerMapper.findByRef(managerId, refType, refId).isPresent()) {
+                return false;
+            }
+            doCredit(managerId, amountCents, entryType, refType, refId, remark);
+            return true;
+        });
+    }
+
+
+
     private void doCredit(long managerId, long amountCents, String entryType,
 
                           String refType, String refId, String remark) {

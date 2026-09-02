@@ -214,7 +214,8 @@ public class LineWithdrawService {
         request.setRequestNo(no);
         request.setManagerId(manager.getManagerId());
         request.setAmountCents(amountCents);
-        request.setFeeCents(0L);
+        request.setFeeCents(WithdrawFeeCalculator.computeFeeCents(
+                amountCents, properties.feeCents(), properties.feeBps()));
         request.setPayChannel(properties.mockEnabled() ? "MOCK" : "WECHAT");
         request.setCreatedAt(now);
         request.setUpdatedAt(now);

@@ -27,6 +27,7 @@ import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -808,10 +809,50 @@ public class InventoryLotService {
         }
         SkuCatalog sku = skuCatalogRepository.findById(lot.getSkuId()).orElse(null);
         int nearDays = sku != null ? sku.getNearExpiryDays() : 7;
-        if (!lot.getExpiryDate().isAfter(today.plusDays(nearDays))) {
+        if (isNearExpiryByDate(lot.getExpiryDate(), nearDays, today)) {
             return NEAR_EXPIRY;
         }
         return ON_SALE;
+    }
+
+    /**
+     * 按保质期日期判断是否临期（不依赖批次 status，避免扫描任务未跑时漏价）。
+     * 已过期不算临期（不可售）。
+     */
+    public static boolean isNearExpiryByDate(LocalDate expiryDate, int nearExpiryDays, LocalDate today) {
+        if (expiryDate == null || today == null) {
+            return false;
+        }
+        if (expiryDate.isBefore(today)) {
+            return false;
+        }
+        int nearDays = Math.max(0, nearExpiryDays);
+        return !expiryDate.isAfter(today.plusDays(nearDays));
+    }
+
+    /**
+     * 结算计价用：窥探 FEFO 首个可售批次（不扣减）。无批次账本或无可售批次时 empty。
+     */
+    @Transactional(readOnly = true)
+    public Optional<DeviceSkuLot> peekFefoPrimarySellableLot(String deviceId, String skuId) {
+        if (deviceId == null || deviceId.isBlank() || skuId == null || skuId.isBlank()) {
+            return Optional.empty();
+        }
+        String dev = deviceId.trim();
+        String sku = skuId.trim();
+        if (!deviceUsesLotLedger(dev)) {
+            return Optional.empty();
+        }
+        SkuCatalog catalog = skuCatalogRepository.findById(sku).orElse(null);
+        int blockDays = catalog != null ? catalog.getBlockSaleDaysBeforeExpiry() : 0;
+        LocalDate minExpiry = LocalDate.now().plusDays(blockDays);
+        List<DeviceSkuLot> lots = lotRepository.findByDeviceIdAndSkuIdOrderByExpiryDateAsc(dev, sku);
+        for (DeviceSkuLot lot : lots) {
+            if (isSellable(lot, minExpiry)) {
+                return Optional.of(lot);
+            }
+        }
+        return Optional.empty();
     }
 
     private DeviceSkuLot createFallbackLot(String deviceId, String skuId, String batchNo) {

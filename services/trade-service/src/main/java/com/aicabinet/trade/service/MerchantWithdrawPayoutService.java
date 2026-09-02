@@ -26,10 +26,12 @@ public class MerchantWithdrawPayoutService {
     }
 
     public PayoutResult payout(MerchantWithdrawRequest request, Merchant merchant) {
+        long netCents = WithdrawFeeCalculator.netPayoutCents(request.getAmountCents(), request.getFeeCents());
         if (properties.mockEnabled()) {
             String ref = "MOCK-MW-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
-            log.info("Mock merchant withdraw payout: requestId={}, merchantId={}, amountCents={}, ref={}",
-                    request.getRequestId(), merchant.getMerchantId(), request.getAmountCents(), ref);
+            log.info("Mock merchant withdraw payout: requestId={}, merchantId={}, amountCents={}, feeCents={}, netCents={}, ref={}",
+                    request.getRequestId(), merchant.getMerchantId(), request.getAmountCents(),
+                    request.getFeeCents(), netCents, ref);
             return PayoutResult.success("MOCK", ref, "Mock 打款成功");
         }
         if (merchant.getWechatReceiverId() == null || merchant.getWechatReceiverId().isBlank()) {
@@ -38,8 +40,9 @@ public class MerchantWithdrawPayoutService {
         if (!weChatPayProperties.isConfigured()) {
             return PayoutResult.failure(CabinetConstants.PAY_CHANNEL_WECHAT, null, "微信支付未配置，无法发起转账");
         }
-        log.warn("WeChat merchant transfer skeleton hit: requestId={}, receiver={}, amountCents={}",
-                request.getRequestId(), merchant.getWechatReceiverId(), request.getAmountCents());
+        log.warn("WeChat merchant transfer skeleton hit: requestId={}, receiver={}, amountCents={}, feeCents={}, netCents={}",
+                request.getRequestId(), merchant.getWechatReceiverId(), request.getAmountCents(),
+                request.getFeeCents(), netCents);
         return PayoutResult.failure(CabinetConstants.PAY_CHANNEL_WECHAT, null, "微信商户转账接口尚未接入");
     }
 

@@ -190,6 +190,7 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "WAREHOUSE", "仓储", "MERCHANT", "商户", "FINANCE", "财务", "MARKETING", "营销")));
         map.put("wallet_entry_type", t("钱包流水类型", m(
                 "ADJUST", "运营调整", "COMMISSION", "佣金入账", "COMMISSION_DAILY", "日结佣金",
+                "BOUNTY", "地推赏金",
                 "WITHDRAW_FREEZE", "提现冻结", "WITHDRAW_RELEASE", "提现解冻", "WITHDRAW_PAID", "提现打款",
                 "SPLIT_CREDIT", "分账入账", "SPLIT_REVERSE", "分账退回",
                 "RECHARGE", "充值", "RECHARGE_REFUND", "充值退款", "REFUND", "退款",
@@ -226,6 +227,15 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "PLATINUM", "铂金", "DIAMOND", "钻石")));
         map.put("site_contract_status", t("点位合同状态", m(
                 CabinetConstants.PROMOTION_STATUS_ACTIVE, "有效", "EXPIRING", "临期", "EXPIRED", "已到期")));
+        map.put("site_rent_bill_status", t("场地租金账单状态", m(
+                "UNPAID", "待付", "PAID", "已付", "VOID", "已作废")));
+        map.put("device_data_fee_bill_status", t("柜机流量费账单状态", m(
+                "UNPAID", "待付", "PAID", "已付", "VOID", "已作废")));
+        map.put("ops_fee_type", t("运营周期费用类型", m(
+                "SITE_RENT", "场地租金", "DATA_FEE", "流量费")));
+        map.put("site_rent_party_type", t("场地租金分账角色", m(
+                "LANDLORD", "场地主", "PLATFORM", "平台", "MERCHANT", "商户",
+                "FRANCHISE", "加盟", "OTHER", "其他")));
         map.put("device_env_type", t("设备环境指标类型", m(
                 "HUMIDITY", "湿度", "VOLTAGE", "电压", "POWER", "功耗")));
         map.put("device_lifecycle_action", t("设备生命周期操作", m(

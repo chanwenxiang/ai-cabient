@@ -326,6 +326,7 @@ function lastTime(value?: string | number | null) {
   border-radius: 14px;
   background: #f7faf8;
   border: 1px solid #eef2ef;
+  text-align: center;
 }
 .kpi-label {
   display: block;

@@ -240,6 +240,9 @@
             <el-table-column label="金额(元)" width="100" align="center">
               <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
             </el-table-column>
+            <el-table-column label="手续费" width="90" align="center">
+              <template #default="{ row }">{{ yuan(row.feeCents || 0) }}</template>
+            </el-table-column>
             <el-table-column prop="status" label="状态" width="120" align="center">
               <template #default="{ row }">{{ withdrawStatusLabel(row.status) }}</template>
             </el-table-column>
@@ -503,6 +506,7 @@
         </el-form-item>
         <el-form-item label="奖金(分)">
           <el-input-number v-model="promoForm.bountyCents" :min="0" />
+          <div class="field-hint">任务变为「已完成」后，赏金入账线长钱包（幂等，不重复发）</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -993,5 +997,11 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+.field-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
 }
 </style>
