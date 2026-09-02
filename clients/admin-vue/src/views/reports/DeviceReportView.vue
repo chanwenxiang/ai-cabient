@@ -580,6 +580,12 @@ onUnmounted(() => {
 }
 
 .kpi-tile {
+  /* 覆盖全局 button{inline-flex}，否则标签/数值/提示挤成一行 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   min-width: 0;
   width: 100%;
   border-radius: 10px;
@@ -591,6 +597,8 @@ onUnmounted(() => {
   text-align: center;
   color: inherit;
   font: inherit;
+  appearance: none;
+  cursor: default;
 }
 .kpi-tile.is-clickable {
   cursor: pointer;
@@ -630,19 +638,22 @@ onUnmounted(() => {
 .kpi-label {
   font-size: 13px;
   color: var(--layout-muted);
+  line-height: 1.3;
 }
 
 .kpi-value {
   font-size: clamp(18px, 2.4vw, 22px);
   font-weight: 700;
-  margin-top: 4px;
+  margin-top: 0;
   line-height: 1.2;
   word-break: break-word;
   color: var(--layout-text);
+  font-variant-numeric: tabular-nums;
 }
 .kpi-hint {
-  margin-top: 6px;
+  margin-top: 2px;
   font-size: 12px;
+  line-height: 1.3;
   color: var(--layout-muted);
 }
 .link-cell {
