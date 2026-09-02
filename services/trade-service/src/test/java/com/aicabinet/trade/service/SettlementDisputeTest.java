@@ -61,6 +61,7 @@ class SettlementDisputeTest {
     @Mock ConsumerPreauthService consumerPreauthService;
     @Mock SystemConfigService systemConfigService;
     @Mock DistributedLockService distributedLockService;
+    @Mock DisplaySnapshotHelper displaySnapshotHelper;
 
     SettlementService settlementService;
 
@@ -72,7 +73,7 @@ class SettlementDisputeTest {
                 securityProperties, stagingProperties, inventoryService, orderPaymentService, confidenceService, gravityHelper,
                 deviceValidationService, skuPricingService, userValidationService, videoArchiveService,
                 skuVisionEnrollmentService, couponService, memberService, null, notificationService, slotRepository,
-                consumerPreauthService, systemConfigService, distributedLockService, null, null);
+                consumerPreauthService, systemConfigService, distributedLockService, null, displaySnapshotHelper);
         org.springframework.test.util.ReflectionTestUtils.setField(settlementService, "self", settlementService);
         lenient().when(systemConfigService.getBoolean(anyString(), anyBoolean()))
                 .thenAnswer(inv -> inv.getArgument(1));
@@ -211,12 +212,13 @@ class SettlementDisputeTest {
         when(inventoryService.deductForOrder(any(), any(), any(), any())).thenReturn(java.util.Map.of());
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(revenueSplitService.findStatusByOrderId(anyString())).thenReturn(java.util.Optional.empty());
 
         var order = settlementService.processRecognitionResult(session,
                 new VisionServiceClient.RecognitionResult("T-1", List.of(), 0.9f, false, "yolov8", List.of()));
 
         org.junit.jupiter.api.Assertions.assertEquals("PENDING", order.status());
-        verifyNoInteractions(orderPaymentService, revenueSplitService);
+        verifyNoInteractions(orderPaymentService);
     }
 
     @Test

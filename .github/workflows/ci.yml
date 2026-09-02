@@ -145,10 +145,16 @@ jobs:
           node-version: '24.18.0'
 
       - name: Enable pnpm
-        run: corepack enable
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.9 --activate
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm rebuild esbuild
+        env:
+          CI: true
 
       - name: Build shared packages
         run: pnpm build:packages

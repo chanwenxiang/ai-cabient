@@ -22,6 +22,7 @@ class SettlementSessionSettleConcurrencyTest {
     @Mock private ShoppingSessionMapper sessionRepository;
     @Mock private CabinetOrderMapper orderRepository;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private DisplaySnapshotHelper displaySnapshotHelper;
 
     private SettlementService settlementService;
 
@@ -33,7 +34,7 @@ class SettlementSessionSettleConcurrencyTest {
                 null, null, null, null,
                 null, null, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, distributedLockService, null, null);
+                null, null, distributedLockService, null, displaySnapshotHelper);
         org.springframework.test.util.ReflectionTestUtils.setField(settlementService, "self", settlementService);
     }
 
