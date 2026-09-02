@@ -1,5 +1,5 @@
 /**
- * UAT batch: IMP-012/028/048/026/transit-copy/015/016/020/001 (recent UX batch)
+ * UAT batch: IMP-012/028/048/026/transit-copy/015/016/020/001/011/014 (recent UX batch)
  * Run: cd clients/consumer-mp && node ../admin-vue/tests/batch-imp-uat.mjs
  */
 import { chromium } from 'playwright';
@@ -336,6 +336,114 @@ async function main() {
     const eHash = await shot(page, '08-hash-redirect');
     record('B-08', 'index.html# 路由兼容', hashOk ? 'PASS' : 'FAIL', hashUrl, eHash);
     hashOk ? pass++ : fail++;
+
+    // IMP-011 待审批行不展示「打印收货单」；IMP-014 驳回确认含单号
+    await page.goto(`${ADMIN}/warehouse?tab=purchase`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2800);
+    const pending = await page.evaluate(() => {
+      const row = [...document.querySelectorAll('.el-table__body tr')].find((r) =>
+        /待审批/.test(r.innerText || '')
+      );
+      if (!row) return { found: false };
+      const actions = [...row.querySelectorAll('button, .el-button, .el-link')].map((b) =>
+        (b.textContent || '').trim()
+      );
+      return {
+        found: true,
+        actions,
+        hasPrint: actions.some((t) => /打印收货单/.test(t)),
+        hasReject: actions.some((t) => t === '驳回'),
+        snippet: (row.innerText || '').replace(/\s+/g, ' ').slice(0, 160)
+      };
+    });
+    const e011 = await shot(page, '09-pending-no-print');
+    if (!pending.found) {
+      record('B-09', '待审批隐藏打印收货单', 'SKIP', '无待审批行', e011);
+    } else {
+      const ok011 = !pending.hasPrint;
+      record(
+        'B-09',
+        '待审批隐藏打印收货单',
+        ok011 ? 'PASS' : 'FAIL',
+        JSON.stringify(pending),
+        e011
+      );
+      ok011 ? pass++ : fail++;
+    }
+
+    if (pending.found && pending.hasReject) {
+      await page
+        .locator('.el-table__body tr')
+        .filter({ hasText: '待审批' })
+        .first()
+        .getByRole('button', { name: '驳回' })
+        .click();
+      await page.waitForTimeout(800);
+      const box = await page.evaluate(() => {
+        const msg = document.querySelector('.el-message-box');
+        const text = (msg?.innerText || '').replace(/\s+/g, ' ').trim();
+        return { open: !!msg, text };
+      });
+      const e014 = await shot(page, '10-reject-confirm');
+      const ok014 =
+        box.open && /确认驳回采购单/.test(box.text) && /PO-|采购单\s*\d+/.test(box.text);
+      record('B-10', '驳回确认含单号', ok014 ? 'PASS' : 'FAIL', JSON.stringify(box), e014);
+      ok014 ? pass++ : fail++;
+      await page
+        .locator('.el-message-box__btns button')
+        .filter({ hasText: /取消/ })
+        .click()
+        .catch(() => {});
+      await page.keyboard.press('Escape').catch(() => {});
+      await page.waitForTimeout(400);
+    } else {
+      // 超管非当前节点无驳回：切财务账号验收 IMP-014
+      await page.evaluate(() => {
+        try {
+          localStorage.clear();
+          sessionStorage.clear();
+        } catch {
+          /* ignore */
+        }
+      });
+      await page.context().clearCookies();
+      await page.goto(`${ADMIN}/login`, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(900);
+      const capF = await captchaForPage(page);
+      await fillElInput(page, '请输入11位手机号…', '13900000002');
+      await fillElInput(page, '请输入登录密码…', OPS_PASSWORD);
+      await fillElInput(page, '图形验证码…', capF.captchaCode);
+      await page.locator('button.submit-btn, button:has-text("登录")').first().click();
+      await page.waitForTimeout(2500);
+      await page.goto(`${ADMIN}/warehouse?tab=purchase`, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(2800);
+      const rejectBtn = page
+        .locator('.el-table__body tr')
+        .filter({ hasText: 'PO-UAT-B06' })
+        .getByRole('button', { name: '驳回' });
+      if (await rejectBtn.count()) {
+        await rejectBtn.first().click();
+        await page.waitForTimeout(800);
+        const box = await page.evaluate(() => {
+          const msg = document.querySelector('.el-message-box');
+          const text = (msg?.innerText || '').replace(/\s+/g, ' ').trim();
+          return { open: !!msg, text };
+        });
+        const e014 = await shot(page, '10-reject-confirm');
+        const ok014 =
+          box.open && /确认驳回采购单/.test(box.text) && /PO-UAT-B06|采购单/.test(box.text);
+        record('B-10', '驳回确认含单号', ok014 ? 'PASS' : 'FAIL', JSON.stringify(box), e014);
+        ok014 ? pass++ : fail++;
+        await page
+          .locator('.el-message-box__btns button')
+          .filter({ hasText: /取消/ })
+          .click()
+          .catch(() => {});
+        await page.keyboard.press('Escape').catch(() => {});
+      } else {
+        record('B-10', '驳回确认含单号', 'SKIP', '财务账号未见 PO-UAT-B06 驳回', null);
+      }
+    }
   } catch (e) {
     console.error(e);
     record('B-ERR', '运行异常', 'FAIL', e.message, null);
