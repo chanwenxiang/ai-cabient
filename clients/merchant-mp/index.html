@@ -27,6 +27,14 @@
   </head>
   <body>
     <div id="app"></div>
+    <script>
+      (function () {
+        var h = location.hash || '';
+        if (h.indexOf('#/pages/') === 0) {
+          history.replaceState(null, '', h.slice(1));
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

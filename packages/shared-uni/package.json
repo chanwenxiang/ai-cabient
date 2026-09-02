@@ -14,6 +14,7 @@
     "./notify": "./src/notify.ts",
     "./api-base": "./src/api-base.ts",
     "./query": "./src/query.ts",
+    "./h5-hash-history": "./src/h5-hash-history.ts",
     "./dict-runtime": "./src/dict-runtime.ts",
     "./status-bar": "./src/status-bar.ts",
     "./announcements": "./src/announcements.ts",
