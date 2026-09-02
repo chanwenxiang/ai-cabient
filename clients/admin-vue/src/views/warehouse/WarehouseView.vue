@@ -244,15 +244,25 @@
       <el-form-item v-if="tab === 'transit' && focusDeviceId" label="设备">
         <el-tag closable type="info" @close="clearFocusDevice">{{ focusDeviceId }}</el-tag>
       </el-form-item>
-      <el-form-item v-if="tab === 'transit'" label="签收">
+      <el-form-item v-if="tab === 'transit'" label="超时筛选">
         <el-checkbox
           v-model="overdueOnly"
           data-testid="transit-overdue-only"
           @change="onOverdueToggle"
-          >仅超时</el-checkbox
+          >仅超时未到柜</el-checkbox
         >
       </el-form-item>
     </el-form>
+
+    <el-alert
+      v-if="tab === 'transit'"
+      type="info"
+      :closable="false"
+      show-icon
+      class="transit-flow-hint"
+      data-testid="transit-flow-hint"
+      title="在途 = 已发往柜机、尚未在柜完成补货。到柜由补货员完成任务后自动签收并上架；本页不办理回仓入库。"
+    />
 
     <el-alert
       v-if="
@@ -268,8 +278,8 @@
       data-testid="transit-overdue-banner"
       :title="
         overdueOnly
-          ? `共 ${overdueTransitCount} 条签收超时（发运超 ${TRANSIT_OVERDUE_HOURS} 小时未签收）`
-          : `共 ${overdueTransitCount} 条签收超时，可勾选「仅超时」聚焦处理`
+          ? `共 ${overdueTransitCount} 条到柜超时（发运超 ${TRANSIT_OVERDUE_HOURS} 小时未完成补货签收）`
+          : `共 ${overdueTransitCount} 条到柜超时，可勾选「仅超时未到柜」聚焦催办`
       "
     />
 
@@ -1293,7 +1303,7 @@
                 <template #default="{ row }">
                   <div class="sla-cell">
                     <template v-if="isTransitOverdue(row)">
-                      <el-tag type="danger" size="small">签收超时</el-tag>
+                      <el-tag type="danger" size="small">到柜超时</el-tag>
                       <small class="sla-meta danger"
                         >超 {{ formatAge(transitOverdueMs(row)) }}</small
                       >
@@ -1307,7 +1317,7 @@
                     </template>
                     <template v-else>
                       <span class="cell-datetime">已运 {{ formatAge(transitAgeMs(row)) }}</span>
-                      <small class="sla-meta">时限 {{ TRANSIT_OVERDUE_HOURS }} 小时</small>
+                      <small class="sla-meta">待补货员到柜完成</small>
                     </template>
                   </div>
                 </template>
@@ -2653,7 +2663,7 @@ const inboundForm = reactive<Row>({ warehouseId: '', refNo: '', notes: '', lines
 
 const pageHint = computed(() => {
   if (tab.value === 'transit') {
-    return `在途签收时限 ${TRANSIT_OVERDUE_HOURS} 小时；超时标红，可勾选「仅超时」`;
+    return `仓→柜在途：补货完成才从本列表消失；时限 ${TRANSIT_OVERDUE_HOURS} 小时，超时标红`;
   }
   return '仓库 / 供应商 / 库存 / 采购与退货';
 });
@@ -2822,11 +2832,11 @@ const overdueTransitCount = computed(() => {
 const transitEmptyHint = computed(() => {
   if (overdueOnly.value) {
     return focusDeviceId.value
-      ? `设备 ${focusDeviceId.value} 无超过 ${TRANSIT_OVERDUE_HOURS} 小时的签收超时`
-      : `当前无超过 ${TRANSIT_OVERDUE_HOURS} 小时的签收超时`;
+      ? `设备 ${focusDeviceId.value} 无超过 ${TRANSIT_OVERDUE_HOURS} 小时的到柜超时`
+      : `当前无超过 ${TRANSIT_OVERDUE_HOURS} 小时的到柜超时`;
   }
-  if (focusDeviceId.value) return `设备 ${focusDeviceId.value} 暂无在途`;
-  return '暂无在途';
+  if (focusDeviceId.value) return `设备 ${focusDeviceId.value} 暂无在途（已到柜签收或不在发运中）`;
+  return '暂无在途（发运后出现于此；补货员到柜完成任务后自动消失）';
 });
 
 function onOverdueToggle() {
@@ -4684,6 +4694,10 @@ watch(
   align-items: center;
   gap: 10px 16px;
   margin: 0 0 12px;
+  flex-shrink: 0;
+}
+.transit-flow-hint {
+  margin-bottom: 12px;
   flex-shrink: 0;
 }
 .tab-group-count {
