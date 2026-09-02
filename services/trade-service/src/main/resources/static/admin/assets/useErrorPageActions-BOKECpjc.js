@@ -1,0 +1,1 @@
+import{ab as u,d6 as s,ai as c}from"./index-CpXLPhUp.js";function b(){const o=c(),n=u();function t(){return s(n)}function e(){o.replace(t())}function a(){var r;if(((r=window.history.state)==null?void 0:r.back)!=null){o.back();return}e()}return{resolveHome:t,goHome:e,goBack:a}}export{b as u};

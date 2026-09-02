@@ -647,6 +647,7 @@
               >
                 <template #default="{ row }">
                   <el-button
+                    v-if="row.status !== 'PENDING_APPROVAL'"
                     link
                     type="primary"
                     class="print-btn"
@@ -2874,7 +2875,7 @@ function onDownloadImportTemplate() {
     downloadWarehouseTemplate(['演示中心仓', 'WH-DEMO-001', '上海市示例路 1 号', '启用']);
   } else if (tab.value === 'suppliers') {
     downloadSupplierTemplate([
-      'Demo Beverage Supplier',
+      '演示饮品供应商',
       'SUP-DEMO-001',
       '张三',
       '13800000000',
@@ -4108,9 +4109,12 @@ async function savePurchase() {
   }
 }
 async function reviewPurchase(row: Row, approve: boolean) {
+  const label = row.refNo || row.purchaseOrderId;
   try {
     await ElMessageBox.confirm(
-      approve ? `确认通过采购单 ${row.refNo || row.purchaseOrderId}？` : `确认驳回该采购单？`,
+      approve
+        ? `确认通过采购单 ${label}？`
+        : `确认驳回采购单 ${label}？`,
       approve ? '审批通过' : '审批驳回',
       { type: approve ? 'info' : 'warning' }
     );

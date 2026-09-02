@@ -5,11 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <title>AI开门柜 · 运营管理系统</title>
-    <script type="module" crossorigin src="/admin/assets/index-40hSmUHr.js"></script>
+    <script type="module" crossorigin src="/admin/assets/index-CpXLPhUp.js"></script>
     <link rel="stylesheet" crossorigin href="/admin/assets/index-B-EE9jrD.css">
   </head>
   <body>
     <a class="skip-link" href="#main-content">跳到主内容</a>
-    <div id="app"></div>
+    <div id="app"></div>
+    <script>
+      (function () {
+        var p = location.pathname || '';
+        if (!/\/index\.html$/i.test(p)) return;
+        var h = location.hash || '';
+        if (h.indexOf('#/') !== 0) return;
+        var r = h.slice(1);
+        if (!r || r.charAt(0) !== '/') return;
+        var b = p.replace(/\/index\.html$/i, '');
+        if (b.slice(-1) !== '/') b += '/';
+        location.replace(b + r.replace(/^\//, '') + (location.search || ''));
+      })();
+    </script>
   </body>
 </html>

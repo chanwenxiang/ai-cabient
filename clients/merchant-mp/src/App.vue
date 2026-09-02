@@ -3,6 +3,14 @@ import { onLaunch } from '@dcloudio/uni-app';
 import { loadRuntimeDict } from '@/utils/dict-runtime';
 
 onLaunch(() => {
+  if (typeof location !== 'undefined') {
+    const path = location.pathname || '';
+    const onLogin = path.includes('/pages/login/login');
+    if (!uni.getStorageSync('merchant_token') && !onLogin) {
+      uni.reLaunch({ url: '/pages/login/login' });
+      return;
+    }
+  }
   if (!uni.getStorageSync('merchant_token')) return;
   void loadRuntimeDict();
 });
