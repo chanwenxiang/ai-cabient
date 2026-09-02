@@ -893,6 +893,63 @@ async function main() {
       e13
     );
 
+    // —— TC-IMP-024 商品步进器 72rpx 热区（IMP-024）——
+    const shoppingForStepper = /门已开|购物中|本柜价目|本柜商品|请点选商品/.test(text);
+    if (!sessionCreated || !shoppingForStepper) {
+      record(
+        'TC-IMP-024',
+        '商品步进器 72rpx 热区',
+        'UX',
+        'SKIP',
+        '未进入购物态，无法验收步进器尺寸',
+        null
+      );
+    } else {
+      const stepperDeadline = Date.now() + 10000;
+      let stepperMetrics = null;
+      while (Date.now() < stepperDeadline) {
+        stepperMetrics = await page.evaluate(() => {
+          const btn = document.querySelector('.stepper-btn');
+          if (!btn) return null;
+          const r = btn.getBoundingClientRect();
+          const expected = (window.innerWidth / 750) * 72;
+          return {
+            width: Math.round(r.width * 10) / 10,
+            height: Math.round(r.height * 10) / 10,
+            expected: Math.round(expected * 10) / 10,
+            count: document.querySelectorAll('.stepper-btn').length
+          };
+        });
+        if (stepperMetrics) break;
+        await page.waitForTimeout(400);
+      }
+      const e24 = await shot(page, '24-imp-stepper-72');
+      if (!stepperMetrics) {
+        record(
+          'TC-IMP-024',
+          '商品步进器 72rpx 热区',
+          'UX',
+          'SKIP',
+          'mockEnabled 关闭或未渲染 .stepper-btn',
+          e24
+        );
+      } else {
+        const tol = 3;
+        const ok =
+          Math.abs(stepperMetrics.width - stepperMetrics.expected) <= tol &&
+          Math.abs(stepperMetrics.height - stepperMetrics.expected) <= tol &&
+          stepperMetrics.width >= 36;
+        record(
+          'TC-IMP-024',
+          '商品步进器 72rpx 热区',
+          'UX',
+          ok ? 'PASS' : 'FAIL',
+          `measured=${stepperMetrics.width}x${stepperMetrics.height}px expected≈${stepperMetrics.expected}px buttons=${stepperMetrics.count}`,
+          e24
+        );
+      }
+    }
+
     // —— TC-RESTORE-001 会话恢复：刷新后恢复购物态 ——
     if (!sessionCreated) {
       record(
