@@ -1220,6 +1220,9 @@
             当前无缺货建议：满柜时无法规划。请先盘点/消费产生缺口，或
             <el-button link type="primary" native-type="button" @click="goShortageFromPlan"
               >查看缺货建议</el-button
+            >、
+            <el-button link type="primary" native-type="button" @click="goStockHealthFromPlan"
+              >库存健康</el-button
             >。
           </div>
           <div v-else-if="selectedDevicesWithoutShortage.length" class="plan-hint">
@@ -1881,6 +1884,11 @@ function goShortageFromPlan() {
   page.value = 1;
   syncRouteQuery();
   void loadTab('shortage', true);
+}
+
+function goStockHealthFromPlan() {
+  planDialog.value = false;
+  router.push('/stock-health');
 }
 
 function syncRouteQuery() {

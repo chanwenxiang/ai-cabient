@@ -53,9 +53,18 @@
         />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="onSearch">查询</el-button>
+        <el-button type="primary" data-testid="fund-search" @click="onSearch">查询</el-button>
       </el-form-item>
     </el-form>
+
+    <el-alert
+      v-if="searchResultHint"
+      type="info"
+      :closable="false"
+      show-icon
+      class="search-result-hint"
+      :title="searchResultHint"
+    />
 
     <el-tabs v-model="tab">
       <el-tab-pane label="日资金账单" name="bills">
@@ -74,7 +83,9 @@
               empty-text=" "
             >
               <template #empty
-                ><el-empty v-if="listHydrated && !loading" description="暂无账单"
+                ><el-empty
+                  v-if="listHydrated && !loading"
+                  :description="billEmptyDescription"
               /></template>
               <el-table-column type="selection" width="48" align="center" />
               <el-table-column prop="bizDate" label="账期" width="120" align="center" />
@@ -189,7 +200,9 @@
               empty-text=" "
             >
               <template #empty
-                ><el-empty v-if="ledgerHydrated && !ledgerLoading" description="暂无流水"
+                ><el-empty
+                  v-if="ledgerHydrated && !ledgerLoading"
+                  :description="ledgerEmptyDescription"
               /></template>
               <el-table-column type="selection" width="48" align="center" />
               <el-table-column
@@ -305,6 +318,8 @@ const bills = ref<BillRow[]>([]);
 const billTotal = ref(0);
 const ledger = ref<LedgerRow[]>([]);
 const keyword = ref('');
+/** 点击「查询」后生效的关键词，用于结果条数/空态提示（IMP-028） */
+const appliedKeyword = ref('');
 const billPage = ref(1);
 const billSize = ref(20);
 
@@ -359,6 +374,28 @@ const exportLabel = computed(() =>
   tab.value === 'ledger'
     ? ledgerExportLabel.value.replace('导出', '导出明细')
     : billsExportLabel.value.replace('导出', '导出日账单')
+);
+
+const activeResultTotal = computed(() =>
+  tab.value === 'ledger' ? ledgerTotal.value : billTotal.value
+);
+
+const searchResultHint = computed(() => {
+  if (!appliedKeyword.value) return '';
+  const tabLabel = tab.value === 'ledger' ? '账务明细' : '日资金账单';
+  return `关键词「${appliedKeyword.value}」· ${tabLabel}共 ${activeResultTotal.value} 条`;
+});
+
+const billEmptyDescription = computed(() =>
+  appliedKeyword.value
+    ? `未找到匹配「${appliedKeyword.value}」的日账单`
+    : '暂无账单'
+);
+
+const ledgerEmptyDescription = computed(() =>
+  appliedKeyword.value
+    ? `未找到匹配「${appliedKeyword.value}」的账务明细`
+    : '暂无流水'
 );
 
 const { onExport: exportBillsCsv } = useListCsv({
@@ -426,6 +463,7 @@ function queryDates() {
 function onSearch() {
   billPage.value = 1;
   ledgerPage.value = 1;
+  appliedKeyword.value = keyword.value.trim();
   if (!assertRangeOk()) return;
   reloadCurrent();
 }
@@ -531,6 +569,7 @@ watch(keyword, () => {
 
 watch(tab, (v) => {
   if (v === 'ledger') loadLedger();
+  else loadBills();
 });
 
 onMounted(loadBills);
@@ -544,5 +583,8 @@ onMounted(loadBills);
   margin-left: 8px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+.search-result-hint {
+  margin-bottom: 12px;
 }
 </style>

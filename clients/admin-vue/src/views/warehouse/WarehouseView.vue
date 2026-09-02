@@ -4670,8 +4670,18 @@ watch(
 .warehouse-page-card {
   min-height: 0;
 }
+.warehouse-page :deep(.el-tabs) {
+  display: flex;
+  flex-direction: column;
+  /* 折叠侧栏/窄视口时保证 Tab 内容区仍占可视高度，避免「空页」感（IMP-002） */
+  min-height: min(560px, calc(100svh - 240px));
+}
 .warehouse-page :deep(.el-tabs__content) {
+  flex: 1 1 auto;
   min-height: 0;
+}
+.warehouse-page :deep(.el-tab-pane) {
+  min-height: 200px;
 }
 .warehouse-tab-groups :deep(.el-radio-button__inner) {
   padding: 8px 14px;
