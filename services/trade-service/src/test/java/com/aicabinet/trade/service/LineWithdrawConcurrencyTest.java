@@ -42,7 +42,7 @@ class LineWithdrawConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        LineWithdrawProperties properties = new LineWithdrawProperties(true, 100, 500_000, 50_000);
+        LineWithdrawProperties properties = new LineWithdrawProperties(true, 100, 500_000, 50_000, 0, 0);
         service = new LineWithdrawService(
                 withdrawMapper, managerMapper, deviceMapper, lineManagerService,
                 lineWalletService, payoutService, properties,

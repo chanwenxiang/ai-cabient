@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.util.List;
+import java.util.Optional;
 
 @Mapper
 public interface LineWalletLedgerMapper extends BaseTradeMapper<LineWalletLedger> {
@@ -15,5 +16,13 @@ public interface LineWalletLedgerMapper extends BaseTradeMapper<LineWalletLedger
                 .eq(LineWalletLedger::getManagerId, managerId)
                 .orderByDesc(LineWalletLedger::getCreatedAt)
                 .last("LIMIT " + lim));
+    }
+
+    default Optional<LineWalletLedger> findByRef(long managerId, String refType, String refId) {
+        return Optional.ofNullable(selectOne(Wrappers.<LineWalletLedger>lambdaQuery()
+                .eq(LineWalletLedger::getManagerId, managerId)
+                .eq(LineWalletLedger::getRefType, refType)
+                .eq(LineWalletLedger::getRefId, refId)
+                .last("LIMIT 1")));
     }
 }

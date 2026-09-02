@@ -45,6 +45,14 @@ aicabinet:
   checkout:
     balance-only: ${CHECKOUT_BALANCE_ONLY:false}
     preauth-cents: ${CHECKOUT_PREAUTH_CENTS:2000}
+  fee-bill:
+    # 每月自动出账（租金+流量费）；账期默认=配置时区下「今天+offset」个月
+    auto-generate-enabled: ${FEE_BILL_AUTO_GENERATE_ENABLED:true}
+    auto-generate-cron: ${FEE_BILL_AUTO_GENERATE_CRON:0 30 1 1 * *}
+    zone: ${FEE_BILL_ZONE:Asia/Shanghai}
+    bill-month-offset-months: ${FEE_BILL_MONTH_OFFSET:-1}
+    max-page-size: ${FEE_BILL_MAX_PAGE_SIZE:100}
+    default-page-size: ${FEE_BILL_DEFAULT_PAGE_SIZE:20}
   security:
     mock-enabled: ${AICABINET_MOCK_ENABLED:true}
     captcha-enabled: ${AICABINET_CAPTCHA_ENABLED:true}
@@ -138,11 +146,15 @@ aicabinet:
     min-amount-cents: ${LINE_WITHDRAW_MIN_CENTS:100}
     daily-limit-cents: ${LINE_WITHDRAW_DAILY_LIMIT_CENTS:500000}
     review-threshold-cents: ${LINE_WITHDRAW_REVIEW_THRESHOLD_CENTS:50000}
+    fee-cents: ${LINE_WITHDRAW_FEE_CENTS:0}
+    fee-bps: ${LINE_WITHDRAW_FEE_BPS:0}
   merchant-withdraw:
     mock-enabled: ${MERCHANT_WITHDRAW_MOCK_ENABLED:${AICABINET_MOCK_ENABLED:true}}
     min-amount-cents: ${MERCHANT_WITHDRAW_MIN_CENTS:100}
     daily-limit-cents: ${MERCHANT_WITHDRAW_DAILY_LIMIT_CENTS:500000}
     review-threshold-cents: ${MERCHANT_WITHDRAW_REVIEW_THRESHOLD_CENTS:50000}
+    fee-cents: ${MERCHANT_WITHDRAW_FEE_CENTS:0}
+    fee-bps: ${MERCHANT_WITHDRAW_FEE_BPS:0}
   qr:
     # auto = 自动探测本机局域网 IP（手机同网可扫）；也可写成 http://192.168.x.x
     public-host: ${QR_PUBLIC_HOST:auto}

@@ -169,6 +169,11 @@ function updateFloatingHScrollDock(): void {
     hideDock();
     return;
   }
+  // 抽屉/模态打开时不贴浮动条，避免盖住抽屉内容并减少滚动期布局抖动
+  if (document.querySelector('.el-overlay.is-drawer:not([style*="display: none"])')) {
+    hideDock();
+    return;
+  }
   const mainRect = main.getBoundingClientRect();
   let best: HTMLElement | null = null;
   let bestScore = -1;

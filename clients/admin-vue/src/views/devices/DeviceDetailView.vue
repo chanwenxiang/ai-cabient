@@ -251,6 +251,7 @@
                 controls-position="right"
                 style="width: 100%"
               />
+              <div class="field-hint">按月出账到「组织与点位 → 费用账单」；标记已付不自动扣款</div>
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
@@ -2393,7 +2394,7 @@ onActivated(() => {
 .stat-tile {
   display: block;
   width: 100%;
-  text-align: left;
+  text-align: center;
   font: inherit;
   color: inherit;
   border: none;

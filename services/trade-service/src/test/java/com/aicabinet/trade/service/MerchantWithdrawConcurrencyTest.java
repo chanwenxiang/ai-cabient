@@ -44,7 +44,7 @@ class MerchantWithdrawConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        MerchantWithdrawProperties properties = new MerchantWithdrawProperties(true, 100, 500_000, 50_000);
+        MerchantWithdrawProperties properties = new MerchantWithdrawProperties(true, 100, 500_000, 50_000, 0, 0);
         service = new MerchantWithdrawService(
                 withdrawMapper, merchantMapper, accountMapper, ledgerMapper,
                 merchantWalletService, payoutService, properties,

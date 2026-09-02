@@ -633,6 +633,7 @@ onMounted(load);
   overflow: hidden;
   height: 100%;
   box-sizing: border-box;
+  text-align: center;
 }
 .stats-row .stat-tile::before {
   content: '';

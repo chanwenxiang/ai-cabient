@@ -134,6 +134,7 @@ onMounted(load);
   border-radius: 8px;
   padding: 14px 16px;
   background: var(--el-bg-color);
+  text-align: center;
 }
 .kpi-label {
   font-size: 13px;

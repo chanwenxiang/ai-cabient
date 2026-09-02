@@ -513,6 +513,7 @@ export const DICT = {
     ADJUST: '运营调整',
     COMMISSION: '佣金入账',
     COMMISSION_DAILY: '日结佣金',
+    BOUNTY: '地推赏金',
     WITHDRAW_FREEZE: '提现冻结',
     WITHDRAW_RELEASE: '提现解冻',
     WITHDRAW_PAID: '提现打款',

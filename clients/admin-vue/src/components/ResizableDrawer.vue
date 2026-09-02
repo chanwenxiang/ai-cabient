@@ -1,6 +1,7 @@
 <template>
   <el-drawer
     v-model="open"
+    append-to-body
     :size="`${width}px`"
     :class="['resizable-drawer-panel', attrsClass]"
     v-bind="drawerAttrs"

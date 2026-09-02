@@ -25,10 +25,12 @@ public class LineWithdrawPayoutService {
     }
 
     public PayoutResult payout(LineWithdrawRequest request, LineManager manager) {
+        long netCents = WithdrawFeeCalculator.netPayoutCents(request.getAmountCents(), request.getFeeCents());
         if (properties.mockEnabled()) {
             String ref = "MOCK-LW-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
-            log.info("Mock line withdraw payout: requestId={}, managerId={}, amountCents={}, ref={}",
-                    request.getRequestId(), manager.getManagerId(), request.getAmountCents(), ref);
+            log.info("Mock line withdraw payout: requestId={}, managerId={}, amountCents={}, feeCents={}, netCents={}, ref={}",
+                    request.getRequestId(), manager.getManagerId(), request.getAmountCents(),
+                    request.getFeeCents(), netCents, ref);
             return PayoutResult.success("MOCK", ref, "Mock 打款成功");
         }
         if (manager.getWxOpenid() == null || manager.getWxOpenid().isBlank()) {
@@ -38,8 +40,9 @@ public class LineWithdrawPayoutService {
             return PayoutResult.failure(CabinetConstants.PAY_CHANNEL_WECHAT, null, "微信支付未配置，无法发起转账");
         }
         // 骨架：生产需对接商家转账到零钱 API（/v3/transfer/batches 或新版单笔接口）
-        log.warn("WeChat transfer skeleton hit: requestId={}, openid={}, amountCents={}",
-                request.getRequestId(), manager.getWxOpenid(), request.getAmountCents());
+        log.warn("WeChat transfer skeleton hit: requestId={}, openid={}, amountCents={}, feeCents={}, netCents={}",
+                request.getRequestId(), manager.getWxOpenid(), request.getAmountCents(),
+                request.getFeeCents(), netCents);
         return PayoutResult.failure(CabinetConstants.PAY_CHANNEL_WECHAT, null, "微信转账接口尚未接入");
     }
 

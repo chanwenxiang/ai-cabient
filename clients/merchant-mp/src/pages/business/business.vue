@@ -717,12 +717,14 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   background: #fff;
   border-radius: 18rpx;
   padding: 24rpx;
+  text-align: center;
 }
 .metric-value {
   display: block;
   font-size: 32rpx;
   font-weight: 700;
   color: #0f172a;
+  text-align: center;
 }
 .metric-value.warn {
   color: #d97706;
@@ -735,6 +737,7 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   font-size: 22rpx;
   color: #64748b;
   margin-top: 6rpx;
+  text-align: center;
 }
 .section-head {
   display: flex;

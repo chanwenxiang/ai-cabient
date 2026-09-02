@@ -1051,11 +1051,13 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .kpi-mini > view {
   flex: 1;
+  text-align: center;
 }
 .kpi-label {
   display: block;
   font-size: 22rpx;
   color: #64748b;
+  text-align: center;
 }
 .kpi-value {
   display: block;
@@ -1063,6 +1065,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   font-size: 28rpx;
   font-weight: 700;
   color: var(--brand, #0f766e);
+  text-align: center;
 }
 .bars {
   display: flex;

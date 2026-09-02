@@ -297,7 +297,7 @@ function goMessages() {
   padding: 16rpx 22rpx;
   border-radius: 20rpx;
   background: #f0fdf4;
-  text-align: right;
+  text-align: center;
 }
 .hero.lv-silver .spent-chip {
   background: #f1f5f9;

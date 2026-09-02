@@ -139,6 +139,19 @@
             </template>
           </el-table-column>
           <el-table-column
+            label="流水号"
+            min-width="110"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">
+              <span class="mono">{{
+                displayBizNo(row.payTradeNo || row.paymentOperationId, '无')
+              }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
             label="商品"
             min-width="140"
             align="center"
@@ -153,7 +166,6 @@
               >
                 <template v-if="disp.lines.length">
                   <div v-for="(g, i) in disp.lines" :key="`${row.orderId}-${i}`" class="goods-line">
-                    <img class="goods-thumb" :src="goodsThumb(g.title)" alt="" />
                     <span class="goods-name">{{ g.title }}</span>
                     <span v-if="g.qty" class="goods-qty">×{{ g.qty }}</span>
                   </div>
@@ -224,19 +236,6 @@
           <el-table-column label="商户" min-width="120" align="center" show-overflow-tooltip>
             <template #default="{ row }">
               <span>{{ row.merchantName || row.merchantId || '无' }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column
-            label="流水号"
-            min-width="110"
-            align="center"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
-            <template #default="{ row }">
-              <span class="mono">{{
-                displayBizNo(row.payTradeNo || row.paymentOperationId, '无')
-              }}</span>
             </template>
           </el-table-column>
           <el-table-column label="订单状态" width="90" align="center">
@@ -362,6 +361,11 @@
             <el-descriptions-item label="订单号">
               <span class="cell-id">{{ displayBizNo(detail.orderId) }}</span>
             </el-descriptions-item>
+            <el-descriptions-item label="流水号">
+              <span class="mono">{{
+                displayBizNo(detail.payTradeNo || detail.paymentOperationId, '无')
+              }}</span>
+            </el-descriptions-item>
             <el-descriptions-item label="会话">
               <button
                 v-if="detail.sessionId"
@@ -426,11 +430,6 @@
                 {{ displayLabel('split_status', detail.splitStatus, '未知') }}
               </el-tag>
               <span v-else class="muted">无</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="流水号">
-              <span class="mono">{{
-                displayBizNo(detail.payTradeNo || detail.paymentOperationId, '无')
-              }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="退款策略">{{
               refundPolicyLabel(detail.refundPolicy)
@@ -647,22 +646,6 @@ import { orderAmountDiffNote } from '@/utils/dispute-amount-note';
 const UNPAID_OVERDUE_MS = 30 * 60 * 1000;
 
 type GoodsLine = { title: string; qty: string };
-
-const SKU_DEMO_IMAGES: Array<[RegExp, string]> = [
-  [/可口可乐|可乐|cola/i, '/admin/sku-demo/cola.jpg'],
-  [/雪碧|sprite/i, '/admin/sku-demo/sprite.jpg'],
-  [/矿泉水|纯净水|water/i, '/admin/sku-demo/water.jpg'],
-  [/薯片|chips/i, '/admin/sku-demo/chips.jpg'],
-  [/牛奶|milk/i, '/admin/sku-demo/milk.jpg'],
-  [/牛肉面|方便面|泡面|noodle/i, '/admin/sku-demo/noodle.jpg']
-];
-
-function goodsThumb(title: string) {
-  for (const [rule, image] of SKU_DEMO_IMAGES) {
-    if (rule.test(title)) return image;
-  }
-  return '/admin/sku-demo/default.jpg';
-}
 
 function parseGoodsLines(summary: string | null | undefined): GoodsLine[] {
   if (!summary?.trim()) return [];
@@ -1577,14 +1560,6 @@ onActivated(() => {
   gap: 6px;
   min-width: 0;
   max-width: 100%;
-}
-.goods-thumb {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  object-fit: cover;
-  flex: 0 0 auto;
-  background: #f0fdf4;
 }
 .goods-name {
   font-weight: 600;

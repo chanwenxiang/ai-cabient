@@ -644,6 +644,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--layout-border);
   border-radius: 10px;
   padding: 14px 12px;
+  text-align: center;
 }
 .bs-kpi-label {
   font-size: 13px;

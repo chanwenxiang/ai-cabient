@@ -3,14 +3,14 @@ import { ref, watch } from 'vue';
 
 export type ThemeMode = 'light' | 'dark';
 export type FontSize = 'sm' | 'md' | 'lg';
-export type TableActionMode = 'icon' | 'label';
 
 const THEME_KEY = 'admin_vue_theme';
 const FONT_KEY = 'admin_vue_font_size';
 const PRIMARY_KEY = 'admin_vue_primary';
 const SIDEBAR_COLLAPSED_KEY = 'admin_vue_sidebar_collapsed';
 const SIDEBAR_USER_SET_KEY = 'admin_vue_sidebar_user_set';
-const TABLE_ACTION_KEY = 'admin_vue_table_action';
+/** 历史偏好：操作列曾支持图标+文字，易导致 fixed 列错位；统一仅图标后清除 */
+const LEGACY_TABLE_ACTION_KEY = 'admin_vue_table_action';
 
 function readSidebarCollapsed(): boolean {
   const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
@@ -20,12 +20,6 @@ function readSidebarCollapsed(): boolean {
   if (saved === '1') return true;
   if (saved === '0') return false;
   return false;
-}
-
-function readTableActionMode(): TableActionMode {
-  const saved = localStorage.getItem(TABLE_ACTION_KEY);
-  if (saved === 'icon' || saved === 'label') return saved;
-  return 'label';
 }
 
 const PRIMARY_COLORS: Record<string, string> = {
@@ -78,14 +72,12 @@ export const useSettingsStore = defineStore('settings', () => {
   const fontSize = ref<FontSize>((localStorage.getItem(FONT_KEY) as FontSize) || 'md');
   const primaryColor = ref(localStorage.getItem(PRIMARY_KEY) || 'teal');
   const sidebarCollapsed = ref(readSidebarCollapsed());
-  const tableActionMode = ref<TableActionMode>(readTableActionMode());
 
   function persist() {
     localStorage.setItem(THEME_KEY, theme.value);
     localStorage.setItem(FONT_KEY, fontSize.value);
     localStorage.setItem(PRIMARY_KEY, primaryColor.value);
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed.value ? '1' : '0');
-    localStorage.setItem(TABLE_ACTION_KEY, tableActionMode.value);
     applyDom(theme.value, fontSize.value, primaryColor.value);
   }
 
@@ -116,27 +108,22 @@ export const useSettingsStore = defineStore('settings', () => {
     persist();
   }
 
-  function setTableActionMode(mode: TableActionMode) {
-    tableActionMode.value = mode === 'label' ? 'label' : 'icon';
-    persist();
-  }
-
   function init() {
+    // 清除历史「图标+文字」偏好，避免 fixed 操作列错位
+    localStorage.removeItem(LEGACY_TABLE_ACTION_KEY);
     applyDom(theme.value, fontSize.value, primaryColor.value);
   }
 
-  watch([theme, fontSize, primaryColor, sidebarCollapsed, tableActionMode], persist);
+  watch([theme, fontSize, primaryColor, sidebarCollapsed], persist);
 
   return {
     theme,
     fontSize,
     primaryColor,
     sidebarCollapsed,
-    tableActionMode,
     toggleTheme,
     setFontSize,
     setPrimaryColor,
-    setTableActionMode,
     toggleSidebarCollapsed,
     setSidebarCollapsed,
     init,

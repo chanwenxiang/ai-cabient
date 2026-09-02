@@ -141,7 +141,7 @@
           <el-table-column label="联系电话" width="120" align="center">
             <template #default="{ row }">{{ row.landlordPhone || '暂无' }}</template>
           </el-table-column>
-          <el-table-column label="月费" width="100" align="center">
+          <el-table-column label="月费" width="110" align="center">
             <template #default="{ row }">¥{{ (row.monthlyFeeCents / 100).toFixed(2) }}</template>
           </el-table-column>
           <el-table-column label="起租" width="110" align="center">
@@ -160,13 +160,16 @@
           <el-table-column label="备注" min-width="100" show-overflow-tooltip>
             <template #default="{ row }">{{ row.remark || '暂无' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="220" align="center" fixed="right">
+          <el-table-column label="操作" width="300" align="center" fixed="right">
             <template #default="{ row }">
               <el-button v-hasPermi="['ops:org:edit']" size="small" @click="openContract(row)">
                 编辑
               </el-button>
               <el-button v-hasPermi="['ops:org:edit']" size="small" @click="openRentSplit(row)">
                 租金分账
+              </el-button>
+              <el-button v-hasPermi="['ops:org:edit']" size="small" @click="openGenerateBill(row)">
+                出账
               </el-button>
               <el-button
                 v-hasPermi="['ops:org:edit']"
@@ -189,6 +192,154 @@
           background
           @current-change="loadContracts"
           @size-change="onContractSizeChange"
+        />
+      </el-tab-pane>
+
+      <el-tab-pane label="费用账单" name="bills">
+        <el-alert
+          type="info"
+          :closable="false"
+          show-icon
+          title="租金按合同月费×分账出账；流量费按柜机「流量费(分/月)」出账。标记已付仅改台账，不自动打款/扣款。账期留空时按系统配置偏移推算。"
+          style="margin-bottom: 12px"
+        />
+        <div class="org-toolbar">
+          <el-radio-group v-model="feeBillKind" size="small" @change="onFeeBillKindChange">
+            <el-radio-button value="SITE_RENT">场地租金</el-radio-button>
+            <el-radio-button value="DATA_FEE">流量费</el-radio-button>
+          </el-radio-group>
+          <el-date-picker
+            v-model="billMonthFilter"
+            type="month"
+            value-format="YYYY-MM"
+            placeholder="账期（可空=配置默认）"
+            clearable
+            style="width: 180px"
+            @change="loadBills"
+          />
+          <el-select
+            v-model="billStatusFilter"
+            clearable
+            placeholder="状态"
+            style="width: 120px"
+            @change="loadBills"
+          >
+            <el-option label="待付" value="UNPAID" />
+            <el-option label="已付" value="PAID" />
+            <el-option label="已作废" value="VOID" />
+          </el-select>
+          <el-button type="primary" :loading="loading" @click="loadBills">查询</el-button>
+          <el-button v-hasPermi="['ops:org:edit']" :loading="saving" @click="openGenerateBill(null)">
+            批量出账
+          </el-button>
+        </div>
+        <el-table
+          v-if="feeBillKind === 'SITE_RENT'"
+          v-loading="loading"
+          :data="rentBills"
+          stripe
+          border
+        >
+          <el-table-column prop="billMonth" label="账期" width="90" align="center" />
+          <el-table-column prop="siteName" label="场地" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="deviceId" label="设备ID" min-width="100" show-overflow-tooltip />
+          <el-table-column label="收款方" width="100" align="center">
+            <template #default="{ row }">{{ rentPartyLabel(row.partyType) }}</template>
+          </el-table-column>
+          <el-table-column label="对方ID" width="100" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.partyId || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="份额" width="80" align="center">
+            <template #default="{ row }">{{ (row.shareBps / 100).toFixed(2) }}%</template>
+          </el-table-column>
+          <el-table-column label="月费基数" width="100" align="center">
+            <template #default="{ row }">¥{{ (row.baseFeeCents / 100).toFixed(2) }}</template>
+          </el-table-column>
+          <el-table-column label="应付" width="100" align="center">
+            <template #default="{ row }">¥{{ (row.amountCents / 100).toFixed(2) }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="90" align="center">
+            <template #default="{ row }">
+              <el-tag size="small" :type="billStatusType(row.status)">
+                {{ billStatusLabel(row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="160" align="center" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                v-if="row.status === 'UNPAID'"
+                v-hasPermi="['ops:org:edit']"
+                size="small"
+                type="success"
+                @click="markBillPaid(row)"
+              >
+                标记已付
+              </el-button>
+              <el-button
+                v-if="row.status === 'UNPAID'"
+                v-hasPermi="['ops:org:edit']"
+                size="small"
+                type="danger"
+                link
+                @click="voidBill(row)"
+              >
+                作废
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-table v-else v-loading="loading" :data="dataFeeBills" stripe border>
+          <el-table-column prop="billMonth" label="账期" width="90" align="center" />
+          <el-table-column prop="deviceName" label="柜机" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="deviceId" label="设备ID" min-width="110" show-overflow-tooltip />
+          <el-table-column label="商户" width="120" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.merchantId || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="应付" width="110" align="center">
+            <template #default="{ row }">¥{{ (row.amountCents / 100).toFixed(2) }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="90" align="center">
+            <template #default="{ row }">
+              <el-tag size="small" :type="billStatusType(row.status)">
+                {{ dataFeeBillStatusLabel(row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="160" align="center" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                v-if="row.status === 'UNPAID'"
+                v-hasPermi="['ops:org:edit']"
+                size="small"
+                type="success"
+                @click="markDataFeePaid(row)"
+              >
+                标记已付
+              </el-button>
+              <el-button
+                v-if="row.status === 'UNPAID'"
+                v-hasPermi="['ops:org:edit']"
+                size="small"
+                type="danger"
+                link
+                @click="voidDataFeeBill(row)"
+              >
+                作废
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <PagePager
+          :hydrated="billsHydrated"
+          v-model:current-page="billPage"
+          v-model:page-size="billSize"
+          :total="billTotal"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next"
+          background
+          @current-change="loadBills"
+          @size-change="onBillSizeChange"
         />
       </el-tab-pane>
     </el-tabs>
@@ -302,6 +453,7 @@
             :step="10"
             style="width: 100%"
           />
+          <div class="field-hint">用于「租金账单」出账；不会自动打款</div>
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="contractForm.remark" type="textarea" :rows="2" />
@@ -316,86 +468,153 @@
     <el-dialog
       v-model="rentSplitVisible"
       :title="`租金分账 · ${rentSplitSiteName}`"
-      width="640px"
+      width="720px"
       destroy-on-close
+      class="rent-split-dialog"
     >
       <el-alert
         type="info"
         :closable="false"
         show-icon
-        title="份额合计须为 100%（按万分比填写，合计 10000）；可填生效区间与固定金额（分）"
+        title="出账时按各方份额拆分合同月费，并可叠加固定金额。份额合计须为 100%。标记已付不会自动打款。"
         style="margin-bottom: 12px"
       />
-      <div v-for="(r, idx) in rentRules" :key="idx" class="rent-row">
-        <el-select v-model="r.partyType" style="width: 110px">
-          <el-option label="场地主" value="LANDLORD" />
-          <el-option label="平台" value="PLATFORM" />
-          <el-option label="商户" value="MERCHANT" />
-          <el-option label="加盟" value="FRANCHISE" />
-          <el-option label="其他" value="OTHER" />
-        </el-select>
-        <el-input v-model="r.partyId" placeholder="对方 ID" style="width: 110px" />
-        <el-input-number v-model="r.shareBps" :min="0" :max="10000" controls-position="right" />
-        <el-input-number
-          v-model="r.fixedCents"
-          :min="0"
-          :step="100"
-          controls-position="right"
-          placeholder="固定金额(分)"
-        />
-        <el-date-picker
-          v-model="r.effectiveFrom"
-          type="date"
-          value-format="YYYY-MM-DD"
-          placeholder="生效起"
-          style="width: 130px"
-        />
-        <el-date-picker
-          v-model="r.effectiveTo"
-          type="date"
-          value-format="YYYY-MM-DD"
-          placeholder="生效止"
-          style="width: 130px"
-        />
-        <el-select v-model="r.status" style="width: 90px">
-          <el-option label="生效" value="ACTIVE" />
-          <el-option label="停用" value="INACTIVE" />
-        </el-select>
-        <el-button link type="danger" @click="rentRules.splice(idx, 1)">删</el-button>
+      <div class="rent-sum" :class="{ 'is-ok': rentShareSumOk, 'is-bad': !rentShareSumOk }">
+        份额合计 <strong>{{ rentShareSumPct.toFixed(2) }}%</strong>
+        <span v-if="rentShareSumOk">（已满 100%，可保存）</span>
+        <span v-else>（还差 {{ (100 - rentShareSumPct).toFixed(2) }}%，或超出请调低）</span>
       </div>
-      <el-button
-        size="small"
-        @click="
-          rentRules.push({
-            partyType: 'LANDLORD',
-            partyId: '',
-            shareBps: 0,
-            fixedCents: 0,
-            effectiveFrom: '',
-            effectiveTo: '',
-            status: 'ACTIVE'
-          })
-        "
-        >加一行</el-button
-      >
+      <div v-for="(r, idx) in rentRules" :key="idx" class="rent-card">
+        <div class="rent-card__head">
+          <span class="rent-card__title">第 {{ idx + 1 }} 方</span>
+          <el-button link type="danger" @click="rentRules.splice(idx, 1)">删除</el-button>
+        </div>
+        <div class="rent-card__grid">
+          <div class="rent-field">
+            <label>角色</label>
+            <el-select v-model="r.partyType" style="width: 100%">
+              <el-option label="场地主" value="LANDLORD" />
+              <el-option label="平台" value="PLATFORM" />
+              <el-option label="商户" value="MERCHANT" />
+              <el-option label="加盟" value="FRANCHISE" />
+              <el-option label="其他" value="OTHER" />
+            </el-select>
+          </div>
+          <div class="rent-field">
+            <label>对方 ID（可选）</label>
+            <el-input v-model="r.partyId" clearable placeholder="商户号 / 账号标识，平台可空" />
+          </div>
+          <div class="rent-field">
+            <label>份额 %</label>
+            <el-input-number
+              v-model="r.sharePct"
+              :min="0"
+              :max="100"
+              :step="1"
+              :precision="2"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </div>
+          <div class="rent-field">
+            <label>固定金额（元/期）</label>
+            <el-input-number
+              v-model="r.fixedYuan"
+              :min="0"
+              :step="1"
+              :precision="2"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </div>
+          <div class="rent-field">
+            <label>生效起</label>
+            <el-date-picker
+              v-model="r.effectiveFrom"
+              type="date"
+              value-format="YYYY-MM-DD"
+              placeholder="不限"
+              style="width: 100%"
+            />
+          </div>
+          <div class="rent-field">
+            <label>生效止</label>
+            <el-date-picker
+              v-model="r.effectiveTo"
+              type="date"
+              value-format="YYYY-MM-DD"
+              placeholder="不限"
+              style="width: 100%"
+            />
+          </div>
+          <div class="rent-field">
+            <label>状态</label>
+            <el-select v-model="r.status" style="width: 100%">
+              <el-option label="生效" value="ACTIVE" />
+              <el-option label="停用" value="INACTIVE" />
+            </el-select>
+          </div>
+        </div>
+      </div>
+      <el-button size="small" @click="addRentRule">加一方</el-button>
       <template #footer>
         <el-button @click="rentSplitVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveRentSplit">保存分账</el-button>
+        <el-button type="primary" :loading="saving" :disabled="!rentShareSumOk" @click="saveRentSplit"
+          >保存分账</el-button
+        >
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="generateVisible"
+      :title="generateDialogTitle"
+      width="420px"
+    >
+      <el-alert
+        type="warning"
+        :closable="false"
+        show-icon
+        :title="generateDialogHint"
+        style="margin-bottom: 12px"
+      />
+      <el-form label-position="top">
+        <el-form-item label="账期（可留空，按系统配置默认账期）">
+          <el-date-picker
+            v-model="generateMonth"
+            type="month"
+            value-format="YYYY-MM"
+            placeholder="默认账期见服务配置"
+            clearable
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="generateVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="submitGenerateBills">生成账单</el-button>
       </template>
     </el-dialog>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useListCsv } from '@/composables/useListCsv';
-import type { OrgNodeDto, SiteContractDto } from '@aicabinet/shared-types';
+import type {
+  DeviceDataFeeBillDto,
+  OrgNodeDto,
+  SiteContractDto,
+  SiteRentBillDto
+} from '@aicabinet/shared-types';
 import { displayLabel } from '@aicabinet/shared-dict';
+
+const FEE_KIND_RENT = 'SITE_RENT';
+const FEE_KIND_DATA = 'DATA_FEE';
 
 const loading = ref(false);
 const saving = ref(false);
@@ -474,17 +693,64 @@ const contractVisible = ref(false);
 const rentSplitVisible = ref(false);
 const rentSplitContractId = ref<number | null>(null);
 const rentSplitSiteName = ref('');
-const rentRules = ref<
-  {
-    partyType: string;
-    partyId: string;
-    shareBps: number;
-    fixedCents: number;
-    effectiveFrom: string;
-    effectiveTo: string;
-    status: string;
-  }[]
->([]);
+const generateVisible = ref(false);
+const generateContractId = ref<number | null>(null);
+const generateSiteName = ref('');
+const generateMonth = ref('');
+const feeBillKind = ref<'SITE_RENT' | 'DATA_FEE'>(FEE_KIND_RENT);
+const rentBills = ref<SiteRentBillDto[]>([]);
+const dataFeeBills = ref<DeviceDataFeeBillDto[]>([]);
+const billsHydrated = ref(false);
+const billPage = ref(1);
+const billSize = ref(20);
+const billTotal = ref(0);
+const billMonthFilter = ref('');
+const billStatusFilter = ref('');
+
+const generateDialogTitle = computed(() => {
+  if (feeBillKind.value === FEE_KIND_DATA) {
+    return '批量出账 · 流量费';
+  }
+  return generateContractId.value ? `出账 · ${generateSiteName.value}` : '批量出账 · 场地租金';
+});
+const generateDialogHint = computed(() =>
+  feeBillKind.value === FEE_KIND_DATA
+    ? '将对已配置流量费(>0)的柜机生成应付台账。同柜机同账期不可重复。不会自动扣款。'
+    : '将按月费 × 分账规则生成应付台账。同一合同同一账期不可重复出账。不会自动打款。'
+);
+type RentRuleForm = {
+  partyType: string;
+  partyId: string;
+  /** 展示用百分比 0–100；保存时换算万分比 shareBps */
+  sharePct: number;
+  /** 展示用元；保存时换算分 */
+  fixedYuan: number;
+  effectiveFrom: string;
+  effectiveTo: string;
+  status: string;
+};
+const rentRules = ref<RentRuleForm[]>([]);
+const rentShareSumPct = computed(() =>
+  rentRules.value.reduce((s, r) => s + (Number(r.sharePct) || 0), 0)
+);
+const rentShareSumOk = computed(() => Math.abs(rentShareSumPct.value - 100) < 0.005);
+
+function emptyRentRule(partial?: Partial<RentRuleForm>): RentRuleForm {
+  return {
+    partyType: 'LANDLORD',
+    partyId: '',
+    sharePct: 0,
+    fixedYuan: 0,
+    effectiveFrom: '',
+    effectiveTo: '',
+    status: 'ACTIVE',
+    ...partial
+  };
+}
+
+function addRentRule() {
+  rentRules.value.push(emptyRentRule());
+}
 const contractForm = ref<{
   contractId: number | null;
   deviceId: string;
@@ -510,7 +776,16 @@ const contractForm = ref<{
 });
 
 onMounted(async () => {
+  // 默认不写死账期：筛选可空，出账弹窗也留空 → 后端按 fee-bill 配置推算
+  billMonthFilter.value = '';
+  generateMonth.value = '';
   await Promise.all([loadAll(), loadDevices()]);
+});
+
+watch(tab, (name) => {
+  if (name === 'bills') {
+    void loadBills();
+  }
 });
 
 async function loadAll() {
@@ -518,6 +793,9 @@ async function loadAll() {
   try {
     orgTree.value = (await api.request<OrgNodeDto[]>('/api/v2/ops/admin/org/tree', 'GET')) || [];
     await loadContracts();
+    if (tab.value === 'bills') {
+      await loadBills();
+    }
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -780,35 +1058,21 @@ async function openRentSplit(row: SiteContractDto) {
         status?: string;
       }[]
     >(`/api/v2/ops/admin/site-contracts/${row.contractId}/rent-split-rules`, 'GET');
-    rentRules.value = (rules || []).map((r) => ({
-      partyType: r.partyType,
-      partyId: r.partyId || '',
-      shareBps: r.shareBps,
-      fixedCents: Number(r.fixedCents || 0),
-      effectiveFrom: r.effectiveFrom || '',
-      effectiveTo: r.effectiveTo || '',
-      status: r.status || 'ACTIVE'
-    }));
+    rentRules.value = (rules || []).map((r) =>
+      emptyRentRule({
+        partyType: r.partyType,
+        partyId: r.partyId || '',
+        sharePct: Number(r.shareBps || 0) / 100,
+        fixedYuan: Number(r.fixedCents || 0) / 100,
+        effectiveFrom: r.effectiveFrom || '',
+        effectiveTo: r.effectiveTo || '',
+        status: r.status || 'ACTIVE'
+      })
+    );
     if (!rentRules.value.length) {
       rentRules.value = [
-        {
-          partyType: 'LANDLORD',
-          partyId: '',
-          shareBps: 7000,
-          fixedCents: 0,
-          effectiveFrom: '',
-          effectiveTo: '',
-          status: 'ACTIVE'
-        },
-        {
-          partyType: 'PLATFORM',
-          partyId: '',
-          shareBps: 3000,
-          fixedCents: 0,
-          effectiveFrom: '',
-          effectiveTo: '',
-          status: 'ACTIVE'
-        }
+        emptyRentRule({ partyType: 'LANDLORD', sharePct: 70 }),
+        emptyRentRule({ partyType: 'PLATFORM', sharePct: 30 })
       ];
     }
   } catch (e) {
@@ -818,9 +1082,8 @@ async function openRentSplit(row: SiteContractDto) {
 
 async function saveRentSplit() {
   if (rentSplitContractId.value == null) return;
-  const sum = rentRules.value.reduce((s, r) => s + (Number(r.shareBps) || 0), 0);
-  if (sum !== 10000) {
-    ElMessage.warning(`份额合计 ${sum}，须等于 10000`);
+  if (!rentShareSumOk.value) {
+    ElMessage.warning(`份额合计 ${rentShareSumPct.value.toFixed(2)}%，须等于 100%`);
     return;
   }
   saving.value = true;
@@ -832,8 +1095,8 @@ async function saveRentSplit() {
         rules: rentRules.value.map((r) => ({
           partyType: r.partyType,
           partyId: r.partyId || null,
-          shareBps: Number(r.shareBps) || 0,
-          fixedCents: Number(r.fixedCents) || 0,
+          shareBps: Math.round((Number(r.sharePct) || 0) * 100),
+          fixedCents: Math.round((Number(r.fixedYuan) || 0) * 100),
           status: r.status || 'ACTIVE',
           effectiveFrom: r.effectiveFrom || null,
           effectiveTo: r.effectiveTo || null
@@ -859,37 +1122,281 @@ function contractStatusType(s: string) {
     'info'
   );
 }
+
+function rentPartyLabel(s: string) {
+  return displayLabel('site_rent_party_type', s, s || '未知');
+}
+
+function billStatusLabel(s: string) {
+  return displayLabel('site_rent_bill_status', s, s || '未知');
+}
+
+function dataFeeBillStatusLabel(s: string) {
+  return displayLabel('device_data_fee_bill_status', s, s || '未知');
+}
+
+function billStatusType(s: string) {
+  return ({ UNPAID: 'warning', PAID: 'success', VOID: 'info' } as Record<string, string>)[s] || 'info';
+}
+
+function onFeeBillKindChange() {
+  billPage.value = 1;
+  void loadBills();
+}
+
+async function loadBills() {
+  loading.value = true;
+  try {
+    const q = new URLSearchParams({
+      page: String(billPage.value),
+      size: String(billSize.value)
+    });
+    if (billMonthFilter.value) q.set('billMonth', billMonthFilter.value);
+    if (billStatusFilter.value) q.set('status', billStatusFilter.value);
+    if (feeBillKind.value === FEE_KIND_DATA) {
+      const data = await api.request<{ items: DeviceDataFeeBillDto[]; total: number }>(
+        `/api/v2/ops/admin/device-data-fee-bills?${q}`,
+        'GET'
+      );
+      dataFeeBills.value = data?.items || [];
+      rentBills.value = [];
+      billTotal.value = Number(data?.total) || 0;
+    } else {
+      const data = await api.request<{ items: SiteRentBillDto[]; total: number }>(
+        `/api/v2/ops/admin/site-rent-bills?${q}`,
+        'GET'
+      );
+      rentBills.value = data?.items || [];
+      dataFeeBills.value = [];
+      billTotal.value = Number(data?.total) || 0;
+    }
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '账单加载失败');
+  } finally {
+    billsHydrated.value = true;
+    loading.value = false;
+  }
+}
+
+function onBillSizeChange() {
+  billPage.value = 1;
+  void loadBills();
+}
+
+function openGenerateBill(row: SiteContractDto | null) {
+  if (row) {
+    feeBillKind.value = FEE_KIND_RENT;
+  }
+  generateContractId.value = row?.contractId ?? null;
+  generateSiteName.value = row?.siteName ?? '';
+  generateVisible.value = true;
+}
+
+async function submitGenerateBills() {
+  saving.value = true;
+  try {
+    const body = { billMonth: generateMonth.value || null };
+    if (feeBillKind.value === FEE_KIND_DATA) {
+      await api.request('/api/v2/ops/admin/device-data-fee-bills/generate', 'POST', body);
+    } else if (generateContractId.value != null) {
+      await api.request(
+        `/api/v2/ops/admin/site-contracts/${generateContractId.value}/rent-bills/generate`,
+        'POST',
+        body
+      );
+    } else {
+      await api.request('/api/v2/ops/admin/site-rent-bills/generate', 'POST', body);
+    }
+    ElMessage.success('账单已生成');
+    generateVisible.value = false;
+    if (generateMonth.value) {
+      billMonthFilter.value = generateMonth.value;
+    }
+    tab.value = 'bills';
+    await loadBills();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '出账失败');
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function markBillPaid(row: SiteRentBillDto) {
+  try {
+    await ElMessageBox.confirm(
+      `确认将「${row.siteName} · ${row.billMonth}」标记为已付？仅改台账状态，不会打款。`,
+      '标记已付',
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/site-rent-bills/${row.billId}/pay`, 'POST');
+    ElMessage.success('已标记已付');
+    await loadBills();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '操作失败');
+  }
+}
+
+async function voidBill(row: SiteRentBillDto) {
+  try {
+    await ElMessageBox.confirm(`确认作废该账单？`, '作废账单', { type: 'warning' });
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/site-rent-bills/${row.billId}/void`, 'POST');
+    ElMessage.success('已作废');
+    await loadBills();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '操作失败');
+  }
+}
+
+async function markDataFeePaid(row: DeviceDataFeeBillDto) {
+  try {
+    await ElMessageBox.confirm(
+      `确认将「${row.deviceName || row.deviceId} · ${row.billMonth}」流量费标记已付？仅改台账，不会扣款。`,
+      '标记已付',
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/device-data-fee-bills/${row.billId}/pay`, 'POST');
+    ElMessage.success('已标记已付');
+    await loadBills();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '操作失败');
+  }
+}
+
+async function voidDataFeeBill(row: DeviceDataFeeBillDto) {
+  try {
+    await ElMessageBox.confirm(`确认作废该流量费账单？`, '作废账单', { type: 'warning' });
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/device-data-fee-bills/${row.billId}/void`, 'POST');
+    ElMessage.success('已作废');
+    await loadBills();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '操作失败');
+  }
+}
 </script>
 
 <style scoped>
 .org-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 12px;
+}
+/* 组织树区域：随内容增高，避免整页白底空荡 */
+:deep(.el-tree) {
+  --el-tree-node-content-height: 40px;
+  padding: 4px 0 8px;
+  background: transparent;
+}
+:deep(.el-tree-node__content) {
+  height: auto;
+  min-height: 40px;
+  padding: 4px 8px 4px 0;
+  border-radius: 8px;
+}
+:deep(.el-tree-node__content:hover) {
+  background: var(--el-fill-color-light);
 }
 .tree-node {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px 10px;
   flex: 1;
   min-width: 0;
+  padding: 2px 0;
 }
 .tree-name {
   font-weight: 600;
 }
 .tree-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
-  margin-left: 8px;
+  margin-left: auto;
 }
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0 12px;
 }
-.rent-row {
+.rent-sum {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--el-fill-color-light);
+  color: var(--layout-muted, #64748b);
+}
+.rent-sum strong {
+  font-variant-numeric: tabular-nums;
+  color: var(--layout-text, #1e293b);
+}
+.rent-sum.is-ok {
+  background: color-mix(in srgb, var(--el-color-success) 12%, var(--layout-card, #fff));
+  color: var(--el-color-success);
+}
+.rent-sum.is-bad {
+  background: color-mix(in srgb, var(--el-color-warning) 12%, var(--layout-card, #fff));
+  color: var(--el-color-warning-dark-2, #b45309);
+}
+.rent-card {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--layout-border, #e5e7eb);
+  border-radius: 10px;
+  background: var(--layout-card, #fff);
+}
+.rent-card__head {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
   align-items: center;
-  margin-bottom: 8px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.rent-card__title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--layout-text, #1e293b);
+}
+.rent-card__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+@media (min-width: 720px) {
+  .rent-card__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.rent-field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--layout-muted, #64748b);
+}
+.rent-field :deep(.el-input-number) {
+  width: 100%;
+}
+.field-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--layout-muted, #64748b);
 }
 </style>

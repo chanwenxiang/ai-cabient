@@ -152,25 +152,32 @@ function goPoints() {
 }
 .balance-bar {
   display: flex;
-  align-items: baseline;
-  gap: 14rpx;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
   padding: 26rpx 28rpx;
   border-radius: 24rpx;
   color: #14201b;
   background: linear-gradient(135deg, #ecfdf5, #fff);
   border: 1rpx solid #d1fae5;
+  text-align: center;
+  position: relative;
 }
 .balance-label {
   font-size: 24rpx;
   color: #64748b;
+  text-align: center;
 }
 .balance-value {
   font-size: 40rpx;
   font-weight: 800;
   color: #047857;
+  text-align: center;
 }
 .balance-action {
-  margin-left: auto;
+  margin-left: 0;
+  margin-top: 4rpx;
   font-size: 22rpx;
   color: #059669;
 }

@@ -146,7 +146,7 @@ onMounted(load);
 .stat-tile {
   display: block;
   width: 100%;
-  text-align: left;
+  text-align: center;
   background: var(--el-fill-color-blank);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;

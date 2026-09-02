@@ -424,6 +424,13 @@ select {
   padding: 16px 20px 24px;
 }
 
+/* 抽屉内嵌套在主区滚动时，全局 sticky 表头会与抽屉滚动打架导致下半段抖动 */
+.el-drawer .el-table__header-wrapper,
+.el-drawer .el-table__body-header {
+  position: static !important;
+  top: auto !important;
+}
+
 @media (max-width: 920px) {
   .el-drawer.drawer-workbench {
     width: 100vw !important;
@@ -1144,16 +1151,16 @@ select {
 }
 
 /*
- * 内容包裹型 tabs（仓库/补货/商户等）：表格自然撑高，由 .layout-main-scroll 纵滚。
- * 不可再 flex:1 + min-height:0 把 tabs 压进视口剩余高度，否则表体 overflow:visible
- * 会画到下方 PagePager 上（浏览器放大时「条/页」错位更明显，见 BUG-026）。
+ * 内容包裹型 tabs（仓库/补货/商户/组织与点位等）：高度跟内容走，由 .layout-main-scroll 纵滚。
+ * 不可再 flex:1 把 tabs 压进视口剩余高度（表体会盖住 PagePager，见 BUG-026）。
+ * 也不可 min-height:100%：组织树等条目少时会把白卡片撑满主区，下方大片空白。
  */
 .layout-main-scroll > .page-card:has(> .el-card__body > .el-tabs:not(.status-tabs)),
 .layout-main-scroll > .page-fill > .page-card:has(> .el-card__body > .el-tabs:not(.status-tabs)),
 .layout-main-scroll > .page-fill:has(> .page-card > .el-card__body > .el-tabs:not(.status-tabs)) {
   flex-shrink: 0;
   height: auto;
-  min-height: 100%;
+  min-height: 0;
   max-height: none;
 }
 
@@ -2153,19 +2160,28 @@ select {
   flex: 0 0 auto;
 }
 
-/* KPI / 统计瓦片：半透明改实心底，避免叠层透视 */
+/* KPI / 统计瓦片：半透明改实心底，避免叠层透视；数值与文案统一居中 */
 .stat-tile,
 .kpi-tile,
+.kpi-card,
 .ops-board__tile,
-.quick-tile {
+.quick-tile,
+.bs-kpi {
   border-radius: var(--admin-radius, 8px);
+  text-align: center;
 }
 
 /* 全局 button 为 inline-flex，KPI 用 button 时标签/数值会被挤成一行 */
-button.kpi-tile {
+button.kpi-tile,
+button.stat-tile,
+.stat-tile,
+.kpi-tile,
+.kpi-card,
+.quick-tile,
+.bs-kpi {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  align-items: center;
   justify-content: center;
 }
 

@@ -68,12 +68,32 @@ public class MerchantSkuPricingService {
 
     @Transactional(readOnly = true)
     public int resolveUnitPriceCents(String deviceId, SkuCatalog sku) {
-        if (deviceId == null || sku == null) {
-            return sku != null ? sku.getPriceCents() : 0;
+        if (sku == null) {
+            return 0;
         }
-        return priceRepository.findByDeviceIdAndSkuId(deviceId, sku.getSkuId())
+        if (deviceId == null) {
+            return sku.getPriceCents();
+        }
+        int base = priceRepository.findByDeviceIdAndSkuId(deviceId, sku.getSkuId())
                 .map(DeviceSkuPrice::getPriceCents)
                 .orElse(sku.getPriceCents());
+        boolean nearExpiry = inventoryLotService.peekFefoPrimarySellableLot(deviceId, sku.getSkuId())
+                .map(lot -> InventoryLotService.isNearExpiryByDate(
+                        lot.getExpiryDate(),
+                        sku.getNearExpiryDays(),
+                        java.time.LocalDate.now()))
+                .orElse(false);
+        return pickUnitPriceCents(base, sku.getNearExpiryPriceCents(), nearExpiry);
+    }
+
+    /**
+     * 临期价优先：FEFO 首批可售批次处于临期窗口且配置了临期价时使用临期价。
+     */
+    static int pickUnitPriceCents(int catalogOrOverridePrice, Integer nearExpiryPriceCents, boolean primaryLotNearExpiry) {
+        if (primaryLotNearExpiry && nearExpiryPriceCents != null && nearExpiryPriceCents > 0) {
+            return nearExpiryPriceCents;
+        }
+        return catalogOrOverridePrice;
     }
 
     @Transactional(readOnly = true)

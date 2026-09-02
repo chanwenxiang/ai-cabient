@@ -242,6 +242,7 @@ function barHeight(orders: number) {
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 10px;
   background: var(--el-fill-color-blank);
+  text-align: center;
 }
 .kpi-n {
   font-size: 24px;

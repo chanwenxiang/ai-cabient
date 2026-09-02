@@ -7,7 +7,11 @@ public record LineWithdrawProperties(
         boolean mockEnabled,
         long minAmountCents,
         long dailyLimitCents,
-        long reviewThresholdCents
+        long reviewThresholdCents,
+        /** 固定手续费（分），可与 feeBps 叠加 */
+        long feeCents,
+        /** 手续费万分比，如 50 = 0.5% */
+        long feeBps
 ) {
     public LineWithdrawProperties {
         if (minAmountCents <= 0) {
@@ -18,6 +22,12 @@ public record LineWithdrawProperties(
         }
         if (reviewThresholdCents <= 0) {
             reviewThresholdCents = 50_000;
+        }
+        if (feeCents < 0) {
+            feeCents = 0;
+        }
+        if (feeBps < 0) {
+            feeBps = 0;
         }
     }
 }

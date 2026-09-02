@@ -286,7 +286,8 @@ public class MerchantWithdrawService {
         request.setMerchantId(merchant.getMerchantId());
         request.setMerchantName(merchant.getMerchantName());
         request.setAmountCents(amountCents);
-        request.setFeeCents(0L);
+        request.setFeeCents(WithdrawFeeCalculator.computeFeeCents(
+                amountCents, properties.feeCents(), properties.feeBps()));
         request.setPayChannel(properties.mockEnabled() ? "MOCK" : "WECHAT");
         request.setCreatedAt(now);
         request.setUpdatedAt(now);

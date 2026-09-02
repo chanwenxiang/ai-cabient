@@ -58,5 +58,24 @@ public final class CabinetConstants {
     public static final String MQTT_CMD_LOCK = "LOCK";
     public static final String MQTT_CMD_UNLOCK = "UNLOCK";
     public static final String MQTT_CMD_REBOOT = "REBOOT";
+
+    /** 万分比满额（100% = 10000 bps） */
+    public static final int SHARE_BPS_FULL = 10_000;
+
+    /** 运营周期费用账单状态 */
+    public static final String FEE_BILL_STATUS_UNPAID = "UNPAID";
+    public static final String FEE_BILL_STATUS_PAID = "PAID";
+    public static final String FEE_BILL_STATUS_VOID = "VOID";
+
+    /** 场地租金分账角色 */
+    public static final String RENT_PARTY_LANDLORD = "LANDLORD";
+    public static final String RENT_PARTY_PLATFORM = "PLATFORM";
+    public static final String RENT_PARTY_MERCHANT = "MERCHANT";
+    public static final String RENT_PARTY_FRANCHISE = "FRANCHISE";
+    public static final String RENT_PARTY_OTHER = "OTHER";
+
+    /** 周期费用类型 */
+    public static final String FEE_TYPE_SITE_RENT = "SITE_RENT";
+    public static final String FEE_TYPE_DATA_FEE = "DATA_FEE";
 }
 

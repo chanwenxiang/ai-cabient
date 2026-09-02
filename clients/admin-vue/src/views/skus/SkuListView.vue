@@ -290,6 +290,21 @@
         <el-form-item label="成本(元)">
           <el-input-number v-model="form.costYuan" :min="0" :step="0.1" :precision="2" />
         </el-form-item>
+        <el-form-item label="临期天数">
+          <el-input-number v-model="form.nearExpiryDays" :min="0" :max="365" />
+        </el-form-item>
+        <el-form-item label="临期价(元)">
+          <el-input-number
+            :model-value="
+              form.nearExpiryPriceCents == null ? undefined : form.nearExpiryPriceCents / 100
+            "
+            :min="0.01"
+            :step="0.1"
+            :precision="2"
+            @update:model-value="onNearExpiryPriceYuanChange"
+          />
+          <div class="field-hint">FEFO 首批可售库存处于临期窗口时，结算按临期价计费</div>
+        </el-form-item>
         <el-form-item label="类目">
           <el-select v-model="form.category" clearable placeholder="请选择类目" style="width: 100%">
             <el-option
@@ -785,6 +800,11 @@ function openEdit(row?: SkuCatalog) {
     form.nearExpiryPriceCents = undefined;
   }
   editDialog.value = true;
+}
+
+function onNearExpiryPriceYuanChange(value: number | undefined) {
+  form.nearExpiryPriceCents =
+    value == null || Number.isNaN(Number(value)) ? undefined : Math.round(Number(value) * 100);
 }
 
 async function saveEdit() {

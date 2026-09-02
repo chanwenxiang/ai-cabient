@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.SiteRentSplitRuleDto;
 import com.aicabinet.common.dto.UpsertSiteRentSplitRulesRequest;
 import com.aicabinet.trade.domain.SiteContract;
@@ -71,8 +72,9 @@ public class SiteRentSplitService {
             }
             sumBps += r.shareBps();
         }
-        if (sumBps != 10000) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "租金分账份额合计须为 10000bps（100%）");
+        if (sumBps != CabinetConstants.SHARE_BPS_FULL) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "租金分账份额合计须为 " + CabinetConstants.SHARE_BPS_FULL + "bps（100%）");
         }
         ruleMapper.deleteByContractId(contractId);
         Instant now = Instant.now();
