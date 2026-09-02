@@ -12,9 +12,11 @@ import router from './router';
 import './styles/main.css';
 import { useSettingsStore } from './stores/settings';
 import { installElementPlus } from './plugins/element-plus';
+import { installMessageBoxDefaults } from './plugins/message-box-defaults';
 import { setupHasPermi } from './directives/hasPermi';
 
 normalizeAdminIndexHtmlHash();
+installMessageBoxDefaults();
 
 const pinia = createPinia();
 const app = createApp(App).use(pinia).use(router);

@@ -110,6 +110,12 @@ import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
+import {
+  emitPurchaseOrderReviewed,
+  onPurchaseOrderReviewed,
+  showPurchaseReviewToast,
+  type PurchaseOrderPatch
+} from '@/utils/purchase-order-sync';
 
 type ApprovalTask = {
   taskId: number;
@@ -169,6 +175,7 @@ const tasks = ref<ApprovalTask[]>([]);
 const messages = ref<InboxMessage[]>([]);
 const history = ref<ApprovalHistoryItem[]>([]);
 let pollTimer: ReturnType<typeof setInterval> | undefined;
+let offPurchaseReviewed: (() => void) | undefined;
 
 const visible = computed(
   () => auth.hasPerm('ops:approval:list') || auth.hasPerm('ops:replenishment:list')
@@ -336,11 +343,16 @@ async function inlineReview(task: ApprovalTask, approve: boolean) {
   }
   reviewingTaskId.value = task.taskId;
   try {
-    await api.request(`/api/v2/ops/admin/purchase-orders/${task.bizId}/review`, 'POST', {
-      approve,
-      remark: approve ? '审批通过' : '审批驳回'
-    });
-    ElMessage.success(approve ? '已通过' : '已驳回');
+    const updated = await api.request<PurchaseOrderPatch>(
+      `/api/v2/ops/admin/purchase-orders/${task.bizId}/review`,
+      'POST',
+      {
+        approve,
+        remark: approve ? '审批通过' : '审批驳回'
+      }
+    );
+    emitPurchaseOrderReviewed(updated || { purchaseOrderId: task.bizId });
+    showPurchaseReviewToast(updated, approve);
     await loadInbox();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '审批失败');
@@ -390,11 +402,15 @@ onMounted(() => {
   void loadInbox();
   pollTimer = setInterval(() => void loadInbox(), POLL_MS);
   window.addEventListener('focus', onWindowFocus);
+  offPurchaseReviewed = onPurchaseOrderReviewed(() => {
+    void loadInbox();
+  });
 });
 
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer);
   window.removeEventListener('focus', onWindowFocus);
+  offPurchaseReviewed?.();
 });
 </script>
 
