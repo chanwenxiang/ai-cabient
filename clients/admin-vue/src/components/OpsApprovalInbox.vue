@@ -116,6 +116,7 @@ import {
   emitPurchaseOrderReviewed,
   onPurchaseOrderReviewed,
   showPurchaseReviewToast,
+  formatPurchaseReviewError,
   type PurchaseOrderPatch
 } from '@/utils/purchase-order-sync';
 
@@ -354,7 +355,7 @@ async function inlineReview(task: ApprovalTask, approve: boolean) {
     showPurchaseReviewToast(updated, approve);
     await loadInbox();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '审批失败');
+    ElMessage.error(formatPurchaseReviewError(e));
   } finally {
     reviewingTaskId.value = null;
   }

@@ -36,9 +36,15 @@ export function showPurchaseReviewToast(
           : '已通过本节点，仍待下一节点审批'
       );
     } else {
-      ElMessage.success('审批已全部通过');
+      ElMessage.success('审批已全部通过，可进行收货');
     }
   } else {
     ElMessage.success('已驳回');
   }
+}
+
+/** 审批 API 失败时展示后端 message（含 403「非当前节点处理人」）。 */
+export function formatPurchaseReviewError(error: unknown, fallback = '审批失败'): string {
+  if (error instanceof Error && error.message.trim()) return error.message.trim();
+  return fallback;
 }

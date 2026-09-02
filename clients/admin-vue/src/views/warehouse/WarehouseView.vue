@@ -686,9 +686,12 @@
                   show-overflow-tooltip
                 >
                   <template #default="{ row }">
-                    <span v-if="row.status === 'PENDING_APPROVAL' && row.approvalCurrentNodeName">{{
-                      row.approvalCurrentNodeName
-                    }}</span>
+                    <template v-if="row.status === 'PENDING_APPROVAL' && row.approvalCurrentNodeName">
+                      <span>{{ row.approvalCurrentNodeName }}</span>
+                      <span v-if="row.approvalPendingForMe === false" class="muted">
+                        （待他人处理）
+                      </span>
+                    </template>
                     <span v-else-if="row.status === 'PENDING_APPROVAL'" class="muted">待审批</span>
                     <span v-else class="muted">—</span>
                   </template>
@@ -2358,7 +2361,8 @@ import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import {
   emitPurchaseOrderReviewed,
   onPurchaseOrderReviewed,
-  showPurchaseReviewToast
+  showPurchaseReviewToast,
+  formatPurchaseReviewError
 } from '@/utils/purchase-order-sync';
 
 type Row = Record<string, any>;
@@ -2374,9 +2378,8 @@ const canReviewPurchase = computed(
 );
 function canReviewPurchaseRow(row: Row) {
   if (!canReviewPurchase.value || row.status !== 'PENDING_APPROVAL') return false;
-  if (row.approvalPendingForMe === true) return true;
-  if (row.approvalPendingForMe === false) return false;
-  return canProcurementEdit.value;
+  // 仅当前节点处理人可见通过/驳回，避免超管误点触发 403 且无 toast（IMP-016）
+  return row.approvalPendingForMe === true;
 }
 const canEdit = computed(() => {
   if (['suppliers', 'purchase', 'returns', 'suggestions'].includes(tab.value))
@@ -4372,7 +4375,7 @@ async function reviewPurchase(row: Row, approve: boolean) {
     loadedTabs.value.delete('purchase');
     await loadTab('purchase', true);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '审批失败');
+    ElMessage.error(formatPurchaseReviewError(e));
   }
 }
 

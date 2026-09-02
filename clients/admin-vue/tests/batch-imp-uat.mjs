@@ -1,5 +1,5 @@
 /**
- * UAT batch: IMP-012/028/048/026/transit-copy (recent UX batch)
+ * UAT batch: IMP-012/028/048/026/transit-copy/015/016 (recent UX batch)
  * Run: cd clients/consumer-mp && node ../admin-vue/tests/batch-imp-uat.mjs
  */
 import { chromium } from 'playwright';
@@ -254,6 +254,48 @@ async function main() {
     const gsOk = gs.readonly === true;
     record('B-05', '全局搜索只读触发器', gsOk ? 'PASS' : 'FAIL', JSON.stringify(gs), null);
     gsOk ? pass++ : fail++;
+
+    // IMP-015/016 采购审批节点列 + 非当前节点不展示通过/驳回
+    await page.goto(`${ADMIN}/warehouse?tab=purchase`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(3000);
+    const po = await page.evaluate(() => {
+      const headers = [...document.querySelectorAll('.el-table__header th')].map((t) =>
+        (t.textContent || '').trim()
+      );
+      const hasNodeCol = headers.some((h) => h.includes('审批节点'));
+      const rows = [...document.querySelectorAll('.el-table__body tr')];
+      const pendingRows = rows
+        .filter((row) => /待审批/.test(row.innerText || ''))
+        .map((row) => {
+          const approveBtn = [...row.querySelectorAll('button, .el-link')].find((b) =>
+            /^(通过|驳回)$/.test((b.textContent || '').trim())
+          );
+          return {
+            hasApprove: !!approveBtn,
+            hasWaitOther: (row.innerText || '').includes('待他人处理'),
+            snippet: (row.innerText || '').slice(0, 180)
+          };
+        });
+      return { hasNodeCol, pendingRows, rowCount: rows.length };
+    });
+    const ePo = await shot(page, '06-purchase-approval');
+    if (!po.hasNodeCol) {
+      record('B-06', '采购审批节点与按钮隔离', 'FAIL', '缺少审批节点列', ePo);
+      fail++;
+    } else if (!po.pendingRows.length) {
+      record('B-06', '采购审批节点与按钮隔离', 'SKIP', '当前无待审批采购单', ePo);
+    } else {
+      const bad = po.pendingRows.find((r) => r.hasApprove && r.hasWaitOther);
+      const ok = !bad;
+      record(
+        'B-06',
+        '采购审批节点与按钮隔离',
+        ok ? 'PASS' : 'FAIL',
+        JSON.stringify(po.pendingRows[0]),
+        ePo
+      );
+      ok ? pass++ : fail++;
+    }
   } catch (e) {
     console.error(e);
     record('B-ERR', '运行异常', 'FAIL', e.message, null);
