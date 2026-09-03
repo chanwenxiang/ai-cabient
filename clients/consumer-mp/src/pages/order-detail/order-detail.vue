@@ -591,14 +591,17 @@ function syncRefundLines() {
 }
 
 function onPartialQty(row: RefundLineRow, e: any) {
-  const n = Math.max(
-    0,
-    Math.min(
-      row.maxQty,
-      Number.parseInt(String(e?.detail?.value ?? e?.target?.value ?? 0), 10) || 0
-    )
-  );
-  row.qty = n;
+  const raw = String(e?.detail?.value ?? e?.target?.value ?? '').trim();
+  if (!raw) {
+    row.qty = 0;
+    return;
+  }
+  if (!/^\d+$/.test(raw)) {
+    uni.showToast({ title: '请输入有效退款件数', icon: 'none' });
+    row.qty = 0;
+    return;
+  }
+  row.qty = Math.min(row.maxQty, Number.parseInt(raw, 10));
 }
 
 const statusDetail = computed(() => {

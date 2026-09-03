@@ -64,9 +64,14 @@
               }}</text
             >
             <text class="row-sub"
-              >手续费 ¥{{ yuan(w.feeCents || 0)
-              }}{{ Number(w.feeCents || 0) === 0 ? '（免收）' : '' }} · 到账 ¥{{
-                yuan(Math.max(0, Number(w.amountCents || 0) - Number(w.feeCents || 0)))
+              >手续费
+              {{
+                w.feeCents == null
+                  ? '—'
+                  : `¥${yuan(w.feeCents)}${Number(w.feeCents) === 0 ? '（免收）' : ''}`
+              }}
+              · 到账 ¥{{
+                yuan(Math.max(0, Number(w.amountCents ?? 0) - Number(w.feeCents ?? 0)))
               }}</text
             >
             <text v-if="w.payoutRef || w.payoutMessage" class="row-sub"

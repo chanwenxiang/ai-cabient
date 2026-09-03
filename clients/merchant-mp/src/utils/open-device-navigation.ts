@@ -16,14 +16,6 @@ function isBrowserH5(): boolean {
   return typeof globalThis !== 'undefined' && typeof document !== 'undefined';
 }
 
-function escapeAttr(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('"', '&quot;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
-}
-
 function navLabel(target: DeviceNavTarget): string {
   return String(target.name || target.deviceId || '柜机').trim() || '柜机';
 }
@@ -85,8 +77,8 @@ function confirmH5(
     host.setAttribute('aria-modal', 'true');
     host.setAttribute('aria-label', title);
 
-    host.innerHTML = `
-      <style>
+    const styleEl = document.createElement('style');
+    styleEl.textContent = `
         #${HOST_ID} {
           position: fixed;
           inset: 0;
@@ -148,16 +140,30 @@ function confirmH5(
           background: linear-gradient(135deg, #0f766e, #14b8a6);
         }
         #${HOST_ID} .mnc-btn:active { opacity: 0.88; }
-      </style>
-      <div class="mnc-card">
-        <span class="mnc-title">${escapeAttr(title)}</span>
-        <span class="mnc-body">${escapeAttr(content)}</span>
-        <div class="mnc-actions">
-          <button type="button" class="mnc-btn cancel" data-testid="nav-confirm-cancel">取消</button>
-          <button type="button" class="mnc-btn ok" data-testid="nav-confirm-ok">去导航</button>
-        </div>
-      </div>
     `;
+    const card = document.createElement('div');
+    card.className = 'mnc-card';
+    const titleEl = document.createElement('span');
+    titleEl.className = 'mnc-title';
+    titleEl.textContent = title;
+    const bodyEl = document.createElement('span');
+    bodyEl.className = 'mnc-body';
+    bodyEl.textContent = content;
+    const actions = document.createElement('div');
+    actions.className = 'mnc-actions';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'mnc-btn cancel';
+    cancelBtn.dataset.testid = 'nav-confirm-cancel';
+    cancelBtn.textContent = '取消';
+    const okBtn = document.createElement('button');
+    okBtn.type = 'button';
+    okBtn.className = 'mnc-btn ok';
+    okBtn.dataset.testid = 'nav-confirm-ok';
+    okBtn.textContent = '去导航';
+    actions.append(cancelBtn, okBtn);
+    card.append(titleEl, bodyEl, actions);
+    host.append(styleEl, card);
 
     const finish = (ok: boolean) => {
       if (activeH5Finish !== finish) return;
@@ -178,8 +184,8 @@ function confirmH5(
     host.addEventListener('click', (e) => {
       if (e.target === host) finish(false);
     });
-    host.querySelector('.mnc-btn.cancel')?.addEventListener('click', () => finish(false));
-    host.querySelector('.mnc-btn.ok')?.addEventListener('click', () => finish(true));
+    cancelBtn.addEventListener('click', () => finish(false));
+    okBtn.addEventListener('click', () => finish(true));
     document.addEventListener('keydown', onKeyDown, true);
     document.body.appendChild(host);
   });
@@ -199,14 +205,21 @@ async function confirmNavigate(label: string, address?: string): Promise<boolean
 
 /** 校验坐标 → 二次确认 → 打开高德（H5）或系统地图（小程序）。 */
 export async function confirmOpenDeviceNavigation(target: DeviceNavTarget): Promise<void> {
-  const lat = target.latitude;
-  const lng = target.longitude;
-  if (lat == null || lng == null || Number.isNaN(Number(lat)) || Number.isNaN(Number(lng))) {
-    uni.showToast({ title: '暂无坐标', icon: 'none' });
+  const lat = Number(target.latitude);
+  const lng = Number(target.longitude);
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    lat < -90 ||
+    lat > 90 ||
+    lng < -180 ||
+    lng > 180
+  ) {
+    uni.showToast({ title: '坐标无效', icon: 'none' });
     return;
   }
   const label = navLabel(target);
   const ok = await confirmNavigate(label, target.address || undefined);
   if (!ok) return;
-  launchMap(Number(lng), Number(lat), label, String(target.address || '').trim());
+  launchMap(lng, lat, label, String(target.address || '').trim());
 }
