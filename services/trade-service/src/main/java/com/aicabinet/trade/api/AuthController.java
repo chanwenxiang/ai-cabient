@@ -52,7 +52,11 @@ public class AuthController {
     }
 
     @PostMapping("/sms-code")
-    public ApiResponse<Void> sendSms(@RequestParam("phoneNumber") String phoneNumber) {
+    public ApiResponse<Void> sendSms(@RequestParam("phoneNumber") String phoneNumber,
+                                     @RequestParam(value = "captchaId", required = false) String captchaId,
+                                     @RequestParam(value = "captchaCode", required = false) String captchaCode) {
+        // 与运营重置密码一致：发短信前须过图形验证码（captcha-enabled=false 时 CaptchaService 跳过）
+        captchaService.verifyOrThrow(captchaId, captchaCode);
         authService.sendSmsCode(phoneNumber);
         return ApiResponse.ok(null);
     }
@@ -170,11 +174,12 @@ public class AuthController {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.MISSING_TOKEN);
         }
         try {
-            Long userId = jwtService.validateAndGetUserId(token);
-            LoginResponse refreshed = authService.refreshSession(userId);
+            JwtService.SessionPrincipal principal = jwtService.validateAndGetPrincipal(token);
+            jwtService.revokeTokenQuietly(token);
+            LoginResponse refreshed = authService.refreshSession(principal.userId());
             SessionCookieService.Realm writeRealm = cookieRealm != null
                     ? cookieRealm
-                    : (OperatorAuth.isOperator(userId)
+                    : (OperatorAuth.isOperator(principal.userId())
                     ? SessionCookieService.Realm.ADMIN
                     : SessionCookieService.Realm.CONSUMER);
             return ApiResponse.ok(withSessionCookie(response, refreshed, writeRealm));
@@ -183,10 +188,38 @@ public class AuthController {
         }
     }
 
-    /** 登出：清除运营/商户会话 Cookie（幂等；不影响消费者 Cookie）。 */
+    /** 登出：吊销当前会话 JWT，并清除运营与消费者 Cookie（幂等）。 */
     @PostMapping("/logout")
-    public ApiResponse<Void> logout(HttpServletResponse response) {
+    public ApiResponse<Void> logout(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        String token = null;
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            token = authorization.substring(7);
+        }
+        if (token == null) {
+            SessionCookieService.PresentedSession presented =
+                    sessionCookieService.resolvePresentedSession(request);
+            if (presented != null) {
+                token = presented.token();
+            }
+        }
+        if (token == null) {
+            // 两套 Cookie 都尽量吊销
+            String admin = sessionCookieService.resolveToken(request, SessionCookieService.Realm.ADMIN);
+            String consumer = sessionCookieService.resolveToken(request, SessionCookieService.Realm.CONSUMER);
+            if (admin != null) {
+                jwtService.revokeTokenQuietly(admin);
+            }
+            if (consumer != null) {
+                jwtService.revokeTokenQuietly(consumer);
+            }
+        } else {
+            jwtService.revokeTokenQuietly(token);
+        }
         sessionCookieService.clearSessionCookie(response, SessionCookieService.Realm.ADMIN);
+        sessionCookieService.clearSessionCookie(response, SessionCookieService.Realm.CONSUMER);
         return ApiResponse.ok(null);
     }
 

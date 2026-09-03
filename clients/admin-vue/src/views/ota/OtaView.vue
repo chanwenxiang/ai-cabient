@@ -100,6 +100,7 @@
             align="center"
           />
           <el-table-column
+            v-if="showActionColumn"
             label="操作"
             width="100"
             align="center"
@@ -193,6 +194,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
+import { useAuthStore } from '@/stores/auth';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { useListCsv } from '@/composables/useListCsv';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -234,6 +236,7 @@ interface OtaRelease {
 }
 
 const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
+const auth = useAuthStore();
 const loading = ref(false);
 const listHydrated = ref(false);
 const page = ref(1);
@@ -242,6 +245,12 @@ const total = ref(0);
 const saving = ref(false);
 const batchUnpublishing = ref(false);
 const items = ref<OtaRelease[]>([]);
+
+/** 当前页无已发布项（或无下架权限）时隐藏操作列 */
+const showActionColumn = computed(
+  () =>
+    auth.hasPerm('ops:ota:publish') && items.value.some((row) => row.status === 'PUBLISHED')
+);
 const dialog = ref(false);
 const form = reactive({
   appVersion: '',

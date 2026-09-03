@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.auth.JwtService;
 import com.aicabinet.trade.auth.TotpService;
+import com.aicabinet.trade.config.AuthProperties;
 import com.aicabinet.trade.mapper.OpsTwoFactorRecoveryCodeMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,7 +35,8 @@ class OpsTwoFactorConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new OpsTwoFactorService(userInfoRepository, recoveryRepository,
-                totpService, jwtService, authService, distributedLockService);
+                totpService, jwtService, authService, distributedLockService,
+                new AuthProperties("ai-cabinet-test-secret-key-32bytes!!", 3600L, false, false, 5, 15, null));
     }
 
     @Test

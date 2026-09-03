@@ -6,6 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record AlipayProperties(
         boolean enabled,
         String appId,
+        /** 支付宝 PID（seller_id）；配置后回调须匹配 */
+        String sellerId,
         String privateKey,
         String alipayPublicKey,
         String gatewayUrl,

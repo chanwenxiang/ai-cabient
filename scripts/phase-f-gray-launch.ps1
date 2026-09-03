@@ -27,6 +27,17 @@ function Add-Check([string]$Name, [bool]$Pass, [string]$Detail) {
 
 function Invoke-GrayApi {
     param([string]$Method, [string]$Path, [hashtable]$Headers = @{}, $Body = $null)
+    if ($Path -like '/api/v2/auth/sms-code*' -and $Path -notlike '*captchaId=*') {
+        $capResp = Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v2/auth/captcha" -ContentType "application/json"
+        if ($capResp.code -ne 0 -or [string]::IsNullOrWhiteSpace($capResp.data.captchaId)) {
+            throw "captcha fetch failed: $($capResp.message)"
+        }
+        $capId = $capResp.data.captchaId
+        $code = (docker exec ai-cabinet-redis-1 redis-cli GET "aicabinet:captcha:$capId" 2>&1).Trim()
+        if ([string]::IsNullOrWhiteSpace($code)) { throw "captcha redis miss: $capId" }
+        $sep = if ($Path.Contains('?')) { '&' } else { '?' }
+        $Path = "$Path$sep" + "captchaId=$([uri]::EscapeDataString($capId))&captchaCode=$([uri]::EscapeDataString($code))"
+    }
     $params = @{ Method = $Method; Uri = "$BaseUrl$Path"; ContentType = "application/json" }
     if ($Headers.Count -gt 0) { $params.Headers = $Headers }
     if ($null -ne $Body) { $params.Body = ($Body | ConvertTo-Json -Compress) }

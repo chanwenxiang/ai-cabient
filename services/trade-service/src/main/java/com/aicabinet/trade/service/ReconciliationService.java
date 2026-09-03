@@ -135,9 +135,8 @@ public class ReconciliationService {
     }
 
     private PaymentReconciliation doReconcile(LocalDate date, String channel) {
-        ZoneId zone = ZoneId.systemDefault();
-        Instant start = date.atStartOfDay(zone).toInstant();
-        Instant end = date.plusDays(1).atStartOfDay(zone).toInstant();
+        Instant start = date.atStartOfDay(ZONE).toInstant();
+        Instant end = date.plusDays(1).atStartOfDay(ZONE).toInstant();
 
         long ledgerTotal = sumLedger(start, end, channel);
         List<PlatformBillLine> platformLines = support.billProviderRegistry().fetchBill(channel, date);

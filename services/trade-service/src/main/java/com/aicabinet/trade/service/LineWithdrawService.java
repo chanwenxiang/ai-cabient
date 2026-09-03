@@ -177,6 +177,29 @@ public class LineWithdrawService {
         });
     }
 
+    /** 打款失败后取消：解冻资金并标记 CANCELLED。 */
+    @Transactional
+    public LineWithdrawRequestDto cancelFailed(Long operatorId, long requestId, String remark) {
+        permissionService.requirePermission(operatorId, PERM_OPS_LINE_WITHDRAW_REVIEW);
+        LineWithdrawRequest request = requireRequest(requestId);
+        return runWithLineWalletLock(request.getManagerId(), () -> {
+            if (!"FAILED".equals(request.getStatus())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "仅打款失败的提现单可取消解冻");
+            }
+            Instant now = Instant.now();
+            String note = trim(remark);
+            request.setStatus("CANCELLED");
+            request.setReviewRemark(note == null || note.isBlank() ? "打款失败取消解冻" : note);
+            request.setUpdatedAt(now);
+            withdrawMapper.updateById(request);
+            lineWalletService.releaseFrozen(request.getManagerId(), request.getAmountCents(),
+                    WITHDRAW, String.valueOf(request.getRequestId()), "提现失败取消解冻");
+            auditService.appendLog(operatorId, "LINE_WITHDRAW_CANCEL", BIZ_LINE_WITHDRAW,
+                    String.valueOf(requestId), "取消解冻；金额(分)=" + request.getAmountCents());
+            return toDto(request);
+        });
+    }
+
     @Transactional(readOnly = true)
     public LineWalletOverviewDto merchantOverview(Long userId) {
         return lineManagerService.findByUserId(userId)

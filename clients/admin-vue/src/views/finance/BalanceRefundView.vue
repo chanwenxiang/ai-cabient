@@ -116,6 +116,9 @@ function rowActions(row: BalanceRefundRequestDto): TableAction[] {
   ];
 }
 
+/** 当前页无可审核项时隐藏操作列（避免终态页整列「暂无」） */
+const showActionColumn = computed(() => rows.value.some((row) => rowActions(row).length > 0));
+
 function onRowAction(key: string, row: BalanceRefundRequestDto) {
   if (key === 'approve') review(row, true);
   if (key === 'reject') review(row, false);
@@ -385,7 +388,7 @@ onMounted(load);
             </template>
           </el-table-column>
           <el-table-column
-            v-if="canReview"
+            v-if="showActionColumn"
             label="操作"
             width="120"
             align="center"
@@ -394,11 +397,9 @@ onMounted(load);
           >
             <template #default="{ row }">
               <TableActions
-                v-if="rowActions(row).length"
                 :actions="rowActions(row)"
                 @action="(key) => onRowAction(key, row)"
               />
-              <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
         </el-table>

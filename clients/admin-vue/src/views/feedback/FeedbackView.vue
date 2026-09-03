@@ -132,7 +132,7 @@
             </template>
           </el-table-column>
           <el-table-column
-            v-if="canReply || canDelete"
+            v-if="showActionColumn"
             label="操作"
             width="140"
             class-name="col-action"
@@ -316,6 +316,9 @@ function feedbackActions(row: Row) {
   }
   return acts;
 }
+
+/** 当前页无可操作项时隐藏操作列 */
+const showActionColumn = computed(() => list.value.some((row) => feedbackActions(row).length > 0));
 
 async function onFeedbackAction(key: string, row: Row) {
   if (key === 'reply') openReply(row);

@@ -35,6 +35,12 @@ public class UserInfo {
     /** ACTIVE / INACTIVE — 运营账号启停 */
     private String status = "ACTIVE";
 
+    /**
+     * 账号类型：CONSUMER / OPERATOR。
+     * 鉴权以本字段为准；为 null/空时回退 userId 号段（兼容旧数据与单测）。
+     */
+    private String accountType;
+
     private boolean payscoreEnabled;
 
     private String payscoreContractId;

@@ -122,7 +122,9 @@ public class AuthService {
     @Transactional
     public LoginResponse adminLogin(LoginRequest request) {
         LoginResponse response = self.login(request);
-        requireOperator(response.userId());
+        UserInfo user = userInfoRepository.findById(response.userId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        requireOperator(user);
         requireActiveAccount(response.userId());
         return response;
     }
@@ -135,7 +137,7 @@ public class AuthService {
         }
         UserInfo user = requireExistingUser(phone);
         verifyPassword(user, request.password());
-        requireOperator(user.getUserId());
+        requireOperator(user);
         requireActiveAccount(user.getUserId());
         loginThrottleService.clearFailures(phone);
         if (user.isTotpEnabled()) {
@@ -167,7 +169,7 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "新密码长度需在 6-64 位之间");
         }
         UserInfo user = requireExistingUser(phone);
-        requireOperator(user.getUserId());
+        requireOperator(user);
         requireActiveAccount(user.getUserId());
         if (!smsCodeService.verifyCode(phone, request.smsCode())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_CODE);
@@ -238,6 +240,7 @@ public class AuthService {
         Long userId = userInfoRepository.nextConsumerUserId(CabinetConstants.OPERATOR_USER_ID_START);
         UserInfo user = new UserInfo();
         user.setUserId(userId);
+        user.setAccountType(CabinetConstants.ACCOUNT_TYPE_CONSUMER);
         user.setPhoneNumber("wx" + userId);
         user.setName("微信用户");
         user.setVerified(false);
@@ -259,6 +262,7 @@ public class AuthService {
         Long userId = userInfoRepository.nextConsumerUserId(CabinetConstants.OPERATOR_USER_ID_START);
         UserInfo user = new UserInfo();
         user.setUserId(userId);
+        user.setAccountType(CabinetConstants.ACCOUNT_TYPE_CONSUMER);
         user.setPhoneNumber("ali" + userId);
         user.setName("支付宝用户");
         user.setVerified(false);
@@ -275,7 +279,14 @@ public class AuthService {
 
     private UserInfo requireExistingUser(String phone) {
         return userInfoRepository.findByPhoneNumber(phone)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+                .orElseThrow(() -> {
+                    // 防枚举：未注册与密码错误统一凭证无效，并计入限流
+                    String locked = loginThrottleService.recordFailure(phone).orElse(null);
+                    if (locked != null) {
+                        return new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, locked);
+                    }
+                    return new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_CREDENTIALS);
+                });
     }
 
     private void verifyPassword(UserInfo user, String rawPassword) {
@@ -296,8 +307,8 @@ public class AuthService {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fallbackMessage);
     }
 
-    private static void requireOperator(long userId) {
-        if (userId < CabinetConstants.OPERATOR_USER_ID_START) {
+    private static void requireOperator(UserInfo user) {
+        if (!OperatorAuth.isOperator(user)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.CONSUMER_CANNOT_USE_ADMIN);
         }
     }
@@ -311,7 +322,7 @@ public class AuthService {
     }
 
     private LoginResponse tokenFor(UserInfo user) {
-        String token = jwtService.createToken(user.getUserId());
+        String token = jwtService.createToken(user.getUserId(), OperatorAuth.resolveAccountType(user));
         return new LoginResponse(token, user.getUserId(), jwtService.getExpirationSeconds(),
                 serverBootMarker.epochMillis(), authProperties.cookieEnabled(), false);
     }

@@ -16,10 +16,14 @@ public final class ApiMessages {
     public static final String INVALID_TOKEN = "登录已失效，请重新登录";
     public static final String INVALID_PHONE = "手机号格式不正确";
     public static final String INVALID_CODE = "验证码错误或已过期";
+    public static final String SMS_SEND_TOO_FREQUENT = "验证码发送过于频繁，请稍后再试";
+    public static final String SMS_SEND_LIMIT = "验证码发送次数过多，请稍后再试";
     public static final String INVALID_CREDENTIALS = "密码错误";
     public static final String CREDENTIAL_NOT_SET = "该账号未设置密码，请使用验证码或联系管理员";
     public static final String WX_NOT_BOUND = "微信未绑定账号，请先使用手机号登录后再绑定";
     public static final String USER_NOT_VERIFIED = "请先完成实名认证";
+    public static final String IDENTITY_VERIFY_FAILED = "实名信息核验未通过";
+    public static final String IDENTITY_VERIFY_UNAVAILABLE = "实名核验服务暂不可用";
     public static final String OPERATOR_REQUIRED = "需要运营账号权限";
     public static final String PERMISSION_DENIED = "无权限执行此操作";
     public static final String CONSUMER_CANNOT_USE_ADMIN = "当前账号为消费者，请使用运营账号登录后台";
@@ -114,6 +118,9 @@ public final class ApiMessages {
     public static final String MISSING_OUT_TRADE_NO = "缺少商户订单号";
     public static final String UNSUPPORTED_CHANNEL = "不支持的支付渠道";
     public static final String INVALID_WECHAT_NOTIFY = "微信支付回调签名校验失败";
+    public static final String WECHAT_NOTIFY_EXPIRED = "微信支付回调已过期";
+    public static final String WECHAT_NOTIFY_REPLAY = "微信支付回调重复提交";
+    public static final String ALIPAY_NOTIFY_REPLAY = "支付宝回调重复提交";
     public static final String INVALID_ALIPAY_NOTIFY = "支付宝回调签名校验失败";
 
     // 通用

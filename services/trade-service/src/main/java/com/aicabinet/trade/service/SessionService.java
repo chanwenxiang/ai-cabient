@@ -1013,16 +1013,14 @@ public class SessionService {
         Instant cutoff = Instant.now().minus(OPENING_EXPIRE_SECONDS, ChronoUnit.SECONDS);
         var stale = repository.findByStateInAndCreatedAtBefore(
                         List.of(SessionState.OPENING, SessionState.CREATED), cutoff, 500);
-        stale.forEach(s -> {
-                    consumerPreauthService.releaseIfFrozen(s);
-                    s.setState(SessionState.CANCELLED);
-                    repository.save(s);
-                    cabinetMetrics.recordSessionState(SessionState.CANCELLED);
-                    opsExceptionService.report("OPEN_TIMEOUT", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(s.getDeviceId(), s.getSessionId(), s.getOrderId(), s.getUserId()), "开门超时", "开门命令在90秒内未得到设备响应");
-                    log.warn("opening session expired session={} device={}", s.getSessionId(), s.getDeviceId());
-                });
-        if (!stale.isEmpty()) {
-            summary = "取消超时开门会话 " + stale.size() + " 个";
+        int cancelled = 0;
+        for (ShoppingSession s : stale) {
+            if (expireOneStaleOpeningSession(s.getSessionId(), cutoff)) {
+                cancelled++;
+            }
+        }
+        if (cancelled > 0) {
+            summary = "取消超时开门会话 " + cancelled + " 个";
         }
         } catch (Exception e) {
             failed = true;
@@ -1052,20 +1050,14 @@ public class SessionService {
                 .stream()
                 .filter(DeviceValidationService::isRestockSession)
                 .toList();
-        stale.forEach(s -> {
-                    s.setFailReason("补货会话超时自动关闭");
-                    if (s.getCloseTime() == null) {
-                        s.setCloseTime(Instant.now());
-                    }
-                    s.setState(SessionState.CANCELLED);
-                    repository.save(s);
-                    cabinetMetrics.recordSessionState(SessionState.CANCELLED);
-                    opsExceptionService.report("RESTOCK_SESSION_TIMEOUT", "MEDIUM", new OpsExceptionService.ExceptionReport.ExceptionRefs(s.getDeviceId(), s.getSessionId(), s.getOrderId(), s.getUserId()), "补货会话超时", "补货开门后超过" + RESTOCK_SHOPPING_EXPIRE_MINUTES + "分钟未结束");
-                    log.warn("restock shopping session expired session={} device={}",
-                            s.getSessionId(), s.getDeviceId());
-                });
-        if (!stale.isEmpty()) {
-            summary = "关闭超时补货会话 " + stale.size() + " 个";
+        int closed = 0;
+        for (ShoppingSession s : stale) {
+            if (expireOneStaleRestockSession(s.getSessionId(), cutoff)) {
+                closed++;
+            }
+        }
+        if (closed > 0) {
+            summary = "关闭超时补货会话 " + closed + " 个";
         }
         } catch (Exception e) {
             failed = true;
@@ -1281,6 +1273,85 @@ public class SessionService {
             throw e;
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(sessionLifeLockKey(sessionId));
+        }
+    }
+
+    /**
+     * 超时开门会话：加会话锁 + 行锁后再取消，避免与并发结算/关门竞态误杀。
+     * 抢锁失败则跳过本轮，下一趟调度再试。
+     */
+    private boolean expireOneStaleOpeningSession(String sessionId, Instant cutoff) {
+        if (!distributedLockService.tryLock(sessionLifeLockKey(sessionId), 30, 0)) {
+            log.debug("expire opening skipped busy session={}", sessionId);
+            return false;
+        }
+        try {
+            ShoppingSession locked = repository.findByIdForUpdate(sessionId).orElse(null);
+            if (locked == null) {
+                return false;
+            }
+            if (locked.getState() != SessionState.OPENING && locked.getState() != SessionState.CREATED) {
+                return false;
+            }
+            if (locked.getCreatedAt() != null && locked.getCreatedAt().isAfter(cutoff)) {
+                return false;
+            }
+            consumerPreauthService.releaseIfFrozen(locked);
+            locked.setState(SessionState.CANCELLED);
+            repository.save(locked);
+            cabinetMetrics.recordSessionState(SessionState.CANCELLED);
+            opsExceptionService.report(
+                    "OPEN_TIMEOUT",
+                    "HIGH",
+                    new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                            locked.getDeviceId(), locked.getSessionId(), locked.getOrderId(), locked.getUserId()),
+                    "开门超时",
+                    "开门命令在90秒内未得到设备响应");
+            log.warn("opening session expired session={} device={}", locked.getSessionId(), locked.getDeviceId());
+            return true;
+        } finally {
+            distributedLockService.unlock(sessionLifeLockKey(sessionId));
+        }
+    }
+
+    private boolean expireOneStaleRestockSession(String sessionId, Instant cutoff) {
+        if (!distributedLockService.tryLock(sessionLifeLockKey(sessionId), 30, 0)) {
+            log.debug("expire restock skipped busy session={}", sessionId);
+            return false;
+        }
+        try {
+            ShoppingSession locked = repository.findByIdForUpdate(sessionId).orElse(null);
+            if (locked == null) {
+                return false;
+            }
+            if (locked.getState() != SessionState.SHOPPING && locked.getState() != SessionState.WAITING_UPLOAD) {
+                return false;
+            }
+            if (!DeviceValidationService.isRestockSession(locked)) {
+                return false;
+            }
+            if (locked.getUpdatedAt() != null && locked.getUpdatedAt().isAfter(cutoff)) {
+                return false;
+            }
+            locked.setFailReason("补货会话超时自动关闭");
+            if (locked.getCloseTime() == null) {
+                locked.setCloseTime(Instant.now());
+            }
+            locked.setState(SessionState.CANCELLED);
+            repository.save(locked);
+            cabinetMetrics.recordSessionState(SessionState.CANCELLED);
+            opsExceptionService.report(
+                    "RESTOCK_SESSION_TIMEOUT",
+                    "MEDIUM",
+                    new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                            locked.getDeviceId(), locked.getSessionId(), locked.getOrderId(), locked.getUserId()),
+                    "补货会话超时",
+                    "补货开门后超过" + RESTOCK_SHOPPING_EXPIRE_MINUTES + "分钟未结束");
+            log.warn("restock shopping session expired session={} device={}",
+                    locked.getSessionId(), locked.getDeviceId());
+            return true;
         } finally {
             distributedLockService.unlock(sessionLifeLockKey(sessionId));
         }

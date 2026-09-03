@@ -46,6 +46,7 @@ class ProductionStartupValidatorTest {
 
         InternalApiProperties internalApiProperties = mock(InternalApiProperties.class);
         when(internalApiProperties.key()).thenReturn("prod-internal-key-32bytes-at-least!!");
+        when(internalApiProperties.hasCidrRestriction()).thenReturn(true);
 
         AuthProperties authProperties = mock(AuthProperties.class);
         when(authProperties.jwtSecret()).thenReturn("prod-jwt-secret-32bytes-at-least!!!!");
@@ -91,6 +92,9 @@ class ProductionStartupValidatorTest {
         MerchantWithdrawProperties merchantWithdrawProperties = mock(MerchantWithdrawProperties.class);
         when(merchantWithdrawProperties.mockEnabled()).thenReturn(false);
 
+        IdentityVerifyProperties identityVerifyProperties = mock(IdentityVerifyProperties.class);
+        when(identityVerifyProperties.isConfigured()).thenReturn(true);
+
         return new ProductionStartupValidator(
                 environment,
                 securityProperties,
@@ -107,6 +111,7 @@ class ProductionStartupValidatorTest {
                 reconciliationProperties,
                 checkoutProperties,
                 lineWithdrawProperties,
-                merchantWithdrawProperties);
+                merchantWithdrawProperties,
+                identityVerifyProperties);
     }
 }

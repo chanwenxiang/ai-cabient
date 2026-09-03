@@ -290,29 +290,28 @@
               <template #default="{ row }">{{ formatDateTime(row.paidAt) }}</template>
             </el-table-column>
             <el-table-column
+              v-if="showWithdrawActionColumn"
               label="操作"
-              width="200"
+              width="260"
               align="center"
               class-name="col-action"
               fixed="right"
             >
               <template #default="{ row }">
-                <template
-                  v-if="row.status === 'PENDING_REVIEW' && auth.hasPerm('ops:line-withdraw:review')"
-                >
+                <template v-if="canReviewWithdraw(row)">
                   <el-button link type="success" @click="review(row, true)">通过并打款</el-button>
                   <el-button link type="danger" @click="review(row, false)">驳回</el-button>
                 </template>
-                <el-button
-                  v-else-if="
-                    (row.status === 'APPROVED' || row.status === 'FAILED') &&
-                    auth.hasPerm('ops:line-withdraw:review')
-                  "
-                  link
-                  type="primary"
-                  @click="payout(row)"
-                  >重试打款</el-button
-                >
+                <template v-else-if="canRetryWithdrawPayout(row)">
+                  <el-button link type="primary" @click="payout(row)">重试打款</el-button>
+                  <el-button
+                    v-if="canCancelFailedWithdraw(row)"
+                    link
+                    type="danger"
+                    @click="cancelFailed(row)"
+                    >取消解冻</el-button
+                  >
+                </template>
               </template>
             </el-table-column>
           </el-table>
@@ -529,7 +528,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { Refresh } from '@element-plus/icons-vue';
@@ -599,6 +598,29 @@ const wPage = ref(1);
 const wSize = ref(20);
 const wTotal = ref(0);
 const wStatus = ref('');
+
+function canReviewWithdraw(row: Withdraw) {
+  return row.status === 'PENDING_REVIEW' && auth.hasPerm('ops:line-withdraw:review');
+}
+
+function canRetryWithdrawPayout(row: Withdraw) {
+  return (
+    (row.status === 'APPROVED' || row.status === 'FAILED') &&
+    auth.hasPerm('ops:line-withdraw:review')
+  );
+}
+
+function canCancelFailedWithdraw(row: Withdraw) {
+  return row.status === 'FAILED' && auth.hasPerm('ops:line-withdraw:review');
+}
+
+/** 当前页无可操作行时隐藏操作列，避免终态列表整列空白 */
+const showWithdrawActionColumn = computed(() =>
+  withdraws.value.some(
+    (row) => canReviewWithdraw(row) || canRetryWithdrawPayout(row) || canCancelFailedWithdraw(row)
+  )
+);
+
 const createVisible = ref(false);
 const bindVisible = ref(false);
 const bindTarget = ref<Manager | null>(null);
@@ -987,7 +1009,28 @@ async function payout(row: Withdraw) {
     ElMessage.success('已触发打款');
     await loadWithdraws();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '失败');
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '失败');
+    }
+  }
+}
+
+async function cancelFailed(row: Withdraw) {
+  try {
+    await ElMessageBox.confirm(
+      `确认取消该失败提现（¥${yuan(row.amountCents)}）并解冻资金？取消后不可再打款。`,
+      '取消解冻',
+      { type: 'warning', confirmButtonText: '确定解冻', cancelButtonText: '返回' }
+    );
+    await api.request(`/api/v2/ops/admin/line-withdraws/${row.requestId}/cancel`, 'POST', {
+      remark: '运营取消解冻'
+    });
+    ElMessage.success('已取消并解冻');
+    await loadWithdraws();
+  } catch (e) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '取消失败');
+    }
   }
 }
 

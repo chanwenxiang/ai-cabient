@@ -257,6 +257,11 @@ function scheduleSync(): void {
   }, 48);
 }
 
+function onVisualViewportChange(): void {
+  scheduleSync();
+  scheduleDockUpdate();
+}
+
 export function observeTableScrollFit(root: HTMLElement): void {
   observedRoot = root;
   observer?.disconnect();
@@ -266,6 +271,9 @@ export function observeTableScrollFit(root: HTMLElement): void {
   });
   syncTableScrollFit();
   window.addEventListener('resize', scheduleSync);
+  // 浏览器缩放 / 触控缩放常改 visualViewport 而不触发 window.resize
+  window.visualViewport?.addEventListener('resize', onVisualViewportChange);
+  window.visualViewport?.addEventListener('scroll', onVisualViewportChange);
   root.addEventListener('scroll', scheduleDockUpdate, { passive: true });
 }
 
@@ -277,6 +285,8 @@ export function stopTableScrollFit(): void {
   }
   observedRoot = null;
   window.removeEventListener('resize', scheduleSync);
+  window.visualViewport?.removeEventListener('resize', onVisualViewportChange);
+  window.visualViewport?.removeEventListener('scroll', onVisualViewportChange);
   if (debounceTimer) globalThis.clearTimeout(debounceTimer);
   debounceTimer = 0;
   if (rafId) cancelAnimationFrame(rafId);

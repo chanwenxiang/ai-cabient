@@ -452,13 +452,36 @@ export function requireConsumerAuth(
   });
 }
 
-export function sendSmsCode(phone: string) {
-  return request<void>(
-    `/api/v2/auth/sms-code?phoneNumber=${encodeURIComponent(phone)}`,
-    'POST',
+export function fetchCaptcha() {
+  return request<{ captchaId: string; imageBase64: string }>(
+    '/api/v2/auth/captcha',
+    'GET',
     null,
     false
   );
+}
+
+export function sendSmsCode(phone: string, captchaId: string, captchaCode: string) {
+  const q = new URLSearchParams({
+    phoneNumber: phone,
+    captchaId,
+    captchaCode
+  });
+  return request<void>(`/api/v2/auth/sms-code?${q.toString()}`, 'POST', null, false);
+}
+
+/** 登出：服务端吊销 JWT（失败也清本地会话）。 */
+export async function logoutConsumerSession() {
+  try {
+    if (getConsumerToken()) {
+      await request<void>('/api/v2/auth/logout', 'POST', null, true);
+    }
+  } catch {
+    /* 吊销失败仍清本地，避免卡在坏会话 */
+  } finally {
+    clearConsumerSession();
+    markConsumerExplicitLogout();
+  }
 }
 
 export const consumerApi = {

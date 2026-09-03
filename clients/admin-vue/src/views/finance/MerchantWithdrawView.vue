@@ -66,68 +66,72 @@
         </el-form>
 
         <div class="table-scroll">
-          <el-table
-            :data="wallets"
-            v-loading="walletsLoading"
-            stripe
-            border
-            class="report-table"
-            empty-text=" "
-          >
-            <template #empty
-              ><el-empty v-if="walletsHydrated && !walletsLoading" description="暂无商户钱包"
-            /></template>
-            <el-table-column prop="merchantId" label="商户编号" min-width="120" align="center" />
-            <el-table-column
-              prop="merchantName"
-              label="名称"
-              min-width="140"
-              show-overflow-tooltip
-              align="center"
-            />
-            <el-table-column label="联系电话" width="130" align="center">
-              <template #default="{ row }">{{ row.contactPhone || '暂无' }}</template>
-            </el-table-column>
-            <el-table-column label="余额(元)" width="110" align="center">
-              <template #default="{ row }">{{ yuan(row.balanceCents) }}</template>
-            </el-table-column>
-            <el-table-column label="冻结(元)" width="110" align="center">
-              <template #default="{ row }">{{ yuan(row.frozenCents) }}</template>
-            </el-table-column>
-            <el-table-column label="可用(元)" width="110" align="center">
-              <template #default="{ row }">{{ yuan(row.availableCents) }}</template>
-            </el-table-column>
-            <el-table-column prop="status" label="状态" width="90" align="center">
-              <template #default="{ row }">{{
-                displayLabel('merchant_status', row.status, '暂无')
-              }}</template>
-            </el-table-column>
-            <el-table-column
-              label="操作"
-              width="260"
-              align="center"
-              class-name="col-action"
-              fixed="right"
+          <div class="table-scroll-inner">
+            <el-table
+              ref="walletTableRef"
+              :data="wallets"
+              v-loading="walletsLoading"
+              stripe
+              border
+              row-key="merchantId"
+              class="report-table"
+              empty-text=" "
+              @selection-change="onWalletSelectionChange"
             >
-              <template #default="{ row }">
-                <el-button
-                  v-hasPermi="['ops:merchant-withdraw:adjust']"
-                  link
-                  type="primary"
-                  @click="openAdjust(row)"
-                  >调账</el-button
-                >
-                <el-button link @click="showLedgers(row)">流水</el-button>
-                <el-button
-                  v-hasPermi="['ops:merchant-withdraw:adjust']"
-                  link
-                  type="warning"
-                  @click="openWithdraw(row)"
-                  >代提现</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
+              <template #empty
+                ><el-empty v-if="walletsHydrated && !walletsLoading" description="暂无商户钱包"
+              /></template>
+              <el-table-column type="selection" width="48" align="center" />
+              <el-table-column prop="merchantId" label="商户编号" min-width="120" align="center" />
+              <el-table-column
+                prop="merchantName"
+                label="名称"
+                min-width="140"
+                show-overflow-tooltip
+                align="center"
+              />
+              <el-table-column label="联系电话" width="130" align="center">
+                <template #default="{ row }">{{ row.contactPhone || '暂无' }}</template>
+              </el-table-column>
+              <el-table-column label="余额(元)" width="110" align="center">
+                <template #default="{ row }">{{ yuan(row.balanceCents) }}</template>
+              </el-table-column>
+              <el-table-column label="冻结(元)" width="110" align="center">
+                <template #default="{ row }">{{ yuan(row.frozenCents) }}</template>
+              </el-table-column>
+              <el-table-column label="可用(元)" width="110" align="center">
+                <template #default="{ row }">{{ yuan(row.availableCents) }}</template>
+              </el-table-column>
+              <el-table-column prop="status" label="状态" width="90" align="center">
+                <template #default="{ row }">{{
+                  displayLabel('merchant_status', row.status, '暂无')
+                }}</template>
+              </el-table-column>
+              <!--
+                不使用 fixed="right"：页面/CSS 放大时 sticky 操作列会钉在可视区右侧，
+                与中间列错位，出现大块留白（仅见商户编号+操作）。列不多，横滑即可。
+              -->
+              <el-table-column label="操作" width="260" align="center" class-name="col-action">
+                <template #default="{ row }">
+                  <el-button
+                    v-hasPermi="['ops:merchant-withdraw:adjust']"
+                    link
+                    type="primary"
+                    @click="openAdjust(row)"
+                    >调账</el-button
+                  >
+                  <el-button link @click="showLedgers(row)">流水</el-button>
+                  <el-button
+                    v-hasPermi="['ops:merchant-withdraw:adjust']"
+                    link
+                    type="warning"
+                    @click="openWithdraw(row)"
+                    >代提现</el-button
+                  >
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
         </div>
         <PagePager
           :hydrated="walletsHydrated"
@@ -236,31 +240,28 @@
               <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
             </el-table-column>
             <el-table-column
+              v-if="showWithdrawActionColumn"
               label="操作"
-              width="200"
+              width="260"
               align="center"
               class-name="col-action"
               fixed="right"
             >
               <template #default="{ row }">
-                <template
-                  v-if="
-                    row.status === 'PENDING_REVIEW' && auth.hasPerm('ops:merchant-withdraw:review')
-                  "
-                >
+                <template v-if="canReviewWithdraw(row)">
                   <el-button link type="success" @click="review(row, true)">通过并打款</el-button>
                   <el-button link type="danger" @click="review(row, false)">驳回</el-button>
                 </template>
-                <el-button
-                  v-else-if="
-                    (row.status === 'APPROVED' || row.status === 'FAILED') &&
-                    auth.hasPerm('ops:merchant-withdraw:review')
-                  "
-                  link
-                  type="primary"
-                  @click="payout(row)"
-                  >重试打款</el-button
-                >
+                <template v-else-if="canRetryWithdrawPayout(row)">
+                  <el-button link type="primary" @click="payout(row)">重试打款</el-button>
+                  <el-button
+                    v-if="canCancelFailedWithdraw(row)"
+                    link
+                    type="danger"
+                    @click="cancelFailed(row)"
+                    >取消解冻</el-button
+                  >
+                </template>
               </template>
             </el-table-column>
           </el-table>
@@ -418,7 +419,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { Refresh } from '@element-plus/icons-vue';
@@ -486,6 +487,12 @@ const withdrawForm = ref({ amount: 0 });
 const wdBatchLoading = ref<'approve' | 'reject' | ''>('');
 
 const {
+  tableRef: walletTableRef,
+  onSelectionChange: onWalletSelectionChange,
+  clearSelection: clearWalletSelection
+} = useAdminListTable<WalletRow>((r) => r.merchantId);
+
+const {
   tableRef: wdTableRef,
   hasSelection: wdHasSelection,
   onSelectionChange: onWdSelectionChange,
@@ -494,6 +501,28 @@ const {
 } = useAdminListTable<Withdraw>((r) => r.requestId);
 
 const withdrawStatusOptions = useDictOptions('merchant_withdraw_status');
+
+function canReviewWithdraw(row: Withdraw) {
+  return row.status === 'PENDING_REVIEW' && auth.hasPerm('ops:merchant-withdraw:review');
+}
+
+function canRetryWithdrawPayout(row: Withdraw) {
+  return (
+    (row.status === 'APPROVED' || row.status === 'FAILED') &&
+    auth.hasPerm('ops:merchant-withdraw:review')
+  );
+}
+
+function canCancelFailedWithdraw(row: Withdraw) {
+  return row.status === 'FAILED' && auth.hasPerm('ops:merchant-withdraw:review');
+}
+
+/** 当前页无可操作行时隐藏操作列，避免终态列表整列空白 */
+const showWithdrawActionColumn = computed(() =>
+  withdraws.value.some(
+    (row) => canReviewWithdraw(row) || canRetryWithdrawPayout(row) || canCancelFailedWithdraw(row)
+  )
+);
 
 function yuan(cents?: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
@@ -558,6 +587,7 @@ async function loadWallets() {
     );
     wallets.value = res.items || [];
     wTotal.value = res.total || 0;
+    clearWalletSelection();
   } catch (e: any) {
     ElMessage.error(e?.message || '加载失败');
   } finally {
@@ -742,6 +772,29 @@ async function payout(row: Withdraw) {
   } catch (e: any) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '打款失败');
+    }
+  }
+}
+
+async function cancelFailed(row: Withdraw) {
+  try {
+    await ElMessageBox.confirm(
+      `确认取消该失败提现（¥${yuan(row.amountCents)}）并解冻资金？取消后不可再打款。`,
+      '取消解冻',
+      {
+        type: 'warning',
+        confirmButtonText: '确定解冻',
+        cancelButtonText: '返回'
+      }
+    );
+    await api.request(`/api/v2/ops/admin/merchant-withdraws/${row.requestId}/cancel`, 'POST', {
+      remark: '运营取消解冻'
+    });
+    ElMessage.success('已取消并解冻');
+    await loadWithdraws();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '取消失败');
     }
   }
 }

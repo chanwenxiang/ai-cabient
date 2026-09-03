@@ -12,7 +12,7 @@ import java.security.MessageDigest;
 
 /**
  * 内部 API 共享密钥校验（trade-service / device-service 共用）。
- * 仅用于服务间 /internal/** 调用，不对外暴露。
+ * 可选来源 CIDR 白名单；未配置 CIDR 时仅校验密钥。
  */
 @Component
 public class InternalApiAuthInterceptor implements HandlerInterceptor {
@@ -32,6 +32,11 @@ public class InternalApiAuthInterceptor implements HandlerInterceptor {
         String provided = request.getHeader(InternalApiConstants.API_KEY_HEADER);
         if (provided == null || !constantTimeEquals(provided, internalApiProperties.key())) {
             response.setStatus(HttpStatus.UNAUTHORIZED.value());
+            return false;
+        }
+        if (internalApiProperties.hasCidrRestriction()
+                && !CidrAllowlist.isAllowed(request.getRemoteAddr(), internalApiProperties.allowedCidrList())) {
+            response.setStatus(HttpStatus.FORBIDDEN.value());
             return false;
         }
         return true;

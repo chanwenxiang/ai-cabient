@@ -2,9 +2,11 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.trade.config.CheckoutProperties;
+import com.aicabinet.trade.domain.ConsumerPreauthHold;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.UserAccount;
+import com.aicabinet.trade.mapper.ConsumerPreauthHoldMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
@@ -16,9 +18,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
+
 /**
  * 消费者开门预授权：余额路径在开门时冻结额度，结算时冲抵/释放剩余，取消时释放。
  * 免密（支付分/代扣）路径不冻结，由渠道信用承担。
+ * <p>
+ * 账户 {@code frozenCents} 为各会话冻结之和；单笔冲抵/释放只动本会话
+ * {@link ConsumerPreauthHold#getHoldCents()}，避免多会话并发时误放他会话冻结。
  */
 @Service
 public class ConsumerPreauthService {
@@ -33,6 +40,7 @@ public class ConsumerPreauthService {
     private final UserAccountMapper accountRepository;
     private final ShoppingSessionMapper sessionRepository;
     private final DeviceInfoMapper deviceRepository;
+    private final ConsumerPreauthHoldMapper holdRepository;
     private final CheckoutProperties checkoutProperties;
     private final BalanceLedgerService balanceLedgerService;
     private final SystemConfigService systemConfigService;
@@ -41,6 +49,7 @@ public class ConsumerPreauthService {
     public ConsumerPreauthService(UserAccountMapper accountRepository,
                                   ShoppingSessionMapper sessionRepository,
                                   DeviceInfoMapper deviceRepository,
+                                  ConsumerPreauthHoldMapper holdRepository,
                                   CheckoutProperties checkoutProperties,
                                   BalanceLedgerService balanceLedgerService,
                                   SystemConfigService systemConfigService,
@@ -48,6 +57,7 @@ public class ConsumerPreauthService {
         this.accountRepository = accountRepository;
         this.sessionRepository = sessionRepository;
         this.deviceRepository = deviceRepository;
+        this.holdRepository = holdRepository;
         this.checkoutProperties = checkoutProperties;
         this.balanceLedgerService = balanceLedgerService;
         this.systemConfigService = systemConfigService;
@@ -101,8 +111,17 @@ public class ConsumerPreauthService {
         if (session == null) {
             return;
         }
+        ConsumerPreauthHold existing = holdRepository.findByIdForUpdate(sessionId).orElse(null);
+        if (existing != null && STATUS_FROZEN.equalsIgnoreCase(blankToNone(existing.getStatus()))
+                && existing.getHoldCents() > 0) {
+            syncSessionFromHold(session, existing);
+            return;
+        }
         if (STATUS_FROZEN.equalsIgnoreCase(blankToNone(session.getPreauthStatus()))
-                && session.getPreauthCents() > 0) {
+                && session.getPreauthCents() > 0
+                && existing == null) {
+            // 兼容迁移前仅写了 session 字段的数据
+            upsertHold(session.getSessionId(), session.getUserId(), session.getPreauthCents(), STATUS_FROZEN);
             return;
         }
         int amount = resolvePreauthCents(session.getDeviceId());
@@ -120,6 +139,7 @@ public class ConsumerPreauthService {
         }
         account.setFrozenCents(account.getFrozenCents() + amount);
         accountRepository.save(account);
+        upsertHold(session.getSessionId(), session.getUserId(), amount, STATUS_FROZEN);
         session.setPreauthCents(amount);
         session.setPreauthStatus(STATUS_FROZEN);
         sessionRepository.save(session);
@@ -142,6 +162,7 @@ public class ConsumerPreauthService {
                     s.setPreauthStatus(STATUS_RELEASED);
                     sessionRepository.save(s);
                 }
+                markHoldTerminal(s.getSessionId(), STATUS_RELEASED);
             });
             return;
         }
@@ -150,20 +171,30 @@ public class ConsumerPreauthService {
 
     private void doReleaseIfFrozen(String sessionId) {
         ShoppingSession session = reloadSession(sessionId).orElse(null);
-        if (session == null || !STATUS_FROZEN.equalsIgnoreCase(blankToNone(session.getPreauthStatus()))) {
+        if (session == null) {
             return;
         }
-        int amount = Math.max(0, session.getPreauthCents());
+        ConsumerPreauthHold hold = holdRepository.findByIdForUpdate(sessionId).orElse(null);
+        int amount = resolveSessionHoldCents(session, hold);
+        boolean sessionFrozen = STATUS_FROZEN.equalsIgnoreCase(blankToNone(session.getPreauthStatus()));
+        boolean holdFrozen = hold != null && STATUS_FROZEN.equalsIgnoreCase(blankToNone(hold.getStatus()));
+        if (!sessionFrozen && !holdFrozen) {
+            return;
+        }
         if (amount <= 0 || session.getUserId() == null) {
             session.setPreauthStatus(STATUS_RELEASED);
             sessionRepository.save(session);
+            markHoldTerminal(sessionId, STATUS_RELEASED);
             return;
         }
-        UserAccount account = accountRepository.findByIdForUpdate(session.getUserId())
-                .orElse(null);
+        UserAccount account = accountRepository.findByIdForUpdate(session.getUserId()).orElse(null);
+        int release = 0;
         if (account != null) {
             int frozen = Math.max(0, account.getFrozenCents());
-            int release = Math.min(frozen, amount);
+            release = Math.min(frozen, amount);
+            if (release < amount) {
+                log.warn("preauth release clamp session={} hold={} frozen={}", sessionId, amount, frozen);
+            }
             account.setFrozenCents(frozen - release);
             accountRepository.save(account);
             if (release > 0) {
@@ -174,11 +205,12 @@ public class ConsumerPreauthService {
         }
         session.setPreauthStatus(STATUS_RELEASED);
         sessionRepository.save(session);
-        log.info("preauth released session={} amount={}", session.getSessionId(), amount);
+        markHoldTerminal(sessionId, STATUS_RELEASED);
+        log.info("preauth released session={} amount={} applied={}", session.getSessionId(), amount, release);
     }
 
     /**
-     * 余额扣款时冲抵预授权：先消费冻结中的 min(order, held)，多余订单额再扣可用余额，剩余冻结释放。
+     * 余额扣款时冲抵预授权：先消费本会话冻结中的 min(order, held)，多余订单额再扣可用余额，剩余冻结释放。
      * 返回仍需从可用余额扣减的金额（分）。
      */
     @Transactional
@@ -195,19 +227,30 @@ public class ConsumerPreauthService {
 
     private int doCaptureForCharge(String sessionId, int orderAmountCents) {
         ShoppingSession session = reloadSession(sessionId).orElse(null);
-        if (session == null || !STATUS_FROZEN.equalsIgnoreCase(blankToNone(session.getPreauthStatus()))) {
+        if (session == null) {
             return Math.max(0, orderAmountCents);
         }
-        int held = Math.max(0, session.getPreauthCents());
+        ConsumerPreauthHold hold = holdRepository.findByIdForUpdate(sessionId).orElse(null);
+        boolean sessionFrozen = STATUS_FROZEN.equalsIgnoreCase(blankToNone(session.getPreauthStatus()));
+        boolean holdFrozen = hold != null && STATUS_FROZEN.equalsIgnoreCase(blankToNone(hold.getStatus()));
+        if (!sessionFrozen && !holdFrozen) {
+            return Math.max(0, orderAmountCents);
+        }
+        int held = resolveSessionHoldCents(session, hold);
         if (held <= 0 || session.getUserId() == null) {
             session.setPreauthStatus(STATUS_CAPTURED);
             sessionRepository.save(session);
+            markHoldTerminal(sessionId, STATUS_CAPTURED);
             return Math.max(0, orderAmountCents);
         }
         UserAccount account = accountRepository.findByIdForUpdate(session.getUserId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ACCOUNT_NOT_FOUND));
         int frozen = Math.max(0, account.getFrozenCents());
+        // 只动本会话 hold；若账户冻结不足本会话（历史不一致），钳制并告警，绝不按更大的 held 抽干他会话
         int usableHold = Math.min(frozen, held);
+        if (usableHold < held) {
+            log.warn("preauth capture clamp session={} hold={} frozen={}", sessionId, held, frozen);
+        }
         int capture = Math.min(Math.max(0, orderAmountCents), usableHold);
         int release = usableHold - capture;
         int before = account.getBalanceCents();
@@ -231,6 +274,7 @@ public class ConsumerPreauthService {
         }
         session.setPreauthStatus(STATUS_CAPTURED);
         sessionRepository.save(session);
+        markHoldTerminal(sessionId, STATUS_CAPTURED);
         int remain = Math.max(0, orderAmountCents - capture);
         log.info("preauth captured session={} orderAmount={} capture={} remainDebit={}",
                 session.getSessionId(), orderAmountCents, capture, remain);
@@ -250,6 +294,14 @@ public class ConsumerPreauthService {
         session.setPreauthCents(0);
         session.setPreauthStatus(STATUS_NONE);
         sessionRepository.save(session);
+        holdRepository.findById(session.getSessionId()).ifPresent(h -> {
+            if (STATUS_FROZEN.equalsIgnoreCase(blankToNone(h.getStatus()))) {
+                h.setStatus(STATUS_RELEASED);
+                h.setHoldCents(0);
+                h.setUpdatedAt(Instant.now());
+                holdRepository.save(h);
+            }
+        });
     }
 
     private static boolean isOpsRemote(ShoppingSession session) {
@@ -277,17 +329,49 @@ public class ConsumerPreauthService {
     }
 
     private <T> T runWithPreauthLock(long userId, java.util.function.Supplier<T> action) {
-        if (!distributedLockService.tryLock(preauthLockKey(userId), 60, 5)) {
+        String lockKey = preauthLockKey(userId);
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "预授权处理中，请稍后重试");
         }
         try {
             return action.get();
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
         } finally {
-            distributedLockService.unlock(preauthLockKey(userId));
+            distributedLockService.unlock(lockKey);
         }
+    }
+
+    private int resolveSessionHoldCents(ShoppingSession session, ConsumerPreauthHold hold) {
+        if (hold != null && STATUS_FROZEN.equalsIgnoreCase(blankToNone(hold.getStatus()))) {
+            return Math.max(0, hold.getHoldCents());
+        }
+        return Math.max(0, session.getPreauthCents());
+    }
+
+    private void upsertHold(String sessionId, Long userId, int holdCents, String status) {
+        Instant now = Instant.now();
+        ConsumerPreauthHold hold = holdRepository.findById(sessionId).orElseGet(ConsumerPreauthHold::new);
+        hold.setSessionId(sessionId);
+        hold.setUserId(userId);
+        hold.setHoldCents(Math.max(0, holdCents));
+        hold.setStatus(status);
+        if (hold.getCreatedAt() == null) {
+            hold.setCreatedAt(now);
+        }
+        hold.setUpdatedAt(now);
+        holdRepository.save(hold);
+    }
+
+    private void markHoldTerminal(String sessionId, String status) {
+        holdRepository.findById(sessionId).ifPresent(h -> {
+            h.setStatus(status);
+            h.setUpdatedAt(Instant.now());
+            holdRepository.save(h);
+        });
+    }
+
+    private void syncSessionFromHold(ShoppingSession session, ConsumerPreauthHold hold) {
+        session.setPreauthCents(Math.max(0, hold.getHoldCents()));
+        session.setPreauthStatus(STATUS_FROZEN);
+        sessionRepository.save(session);
     }
 }

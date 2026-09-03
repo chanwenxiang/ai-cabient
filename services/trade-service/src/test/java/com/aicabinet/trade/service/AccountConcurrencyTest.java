@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
+import com.aicabinet.trade.identity.IdentityVerifyClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,13 +24,14 @@ class AccountConcurrencyTest {
     @Mock private PayScoreService payScoreService;
     @Mock private BalanceLedgerService balanceLedgerService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private IdentityVerifyClient identityVerifyClient;
 
     private AccountService service;
 
     @BeforeEach
     void setUp() {
         service = new AccountService(userInfoRepository, userAccountRepository,
-                payScoreService, balanceLedgerService, distributedLockService, null);
+                payScoreService, balanceLedgerService, distributedLockService, identityVerifyClient, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

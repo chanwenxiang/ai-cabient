@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.config.CheckoutProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.UserAccount;
+import com.aicabinet.trade.mapper.ConsumerPreauthHoldMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
@@ -27,6 +28,7 @@ class ConsumerPreauthConcurrencyTest {
     @Mock private UserAccountMapper accountRepository;
     @Mock private ShoppingSessionMapper sessionRepository;
     @Mock private DeviceInfoMapper deviceRepository;
+    @Mock private ConsumerPreauthHoldMapper holdRepository;
     @Mock private BalanceLedgerService balanceLedgerService;
     @Mock private SystemConfigService systemConfigService;
     @Mock private DistributedLockService distributedLockService;
@@ -37,7 +39,7 @@ class ConsumerPreauthConcurrencyTest {
     void setUp() {
         CheckoutProperties checkoutProperties = new CheckoutProperties(false, 500);
         service = new ConsumerPreauthService(
-                accountRepository, sessionRepository, deviceRepository,
+                accountRepository, sessionRepository, deviceRepository, holdRepository,
                 checkoutProperties, balanceLedgerService, systemConfigService,
                 distributedLockService);
     }
@@ -82,6 +84,8 @@ class ConsumerPreauthConcurrencyTest {
                 ConsumerPreauthService.preauthLockKey(10002L), 60L, 5L))
                 .thenReturn(true);
         when(sessionRepository.findByIdForUpdate("S-2")).thenReturn(Optional.of(locked));
+        when(holdRepository.findByIdForUpdate("S-2")).thenReturn(Optional.empty());
+        when(holdRepository.findById("S-2")).thenReturn(Optional.empty());
         when(accountRepository.findByIdForUpdate(10002L)).thenReturn(Optional.of(account));
 
         service.freezeForOpen(session, false);

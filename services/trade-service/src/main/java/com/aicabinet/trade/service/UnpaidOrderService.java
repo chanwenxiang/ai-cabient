@@ -247,16 +247,13 @@ public class UnpaidOrderService {
         order.setStatus("PAID");
         orderRepository.save(order);
         if (applied != null) {
-            try {
-                couponService.markUsed(
-                        order.getUserId(),
-                        applied.couponId(),
-                        order.getOrderId(),
-                        order.getDeviceId(),
-                        order.getCouponDiscountCents());
-            } catch (Exception ex) {
-                log.warn("coupon markUsed on collect failed order={}", order.getOrderId(), ex);
-            }
+            // 核销失败必须回滚整笔补扣（含扣款/置 PAID），避免「已付但券仍 UNUSED」可被重复用
+            couponService.markUsed(
+                    order.getUserId(),
+                    applied.couponId(),
+                    order.getOrderId(),
+                    order.getDeviceId(),
+                    order.getCouponDiscountCents());
         }
         revenueSplitService.recordSplit(order);
         try {

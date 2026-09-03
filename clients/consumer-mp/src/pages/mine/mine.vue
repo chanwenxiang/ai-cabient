@@ -305,11 +305,10 @@ import { computed, ref } from 'vue';
 import type { AccountDto, BalanceTransactionDto } from '@aicabinet/shared-types';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import {
-  clearConsumerSession,
   consumerApi,
   ensureConsumerAuth,
   getConsumerToken,
-  markConsumerExplicitLogout
+  logoutConsumerSession
 } from '@/utils/consumer-api';
 import { formatDateTimeShort, fmtMoney, shortBizNo } from '@aicabinet/shared-uni/format';
 import { menuIcon } from '@/utils/menu-icon';
@@ -684,10 +683,9 @@ function onLogout() {
     title: '退出登录',
     content: '确定退出当前账户吗？',
     confirmText: '退出',
-    success(res) {
+    async success(res) {
       if (!res.confirm) return;
-      clearConsumerSession();
-      markConsumerExplicitLogout();
+      await logoutConsumerSession();
       authed.value = false;
       account.value = null;
       balanceYuan.value = '--';

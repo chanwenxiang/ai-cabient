@@ -46,8 +46,13 @@ public final class CabinetConstants {
      */
     public static final int MIN_BALANCE_CENTS = 2000;
 
-    /** 运营人员 userId 起始值，运营账号跳过实名/余额校验 */
+    /** 运营人员 userId 起始值（分配号段）；鉴权以 account_type 为准，号段仅作回退与分配 */
     public static final long OPERATOR_USER_ID_START = 100_000_000L;
+
+    /** 账号类型：消费者 */
+    public static final String ACCOUNT_TYPE_CONSUMER = "CONSUMER";
+    /** 账号类型：运营（含商户门户运营号） */
+    public static final String ACCOUNT_TYPE_OPERATOR = "OPERATOR";
 
     public static final String MQTT_EVENT_TYPE_DOOR = "DOOR";
     public static final String MQTT_EVENT_TYPE_HEARTBEAT = "HEARTBEAT";

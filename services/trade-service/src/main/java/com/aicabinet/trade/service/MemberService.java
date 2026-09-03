@@ -91,7 +91,8 @@ public class MemberService {
 
     private void applyMemberStatsDelta(Member member, BigDecimal orderAmount) {
         member.setTotalSpent(member.getTotalSpent().add(orderAmount));
-        member.setOrderCount(member.getOrderCount() + 1);
+        int nextCount = Math.addExact(Math.max(0, member.getOrderCount()), 1);
+        member.setOrderCount(nextCount);
 
         String newLevel = calculateMemberLevel(member.getTotalSpent());
         if (!newLevel.equals(member.getMemberLevel())) {

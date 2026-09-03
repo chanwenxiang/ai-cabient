@@ -950,183 +950,197 @@
 
         <el-tab-pane label="关联单据" name="related">
           <h4 class="section-title">最近开门记录</h4>
-          <el-table
-            v-loading="!relatedHydrated"
-            :data="sessions"
-            stripe
-            border
-            size="small"
-            class="report-table"
-            empty-text=" "
-          >
-            <template #empty
-              ><el-empty v-if="relatedHydrated" description="暂无会话" :image-size="48"
-            /></template>
-            <el-table-column
-              label="会话"
-              min-width="160"
-              align="center"
-              class-name="col-text"
-              show-overflow-tooltip
-            >
-              <template #default="{ row }">
-                <span class="cell-id">{{ displayBizNo(row.sessionId) }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="状态" width="100" align="center">
-              <template #default="{ row }">
-                <el-tag size="small" effect="plain">{{
-                  dictLabel('session_state', row.state)
-                }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="类型" width="88" align="center">
-              <template #default="{ row }">
-                {{
-                  row.sessionKind === 'RESTOCK'
-                    ? '补货'
-                    : row.sessionKind === 'OPS'
-                      ? '运维'
-                      : '消费'
-                }}
-              </template>
-            </el-table-column>
-            <el-table-column label="入口" width="88" align="center">
-              <template #default="{ row }">
-                {{ displayLabel('pay_channel', row.entryChannel || row.payChannel, '暂无') }}
-              </template>
-            </el-table-column>
-            <el-table-column label="录像" width="72" align="center">
-              <template #default="{ row }">
-                {{ row.videoUri || row.uploadStatus === 'UPLOADED' ? '有' : '无' }}
-              </template>
-            </el-table-column>
-            <el-table-column
-              label="订单"
-              min-width="120"
-              align="center"
-              class-name="col-text"
-              show-overflow-tooltip
-            >
-              <template #default="{ row }">
-                <span class="cell-id">{{ displayBizNo(row.orderId, '无') }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="失败原因" min-width="120" align="center" show-overflow-tooltip>
-              <template #default="{ row }">
-                {{ row.failReason || row.failureReason || '暂无' }}
-              </template>
-            </el-table-column>
-            <el-table-column label="时间" width="168" align="center" class-name="col-text">
-              <template #default="{ row }">
-                <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column
-              label="操作"
-              width="88"
-              class-name="col-action"
-              align="center"
-              fixed="right"
-            >
-              <template #default="{ row }">
-                <TableActions
-                  v-if="canAccessPath('/sessions')"
-                  :actions="[{ key: 'sessions', label: '查看', icon: View, type: 'primary' }]"
-                  @action="
-                    () =>
-                      goPath(
-                        '/sessions',
-                        row.sessionId ? { deviceId, sessionId: row.sessionId } : { deviceId }
-                      )
-                  "
-                />
-                <span v-else class="muted">暂无</span>
-              </template>
-            </el-table-column>
-          </el-table>
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <el-table
+                v-loading="!relatedHydrated"
+                :data="sessions"
+                stripe
+                border
+                size="small"
+                class="report-table"
+                empty-text=" "
+              >
+                <template #empty
+                  ><el-empty v-if="relatedHydrated" description="暂无会话" :image-size="48"
+                /></template>
+                <el-table-column
+                  label="会话"
+                  min-width="160"
+                  align="center"
+                  class-name="col-text"
+                  show-overflow-tooltip
+                >
+                  <template #default="{ row }">
+                    <span class="cell-id">{{ displayBizNo(row.sessionId) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="状态" width="100" align="center">
+                  <template #default="{ row }">
+                    <el-tag size="small" effect="plain">{{
+                      dictLabel('session_state', row.state)
+                    }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="类型" width="88" align="center">
+                  <template #default="{ row }">
+                    {{
+                      row.sessionKind === 'RESTOCK'
+                        ? '补货'
+                        : row.sessionKind === 'OPS'
+                          ? '运维'
+                          : '消费'
+                    }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="入口" width="88" align="center">
+                  <template #default="{ row }">
+                    {{ displayLabel('pay_channel', row.entryChannel || row.payChannel, '暂无') }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="录像" width="72" align="center">
+                  <template #default="{ row }">
+                    {{ row.videoUri || row.uploadStatus === 'UPLOADED' ? '有' : '无' }}
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  label="订单"
+                  min-width="120"
+                  align="center"
+                  class-name="col-text"
+                  show-overflow-tooltip
+                >
+                  <template #default="{ row }">
+                    <span class="cell-id">{{ displayBizNo(row.orderId, '无') }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  label="失败原因"
+                  min-width="120"
+                  align="center"
+                  show-overflow-tooltip
+                >
+                  <template #default="{ row }">
+                    {{ row.failReason || row.failureReason || '暂无' }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="时间" width="168" align="center" class-name="col-text">
+                  <template #default="{ row }">
+                    <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  label="操作"
+                  width="88"
+                  class-name="col-action"
+                  align="center"
+                  fixed="right"
+                >
+                  <template #default="{ row }">
+                    <TableActions
+                      v-if="canAccessPath('/sessions')"
+                      :actions="[{ key: 'sessions', label: '查看', icon: View, type: 'primary' }]"
+                      @action="
+                        () =>
+                          goPath(
+                            '/sessions',
+                            row.sessionId ? { deviceId, sessionId: row.sessionId } : { deviceId }
+                          )
+                      "
+                    />
+                    <span v-else class="muted">暂无</span>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </div>
 
           <h4 class="section-title">最近订单</h4>
-          <el-table
-            v-loading="!relatedHydrated"
-            :data="orders"
-            stripe
-            border
-            size="small"
-            class="report-table"
-            empty-text=" "
-          >
-            <template #empty
-              ><el-empty v-if="relatedHydrated" description="暂无订单" :image-size="48"
-            /></template>
-            <el-table-column
-              label="订单"
-              min-width="160"
-              align="center"
-              class-name="col-text"
-              show-overflow-tooltip
-            >
-              <template #default="{ row }">
-                <span class="cell-id">{{ displayBizNo(row.orderId) }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="状态" width="100" align="center">
-              <template #default="{ row }">
-                <el-tag size="small" effect="plain">{{
-                  dictLabel('order_status', row.status)
-                }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="渠道" width="88" align="center">
-              <template #default="{ row }">
-                {{ displayLabel('pay_channel', row.payChannel, '暂无') }}
-              </template>
-            </el-table-column>
-            <el-table-column label="金额" width="100" align="center" class-name="col-money">
-              <template #default="{ row }"
-                >¥{{ ((row.totalAmountCents || 0) / 100).toFixed(2) }}</template
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <el-table
+                v-loading="!relatedHydrated"
+                :data="orders"
+                stripe
+                border
+                size="small"
+                class="report-table"
+                empty-text=" "
               >
-            </el-table-column>
-            <el-table-column label="优惠" width="88" align="center">
-              <template #default="{ row }">
-                <span
-                  v-if="
-                    Number(row.couponDiscountCents || 0) + Number(row.memberDiscountCents || 0) > 0
-                  "
+                <template #empty
+                  ><el-empty v-if="relatedHydrated" description="暂无订单" :image-size="48"
+                /></template>
+                <el-table-column
+                  label="订单"
+                  min-width="160"
+                  align="center"
+                  class-name="col-text"
+                  show-overflow-tooltip
                 >
-                  -¥{{
-                    (
-                      (Number(row.couponDiscountCents || 0) +
-                        Number(row.memberDiscountCents || 0)) /
-                      100
-                    ).toFixed(2)
-                  }}
-                </span>
-                <span v-else class="muted">暂无</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="时间" width="168" align="center" class-name="col-text">
-              <template #default="{ row }">
-                <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column
-              label="操作"
-              width="88"
-              class-name="col-action"
-              align="center"
-              fixed="right"
-            >
-              <template #default>
-                <TableActions
-                  v-if="canAccessPath('/orders')"
-                  :actions="[{ key: 'orders', label: '查看', icon: View, type: 'primary' }]"
-                  @action="() => goPath('/orders', { deviceId })"
-                />
-                <span v-else class="muted">暂无</span>
-              </template>
-            </el-table-column>
-          </el-table>
+                  <template #default="{ row }">
+                    <span class="cell-id">{{ displayBizNo(row.orderId) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="状态" width="100" align="center">
+                  <template #default="{ row }">
+                    <el-tag size="small" effect="plain">{{
+                      dictLabel('order_status', row.status)
+                    }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="渠道" width="88" align="center">
+                  <template #default="{ row }">
+                    {{ displayLabel('pay_channel', row.payChannel, '暂无') }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="金额" width="100" align="center" class-name="col-money">
+                  <template #default="{ row }"
+                    >¥{{ ((row.totalAmountCents || 0) / 100).toFixed(2) }}</template
+                  >
+                </el-table-column>
+                <el-table-column label="优惠" width="88" align="center">
+                  <template #default="{ row }">
+                    <span
+                      v-if="
+                        Number(row.couponDiscountCents || 0) + Number(row.memberDiscountCents || 0) >
+                        0
+                      "
+                    >
+                      -¥{{
+                        (
+                          (Number(row.couponDiscountCents || 0) +
+                            Number(row.memberDiscountCents || 0)) /
+                          100
+                        ).toFixed(2)
+                      }}
+                    </span>
+                    <span v-else class="muted">暂无</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="时间" width="168" align="center" class-name="col-text">
+                  <template #default="{ row }">
+                    <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  label="操作"
+                  width="88"
+                  class-name="col-action"
+                  align="center"
+                  fixed="right"
+                >
+                  <template #default>
+                    <TableActions
+                      v-if="canAccessPath('/orders')"
+                      :actions="[{ key: 'orders', label: '查看', icon: View, type: 'primary' }]"
+                      @action="() => goPath('/orders', { deviceId })"
+                    />
+                    <span v-else class="muted">暂无</span>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </div>
         </el-tab-pane>
       </el-tabs>
     </el-card>

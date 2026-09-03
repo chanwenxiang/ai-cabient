@@ -64,6 +64,11 @@ aicabinet:
     coupons-page-path: ${AICABINET_CONSUMER_COUPONS_PAGE_PATH:/pages/coupons/coupons}
   internal-api:
     key: ${INTERNAL_API_KEY:dev-internal-key-change-me}
+    # 逗号分隔 CIDR；空=不限制。生产建议 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+    allowed-cidrs: ${INTERNAL_API_ALLOWED_CIDRS:}
+  identity-verify:
+    base-url: ${IDENTITY_VERIFY_BASE_URL:}
+    api-key: ${IDENTITY_VERIFY_API_KEY:}
   device-service:
     url: ${AICABINET_DEVICE_SERVICE_URL:http://localhost:8081}
   vision-service:
@@ -165,6 +170,7 @@ aicabinet:
   alipay:
     enabled: ${ALIPAY_ENABLED:false}
     app-id: ${ALIPAY_APP_ID:}
+    seller-id: ${ALIPAY_SELLER_ID:}
     private-key: ${ALIPAY_PRIVATE_KEY:}
     alipay-public-key: ${ALIPAY_PUBLIC_KEY:}
     gateway-url: ${ALIPAY_GATEWAY:https://openapi.alipay.com/gateway.do}

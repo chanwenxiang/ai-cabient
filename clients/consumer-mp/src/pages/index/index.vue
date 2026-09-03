@@ -288,39 +288,43 @@
       </scroll-view>
 
       <view class="cart-bar">
-        <view class="cart-info">
+        <view
+          class="cart-info"
+          :class="{ tappable: sessionActive && state === 'SHOPPING' }"
+          @click="onCartBarInfoTap"
+        >
           <text class="cart-hint">{{ cartBarHint }}</text>
           <text v-if="sessionActive && state === 'SHOPPING'" class="cart-sub">{{
-            mockEnabled
-              ? '点选后关门结算；未选则不扣款'
-              : liveCartQty > 0
-                ? '识别中实时更新，关门后按最终取走结算'
-                : '拿错可放回，关门后按最终取走结算'
+            cartBarSub
           }}</text>
         </view>
-        <view v-if="sessionActive && state === 'SHOPPING' && mockEnabled" class="cart-demo">
-          <view class="cart-demo-info">
-            <text class="cart-demo-label">已选 {{ selectedCount }} 件</text>
-            <text class="cart-demo-amt">{{ selectedAmount }}</text>
+        <view
+          v-if="sessionActive && state === 'SHOPPING'"
+          class="cart-demo"
+          :class="{ live: !mockEnabled }"
+        >
+          <view
+            class="cart-demo-info tappable"
+            data-testid="open-live-cart-sheet"
+            @click="openCartSheet"
+          >
+            <view class="cart-badge-row">
+              <text class="cart-badge">{{ shoppingCartQty }}</text>
+              <text class="cart-demo-label">{{ shoppingCartLabel }}</text>
+            </view>
+            <text class="cart-demo-amt">{{ shoppingCartAmount }}</text>
           </view>
           <button
+            v-if="mockEnabled"
             class="cart-close-btn"
             hover-class="btn-hover"
             :loading="closingDoor"
             :disabled="closingDoor"
-            @click="closeDoorDemo"
+            @click.stop="closeDoorDemo"
           >
             关门结算
           </button>
-        </view>
-        <view
-          v-else-if="sessionActive && state === 'SHOPPING' && liveCartQty > 0"
-          class="cart-demo live"
-        >
-          <view class="cart-demo-info">
-            <text class="cart-demo-label">识别中 {{ liveCartQty }} 件</text>
-            <text class="cart-demo-amt">{{ liveCartAmount }}</text>
-          </view>
+          <view v-else class="cart-status-chip soft">请关门</view>
         </view>
         <view v-else-if="sessionActive" class="cart-status-chip" :class="stateTone">
           {{ cartBarAction }}
@@ -338,6 +342,15 @@
         </button>
       </view>
     </view>
+
+    <LiveCartSheet
+      :visible="cartSheetVisible"
+      :items="shoppingCartLines"
+      :total-qty="shoppingCartQty"
+      :total-amount-cents="shoppingCartAmountCents"
+      :mock-mode="mockEnabled"
+      @close="cartSheetVisible = false"
+    />
 
     <!-- 全屏开门/结算状态（竞品 openDoor 页） -->
     <view v-if="flowOverlayVisible" class="flow-overlay" :class="stateTone">
@@ -378,6 +391,7 @@
 import { onHide, onLoad, onReady, onShow, onUnload } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import OpenPrepDrawer from '@/components/open-prep-drawer.vue';
+import LiveCartSheet, { type LiveCartSheetLine } from '@/components/live-cart-sheet.vue';
 import {
   clearOpenAttempt,
   consumerApi,
@@ -606,7 +620,7 @@ const flowOverlayHint = computed(() => {
 
 const shoppingBannerTitle = computed(() => {
   if (state.value === 'SHOPPING') {
-    return mockEnabled.value ? '柜门已开，请点选商品' : '柜门已开，请自由取货';
+    return mockEnabled.value ? '柜门已开（演示·模拟取货）' : '柜门已开，请自由取货';
   }
   if (state.value === 'OPENING' || state.value === 'CREATED') return '正在开门，请稍候';
   if (['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value)) return '正在识别结算';
@@ -617,8 +631,8 @@ const shoppingBannerTitle = computed(() => {
 const shoppingBannerSub = computed(() => {
   if (state.value === 'SHOPPING') {
     return mockEnabled.value
-      ? '点选件数后点关门结算，未选则不扣款'
-      : '无需在手机上点选商品，拿了就走';
+      ? '演示：点选模拟取货，底栏可看清单；关门后按清单结算'
+      : '无需在手机上点选，柜内取货后关门自动结算';
   }
   if (['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value)) {
     return '可先离开，账单会在「订单」中展示';
@@ -629,7 +643,7 @@ const shoppingBannerSub = computed(() => {
 
 const catalogNotice = computed(() => {
   if (mockEnabled.value && state.value === 'SHOPPING') {
-    return '演示·按库存点选：点选后关门结算；未选不扣款';
+    return '演示·模拟取货：点选后底栏查看清单，再点关门结算';
   }
   if (canReopen.value) {
     return '本柜价目可先浏览；再买需要重新开门，因为上一单关门后柜门已锁';
@@ -639,10 +653,17 @@ const catalogNotice = computed(() => {
 
 const cartBarHint = computed(() => {
   if (state.value === 'SHOPPING') {
-    return mockEnabled.value ? '点选商品后关门结算' : '请取货后关好柜门';
+    return mockEnabled.value ? '模拟取货中 · 点右侧看清单' : '拿了就走 · 点右侧看识别清单';
   }
   if (!sessionActive.value) return '浏览价目无需开门';
   return '关门后自动识别并扣款';
+});
+
+const cartBarSub = computed(() => {
+  if (!sessionActive.value || state.value !== 'SHOPPING') return '';
+  if (mockEnabled.value) return '步进器仅演示；正式环境靠视觉识别';
+  if (liveCartQty.value > 0) return '识别中实时更新，拿错可放回';
+  return '取货后识别会出现在底栏，关门结算';
 });
 
 const cartBarAction = computed(() => {
@@ -1403,6 +1424,8 @@ function clearSessionUi() {
   selected.value = {};
   liveCartQty.value = 0;
   liveCartAmountCents.value = 0;
+  liveCartItems.value = [];
+  cartSheetVisible.value = false;
   stopRecognitionTimer();
 }
 
@@ -1483,7 +1506,64 @@ const selectedCount = computed(() => Object.values(selected.value).reduce((sum, 
 
 const liveCartQty = ref(0);
 const liveCartAmountCents = ref(0);
-const liveCartAmount = computed(() => fmtMoney(liveCartAmountCents.value));
+const liveCartItems = ref<LiveCartSheetLine[]>([]);
+const cartSheetVisible = ref(false);
+
+const selectedAmountCents = computed(() => {
+  const byId = new Map(products.value.map((p) => [p.skuId, p]));
+  let total = 0;
+  for (const [skuId, qty] of Object.entries(selected.value)) {
+    const p = byId.get(skuId);
+    if (p) total += p.priceCents * qty;
+  }
+  return total;
+});
+
+const selectedLines = computed<LiveCartSheetLine[]>(() => {
+  const byId = new Map(products.value.map((p) => [p.skuId, p]));
+  const lines: LiveCartSheetLine[] = [];
+  for (const [skuId, qty] of Object.entries(selected.value)) {
+    if (!qty) continue;
+    const p = byId.get(skuId);
+    if (!p) continue;
+    lines.push({
+      skuId,
+      skuName: p.skuName,
+      quantity: qty,
+      unitPriceCents: p.priceCents,
+      lineAmountCents: p.priceCents * qty
+    });
+  }
+  return lines;
+});
+
+const shoppingCartQty = computed(() =>
+  mockEnabled.value ? selectedCount.value : liveCartQty.value
+);
+const shoppingCartAmountCents = computed(() =>
+  mockEnabled.value ? selectedAmountCents.value : liveCartAmountCents.value
+);
+const shoppingCartAmount = computed(() => fmtMoney(shoppingCartAmountCents.value));
+const shoppingCartLines = computed(() =>
+  mockEnabled.value ? selectedLines.value : liveCartItems.value
+);
+const shoppingCartLabel = computed(() => {
+  if (mockEnabled.value) {
+    return shoppingCartQty.value > 0 ? `模拟 ${shoppingCartQty.value} 件 · 明细` : '点看模拟清单';
+  }
+  return shoppingCartQty.value > 0
+    ? `识别中 ${shoppingCartQty.value} 件 · 明细`
+    : '点看识别清单';
+});
+
+function openCartSheet() {
+  if (state.value !== 'SHOPPING') return;
+  cartSheetVisible.value = true;
+}
+
+function onCartBarInfoTap() {
+  if (sessionActive.value && state.value === 'SHOPPING') openCartSheet();
+}
 
 async function refreshLiveCart() {
   if (!sessionId.value || state.value !== 'SHOPPING' || mockEnabled.value) {
@@ -1493,20 +1573,19 @@ async function refreshLiveCart() {
     const cart = await consumerApi.getLiveCart(sessionId.value);
     liveCartQty.value = Number(cart?.totalQty || 0);
     liveCartAmountCents.value = Number(cart?.totalAmountCents || 0);
+    liveCartItems.value = (cart?.items || [])
+      .filter((it) => Number(it.quantity) > 0)
+      .map((it) => ({
+        skuId: String(it.skuId),
+        skuName: it.skuName,
+        quantity: Number(it.quantity) || 0,
+        unitPriceCents: Number(it.unitPriceCents) || 0,
+        lineAmountCents: Number(it.lineAmountCents) || 0
+      }));
   } catch {
     // 识别推送未就绪时忽略
   }
 }
-
-const selectedAmount = computed(() => {
-  const byId = new Map(products.value.map((p) => [p.skuId, p]));
-  let total = 0;
-  for (const [skuId, qty] of Object.entries(selected.value)) {
-    const p = byId.get(skuId);
-    if (p) total += p.priceCents * qty;
-  }
-  return fmtMoney(total);
-});
 
 /** 演示关门：先把点选同步到会话购物车，再触发关门结算（后端 mockEnabled 才放行）。 */
 async function closeDoorDemo() {
@@ -1731,6 +1810,8 @@ function startPoll() {
       } else {
         liveCartQty.value = 0;
         liveCartAmountCents.value = 0;
+        liveCartItems.value = [];
+        cartSheetVisible.value = false;
       }
       if (s.state === 'COMPLETED' || s.state === 'DISPUTED') {
         stopPoll();
@@ -2427,6 +2508,14 @@ function stopDevicePoll() {
   border-top: 0;
   box-shadow: 0 -10rpx 32rpx rgba(15, 23, 42, 0.08);
 }
+.cart-info {
+  flex: 1;
+  min-width: 0;
+  padding-right: 16rpx;
+}
+.cart-info.tappable:active {
+  opacity: 0.85;
+}
 .cart-hint {
   font-size: 28rpx;
   color: #1e293b;
@@ -2463,16 +2552,38 @@ function stopDevicePoll() {
 .cart-demo {
   display: flex;
   align-items: center;
-  gap: 20rpx;
+  gap: 16rpx;
+  flex-shrink: 0;
 }
 .cart-demo-info {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
 }
+.cart-demo-info.tappable:active {
+  opacity: 0.85;
+}
+.cart-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+.cart-badge {
+  min-width: 36rpx;
+  height: 36rpx;
+  padding: 0 8rpx;
+  border-radius: 18rpx;
+  background: #047857;
+  color: #fff;
+  font-size: 20rpx;
+  font-weight: 700;
+  line-height: 36rpx;
+  text-align: center;
+  box-sizing: border-box;
+}
 .cart-demo-label {
   font-size: 22rpx;
-  color: #888;
+  color: #64748b;
 }
 .cart-demo-amt {
   font-size: 30rpx;
@@ -2482,14 +2593,14 @@ function stopDevicePoll() {
 }
 .cart-close-btn {
   margin: 0;
-  padding: 0 40rpx;
+  padding: 0 36rpx;
   min-height: 80rpx;
   height: 80rpx;
   line-height: 1.2;
   background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
   color: #fff;
   border-radius: 40rpx;
-  font-size: 30rpx;
+  font-size: 28rpx;
   font-weight: 700;
   box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.25);
   display: flex;
@@ -2497,6 +2608,11 @@ function stopDevicePoll() {
   justify-content: center;
   text-align: center;
   box-sizing: border-box;
+}
+.cart-status-chip.soft {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1rpx solid #a7f3d0;
 }
 .cart-close-btn::after {
   border: none;

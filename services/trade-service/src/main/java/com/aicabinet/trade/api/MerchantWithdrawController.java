@@ -60,6 +60,15 @@ public class MerchantWithdrawController {
         return ApiResponse.ok(merchantWithdrawService.payout(operator(request), requestId));
     }
 
+    @RequiresPermissions("ops:merchant-withdraw:review")
+    @PostMapping("/{requestId}/cancel")
+    public ApiResponse<MerchantWithdrawRequestDto> cancel(
+            HttpServletRequest request, @PathVariable long requestId,
+            @RequestBody(required = false) Map<String, Object> body) {
+        String remark = body == null || body.get("remark") == null ? null : String.valueOf(body.get("remark"));
+        return ApiResponse.ok(merchantWithdrawService.cancelFailed(operator(request), requestId, remark));
+    }
+
     private Long operator(HttpServletRequest request) {
         return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
     }

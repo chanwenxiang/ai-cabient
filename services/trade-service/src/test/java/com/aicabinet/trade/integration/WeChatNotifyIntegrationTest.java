@@ -113,8 +113,8 @@ class WeChatNotifyIntegrationTest {
         int balanceBefore = userAccountRepository.findById(10001L).orElseThrow().getBalanceCents();
 
         String notifyBody = buildNotifyBody(orderId);
-        String timestamp = "1700000000";
-        String nonce = "notify-nonce-abc123";
+        String timestamp = String.valueOf(java.time.Instant.now().getEpochSecond());
+        String nonce = "notify-nonce-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         String signature = signer.sign(
                 timestamp + "\n" + nonce + "\n" + notifyBody + "\n",
                 keys.platformPrivateKeyPem()

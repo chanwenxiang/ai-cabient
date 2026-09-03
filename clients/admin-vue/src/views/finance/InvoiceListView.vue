@@ -117,6 +117,9 @@ function rowActions(row: InvoiceRow): TableAction[] {
   ];
 }
 
+/** 当前页无可审核项时隐藏操作列 */
+const showActionColumn = computed(() => rows.value.some((row) => rowActions(row).length > 0));
+
 async function onRowAction(key: string, row: InvoiceRow) {
   try {
     if (key === 'issue') {
@@ -387,6 +390,7 @@ onMounted(load);
             }}</template>
           </el-table-column>
           <el-table-column
+            v-if="showActionColumn"
             label="操作"
             width="140"
             fixed="right"
