@@ -49,10 +49,11 @@ public interface UserInfoMapper extends BaseTradeMapper<UserInfo> {
     return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }
 
-    default Page<UserInfo> searchForAdmin(@Param("phone") String phone, @Param("name") String name, @Param("verified") Boolean verified, @Param("minUserId") Long minUserId, @Param("maxUserId") Long maxUserId, Pageable pageable) {
+    default Page<UserInfo> searchForAdmin(@Param("userId") Long userId, @Param("phone") String phone, @Param("name") String name, @Param("verified") Boolean verified, @Param("minUserId") Long minUserId, @Param("maxUserId") Long maxUserId, Pageable pageable) {
         var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<UserInfo>(
                 pageable.getPageNumber() + 1L, pageable.getPageSize());
         var q = Wrappers.<UserInfo>lambdaQuery()
+                .eq(userId != null, UserInfo::getUserId, userId)
                 .like(phone != null && !phone.isEmpty(), UserInfo::getPhoneNumber, phone)
                 .like(name != null && !name.isEmpty(), UserInfo::getName, name)
                 .eq(verified != null, UserInfo::isVerified, verified)
@@ -75,6 +76,26 @@ public interface UserInfoMapper extends BaseTradeMapper<UserInfo> {
             pageable.getPageNumber() + 1L, pageable.getPageSize());
     var result = selectPage(mpPage, Wrappers.<UserInfo>lambdaQuery().ge(UserInfo::getUserId, userId).like(UserInfo::getPhoneNumber, phoneNumber).orderByDesc(UserInfo::getUserId));
     return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
+    }
+
+    /**
+     * 运营账号列表：优先 accountType=OPERATOR；
+     * accountType 为空的历史数据仍按 userId ≥ operatorStart 兜底（A-7 过渡）。
+     */
+    default Page<UserInfo> findOperatorsOrderByUserIdDesc(String accountType, long operatorUserIdStart,
+                                                          String phoneNumber, Pageable pageable) {
+        var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<UserInfo>(
+                pageable.getPageNumber() + 1L, pageable.getPageSize());
+        var q = Wrappers.<UserInfo>lambdaQuery()
+                .and(w -> w.eq(UserInfo::getAccountType, accountType)
+                        .or(w2 -> w2.isNull(UserInfo::getAccountType)
+                                .ge(UserInfo::getUserId, operatorUserIdStart)));
+        if (phoneNumber != null && !phoneNumber.isBlank()) {
+            q.like(UserInfo::getPhoneNumber, phoneNumber.trim());
+        }
+        q.orderByDesc(UserInfo::getUserId);
+        var result = selectPage(mpPage, q);
+        return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }
 
     default List<UserInfo> findByUserIdIn(List<Long> userIds) {

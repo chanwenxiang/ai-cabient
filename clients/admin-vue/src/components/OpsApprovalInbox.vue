@@ -112,6 +112,7 @@ import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
+import { useNavAccess } from '@/composables/useNavAccess';
 import {
   emitPurchaseOrderReviewed,
   onPurchaseOrderReviewed,
@@ -168,6 +169,7 @@ type InboxDto = {
 const POLL_MS = 60_000;
 const router = useRouter();
 const auth = useAuthStore();
+const { canAccessPath } = useNavAccess();
 
 const loading = ref(false);
 const popoverVisible = ref(false);
@@ -312,9 +314,16 @@ function canInlineReview(task: ApprovalTask): boolean {
 }
 
 /** 无对应业务菜单权限时，点标题不要跳无权页。 */
+function navPathOf(item: { actionPath?: string; bizType?: string; bizId?: string }): string {
+  return resolvePath(item).split('?')[0] || '/';
+}
+
 function canNavigateTask(task: ApprovalTask): boolean {
-  if (task.bizType === 'PURCHASE_ORDER') return auth.hasPerm('ops:warehouse:list');
-  return true;
+  return canAccessPath(navPathOf(task));
+}
+
+function canNavigateItem(item: { actionPath?: string; bizType?: string; bizId?: string }): boolean {
+  return canAccessPath(navPathOf(item));
 }
 
 function purchaseConfirmSubject(task: ApprovalTask): string {
@@ -376,7 +385,11 @@ async function openTask(task: ApprovalTask) {
     // still navigate when allowed
   }
   if (!canNavigateTask(task)) {
-    ElMessage.info('当前账号无业务页权限，请使用下方「通过 / 驳回」完成审批');
+    ElMessage.info(
+      canInlineReview(task)
+        ? '当前账号无业务页权限，请使用下方「通过 / 驳回」完成审批'
+        : '当前账号无该业务页权限'
+    );
     return;
   }
   router.push(resolvePath(task));
@@ -388,7 +401,11 @@ async function openMessage(msg: InboxMessage) {
     if (!msg.read) unreadMessageCount.value = Math.max(0, unreadMessageCount.value - 1);
     msg.read = true;
   } catch {
-    // still navigate
+    // still navigate when allowed
+  }
+  if (!canNavigateItem(msg)) {
+    ElMessage.info('当前账号无该业务页权限');
+    return;
   }
   router.push(resolvePath(msg));
 }
@@ -397,6 +414,10 @@ async function openMessage(msg: InboxMessage) {
  * @param {ApprovalHistoryItem} item
  */
 function openHistory(item: ApprovalHistoryItem) {
+  if (!canNavigateItem(item)) {
+    ElMessage.info('当前账号无该业务页权限');
+    return;
+  }
   router.push(resolvePath(item));
 }
 

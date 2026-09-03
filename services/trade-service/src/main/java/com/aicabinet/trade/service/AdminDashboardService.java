@@ -1105,8 +1105,8 @@ public class AdminDashboardService {
                 .toList();
     }
 
-    public PageResult<AdminUserDto> listUsers(Long operatorId, int page, int size, String phone,
-                                              String name, String role, Boolean verified) {
+    public PageResult<AdminUserDto> listUsers(Long operatorId, int page, int size, Long userId,
+                                              String phone, String name, String role, Boolean verified) {
         permissionService.requirePermission(operatorId, "ops:user:list");
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         Long minUserId = null;
@@ -1119,6 +1119,7 @@ public class AdminDashboardService {
             }
         }
         Page<UserInfo> result = userInfoRepository.searchForAdmin(
+                userId,
                 trimToNull(phone),
                 trimToNull(name),
                 verified,
@@ -2099,7 +2100,8 @@ public class AdminDashboardService {
                         d.salesLockedEnabled(),
                         d.getLatitude(),
                         d.getLongitude(),
-                        d.getAddress()
+                        d.getAddress(),
+                        d.getCoopMode()
                 ))
                 .toList();
     }

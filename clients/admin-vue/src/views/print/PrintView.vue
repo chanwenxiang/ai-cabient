@@ -149,7 +149,12 @@ const pageTitle = computed(() => {
   if (mode.value === 'labels') return '商品标签打印';
   return '打印单据';
 });
-const printTime = new Date().toLocaleString('zh-CN', { hour12: false });
+/** 打印时刻（非模块加载时刻） */
+const printTime = ref(new Date().toLocaleString('zh-CN', { hour12: false }));
+
+function stampPrintTime() {
+  printTime.value = new Date().toLocaleString('zh-CN', { hour12: false });
+}
 
 function nameOf(rows: Row[], keyField: string, nameField: string, id?: string) {
   if (!id) return '暂无';
@@ -159,7 +164,22 @@ function money(cents: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
 }
 
+function hasPrintableData(): boolean {
+  if (mode.value === 'picking') return !!outbound.value;
+  if (mode.value === 'purchase') return !!purchase.value;
+  if (mode.value === 'labels') return labels.value.length > 0;
+  return false;
+}
+
+function scheduleAutoPrint() {
+  stampPrintTime();
+  nextTick(() => {
+    setTimeout(() => globalThis.print(), 300);
+  });
+}
+
 async function load() {
+  let ok = false;
   try {
     if (mode.value === 'picking') {
       const [ob, whs, devs, skuRows] = await Promise.all([
@@ -213,17 +233,17 @@ async function load() {
         ).items || [];
       labels.value = rows.filter((r) => ids.has(String(r.skuId)));
     }
+    ok = hasPrintableData();
   } catch (e) {
     console.error('打印数据加载失败', e);
   } finally {
     loading.value = false;
-    nextTick(() => {
-      setTimeout(() => globalThis.print(), 300);
-    });
+    if (ok) scheduleAutoPrint();
   }
 }
 
 function doPrint() {
+  stampPrintTime();
   globalThis.print();
 }
 function closeWindow() {

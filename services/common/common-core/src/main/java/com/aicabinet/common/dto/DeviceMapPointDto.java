@@ -11,5 +11,7 @@ public record DeviceMapPointDto(
         boolean salesLocked,
         Double latitude,
         Double longitude,
-        String address
+        String address,
+        /** SELF|FRANCHISE|CONSIGN，见字典 device_coop_mode */
+        String coopMode
 ) {}

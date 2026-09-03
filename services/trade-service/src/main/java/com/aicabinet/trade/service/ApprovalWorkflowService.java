@@ -33,6 +33,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -467,30 +468,88 @@ public class ApprovalWorkflowService {
         }
         List<ApprovalNodeDto> sorted = new ArrayList<>(nodes);
         sorted.sort(Comparator.comparing(n -> n.seq() == null ? Integer.MAX_VALUE : n.seq()));
-        nodeRepository.deleteByDefId(defId);
+
+        Map<Long, ApprovalNode> existingById = nodeRepository.findByDefIdOrderBySeqAsc(defId).stream()
+                .filter(n -> n.getNodeId() != null)
+                .collect(Collectors.toMap(ApprovalNode::getNodeId, n -> n, (a, b) -> a, java.util.LinkedHashMap::new));
+
+        List<NodePlan> plans = new ArrayList<>();
+        Set<Long> keepIds = new HashSet<>();
+        Set<Integer> usedSeq = new HashSet<>();
         int autoSeq = 1;
-        for (ApprovalNodeDto n : sorted) {
-            ApprovalNode node = buildApprovalNode(defId, n, autoSeq);
-            nodeRepository.insert(node);
-            autoSeq = Math.max(autoSeq, node.getSeq()) + 1;
+        for (ApprovalNodeDto dto : sorted) {
+            validateNodeDto(dto);
+            int seq = dto.seq() == null ? autoSeq : dto.seq();
+            while (usedSeq.contains(seq) || seq <= 0) {
+                seq = Math.max(seq + 1, 1);
+            }
+            usedSeq.add(seq);
+            autoSeq = Math.max(autoSeq, seq) + 1;
+
+            ApprovalNode existing = dto.nodeId() == null ? null : existingById.get(dto.nodeId());
+            if (existing != null) {
+                keepIds.add(existing.getNodeId());
+                plans.add(NodePlan.update(existing, dto, seq));
+            } else {
+                plans.add(NodePlan.insert(dto, seq));
+            }
+        }
+
+        for (ApprovalNode old : existingById.values()) {
+            if (!keepIds.contains(old.getNodeId())) {
+                nodeRepository.deleteById(old.getNodeId());
+            }
+        }
+
+        // UNIQUE(def_id, seq)：先把保留节点挪到负序，避免互换 seq 时冲突
+        int parkSeq = -1;
+        for (NodePlan plan : plans) {
+            if (plan.existing() == null) {
+                continue;
+            }
+            plan.existing().setSeq(parkSeq--);
+            nodeRepository.updateById(plan.existing());
+        }
+
+        for (NodePlan plan : plans) {
+            if (plan.existing() != null) {
+                applyNodeFields(plan.existing(), plan.dto(), plan.seq());
+                nodeRepository.updateById(plan.existing());
+            } else {
+                ApprovalNode created = buildApprovalNode(defId, plan.dto(), plan.seq());
+                nodeRepository.insert(created);
+            }
         }
     }
 
-    private static ApprovalNode buildApprovalNode(Long defId, ApprovalNodeDto n, int autoSeq) {
-        validateNodeDto(n);
+    private record NodePlan(ApprovalNode existing, ApprovalNodeDto dto, int seq) {
+        static NodePlan update(ApprovalNode existing, ApprovalNodeDto dto, int seq) {
+            return new NodePlan(existing, dto, seq);
+        }
+
+        static NodePlan insert(ApprovalNodeDto dto, int seq) {
+            return new NodePlan(null, dto, seq);
+        }
+    }
+
+    private static void applyNodeFields(ApprovalNode node, ApprovalNodeDto n, int seq) {
         String assigneeType = n.assigneeType().trim().toUpperCase(Locale.ROOT);
         String assigneeValue = n.assigneeValue().trim();
         String passRule = n.passRule() == null || n.passRule().isBlank()
                 ? "ANY" : n.passRule().trim().toUpperCase(Locale.ROOT);
-        ApprovalNode node = new ApprovalNode();
-        node.setDefId(defId);
-        node.setSeq(n.seq() == null ? autoSeq : n.seq());
+        node.setSeq(seq);
         node.setNodeName(n.nodeName().trim());
         node.setAssigneeType(assigneeType);
         node.setAssigneeValue("DEPT".equals(assigneeType) || "ROLE".equals(assigneeType) || "PERM".equals(assigneeType)
                 ? assigneeValue.toUpperCase(Locale.ROOT)
                 : assigneeValue);
         node.setPassRule(passRule);
+    }
+
+    private static ApprovalNode buildApprovalNode(Long defId, ApprovalNodeDto n, int seq) {
+        ApprovalNode node = new ApprovalNode();
+        node.setDefId(defId);
+        applyNodeFields(node, n, seq);
         return node;
     }
 

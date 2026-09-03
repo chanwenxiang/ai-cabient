@@ -152,7 +152,7 @@ const result = ref<DevRecognitionPreviewDto | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 
 const totalCents = computed(() =>
-  (result.value?.items || []).reduce((sum, i) => sum + (i.lineAmountCents || 0), 0)
+  (result.value?.items || []).reduce((sum, i) => sum + (i.lineAmountCents ?? 0), 0)
 );
 
 function cents(v: number) {

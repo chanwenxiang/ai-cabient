@@ -17,5 +17,7 @@ public record OpsOperatorDto(
         List<String> deptNames,
         /** 主部门 ID；可空（尚未归属） */
         Long primaryDeptId,
-        String primaryDeptName
+        String primaryDeptName,
+        /** OPERATOR / CONSUMER 等；前端勿再用 userId 数值区间猜测 */
+        String accountType
 ) {}

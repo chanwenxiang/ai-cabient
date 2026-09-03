@@ -14,8 +14,11 @@ function sumLineAmountCents(lines?: Array<{ lineAmountCents?: number | null }> |
 /** IMP-026：建议价与实扣不一致时的差额说明 */
 export function disputeAmountDiffNote(ticket?: DisputeAmountInput | null): string {
   if (!ticket) return '';
+  const claimedRaw = ticket.claimedAmountCents;
   const claimed =
-    Number(ticket.claimedAmountCents ?? 0) || sumLineAmountCents(ticket.suggestedItems);
+    claimedRaw != null && Number.isFinite(Number(claimedRaw))
+      ? Number(claimedRaw)
+      : sumLineAmountCents(ticket.suggestedItems);
   const billed = Number(ticket.billedAmountCents ?? 0);
   if (claimed <= 0 || billed < 0 || claimed === billed) return '';
   const diff = claimed - billed;

@@ -100,9 +100,9 @@ const interventionRateText = computed(() => {
   const manual = Number(r.manualUnlockCount) || 0;
   if (auto + manual <= 0) return '无解锁';
   if (r.manualInterventionRate != null) {
-    return rateText(r.manualInterventionRate, { digits: 1 });
+    return rateText(r.manualInterventionRate, { unit: 'ratio', digits: 1 });
   }
-  return rateText(manual / (auto + manual), { digits: 1 });
+  return rateText(manual / (auto + manual), { unit: 'ratio', digits: 1 });
 });
 
 async function load() {

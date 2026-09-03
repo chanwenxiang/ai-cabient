@@ -205,9 +205,15 @@ public class AdminGrowthController {
     }
 
     @RequiresPermissions("ops:member-level:edit")
+    @PostMapping("/member-levels")
+    public ApiResponse<MemberLevelRuleDto> createMemberLevel(@RequestBody MemberLevelRuleDto body) {
+        return ApiResponse.ok(memberLevelAdminService.create(body));
+    }
+
+    @RequiresPermissions("ops:member-level:edit")
     @PutMapping("/member-levels")
-    public ApiResponse<MemberLevelRuleDto> upsertMemberLevel(@RequestBody MemberLevelRuleDto body) {
-        return ApiResponse.ok(memberLevelAdminService.upsert(body));
+    public ApiResponse<MemberLevelRuleDto> updateMemberLevel(@RequestBody MemberLevelRuleDto body) {
+        return ApiResponse.ok(memberLevelAdminService.update(body));
     }
 
     @RequiresPermissions("ops:member-level:edit")

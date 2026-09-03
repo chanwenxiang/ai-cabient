@@ -4,10 +4,11 @@ import { useAuthStore } from '@/stores/auth';
 /**
  * RuoYi-style button permission directive.
  * Usage: v-hasPermi="['ops:rbac:role:add']" or v-hasPermi="'ops:rbac:role:add'"
- * Hides the element when the user lacks any listed permission, and re-evaluates
- * when auth.permissions change (no full remount / re-login required).
+ * Shows the element when the user has **any** listed permission (OR);
+ * hides when none match. Re-evaluates when auth.permissions change.
  *
  * 无权限时除 display:none 外，禁用交互，避免自动化或脚本对隐藏节点 click 仍弹出业务弹窗。
+ * 空码 / 空数组不生效（保持元素原样），避免 `hasPerm(undefined)` 误放行。
  */
 type ElWithPermi = HTMLElement & {
   __hasPermiStop?: () => void;
@@ -16,9 +17,8 @@ type ElWithPermi = HTMLElement & {
 };
 
 function normalizeCodes(value: string | string[] | undefined | null): string[] {
-  if (Array.isArray(value)) return value;
-  if (value) return [value];
-  return [];
+  const raw = Array.isArray(value) ? value : value ? [value] : [];
+  return raw.map((c) => String(c || '').trim()).filter(Boolean);
 }
 
 function applyPermi(el: ElWithPermi, binding: DirectiveBinding<string | string[]>) {

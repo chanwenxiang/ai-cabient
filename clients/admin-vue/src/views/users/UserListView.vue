@@ -220,7 +220,7 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { textOrNone } from '@/utils/display';
+import { textOrNone, yuanToCents } from '@/utils/display';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface UserRow {
@@ -309,6 +309,8 @@ const adjustVisible = ref(false);
 const adjustSaving = ref(false);
 const adjustRow = ref<UserRow | null>(null);
 const adjustForm = ref({ amount: 0, reason: '' });
+/** Fixed for this dialog open — avoids Date.now() double-submit creating duplicate adjusts. */
+const adjustIdempotencyKey = ref('');
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
@@ -363,23 +365,10 @@ function classifyKeyword(raw: string): { phone?: string; name?: string; userId?:
 }
 
 async function findUserById(userId: string): Promise<UserRow | null> {
-  const pageSize = 100;
-  const maxScan = 500;
-  let apiPage = 0;
-  let scanned = 0;
-  let serverTotal = Number.POSITIVE_INFINITY;
-  while (scanned < maxScan && scanned < serverTotal) {
-    const q = new URLSearchParams({ page: String(apiPage), size: String(pageSize) });
-    const data = await api.request<PageResult<UserRow>>(`/api/v2/ops/admin/users?${q}`, 'GET');
-    const batch = data.items || [];
-    serverTotal = data.total ?? batch.length;
-    const hit = batch.find((u) => String(u.userId) === userId);
-    if (hit) return hit;
-    scanned += batch.length;
-    if (!batch.length || batch.length < pageSize) break;
-    apiPage += 1;
-  }
-  return null;
+  const q = new URLSearchParams({ page: '0', size: '1', userId });
+  const data = await api.request<PageResult<UserRow>>(`/api/v2/ops/admin/users?${q}`, 'GET');
+  const hit = (data.items || []).find((u) => String(u.userId) === userId);
+  return hit ?? null;
 }
 
 async function load() {
@@ -428,26 +417,39 @@ function onSizeChange() {
 function openAdjust(row: UserRow) {
   adjustRow.value = row;
   adjustForm.value = { amount: 0, reason: '' };
+  adjustIdempotencyKey.value =
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `admin-${row.userId}-${Math.random().toString(36).slice(2)}`;
   adjustVisible.value = true;
 }
 
 async function submitAdjust() {
   if (!adjustRow.value) return;
-  if (!adjustForm.value.amount || Number.isNaN(adjustForm.value.amount)) {
-    ElMessage.warning('请输入变动金额');
+  const deltaCents = yuanToCents(adjustForm.value.amount);
+  if (deltaCents == null || deltaCents === 0) {
+    ElMessage.warning('请输入非零变动金额');
     return;
   }
   if (!adjustForm.value.reason.trim()) {
     ElMessage.warning('请填写调整原因');
     return;
   }
+  try {
+    await ElMessageBox.confirm(
+      `确认对用户 ${adjustRow.value.userId} 调整余额 ¥${(deltaCents / 100).toFixed(2)}？该操作将写入审计日志。`,
+      '余额调整二次确认',
+      { type: 'warning', confirmButtonText: '确认调整', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
   adjustSaving.value = true;
   try {
-    const deltaCents = Math.round(Number(adjustForm.value.amount) * 100);
     await api.request(`/api/v2/ops/admin/users/${adjustRow.value.userId}/balance`, 'POST', {
       deltaCents,
       reason: adjustForm.value.reason.trim(),
-      idempotencyKey: `admin-${adjustRow.value.userId}-${Date.now()}`
+      idempotencyKey: adjustIdempotencyKey.value || `admin-${adjustRow.value.userId}-${deltaCents}`
     });
     ElMessage.success('余额已调整');
     adjustVisible.value = false;

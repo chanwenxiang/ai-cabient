@@ -75,10 +75,10 @@
           <el-table-column prop="opens" label="开门" width="96" align="center" />
           <el-table-column prop="orders" label="订单" width="96" align="center" />
           <el-table-column label="转化率" width="110" align="center">
-            <template #default="{ row }">{{ row.conversionRate.toFixed(1) }}%</template>
+            <template #default="{ row }">{{ (row.conversionRate ?? 0).toFixed(1) }}%</template>
           </el-table-column>
           <el-table-column label="营收" width="120" align="center">
-            <template #default="{ row }">¥{{ (row.revenueCents / 100).toFixed(2) }}</template>
+            <template #default="{ row }">¥{{ ((row.revenueCents ?? 0) / 100).toFixed(2) }}</template>
           </el-table-column>
         </el-table>
       </div>
@@ -98,12 +98,14 @@
           <el-table-column prop="skuId" label="SKU" min-width="120" show-overflow-tooltip />
           <el-table-column prop="qtySold" label="销量" width="88" align="center" />
           <el-table-column label="营收" width="110" align="center">
-            <template #default="{ row }">¥{{ (row.revenueCents / 100).toFixed(2) }}</template>
+            <template #default="{ row }">¥{{ ((row.revenueCents ?? 0) / 100).toFixed(2) }}</template>
           </el-table-column>
           <el-table-column label="件均价" width="100" align="center">
             <template #default="{ row }">
               {{
-                row.qtySold > 0 ? `¥${(row.revenueCents / row.qtySold / 100).toFixed(2)}` : '暂无'
+                (row.qtySold ?? 0) > 0
+                  ? `¥${(((row.revenueCents ?? 0) / row.qtySold) / 100).toFixed(2)}`
+                  : '暂无'
               }}
             </template>
           </el-table-column>
@@ -111,7 +113,7 @@
             <template #default="{ row }">
               {{
                 topSkuRevenueTotal > 0
-                  ? `${((row.revenueCents / topSkuRevenueTotal) * 100).toFixed(1)}%`
+                  ? `${(((row.revenueCents ?? 0) / topSkuRevenueTotal) * 100).toFixed(1)}%`
                   : '暂无'
               }}
             </template>

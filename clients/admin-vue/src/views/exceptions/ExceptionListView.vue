@@ -1285,7 +1285,8 @@ async function retryException() {
     );
     await api.request(`/api/v2/ops/admin/exceptions/${item.exceptionId}/retry`, 'POST', {
       reason: '运营人工触发重试',
-      idempotencyKey: `ops-retry-${item.exceptionId}-${Date.now()}`
+      // Intentional new key per explicit retry click (not auto double-submit).
+      idempotencyKey: `ops-retry-${item.exceptionId}-${crypto.randomUUID?.() ?? Date.now()}`
     });
     ElMessage.success('重试请求已执行');
     await Promise.all([load(), refreshDetail()]);

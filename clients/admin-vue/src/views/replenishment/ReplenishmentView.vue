@@ -1592,7 +1592,7 @@ function requestActionsFor(row: Row): TableAction[] {
 }
 
 const showRequestActionColumn = computed(() =>
-  requests.value.some((row) => requestActionsFor(row).length > 0)
+  pagedRequests.value.some((row) => requestActionsFor(row).length > 0)
 );
 
 const {

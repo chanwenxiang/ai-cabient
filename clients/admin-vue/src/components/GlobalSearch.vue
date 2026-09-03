@@ -131,15 +131,24 @@ function goRecord(hit: RecordHit) {
 async function searchRecords(q: string) {
   const seq = ++searchSeq;
   const hits: RecordHit[] = [];
+  const SEARCH_TIMEOUT_MS = 8_000;
   const take = (perm: string, url: string, pick: (items: any[]) => RecordHit[]) => {
     if (!auth.hasPerm(perm)) return Promise.resolve();
-    return api
+    const req = api
       .request<any>(url, 'GET')
       .then((data) => {
+        if (seq !== searchSeq) return;
         const items = Array.isArray(data) ? data : data?.items || [];
         hits.push(...pick(items));
       })
       .catch(() => {});
+    // 单路超时不拖垮整次搜索；慢接口被丢弃
+    return Promise.race([
+      req,
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, SEARCH_TIMEOUT_MS);
+      })
+    ]);
   };
   await Promise.all([
     take(

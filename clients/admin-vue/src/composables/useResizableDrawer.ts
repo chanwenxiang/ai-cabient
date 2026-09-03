@@ -26,6 +26,7 @@ function readWidth(key: string, fallback: number, min: number, max: number) {
 
 /**
  * 右侧抽屉可拖左缘加宽：拖动中只改 DOM，松手再写入 Vue，避免 el-table 每帧重排抖动。
+ * 窗口缩放时按当前 viewport 重新钳制宽度。
  */
 export function useResizableDrawer(options: ResizableDrawerOptions) {
   const minWidth = options.minWidth ?? 420;
@@ -38,6 +39,17 @@ export function useResizableDrawer(options: ResizableDrawerOptions) {
 
   let raf = 0;
   let detach: (() => void) | null = null;
+
+  function reclampedWidth(current: number) {
+    return clamp(current, minWidth, maxNow());
+  }
+
+  function onViewportResize() {
+    const next = reclampedWidth(width.value);
+    if (next !== width.value) width.value = next;
+  }
+
+  globalThis.addEventListener('resize', onViewportResize);
 
   function onResizeStart(e: PointerEvent) {
     if (e.button !== 0) return;
@@ -97,6 +109,7 @@ export function useResizableDrawer(options: ResizableDrawerOptions) {
 
   onBeforeUnmount(() => {
     detach?.();
+    globalThis.removeEventListener('resize', onViewportResize);
   });
 
   return { width, onResizeStart };

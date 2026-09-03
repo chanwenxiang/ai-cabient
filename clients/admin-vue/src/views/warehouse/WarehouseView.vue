@@ -2352,6 +2352,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, RefreshLeft } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, authFetch, downloadAuthFile } from '@/api/client';
+import { yuanToCents } from '@/utils/display';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -3907,7 +3908,7 @@ async function saveSupplier() {
         contactName: supplierForm.contactName,
         contactPhone: supplierForm.contactPhone,
         paymentTermsDays: Number(supplierForm.paymentTermsDays) || 30,
-        creditLimitCents: Math.round((Number(supplierForm.creditLimitYuan) || 0) * 100),
+        creditLimitCents: yuanToCents(supplierForm.creditLimitYuan) ?? 0,
         status: supplierForm.status
       }
     );
@@ -3951,16 +3952,25 @@ async function openPurchaseFromSuggestions() {
     warehouseId: filterWarehouseId.value || '',
     refNo: defaultPurchaseRefNo(),
     notes: `由采购建议生成（覆盖 ${suggestionCoverageDays.value} 天）`,
-    lines: rows.map((r: Row) => ({
-      skuId: r.skuId,
-      batchNo: '',
-      productionDate: localDate(),
-      expiryDate: '',
-      orderedQty: r.suggestQty || 1,
-      receivedQty: 0,
-      unitCostYuan: 1
-    }))
+    lines: rows
+      .map((r: Row) => {
+        const qty = Number(r.suggestQty);
+        return {
+          skuId: r.skuId,
+          batchNo: '',
+          productionDate: localDate(),
+          expiryDate: '',
+          // 建议量为 0/空时不静默改成 1：过滤掉无效行
+          orderedQty: Number.isFinite(qty) && qty > 0 ? qty : 0,
+          receivedQty: 0,
+          unitCostYuan: 1
+        };
+      })
+      .filter((line) => line.orderedQty > 0)
   });
+  if (!purchaseForm.lines.length) {
+    return ElMessage.warning('采购建议数量均为 0，无法生成采购单');
+  }
   resetPurchaseFieldErrors();
   purchaseDialog.value = true;
   dialogBootLoading.value = true;
@@ -3983,8 +3993,8 @@ function openPay(row: Row) {
 }
 async function savePayment() {
   if (!paymentForm.payableId) return;
-  const amountCents = Math.round((Number(paymentForm.amountYuan) || 0) * 100);
-  if (amountCents <= 0) return ElMessage.warning('请输入付款金额');
+  const amountCents = yuanToCents(paymentForm.amountYuan);
+  if (amountCents == null || amountCents <= 0) return ElMessage.warning('请输入付款金额');
   saving.value = true;
   try {
     await api.request(`/api/v2/ops/admin/suppliers/payables/${paymentForm.payableId}/pay`, 'POST', {
@@ -4336,7 +4346,7 @@ async function savePurchase() {
         expiryDate: l.expiryDate,
         orderedQty: l.orderedQty,
         receivedQty: 0,
-        unitCostCents: Math.round((Number(l.unitCostYuan) || 0) * 100)
+        unitCostCents: yuanToCents(l.unitCostYuan) ?? 0
       }))
     };
     await api.request('/api/v2/ops/admin/purchase-orders', 'POST', body);

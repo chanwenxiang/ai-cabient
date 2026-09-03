@@ -508,6 +508,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { findNavByPath } from '@/config/menu';
 import { consumeDictRuntimeEpoch } from '@/stores/dict-runtime';
+import { yuanToCents } from '@/utils/display';
 import type {
   DevRecognitionPreviewDto,
   FileAttachmentDto,
@@ -624,10 +625,12 @@ function onSaleTab() {
 }
 
 function toUpsertBody(row: SkuCatalog, status: string): UpsertSkuRequest {
+  const priceRaw = Number(row.priceCents);
+  const priceCents = Number.isFinite(priceRaw) && priceRaw >= 0 ? priceRaw : 0;
   return {
     skuId: row.skuId,
     skuName: row.skuName || row.skuId,
-    priceCents: row.priceCents || 1,
+    priceCents,
     weightGrams: row.weightGrams,
     visionEnabled: row.visionEnabled ?? true,
     imageUrl: row.imageUrl,
@@ -766,7 +769,8 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         const yoloClassName =
           (row['识别类名'] || row.yoloClassName || '').trim() ||
           skuId.toLowerCase().replaceAll(/[^a-z0-9_]+/g, '_');
-        const priceCents = Math.round((Number(row['基准价'] || row.priceYuan) || 0) * 100);
+        const priceCents = yuanToCents(row['基准价'] || row.priceYuan);
+        if (priceCents == null || priceCents < 0) continue;
         const visionEnrollmentStatus = enrollmentStatusCode(
           row['识别状态'] || row.visionEnrollmentStatus
         );
@@ -774,13 +778,13 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         const costRaw = row['成本'] ?? row.purchaseCostYuan;
         const purchaseCostCents =
           costRaw != null && String(costRaw).trim() !== ''
-            ? Math.round((Number(costRaw) || 0) * 100)
+            ? (yuanToCents(costRaw) ?? undefined)
             : undefined;
         const body: UpsertSkuVisionEnrollmentRequest = {
           sku: {
             skuId,
             skuName,
-            priceCents: priceCents || 350,
+            priceCents,
             visionEnabled: true,
             status,
             category: normalizeCategoryToCode(row['类目'] || row.category) || undefined,
@@ -1301,8 +1305,9 @@ async function uploadMultipart<T>(path: string, fields: Record<string, string | 
   const base =
     (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
   const form = new FormData();
+  // 字段名按接口约定透传：SKU 主图用 file，识别预览用 image
   for (const [key, val] of Object.entries(fields)) {
-    form.append(key === 'image' ? 'image' : key, val);
+    form.append(key, val);
   }
   const res = await authFetch(`${base}${path}`, {
     method: 'POST',

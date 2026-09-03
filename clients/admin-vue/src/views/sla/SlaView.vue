@@ -93,6 +93,7 @@ interface SlaMetrics {
 const loading = ref(false);
 const listHydrated = ref(false);
 const data = ref<SlaMetrics | null>(null);
+let loadSeq = 0;
 
 function pct(v?: number | null) {
   if (v == null || Number.isNaN(v)) return '无';
@@ -123,14 +124,19 @@ const statTiles = computed(() => {
 });
 
 async function load() {
+  const seq = ++loadSeq;
   loading.value = true;
   try {
-    data.value = await api.request<SlaMetrics>('/api/v2/ops/admin/sla', 'GET');
+    const next = await api.request<SlaMetrics>('/api/v2/ops/admin/sla', 'GET');
+    if (seq !== loadSeq) return;
+    data.value = next;
   } catch (e) {
+    if (seq !== loadSeq) return;
     // 首屏失败才清空；软刷新失败保留上次 KPI，避免闪「暂无」
     if (!listHydrated.value) data.value = null;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (seq !== loadSeq) return;
     listHydrated.value = true;
     loading.value = false;
   }

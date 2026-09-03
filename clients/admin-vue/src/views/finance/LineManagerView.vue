@@ -541,6 +541,7 @@ import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { yuanToCents } from '@/utils/display';
 
 interface Manager {
   managerId: number;
@@ -828,7 +829,11 @@ async function adjust(row: Manager) {
       inputPattern: /^-?\d+(\.\d{1,2})?$/,
       inputErrorMessage: '请输入金额'
     });
-    const amountCents = Math.round(Number(value) * 100);
+    const amountCents = yuanToCents(value);
+    if (amountCents == null || amountCents === 0) {
+      ElMessage.warning('请输入非零金额');
+      return;
+    }
     await ElMessageBox.confirm(
       `确认对线长 ${row.managerName || row.managerId} 调账 ¥${(amountCents / 100).toFixed(2)}？该操作将写入审计日志。`,
       '调账二次确认',
@@ -922,7 +927,11 @@ async function proxyWithdraw(row: Manager) {
       inputPattern: /^\d+(\.\d{1,2})?$/,
       inputErrorMessage: '请输入金额'
     });
-    const amountCents = Math.round(Number(value) * 100);
+    const amountCents = yuanToCents(value);
+    if (amountCents == null || amountCents <= 0) {
+      ElMessage.warning('提现金额须大于 0');
+      return;
+    }
     await ElMessageBox.confirm(
       `确认代线长 ${row.managerName || row.managerId} 发起提现 ¥${(amountCents / 100).toFixed(2)}？`,
       '代提现二次确认',

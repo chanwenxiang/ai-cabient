@@ -117,8 +117,10 @@ function rowActions(row: InvoiceRow): TableAction[] {
   ];
 }
 
-/** 当前页无可审核项时隐藏操作列 */
-const showActionColumn = computed(() => rows.value.some((row) => rowActions(row).length > 0));
+/** 过滤后无可审核项时隐藏操作列 */
+const showActionColumn = computed(() =>
+  displayRows.value.some((row) => rowActions(row).length > 0)
+);
 
 async function onRowAction(key: string, row: InvoiceRow) {
   try {

@@ -201,8 +201,13 @@
               </el-table-column>
               <el-table-column label="毛利率" min-width="96" align="center">
                 <template #default="{ row }">
-                  <span :class="{ warn: Number(skuMarginRate(row)) < 0 }"
-                    >{{ skuMarginRate(row) }}%</span
+                  <span
+                    :class="{
+                      warn:
+                        row.revenueCents > 0 &&
+                        Number(((row.grossMarginCents / row.revenueCents) * 100).toFixed(1)) < 0
+                    }"
+                    >{{ skuMarginRateDisplay(row) }}</span
                   >
                 </template>
               </el-table-column>
@@ -304,7 +309,11 @@ const displayTopSkus = computed(() => sortById(topSkus.value));
 
 function parseDays(raw: unknown): number {
   const n = Number(raw);
-  return n === 1 || n === 7 || n === 30 || n === 90 ? n : 1;
+  if (n === 1 || n === 7 || n === 30 || n === 90) return n;
+  if (raw != null && String(raw).trim() !== '' && Number.isFinite(n)) {
+    ElMessage.warning('天数仅支持 1 / 7 / 30 / 90，已回退为近 1 天');
+  }
+  return 1;
 }
 
 function onDaysChange() {
@@ -312,8 +321,15 @@ function onDaysChange() {
   load({ resetSeries: true });
 }
 
-function skuMarginRate(row: FinanceSku) {
-  return row.revenueCents ? ((row.grossMarginCents / row.revenueCents) * 100).toFixed(1) : '0.0';
+/** 无营收时不展示假 0% 毛利率 */
+function skuMarginRate(row: FinanceSku): string {
+  if (!row.revenueCents) return '暂无';
+  return ((row.grossMarginCents / row.revenueCents) * 100).toFixed(1);
+}
+
+function skuMarginRateDisplay(row: FinanceSku): string {
+  const rate = skuMarginRate(row);
+  return rate === '暂无' ? '暂无' : `${rate}%`;
 }
 
 const {
@@ -334,7 +350,7 @@ const { onExport: onExportTopSkus } = useListCsv({
       (row.revenueCents / 100).toFixed(2),
       (row.cogsCents / 100).toFixed(2),
       (row.grossMarginCents / 100).toFixed(2),
-      `${skuMarginRate(row)}%`
+      `${skuMarginRateDisplay(row)}`
     ])
 });
 

@@ -430,6 +430,7 @@ import { useAdminListTable } from '@/composables/useAdminListTable';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
+import { yuanToCents } from '@/utils/display';
 
 interface WalletRow {
   merchantId: string;
@@ -627,13 +628,22 @@ function openAdjust(row: WalletRow) {
 
 async function submitAdjust() {
   if (!adjustTarget.value) return;
-  if (!adjustForm.value.amount || Number.isNaN(adjustForm.value.amount)) {
-    ElMessage.warning('请输入调整金额');
+  const amountCents = yuanToCents(adjustForm.value.amount);
+  if (amountCents == null || amountCents === 0) {
+    ElMessage.warning('请输入非零调整金额');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认对商户 ${adjustTarget.value.merchantId} 调账 ¥${(amountCents / 100).toFixed(2)}？该操作将写入审计日志。`,
+      '商户调账二次确认',
+      { type: 'warning', confirmButtonText: '确认调账', cancelButtonText: '取消' }
+    );
+  } catch {
     return;
   }
   adjustSaving.value = true;
   try {
-    const amountCents = Math.round(Number(adjustForm.value.amount) * 100);
     await api.request(
       `/api/v2/ops/admin/merchant-wallets/${encodeURIComponent(adjustTarget.value.merchantId)}/adjust`,
       'POST',
@@ -673,13 +683,22 @@ function openWithdraw(row: WalletRow) {
 
 async function submitWithdraw() {
   if (!withdrawTarget.value) return;
-  if (!withdrawForm.value.amount || Number(withdrawForm.value.amount) <= 0) {
+  const amountCents = yuanToCents(withdrawForm.value.amount);
+  if (amountCents == null || amountCents <= 0) {
     ElMessage.warning('请输入大于 0 的提现金额');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认代商户 ${withdrawTarget.value.merchantId} 发起提现 ¥${(amountCents / 100).toFixed(2)}？`,
+      '代提现二次确认',
+      { type: 'warning', confirmButtonText: '确认提交', cancelButtonText: '取消' }
+    );
+  } catch {
     return;
   }
   withdrawSaving.value = true;
   try {
-    const amountCents = Math.round(Number(withdrawForm.value.amount) * 100);
     await api.request(
       `/api/v2/ops/admin/merchant-wallets/${encodeURIComponent(withdrawTarget.value.merchantId)}/withdraw`,
       'POST',

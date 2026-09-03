@@ -14,7 +14,7 @@ class ProductionStartupValidatorTest {
 
     @Test
     void prodRejectsBuiltInMockSmsCode() {
-        ProductionStartupValidator validator = buildValidator("prod", "123456", true);
+        ProductionStartupValidator validator = buildValidator("prod", "123456", true, true);
         assertThatThrownBy(validator::validateProductionConfig)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("mock SMS code");
@@ -22,19 +22,36 @@ class ProductionStartupValidatorTest {
 
     @Test
     void prodRequiresSecureCookie() {
-        ProductionStartupValidator validator = buildValidator("prod", "482913", false);
+        ProductionStartupValidator validator = buildValidator("prod", "482913", true, false);
         assertThatThrownBy(validator::validateProductionConfig)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("AUTH_COOKIE_SECURE");
     }
 
     @Test
+    void prodRequiresCookieEnabled() {
+        ProductionStartupValidator validator = buildValidator("prod", "482913", false, true);
+        assertThatThrownBy(validator::validateProductionConfig)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("AUTH_COOKIE_ENABLED");
+    }
+
+    @Test
+    void stagingRequiresCookieEnabled() {
+        ProductionStartupValidator validator = buildValidator("staging", "482913", false, true);
+        assertThatThrownBy(validator::validateProductionConfig)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("AUTH_COOKIE_ENABLED");
+    }
+
+    @Test
     void prodAcceptsRealSmsCodeWithSecureCookie() {
-        ProductionStartupValidator validator = buildValidator("prod", "482913", true);
+        ProductionStartupValidator validator = buildValidator("prod", "482913", true, true);
         validator.validateProductionConfig();
     }
 
-    private ProductionStartupValidator buildValidator(String profile, String smsCode, boolean cookieSecure) {
+    private ProductionStartupValidator buildValidator(
+            String profile, String smsCode, boolean cookieEnabled, boolean cookieSecure) {
         Environment environment = mock(Environment.class);
         when(environment.getActiveProfiles()).thenReturn(new String[] {profile});
 
@@ -42,7 +59,7 @@ class ProductionStartupValidatorTest {
         when(securityProperties.mockEnabled()).thenReturn(false);
 
         StagingProperties stagingProperties = mock(StagingProperties.class);
-        when(stagingProperties.stagingMode()).thenReturn(false);
+        when(stagingProperties.stagingMode()).thenReturn("staging".equals(profile));
 
         InternalApiProperties internalApiProperties = mock(InternalApiProperties.class);
         when(internalApiProperties.key()).thenReturn("prod-internal-key-32bytes-at-least!!");
@@ -50,7 +67,7 @@ class ProductionStartupValidatorTest {
 
         AuthProperties authProperties = mock(AuthProperties.class);
         when(authProperties.jwtSecret()).thenReturn("prod-jwt-secret-32bytes-at-least!!!!");
-        when(authProperties.cookieEnabled()).thenReturn(true);
+        when(authProperties.cookieEnabled()).thenReturn(cookieEnabled);
         when(authProperties.cookieSecure()).thenReturn(cookieSecure);
         when(authProperties.sms()).thenReturn(new SmsProperties(
                 smsCode, 300, "https://sms.example.com/send",

@@ -333,6 +333,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Refresh, SwitchButton, Ticket, EditPen } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
+import { yuanToCents } from '@/utils/display';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
@@ -491,10 +492,8 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         const created = await api.request<any>('/api/v2/coupons/definitions', 'POST', {
           couponName: name.trim(),
           couponType: typeCodeByLabel[row['类型'] || row.couponType] || 'AMOUNT_OFF',
-          denominationCents: Math.round(
-            (Number(row['面值(元)'] || row.denominationYuan) || 0) * 100
-          ),
-          minSpendCents: Math.round((Number(row['最低消费(元)'] || row.minSpendYuan) || 0) * 100),
+          denominationCents: yuanToCents(row['面值(元)'] || row.denominationYuan) ?? 0,
+          minSpendCents: yuanToCents(row['最低消费(元)'] || row.minSpendYuan) ?? 0,
           discountPercent: Number(row['折扣百分比'] || row.discountPercent) || 90,
           validityDays: Number(row['有效天数'] || row.validityDays) || 30,
           maxIssueCount: Number(row['总量限制'] || row.maxIssueCount) || 0,
@@ -609,8 +608,8 @@ async function onCreateSubmit() {
     const body = {
       couponName: createForm.value.couponName.trim(),
       couponType: createForm.value.couponType,
-      denominationCents: Math.round((Number(createForm.value.denominationYuan) || 0) * 100),
-      minSpendCents: Math.round((Number(createForm.value.minSpendYuan) || 0) * 100),
+      denominationCents: yuanToCents(createForm.value.denominationYuan) ?? 0,
+      minSpendCents: yuanToCents(createForm.value.minSpendYuan) ?? 0,
       discountPercent: createForm.value.discountPercent,
       validityDays: createForm.value.validityDays,
       maxIssueCount: createForm.value.maxIssueCount,
@@ -637,6 +636,15 @@ async function onCreateSubmit() {
 async function onIssueSubmit() {
   if (!issueForm.value.couponDefId || !issueForm.value.userId) {
     return ElMessage.warning('请选择优惠券并填写用户编号');
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认向用户 ${issueForm.value.userId} 发放优惠券 #${issueForm.value.couponDefId}？`,
+      '发券确认',
+      { type: 'warning' }
+    );
+  } catch {
+    return;
   }
   saving.value = true;
   try {
@@ -667,6 +675,15 @@ async function onBatchIssueSubmit() {
     .map(Number);
   if (!userIds.length) {
     ElMessage.warning('请至少填写一个有效的用户ID');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认向 ${userIds.length} 个用户批量发放优惠券 #${batchForm.value.couponDefId}？`,
+      '批量发券确认',
+      { type: 'warning' }
+    );
+  } catch {
     return;
   }
   saving.value = true;

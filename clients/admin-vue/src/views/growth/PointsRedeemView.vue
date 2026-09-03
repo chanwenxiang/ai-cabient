@@ -181,7 +181,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { EditPen, Refresh, SwitchButton } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
@@ -409,6 +409,15 @@ async function batchToggle(status: 'ACTIVE' | 'INACTIVE') {
   );
   if (!targets.length) {
     ElMessage.warning(status === 'ACTIVE' ? '请先勾选停用的兑换项' : '请先勾选启用的兑换项');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认批量${status === 'ACTIVE' ? '上架' : '下架'}选中的 ${targets.length} 个兑换项？`,
+      `批量${status === 'ACTIVE' ? '上架' : '下架'}`,
+      { type: 'warning' }
+    );
+  } catch {
     return;
   }
   batchLoading.value = status === 'ACTIVE' ? 'enable' : 'disable';

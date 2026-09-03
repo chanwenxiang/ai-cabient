@@ -504,7 +504,7 @@ const displayItems = computed(() => {
   });
 });
 
-const pageStuckCount = computed(() => items.value.filter((r) => isStuck(r)).length);
+const pageStuckCount = computed(() => displayItems.value.filter((r) => isStuck(r)).length);
 
 const { onExport: exportSelectedCsv } = useListCsv({
   filePrefix: '开门记录',

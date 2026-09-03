@@ -288,11 +288,19 @@ async function save() {
   }
   saving.value = true;
   try {
-    await api.request<LevelRule>('/api/v2/ops/admin/growth/member-levels', 'PUT', {
+    const body = {
       ...form,
       maxSpent: form.maxSpent == null ? undefined : form.maxSpent,
       maxPoints: form.maxPoints == null ? undefined : form.maxPoints
-    });
+    };
+    if (editing.value && form.id != null) {
+      await api.request<LevelRule>('/api/v2/ops/admin/growth/member-levels', 'PUT', body);
+    } else {
+      await api.request<LevelRule>('/api/v2/ops/admin/growth/member-levels', 'POST', {
+        ...body,
+        id: undefined
+      });
+    }
     ElMessage.success('已保存');
     dialogVisible.value = false;
     await load();

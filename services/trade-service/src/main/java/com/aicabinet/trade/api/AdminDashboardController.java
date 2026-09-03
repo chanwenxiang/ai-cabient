@@ -341,11 +341,13 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "userId", required = false) Long userId,
             @RequestParam(name = "phone", required = false) String phone,
             @RequestParam(name = "name", required = false) String name,
             @RequestParam(name = "role", required = false) String role,
             @RequestParam(name = "verified", required = false) Boolean verified) {
-        return ApiResponse.ok(adminService.listUsers(operatorId(request), page, size, phone, name, role, verified));
+        return ApiResponse.ok(adminService.listUsers(
+                operatorId(request), page, size, userId, phone, name, role, verified));
     }
 
     @RequiresPermissions("ops:user:balance")

@@ -201,6 +201,15 @@ public class ProductionStartupValidator {
     }
 
     private void validateCookieSecurity() {
+        if (isProdProfile() && !authProperties.cookieEnabled()) {
+            throw new IllegalStateException(
+                    "Production requires AUTH_COOKIE_ENABLED=true (admin must use HttpOnly session cookie; "
+                            + "Bearer token in localStorage is not allowed)");
+        }
+        if (isStagingProfile() && !isProdProfile() && !authProperties.cookieEnabled()) {
+            throw new IllegalStateException(
+                    "Staging requires AUTH_COOKIE_ENABLED=true (same admin Cookie session policy as production)");
+        }
         if (!authProperties.cookieEnabled()) {
             return;
         }
