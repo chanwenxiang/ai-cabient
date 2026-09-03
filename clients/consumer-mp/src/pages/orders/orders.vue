@@ -126,17 +126,17 @@
                 <view class="order-copy-main">
                   <text class="order-summary">{{ orderSummaryText(o) }}</text>
                   <view class="order-tags">
-                    <text v-if="Number(o.lineCount || 0) > 0" class="order-tag"
+                    <text v-if="Number(o.lineCount ?? 0) > 0" class="order-tag"
                       >{{ o.lineCount }} 件</text
                     >
                     <text class="order-tag">{{ payChannelText(o.payChannel) }}</text>
                     <text v-for="slot in slotTags(o)" :key="slot" class="order-tag slot">{{
                       slot
                     }}</text>
-                    <text v-if="Number(o.couponDiscountCents || 0) > 0" class="order-tag soft"
+                    <text v-if="o.couponDiscountCents != null" class="order-tag soft"
                       >券减¥{{ (Number(o.couponDiscountCents) / 100).toFixed(2) }}</text
                     >
-                    <text v-if="Number(o.memberDiscountCents || 0) > 0" class="order-tag soft"
+                    <text v-if="Number(o.memberDiscountCents ?? 0) > 0" class="order-tag soft"
                       >会员减¥{{ (Number(o.memberDiscountCents) / 100).toFixed(2) }}</text
                     >
                     <text v-if="payTradeShort(o)" class="order-tag mono">{{
@@ -149,7 +149,7 @@
                   <text v-if="showOriginal(o)" class="amt-origin">{{
                     fmtMoney(Number(o.originalAmountCents))
                   }}</text>
-                  <text class="amt">{{ fmtMoney(o.totalAmountCents || 0) }}</text>
+                  <text class="amt">{{ fmtMoney(o.totalAmountCents ?? 0) }}</text>
                   <text v-if="discountCents(o) > 0" class="discount"
                     >优惠减¥{{ (discountCents(o) / 100).toFixed(2) }}</text
                   >
@@ -288,7 +288,7 @@ function toggleHideZeroOrders() {
 }
 
 function isZeroAmountOrder(order: OrderSummary) {
-  return Number(order.totalAmountCents || 0) <= 0;
+  return Number(order.totalAmountCents ?? 0) <= 0;
 }
 
 function matchesZeroFilter(order: OrderSummary) {
@@ -361,7 +361,7 @@ function deviceDisplay(o: { deviceId?: string; deviceName?: string } | string | 
 function orderSummaryText(o: OrderSummary) {
   const summary = cleanLineSummary(o.lineSummary);
   if (summary) return summary;
-  const n = o.lineCount || 0;
+  const n = o.lineCount ?? 0;
   if (n > 0) return `共 ${n} 件商品`;
   return '购物账单';
 }
@@ -369,17 +369,17 @@ function orderThumb(o: OrderSummary) {
   return skuImageFor('', '', o.lineSummary);
 }
 function discountCents(o: OrderSummary) {
-  return Math.max(0, Number(o.couponDiscountCents || 0) + Number(o.memberDiscountCents || 0));
+  return Math.max(0, Number(o.couponDiscountCents ?? 0) + Number(o.memberDiscountCents ?? 0));
 }
 function showOriginal(o: OrderSummary) {
-  const origin = Number(o.originalAmountCents || 0);
-  const total = Number(o.totalAmountCents || 0);
+  const origin = Number(o.originalAmountCents ?? 0);
+  const total = Number(o.totalAmountCents ?? 0);
   return origin > total && origin > 0;
 }
 function refundCents(o: OrderSummary) {
-  const n = Number(o.refundedCents || 0);
+  const n = Number(o.refundedCents ?? 0);
   if (n > 0) return n;
-  if (o.status === 'REFUNDED') return Number(o.totalAmountCents || 0);
+  if (o.status === 'REFUNDED') return Number(o.totalAmountCents ?? 0);
   return 0;
 }
 function slotTags(o: OrderSummary): string[] {

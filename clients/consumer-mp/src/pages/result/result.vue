@@ -63,16 +63,16 @@
           <text class="sum-label">商品合计</text>
           <text class="sum-value">{{ fmtMoney(order.originalAmountCents) }}</text>
         </view>
-        <view v-if="Number(order.memberDiscountCents || 0) > 0" class="sum-row discount">
+        <view v-if="Number(order.memberDiscountCents ?? 0) > 0" class="sum-row discount">
           <text class="sum-label">会员优惠</text>
           <text class="sum-value">减{{ fmtMoney(order.memberDiscountCents) }}</text>
         </view>
-        <view v-if="order.couponDiscountCents" class="sum-row discount">
+        <view v-if="order.couponDiscountCents != null" class="sum-row discount">
           <text class="sum-label">优惠券抵扣</text>
           <text class="sum-value">减{{ fmtMoney(order.couponDiscountCents) }}</text>
         </view>
         <text
-          v-if="order.couponDiscountCents || Number(order.memberDiscountCents || 0) > 0"
+          v-if="order.couponDiscountCents != null || Number(order.memberDiscountCents ?? 0) > 0"
           class="coupon-hint"
           >{{ discountHint }}</text
         >
@@ -266,7 +266,7 @@ const headerTitle = computed(() => {
   if (s === 'REFUNDED' || s === 'PARTIAL_REFUNDED') return '退款已处理';
   if (s === 'PENDING' || s === 'PROCESSING') return '待支付';
   if (s === 'FAILED' || s === 'CANCELLED') return '本次未完成';
-  return (order.value?.totalAmountCents || 0) > 0 ? '购物完成' : '感谢使用';
+  return Number(order.value?.totalAmountCents ?? 0) > 0 ? '购物完成' : '感谢使用';
 });
 let sessionId = '';
 let loadedKey = '';
@@ -288,7 +288,7 @@ const canRefundNow = computed(
     !!order.value?.orderId &&
     !refundDone.value &&
     !disputeFiled.value &&
-    (order.value?.totalAmountCents || 0) > 0 &&
+    Number(order.value?.totalAmountCents ?? 0) > 0 &&
     order.value?.refundPolicy !== 'DISPUTE_ONLY' &&
     ['PAID', 'COMPLETED'].includes(String(order.value?.status || ''))
 );
@@ -300,8 +300,8 @@ const payChannelText = computed(() => {
 });
 
 const discountHint = computed(() => {
-  const hasCoupon = !!order.value?.couponDiscountCents;
-  const hasMember = Number(order.value?.memberDiscountCents || 0) > 0;
+  const hasCoupon = order.value?.couponDiscountCents != null;
+  const hasMember = Number(order.value?.memberDiscountCents ?? 0) > 0;
   if (hasCoupon && hasMember) return '已自动抵扣会员价与优惠券';
   if (hasMember) return '已享受会员优惠';
   if (hasCoupon) return '已自动选用最优优惠券';
@@ -321,9 +321,9 @@ function formatPayTime(t?: string) {
 
 function refundCents(o?: OrderDetailDto | null) {
   if (!o) return 0;
-  const n = Number(o.refundedCents || 0);
+  const n = Number(o.refundedCents ?? 0);
   if (n > 0) return n;
-  if (o.status === 'REFUNDED') return Number(o.totalAmountCents || 0);
+  if (o.status === 'REFUNDED') return Number(o.totalAmountCents ?? 0);
   return 0;
 }
 

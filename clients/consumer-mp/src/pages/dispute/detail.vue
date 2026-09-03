@@ -313,8 +313,10 @@ async function loadOrderDiscount(orderId?: string) {
   try {
     const order = await consumerApi.getOrder(orderId);
     orderDiscount.value = {
-      memberDiscountCents: Number(order?.memberDiscountCents || 0) || undefined,
-      couponDiscountCents: Number(order?.couponDiscountCents || 0) || undefined
+      memberDiscountCents:
+        order?.memberDiscountCents == null ? undefined : Number(order.memberDiscountCents),
+      couponDiscountCents:
+        order?.couponDiscountCents == null ? undefined : Number(order.couponDiscountCents)
     };
   } catch {
     orderDiscount.value = {};

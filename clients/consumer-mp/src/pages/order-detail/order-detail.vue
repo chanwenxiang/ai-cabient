@@ -45,23 +45,23 @@
           <view class="total-row">
             <text class="total-label">商品合计</text>
             <text class="total-amount">{{
-              fmtMoney(order?.originalAmountCents || order?.totalAmountCents || 0)
+              fmtMoney(order?.originalAmountCents ?? order?.totalAmountCents ?? 0)
             }}</text>
           </view>
-          <view v-if="order?.couponDiscountCents" class="discount-row">
+          <view v-if="order?.couponDiscountCents != null" class="discount-row">
             <text class="discount-label">优惠券抵扣</text>
             <text class="discount-amount">减{{ fmtMoney(order.couponDiscountCents) }}</text>
           </view>
-          <view v-if="Number(order?.memberDiscountCents || 0) > 0" class="discount-row">
+          <view v-if="Number(order?.memberDiscountCents ?? 0) > 0" class="discount-row">
             <text class="discount-label">会员优惠</text>
             <text class="discount-amount">减{{ fmtMoney(order.memberDiscountCents) }}</text>
           </view>
           <view
-            v-if="order?.couponDiscountCents || Number(order?.memberDiscountCents || 0) > 0"
+            v-if="order?.couponDiscountCents != null || Number(order?.memberDiscountCents ?? 0) > 0"
             class="total-row pay"
           >
             <text class="total-label">实付</text>
-            <text class="total-amount">{{ fmtMoney(order?.totalAmountCents || 0) }}</text>
+            <text class="total-amount">{{ fmtMoney(order?.totalAmountCents ?? 0) }}</text>
           </view>
         </view>
 
@@ -490,9 +490,9 @@ const statusTitle = computed(() => orderStatusLabel(order.value?.status) || '订
 const refundCents = computed(() => {
   const o = order.value;
   if (!o) return 0;
-  const n = Number(o.refundedCents || 0);
+  const n = Number(o.refundedCents ?? 0);
   if (n > 0) return n;
-  if (o.status === 'REFUNDED') return Number(o.totalAmountCents || 0);
+  if (o.status === 'REFUNDED') return Number(o.totalAmountCents ?? 0);
   return 0;
 });
 
@@ -537,7 +537,7 @@ const canInvoice = computed(() => {
     !!order.value?.orderId &&
     !invoiceDone.value &&
     (s === 'PAID' || s === 'COMPLETED' || s === 'PARTIAL_REFUNDED') &&
-    (order.value?.totalAmountCents || 0) > 0
+    (order.value?.totalAmountCents ?? 0) > 0
   );
 });
 

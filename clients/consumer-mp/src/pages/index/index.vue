@@ -1598,16 +1598,16 @@ async function refreshLiveCart() {
   }
   try {
     const cart = await consumerApi.getLiveCart(sessionId.value);
-    liveCartQty.value = Number(cart?.totalQty || 0);
-    liveCartAmountCents.value = Number(cart?.totalAmountCents || 0);
+    liveCartQty.value = Number(cart?.totalQty ?? 0);
+    liveCartAmountCents.value = Number(cart?.totalAmountCents ?? 0);
     liveCartItems.value = (cart?.items || [])
       .filter((it) => Number(it.quantity) > 0)
       .map((it) => ({
         skuId: String(it.skuId),
         skuName: it.skuName,
-        quantity: Number(it.quantity) || 0,
-        unitPriceCents: Number(it.unitPriceCents) || 0,
-        lineAmountCents: Number(it.lineAmountCents) || 0
+        quantity: Number(it.quantity ?? 0),
+        unitPriceCents: Number(it.unitPriceCents ?? 0),
+        lineAmountCents: Number(it.lineAmountCents ?? 0)
       }));
   } catch {
     // 识别推送未就绪时忽略
@@ -1706,7 +1706,7 @@ async function finishSession(sessionState: string, sid: string) {
       let totalCents = 0;
       try {
         const order = await consumerApi.getSessionOrder(sid);
-        totalCents = order?.totalAmountCents || 0;
+        totalCents = order?.totalAmountCents ?? 0;
       } catch {
         /* 零元单或查询失败仍跳转结果页 */
       }
