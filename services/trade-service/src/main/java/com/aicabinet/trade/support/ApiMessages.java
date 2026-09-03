@@ -64,6 +64,9 @@ public final class ApiMessages {
     public static final String REPLENISHMENT_WAREHOUSE_STOCK_INSUFFICIENT = "仓库可用库存不足，未生成出库明细";
     public static final String REPLENISHMENT_CHECK_IN_TOO_FAR =
             "签到位置距柜机约 %d 米，超出 500 米范围，请到柜前再签到";
+    /** 柜机已配置坐标时，签到请求必须带经纬度，禁止空 body 绕过距离校验 */
+    public static final String REPLENISHMENT_CHECK_IN_LOCATION_REQUIRED =
+            "请开启定位后到柜前签到（本柜已配置坐标，不可跳过定位）";
     public static final String REPLENISHMENT_SLOT_CAPACITY =
             "货道 %s 容量不足（上限 %d，已有 %d，本次再补 %d），请调低数量或换货道";
     public static final String SLOT_QTY_OVER_CAPACITY =

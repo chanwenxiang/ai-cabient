@@ -496,6 +496,7 @@ const recognitionElapsedSec = ref(0);
 const selected = ref<Record<string, number>>({});
 const mockEnabled = ref(false);
 const closingDoor = ref(false);
+const finishingSession = ref(false);
 let recognitionTimer: ReturnType<typeof setInterval> | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let devicePollTimer: ReturnType<typeof setInterval> | null = null;
@@ -1663,56 +1664,62 @@ function deferRecognitionWait() {
 }
 
 async function finishSession(sessionState: string, sid: string) {
-  uni.removeStorageSync('active_session_id');
-  clearOpenAttempt();
-  if (sessionState === 'COMPLETED') {
-    if (deviceId.value) {
-      uni.setStorageSync('last_device_id', deviceId.value);
-      uni.setStorageSync('last_device_name', deviceName.value || deviceId.value);
-      lastDeviceId.value = deviceId.value;
-      lastDeviceName.value = deviceName.value || deviceId.value;
+  if (finishingSession.value) return;
+  finishingSession.value = true;
+  try {
+    uni.removeStorageSync('active_session_id');
+    clearOpenAttempt();
+    if (sessionState === 'COMPLETED') {
+      if (deviceId.value) {
+        uni.setStorageSync('last_device_id', deviceId.value);
+        uni.setStorageSync('last_device_name', deviceName.value || deviceId.value);
+        lastDeviceId.value = deviceId.value;
+        lastDeviceName.value = deviceName.value || deviceId.value;
+      }
+      clearSessionUi();
+      let totalCents = 0;
+      try {
+        const order = await consumerApi.getSessionOrder(sid);
+        totalCents = order?.totalAmountCents || 0;
+      } catch {
+        /* 零元单或查询失败仍跳转结果页 */
+      }
+      await requestOrderSubscribe();
+      showBillToast(totalCents);
+      await delay(1200);
+      uni.redirectTo({ url: `/pages/result/result?sessionId=${encodeURIComponent(sid)}` });
+      return;
     }
     clearSessionUi();
-    let totalCents = 0;
-    try {
-      const order = await consumerApi.getSessionOrder(sid);
-      totalCents = order?.totalAmountCents || 0;
-    } catch {
-      /* 零元单或查询失败仍跳转结果页 */
-    }
-    await requestOrderSubscribe();
-    showBillToast(totalCents);
-    await delay(1200);
-    uni.redirectTo({ url: `/pages/result/result?sessionId=${encodeURIComponent(sid)}` });
-    return;
-  }
-  clearSessionUi();
-  if (sessionState === 'DISPUTED') {
-    try {
-      const order = await consumerApi.getSessionOrder(sid);
-      if (order?.orderId) {
-        uni.redirectTo({
-          url: `/pages/result/result?sessionId=${encodeURIComponent(sid)}&orderId=${encodeURIComponent(order.orderId)}`
-        });
-        return;
-      }
-    } catch {
-      /* 争议单可能尚未生成订单 */
-    }
-    reviewSessionId.value = sid;
-    uni.setStorageSync('last_disputed_session_id', sid);
-    void refreshReviewState();
-    void requestDisputeSubscribe();
-    uni.showToast({ title: '识别完成，账单待人工确认', icon: 'none' });
-    // 无订单时直接进审核详情，避免只停在首页提示卡
-    setTimeout(() => {
-      uni.navigateTo({
-        url: `/pages/dispute/detail?sessionId=${encodeURIComponent(sid)}`,
-        fail: () => {
-          /* 首页审核卡仍可点 */
+    if (sessionState === 'DISPUTED') {
+      try {
+        const order = await consumerApi.getSessionOrder(sid);
+        if (order?.orderId) {
+          uni.redirectTo({
+            url: `/pages/result/result?sessionId=${encodeURIComponent(sid)}&orderId=${encodeURIComponent(order.orderId)}`
+          });
+          return;
         }
-      });
-    }, 600);
+      } catch {
+        /* 争议单可能尚未生成订单 */
+      }
+      reviewSessionId.value = sid;
+      uni.setStorageSync('last_disputed_session_id', sid);
+      void refreshReviewState();
+      void requestDisputeSubscribe();
+      uni.showToast({ title: '识别完成，账单待人工确认', icon: 'none' });
+      // 无订单时直接进审核详情，避免只停在首页提示卡
+      setTimeout(() => {
+        uni.navigateTo({
+          url: `/pages/dispute/detail?sessionId=${encodeURIComponent(sid)}`,
+          fail: () => {
+            /* 首页审核卡仍可点 */
+          }
+        });
+      }, 600);
+    }
+  } finally {
+    finishingSession.value = false;
   }
 }
 

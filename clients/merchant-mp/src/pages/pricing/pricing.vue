@@ -95,6 +95,7 @@
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import EmptyState from '@/components/empty-state.vue';
+import { yuanToCents } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe, canEditPricingWithPerm } from '@/composables/useMerchantMe';
 import type {
@@ -267,8 +268,8 @@ async function savePrice(p: MerchantSkuPricing) {
   const key = draftKey(p);
   if (savingKey.value === key) return;
   const raw = (draft.value[key] || '').trim();
-  const priceCents = raw === '' ? null : Math.round(Number.parseFloat(raw) * 100);
-  if (raw !== '' && (Number.isNaN(priceCents!) || priceCents! < 0)) {
+  const priceCents = raw === '' ? null : yuanToCents(raw);
+  if (raw !== '' && (priceCents == null || priceCents < 0)) {
     uni.showToast({ title: '价格无效', icon: 'none' });
     return;
   }

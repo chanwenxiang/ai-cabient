@@ -571,8 +571,18 @@ public class ReplenishmentService {
 
     private ReplenishmentTaskDto doCheckInTask(Long taskId, ReplenishmentCheckInRequest request) {
         ReplenishmentTask task = requireTaskForUpdate(taskId);
-        if (request != null && request.latitude() != null && request.longitude() != null) {
-            validateCheckInLocation(task.getDeviceId(), request.latitude(), request.longitude());
+        DeviceInfo device = deviceRepository.findById(task.getDeviceId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
+        boolean deviceHasCoords = device.getLatitude() != null && device.getLongitude() != null;
+        boolean requestHasCoords = request != null
+                && request.latitude() != null
+                && request.longitude() != null;
+        if (deviceHasCoords && !requestHasCoords) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    ApiMessages.REPLENISHMENT_CHECK_IN_LOCATION_REQUIRED);
+        }
+        if (requestHasCoords) {
+            validateCheckInLocation(device, request.latitude(), request.longitude());
             task.setCheckInLat(request.latitude());
             task.setCheckInLng(request.longitude());
         }
@@ -585,9 +595,7 @@ public class ReplenishmentService {
         return toTaskDto(task);
     }
 
-    private void validateCheckInLocation(String deviceId, double lat, double lng) {
-        DeviceInfo device = deviceRepository.findById(deviceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
+    private void validateCheckInLocation(DeviceInfo device, double lat, double lng) {
         if (device.getLatitude() == null || device.getLongitude() == null) {
             return;
         }

@@ -67,7 +67,7 @@
             <text v-if="rememberCredentials" class="remember-check">✓</text>
           </view>
           <text class="remember-label" @tap="rememberCredentials = !rememberCredentials"
-            >记住账号和密码</text
+            >记住账号</text
           >
         </view>
 
@@ -96,29 +96,6 @@ const PHONE_KEY = 'merchant_login_phone';
 const PW_STORE_KEY = 'merchant_login_password';
 const REMEMBER_KEY = 'merchant_remember_credentials';
 
-/** 本地轻量混淆：Storage 无法真正加密，仅避免明文直读。不用 btoa，兼容微信小程序。 */
-function encodePassword(raw: string): string {
-  const hex = Array.from(encodeURIComponent(raw))
-    .map((c) => (c.codePointAt(0) ?? 0).toString(16).padStart(2, '0'))
-    .join('');
-  return `v1:${hex}`;
-}
-
-function decodePassword(stored: unknown): string {
-  if (typeof stored !== 'string' || !stored.startsWith('v1:')) return '';
-  try {
-    const hex = stored.slice(3);
-    if (!hex || hex.length % 2 !== 0) return '';
-    let encoded = '';
-    for (let i = 0; i < hex.length; i += 2) {
-      encoded += String.fromCodePoint(Number.parseInt(hex.slice(i, i + 2), 16));
-    }
-    return decodeURIComponent(encoded);
-  } catch {
-    return '';
-  }
-}
-
 function readStorage(key: string): string {
   try {
     const v = uni.getStorageSync(key);
@@ -128,6 +105,16 @@ function readStorage(key: string): string {
   }
 }
 
+/** 历史版本曾可逆混淆存密码；启动时一律清除，只允许记住手机号 */
+function clearStoredPassword() {
+  try {
+    uni.removeStorageSync(PW_STORE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+clearStoredPassword();
+
 const isDev = showDevTools();
 const demoPhone = String(import.meta.env.VITE_DEMO_PHONE || '').trim();
 const demoPassword = String(import.meta.env.VITE_DEMO_PASSWORD || '').trim();
@@ -136,23 +123,22 @@ const demoHint =
 
 const rememberCredentials = ref(readStorage(REMEMBER_KEY) !== '0');
 const savedPhone = rememberCredentials.value ? readStorage(PHONE_KEY) : '';
-const savedPassword = rememberCredentials.value ? decodePassword(readStorage(PW_STORE_KEY)) : '';
 const phone = ref(savedPhone || (isDev && demoPhone ? demoPhone : ''));
-const password = ref(savedPassword || (isDev && demoPassword ? demoPassword : ''));
+const password = ref(isDev && demoPassword ? demoPassword : '');
 const loading = ref(false);
 const err = ref('');
 
-function persistCredentials(phoneNumber: string, pwd: string) {
+function persistCredentials(phoneNumber: string, _pwd: string) {
   if (rememberCredentials.value) {
     uni.setStorageSync(REMEMBER_KEY, '1');
     uni.setStorageSync(PHONE_KEY, phoneNumber);
-    uni.setStorageSync(PW_STORE_KEY, encodePassword(pwd));
+    clearStoredPassword();
     return;
   }
   uni.setStorageSync(REMEMBER_KEY, '0');
   try {
     uni.removeStorageSync(PHONE_KEY);
-    uni.removeStorageSync(PW_STORE_KEY);
+    clearStoredPassword();
   } catch {
     /* ignore */
   }
