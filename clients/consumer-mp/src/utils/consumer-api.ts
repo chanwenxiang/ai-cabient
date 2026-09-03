@@ -4,7 +4,9 @@ import { localizeApiMessage } from '@aicabinet/shared-uni/format';
 import { parseQuery, queryGet } from '@aicabinet/shared-uni/query';
 import { loadRuntimeDict as sharedLoadRuntimeDict } from '@aicabinet/shared-uni/dict-runtime';
 import {
+  createMpApiError,
   formatMpRequestError,
+  isMpAuthFailure,
   mpRequest,
   refreshTokenSilently as sharedRefreshToken,
   type MpApiSession
@@ -35,7 +37,7 @@ const mpApiSession: MpApiSession = {
   applyRefreshedToken: (data) => applyTokenSession(data as LoginResponse),
   handleUnauthorized: (message) => {
     clearConsumerSession();
-    return new Error(localizeApiMessage(message, '登录已失效'));
+    return createMpApiError(localizeApiMessage(message, '登录已失效'), 401, 'UNAUTHORIZED');
   }
 };
 
@@ -58,7 +60,7 @@ export function downloadAuthedFile(url: string, timeoutMs = 60_000): Promise<str
       success(res) {
         if (res.statusCode === 401) {
           clearConsumerSession();
-          reject(new Error(localizeApiMessage('', '登录已失效')));
+          reject(createMpApiError(localizeApiMessage('', '登录已失效'), 401, 'UNAUTHORIZED'));
           return;
         }
         if (res.statusCode >= 200 && res.statusCode < 300 && res.tempFilePath) {
@@ -221,10 +223,8 @@ export async function bootstrapConsumerSession() {
     }
     return ok;
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    const authFail = msg.includes('登录已失效') || /401|403/.test(msg);
     // token 过期/鉴权失败清会话；瞬时网络错误保留本地 token
-    if (authFail) {
+    if (isMpAuthFailure(e)) {
       clearConsumerSession();
       return false;
     }
