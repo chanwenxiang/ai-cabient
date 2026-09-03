@@ -51,7 +51,13 @@ public final class ApiMessages {
     public static final String REPLENISHMENT_TASK_ASSIGNEE = "仅任务负责人可执行此补货操作";
     public static final String REPLENISHMENT_CHECK_IN_REQUIRED = "请先到店签到后再补货开门";
     public static final String REPLENISHMENT_COMPLETE_CHECK_IN_REQUIRED = "请先到店签到后再完成补货上架";
+    /** 商户端完成任务前须至少上传一张现场凭证 */
+    public static final String REPLENISHMENT_COMPLETE_EVIDENCE_REQUIRED = "请先上传现场凭证照片后再完成补货";
+    /** 商户端完成任务前须通过本任务下发过补货开门 */
+    public static final String REPLENISHMENT_COMPLETE_DOOR_REQUIRED = "请先补货开门后再完成上架";
     public static final String REPLENISHMENT_OUTBOUND_NOT_IN_TRANSIT = "出库单尚未发运在途，请先完成仓库发运后再确认上架";
+    /** 扫码/手输柜机不在当前账号管辖范围 */
+    public static final String REPLENISHMENT_DEVICE_OUT_OF_SCOPE = "柜机不在您的管辖范围，无法操作";
     public static final String REPLENISHMENT_TASK_ALREADY_COMPLETED = "补货任务已完成，无需重复操作";
     public static final String REPLENISHMENT_NO_GAP = "当前无补货缺口";
     public static final String REPLENISHMENT_ROUTE_NOT_FOUND = "补货路线不存在";

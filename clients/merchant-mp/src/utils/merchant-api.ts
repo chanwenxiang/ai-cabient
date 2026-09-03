@@ -654,6 +654,11 @@ export const merchantApi = {
       : '/api/v2/merchant/replenishment/tasks';
     return request<Record<string, unknown>[]>(path);
   },
+  /** 扫码柜机归属校验：须在当前账号 FIELD 管辖范围 */
+  assertReplenishmentDeviceAccess: (deviceId: string) =>
+    request<{ deviceId: string; allowed: boolean }>(
+      `/api/v2/merchant/replenishment/devices/${encodeURIComponent(deviceId)}/access`
+    ),
   replenishmentTaskLines: (taskId: number) =>
     request<Record<string, unknown>[]>(`/api/v2/merchant/replenishment/tasks/${taskId}/lines`),
   checkInReplenishmentTask: (taskId: number, body?: { latitude?: number; longitude?: number }) =>

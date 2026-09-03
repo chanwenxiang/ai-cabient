@@ -364,6 +364,15 @@ async function onScan() {
   try {
     const deviceId = await scanCabinetDeviceId();
     if (!deviceId) return;
+    try {
+      await merchantApi.assertReplenishmentDeviceAccess(deviceId);
+    } catch (e) {
+      uni.showToast({
+        title: e instanceof Error ? e.message : '柜机不在您的管辖范围',
+        icon: 'none'
+      });
+      return;
+    }
     // 扫码到柜：统一进柜机详情（库存/要货/补货入口都在详情页），避免有任务时劫持到补货页导致返回栈错乱
     uni.navigateTo({
       url: `/pages/device-detail/device-detail?id=${encodeURIComponent(deviceId)}`

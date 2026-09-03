@@ -47,6 +47,7 @@ public class MerchantReplenishmentService {
     private final FileAttachmentService fileAttachmentService;
     private final DistributedLockService distributedLockService;
     private final ApprovalWorkflowService approvalWorkflowService;
+    private final ShoppingSessionMapper shoppingSessionRepository;
     private final MerchantReplenishmentService self;
 
     public MerchantReplenishmentService(PermissionService permissionService,
@@ -67,6 +68,7 @@ public class MerchantReplenishmentService {
                                         FileAttachmentService fileAttachmentService,
                                         DistributedLockService distributedLockService,
                                         ApprovalWorkflowService approvalWorkflowService,
+                                        ShoppingSessionMapper shoppingSessionRepository,
                                         @Lazy MerchantReplenishmentService self) {
         this.permissionService = permissionService;
         this.merchantFeaturePackService = merchantFeaturePackService;
@@ -86,6 +88,7 @@ public class MerchantReplenishmentService {
         this.fileAttachmentService = fileAttachmentService;
         this.distributedLockService = distributedLockService;
         this.approvalWorkflowService = approvalWorkflowService;
+        this.shoppingSessionRepository = shoppingSessionRepository;
         this.self = self;
     }
 
@@ -158,10 +161,51 @@ public class MerchantReplenishmentService {
     @Transactional
     public ReplenishmentTaskDto completeTask(Long userId, Long taskId) {
         ReplenishmentTask task = requireScopedTask(userId, taskId);
+        assertMerchantFieldCompletionGates(taskId);
         ReplenishmentTaskDto result = replenishmentService.completeTask(userId, taskId);
         auditService.appendLog(userId, "MERCHANT_REPLENISHMENT_COMPLETE", REPLENISHMENT_TASK,
                 String.valueOf(taskId), DEVICEID + task.getDeviceId());
         return result;
+    }
+
+    /**
+     * 商户现场完成：须已补货开门 + 至少一张凭证（运营后台/联调 complete 不走本入口）。
+     */
+    private void assertMerchantFieldCompletionGates(Long taskId) {
+        if (!shoppingSessionRepository.existsByReplenishmentTaskId(taskId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    ApiMessages.REPLENISHMENT_COMPLETE_DOOR_REQUIRED);
+        }
+        if (fileAttachmentService.countReplenishmentEvidence(taskId) < 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    ApiMessages.REPLENISHMENT_COMPLETE_EVIDENCE_REQUIRED);
+        }
+    }
+
+    /**
+     * 扫码/手输柜机归属校验：须在当前账号 FIELD 包设备范围内。
+     */
+    @Transactional(readOnly = true)
+    public void assertDeviceInFieldScope(Long userId, String deviceId) {
+        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
+        merchantPortalGuard.requireAccess(userId);
+        if (deviceId == null || deviceId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备 ID 不能为空");
+        }
+        String id = deviceId.trim();
+        if (deviceRepository.findById(id).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND);
+        }
+        try {
+            merchantFeaturePackService.requireDevicePack(userId, id, MerchantFeaturePacks.FIELD);
+        } catch (ResponseStatusException ex) {
+            int code = ex.getStatusCode().value();
+            if (code == HttpStatus.FORBIDDEN.value() || code == HttpStatus.NOT_FOUND.value()) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        ApiMessages.REPLENISHMENT_DEVICE_OUT_OF_SCOPE);
+            }
+            throw ex;
+        }
     }
 
     /**
