@@ -6,7 +6,7 @@
           <div class="page-card-head__title">
             <span class="title">告警规则</span>
             <span class="hint"
-              >集中配置告警与自动处置阈值（与「参数配置」同源）；可新增自定义键</span
+              >与「参数配置」同源；仅白名单键会被调度读取，不可再新建任意自定义键</span
             >
           </div>
         </div>
@@ -115,22 +115,27 @@
     >
       <el-form label-width="88px">
         <el-form-item label="分组" required>
-          <el-select
-            v-model="form.group"
-            filterable
-            allow-create
-            default-first-option
-            style="width: 100%"
-          >
-            <el-option v-for="g in groupOptions" :key="g" :label="g" :value="g" />
+          <el-select v-model="form.group" filterable style="width: 100%" :disabled="creating">
+            <el-option v-for="g in Object.keys(BUILTIN_GROUPS)" :key="g" :label="g" :value="g" />
           </el-select>
         </el-form-item>
         <el-form-item label="配置键" required>
-          <el-input
+          <el-select
+            v-if="creating"
             v-model="form.configKey"
-            :disabled="!creating"
-            placeholder="例如 ops.alert.custom_webhook"
-          />
+            filterable
+            style="width: 100%"
+            placeholder="仅可选白名单键"
+            @change="onCreateKeyChange"
+          >
+            <el-option
+              v-for="k in creatableBuiltinKeys"
+              :key="k"
+              :label="k"
+              :value="k"
+            />
+          </el-select>
+          <el-input v-else v-model="form.configKey" disabled />
         </el-form-item>
         <el-form-item label="当前值" required>
           <el-switch
@@ -184,6 +189,7 @@ interface RuleRow extends SystemConfigRow {
 const BUILTIN_GROUPS: Record<string, string[]> = {
   设备离线与解锁: [
     'device.offline.auto_sales_lock_minutes',
+    'device.offline.manual_unlock_grace_minutes',
     'device.offline.auto_unlock_enabled',
     'device.offline.auto_unlock_stable_minutes'
   ],
@@ -267,13 +273,19 @@ const formEnabled = computed({
   }
 });
 
-const groupOptions = computed(() => {
-  const set = new Set<string>([...Object.keys(BUILTIN_GROUPS), CUSTOM_GROUP_PREFIX]);
-  for (const g of Object.values(customGroupMap.value)) {
-    if (g) set.add(g);
-  }
-  return [...set];
+const groupOptions = computed(() => Object.keys(BUILTIN_GROUPS));
+
+const allBuiltinKeys = computed(() => Object.values(BUILTIN_GROUPS).flat());
+
+const creatableBuiltinKeys = computed(() => {
+  const existing = new Set(rows.value.map((r) => r.configKey));
+  return allBuiltinKeys.value.filter((k) => !existing.has(k));
 });
+
+function onCreateKeyChange(key: string) {
+  const g = builtinGroupOf(key);
+  if (g) form.group = g;
+}
 
 function builtinGroupOf(key: string): string | null {
   for (const [group, keys] of Object.entries(BUILTIN_GROUPS)) {
@@ -424,9 +436,14 @@ async function load() {
 }
 
 function openCreate() {
+  if (!creatableBuiltinKeys.value.length) {
+    ElMessage.info('白名单键均已存在，请直接编辑列表项');
+    return;
+  }
   creating.value = true;
-  form.group = '告警渠道';
-  form.configKey = '';
+  const first = creatableBuiltinKeys.value[0];
+  form.configKey = first;
+  form.group = builtinGroupOf(first) || '告警渠道';
   form.configValue = '';
   form.description = '';
   dialogVisible.value = true;
@@ -444,9 +461,12 @@ function openEdit(row: RuleRow) {
 async function save() {
   const configKey = form.configKey.trim();
   const configValue = String(form.configValue ?? '').trim();
-  const group = form.group.trim() || CUSTOM_GROUP_PREFIX;
   if (!configKey) {
-    ElMessage.warning('请填写配置键');
+    ElMessage.warning('请选择配置键');
+    return;
+  }
+  if (creating && !builtinGroupOf(configKey)) {
+    ElMessage.warning('仅允许白名单键；自定义键不会被调度读取');
     return;
   }
   if (!configValue && !configKey.endsWith('_enabled')) {
@@ -466,10 +486,6 @@ async function save() {
       configValue: value || (configKey.endsWith('_enabled') ? 'false' : ''),
       description: form.description.trim()
     });
-    if (!builtinGroupOf(configKey)) {
-      const next = { ...customGroupMap.value, [configKey]: group };
-      await persistCustomGroups(next);
-    }
     ElMessage.success('已保存并生效');
     dialogVisible.value = false;
     await load();

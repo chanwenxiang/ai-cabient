@@ -6,7 +6,7 @@
           <div class="page-card-head__title">
             <span class="title">商户提现</span>
             <span class="hint"
-              >商户可提现余额 · 手续费由 MERCHANT_WITHDRAW_FEE_CENTS / FEE_BPS 配置 · 到账=金额−手续费</span
+              >手续费由 MERCHANT_WITHDRAW_FEE_* 配置 · 到账=金额−手续费 · 默认 Mock 打款（非真实微信转账）</span
             >
           </div>
         </div>
@@ -38,6 +38,15 @@
         </div>
       </div>
     </template>
+
+    <el-alert
+      v-if="payoutMode?.note"
+      class="mb"
+      :type="payoutMode.mockEnabled ? 'warning' : 'error'"
+      :closable="false"
+      show-icon
+      :title="payoutMode.note"
+    />
 
     <el-tabs v-model="tab" @tab-change="onTab">
       <el-tab-pane label="商户钱包" name="wallets">
@@ -448,6 +457,7 @@ interface Withdraw {
 
 const auth = useAuthStore();
 const tab = ref('wallets');
+const payoutMode = ref<{ mockEnabled?: boolean; note?: string } | null>(null);
 const walletsLoading = ref(false);
 const withdrawsLoading = ref(false);
 const walletsHydrated = ref(false);
@@ -498,8 +508,20 @@ function onTab() {
 }
 
 function reload() {
+  void loadPayoutMode();
   if (tab.value === 'withdraws') loadWithdraws();
   else loadWallets();
+}
+
+async function loadPayoutMode() {
+  try {
+    payoutMode.value = await api.request('/api/v2/ops/admin/merchant-withdraws/payout-mode', 'GET');
+  } catch {
+    payoutMode.value = {
+      mockEnabled: true,
+      note: '无法读取打款模式；演示环境通常为 Mock（非真实转账）'
+    };
+  }
 }
 
 function searchWallets() {
@@ -728,6 +750,9 @@ onMounted(reload);
 </script>
 
 <style scoped>
+.mb {
+  margin-bottom: 12px;
+}
 .dialog-merchant {
   padding: 12px 14px;
   margin-bottom: 16px;

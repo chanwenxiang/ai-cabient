@@ -5,7 +5,9 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">线长钱包</span>
-            <span class="hint">线长可自主提现 · 与商户平台分账解耦 · 默认模拟打款</span>
+            <span class="hint"
+              >与商户平台分账解耦 · 默认 Mock 打款（非真实微信转账到零钱） · 地推完成入账赏金</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -39,6 +41,15 @@
         </div>
       </div>
     </template>
+
+    <el-alert
+      v-if="payoutMode?.note"
+      class="mb"
+      :type="payoutMode.mockEnabled ? 'warning' : 'error'"
+      :closable="false"
+      show-icon
+      :title="payoutMode.note"
+    />
 
     <el-tabs v-model="tab" class="line-tabs" @tab-change="onTab">
       <el-tab-pane label="线长成员" name="managers">
@@ -565,6 +576,7 @@ interface Withdraw {
 
 const auth = useAuthStore();
 const tab = ref('managers');
+const payoutMode = ref<{ mockEnabled?: boolean; note?: string } | null>(null);
 const managersLoading = ref(false);
 const withdrawsLoading = ref(false);
 const managersHydrated = ref(false);
@@ -709,7 +721,19 @@ function onTab() {
   else loadWithdraws();
 }
 function reload() {
+  void loadPayoutMode();
   onTab();
+}
+
+async function loadPayoutMode() {
+  try {
+    payoutMode.value = await api.request('/api/v2/ops/admin/line-withdraws/payout-mode', 'GET');
+  } catch {
+    payoutMode.value = {
+      mockEnabled: true,
+      note: '无法读取打款模式；演示环境通常为 Mock（非真实转账到零钱）'
+    };
+  }
 }
 
 function openCreate() {
@@ -968,12 +992,16 @@ async function payout(row: Withdraw) {
 }
 
 onMounted(async () => {
+  void loadPayoutMode();
   await loadDeviceOptions();
   await loadManagers();
 });
 </script>
 
 <style scoped>
+.mb {
+  margin-bottom: 12px;
+}
 .page-card-head {
   display: flex;
   justify-content: space-between;

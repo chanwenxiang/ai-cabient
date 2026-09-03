@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.support.ApiMessages;
@@ -32,13 +33,16 @@ class DeviceValidationServiceTest {
     private ReplenishmentTaskMapper replenishmentTaskRepository;
     @Mock
     private ConsumerPreauthService consumerPreauthService;
+    @Mock
+    private MerchantMapper merchantRepository;
 
     private DeviceValidationService service;
 
     @BeforeEach
     void setUp() {
         service = new DeviceValidationService(
-                deviceInfoRepository, sessionRepository, replenishmentTaskRepository, consumerPreauthService);
+                deviceInfoRepository, sessionRepository, replenishmentTaskRepository,
+                consumerPreauthService, merchantRepository);
     }
 
     @Test
@@ -86,5 +90,23 @@ class DeviceValidationServiceTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.ensureRestockDoorAllowed("CAB-001", 1L, 42L));
         assertEquals(ApiMessages.REPLENISHMENT_TASK_ASSIGNEE, ex.getReason());
+    }
+
+    @Test
+    void ensureConsumerShoppingAllowed_blocksInactiveMerchant() {
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("CAB-001");
+        device.setOnlineStatus("ONLINE");
+        device.setMerchantId("MCH-1");
+        when(deviceInfoRepository.findById("CAB-001")).thenReturn(Optional.of(device));
+
+        com.aicabinet.trade.domain.Merchant merchant = new com.aicabinet.trade.domain.Merchant();
+        merchant.setMerchantId("MCH-1");
+        merchant.setStatus("INACTIVE");
+        when(merchantRepository.findById("MCH-1")).thenReturn(Optional.of(merchant));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.ensureConsumerShoppingAllowed("CAB-001"));
+        assertEquals(ApiMessages.MERCHANT_NOT_ACTIVE, ex.getReason());
     }
 }

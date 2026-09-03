@@ -115,6 +115,10 @@ public class InvoiceService {
         return new PageResult<>(result.getRecords().stream().map(this::toDto).toList(), p, s, result.getTotal());
     }
 
+    /**
+     * 运营「开具」：仅将申请状态 PENDING→ISSUED，不生成税控票面 / PDF，也不发邮件。
+     * 真实开票需后续对接税控或邮件通道。
+     */
     @Transactional
     public InvoiceRequestDto issue(Long operatorId, Long invoiceId) {
         return runWithInvoiceRequestLock(invoiceId, () -> {

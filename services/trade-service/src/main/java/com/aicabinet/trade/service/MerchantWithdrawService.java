@@ -161,6 +161,13 @@ public class MerchantWithdrawService {
         return new PageResult<>(items, p, s, result.getTotal());
     }
 
+    @Transactional(readOnly = true)
+    public java.util.Map<String, Object> payoutMode(Long operatorId) {
+        permissionService.requireAnyPermission(operatorId,
+                PERM_OPS_MERCHANT_WITHDRAW_LIST, PERM_OPS_MERCHANT_WITHDRAW_REVIEW, PERM_OPS_FINANCE_VIEW);
+        return payoutService.modeInfo();
+    }
+
     @Transactional
     public MerchantWithdrawRequestDto apply(String merchantId, long amountCents, String requestNo) {
         Merchant merchant = requireMerchant(merchantId);

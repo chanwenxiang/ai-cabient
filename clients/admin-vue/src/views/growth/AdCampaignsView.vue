@@ -5,7 +5,9 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">投放计划</span>
-            <span class="hint">按时间窗与设备范围向柜机屏幕下发轮播素材</span>
+            <span class="hint"
+              >预览/演示：后台可配轮播；柜机播放器与曝光回写未接入（曝光/完播需设备调 screen-content）</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">

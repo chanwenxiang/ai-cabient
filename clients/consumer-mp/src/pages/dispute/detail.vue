@@ -109,6 +109,9 @@
           返回订单列表
         </button>
         <text class="contact-link" @click="contactOps">联系客服 {{ servicePhone }}</text>
+        <text v-if="supportEmail" class="contact-link" @click="copySupportEmail"
+          >邮箱 {{ supportEmail }}</text
+        >
       </view>
     </view>
   </view>
@@ -140,6 +143,7 @@ const ticket = ref<DisputeTicketDto | null>(null);
 const sessionId = ref('');
 const ticketId = ref('');
 const servicePhone = ref('400-888-0018');
+const supportEmail = ref('');
 /** fileId/url -> 本地临时路径，避免 image src 带 token */
 const evidenceLocalSrc = ref<Record<string, string>>({});
 
@@ -283,6 +287,8 @@ async function loadServicePhone() {
   try {
     const cfg = await consumerApi.consumerPublicConfig();
     if (cfg?.servicePhone) servicePhone.value = cfg.servicePhone;
+    const email = String(cfg?.supportEmail || '').trim();
+    if (email) supportEmail.value = email;
   } catch {
     /* keep default */
   }
@@ -448,6 +454,16 @@ function goOrders() {
 
 function contactOps() {
   uni.makePhoneCall({ phoneNumber: servicePhone.value });
+}
+
+function copySupportEmail() {
+  const email = supportEmail.value;
+  if (!email) return;
+  uni.setClipboardData({
+    data: email,
+    success: () => uni.showToast({ title: '邮箱已复制', icon: 'none' }),
+    fail: () => uni.showToast({ title: email, icon: 'none' })
+  });
 }
 
 function previewEvidence(img: FileAttachmentDto) {

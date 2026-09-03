@@ -5,9 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">进件工作台</span>
-            <span class="hint"
-              >微信 / 支付宝 / 支付分进件状态登记（本波不强制打通生产进件 API）</span
-            >
+            <span class="hint">仅登记：外部门店号 / 进件状态留痕，不调用渠道 OpenAPI</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -45,7 +43,8 @@
     >
       <template #default>
         <span>
-          微信 {{ hints?.wechatPayLive ? '正式' : '演示' }} · 支付宝
+          {{ hints?.registryOnly ? '模式：仅登记 · ' : '' }}微信
+          {{ hints?.wechatPayLive ? '正式' : '演示' }} · 支付宝
           {{ hints?.alipayPayLive ? '正式' : '演示' }} · 支付分
           {{ hints?.payScoreLive ? '正式' : '演示' }}
         </span>
@@ -208,10 +207,10 @@
         </el-select>
       </el-form-item>
       <el-form-item label="外部商户号">
-        <el-input v-model="form.externalMchId" />
+        <el-input v-model="form.externalMchId" placeholder="仅登记，不推送到渠道" />
       </el-form-item>
       <el-form-item label="外部单号/引用">
-        <el-input v-model="form.externalRef" />
+        <el-input v-model="form.externalRef" placeholder="仅登记" />
       </el-form-item>
       <el-form-item label="备注">
         <el-input v-model="form.note" type="textarea" :rows="2" />

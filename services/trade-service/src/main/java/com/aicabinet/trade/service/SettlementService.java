@@ -219,7 +219,12 @@ public class SettlementService {
             if (stagingOrder != null) {
                 return stagingOrder;
             }
-            escalateToDispute(session, recognition, confidenceReason);
+            if (systemConfigService.getBoolean(SystemConfigService.DISPUTE_AUTO_OPEN, true)) {
+                escalateToDispute(session, recognition, confidenceReason);
+            } else {
+                log.info("dispute.auto_open=false, settle despite low confidence session={} reason={}",
+                        session.getSessionId(), confidenceReason);
+            }
         }
 
         var whitelistReason = skuVisionEnrollmentService.validateSettlementItems(

@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">用户反馈</span>
-            <span class="hint">按状态筛选；待处理可回复</span>
+            <span class="hint">回复为运营备注，不推送用户；用户可在「我的反馈」自行查看</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -348,7 +348,7 @@ async function submitReply() {
       reply: replyText.value.trim()
     });
     replyDialog.value = false;
-    ElMessage.success('已回复');
+    ElMessage.success('已保存回复（仅运营备注，未推送用户）');
     await load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '回复失败');

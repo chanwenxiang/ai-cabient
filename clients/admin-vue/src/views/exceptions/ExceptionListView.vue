@@ -6,7 +6,9 @@
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
               <span class="title">异常中心</span>
-              <span class="hint">交易履约异常（录像结算）；设备离线/锁机等请看「设备运维」</span>
+              <span class="hint"
+                >交易履约异常；SLA 超时仅筛选展示，无 webhook 催办（争议工单才有 SLA 推送）</span
+              >
             </div>
           </div>
           <div class="page-card-head__actions">

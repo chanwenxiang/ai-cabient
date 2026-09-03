@@ -31,7 +31,7 @@ public class LineWithdrawPayoutService {
             log.info("Mock line withdraw payout: requestId={}, managerId={}, amountCents={}, feeCents={}, netCents={}, ref={}",
                     request.getRequestId(), manager.getManagerId(), request.getAmountCents(),
                     request.getFeeCents(), netCents, ref);
-            return PayoutResult.success("MOCK", ref, "Mock 打款成功");
+            return PayoutResult.success("MOCK", ref, "仅 Mock 成功：未发起真实微信转账");
         }
         if (manager.getWxOpenid() == null || manager.getWxOpenid().isBlank()) {
             return PayoutResult.failure(CabinetConstants.PAY_CHANNEL_WECHAT, null, "缺少 wx_openid，无法打款到零钱");
@@ -43,7 +43,28 @@ public class LineWithdrawPayoutService {
         log.warn("WeChat transfer skeleton hit: requestId={}, openid={}, amountCents={}, feeCents={}, netCents={}",
                 request.getRequestId(), manager.getWxOpenid(), request.getAmountCents(),
                 request.getFeeCents(), netCents);
-        return PayoutResult.failure(CabinetConstants.PAY_CHANNEL_WECHAT, null, "微信转账接口尚未接入");
+        return PayoutResult.failure(CabinetConstants.PAY_CHANNEL_WECHAT, null,
+                "微信转账到零钱接口尚未接入（非 Mock 环境不可打款）");
+    }
+
+    /** 运营后台展示打款模式，避免误以为已真实到账。 */
+    public java.util.Map<String, Object> modeInfo() {
+        boolean mock = properties.mockEnabled();
+        boolean wx = weChatPayProperties.isConfigured();
+        String note;
+        if (mock) {
+            note = "当前为 Mock 打款：审核通过后标记成功，不发起真实微信转账到零钱";
+        } else if (!wx) {
+            note = "Mock 已关闭且微信支付未配置：打款会失败";
+        } else {
+            note = "Mock 已关闭：微信转账到零钱 API 尚未接入，打款会失败";
+        }
+        return java.util.Map.of(
+                "mockEnabled", mock,
+                "wechatConfigured", wx,
+                "transferApiReady", false,
+                "note", note
+        );
     }
 
     public record PayoutResult(

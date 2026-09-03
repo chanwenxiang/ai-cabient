@@ -15,6 +15,13 @@
         </view>
         <text class="support-action">拨打</text>
       </view>
+      <view v-if="supportEmail" class="support-row" @click="copySupportEmail">
+        <view>
+          <text class="support-label">客服邮箱</text>
+          <text class="support-value">{{ supportEmail }}</text>
+        </view>
+        <text class="support-action">复制</text>
+      </view>
       <view class="support-row" @click="goAnnouncements">
         <view>
           <text class="support-label">平台公告</text>
@@ -81,6 +88,7 @@ import { consumerApi } from '@/utils/consumer-api';
 
 const supportPhoneDisplay = ref('400-888-0018');
 const supportPhoneDial = ref('4008880018');
+const supportEmail = ref('');
 const openIdx = ref<number | null>(0);
 
 const faqs = [
@@ -126,6 +134,8 @@ onShow(async () => {
       supportPhoneDisplay.value = phone;
       supportPhoneDial.value = phone.replaceAll(/[^\d+]/g, '');
     }
+    const email = String(cfg?.supportEmail || cfg?.['ops.support_email'] || '').trim();
+    if (email) supportEmail.value = email;
   } catch {
     /* keep defaults */
   }
@@ -139,6 +149,16 @@ function callSupport() {
   uni.makePhoneCall({
     phoneNumber: supportPhoneDial.value,
     fail: () => uni.showToast({ title: `请拨打 ${supportPhoneDisplay.value}`, icon: 'none' })
+  });
+}
+
+function copySupportEmail() {
+  const email = supportEmail.value;
+  if (!email) return;
+  uni.setClipboardData({
+    data: email,
+    success: () => uni.showToast({ title: '邮箱已复制', icon: 'none' }),
+    fail: () => uni.showToast({ title: email, icon: 'none' })
   });
 }
 
