@@ -94,6 +94,13 @@ public class LineWithdrawService {
         return new PageResult<>(items, p, s, result.getTotal());
     }
 
+    @Transactional(readOnly = true)
+    public java.util.Map<String, Object> payoutMode(Long operatorId) {
+        permissionService.requireAnyPermission(operatorId,
+                "ops:line-manager:list", PERM_OPS_LINE_WITHDRAW_REVIEW, "ops:finance:view");
+        return payoutService.modeInfo();
+    }
+
     @Transactional
     public LineWithdrawRequestDto apply(long managerId, long amountCents, String requestNo) {
         LineManager manager = lineManagerService.requireManager(managerId);

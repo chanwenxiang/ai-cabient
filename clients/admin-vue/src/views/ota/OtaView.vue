@@ -5,7 +5,9 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">固件版本</span>
-            <span class="hint">设备端应用版本发布与灰度</span>
+            <span class="hint"
+              >模拟器级：支持发布/灰度与 check；柜机无落地安装代理（不会自动下载安装）</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">

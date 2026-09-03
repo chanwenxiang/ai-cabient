@@ -23,6 +23,13 @@ public class LineWithdrawController {
 
     @RequiresPermissions(value = {"ops:line-manager:list", "ops:line-withdraw:review", "ops:finance:view"},
             logical = RequiresPermissions.Logical.OR)
+    @GetMapping("/payout-mode")
+    public ApiResponse<Map<String, Object>> payoutMode(HttpServletRequest request) {
+        return ApiResponse.ok(lineWithdrawService.payoutMode(operator(request)));
+    }
+
+    @RequiresPermissions(value = {"ops:line-manager:list", "ops:line-withdraw:review", "ops:finance:view"},
+            logical = RequiresPermissions.Logical.OR)
     @GetMapping
     public ApiResponse<PageResult<LineWithdrawRequestDto>> list(
             HttpServletRequest request,

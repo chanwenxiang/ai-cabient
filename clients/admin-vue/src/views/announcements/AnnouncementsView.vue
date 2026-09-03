@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">通知公告</span>
-            <span class="hint">面向商户 / 消费者的运营公告；支持编辑、发布与归档</span>
+            <span class="hint">仅 CMS 上架：发布后客户端打开公告列表可见，不主动推送</span>
           </div>
         </div>
         <div class="page-card-head__actions">

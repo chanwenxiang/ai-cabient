@@ -24,6 +24,14 @@ public class MerchantWithdrawController {
     @RequiresPermissions(value = {
             "ops:merchant-withdraw:list", "ops:merchant-withdraw:review", "ops:finance:view"},
             logical = RequiresPermissions.Logical.OR)
+    @GetMapping("/payout-mode")
+    public ApiResponse<Map<String, Object>> payoutMode(HttpServletRequest request) {
+        return ApiResponse.ok(merchantWithdrawService.payoutMode(operator(request)));
+    }
+
+    @RequiresPermissions(value = {
+            "ops:merchant-withdraw:list", "ops:merchant-withdraw:review", "ops:finance:view"},
+            logical = RequiresPermissions.Logical.OR)
     @GetMapping
     public ApiResponse<PageResult<MerchantWithdrawRequestDto>> list(
             HttpServletRequest request,

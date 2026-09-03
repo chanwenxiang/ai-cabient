@@ -120,9 +120,12 @@ function rowActions(row: InvoiceRow): TableAction[] {
 async function onRowAction(key: string, row: InvoiceRow) {
   try {
     if (key === 'issue') {
-      await ElMessageBox.confirm(`确认开具发票？订单 ${displayBizNo(row.orderId)}`, '开具发票');
+      await ElMessageBox.confirm(
+        `确认将订单 ${displayBizNo(row.orderId)} 标记为已开具？\n（仅改状态，不生成税控 PDF / 不发邮件）`,
+        '开具发票（仅状态）'
+      );
       await api.request(`/api/v2/ops/admin/invoices/${row.invoiceId}/issue`, 'POST');
-      ElMessage.success('已开具');
+      ElMessage.success('已标记为已开具（未对接税控）');
       await load();
       return;
     }
@@ -149,9 +152,13 @@ async function batchIssue() {
     return;
   }
   try {
-    await ElMessageBox.confirm(`确认批量开具 ${targets.length} 张发票？`, '批量开具', {
-      type: 'warning'
-    });
+    await ElMessageBox.confirm(
+      `确认批量标记开具 ${targets.length} 张？\n（仅改状态，不生成税控 PDF / 不发邮件）`,
+      '批量开具（仅状态）',
+      {
+        type: 'warning'
+      }
+    );
   } catch {
     return;
   }
@@ -262,7 +269,9 @@ onMounted(load);
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">开票申请</span>
-            <span class="hint">消费者订单开票 · 运营开具或驳回 · 商户税号在商户端维护</span>
+            <span class="hint"
+              >仅状态流转：开具=PENDING→ISSUED，不生成税控 PDF、不发邮件；商户税号在商户端维护</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -288,6 +297,14 @@ onMounted(load);
         </div>
       </div>
     </template>
+
+    <el-alert
+      type="warning"
+      :closable="false"
+      show-icon
+      class="mb"
+      title="仅状态：点「开具」只把申请标为已开具，不会生成税控发票、PDF 或发送邮件"
+    />
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="状态">
@@ -397,3 +414,9 @@ onMounted(load);
     />
   </el-card>
 </template>
+
+<style scoped>
+.mb {
+  margin-bottom: 12px;
+}
+</style>

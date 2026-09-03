@@ -6,8 +6,8 @@
           <div class="page-card-head__title">
             <span class="title">商户与分账</span>
             <span class="hint"
-              >组织树、功能包与自助写开关；分账明细可提交微信分账。功能包关闭后对应小程序入口与 API
-              一并失效。</span
+              >余额支付默认「仅记账」入商户钱包；有微信交易号时可提交分账。功能包关闭后对应小程序入口与
+              API 一并失效。</span
             >
           </div>
         </div>
@@ -383,8 +383,8 @@
           :closable="false"
           show-icon
           class="status-banner"
-          title="仅记账说明"
-          description="余额支付且商户未配置微信分账接收方时会记为「仅记账」，商户份额已入钱包。可用「确认完结」移出工作台待跟进；有微信通道时再点「提交」。"
+          title="仅记账 / 记账模式"
+          description="余额扣款订单通常为「仅记账」(LEDGER_ONLY)：商户份额已入钱包，不调用微信分账。可用「确认完结」移出待跟进；配置接收方并绑定微信交易号后再点「提交」走真分账或 Mock。"
         />
 
         <el-form
@@ -597,7 +597,8 @@
       destroy-on-close
     >
       <p class="dialog-hint">
-        上级商户可见全部下级货柜。抽成单位为 bps：1000 = 10%，按订单实付计入平台。
+        上级商户可见全部下级货柜。抽成单位为 bps：1000 = 10%。非 ACTIVE
+        状态会拦截消费者开门购物（运维/补货开门不受影响）。
       </p>
       <el-form label-position="top">
         <el-form-item label="商户编号" required>
@@ -609,6 +610,16 @@
         </el-form-item>
         <el-form-item label="名称" required>
           <el-input v-model="orgForm.merchantName" placeholder="组织 / 商户名称" />
+        </el-form-item>
+        <el-form-item label="状态" required>
+          <el-select v-model="orgForm.status" style="width: 100%">
+            <el-option
+              v-for="item in dictOptions('merchant_status')"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="联系电话">
           <el-input v-model="orgForm.contactPhone" placeholder="如 0755-88880001" maxlength="32" />
@@ -780,7 +791,8 @@ const orgForm = ref({
   merchantName: '',
   contactPhone: '',
   parentMerchantId: '' as string | null,
-  platformRateBps: 1000
+  platformRateBps: 1000,
+  status: 'ACTIVE'
 });
 const assignDialog = ref(false);
 const assignSaving = ref(false);
@@ -1348,7 +1360,8 @@ function openOrgEdit(row?: MerchantDto) {
       merchantName: row.merchantName || '',
       contactPhone: row.contactPhone || '',
       parentMerchantId: row.parentMerchantId || '',
-      platformRateBps: row.platformRateBps ?? 1000
+      platformRateBps: row.platformRateBps ?? 1000,
+      status: row.status || 'ACTIVE'
     };
   } else {
     orgForm.value = {
@@ -1357,7 +1370,8 @@ function openOrgEdit(row?: MerchantDto) {
       merchantName: '',
       contactPhone: '',
       parentMerchantId: '',
-      platformRateBps: 1000
+      platformRateBps: 1000,
+      status: 'ACTIVE'
     };
   }
   orgDialog.value = true;
@@ -1378,7 +1392,7 @@ async function saveOrg() {
       contactPhone: f.contactPhone.trim() || null,
       platformRateBps: f.platformRateBps,
       wechatReceiverId: existing?.wechatReceiverId,
-      status: existing?.status || 'ACTIVE',
+      status: f.status || 'ACTIVE',
       remark: existing?.remark,
       parentMerchantId: f.parentMerchantId || '',
       allowMerchantPlanogramEdit: existing?.allowMerchantPlanogramEdit ?? false,

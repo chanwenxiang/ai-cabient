@@ -151,9 +151,23 @@ public class SystemConfigService {
     }
 
     @Transactional(readOnly = true)
+    public double getDouble(String key, double defaultValue) {
+        String raw = self.getValue(key, null);
+        if (raw == null || raw.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return Double.parseDouble(raw.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    @Transactional(readOnly = true)
     public Map<String, String> consumerPublicConfig() {
         Map<String, String> map = new LinkedHashMap<>();
         map.put("servicePhone", self.getValue(CONSUMER_SERVICE_PHONE, "400-888-0018"));
+        map.put("supportEmail", self.getValue(OPS_SUPPORT_EMAIL, "ops@aicabinet.local"));
         boolean wechatSubscribeOk = weChatMiniAppProperties.isConfigured()
                 && weChatMiniAppProperties.resolveConsumerTemplateId() != null
                 && !weChatMiniAppProperties.resolveConsumerTemplateId().isBlank();
@@ -280,13 +294,16 @@ public class SystemConfigService {
 
     private void ensureDefaults() {
         upsertIfAbsent(CONSUMER_SERVICE_PHONE, "400-888-0018", "C端客服电话");
-        upsertIfAbsent(OPS_SUPPORT_EMAIL, "ops@aicabinet.local", "运营支持邮箱");
-        upsertIfAbsent(SETTLEMENT_MIN_CONFIDENCE, "0.72", "自动结算最低识别置信度");
+        upsertIfAbsent(OPS_SUPPORT_EMAIL, "ops@aicabinet.local",
+                "运营支持邮箱（下发 C 端公开配置 supportEmail）");
+        upsertIfAbsent(SETTLEMENT_MIN_CONFIDENCE, "0.72",
+                "自动结算最低整体识别置信度（低于则触发人工审；单品另看 SKU 扣款阈值）");
         upsertIfAbsent(SETTLEMENT_RECOGNITION_MODE, RECOGNITION_MODE_VISION,
                 "结算识别方式: VISION=纯视觉(忽略重力), VISION_GRAVITY=视觉+重力融合");
         upsertIfAbsent(SETTLEMENT_EMPTY_AUTO_NO_GRAVITY, FALSE,
                 "纯视觉柜空车是否自动零结（无重力字段时）；默认 false 进争议");
-        upsertIfAbsent(DISPUTE_AUTO_OPEN, "true", "识别低置信是否自动开争议工单");
+        upsertIfAbsent(DISPUTE_AUTO_OPEN, "true",
+                "识别低置信是否自动开争议工单；false 时仍结算但记日志（空车/超时等安全路径不受影响）");
         upsertIfAbsent(REFUND_DEFAULT_POLICY, "AUTO_REFUND",
                 "全局默认退款策略: AUTO_REFUND=自助退款, DISPUTE_ONLY=仅申诉");
         upsertIfAbsent(REFUND_SELF_MAX_HOURS, "24", "消费者自助退款时限（下单后小时数）");
@@ -339,6 +356,23 @@ public class SystemConfigService {
         upsertIfAbsent(CHECKOUT_PREAUTH_CENTS,
                 String.valueOf(com.aicabinet.common.constants.CabinetConstants.MIN_BALANCE_CENTS),
                 "消费者开门预授权冻结金额(分)");
+        refreshDescriptionIfPresent(OPS_SUPPORT_EMAIL,
+                "运营支持邮箱（下发 C 端公开配置 supportEmail）");
+        refreshDescriptionIfPresent(SETTLEMENT_MIN_CONFIDENCE,
+                "自动结算最低整体识别置信度（低于则触发人工审；单品另看 SKU 扣款阈值）");
+        refreshDescriptionIfPresent(DISPUTE_AUTO_OPEN,
+                "识别低置信是否自动开争议工单；false 时仍结算但记日志（空车/超时等安全路径不受影响）");
+    }
+
+    private void refreshDescriptionIfPresent(String key, String description) {
+        repository.findById(key).ifPresent(row -> {
+            if (description.equals(row.getDescription())) {
+                return;
+            }
+            row.setDescription(description);
+            row.setUpdatedAt(Instant.now());
+            repository.save(row);
+        });
     }
 
     private void upsertIfAbsent(String key, String value, String description) {

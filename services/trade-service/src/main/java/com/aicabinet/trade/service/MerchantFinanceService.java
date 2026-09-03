@@ -472,15 +472,15 @@ public class MerchantFinanceService {
         boolean mock = profitSharingService.isMockMode();
         String note;
         if (!enabled) {
-            note = "平台分账功能未启用，当前为记账模式";
+            note = "平台分账未启用：余额支付默认「仅记账」(LEDGER_ONLY)，商户份额入钱包，不调用微信分账";
         } else if (mock) {
-            note = "平台分账联调 Mock 已启用";
+            note = "分账 Mock 已启用：提交分账会模拟成功，非真实微信分账";
         } else if (!weChatPayProperties.isConfigured()) {
-            note = "微信支付未配置，分账将延迟到账";
+            note = "微信支付未配置：多数订单仍为「仅记账」；配置收款方与交易号后方可提交微信分账";
         } else if (!apiReady) {
-            note = "分账 API 未就绪，请联系平台运营";
+            note = "分账 API 未就绪：当前以记账模式为主，请联系平台运营";
         } else {
-            note = "分账 API 已就绪，待分账款项将由平台定期提交";
+            note = "分账 API 已就绪：余额支付仍常为「仅记账」；有微信交易号时可手动/自动提交真分账";
         }
         return new ProfitSharingStatusDto(
                 enabled, apiReady, profitSharingProperties.retryEnabled(),

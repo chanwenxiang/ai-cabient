@@ -39,6 +39,7 @@ public final class ApiMessages {
     /** 补货开门时已有未结束会话（含购物/补货） */
     public static final String RESTOCK_DOOR_SESSION_BUSY = "柜机有未结束的开门会话，请先关门或等待结束后再开";
     public static final String DEVICE_OFFLINE = "设备离线，暂不可开门";
+    public static final String MERCHANT_NOT_ACTIVE = "所属商户未启用，暂不可开门购物";
     public static final String REPLENISHMENT_IN_PROGRESS = "设备补货中，暂不能购物或结算";
     public static final String REPLENISHMENT_TASK_NOT_FOUND = "补货任务不存在";
     public static final String REPLENISHMENT_TASK_MISMATCH = "补货任务与设备不匹配";

@@ -241,11 +241,13 @@ public class MerchantOnboardingService {
         boolean mock = securityProperties.mockEnabled();
         return Map.of(
                 "mockEnabled", mock,
+                "registryOnly", true,
                 "wechatPayLive", weChatPayProperties.isConfigured() && !mock,
                 "alipayPayLive", alipayProperties.isConfigured() && !mock,
                 "payScoreLive", payScoreProperties.liveChargeEnabled() && !mock,
-                "hint", mock ? "当前为 Mock/演示：进件状态仅留痕，不发起真实进件 API"
-                        : "生产模式：进件状态供运营登记；真实 OpenAPI 可后续挂接"
+                "hint", mock
+                        ? "仅登记：进件状态与外部门店号只留痕，不调用微信/支付宝进件 OpenAPI"
+                        : "仅登记：生产亦可先登记外部门店号；真实进件 OpenAPI 尚未挂接"
         );
     }
 

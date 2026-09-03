@@ -3,9 +3,11 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.DeviceStatusDto;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.support.ApiMessages;
@@ -34,15 +36,18 @@ public class DeviceValidationService {
     private final ShoppingSessionMapper sessionRepository;
     private final ReplenishmentTaskMapper replenishmentTaskRepository;
     private final ConsumerPreauthService consumerPreauthService;
+    private final MerchantMapper merchantRepository;
 
     public DeviceValidationService(DeviceInfoMapper deviceInfoRepository,
                                    ShoppingSessionMapper sessionRepository,
                                    ReplenishmentTaskMapper replenishmentTaskRepository,
-                                   ConsumerPreauthService consumerPreauthService) {
+                                   ConsumerPreauthService consumerPreauthService,
+                                   MerchantMapper merchantRepository) {
         this.deviceInfoRepository = deviceInfoRepository;
         this.sessionRepository = sessionRepository;
         this.replenishmentTaskRepository = replenishmentTaskRepository;
         this.consumerPreauthService = consumerPreauthService;
+        this.merchantRepository = merchantRepository;
     }
 
     public DeviceInfo requireDevice(String deviceId) {
@@ -87,6 +92,7 @@ public class DeviceValidationService {
 
     public void ensureConsumerShoppingAllowed(String deviceId) {
         DeviceInfo device = ensureDeviceOnline(deviceId);
+        ensureMerchantActiveForShopping(device);
         if (device.salesLockedEnabled()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "设备已暂停营业，请稍后再试");
         }
@@ -94,6 +100,22 @@ public class DeviceValidationService {
         if (hasInProgressReplenishmentTask(deviceId)) {
             // 与结算冻结文案一致，避免消费者误以为柜机故障
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_IN_PROGRESS);
+        }
+    }
+
+    /** PENDING / INACTIVE 商户禁止消费者开门购物（运维/补货开门不受影响）。 */
+    private void ensureMerchantActiveForShopping(DeviceInfo device) {
+        String merchantId = device.getMerchantId();
+        if (merchantId == null || merchantId.isBlank()) {
+            return;
+        }
+        Merchant merchant = merchantRepository.findById(merchantId.trim()).orElse(null);
+        if (merchant == null) {
+            return;
+        }
+        String status = merchant.getStatus();
+        if (status != null && !"ACTIVE".equalsIgnoreCase(status.trim())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.MERCHANT_NOT_ACTIVE);
         }
     }
 
