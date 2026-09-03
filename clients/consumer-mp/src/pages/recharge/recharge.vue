@@ -165,7 +165,7 @@
         />
         <view v-for="r in visibleRecords" :key="r.orderId" class="record-row">
           <view>
-            <text class="record-amount">{{ fmtMoney(r.amountCents || 0) }}</text>
+            <text class="record-amount">{{ fmtMoney(r.amountCents ?? 0) }}</text>
             <view class="record-meta">
               <text class="record-channel">{{ channelText(r.channel) }}</text>
               <text class="record-id">{{ shortBizNo(r.orderId) }}</text>
@@ -415,7 +415,7 @@ async function loadConfig() {
 async function loadBalance() {
   try {
     const acc = await consumerApi.account();
-    balanceYuan.value = fmtMoney(acc.balanceCents || 0);
+    balanceYuan.value = fmtMoney(acc.balanceCents ?? 0);
   } catch {
     balanceYuan.value = '--';
   }

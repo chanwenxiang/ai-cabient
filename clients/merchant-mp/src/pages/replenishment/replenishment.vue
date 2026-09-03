@@ -1361,6 +1361,22 @@ function doorCacheKey(taskId: number) {
   return `replenish_door_${taskId}`;
 }
 
+/** 本地开门缓存结构校验（M-24） */
+function parseDoorCache(raw: unknown): { sessionId: string } | null {
+  let cached: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      cached = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (!cached || typeof cached !== 'object') return null;
+  const sessionId = String((cached as { sessionId?: unknown }).sessionId ?? '').trim();
+  if (!sessionId) return null;
+  return { sessionId };
+}
+
 function restoreDoorState(taskId: number) {
   try {
     const raw = uni.getStorageSync(doorCacheKey(taskId));
@@ -1369,9 +1385,19 @@ function restoreDoorState(taskId: number) {
       openSessionId.value = '';
       return;
     }
-    const cached = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    doorOpened.value = !!cached?.sessionId;
-    openSessionId.value = cached?.sessionId || '';
+    const cached = parseDoorCache(raw);
+    if (!cached) {
+      doorOpened.value = false;
+      openSessionId.value = '';
+      try {
+        uni.removeStorageSync(doorCacheKey(taskId));
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    doorOpened.value = true;
+    openSessionId.value = cached.sessionId;
   } catch {
     doorOpened.value = false;
     openSessionId.value = '';

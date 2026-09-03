@@ -87,7 +87,7 @@
                 <text class="card-goods">{{ lineSummaryText(item) }}</text>
                 <text class="card-meta">
                   {{ emptyDisplay(item.deviceName || item.deviceId, 'device') }} ·
-                  {{ item.lineCount || 0 }} 件 ·
+                  {{ item.lineCount ?? 0 }} 件 ·
                   {{ channelText(item.payChannel) }}
                 </text>
                 <text v-if="item.splitStatus" class="card-meta"
@@ -98,15 +98,15 @@
                 </text>
                 <text
                   v-if="
-                    Number(item.couponDiscountCents || 0) + Number(item.memberDiscountCents || 0) >
+                    Number(item.couponDiscountCents ?? 0) + Number(item.memberDiscountCents ?? 0) >
                     0
                   "
                   class="card-discount"
                 >
                   优惠减¥{{
                     (
-                      (Number(item.couponDiscountCents || 0) +
-                        Number(item.memberDiscountCents || 0)) /
+                      (Number(item.couponDiscountCents ?? 0) +
+                        Number(item.memberDiscountCents ?? 0)) /
                       100
                     ).toFixed(2)
                   }}
@@ -129,7 +129,7 @@
               <view class="card-amount-col">
                 <text class="card-amount">{{ money(item.totalAmountCents) }}</text>
                 <text
-                  v-if="Number(item.originalAmountCents || 0) > Number(item.totalAmountCents || 0)"
+                  v-if="Number(item.originalAmountCents ?? 0) > Number(item.totalAmountCents ?? 0)"
                   class="card-origin"
                   >原价 {{ money(item.originalAmountCents) }}</text
                 >
@@ -307,7 +307,7 @@ function resetFilters() {
 function lineSummaryText(item: MerchantOrderSummary) {
   const summary = cleanLineSummary(item.lineSummary);
   if (summary) return summary;
-  return `${item.lineCount || 0} 件商品`;
+  return `${item.lineCount ?? 0} 件商品`;
 }
 
 onShow(() => {
@@ -453,9 +453,9 @@ function money(cents?: number) {
 }
 
 function refundCents(item: MerchantOrderSummary) {
-  const n = Number(item.refundedCents || 0);
+  const n = Number(item.refundedCents ?? 0);
   if (n > 0) return n;
-  if (item.status === 'REFUNDED') return Number(item.totalAmountCents || 0);
+  if (item.status === 'REFUNDED') return Number(item.totalAmountCents ?? 0);
   return 0;
 }
 

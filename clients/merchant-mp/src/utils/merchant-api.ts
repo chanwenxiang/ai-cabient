@@ -292,6 +292,24 @@ export function merchantLogin(phone: string, password: string) {
   });
 }
 
+/** 上传响应 data 须为有效附件（M-19） */
+function parseFileAttachmentDto(
+  data: unknown
+): import('@aicabinet/shared-types').FileAttachmentDto | null {
+  if (!data || typeof data !== 'object') return null;
+  const row = data as Record<string, unknown>;
+  const fileId = Number(row.fileId);
+  if (!Number.isFinite(fileId) || fileId <= 0) return null;
+  const out: import('@aicabinet/shared-types').FileAttachmentDto = { fileId };
+  if (row.fileName != null) out.fileName = String(row.fileName);
+  if (row.contentType != null) out.contentType = String(row.contentType);
+  if (row.fileSize != null && Number.isFinite(Number(row.fileSize))) {
+    out.fileSize = Number(row.fileSize);
+  }
+  if (row.url != null) out.url = String(row.url);
+  return out;
+}
+
 export function uploadReplenishmentEvidenceFile(
   taskId: number,
   filePath: string
@@ -316,10 +334,11 @@ export function uploadReplenishmentEvidenceFile(
           const body = JSON.parse(String(res.data || '{}')) as {
             code?: number;
             message?: string;
-            data?: import('@aicabinet/shared-types').FileAttachmentDto;
+            data?: unknown;
           };
-          if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0 && body.data) {
-            resolve(body.data);
+          const attachment = parseFileAttachmentDto(body?.data);
+          if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0 && attachment) {
+            resolve(attachment);
             return;
           }
           reject(new Error(localizeApiMessage(body?.message, `上传失败 (${res.statusCode})`)));
@@ -357,10 +376,11 @@ export function uploadReplenishmentRequestEvidenceFile(
           const body = JSON.parse(String(res.data || '{}')) as {
             code?: number;
             message?: string;
-            data?: import('@aicabinet/shared-types').FileAttachmentDto;
+            data?: unknown;
           };
-          if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0 && body.data) {
-            resolve(body.data);
+          const attachment = parseFileAttachmentDto(body?.data);
+          if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0 && attachment) {
+            resolve(attachment);
             return;
           }
           reject(new Error(localizeApiMessage(body?.message, `上传失败 (${res.statusCode})`)));
