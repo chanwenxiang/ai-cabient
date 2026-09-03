@@ -379,6 +379,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { findNavByPath } from '@/config/menu';
 import { consumeDictRuntimeEpoch } from '@/stores/dict-runtime';
+import { yuanToCents } from '@/utils/display';
 import type { FileAttachmentDto, SkuCatalog, UpsertSkuRequest } from '@aicabinet/shared-types';
 
 const route = useRoute();
@@ -548,10 +549,13 @@ function skuStatusLabel(status?: string) {
 }
 
 function toUpsertBody(row: SkuCatalog, status: string): UpsertSkuRequest {
+  const priceRaw = Number(row.priceCents);
+  // 保留真实 0（免费/未填价由调用方校验）；勿用 || 1 静默改价
+  const priceCents = Number.isFinite(priceRaw) && priceRaw >= 0 ? priceRaw : 0;
   return {
     skuId: row.skuId,
     skuName: row.skuName || row.skuId,
-    priceCents: row.priceCents || 1,
+    priceCents,
     weightGrams: row.weightGrams,
     visionEnabled: row.visionEnabled ?? true,
     imageUrl: row.imageUrl,
@@ -667,12 +671,13 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         const skuName = (row['名称'] || row.skuName || '').trim();
         if (!skuName) continue;
         const barcode = (row['条码'] || row.barcode || '').trim() || undefined;
-        const priceCents = Math.round((Number(row['售价'] || row.priceYuan) || 0) * 100);
+        const priceCents = yuanToCents(row['售价'] || row.priceYuan);
+        if (priceCents == null || priceCents < 0) continue;
         const status = skuStatusByLabel[row['商品状态'] || row.status] || 'ACTIVE';
         const costRaw = row['成本'] ?? row.purchaseCostYuan;
         const purchaseCostCents =
           costRaw != null && String(costRaw).trim() !== ''
-            ? Math.round((Number(costRaw) || 0) * 100)
+            ? (yuanToCents(costRaw) ?? undefined)
             : undefined;
         const existing = barcode
           ? items.value.find((i) => i.barcode && i.barcode === barcode)
@@ -680,7 +685,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         const body: UpsertSkuRequest = {
           skuId: existing?.skuId,
           skuName,
-          priceCents: priceCents || 350,
+          priceCents,
           barcode,
           brand: (row['品牌'] || row.brand || '').trim() || undefined,
           spec: (row['规格'] || row.spec || '').trim() || undefined,
@@ -804,7 +809,7 @@ function openEdit(row?: SkuCatalog) {
 
 function onNearExpiryPriceYuanChange(value: number | undefined) {
   form.nearExpiryPriceCents =
-    value == null || Number.isNaN(Number(value)) ? undefined : Math.round(Number(value) * 100);
+    value == null || Number.isNaN(Number(value)) ? undefined : (yuanToCents(value) ?? undefined);
 }
 
 async function saveEdit() {
@@ -816,12 +821,17 @@ async function saveEdit() {
     ElMessage.warning('请填写有效售价');
     return;
   }
+  const priceCents = yuanToCents(form.priceYuan);
+  if (priceCents == null || priceCents <= 0) {
+    ElMessage.warning('请填写有效售价');
+    return;
+  }
   saving.value = true;
   try {
     const body: UpsertSkuRequest = {
       skuId: form.existing ? form.skuId : undefined,
       skuName: form.skuName.trim(),
-      priceCents: Math.round(form.priceYuan * 100),
+      priceCents,
       barcode: form.barcode.trim() || undefined,
       brand: form.brand.trim() || undefined,
       spec: form.spec.trim() || undefined,
@@ -833,7 +843,7 @@ async function saveEdit() {
       description: form.description.trim() || undefined,
       purchaseCostCents:
         form.costYuan != null && !Number.isNaN(form.costYuan)
-          ? Math.round(form.costYuan * 100)
+          ? (yuanToCents(form.costYuan) ?? undefined)
           : undefined,
       visionEnabled: form.visionEnabled,
       minChargeConfidence: form.minChargeConfidence,

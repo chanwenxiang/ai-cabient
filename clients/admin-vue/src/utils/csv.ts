@@ -27,8 +27,15 @@ function unknownToDisplayString(value: unknown): string {
   return '';
 }
 
+/**
+ * Escape a CSV cell and neutralize formula injection (OWASP CSV Injection).
+ * Excel/WPS treat cells starting with = + - @ TAB CR as formulas.
+ */
 export function escapeCsvCell(value: unknown): string {
-  const s = unknownToDisplayString(value);
+  let s = unknownToDisplayString(value);
+  if (/^[=+\-@\t\r]/.test(s)) {
+    s = `'${s}`;
+  }
   if (/[",\n\r]/.test(s)) return `"${s.replaceAll('"', '""')}"`;
   return s;
 }

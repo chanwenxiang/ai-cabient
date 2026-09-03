@@ -24,7 +24,7 @@ export function normalizeListPage<T>(data: ListPageLike<T>): NormalizedListPage<
     const total = Number(data.total);
     return {
       items,
-      total: Number.isFinite(total) ? total : items.length
+      total: Number.isFinite(total) ? Math.max(0, total) : items.length
     };
   }
   return { items: [], total: 0 };

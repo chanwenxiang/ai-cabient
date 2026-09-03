@@ -77,9 +77,13 @@
     </el-form>
 
     <div class="kpi-tags">
-      <el-tag size="small" type="info">批次 {{ listHydrated ? totalCount : '…' }}</el-tag>
-      <el-tag size="small" type="danger">差异 {{ listHydrated ? mismatchBatchCount : '…' }}</el-tag>
-      <el-tag size="small" type="success">匹配 {{ listHydrated ? matchedBatchCount : '…' }}</el-tag>
+      <el-tag size="small" type="info">批次总数 {{ listHydrated ? totalCount : '…' }}</el-tag>
+      <el-tag size="small" type="danger"
+        >本页差异 {{ listHydrated ? mismatchBatchCount : '…' }}</el-tag
+      >
+      <el-tag size="small" type="success"
+        >本页匹配 {{ listHydrated ? matchedBatchCount : '…' }}</el-tag
+      >
     </div>
 
     <div class="table-scroll">

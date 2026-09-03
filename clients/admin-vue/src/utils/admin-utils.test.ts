@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { comparePrimaryKey, sortByPrimaryKey } from '@/utils/sort-by-pk';
 import { csvFileName, escapeCsvCell, parseCsv, csvRowsToObjects, toCsv } from '@/utils/csv';
-import { numOrZero, rateText, textOrNone, yuanText } from '@/utils/display';
+import { numOrZero, rateText, textOrNone, yuanText, yuanToCents } from '@/utils/display';
 import { buildPermTree, flattenForParentSelect, permTypeLabel } from '@/utils/rbac-tree';
 
 describe('sortByPrimaryKey', () => {
@@ -26,6 +26,16 @@ describe('csv helpers', () => {
   it('escapes quotes and commas', () => {
     expect(escapeCsvCell('a,b')).toBe('"a,b"');
     expect(escapeCsvCell('say "hi"')).toBe('"say ""hi"""');
+  });
+
+  it('neutralizes formula injection prefixes', () => {
+    expect(escapeCsvCell('=1+1')).toBe("'=1+1");
+    expect(escapeCsvCell('+1+1')).toBe("'+1+1");
+    expect(escapeCsvCell('-1+1')).toBe("'-1+1");
+    expect(escapeCsvCell('@SUM(A1)')).toBe("'@SUM(A1)");
+    expect(escapeCsvCell('\tHYPERLINK')).toBe("'\tHYPERLINK");
+    // quotes still CSV-escaped after formula neutralize
+    expect(escapeCsvCell('=cmd|"/c calc"!A0')).toBe("\"'=cmd|\"\"/c calc\"\"!A0\"");
   });
 
   it('builds BOM csv and parses round-trip', () => {
@@ -61,9 +71,32 @@ describe('display helpers', () => {
 
   it('rateText and yuanText', () => {
     expect(rateText(0.856)).toBe('85.6%');
+    expect(rateText(85.6, { unit: 'percent' })).toBe('85.6%');
+    expect(rateText(0.5, { unit: 'ratio' })).toBe('50.0%');
+    // 不再用 n<=1 猜测：85.6 按默认 ratio 会变成 8560%
     expect(rateText(null)).toBe('未统计');
     expect(yuanText(350)).toBe('¥3.50');
+    expect(yuanText(29)).toBe('¥0.29');
+    expect(yuanText(-250)).toBe('-¥2.50');
+    expect(yuanText(0)).toBe('¥0.00');
     expect(yuanText('')).toBe('未统计');
+  });
+
+  it('yuanToCents avoids float drift', () => {
+    expect(yuanToCents(0.29)).toBe(29);
+    expect(yuanToCents('1.10')).toBe(110);
+    expect(yuanToCents(-2.5)).toBe(-250);
+    expect(yuanToCents('')).toBeNull();
+    expect(yuanToCents('x')).toBeNull();
+  });
+});
+
+describe('charts formatYuan', () => {
+  it('delegates to integer yuanText path', async () => {
+    const { formatYuan } = await import('@/utils/charts');
+    expect(formatYuan(350)).toBe('¥3.50');
+    expect(formatYuan(29)).toBe('¥0.29');
+    expect(formatYuan(0)).toBe('¥0.00');
   });
 });
 

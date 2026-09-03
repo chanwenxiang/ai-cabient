@@ -36,6 +36,22 @@ public class MemberLevelAdminService {
     }
 
     @Transactional
+    public MemberLevelRuleDto create(MemberLevelRuleDto dto) {
+        if (dto != null && dto.id() != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "新建等级请勿传 id，请使用 POST");
+        }
+        return upsert(dto);
+    }
+
+    @Transactional
+    public MemberLevelRuleDto update(MemberLevelRuleDto dto) {
+        if (dto == null || dto.id() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "更新等级须指定 id，请使用 PUT");
+        }
+        return upsert(dto);
+    }
+
+    @Transactional
     public MemberLevelRuleDto upsert(MemberLevelRuleDto dto) {
         if (dto == null || dto.levelCode() == null || dto.levelCode().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "等级编码不能为空");
@@ -48,10 +64,25 @@ public class MemberLevelAdminService {
     }
 
     private MemberLevelRuleDto doUpsert(MemberLevelRuleDto dto, String code) {
-        MemberLevelRule rule = dto.id() != null
-                ? levelRuleRepository.findByIdForUpdate(dto.id())
-                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "等级不存在"))
-                : levelRuleRepository.findByLevelCodeForUpdate(code).orElseGet(MemberLevelRule::new);
+        MemberLevelRule rule;
+        if (dto.id() != null) {
+            rule = levelRuleRepository.findByIdForUpdate(dto.id())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "等级不存在"));
+            // 改编码时禁止撞到其它已有等级
+            levelRuleRepository.findByLevelCode(code).ifPresent(existing -> {
+                if (!existing.getId().equals(dto.id())) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "等级编码已存在: " + code);
+                }
+            });
+        } else {
+            if (levelRuleRepository.findByLevelCode(code).isPresent()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "等级编码已存在: " + code);
+            }
+            rule = levelRuleRepository.findByLevelCodeForUpdate(code).orElseGet(MemberLevelRule::new);
+            if (rule.getId() != null) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "等级编码已存在: " + code);
+            }
+        }
         rule.setLevelCode(code);
         rule.setLevelName(dto.levelName() == null ? code : dto.levelName());
         rule.setMinSpent(dto.minSpent());

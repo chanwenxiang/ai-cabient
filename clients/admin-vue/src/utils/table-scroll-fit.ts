@@ -263,6 +263,10 @@ function onVisualViewportChange(): void {
 }
 
 export function observeTableScrollFit(root: HTMLElement): void {
+  // 单页仅一个主内容根；换根时先完整拆除，避免双实例共享 dock / listener 串状态
+  if (observedRoot && observedRoot !== root) {
+    stopTableScrollFit();
+  }
   observedRoot = root;
   observer?.disconnect();
   observer = new MutationObserver((mutations) => {

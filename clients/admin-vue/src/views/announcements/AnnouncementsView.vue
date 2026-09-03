@@ -305,7 +305,8 @@ function emptyForm() {
 
 const filtered = computed(() => sortById(list.value));
 
-const paged = computed(() => list.value);
+/** 表格与导出共用排序结果，避免点 ID 排序无反应 */
+const paged = computed(() => filtered.value);
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<any>((r) => r.announceId ?? `${r.title}-${r.publishAt}`);
@@ -349,17 +350,32 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         formatTime(row.publishAt)
       ]),
     onImportRows: async (rows) => {
+      const statusCodeByLabel: Record<string, string> = Object.fromEntries(
+        dictOptions('announcement_status').flatMap(
+          (o) =>
+            [
+              [o.label, o.value],
+              [o.value, o.value]
+            ] as [string, string][]
+        )
+      );
       let ok = 0;
       for (const row of rows) {
         const title = row['标题'] || row.title;
         if (!title?.trim()) continue;
-        await post('/api/v2/ops/announcements', {
+        // 后端 create 固定为 DRAFT，忽略 body.publishAt；需发布时再调 publish
+        const created = await post('/api/v2/ops/announcements', {
           title: title.trim(),
           content: row['内容'] || row.content || '',
           targetScope: scopeCodeByLabel[row['目标'] || row.targetScope] || 'ALL',
-          priority: priorityCodeByLabel[row['优先级'] || row.priority] || 'NORMAL',
-          publishAt: new Date().toISOString()
+          priority: priorityCodeByLabel[row['优先级'] || row.priority] || 'NORMAL'
         });
+        const statusRaw = String(row['状态'] || row.status || '').trim();
+        const status = statusCodeByLabel[statusRaw] || statusRaw.toUpperCase();
+        const announceId = created?.data?.announceId;
+        if (status === 'PUBLISHED' && announceId != null) {
+          await post(`/api/v2/ops/announcements/${announceId}/publish`);
+        }
         ok++;
       }
       await load();

@@ -35,23 +35,28 @@ export function countText(v: unknown): string {
 }
 
 /**
- * 比率（默认按 0~1 转百分数）。
- * null →「未统计」；可用 zeroLabel 覆盖 0。
+ * 比率展示为百分数。
+ * - 默认 `unit:'ratio'`：按 0~1 比例 ×100（后端 KPI 等）
+ * - `unit:'percent'`：入参已是百分数，不再乘
+ * 勿依赖「n<=1 猜比率」；调用方必须显式约定单位。
  */
 export function rateText(
   v: unknown,
-  opts?: { asPercent?: boolean; digits?: number; empty?: string; zeroLabel?: string }
+  opts?: {
+    unit?: 'ratio' | 'percent';
+    /** @deprecated 请用 unit:'percent'；false 表示入参已是百分数 */
+    asPercent?: boolean;
+    digits?: number;
+    empty?: string;
+    zeroLabel?: string;
+  }
 ): string {
   if (v == null || v === '') return opts?.empty ?? EMPTY_STAT;
   const n = Number(v);
   if (!Number.isFinite(n)) return opts?.empty ?? EMPTY_STAT;
   if (n === 0 && opts?.zeroLabel) return opts.zeroLabel;
-  let pct: number;
-  if (opts?.asPercent === false) {
-    pct = n;
-  } else {
-    pct = n <= 1 ? n * 100 : n;
-  }
+  const unit = opts?.unit ?? (opts?.asPercent === false ? 'percent' : 'ratio');
+  const pct = unit === 'percent' ? n : n * 100;
   const d = opts?.digits ?? 1;
   return `${pct.toFixed(d)}%`;
 }
@@ -73,10 +78,27 @@ export function msText(v: unknown, empty = EMPTY_STAT): string {
   return `${(n / 1000).toFixed(2)} s`;
 }
 
-/** 金额分 → 元 */
+/** 金额分 → 元（整数拆分，避免 cents/100 浮点除法展示漂移） */
 export function yuanText(cents: unknown, empty = EMPTY_STAT): string {
   if (cents == null || cents === '') return empty;
   const n = Number(cents);
   if (!Number.isFinite(n)) return empty;
-  return `¥${(n / 100).toFixed(2)}`;
+  const sign = n < 0 ? '-' : '';
+  const abs = Math.trunc(Math.abs(n));
+  const whole = Math.floor(abs / 100);
+  const frac = String(abs % 100).padStart(2, '0');
+  return `${sign}¥${whole}.${frac}`;
+}
+
+/**
+ * 元（表单输入）→ 分。经 toFixed(2) 再拆整/小位，避免 `0.29*100` 浮点误差。
+ * @returns 非法输入返回 null
+ */
+export function yuanToCents(yuan: unknown): number | null {
+  if (yuan == null || yuan === '') return null;
+  const n = Number(yuan);
+  if (!Number.isFinite(n)) return null;
+  const sign = n < 0 ? -1 : 1;
+  const [whole, frac = '00'] = Math.abs(n).toFixed(2).split('.');
+  return sign * (Number(whole) * 100 + Number(frac));
 }

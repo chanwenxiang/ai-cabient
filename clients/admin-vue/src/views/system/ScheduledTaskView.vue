@@ -375,6 +375,15 @@ async function batchToggle(enabled: boolean) {
     ElMessage.warning('请先勾选任务');
     return;
   }
+  try {
+    await ElMessageBox.confirm(
+      `确认批量${enabled ? '启用' : '停用'}选中的 ${targets.length} 个任务？`,
+      `批量${enabled ? '启用' : '停用'}`,
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
   batchLoading.value = enabled ? 'enable' : 'disable';
   const results = await Promise.allSettled(
     targets.map((row) =>

@@ -83,6 +83,12 @@ export function applyLoginSession(data: {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.setItem(COOKIE_AUTH_KEY, '1');
   } else {
+    // prod/staging 由 ProductionStartupValidator 强制 cookieEnabled=true；此处仅本地/dev 回退 Bearer。
+    if (import.meta.env.PROD) {
+      console.warn(
+        '[auth] cookieEnabled=false in production build; JWT would fall back to localStorage. Check AUTH_COOKIE_ENABLED.'
+      );
+    }
     localStorage.setItem(TOKEN_KEY, data.token);
     localStorage.removeItem(COOKIE_AUTH_KEY);
   }
@@ -154,7 +160,15 @@ export async function downloadAuthFile(path: string, fallbackName: string) {
   const blob = await res.blob();
   const cd = res.headers.get('Content-Disposition') || '';
   const match = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(cd);
-  const filename = match ? decodeURIComponent(match[1].replaceAll('"', '')) : fallbackName;
+  const rawName = match ? decodeURIComponent(match[1].replaceAll('"', '')) : fallbackName;
+  // Strip path segments / traversal so download attribute cannot escape intended name.
+  const filename =
+    rawName
+      .replace(/[/\\]/g, '_')
+      .replace(/\.\./g, '_')
+      .replace(/[^\w.\u4e00-\u9fff\-()[\]]+/g, '_')
+      .replace(/^\.+/, '')
+      .slice(0, 180) || fallbackName;
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

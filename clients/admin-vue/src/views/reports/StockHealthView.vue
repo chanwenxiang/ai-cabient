@@ -434,9 +434,14 @@ async function createPullOff(row: StockHealthRow) {
 }
 
 async function writeOffLot(row: StockHealthRow) {
+  const qty = Number(row.quantity);
+  if (!Number.isFinite(qty) || qty <= 0) {
+    ElMessage.warning('报损数量须大于 0');
+    return;
+  }
   try {
     await ElMessageBox.confirm(
-      `确认报损 ${row.skuName || row.skuId} × ${row.quantity}？将直接扣减柜内批次库存。`,
+      `确认报损 ${row.skuName || row.skuId} × ${qty}？将直接扣减柜内批次库存。`,
       '临期报损',
       { type: 'warning' }
     );
@@ -444,7 +449,7 @@ async function writeOffLot(row: StockHealthRow) {
       deviceId: row.deviceId,
       skuId: row.skuId,
       batchNo: row.batchNo || undefined,
-      quantity: Number(row.quantity) || 1,
+      quantity: qty,
       reason: 'EXPIRED'
     });
     ElMessage.success('已报损');

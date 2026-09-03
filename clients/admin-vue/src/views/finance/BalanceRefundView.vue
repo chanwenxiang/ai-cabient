@@ -116,8 +116,10 @@ function rowActions(row: BalanceRefundRequestDto): TableAction[] {
   ];
 }
 
-/** 当前页无可审核项时隐藏操作列（避免终态页整列「暂无」） */
-const showActionColumn = computed(() => rows.value.some((row) => rowActions(row).length > 0));
+/** 过滤后无可审核项时隐藏操作列（避免终态页整列「暂无」） */
+const showActionColumn = computed(() =>
+  displayRows.value.some((row) => rowActions(row).length > 0)
+);
 
 function onRowAction(key: string, row: BalanceRefundRequestDto) {
   if (key === 'approve') review(row, true);

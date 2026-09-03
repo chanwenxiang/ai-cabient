@@ -1,5 +1,7 @@
 /** Lightweight SVG chart helpers for analytics dashboard (no chart lib). */
 
+import { yuanText } from '@/utils/display';
+
 export type ChartKind = 'line' | 'area' | 'bar';
 
 function niceStep(n: number): number {
@@ -17,8 +19,9 @@ export function niceMax(val: number): number {
   return step * exp;
 }
 
+/** 图表轴标签用；展示路径与 yuanText 一致，不参与资金计算 */
 export function formatYuan(cents: number): string {
-  return '¥' + (cents / 100).toFixed(2);
+  return yuanText(cents, '¥0.00');
 }
 
 export function formatPct(rate: number): string {

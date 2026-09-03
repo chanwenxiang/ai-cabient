@@ -788,7 +788,10 @@ function resetDraftFromSuggested() {
     .filter((line: OrderLineDto) => line.skuId && (line.quantity || 0) > 0)
     .map((line: OrderLineDto) => ({
       skuId: String(line.skuId),
-      quantity: Number(line.quantity) || 1
+      quantity: (() => {
+        const n = Number(line.quantity);
+        return Number.isFinite(n) && n > 0 ? n : 1;
+      })()
     }));
   if (!draftLines.value.length) {
     draftLines.value = [{ skuId: '', quantity: 1 }];

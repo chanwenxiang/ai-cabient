@@ -1,1 +1,0 @@
-function i(t){if(Array.isArray(t))return{items:t,total:t.length};if(t&&typeof t=="object"){const e=Array.isArray(t.items)?t.items:[],r=Number(t.total);return{items:e,total:Number.isFinite(r)?r:e.length}}return{items:[],total:0}}export{i as n};

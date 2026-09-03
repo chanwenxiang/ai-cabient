@@ -103,7 +103,9 @@ const GROUP_META: { key: string; label: string; icon: Component }[] = [
   { key: 'fulfill', label: '履约仓储', icon: Box },
   { key: 'finance', label: '财务商户', icon: Coin },
   { key: 'growth', label: '增长风控', icon: Lock },
-  { key: 'sys', label: '系统', icon: Setting }
+  { key: 'sys', label: '系统', icon: Setting },
+  /** 未登记分组兜底：有权限的菜单仍可见，避免侧栏静默丢失 */
+  { key: 'other', label: '其他', icon: Menu }
 ];
 
 const GROUP_KEY: Record<string, string> = {
@@ -114,10 +116,22 @@ const GROUP_KEY: Record<string, string> = {
   财务商户: 'finance',
   增长风控: 'growth',
   系统: 'sys',
+  其他: 'other',
   // 旧分组兼容（书签/缓存）
   业务: 'trade',
   运营: 'finance'
 };
+
+function resolveGroupKey(group: string | undefined | null): string {
+  const raw = String(group || '').trim();
+  if (!raw) return 'other';
+  const mapped = GROUP_KEY[raw];
+  if (mapped) return mapped;
+  if (typeof console !== 'undefined' && console.warn) {
+    console.warn(`[侧栏] 未知菜单分组「${raw}」，已归入「其他」`);
+  }
+  return 'other';
+}
 
 function toLeaf(item: NavItem): SidebarNode {
   return {
@@ -136,7 +150,7 @@ export function buildSidebarTree(canAccess: (item: NavItem) => boolean): Sidebar
   });
 
   return GROUP_META.flatMap((group): SidebarNode[] => {
-    const groupItems = accessible.filter((item) => GROUP_KEY[item.group] === group.key);
+    const groupItems = accessible.filter((item) => resolveGroupKey(item.group) === group.key);
     if (!groupItems.length) return [];
     return [
       {
@@ -154,6 +168,5 @@ export function sidebarOpenKeysForPath(path: string): string[] {
   const normalized = path.startsWith('/devices/') ? '/devices' : path;
   const item = NAV_ITEMS.find((entry) => entry.path === normalized);
   if (!item) return [];
-  const groupKey = GROUP_KEY[item.group];
-  return groupKey ? [groupKey] : [];
+  return [resolveGroupKey(item.group)];
 }

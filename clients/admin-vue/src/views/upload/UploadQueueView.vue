@@ -305,7 +305,7 @@ const displayItems = computed(() => {
   });
 });
 
-const pageStuckCount = computed(() => items.value.filter((r) => isStuck(r)).length);
+const pageStuckCount = computed(() => displayItems.value.filter((r) => isStuck(r)).length);
 
 const emptyHint = computed(() =>
   stuckOnly.value

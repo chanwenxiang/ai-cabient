@@ -162,8 +162,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8082
 
 4. **运营后台**  
    - 建议独立域名 + HTTPS + IP 白名单/VPN  
-   - JWT 存 localStorage 有 XSS 风险，后续可改 httpOnly Cookie
+   - **生产/预发强制** `AUTH_COOKIE_ENABLED=true`：会话走 HttpOnly Cookie，admin 前端不落 JWT 到 localStorage  
    - `AUTH_COOKIE_SECURE=true`（生产校验器强制，HTTPS 下浏览器才会携带会话 Cookie）
+   - 商户小程序仍可从登录响应取 Bearer（与 Cookie 并存）；本地 `dev` 可关 Cookie 便于调试
 
 5. **Actuator 收敛（网关已默认拦截）**
    - 公网网关只放行 `/actuator/health`、`/actuator/info`，其余 `/actuator/**` 返回 403
@@ -242,7 +243,7 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps u
 | `IDENTITY_VERIFY_BASE_URL` | 实名二要素上游（`AICABINET_MOCK_ENABLED=false` 时生产必填） |
 | `IDENTITY_VERIFY_API_KEY` | 实名上游 API Key（可选） |
 | `VISION_API_KEY` | vision 识别 |
-| `AUTH_COOKIE_ENABLED` | admin 浏览器会话 Cookie 开关（默认 `true`；小程序不受影响） |
+| `AUTH_COOKIE_ENABLED` | admin 浏览器会话 Cookie（默认 `true`；**prod/staging 启动校验强制 true**；小程序仍可用 Bearer） |
 | `AUTH_COOKIE_SECURE` | 生产 HTTPS 下必须设为 `true`，否则浏览器拒绝携带 Cookie |
 | `POSTGRES_PASSWORD` | 数据库密码 |
 | `WECHAT_*` | 微信支付 V3 + 小程序 |
@@ -316,6 +317,7 @@ docker compose -p ai-cabinet -f docker-compose.yml -f docker-compose.apps.yml -f
 
 - [ ] `SPRING_PROFILES_ACTIVE=prod`，服务能正常启动
 - [ ] 更换所有默认密钥（JWT、INTERNAL_API_KEY、VISION_API_KEY）
+- [ ] `AUTH_COOKIE_ENABLED=true`（prod/staging 启动校验强制）
 - [ ] `AUTH_COOKIE_SECURE=true`（admin 会话 Cookie 走 HTTPS）
 - [ ] 微信商户号、小程序、支付回调 URL 已配置并验签通过
 - [ ] SMS Webhook 实测能收到验证码

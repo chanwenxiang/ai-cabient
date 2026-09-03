@@ -193,6 +193,8 @@ interface OperatorRow {
   name?: string;
   phoneNumber?: string;
   status?: string;
+  /** OPERATOR / CONSUMER；勿用 userId 区间猜测 */
+  accountType?: string;
 }
 
 interface TransferItem {
@@ -339,7 +341,11 @@ async function loadAllOperators() {
       'GET'
     );
     const list = page?.items || page?.content || [];
-    allOperators.value = list.filter((op) => op.userId >= 100000001);
+    // 以后端 accountType 为准，勿硬编码 userId >= 100000001
+    allOperators.value = list.filter((op) => {
+      const t = String(op.accountType || 'OPERATOR').toUpperCase();
+      return t === 'OPERATOR';
+    });
   } catch (e) {
     allOperators.value = [];
     ElMessage.error(e instanceof Error ? e.message : '加载运营账号失败');

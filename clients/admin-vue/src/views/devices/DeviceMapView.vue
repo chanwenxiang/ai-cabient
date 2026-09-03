@@ -125,6 +125,8 @@ interface MapPoint {
   latitude: number;
   longitude: number;
   address?: string;
+  /** SELF|FRANCHISE|CONSIGN */
+  coopMode?: string;
 }
 
 const { goPath } = useNavAccess();
@@ -161,8 +163,8 @@ const filteredPoints = computed(() => {
   return points.value.filter((p) => {
     if (onlineOnly.value && p.onlineStatus !== 'ONLINE') return false;
     if (selfOperatedOnly.value) {
-      const mid = String(p.merchantId || '').toUpperCase();
-      if (!(mid.includes('DEFAULT') || mid.includes('SELF') || mid.includes('自营'))) return false;
+      // 以设备合作方式为准（字典 device_coop_mode），勿用 merchantId 子串猜测
+      if (String(p.coopMode || '').toUpperCase() !== 'SELF') return false;
     }
     if (
       machine &&

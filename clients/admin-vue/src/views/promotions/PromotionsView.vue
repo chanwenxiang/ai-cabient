@@ -280,6 +280,7 @@ import { EditPen, Refresh, SwitchButton } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { yuanToCents } from '@/utils/display';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -507,7 +508,7 @@ async function onSubmit() {
     activityType: f.activityType,
     startTime: start.toISOString(),
     endTime: end.toISOString(),
-    budgetCents: Math.round((Number(f.budgetYuan) || 0) * 100),
+    budgetCents: yuanToCents(f.budgetYuan) ?? 0,
     userLimit: f.userLimit,
     deviceScope: f.deviceScope,
     ruleConfig: JSON.stringify({
@@ -651,8 +652,11 @@ async function onImportFile(ev: Event) {
         activityType: type,
         startTime: start.toISOString(),
         endTime: end.toISOString(),
-        budgetCents: Math.round((Number(row['预算(元)'] || row.budgetYuan) || 0) * 100),
-        userLimit: Number(row['每人限制'] || row.userLimit) || 1,
+        budgetCents: yuanToCents(row['预算(元)'] || row.budgetYuan) ?? 0,
+        userLimit: (() => {
+          const n = Number(row['每人限制'] || row.userLimit);
+          return Number.isFinite(n) && n > 0 ? n : 1;
+        })(),
         description: row['描述'] || row.description || ''
       });
       if (wantsEnabled(row['状态'] || row.status) && created?.activityId) {

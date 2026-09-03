@@ -567,6 +567,7 @@ async function save() {
       enabled: editForm.enabled,
       remark: editForm.remark,
       nodes: editForm.nodes.map((n) => ({
+        nodeId: n.nodeId ?? null,
         seq: n.seq,
         nodeName: n.nodeName.trim(),
         assigneeType: n.assigneeType,

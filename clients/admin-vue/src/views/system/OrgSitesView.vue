@@ -655,6 +655,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { yuanToCents } from '@/utils/display';
 import PagePager from '@/components/PagePager.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useListCsv } from '@/composables/useListCsv';
@@ -1075,7 +1076,7 @@ async function saveContract() {
         landlordPhone: contractForm.value.landlordPhone,
         startDate: contractForm.value.startDate || null,
         endDate: contractForm.value.endDate || null,
-        monthlyFeeCents: Math.round(contractForm.value.monthlyFeeYuan * 100),
+        monthlyFeeCents: yuanToCents(contractForm.value.monthlyFeeYuan) ?? 0,
         remark: contractForm.value.remark
       }
     );
@@ -1160,7 +1161,7 @@ async function saveRentSplit() {
           partyType: r.partyType,
           partyId: r.partyId || null,
           shareBps: Math.round((Number(r.sharePct) || 0) * 100),
-          fixedCents: Math.round((Number(r.fixedYuan) || 0) * 100),
+          fixedCents: yuanToCents(r.fixedYuan) ?? 0,
           status: r.status || 'ACTIVE',
           effectiveFrom: r.effectiveFrom || null,
           effectiveTo: r.effectiveTo || null
@@ -1211,6 +1212,7 @@ function onFeeBillKindChange() {
 async function loadBills() {
   loading.value = true;
   try {
+    // 账单接口约定 page 从 1 起（FeeBillMonthResolver.clampPage）；合约/事件等为 0 起，勿混用
     const q = new URLSearchParams({
       page: String(billPage.value),
       size: String(billSize.value)

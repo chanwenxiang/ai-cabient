@@ -326,11 +326,11 @@ public class OpsRbacService {
     public PageResult<OpsOperatorDto> listOperators(Long operatorId, int page, int size, String phone) {
         permissionService.requireAnyPermission(operatorId, PERM_OPS_RBAC_ASSIGN, "ops:replenishment:edit");
         var pageable = PageRequest.of(page, Math.min(size, 100));
-        Page<UserInfo> users = (phone == null || phone.isBlank())
-                ? userInfoRepository.findByUserIdGreaterThanEqualOrderByUserIdDesc(
-                        CabinetConstants.OPERATOR_USER_ID_START, pageable)
-                : userInfoRepository.findByUserIdGreaterThanEqualAndPhoneNumberContainingOrderByUserIdDesc(
-                        CabinetConstants.OPERATOR_USER_ID_START, phone.trim(), pageable);
+        Page<UserInfo> users = userInfoRepository.findOperatorsOrderByUserIdDesc(
+                CabinetConstants.ACCOUNT_TYPE_OPERATOR,
+                CabinetConstants.OPERATOR_USER_ID_START,
+                phone,
+                pageable);
         List<OpsOperatorDto> items = users.getContent().stream()
                 .map(this::toOperatorDto)
                 .toList();
@@ -654,7 +654,10 @@ public class OpsRbacService {
                 deptIds,
                 deptNames,
                 primaryDeptId,
-                primaryDeptName
+                primaryDeptName,
+                user.getAccountType() == null || user.getAccountType().isBlank()
+                        ? CabinetConstants.ACCOUNT_TYPE_OPERATOR
+                        : user.getAccountType().trim().toUpperCase()
         );
     }
 
