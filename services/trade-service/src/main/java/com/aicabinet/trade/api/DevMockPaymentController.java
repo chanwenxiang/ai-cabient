@@ -1,11 +1,16 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.service.PaymentService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-/** 仅开发环境可用：模拟微信支付成功 */
+/** 仅 mock 开启时可用：模拟微信支付成功（须登录；userId 取自登录态，禁止参数伪造）。 */
 @RestController
 @RequestMapping("/api/v2/payment/wechat")
 @ConditionalOnProperty(name = "aicabinet.security.mock-enabled", havingValue = "true")
@@ -18,8 +23,8 @@ public class DevMockPaymentController {
     }
 
     @PostMapping("/notify/mock/{orderId}")
-    public ApiResponse<Void> mockNotify(@PathVariable("orderId") String orderId,
-                                        @RequestParam("userId") Long userId) {
+    public ApiResponse<Void> mockNotify(HttpServletRequest request, @PathVariable("orderId") String orderId) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         paymentService.confirmRechargeMock(userId, orderId);
         return ApiResponse.ok(null);
     }

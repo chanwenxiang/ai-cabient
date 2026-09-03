@@ -6,6 +6,7 @@ import com.aicabinet.common.dto.TwoFactorEnrollDto;
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.trade.auth.JwtService;
 import com.aicabinet.trade.auth.TotpService;
+import com.aicabinet.trade.config.AuthProperties;
 import com.aicabinet.trade.domain.OpsTwoFactorRecoveryCode;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.OpsTwoFactorRecoveryCodeMapper;
@@ -15,12 +16,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 
 /**
@@ -39,19 +44,26 @@ public class OpsTwoFactorService {
     private final JwtService jwtService;
     private final AuthService authService;
     private final DistributedLockService distributedLockService;
+    private final byte[] recoveryPepper;
 
     public OpsTwoFactorService(UserInfoMapper userInfoRepository,
                                OpsTwoFactorRecoveryCodeMapper recoveryRepository,
                                TotpService totpService,
                                JwtService jwtService,
                                AuthService authService,
-                               DistributedLockService distributedLockService) {
+                               DistributedLockService distributedLockService,
+                               AuthProperties authProperties) {
         this.userInfoRepository = userInfoRepository;
         this.recoveryRepository = recoveryRepository;
         this.totpService = totpService;
         this.jwtService = jwtService;
         this.authService = authService;
         this.distributedLockService = distributedLockService;
+        String secret = authProperties == null ? null : authProperties.jwtSecret();
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("aicabinet.auth.jwt-secret required for 2FA recovery hash");
+        }
+        this.recoveryPepper = secret.getBytes(StandardCharsets.UTF_8);
     }
 
     @Transactional
@@ -218,28 +230,24 @@ public class OpsTwoFactorService {
         return code == null ? "" : code.toUpperCase().replace("-", "").replace(" ", "").trim();
     }
 
-    private static String hashRecoveryCode(Long userId, String normalizedCode) {
+    /** HMAC-SHA256(jwt-secret, userId:code)，服务端 pepper，避免仅靠 userId 的可预测哈希。 */
+    private String hashRecoveryCode(Long userId, String normalizedCode) {
         try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] digest = md.digest((userId + ":" + normalizedCode).getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            for (byte b : digest) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(recoveryPepper, "HmacSHA256"));
+            byte[] digest = mac.doFinal((userId + ":" + normalizedCode).getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            throw new IllegalStateException("HMAC-SHA256 unavailable", e);
         }
     }
 
     private static boolean constantTimeEquals(String a, String b) {
-        if (a == null || b == null || a.length() != b.length()) {
+        if (a == null || b == null) {
             return false;
         }
-        int diff = 0;
-        for (int i = 0; i < a.length(); i++) {
-            diff |= a.charAt(i) ^ b.charAt(i);
-        }
-        return diff == 0;
+        byte[] left = a.getBytes(StandardCharsets.UTF_8);
+        byte[] right = b.getBytes(StandardCharsets.UTF_8);
+        return MessageDigest.isEqual(left, right);
     }
 }

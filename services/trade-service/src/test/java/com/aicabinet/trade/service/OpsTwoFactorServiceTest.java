@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.LoginResponse;
 import com.aicabinet.common.dto.TwoFactorEnrollDto;
 import com.aicabinet.trade.auth.JwtService;
 import com.aicabinet.trade.auth.TotpService;
+import com.aicabinet.trade.config.AuthProperties;
 import com.aicabinet.trade.domain.OpsTwoFactorRecoveryCode;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.OpsTwoFactorRecoveryCodeMapper;
@@ -19,9 +20,12 @@ import org.mockito.quality.Strictness;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -38,6 +42,8 @@ class OpsTwoFactorServiceTest {
     private static final long OPERATOR_ID = 1900000001L;
     private static final String SECRET = "JBSWY3DPEHPK3PXP";
 
+    private static final String JWT_SECRET = "ai-cabinet-test-secret-key-32bytes!!";
+
     @Mock private UserInfoMapper userInfoRepository;
     @Mock private OpsTwoFactorRecoveryCodeMapper recoveryRepository;
     @Mock private TotpService totpService;
@@ -53,7 +59,8 @@ class OpsTwoFactorServiceTest {
                 org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong()))
                 .thenReturn(true);
         service = new OpsTwoFactorService(userInfoRepository, recoveryRepository,
-                totpService, jwtService, authService, distributedLockService);
+                totpService, jwtService, authService, distributedLockService,
+                new AuthProperties(JWT_SECRET, 3600L, false, false, 5, 15, null));
     }
 
     private UserInfo operator(boolean enabled, String secret) {
@@ -126,7 +133,7 @@ class OpsTwoFactorServiceTest {
         String code = "ABCDE-FGHJK-LMNPQ";
         OpsTwoFactorRecoveryCode row = new OpsTwoFactorRecoveryCode();
         row.setUserId(OPERATOR_ID);
-        row.setCodeHash(sha256(OPERATOR_ID + ":" + code.replace("-", "")));
+        row.setCodeHash(hmacSha256(OPERATOR_ID + ":" + code.replace("-", "")));
         row.setUsed(false);
         when(recoveryRepository.findByUserId(OPERATOR_ID)).thenReturn(List.of(row));
         when(authService.finalizeTwoFactorLogin(OPERATOR_ID)).thenReturn(
@@ -159,15 +166,11 @@ class OpsTwoFactorServiceTest {
         assertThrows(ResponseStatusException.class, () -> service.enroll(OPERATOR_ID));
     }
 
-    private static String sha256(String value) {
+    private static String hmacSha256(String value) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(value.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            for (byte b : digest) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(JWT_SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return HexFormat.of().formatHex(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }

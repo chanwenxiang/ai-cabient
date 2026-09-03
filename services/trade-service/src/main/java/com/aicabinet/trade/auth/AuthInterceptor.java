@@ -14,6 +14,7 @@ public class AuthInterceptor implements HandlerInterceptor {
 
 
     public static final String ATTR_USER_ID = "userId";
+    public static final String ATTR_ACCOUNT_TYPE = "accountType";
 
     private final JwtService jwtService;
     private final SessionCookieService sessionCookieService;
@@ -49,8 +50,9 @@ public class AuthInterceptor implements HandlerInterceptor {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.CSRF_HEADER_REQUIRED);
         }
         try {
-            Long userId = jwtService.validateAndGetUserId(auth.substring(7));
-            request.setAttribute(ATTR_USER_ID, userId);
+            JwtService.SessionPrincipal principal = jwtService.validateAndGetPrincipal(auth.substring(7));
+            request.setAttribute(ATTR_USER_ID, principal.userId());
+            request.setAttribute(ATTR_ACCOUNT_TYPE, principal.accountType());
             return true;
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.INVALID_TOKEN);

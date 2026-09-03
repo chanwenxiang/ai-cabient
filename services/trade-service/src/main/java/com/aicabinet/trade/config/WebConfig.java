@@ -34,9 +34,10 @@ public class WebConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         // 登录/刷新/验证码
                         "/api/v2/auth/**",
-                        // 支付平台回调（各自做签名验签，不适用登录态）
-                        "/api/v2/payment/wechat/**",
-                        "/api/v2/payment/alipay/**",
+                        // 支付平台真实回调（各自做签名验签）。勿用 wechat/**、alipay/**：
+                        // 否则 /notify/mock/** 也会裸奔，可任意 userId 模拟入账。
+                        "/api/v2/payment/wechat/notify",
+                        "/api/v2/payment/alipay/notify",
                         // 消费者公开公告
                         "/api/v2/announcements/**",
                         // 商品图等 <img> 直链

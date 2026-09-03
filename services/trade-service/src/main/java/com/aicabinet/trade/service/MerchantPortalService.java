@@ -1143,6 +1143,7 @@ public class MerchantPortalService {
 
         UserInfo user = new UserInfo();
         user.setUserId(newUserId);
+        user.setAccountType(CabinetConstants.ACCOUNT_TYPE_OPERATOR);
         user.setPhoneNumber(phone);
         user.setName(request.displayName() != null && !request.displayName().isBlank()
                 ? request.displayName().trim() : "商户成员");

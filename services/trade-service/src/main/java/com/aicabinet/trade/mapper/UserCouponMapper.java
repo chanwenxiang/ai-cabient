@@ -75,4 +75,25 @@ public interface UserCouponMapper extends BaseTradeMapper<UserCoupon> {
                 .eq(UserCoupon::getStatus, status));
     }
 
+    /**
+     * 将 USED 券原子恢复为 UNUSED（仅当当前仍为 USED 时生效），防并发/重复部分退重复退券。
+     *
+     * @return 影响行数，0 表示未改（已非 USED 或已被别人恢复）
+     */
+    default int restoreUsedToUnused(Long couponId) {
+        if (couponId == null) {
+            return 0;
+        }
+        return update(
+                null,
+                Wrappers.<UserCoupon>lambdaUpdate()
+                        .eq(UserCoupon::getCouponId, couponId)
+                        .eq(UserCoupon::getStatus, "USED")
+                        .set(UserCoupon::getStatus, "UNUSED")
+                        .set(UserCoupon::getUsedAt, null)
+                        .set(UserCoupon::getOrderId, null)
+                        .set(UserCoupon::getDeviceId, null)
+                        .set(UserCoupon::getDiscountCents, 0));
+    }
+
 }

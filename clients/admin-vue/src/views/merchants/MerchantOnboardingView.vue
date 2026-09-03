@@ -138,6 +138,7 @@
             <template #default="{ row }">{{ formatDateTime(row.updatedAt) || '' }}</template>
           </el-table-column>
           <el-table-column
+            v-if="showActionColumn"
             label="操作"
             width="180"
             fixed="right"
@@ -261,6 +262,15 @@ const saving = ref(false);
 /** 批量审批 loading：通过 / 驳回 */
 const batching = ref<'approve' | 'reject' | ''>('');
 const rows = ref<OnboardRow[]>([]);
+
+function rowHasAction(row: OnboardRow) {
+  if (canEdit.value && row.status !== 'SUBMITTED') return true;
+  return row.status === 'SUBMITTED' && row.approvalStatus === 'PENDING';
+}
+
+/** 当前页无可编辑/审批项时隐藏操作列 */
+const showActionColumn = computed(() => rows.value.some(rowHasAction));
+
 const page = ref(1);
 const pageSize = ref(20);
 const total = ref(0);

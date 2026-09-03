@@ -34,7 +34,7 @@ class SystemConfigConcurrencyTest {
         service = new SystemConfigService(
                 repository,
                 new SecurityProperties(false),
-                new AlipayProperties(false, "", "", "", "", "", "", "", "", ""),
+                new AlipayProperties(false, "", "", "", "", "", "", "", "", "", ""),
                 new WeChatPayProperties(false, "", "", "", "", "", "", "", true),
                 new PayScoreProperties(false, false, 550, false, "", ""),
                 new WeChatWebProperties(false, "", ""),

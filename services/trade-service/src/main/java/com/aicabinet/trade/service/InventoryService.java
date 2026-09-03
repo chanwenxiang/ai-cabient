@@ -238,6 +238,8 @@ public class InventoryService {
     /**
      * 改单库存差量：多扣则继续 FEFO 扣减；少扣则按原批次（batchBySku）优先回库，与货道实测同步。
      * 返回应写回订单行的 sku→batch（保留原批次；新扣减 SKU 用 FEFO 主批次补齐）。
+     * <p>持有 {@link #deviceLockKey} 后会再进入 {@link InventoryLotService#deductFefo} 同 key 加锁；
+     * 依赖 Redisson {@code RLock} 同线程可重入，勿换成不可重入实现。
      */
     @Transactional
     public Map<String, String> adjustForOrder(String deviceId,

@@ -56,6 +56,15 @@ public class LineWithdrawController {
         return ApiResponse.ok(lineWithdrawService.payout(operator(request), requestId));
     }
 
+    @RequiresPermissions("ops:line-withdraw:review")
+    @PostMapping("/{requestId}/cancel")
+    public ApiResponse<LineWithdrawRequestDto> cancel(
+            HttpServletRequest request, @PathVariable long requestId,
+            @RequestBody(required = false) Map<String, Object> body) {
+        String remark = body == null || body.get("remark") == null ? null : String.valueOf(body.get("remark"));
+        return ApiResponse.ok(lineWithdrawService.cancelFailed(operator(request), requestId, remark));
+    }
+
     private Long operator(HttpServletRequest request) {
         return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
     }

@@ -192,6 +192,23 @@ function Invoke-E2eApi {
             $Body.captchaCode = $code
         }
     }
+    # 发短信同样需要图形验证码：自动拼到 query
+    if ($Path -like '/api/v2/auth/sms-code*') {
+        $needSmsCaptcha = ($Path -notlike '*captchaId=*')
+        if ($needSmsCaptcha) {
+            $capResp = Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v2/auth/captcha" -ContentType "application/json"
+            if ($capResp.code -ne 0 -or [string]::IsNullOrWhiteSpace($capResp.data.captchaId)) {
+                throw "captcha fetch failed: $($capResp.message)"
+            }
+            $capId = $capResp.data.captchaId
+            $code = (docker exec ai-cabinet-redis-1 redis-cli GET "aicabinet:captcha:$capId" 2>&1).Trim()
+            if ([string]::IsNullOrWhiteSpace($code)) {
+                throw "captcha code not found in redis for id=$capId"
+            }
+            $sep = if ($Path.Contains('?')) { '&' } else { '?' }
+            $Path = "$Path$sep" + "captchaId=$([uri]::EscapeDataString($capId))&captchaCode=$([uri]::EscapeDataString($code))"
+        }
+    }
     $uri = "$BaseUrl$Path"
     $params = @{
         Method      = $Method

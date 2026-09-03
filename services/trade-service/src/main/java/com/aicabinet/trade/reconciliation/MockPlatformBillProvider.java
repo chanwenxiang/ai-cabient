@@ -41,7 +41,7 @@ public class MockPlatformBillProvider implements PlatformBillProvider {
         if (!properties.mockEnabled()) {
             return List.of();
         }
-        ZoneId zone = ZoneId.systemDefault();
+        ZoneId zone = ZoneId.of("Asia/Shanghai");
         Instant start = date.atStartOfDay(zone).toInstant();
         Instant end = date.plusDays(1).atStartOfDay(zone).toInstant();
         List<PlatformBillLine> lines = new ArrayList<>();

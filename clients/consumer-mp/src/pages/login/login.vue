@@ -96,27 +96,58 @@
               @input="password = eventInputValue($event)"
             />
           </view>
-          <view v-else class="field field-auth">
-            <text class="field-label">验证码</text>
-            <view class="row">
-              <input
-                class="input flex"
-                type="number"
-                maxlength="6"
-                :value="code"
-                placeholder="请输入验证码"
-                placeholder-class="ph"
-                @input="code = eventInputValue($event)"
-              />
-              <view
-                class="btn-code"
-                :class="{ disabled: !!codeCooldown || sendingCode }"
-                @click="onSendCode"
-              >
-                {{ sendingCode ? '发送中…' : codeCooldown ? codeCooldown + 's' : '获取验证码' }}
+          <template v-else>
+            <view class="field field-auth">
+              <text class="field-label">图形验证码</text>
+              <view class="row">
+                <input
+                  class="input flex"
+                  maxlength="8"
+                  :value="captchaCode"
+                  placeholder="图形验证码"
+                  placeholder-class="ph"
+                  @input="captchaCode = eventInputValue($event)"
+                />
+                <view
+                  class="btn-captcha"
+                  role="button"
+                  aria-label="刷新图形验证码"
+                  @click="loadCaptcha"
+                >
+                  <image
+                    v-if="captchaImage"
+                    class="captcha-img"
+                    :src="captchaImage"
+                    mode="aspectFit"
+                  />
+                  <text v-else class="captcha-placeholder">{{
+                    captchaLoading ? '加载中' : '点击获取'
+                  }}</text>
+                </view>
               </view>
             </view>
-          </view>
+            <view class="field field-auth">
+              <text class="field-label">验证码</text>
+              <view class="row">
+                <input
+                  class="input flex"
+                  type="number"
+                  maxlength="6"
+                  :value="code"
+                  placeholder="请输入验证码"
+                  placeholder-class="ph"
+                  @input="code = eventInputValue($event)"
+                />
+                <view
+                  class="btn-code"
+                  :class="{ disabled: !!codeCooldown || sendingCode }"
+                  @click="onSendCode"
+                >
+                  {{ sendingCode ? '发送中…' : codeCooldown ? codeCooldown + 's' : '获取验证码' }}
+                </view>
+              </view>
+            </view>
+          </template>
 
           <view
             class="btn-primary"
@@ -146,7 +177,7 @@
 
 <script setup lang="ts">
 import { onLoad, onReady, onShow, onUnload } from '@dcloudio/uni-app';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import {
   consumerApi,
@@ -155,6 +186,7 @@ import {
   consumerWxH5Login,
   consumerWxLogin,
   ensureConsumerAuth,
+  fetchCaptcha,
   getConsumerToken,
   sendSmsCode
 } from '@/utils/consumer-api';
@@ -184,6 +216,10 @@ const demoHint = computed(() => {
 const phone = ref(isDev && demoPhone ? demoPhone : '');
 const password = ref(isDev && demoPassword ? demoPassword : '');
 const code = ref('');
+const captchaId = ref('');
+const captchaImage = ref('');
+const captchaCode = ref('');
+const captchaLoading = ref(false);
 const loading = ref(false);
 const sendingCode = ref(false);
 const wxMode = ref(false);
@@ -194,6 +230,32 @@ function refreshLoginPad() {
   loginPadStyle.value = { paddingTop: getBelowCapsulePadPx(10) + 'px' };
 }
 let codeTimer: ReturnType<typeof setInterval> | null = null;
+
+async function loadCaptcha() {
+  captchaLoading.value = true;
+  try {
+    const data = await fetchCaptcha();
+    captchaId.value = data.captchaId || '';
+    captchaImage.value = data.imageBase64 || '';
+    captchaCode.value = '';
+  } catch (e) {
+    captchaId.value = '';
+    captchaImage.value = '';
+    err.value = e instanceof Error ? e.message : '图形验证码加载失败';
+  } finally {
+    captchaLoading.value = false;
+  }
+}
+
+watch(
+  () => showPhoneForm.value && mode.value === 'sms',
+  (need) => {
+    if (need && !captchaImage.value && !captchaLoading.value) {
+      void loadCaptcha();
+    }
+  },
+  { immediate: true }
+);
 
 function clearCodeTimer() {
   if (codeTimer) {
@@ -332,10 +394,15 @@ async function onSendCode() {
     err.value = '请输入11位有效手机号';
     return;
   }
+  if (!captchaId.value || !captchaCode.value.trim()) {
+    err.value = '请先填写图形验证码';
+    if (!captchaImage.value) void loadCaptcha();
+    return;
+  }
   sendingCode.value = true;
   err.value = '';
   try {
-    await sendSmsCode(phoneNum);
+    await sendSmsCode(phoneNum, captchaId.value, captchaCode.value.trim());
     clearCodeTimer();
     codeCooldown.value = 60;
     codeTimer = setInterval(() => {
@@ -343,8 +410,10 @@ async function onSendCode() {
       if (codeCooldown.value <= 0) clearCodeTimer();
     }, 1000);
     uni.showToast({ title: '验证码已发送', icon: 'none' });
+    void loadCaptcha();
   } catch (e) {
     err.value = e instanceof Error ? e.message : '发送失败';
+    void loadCaptcha();
   } finally {
     sendingCode.value = false;
   }
@@ -849,6 +918,27 @@ async function onLogin() {
   font-weight: 600;
   white-space: nowrap;
   backdrop-filter: blur(16rpx);
+}
+.btn-captcha {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 220rpx;
+  height: 88rpx;
+  border-radius: 16rpx;
+  overflow: hidden;
+  background: rgba(245, 247, 250, 0.95);
+  border: 2rpx solid rgba(148, 210, 198, 0.35);
+}
+.captcha-img {
+  width: 220rpx;
+  height: 80rpx;
+}
+.captcha-placeholder {
+  font-size: 22rpx;
+  color: #0f766e;
+  font-weight: 600;
 }
 .btn-primary {
   margin-top: 12rpx;

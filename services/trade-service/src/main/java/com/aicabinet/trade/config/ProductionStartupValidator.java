@@ -32,6 +32,7 @@ public class ProductionStartupValidator {
     private final CheckoutProperties checkoutProperties;
     private final LineWithdrawProperties lineWithdrawProperties;
     private final MerchantWithdrawProperties merchantWithdrawProperties;
+    private final IdentityVerifyProperties identityVerifyProperties;
 
     public ProductionStartupValidator(Environment environment,
                                       SecurityProperties securityProperties,
@@ -48,7 +49,8 @@ public class ProductionStartupValidator {
                                       ReconciliationProperties reconciliationProperties,
                                       CheckoutProperties checkoutProperties,
                                       LineWithdrawProperties lineWithdrawProperties,
-                                      MerchantWithdrawProperties merchantWithdrawProperties) {
+                                      MerchantWithdrawProperties merchantWithdrawProperties,
+                                      IdentityVerifyProperties identityVerifyProperties) {
         this.environment = environment;
         this.securityProperties = securityProperties;
         this.stagingProperties = stagingProperties;
@@ -65,6 +67,7 @@ public class ProductionStartupValidator {
         this.checkoutProperties = checkoutProperties;
         this.lineWithdrawProperties = lineWithdrawProperties;
         this.merchantWithdrawProperties = merchantWithdrawProperties;
+        this.identityVerifyProperties = identityVerifyProperties;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -147,6 +150,15 @@ public class ProductionStartupValidator {
         validatePayScoreConfig();
         validateProfitSharingConfig();
         validateReconciliationConfig(true);
+        if (!identityVerifyProperties.isConfigured()) {
+            throw new IllegalStateException(
+                    "Production requires IDENTITY_VERIFY_BASE_URL / aicabinet.identity-verify.base-url "
+                            + "(or keep AICABINET_MOCK_ENABLED=true only in non-prod)");
+        }
+        if (!internalApiProperties.hasCidrRestriction()) {
+            log.warn("INTERNAL_API_ALLOWED_CIDRS is empty — /internal/** accepts any source IP with valid key; "
+                    + "set private Docker/VPC CIDRs for defense in depth (gateway already blocks public /internal/)");
+        }
     }
 
     private void validateReconciliationConfig(boolean requireWeChatWhenReal) {

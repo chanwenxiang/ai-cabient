@@ -238,6 +238,9 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps u
 |------|------|
 | `JWT_SECRET` | ≥32 字符 |
 | `INTERNAL_API_KEY` | 服务间调用 |
+| `INTERNAL_API_ALLOWED_CIDRS` | 可选，逗号分隔 CIDR；限制 `/internal/**` 来源（空=仅密钥）。生产建议私有网段 |
+| `IDENTITY_VERIFY_BASE_URL` | 实名二要素上游（`AICABINET_MOCK_ENABLED=false` 时生产必填） |
+| `IDENTITY_VERIFY_API_KEY` | 实名上游 API Key（可选） |
 | `VISION_API_KEY` | vision 识别 |
 | `AUTH_COOKIE_ENABLED` | admin 浏览器会话 Cookie 开关（默认 `true`；小程序不受影响） |
 | `AUTH_COOKIE_SECURE` | 生产 HTTPS 下必须设为 `true`，否则浏览器拒绝携带 Cookie |
@@ -332,7 +335,8 @@ docker compose -p ai-cabinet -f docker-compose.yml -f docker-compose.apps.yml -f
 默认 `dev` profile 仍可使用：
 
 - 验证码 `123456`（日志中可见）
-- Mock 微信支付 `/api/v2/payment/wechat/notify/mock/{orderId}`
+- Mock 微信支付 `/api/v2/payment/wechat/notify/mock/{orderId}`（须登录；userId 取登录态，禁止参数伪造）
+- 推荐统一走已鉴权充值成功：`POST /api/v2/payment/recharge/{orderId}/mock-success`
 - 内部 API 默认 key：`dev-internal-key-change-me`
 
 详见 [LOCAL_SETUP.md](LOCAL_SETUP.md)。

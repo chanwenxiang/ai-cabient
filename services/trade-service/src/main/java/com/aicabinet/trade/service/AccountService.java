@@ -7,6 +7,7 @@ import com.aicabinet.common.dto.PayContractDto;
 import com.aicabinet.common.dto.VerifyIdentityRequest;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
+import com.aicabinet.trade.identity.IdentityVerifyClient;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
@@ -24,6 +25,7 @@ public class AccountService {
     private final PayScoreService payScoreService;
     private final BalanceLedgerService balanceLedgerService;
     private final DistributedLockService distributedLockService;
+    private final IdentityVerifyClient identityVerifyClient;
     private final AccountService self;
 
     public AccountService(UserInfoMapper userInfoRepository,
@@ -31,12 +33,14 @@ public class AccountService {
                           PayScoreService payScoreService,
                           BalanceLedgerService balanceLedgerService,
                           DistributedLockService distributedLockService,
+                          IdentityVerifyClient identityVerifyClient,
                           @Lazy AccountService self) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.payScoreService = payScoreService;
         this.balanceLedgerService = balanceLedgerService;
         this.distributedLockService = distributedLockService;
+        this.identityVerifyClient = identityVerifyClient;
         this.self = self;
     }
 
@@ -124,6 +128,7 @@ public class AccountService {
         if (user.isVerified()) {
             return self.getAccount(userId);
         }
+        identityVerifyClient.verify(request.realName(), request.idCardLast4());
         user.setName(request.realName().trim());
         user.setVerified(true);
         userInfoRepository.save(user);

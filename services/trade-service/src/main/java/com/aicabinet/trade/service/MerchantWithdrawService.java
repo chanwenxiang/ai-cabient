@@ -273,6 +273,31 @@ public class MerchantWithdrawService {
         });
     }
 
+    /**
+     * 打款失败后取消：解冻资金并标记 CANCELLED，不可再重试打款。
+     */
+    @Transactional
+    public MerchantWithdrawRequestDto cancelFailed(Long operatorId, long requestId, String remark) {
+        permissionService.requirePermission(operatorId, PERM_OPS_MERCHANT_WITHDRAW_REVIEW);
+        MerchantWithdrawRequest request = requireRequest(requestId);
+        return runWithMerchantWalletLock(request.getMerchantId(), () -> {
+            if (!"FAILED".equals(request.getStatus())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "仅打款失败的提现单可取消解冻");
+            }
+            Instant now = Instant.now();
+            String note = trim(remark);
+            request.setStatus("CANCELLED");
+            request.setReviewRemark(note == null || note.isBlank() ? "打款失败取消解冻" : note);
+            request.setUpdatedAt(now);
+            withdrawMapper.updateById(request);
+            merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
+                    WITHDRAW, String.valueOf(request.getRequestId()), "提现失败取消解冻");
+            auditService.appendLog(operatorId, "MERCHANT_WITHDRAW_CANCEL", BIZ_MERCHANT_WITHDRAW,
+                    String.valueOf(requestId), "取消解冻；金额(分)=" + request.getAmountCents());
+            return toDto(request);
+        });
+    }
+
     private MerchantWithdrawRequestDto createWithdraw(Merchant merchant, long amountCents, String requestNo,
                                                       Long submitterUserId) {
         return runWithMerchantWalletLock(merchant.getMerchantId(),

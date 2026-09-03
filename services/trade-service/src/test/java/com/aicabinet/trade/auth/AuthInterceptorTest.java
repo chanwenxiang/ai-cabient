@@ -38,10 +38,12 @@ class AuthInterceptorTest {
 
         when(sessionCookieService.resolveTokenForPath(eq(request), eq("/api/v2/ops/admin/devices")))
                 .thenReturn("admin-jwt");
-        when(jwtService.validateAndGetUserId("admin-jwt")).thenReturn(100000001L);
+        when(jwtService.validateAndGetPrincipal("admin-jwt"))
+                .thenReturn(new JwtService.SessionPrincipal(100000001L, "OPERATOR", "jti1", null));
 
         assertTrue(interceptor.preHandle(request, response, new Object()));
         assertEquals(100000001L, request.getAttribute(AuthInterceptor.ATTR_USER_ID));
+        assertEquals("OPERATOR", request.getAttribute(AuthInterceptor.ATTR_ACCOUNT_TYPE));
         verify(sessionCookieService).resolveTokenForPath(request, "/api/v2/ops/admin/devices");
     }
 
@@ -52,10 +54,12 @@ class AuthInterceptorTest {
         request.addHeader("Authorization", "Bearer bearer-jwt");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        when(jwtService.validateAndGetUserId("bearer-jwt")).thenReturn(100000001L);
+        when(jwtService.validateAndGetPrincipal("bearer-jwt"))
+                .thenReturn(new JwtService.SessionPrincipal(100000001L, "OPERATOR", "jti2", null));
 
         assertTrue(interceptor.preHandle(request, response, new Object()));
         assertEquals(100000001L, request.getAttribute(AuthInterceptor.ATTR_USER_ID));
-        verify(jwtService).validateAndGetUserId(anyString());
+        assertEquals("OPERATOR", request.getAttribute(AuthInterceptor.ATTR_ACCOUNT_TYPE));
+        verify(jwtService).validateAndGetPrincipal(anyString());
     }
 }

@@ -391,9 +391,19 @@ async function sendSmsCode() {
     err.value = '请输入正确的 11 位手机号';
     return;
   }
+  if (!resetCaptchaId.value || !resetCaptchaCode.value.trim()) {
+    ElMessage.warning('请先填写图形验证码再发送短信');
+    return;
+  }
   try {
-    await api.request(`/api/v2/auth/sms-code?phoneNumber=${encodeURIComponent(p)}`, 'POST');
+    const q = new URLSearchParams({
+      phoneNumber: p,
+      captchaId: resetCaptchaId.value,
+      captchaCode: resetCaptchaCode.value.trim()
+    });
+    await api.request(`/api/v2/auth/sms-code?${q.toString()}`, 'POST');
     ElMessage.success('短信验证码已发送');
+    void loadResetCaptcha();
     smsCooldown.value = 60;
     if (smsTimer.value) clearInterval(smsTimer.value);
     smsTimer.value = setInterval(() => {
@@ -405,6 +415,7 @@ async function sendSmsCode() {
     }, 1000);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '发送失败');
+    void loadResetCaptcha();
   }
 }
 

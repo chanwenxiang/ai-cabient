@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.SkuQuantityDto;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.domain.*;
@@ -269,6 +270,7 @@ public class DemoDataService {
         if (!userInfoRepository.existsById(DEMO_CONSUMER_USER_ID)) {
             UserInfo user = new UserInfo();
             user.setUserId(DEMO_CONSUMER_USER_ID);
+            user.setAccountType(CabinetConstants.ACCOUNT_TYPE_CONSUMER);
             user.setPhoneNumber(DEMO_CONSUMER_PHONE);
             user.setName("测试用户");
             user.setVerified(true);

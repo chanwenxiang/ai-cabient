@@ -1405,6 +1405,27 @@ select {
   table-layout: fixed !important;
 }
 
+/*
+ * .table-scroll 已承担横滚；EP sticky 固定列在 CSS zoom / 高倍缩放下会钉错位，
+ * 中间大块留白。统一降级为普通列，整表一起横滑。
+ */
+.table-scroll .el-table__header-wrapper tr th.el-table-fixed-column--left,
+.table-scroll .el-table__header-wrapper tr th.el-table-fixed-column--right,
+.table-scroll .el-table__body-wrapper tr td.el-table-fixed-column--left,
+.table-scroll .el-table__body-wrapper tr td.el-table-fixed-column--right,
+.table-scroll .el-table__footer-wrapper tr td.el-table-fixed-column--left,
+.table-scroll .el-table__footer-wrapper tr td.el-table-fixed-column--right {
+  position: static !important;
+  left: auto !important;
+  right: auto !important;
+  z-index: auto !important;
+}
+.table-scroll .el-table-fixed-column--right.is-first-column::before,
+.table-scroll .el-table-fixed-column--left.is-last-column::before {
+  display: none !important;
+  box-shadow: none !important;
+}
+
 .table-scroll .el-table__inner-wrapper {
   height: auto !important;
   display: block !important;

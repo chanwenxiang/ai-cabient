@@ -296,7 +296,8 @@ public class CouponService {
             case "AMOUNT_OFF" -> def.getDenominationCents();
             case "PERCENT_OFF" -> {
                 int pct = def.getDiscountPercent() != null ? def.getDiscountPercent() : 0;
-                yield cappedSubtotal * pct / 100;
+                // long 中间量，避免 subtotal*pct 逼近 int 上限时溢出吞折扣
+                yield (int) ((long) cappedSubtotal * pct / 100L);
             }
             default -> def.getDenominationCents();
         };
@@ -396,15 +397,11 @@ public class CouponService {
                 && remainingSubtotalCents >= def.getMinSpendCents();
         if (!keep) {
             if ("USED".equalsIgnoreCase(uc.getStatus())) {
-                uc.setStatus(CabinetConstants.COUPON_STATUS_UNUSED);
-                uc.setUsedAt(null);
-                uc.setOrderId(null);
-                uc.setDeviceId(null);
-                uc.setDiscountCents(0);
-                userCouponRepository.save(uc);
-                releasePromotionBudgetIfAny(def);
-                log.info("coupon restored after partial refund order={} couponId={}",
-                        order.getOrderId(), couponId);
+                if (userCouponRepository.restoreUsedToUnused(couponId) > 0) {
+                    releasePromotionBudgetIfAny(def);
+                    log.info("coupon restored after partial refund order={} couponId={}",
+                            order.getOrderId(), couponId);
+                }
             }
             order.setCouponId(null);
             order.setCouponDiscountCents(0);
@@ -449,12 +446,12 @@ public class CouponService {
     }
 
     private void releaseUsedCouponToUnused(UserCoupon uc) {
-        uc.setStatus(CabinetConstants.COUPON_STATUS_UNUSED);
-        uc.setUsedAt(null);
-        uc.setOrderId(null);
-        uc.setDeviceId(null);
-        uc.setDiscountCents(0);
-        userCouponRepository.save(uc);
+        if (uc == null || uc.getCouponId() == null) {
+            return;
+        }
+        if (userCouponRepository.restoreUsedToUnused(uc.getCouponId()) <= 0) {
+            return;
+        }
         CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
         releasePromotionBudgetIfAny(def);
         log.info("coupon released from order couponId={}", uc.getCouponId());

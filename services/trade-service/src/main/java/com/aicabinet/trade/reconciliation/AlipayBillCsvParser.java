@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -21,6 +23,7 @@ public final class AlipayBillCsvParser {
 
     private static final Logger log = LoggerFactory.getLogger(AlipayBillCsvParser.class);
     private static final DateTimeFormatter FINISH_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     /** 支付宝对账 zip：限制条目数与单文件体积，防止 zip bomb / 路径穿越 */
     private static final int MAX_ZIP_ENTRIES = 32;
     private static final long MAX_ENTRY_UNCOMPRESSED_BYTES = 32L * 1024 * 1024;
@@ -83,7 +86,7 @@ public final class AlipayBillCsvParser {
         if (header == null) {
             return new ArrayList<>();
         }
-        ZoneId zone = ZoneId.systemDefault();
+        ZoneId zone = ZONE;
         List<PlatformBillLine> result = new ArrayList<>();
         for (int i = header.headerIdx() + 1; i < lines.length; i++) {
             String line = lines[i].trim();
@@ -179,6 +182,9 @@ public final class AlipayBillCsvParser {
         if (yuan == null || yuan.isBlank()) {
             return 0L;
         }
-        return Math.round(Double.parseDouble(yuan.trim()) * 100);
+        return new BigDecimal(yuan.trim())
+                .movePointRight(2)
+                .setScale(0, RoundingMode.HALF_UP)
+                .longValueExact();
     }
 }

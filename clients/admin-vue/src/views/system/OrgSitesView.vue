@@ -123,65 +123,85 @@
             <el-button @click="resetContracts">重置</el-button>
           </el-form-item>
         </el-form>
-        <el-table
-          ref="contractTableRef"
-          v-loading="loading"
-          :data="displayContracts"
-          stripe
-          border
-          row-key="contractId"
-          @selection-change="onContractSelectionChange"
-        >
-          <el-table-column type="selection" width="48" align="center" reserve-selection />
-          <el-table-column prop="deviceName" label="柜机" min-width="140" show-overflow-tooltip />
-          <el-table-column prop="deviceId" label="设备ID" min-width="110" show-overflow-tooltip />
-          <el-table-column prop="siteName" label="场地" min-width="140" show-overflow-tooltip />
-          <el-table-column prop="address" label="地址" min-width="150" show-overflow-tooltip />
-          <el-table-column prop="landlordName" label="场地主" width="100" />
-          <el-table-column label="联系电话" width="120" align="center">
-            <template #default="{ row }">{{ row.landlordPhone || '暂无' }}</template>
-          </el-table-column>
-          <el-table-column label="月费" width="110" align="center">
-            <template #default="{ row }">¥{{ (row.monthlyFeeCents / 100).toFixed(2) }}</template>
-          </el-table-column>
-          <el-table-column label="起租" width="110" align="center">
-            <template #default="{ row }">{{ row.startDate || '暂无' }}</template>
-          </el-table-column>
-          <el-table-column label="到期" width="110" align="center">
-            <template #default="{ row }">{{ row.endDate || '不限' }}</template>
-          </el-table-column>
-          <el-table-column label="状态" width="90" align="center">
-            <template #default="{ row }">
-              <el-tag size="small" :type="contractStatusType(row.status)">
-                {{ contractStatusLabel(row.status) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="备注" min-width="100" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.remark || '暂无' }}</template>
-          </el-table-column>
-          <el-table-column label="操作" width="300" align="center" fixed="right">
-            <template #default="{ row }">
-              <el-button v-hasPermi="['ops:org:edit']" size="small" @click="openContract(row)">
-                编辑
-              </el-button>
-              <el-button v-hasPermi="['ops:org:edit']" size="small" @click="openRentSplit(row)">
-                租金分账
-              </el-button>
-              <el-button v-hasPermi="['ops:org:edit']" size="small" @click="openGenerateBill(row)">
-                出账
-              </el-button>
-              <el-button
-                v-hasPermi="['ops:org:edit']"
-                size="small"
-                type="danger"
-                @click="removeContract(row)"
-              >
-                删除
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        <div class="table-scroll">
+          <div class="table-scroll-inner">
+            <el-table
+              ref="contractTableRef"
+              v-loading="loading"
+              :data="displayContracts"
+              stripe
+              border
+              row-key="contractId"
+              @selection-change="onContractSelectionChange"
+            >
+              <el-table-column type="selection" width="48" align="center" reserve-selection />
+              <el-table-column
+                prop="deviceName"
+                label="柜机"
+                min-width="140"
+                show-overflow-tooltip
+              />
+              <el-table-column
+                prop="deviceId"
+                label="设备ID"
+                min-width="110"
+                show-overflow-tooltip
+              />
+              <el-table-column prop="siteName" label="场地" min-width="140" show-overflow-tooltip />
+              <el-table-column prop="address" label="地址" min-width="150" show-overflow-tooltip />
+              <el-table-column prop="landlordName" label="场地主" width="100" />
+              <el-table-column label="联系电话" width="120" align="center">
+                <template #default="{ row }">{{ row.landlordPhone || '暂无' }}</template>
+              </el-table-column>
+              <el-table-column label="月费" width="110" align="center">
+                <template #default="{ row }"
+                  >¥{{ (row.monthlyFeeCents / 100).toFixed(2) }}</template
+                >
+              </el-table-column>
+              <el-table-column label="起租" width="110" align="center">
+                <template #default="{ row }">{{ row.startDate || '暂无' }}</template>
+              </el-table-column>
+              <el-table-column label="到期" width="110" align="center">
+                <template #default="{ row }">{{ row.endDate || '不限' }}</template>
+              </el-table-column>
+              <el-table-column label="状态" width="90" align="center">
+                <template #default="{ row }">
+                  <el-tag size="small" :type="contractStatusType(row.status)">
+                    {{ contractStatusLabel(row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="备注" min-width="100" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.remark || '暂无' }}</template>
+              </el-table-column>
+              <el-table-column label="操作" width="300" align="center" fixed="right">
+                <template #default="{ row }">
+                  <el-button v-hasPermi="['ops:org:edit']" size="small" @click="openContract(row)">
+                    编辑
+                  </el-button>
+                  <el-button v-hasPermi="['ops:org:edit']" size="small" @click="openRentSplit(row)">
+                    租金分账
+                  </el-button>
+                  <el-button
+                    v-hasPermi="['ops:org:edit']"
+                    size="small"
+                    @click="openGenerateBill(row)"
+                  >
+                    出账
+                  </el-button>
+                  <el-button
+                    v-hasPermi="['ops:org:edit']"
+                    size="small"
+                    type="danger"
+                    @click="removeContract(row)"
+                  >
+                    删除
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
         <PagePager
           :hydrated="contractsHydrated"
           v-model:current-page="contractPage"
@@ -233,103 +253,136 @@
             批量出账
           </el-button>
         </div>
-        <el-table
-          v-if="feeBillKind === 'SITE_RENT'"
-          v-loading="loading"
-          :data="rentBills"
-          stripe
-          border
-        >
-          <el-table-column prop="billMonth" label="账期" width="90" align="center" />
-          <el-table-column prop="siteName" label="场地" min-width="120" show-overflow-tooltip />
-          <el-table-column prop="deviceId" label="设备ID" min-width="100" show-overflow-tooltip />
-          <el-table-column label="收款方" width="100" align="center">
-            <template #default="{ row }">{{ rentPartyLabel(row.partyType) }}</template>
-          </el-table-column>
-          <el-table-column label="对方ID" width="100" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.partyId || '—' }}</template>
-          </el-table-column>
-          <el-table-column label="份额" width="80" align="center">
-            <template #default="{ row }">{{ (row.shareBps / 100).toFixed(2) }}%</template>
-          </el-table-column>
-          <el-table-column label="月费基数" width="100" align="center">
-            <template #default="{ row }">¥{{ (row.baseFeeCents / 100).toFixed(2) }}</template>
-          </el-table-column>
-          <el-table-column label="应付" width="100" align="center">
-            <template #default="{ row }">¥{{ (row.amountCents / 100).toFixed(2) }}</template>
-          </el-table-column>
-          <el-table-column label="状态" width="90" align="center">
-            <template #default="{ row }">
-              <el-tag size="small" :type="billStatusType(row.status)">
-                {{ billStatusLabel(row.status) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="160" align="center" fixed="right">
-            <template #default="{ row }">
-              <el-button
-                v-if="row.status === 'UNPAID'"
-                v-hasPermi="['ops:org:edit']"
-                size="small"
-                type="success"
-                @click="markBillPaid(row)"
+        <div class="table-scroll">
+          <div class="table-scroll-inner">
+            <el-table
+              v-if="feeBillKind === 'SITE_RENT'"
+              v-loading="loading"
+              :data="rentBills"
+              stripe
+              border
+            >
+              <el-table-column prop="billMonth" label="账期" width="90" align="center" />
+              <el-table-column prop="siteName" label="场地" min-width="120" show-overflow-tooltip />
+              <el-table-column
+                prop="deviceId"
+                label="设备ID"
+                min-width="100"
+                show-overflow-tooltip
+              />
+              <el-table-column label="收款方" width="100" align="center">
+                <template #default="{ row }">{{ rentPartyLabel(row.partyType) }}</template>
+              </el-table-column>
+              <el-table-column label="对方ID" width="100" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.partyId || '—' }}</template>
+              </el-table-column>
+              <el-table-column label="份额" width="80" align="center">
+                <template #default="{ row }">{{ (row.shareBps / 100).toFixed(2) }}%</template>
+              </el-table-column>
+              <el-table-column label="月费基数" width="100" align="center">
+                <template #default="{ row }"
+                  >¥{{ (row.baseFeeCents / 100).toFixed(2) }}</template
+                >
+              </el-table-column>
+              <el-table-column label="应付" width="100" align="center">
+                <template #default="{ row }">¥{{ (row.amountCents / 100).toFixed(2) }}</template>
+              </el-table-column>
+              <el-table-column label="状态" width="90" align="center">
+                <template #default="{ row }">
+                  <el-tag size="small" :type="billStatusType(row.status)">
+                    {{ billStatusLabel(row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column
+                v-if="showRentBillActionColumn"
+                label="操作"
+                width="160"
+                align="center"
+                fixed="right"
               >
-                标记已付
-              </el-button>
-              <el-button
-                v-if="row.status === 'UNPAID'"
-                v-hasPermi="['ops:org:edit']"
-                size="small"
-                type="danger"
-                link
-                @click="voidBill(row)"
+                <template #default="{ row }">
+                  <el-button
+                    v-if="row.status === 'UNPAID'"
+                    v-hasPermi="['ops:org:edit']"
+                    size="small"
+                    type="success"
+                    @click="markBillPaid(row)"
+                  >
+                    标记已付
+                  </el-button>
+                  <el-button
+                    v-if="row.status === 'UNPAID'"
+                    v-hasPermi="['ops:org:edit']"
+                    size="small"
+                    type="danger"
+                    link
+                    @click="voidBill(row)"
+                  >
+                    作废
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+            <el-table v-else v-loading="loading" :data="dataFeeBills" stripe border>
+              <el-table-column prop="billMonth" label="账期" width="90" align="center" />
+              <el-table-column
+                prop="deviceName"
+                label="柜机"
+                min-width="120"
+                show-overflow-tooltip
+              />
+              <el-table-column
+                prop="deviceId"
+                label="设备ID"
+                min-width="110"
+                show-overflow-tooltip
+              />
+              <el-table-column label="商户" width="120" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.merchantId || '—' }}</template>
+              </el-table-column>
+              <el-table-column label="应付" width="110" align="center">
+                <template #default="{ row }">¥{{ (row.amountCents / 100).toFixed(2) }}</template>
+              </el-table-column>
+              <el-table-column label="状态" width="90" align="center">
+                <template #default="{ row }">
+                  <el-tag size="small" :type="billStatusType(row.status)">
+                    {{ dataFeeBillStatusLabel(row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column
+                v-if="showDataFeeBillActionColumn"
+                label="操作"
+                width="160"
+                align="center"
+                fixed="right"
               >
-                作废
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-        <el-table v-else v-loading="loading" :data="dataFeeBills" stripe border>
-          <el-table-column prop="billMonth" label="账期" width="90" align="center" />
-          <el-table-column prop="deviceName" label="柜机" min-width="120" show-overflow-tooltip />
-          <el-table-column prop="deviceId" label="设备ID" min-width="110" show-overflow-tooltip />
-          <el-table-column label="商户" width="120" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.merchantId || '—' }}</template>
-          </el-table-column>
-          <el-table-column label="应付" width="110" align="center">
-            <template #default="{ row }">¥{{ (row.amountCents / 100).toFixed(2) }}</template>
-          </el-table-column>
-          <el-table-column label="状态" width="90" align="center">
-            <template #default="{ row }">
-              <el-tag size="small" :type="billStatusType(row.status)">
-                {{ dataFeeBillStatusLabel(row.status) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="160" align="center" fixed="right">
-            <template #default="{ row }">
-              <el-button
-                v-if="row.status === 'UNPAID'"
-                v-hasPermi="['ops:org:edit']"
-                size="small"
-                type="success"
-                @click="markDataFeePaid(row)"
-              >
-                标记已付
-              </el-button>
-              <el-button
-                v-if="row.status === 'UNPAID'"
-                v-hasPermi="['ops:org:edit']"
-                size="small"
-                type="danger"
-                link
-                @click="voidDataFeeBill(row)"
-              >
-                作废
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+                <template #default="{ row }">
+                  <el-button
+                    v-if="row.status === 'UNPAID'"
+                    v-hasPermi="['ops:org:edit']"
+                    size="small"
+                    type="success"
+                    @click="markDataFeePaid(row)"
+                  >
+                    标记已付
+                  </el-button>
+                  <el-button
+                    v-if="row.status === 'UNPAID'"
+                    v-hasPermi="['ops:org:edit']"
+                    size="small"
+                    type="danger"
+                    link
+                    @click="voidDataFeeBill(row)"
+                  >
+                    作废
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
         <PagePager
           :hydrated="billsHydrated"
           v-model:current-page="billPage"
@@ -605,6 +658,7 @@ import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useListCsv } from '@/composables/useListCsv';
+import { useAuthStore } from '@/stores/auth';
 import type {
   DeviceDataFeeBillDto,
   OrgNodeDto,
@@ -616,6 +670,8 @@ import { displayLabel } from '@aicabinet/shared-dict';
 const FEE_KIND_RENT = 'SITE_RENT';
 const FEE_KIND_DATA = 'DATA_FEE';
 
+const auth = useAuthStore();
+const canEditOrg = computed(() => auth.hasPerm('ops:org:edit'));
 const loading = ref(false);
 const saving = ref(false);
 const tab = ref('org');
@@ -700,6 +756,14 @@ const generateMonth = ref('');
 const feeBillKind = ref<'SITE_RENT' | 'DATA_FEE'>(FEE_KIND_RENT);
 const rentBills = ref<SiteRentBillDto[]>([]);
 const dataFeeBills = ref<DeviceDataFeeBillDto[]>([]);
+
+/** 当前页无未付账单或无编辑权限时隐藏操作列 */
+const showRentBillActionColumn = computed(
+  () => canEditOrg.value && rentBills.value.some((row) => row.status === 'UNPAID')
+);
+const showDataFeeBillActionColumn = computed(
+  () => canEditOrg.value && dataFeeBills.value.some((row) => row.status === 'UNPAID')
+);
 const billsHydrated = ref(false);
 const billPage = ref(1);
 const billSize = ref(20);
