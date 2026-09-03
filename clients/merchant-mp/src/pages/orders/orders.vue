@@ -103,12 +103,10 @@
                   "
                   class="card-discount"
                 >
-                  优惠减¥{{
-                    (
-                      (Number(item.couponDiscountCents ?? 0) +
-                        Number(item.memberDiscountCents ?? 0)) /
-                      100
-                    ).toFixed(2)
+                  优惠减{{
+                    money(
+                      Number(item.couponDiscountCents ?? 0) + Number(item.memberDiscountCents ?? 0)
+                    )
                   }}
                 </text>
                 <text
