@@ -354,8 +354,8 @@ function mergeSlotDraftLine(
     suggestQty,
     soldQty7d,
     suggestReason,
-    qty: defaultQty > 0 ? defaultQty : 1,
-    selected: suggestQty > 0 || defaultQty > 0
+    qty: defaultQty,
+    selected: defaultQty > 0
   });
   return skuId;
 }
@@ -366,17 +366,18 @@ function appendOrphanSuggestions(
 ) {
   for (const [skuId, sug] of suggestMap) {
     if (bySku.has(skuId)) continue;
-    const qty = Math.max(1, Number(sug.suggestQty) || 1);
+    const suggestQty = Number(sug.suggestQty) || 0;
+    const qty = suggestQty > 0 ? suggestQty : 0;
     bySku.set(skuId, {
       skuId,
       skuName: skuId,
       currentQty: Number(sug.currentQty) || 0,
       capacity: Number(sug.capacity) || 0,
-      suggestQty: Number(sug.suggestQty) || 0,
+      suggestQty,
       soldQty7d: Number(sug.soldQty7d) || 0,
       suggestReason: String(sug.suggestReason || ''),
       qty,
-      selected: (sug.suggestQty || 0) > 0
+      selected: suggestQty > 0
     });
   }
 }
@@ -424,7 +425,12 @@ async function loadDraft() {
 
 function toggleLine(line: DraftLine) {
   line.selected = !line.selected;
-  if (line.selected && line.qty <= 0) line.qty = Math.max(1, line.suggestQty || 1);
+  if (line.selected && line.qty <= 0) {
+    line.qty = line.suggestQty > 0 ? line.suggestQty : 0;
+    if (line.qty <= 0) {
+      uni.showToast({ title: '请填写要货数量', icon: 'none' });
+    }
+  }
 }
 
 function adjustQty(line: DraftLine, delta: number) {

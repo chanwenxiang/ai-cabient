@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="page-root page-fill" :class="{ 'is-landing': showLanding }">
     <!-- 落地页：仅 Tab 进入时展示，柜码直达不经过此页 -->
     <view v-if="showLanding" class="landing">
@@ -479,7 +479,38 @@ const landingError = ref('');
 const landingErrorKind = ref<OpenErrorKind>('other');
 const lastFailedDeviceId = ref('');
 const lastFailedChannel = ref<string | null>(null);
-const reviewSessionId = ref(String(uni.getStorageSync('last_disputed_session_id') || ''));
+const ACTIVE_SESSION_KEY = 'active_session_id';
+const REVIEW_SESSION_KEY = 'last_disputed_session_id';
+const reviewSessionId = ref(String(uni.getStorageSync(REVIEW_SESSION_KEY) || ''));
+
+function setActiveSession(id: string) {
+  sessionId.value = id;
+  uni.setStorageSync(ACTIVE_SESSION_KEY, id);
+}
+
+function clearActiveSession() {
+  sessionId.value = '';
+  try {
+    uni.removeStorageSync(ACTIVE_SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+function setReviewSession(id: string) {
+  reviewSessionId.value = id;
+  uni.setStorageSync(REVIEW_SESSION_KEY, id);
+}
+
+function clearReviewSession() {
+  reviewSessionId.value = '';
+  try {
+    uni.removeStorageSync(REVIEW_SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 const reviewTicket = ref<DisputeTicketDto | null>(null);
 const reviewCopy = computed(() => consumerDisputeReviewCopy(reviewTicket.value));
 const servicePhone = ref('400-888-0018');
@@ -786,7 +817,6 @@ function resetDevice() {
   }
   stopPoll();
   clearSessionUi();
-  uni.removeStorageSync('active_session_id');
   scanned.value = false;
   enteringFlow.value = false;
   showManual.value = false;
@@ -901,8 +931,7 @@ async function handleSessionOpenResult(
     const s = sessionResult.value;
     lastFailedDeviceId.value = '';
     lastFailedChannel.value = null;
-    sessionId.value = s.sessionId;
-    uni.setStorageSync('active_session_id', s.sessionId);
+    setActiveSession(s.sessionId);
     applySessionView(s);
     startPoll();
     return true;
@@ -1023,8 +1052,7 @@ async function adoptOrphanSession(cabinetId: string): Promise<boolean> {
     if (matched) {
       lastFailedDeviceId.value = '';
       lastFailedChannel.value = null;
-      sessionId.value = s.sessionId;
-      uni.setStorageSync('active_session_id', s.sessionId);
+      setActiveSession(s.sessionId);
       applySessionView(s);
       startPoll();
       uni.showToast({ title: '已恢复开门会话', icon: 'none' });
@@ -1109,9 +1137,9 @@ async function loadConsumerConfig() {
 }
 
 async function refreshReviewState() {
-  const sid = String(uni.getStorageSync('last_disputed_session_id') || '');
+  const sid = String(uni.getStorageSync(REVIEW_SESSION_KEY) || '');
   if (!sid || !getConsumerToken()) {
-    reviewSessionId.value = '';
+    clearReviewSession();
     reviewTicket.value = null;
     return;
   }
@@ -1119,15 +1147,14 @@ async function refreshReviewState() {
     const disputes = await consumerApi.listMyDisputes();
     const ticket = disputes.find((d) => d.sessionId === sid);
     if (!ticket || ticket.status !== 'OPEN') {
-      reviewSessionId.value = '';
+      clearReviewSession();
       reviewTicket.value = null;
-      uni.removeStorageSync('last_disputed_session_id');
       if (ticket?.status === 'RESOLVED') {
         showDisputeResolvedToast(ticket);
       }
       return;
     }
-    reviewSessionId.value = sid;
+    setReviewSession(sid);
     reviewTicket.value = ticket;
   } catch {
     // 弱网不造假票，避免误显示「审核中」；保留 storage 供下次 onShow 重试
@@ -1137,13 +1164,12 @@ async function refreshReviewState() {
 }
 
 function dismissReview() {
-  reviewSessionId.value = '';
+  clearReviewSession();
   reviewTicket.value = null;
-  uni.removeStorageSync('last_disputed_session_id');
 }
 
 function goReviewDetail() {
-  const sid = reviewSessionId.value || String(uni.getStorageSync('last_disputed_session_id') || '');
+  const sid = reviewSessionId.value || String(uni.getStorageSync(REVIEW_SESSION_KEY) || '');
   const tid = reviewTicket.value?.ticketId || '';
   const q = [
     tid ? `ticketId=${encodeURIComponent(tid)}` : '',
@@ -1397,7 +1423,7 @@ async function cancelOpening() {
     const s = await consumerApi.cancelSession(sessionId.value);
     applySessionView(s);
     stopPoll();
-    uni.removeStorageSync('active_session_id');
+    clearActiveSession();
     clearOpenAttempt();
     clearSessionUi();
     scanned.value = false;
@@ -1416,7 +1442,7 @@ function goReport() {
 }
 
 function clearSessionUi() {
-  sessionId.value = '';
+  clearActiveSession();
   state.value = '';
   stateLabel.value = '';
   stateHint.value = '';
@@ -1623,7 +1649,7 @@ async function closeDoorDemo() {
     }
     if (['FAILED', 'CANCELLED'].includes(s.state)) {
       stopPoll();
-      uni.removeStorageSync('active_session_id');
+      clearActiveSession();
       clearOpenAttempt();
       clearSessionUi();
       uni.showToast({
@@ -1667,7 +1693,7 @@ async function finishSession(sessionState: string, sid: string) {
   if (finishingSession.value) return;
   finishingSession.value = true;
   try {
-    uni.removeStorageSync('active_session_id');
+    clearActiveSession();
     clearOpenAttempt();
     if (sessionState === 'COMPLETED') {
       if (deviceId.value) {
@@ -1703,8 +1729,7 @@ async function finishSession(sessionState: string, sid: string) {
       } catch {
         /* 争议单可能尚未生成订单 */
       }
-      reviewSessionId.value = sid;
-      uni.setStorageSync('last_disputed_session_id', sid);
+      setReviewSession(sid);
       void refreshReviewState();
       void requestDisputeSubscribe();
       uni.showToast({ title: '识别完成，账单待人工确认', icon: 'none' });
@@ -1769,23 +1794,21 @@ function stopOpeningCountdown() {
 }
 
 async function restoreActiveSession() {
-  const saved = uni.getStorageSync('active_session_id');
+  const saved = uni.getStorageSync(ACTIVE_SESSION_KEY);
   if (sessionId.value) return;
   try {
     const s = saved ? await consumerApi.getSession(saved) : await consumerApi.activeSession();
     if (!s) return;
     if (['COMPLETED', 'FAILED', 'CANCELLED', 'DISPUTED'].includes(s.state)) {
-      uni.removeStorageSync('active_session_id');
+      clearActiveSession();
       clearOpenAttempt();
       if (s.state === 'DISPUTED') {
-        reviewSessionId.value = s.sessionId;
-        uni.setStorageSync('last_disputed_session_id', s.sessionId);
+        setReviewSession(s.sessionId);
         void requestDisputeSubscribe();
       }
       return;
     }
-    sessionId.value = s.sessionId;
-    uni.setStorageSync('active_session_id', s.sessionId);
+    setActiveSession(s.sessionId);
     if (s.deviceId) {
       deviceId.value = s.deviceId;
       scanned.value = true;
@@ -1798,7 +1821,7 @@ async function restoreActiveSession() {
     // 弱网或服务短暂不可用时保留，下次 onShow 继续恢复。
     const status = (e as { status?: number } | null)?.status;
     if (status === 404) {
-      uni.removeStorageSync('active_session_id');
+      clearActiveSession();
       clearOpenAttempt();
     }
   }
@@ -1828,7 +1851,7 @@ function startPoll() {
         stopPoll();
         const hint =
           sessionStateHint(s.state) || (s.state === 'CANCELLED' ? '会话已取消' : '购物未完成');
-        uni.removeStorageSync('active_session_id');
+        clearActiveSession();
         clearOpenAttempt();
         clearSessionUi();
         uni.showToast({ title: hint, icon: 'none', duration: 2800 });

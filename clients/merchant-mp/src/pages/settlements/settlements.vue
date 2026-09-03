@@ -97,19 +97,20 @@
             <view class="device-info">
               <text class="device-name">{{ d.date }}</text>
               <text class="device-orders">
-                {{ d.orderCount }} 笔 · 客单 ¥{{
-                  d.orderCount > 0 ? (d.grossCents / d.orderCount / 100).toFixed(2) : '0.00'
+                {{ d.orderCount }} 笔 · 客单
+                {{
+                  d.orderCount > 0
+                    ? money(Math.round(Number(d.grossCents ?? 0) / d.orderCount))
+                    : money(0)
                 }}
-                · 抽成 ¥{{ (d.platformCents / 100).toFixed(2) }}
+                · 抽成 {{ money(d.platformCents) }}
               </text>
               <text class="device-orders"
-                >待分 ¥{{ (d.pendingCents / 100).toFixed(2) }} · 已结 ¥{{
-                  (d.settledCents / 100).toFixed(2)
-                }}</text
+                >待分 {{ money(d.pendingCents) }} · 已结 {{ money(d.settledCents) }}</text
               >
               <text v-if="d.failedCount" class="device-fail">失败 {{ d.failedCount }} 笔</text>
             </view>
-            <text class="device-amount">¥{{ (d.merchantCents / 100).toFixed(2) }}</text>
+            <text class="device-amount">{{ money(d.merchantCents) }}</text>
           </view>
           <empty-state
             v-if="!daily.length"
@@ -135,9 +136,7 @@
                 >{{ batchStatusLabel(b.batchStatus) }} · {{ b.orderCount }} 笔</text
               >
               <text class="device-orders"
-                >已结 ¥{{ ((b.settledCents || 0) / 100).toFixed(2) }} · 待分 ¥{{
-                  ((b.pendingCents || 0) / 100).toFixed(2)
-                }}</text
+                >已结 {{ money(b.settledCents) }} · 待分 {{ money(b.pendingCents) }}</text
               >
               <text v-if="b.failedCount" class="device-fail">失败 {{ b.failedCount }} 笔</text>
               <text v-if="b.settleAfter || b.settledAt" class="device-orders">{{
@@ -146,7 +145,7 @@
                   : `计划 ${formatBatchTime(b.settleAfter)}`
               }}</text>
             </view>
-            <text class="device-amount">¥{{ (b.merchantCents / 100).toFixed(2) }}</text>
+            <text class="device-amount">{{ money(b.merchantCents) }}</text>
           </view>
           <empty-state
             v-if="!batches.length"
@@ -170,6 +169,7 @@ import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
 import { displayLabel } from '@aicabinet/shared-dict';
+import { fmtMoney } from '@aicabinet/shared-uni/format';
 import {
   hasPerm,
   merchantApi,
@@ -200,6 +200,12 @@ function localDateISO(d: Date) {
 
 function batchStatusLabel(status?: string) {
   return displayLabel('settlement_batch_status', status, '未知状态');
+}
+
+/** 分金额展示；缺省/非法显示 ¥0.00，避免模板 NaN */
+function money(cents?: number | null) {
+  const n = Number(cents);
+  return fmtMoney(Number.isFinite(n) ? n : 0);
 }
 
 function formatBatchTime(iso?: string) {
@@ -304,12 +310,12 @@ function applySettlementResponses(
   const orders = days.reduce((s, d) => s + (d.orderCount || 0), 0);
   const failed = days.reduce((s, d) => s + (d.failedCount || 0), 0);
   summary.value = {
-    gross: (gross / 100).toFixed(2),
-    platformFee: (platform / 100).toFixed(2),
-    merchantIncome: (merchant / 100).toFixed(2),
-    pending: ((overview.pendingAmountCents || 0) / 100).toFixed(2),
-    settledMonth: ((overview.settledMonthCents || 0) / 100).toFixed(2),
-    avgOrder: orders > 0 ? (gross / orders / 100).toFixed(2) : '0.00',
+    gross: money(gross).replace(/^¥/, ''),
+    platformFee: money(platform).replace(/^¥/, ''),
+    merchantIncome: money(merchant).replace(/^¥/, ''),
+    pending: money(overview.pendingAmountCents ?? 0).replace(/^¥/, ''),
+    settledMonth: money(overview.settledMonthCents ?? 0).replace(/^¥/, ''),
+    avgOrder: orders > 0 ? money(Math.round(gross / orders)).replace(/^¥/, '') : '0.00',
     failedOrders: String(failed || overview.failedSplitCount || 0)
   };
   profitNote.value = overview.profitSharing?.note || '';

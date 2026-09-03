@@ -58,14 +58,6 @@ function promptNative(opts: TextPromptOptions): Promise<string | null> {
   });
 }
 
-function escapeAttr(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('"', '&quot;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
-}
-
 function promptH5(opts: TextPromptOptions): Promise<string | null> {
   return new Promise((resolve) => {
     if (activeH5Finish) {
@@ -85,136 +77,86 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
     host.setAttribute('aria-modal', 'true');
     host.setAttribute('aria-label', opts.title);
 
-    const fieldHtml = singleLine
-      ? `<input
-          class="mtp-field"
-          id="${HOST_ID}-field"
-          type="text"
-          inputmode="text"
-          autocomplete="off"
-          autocapitalize="characters"
-          spellcheck="false"
-          maxlength="${opts.maxLength || 64}"
-          placeholder="${escapeAttr(opts.placeholder || '')}"
-          aria-labelledby="${HOST_ID}-title"
-          data-testid="${testId}-input"
-          value="${escapeAttr(opts.defaultValue || '')}"
-        />`
-      : `<textarea
-          class="mtp-field"
-          id="${HOST_ID}-field"
-          maxlength="${opts.maxLength || 200}"
-          placeholder="${escapeAttr(opts.placeholder || '')}"
-          aria-labelledby="${HOST_ID}-title"
-          data-testid="${testId}-input"
-        >${escapeAttr(opts.defaultValue || '')}</textarea>`;
-
-    host.innerHTML = `
-      <style>
+    const styleEl = document.createElement('style');
+    styleEl.textContent = `
         #${HOST_ID} {
-          position: fixed;
-          inset: 0;
-          z-index: 10060;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          position: fixed; inset: 0; z-index: 10060; display: flex; align-items: center; justify-content: center;
           padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
-          box-sizing: border-box;
-          background: rgba(15, 23, 42, 0.55);
-          overscroll-behavior: contain;
+          box-sizing: border-box; background: rgba(15, 23, 42, 0.55); overscroll-behavior: contain;
           font-family: var(--app-font, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", sans-serif);
           -webkit-font-smoothing: antialiased;
         }
         #${HOST_ID} .mtp-card {
-          width: 100%;
-          max-width: 320px;
-          padding: 22px 20px 16px;
-          border-radius: 16px;
-          background: #fff;
-          box-shadow: 0 18px 40px rgba(15, 23, 42, 0.2);
-          box-sizing: border-box;
+          width: 100%; max-width: 320px; padding: 22px 20px 16px; border-radius: 16px; background: #fff;
+          box-shadow: 0 18px 40px rgba(15, 23, 42, 0.2); box-sizing: border-box;
         }
-        #${HOST_ID} .mtp-title {
-          display: block;
-          font-size: 17px;
-          font-weight: 650;
-          color: #0f172a;
-          text-align: center;
-        }
-        #${HOST_ID} .mtp-hint {
-          display: block;
-          margin-top: 8px;
-          font-size: 12px;
-          line-height: 1.45;
-          color: #64748b;
-          text-align: center;
-        }
+        #${HOST_ID} .mtp-title { display: block; font-size: 17px; font-weight: 650; color: #0f172a; text-align: center; }
+        #${HOST_ID} .mtp-hint { display: block; margin-top: 8px; font-size: 12px; line-height: 1.45; color: #64748b; text-align: center; }
         #${HOST_ID} .mtp-field {
-          display: block;
-          width: 100%;
-          margin-top: 16px;
-          padding: 12px 14px;
-          border: 1px solid #e2e8f0;
-          border-radius: 12px;
-          background: #f8fafc;
-          color: #0f172a;
-          font-size: 16px;
-          font-family: inherit;
-          line-height: 1.4;
-          outline: none;
-          box-sizing: border-box;
-          resize: none;
-          transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+          display: block; width: 100%; margin-top: 16px; padding: 12px 14px; border: 1px solid #e2e8f0;
+          border-radius: 12px; background: #f8fafc; color: #0f172a; font-size: 16px; font-family: inherit;
+          line-height: 1.4; outline: none; box-sizing: border-box; resize: none;
         }
-        #${HOST_ID} .mtp-field:focus-visible {
-          border-color: #0f766e;
-          background: #fff;
-          box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
+        #${HOST_ID} .mtp-field:focus-visible, #${HOST_ID} .mtp-field:focus {
+          border-color: #0f766e; background: #fff; box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
         }
         #${HOST_ID} textarea.mtp-field { min-height: 88px; }
-        #${HOST_ID} .mtp-field::placeholder {
-          color: #94a3b8;
-          font-family: inherit;
-        }
-        #${HOST_ID} .mtp-field:focus {
-          border-color: #0f766e;
-          background: #fff;
-          box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
-        }
-        #${HOST_ID} .mtp-actions {
-          display: flex;
-          gap: 10px;
-          margin-top: 18px;
-        }
+        #${HOST_ID} .mtp-field::placeholder { color: #94a3b8; font-family: inherit; }
+        #${HOST_ID} .mtp-actions { display: flex; gap: 10px; margin-top: 18px; }
         #${HOST_ID} .mtp-btn {
-          flex: 1;
-          margin: 0;
-          padding: 11px 12px;
-          border: none;
-          border-radius: 12px;
-          font-size: 15px;
-          font-weight: 600;
-          font-family: inherit;
-          cursor: pointer;
-          line-height: 1.2;
+          flex: 1; margin: 0; padding: 11px 12px; border: none; border-radius: 12px; font-size: 15px;
+          font-weight: 600; font-family: inherit; cursor: pointer; line-height: 1.2;
         }
         #${HOST_ID} .mtp-btn.cancel { color: #334155; background: #f1f5f9; }
-        #${HOST_ID} .mtp-btn.ok {
-          color: #fff;
-          background: linear-gradient(135deg, #0f766e, #14b8a6);
-        }
+        #${HOST_ID} .mtp-btn.ok { color: #fff; background: linear-gradient(135deg, #0f766e, #14b8a6); }
         #${HOST_ID} .mtp-btn:active { opacity: 0.88; }
-      </style>
-      <div class="mtp-card">
-        <span class="mtp-title" id="${HOST_ID}-title">${escapeAttr(opts.title)}</span>
-        ${opts.hint ? `<span class="mtp-hint">${escapeAttr(opts.hint)}</span>` : ''}
-        ${fieldHtml}
-        <div class="mtp-actions">
-          <button type="button" class="mtp-btn cancel" data-testid="${testId}-cancel">${escapeAttr(opts.cancelText || '取消')}</button>
-          <button type="button" class="mtp-btn ok" data-testid="${testId}-confirm">${escapeAttr(opts.confirmText || '确定')}</button>
-        </div>
-      </div>
     `;
+    const card = document.createElement('div');
+    card.className = 'mtp-card';
+    const titleEl = document.createElement('span');
+    titleEl.className = 'mtp-title';
+    titleEl.id = `${HOST_ID}-title`;
+    titleEl.textContent = opts.title;
+    card.appendChild(titleEl);
+    if (opts.hint) {
+      const hintEl = document.createElement('span');
+      hintEl.className = 'mtp-hint';
+      hintEl.textContent = opts.hint;
+      card.appendChild(hintEl);
+    }
+    const field = singleLine
+      ? document.createElement('input')
+      : document.createElement('textarea');
+    field.className = 'mtp-field';
+    field.id = `${HOST_ID}-field`;
+    field.setAttribute('aria-labelledby', `${HOST_ID}-title`);
+    field.dataset.testid = `${testId}-input`;
+    field.maxLength = opts.maxLength || (singleLine ? 64 : 200);
+    field.placeholder = opts.placeholder || '';
+    field.value = opts.defaultValue || '';
+    if (singleLine && field instanceof HTMLInputElement) {
+      field.type = 'text';
+      field.inputMode = 'text';
+      field.autocomplete = 'off';
+      field.autocapitalize = 'characters';
+      field.spellcheck = false;
+    }
+    card.appendChild(field);
+    const actions = document.createElement('div');
+    actions.className = 'mtp-actions';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'mtp-btn cancel';
+    cancelBtn.dataset.testid = `${testId}-cancel`;
+    cancelBtn.textContent = opts.cancelText || '取消';
+    const okBtn = document.createElement('button');
+    okBtn.type = 'button';
+    okBtn.className = 'mtp-btn ok';
+    okBtn.dataset.testid = `${testId}-confirm`;
+    okBtn.textContent = opts.confirmText || '确定';
+    actions.append(cancelBtn, okBtn);
+    card.appendChild(actions);
+    host.append(styleEl, card);
 
     const finish = (value: string | null) => {
       if (activeH5Finish !== finish) return;
@@ -256,8 +198,8 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
     host.addEventListener('click', (e) => {
       if (e.target === host) finish(null);
     });
-    host.querySelector('.mtp-btn.cancel')?.addEventListener('click', () => finish(null));
-    host.querySelector('.mtp-btn.ok')?.addEventListener('click', onConfirm);
+    cancelBtn.addEventListener('click', () => finish(null));
+    okBtn.addEventListener('click', onConfirm);
     document.addEventListener('keydown', onKeyDown, true);
     document.body.appendChild(host);
 
