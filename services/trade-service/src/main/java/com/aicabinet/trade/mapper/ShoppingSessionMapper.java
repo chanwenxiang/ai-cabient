@@ -117,6 +117,17 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
         return count != null && count > 0;
     }
 
+    /** 取该补货任务最近一次开门会话（含已关闭），供商户端同步「已开门」UI */
+    default Optional<ShoppingSession> findLatestByReplenishmentTaskId(Long taskId) {
+        if (taskId == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(selectOne(Wrappers.<ShoppingSession>lambdaQuery()
+                .eq(ShoppingSession::getReplenishmentTaskId, taskId)
+                .orderByDesc(ShoppingSession::getCreatedAt)
+                .last("LIMIT 1")));
+    }
+
     default List<ShoppingSession> findByIdempotencyKeyStartingWithAndStateIn(String prefix,
                                                                              Collection<SessionState> states) {
         return selectList(Wrappers.<ShoppingSession>lambdaQuery()

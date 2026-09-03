@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.ReplenishmentTaskDto;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.ReplenishmentTask;
+import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
@@ -111,5 +112,36 @@ class MerchantReplenishmentCompleteGatesTest {
                 () -> service.assertDeviceInFieldScope(100L, "CAB-X"));
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
         assertEquals(ApiMessages.REPLENISHMENT_DEVICE_OUT_OF_SCOPE, ex.getReason());
+    }
+
+    @Test
+    void resolveDoorSession_reportsLatestSession() {
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(9L);
+        task.setDeviceId("CAB-001");
+        when(taskRepository.findById(9L)).thenReturn(Optional.of(task));
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-RESTOCK-1");
+        session.setState(com.aicabinet.common.enums.SessionState.SHOPPING);
+        when(shoppingSessionRepository.findLatestByReplenishmentTaskId(9L))
+                .thenReturn(Optional.of(session));
+
+        var info = service.resolveDoorSession(100L, 9L);
+        assertEquals(Boolean.TRUE, info.get("doorOpened"));
+        assertEquals("S-RESTOCK-1", info.get("sessionId"));
+        assertEquals("SHOPPING", info.get("state"));
+    }
+
+    @Test
+    void resolveDoorSession_emptyWhenNoSession() {
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(9L);
+        task.setDeviceId("CAB-001");
+        when(taskRepository.findById(9L)).thenReturn(Optional.of(task));
+        when(shoppingSessionRepository.findLatestByReplenishmentTaskId(9L))
+                .thenReturn(Optional.empty());
+
+        var info = service.resolveDoorSession(100L, 9L);
+        assertEquals(Boolean.FALSE, info.get("doorOpened"));
     }
 }

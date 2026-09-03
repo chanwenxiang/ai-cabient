@@ -4,7 +4,7 @@ import { matchPermission } from '@aicabinet/shared-rbac';
 import { loadRuntimeDict as sharedLoadRuntimeDict } from '@aicabinet/shared-uni/dict-runtime';
 import { localizeApiMessage } from '@aicabinet/shared-uni/format';
 import { withQuery } from '@aicabinet/shared-uni/query';
-import { mpRequest, type MpApiSession } from '@aicabinet/shared-uni/request';
+import { mpRequest, createMpApiError, type MpApiSession } from '@aicabinet/shared-uni/request';
 
 export type MerchantReplenishmentSuggest = {
   deviceId?: string;
@@ -188,7 +188,11 @@ export function handleUnauthorized(message?: string) {
   if (!route.includes('login')) {
     uni.reLaunch({ url: '/pages/login/login' });
   }
-  return new Error(localizeApiMessage(message, '登录已失效，请重新登录'));
+  return createMpApiError(
+    localizeApiMessage(message, '登录已失效，请重新登录'),
+    401,
+    'UNAUTHORIZED'
+  );
 }
 
 /**
@@ -658,6 +662,11 @@ export const merchantApi = {
   assertReplenishmentDeviceAccess: (deviceId: string) =>
     request<{ deviceId: string; allowed: boolean }>(
       `/api/v2/merchant/replenishment/devices/${encodeURIComponent(deviceId)}/access`
+    ),
+  /** 补货开门状态：以服务端会话为准 */
+  replenishmentDoorSession: (taskId: number) =>
+    request<{ doorOpened?: boolean; sessionId?: string; state?: string }>(
+      `/api/v2/merchant/replenishment/tasks/${taskId}/door-session`
     ),
   replenishmentTaskLines: (taskId: number) =>
     request<Record<string, unknown>[]>(`/api/v2/merchant/replenishment/tasks/${taskId}/lines`),

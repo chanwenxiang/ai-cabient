@@ -1378,6 +1378,28 @@ function restoreDoorState(taskId: number) {
   }
 }
 
+/** 以服务端补货会话覆盖本地开门缓存（M-12） */
+async function syncDoorStateFromServer(taskId: number) {
+  try {
+    const info = await merchantApi.replenishmentDoorSession(taskId);
+    if (info?.doorOpened && info.sessionId) {
+      doorOpened.value = true;
+      openSessionId.value = String(info.sessionId);
+      persistDoorState(taskId, String(info.sessionId));
+      return;
+    }
+    doorOpened.value = false;
+    openSessionId.value = '';
+    try {
+      uni.removeStorageSync(doorCacheKey(taskId));
+    } catch {
+      /* ignore */
+    }
+  } catch {
+    // 网络失败时保留本地乐观状态，完成任务仍由服务端门禁兜底
+  }
+}
+
 function persistDoorState(taskId: number, sessionId: string) {
   uni.setStorageSync(doorCacheKey(taskId), { sessionId, at: Date.now() });
 }
@@ -1522,6 +1544,7 @@ async function loadTaskDetailResources(task: Task) {
     [task.taskId]: mapped.length
   };
   slotCaps.value = buildSlotCapsFromSlots(deviceSlotsList.value);
+  await syncDoorStateFromServer(task.taskId);
 }
 
 async function openTask(task: Task) {

@@ -8,6 +8,28 @@ export interface MpRefreshData {
   serverBootEpoch?: number;
 }
 
+/** 带 HTTP/业务语义的请求错误，避免调用方靠文案 includes 判断鉴权失败。 */
+export type MpApiError = Error & {
+  status?: number;
+  code?: string;
+};
+
+export function createMpApiError(message: string, status?: number, code?: string): MpApiError {
+  const err = new Error(message) as MpApiError;
+  if (status != null) err.status = status;
+  if (code) err.code = code;
+  return err;
+}
+
+/** 401/403 或显式 UNAUTHORIZED/FORBIDDEN 码 */
+export function isMpAuthFailure(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as MpApiError;
+  if (e.status === 401 || e.status === 403) return true;
+  const code = String(e.code || '').toUpperCase();
+  return code === 'UNAUTHORIZED' || code === 'FORBIDDEN';
+}
+
 /** 小程序端会话能力：由各客户端注入存储键与登录跳转策略。 */
 export interface MpApiSession {
   baseUrl: string;
@@ -98,11 +120,13 @@ export async function refreshTokenSilently(opts: MpApiSession): Promise<boolean>
           resolve(true);
           return;
         }
-        reject(new Error('登录已失效'));
+        reject(createMpApiError('登录已失效', 401, 'UNAUTHORIZED'));
       },
       fail(err) {
         reject(
-          new Error(formatMpRequestError(err.errMsg, refreshPath, opts.isDevBuild, opts.baseUrl))
+          createMpApiError(
+            formatMpRequestError(err.errMsg, refreshPath, opts.isDevBuild, opts.baseUrl)
+          )
         );
       }
     });
@@ -147,21 +171,23 @@ export function mpRequest<T>(
           return;
         }
         if (res.statusCode === 403) {
-          reject(new Error(localizeApiMessage(body?.message, '权限不足')));
+          reject(createMpApiError(localizeApiMessage(body?.message, '权限不足'), 403, 'FORBIDDEN'));
           return;
         }
         if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0) {
           resolve(body.data as T);
           return;
         }
-        const err = new Error(
-          localizeApiMessage(body?.message, `请求失败 (${res.statusCode})`)
-        ) as Error & { status?: number };
-        err.status = res.statusCode;
+        const err = createMpApiError(
+          localizeApiMessage(body?.message, `请求失败 (${res.statusCode})`),
+          res.statusCode
+        );
         reject(err);
       },
       fail(err) {
-        reject(new Error(formatMpRequestError(err.errMsg, path, opts.isDevBuild, opts.baseUrl)));
+        reject(
+          createMpApiError(formatMpRequestError(err.errMsg, path, opts.isDevBuild, opts.baseUrl))
+        );
       }
     });
   });

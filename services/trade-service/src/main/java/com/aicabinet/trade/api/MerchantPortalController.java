@@ -342,6 +342,13 @@ public class MerchantPortalController {
     }
 
     @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/replenishment/tasks/{taskId}/door-session")
+    public ApiResponse<Map<String, Object>> replenishmentDoorSession(
+            HttpServletRequest request, @PathVariable Long taskId) {
+        return ApiResponse.ok(support.merchantReplenishmentService().resolveDoorSession(userId(request), taskId));
+    }
+
+    @RequiresPermissions("merchant:replenishment:view")
     @GetMapping("/replenishment/tasks")
     public ApiResponse<List<ReplenishmentTaskDto>> replenishmentTasks(
             HttpServletRequest request,

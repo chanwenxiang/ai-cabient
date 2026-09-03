@@ -21,17 +21,21 @@
 
 | 编号 | 状态 | 说明 |
 |------|------|------|
-| **M-7** | ✅ | 不持久化密码；仅记住手机号 |
-| **C-4 / M-1/M-2 / C-1 / M-11 / C-5(部分) / C-15 / C-12 / C-18 / C-8 / C-14** | ✅ | 已合入 `8d5e1d1e` |
-| **M-13** | ✅（本轮） | 商户 complete：须补货开门会话 + ≥1 张凭证；前端不可再跳过 |
-| **M-14** | ✅（本轮） | `GET .../replenishment/devices/{id}/access` + 扫码前校验归属 |
-| **M-8 / token 安全存储** | ⏳ | 并入 B-11 Phase2，勿单独做客户端「加密」 |
+| **M-7 / C-4 / M-1/M-2 / C-1 / M-11 / C-5(部分) / C-15 / C-12 / C-18 / C-8 / C-14** | ✅ | `8d5e1d1e` |
+| **M-13 / M-14** | ✅ | `b68c23b2`；须重建 trade-service |
+| **M-12** | ✅（本轮） | `GET .../door-session`；打开任务详情时以服务端会话覆盖本地开门缓存 |
+| **C-6** | ✅（本轮） | `createMpApiError` / `isMpAuthFailure`；bootstrap 不再靠文案 includes |
+| **M-8 / token 安全存储** | ⏳ | 并入 B-11 Phase2 |
 | M-16 / M-4 / M-21 | ✅（核实） | 已有确认弹窗 / 除零保护 |
+
+### 仍开放（下一刀可参考）
+
+- P2：C-19、C-2/M-5/M-23、C-9、M-3、M-18、M-19/M-24、M-22
+- P3：卫生项全量
 
 ---
 
 ## 验收备注
 
-- M-13/M-14 单测：`MerchantReplenishmentCompleteGatesTest`
-- M-11/M-13 服务端变更需 trade-service 重建部署后生效
-- 运营后台 / 联调 `CommercialFlowService.completeTask` 不走商户门禁（仍可无凭证完成）
+- M-12/C-6 改完后需重建 trade-service 使 door-session 接口生效
+- 运营/联调 complete 不走商户开门+凭证门禁
