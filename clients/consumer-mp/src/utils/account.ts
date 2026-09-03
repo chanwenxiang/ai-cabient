@@ -44,13 +44,20 @@ export function channelLabel(channel?: string | null): string {
   return '未知';
 }
 
-/** 可用余额口径：优先后端 availableCents，否则 balance - frozen */
+/** 可用余额口径：优先后端 availableCents，否则 balance - frozen（不钳制负值，便于暴露异常 C-21） */
 export function availableCents(
   acc?: Pick<AccountDto, 'balanceCents' | 'availableCents' | 'frozenCents'> | null
 ): number {
   if (!acc) return 0;
-  if (acc.availableCents != null) return Math.max(0, acc.availableCents);
-  return Math.max(0, (acc.balanceCents || 0) - Math.max(0, acc.frozenCents || 0));
+  if (acc.availableCents != null) {
+    const n = Number(acc.availableCents);
+    return Number.isFinite(n) ? n : 0;
+  }
+  const balance = Number(acc.balanceCents ?? 0);
+  const frozen = Number(acc.frozenCents ?? 0);
+  const bal = Number.isFinite(balance) ? balance : 0;
+  const frz = Number.isFinite(frozen) ? Math.max(0, frozen) : 0;
+  return bal - frz;
 }
 
 /**

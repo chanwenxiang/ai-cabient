@@ -93,15 +93,12 @@ export function fetchEvidenceLocalPath(url?: string): Promise<string> {
           resolve(res.tempFilePath);
           return;
         }
-        resolve(token ? withAccessToken(abs, token) : abs);
+        // C-7：失败不再把 token 拼进 URL（防泄露）；交由上层显示占位/重试
+        resolve('');
       },
-      fail: () => resolve(token ? withAccessToken(abs, token) : abs)
+      fail: () => resolve('')
     });
   });
-}
-
-function withAccessToken(url: string, token: string) {
-  return `${url}${url.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(token)}`;
 }
 
 export function removeEvidenceAt(items: LocalEvidence[], index: number): LocalEvidence[] {

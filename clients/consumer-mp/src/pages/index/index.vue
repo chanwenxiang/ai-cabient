@@ -1286,10 +1286,17 @@ async function loadDeviceAndProducts() {
 }
 
 function normalizeProducts(list: DeviceProduct[] | null | undefined): DeviceProduct[] {
-  return (list || []).map((p) => ({
-    ...p,
-    quantity: Math.max(0, Math.floor(Number(p.quantity) || 0))
-  }));
+  return (list || [])
+    .map((p) => {
+      const n = Number(p.quantity);
+      // C-22：非法库存不静默归 0，直接丢弃该行避免假库存
+      if (!Number.isFinite(n)) return null;
+      return {
+        ...p,
+        quantity: Math.max(0, Math.floor(n))
+      };
+    })
+    .filter((p): p is DeviceProduct => p != null);
 }
 
 function clampSelectionToStock() {

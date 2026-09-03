@@ -55,7 +55,7 @@
         <view v-if="d.previewSkus?.length" class="preview">
           <text v-for="s in d.previewSkus" :key="s.skuId" class="preview-item"
             >{{ s.skuName }}×{{ s.quantity
-            }}{{ s.unitPriceCents != null ? ` ¥${(s.unitPriceCents / 100).toFixed(2)}` : '' }}</text
+            }}{{ s.unitPriceCents != null ? ` ${fmtMoney(s.unitPriceCents)}` : '' }}</text
           >
         </view>
         <view class="card-actions">
@@ -75,6 +75,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { consumerApi } from '@/utils/consumer-api';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
+import { fmtMoney } from '@aicabinet/shared-uni/format';
 
 type NearbyDevice = Awaited<ReturnType<typeof consumerApi.nearbyDevices>>[number];
 

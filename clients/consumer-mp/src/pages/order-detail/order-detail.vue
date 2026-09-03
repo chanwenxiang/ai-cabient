@@ -490,10 +490,9 @@ const statusTitle = computed(() => orderStatusLabel(order.value?.status) || '订
 const refundCents = computed(() => {
   const o = order.value;
   if (!o) return 0;
+  // M-6：只信服务端 refundedCents
   const n = Number(o.refundedCents ?? 0);
-  if (n > 0) return n;
-  if (o.status === 'REFUNDED') return Number(o.totalAmountCents ?? 0);
-  return 0;
+  return Number.isFinite(n) && n > 0 ? n : 0;
 });
 
 const canDispute = computed(() => {
@@ -743,9 +742,14 @@ async function submitDispute() {
 
 function refundConfirmContent(
   isPartial: boolean,
-  restoreInventory: boolean,
+  restoreInventory: boolean | undefined,
   lineCount: number
 ): string {
+  if (restoreInventory == null) {
+    return isPartial
+      ? `将退款所选 ${lineCount} 行商品；是否回库由平台规则判定。是否继续？`
+      : '将立即全额退款；是否回库由平台规则判定。是否继续？';
+  }
   if (isPartial) {
     if (restoreInventory) {
       return `将退款所选 ${lineCount} 行商品并回库。是否继续？`;
@@ -779,7 +783,7 @@ async function submitRefund() {
     .map((r) => ({
       skuId: r.skuId,
       quantity: r.qty,
-      restoreInventory
+      ...(restoreInventory != null ? { restoreInventory } : {})
     }));
   const isPartial = lines.length > 0;
   const confirmed = await new Promise<boolean>((resolve) =>
@@ -797,7 +801,7 @@ async function submitRefund() {
     const result = await consumerApi.refundOrder(oid, {
       reason,
       evidenceFileIds: evidenceFileIds(evidence.value),
-      restoreInventory,
+      ...(restoreInventory != null ? { restoreInventory } : {}),
       ...(isPartial ? { lines } : {})
     });
     refundDone.value = true;
