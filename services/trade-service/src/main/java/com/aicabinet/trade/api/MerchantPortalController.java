@@ -334,6 +334,14 @@ public class MerchantPortalController {
     }
 
     @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/replenishment/devices/{deviceId}/access")
+    public ApiResponse<Map<String, Object>> replenishmentDeviceAccess(
+            HttpServletRequest request, @PathVariable String deviceId) {
+        support.merchantReplenishmentService().assertDeviceInFieldScope(userId(request), deviceId);
+        return ApiResponse.ok(Map.of("deviceId", deviceId.trim(), "allowed", true));
+    }
+
+    @RequiresPermissions("merchant:replenishment:view")
     @GetMapping("/replenishment/tasks")
     public ApiResponse<List<ReplenishmentTaskDto>> replenishmentTasks(
             HttpServletRequest request,

@@ -1031,12 +1031,38 @@ function navigateToDevice(id?: string) {
   });
 }
 
+async function assertScannedDeviceAllowed(deviceId: string): Promise<boolean> {
+  const id = String(deviceId || '')
+    .trim()
+    .toUpperCase();
+  if (!id) return false;
+  const localHit = devices.value.some(
+    (d) =>
+      String((d as DeviceMeta).deviceId || '')
+        .trim()
+        .toUpperCase() === id
+  );
+  if (localHit) return true;
+  try {
+    await merchantApi.assertReplenishmentDeviceAccess(id);
+    return true;
+  } catch (e) {
+    uni.showToast({
+      title: e instanceof Error ? e.message : '柜机不在您的管辖范围',
+      icon: 'none',
+      duration: 3200
+    });
+    return false;
+  }
+}
+
 async function verifyCabinetScan() {
   if (scanning.value) return;
   scanning.value = true;
   try {
     const id = await scanCabinetDeviceId();
     if (!id) return;
+    if (!(await assertScannedDeviceAllowed(id))) return;
     const expected = String(selected.value?.deviceId || '')
       .trim()
       .toUpperCase();
@@ -1243,6 +1269,7 @@ async function onScan() {
   try {
     const id = await scanCabinetDeviceId();
     if (!id) return;
+    if (!(await assertScannedDeviceAllowed(id))) return;
     const key = id.trim().toUpperCase();
     filterDeviceId.value = key;
     status.value = '';
@@ -1975,33 +2002,34 @@ function pullOffCopy(restockText: string, pullOffText: string): string {
 }
 
 async function confirmDoorOpenedIfNeeded(): Promise<boolean> {
-  if (doorOpened.value) return true;
-  const cont = await askConfirm({
+  if (doorOpened.value || openSessionId.value) return true;
+  await askConfirm({
     title: '尚未开门',
     content: pullOffCopy(
-      '还未下发补货开门。若已现场开门完成上架，仍可继续确认完成。',
-      '还未下发下架开门。若已现场开门完成下架，仍可继续确认完成。'
+      '请先下发补货开门，到柜完成后再确认任务。',
+      '请先下发下架开门，到柜完成后再确认任务。'
     ),
-    confirmText: '继续完成',
-    cancelText: '去开门'
+    confirmText: '去开门',
+    cancelText: '关闭'
   });
-  return cont;
+  return false;
 }
 
 async function confirmEvidenceIfNeeded(): Promise<boolean> {
   if (evidenceItems.value.length > 0) return true;
-  const photoOk = await askConfirm({
+  const goPhoto = await askConfirm({
     title: '缺少现场凭证',
     content: pullOffCopy(
-      '建议先拍照留存补货证据，再完成任务，便于后台抽检。',
-      '建议先拍照留存下架证据，再完成任务，便于后台抽检。'
+      '完成前须至少上传 1 张补货现场照片，便于后台抽检。',
+      '完成前须至少上传 1 张下架现场照片，便于后台抽检。'
     ),
     confirmText: '去拍照',
-    cancelText: '仍完成'
+    cancelText: '关闭'
   });
-  if (!photoOk) return true;
-  if (selected.value?.checkInAt) void addEvidence();
-  else uni.showToast({ title: '请先签到再拍照', icon: 'none' });
+  if (goPhoto) {
+    if (selected.value?.checkInAt) void addEvidence();
+    else uni.showToast({ title: '请先签到再拍照', icon: 'none' });
+  }
   return false;
 }
 

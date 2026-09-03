@@ -106,6 +106,17 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
                 .in(ShoppingSession::getState, states));
     }
 
+    /** 是否存在绑定该补货任务的开门会话（任意状态，用于「是否已下发开门」门禁） */
+    default boolean existsByReplenishmentTaskId(Long taskId) {
+        if (taskId == null) {
+            return false;
+        }
+        Long count = selectCount(Wrappers.<ShoppingSession>lambdaQuery()
+                .eq(ShoppingSession::getReplenishmentTaskId, taskId)
+                .last("LIMIT 1"));
+        return count != null && count > 0;
+    }
+
     default List<ShoppingSession> findByIdempotencyKeyStartingWithAndStateIn(String prefix,
                                                                              Collection<SessionState> states) {
         return selectList(Wrappers.<ShoppingSession>lambdaQuery()

@@ -216,6 +216,14 @@ public class FileAttachmentService {
     }
 
     @Transactional(readOnly = true)
+    public int countReplenishmentEvidence(Long taskId) {
+        if (taskId == null) {
+            return 0;
+        }
+        return fileAttachmentMapper.findByRef(REF_REPLENISHMENT, String.valueOf(taskId)).size();
+    }
+
+    @Transactional(readOnly = true)
     public List<FileAttachmentDto> listReplenishmentEvidence(Long taskId) {
         return fileAttachmentMapper.findByRef(REF_REPLENISHMENT, String.valueOf(taskId)).stream()
                 .map(this::toDto)
