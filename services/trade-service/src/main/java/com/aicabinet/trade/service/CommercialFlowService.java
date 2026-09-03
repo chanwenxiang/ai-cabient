@@ -124,7 +124,10 @@ public class CommercialFlowService {
         mark(steps, "WAREHOUSE_SHIP", "DONE", "Outbound shipped and in-transit recorded");
 
         for (ReplenishmentTaskDto task : route.tasks()) {
-            replenishmentService.checkInTask(operatorId, task.taskId(), new ReplenishmentCheckInRequest(null, null));
+            Double checkLat = device != null ? device.getLatitude() : null;
+            Double checkLng = device != null ? device.getLongitude() : null;
+            replenishmentService.checkInTask(operatorId, task.taskId(),
+                    new ReplenishmentCheckInRequest(checkLat, checkLng));
             replenishmentService.completeTask(operatorId, task.taskId());
         }
         mark(steps, "CABINET_REPLENISHED", "DONE", "Replenishment tasks completed into cabinet inventory");

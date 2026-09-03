@@ -41,13 +41,16 @@ function isAllowedAlipayAction(action: string): boolean {
       action,
       typeof globalThis === 'undefined' ? 'https://local.invalid' : globalThis.location.origin
     );
-    if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+    if (url.protocol !== 'https:') return false;
     const host = url.hostname.toLowerCase();
+    // 精确域名，禁止任意 *.alipay.com 子域
     return (
       host === 'openapi.alipay.com' ||
       host === 'openapi.alipaydev.com' ||
-      host.endsWith('.alipay.com') ||
-      host.endsWith('.alipaydev.com')
+      host === 'mapi.alipay.com' ||
+      host === 'mapi.alipaydev.com' ||
+      host === 'mobilecodec.alipay.com' ||
+      host === 'excashier.alipay.com'
     );
   } catch {
     return false;
@@ -98,11 +101,13 @@ export function openAlipayPayForm(payFormHtml: string) {
   const nodes = Array.from(src.querySelectorAll('input')).slice(0, 64);
   for (const node of nodes) {
     const name = (node.getAttribute('name') || '').trim();
-    if (!name || name.length > 128) continue;
+    if (!name || name.length > 128 || !/^[A-Za-z0-9_.\-[\]]+$/.test(name)) continue;
+    const rawVal = String(node.value || node.getAttribute('value') || '');
+    if (rawVal.length > 8192) continue;
     const input = document.createElement('input');
     input.type = 'hidden';
     input.name = name;
-    input.value = String(node.value || node.getAttribute('value') || '').slice(0, 8192);
+    input.value = rawVal;
     form.appendChild(input);
   }
   if (!form.querySelector('input')) {

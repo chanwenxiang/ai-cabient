@@ -122,7 +122,7 @@
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { emptyDisplay, formatDateTimeShort } from '@aicabinet/shared-uni/format';
+import { emptyDisplay, formatDateTimeShort, yuanToCents } from '@aicabinet/shared-uni/format';
 import EmptyState from '@/components/empty-state.vue';
 import {
   merchantApi,
@@ -183,20 +183,20 @@ async function load() {
 }
 
 async function submitWithdraw() {
-  const yuanNum = Number(amountYuan.value);
-  if (!yuanNum || yuanNum <= 0) {
+  const amountCents = yuanToCents(amountYuan.value);
+  if (amountCents == null || amountCents <= 0) {
     uni.showToast({ title: '请输入金额', icon: 'none' });
     return;
   }
   const available = Number(overview.value?.availableCents ?? 0);
-  if (Math.round(yuanNum * 100) > available) {
+  if (amountCents > available) {
     uni.showToast({ title: `超出可提现余额（最多 ¥${yuan(available)}）`, icon: 'none' });
     return;
   }
   submitting.value = true;
   try {
     await merchantApi.walletWithdraw({
-      amountCents: Math.round(yuanNum * 100),
+      amountCents,
       // 客户端请求号：时间戳 + 随机段，降低同毫秒重复请求的幂等碰撞风险
       requestNo: 'MW-' + Date.now() + '-' + secureRandomToken(5)
     });

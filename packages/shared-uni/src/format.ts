@@ -87,8 +87,26 @@ export function startOfTodayShanghaiMs(now: Date = new Date()): number {
 }
 
 export function fmtMoney(cents?: number | null, empty: string = EMPTY.money) {
-  if (cents == null) return empty;
-  return '¥' + (cents / 100).toFixed(2);
+  if (cents == null || !Number.isFinite(Number(cents))) return empty;
+  const n = Math.trunc(Number(cents));
+  const sign = n < 0 ? '-' : '';
+  const abs = Math.abs(n);
+  const whole = Math.floor(abs / 100);
+  const frac = String(abs % 100).padStart(2, '0');
+  return `${sign}¥${whole}.${frac}`;
+}
+
+/**
+ * 元（表单输入）→ 分。经 toFixed(2) 再拆整/小位，避免 `0.29*100` 浮点误差。
+ * @returns 非法输入返回 null
+ */
+export function yuanToCents(yuan: unknown): number | null {
+  if (yuan == null || yuan === '') return null;
+  const n = Number(yuan);
+  if (!Number.isFinite(n)) return null;
+  const sign = n < 0 ? -1 : 1;
+  const [whole, frac = '00'] = Math.abs(n).toFixed(2).split('.');
+  return sign * (Number(whole) * 100 + Number(frac));
 }
 
 export type OpenErrorKind =

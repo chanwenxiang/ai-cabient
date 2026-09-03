@@ -44,7 +44,8 @@ export async function pickAndUploadEvidence(
       placeholder.uploading = false;
     } catch (e) {
       placeholder.uploading = false;
-      next.pop();
+      const idx = next.lastIndexOf(placeholder);
+      if (idx >= 0) next.splice(idx, 1);
       uni.showToast({
         title: e instanceof Error ? e.message : '图片上传失败',
         icon: 'none'

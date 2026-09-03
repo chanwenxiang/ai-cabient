@@ -115,9 +115,12 @@ export function clearOpenAttempt() {
 
 function applyTokenSession(data: LoginResponse) {
   uni.removeStorageSync(SKIP_SILENT_AUTH_KEY);
+  if (data.expiresInSeconds == null || !Number.isFinite(Number(data.expiresInSeconds)) || Number(data.expiresInSeconds) <= 0) {
+    throw new Error('登录响应缺少有效过期时间');
+  }
   uni.setStorageSync(TOKEN_KEY, data.token);
   uni.setStorageSync(USER_KEY, data.userId);
-  const ms = (data.expiresInSeconds ?? 1800) * 1000;
+  const ms = Number(data.expiresInSeconds) * 1000;
   uni.setStorageSync(EXPIRES_KEY, String(Date.now() + ms));
   if (data.serverBootEpoch != null) {
     uni.setStorageSync('consumer_server_boot', data.serverBootEpoch);
@@ -610,7 +613,22 @@ export const consumerApi = {
     const preferredRaw = uni.getStorageSync('preferred_coupon_id');
     const preferred = Number(preferredRaw);
     if (Number.isFinite(preferred) && preferred > 0) {
-      body.preferredCouponId = preferred;
+      try {
+        const mine = await request<Array<{ couponId?: number; status?: string }>>(
+          '/api/v2/coupons?status=UNUSED'
+        );
+        const ok = (mine || []).some(
+          (c) => Number(c.couponId) === preferred && String(c.status || '').toUpperCase() === 'UNUSED'
+        );
+        if (ok) {
+          body.preferredCouponId = preferred;
+        } else {
+          uni.removeStorageSync('preferred_coupon_id');
+        }
+      } catch {
+        // 券列表拉取失败时不带 preferred，避免提交不可信券 id
+        uni.removeStorageSync('preferred_coupon_id');
+      }
     }
     try {
       return await request<import('@aicabinet/shared-types').SessionDto>(

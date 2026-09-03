@@ -195,7 +195,7 @@ import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth, get } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
 import { secureRandomToken } from '@/utils/secure-id';
-import { shortBizNo, formatDateTimeMinute, fmtMoney } from '@aicabinet/shared-uni/format';
+import { shortBizNo, formatDateTimeMinute, fmtMoney, yuanToCents } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import type {
   PageResult,
@@ -296,7 +296,13 @@ function onRefundYuan(e: unknown) {
     refundError.value = '单次申请不超过 ¥5000';
     return;
   }
-  refundAmountCents.value = Math.round(yuan * 100);
+  const cents = yuanToCents(raw);
+  if (cents == null || cents <= 0) {
+    refundAmountCents.value = 0;
+    refundError.value = '请输入有效金额';
+    return;
+  }
+  refundAmountCents.value = cents;
 }
 
 async function loadRefundRequests() {
@@ -375,7 +381,13 @@ function onCustomAmount(e: unknown) {
     customAmountError.value = '单次充值不超过 ¥5000';
     return;
   }
-  selectedAmount.value = Math.round(yuan * 100);
+  const cents = yuanToCents(raw);
+  if (cents == null || cents <= 0) {
+    selectedAmount.value = 0;
+    customAmountError.value = '请输入有效金额';
+    return;
+  }
+  selectedAmount.value = cents;
 }
 
 async function loadConfig() {

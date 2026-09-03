@@ -252,7 +252,12 @@
           </view>
 
           <view
-            v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
+            v-if="
+              canSkipLocation &&
+              canRequest &&
+              selected?.status !== 'COMPLETED' &&
+              !selected?.checkInAt
+            "
             class="skip-loc-row"
             role="switch"
             :aria-checked="skipLocationCheck"
@@ -261,7 +266,7 @@
           >
             <view class="skip-loc-copy">
               <text class="skip-loc-label">跳过定位验证</text>
-              <text class="skip-loc-hint">室内 / H5 / 无 GPS 时可直接签到</text>
+              <text class="skip-loc-hint">仅开发调试；柜机有坐标时服务端仍会拒绝空定位</text>
             </view>
             <text class="skip-loc-switch" :class="{ on: skipLocationCheck }">{{
               skipLocationCheck ? '开' : '关'
@@ -601,12 +606,17 @@ import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { promptText } from '@/utils/text-prompt';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { getSkipCheckInLocation, setSkipCheckInLocation } from '@/utils/checkin-location-pref';
+import { showDevTools } from '@/utils/runtime-flags';
 import { API_BASE_URL } from '@/config/api';
 import type { DeviceSlot } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canReplenish = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
 const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:request'));
+const canSkipLocation = showDevTools();
+if (!canSkipLocation) {
+  setSkipCheckInLocation(false);
+}
 const preferredId = ref(getPreferredDeviceId());
 
 type Task = {
@@ -665,7 +675,7 @@ const openSessionId = ref('');
 /** slotCode -> { maxLevel, bookQty } */
 const slotCaps = ref<Record<string, { maxLevel: number; bookQty: number }>>({});
 const deviceSlotsList = ref<DeviceSlot[]>([]);
-const skipLocationCheck = ref(getSkipCheckInLocation());
+const skipLocationCheck = ref(canSkipLocation && getSkipCheckInLocation());
 
 type DeviceMeta = {
   deviceId?: string;
@@ -793,7 +803,12 @@ function askConfirm(opts: {
 
 function resolveConfirm(ok: boolean) {
   const resolver = confirmDialog.value.resolve;
-  if (ok && confirmDialog.value.rememberLabel && confirmDialog.value.rememberChecked) {
+  if (
+    ok &&
+    canSkipLocation &&
+    confirmDialog.value.rememberLabel &&
+    confirmDialog.value.rememberChecked
+  ) {
     skipLocationCheck.value = true;
     setSkipCheckInLocation(true);
   }
@@ -978,6 +993,7 @@ function deviceAddressLine(id?: string): string {
 }
 
 function toggleSkipLocation() {
+  if (!canSkipLocation) return;
   skipLocationCheck.value = !skipLocationCheck.value;
   setSkipCheckInLocation(skipLocationCheck.value);
 }
@@ -1689,7 +1705,7 @@ async function obtainCheckInLocation(): Promise<{
   body: Record<string, number>;
   locationOk: boolean;
 } | null> {
-  if (skipLocationCheck.value || getSkipCheckInLocation()) {
+  if (canSkipLocation && (skipLocationCheck.value || getSkipCheckInLocation())) {
     skipLocationCheck.value = true;
     return { body: {}, locationOk: false };
   }
@@ -1703,13 +1719,21 @@ async function obtainCheckInLocation(): Promise<{
     const cont = await askConfirm({
       title: '定位失败',
       content:
-        '无法获取当前位置，仍可继续签到。补货柜机见上方地址/编号，建议先「扫码核对」确认到柜。',
-      confirmText: '继续签到',
-      cancelText: '取消',
-      rememberLabel: '本机不再获取定位，直接签到',
-      rememberDefault: false
+        '无法获取当前位置。请开启定位权限后重试；柜机已配置坐标时不能空定位签到。',
+      confirmText: '重试',
+      cancelText: '取消'
     });
-    return cont ? { body: {}, locationOk: false } : null;
+    if (!cont) return null;
+    try {
+      const location = await getLocationWithTimeout(8000);
+      return {
+        body: { latitude: location.latitude, longitude: location.longitude },
+        locationOk: true
+      };
+    } catch {
+      uni.showToast({ title: '仍无法定位，请到柜前开启 GPS 后重试', icon: 'none' });
+      return null;
+    }
   }
 }
 
@@ -1721,37 +1745,17 @@ async function submitCheckIn(body: Record<string, number>, locationOk: boolean) 
   )) as Task;
   syncTaskInList(selected.value);
   uni.showToast({
-    title: locationOk ? '签到成功' : '已签到（未带定位）',
+    title: locationOk ? '签到成功' : '已签到（开发跳过定位）',
     icon: locationOk ? 'success' : 'none'
   });
 }
 
-async function retryCheckInWithoutDistance() {
-  if (!selected.value) return;
-  selected.value = (await merchantApi.checkInReplenishmentTask(selected.value.taskId, {})) as Task;
-  syncTaskInList(selected.value);
-  uni.showToast({ title: '已签到（未校验距离）', icon: 'none' });
-}
-
 async function handleCheckInDistanceFailure(msg: string) {
-  const retry = await askConfirm({
-    title: '距离柜机过远',
-    content: `${msg}\n\n若你已在柜前（定位漂移），可改为不校验距离继续签到。也可先「扫码核对」确认柜机。`,
-    confirmText: '继续签到',
-    cancelText: '取消',
-    rememberLabel: '本机不再获取定位，直接签到',
-    rememberDefault: skipLocationCheck.value
+  uni.showToast({
+    title: msg || '距离过远，请到柜前再签到',
+    icon: 'none',
+    duration: 3600
   });
-  if (!retry) return;
-  try {
-    await retryCheckInWithoutDistance();
-  } catch (error_) {
-    uni.showToast({
-      title: error_ instanceof Error ? error_.message : '签到失败',
-      icon: 'none',
-      duration: 3600
-    });
-  }
 }
 
 async function checkIn() {

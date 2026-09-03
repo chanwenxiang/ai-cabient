@@ -42,9 +42,11 @@
               class="redeem-btn"
               :class="{
                 disabled:
-                  item.availableStock <= 0 || (summary?.availablePoints ?? 0) < item.pointsCost
+                  !!redeeming ||
+                  item.availableStock <= 0 ||
+                  (summary?.availablePoints ?? 0) < item.pointsCost
               }"
-              :disabled="redeeming === item.itemId"
+              :disabled="!!redeeming || item.availableStock <= 0"
               @click="redeem(item)"
             >
               {{ redeeming === item.itemId ? '兑换中…' : '立即兑换' }}

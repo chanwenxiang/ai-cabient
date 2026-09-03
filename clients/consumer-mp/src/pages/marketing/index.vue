@@ -139,15 +139,25 @@ async function load() {
 
 function openPath(path?: string) {
   if (!path) return;
-  if (
-    path.startsWith('/pages/index') ||
-    path.startsWith('/pages/orders') ||
-    path.startsWith('/pages/mine')
-  ) {
-    uni.switchTab({ url: path });
+  const raw = String(path).trim();
+  // 仅允许本小程序页面路径，禁止外链 / 协议跳转
+  if (!raw.startsWith('/pages/') || /[\s\\]/.test(raw) || raw.includes('://')) {
+    uni.showToast({ title: '活动链接无效', icon: 'none' });
     return;
   }
-  uni.navigateTo({ url: path });
+  const pathOnly = raw.split('?')[0] || raw;
+  if (
+    pathOnly === '/pages/index/index' ||
+    pathOnly.startsWith('/pages/index/') ||
+    pathOnly === '/pages/orders/orders' ||
+    pathOnly.startsWith('/pages/orders/') ||
+    pathOnly === '/pages/mine/mine' ||
+    pathOnly.startsWith('/pages/mine/')
+  ) {
+    uni.switchTab({ url: pathOnly });
+    return;
+  }
+  uni.navigateTo({ url: raw });
 }
 
 function displayCta(c: MarketingCampaignDto) {
