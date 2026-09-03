@@ -2,8 +2,8 @@
 
 > 生成时间：2026-09-03  
 > 来源会话：[费用与死配置](f83e5b87-b16a-40ad-9317-717b4c1f7b97)  
-> 分支：`dev` @ `50d56356`（已 push）  
-> 本地：`trade-service` 已重建重启；Flyway V255/V256 已应用  
+> 分支：`dev`（P0/P1 已提交 `92d86c81`；P2 进行中）  
+> 本地：`trade-service` 按需重建；Flyway V255/V256 已应用  
 > 新对话开工：先读 `.cursor/skills/ai-cabinet-dev-test/SKILL.md`，再按下列优先级执行。
 
 ---
@@ -18,6 +18,7 @@
 - **P1 死 SystemConfig 三连（2026-09-03）**：`settlement.min_confidence` / `dispute.auto_open` / `ops.support_email` 已接到真实行为；trade-service 已重建；`/api/v2/public/consumer-config` 含 `supportEmail`
 - **P1 支付/财务壳（2026-09-03）**：进件「仅登记」、发票「仅状态」、提现 `/payout-mode` Mock 强提示、分账「仅记账」文案；admin 已构建并随 trade-service 重建
 - **P1 运营/设备壳（2026-09-03）**：广告/OTA/反馈/公告/异常SLA/选品替换均标明边界；告警键白名单；商户非 ACTIVE 拦截消费者开门
+- **P2（2026-09-03）**：compose/apps 演示手续费默认 50 分 + 50 bps；`shared-dict` dist 已同步 `BOUNTY`；租金/流量费「标记已付」**定案保持台账**；根目录临时截图已清
 
 ---
 
@@ -28,7 +29,7 @@
   - 覆盖：登录、各一级菜单进页、列表筛选/分页、抽屉/对话框、安全写操作（勿只 curl）
   - 重点复核本轮费用相关页：组织场地「费用账单」、商品临期价、线长地推赏金、商户/线长提现手续费列
   - 产出：通过项 / 失败项 / 截图或 DOM 证据；失败当场修或记入缺陷待办
-  - **结论（2026-09-03）**：全部通过，无当场缺陷。证据：租金/流量费样例行、临期价抽屉、地推「奖金」字段、提现「手续费」列；截图 `p0-round2-fee-bills.png` / `p0-round2-merchant-withdraw.png`
+  - **结论（2026-09-03）**：全部通过，无当场缺陷。证据：租金/流量费样例行、临期价抽屉、地推「奖金」字段、提现「手续费」列；截图曾置于根目录后已清理（报告仍在 output）
 
 ---
 
@@ -64,10 +65,10 @@
 
 ## P2 — 本轮对话衍生/可选
 
-- [ ] 提现手续费演示：若要验收非零手续费，配置 `MERCHANT_WITHDRAW_FEE_*` / `LINE_WITHDRAW_FEE_*` 后重建验证（当前默认 0）
-- [ ] `packages/shared-dict`：源码已加 `BOUNTY`；若 dist 未同步且有独立引用，确认构建链路
-- [ ] 租金/流量费「标记已付」是否要后续接真实打款/应付凭证（当前明确为台账）
-- [ ] 未跟踪本地垃圾复查：确认无新的 `*-after.png` / `sonar-*.log` 遗留
+- [x] 提现手续费演示：`infra/docker-compose.apps.yml` + `.env.example` 默认 `MERCHANT_/LINE_WITHDRAW_FEE_CENTS=50`、`FEE_BPS=50`（固定 0.5 元 + 0.5%）；`application.yml` 无 env 时仍为 0。**新提现申请**才会写入非零 `feeCents`；历史行为 0。`/payout-mode` note 展示当前费率；容器 env 已核验 50/50
+- [x] `packages/shared-dict`：已 `tsc` 同步 dist（`wallet_entry_type.BOUNTY`）；客户端 Vite 均 alias 到 `src`，dist 供 workspace 包主入口
+- [x] 租金/流量费「标记已付」：**定案保持台账**（不接自动打款/扣款）。`SiteRentBillService` / `DeviceDataFeeBillService` + OrgSites 文案已明示；后续若要真实应付/打款另开需求
+- [x] 本地垃圾复查：根目录 `p0-round2-*.png` 已删；无新 `sonar-*.log`；`*-after.png` 仅留在 `output/playwright` 与 `docs/archive`（有意保留）
 
 ---
 

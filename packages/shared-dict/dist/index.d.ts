@@ -516,6 +516,7 @@ export declare const DICT: {
         readonly ADJUST: "运营调整";
         readonly COMMISSION: "佣金入账";
         readonly COMMISSION_DAILY: "日结佣金";
+        readonly BOUNTY: "地推赏金";
         readonly WITHDRAW_FREEZE: "提现冻结";
         readonly WITHDRAW_RELEASE: "提现解冻";
         readonly WITHDRAW_PAID: "提现打款";

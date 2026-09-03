@@ -51,18 +51,23 @@ public class MerchantWithdrawPayoutService {
     public java.util.Map<String, Object> modeInfo() {
         boolean mock = properties.mockEnabled();
         boolean wx = weChatPayProperties.isConfigured();
+        long feeCents = properties.feeCents();
+        long feeBps = properties.feeBps();
+        String feeNote = "；手续费=固定 " + feeCents + " 分 + " + feeBps + " bps（仅新申请写入 feeCents）";
         String note;
         if (mock) {
-            note = "当前为 Mock 打款：审核通过后标记成功，不发起真实微信转账";
+            note = "当前为 Mock 打款：审核通过后标记成功，不发起真实微信转账" + feeNote;
         } else if (!wx) {
-            note = "Mock 已关闭且微信支付未配置：打款会失败";
+            note = "Mock 已关闭且微信支付未配置：打款会失败" + feeNote;
         } else {
-            note = "Mock 已关闭：微信商户转账 API 尚未接入，打款会失败";
+            note = "Mock 已关闭：微信商户转账 API 尚未接入，打款会失败" + feeNote;
         }
         return java.util.Map.of(
                 "mockEnabled", mock,
                 "wechatConfigured", wx,
                 "transferApiReady", false,
+                "feeCents", feeCents,
+                "feeBps", feeBps,
                 "note", note
         );
     }
