@@ -453,10 +453,9 @@ function money(cents?: number) {
 }
 
 function refundCents(item: MerchantOrderSummary) {
+  // M-6：只信服务端 refundedCents，不再用 REFUNDED 状态反推全额
   const n = Number(item.refundedCents ?? 0);
-  if (n > 0) return n;
-  if (item.status === 'REFUNDED') return Number(item.totalAmountCents ?? 0);
-  return 0;
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 function shortId(id?: string) {

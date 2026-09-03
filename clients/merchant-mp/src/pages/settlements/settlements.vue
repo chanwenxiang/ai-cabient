@@ -208,6 +208,20 @@ function money(cents?: number | null) {
   return fmtMoney(Number.isFinite(n) ? n : 0);
 }
 
+/** YYYY-MM-DD → 本地日起点时间戳，避免字符串字典序比较（M-26） */
+function settlementDayMs(isoDate: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(isoDate || '').trim());
+  if (!m) return Number.NaN;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
+}
+
+function isSettlementRangeInvalid(start: string, end: string): boolean {
+  const a = settlementDayMs(start);
+  const b = settlementDayMs(end);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return true;
+  return a > b;
+}
+
 function formatBatchTime(iso?: string) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -327,7 +341,7 @@ async function load() {
     return;
   }
   // 日期非法时先短路，避免无意义的 refreshMe / 接口等待
-  if (startDate.value > endDate.value) {
+  if (isSettlementRangeInvalid(startDate.value, endDate.value)) {
     applyInvalidSettlementRange();
     return;
   }
@@ -378,7 +392,7 @@ function onExport() {
     uni.showToast({ title: '无导出权限', icon: 'none' });
     return;
   }
-  if (startDate.value > endDate.value) {
+  if (isSettlementRangeInvalid(startDate.value, endDate.value)) {
     uni.showToast({ title: '开始日期不能晚于结束日期', icon: 'none' });
     return;
   }

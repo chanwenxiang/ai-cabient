@@ -179,10 +179,9 @@ const payChannelText = computed(() =>
 const refundCents = computed(() => {
   const o = order.value;
   if (!o) return 0;
-  const n = Number(o.refundedCents || 0);
-  if (n > 0) return n;
-  if (o.status === 'REFUNDED') return Number(o.totalAmountCents || 0);
-  return 0;
+  // M-6：只信服务端 refundedCents
+  const n = Number(o.refundedCents ?? 0);
+  return Number.isFinite(n) && n > 0 ? n : 0;
 });
 
 /** 有会话且已产生账单的订单可查看录像（由后端 /merchant/orders/{id}/video 鉴权拉流） */

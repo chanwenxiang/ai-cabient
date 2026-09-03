@@ -180,13 +180,24 @@ export function clearSession() {
   clearDictOverrides();
 }
 
-/** 401 时清会话并跳转登录 */
+let unauthorizedHandling = false;
+
+/** 401 时清会话并跳转登录（M-10：防抖 + 精确匹配登录页） */
 export function handleUnauthorized(message?: string) {
   clearSession();
   const pages = getCurrentPages();
-  const route = pages[pages.length - 1]?.route || '';
-  if (!route.includes('login')) {
-    uni.reLaunch({ url: '/pages/login/login' });
+  const route = String(pages[pages.length - 1]?.route || '');
+  const onLogin = route === 'pages/login/login' || route.endsWith('/pages/login/login');
+  if (!onLogin && !unauthorizedHandling) {
+    unauthorizedHandling = true;
+    uni.reLaunch({
+      url: '/pages/login/login',
+      complete: () => {
+        setTimeout(() => {
+          unauthorizedHandling = false;
+        }, 800);
+      }
+    });
   }
   return createMpApiError(
     localizeApiMessage(message, '登录已失效，请重新登录'),

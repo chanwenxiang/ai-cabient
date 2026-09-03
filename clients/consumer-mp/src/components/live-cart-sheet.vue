@@ -15,16 +15,16 @@
         <view v-for="line in items" :key="line.skuId" class="sheet-row">
           <view class="sheet-row-main">
             <text class="sheet-name">{{ line.skuName || line.skuId }}</text>
-            <text class="sheet-meta">¥{{ fmtYuan(line.unitPriceCents) }} × {{ line.quantity }}</text>
+            <text class="sheet-meta">{{ fmtMoney(line.unitPriceCents) }} × {{ line.quantity }}</text>
           </view>
-          <text class="sheet-line-amt">¥{{ fmtYuan(line.lineAmountCents) }}</text>
+          <text class="sheet-line-amt">{{ fmtMoney(line.lineAmountCents) }}</text>
         </view>
       </scroll-view>
 
       <view class="sheet-foot">
         <view class="sheet-total">
           <text class="sheet-total-label">预估 {{ totalQty }} 件</text>
-          <text class="sheet-total-amt">¥{{ fmtYuan(totalAmountCents) }}</text>
+          <text class="sheet-total-amt">{{ fmtMoney(totalAmountCents) }}</text>
         </view>
         <text class="sheet-foot-hint">{{ footHint }}</text>
         <button class="sheet-close-btn" hover-class="btn-hover" @click="emit('close')">收起</button>
@@ -35,6 +35,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { fmtMoney } from '@aicabinet/shared-uni/format';
 
 export type LiveCartSheetLine = {
   skuId: string;
@@ -74,10 +75,6 @@ const footHint = computed(() =>
     ? '未选商品关门不扣款；实付以演示结算为准'
     : '关门后以最终识别结果扣款，预估仅供参考'
 );
-
-function fmtYuan(cents: number) {
-  return (Math.max(0, Number(cents) || 0) / 100).toFixed(2);
-}
 </script>
 
 <style scoped>

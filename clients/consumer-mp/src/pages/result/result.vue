@@ -321,10 +321,9 @@ function formatPayTime(t?: string) {
 
 function refundCents(o?: OrderDetailDto | null) {
   if (!o) return 0;
+  // M-6：只信服务端 refundedCents
   const n = Number(o.refundedCents ?? 0);
-  if (n > 0) return n;
-  if (o.status === 'REFUNDED') return Number(o.totalAmountCents ?? 0);
-  return 0;
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 function currentPageOptions(): Record<string, string> {
@@ -542,9 +541,12 @@ async function submitRefund() {
   const confirmed = await new Promise<boolean>((resolve) =>
     uni.showModal({
       title: '确认退款',
-      content: restoreInventory
-        ? '将立即退款，并把本单商品回库（适用于没拿/误识别）。是否继续？'
-        : '将立即退款，但库存不回库（货已拿走/仅退款）。是否继续？',
+      content:
+        restoreInventory == null
+          ? '将立即退款；是否回库由平台规则判定。是否继续？'
+          : restoreInventory
+            ? '将立即退款，并把本单商品回库（适用于没拿/误识别）。是否继续？'
+            : '将立即退款，但库存不回库（货已拿走/仅退款）。是否继续？',
       confirmText: '确认退款',
       success: (r) => resolve(!!r.confirm),
       fail: () => resolve(false)
@@ -556,7 +558,7 @@ async function submitRefund() {
     const result = await consumerApi.refundOrder(oid, {
       reason,
       evidenceFileIds: evidenceFileIds(evidence.value),
-      restoreInventory
+      ...(restoreInventory != null ? { restoreInventory } : {})
     });
     refundDone.value = true;
     disputeFiled.value = true;

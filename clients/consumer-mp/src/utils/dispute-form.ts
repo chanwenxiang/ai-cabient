@@ -47,18 +47,13 @@ export function appendChipToReason(current: string, chip: DisputeReasonChip): st
   return `${base}；${chip.text}`;
 }
 
-/** 与后端 RefundInventoryPolicy 对齐的前端推断（显式 chip 优先） */
-export function inferRestoreInventory(reason: string, chip?: DisputeReasonChip | null): boolean {
+/** 与后端 RefundInventoryPolicy 对齐：仅信显式 chip；自由文本交服务端（C-10） */
+export function inferRestoreInventory(
+  _reason: string,
+  chip?: DisputeReasonChip | null
+): boolean | undefined {
   if (chip && typeof chip.restoreInventory === 'boolean') {
     return chip.restoreInventory;
   }
-  const r = (reason || '').trim();
-  if (/没拿|未拿|没有拿|误识别|识别有误|识别错误|多扣|重复扣|错扣|请核对识别/.test(r)) {
-    return true;
-  }
-  if (/质量|变质|临期|过期|损坏|破损|已拿走|不退货|仅退款/.test(r)) {
-    return false;
-  }
-  // 默认：货已离柜风险更高 → 仅退款不回库
-  return false;
+  return undefined;
 }

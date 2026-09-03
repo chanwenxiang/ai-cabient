@@ -289,7 +289,10 @@ function goByBiz(m: NotificationDto) {
       });
       break;
     case 'COUPON':
-      if (id) uni.setStorageSync('preferred_coupon_id', rawId);
+      // C-13：仅接受正整数券 id，避免脏 bizId 污染 preferred_coupon_id
+      if (/^\d+$/.test(rawId)) {
+        uni.setStorageSync('preferred_coupon_id', Number(rawId));
+      }
       uni.navigateTo({ url: '/pages/coupons/coupons' });
       break;
     case 'POINTS':

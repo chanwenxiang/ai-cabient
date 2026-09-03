@@ -134,10 +134,10 @@
                       slot
                     }}</text>
                     <text v-if="o.couponDiscountCents != null" class="order-tag soft"
-                      >券减¥{{ (Number(o.couponDiscountCents) / 100).toFixed(2) }}</text
+                      >券减{{ fmtMoney(o.couponDiscountCents) }}</text
                     >
                     <text v-if="Number(o.memberDiscountCents ?? 0) > 0" class="order-tag soft"
-                      >会员减¥{{ (Number(o.memberDiscountCents) / 100).toFixed(2) }}</text
+                      >会员减{{ fmtMoney(o.memberDiscountCents) }}</text
                     >
                     <text v-if="payTradeShort(o)" class="order-tag mono">{{
                       payTradeShort(o)
@@ -151,7 +151,7 @@
                   }}</text>
                   <text class="amt">{{ fmtMoney(o.totalAmountCents ?? 0) }}</text>
                   <text v-if="discountCents(o) > 0" class="discount"
-                    >优惠减¥{{ (discountCents(o) / 100).toFixed(2) }}</text
+                    >优惠减{{ fmtMoney(discountCents(o)) }}</text
                   >
                 </view>
               </view>
@@ -377,10 +377,9 @@ function showOriginal(o: OrderSummary) {
   return origin > total && origin > 0;
 }
 function refundCents(o: OrderSummary) {
+  // M-6：只信服务端 refundedCents
   const n = Number(o.refundedCents ?? 0);
-  if (n > 0) return n;
-  if (o.status === 'REFUNDED') return Number(o.totalAmountCents ?? 0);
-  return 0;
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 function slotTags(o: OrderSummary): string[] {
   const raw = String(o.lineSummary || '');
