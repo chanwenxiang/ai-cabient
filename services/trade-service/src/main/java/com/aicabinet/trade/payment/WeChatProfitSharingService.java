@@ -125,7 +125,7 @@ public class WeChatProfitSharingService {
             split.setStatus("WECHAT_FAILED");
             split.setWechatTransactionId(trimmedWxTxn);
             split.setFailureReason(truncate(e.getMessage()));
-            log.warn("wechat profit sharing failed splitId={}: {}", split.getSplitId(), e.getMessage());
+            log.warn("wechat profit sharing failed splitId={}", split.getSplitId(), e);
         }
         return splitRepository.save(split);
     }

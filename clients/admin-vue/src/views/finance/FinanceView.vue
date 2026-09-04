@@ -101,12 +101,13 @@
             </fieldset>
           </template>
           <Transition name="chart-fade" mode="out-in">
-            <ChartBox v-if="chartSvg" :key="chartKind" :svg="chartSvg" />
-            <el-empty
-              v-else-if="listHydrated"
-              key="empty"
-              description="暂无趋势数据"
-              :image-size="64"
+            <ChartBox
+              :key="chartKind"
+              :svg="chartSvg"
+              :loading="loading && !listHydrated"
+              :error="loadError ? '毛利趋势加载失败' : ''"
+              empty-text="暂无趋势数据"
+              @retry="load"
             />
           </Transition>
           <template #footer>

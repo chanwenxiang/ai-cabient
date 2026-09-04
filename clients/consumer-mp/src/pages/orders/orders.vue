@@ -533,7 +533,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 <style scoped>
 .discount {
   font-size: 20rpx;
-  color: #ea580c;
+  color: #c2410c;
   font-weight: 600;
 }
 

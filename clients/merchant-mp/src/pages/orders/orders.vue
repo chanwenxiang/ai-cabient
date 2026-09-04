@@ -3,10 +3,11 @@
     <app-nav-bar title="柜机订单" />
     <view class="page-body">
       <view v-if="booting" class="loading"><text>加载中…</text></view>
-      <view v-else-if="error && !list.length && !filtersActive" class="empty">
-        <text class="err">{{ error }}</text>
-        <button class="retry" @click="load">重试</button>
-      </view>
+      <error-state
+        v-else-if="error && !list.length && !filtersActive"
+        :title="error"
+        @retry="load"
+      />
       <view v-else>
         <view class="filter-panel">
           <input
@@ -52,12 +53,15 @@
         </view>
 
         <view v-if="loading" class="loading inline"><text>筛选中…</text></view>
-        <view v-else-if="error" class="empty compact-empty">
-          <text class="err">{{ error }}</text>
-          <button class="retry" @click="load">重试</button>
-        </view>
+        <error-state
+          v-else-if="error"
+          compact
+          :title="error"
+          @retry="load"
+        />
         <empty-state
           v-else-if="!list.length"
+          kind="orders"
           icon="/static/menu/orders.png"
           :title="filtersActive ? '当前筛选暂无订单' : '暂无柜机订单'"
           :hint="filtersActive ? '试试切换状态或点「重置」' : '有成交后会显示在这里'"

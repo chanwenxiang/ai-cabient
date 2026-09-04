@@ -636,7 +636,7 @@ function goHelp() {
   flex-shrink: 0;
 }
 .status-header.tone-warn .status-icon {
-  background: linear-gradient(135deg, #ea580c, #f59e0b);
+  background: linear-gradient(135deg, #c2410c, #f59e0b);
 }
 .status-header.tone-refund .status-icon {
   background: linear-gradient(135deg, #2563eb, #38bdf8);

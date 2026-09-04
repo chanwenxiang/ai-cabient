@@ -27,10 +27,11 @@
     </view>
 
     <view v-if="loading && !items.length" class="card">加载中…</view>
-    <view v-else-if="error && !items.length" class="card">
-      <text class="err">{{ error }}</text>
-      <button class="retry" size="mini" @click="load">重试</button>
-    </view>
+    <error-state
+      v-else-if="error && !items.length"
+      :title="error"
+      @retry="load"
+    />
     <view v-else>
       <view
         v-for="(a, i) in visibleItems"
@@ -60,6 +61,7 @@
       </view>
       <empty-state
         v-if="!visibleItems.length"
+        kind="alerts"
         icon="/static/menu/check-circle.png"
         title="暂无待办事项"
         hint="争议、离线、低库存与临期告警都会集中显示在这里"

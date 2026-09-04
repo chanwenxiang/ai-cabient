@@ -42,7 +42,7 @@ public class FinanceMarginLockScheduler {
         } catch (Exception e) {
             failed = true;
             taskService.finish(FINANCE_MARGIN, "FAILED", e.getMessage(), start);
-            log.warn("finance margin solidify failed: {}", e.getMessage());
+            log.warn("finance margin solidify failed", e);
         } finally {
             if (!failed) {
                 taskService.finish(FINANCE_MARGIN, "SUCCESS", summary, start);

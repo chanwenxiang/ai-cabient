@@ -152,7 +152,7 @@ public class CompensationTaskScheduler {
             deferProfitSharingReturnTask(task, split.getSplitId());
         } catch (Exception e) {
             deferProfitSharingReturnTask(task, task.getTxId(), "error: " + e.getMessage());
-            log.warn("profit sharing return compensation error taskId={}: {}", task.getTaskId(), e.getMessage());
+            log.warn("profit sharing return compensation error taskId={}", task.getTaskId(), e);
         }
     }
 

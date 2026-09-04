@@ -1,6 +1,19 @@
 <template>
   <div ref="hostRef" class="chart-host" @pointermove="onMove" @pointerleave="hide">
-    <div ref="svgBoxRef" class="chart-box" :class="{ donut: donut }" />
+    <div v-if="loading" class="chart-state chart-skeleton" aria-live="polite">
+      <div class="skel-bar" />
+      <div class="skel-bar short" />
+      <div class="skel-bar mid" />
+      <output class="chart-state-text">图表加载中…</output>
+    </div>
+    <div v-else-if="error" class="chart-state chart-error" role="alert">
+      <span class="chart-state-text">{{ error }}</span>
+      <el-button type="primary" link @click="emit('retry')">重试</el-button>
+    </div>
+    <div v-else-if="!safeSvg" class="chart-state chart-empty">
+      <span class="chart-state-text">{{ emptyText }}</span>
+    </div>
+    <div v-else ref="svgBoxRef" class="chart-box" :class="{ donut: donut }" />
     <Teleport to="body">
       <div
         v-if="tip.show"
@@ -23,12 +36,28 @@
 import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { sanitizeChartSvg } from '@/utils/charts';
 
-const props = defineProps<{
-  svg: string;
-  donut?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    svg?: string;
+    donut?: boolean;
+    /** 加载中骨架 */
+    loading?: boolean;
+    /** 失败文案；有值时展示重试 */
+    error?: string;
+    emptyText?: string;
+  }>(),
+  {
+    svg: '',
+    donut: false,
+    loading: false,
+    error: '',
+    emptyText: '暂无数据'
+  }
+);
 
-const safeSvg = computed(() => sanitizeChartSvg(props.svg));
+const emit = defineEmits<{ retry: [] }>();
+
+const safeSvg = computed(() => sanitizeChartSvg(props.svg || ''));
 
 const hostRef = ref<HTMLElement | null>(null);
 const svgBoxRef = ref<HTMLElement | null>(null);
@@ -57,15 +86,26 @@ function mountSafeSvg(html: string) {
   el.appendChild(root);
 }
 
-watch(safeSvg, (html) => mountSafeSvg(html), { flush: 'post' });
-onMounted(() => mountSafeSvg(safeSvg.value));
+watch(
+  () => [safeSvg.value, props.loading, props.error] as const,
+  ([html, loading, error]) => {
+    if (loading || error || !html) return;
+    // flush post：等 v-else 挂上 svgBoxRef
+    requestAnimationFrame(() => mountSafeSvg(html));
+  },
+  { flush: 'post' }
+);
+onMounted(() => {
+  if (!props.loading && !props.error && safeSvg.value) {
+    mountSafeSvg(safeSvg.value);
+  }
+});
 
 let activeEl: Element | null = null;
 
 function clearActive() {
   if (activeEl) {
     activeEl.classList.remove('is-active');
-    // highlight matching points by index
     const host = hostRef.value;
     if (host) {
       host.querySelectorAll('.chart-pt.is-lit').forEach((n) => n.classList.remove('is-lit'));
@@ -90,6 +130,10 @@ function hide() {
 }
 
 function onMove(e: PointerEvent) {
+  if (props.loading || props.error || !safeSvg.value) {
+    hide();
+    return;
+  }
   const target = e.target as Element | null;
   if (!target || !hostRef.value) {
     hide();
@@ -105,7 +149,6 @@ function onMove(e: PointerEvent) {
     clearActive();
     activeEl = hit;
     hit.classList.add('is-active');
-    // column hover lights all series points at same x index
     if (hit.classList.contains('chart-col')) {
       const i = hit.dataset.i;
       hostRef.value.querySelectorAll(`.chart-pt[data-i="${i}"]`).forEach((pt) => {
@@ -146,6 +189,58 @@ onBeforeUnmount(hide);
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 160px;
+}
+.chart-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 160px;
+  padding: 16px;
+  color: var(--el-text-color-secondary, #64748b);
+  font-size: 13px;
+}
+.chart-skeleton {
+  gap: 8px;
+}
+.skel-bar {
+  width: 78%;
+  height: 10px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--app-primary, #0f766e) 12%, #e2e8f0) 0%,
+    #f1f5f9 50%,
+    color-mix(in srgb, var(--app-primary, #0f766e) 12%, #e2e8f0) 100%
+  );
+  background-size: 200% 100%;
+  animation: chart-skel 1.2s ease-in-out infinite;
+}
+.skel-bar.short {
+  width: 42%;
+}
+.skel-bar.mid {
+  width: 58%;
+}
+@keyframes chart-skel {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+.chart-state-text {
+  text-align: center;
+  line-height: 1.4;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
 }
 .chart-box {
   width: 100%;
@@ -168,7 +263,6 @@ onBeforeUnmount(hide);
   display: block;
 }
 
-/* Column / crosshair */
 .chart-box :deep(.chart-col-hit) {
   cursor: crosshair;
 }
@@ -179,7 +273,6 @@ onBeforeUnmount(hide);
   fill: color-mix(in srgb, var(--app-primary, #2dd4bf) 8%, transparent);
 }
 
-/* Line points lit on column hover */
 .chart-box :deep(.chart-pt .chart-pt-dot) {
   transition:
     r 0.12s ease,
@@ -195,7 +288,6 @@ onBeforeUnmount(hide);
   filter: drop-shadow(0 0 4px rgba(45, 212, 191, 0.45));
 }
 
-/* Bars */
 .chart-box :deep(.chart-bar) {
   cursor: pointer;
   transition:
@@ -211,7 +303,6 @@ onBeforeUnmount(hide);
   opacity: 0.45;
 }
 
-/* Donut arcs */
 .chart-box :deep(.chart-arc) {
   cursor: pointer;
   transition:
@@ -230,8 +321,6 @@ onBeforeUnmount(hide);
 </style>
 
 <style>
-/* Teleported tooltip — unscoped */
-/* Tip 始终深色底：勿用主题 --layout-text（浅色主题为深字，会看不见） */
 .chart-float-tip {
   position: fixed;
   z-index: 4000;

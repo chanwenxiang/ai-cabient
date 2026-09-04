@@ -33,10 +33,12 @@
       </view>
     </view>
     <view v-if="loading && !devices.length" class="card">加载中…</view>
-    <view v-else-if="error && !devices.length" class="card">
-      <text class="err">{{ error }}</text>
-      <button class="retry" @click="load">重试</button>
-    </view>
+    <error-state
+      v-else-if="error && !devices.length"
+      :title="error"
+      hint="请检查网络后重试"
+      @retry="load"
+    />
     <view v-else>
       <view
         v-for="d in visibleDevices"
@@ -106,6 +108,7 @@
       </view>
       <empty-state
         v-if="!visibleDevices.length"
+        kind="devices"
         icon="/static/menu/cabinet.png"
         :title="emptyHint"
         hint="可切换筛选或扫码绑定常驻柜"

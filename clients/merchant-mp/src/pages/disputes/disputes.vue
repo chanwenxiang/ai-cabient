@@ -14,12 +14,14 @@
       </view>
 
       <view v-if="loading && !list.length" class="loading"><text>加载中…</text></view>
-      <view v-else-if="error && !list.length" class="empty">
-        <text class="err">{{ error }}</text>
-        <button class="retry" @click="load">重试</button>
-      </view>
+      <error-state
+        v-else-if="error && !list.length"
+        :title="error"
+        @retry="load"
+      />
       <empty-state
         v-else-if="!list.length"
+        kind="alerts"
         icon="/static/menu/disputes.png"
         :title="`暂无${activeTabLabel}争议`"
         hint="用户申诉与识别复核会显示在这里"
