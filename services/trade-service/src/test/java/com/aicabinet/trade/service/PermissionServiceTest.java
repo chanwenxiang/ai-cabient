@@ -105,13 +105,14 @@ class PermissionServiceTest {
     }
 
     @Test
-    void opsAdmin_grantsAll() {
+    void opsAdmin_grantsOpsRealmOnly() {
         when(userRoleRepository.findByIdUserId(OPERATOR_ID)).thenReturn(List.of(new OpsUserRole()));
         when(permissionRepository.findPermCodesByUserId(OPERATOR_ID))
                 .thenReturn(Set.of("ops:admin"));
 
         assertTrue(permissionService.hasPermission(OPERATOR_ID, "ops:rbac:role:add"));
-        assertTrue(permissionService.hasPermission(OPERATOR_ID, "merchant:devices:edit"));
+        // B-13：ops:admin 不得跨域放行 merchant:*
+        assertFalse(permissionService.hasPermission(OPERATOR_ID, "merchant:devices:edit"));
     }
 
     @Test
