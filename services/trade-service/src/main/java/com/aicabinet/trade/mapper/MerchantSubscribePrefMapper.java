@@ -16,4 +16,13 @@ public interface MerchantSubscribePrefMapper extends BaseTradeMapper<MerchantSub
     return selectList(Wrappers.<MerchantSubscribePref>lambdaQuery().eq(MerchantSubscribePref::getUserId, userId).eq(MerchantSubscribePref::isEnabled, true));
     }
 
+    default List<MerchantSubscribePref> findByAlertTypeAndEnabledTrue(String alertType) {
+        if (alertType == null || alertType.isBlank()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<MerchantSubscribePref>lambdaQuery()
+                .eq(MerchantSubscribePref::getAlertType, alertType.trim())
+                .eq(MerchantSubscribePref::isEnabled, true));
+    }
+
 }

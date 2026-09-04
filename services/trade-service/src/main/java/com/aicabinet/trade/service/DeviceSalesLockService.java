@@ -26,15 +26,18 @@ public class DeviceSalesLockService {
     private final DeviceServiceClient deviceClient;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
+    private final MerchantDeviceIncidentNotifyService incidentNotifyService;
 
     public DeviceSalesLockService(DeviceInfoMapper deviceRepository,
                                   DeviceServiceClient deviceClient,
                                   AdminAuditService auditService,
-                                  DistributedLockService distributedLockService) {
+                                  DistributedLockService distributedLockService,
+                                  @org.springframework.context.annotation.Lazy MerchantDeviceIncidentNotifyService incidentNotifyService) {
         this.deviceRepository = deviceRepository;
         this.deviceClient = deviceClient;
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
+        this.incidentNotifyService = incidentNotifyService;
     }
 
     /**
@@ -71,6 +74,7 @@ public class DeviceSalesLockService {
                                     String reason, boolean notifyEdge) {
         DeviceInfo device = deviceRepository.findByIdForUpdate(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在"));
+        boolean wasLocked = device.salesLockedEnabled();
         String commandId = "LOCAL-" + UUID.randomUUID().toString().substring(0, 8);
         if (notifyEdge) {
             String mqttCmd = locked ? CabinetConstants.MQTT_CMD_LOCK : CabinetConstants.MQTT_CMD_UNLOCK;
@@ -96,10 +100,18 @@ public class DeviceSalesLockService {
         }
         deviceRepository.save(device);
         String action = locked ? "DEVICE_LOCK" : "DEVICE_UNLOCK";
+        String reasonText = reason == null || reason.isBlank() ? "营业锁" : reason.trim();
         auditService.appendLog(operatorId, action, "DEVICE", device.getDeviceId(),
-                (reason == null || reason.isBlank() ? "营业锁" : reason.trim())
+                reasonText
                         + "；指令编号=" + commandId
                         + "；是否下发柜机=" + (notifyEdge ? "是" : "否"));
+        if (locked && !wasLocked && incidentNotifyService != null) {
+            try {
+                incidentNotifyService.notifySalesLocked(device.getDeviceId(), reasonText);
+            } catch (Exception e) {
+                log.warn("sales lock incident notify failed device={}", device.getDeviceId(), e);
+            }
+        }
         return commandId;
     }
 

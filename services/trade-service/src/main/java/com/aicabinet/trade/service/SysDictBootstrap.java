@@ -201,6 +201,7 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "RESTOCK", "上架", "PULL_OFF", "下架", "REMOVE", "下架", "PULL", "下架")));
         map.put("ops_alert_type", t("运维告警类型", m(
                 DISPUTE, "账单争议", DEVICE_OFFLINE, "设备离线",
+                "SALES_LOCKED", "柜机停售",
                 "UPLOAD_STUCK", "录像滞留", "SESSION_STALE", "会话超时",
                 LOW_STOCK, "库存不足", "REPLENISHMENT", "补货任务",
                 "RECON_MISMATCH", "对账差异", "RECONCILIATION_MISMATCH", "对账差异",
@@ -258,6 +259,7 @@ public class SysDictBootstrap implements ApplicationRunner {
                 LOW_STOCK, "低库存", "EXPIRY", "临期", "REPLENISHMENT_REQUIRED", "需补货",
                 "REPLENISHMENT", "补货任务",
                 DEVICE_OFFLINE, "柜机离线", "DEVICE_FAULT", "柜机故障",
+                "SALES_LOCKED", "柜机停售",
                 DISPUTE, "消费争议", "SETTLEMENT_FAILED", "结算失败")));
         map.put("device_ops_event", t("设备运维事件", m(
                 "OFFLINE", "离线", "NO_SALES", "无销售", "UNLOCK", "开锁",

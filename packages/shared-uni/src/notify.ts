@@ -11,6 +11,7 @@ function canSubscribeMessage() {
 export const MERCHANT_ALERT_TYPES = [
   { value: 'DISPUTE', label: '争议待审' },
   { value: 'DEVICE_OFFLINE', label: '柜机离线' },
+  { value: 'SALES_LOCKED', label: '柜机停售' },
   { value: 'LOW_STOCK', label: '低库存' },
   { value: 'EXPIRY', label: '临期下架' },
   { value: 'SLOT_DISCREPANCY', label: '货道差异' },
