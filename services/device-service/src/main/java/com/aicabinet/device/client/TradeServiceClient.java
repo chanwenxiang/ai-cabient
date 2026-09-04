@@ -14,6 +14,8 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.util.Map;
+
 @Component
 public class TradeServiceClient {
 
@@ -106,6 +108,28 @@ public class TradeServiceClient {
 
     public void attachVideo(String sessionId, String deviceId, String videoUri) {
         attachVideo(sessionId, deviceId, videoUri, "UPLOADED", null, null);
+    }
+
+    /** 柜机是否已在 trade 注册（B-22）。trade 不可达时返回 false，避免向未知设备发令。 */
+    public boolean deviceExists(String deviceId) {
+        if (deviceId == null || deviceId.isBlank()) {
+            return false;
+        }
+        try {
+            ApiResponse<Map<String, Object>> body = restClient.get()
+                    .uri("/internal/v1/devices/{deviceId}/exists", deviceId)
+                    .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<ApiResponse<Map<String, Object>>>() {});
+            if (body == null || body.data() == null) {
+                return false;
+            }
+            Object exists = body.data().get("exists");
+            return Boolean.TRUE.equals(exists) || "true".equalsIgnoreCase(String.valueOf(exists));
+        } catch (RuntimeException e) {
+            log.warn("device exists check failed deviceId={}: {}", deviceId, e.toString());
+            return false;
+        }
     }
 
     record HeartbeatBody(String appVersion, String firmwareVersion, Integer currentTempC,
