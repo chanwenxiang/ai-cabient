@@ -20,7 +20,7 @@ export const OPS_ADMIN_PERM = 'ops:admin';
 /**
  * 若依风格：精确码，或分段通配（a:b:c ← a:b:* / a:*）。
  * @param granted 用户已授权权限码列表
- * @param code 待校验权限码；空/缺省视为通过（前端「无 perm 约束」）
+ * @param code 待校验权限码；空/缺省视为「无约束」通过（菜单项未声明 perm）
  */
 export function matchPermission(
   granted: readonly string[] | null | undefined,
@@ -28,7 +28,12 @@ export function matchPermission(
 ): boolean {
   if (!code) return true;
   const perms = granted || [];
-  if (perms.includes(OPS_ADMIN_PERM)) return true;
+  // B-13：ops:admin 仅短路运营域，禁止跨域放行 merchant:*
+  if (perms.includes(OPS_ADMIN_PERM)) {
+    const realm = permissionRealm(code);
+    if (realm === PERMISSION_REALMS.merchant) return false;
+    return true;
+  }
   if (perms.includes(code)) return true;
   const segments = code.split(':');
   for (let i = segments.length - 1; i >= 1; i--) {

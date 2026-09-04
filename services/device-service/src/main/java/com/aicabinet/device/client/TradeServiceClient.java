@@ -33,12 +33,31 @@ public class TradeServiceClient {
                 request.sessionId(), request.deviceId(), request.doorState(), request.videoUri(),
                 request.uploadStatus(), request.gravityDeltasJson() != null ? "yes" : "no");
 
-        restClient.post()
-                .uri("/internal/v1/sessions/door-event")
-                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
-                .body(request)
-                .retrieve()
-                .body(new ParameterizedTypeReference<ApiResponse<SessionDto>>() {});
+        RuntimeException last = null;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            try {
+                restClient.post()
+                        .uri("/internal/v1/sessions/door-event")
+                        .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
+                        .body(request)
+                        .retrieve()
+                        .body(new ParameterizedTypeReference<ApiResponse<SessionDto>>() {});
+                return;
+            } catch (RuntimeException e) {
+                last = e;
+                log.warn("notify door event failed attempt={}/3 session={}: {}",
+                        attempt, request.sessionId(), e.toString());
+                if (attempt < 3) {
+                    try {
+                        Thread.sleep(200L * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw e;
+                    }
+                }
+            }
+        }
+        throw last != null ? last : new IllegalStateException("notify door event failed");
     }
 
     public void notifyDoorEvent(String sessionId, String deviceId, DoorState doorState, String videoUri) {

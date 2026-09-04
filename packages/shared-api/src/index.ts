@@ -55,7 +55,10 @@ export class ApiClient {
       'Content-Type': 'application/json',
       'X-Requested-With': 'XMLHttpRequest'
     };
-    if (auth && this.getToken()) headers.Authorization = `Bearer ${this.getToken()}`;
+    if (auth) {
+      const token = this.getToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     let res: Awaited<ReturnType<typeof fetch>>;

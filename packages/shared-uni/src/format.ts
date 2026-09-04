@@ -98,15 +98,20 @@ export function fmtMoney(cents?: number | null, empty: string = EMPTY.money) {
 
 /**
  * 元（表单输入）→ 分。经 toFixed(2) 再拆整/小位，避免 `0.29*100` 浮点误差。
- * @returns 非法输入返回 null
+ * @returns 非法输入或超出安全整数范围返回 null（B-24）
  */
 export function yuanToCents(yuan: unknown): number | null {
   if (yuan == null || yuan === '') return null;
   const n = Number(yuan);
   if (!Number.isFinite(n)) return null;
+  // 超过 Number 安全整数对应元时 toFixed/运算会丢精度
+  const maxAbsYuan = Math.floor(Number.MAX_SAFE_INTEGER / 100);
+  if (Math.abs(n) > maxAbsYuan) return null;
   const sign = n < 0 ? -1 : 1;
   const [whole, frac = '00'] = Math.abs(n).toFixed(2).split('.');
-  return sign * (Number(whole) * 100 + Number(frac));
+  const cents = sign * (Number(whole) * 100 + Number(frac));
+  if (!Number.isSafeInteger(cents)) return null;
+  return cents;
 }
 
 export type OpenErrorKind =

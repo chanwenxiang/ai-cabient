@@ -10,6 +10,10 @@ function assert(cond: unknown, msg: string) {
 assert(matchPermission([], undefined) === true, 'empty code => true');
 assert(matchPermission([], '') === true, 'blank code => true');
 assert(matchPermission([OPS_ADMIN_PERM], 'ops:order:list') === true, 'ops:admin short-circuit');
+assert(
+  matchPermission([OPS_ADMIN_PERM], 'merchant:orders:list') === false,
+  'ops:admin must not cross merchant realm'
+);
 assert(matchPermission(['ops:order:list'], 'ops:order:list') === true, 'exact');
 assert(matchPermission(['ops:rbac:role:*'], 'ops:rbac:role:add') === true, 'segment wildcard');
 assert(matchPermission(['ops:rbac:*'], 'ops:rbac:role:add') === true, 'parent wildcard');

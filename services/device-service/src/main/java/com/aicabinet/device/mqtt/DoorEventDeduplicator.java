@@ -45,10 +45,10 @@ public class DoorEventDeduplicator {
         if (sessionId == null || doorState == null) {
             return false;
         }
-        String suffix = sessionId + ":" + doorState + ":" + (fingerprint != null ? fingerprint : "");
+        String key = dedupKey(sessionId, doorState, fingerprint);
         if (redis != null) {
             try {
-                Boolean first = redis.opsForValue().setIfAbsent(KEY_PREFIX + suffix, "1", TTL);
+                Boolean first = redis.opsForValue().setIfAbsent(key, "1", TTL);
                 if (!redisAvailable) {
                     redisAvailable = true;
                     log.info("redis door-event dedup recovered");
@@ -61,7 +61,28 @@ public class DoorEventDeduplicator {
                 }
             }
         }
-        return localDuplicate(KEY_PREFIX + suffix);
+        return localDuplicate(key);
+    }
+
+    /** 转发失败时释放幂等键，允许重投（B-2） */
+    public void clear(String sessionId, String doorState, String fingerprint) {
+        if (sessionId == null || doorState == null) {
+            return;
+        }
+        String key = dedupKey(sessionId, doorState, fingerprint);
+        if (redis != null) {
+            try {
+                redis.delete(key);
+            } catch (Exception e) {
+                log.warn("redis door-event dedup clear failed: {}", e.toString());
+            }
+        }
+        recent.remove(key);
+    }
+
+    private static String dedupKey(String sessionId, String doorState, String fingerprint) {
+        String suffix = sessionId + ":" + doorState + ":" + (fingerprint != null ? fingerprint : "");
+        return KEY_PREFIX + suffix;
     }
 
     private boolean localDuplicate(String key) {

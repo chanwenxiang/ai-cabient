@@ -733,8 +733,13 @@ onLoad(async (opts) => {
     entryChannel.value = resolveEntryChannel(launch.channel);
   }
   if (launch.deviceId) {
-    // 深链直接开门；进入态由 startShoppingFlow 自行管理，勿提前置位以免被守卫短路
-    await startShoppingFlow(launch.deviceId, launch.channel);
+    if (launch.autoOpen) {
+      // 柜门深链 / autoOpen=1 才自动进购物流（B-23）
+      await startShoppingFlow(launch.deviceId, launch.channel);
+    } else {
+      deviceInput.value = launch.deviceId;
+      showManual.value = true;
+    }
   }
 });
 

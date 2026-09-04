@@ -11,11 +11,15 @@ services:
       AICABINET_STAGING_MODE: "false"
       AICABINET_MOCK_ENABLED: "false"
       AICABINET_SECURITY_MOCK_ENABLED: "false"
+      # B-6：生产须显式配置内部 API CIDR
+      INTERNAL_API_ALLOWED_CIDRS: ${INTERNAL_API_ALLOWED_CIDRS:?set INTERNAL_API_ALLOWED_CIDRS in .env.production}
 
   vision-service:
     environment:
       MOCK_ENABLED: "false"
-      RECOGNIZER_BACKEND: ${RECOGNIZER_BACKEND:-mock}
+      # A-I1：生产禁止默认回落 mock
+      RECOGNIZER_BACKEND: ${RECOGNIZER_BACKEND:?set RECOGNIZER_BACKEND (not mock) in .env.production}
+      VISION_DISABLE_DOCS: "true"
       KAFKA_ENABLED: ${KAFKA_ENABLED:-true}
       KAFKA_BOOTSTRAP: ${KAFKA_BOOTSTRAP:-redpanda:9092}
 
@@ -23,3 +27,16 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       MQTT_BROKER: ${MQTT_BROKER:-ssl://emqx:8883}
+
+  emqx:
+    environment:
+      # B-11：生产关闭匿名
+      EMQX_ALLOW_ANONYMOUS: "false"
+      EMQX_AUTH__USER__1__USERNAME: ${EMQX_USERNAME:?set EMQX_USERNAME}
+      EMQX_AUTH__USER__1__PASSWORD: ${EMQX_PASSWORD:?set EMQX_PASSWORD}
+
+  minio:
+    environment:
+      # B-11：强制强密码，无弱默认
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}

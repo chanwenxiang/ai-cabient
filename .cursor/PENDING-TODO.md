@@ -1,43 +1,42 @@
 # 待办交接 — 代码审查跟进
 
 > 更新时间：2026-09-04  
-> 来源：管理后台审查闭环 + **小程序端审查报告** 验证修复  
+> 来源：管理后台 + 小程序 + **三端之外**审查  
 > 分支：`dev`
 
 ---
 
-## 管理后台（已合入 origin/dev）
+## 管理后台 / 小程序（已合入）
 
-| 编号 | 状态 |
+| 范围 | 状态 |
 |------|------|
-| A/B/F/N 轮核心项 | ✅ |
-| 资金写入 `yuanToCents`、A-7 accountType | ✅ |
-| N-13 / N-15 | ⏳ 卫生项，暂不改 |
-| B-11 Phase2 短 access + 长 refresh | 📝 **仅设计备忘** → `.cursor/B-11-auth-refresh-design.md`（含 M-8 / C-5）；真实支付前再实现 |
+| 管理后台 A/B/F/N 核心 | ✅ |
+| 小程序 P0–P2 + 高价值 P3 | ✅ |
+| B-11 JWT access/refresh | 📝 `.cursor/B-11-auth-refresh-design.md` |
 
 ---
 
-## 小程序端审查
+## 三端之外（本轮）
 
 | 编号 | 状态 | 说明 |
 |------|------|------|
-| P0/P1 核心 | ✅ | `8d5e1d1e` 等 |
-| **M-13 / M-14 / M-12 / C-6** | ✅ | `b68c23b2` / `6f91bd9c` |
-| **P2 批次（C-9/C-19/M-3/M-5/M-15/M-18/M-22）** | ✅ | `7af0eca8` |
-| **C-2 / M-23 / M-19 / M-24** | ✅ | `f523f984` |
-| **P3 高价值批次** | ✅ | `e0b20da8` / `23d68f77` |
-| **M-8 / token 安全存储** | 📝 | 并入 B-11 设计备忘，不单独做客户端加密 |
-
-### 仍开放（低优先）
-
-- P3 余量：C-11/16/17，M-17/20/25/27 等
-- B-11 **实现**（设计已备忘）
-- 管理后台 N-13/N-15
+| **B-2** | ✅ 部分 | 失败释放幂等键 + notifyDoorEvent 3 次退避；优先 eventSeq |
+| **B-4** | ✅ | `$share/` 剥离 + topic/body deviceId 一致性 |
+| **B-5** | ✅（核实已修） | InternalApiAuthInterceptor 判空 |
+| **B-7 / B-8** | ✅ | `/health` 收敛；详情需 Key；上传限流；生产关 docs |
+| **B-9** | ✅ | backup 脚本禁止硬编码弱口令 |
+| **B-11（infra）** | ✅ 部分 | production.yml 关 EMQX 匿名 + MinIO/CIDR/识别后端强校验 |
+| **B-12 / B-13** | ✅ | getToken 一次；ops:admin 不跨 merchant 域 |
+| **B-21 / B-23 / B-24** | ✅ | Map 防 NPE；扫码 autoOpen 默认 false；yuanToCents 上界 |
+| **B-1 / B-3** | 📝 | `.cursor/B-1-device-mqtt-auth-design.md`（一机一密 + APK 密钥） |
+| **I-1** | ⏳ 运维 | `.env` 已 gitignore 未进历史；**请本机轮换** PAT/DeepSeek/支付宝/Sonar/高德 |
+| A 类 mock/模拟器 | ⏳ 上线清单 | 不修补，上线替换/删除 |
+| B-6 代码强校验 / B-20 / B-22 / B-25/28 | ⏳ | production 已要求 CIDR；XXL/Grafana 弱口令、SCAN、设备存在性待后续 |
 
 ---
 
-## 验收备注
+## 仍开放（低优先）
 
-- 电脑重启后需拉起 `vision-service` + `device-service`（可用 `--no-deps` 解开健康依赖环）
-- 运营/联调 complete 不走商户开门+凭证门禁
-- 自由文本退款「是否回库」现交服务端；chip 仍可显式指定
+- B-1/B-3 实现、B-11 JWT 实现  
+- P3 余量 / N-13/N-15  
+- A 类上线切换清单（见审查报告 §4）

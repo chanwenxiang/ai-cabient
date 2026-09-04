@@ -20,4 +20,12 @@ class DoorEventDeduplicatorTest {
         assertFalse(deduplicator.isDuplicate("S1", "OPEN"));
         assertFalse(deduplicator.isDuplicate("S2", "OPEN"));
     }
+
+    @Test
+    void clear_allowsRetryAfterFailure() {
+        assertFalse(deduplicator.isDuplicate("S1", "CLOSED", "seq:1"));
+        assertTrue(deduplicator.isDuplicate("S1", "CLOSED", "seq:1"));
+        deduplicator.clear("S1", "CLOSED", "seq:1");
+        assertFalse(deduplicator.isDuplicate("S1", "CLOSED", "seq:1"));
+    }
 }
