@@ -69,6 +69,10 @@ public class PermissionService {
             return false;
         }
         if (perms.contains("ops:admin")) {
+            // B-13：超管仅运营域；禁止 ops:admin 跨域放行 merchant:*
+            if (permCode != null && permCode.startsWith("merchant:")) {
+                return false;
+            }
             return true;
         }
         if (permCode == null || permCode.isBlank()) {

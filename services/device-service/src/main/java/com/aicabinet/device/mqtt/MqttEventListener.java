@@ -182,7 +182,17 @@ public class MqttEventListener implements MqttCallbackExtended {
     }
 
     private void handleDoorEvent(String topic, JsonNode node) {
-        String deviceId = extractDeviceId(topic);
+        String topicDeviceId = extractDeviceId(topic);
+        String bodyDeviceId = textOrNull(node, "deviceId");
+        String deviceId = topicDeviceId;
+        if (bodyDeviceId != null && !bodyDeviceId.isBlank()) {
+            if (!"unknown".equals(topicDeviceId) && !bodyDeviceId.equals(topicDeviceId)) {
+                log.warn("door event deviceId mismatch topic={} body={} session={}",
+                        topicDeviceId, bodyDeviceId, node.path("sessionId").asText(null));
+                return;
+            }
+            deviceId = bodyDeviceId;
+        }
         String sessionId = node.path("sessionId").asText(null);
         String doorStateStr = node.path("doorState").asText(null);
         if (sessionId == null || doorStateStr == null) {
@@ -203,7 +213,14 @@ public class MqttEventListener implements MqttCallbackExtended {
         if (gravityDeltasJson == null) {
             gravityDeltasJson = textOrNull(node, "gravity_deltas");
         }
-        String fingerprint = String.join("|",
+        // 稳定幂等键：session + 门状态 + 事件序号（有则用）；视频元数据易变不参与（B-2）
+        String eventSeq = textOrNull(node, "eventSeq");
+        if (eventSeq == null) {
+            eventSeq = textOrNull(node, "event_seq");
+        }
+        String fingerprint = eventSeq != null
+                ? "seq:" + eventSeq
+                : String.join("|",
                 nonNull(videoUri), nonNull(uploadStatus), nonNull(videoClipsJson),
                 nonNull(cameraFusionMode), nonNull(gravityDeltasJson));
         if (deduplicator.isDuplicate(sessionId, doorStateStr, fingerprint)) {
@@ -216,6 +233,7 @@ public class MqttEventListener implements MqttCallbackExtended {
             doorState = DoorState.valueOf(doorStateStr);
         } catch (IllegalArgumentException e) {
             log.warn("invalid doorState={} session={} topic={}", doorStateStr, sessionId, topic);
+            deduplicator.clear(sessionId, doorStateStr, fingerprint);
             return;
         }
         try {
@@ -224,6 +242,8 @@ public class MqttEventListener implements MqttCallbackExtended {
                     videoUri, uploadStatus, videoClipsJson, cameraFusionMode, gravityDeltasJson));
             metrics.recordDoorForwarded();
         } catch (Exception e) {
+            // 转发失败释放幂等键，允许 MQTT 重投 / 退避重试（B-2）
+            deduplicator.clear(sessionId, doorStateStr, fingerprint);
             metrics.recordTradeFailure();
             throw e;
         }
@@ -242,7 +262,16 @@ public class MqttEventListener implements MqttCallbackExtended {
     }
 
     private String extractDeviceId(String topic) {
-        String[] parts = topic.split("/");
+        String t = topic == null ? "" : topic.trim();
+        // 共享订阅投递偶发带 $share/{group}/ 前缀（B-4）
+        if (t.startsWith("$share/")) {
+            String[] shareParts = t.split("/", 3);
+            t = shareParts.length >= 3 ? shareParts[2] : t;
+        }
+        String[] parts = t.split("/");
+        if (parts.length >= 2 && "cabinet".equals(parts[0])) {
+            return parts[1];
+        }
         return parts.length >= 2 ? parts[1] : "unknown";
     }
 

@@ -67,14 +67,13 @@ public class MqttCommandPublisher {
         try {
             ensureConnected();
             String commandId = UUID.randomUUID().toString();
-            Map<String, Object> payload = Map.of(
-                    COMMANDID, commandId,
-                    "type", CabinetConstants.MQTT_CMD_OPEN_DOOR,
-                    "sessionId", sessionId,
-                    "userId", userId,
-                    "operatorMode", operatorMode,
-                    EXPIREAT, System.currentTimeMillis() + 60_000
-            );
+            Map<String, Object> payload = new java.util.LinkedHashMap<>();
+            payload.put(COMMANDID, commandId);
+            payload.put("type", CabinetConstants.MQTT_CMD_OPEN_DOOR);
+            payload.put("sessionId", sessionId != null ? sessionId : "");
+            payload.put("userId", userId != null ? userId : 0L);
+            payload.put("operatorMode", operatorMode);
+            payload.put(EXPIREAT, System.currentTimeMillis() + 60_000);
             publish(deviceId, payload);
             log.info("published OPEN_DOOR to {} commandId={}", deviceId, commandId);
             return commandId;

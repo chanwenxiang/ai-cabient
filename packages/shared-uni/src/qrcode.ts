@@ -122,10 +122,10 @@ export function parseCabinetScan(raw?: string | null): ScanResult {
   }
 
   let deviceId = normalizeDeviceId(text);
-  if (deviceId) return { deviceId, channel: 'PLAIN', autoOpen: true, alipayOnly: false, raw: text };
+  if (deviceId) return { deviceId, channel: 'PLAIN', autoOpen: false, alipayOnly: false, raw: text };
 
   deviceId = tryParseJson(text);
-  if (deviceId) return { deviceId, channel: 'JSON', autoOpen: true, alipayOnly: false, raw: text };
+  if (deviceId) return { deviceId, channel: 'JSON', autoOpen: false, alipayOnly: false, raw: text };
 
   const lower = text.toLowerCase();
   if (/(weixin:\/\/|wxp:\/\/|servicewechat\.com)/.test(lower)) {
@@ -139,7 +139,7 @@ export function parseCabinetScan(raw?: string | null): ScanResult {
       return {
         deviceId,
         channel: fromUrl.channel || 'WECHAT',
-        autoOpen: true,
+        autoOpen: false,
         alipayOnly: false,
         raw: text
       };
@@ -162,7 +162,7 @@ export function parseCabinetScan(raw?: string | null): ScanResult {
       return {
         deviceId: alipayDeviceId,
         channel: fromUrl.channel || 'ALIPAY',
-        autoOpen: true,
+        autoOpen: false,
         alipayOnly: false,
         raw: text
       };
@@ -174,7 +174,7 @@ export function parseCabinetScan(raw?: string | null): ScanResult {
     const channel =
       fromUrl.channel ||
       (/alipay/i.test(text) ? 'ALIPAY' : /weixin|wx/i.test(text) ? 'WECHAT' : 'URL');
-    return { deviceId: fromUrl.deviceId, channel, autoOpen: true, alipayOnly: false, raw: text };
+    return { deviceId: fromUrl.deviceId, channel, autoOpen: false, alipayOnly: false, raw: text };
   }
 
   const sceneParams = parseQueryString(text.includes('=') ? text : '');
@@ -194,14 +194,18 @@ export function parseCabinetScan(raw?: string | null): ScanResult {
 
 export function parseLaunchOptions(options: Record<string, string | undefined> = {}) {
   let deviceId = options.deviceId || options.d || options.device_id || '';
-  let autoOpen = options.autoOpen === '1' || options.open === '1';
+  // 显式 query 柜机号视为柜门深链；纯文本/JSON 解析默认不自动开门（B-23）
+  let autoOpen =
+    options.autoOpen === '1' ||
+    options.open === '1' ||
+    !!(options.deviceId || options.d || options.device_id);
   let channel = normalizeEntryChannelFromRaw(
     options.channel || options.entryChannel || options.payChannel
   );
   if (!deviceId && options.q) {
     const parsed = parseCabinetScan(decodeURIComponent(options.q));
     deviceId = parsed.deviceId;
-    autoOpen = autoOpen || parsed.autoOpen;
+    autoOpen = options.autoOpen === '1' || options.open === '1' || parsed.autoOpen;
     if (!channel) channel = normalizeEntryChannelFromRaw(parsed.channel);
   }
   if (!deviceId && options.scene) {
@@ -209,7 +213,7 @@ export function parseLaunchOptions(options: Record<string, string | undefined> =
       const scene = decodeURIComponent(options.scene);
       const parsed = parseCabinetScan(scene);
       deviceId = parsed.deviceId || normalizeDeviceId(scene);
-      autoOpen = autoOpen || parsed.autoOpen;
+      autoOpen = options.autoOpen === '1' || options.open === '1' || parsed.autoOpen;
       if (!channel) channel = normalizeEntryChannelFromRaw(parsed.channel);
     } catch {
       /* ignore */

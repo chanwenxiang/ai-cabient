@@ -5,7 +5,7 @@ import os
 
 log = logging.getLogger(__name__)
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -17,8 +17,20 @@ from app.storage import OBJECT_STORAGE_ENDPOINT
 API_KEY_HEADER = "X-Internal-Api-Key"
 VISION_API_KEY = os.getenv("VISION_API_KEY", "dev-vision-key-change-me")
 RECOGNIZER_BACKEND = os.getenv("RECOGNIZER_BACKEND", "mock")
+# 上传体积上限（B-8）；可用 VISION_UPLOAD_MAX_BYTES 覆盖
+UPLOAD_MAX_BYTES = int(os.getenv("VISION_UPLOAD_MAX_BYTES", str(20 * 1024 * 1024)))
+_IS_PROD = os.getenv("SPRING_PROFILES_ACTIVE", os.getenv("APP_ENV", "")).lower() in (
+    "prod",
+    "production",
+) or os.getenv("VISION_DISABLE_DOCS", "").lower() in ("1", "true", "yes")
 
-app = FastAPI(title="AI Cabinet Vision Service", version="0.9.0")
+app = FastAPI(
+    title="AI Cabinet Vision Service",
+    version="0.9.0",
+    docs_url=None if _IS_PROD else "/docs",
+    redoc_url=None if _IS_PROD else "/redoc",
+    openapi_url=None if _IS_PROD else "/openapi.json",
+)
 recognizer = get_recognizer()
 start_kafka_worker(recognizer)
 
@@ -106,6 +118,16 @@ def _to_response(session_id: str, video_uri: str | None, out) -> RecognizeRespon
 
 @app.get("/health")
 def health():
+    # B-7：对外仅返回存活状态，避免泄露部署细节
+    return {"status": "ok"}
+
+
+@app.get("/health/detail")
+def health_detail(request: Request):
+    """运维详情：需内部 API Key（与 /api/* 同级）。"""
+    provided = request.headers.get(API_KEY_HEADER)
+    if not VISION_API_KEY or provided != VISION_API_KEY:
+        return JSONResponse(status_code=401, content={"detail": "unauthorized"})
     deepseek_key = os.getenv("DEEPSEEK_API_KEY", "")
     return {
         "status": "ok",
@@ -173,13 +195,31 @@ def recognize(req: RecognizeRequest):
     return _to_response(req.session_id, req.video_uri, out)
 
 
+async def _read_upload_limited(file: UploadFile, max_bytes: int = UPLOAD_MAX_BYTES) -> bytes:
+    """流式读取并限制体积，超限 413（B-8）。"""
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"upload too large (max {max_bytes} bytes)",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 @app.post("/api/v2/vision/recognize/upload", response_model=RecognizeResponse)
 async def recognize_upload(
     session_id: str = Form("TEST-UPLOAD"),
     device_id: str = Form(""),
     file: UploadFile = File(...),
 ):
-    data = await file.read()
+    data = await _read_upload_limited(file)
     filename = file.filename or "image.jpg"
     upload = recognizer.recognize_upload
     try:
@@ -196,7 +236,7 @@ async def suggest_class(
 ):
     from app.recognition.deepseek_recognizer import DeepSeekRecognizer
 
-    data = await file.read()
+    data = await _read_upload_limited(file)
     rec = DeepSeekRecognizer()
     result = rec.suggest_class_from_image(data, sku_name or None)
     return result
@@ -209,7 +249,7 @@ async def dispute_suggest(
 ):
     from app.recognition.deepseek_recognizer import DeepSeekRecognizer
 
-    data = await file.read()
+    data = await _read_upload_limited(file)
     rec = DeepSeekRecognizer()
     out = rec.suggest_dispute_skus(data, device_id or None)
     return _to_response("dispute-suggest", f"upload://{file.filename}", out)
