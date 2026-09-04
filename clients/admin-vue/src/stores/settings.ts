@@ -26,7 +26,8 @@ const PRIMARY_COLORS: Record<string, string> = {
   teal: '#0f766e',
   blue: '#2563eb',
   violet: '#7c3aed',
-  orange: '#ea580c'
+  // #ea580c 对白字对比度约 3.56 < 4.5；改用更深橙以满足 WCAG AA
+  orange: '#c2410c'
 };
 
 export const PRIMARY_OPTIONS = [

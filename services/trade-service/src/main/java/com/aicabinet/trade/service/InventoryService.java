@@ -302,6 +302,7 @@ public class InventoryService {
             created.setQuantity(0);
             created.setCapacity(20);
             created.setLowThreshold(2);
+            created.setVersion(0);
             return created;
         });
         int next = inv.getQuantity() + delta;

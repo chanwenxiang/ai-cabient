@@ -52,6 +52,15 @@ public class DisputeController {
     }
 
     @RequiresPermissions("ops:dispute:resolve")
+    @PostMapping("/{ticketId}/claim")
+    public ApiResponse<DisputeTicketDto> claim(
+            HttpServletRequest request,
+            @PathVariable("ticketId") String ticketId) {
+        Long operatorId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(disputeService.claimTicket(operatorId, ticketId));
+    }
+
+    @RequiresPermissions("ops:dispute:resolve")
     @PostMapping("/{ticketId}/resolve")
     public ApiResponse<ResolveDisputeResultDto> resolve(
             HttpServletRequest request,

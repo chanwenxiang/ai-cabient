@@ -1,19 +1,19 @@
 <template>
   <view class="video-page">
-    <app-nav-bar title="????" bg="#000000" color="#ffffff" />
+    <app-nav-bar title="购物视频" bg="#000000" color="#ffffff" />
     <view class="page-body">
       <view v-if="loading" class="state">
-        <text class="state-title">????</text>
-        <text class="state-desc">????????</text>
+        <text class="state-title">加载中…</text>
+        <text class="state-desc">正在获取购物录像</text>
       </view>
       <view v-else-if="!src && error" class="state">
-        <text class="state-title">??????</text>
+        <text class="state-title">视频加载失败</text>
         <text class="state-desc">{{ error }}</text>
-        <button v-if="copyTarget" type="button" class="btn-primary" @click="copyUrl">????</button>
+        <button v-if="copyTarget" type="button" class="btn-primary" @click="copyUrl">复制链接</button>
       </view>
       <view v-else-if="!src" class="state">
-        <text class="state-title">??????</text>
-        <text class="state-desc">????????????????</text>
+        <text class="state-title">缺少视频地址</text>
+        <text class="state-desc">本单暂无购物视频，可返回订单详情</text>
       </view>
       <template v-else>
         <video
@@ -29,18 +29,18 @@
           @error="onError"
         />
         <view v-if="error" class="error-banner" role="alert">
-          <text class="state-title">??????</text>
+          <text class="state-title">视频加载失败</text>
           <text class="state-desc">{{ error }}</text>
-          <button type="button" class="btn-primary" @click="copyUrl">????</button>
+          <button type="button" class="btn-primary" @click="copyUrl">复制链接</button>
         </view>
         <view v-else class="tips">
           <text v-if="metaLine" class="meta">{{ metaLine }}</text>
-          <text class="tip">?????????????????</text>
-          <button type="button" class="copy-btn" @click="copyUrl">????</button>
+          <text class="tip">若无法播放，可复制链接到浏览器打开</text>
+          <button type="button" class="copy-btn" size="mini" @click="copyUrl">复制链接</button>
         </view>
       </template>
       <view v-if="orderId" class="back-row">
-        <text class="back-link" @click="goOrder">?????? ?</text>
+        <text class="back-link" @click="goOrder">返回订单详情 ›</text>
       </view>
     </view>
   </view>
@@ -62,9 +62,9 @@ let blobUrl = '';
 
 const metaLine = computed(() => {
   const parts: string[] = [];
-  if (orderId.value) parts.push(`?? ${orderId.value}`);
-  if (deviceId.value) parts.push(`?? ${deviceId.value}`);
-  return parts.join(' � ');
+  if (orderId.value) parts.push(`订单 ${orderId.value}`);
+  if (deviceId.value) parts.push(`柜机 ${deviceId.value}`);
+  return parts.join(' · ');
 });
 
 function revokeBlob() {
@@ -88,11 +88,11 @@ async function loadOrderVideo(oid: string) {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     });
     if (!res.ok) {
-      if (res.status === 404) throw new Error('?????????');
-      throw new Error(`?????HTTP ${res.status}?`);
+      if (res.status === 404) throw new Error('该订单暂无购物视频');
+      throw new Error(`播放失败（HTTP ${res.status}）`);
     }
     const raw = await res.blob();
-    // Vite ??/??????? Content-Type ?? octet-stream?Chrome ? MEDIA_ERR_SRC_NOT_SUPPORTED
+    // Vite 代理/部分网关可能把 Content-Type 变成 octet-stream，Chrome 会 MEDIA_ERR_SRC_NOT_SUPPORTED
     const blob =
       raw.type && raw.type.startsWith('video/')
         ? raw
@@ -104,7 +104,7 @@ async function loadOrderVideo(oid: string) {
     src.value = await downloadAuthedFile(apiUrl, 120_000);
     // #endif
   } catch (e) {
-    error.value = e instanceof Error ? e.message : '?????????????????????';
+    error.value = e instanceof Error ? e.message : '视频地址无法访问，请复制链接后到浏览器打开';
   } finally {
     loading.value = false;
   }
@@ -117,7 +117,7 @@ onLoad(async (opts) => {
     await loadOrderVideo(orderId.value);
     return;
   }
-  error.value = '?????';
+  error.value = '缺少订单号';
 });
 
 onUnload(() => revokeBlob());
@@ -127,7 +127,7 @@ function onLoaded() {
 }
 
 function onError() {
-  error.value = '?????????????????????';
+  error.value = '视频地址无法访问，请复制链接后到浏览器打开';
 }
 
 function copyUrl() {
@@ -135,7 +135,7 @@ function copyUrl() {
   if (!data) return;
   uni.setClipboardData({
     data,
-    success: () => uni.showToast({ title: '???????', icon: 'none' })
+    success: () => uni.showToast({ title: '视频链接已复制', icon: 'none' })
   });
 }
 

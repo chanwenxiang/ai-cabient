@@ -792,6 +792,11 @@ export const merchantApi = {
       'POST',
       body
     ),
+  disputeClaim: (ticketId: string) =>
+    request<MerchantDisputeTicket>(
+      `/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}/claim`,
+      'POST'
+    ),
   notifications: (limit = 50) =>
     request<MerchantNotificationDto[]>(`/api/v2/merchant/notifications?limit=${limit}`),
   notificationUnreadCount: () =>
@@ -842,6 +847,7 @@ export type MerchantDisputeTicket = {
   billedAmountCents?: number;
   refundedAmountCents?: number;
   claimedAmountCents?: number;
+  assignee?: string;
   sessionId?: string;
   videoUri?: string;
   videoPreviewUrl?: string;

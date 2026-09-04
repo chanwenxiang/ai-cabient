@@ -24,6 +24,9 @@ public class DeviceSkuInventory {
 
     private int lowThreshold = 2;
 
+    /** 乐观锁版本；与设备库存分布式锁并存。 */
+    private long version;
+
     private Instant updatedAt;
 
 

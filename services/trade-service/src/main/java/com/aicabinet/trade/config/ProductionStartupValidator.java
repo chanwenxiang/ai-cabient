@@ -124,6 +124,11 @@ public class ProductionStartupValidator {
             throw new IllegalStateException(
                     "Production/staging profile cannot run with aicabinet.merchant-withdraw.mock-enabled=true (mock payouts)");
         }
+        // 生产禁止对账 mock（staging 仍允许 soak）；避免假账单混入正式对账
+        if (isProdProfile() && reconciliationProperties.mockEnabled()) {
+            throw new IllegalStateException(
+                    "Production profile cannot run with RECON_MOCK_ENABLED=true / aicabinet.reconciliation.mock-enabled=true");
+        }
     }
 
     private void validateStagingProfile() {

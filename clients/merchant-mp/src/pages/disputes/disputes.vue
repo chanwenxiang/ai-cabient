@@ -190,6 +190,14 @@
             </view>
           </scroll-view>
           <view class="detail-actions">
+            <button
+              v-if="canResolveDetail && !detail?.assignee"
+              class="primary-btn"
+              :loading="claiming"
+              @click="claimFromDetail"
+            >
+              认领工单
+            </button>
             <button v-if="canReplyDetail" class="primary-btn" @click="replyFromDetail">回复</button>
             <button
               v-if="canResolveDetail"
@@ -202,19 +210,26 @@
             <button
               v-if="canResolveDetail"
               class="btn-outline"
-              :loading="resolving"
-              @click="resolveFromDetail('KEEP')"
+              @click="moreActionsOpen = !moreActionsOpen"
             >
-              维持原单
+              {{ moreActionsOpen ? '收起操作' : '更多操作' }}
             </button>
-            <button
-              v-if="canResolveDetail"
-              class="btn-outline"
-              :loading="resolving"
-              @click="resolveFromDetail('CONFIRM')"
-            >
-              按识别结案
-            </button>
+            <template v-if="canResolveDetail && moreActionsOpen">
+              <button
+                class="btn-outline"
+                :loading="resolving"
+                @click="resolveFromDetail('KEEP')"
+              >
+                维持原单
+              </button>
+              <button
+                class="btn-outline"
+                :loading="resolving"
+                @click="resolveFromDetail('CONFIRM')"
+              >
+                按识别结案
+              </button>
+            </template>
             <button v-if="detail?.orderId" class="btn-outline" @click="goOrderFromDetail">
               查看订单
             </button>
@@ -270,6 +285,8 @@ const detailAmountDiffNote = computed(() => merchantDisputeAmountDiffNote(detail
 const canReplyDetail = ref(false);
 const canResolveDetail = ref(false);
 const resolving = ref(false);
+const claiming = ref(false);
+const moreActionsOpen = ref(false);
 
 const activeTabLabel = computed(() => tabs.find((t) => t.key === activeTab.value)?.label || '');
 const listTruncated = computed(
@@ -423,6 +440,7 @@ async function onDetail(item: MerchantDisputeTicket) {
     // 列表摘要兜底
   }
   detail.value = row;
+  moreActionsOpen.value = false;
   canReplyDetail.value =
     canReplyFromApi == null ? canReplyTicket(row) : canReplyFromApi && canReply.value;
   canResolveDetail.value =
@@ -430,6 +448,24 @@ async function onDetail(item: MerchantDisputeTicket) {
       ? canResolve.value && (row.status || '').toUpperCase() === 'OPEN'
       : !!canResolveFromApi && canResolve.value;
   detailVisible.value = true;
+}
+
+async function claimFromDetail() {
+  if (!detail.value?.ticketId || claiming.value) return;
+  claiming.value = true;
+  try {
+    const ticket = await merchantApi.disputeClaim(detail.value.ticketId);
+    detail.value = { ...detail.value, ...ticket };
+    uni.showToast({ title: '已认领', icon: 'success' });
+    await load();
+  } catch (e) {
+    uni.showToast({
+      title: e instanceof Error ? e.message : '认领失败',
+      icon: 'none'
+    });
+  } finally {
+    claiming.value = false;
+  }
 }
 
 async function resolveFromDetail(type: 'KEEP' | 'WAIVE' | 'CONFIRM') {

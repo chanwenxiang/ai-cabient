@@ -181,8 +181,8 @@ public class WeChatProfitSharingService {
                     split.getSplitId(), returnNo, returnCents, outcome);
             return outcome;
         } catch (Exception e) {
-            log.warn("wechat profit sharing return failed splitId={} outReturnNo={}: {}",
-                    split.getSplitId(), returnNo, e.getMessage());
+            log.warn("wechat profit sharing return failed splitId={} outReturnNo={}",
+                    split.getSplitId(), returnNo, e);
             return ReturnSubmitOutcome.FAILED;
         }
     }
@@ -205,7 +205,7 @@ public class WeChatProfitSharingService {
             JsonNode resp = weChatPayV3Client.get("/v3/profitsharing/return-orders/" + encoded);
             return mapReturnResult(resp.path("result").asText(""));
         } catch (Exception e) {
-            log.warn("wechat profit sharing return query failed outReturnNo={}: {}", outReturnNo, e.getMessage());
+            log.warn("wechat profit sharing return query failed outReturnNo={}", outReturnNo, e);
             return ReturnSubmitOutcome.FAILED;
         }
     }
@@ -348,7 +348,7 @@ public class WeChatProfitSharingService {
             return splitRepository.save(split);
         } catch (Exception e) {
             split.setFailureReason(truncate(e.getMessage()));
-            log.warn("wechat profit sharing query failed splitId={}: {}", split.getSplitId(), e.getMessage());
+            log.warn("wechat profit sharing query failed splitId={}", split.getSplitId(), e);
             return splitRepository.save(split);
         }
     }

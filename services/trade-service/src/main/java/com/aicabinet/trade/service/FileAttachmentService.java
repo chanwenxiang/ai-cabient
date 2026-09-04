@@ -6,6 +6,7 @@ import com.aicabinet.trade.config.MinioProperties;
 import com.aicabinet.trade.domain.FileAttachment;
 import com.aicabinet.trade.mapper.FileAttachmentMapper;
 import com.aicabinet.trade.storage.MinioVideoService;
+import com.aicabinet.trade.util.ImageMetadataStripper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -92,12 +93,7 @@ public class FileAttachmentService {
         if (!ALLOWED_TYPES.contains(contentType)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅支持 jpg/png/webp/gif");
         }
-        byte[] bytes;
-        try {
-            bytes = file.getBytes();
-        } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "读取上传文件失败");
-        }
+        byte[] bytes = readAndStripImageBytes(file, contentType);
         String sha = sha256Hex(bytes);
         String ext = extensionFor(contentType, file.getOriginalFilename());
         String token = UUID.randomUUID().toString().replace("-", "");
@@ -189,12 +185,7 @@ public class FileAttachmentService {
         if (!ALLOWED_TYPES.contains(contentType)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅支持 jpg/png/webp/gif");
         }
-        byte[] bytes;
-        try {
-            bytes = file.getBytes();
-        } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "读取上传文件失败");
-        }
+        byte[] bytes = readAndStripImageBytes(file, contentType);
         String sha = sha256Hex(bytes);
         String ext = extensionFor(contentType, file.getOriginalFilename());
         String token = UUID.randomUUID().toString().replace("-", "");
@@ -249,12 +240,7 @@ public class FileAttachmentService {
         if (!ALLOWED_TYPES.contains(contentType)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅支持 jpg/png/webp/gif");
         }
-        byte[] bytes;
-        try {
-            bytes = file.getBytes();
-        } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "读取上传文件失败");
-        }
+        byte[] bytes = readAndStripImageBytes(file, contentType);
         String sha = sha256Hex(bytes);
         String ext = extensionFor(contentType, file.getOriginalFilename());
         String token = UUID.randomUUID().toString().replace("-", "");
@@ -371,12 +357,7 @@ public class FileAttachmentService {
         if (!ALLOWED_TYPES.contains(contentType)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅支持 jpg/png/webp/gif");
         }
-        byte[] bytes;
-        try {
-            bytes = file.getBytes();
-        } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "读取上传文件失败");
-        }
+        byte[] bytes = readAndStripImageBytes(file, contentType);
         String sha = sha256Hex(bytes);
         // 商品主图去重：同一内容只保留一条记录与一个对象，重复上传直接复用已有地址
         if (sha != null) {
@@ -426,12 +407,7 @@ public class FileAttachmentService {
         if (!ALLOWED_TYPES.contains(contentType)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅支持 jpg/png/webp/gif");
         }
-        byte[] bytes;
-        try {
-            bytes = file.getBytes();
-        } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "读取上传文件失败");
-        }
+        byte[] bytes = readAndStripImageBytes(file, contentType);
         String sha = sha256Hex(bytes);
         if (sha != null) {
             FileAttachment existing = fileAttachmentMapper.findByContentSha256(sha).stream()
@@ -480,12 +456,7 @@ public class FileAttachmentService {
         if (!ALLOWED_TYPES.contains(contentType)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅支持 jpg/png/webp/gif");
         }
-        byte[] bytes;
-        try {
-            bytes = file.getBytes();
-        } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "读取上传文件失败");
-        }
+        byte[] bytes = readAndStripImageBytes(file, contentType);
         String sha = sha256Hex(bytes);
         if (sha != null) {
             FileAttachment existing = fileAttachmentMapper.findByContentSha256(sha).stream()
@@ -590,6 +561,17 @@ public class FileAttachmentService {
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    /** 读取上传字节并剥离 EXIF/GPS（JPEG 重编码；PNG/GIF 无元数据写出）。 */
+    private static byte[] readAndStripImageBytes(MultipartFile file, String contentType) {
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "读取上传文件失败");
+        }
+        return ImageMetadataStripper.strip(bytes, contentType);
     }
 
     private static String sha256Hex(byte[] data) {

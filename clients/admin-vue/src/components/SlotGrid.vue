@@ -67,7 +67,7 @@ function cellClass(slot: DeviceSlot) {
   font-size: 0.72rem;
 }
 .slot-physical .diff {
-  color: #ea580c;
+  color: #c2410c;
   margin-left: 4px;
 }
 .slot-cell.status-oos {

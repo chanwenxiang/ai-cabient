@@ -291,7 +291,11 @@
             fixed="right"
           >
             <template #default="{ row }">
-              <TableActions :actions="rowActions(row)" @action="(key) => onRowAction(key, row)" />
+              <TableActions
+                :actions="rowActions(row)"
+                :max-primary="2"
+                @action="(key) => onRowAction(key, row)"
+              />
             </template>
           </el-table-column>
         </el-table>
@@ -611,6 +615,15 @@
           />
         </div>
         <el-button
+          v-if="selected && selected.status === 'OPEN'"
+          v-hasPermi="['ops:dispute:resolve']"
+          type="warning"
+          plain
+          :loading="claiming"
+          @click="claimSelected"
+          >认领工单</el-button
+        >
+        <el-button
           v-if="hasPriorBill"
           v-hasPermi="['ops:dispute:resolve']"
           type="primary"
@@ -709,6 +722,7 @@ const total = ref(0);
 const selected = ref<DisputeTicketDto | null>(null);
 const detailVisible = ref(false);
 const resolving = ref(false);
+const claiming = ref(false);
 const suggestingDispute = ref(false);
 const disputeSuggestHint = ref('');
 const disputeImageInput = ref<HTMLInputElement | null>(null);
@@ -1251,6 +1265,25 @@ async function submitDisputeResolve(
   );
   applyResolvedTicket(result);
   ElMessage.success(result.message || '争议已处理');
+}
+
+async function claimSelected() {
+  if (!selected.value?.ticketId || claiming.value) return;
+  claiming.value = true;
+  try {
+    const updated = await api.request<DisputeTicketDto>(
+      `/api/v2/ops/disputes/${encodeURIComponent(selected.value.ticketId)}/claim`,
+      'POST'
+    );
+    selected.value = updated;
+    const idx = items.value.findIndex((r) => r.ticketId === updated.ticketId);
+    if (idx >= 0) items.value[idx] = { ...items.value[idx], ...updated };
+    ElMessage.success(`已认领：${updated.assignee || '当前账号'}`);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '认领失败');
+  } finally {
+    claiming.value = false;
+  }
 }
 
 async function resolveSelected(resolutionType: DisputeResolutionType) {

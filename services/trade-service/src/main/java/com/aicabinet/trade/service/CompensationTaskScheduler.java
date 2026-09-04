@@ -10,7 +10,6 @@ import com.aicabinet.trade.mapper.DistributedTransactionMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
-import org.redisson.api.RLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -34,7 +33,6 @@ public class CompensationTaskScheduler {
 
     private final CompensationTaskMapper taskRepository;
     private final DistributedTransactionMapper txRepository;
-    private final DistributedLockService lockService;
     private final TccTransactionCoordinator txCoordinator;
     private final ScheduledTaskService taskService;
     private final OrderRevenueSplitMapper splitRepository;
@@ -46,7 +44,6 @@ public class CompensationTaskScheduler {
 
     public CompensationTaskScheduler(CompensationTaskMapper taskRepository,
                                        DistributedTransactionMapper txRepository,
-                                       DistributedLockService lockService,
                                        TccTransactionCoordinator txCoordinator,
                                        ScheduledTaskService taskService,
                                        OrderRevenueSplitMapper splitRepository,
@@ -56,7 +53,6 @@ public class CompensationTaskScheduler {
                                        @Lazy CompensationTaskScheduler self) {
         this.taskRepository = taskRepository;
         this.txRepository = txRepository;
-        this.lockService = lockService;
         this.txCoordinator = txCoordinator;
         this.taskService = taskService;
         this.splitRepository = splitRepository;
@@ -67,19 +63,14 @@ public class CompensationTaskScheduler {
     }
     @Scheduled(fixedDelay = 30000)
     public void processCompensationTasks() {
-        if (!taskService.isEnabled(COMPENSATION_PROCESS)) {
-            return;
-        }
         long start = System.nanoTime();
-        RLock lock = lockService.acquireLock("compensation:scheduler", 60);
-        if (lock == null) {
-            log.debug("Another instance is processing compensation tasks");
+        if (!taskService.tryBegin(COMPENSATION_PROCESS, 600)) {
             return;
         }
         try {
             List<CompensationTask> tasks = taskRepository.findExecutableTasks(Instant.now());
             log.info("Found {} compensation tasks to process", tasks.size());
-            
+
             for (CompensationTask task : tasks) {
                 processTaskSafely(task);
             }
@@ -90,8 +81,6 @@ public class CompensationTaskScheduler {
         } catch (Exception e) {
             taskService.finish(COMPENSATION_PROCESS, CabinetConstants.ORDER_STATUS_FAILED, e.getMessage(), start);
             throw e;
-        } finally {
-            lockService.releaseLock(lock);
         }
     }
     
@@ -229,18 +218,14 @@ public class CompensationTaskScheduler {
     
     @Scheduled(fixedDelay = 60000)
     public void retryFailedTransactions() {
-        if (!taskService.isEnabled(COMPENSATION_RETRY)) {
-            return;
-        }
         long start = System.nanoTime();
-        RLock lock = lockService.acquireLock("tx:retry:scheduler", 60);
-        if (lock == null) {
+        if (!taskService.tryBegin(COMPENSATION_RETRY, 600)) {
             return;
         }
         try {
             List<DistributedTransaction> retryable = txRepository.findRetryableTransactions();
             log.info("Found {} transactions to retry", retryable.size());
-            
+
             for (DistributedTransaction tx : retryable) {
                 retryTransactionSafely(tx);
             }
@@ -251,8 +236,6 @@ public class CompensationTaskScheduler {
         } catch (Exception e) {
             taskService.finish(COMPENSATION_RETRY, CabinetConstants.ORDER_STATUS_FAILED, e.getMessage(), start);
             throw e;
-        } finally {
-            lockService.releaseLock(lock);
         }
     }
 

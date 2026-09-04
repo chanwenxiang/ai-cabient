@@ -55,7 +55,9 @@ public class ScheduledTaskRegistry {
                                  PointsExpiryScheduler pointsExpiryScheduler,
                                  CouponExpiryReminderScheduler couponExpiryReminderScheduler,
                                  GrowthLogArchiveScheduler growthLogArchiveScheduler,
-                                 SkuReviewScheduler skuReviewScheduler) {
+                                 SkuReviewScheduler skuReviewScheduler,
+                                 RiskAutoDispositionService riskAutoDispositionService,
+                                 DeviceTempPlanService deviceTempPlanService) {
         register("device-presence", "设备离线巡检", "DEVICE", V_60, 600,
                 devicePresenceService::markStaleDevicesOffline);
         register("session-opening-expire", "开门超时会话清理", TRADE, V_30, 600,
@@ -109,6 +111,10 @@ public class ScheduledTaskRegistry {
                 slaMetricsService::snapshotDaily);
         register("kpi-snapshot", "设备可用性 KPI 快照", "OPS", "每日 01:10", 600,
                 deviceAvailabilityJobScheduler::kpiSnapshotFallback);
+        register("risk-auto-disposition", "风控事件自动处置", "OPS", "每 15 分钟", 600,
+                riskAutoDispositionService::runScheduled);
+        register("temp-plan", "温控计划下发", "DEVICE", V_60, 600,
+                deviceTempPlanService::scheduledApply);
     }
 
     public Optional<TaskDescriptor> get(String key) {

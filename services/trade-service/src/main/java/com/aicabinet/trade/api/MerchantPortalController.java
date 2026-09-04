@@ -171,6 +171,14 @@ public class MerchantPortalController {
     }
 
     @RequiresPermissions("merchant:disputes:resolve")
+    @PostMapping("/disputes/{ticketId}/claim")
+    public ApiResponse<DisputeTicketDto> disputeClaim(
+            HttpServletRequest request,
+            @PathVariable String ticketId) {
+        return ApiResponse.ok(support.disputeService().claimAsMerchant(userId(request), ticketId));
+    }
+
+    @RequiresPermissions("merchant:disputes:resolve")
     @PostMapping("/disputes/{ticketId}/resolve")
     public ApiResponse<ResolveDisputeResultDto> disputeResolve(
             HttpServletRequest request,

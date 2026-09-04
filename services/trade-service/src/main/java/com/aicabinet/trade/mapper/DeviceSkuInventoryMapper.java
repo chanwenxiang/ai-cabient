@@ -66,11 +66,23 @@ public interface DeviceSkuInventoryMapper extends BaseTradeMapper<DeviceSkuInven
                 .eq(DeviceSkuInventory::getDeviceId, entity.getDeviceId())
                 .eq(DeviceSkuInventory::getSkuId, entity.getSkuId()));
         if (existing == null) {
+            if (entity.getVersion() < 0) {
+                entity.setVersion(0);
+            }
             insert(entity);
         } else {
-            update(entity, Wrappers.<DeviceSkuInventory>lambdaUpdate()
+            long expected = entity.getVersion();
+            entity.setVersion(expected + 1);
+            int rows = update(entity, Wrappers.<DeviceSkuInventory>lambdaUpdate()
                     .eq(DeviceSkuInventory::getDeviceId, entity.getDeviceId())
-                    .eq(DeviceSkuInventory::getSkuId, entity.getSkuId()));
+                    .eq(DeviceSkuInventory::getSkuId, entity.getSkuId())
+                    .eq(DeviceSkuInventory::getVersion, expected));
+            if (rows == 0) {
+                entity.setVersion(expected);
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.CONFLICT,
+                        "库存并发冲突，请重试 device=" + entity.getDeviceId() + " sku=" + entity.getSkuId());
+            }
         }
         return entity;
     }
