@@ -1,6 +1,11 @@
 <template>
   <view class="empty-state" :class="[{ compact }, kindClass]">
-    <image v-if="resolvedIcon.startsWith('/')" class="empty-icon" :src="resolvedIcon" mode="aspectFit" />
+    <image
+      v-if="resolvedIcon.startsWith('/')"
+      class="empty-icon"
+      :src="resolvedIcon"
+      mode="aspectFit"
+    />
     <text v-else-if="resolvedIcon" class="empty-icon" aria-hidden="true">{{ resolvedIcon }}</text>
     <text class="empty-title">{{ resolvedTitle }}</text>
     <text v-if="resolvedHint" class="empty-hint">{{ resolvedHint }}</text>
@@ -15,10 +20,7 @@ import { computed } from 'vue';
 
 export type EmptyKind = 'default' | 'orders' | 'devices' | 'alerts' | 'search' | 'wallet';
 
-const KIND_PRESETS: Record<
-  EmptyKind,
-  { title: string; hint: string; icon: string }
-> = {
+const KIND_PRESETS: Record<EmptyKind, { title: string; hint: string; icon: string }> = {
   default: { title: '暂无数据', hint: '', icon: '∅' },
   orders: { title: '暂无订单', hint: '调整筛选条件后再试', icon: '单' },
   devices: { title: '暂无柜机', hint: '确认账号已分配柜机后再刷新', icon: '柜' },
@@ -47,7 +49,9 @@ const props = withDefaults(
 
 const preset = computed(() => KIND_PRESETS[props.kind] || KIND_PRESETS.default);
 const resolvedTitle = computed(() => props.title || preset.value.title);
-const resolvedHint = computed(() => (props.hint !== undefined && props.hint !== '' ? props.hint : preset.value.hint));
+const resolvedHint = computed(() =>
+  props.hint !== undefined && props.hint !== '' ? props.hint : preset.value.hint
+);
 const resolvedIcon = computed(() => props.icon || preset.value.icon);
 const kindClass = computed(() => `kind-${props.kind}`);
 </script>

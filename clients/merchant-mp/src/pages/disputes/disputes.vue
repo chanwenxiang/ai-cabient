@@ -14,11 +14,7 @@
       </view>
 
       <view v-if="loading && !list.length" class="loading"><text>加载中…</text></view>
-      <error-state
-        v-else-if="error && !list.length"
-        :title="error"
-        @retry="load"
-      />
+      <error-state v-else-if="error && !list.length" :title="error" @retry="load" />
       <empty-state
         v-else-if="!list.length"
         kind="alerts"
@@ -217,11 +213,7 @@
               {{ moreActionsOpen ? '收起操作' : '更多操作' }}
             </button>
             <template v-if="canResolveDetail && moreActionsOpen">
-              <button
-                class="btn-outline"
-                :loading="resolving"
-                @click="resolveFromDetail('KEEP')"
-              >
+              <button class="btn-outline" :loading="resolving" @click="resolveFromDetail('KEEP')">
                 维持原单
               </button>
               <button

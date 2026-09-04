@@ -53,12 +53,7 @@
         </view>
 
         <view v-if="loading" class="loading inline"><text>筛选中…</text></view>
-        <error-state
-          v-else-if="error"
-          compact
-          :title="error"
-          @retry="load"
-        />
+        <error-state v-else-if="error" compact :title="error" @retry="load" />
         <empty-state
           v-else-if="!list.length"
           kind="orders"

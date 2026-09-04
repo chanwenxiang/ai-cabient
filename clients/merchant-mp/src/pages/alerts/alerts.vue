@@ -27,11 +27,7 @@
     </view>
 
     <view v-if="loading && !items.length" class="card">加载中…</view>
-    <error-state
-      v-else-if="error && !items.length"
-      :title="error"
-      @retry="load"
-    />
+    <error-state v-else-if="error && !items.length" :title="error" @retry="load" />
     <view v-else>
       <view
         v-for="(a, i) in visibleItems"
