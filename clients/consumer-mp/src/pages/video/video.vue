@@ -9,7 +9,9 @@
       <view v-else-if="!src && error" class="state">
         <text class="state-title">视频加载失败</text>
         <text class="state-desc">{{ error }}</text>
-        <button v-if="copyTarget" type="button" class="btn-primary" @click="copyUrl">复制链接</button>
+        <button v-if="copyTarget" type="button" class="btn-primary" @click="copyUrl">
+          复制链接
+        </button>
       </view>
       <view v-else-if="!src" class="state">
         <text class="state-title">缺少视频地址</text>
@@ -28,7 +30,12 @@
           @play="onLoaded"
           @error="onError"
         >
-          <track kind="captions" srclang="zh" label="现场录像无对白字幕" src="data:text/vtt,WEBVTT" />
+          <track
+            kind="captions"
+            srclang="zh"
+            label="现场录像无对白字幕"
+            src="data:text/vtt,WEBVTT"
+          />
           <track
             kind="descriptions"
             srclang="zh"
