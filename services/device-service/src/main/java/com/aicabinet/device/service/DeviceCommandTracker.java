@@ -6,7 +6,6 @@ import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -14,6 +13,7 @@ import java.time.Instant;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -33,6 +33,8 @@ public class DeviceCommandTracker {
     private static final long ACK_TIMEOUT_MS = 15_000L;
     private static final int MAX_RECENT_COMMANDS = 500;
     private static final String KEY_PREFIX = "aicabinet:device-cmd:";
+    /** 待 ACK 命令索引：score = publishedAtMs，超时用 ZRANGEBYSCORE（B-20，避免全量 SCAN） */
+    private static final String PENDING_ZSET = KEY_PREFIX + "pending-z";
     private static final long KEY_TTL_SECONDS = 3600L;
 
     private final Map<String, PendingCommand> pending = new ConcurrentHashMap<>();
@@ -260,20 +262,22 @@ public class DeviceCommandTracker {
 
     private void expireCommandsRedis() {
         long now = Instant.now().toEpochMilli();
-        try (var cursor = redis.scan(ScanOptions.scanOptions().match(KEY_PREFIX + "*").count(100).build())) {
-            while (cursor.hasNext()) {
-                CommandStatus status = readStatusByKey(cursor.next());
-                if (status == null || !STATUS_PENDING.equals(status.status())) {
-                    continue;
-                }
-                if (now - status.publishedAtMs() >= ACK_TIMEOUT_MS) {
-                    writeStatus(new CommandStatus(status.commandId(), status.deviceId(), status.sessionId(),
-                            TIMEOUT, false, status.publishedAtMs(), now));
-                    metrics.recordCommandAckTimeout();
-                    log.warn("device command ACK timeout commandId={} device={} session={}",
-                            status.commandId(), status.deviceId(), status.sessionId());
-                }
+        long cutoff = now - ACK_TIMEOUT_MS;
+        Set<String> expiredIds = redis.opsForZSet().rangeByScore(PENDING_ZSET, 0, cutoff);
+        if (expiredIds == null || expiredIds.isEmpty()) {
+            return;
+        }
+        for (String commandId : expiredIds) {
+            CommandStatus status = readStatus(commandId);
+            if (status == null || !STATUS_PENDING.equals(status.status())) {
+                redis.opsForZSet().remove(PENDING_ZSET, commandId);
+                continue;
             }
+            writeStatus(new CommandStatus(status.commandId(), status.deviceId(), status.sessionId(),
+                    TIMEOUT, false, status.publishedAtMs(), now));
+            metrics.recordCommandAckTimeout();
+            log.warn("device command ACK timeout commandId={} device={} session={}",
+                    status.commandId(), status.deviceId(), status.sessionId());
         }
     }
 
@@ -288,6 +292,11 @@ public class DeviceCommandTracker {
                 "publishedAtMs", status.publishedAtMs() == null ? "" : String.valueOf(status.publishedAtMs()),
                 "updatedAtMs", status.updatedAtMs() == null ? "" : String.valueOf(status.updatedAtMs())));
         redis.expire(key, Duration.ofSeconds(KEY_TTL_SECONDS));
+        if (STATUS_PENDING.equals(status.status()) && status.publishedAtMs() != null) {
+            redis.opsForZSet().add(PENDING_ZSET, status.commandId(), status.publishedAtMs());
+        } else {
+            redis.opsForZSet().remove(PENDING_ZSET, status.commandId());
+        }
     }
 
     private CommandStatus readStatus(String commandId) {
