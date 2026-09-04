@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -61,8 +62,33 @@ class CouponServiceTest {
         assertNotNull(result);
         assertEquals("测试券", result.couponName());
         assertEquals(500, result.denominationCents());
+        assertNull(result.discountPercent());
         assertEquals("ACTIVE", result.status());
         verify(definitionRepository, times(1)).save(any());
+    }
+
+    @Test
+    void createDefinition_shouldRejectBlankName() {
+        var req = new CreateCouponRequest("  ", "AMOUNT_OFF", 500, 0, null, 30, 100, "测试");
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> couponService.createDefinition(req));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+    }
+
+    @Test
+    void createDefinition_shouldRejectAmountOffWithoutDenomination() {
+        var req = new CreateCouponRequest("坏券", "AMOUNT_OFF", 0, 0, null, 30, 100, "测试");
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> couponService.createDefinition(req));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+    }
+
+    @Test
+    void createDefinition_shouldRejectPercentOffWithoutRate() {
+        var req = new CreateCouponRequest("坏折扣", "PERCENT_OFF", 0, 0, null, 30, 100, "测试");
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> couponService.createDefinition(req));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
     }
 
     @Test

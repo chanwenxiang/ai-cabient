@@ -129,7 +129,7 @@
           </el-table-column>
           <el-table-column label="面值" width="96" align="center" class-name="col-money">
             <template #default="{ row }">
-              <template v-if="row.couponType === 'PERCENT' || Number(row.discountPercent) > 0">
+              <template v-if="row.couponType === 'PERCENT_OFF'">
                 {{ row.discountPercent || 0 }}%
               </template>
               <template v-else>¥{{ yuan(row.denominationCents) }}</template>
@@ -215,7 +215,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="面值(元)">
+        <el-form-item v-if="createForm.couponType !== 'PERCENT_OFF'" label="面值(元)" required>
           <el-input-number
             v-model="createForm.denominationYuan"
             :min="0.01"
@@ -235,7 +235,7 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="折扣百分比">
+        <el-form-item v-if="createForm.couponType === 'PERCENT_OFF'" label="折扣百分比" required>
           <el-input-number
             v-model="createForm.discountPercent"
             :min="1"
@@ -244,7 +244,7 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="有效天数">
+        <el-form-item label="有效天数" required>
           <el-input-number
             v-model="createForm.validityDays"
             :min="1"
@@ -429,12 +429,21 @@ async function batchDisable() {
   }
 }
 
-const createForm = ref({
+const createForm = ref<{
+  couponName: string;
+  couponType: string;
+  denominationYuan: number;
+  minSpendYuan: number;
+  discountPercent: number | null;
+  validityDays: number;
+  maxIssueCount: number;
+  description: string;
+}>({
   couponName: '',
   couponType: 'AMOUNT_OFF',
   denominationYuan: 1,
   minSpendYuan: 0,
-  discountPercent: 90,
+  discountPercent: null,
   validityDays: 30,
   maxIssueCount: 0,
   description: ''
@@ -560,7 +569,7 @@ function openCreate() {
     couponType: 'AMOUNT_OFF',
     denominationYuan: 1,
     minSpendYuan: 0,
-    discountPercent: 90,
+    discountPercent: null,
     validityDays: 30,
     maxIssueCount: 0,
     description: ''
@@ -573,9 +582,9 @@ function openEdit(row: any) {
   createForm.value = {
     couponName: row.couponName || '',
     couponType: row.couponType || 'AMOUNT_OFF',
-    denominationYuan: Number(((Number(row.denominationCents) || 0) / 100).toFixed(2)),
+    denominationYuan: Number(((Number(row.denominationCents) || 0) / 100).toFixed(2)) || 1,
     minSpendYuan: Number(((Number(row.minSpendCents) || 0) / 100).toFixed(2)),
-    discountPercent: row.discountPercent ?? 90,
+    discountPercent: row.discountPercent ?? null,
     validityDays: row.validityDays || 30,
     maxIssueCount: row.maxIssueCount || 0,
     description: row.description || ''
@@ -602,18 +611,38 @@ async function load() {
 }
 
 async function onCreateSubmit() {
-  if (!createForm.value.couponName.trim()) return ElMessage.warning('请填写名称');
+  const form = createForm.value;
+  if (!form.couponName.trim()) return ElMessage.warning('请填写名称');
+  if (!form.couponType) return ElMessage.warning('请选择类型');
+  if (!form.validityDays || form.validityDays < 1) {
+    return ElMessage.warning('有效天数须至少为 1');
+  }
+  const isPercent = form.couponType === 'PERCENT_OFF';
+  if (isPercent) {
+    const pct = Number(form.discountPercent);
+    if (!Number.isFinite(pct) || pct < 1 || pct > 99) {
+      return ElMessage.warning('折扣百分比须在 1～99 之间');
+    }
+  } else {
+    const yuan = Number(form.denominationYuan);
+    if (!Number.isFinite(yuan) || yuan <= 0) {
+      return ElMessage.warning('请填写大于 0 的面值');
+    }
+  }
+  if (form.minSpendYuan != null && Number(form.minSpendYuan) < 0) {
+    return ElMessage.warning('最低消费不能为负数');
+  }
   saving.value = true;
   try {
     const body = {
-      couponName: createForm.value.couponName.trim(),
-      couponType: createForm.value.couponType,
-      denominationCents: yuanToCents(createForm.value.denominationYuan) ?? 0,
-      minSpendCents: yuanToCents(createForm.value.minSpendYuan) ?? 0,
-      discountPercent: createForm.value.discountPercent,
-      validityDays: createForm.value.validityDays,
-      maxIssueCount: createForm.value.maxIssueCount,
-      description: createForm.value.description
+      couponName: form.couponName.trim(),
+      couponType: form.couponType,
+      denominationCents: isPercent ? 0 : (yuanToCents(form.denominationYuan) ?? 0),
+      minSpendCents: yuanToCents(form.minSpendYuan) ?? 0,
+      discountPercent: isPercent ? Number(form.discountPercent) : null,
+      validityDays: form.validityDays,
+      maxIssueCount: form.maxIssueCount || 0,
+      description: form.description
     };
     if (editingId.value) {
       await api.request(`/api/v2/coupons/definitions/${editingId.value}`, 'PUT', body);

@@ -260,12 +260,23 @@ function syncRouteQuery() {
   router.replace({ query });
 }
 
+/** 关键词仅支持正整数用户编号；非法值不传 userId，避免后端 Long 转换 500。 */
+function parseUserIdFilter(raw: string): number | null {
+  const text = raw.trim();
+  if (!text) return null;
+  if (!/^\d+$/.test(text)) return null;
+  const id = Number(text);
+  if (!Number.isSafeInteger(id) || id <= 0) return null;
+  return id;
+}
+
 async function load() {
   loading.value = true;
   try {
     const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
     if (status.value) q.set('status', status.value);
-    if (keyword.value.trim()) q.set('userId', keyword.value.trim());
+    const userId = parseUserIdFilter(keyword.value);
+    if (userId != null) q.set('userId', String(userId));
     const data = await api.request<PageResult<Record<string, unknown>>>(
       `/api/v2/ops/admin/recharges?${q}`,
       'GET'
@@ -282,6 +293,11 @@ async function load() {
 }
 
 function search() {
+  const raw = keyword.value.trim();
+  if (raw && parseUserIdFilter(raw) == null) {
+    ElMessage.warning('用户编号须为正整数');
+    return;
+  }
   page.value = 1;
   syncRouteQuery();
   load();

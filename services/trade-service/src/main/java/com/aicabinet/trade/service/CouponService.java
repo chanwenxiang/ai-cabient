@@ -65,14 +65,25 @@ public class CouponService {
 
     @Transactional
     public CouponDefinitionDto createDefinition(CreateCouponRequest request) {
+        validateDefinitionRequest(
+                request.couponName(),
+                request.couponType(),
+                request.denominationCents(),
+                request.minSpendCents(),
+                request.discountPercent(),
+                request.validityDays(),
+                request.maxIssueCount());
         CouponDefinition def = new CouponDefinition();
-        def.setCouponName(request.couponName());
-        def.setCouponType(request.couponType());
-        def.setDenominationCents(request.denominationCents());
-        def.setMinSpendCents(request.minSpendCents());
-        def.setDiscountPercent(request.discountPercent());
+        def.setCouponName(request.couponName().trim());
+        def.setCouponType(request.couponType().trim());
+        applyDefinitionAmounts(
+                def,
+                request.couponType(),
+                request.denominationCents(),
+                request.minSpendCents(),
+                request.discountPercent());
         def.setValidityDays(request.validityDays());
-        def.setMaxIssueCount(request.maxIssueCount());
+        def.setMaxIssueCount(Math.max(0, request.maxIssueCount()));
         def.setDescription(request.description());
         def.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
         definitionRepository.save(def);
@@ -84,13 +95,24 @@ public class CouponService {
     public CouponDefinitionDto updateDefinition(Long couponDefId, UpdateCouponRequest request) {
         CouponDefinition def = definitionRepository.findById(couponDefId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
-        def.setCouponName(request.couponName());
-        def.setCouponType(request.couponType());
-        def.setDenominationCents(request.denominationCents());
-        def.setMinSpendCents(request.minSpendCents());
-        def.setDiscountPercent(request.discountPercent());
+        validateDefinitionRequest(
+                request.couponName(),
+                request.couponType(),
+                request.denominationCents(),
+                request.minSpendCents(),
+                request.discountPercent(),
+                request.validityDays(),
+                request.maxIssueCount());
+        def.setCouponName(request.couponName().trim());
+        def.setCouponType(request.couponType().trim());
+        applyDefinitionAmounts(
+                def,
+                request.couponType(),
+                request.denominationCents(),
+                request.minSpendCents(),
+                request.discountPercent());
         def.setValidityDays(request.validityDays());
-        def.setMaxIssueCount(request.maxIssueCount());
+        def.setMaxIssueCount(Math.max(0, request.maxIssueCount()));
         def.setDescription(request.description());
         definitionRepository.save(def);
         log.info("coupon definition updated id={} name={}", def.getCouponDefId(), def.getCouponName());
@@ -569,6 +591,60 @@ public class CouponService {
     }
 
     // ── DTO ──────────────────────────────────────────────
+
+    private void validateDefinitionRequest(
+            String couponName,
+            String couponType,
+            int denominationCents,
+            int minSpendCents,
+            Integer discountPercent,
+            int validityDays,
+            int maxIssueCount) {
+        if (couponName == null || couponName.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写优惠券名称");
+        }
+        if (couponType == null || couponType.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择优惠券类型");
+        }
+        if (validityDays < 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "有效天数须至少为 1");
+        }
+        if (maxIssueCount < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "总量限制不能为负数");
+        }
+        if (minSpendCents < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "最低消费不能为负数");
+        }
+        String type = couponType.trim();
+        if ("PERCENT_OFF".equals(type)) {
+            if (discountPercent == null || discountPercent < 1 || discountPercent > 99) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "折扣百分比须在 1～99 之间");
+            }
+        } else if ("AMOUNT_OFF".equals(type)) {
+            if (denominationCents <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "满减券面值须大于 0");
+            }
+        } else {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的优惠券类型");
+        }
+    }
+
+    private void applyDefinitionAmounts(
+            CouponDefinition def,
+            String couponType,
+            int denominationCents,
+            int minSpendCents,
+            Integer discountPercent) {
+        String type = couponType.trim();
+        def.setMinSpendCents(Math.max(0, minSpendCents));
+        if ("PERCENT_OFF".equals(type)) {
+            def.setDenominationCents(0);
+            def.setDiscountPercent(discountPercent);
+        } else {
+            def.setDenominationCents(Math.max(0, denominationCents));
+            def.setDiscountPercent(null);
+        }
+    }
 
     private CouponDefinitionDto toDefDto(CouponDefinition d) {
         return new CouponDefinitionDto(
