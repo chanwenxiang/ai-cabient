@@ -30,6 +30,7 @@
 
 ## 后续
 
-- 禁止页面内新增裸魔法圆角/语义色；存量按模块替换为 `var(--radius-*)` / `var(--brand)` 等
+- 禁止页面内新增裸魔法圆角/语义色；存量按模块替换为 `var(--radius-*)` / `var(--brand)` / `var(--danger)` 等
+- 已替换抽样：`DashboardView`、`DeviceListView`（运营高频页）
 
 更新日期：2026-09-04
