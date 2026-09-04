@@ -242,12 +242,12 @@ function goOrder() {
   background: rgba(15, 23, 42, 0.45);
   color: #f8fafc;
   border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 999rpx;
-  font-size: 24rpx;
-  min-height: 72rpx;
-  height: 72rpx;
-  line-height: 72rpx;
-  padding: 0 28rpx;
+  border-radius: 999px;
+  font-size: 12px;
+  min-height: 36px;
+  height: 36px;
+  line-height: 36px;
+  padding: 0 14px;
 }
 .copy-btn::after {
   border: none;

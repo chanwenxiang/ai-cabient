@@ -1,10 +1,12 @@
 {
-    "sonarlint.rules":  {
-                            "java:S1068":  {
-                                               "level":  "off"
-                                           },
-                            "css:S4653":  {
-                                              "level":  "off"
-                                          }
-                        }
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.import.maven.enabled": true,
+  "sonarlint.rules": {
+    "java:S1068": {
+      "level": "off"
+    },
+    "css:S4653": {
+      "level": "off"
+    }
+  }
 }
