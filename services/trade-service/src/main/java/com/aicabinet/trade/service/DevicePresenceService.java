@@ -37,6 +37,7 @@ public class DevicePresenceService {
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DevicePresenceService self;
     private final ScheduledTaskService taskService;
+    private final MerchantDeviceIncidentNotifyService incidentNotifyService;
 
     public DevicePresenceService(DeviceInfoMapper deviceRepository,
                                  DeviceTemperatureReadingMapper temperatureReadingRepository,
@@ -46,7 +47,8 @@ public class DevicePresenceService {
                                  AdminAuditService auditService,
                                  DistributedLockService distributedLockService,
                                  @Lazy DevicePresenceService self,
-                                 ScheduledTaskService taskService) {
+                                 ScheduledTaskService taskService,
+                                 @Lazy MerchantDeviceIncidentNotifyService incidentNotifyService) {
         this.deviceRepository = deviceRepository;
         this.temperatureReadingRepository = temperatureReadingRepository;
         this.cabinetMetrics = cabinetMetrics;
@@ -56,6 +58,7 @@ public class DevicePresenceService {
         this.distributedLockService = distributedLockService;
         this.self = self;
         this.taskService = taskService;
+        this.incidentNotifyService = incidentNotifyService;
     }
 
     @Transactional
@@ -154,6 +157,8 @@ public class DevicePresenceService {
         deviceRepository.clearOnlineSince(deviceId);
         opsExceptionService.report("DEVICE_OFFLINE", "CRITICAL", new OpsExceptionService.ExceptionReport.ExceptionRefs(deviceId, null, null, null), "设备离线", "连续 " + OFFLINE_AFTER_MINUTES + " 分钟未收到心跳");
         log.info("device marked offline device={}", deviceId);
+        safeIncidentNotify(() -> incidentNotifyService.notifyDeviceOffline(deviceId,
+                "连续 " + OFFLINE_AFTER_MINUTES + " 分钟未收到心跳"));
     }
 
     /** 离线超过配置分钟数后自动锁机停售（需运营手动解锁）。返回本次锁机台数。 */
@@ -193,6 +198,8 @@ public class DevicePresenceService {
                         "离线超过 " + lockAfterMinutes + " 分钟，已自动锁机停售");
                 log.info("device auto sales-locked after offline device={} minutes={}",
                         d.getDeviceId(), lockAfterMinutes);
+                String lockReason = "离线超时自动停售（超 " + lockAfterMinutes + " 分钟）";
+                safeIncidentNotify(() -> incidentNotifyService.notifySalesLocked(d.getDeviceId(), lockReason));
                 return true;
             });
             if (Boolean.TRUE.equals(applied)) {
@@ -243,6 +250,17 @@ public class DevicePresenceService {
 
     private static String firstNonBlank(String first, String second) {
         return first != null ? first : second;
+    }
+
+    private void safeIncidentNotify(Runnable action) {
+        if (incidentNotifyService == null || action == null) {
+            return;
+        }
+        try {
+            action.run();
+        } catch (Exception ex) {
+            log.warn("device incident notify failed", ex);
+        }
     }
 
     static String devicePresenceLockKey(String deviceId) {

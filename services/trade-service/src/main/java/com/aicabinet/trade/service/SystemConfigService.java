@@ -52,6 +52,9 @@ public class SystemConfigService {
             "device.offline.manual_unlock_grace_minutes";
     public static final String DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED = "device.offline.auto_unlock_enabled";
     public static final String DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES = "device.offline.auto_unlock_stable_minutes";
+    /** 柜机离线/停售即时通知冷却分钟数（同柜同类型），0=不冷却. */
+    public static final String MERCHANT_INCIDENT_NOTIFY_COOLDOWN_MINUTES =
+            "merchant.notify.incident_cooldown_minutes";
     public static final String DISPUTE_SLA_HOURS = "dispute.sla.hours";
     public static final String DISPUTE_SLA_REMINDER_HOURS = "dispute.sla.reminder_hours";
     public static final String DISPUTE_SLA_WEBHOOK = "dispute.sla.webhook";
@@ -319,6 +322,8 @@ public class SystemConfigService {
                 "人工解锁后离线自动锁机宽限分钟数, 0=无宽限");
         upsertIfAbsent(DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED, FALSE,
                 "设备恢复稳定在线后是否自动解锁起售（默认关闭）");
+        upsertIfAbsent(MERCHANT_INCIDENT_NOTIFY_COOLDOWN_MINUTES, "30",
+                "柜机离线/停售即时通知冷却分钟数（同柜同类型），0=不冷却");
         upsertIfAbsent(DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, "15",
                 "自动解锁前需保持稳定在线分钟数, 0=关闭");
         upsertIfAbsent(DISPUTE_SLA_HOURS, "48", "争议工单 SLA 处理时限（小时）");

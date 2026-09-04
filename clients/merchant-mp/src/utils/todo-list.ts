@@ -92,7 +92,7 @@ export function mergeTodoItems(input: {
   );
   const faultOrOfflineDevices = new Set(
     exceptionItems
-      .filter((a) => ['DEVICE_FAULT', 'DEVICE_OFFLINE'].includes(typeKey(a.type)))
+      .filter((a) => ['DEVICE_FAULT', 'DEVICE_OFFLINE', 'SALES_LOCKED'].includes(typeKey(a.type)))
       .map((a) => deviceKey(a.deviceId))
       .filter(Boolean)
   );

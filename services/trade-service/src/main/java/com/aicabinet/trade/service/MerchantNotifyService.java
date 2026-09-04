@@ -30,6 +30,7 @@ import java.util.function.Supplier;
 public class MerchantNotifyService {
     private static final String SLOT_DISCREPANCY = "SLOT_DISCREPANCY";
     private static final String DEVICE_OFFLINE = "DEVICE_OFFLINE";
+    private static final String SALES_LOCKED = "SALES_LOCKED";
     private static final String REPLENISHMENT = "REPLENISHMENT";
     private static final String EXCEPTION = "EXCEPTION";
     private static final String LOW_STOCK = "LOW_STOCK";
@@ -39,7 +40,7 @@ public class MerchantNotifyService {
 
     private static final Logger log = LoggerFactory.getLogger(MerchantNotifyService.class);
     private static final Set<String> ALLOWED_ALERT_TYPES = Set.of(
-            DISPUTE, DEVICE_OFFLINE, LOW_STOCK, EXPIRY, SLOT_DISCREPANCY, REPLENISHMENT, EXCEPTION);
+            DISPUTE, DEVICE_OFFLINE, SALES_LOCKED, LOW_STOCK, EXPIRY, SLOT_DISCREPANCY, REPLENISHMENT, EXCEPTION);
     private static final DateTimeFormatter TIME_FMT =
             DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.of("Asia/Shanghai"));
 
