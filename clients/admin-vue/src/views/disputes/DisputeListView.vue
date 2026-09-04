@@ -1439,7 +1439,8 @@ function search() {
 }
 
 function reset() {
-  status.value = 'OPEN';
+  // 与状态下拉「可清空 / 全部」一致：重置不清成 OPEN，避免已结案场景被打回空列表
+  status.value = '';
   categoryTab.value = 'ALL';
   reviewCodeTab.value = 'ALL';
   keyword.value = '';
