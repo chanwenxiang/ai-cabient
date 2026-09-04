@@ -1158,7 +1158,7 @@ onActivated(() => {
 .ops-board__tile {
   appearance: none;
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
+  border-radius: var(--radius-tag);
   background: var(--el-fill-color-blank);
   padding: 10px 12px;
   text-align: center;
@@ -1229,9 +1229,9 @@ onActivated(() => {
 .device-thumb {
   width: 30px;
   height: 30px;
-  border-radius: 6px;
+  border-radius: var(--radius-tag);
   object-fit: cover;
-  background: #ecfdf5;
+  background: color-mix(in srgb, var(--brand, var(--app-primary)) 10%, #fff);
   flex: 0 0 auto;
 }
 .link-cell:hover {

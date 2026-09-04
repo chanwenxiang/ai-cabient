@@ -819,17 +819,17 @@ onMounted(() => load({ silent: true }));
   width: 100%;
   border: 1px solid var(--layout-border);
   background: var(--el-fill-color-blank);
-  border-radius: 8px;
+  border-radius: var(--radius-tag);
   padding: 8px 10px;
   cursor: pointer;
   font-size: 13px;
   color: var(--layout-text);
 }
 .zone-link:hover {
-  border-color: color-mix(in srgb, var(--app-primary, #0f766e) 40%, var(--layout-border));
+  border-color: color-mix(in srgb, var(--app-primary, var(--brand)) 40%, var(--layout-border));
 }
 .zone-link.warn strong {
-  color: #dc2626;
+  color: var(--danger);
 }
 .zone-link strong {
   font-size: 16px;
@@ -852,7 +852,7 @@ onMounted(() => load({ silent: true }));
 .stat-tile {
   background: var(--el-fill-color-light);
   border: 1px solid var(--layout-border);
-  border-radius: 10px;
+  border-radius: var(--admin-radius-lg, var(--radius-control));
   padding: 14px 16px;
   height: 100%;
   box-sizing: border-box;
@@ -868,16 +868,16 @@ onMounted(() => load({ silent: true }));
 .stat-tile.is-clickable:hover,
 .stat-tile.is-clickable:focus-visible {
   transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--app-primary, #0f766e) 45%, var(--layout-border));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary, #0f766e) 18%, transparent);
+  border-color: color-mix(in srgb, var(--app-primary, var(--brand)) 45%, var(--layout-border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary, var(--brand)) 18%, transparent);
   outline: none;
 }
 .stat-tile.warn {
-  border-color: color-mix(in srgb, #dc2626 35%, var(--layout-border));
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--layout-border));
 }
 .stat-tile.warn .stat-value,
 .quick-tile.warn .quick-value {
-  color: #dc2626;
+  color: var(--danger);
 }
 .stat-label {
   font-size: 13px;
@@ -906,7 +906,7 @@ onMounted(() => load({ silent: true }));
   margin-bottom: 10px;
   padding: 12px 14px;
   border: 1px solid var(--layout-border);
-  border-radius: 10px;
+  border-radius: var(--admin-radius-lg, var(--radius-control));
   background: var(--el-fill-color-blank, var(--layout-card));
   cursor: pointer;
   text-align: center;
@@ -918,15 +918,15 @@ onMounted(() => load({ silent: true }));
 .quick-tile:hover,
 .quick-tile:focus-visible {
   transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--app-primary, #0f766e) 40%, var(--layout-border));
+  border-color: color-mix(in srgb, var(--app-primary, var(--brand)) 40%, var(--layout-border));
   outline: none;
 }
 .quick-tile.muted {
   opacity: 0.55;
 }
 .quick-tile.warn {
-  border-color: color-mix(in srgb, #dc2626 28%, var(--layout-border));
-  background: color-mix(in srgb, #dc2626 4%, var(--layout-card));
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--layout-border));
+  background: color-mix(in srgb, var(--danger) 4%, var(--layout-card));
 }
 .quick-label {
   color: var(--layout-muted);
