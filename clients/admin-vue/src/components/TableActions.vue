@@ -64,7 +64,7 @@ const props = withDefaults(
     /** 行级定位前缀，按钮为 `${prefix}-${key}` */
     testIdPrefix?: string;
   }>(),
-  { maxPrimary: 3 }
+  { maxPrimary: 2 }
 );
 
 const emit = defineEmits<{ action: [key: string] }>();

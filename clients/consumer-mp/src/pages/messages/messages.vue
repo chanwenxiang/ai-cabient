@@ -539,7 +539,7 @@ function formatTime(t: string) {
 }
 .todo-go {
   font-size: 26rpx;
-  color: #ea580c;
+  color: #c2410c;
   font-weight: 600;
   white-space: nowrap;
 }

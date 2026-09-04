@@ -176,7 +176,7 @@ public class DataConsistencyService {
             checkCouponUsedLinkConsistency();
             log.info("数据一致性巡检结束");
         } catch (Exception e) {
-            log.error("数据一致性巡检中断: {}", e.getMessage());
+            log.error("数据一致性巡检中断", e);
         }
         List<DataConsistencyRecord> failed = getFailedChecks();
         return failed == null ? 0 : failed.size();
@@ -531,7 +531,7 @@ public class DataConsistencyService {
                         checkType, consistencyRecord.getCheckKey(), consistencyRecord.getId());
             }
         } catch (Exception e) {
-            log.error("关闭过期一致性 FAIL 失败 type={}: {}", checkType, e.getMessage());
+            log.error("关闭过期一致性 FAIL 失败 type={}", checkType, e);
         }
     }
 
@@ -585,7 +585,7 @@ public class DataConsistencyService {
                 consistencyRepository.save(consistencyRecord);
             }
         } catch (Exception e) {
-            log.error("持久化一致性记录失败 type={} key={}: {}", checkType, checkKey, e.getMessage());
+            log.error("持久化一致性记录失败 type={} key={}", checkType, checkKey, e);
         }
 
         log.warn("发现数据不一致 type={} key={} expected={} actual={}",

@@ -219,6 +219,7 @@
     "autoscan": true,
     "custom": {
       "^empty-state$": "@/components/empty-state.vue",
+      "^error-state$": "@/components/error-state.vue",
       "^app-nav-bar$": "@/components/app-nav-bar.vue"
     }
   },

@@ -144,12 +144,13 @@
           </fieldset>
         </template>
         <Transition name="chart-fade" mode="out-in">
-          <ChartBox v-if="revenueSvg" :key="revenueKind" :svg="revenueSvg" />
-          <el-empty
-            v-else-if="listHydrated"
-            key="empty"
-            description="暂无营收趋势"
-            :image-size="64"
+          <ChartBox
+            :key="revenueKind"
+            :svg="revenueSvg"
+            :loading="loading && !listHydrated"
+            :error="loadFailed ? '营收趋势加载失败' : ''"
+            empty-text="暂无营收趋势"
+            @retry="load"
           />
         </Transition>
         <template #footer>
@@ -184,12 +185,13 @@
           </fieldset>
         </template>
         <Transition name="chart-fade" mode="out-in">
-          <ChartBox v-if="orderSvg" :key="orderKind" :svg="orderSvg" />
-          <el-empty
-            v-else-if="listHydrated"
-            key="empty"
-            description="暂无订单趋势"
-            :image-size="64"
+          <ChartBox
+            :key="orderKind"
+            :svg="orderSvg"
+            :loading="loading && !listHydrated"
+            :error="loadFailed ? '订单趋势加载失败' : ''"
+            empty-text="暂无订单趋势"
+            @retry="load"
           />
         </Transition>
         <template #footer>
@@ -201,8 +203,14 @@
     <div class="chart-grid chart-grid--2">
       <ChartPanel title="订单支付渠道" :hint="`近 ${days} 天 · 按金额`" donut>
         <div class="donut-layout">
-          <ChartBox v-if="orderChannelSvg" :svg="orderChannelSvg" donut />
-          <el-empty v-else-if="listHydrated" description="暂无订单支付数据" :image-size="64" />
+          <ChartBox
+            :svg="orderChannelSvg"
+            donut
+            :loading="loading && !listHydrated"
+            :error="loadFailed ? '订单支付数据加载失败' : ''"
+            empty-text="暂无订单支付数据"
+            @retry="load"
+          />
           <ul v-if="orderChannelSvg" class="donut-legend-list">
             <li v-for="p in orderChannelParts" :key="p.label">
               <i :style="{ background: p.color }" />
@@ -215,8 +223,14 @@
 
       <ChartPanel title="充值渠道" :hint="`近 ${days} 天 · 已到账`" donut>
         <div class="donut-layout">
-          <ChartBox v-if="rechargeChannelSvg" :svg="rechargeChannelSvg" donut />
-          <el-empty v-else-if="listHydrated" description="暂无充值数据" :image-size="64" />
+          <ChartBox
+            :svg="rechargeChannelSvg"
+            donut
+            :loading="loading && !listHydrated"
+            :error="loadFailed ? '充值数据加载失败' : ''"
+            empty-text="暂无充值数据"
+            @retry="load"
+          />
           <ul v-if="rechargeChannelSvg" class="donut-legend-list">
             <li v-for="p in rechargeChannelParts" :key="p.label">
               <i :style="{ background: p.color }" />
@@ -244,12 +258,13 @@
           </fieldset>
         </template>
         <Transition name="chart-fade" mode="out-in">
-          <ChartBox v-if="opsSvg" :key="opsKind" :svg="opsSvg" />
-          <el-empty
-            v-else-if="listHydrated"
-            key="empty"
-            description="暂无识别质量数据"
-            :image-size="64"
+          <ChartBox
+            :key="opsKind"
+            :svg="opsSvg"
+            :loading="loading && !listHydrated"
+            :error="loadFailed ? '识别质量数据加载失败' : ''"
+            empty-text="暂无识别质量数据"
+            @retry="load"
           />
         </Transition>
         <template #footer>
@@ -271,8 +286,14 @@
             </el-button>
           </template>
           <div class="donut-layout">
-            <ChartBox v-if="deviceSvg" :svg="deviceSvg" donut />
-            <el-empty v-else-if="listHydrated" description="暂无设备数据" :image-size="64" />
+            <ChartBox
+              :svg="deviceSvg"
+              donut
+              :loading="loading && !listHydrated"
+              :error="loadFailed ? '设备数据加载失败' : ''"
+              empty-text="暂无设备数据"
+              @retry="load"
+            />
             <ul v-if="deviceSvg" class="donut-legend-list">
               <li>
                 <i style="background: #2dd4bf" />在线
@@ -403,6 +424,8 @@ const { router, canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
 /** 首屏未拉完前勿展示 ¥0 / 0% /「暂无」，避免与真实快照闪错 */
 const listHydrated = ref(false);
+/** 各块均失败时图表展示错误态 + 重试 */
+const loadFailed = ref(false);
 const days = ref(parseDays(route.query.days));
 const stats = ref<AdminStats>({});
 const trend = ref<DailyStat[]>([]);
@@ -518,6 +541,7 @@ const deviceSvg = computed(() =>
 
 async function load(opts?: { resetSeries?: boolean }) {
   loading.value = true;
+  loadFailed.value = false;
   // 切天数时清空系列，避免旧区间叠新图；软刷新保留
   if (opts?.resetSeries) {
     trend.value = [];
@@ -541,6 +565,7 @@ async function load(opts?: { resetSeries?: boolean }) {
         .catch(() => ({}))
     ]);
     if (!s && !t && !o && !f) {
+      loadFailed.value = true;
       ElMessage.error('经营分析数据加载失败');
       return;
     }
@@ -550,6 +575,7 @@ async function load(opts?: { resetSeries?: boolean }) {
     finance.value = f;
     channels.value = c || {};
   } catch (e) {
+    loadFailed.value = true;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
     listHydrated.value = true;
