@@ -6,7 +6,8 @@
           <div class="page-card-head__title">
             <span class="title">商户提现</span>
             <span class="hint"
-              >手续费由 MERCHANT_WITHDRAW_FEE_* 配置 · 到账=金额−手续费 · 默认 Mock 打款（非真实微信转账）</span
+              >手续费由 MERCHANT_WITHDRAW_FEE_* 配置 · 到账=金额−手续费 · 默认 Mock
+              打款（非真实微信转账）</span
             >
           </div>
         </div>

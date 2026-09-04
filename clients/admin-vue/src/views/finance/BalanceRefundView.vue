@@ -398,10 +398,7 @@ onMounted(load);
             fixed="right"
           >
             <template #default="{ row }">
-              <TableActions
-                :actions="rowActions(row)"
-                @action="(key) => onRowAction(key, row)"
-              />
+              <TableActions :actions="rowActions(row)" @action="(key) => onRowAction(key, row)" />
             </template>
           </el-table-column>
         </el-table>

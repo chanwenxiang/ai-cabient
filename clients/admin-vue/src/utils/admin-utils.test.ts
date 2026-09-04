@@ -35,7 +35,7 @@ describe('csv helpers', () => {
     expect(escapeCsvCell('@SUM(A1)')).toBe("'@SUM(A1)");
     expect(escapeCsvCell('\tHYPERLINK')).toBe("'\tHYPERLINK");
     // quotes still CSV-escaped after formula neutralize
-    expect(escapeCsvCell('=cmd|"/c calc"!A0')).toBe("\"'=cmd|\"\"/c calc\"\"!A0\"");
+    expect(escapeCsvCell('=cmd|"/c calc"!A0')).toBe('"\'=cmd|""/c calc""!A0"');
   });
 
   it('builds BOM csv and parses round-trip', () => {

@@ -248,8 +248,7 @@ const items = ref<OtaRelease[]>([]);
 
 /** 当前页无已发布项（或无下架权限）时隐藏操作列 */
 const showActionColumn = computed(
-  () =>
-    auth.hasPerm('ops:ota:publish') && items.value.some((row) => row.status === 'PUBLISHED')
+  () => auth.hasPerm('ops:ota:publish') && items.value.some((row) => row.status === 'PUBLISHED')
 );
 const dialog = ref(false);
 const form = reactive({
