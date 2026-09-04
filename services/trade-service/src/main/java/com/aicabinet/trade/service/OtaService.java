@@ -6,6 +6,8 @@ import com.aicabinet.trade.domain.OtaRelease;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.OtaReleaseMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +18,7 @@ import java.util.List;
 
 @Service
 public class OtaService {
+    private static final Logger log = LoggerFactory.getLogger(OtaService.class);
     private static final String STATUS_PUBLISHED = "PUBLISHED";
 
 
@@ -46,12 +49,23 @@ public class OtaService {
 
     @Transactional
     public OtaReleaseDto publishRelease(Long operatorId, OtaReleaseDto body) {
+        if (body == null || body.appVersion() == null || body.appVersion().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "版本号不能为空");
+        }
+        if (body.downloadUrl() == null || body.downloadUrl().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "下载地址不能为空");
+        }
+        String checksum = body.checksumSha256() == null ? "" : body.checksumSha256().trim().toLowerCase();
+        if (!checksum.matches("[0-9a-f]{64}")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "checksumSha256 必填且须为 64 位十六进制（edge 端强制校验）");
+        }
         OtaRelease release = new OtaRelease();
         release.setAppVersion(body.appVersion());
         release.setChannel(body.channel() != null ? body.channel() : "stable");
         release.setDownloadUrl(body.downloadUrl());
         release.setObjectStorageUri(body.objectStorageUri());
-        release.setChecksumSha256(body.checksumSha256());
+        release.setChecksumSha256(checksum);
         release.setReleaseNotes(body.releaseNotes());
         release.setMandatory(body.mandatory());
         release.setMinVersion(body.minVersion());
@@ -60,8 +74,8 @@ public class OtaService {
         if (body.deviceAllowlist() != null && !body.deviceAllowlist().isEmpty()) {
             try {
                 release.setDeviceAllowlist(objectMapper.writeValueAsString(body.deviceAllowlist()));
-            } catch (Exception ignored) {
-                // Malformed allowlist in request: skip persisting allowlist JSON.
+            } catch (Exception e) {
+                log.warn("OTA allowlist serialize failed", e);
             }
         }
         release.setStatus(STATUS_PUBLISHED);

@@ -36,7 +36,6 @@ class CompensationTaskSchedulerTest {
     @Mock private ProfitSharingReturnAlertService profitSharingReturnAlertService;
 
     @Mock private DistributedTransactionMapper txRepository;
-    @Mock private DistributedLockService lockService;
     @Mock private TccTransactionCoordinator txCoordinator;
     @Mock private ScheduledTaskService taskService;
 
@@ -44,7 +43,7 @@ class CompensationTaskSchedulerTest {
 
     @BeforeEach
     void setUp() {
-        scheduler = new CompensationTaskScheduler(taskRepository, txRepository, lockService, txCoordinator,
+        scheduler = new CompensationTaskScheduler(taskRepository, txRepository, txCoordinator,
                 taskService, splitRepository, merchantRepository, profitSharingService,
                 profitSharingReturnAlertService, null);
         ReflectionTestUtils.setField(scheduler, "self", scheduler);

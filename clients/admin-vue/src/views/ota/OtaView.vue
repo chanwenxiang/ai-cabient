@@ -146,8 +146,8 @@
       <el-form-item label="下载地址" required>
         <el-input v-model="form.downloadUrl" placeholder="https://cdn.example.com/app.apk…" />
       </el-form-item>
-      <el-form-item label="校验和">
-        <el-input v-model="form.checksumSha256" placeholder="sha256（可选）…" />
+      <el-form-item label="校验和" required>
+        <el-input v-model="form.checksumSha256" placeholder="sha256（必填，64 位十六进制）…" />
       </el-form-item>
       <el-form-item label="最低版本">
         <el-input v-model="form.minVersion" placeholder="可选…" />

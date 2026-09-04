@@ -2918,9 +2918,9 @@ onPullDownRefresh(load);
   opacity: 0.5;
 }
 .qty-btn {
-  width: 48rpx;
-  height: 48rpx;
-  line-height: 48rpx;
+  width: 88rpx;
+  height: 88rpx;
+  line-height: 88rpx;
   text-align: center;
   border-radius: 50%;
   background: #fff;
@@ -3053,14 +3053,14 @@ onPullDownRefresh(load);
 .line-meta.soft {
   color: #64748b;
 }
+/* 非 sticky：避免滚动选择货道时底栏遮挡操作区（P0-27） */
 .action-dock {
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
+  position: relative;
+  z-index: 1;
   margin-top: 22rpx;
   padding: 16rpx 0 calc(8rpx + env(safe-area-inset-bottom));
   background: #fff;
-  box-shadow: 0 -8rpx 20rpx rgba(255, 255, 255, 0.95);
+  border-top: 1rpx solid #e2e8f0;
 }
 .complete-banner {
   margin-top: 22rpx;

@@ -98,7 +98,7 @@ class ProductionStartupValidatorTest {
         when(payScoreProperties.enabled()).thenReturn(false);
 
         ReconciliationProperties reconciliationProperties = mock(ReconciliationProperties.class);
-        when(reconciliationProperties.mockEnabled()).thenReturn(true);
+        when(reconciliationProperties.mockEnabled()).thenReturn(false);
 
         CheckoutProperties checkoutProperties = mock(CheckoutProperties.class);
         when(checkoutProperties.balanceOnly()).thenReturn(false);
@@ -130,5 +130,59 @@ class ProductionStartupValidatorTest {
                 lineWithdrawProperties,
                 merchantWithdrawProperties,
                 identityVerifyProperties);
+    }
+
+    @Test
+    void prodRejectsReconciliationMock() {
+        Environment environment = mock(Environment.class);
+        when(environment.getActiveProfiles()).thenReturn(new String[] {"prod"});
+
+        SecurityProperties securityProperties = mock(SecurityProperties.class);
+        when(securityProperties.mockEnabled()).thenReturn(false);
+
+        StagingProperties stagingProperties = mock(StagingProperties.class);
+        when(stagingProperties.stagingMode()).thenReturn(false);
+
+        InternalApiProperties internalApiProperties = mock(InternalApiProperties.class);
+        when(internalApiProperties.key()).thenReturn("prod-internal-key-32bytes-at-least!!");
+
+        AuthProperties authProperties = mock(AuthProperties.class);
+        when(authProperties.jwtSecret()).thenReturn("prod-jwt-secret-32bytes-at-least!!!!");
+        when(authProperties.cookieEnabled()).thenReturn(true);
+        when(authProperties.cookieSecure()).thenReturn(true);
+        when(authProperties.sms()).thenReturn(new SmsProperties(
+                "482913", 300, "https://sms.example.com/send",
+                "webhook", null, null, null, null, null));
+
+        ReconciliationProperties reconciliationProperties = mock(ReconciliationProperties.class);
+        when(reconciliationProperties.mockEnabled()).thenReturn(true);
+
+        LineWithdrawProperties lineWithdrawProperties = mock(LineWithdrawProperties.class);
+        when(lineWithdrawProperties.mockEnabled()).thenReturn(false);
+        MerchantWithdrawProperties merchantWithdrawProperties = mock(MerchantWithdrawProperties.class);
+        when(merchantWithdrawProperties.mockEnabled()).thenReturn(false);
+
+        ProductionStartupValidator validator = new ProductionStartupValidator(
+                environment,
+                securityProperties,
+                stagingProperties,
+                internalApiProperties,
+                authProperties,
+                mock(WeChatPayProperties.class),
+                mock(WeChatMiniAppProperties.class),
+                mock(VisionApiProperties.class),
+                mock(MinioProperties.class),
+                mock(CorsProperties.class),
+                mock(ProfitSharingProperties.class),
+                mock(PayScoreProperties.class),
+                reconciliationProperties,
+                mock(CheckoutProperties.class),
+                lineWithdrawProperties,
+                merchantWithdrawProperties,
+                mock(IdentityVerifyProperties.class));
+
+        assertThatThrownBy(validator::validateProductionConfig)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("RECON_MOCK_ENABLED");
     }
 }

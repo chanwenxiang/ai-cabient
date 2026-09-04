@@ -189,7 +189,7 @@ public class DeviceTempPlanService {
                 deviceClient.requestSetTargetTemp(deviceId, target);
                 log.info("temp plan applied device={} target={}", deviceId, target);
             } catch (Exception e) {
-                log.warn("temp plan apply command failed device={}: {}", deviceId, e.getMessage());
+                log.warn("temp plan apply command failed device={}", deviceId, e);
             }
         }
     }
@@ -197,15 +197,24 @@ public class DeviceTempPlanService {
     /** 每分钟扫描启用的温控计划，按当前时段下发目标温度。 */
     @Scheduled(fixedRate = 60_000)
     public void scheduledApply() {
+        long start = System.nanoTime();
         if (!taskService.tryBegin("temp-plan", 600)) {
             return;
         }
-        for (DeviceTempPlan plan : planRepository.findAllEnabled()) {
-            try {
-                self.applyNow(plan.getDeviceId());
-            } catch (Exception e) {
-                log.warn("temp plan scheduled apply failed device={}: {}", plan.getDeviceId(), e.getMessage());
+        try {
+            int applied = 0;
+            for (DeviceTempPlan plan : planRepository.findAllEnabled()) {
+                try {
+                    self.applyNow(plan.getDeviceId());
+                    applied++;
+                } catch (Exception e) {
+                    log.warn("temp plan scheduled apply failed device={}: {}", plan.getDeviceId(), e.getMessage(), e);
+                }
             }
+            taskService.finish("temp-plan", "SUCCESS", "下发温控计划 " + applied + " 台", start);
+        } catch (Exception e) {
+            taskService.finish("temp-plan", "FAILED", e.getMessage(), start);
+            throw e;
         }
     }
 

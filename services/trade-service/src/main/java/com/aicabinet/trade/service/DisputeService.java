@@ -33,6 +33,8 @@ import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -53,6 +55,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class DisputeService {
+    private static final Logger log = LoggerFactory.getLogger(DisputeService.class);
     private static final String PERM_OPS_DISPUTE_RESOLVE = "ops:dispute:resolve";
     private static final String PARTIAL_REFUNDED = "PARTIAL_REFUNDED";
     private static final String RECOGNITION = "RECOGNITION";
@@ -499,6 +502,47 @@ public class DisputeService {
         ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
+        return toDto(ticket);
+    }
+
+    @Transactional
+    public DisputeTicketDto claimTicket(Long operatorId, String ticketId) {
+        permissionService.requirePermission(operatorId, PERM_OPS_DISPUTE_RESOLVE);
+        return runWithDisputeTicketLock(ticketId, () -> doClaimTicket(operatorId, ticketId, true));
+    }
+
+    @Transactional
+    public DisputeTicketDto claimAsMerchant(Long userId, String ticketId) {
+        permissionService.requirePermission(userId, "merchant:disputes:resolve");
+        merchantPortalGuard.requireAccess(userId);
+        return runWithDisputeTicketLock(ticketId, () -> doClaimTicket(userId, ticketId, false));
+    }
+
+    private DisputeTicketDto doClaimTicket(Long actorId, String ticketId, boolean ops) {
+        DisputeTicket ticket = disputeRepository.findByIdForUpdate(ticketId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
+        if (!"OPEN".equals(ticket.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.TICKET_ALREADY_RESOLVED);
+        }
+        ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        if (ops) {
+            merchantScopeService.requireDeviceAccess(actorId, session.getDeviceId());
+        } else {
+            merchantScopeService.requireDeviceAccess(actorId, session.getDeviceId());
+        }
+        String display = resolveActorDisplayName(actorId);
+        String existing = ticket.getAssignee();
+        if (existing != null && !existing.isBlank() && !existing.equals(display)) {
+            // 运营可强抢；商户不可抢走他人认领
+            if (!ops) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "工单已被「" + existing + "」认领");
+            }
+            log.info("dispute claim override ticketId={} from={} to={} actorId={}",
+                    ticketId, existing, display, actorId);
+        }
+        applyAssignee(ticket, actorId);
+        disputeRepository.save(ticket);
         return toDto(ticket);
     }
 

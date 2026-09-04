@@ -618,7 +618,8 @@ function canCancelFailedWithdraw(row: Withdraw) {
 /** 当前页无可操作行时隐藏操作列，避免终态列表整列空白 */
 const showWithdrawActionColumn = computed(() =>
   withdraws.value.some(
-    (row) => canReviewWithdraw(row) || canRetryWithdrawPayout(row) || canCancelFailedWithdraw(row)
+    (row: Withdraw) =>
+      canReviewWithdraw(row) || canRetryWithdrawPayout(row) || canCancelFailedWithdraw(row)
   )
 );
 
@@ -893,8 +894,13 @@ async function loadPromoTasks() {
 }
 
 function openPromoCreate() {
+  const firstManagerId = managers.value[0]?.managerId;
+  if (firstManagerId == null) {
+    ElMessage.warning('暂无线长，请先创建线长账号');
+    return;
+  }
   Object.assign(promoForm, {
-    managerId: managers.value[0]?.managerId || 1,
+    managerId: firstManagerId,
     title: '',
     routeCode: '',
     targetQty: 10,

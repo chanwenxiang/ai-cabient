@@ -941,7 +941,7 @@ public class PaymentService {
                     .setScale(0, java.math.RoundingMode.HALF_UP)
                     .intValueExact();
         } catch (Exception e) {
-            return 0;
+            throw new IllegalArgumentException("非法支付宝金额: " + yuanText, e);
         }
     }
 

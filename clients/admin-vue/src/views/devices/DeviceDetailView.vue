@@ -2438,7 +2438,7 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
 }
 .slot-diff.warn {
-  color: #ea580c;
+  color: #c2410c;
   margin-left: 6px;
   font-size: 12px;
 }

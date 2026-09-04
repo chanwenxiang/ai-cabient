@@ -20,26 +20,41 @@ import java.util.List;
 public class RiskAutoDispositionService {
 
     private static final Logger log = LoggerFactory.getLogger(RiskAutoDispositionService.class);
+    private static final String TASK_KEY = "risk-auto-disposition";
 
     private final RiskEventMapper riskEventRepository;
     private final SystemConfigService systemConfigService;
     private final DistributedLockService distributedLockService;
+    private final ScheduledTaskService taskService;
 
     public RiskAutoDispositionService(RiskEventMapper riskEventRepository,
                                       SystemConfigService systemConfigService,
-                                      DistributedLockService distributedLockService) {
+                                      DistributedLockService distributedLockService,
+                                      ScheduledTaskService taskService) {
         this.riskEventRepository = riskEventRepository;
         this.systemConfigService = systemConfigService;
         this.distributedLockService = distributedLockService;
+        this.taskService = taskService;
     }
 
     @Scheduled(fixedDelayString = "${aicabinet.risk.auto-disposition-ms:900000}", initialDelay = 120_000)
     @Transactional
     public void runScheduled() {
-        int cleared = autoClearInfo();
-        int acked = autoAckWarn();
-        if (cleared > 0 || acked > 0) {
-            log.info("risk auto-disposition cleared={} acked={}", cleared, acked);
+        long start = System.nanoTime();
+        if (!taskService.tryBegin(TASK_KEY, 600)) {
+            return;
+        }
+        try {
+            int cleared = autoClearInfo();
+            int acked = autoAckWarn();
+            if (cleared > 0 || acked > 0) {
+                log.info("risk auto-disposition cleared={} acked={}", cleared, acked);
+            }
+            taskService.finish(TASK_KEY, "SUCCESS",
+                    "结清 INFO " + cleared + " / 确认 WARN " + acked, start);
+        } catch (Exception e) {
+            taskService.finish(TASK_KEY, "FAILED", e.getMessage(), start);
+            throw e;
         }
     }
 

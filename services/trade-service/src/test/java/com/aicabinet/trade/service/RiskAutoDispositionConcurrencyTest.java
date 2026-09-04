@@ -28,12 +28,14 @@ class RiskAutoDispositionConcurrencyTest {
     @Mock private RiskEventMapper riskEventRepository;
     @Mock private SystemConfigService systemConfigService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private ScheduledTaskService taskService;
 
     private RiskAutoDispositionService service;
 
     @BeforeEach
     void setUp() {
-        service = new RiskAutoDispositionService(riskEventRepository, systemConfigService, distributedLockService);
+        service = new RiskAutoDispositionService(
+                riskEventRepository, systemConfigService, distributedLockService, taskService);
     }
 
     @Test

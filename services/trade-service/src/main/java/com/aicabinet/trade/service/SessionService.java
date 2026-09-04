@@ -613,7 +613,7 @@ public class SessionService {
             List<LiveCartDto.LiveCartLine> lines = objectMapper.readValue(json, new TypeReference<>() {});
             return lines == null ? List.of() : lines;
         } catch (Exception e) {
-            log.warn("parse live_cart failed: {}", e.getMessage());
+            log.warn("parse live_cart failed", e);
             return List.of();
         }
     }
