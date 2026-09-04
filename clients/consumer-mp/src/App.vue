@@ -39,7 +39,12 @@ uni-page-body {
   --page-bg: #ffffff;
   --text-muted: #64748b;
   --text-subtle: #94a3b8;
-  --card-radius: 24rpx;
+  /* 小程序圆角用 rpx，对齐共享 4 档 token */
+  --radius-pill: 999rpx;
+  --radius-card: 24rpx;
+  --radius-control: 12rpx;
+  --radius-tag: 8rpx;
+  --card-radius: var(--radius-card);
   --text-primary: #14201b;
   height: 100%;
   background-color: var(--page-bg);
@@ -78,7 +83,7 @@ uni-page-body::-webkit-scrollbar {
   display: inline-flex;
   align-items: center;
   padding: 10rpx 22rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   font-size: 24rpx;
   color: var(--text-muted);
   background: #fff;
@@ -159,7 +164,7 @@ input {
 
 .card {
   background: #fff;
-  border-radius: 24rpx;
+  border-radius: var(--radius-card);
   padding: 24rpx;
   margin: 0 24rpx 16rpx;
   border: 1rpx solid rgba(15, 118, 110, 0.06);

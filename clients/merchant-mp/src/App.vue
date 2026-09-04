@@ -37,7 +37,12 @@ uni-page-body {
   --page-bg: #ffffff;
   --text-muted: #64748b;
   --text-subtle: #94a3b8;
-  --card-radius: 22rpx;
+  /* 小程序圆角用 rpx，对齐共享 4 档 token */
+  --radius-pill: 999rpx;
+  --radius-card: 24rpx;
+  --radius-control: 12rpx;
+  --radius-tag: 8rpx;
+  --card-radius: var(--radius-card);
   height: 100%;
   background: var(--page-bg);
   font-family: var(--app-font);
@@ -75,7 +80,7 @@ uni-page-body {
   display: inline-flex;
   align-items: center;
   padding: 10rpx 22rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   font-size: 24rpx;
   color: var(--text-muted);
   background: #fff;

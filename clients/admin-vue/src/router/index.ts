@@ -1,4 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import NProgress from 'nprogress';
+import 'nprogress/nprogress.css';
 import { isLoggedIn } from '@/api/client';
 import { findNavByPath } from '@/config/menu';
 import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
@@ -6,6 +8,8 @@ import { useAuthStore } from '@/stores/auth';
 import { useBrandStore } from '@/stores/brand';
 import { safeRedirectPath } from '@/utils/safe-redirect';
 import { resolveHomePath } from '@/composables/useNavAccess';
+
+NProgress.configure({ showSpinner: false, trickleSpeed: 200, minimum: 0.08 });
 
 const bizChildren: any[] = [
   {
@@ -453,6 +457,7 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
+  NProgress.start();
   if (to.name === 'login' && isLoggedIn()) {
     const auth = useAuthStore();
     if (!auth.permissions.length) {
@@ -494,10 +499,15 @@ router.beforeEach(async (to) => {
 
 // 动态页面标题：每个路由的 meta.title 会拼到浏览器标签页上
 router.afterEach((to) => {
+  NProgress.done();
   const brand = useBrandStore();
   const base = brand.documentBaseTitle || 'AI开门柜 · 运营管理系统';
   const pageTitle = to.meta.title as string | undefined;
   document.title = pageTitle ? `${pageTitle} · ${base}` : base;
+});
+
+router.onError(() => {
+  NProgress.done();
 });
 
 export default router;
