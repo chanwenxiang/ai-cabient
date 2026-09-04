@@ -1,6 +1,21 @@
 @import './chart-panel.css';
 @import '@aicabinet/shared-uni/theme.css';
 
+/* 路由切换顶栏进度条：跟主题主色 */
+#nprogress .bar {
+  background: var(--app-primary, var(--brand, #0f766e)) !important;
+  height: 2px;
+}
+#nprogress .peg {
+  box-shadow:
+    0 0 10px var(--app-primary, var(--brand, #0f766e)),
+    0 0 5px var(--app-primary, var(--brand, #0f766e)) !important;
+}
+#nprogress .spinner-icon {
+  border-top-color: var(--app-primary, var(--brand, #0f766e));
+  border-left-color: var(--app-primary, var(--brand, #0f766e));
+}
+
 .skip-link {
   position: absolute;
   left: -9999px;
@@ -9,7 +24,7 @@
   padding: 8px 12px;
   background: var(--app-primary, #0f766e);
   color: #fff;
-  border-radius: 0 0 8px 0;
+  border-radius: 0 0 var(--radius-tag) 0;
   text-decoration: none;
   font-size: 14px;
 }
@@ -39,8 +54,9 @@
   --admin-space-md: 10px;
   --admin-space-lg: 14px;
   --admin-space-xl: 16px;
-  --admin-radius: 8px;
-  --admin-radius-lg: 10px;
+  /* 圆角对齐共享 token：标签档 / 控件档 */
+  --admin-radius: var(--radius-tag);
+  --admin-radius-lg: var(--radius-control);
   /* 细轨、半透明：占布局高度，不盖住末行 */
   --admin-scrollbar: color-mix(in srgb, var(--layout-muted) 42%, transparent);
   --admin-scrollbar-track: color-mix(in srgb, var(--layout-border) 40%, transparent);

@@ -16,16 +16,28 @@
   /* H5 根字号（px）：对齐 page 的 28rpx @ 375 设计宽 */
   --app-font-size-root: 14px;
 
+  /* —— 色板（design-tokens 波次 3）—— */
+  --brand: #0f766e;
+  --success: #16a34a;
+  --danger: #b91c1c;
+  --warning: #b45309;
+  --accent-orange: #c2410c;
+
+  /* —— 圆角 4 档（Web 用 px；小程序在 page 上覆写为 rpx）—— */
+  --radius-pill: 999px;
+  --radius-card: 24px;
+  --radius-control: 12px;
+  --radius-tag: 8px;
+
   --text-primary: #0f172a;
   --text-muted: #64748b;
   --text-subtle: #64748b;
   --page-bg: #f0fdfa;
   --card-bg: #ffffff;
-  --card-radius: 22rpx;
+  --card-radius: var(--radius-card);
   --card-border: #e2e8f0;
   --section-gap: 20rpx;
   --mask-bg: rgba(15, 23, 42, 0.62);
-  --danger: #b91c1c;
 }
 
 /*

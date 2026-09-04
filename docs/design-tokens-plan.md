@@ -1,31 +1,35 @@
-# Design Tokens 收敛专项（波次 3 另立）
+# Design Tokens 收敛专项（波次 3）
 
-> 本文件为计划「设计 token 收敛」的落点说明，**不在本轮安全加固波次内改 CSS**。
-> 目标：三端共用单一来源，减少圆角/色板/字号散落。
+> 色板 + 圆角 4 档已落到 `@aicabinet/shared-uni/theme.css`，三端引用。
+> 存量页面魔法值按模块分批替换（勿一次全仓扫改）。
 
-## 当前主色（已对齐）
+## 当前主色 / 语义色
 
 | Token | 值 | 用途 |
 |-------|-----|------|
-| `--brand` / primary | `#0f766e` | 主色 |
+| `--brand` | `#0f766e`（consumer 覆写 `#047857`） | 主色 |
 | `--success` | `#16a34a` | 成功 |
 | `--danger` | `#b91c1c` | 危险 |
 | `--warning` | `#b45309` | 警告 |
-| `--accent-orange` | `#c2410c` | 强调橙（WCAG AA，替代 `#ea580c`） |
+| `--accent-orange` | `#c2410c` | 强调橙（WCAG AA） |
 
-## 建议圆角 4 档
+## 圆角 4 档
 
-| Token | 值 | 用途 |
-|-------|-----|------|
-| `--radius-pill` | `999px` / `999rpx` | 胶囊按钮 |
-| `--radius-card` | `24px` / `24rpx` | 卡片 |
-| `--radius-control` | `12px` / `12rpx` | 输入/控件 |
-| `--radius-tag` | `8px` / `8rpx` | 标签 |
+| Token | Web | 小程序（page 覆写） | 用途 |
+|-------|-----|---------------------|------|
+| `--radius-pill` | `999px` | `999rpx` | 胶囊按钮 |
+| `--radius-card` | `24px` | `24rpx` | 卡片（`--card-radius` 指向本 token） |
+| `--radius-control` | `12px` | `12rpx` | 输入/控件；admin `--admin-radius-lg` |
+| `--radius-tag` | `8px` | `8rpx` | 标签；admin `--admin-radius` |
 
-## 落地顺序（后续专项）
+## 已落地
 
-1. 在 `packages/shared-uni` 或新建 `packages/design-tokens` 输出 JSON/CSS 变量
-2. admin-vue `src/styles`、consumer-mp / merchant-mp 全局 scss 引用
-3. 禁止页面内新增裸魔法值；存量按模块分批替换
+1. `packages/shared-uni/src/theme.css` 定义色板 + 圆角
+2. admin `main.css` 引用并映射 `--admin-radius*`
+3. merchant / consumer `App.vue` 在 `page` 覆写 rpx 圆角
 
-创建日期：2026-09-04
+## 后续
+
+- 禁止页面内新增裸魔法圆角/语义色；存量按模块替换为 `var(--radius-*)` / `var(--brand)` 等
+
+更新日期：2026-09-04
