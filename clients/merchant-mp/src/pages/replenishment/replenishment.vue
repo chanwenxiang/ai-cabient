@@ -1794,8 +1794,7 @@ async function obtainCheckInLocation(): Promise<{
   } catch {
     const cont = await askConfirm({
       title: '定位失败',
-      content:
-        '无法获取当前位置。请开启定位权限后重试；柜机已配置坐标时不能空定位签到。',
+      content: '无法获取当前位置。请开启定位权限后重试；柜机已配置坐标时不能空定位签到。',
       confirmText: '重试',
       cancelText: '取消'
     });

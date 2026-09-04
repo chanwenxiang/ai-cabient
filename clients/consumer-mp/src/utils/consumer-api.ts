@@ -117,7 +117,11 @@ export function clearOpenAttempt() {
 
 function applyTokenSession(data: LoginResponse) {
   uni.removeStorageSync(SKIP_SILENT_AUTH_KEY);
-  if (data.expiresInSeconds == null || !Number.isFinite(Number(data.expiresInSeconds)) || Number(data.expiresInSeconds) <= 0) {
+  if (
+    data.expiresInSeconds == null ||
+    !Number.isFinite(Number(data.expiresInSeconds)) ||
+    Number(data.expiresInSeconds) <= 0
+  ) {
     throw new Error('登录响应缺少有效过期时间');
   }
   uni.setStorageSync(TOKEN_KEY, data.token);
@@ -618,7 +622,8 @@ export const consumerApi = {
           '/api/v2/coupons?status=UNUSED'
         );
         const ok = (mine || []).some(
-          (c) => Number(c.couponId) === preferred && String(c.status || '').toUpperCase() === 'UNUSED'
+          (c) =>
+            Number(c.couponId) === preferred && String(c.status || '').toUpperCase() === 'UNUSED'
         );
         if (ok) {
           body.preferredCouponId = preferred;

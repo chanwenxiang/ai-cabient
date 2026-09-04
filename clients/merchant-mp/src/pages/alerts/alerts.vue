@@ -166,7 +166,8 @@ function actionHint(item: { type: string; deviceId?: string; ticketId?: string }
   if (type === 'EXPIRY') return '去处理临期任务 ›';
   if (type === 'LOW_STOCK') return '去发起要货 ›';
   if (type === 'REPLENISHMENT' || type === 'REPLENISHMENT_REQUIRED') return '去补货任务 ›';
-  if (type === 'DEVICE_OFFLINE' || type === 'DEVICE_FAULT' || type === 'SALES_LOCKED') return '查看柜机 ›';
+  if (type === 'DEVICE_OFFLINE' || type === 'DEVICE_FAULT' || type === 'SALES_LOCKED')
+    return '查看柜机 ›';
   if (item.deviceId) return '查看柜机 ›';
   return '查看详情 ›';
 }
@@ -239,7 +240,9 @@ async function load() {
       (a) => typeOf(a.type) === 'DISPUTE' || typeOf(a.type).startsWith('RECOGNITION')
     ).length;
     const fault = deduped.filter((a) =>
-      ['DEVICE_OFFLINE', 'DEVICE_FAULT', 'SALES_LOCKED', 'DOOR_OPEN_TOO_LONG'].includes(typeOf(a.type))
+      ['DEVICE_OFFLINE', 'DEVICE_FAULT', 'SALES_LOCKED', 'DOOR_OPEN_TOO_LONG'].includes(
+        typeOf(a.type)
+      )
     ).length;
     const stock = deduped.filter((a) =>
       [

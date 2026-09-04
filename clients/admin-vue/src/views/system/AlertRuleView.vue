@@ -128,12 +128,7 @@
             placeholder="仅可选白名单键"
             @change="onCreateKeyChange"
           >
-            <el-option
-              v-for="k in creatableBuiltinKeys"
-              :key="k"
-              :label="k"
-              :value="k"
-            />
+            <el-option v-for="k in creatableBuiltinKeys" :key="k" :label="k" :value="k" />
           </el-select>
           <el-input v-else v-model="form.configKey" disabled />
         </el-form-item>

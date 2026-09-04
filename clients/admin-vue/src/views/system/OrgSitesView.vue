@@ -249,7 +249,11 @@
             <el-option label="已作废" value="VOID" />
           </el-select>
           <el-button type="primary" :loading="loading" @click="loadBills">查询</el-button>
-          <el-button v-hasPermi="['ops:org:edit']" :loading="saving" @click="openGenerateBill(null)">
+          <el-button
+            v-hasPermi="['ops:org:edit']"
+            :loading="saving"
+            @click="openGenerateBill(null)"
+          >
             批量出账
           </el-button>
         </div>
@@ -280,9 +284,7 @@
                 <template #default="{ row }">{{ (row.shareBps / 100).toFixed(2) }}%</template>
               </el-table-column>
               <el-table-column label="月费基数" width="100" align="center">
-                <template #default="{ row }"
-                  >¥{{ (row.baseFeeCents / 100).toFixed(2) }}</template
-                >
+                <template #default="{ row }">¥{{ (row.baseFeeCents / 100).toFixed(2) }}</template>
               </el-table-column>
               <el-table-column label="应付" width="100" align="center">
                 <template #default="{ row }">¥{{ (row.amountCents / 100).toFixed(2) }}</template>
@@ -612,17 +614,17 @@
       <el-button size="small" @click="addRentRule">加一方</el-button>
       <template #footer>
         <el-button @click="rentSplitVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" :disabled="!rentShareSumOk" @click="saveRentSplit"
+        <el-button
+          type="primary"
+          :loading="saving"
+          :disabled="!rentShareSumOk"
+          @click="saveRentSplit"
           >保存分账</el-button
         >
       </template>
     </el-dialog>
 
-    <el-dialog
-      v-model="generateVisible"
-      :title="generateDialogTitle"
-      width="420px"
-    >
+    <el-dialog v-model="generateVisible" :title="generateDialogTitle" width="420px">
       <el-alert
         type="warning"
         :closable="false"
@@ -644,7 +646,9 @@
       </el-form>
       <template #footer>
         <el-button @click="generateVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submitGenerateBills">生成账单</el-button>
+        <el-button type="primary" :loading="saving" @click="submitGenerateBills"
+          >生成账单</el-button
+        >
       </template>
     </el-dialog>
   </el-card>
@@ -1201,7 +1205,9 @@ function dataFeeBillStatusLabel(s: string) {
 }
 
 function billStatusType(s: string) {
-  return ({ UNPAID: 'warning', PAID: 'success', VOID: 'info' } as Record<string, string>)[s] || 'info';
+  return (
+    ({ UNPAID: 'warning', PAID: 'success', VOID: 'info' } as Record<string, string>)[s] || 'info'
+  );
 }
 
 function onFeeBillKindChange() {

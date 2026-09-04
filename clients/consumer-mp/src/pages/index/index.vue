@@ -1590,9 +1590,7 @@ const shoppingCartLabel = computed(() => {
   if (mockEnabled.value) {
     return shoppingCartQty.value > 0 ? `模拟 ${shoppingCartQty.value} 件 · 明细` : '点看模拟清单';
   }
-  return shoppingCartQty.value > 0
-    ? `识别中 ${shoppingCartQty.value} 件 · 明细`
-    : '点看识别清单';
+  return shoppingCartQty.value > 0 ? `识别中 ${shoppingCartQty.value} 件 · 明细` : '点看识别清单';
 });
 
 function openCartSheet() {

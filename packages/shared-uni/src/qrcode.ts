@@ -122,7 +122,8 @@ export function parseCabinetScan(raw?: string | null): ScanResult {
   }
 
   let deviceId = normalizeDeviceId(text);
-  if (deviceId) return { deviceId, channel: 'PLAIN', autoOpen: false, alipayOnly: false, raw: text };
+  if (deviceId)
+    return { deviceId, channel: 'PLAIN', autoOpen: false, alipayOnly: false, raw: text };
 
   deviceId = tryParseJson(text);
   if (deviceId) return { deviceId, channel: 'JSON', autoOpen: false, alipayOnly: false, raw: text };

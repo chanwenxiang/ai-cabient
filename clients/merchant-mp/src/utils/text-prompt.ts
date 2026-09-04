@@ -124,9 +124,7 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
       hintEl.textContent = opts.hint;
       card.appendChild(hintEl);
     }
-    const field = singleLine
-      ? document.createElement('input')
-      : document.createElement('textarea');
+    const field = singleLine ? document.createElement('input') : document.createElement('textarea');
     field.className = 'mtp-field';
     field.id = `${HOST_ID}-field`;
     field.setAttribute('aria-labelledby', `${HOST_ID}-title`);
