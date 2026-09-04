@@ -465,7 +465,7 @@ async function save() {
     ElMessage.warning('请选择配置键');
     return;
   }
-  if (creating && !builtinGroupOf(configKey)) {
+  if (creating.value && !builtinGroupOf(configKey)) {
     ElMessage.warning('仅允许白名单键；自定义键不会被调度读取');
     return;
   }
