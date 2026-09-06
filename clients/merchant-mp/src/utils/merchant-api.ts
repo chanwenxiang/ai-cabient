@@ -334,7 +334,10 @@ export function uploadReplenishmentEvidenceFile(
       url: `${API_BASE_URL}/api/v2/merchant/replenishment/tasks/${taskId}/evidence`,
       filePath,
       name: 'file',
-      header: { Authorization: 'Bearer ' + getToken() },
+      header: {
+        Authorization: 'Bearer ' + getToken(),
+        'X-Requested-With': 'XMLHttpRequest'
+      },
       timeout: 30_000,
       success(res) {
         if (res.statusCode === 401) {
@@ -376,7 +379,10 @@ export function uploadReplenishmentRequestEvidenceFile(
       url: `${API_BASE_URL}/api/v2/merchant/replenishment/requests/evidence`,
       filePath,
       name: 'file',
-      header: { Authorization: 'Bearer ' + getToken() },
+      header: {
+        Authorization: 'Bearer ' + getToken(),
+        'X-Requested-With': 'XMLHttpRequest'
+      },
       timeout: 30_000,
       success(res) {
         if (res.statusCode === 401) {

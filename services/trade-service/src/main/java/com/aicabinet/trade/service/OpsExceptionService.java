@@ -29,6 +29,8 @@ public class OpsExceptionService {
     private static final String OPS_EXCEPTION = "OPS_EXCEPTION";
     private static final String PROCESSING = "PROCESSING";
     private static final String STATUS_RESOLVED = "RESOLVED";
+    /** 离线超时自动锁机产生的故障标题；设备恢复在线且未锁机/解锁后应自动关闭，避免商户待办滞后。 */
+    public static final String OFFLINE_AUTO_LOCK_TITLE = "离线超时自动停售";
 
     private static final List<String> OPEN = List.of("OPEN", PROCESSING);
     private final OpsExceptionMapper repository;
@@ -286,6 +288,41 @@ public class OpsExceptionService {
             });
             return null;
         });
+    }
+
+    /**
+     * 关闭「离线超时自动停售」类 DEVICE_FAULT；不误关其它设备故障。
+     * 用于心跳恢复且未锁机、或营业解锁后，避免商户待办滞后（BUG-009）。
+     */
+    @Transactional
+    public void resolveOfflineAutoLockFault(String deviceId, String resolution) {
+        if (deviceId == null || deviceId.isBlank()) {
+            return;
+        }
+        String dedup = "DEVICE_FAULT:" + deviceId;
+        runWithDedupLock(dedup, () -> {
+            repository.findFirstByDedupKeyAndStatusIn(dedup, OPEN).ifPresent(item -> {
+                if (!isOfflineAutoLockTitle(item.getTitle())) {
+                    return;
+                }
+                OpsException locked = requireForUpdate(item.getExceptionId());
+                if (!isOfflineAutoLockTitle(locked.getTitle())
+                        || STATUS_RESOLVED.equals(locked.getStatus())) {
+                    return;
+                }
+                locked.setStatus(STATUS_RESOLVED);
+                locked.setResolution(trim(resolution));
+                locked.setResolvedAt(Instant.now());
+                repository.save(locked);
+                support.auditService().appendLog(0L, "OPS_EXCEPTION_AUTO_RESOLVE", OPS_EXCEPTION,
+                        locked.getExceptionId(), trim(resolution));
+            });
+            return null;
+        });
+    }
+
+    static boolean isOfflineAutoLockTitle(String title) {
+        return title != null && title.trim().startsWith(OFFLINE_AUTO_LOCK_TITLE);
     }
 
     @Transactional

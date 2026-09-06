@@ -6,6 +6,14 @@
         <text class="state-title">加载中…</text>
         <text class="state-desc">正在获取购物录像</text>
       </view>
+      <template v-else-if="mediaKind === 'image' && imageSrc">
+        <image class="video-player still-frame" :src="imageSrc" mode="aspectFit" />
+        <view class="tips">
+          <text v-if="metaLine" class="meta">{{ metaLine }}</text>
+          <text class="tip">当前为现场截图（非视频），联调模拟器常见</text>
+          <button type="button" class="copy-btn" size="mini" @click="copyUrl">复制链接</button>
+        </view>
+      </template>
       <view v-else-if="!src && error" class="state">
         <text class="state-title">视频加载失败</text>
         <text class="state-desc">{{ error }}</text>
@@ -68,6 +76,9 @@ import { API_BASE_URL } from '@/config/api';
 import { downloadAuthedFile, getConsumerToken } from '@/utils/consumer-api';
 
 const src = ref('');
+/** 模拟器/网关偶发返回截图而非 mp4 时走图片预览 */
+const imageSrc = ref('');
+const mediaKind = ref<'video' | 'image' | ''>('');
 const error = ref('');
 const loading = ref(false);
 const orderId = ref('');
@@ -75,6 +86,31 @@ const deviceId = ref('');
 /** 用于复制的原始 URL（直链或 API 地址） */
 const copyTarget = ref('');
 let blobUrl = '';
+
+function sniffImageMime(bytes: Uint8Array, declaredType: string): string | null {
+  const declared = String(declaredType || '').toLowerCase();
+  if (declared.startsWith('image/')) return declared;
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    return 'image/png';
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return 'image/webp';
+  }
+  return null;
+}
 
 const metaLine = computed(() => {
   const parts: string[] = [];
@@ -103,6 +139,8 @@ async function loadOrderVideo(oid: string) {
   error.value = '';
   revokeBlob();
   src.value = '';
+  imageSrc.value = '';
+  mediaKind.value = '';
   const apiUrl = `${API_BASE_URL.replace(/\/$/, '')}/api/v2/orders/${encodeURIComponent(oid)}/video`;
   copyTarget.value = apiUrl;
   const token = getConsumerToken();
@@ -116,16 +154,29 @@ async function loadOrderVideo(oid: string) {
       throw new Error(`播放失败（HTTP ${res.status}）`);
     }
     const raw = await res.blob();
+    const buffer = await raw.arrayBuffer();
+    const head = new Uint8Array(buffer.slice(0, 16));
+    const imageMime = sniffImageMime(head, raw.type);
+    if (imageMime) {
+      // 模拟器常存 jpg/png 截图；勿再强制 video/mp4 导致 MEDIA_ERR
+      const imageBlob = new Blob([buffer], { type: imageMime });
+      blobUrl = URL.createObjectURL(imageBlob);
+      imageSrc.value = blobUrl;
+      mediaKind.value = 'image';
+      return;
+    }
     // Vite 代理/部分网关可能把 Content-Type 变成 octet-stream，Chrome 会 MEDIA_ERR_SRC_NOT_SUPPORTED
     const blob =
       raw.type && raw.type.startsWith('video/')
-        ? raw
-        : new Blob([await raw.arrayBuffer()], { type: 'video/mp4' });
+        ? new Blob([buffer], { type: raw.type })
+        : new Blob([buffer], { type: 'video/mp4' });
     blobUrl = URL.createObjectURL(blob);
     src.value = blobUrl;
+    mediaKind.value = 'video';
     // #endif
     // #ifndef H5
     src.value = await downloadAuthedFile(apiUrl, 120_000);
+    mediaKind.value = 'video';
     // #endif
   } catch (e) {
     error.value = e instanceof Error ? e.message : '视频地址无法访问，请复制链接后到浏览器打开';
@@ -201,6 +252,9 @@ function goOrder() {
   height: 56vh;
   background: #111;
   border-radius: 8px;
+}
+.still-frame {
+  object-fit: contain;
 }
 .state {
   margin-top: 30vh;

@@ -27,17 +27,20 @@ public class DeviceSalesLockService {
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
     private final MerchantDeviceIncidentNotifyService incidentNotifyService;
+    private final OpsExceptionService opsExceptionService;
 
     public DeviceSalesLockService(DeviceInfoMapper deviceRepository,
                                   DeviceServiceClient deviceClient,
                                   AdminAuditService auditService,
                                   DistributedLockService distributedLockService,
-                                  @org.springframework.context.annotation.Lazy MerchantDeviceIncidentNotifyService incidentNotifyService) {
+                                  @org.springframework.context.annotation.Lazy MerchantDeviceIncidentNotifyService incidentNotifyService,
+                                  @org.springframework.context.annotation.Lazy OpsExceptionService opsExceptionService) {
         this.deviceRepository = deviceRepository;
         this.deviceClient = deviceClient;
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
         this.incidentNotifyService = incidentNotifyService;
+        this.opsExceptionService = opsExceptionService;
     }
 
     /**
@@ -111,6 +114,11 @@ public class DeviceSalesLockService {
             } catch (Exception e) {
                 log.warn("sales lock incident notify failed device={}", device.getDeviceId(), e);
             }
+        }
+        // 解锁后关闭「离线超时自动停售」待办，避免设备已起售仍出现滞后待办
+        if (!locked && wasLocked && opsExceptionService != null) {
+            opsExceptionService.resolveOfflineAutoLockFault(device.getDeviceId(),
+                    "营业已解锁，关闭离线超时停售待办");
         }
         return commandId;
     }

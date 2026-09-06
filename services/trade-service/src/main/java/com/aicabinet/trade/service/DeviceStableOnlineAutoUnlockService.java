@@ -150,8 +150,7 @@ public class DeviceStableOnlineAutoUnlockService {
 
     private void unlock(DeviceInfo device) {
         salesLockService.applySalesLock(0L, device, false, "stable-online-auto-unlock", true);
-        opsExceptionService.resolveSystem("DEVICE_FAULT", device.getDeviceId(),
-                "设备恢复稳定在线后自动解锁起售");
+        // unlock 路径已 resolveOfflineAutoLockFault；此处再关 DEVICE_OFFLINE（若仍 OPEN）
         opsExceptionService.resolveSystem("DEVICE_OFFLINE", device.getDeviceId(),
                 "设备恢复稳定在线后自动解锁起售");
         auditService.appendLog(0L, "DEVICE_AUTO_UNLOCK_STABLE_ONLINE", "DEVICE", device.getDeviceId(),

@@ -41,7 +41,9 @@ class SessionServiceRecoveryTest {
     @Mock OpsExceptionService opsExceptionService;
     @Mock com.aicabinet.trade.mapper.UserInfoMapper userInfoRepository;
     @Mock com.aicabinet.trade.mapper.CabinetOrderMapper orderRepository;
+    @Mock ConsumerPreauthService consumerPreauthService;
     @Mock DistributedLockService distributedLockService;
+    @Mock ScheduledTaskService taskService;
 
     private SessionService service;
 
@@ -50,7 +52,7 @@ class SessionServiceRecoveryTest {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
                 gravityHelper, restockSnapshotService, null, opsExceptionService, userInfoRepository, orderRepository,
-                null, null, null, null, distributedLockService, null, null, null);
+                null, null, consumerPreauthService, null, distributedLockService, taskService, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
@@ -112,6 +114,39 @@ class SessionServiceRecoveryTest {
         verify(opsExceptionService).report("RECOGNITION_FAILED", "HIGH",
                 new OpsExceptionService.ExceptionReport.ExceptionRefs("CAB-001", "S-DISPUTED", null, 7L),
                 "识别结果需人工审核", "识别服务暂时不可用，已转人工审核，本次暂未扣款");
+    }
+
+    @Test
+    void expireStaleConsumerShopping_cancelsAndResolvesDoorOpenAlert() {
+        ShoppingSession stale = session("S-OPEN", 7L, "CAB-001", SessionState.SHOPPING);
+        stale.setOpenTime(java.time.Instant.now().minus(java.time.Duration.ofMinutes(11)));
+        when(taskService.tryBegin("session-door-open-expire", 600)).thenReturn(true);
+        when(repository.findByStateAndOpenTimeBefore(
+                org.mockito.ArgumentMatchers.eq(SessionState.SHOPPING),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(500)))
+                .thenReturn(java.util.List.of(stale));
+        when(repository.findByIdForUpdate("S-OPEN")).thenReturn(Optional.of(stale));
+
+        service.expireStaleConsumerShoppingSessions();
+
+        assertEquals(SessionState.CANCELLED, stale.getState());
+        assertEquals("开门超时自动关闭（超过10分钟未关门）", stale.getFailReason());
+        verify(consumerPreauthService).releaseIfFrozen(stale);
+        verify(repository).save(stale);
+        verify(opsExceptionService).report(
+                org.mockito.ArgumentMatchers.eq("DOOR_OPEN_TOO_LONG"),
+                org.mockito.ArgumentMatchers.eq("CRITICAL"),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq("柜门长时间未关闭"),
+                org.mockito.ArgumentMatchers.contains("已自动关闭会话"));
+        verify(opsExceptionService).resolveSystem("DOOR_OPEN_TOO_LONG", "S-OPEN",
+                "开门超时已自动关闭会话并释放设备");
+        verify(taskService).finish(
+                org.mockito.ArgumentMatchers.eq("session-door-open-expire"),
+                org.mockito.ArgumentMatchers.eq("SUCCESS"),
+                org.mockito.ArgumentMatchers.contains("关闭开门超时购物会话 1"),
+                org.mockito.ArgumentMatchers.anyLong());
     }
 
     private ShoppingSession session(String id, Long userId, String deviceId, SessionState state) {

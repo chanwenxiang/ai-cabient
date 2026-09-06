@@ -52,6 +52,11 @@ public class SystemConfigService {
             "device.offline.manual_unlock_grace_minutes";
     public static final String DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED = "device.offline.auto_unlock_enabled";
     public static final String DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES = "device.offline.auto_unlock_stable_minutes";
+    /**
+     * 柜内温度高于该值（℃）时上报 TEMP_ABNORMAL；0 或负数关闭。
+     * 对应告警规则页「温度告警上限」，对齐联调文档「温度&gt;8℃」。
+     */
+    public static final String DEVICE_TEMP_ALERT_MAX_C = "device.temp.alert_max_c";
     /** 柜机离线/停售即时通知冷却分钟数（同柜同类型），0=不冷却. */
     public static final String MERCHANT_INCIDENT_NOTIFY_COOLDOWN_MINUTES =
             "merchant.notify.incident_cooldown_minutes";
@@ -322,10 +327,12 @@ public class SystemConfigService {
                 "人工解锁后离线自动锁机宽限分钟数, 0=无宽限");
         upsertIfAbsent(DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED, FALSE,
                 "设备恢复稳定在线后是否自动解锁起售（默认关闭）");
-        upsertIfAbsent(MERCHANT_INCIDENT_NOTIFY_COOLDOWN_MINUTES, "30",
-                "柜机离线/停售即时通知冷却分钟数（同柜同类型），0=不冷却");
         upsertIfAbsent(DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, "15",
                 "自动解锁前需保持稳定在线分钟数, 0=关闭");
+        upsertIfAbsent(DEVICE_TEMP_ALERT_MAX_C, "8",
+                "柜内温度高于该值(℃)时上报温度异常告警, 0=关闭");
+        upsertIfAbsent(MERCHANT_INCIDENT_NOTIFY_COOLDOWN_MINUTES, "30",
+                "柜机离线/停售即时通知冷却分钟数（同柜同类型），0=不冷却");
         upsertIfAbsent(DISPUTE_SLA_HOURS, "48", "争议工单 SLA 处理时限（小时）");
         upsertIfAbsent(DISPUTE_SLA_REMINDER_HOURS, "12", "争议 SLA 到期前提醒提前量（小时）");
         upsertIfAbsent(DISPUTE_SLA_WEBHOOK, "", "争议 SLA 提醒/逾期推送 Webhook URL（留空不推送）");

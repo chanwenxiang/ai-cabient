@@ -30,7 +30,7 @@ class DeviceSalesLockConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        service = new DeviceSalesLockService(deviceRepository, deviceClient, auditService, distributedLockService, null);
+        service = new DeviceSalesLockService(deviceRepository, deviceClient, auditService, distributedLockService, null, null);
     }
 
     @Test

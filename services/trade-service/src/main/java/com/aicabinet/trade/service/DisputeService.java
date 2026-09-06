@@ -364,7 +364,13 @@ public class DisputeService {
             return disputeRepository.findById(created.ticketId()).orElseThrow();
         }
         if (STATUS_RESOLVED.equals(ticket.getStatus()) || STATUS_CLOSED.equals(ticket.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "关联争议已结案，无法再次退款");
+            // 识别争议「维持原账单」等结案后订单仍 PAID：允许规则内自助/运营退款，重开同会话工单承载退款流水。
+            // 已退款订单在 executeFullRefund 入口已拦截，避免重复退款。
+            ticket.setStatus("OPEN");
+            ticket.setClosedAt(null);
+            ticket.setResolvedAt(null);
+            ticket.setReopenedAt(Instant.now());
+            ticket.setOperatorNote(null);
         }
         ticket.setReason(reason);
         ticket.setCategory(USER_APPEAL);

@@ -188,6 +188,7 @@ const BUILTIN_GROUPS: Record<string, string[]> = {
     'device.offline.auto_unlock_enabled',
     'device.offline.auto_unlock_stable_minutes'
   ],
+  温控告警: ['device.temp.alert_max_c'],
   '争议 SLA': ['dispute.sla.hours', 'dispute.sla.reminder_hours', 'dispute.sla.webhook'],
   告警渠道: ['ops.alert.dingtalk_webhook', 'ops.alert.wecom_webhook', 'ops.alert.webhook'],
   卡点扫描: [
@@ -301,6 +302,7 @@ function isAlertRelated(key: string): boolean {
     key.startsWith('ops.alert.') ||
     key.startsWith('ops.scan.') ||
     key.startsWith('device.offline.') ||
+    key.startsWith('device.temp.') ||
     key.startsWith('dispute.sla.') ||
     key.startsWith('order.unpaid.') ||
     key.startsWith('recharge.pending.')
@@ -317,6 +319,7 @@ function ruleUnitHint(key: string) {
   if (key.includes('webhook')) return 'URL';
   if (key.includes('minutes')) return '分钟';
   if (key.includes('hours')) return '小时';
+  if (key.endsWith('_c') || key.includes('temp')) return '℃';
   return '暂无';
 }
 

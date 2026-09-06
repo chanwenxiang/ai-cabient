@@ -53,6 +53,19 @@ export interface MediaAssetDto {
     status: string;
     createdAt?: string;
 }
+export interface ScreenContentItemDto {
+    assetId: number;
+    title: string;
+    assetType: string;
+    storageUri?: string;
+    durationSeconds: number;
+    playUrl?: string;
+}
+export interface ScreenContentDto {
+    campaignId?: number | null;
+    campaignName?: string | null;
+    items: ScreenContentItemDto[];
+}
 export interface FootfallOverview {
     totalOpens: number;
     totalPaidOrders: number;
@@ -121,6 +134,39 @@ export interface SiteContractDto {
     monthlyFeeCents: number;
     status: string;
     remark?: string;
+    updatedAt?: string;
+}
+/** 场地租金应付账单（出账台账，标记已付不自动打款） */
+export interface SiteRentBillDto {
+    billId: number;
+    contractId: number;
+    deviceId: string;
+    siteName: string;
+    billMonth: string;
+    partyType: string;
+    partyId?: string;
+    shareBps: number;
+    fixedCents: number;
+    baseFeeCents: number;
+    amountCents: number;
+    status: string;
+    paidAt?: string;
+    remark?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+/** 柜机流量费月结应付账单 */
+export interface DeviceDataFeeBillDto {
+    billId: number;
+    deviceId: string;
+    deviceName?: string;
+    merchantId?: string;
+    billMonth: string;
+    amountCents: number;
+    status: string;
+    paidAt?: string;
+    remark?: string;
+    createdAt?: string;
     updatedAt?: string;
 }
 export interface AdCampaignDto {

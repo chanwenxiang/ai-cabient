@@ -6,8 +6,7 @@
           <div class="page-card-head__title">
             <span class="title">投放计划</span>
             <span class="hint"
-              >预览/演示：后台可配轮播；柜机播放器与曝光回写未接入（曝光/完播需设备调
-              screen-content）</span
+              >柜机模拟器与消费者开门页会拉取 screen-content 并回写 IMPRESSION/COMPLETE</span
             >
           </div>
         </div>

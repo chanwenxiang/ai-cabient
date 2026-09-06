@@ -57,7 +57,6 @@
 
         <div class="actions">
           <el-button
-            v-hasPermi="['ops:sku:demo']"
             type="primary"
             :loading="recognizing"
             :disabled="!imageFile"

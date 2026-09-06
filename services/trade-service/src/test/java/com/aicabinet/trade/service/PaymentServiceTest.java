@@ -109,7 +109,12 @@ class PaymentServiceTest {
         verify(rechargeOrderRepository).save(order);
         verify(balanceLedgerService).change(10001L, -500, "RECHARGE_REFUND", "R002",
                 "recharge-refund:R002", "test refund");
-        verify(paymentOperationRepository).save(any(PaymentOperation.class));
+        var opCaptor = org.mockito.ArgumentCaptor.forClass(PaymentOperation.class);
+        verify(paymentOperationRepository).save(opCaptor.capture());
+        PaymentOperation channelOp = opCaptor.getValue();
+        assertNull(channelOp.getOrderId());
+        assertEquals("RECHARGE_REFUND", channelOp.getOperationType());
+        assertTrue(channelOp.getReason().contains("R002"));
     }
 
     @Test

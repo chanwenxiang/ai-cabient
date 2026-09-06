@@ -110,7 +110,9 @@ export async function refreshTokenSilently(opts: MpApiSession): Promise<boolean>
       method: 'POST',
       header: {
         Authorization: 'Bearer ' + opts.getToken(),
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        // Cookie 会话写请求 CSRF 双保险（与 admin/shared-api 对齐）
+        'X-Requested-With': 'XMLHttpRequest'
       },
       timeout: opts.timeoutMs ?? 20_000,
       success(res) {
@@ -150,7 +152,11 @@ export function mpRequest<T>(
   retried = false
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    const header: Record<string, string> = { 'Content-Type': 'application/json' };
+    // X-Requested-With：H5 Cookie 会话的写请求需同源标记（后端 AuthInterceptor CSRF 双保险）
+    const header: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    };
     if (auth && opts.getToken()) header.Authorization = 'Bearer ' + opts.getToken();
     uni.request({
       url: opts.baseUrl + path,

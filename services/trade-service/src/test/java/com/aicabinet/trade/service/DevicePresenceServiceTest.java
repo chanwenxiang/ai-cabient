@@ -104,6 +104,85 @@ class DevicePresenceServiceTest {
         assertTrue(device.getUpdatedAt() != null && !device.getUpdatedAt().isBefore(before));
         verify(devices).save(device);
         verify(exceptions).resolveSystem("DEVICE_OFFLINE", "CAB-001", "设备心跳恢复，已自动上线");
+        verify(exceptions).resolveOfflineAutoLockFault(eq("CAB-001"), anyString());
+    }
+
+    @Test
+    void heartbeatReportsTempAbnormalWhenAboveAlertMax() {
+        DeviceInfoMapper devices = mock(DeviceInfoMapper.class);
+        DeviceTemperatureReadingMapper temperatures = mock(DeviceTemperatureReadingMapper.class);
+        CabinetMetrics metrics = mock(CabinetMetrics.class);
+        OpsExceptionService exceptions = mock(OpsExceptionService.class);
+        SystemConfigService systemConfig = mock(SystemConfigService.class);
+        AdminAuditService audit = mock(AdminAuditService.class);
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("CAB-TEMP");
+        device.setOnlineStatus("ONLINE");
+        when(devices.findByIdForUpdate("CAB-TEMP")).thenReturn(Optional.of(device));
+        when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(systemConfig.getInt(SystemConfigService.DEVICE_TEMP_ALERT_MAX_C, 8)).thenReturn(8);
+
+        DevicePresenceService service = new DevicePresenceService(
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        service.heartbeat("CAB-TEMP", "0.9.0", null, 12);
+
+        verify(exceptions).report(
+                eq("TEMP_ABNORMAL"),
+                eq("HIGH"),
+                any(),
+                eq("温度异常"),
+                org.mockito.ArgumentMatchers.contains("超过告警上限 8"));
+    }
+
+    @Test
+    void heartbeatResolvesTempAbnormalWhenBackWithinLimit() {
+        DeviceInfoMapper devices = mock(DeviceInfoMapper.class);
+        DeviceTemperatureReadingMapper temperatures = mock(DeviceTemperatureReadingMapper.class);
+        CabinetMetrics metrics = mock(CabinetMetrics.class);
+        OpsExceptionService exceptions = mock(OpsExceptionService.class);
+        SystemConfigService systemConfig = mock(SystemConfigService.class);
+        AdminAuditService audit = mock(AdminAuditService.class);
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("CAB-TEMP-OK");
+        device.setOnlineStatus("ONLINE");
+        when(devices.findByIdForUpdate("CAB-TEMP-OK")).thenReturn(Optional.of(device));
+        when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(systemConfig.getInt(SystemConfigService.DEVICE_TEMP_ALERT_MAX_C, 8)).thenReturn(8);
+
+        DevicePresenceService service = new DevicePresenceService(
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        service.heartbeat("CAB-TEMP-OK", "0.9.0", null, 5);
+
+        verify(exceptions).resolveSystem(eq("TEMP_ABNORMAL"), eq("CAB-TEMP-OK"), anyString());
+        org.mockito.Mockito.verify(exceptions, org.mockito.Mockito.never())
+                .report(eq("TEMP_ABNORMAL"), anyString(), any(), anyString(), anyString());
+    }
+
+    @Test
+    void heartbeatWhileSalesLockedDoesNotClearOfflineAutoLockFault() {
+        DeviceInfoMapper devices = mock(DeviceInfoMapper.class);
+        DeviceTemperatureReadingMapper temperatures = mock(DeviceTemperatureReadingMapper.class);
+        CabinetMetrics metrics = mock(CabinetMetrics.class);
+        OpsExceptionService exceptions = mock(OpsExceptionService.class);
+        SystemConfigService systemConfig = mock(SystemConfigService.class);
+        AdminAuditService audit = mock(AdminAuditService.class);
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("CAB-LOCKED");
+        device.setOnlineStatus("OFFLINE");
+        device.setSalesLocked(true);
+        when(devices.findByIdForUpdate("CAB-LOCKED")).thenReturn(Optional.of(device));
+        when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DevicePresenceService service = new DevicePresenceService(
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        service.heartbeat("CAB-LOCKED", "0.9.0", null, null);
+
+        verify(exceptions).resolveSystem("DEVICE_OFFLINE", "CAB-LOCKED", "设备心跳恢复，已自动上线");
+        org.mockito.Mockito.verify(exceptions, org.mockito.Mockito.never())
+                .resolveOfflineAutoLockFault(anyString(), anyString());
     }
 
     @Test

@@ -62,9 +62,12 @@ public final class ApiMessages {
     public static final String REPLENISHMENT_NO_GAP = "当前无补货缺口";
     public static final String REPLENISHMENT_ROUTE_NOT_FOUND = "补货路线不存在";
     public static final String REPLENISHMENT_CANCEL_NOT_EMPTY =
-            "任务已签到或已有上架记录/已交接，不能按空任务取消";
+            "任务已有上架记录，不能按空任务取消";
     public static final String REPLENISHMENT_ROUTE_CANCEL_BLOCKED =
-            "路线下仍有不可取消的任务（已签到或已交接），请先处理后再取消";
+            "路线下仍有不可取消的任务（已有上架记录），请先处理后再取消";
+    /** 无任务行且出库无明细时禁止签到，避免空任务签到后冻柜又无法 cancel-empty */
+    public static final String REPLENISHMENT_CHECK_IN_NO_LINES =
+            "任务暂无可履约明细，请先发运出库或录入上架清单后再签到";
     public static final String WAREHOUSE_OUTBOUND_CANCEL_BLOCKED =
             "出库单已有签收/部分签收记录，不能整单作废回仓";
     public static final String REPLENISHMENT_WAREHOUSE_STOCK_INSUFFICIENT = "仓库可用库存不足，未生成出库明细";

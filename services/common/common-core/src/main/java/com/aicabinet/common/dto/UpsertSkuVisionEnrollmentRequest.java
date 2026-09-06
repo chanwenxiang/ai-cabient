@@ -14,7 +14,8 @@ public record UpsertSkuVisionEnrollmentRequest(
         @DecimalMin("0.1") @DecimalMax("1.0")
         Float detectionMinConfidence,
         String referenceImageUrlsJson,
-        @Pattern(regexp = "YOLO_SKU|YOLO_COCO|YOLO_RETAIL")
+        /** 算法无关端侧类名；历史 YOLO_* 仍兼容 */
+        @Pattern(regexp = "EDGE_CLASS|YOLO_SKU|YOLO_COCO|YOLO_RETAIL")
         String mappingSource
 ) {
     public UpsertSkuVisionEnrollmentRequest {
@@ -25,7 +26,7 @@ public record UpsertSkuVisionEnrollmentRequest(
             detectionMinConfidence = 0.5f;
         }
         if (mappingSource == null || mappingSource.isBlank()) {
-            mappingSource = "YOLO_SKU";
+            mappingSource = "EDGE_CLASS";
         }
     }
 }

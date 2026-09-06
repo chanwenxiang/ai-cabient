@@ -9,10 +9,14 @@ export type LocalEvidence = {
   uploading?: boolean;
 };
 
-/** 选择并上传申诉附图，返回已成功的 fileId 列表 */
+/**
+ * 选择并上传申诉附图。
+ * @param onChange 每次列表变化时回调（须立刻写回页面 ref），否则上传中态不可见、无法拦提交。
+ */
 export async function pickAndUploadEvidence(
   current: LocalEvidence[],
-  maxCount = 5
+  maxCount = 5,
+  onChange?: (items: LocalEvidence[]) => void
 ): Promise<LocalEvidence[]> {
   const remain = maxCount - current.length;
   if (remain <= 0) {
@@ -34,18 +38,22 @@ export async function pickAndUploadEvidence(
   });
   if (!paths.length) return current;
   const next = [...current];
+  const notify = () => onChange?.([...next]);
   for (const path of paths) {
     const placeholder: LocalEvidence = { localPath: path, uploading: true };
     next.push(placeholder);
+    notify();
     try {
       const uploaded: FileAttachmentDto = await consumerApi.uploadDisputeEvidence(path);
       placeholder.fileId = uploaded.fileId;
       placeholder.url = absoluteEvidenceUrl(uploaded.url);
       placeholder.uploading = false;
+      notify();
     } catch (e) {
       placeholder.uploading = false;
       const idx = next.lastIndexOf(placeholder);
       if (idx >= 0) next.splice(idx, 1);
+      notify();
       uni.showToast({
         title: e instanceof Error ? e.message : '图片上传失败',
         icon: 'none'

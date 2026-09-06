@@ -108,12 +108,39 @@ public class DevicePresenceService {
             reading.setTempC(currentTempC);
             reading.setReportedAt(Instant.now());
             temperatureReadingRepository.save(reading);
+            applyTempAlert(deviceId, currentTempC);
         }
         device.markHeartbeatReceived();
         deviceRepository.save(device);
         opsExceptionService.resolveSystem("DEVICE_OFFLINE", deviceId, "设备心跳恢复，已自动上线");
+        // 已在线且未锁机时关闭滞后的「离线超时自动停售」待办（人工已解锁或从未锁机）
+        if (!device.salesLockedEnabled()) {
+            opsExceptionService.resolveOfflineAutoLockFault(deviceId,
+                    "设备已在线且未锁机，关闭离线超时停售待办");
+        }
         cabinetMetrics.refreshDeviceGauges(deviceRepository);
         log.debug("device heartbeat device={} app={} temp={}", deviceId, appVersion, currentTempC);
+    }
+
+    /**
+     * 按告警规则 {@link SystemConfigService#DEVICE_TEMP_ALERT_MAX_C}：超温上报 TEMP_ABNORMAL，恢复后自动结案。
+     */
+    private void applyTempAlert(String deviceId, int currentTempC) {
+        int maxC = systemConfigService.getInt(SystemConfigService.DEVICE_TEMP_ALERT_MAX_C, 8);
+        if (maxC <= 0) {
+            return;
+        }
+        if (currentTempC > maxC) {
+            opsExceptionService.report(
+                    "TEMP_ABNORMAL",
+                    "HIGH",
+                    new OpsExceptionService.ExceptionReport.ExceptionRefs(deviceId, null, null, null),
+                    "温度异常",
+                    "柜内温度 " + currentTempC + "℃ 超过告警上限 " + maxC + "℃");
+            return;
+        }
+        opsExceptionService.resolveSystem("TEMP_ABNORMAL", deviceId,
+                "柜内温度已回落到告警上限以内");
     }
 
     @Scheduled(fixedRate = 60_000)
@@ -193,7 +220,10 @@ public class DevicePresenceService {
                 d.setSalesUnlockedAt(null);
                 deviceRepository.save(d);
                 deviceRepository.clearSalesUnlockedAt(d.getDeviceId());
-                opsExceptionService.report("DEVICE_FAULT", "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(d.getDeviceId(), null, null, null), "离线超时自动停售", "设备离线超过 " + lockAfterMinutes + " 分钟，已自动锁机（故障码：离线超时）");
+                opsExceptionService.report("DEVICE_FAULT", "HIGH",
+                        new OpsExceptionService.ExceptionReport.ExceptionRefs(d.getDeviceId(), null, null, null),
+                        OpsExceptionService.OFFLINE_AUTO_LOCK_TITLE,
+                        "设备离线超过 " + lockAfterMinutes + " 分钟，已自动锁机（故障码：离线超时）");
                 auditService.appendLog(0L, "DEVICE_AUTO_LOCK_OFFLINE", "DEVICE", d.getDeviceId(),
                         "离线超过 " + lockAfterMinutes + " 分钟，已自动锁机停售");
                 log.info("device auto sales-locked after offline device={} minutes={}",

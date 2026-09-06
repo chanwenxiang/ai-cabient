@@ -70,7 +70,6 @@ class DeviceStableOnlineAutoUnlockServiceTest {
 
         assertEquals(1, service().autoUnlockStableOnlineDevices());
         verify(salesLock).applySalesLock(0L, device, false, "stable-online-auto-unlock", true);
-        verify(opsExceptionService).resolveSystem(eq("DEVICE_FAULT"), eq("CAB-001"), anyString());
         verify(opsExceptionService).resolveSystem(eq("DEVICE_OFFLINE"), eq("CAB-001"), anyString());
         verify(audit).appendLog(eq(0L), eq("DEVICE_AUTO_UNLOCK_STABLE_ONLINE"),
                 eq("DEVICE"), eq("CAB-001"), anyString());

@@ -86,6 +86,7 @@ class AdCampaignServiceTest {
         assertEquals(1, out.items().size());
         assertEquals("可乐广告", out.items().get(0).title());
         assertEquals("minio://bucket/ad/a.png", out.items().get(0).storageUri());
+        assertEquals("/api/v2/media/ad-assets/100", out.items().get(0).playUrl());
     }
 
     @Test

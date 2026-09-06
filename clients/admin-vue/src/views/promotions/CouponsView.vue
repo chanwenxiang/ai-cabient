@@ -141,6 +141,12 @@
           <el-table-column label="有效期" width="88" align="center">
             <template #default="{ row }">{{ row.validityDays }}天</template>
           </el-table-column>
+          <el-table-column label="绑定活动" width="100" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <span v-if="row.activityId" class="cell-id">{{ row.activityId }}</span>
+              <span v-else>未绑定</span>
+            </template>
+          </el-table-column>
           <el-table-column label="发行/总量" width="110" align="center">
             <template #default="{ row }"
               >{{ row.issuedCount }}/{{ row.maxIssueCount || '不限' }}</template
@@ -261,6 +267,22 @@
             style="width: 100%"
           />
         </el-form-item>
+        <el-form-item label="绑定活动">
+          <el-select
+            v-model="createForm.activityId"
+            clearable
+            filterable
+            placeholder="可选，绑定后发券扣活动预算"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="a in activityOptions"
+              :key="a.activityId"
+              :label="`${a.activityName} (#${a.activityId})`"
+              :value="a.activityId"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="描述"
           ><el-input v-model="createForm.description" type="textarea"
         /></el-form-item>
@@ -356,6 +378,7 @@ const statusFilter = ref('');
 const page = ref(1);
 const size = ref(20);
 const activeCoupons = ref<any[]>([]);
+const activityOptions = ref<any[]>([]);
 const showCreate = ref(false);
 const editingId = ref<number | null>(null);
 const displayList = computed(() => sortById(list.value));
@@ -371,6 +394,20 @@ async function loadActiveCoupons() {
       ).items || [];
   } catch {
     activeCoupons.value = [];
+  }
+}
+
+async function loadActivityOptions() {
+  try {
+    activityOptions.value =
+      (
+        await api.request<{ items: any[] }>(
+          '/api/v2/ops/promotions?page=0&size=200',
+          'GET'
+        )
+      ).items || [];
+  } catch {
+    activityOptions.value = [];
   }
 }
 
@@ -438,6 +475,7 @@ const createForm = ref<{
   validityDays: number;
   maxIssueCount: number;
   description: string;
+  activityId: number | null;
 }>({
   couponName: '',
   couponType: 'AMOUNT_OFF',
@@ -446,7 +484,8 @@ const createForm = ref<{
   discountPercent: null,
   validityDays: 30,
   maxIssueCount: 0,
-  description: ''
+  description: '',
+  activityId: null
 });
 const issueForm = ref<{ couponDefId: number | null; userId: number | null }>({
   couponDefId: null,
@@ -572,8 +611,10 @@ function openCreate() {
     discountPercent: null,
     validityDays: 30,
     maxIssueCount: 0,
-    description: ''
+    description: '',
+    activityId: null
   };
+  void loadActivityOptions();
   showCreate.value = true;
 }
 
@@ -587,8 +628,10 @@ function openEdit(row: any) {
     discountPercent: row.discountPercent ?? null,
     validityDays: row.validityDays || 30,
     maxIssueCount: row.maxIssueCount || 0,
-    description: row.description || ''
+    description: row.description || '',
+    activityId: row.activityId ?? null
   };
+  void loadActivityOptions();
   showCreate.value = true;
 }
 
@@ -642,7 +685,8 @@ async function onCreateSubmit() {
       discountPercent: isPercent ? Number(form.discountPercent) : null,
       validityDays: form.validityDays,
       maxIssueCount: form.maxIssueCount || 0,
-      description: form.description
+      description: form.description,
+      activityId: form.activityId || null
     };
     if (editingId.value) {
       await api.request(`/api/v2/coupons/definitions/${editingId.value}`, 'PUT', body);
