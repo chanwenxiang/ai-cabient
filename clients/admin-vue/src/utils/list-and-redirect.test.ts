@@ -33,6 +33,12 @@ describe('safeRedirectPath', () => {
     expect(safeRedirectPath('/dashboard#/merchants')).toBe('/merchants');
   });
 
+  it('maps SPA entry /index.html to fallback', () => {
+    expect(safeRedirectPath('/index.html')).toBe('/dashboard');
+    expect(safeRedirectPath('/index.html?x=1')).toBe('/dashboard');
+    expect(safeRedirectPath('/INDEX.HTML', '/devices')).toBe('/devices');
+  });
+
   it('rejects external and protocol-relative URLs', () => {
     expect(safeRedirectPath('https://evil.example/x')).toBe('/dashboard');
     expect(safeRedirectPath('//evil.example')).toBe('/dashboard');

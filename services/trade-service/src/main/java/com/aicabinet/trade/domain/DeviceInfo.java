@@ -65,6 +65,9 @@ public class DeviceInfo {
     /** 最近一次解锁时间（离线自动锁机宽限用） */
     private Instant salesUnlockedAt;
 
+    /** 最近一次成功心跳时间；从未心跳则为 null（不参与离线自动锁售） */
+    private Instant lastHeartbeatAt;
+
     /** 价格锁：禁止改价 */
     private Boolean priceLocked;
 
@@ -107,5 +110,11 @@ public class DeviceInfo {
     private Boolean deleted;
 
     public boolean salesLockedEnabled() { return Boolean.TRUE.equals(salesLocked); }
-    public void markHeartbeatReceived() { updatedAt = Instant.now(); }
+
+    /** 刷新存活时间戳；同时写入 lastHeartbeatAt，供离线自动锁售判断「是否曾上线」。 */
+    public void markHeartbeatReceived() {
+        Instant now = Instant.now();
+        updatedAt = now;
+        lastHeartbeatAt = now;
+    }
 }

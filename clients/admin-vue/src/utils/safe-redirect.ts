@@ -11,5 +11,10 @@ export function safeRedirectPath(raw: unknown, fallback = '/dashboard'): string 
   if (!path.startsWith('/') || path.startsWith('//') || path.includes('://')) {
     return fallback;
   }
+  // SPA 入口本身不是业务路由：未登录访问 /admin/index.html 会带 redirect=/index.html
+  const pathOnly = path.split('?')[0] || path;
+  if (/^\/index\.html$/i.test(pathOnly)) {
+    return fallback;
+  }
   return path;
 }

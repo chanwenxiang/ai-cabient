@@ -66,11 +66,13 @@ public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
     default List<DeviceInfo> findByOnlineStatusAndUpdatedAtBeforeAndSalesLockedFalse(
             String onlineStatus, java.time.Instant cutoff, int limit) {
         int lim = Math.max(1, Math.min(limit, 500));
+        // 仅锁「曾心跳上线过」的离线柜；新建未联网柜 last_heartbeat_at 为空，不参与自动停售（BUG-004）
         return selectList(Wrappers.<DeviceInfo>lambdaQuery()
                 .eq(DeviceInfo::getOnlineStatus, onlineStatus)
                 .and(w -> w.isNull(DeviceInfo::getSalesLocked).or().eq(DeviceInfo::getSalesLocked, false))
-                .lt(DeviceInfo::getUpdatedAt, cutoff)
-                .orderByAsc(DeviceInfo::getUpdatedAt)
+                .isNotNull(DeviceInfo::getLastHeartbeatAt)
+                .lt(DeviceInfo::getLastHeartbeatAt, cutoff)
+                .orderByAsc(DeviceInfo::getLastHeartbeatAt)
                 .last("LIMIT " + lim));
     }
 

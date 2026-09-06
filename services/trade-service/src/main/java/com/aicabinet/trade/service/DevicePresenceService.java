@@ -208,6 +208,10 @@ public class DevicePresenceService {
                 if (d == null || d.salesLockedEnabled()) {
                     return false;
                 }
+                if (d.getLastHeartbeatAt() == null) {
+                    log.debug("skip auto-lock never-heartbeated device={}", d.getDeviceId());
+                    return false;
+                }
                 if (graceCutoff != null
                         && d.getSalesUnlockedAt() != null
                         && d.getSalesUnlockedAt().isAfter(graceCutoff)) {
@@ -247,6 +251,7 @@ public class DevicePresenceService {
         device.setOnlineStatus(CabinetConstants.DEVICE_ONLINE);
         device.setOnlineSince(Instant.now());
         device.setLifecycleStatus("INBOUND");
+        device.setSalesLocked(false);
         return deviceRepository.save(device);
     }
 

@@ -207,4 +207,134 @@ class DevicePresenceServiceTest {
 
         assertEquals("860000000000001", device.getImei());
     }
+
+    @Test
+    void heartbeatWritesLastHeartbeatAt() {
+        DeviceInfoMapper devices = mock(DeviceInfoMapper.class);
+        DeviceTemperatureReadingMapper temperatures = mock(DeviceTemperatureReadingMapper.class);
+        CabinetMetrics metrics = mock(CabinetMetrics.class);
+        OpsExceptionService exceptions = mock(OpsExceptionService.class);
+        SystemConfigService systemConfig = mock(SystemConfigService.class);
+        AdminAuditService audit = mock(AdminAuditService.class);
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("CAB-HB");
+        device.setOnlineStatus("OFFLINE");
+        when(devices.findByIdForUpdate("CAB-HB")).thenReturn(Optional.of(device));
+        when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DevicePresenceService service = new DevicePresenceService(
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        Instant before = Instant.now().minusSeconds(1);
+        service.heartbeat("CAB-HB", "1.0.0", null, null);
+
+        assertNotNull(device.getLastHeartbeatAt());
+        assertTrue(!device.getLastHeartbeatAt().isBefore(before));
+    }
+
+    @Test
+    void markStaleDoesNotAutoLockNeverHeartbeatedDevice() {
+        DeviceInfoMapper devices = mock(DeviceInfoMapper.class);
+        DeviceTemperatureReadingMapper temperatures = mock(DeviceTemperatureReadingMapper.class);
+        CabinetMetrics metrics = mock(CabinetMetrics.class);
+        OpsExceptionService exceptions = mock(OpsExceptionService.class);
+        SystemConfigService systemConfig = mock(SystemConfigService.class);
+        AdminAuditService audit = mock(AdminAuditService.class);
+        ScheduledTaskService tasks = mock(ScheduledTaskService.class);
+        when(tasks.tryBegin(eq("device-presence"), eq(600L))).thenReturn(true);
+        when(systemConfig.getInt(SystemConfigService.DEVICE_OFFLINE_AUTO_LOCK_MINUTES, 10)).thenReturn(10);
+        when(systemConfig.getInt(SystemConfigService.DEVICE_OFFLINE_MANUAL_UNLOCK_GRACE_MINUTES, 45))
+                .thenReturn(45);
+        when(devices.findByOnlineStatusAndUpdatedAtBefore(eq("ONLINE"), any(Instant.class)))
+                .thenReturn(java.util.List.of());
+
+        DeviceInfo neverOnline = new DeviceInfo();
+        neverOnline.setDeviceId("NEW-CAB");
+        neverOnline.setOnlineStatus("OFFLINE");
+        neverOnline.setSalesLocked(false);
+        neverOnline.setLastHeartbeatAt(null);
+        neverOnline.setUpdatedAt(Instant.now().minusSeconds(3600));
+        when(devices.findByOnlineStatusAndUpdatedAtBeforeAndSalesLockedFalse(eq("OFFLINE"), any(Instant.class)))
+                .thenReturn(java.util.List.of());
+
+        DevicePresenceService service = new DevicePresenceService(
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null, tasks, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        service.markStaleDevicesOffline();
+
+        org.mockito.Mockito.verify(devices, org.mockito.Mockito.never()).findByIdForUpdate("NEW-CAB");
+        org.mockito.Mockito.verify(audit, org.mockito.Mockito.never())
+                .appendLog(eq(0L), eq("DEVICE_AUTO_LOCK_OFFLINE"), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void markStaleAutoLocksOfflineDeviceAfterLastHeartbeatCutoff() {
+        DeviceInfoMapper devices = mock(DeviceInfoMapper.class);
+        DeviceTemperatureReadingMapper temperatures = mock(DeviceTemperatureReadingMapper.class);
+        CabinetMetrics metrics = mock(CabinetMetrics.class);
+        OpsExceptionService exceptions = mock(OpsExceptionService.class);
+        SystemConfigService systemConfig = mock(SystemConfigService.class);
+        AdminAuditService audit = mock(AdminAuditService.class);
+        ScheduledTaskService tasks = mock(ScheduledTaskService.class);
+        when(tasks.tryBegin(eq("device-presence"), eq(600L))).thenReturn(true);
+        when(systemConfig.getInt(SystemConfigService.DEVICE_OFFLINE_AUTO_LOCK_MINUTES, 10)).thenReturn(10);
+        when(systemConfig.getInt(SystemConfigService.DEVICE_OFFLINE_MANUAL_UNLOCK_GRACE_MINUTES, 45))
+                .thenReturn(45);
+        when(devices.findByOnlineStatusAndUpdatedAtBefore(eq("ONLINE"), any(Instant.class)))
+                .thenReturn(java.util.List.of());
+
+        DeviceInfo stale = new DeviceInfo();
+        stale.setDeviceId("CAB-STALE");
+        stale.setOnlineStatus("OFFLINE");
+        stale.setSalesLocked(false);
+        stale.setLastHeartbeatAt(Instant.now().minusSeconds(3600));
+        when(devices.findByOnlineStatusAndUpdatedAtBeforeAndSalesLockedFalse(eq("OFFLINE"), any(Instant.class)))
+                .thenReturn(java.util.List.of(stale));
+        when(devices.findByIdForUpdate("CAB-STALE")).thenReturn(Optional.of(stale));
+        when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DevicePresenceService service = new DevicePresenceService(
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null, tasks, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        service.markStaleDevicesOffline();
+
+        assertTrue(stale.salesLockedEnabled());
+        assertTrue(stale.getSalesLockReason() != null && stale.getSalesLockReason().contains("离线超时"));
+        verify(audit).appendLog(eq(0L), eq("DEVICE_AUTO_LOCK_OFFLINE"), eq("DEVICE"), eq("CAB-STALE"), anyString());
+    }
+
+    @Test
+    void markStaleSkipsCandidateWithoutLastHeartbeatEvenIfReturned() {
+        DeviceInfoMapper devices = mock(DeviceInfoMapper.class);
+        DeviceTemperatureReadingMapper temperatures = mock(DeviceTemperatureReadingMapper.class);
+        CabinetMetrics metrics = mock(CabinetMetrics.class);
+        OpsExceptionService exceptions = mock(OpsExceptionService.class);
+        SystemConfigService systemConfig = mock(SystemConfigService.class);
+        AdminAuditService audit = mock(AdminAuditService.class);
+        ScheduledTaskService tasks = mock(ScheduledTaskService.class);
+        when(tasks.tryBegin(eq("device-presence"), eq(600L))).thenReturn(true);
+        when(systemConfig.getInt(SystemConfigService.DEVICE_OFFLINE_AUTO_LOCK_MINUTES, 10)).thenReturn(10);
+        when(systemConfig.getInt(SystemConfigService.DEVICE_OFFLINE_MANUAL_UNLOCK_GRACE_MINUTES, 45))
+                .thenReturn(45);
+        when(devices.findByOnlineStatusAndUpdatedAtBefore(eq("ONLINE"), any(Instant.class)))
+                .thenReturn(java.util.List.of());
+
+        DeviceInfo neverHb = new DeviceInfo();
+        neverHb.setDeviceId("CAB-NEVER");
+        neverHb.setOnlineStatus("OFFLINE");
+        neverHb.setSalesLocked(false);
+        neverHb.setLastHeartbeatAt(null);
+        when(devices.findByOnlineStatusAndUpdatedAtBeforeAndSalesLockedFalse(eq("OFFLINE"), any(Instant.class)))
+                .thenReturn(java.util.List.of(neverHb));
+        when(devices.findByIdForUpdate("CAB-NEVER")).thenReturn(Optional.of(neverHb));
+
+        DevicePresenceService service = new DevicePresenceService(
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null, tasks, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        service.markStaleDevicesOffline();
+
+        org.junit.jupiter.api.Assertions.assertFalse(neverHb.salesLockedEnabled());
+        org.mockito.Mockito.verify(audit, org.mockito.Mockito.never())
+                .appendLog(eq(0L), eq("DEVICE_AUTO_LOCK_OFFLINE"), anyString(), anyString(), anyString());
+    }
 }
