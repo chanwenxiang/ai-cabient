@@ -62,6 +62,21 @@ export interface MediaAssetDto {
   createdAt?: string;
 }
 
+export interface ScreenContentItemDto {
+  assetId: number;
+  title: string;
+  assetType: string;
+  storageUri?: string;
+  durationSeconds: number;
+  playUrl?: string;
+}
+
+export interface ScreenContentDto {
+  campaignId?: number | null;
+  campaignName?: string | null;
+  items: ScreenContentItemDto[];
+}
+
 export interface FootfallOverview {
   totalOpens: number;
   totalPaidOrders: number;

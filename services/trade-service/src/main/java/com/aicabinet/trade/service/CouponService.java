@@ -85,9 +85,11 @@ public class CouponService {
         def.setValidityDays(request.validityDays());
         def.setMaxIssueCount(Math.max(0, request.maxIssueCount()));
         def.setDescription(request.description());
+        applyActivityId(def, request.activityId());
         def.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
         definitionRepository.save(def);
-        log.info("coupon definition created id={} name={}", def.getCouponDefId(), def.getCouponName());
+        log.info("coupon definition created id={} name={} activityId={}",
+                def.getCouponDefId(), def.getCouponName(), def.getActivityId());
         return toDefDto(def);
     }
 
@@ -114,6 +116,7 @@ public class CouponService {
         def.setValidityDays(request.validityDays());
         def.setMaxIssueCount(Math.max(0, request.maxIssueCount()));
         def.setDescription(request.description());
+        applyActivityId(def, request.activityId());
         definitionRepository.save(def);
         log.info("coupon definition updated id={} name={}", def.getCouponDefId(), def.getCouponName());
         return toDefDto(def);
@@ -646,12 +649,21 @@ public class CouponService {
         }
     }
 
+    private void applyActivityId(CouponDefinition def, Long activityId) {
+        if (activityId == null) {
+            def.setActivityId(null);
+            return;
+        }
+        promotionService.requireExists(activityId);
+        def.setActivityId(activityId);
+    }
+
     private CouponDefinitionDto toDefDto(CouponDefinition d) {
         return new CouponDefinitionDto(
                 d.getCouponDefId(), d.getCouponName(), d.getCouponType(),
                 d.getDenominationCents(), d.getMinSpendCents(), d.getDiscountPercent(),
                 d.getValidityDays(), d.getMaxIssueCount(), d.getIssuedCount(),
-                d.getStatus(), d.getDescription());
+                d.getStatus(), d.getDescription(), d.getActivityId());
     }
 
     private CouponDto toDto(UserCoupon uc, CouponDefinition def) {

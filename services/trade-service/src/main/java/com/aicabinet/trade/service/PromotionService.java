@@ -75,6 +75,15 @@ public class PromotionService {
                 .stream().map(this::toDto).toList();
     }
 
+    /** 券定义绑定活动时校验活动存在。 */
+    public void requireExists(Long activityId) {
+        if (activityId == null) {
+            return;
+        }
+        repository.findById(activityId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
+    }
+
     @Transactional
     public PromotionActivityDto updateStatus(Long activityId, String status) {
         PromotionActivity a = repository.findById(activityId)

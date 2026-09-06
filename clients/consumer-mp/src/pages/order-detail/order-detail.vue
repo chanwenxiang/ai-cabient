@@ -682,7 +682,9 @@ function pickChip(chip: DisputeReasonChip) {
 }
 
 async function onAddEvidence() {
-  evidence.value = await pickAndUploadEvidence(evidence.value);
+  evidence.value = await pickAndUploadEvidence(evidence.value, 5, (items) => {
+    evidence.value = items;
+  });
 }
 
 async function removeEvidence(idx: number) {

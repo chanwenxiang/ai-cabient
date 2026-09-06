@@ -63,8 +63,23 @@ class CouponServiceTest {
         assertEquals("测试券", result.couponName());
         assertEquals(500, result.denominationCents());
         assertNull(result.discountPercent());
+        assertNull(result.activityId());
         assertEquals("ACTIVE", result.status());
         verify(definitionRepository, times(1)).save(any());
+        verify(promotionService, never()).requireExists(any());
+    }
+
+    @Test
+    void createDefinition_shouldBindActivityId() {
+        var req = new CreateCouponRequest("预算券", "AMOUNT_OFF", 100, 100, null, 7, 10, "T-102", 1L);
+        when(definitionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        var result = couponService.createDefinition(req);
+
+        assertEquals(1L, result.activityId());
+        verify(promotionService, times(1)).requireExists(1L);
+        verify(definitionRepository, times(1)).save(argThat(def ->
+                Long.valueOf(1L).equals(def.getActivityId())));
     }
 
     @Test
@@ -104,7 +119,7 @@ class CouponServiceTest {
         def.setStatus("INACTIVE");
         def.setIssuedCount(10);
 
-        var req = new UpdateCouponRequest("新券", "PERCENT_OFF", 0, 1000, 20, 60, 200, "更新说明");
+        var req = new UpdateCouponRequest("新券", "PERCENT_OFF", 0, 1000, 20, 60, 200, "更新说明", 9L);
         when(definitionRepository.findById(1L)).thenReturn(Optional.of(def));
         when(definitionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
@@ -113,8 +128,10 @@ class CouponServiceTest {
         assertEquals("新券", result.couponName());
         assertEquals("PERCENT_OFF", result.couponType());
         assertEquals(20, result.discountPercent());
+        assertEquals(9L, result.activityId());
         assertEquals("INACTIVE", result.status());
         assertEquals(10, result.issuedCount());
+        verify(promotionService, times(1)).requireExists(9L);
         verify(definitionRepository, times(1)).save(def);
     }
 

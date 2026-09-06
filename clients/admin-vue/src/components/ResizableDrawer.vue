@@ -6,6 +6,9 @@
     :class="['resizable-drawer-panel', attrsClass]"
     v-bind="drawerAttrs"
   >
+    <template v-if="slots.header" #header>
+      <slot name="header" />
+    </template>
     <div class="resizable-drawer-shell">
       <hr
         class="resizable-drawer-resize"
@@ -18,11 +21,14 @@
         <slot />
       </div>
     </div>
+    <template v-if="slots.footer" #footer>
+      <slot name="footer" />
+    </template>
   </el-drawer>
 </template>
 
 <script setup lang="ts">
-import { computed, useAttrs } from 'vue';
+import { computed, useAttrs, useSlots } from 'vue';
 import { useResizableDrawer } from '@/composables/useResizableDrawer';
 
 defineOptions({ inheritAttrs: false });
@@ -45,6 +51,7 @@ const props = withDefaults(
 const open = defineModel<boolean>({ default: false });
 
 const attrs = useAttrs();
+const slots = useSlots();
 const attrsClass = computed(() => attrs.class);
 const drawerAttrs = computed(() => {
   const { class: _c, ...rest } = attrs as Record<string, unknown>;

@@ -9,24 +9,31 @@
     ]]>
   </select>
 
+  <!-- 对账口径：当日曾支付成功的充值（含事后退款成 REFUNDED），与通道账单「先收后记退」一致 -->
   <select id="sumPaidAmountBetween" resultType="long">
     <![CDATA[
     SELECT COALESCE(SUM(r.amount_cents), 0) FROM recharge_order r
-    WHERE r.status = 'PAID' AND r.paid_at >= #{start} AND r.paid_at < #{end}
+    WHERE r.status IN ('PAID', 'REFUNDED')
+      AND r.paid_at IS NOT NULL
+      AND r.paid_at >= #{start} AND r.paid_at < #{end}
     ]]>
   </select>
 
   <select id="findPaidOrderIdsBetween" resultType="string">
     <![CDATA[
     SELECT r.order_id FROM recharge_order r
-    WHERE r.status = 'PAID' AND r.paid_at >= #{start} AND r.paid_at < #{end}
+    WHERE r.status IN ('PAID', 'REFUNDED')
+      AND r.paid_at IS NOT NULL
+      AND r.paid_at >= #{start} AND r.paid_at < #{end}
     ]]>
   </select>
 
   <select id="findPaidBetween" resultType="com.aicabinet.trade.domain.RechargeOrder">
     <![CDATA[
     SELECT r.* FROM recharge_order r
-    WHERE r.status = 'PAID' AND r.paid_at >= #{start} AND r.paid_at < #{end}
+    WHERE r.status IN ('PAID', 'REFUNDED')
+      AND r.paid_at IS NOT NULL
+      AND r.paid_at >= #{start} AND r.paid_at < #{end}
     ]]>
   </select>
 

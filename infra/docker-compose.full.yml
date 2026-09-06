@@ -230,7 +230,7 @@ services:
 
   device-simulator:
     build: { context: .., dockerfile: edge/device-simulator/Dockerfile }
-    command: ["CAB-001", "tcp://emqx:1883"]
+    command: ["587212913996", "tcp://emqx:1883"]
     environment:
       TRADE_SERVICE_URL: http://trade-service:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
@@ -245,6 +245,12 @@ services:
       AICABINET_SIM_GRAVITY_SLOT: A1
       # 测试关门页：http://localhost:${AICABINET_SIM_HTTP_PORT:-18089}/ （SHOPPING_MS=0 时点按钮关门）
       AICABINET_SIM_HTTP_PORT: "18089"
+      # 联调温控：心跳上报柜内温度并向目标收敛
+      AICABINET_SIM_CURRENT_TEMP_C: "${AICABINET_SIM_CURRENT_TEMP_C:-12}"
+      AICABINET_SIM_TARGET_TEMP_C: "${AICABINET_SIM_TARGET_TEMP_C:-8}"
+      AICABINET_SIM_HEARTBEAT_MS: "${AICABINET_SIM_HEARTBEAT_MS:-10000}"
+      # 柜机屏广告轮询（screen-content + ad-play）；0=关闭
+      AICABINET_SIM_AD_POLL_MS: "${AICABINET_SIM_AD_POLL_MS:-20000}"
       # 顶摄测试图/视频上传 MinIO，供 vision-service mock 联调
       AICABINET_SIM_VIDEO_FILE: "${AICABINET_SIM_VIDEO_FILE:-/testdata/bottle.jpg}"
     ports:

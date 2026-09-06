@@ -593,10 +593,16 @@ public class ApprovalWorkflowService {
     }
 
     private void createTasksForNode(ApprovalInstance instance, ApprovalNode node) {
-        Set<Long> assignees = resolveAssignees(node);
+        Set<Long> assignees = new LinkedHashSet<>(resolveAssignees(node));
+        if (assignees.isEmpty() && instance.getSubmitterId() != null) {
+            // 部门/角色未配置成员时回退到提交人，避免节点推进后无人可办导致流程卡死
+            log.warn("approval node has no assignees, fallback to submitter bizType={} node={} submitter={}",
+                    instance.getBizType(), node.getNodeName(), instance.getSubmitterId());
+            assignees.add(instance.getSubmitterId());
+        }
         if (assignees.isEmpty()) {
-            log.warn("approval node has no assignees bizType={} node={}", instance.getBizType(), node.getNodeName());
-            return;
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "审批节点「" + node.getNodeName() + "」无处理人，请先在部门管理中配置成员");
         }
         String body = "节点「" + node.getNodeName() + "」待您处理";
         for (Long assigneeId : assignees) {

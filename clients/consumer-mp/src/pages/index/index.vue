@@ -153,6 +153,8 @@
         </view>
       </view>
 
+      <DeviceAdBanner v-if="deviceId" :device-id="deviceId" />
+
       <view
         v-if="reviewSessionId && !sessionActive"
         class="settlement-review-card"
@@ -391,6 +393,7 @@
 import { onHide, onLoad, onReady, onShow, onUnload } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import OpenPrepDrawer from '@/components/open-prep-drawer.vue';
+import DeviceAdBanner from '@/components/device-ad-banner.vue';
 import LiveCartSheet, { type LiveCartSheetLine } from '@/components/live-cart-sheet.vue';
 import {
   clearOpenAttempt,

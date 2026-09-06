@@ -172,7 +172,10 @@ export function uploadDisputeEvidenceFile(
       url: BASE_URL + '/api/v2/disputes/evidence',
       filePath,
       name: 'file',
-      header: { Authorization: 'Bearer ' + getConsumerToken() },
+      header: {
+        Authorization: 'Bearer ' + getConsumerToken(),
+        'X-Requested-With': 'XMLHttpRequest'
+      },
       timeout: 30_000,
       success(res) {
         try {
@@ -571,6 +574,15 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').DeviceProduct[]>(
       `/api/v2/devices/${encodeURIComponent(deviceId)}/products`
     ),
+  screenContent: (deviceId: string) =>
+    request<import('@aicabinet/shared-types').ScreenContentDto>(
+      `/api/v2/devices/${encodeURIComponent(deviceId)}/screen-content`
+    ),
+  reportAdPlay: (
+    deviceId: string,
+    body: { campaignId: number; assetId: number; eventType: 'IMPRESSION' | 'COMPLETE' | 'CLICK' }
+  ) =>
+    request<null>(`/api/v2/devices/${encodeURIComponent(deviceId)}/ad-play`, 'POST', body),
   nearbyDevices: (q: { lat: number; lng: number; radiusKm?: number; limit?: number }) => {
     const radiusKm = q.radiusKm ?? 5;
     const limit = q.limit ?? 20;

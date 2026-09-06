@@ -5,7 +5,9 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">营销活动</span>
-            <span class="hint">满减 / 折扣等活动；预算与已使用居中展示</span>
+            <span class="hint"
+              >满减 / 折扣等活动；预算用尽后仍可「启用」，发券会被拦截并显示「预算已满」</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -126,9 +128,23 @@
           <el-table-column label="已使用" width="110" align="center" class-name="col-money">
             <template #default="{ row }">¥{{ yuan(row.usedCents) }}</template>
           </el-table-column>
-          <el-table-column label="剩余预算" width="110" align="center" class-name="col-money">
+          <el-table-column label="剩余预算" width="120" align="center" class-name="col-money">
             <template #default="{ row }">
-              ¥{{ yuan(Math.max(0, Number(row.budgetCents || 0) - Number(row.usedCents || 0))) }}
+              <div class="budget-remain">
+                <span
+                  >¥{{
+                    yuan(Math.max(0, Number(row.budgetCents || 0) - Number(row.usedCents || 0)))
+                  }}</span
+                >
+                <el-tag
+                  v-if="isBudgetExhausted(row)"
+                  type="warning"
+                  size="small"
+                  effect="plain"
+                  class="budget-full-tag"
+                  >预算已满</el-tag
+                >
+              </div>
             </template>
           </el-table-column>
           <el-table-column label="每人限次" width="90" align="center">
@@ -373,6 +389,13 @@ function formatTime(t: string) {
 }
 function isEnabled(status?: string) {
   return status === 'ACTIVE';
+}
+/** 配置仍启用，但预算已占满：派生态（对齐投放侧「启用≠还能花」） */
+function isBudgetExhausted(row: { status?: string; budgetCents?: number; usedCents?: number }) {
+  if (!isEnabled(row.status)) return false;
+  const budget = Number(row.budgetCents || 0);
+  if (budget <= 0) return false;
+  return Number(row.usedCents || 0) >= budget;
 }
 function statusLabel(status?: string) {
   return displayLabel('enable_status', status, '暂无');
@@ -765,6 +788,16 @@ onActivated(() => {
 .muted {
   color: var(--layout-muted);
   font-size: 13px;
+}
+.budget-remain {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  line-height: 1.2;
+}
+.budget-full-tag {
+  margin: 0;
 }
 .hidden-input {
   display: none;

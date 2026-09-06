@@ -571,6 +571,7 @@ public class ReplenishmentService {
 
     private ReplenishmentTaskDto doCheckInTask(Long taskId, ReplenishmentCheckInRequest request) {
         ReplenishmentTask task = requireTaskForUpdate(taskId);
+        assertTaskHasFulfillableWork(task);
         DeviceInfo device = deviceRepository.findById(task.getDeviceId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
         boolean deviceHasCoords = device.getLatitude() != null && device.getLongitude() != null;
@@ -593,6 +594,21 @@ public class ReplenishmentService {
         task = taskRepository.save(task);
         reopenRouteIfActive(task.getRouteId());
         return toTaskDto(task);
+    }
+
+    /**
+     * 签到前须有可履约明细：任务行已存在，或关联出库对该柜已有明细（发运后可生成任务行）。
+     * 否则空任务签到会冻柜，且历史上无法 cancel-empty（BUG-010）。
+     */
+    private void assertTaskHasFulfillableWork(ReplenishmentTask task) {
+        if (!taskLineRepository.findByTaskIdOrderByLineIdAsc(task.getTaskId()).isEmpty()) {
+            return;
+        }
+        if (task.getOutboundId() != null
+                && warehouseService.hasOutboundLinesForDevice(task.getOutboundId(), task.getDeviceId())) {
+            return;
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.REPLENISHMENT_CHECK_IN_NO_LINES);
     }
 
     private void validateCheckInLocation(DeviceInfo device, double lat, double lng) {
@@ -1023,8 +1039,8 @@ public class ReplenishmentService {
     }
 
     /**
-     * 安全取消空/卡死任务：未签到、无已上架明细；无出库或出库未交接可取消。
-     * 有 SHIPPED 未签收时回仓并取消在途，不 DELETE 业务表。
+     * 安全取消空/卡死任务：无已上架明细即可取消（含已签到但未上架，避免空任务冻柜）。
+     * 无出库或出库未交接可取消；有 SHIPPED 未签收时回仓并取消在途，不 DELETE 业务表。
      * 任务已 CANCELLED 时仍幂等收口其脏出库/在途（历史联调残留）。
      */
     @Transactional
@@ -1128,9 +1144,7 @@ public class ReplenishmentService {
     }
 
     private void assertTaskCancellableEmpty(ReplenishmentTask task) {
-        if (task.getCheckInAt() != null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_CANCEL_NOT_EMPTY);
-        }
+        // 已签到但尚未上架：允许取消以解除消费者冻柜（BUG-010）；已上架则禁止。
         boolean hasApplied = taskLineRepository.findByTaskIdOrderByLineIdAsc(task.getTaskId()).stream()
                 .anyMatch(ReplenishmentTaskLine::isApplied);
         if (hasApplied) {

@@ -193,8 +193,11 @@ public class AdCampaignService {
                 if (asset == null || !"ACTIVE".equals(asset.getStatus())) {
                     continue;
                 }
+                // playUrl：同源媒体代理，供 H5/小程序 <image>/<video> 直链（与素材库 preview 一致）
+                String playUrl = "/api/v2/media/ad-assets/" + asset.getAssetId();
                 items.add(new ScreenContentItemDto(asset.getAssetId(), asset.getTitle(),
-                        asset.getAssetType(), asset.getStorageUri(), asset.getDurationSeconds()));
+                        asset.getAssetType(), asset.getStorageUri(), asset.getDurationSeconds(),
+                        playUrl));
             }
             if (!items.isEmpty()) {
                 return new ScreenContentDto(campaign.getCampaignId(), campaign.getName(), items);

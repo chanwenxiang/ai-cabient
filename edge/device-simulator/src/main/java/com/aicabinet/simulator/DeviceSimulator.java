@@ -42,6 +42,9 @@ import java.util.concurrent.Executors;
  *   <li>{@code AICABINET_SIM_APP_VERSION=0.9.0} — OTA 检查用版本号</li>
  *   <li>{@code AICABINET_SIM_SHOPPING_MS} — 开门后自动关门等待；{@code 0} 表示保持开门，需点 HTTP「关门」或走小程序结算</li>
  *   <li>{@code AICABINET_SIM_HTTP_PORT} — 测试用关门页端口，默认 {@code 18089}；{@code 0} 关闭</li>
+ *   <li>{@code AICABINET_SIM_CURRENT_TEMP_C} — 初始柜内温度（℃），默认 {@code 12}</li>
+ *   <li>{@code AICABINET_SIM_TARGET_TEMP_C} — 初始目标温度（℃），默认 {@code 8}；收到 SET_TARGET_TEMP 后更新</li>
+ *   <li>{@code AICABINET_SIM_AD_POLL_MS} — 屏广告轮询间隔（ms），默认 {@code 20000}；{@code 0} 关闭</li>
  * </ul>
  */
 public class DeviceSimulator implements MqttCallbackExtended {
@@ -72,9 +75,14 @@ public class DeviceSimulator implements MqttCallbackExtended {
     private long lastUserId;
     /** {@code SHOPPING_MS=0} 时记录当前开门会话，供 HTTP /close 手动关门。 */
     private volatile String openSessionId;
+    /** 模拟柜内温度（℃）；心跳上报，并向目标温度逐步收敛。 */
+    private volatile double currentTempC;
+    private volatile int targetTempC;
 
     public DeviceSimulator(String deviceId) {
         this.deviceId = deviceId;
+        this.currentTempC = parseDoubleEnv("AICABINET_SIM_CURRENT_TEMP_C", 12);
+        this.targetTempC = (int) Math.round(parseDoubleEnv("AICABINET_SIM_TARGET_TEMP_C", 8));
     }
 
     public void start(String broker) throws MqttException {
@@ -90,6 +98,7 @@ public class DeviceSimulator implements MqttCallbackExtended {
         checkOta();
         publishHeartbeat();
         startHeartbeatLoop();
+        startAdScreenLoop();
         startHttpControl();
     }
 
@@ -134,10 +143,11 @@ public class DeviceSimulator implements MqttCallbackExtended {
     }
 
     private void startHeartbeatLoop() {
+        long intervalMs = Long.parseLong(env("AICABINET_SIM_HEARTBEAT_MS", "30000"));
         Thread t = new Thread(() -> {
             while (!Thread.currentThread().isInterrupted()) {
                 try {
-                    Thread.sleep(30_000);
+                    Thread.sleep(Math.max(5_000, intervalMs));
                     publishHeartbeat();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -151,18 +161,116 @@ public class DeviceSimulator implements MqttCallbackExtended {
         t.start();
     }
 
+    /**
+     * 柜机屏播放器模拟：轮询 screen-content，对当前素材回写 IMPRESSION/COMPLETE。
+     */
+    private void startAdScreenLoop() {
+        long intervalMs = Long.parseLong(env("AICABINET_SIM_AD_POLL_MS", "20000"));
+        if (intervalMs <= 0) {
+            System.out.println("[simulator] ad screen loop disabled");
+            return;
+        }
+        Thread t = new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    pollAndReportAdPlay();
+                    Thread.sleep(Math.max(5_000, intervalMs));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (Exception e) {
+                    System.err.println("[simulator] ad screen poll failed: " + e.getMessage());
+                    try {
+                        Thread.sleep(Math.max(5_000, intervalMs));
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        }, "sim-ad-screen-" + deviceId);
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private void pollAndReportAdPlay() throws Exception {
+        String tradeUrl = env("TRADE_SERVICE_URL", "http://localhost:8080");
+        String apiKey = env("INTERNAL_API_KEY", "dev-internal-key-change-me");
+        String contentUrl = tradeUrl + "/internal/v1/devices/" + deviceId + "/screen-content";
+        HttpRequest get = HttpRequest.newBuilder()
+                .uri(URI.create(contentUrl))
+                .timeout(Duration.ofSeconds(8))
+                .header("X-Internal-Api-Key", apiKey)
+                .GET()
+                .build();
+        HttpResponse<String> resp = http.send(get, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
+            throw new IOException("screen-content HTTP " + resp.statusCode());
+        }
+        JsonNode root = mapper.readTree(resp.body());
+        JsonNode data = root.path("data");
+        long campaignId = data.path("campaignId").asLong(0L);
+        JsonNode items = data.path("items");
+        if (campaignId <= 0 || !items.isArray() || items.isEmpty()) {
+            return;
+        }
+        JsonNode first = items.get(0);
+        long assetId = first.path("assetId").asLong(0L);
+        if (assetId <= 0) {
+            return;
+        }
+        postAdPlay(tradeUrl, apiKey, campaignId, assetId, "IMPRESSION");
+        postAdPlay(tradeUrl, apiKey, campaignId, assetId, "COMPLETE");
+        System.out.println("[simulator] ad-play campaign=" + campaignId + " asset=" + assetId
+                + " items=" + items.size());
+    }
+
+    private void postAdPlay(String tradeUrl, String apiKey, long campaignId, long assetId, String eventType)
+            throws Exception {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("campaignId", campaignId);
+        body.put("assetId", assetId);
+        body.put("eventType", eventType);
+        byte[] payload = mapper.writeValueAsBytes(body);
+        HttpRequest post = HttpRequest.newBuilder()
+                .uri(URI.create(tradeUrl + "/internal/v1/devices/" + deviceId + "/ad-play"))
+                .timeout(Duration.ofSeconds(8))
+                .header("Content-Type", "application/json")
+                .header("X-Internal-Api-Key", apiKey)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(payload))
+                .build();
+        HttpResponse<String> resp = http.send(post, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
+            throw new IOException("ad-play " + eventType + " HTTP " + resp.statusCode());
+        }
+    }
+
     private void publishHeartbeat() {
         try {
+            convergeTempTowardTarget();
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("type", CabinetConstants.MQTT_EVENT_TYPE_HEARTBEAT);
             payload.put("deviceId", deviceId);
             payload.put("timestamp", System.currentTimeMillis());
             payload.put("appVersion", appVersion());
             payload.put("firmwareVersion", env("AICABINET_SIM_FIRMWARE_VERSION", "1.0.0"));
+            // 与 device-service MqttEventListener.parseTemp 对齐
+            payload.put("currentTempC", (int) Math.round(currentTempC));
             client.publish(MqttTopics.event(deviceId), new MqttMessage(mapper.writeValueAsBytes(payload)));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /** 每心跳向目标温度靠近约 1℃，便于联调「下发温度 → 曲线收敛」。 */
+    private void convergeTempTowardTarget() {
+        double delta = targetTempC - currentTempC;
+        if (Math.abs(delta) < 0.05) {
+            currentTempC = targetTempC;
+            return;
+        }
+        double step = Math.signum(delta) * Math.min(1.0, Math.abs(delta));
+        currentTempC += step;
     }
 
     @Override
@@ -190,8 +298,17 @@ public class DeviceSimulator implements MqttCallbackExtended {
         String type = node.path("type").asText();
         String commandId = node.path("commandId").asText();
         if (!CabinetConstants.MQTT_CMD_OPEN_DOOR.equals(type)) {
-            if (CabinetConstants.MQTT_CMD_SET_TARGET_TEMP.equals(type)
-                    || CabinetConstants.MQTT_CMD_LOCK.equals(type)
+            if (CabinetConstants.MQTT_CMD_SET_TARGET_TEMP.equals(type)) {
+                int nextTarget = node.path("targetTempC").asInt(targetTempC);
+                targetTempC = nextTarget;
+                System.out.println("[simulator] SET_TARGET_TEMP received target=" + nextTarget
+                        + " current=" + Math.round(currentTempC));
+                publishAck(commandId);
+                // 立即心跳一次，联调无需等 30s 才看到温度
+                publishHeartbeat();
+                return;
+            }
+            if (CabinetConstants.MQTT_CMD_LOCK.equals(type)
                     || CabinetConstants.MQTT_CMD_UNLOCK.equals(type)
                     || CabinetConstants.MQTT_CMD_REBOOT.equals(type)) {
                 System.out.println("[simulator] " + type + " received");
@@ -373,6 +490,8 @@ public class DeviceSimulator implements MqttCallbackExtended {
         body.put("deviceId", deviceId);
         body.put("open", sid != null && !sid.isBlank());
         body.put("sessionId", sid);
+        body.put("currentTempC", (int) Math.round(currentTempC));
+        body.put("targetTempC", targetTempC);
         writeText(ex, 200, "application/json; charset=utf-8", mapper.writeValueAsString(body));
     }
 
@@ -672,6 +791,18 @@ public class DeviceSimulator implements MqttCallbackExtended {
 
     private static String appVersion() {
         return env("AICABINET_SIM_APP_VERSION", "0.9.0");
+    }
+
+    private static double parseDoubleEnv(String key, double defaultValue) {
+        String v = env(key, null);
+        if (v == null) {
+            return defaultValue;
+        }
+        try {
+            return Double.parseDouble(v);
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 
     private static String env(String key, String defaultValue) {

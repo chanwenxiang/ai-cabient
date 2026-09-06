@@ -728,15 +728,18 @@ public class PaymentService {
         }
         PaymentOperation op = new PaymentOperation();
         op.setOperationId("REFUND-" + UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase());
-        op.setOrderId(order.getOrderId());
+        // 充值单号不属于 cabinet_order；order_id 置空避免 FK payment_operation_order_id_fkey 失败（见 V98）
+        op.setOrderId(null);
         op.setUserId(order.getUserId());
-        op.setOperationType("REFUND");
+        op.setOperationType("RECHARGE_REFUND");
         op.setAmountCents(refundCents);
         op.setChannel(channel);
         op.setStatus("COMPLETED");
         op.setIdempotencyKey(idempotencyKey);
         op.setGatewayTradeNo(gatewayTradeNo);
-        op.setReason(reason != null && reason.length() > 128 ? reason.substring(0, 128) : reason);
+        String base = reasonOrDefault(reason);
+        String withRechargeId = base.contains(order.getOrderId()) ? base : (base + " #" + order.getOrderId());
+        op.setReason(withRechargeId.length() > 128 ? withRechargeId.substring(0, 128) : withRechargeId);
         paymentOperationRepository.save(op);
     }
 

@@ -129,7 +129,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import type { AccountDto } from '@aicabinet/shared-types';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { consumerApi } from '@/utils/consumer-api';
@@ -192,25 +192,31 @@ watch(
   }
 );
 
-try {
-  const cfg = await consumerApi.consumerPublicConfig();
-  mockRechargeEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
-  alipayRechargeEnabled.value = resolveSandboxRecharge(cfg?.alipayRechargeEnabled);
-  wechatPayLive.value = cfg?.wechatPayLive === 'true';
-  wechatRechargeEnabled.value = resolveWechatRechargeVisible({
-    wechatRechargeEnabled: cfg?.wechatRechargeEnabled,
-    wechatPayLive: cfg?.wechatPayLive
-  });
-  payScoreSignEnabled.value = cfg?.payScoreSignEnabled !== 'false';
-  const p = Number(cfg?.preauthCents);
-  configPreauthCents.value = Number.isFinite(p) && p > 0 ? p : null;
-} catch {
-  mockRechargeEnabled.value = false;
-  alipayRechargeEnabled.value = false;
-  wechatRechargeEnabled.value = false;
-  wechatPayLive.value = false;
-  payScoreSignEnabled.value = true;
-}
+/**
+ * 禁止 script setup 顶层 await：否则 setup 返回 Promise，
+ * 父页无 Suspense 时 H5 会告警并偶发整页主区空白（BUG-006）。
+ */
+onMounted(async () => {
+  try {
+    const cfg = await consumerApi.consumerPublicConfig();
+    mockRechargeEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
+    alipayRechargeEnabled.value = resolveSandboxRecharge(cfg?.alipayRechargeEnabled);
+    wechatPayLive.value = cfg?.wechatPayLive === 'true';
+    wechatRechargeEnabled.value = resolveWechatRechargeVisible({
+      wechatRechargeEnabled: cfg?.wechatRechargeEnabled,
+      wechatPayLive: cfg?.wechatPayLive
+    });
+    payScoreSignEnabled.value = cfg?.payScoreSignEnabled !== 'false';
+    const p = Number(cfg?.preauthCents);
+    configPreauthCents.value = Number.isFinite(p) && p > 0 ? p : null;
+  } catch {
+    mockRechargeEnabled.value = false;
+    alipayRechargeEnabled.value = false;
+    wechatRechargeEnabled.value = false;
+    wechatPayLive.value = false;
+    payScoreSignEnabled.value = true;
+  }
+});
 
 const entryChannel = computed(
   () => normalizeEntryChannel(props.entryChannel) || pickedChannel.value

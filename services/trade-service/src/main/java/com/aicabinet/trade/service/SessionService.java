@@ -49,6 +49,7 @@ public class SessionService {
     private static final String SESSION_RECOGNIZING_EXPIRE = "session-recognizing-expire";
     private static final String SESSION_OPENING_EXPIRE = "session-opening-expire";
     private static final String SESSION_RESTOCK_EXPIRE = "session-restock-expire";
+    private static final String SESSION_DOOR_OPEN_EXPIRE = "session-door-open-expire";
     private static final String BALANCE_INSUFFICIENT = "BALANCE_INSUFFICIENT";
     private static final String DEVICEID = "deviceId";
     private static final String STATUS_SUCCESS = "SUCCESS";
@@ -60,6 +61,11 @@ public class SessionService {
     private static final long OPENING_EXPIRE_SECONDS = 90;
     /** 补货开门后未关门/未完成任务时的占柜超时（避免挡消费者）。 */
     private static final long RESTOCK_SHOPPING_EXPIRE_MINUTES = 30;
+    /**
+     * 消费者购物开门超时：与 ops.scan.door_open_minutes 默认一致。
+     * 超时后自动关会话释放设备（告警仍由 ops-exception-scanner 去重写入）。
+     */
+    private static final long CONSUMER_DOOR_OPEN_EXPIRE_MINUTES = 10;
     private static final EnumSet<SessionState> ACTIVE_STATES = EnumSet.of(
             SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
             SessionState.WAITING_UPLOAD, SessionState.RECOGNIZING, SessionState.SETTLING);
@@ -1070,6 +1076,44 @@ public class SessionService {
         }
     }
 
+    /**
+     * 消费者购物态开门超时：自动关会话并释放设备占用（与 DOOR_OPEN_TOO_LONG 告警阈值对齐）。
+     */
+    @Scheduled(fixedRate = 60_000)
+    @Transactional
+    public void expireStaleConsumerShoppingSessions() {
+        long start = System.nanoTime();
+        if (!taskService.tryBegin(SESSION_DOOR_OPEN_EXPIRE, 600)) {
+            return;
+        }
+        boolean failed = false;
+        String summary = "本次无开门超时购物会话";
+        try {
+            Instant cutoff = Instant.now().minus(CONSUMER_DOOR_OPEN_EXPIRE_MINUTES, ChronoUnit.MINUTES);
+            int closed = 0;
+            for (ShoppingSession s : repository.findByStateAndOpenTimeBefore(
+                    SessionState.SHOPPING, cutoff, 500)) {
+                if (DeviceValidationService.isNonConsumerSession(s)) {
+                    continue;
+                }
+                if (expireOneStaleConsumerShoppingSession(s.getSessionId(), cutoff)) {
+                    closed++;
+                }
+            }
+            if (closed > 0) {
+                summary = "关闭开门超时购物会话 " + closed + " 个";
+            }
+        } catch (Exception e) {
+            failed = true;
+            taskService.finish(SESSION_DOOR_OPEN_EXPIRE, CabinetConstants.ORDER_STATUS_FAILED, e.getMessage(), start);
+            throw e;
+        } finally {
+            if (!failed) {
+                taskService.finish(SESSION_DOOR_OPEN_EXPIRE, STATUS_SUCCESS, summary, start);
+            }
+        }
+    }
+
     /** 识别/结算长时间无结果：转争议，避免占柜机与前端一直卡在「识别中」。 */
     @Scheduled(fixedRate = 60_000)
     @Transactional
@@ -1350,6 +1394,55 @@ public class SessionService {
                     "补货会话超时",
                     "补货开门后超过" + RESTOCK_SHOPPING_EXPIRE_MINUTES + "分钟未结束");
             log.warn("restock shopping session expired session={} device={}",
+                    locked.getSessionId(), locked.getDeviceId());
+            return true;
+        } finally {
+            distributedLockService.unlock(sessionLifeLockKey(sessionId));
+        }
+    }
+
+    /**
+     * 消费者购物开门超时：加会话锁 + 行锁后取消，释放预授权与设备占用。
+     */
+    private boolean expireOneStaleConsumerShoppingSession(String sessionId, Instant cutoff) {
+        if (!distributedLockService.tryLock(sessionLifeLockKey(sessionId), 30, 0)) {
+            log.debug("expire consumer shopping skipped busy session={}", sessionId);
+            return false;
+        }
+        try {
+            ShoppingSession locked = repository.findByIdForUpdate(sessionId).orElse(null);
+            if (locked == null) {
+                return false;
+            }
+            if (locked.getState() != SessionState.SHOPPING) {
+                return false;
+            }
+            if (DeviceValidationService.isNonConsumerSession(locked)) {
+                return false;
+            }
+            if (locked.getOpenTime() != null && locked.getOpenTime().isAfter(cutoff)) {
+                return false;
+            }
+            consumerPreauthService.releaseIfFrozen(locked);
+            locked.setFailReason("开门超时自动关闭（超过" + CONSUMER_DOOR_OPEN_EXPIRE_MINUTES + "分钟未关门）");
+            if (locked.getCloseTime() == null) {
+                locked.setCloseTime(Instant.now());
+            }
+            locked.setState(SessionState.CANCELLED);
+            repository.save(locked);
+            cabinetMetrics.recordSessionState(SessionState.CANCELLED);
+            opsExceptionService.report(
+                    "DOOR_OPEN_TOO_LONG",
+                    "CRITICAL",
+                    new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                            locked.getDeviceId(), locked.getSessionId(), locked.getOrderId(), locked.getUserId()),
+                    "柜门长时间未关闭",
+                    "柜门开启超过 " + CONSUMER_DOOR_OPEN_EXPIRE_MINUTES + " 分钟，已自动关闭会话并释放设备");
+            opsExceptionService.resolveSystem(
+                    "DOOR_OPEN_TOO_LONG",
+                    locked.getSessionId(),
+                    "开门超时已自动关闭会话并释放设备");
+            log.warn("consumer shopping session expired session={} device={}",
                     locked.getSessionId(), locked.getDeviceId());
             return true;
         } finally {
