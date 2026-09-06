@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <title>AI开门柜 · 运营管理系统</title>
-    <script type="module" crossorigin src="/admin/assets/index-CetPrQgE.js"></script>
+    <script type="module" crossorigin src="/admin/assets/index-rKkAK8rZ.js"></script>
     <link rel="stylesheet" crossorigin href="/admin/assets/index-BUJqPv4S.css">
   </head>
   <body>
@@ -15,13 +15,15 @@
       (function () {
         var p = location.pathname || '';
         if (!/\/index\.html$/i.test(p)) return;
-        var h = location.hash || '';
-        if (h.indexOf('#/') !== 0) return;
-        var r = h.slice(1);
-        if (!r || r.charAt(0) !== '/') return;
         var b = p.replace(/\/index\.html$/i, '');
         if (b.slice(-1) !== '/') b += '/';
-        location.replace(b + r.replace(/^\//, '') + (location.search || ''));
+        var h = location.hash || '';
+        var r = '';
+        if (h.indexOf('#/') === 0) {
+          r = h.slice(1);
+          if (!r || r.charAt(0) !== '/') r = '';
+        }
+        location.replace(b + (r ? r.replace(/^\//, '') : '') + (location.search || ''));
       })();
     </script>
   </body>

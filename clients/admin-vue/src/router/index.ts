@@ -433,6 +433,9 @@ const router = createRouter({
       component: () => import('@/views/LoginView.vue'),
       meta: { public: true }
     },
+    // 兼容书签/直开 /admin/index.html（history base 下会变成 /index.html）
+    { path: '/index.html', redirect: '/dashboard' },
+
     {
       path: '/print',
       name: 'print',
@@ -470,7 +473,10 @@ router.beforeEach(async (to) => {
     return { path: ok ? requested : home };
   }
   if (to.meta.public) return true;
-  if (!isLoggedIn()) return { name: 'login', query: { redirect: to.fullPath } };
+  if (!isLoggedIn()) {
+    const redirect = safeRedirectPath(to.fullPath, '/dashboard');
+    return { name: 'login', query: { redirect } };
+  }
 
   // 错误页本身不做权限拦截，避免循环跳转
   if (to.name === 'forbidden' || to.name === 'not-found') return true;

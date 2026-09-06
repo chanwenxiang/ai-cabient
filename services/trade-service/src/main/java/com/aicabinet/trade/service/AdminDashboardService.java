@@ -1312,6 +1312,7 @@ public class AdminDashboardService {
         device.setDeviceType(request.deviceType() != null && !request.deviceType().isBlank()
                 ? request.deviceType().trim() : "AI_CABINET_V1");
         device.setOnlineStatus("OFFLINE");
+        device.setSalesLocked(false);
         if (request.merchantId() != null && !request.merchantId().isBlank()) {
             String merchantId = request.merchantId().trim();
             requireMerchant(merchantId);
