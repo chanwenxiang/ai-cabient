@@ -250,14 +250,34 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item v-if="!form.userId" label="角色">
+          <el-alert
+            type="info"
+            :closable="false"
+            show-icon
+            class="role-hint"
+            title="角色说明"
+            description="新建默认不勾选任何角色。超级管理员不在此列出。两类补货员共用补货小程序现场作业，靠「商户范围」区分可见柜机/任务；后台仅做调度与仓库。选补货相关角色后请务必绑定商户。"
+          />
+          <div class="role-group-title">平台角色（可登后台；补货员另须绑商户登小程序）</div>
           <el-checkbox-group v-model="form.roleIds">
             <el-checkbox
-              v-for="r in activeRoles"
+              v-for="r in createOpsRoles"
               :key="r.roleId"
-              :label="r.roleId"
+              :value="r.roleId"
               style="display: block; margin: 6px 0"
             >
-              {{ r.roleName }}
+              {{ r.roleName }}（{{ r.roleKey }}）
+            </el-checkbox>
+          </el-checkbox-group>
+          <div class="role-group-title">商户团队角色（须绑定商户，登补货/商户小程序）</div>
+          <el-checkbox-group v-model="form.roleIds">
+            <el-checkbox
+              v-for="r in createMerchantRoles"
+              :key="r.roleId"
+              :value="r.roleId"
+              style="display: block; margin: 6px 0"
+            >
+              {{ r.roleName }}（{{ r.roleKey }}）
             </el-checkbox>
           </el-checkbox-group>
         </el-form-item>
@@ -300,12 +320,43 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="roleDlg" title="分配角色" width="420px" destroy-on-close>
+    <el-dialog v-model="roleDlg" title="分配角色" width="480px" destroy-on-close>
+      <el-alert
+        type="warning"
+        :closable="false"
+        show-icon
+        class="role-hint"
+        title="请勿误绑超级管理员"
+        description="超级管理员仅在下方单独列出。平台补货员与商户补货员共用小程序现场补货；保存角色后若涉及补货，请立即配置「商户范围」。"
+      />
+      <div class="role-group-title">平台角色</div>
       <el-checkbox-group v-model="roleIds">
         <el-checkbox
-          v-for="r in activeRoles"
+          v-for="r in assignOpsRoles"
           :key="r.roleId"
-          :label="r.roleId"
+          :value="r.roleId"
+          style="display: block; margin: 8px 0"
+        >
+          {{ r.roleName }}（{{ r.roleKey }}）
+        </el-checkbox>
+      </el-checkbox-group>
+      <div class="role-group-title">商户团队角色</div>
+      <el-checkbox-group v-model="roleIds">
+        <el-checkbox
+          v-for="r in assignMerchantRoles"
+          :key="r.roleId"
+          :value="r.roleId"
+          style="display: block; margin: 8px 0"
+        >
+          {{ r.roleName }}（{{ r.roleKey }}）
+        </el-checkbox>
+      </el-checkbox-group>
+      <div v-if="canAssignAdminRole" class="role-group-title danger">超级管理员（谨慎）</div>
+      <el-checkbox-group v-if="canAssignAdminRole" v-model="roleIds">
+        <el-checkbox
+          v-for="r in assignAdminRoles"
+          :key="r.roleId"
+          :value="r.roleId"
           style="display: block; margin: 8px 0"
         >
           {{ r.roleName }}（{{ r.roleKey }}）
@@ -512,6 +563,21 @@ const form = ref({
 });
 
 const activeRoles = computed(() => roles.value.filter((r) => (r.status || 'ACTIVE') === 'ACTIVE'));
+const isMerchantRole = (r: RoleRow) => (r.roleKey || '').startsWith('merchant');
+const isAdminRole = (r: RoleRow) => r.roleKey === 'admin';
+/** 新建账号：排除超管，按运营/商户分组，默认不勾选任何项 */
+const createOpsRoles = computed(() =>
+  activeRoles.value.filter((r) => !isAdminRole(r) && !isMerchantRole(r))
+);
+const createMerchantRoles = computed(() => activeRoles.value.filter((r) => isMerchantRole(r)));
+const canAssignAdminRole = computed(() =>
+  (auth.profile?.roleNames || []).some((n) => /超级管理员/i.test(String(n || '')))
+);
+const assignOpsRoles = computed(() =>
+  activeRoles.value.filter((r) => !isAdminRole(r) && !isMerchantRole(r))
+);
+const assignMerchantRoles = computed(() => activeRoles.value.filter((r) => isMerchantRole(r)));
+const assignAdminRoles = computed(() => activeRoles.value.filter((r) => isAdminRole(r)));
 const activeDepartments = computed(() =>
   departments.value.filter((d) => (d.status || 'ACTIVE') === 'ACTIVE')
 );
@@ -753,6 +819,20 @@ async function saveForm() {
   if (f.primaryDeptId != null && !f.deptIds.includes(f.primaryDeptId)) {
     return ElMessage.warning('主部门必须包含在所属部门中');
   }
+  const roleIdSet = new Set(f.roleIds || []);
+  const pickedMerchantRoles = createMerchantRoles.value.filter((r) => roleIdSet.has(r.roleId));
+  const pickedPlatformReplenisher = createOpsRoles.value.some(
+    (r) => r.roleKey === 'replenisher' && roleIdSet.has(r.roleId)
+  );
+  const needsMerchantBind = pickedMerchantRoles.length > 0 || pickedPlatformReplenisher;
+  if (
+    pickedPlatformReplenisher &&
+    pickedMerchantRoles.some((r) => r.roleKey === 'merchant_replenisher')
+  ) {
+    return ElMessage.warning(
+      '平台补货员与商户补货员一般只选其一：平台自营人选「平台补货员」，加盟商户人选「商户补货员」；二者共用小程序，靠商户范围区分'
+    );
+  }
   saving.value = true;
   try {
     if (f.userId) {
@@ -765,20 +845,31 @@ async function saveForm() {
         primaryDeptId: f.primaryDeptId
       });
       ElMessage.success('已更新');
+      formDlg.value = false;
+      await loadOperators();
     } else {
-      await api.request('/api/v2/ops/admin/rbac/operators', 'POST', {
-        name: f.name.trim(),
-        phoneNumber: f.phoneNumber.trim(),
-        password: f.password,
-        status: f.status,
-        roleIds: f.roleIds,
-        deptIds: f.deptIds,
-        primaryDeptId: f.primaryDeptId
-      });
+      const created = await api.request<{ userId: number }>(
+        '/api/v2/ops/admin/rbac/operators',
+        'POST',
+        {
+          name: f.name.trim(),
+          phoneNumber: f.phoneNumber.trim(),
+          password: f.password,
+          status: f.status,
+          roleIds: f.roleIds,
+          deptIds: f.deptIds,
+          primaryDeptId: f.primaryDeptId
+        }
+      );
       ElMessage.success('已创建');
+      formDlg.value = false;
+      await loadOperators();
+      if (needsMerchantBind && created?.userId) {
+        ElMessage.info('补货相关角色须绑定商户范围后才能登录补货小程序');
+        const row = operators.value.find((o) => o.userId === created.userId);
+        if (row) await openMerchants(row);
+      }
     }
-    formDlg.value = false;
-    await loadOperators();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -809,12 +900,40 @@ function openRoles(row: OperatorRow) {
 
 async function saveRoles() {
   if (currentUserId.value == null) return;
+  const selected = new Set(roleIds.value);
+  if (!canAssignAdminRole.value) {
+    for (const r of assignAdminRoles.value) {
+      selected.delete(r.roleId);
+    }
+  }
+  const hasMerchantReplenisher = assignMerchantRoles.value.some(
+    (r) => r.roleKey === 'merchant_replenisher' && selected.has(r.roleId)
+  );
+  const hasOpsReplenisher = assignOpsRoles.value.some(
+    (r) => r.roleKey === 'replenisher' && selected.has(r.roleId)
+  );
+  if (hasMerchantReplenisher && hasOpsReplenisher) {
+    return ElMessage.warning(
+      '平台补货员与商户补货员一般只选其一：共用小程序，靠商户范围区分自营/加盟任务'
+    );
+  }
+  if (canAssignAdminRole.value && assignAdminRoles.value.some((r) => selected.has(r.roleId))) {
+    try {
+      await ElMessageBox.confirm(
+        '将授予「超级管理员」全部权限，确认继续？',
+        '授予超级管理员',
+        { type: 'warning' }
+      );
+    } catch {
+      return;
+    }
+  }
   saving.value = true;
   try {
     await api.request(
       `/api/v2/ops/admin/rbac/users/${currentUserId.value}/roles`,
       'PUT',
-      roleIds.value
+      [...selected]
     );
     ElMessage.success('角色已更新');
     roleDlg.value = false;
@@ -823,6 +942,13 @@ async function saveRoles() {
       tasks.push(auth.refreshPermissions());
     }
     await Promise.all(tasks);
+    if (assignMerchantRoles.value.some((r) => selected.has(r.roleId)) || hasOpsReplenisher) {
+      const row = operators.value.find((o) => o.userId === currentUserId.value);
+      if (row && !(row.merchantIds || []).length) {
+        ElMessage.info('补货相关角色须绑定「商户范围」后才能登录补货小程序');
+        await openMerchants(row);
+      }
+    }
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -1026,5 +1152,17 @@ onActivated(() => {
 }
 .scope-dlg-body {
   min-height: 120px;
+}
+.role-hint {
+  margin-bottom: 12px;
+}
+.role-group-title {
+  margin: 12px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-regular);
+}
+.role-group-title.danger {
+  color: var(--el-color-danger);
 }
 </style>

@@ -347,10 +347,10 @@ public class OpsRbacService {
     public OpsOperatorDto createOperator(Long operatorId, CreateOpsOperatorRequest request) {
         permissionService.requirePermission(operatorId, "ops:rbac:assign:add");
         String phone = normalizePhone(request.phoneNumber());
-        return runWithOperatorPhoneLock(phone, () -> doCreateOperator(request, phone));
+        return runWithOperatorPhoneLock(phone, () -> doCreateOperator(operatorId, request, phone));
     }
 
-    private OpsOperatorDto doCreateOperator(CreateOpsOperatorRequest request, String phone) {
+    private OpsOperatorDto doCreateOperator(Long actorUserId, CreateOpsOperatorRequest request, String phone) {
         if (userInfoRepository.findByPhoneNumber(phone).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.PHONE_ALREADY_EXISTS);
         }
@@ -371,7 +371,7 @@ public class OpsRbacService {
         userAccountRepository.save(account);
 
         if (request.roleIds() != null && !request.roleIds().isEmpty()) {
-            replaceUserRoles(newUserId, request.roleIds());
+            replaceUserRoles(actorUserId, newUserId, request.roleIds());
         }
         if (request.deptIds() != null || request.primaryDeptId() != null) {
             departmentService.replaceUserDepartments(newUserId, request.deptIds(), request.primaryDeptId());
@@ -474,23 +474,44 @@ public class OpsRbacService {
         permissionService.requirePermission(operatorId, "ops:rbac:assign:role");
         return runWithOperatorLock(userId, () -> {
             ensureOperatorAccount(userId);
-            replaceUserRoles(userId, roleIds);
+            replaceUserRoles(operatorId, userId, roleIds);
             return self.getUserRoles(operatorId, userId);
         });
     }
 
-    private void replaceUserRoles(Long userId, List<Long> roleIds) {
-        userRoleRepository.deleteByIdUserId(userId);
+    private void replaceUserRoles(Long actorUserId, Long userId, List<Long> roleIds) {
         if (roleIds == null) {
+            userRoleRepository.deleteByIdUserId(userId);
             return;
         }
+        boolean assigningAdmin = false;
+        java.util.ArrayList<OpsRole> resolved = new java.util.ArrayList<>();
         for (Long roleId : roleIds) {
-            if (!roleRepository.existsById(roleId)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        ApiMessages.INVALID_REQUEST + "：roleId=" + roleId);
+            OpsRole role = roleRepository.findById(roleId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            ApiMessages.INVALID_REQUEST + "：roleId=" + roleId));
+            if (ADMIN.equals(role.getRoleKey())) {
+                assigningAdmin = true;
             }
-            userRoleRepository.insert(new OpsUserRole(userId, roleId));
+            resolved.add(role);
         }
+        if (assigningAdmin && !userHasRoleKey(actorUserId, ADMIN)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.CANNOT_ASSIGN_ADMIN_ROLE);
+        }
+        userRoleRepository.deleteByIdUserId(userId);
+        for (OpsRole role : resolved) {
+            userRoleRepository.insert(new OpsUserRole(userId, role.getRoleId()));
+        }
+    }
+
+    private boolean userHasRoleKey(Long userId, String roleKey) {
+        if (userId == null || roleKey == null || roleKey.isBlank()) {
+            return false;
+        }
+        return userRoleRepository.findByIdUserId(userId).stream()
+                .map(ur -> roleRepository.findById(ur.getId().getRoleId()))
+                .flatMap(java.util.Optional::stream)
+                .anyMatch(r -> roleKey.equals(r.getRoleKey()));
     }
 
     @Transactional(readOnly = true)
