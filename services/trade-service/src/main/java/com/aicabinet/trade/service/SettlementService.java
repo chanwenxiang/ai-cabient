@@ -260,7 +260,7 @@ public class SettlementService {
                 return cartOrder;
             }
         }
-        escalateToDispute(session, recognition, reviewReasonFor(recognition));
+        escalateToDispute(session, recognition, humanReviewReason(recognition));
         return null;
     }
 
@@ -284,7 +284,7 @@ public class SettlementService {
             if (cartOrder != null) {
                 return cartOrder;
             }
-            escalateToDispute(session, recognition, reviewReasonFor(recognition));
+            escalateToDispute(session, recognition, humanReviewReason(recognition));
             return null;
         }
         List<VisionServiceClient.RecognizedItem> cartItems = List.of();
@@ -460,6 +460,16 @@ public class SettlementService {
             return "模拟/兜底识别结果，非生产精度，需人工审核";
         }
         return "识别结果需人工审核";
+    }
+
+    /** 争议文案统一走 {@link SettlementDecision}，与矩阵单测同源。 */
+    private static String humanReviewReason(VisionServiceClient.RecognitionResult recognition) {
+        SettlementDecision decision = SettlementDecision.classify(recognition);
+        String reason = decision.reviewReason(recognition);
+        if (reason != null) {
+            return reason;
+        }
+        return reviewReasonFor(recognition);
     }
 
     private void escalateToDispute(ShoppingSession session,

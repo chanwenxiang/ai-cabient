@@ -28,19 +28,18 @@ class DeviceCommandTrackerTest {
     }
 
     @Test
-    void recordAck_marksLateAckForExpiredCommand() {
+    void forceExpire_marksTimeout() {
         DeviceCommandTracker tracker = new DeviceCommandTracker(
                 new DeviceMqttMetrics(new SimpleMeterRegistry()));
 
-        tracker.recordPublished("cmd-2", "CAB-002", "sess-2");
-        tracker.forceExpireForTest("cmd-2");
-        tracker.recordAck("cmd-2", true);
+        tracker.recordPublished("cmd-3", "CAB-003", "sess-3");
+        tracker.forceExpireForTest("cmd-3");
 
-        DeviceCommandTracker.CommandStatus status = tracker.getStatus("cmd-2");
+        DeviceCommandTracker.CommandStatus status = tracker.getStatus("cmd-3");
         assertNotNull(status);
-        assertEquals("LATE_ACK", status.status());
-        assertEquals("CAB-002", status.deviceId());
-        assertEquals("sess-2", status.sessionId());
+        assertEquals("TIMEOUT", status.status());
+        assertEquals("CAB-003", status.deviceId());
+        assertEquals("sess-3", status.sessionId());
 
         tracker.stop();
     }

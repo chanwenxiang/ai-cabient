@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.config.CheckoutProperties;
+import com.aicabinet.trade.domain.ConsumerPreauthHold;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.mapper.ConsumerPreauthHoldMapper;
@@ -19,6 +20,8 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -93,5 +96,75 @@ class ConsumerPreauthConcurrencyTest {
         verify(accountRepository).findByIdForUpdate(10002L);
         verify(sessionRepository).findByIdForUpdate("S-2");
         verify(distributedLockService).unlock(ConsumerPreauthService.preauthLockKey(10002L));
+    }
+
+    /**
+     * M1: 同用户双会话先后冻结；释放 A 后 B 仍 FROZEN，账户 frozen = B.hold。
+     */
+    @Test
+    void releaseSessionA_keepsSessionBFrozen_andAccountFrozenEqualsBHold() {
+        long userId = 20001L;
+        int holdCents = 500;
+
+        UserAccount account = new UserAccount();
+        account.setUserId(userId);
+        account.setBalanceCents(20_000);
+        account.setFrozenCents(0);
+
+        ShoppingSession sessionA = openSession("S-A", userId, "CAB-A");
+        ShoppingSession sessionB = openSession("S-B", userId, "CAB-B");
+        ShoppingSession lockedA = openSession("S-A", userId, "CAB-A");
+        ShoppingSession lockedB = openSession("S-B", userId, "CAB-B");
+
+        java.util.Map<String, ConsumerPreauthHold> holds = new java.util.HashMap<>();
+
+        when(distributedLockService.tryLock(
+                ConsumerPreauthService.preauthLockKey(userId), 60L, 5L))
+                .thenReturn(true);
+        when(deviceRepository.findById(anyString())).thenReturn(Optional.empty());
+        when(systemConfigService.getInt(SystemConfigService.CHECKOUT_PREAUTH_CENTS, -1)).thenReturn(-1);
+        when(accountRepository.findByIdForUpdate(userId)).thenReturn(Optional.of(account));
+        when(accountRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        when(sessionRepository.findByIdForUpdate("S-A")).thenReturn(Optional.of(lockedA));
+        when(sessionRepository.findByIdForUpdate("S-B")).thenReturn(Optional.of(lockedB));
+        when(holdRepository.findByIdForUpdate(anyString())).thenAnswer(inv ->
+                Optional.ofNullable(holds.get(inv.getArgument(0))));
+        when(holdRepository.findById(anyString())).thenAnswer(inv ->
+                Optional.ofNullable(holds.get(inv.getArgument(0))));
+        when(holdRepository.save(any())).thenAnswer(inv -> {
+            ConsumerPreauthHold h = inv.getArgument(0);
+            holds.put(h.getSessionId(), h);
+            return 1;
+        });
+
+        service.freezeForOpen(sessionA, false);
+        service.freezeForOpen(sessionB, false);
+
+        assertEquals(holdCents * 2, account.getFrozenCents());
+        assertEquals(ConsumerPreauthService.STATUS_FROZEN, lockedA.getPreauthStatus());
+        assertEquals(ConsumerPreauthService.STATUS_FROZEN, lockedB.getPreauthStatus());
+        assertEquals(holdCents, holds.get("S-A").getHoldCents());
+        assertEquals(holdCents, holds.get("S-B").getHoldCents());
+
+        service.releaseIfFrozen(sessionA);
+
+        assertEquals(ConsumerPreauthService.STATUS_RELEASED, lockedA.getPreauthStatus());
+        assertEquals(ConsumerPreauthService.STATUS_RELEASED, holds.get("S-A").getStatus());
+        assertEquals(ConsumerPreauthService.STATUS_FROZEN, lockedB.getPreauthStatus());
+        assertEquals(ConsumerPreauthService.STATUS_FROZEN, holds.get("S-B").getStatus());
+        assertEquals(holdCents, account.getFrozenCents());
+        assertEquals(holdCents, holds.get("S-B").getHoldCents());
+    }
+
+    private static ShoppingSession openSession(String sessionId, long userId, String deviceId) {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId(sessionId);
+        session.setUserId(userId);
+        session.setDeviceId(deviceId);
+        session.setPreauthStatus(ConsumerPreauthService.STATUS_NONE);
+        session.setPreauthCents(0);
+        return session;
     }
 }

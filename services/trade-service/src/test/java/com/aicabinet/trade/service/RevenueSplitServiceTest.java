@@ -400,4 +400,76 @@ class RevenueSplitServiceTest {
 
         verify(splitRepository).save(any(OrderRevenueSplit.class));
     }
+
+    /** W1: 无微信接收方 → LEDGER_ONLY 立刻入账；重复 recordSplit 不二次 credit。 */
+    @Test
+    void recordSplit_ledgerOnly_creditsWalletOnce_andIdempotentReplay() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-W1");
+        order.setDeviceId("CAB-1");
+        order.setTotalAmountCents(1000);
+
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("CAB-1");
+        device.setMerchantId("M-1");
+
+        Merchant merchant = new Merchant();
+        merchant.setMerchantId("M-1");
+        merchant.setStatus("ACTIVE");
+        merchant.setPlatformRateBps(1000);
+        merchant.setWechatReceiverId(null);
+
+        when(splitRepository.findByOrderIdForUpdate("O-W1")).thenReturn(Optional.empty());
+        when(deviceRepository.findById("CAB-1")).thenReturn(Optional.of(device));
+        when(merchantRepository.findById("M-1")).thenReturn(Optional.of(merchant));
+        when(splitRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(merchantWalletService.creditIfAbsent(eq("M-1"), eq(900L), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(true);
+
+        Optional<OrderRevenueSplit> first = service.recordSplit(order);
+        assertEquals("LEDGER_ONLY", first.map(OrderRevenueSplit::getStatus).orElse(null));
+        assertEquals(900L, first.map(OrderRevenueSplit::getMerchantCents).orElse(-1L));
+        verify(merchantWalletService).creditIfAbsent(
+                eq("M-1"), eq(900L), eq("SPLIT_CREDIT"), eq("SPLIT"),
+                eq(first.get().getSplitId()), contains("O-W1"));
+
+        OrderRevenueSplit existing = first.get();
+        when(splitRepository.findByOrderIdForUpdate("O-W1")).thenReturn(Optional.of(existing));
+        Optional<OrderRevenueSplit> second = service.recordSplit(order);
+        assertEquals(existing.getSplitId(), second.map(OrderRevenueSplit::getSplitId).orElse(null));
+        verify(merchantWalletService, times(1)).creditIfAbsent(
+                anyString(), anyLong(), anyString(), anyString(), anyString(), anyString());
+        verify(splitRepository, times(1)).save(any());
+    }
+
+    /** W2: 全额退冲正钱包；二次 void 不重复 reverse。 */
+    @Test
+    void voidSplitOnFullRefund_reversesLedgerCredit_andSecondCallIsNoop() {
+        OrderRevenueSplit split = new OrderRevenueSplit();
+        split.setSplitId("SPLIT-W2");
+        split.setOrderId("O-W2");
+        split.setMerchantId("M-1");
+        split.setStatus("LEDGER_ONLY");
+        split.setMerchantCents(900L);
+
+        when(splitRepository.findByOrderIdForUpdate("O-W2")).thenReturn(Optional.of(split));
+        when(splitRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(merchantWalletService.reverseCreditIfPresent(eq("M-1"), eq(900L), anyString(), any()))
+                .thenReturn(true);
+
+        service.voidSplitOnFullRefund("O-W2");
+
+        assertEquals("VOIDED", split.getStatus());
+        verify(merchantWalletService).reverseCreditIfPresent(
+                eq("M-1"), eq(900L), eq("SPLIT_REVERSE"),
+                argThat(cmd -> "SPLIT_REV".equals(cmd.reverseRefType())
+                        && "SPLIT-W2".equals(cmd.reverseRefId())
+                        && "SPLIT".equals(cmd.originalRefType())
+                        && "SPLIT-W2".equals(cmd.originalRefId())));
+        verify(splitRepository).save(argThat(s -> "VOIDED".equals(s.getStatus())));
+
+        service.voidSplitOnFullRefund("O-W2");
+        verify(merchantWalletService, times(1)).reverseCreditIfPresent(anyString(), anyLong(), anyString(), any());
+        verify(splitRepository, times(1)).save(any());
+    }
 }

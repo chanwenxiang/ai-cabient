@@ -10,6 +10,13 @@
 | 文档 | 说明 |
 |------|------|
 | [CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md) | **全仓底稿**：架构、关键链路、测试资产、优化热点、验证矩阵 |
+| [CODEBASE_INVENTORY.md](CODEBASE_INVENTORY.md) | **文件级清单**：Controller/端点/God 类/页面/测试包（精确测试点名） |
+| [pass-notes/PASS_3A_MONEY.md](pass-notes/PASS_3A_MONEY.md) | **Pass 3A**：金钱链路分支表与补测清单 |
+| [pass-notes/PASS_3B_DISPUTE.md](pass-notes/PASS_3B_DISPUTE.md) | **Pass 3B**：争议结案/退款/三端权限与补测清单 |
+| [pass-notes/PASS_3C_MQTT.md](pass-notes/PASS_3C_MQTT.md) | **Pass 3C**：MQTT 开门/门事件/去重/ACK 与补测清单 |
+| [pass-notes/PASS_3D_INVENTORY.md](pass-notes/PASS_3D_INVENTORY.md) | **Pass 3D**：库存/FEFO/货道实测/回库与补测清单 |
+| [pass-notes/PASS_3E_MERCHANT_WALLET.md](pass-notes/PASS_3E_MERCHANT_WALLET.md) | **Pass 3E**：分账/钱包/提现/微信回退与补测清单 |
+| [pass-notes/PASS_3F_OPS_GOD_CLASSES.md](pass-notes/PASS_3F_OPS_GOD_CLASSES.md) | **Pass 3F**：运营/商户神类切片；Ops Controller 按域拆分与 Facade 删除已落地 |
 | [STARTUP_REFERENCE.md](STARTUP_REFERENCE.md) | 端口 / 账号 / 启动模式速查 |
 | [LOCAL_SETUP.md](LOCAL_SETUP.md) | 本地联调完整说明 |
 | [MODULES.md](MODULES.md) | 模块路径与职责 |

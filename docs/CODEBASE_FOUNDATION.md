@@ -3,7 +3,8 @@
 > **用途**：通读全仓后的结构化底稿，供后续**测试设计、回归、性能优化、重构优先级**直接引用。  
 > **生成日期**：2026-09-07  
 > **范围**：后端 / 前端 / 视觉 / 边缘 / 基础设施 / 脚本 / 现有测试资产  
-> **不替代**：日常启动请看 [STARTUP_REFERENCE.md](STARTUP_REFERENCE.md)；模块路径请看 [MODULES.md](MODULES.md)；上线执行请看 [GO_LIVE_EXECUTION_PLAN.md](GO_LIVE_EXECUTION_PLAN.md)。
+> **不替代**：日常启动请看 [STARTUP_REFERENCE.md](STARTUP_REFERENCE.md)；模块路径请看 [MODULES.md](MODULES.md)；上线执行请看 [GO_LIVE_EXECUTION_PLAN.md](GO_LIVE_EXECUTION_PLAN.md)。  
+> **精确测试用文件级清单**：[CODEBASE_INVENTORY.md](CODEBASE_INVENTORY.md)（Pass 2：端点/Service/页面全表）。
 
 ---
 
@@ -171,7 +172,7 @@ CREATED → OPENING → SHOPPING → WAITING_UPLOAD → RECOGNIZING → SETTLING
 | `/api/v2/orders` | `OrderController` | 订单/支付/退款/视频 |
 | `/api/v2/disputes` | `ConsumerDisputeController` | 消费者争议 |
 | `/api/v2/merchant` | `MerchantPortalController` | 商户门户（大） |
-| `/api/v2/ops/admin` | `AdminDashboardController` / `OpsCommercialController` | 运营（面积极大） |
+| `/api/v2/ops/admin` | `AdminDashboardController` + 按域 `Ops*Controller`（`OpsCommercialController` 仅留 commercial-flow） | 运营 |
 | `/internal/v1/sessions/*` | `SessionInternalController` | 门事件/视频/重力/live-cart |
 | `/internal/v1/devices/*` | trade 侧 | 心跳/存在性/OTA/库存快照 |
 | device `/internal/v1/devices/{id}/open-door` | `DeviceInternalController` | 开门指令 |
@@ -345,13 +346,13 @@ Compose 入口见 `infra/README.md`：`docker-compose.yml`（infra）/ `full.yml
 | P1 | 库存 / 货道 | `InventoryService` / `DeviceSlotService` | 并发扣减 + 退款回滚 |
 | P1 | 钱包 / 提现 | `MerchantWalletService` / `MerchantWithdrawService` | 已有并发测，补打款失败回滚 |
 | P1 | MQTT 桥 | `MqttEventListener` / `TradeServiceClient` | **补集成测**；与模拟器契约 |
-| P2 | 运营巨石 | `AdminDashboardService` / `OpsCommercialController` | 拆分或按域契约测；回归用 UAT |
-| P2 | 商户巨石 Controller | `MerchantPortalController` | 按 pack 拆测例 |
+| P2 | 运营巨石（已拆 Controller / Facade） | `AdminDashboardService`（门面+已抽 Query/Admin Service）+ `Ops*Controller` / `Ops*AdminService` | 落地见 [PASS_3F_OPS_GOD_CLASSES.md](pass-notes/PASS_3F_OPS_GOD_CLASSES.md)；`OpsCommercialFacade` 已删 |
+| P2 | 商户巨石（已抽切片） | `MerchantPortalService`（门面）+ Workbench/Device/Inventory/Team/Finance | 同上 |
 | P2 | Flyway 膨胀 | `db/migration` | 种子与 schema 分离；避免测库依赖过重 seed |
 | P3 | Admin 包体 / 列表 | Vite 懒加载、表格 composable | 大列表虚拟化、CSV 权限码 |
 | P3 | 小程序 dist 新鲜度 | `dev:mp-weixin` watcher | 验收前核对 dist mtime |
 
-**God 类体量（优化候选）**：`AdminDashboardService`、`SessionService`、`DisputeService`、`SettlementService`、`OpsCommercialController`、`MerchantPortalController` 均为千行级，改动需配套回归清单。
+**God 类体量（优化候选）**：`AdminDashboardService`、`SessionService`、`DisputeService`、`SettlementService`、`MerchantPortalService`、`MerchantPortalController` 仍偏大（改动需配套回归）。**OpsCommercial**：Controller 已按域拆完、Facade 已删，不再列为运营 API 巨石。
 
 ---
 

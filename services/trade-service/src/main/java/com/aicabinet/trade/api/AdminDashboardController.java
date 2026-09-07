@@ -6,6 +6,8 @@ import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.api.support.AdminDashboardControllerSupport;
 import com.aicabinet.trade.service.AdminDashboardService;
+import com.aicabinet.trade.service.OpsDeviceAdminService;
+import com.aicabinet.trade.service.OpsSessionOrderQueryService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
@@ -122,7 +124,7 @@ public class AdminDashboardController {
             @RequestParam(name = "coopMode", required = false) String coopMode,
             @RequestParam(name = "routeCode", required = false) String routeCode) {
         return ApiResponse.ok(adminService.listDevicesPaged(
-                operatorId(request), new AdminDashboardService.DeviceListQuery(
+                operatorId(request), new OpsDeviceAdminService.DeviceListQuery(
                         page, size, q, online, salesLocked, lifecycleStatus, coopMode, routeCode)));
     }
 
@@ -236,7 +238,7 @@ public class AdminDashboardController {
             @RequestParam(name = "stuckOnly", defaultValue = "false") boolean stuckOnly,
             @RequestParam(name = "stuckMinutes", defaultValue = "30") int stuckMinutes) {
         return ApiResponse.ok(adminService.listSessions(
-                operatorId(request), new AdminDashboardService.SessionListQuery(
+                operatorId(request), new OpsSessionOrderQueryService.SessionListQuery(
                         page, size, deviceId, state, sessionId, userId, from, to, q,
                         uploadStatus, stuckOnly, stuckMinutes)));
     }
@@ -255,7 +257,7 @@ public class AdminDashboardController {
             @RequestParam(name = "stuckOnly", defaultValue = "false") boolean stuckOnly,
             @RequestParam(name = "stuckMinutes", defaultValue = "30") int stuckMinutes) {
         byte[] csv = adminService.exportSessionsCsv(
-                operatorId(request), new AdminDashboardService.SessionExportQuery(
+                operatorId(request), new OpsSessionOrderQueryService.SessionExportQuery(
                         deviceId, state, sessionId, userId, from, to, q, stuckOnly, stuckMinutes));
         return csvAttachment("sessions.csv", csv);
     }
@@ -296,7 +298,7 @@ public class AdminDashboardController {
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "excludeZero", required = false) Boolean excludeZero) {
         return ApiResponse.ok(adminService.listOrders(
-                operatorId(request), new AdminDashboardService.OrderListQuery(
+                operatorId(request), new OpsSessionOrderQueryService.OrderListQuery(
                         page, size, deviceId, status, Boolean.TRUE.equals(overdue),
                         orderId, userId, sessionId, payTradeNo, payChannel, from, to, q,
                         Boolean.TRUE.equals(excludeZero))));
@@ -319,7 +321,7 @@ public class AdminDashboardController {
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "excludeZero", required = false) Boolean excludeZero) {
         byte[] csv = adminService.exportOrdersCsv(
-                operatorId(request), new AdminDashboardService.OrderExportQuery(
+                operatorId(request), new OpsSessionOrderQueryService.OrderExportQuery(
                         deviceId, status, mode, orderId, userId, sessionId, payTradeNo, payChannel, from, to, q,
                         Boolean.TRUE.equals(excludeZero)));
         String filename = "lines".equalsIgnoreCase(mode) || "product".equalsIgnoreCase(mode)

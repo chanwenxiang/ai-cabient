@@ -147,6 +147,19 @@ class PaymentServiceTest {
         verifyNoInteractions(rechargeOrderRepository, balanceLedgerService);
     }
 
+    /** M8: nonce 重放在 parse 层拒绝后，不入账。 */
+    @Test
+    void handleWeChatNotify_nonceReplay_doesNotCredit() {
+        when(notifyService.parseAndVerify(anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenThrow(new IllegalArgumentException(com.aicabinet.trade.support.ApiMessages.WECHAT_NOTIFY_REPLAY));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> paymentService.handleWeChatNotify("{}", "1", "same-nonce", "sig", "serial"));
+        assertEquals(com.aicabinet.trade.support.ApiMessages.WECHAT_NOTIFY_REPLAY, ex.getMessage());
+
+        verifyNoInteractions(rechargeOrderRepository, balanceLedgerService);
+    }
+
     @Test
     void autoCancelExpiredPending_cancelsOldPendingOrders() {
         RechargeOrder old = pendingOrder("R-OLD", 10001L);

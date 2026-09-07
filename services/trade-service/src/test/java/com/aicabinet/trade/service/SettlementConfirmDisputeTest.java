@@ -253,6 +253,50 @@ class SettlementConfirmDisputeTest {
         verify(revenueSplitService).adjustSplitAfterOrderChange(order, 700);
     }
 
+    /** D3: CONFIRM 加价余额不足 → 412；库存与支付未动。 */
+    @Test
+    void confirmDisputedItems_increase_balanceInsufficient_skipsInventoryAndPayment() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-D3-BAL");
+        session.setUserId(10001L);
+        session.setDeviceId("CAB-1");
+
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-D3-BAL");
+        order.setSessionId("S-D3-BAL");
+        order.setUserId(10001L);
+        order.setDeviceId("CAB-1");
+        order.setStatus("DISPUTED");
+        order.setTotalAmountCents(400);
+        order.setInventoryDeducted(true);
+        order.setLines(new ArrayList<>(List.of(line("SKU-A", "A", 1, 400))));
+
+        SkuCatalog sku = new SkuCatalog();
+        sku.setSkuId("SKU-A");
+        sku.setSkuName("A");
+
+        when(orderRepository.findBySessionId("S-D3-BAL")).thenReturn(Optional.of(order));
+        when(skuCatalogRepository.findById("SKU-A")).thenReturn(Optional.of(sku));
+        when(skuPricingService.resolveUnitPriceCents("CAB-1", sku)).thenReturn(400);
+        when(memberService.applyMemberPriceDiscount(10001L, 400)).thenReturn(400);
+        when(slotRepository.findByIdDeviceId("CAB-1")).thenReturn(List.of());
+        when(userValidationService.canChargeViaPasswordFree(10001L, null)).thenReturn(false);
+        org.mockito.Mockito.doThrow(new BalanceInsufficientException(
+                        com.aicabinet.trade.support.ApiMessages.INSUFFICIENT_BALANCE))
+                .when(userValidationService).validateSufficientBalanceForCharge(eq(10001L), eq(400));
+
+        org.junit.jupiter.api.Assertions.assertThrows(BalanceInsufficientException.class,
+                () -> settlementService.confirmDisputedItems(
+                        session,
+                        List.of(new VisionServiceClient.RecognizedItem("SKU-A", 2, 1f))));
+
+        verify(inventoryService, org.mockito.Mockito.never())
+                .adjustForOrder(anyString(), anyList(), anyList(), anyMap());
+        verify(orderPaymentService, org.mockito.Mockito.never()).applyPaymentDelta(any(), anyInt());
+        verify(revenueSplitService, org.mockito.Mockito.never()).adjustSplitAfterOrderChange(any(), anyInt());
+        verify(orderRepository, org.mockito.Mockito.never()).save(any());
+    }
+
     private static CabinetOrderLine line(String sku, String name, int qty, int unit) {
         CabinetOrderLine l = new CabinetOrderLine();
         l.setSkuId(sku);

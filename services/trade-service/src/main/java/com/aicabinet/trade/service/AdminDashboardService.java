@@ -22,7 +22,6 @@ import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -49,40 +48,8 @@ import java.util.stream.Collectors;
 @Service
 @SuppressWarnings("java:S6539")
 public class AdminDashboardService {
-    private static final String PERM_OPS_DASHBOARD_VIEW = "ops:dashboard:view";
-    private static final String PERM_OPS_ANALYTICS_VIEW = "ops:analytics:view";
-    private static final String PERM_OPS_DEVICE_LIST = "ops:device:list";
-    private static final String WECHAT_FAILED = "WECHAT_FAILED";
-    private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
-    private static final String LEDGER_ONLY = "LEDGER_ONLY";
-    private static final String IN_TRANSIT = "IN_TRANSIT";
-    private static final String CREATEDAT = "createdAt";
-    private static final String CRITICAL = "CRITICAL";
-    private static final String DEPLOYED = "DEPLOYED";
-    private static final String INBOUND = "INBOUND";
-    private static final String STATUS_PENDING = "PENDING";
-    private static final String MEDIUM = "MEDIUM";
-
-
-    private static final int EXPORT_LIMIT = 5000;
     /** 工作台「待支付」与订单页 overdue=1 对齐：超过该分钟仍 PENDING 计入。 */
-    public static final int UNPAID_OPS_OVERDUE_MINUTES = 30;
-    private static final List<SessionState> ACTIVE_STATES = List.of(
-            SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
-            SessionState.RECOGNIZING, SessionState.WAITING_UPLOAD, SessionState.SETTLING
-    );
-
-    private static final List<SessionState> CLOSED_STATES = List.of(
-            SessionState.COMPLETED, SessionState.DISPUTED
-    );
-    private static final List<String> PENDING_SPLIT_STATUSES = List.of(
-            "ACCRUED", LEDGER_ONLY, CabinetConstants.ORDER_STATUS_FAILED, WECHAT_FAILED
-    );
-    private static final List<String> SPLIT_EXCEPTION_STATUSES = List.of(CabinetConstants.ORDER_STATUS_FAILED, WECHAT_FAILED, LEDGER_ONLY);
-    private static final long STALE_SESSION_MINUTES = 30;
-    private static final long IN_TRANSIT_OVERDUE_HOURS = 24;
-    /** 工作台待办每类最多展示条数，避免全表加载。 */
-    private static final int WORKBENCH_ITEM_CAP = 20;
+    public static final int UNPAID_OPS_OVERDUE_MINUTES = OpsSessionOrderQueryService.UNPAID_OPS_OVERDUE_MINUTES;
 
     private final DeviceInfoMapper deviceRepository;
     private final ShoppingSessionMapper sessionRepository;
@@ -120,7 +87,13 @@ public class AdminDashboardService {
     private final AliyunCategoryMappingMapper aliyunCategoryMappingRepository;
     private final DeviceIdService deviceIdService;
     private final DeviceIdRenameService deviceIdRenameService;
-    private final AdminDashboardService self;
+    private final OpsAnalyticsQueryService analyticsQueryService;
+    private final OpsAuditQueryService auditQueryService;
+    private final OpsDeviceAdminService deviceAdminService;
+    private final OpsCatalogAdminService catalogAdminService;
+    private final OpsSessionOrderQueryService sessionOrderQueryService;
+    private final OpsWorkbenchQueryService workbenchQueryService;
+    private final OpsMemberFinanceAdminService memberFinanceAdminService;
 
     public AdminDashboardService(DeviceInfoMapper deviceRepository,
                                  ShoppingSessionMapper sessionRepository,
@@ -158,7 +131,13 @@ public class AdminDashboardService {
                                  AliyunCategoryMappingMapper aliyunCategoryMappingRepository,
                                  DeviceIdService deviceIdService,
                                  DeviceIdRenameService deviceIdRenameService,
-                                 @Lazy AdminDashboardService self) {
+                                 OpsAnalyticsQueryService analyticsQueryService,
+                                 OpsAuditQueryService auditQueryService,
+                                 OpsDeviceAdminService deviceAdminService,
+                                 OpsCatalogAdminService catalogAdminService,
+                                 OpsSessionOrderQueryService sessionOrderQueryService,
+                                 OpsWorkbenchQueryService workbenchQueryService,
+                                 OpsMemberFinanceAdminService memberFinanceAdminService) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -195,833 +174,115 @@ public class AdminDashboardService {
         this.aliyunCategoryMappingRepository = aliyunCategoryMappingRepository;
         this.deviceIdService = deviceIdService;
         this.deviceIdRenameService = deviceIdRenameService;
-        this.self = self;
+        this.analyticsQueryService = analyticsQueryService;
+        this.auditQueryService = auditQueryService;
+        this.deviceAdminService = deviceAdminService;
+        this.catalogAdminService = catalogAdminService;
+        this.sessionOrderQueryService = sessionOrderQueryService;
+        this.workbenchQueryService = workbenchQueryService;
+        this.memberFinanceAdminService = memberFinanceAdminService;
     }
 
     @Transactional(readOnly = true)
     public List<DeviceRefDto> listDeviceRefs(Long operatorId) {
-        permissionService.requireAnyPermission(operatorId, PERM_OPS_DEVICE_LIST, "ops:device:ref");
-        return merchantScopeService.allowedDevices(operatorId).stream()
-                .sorted(java.util.Comparator.comparing(DeviceInfo::getDeviceId))
-                .limit(500)
-                .map(d -> new DeviceRefDto(d.getDeviceId(), d.getDeviceName(), d.getOnlineStatus(), d.getMerchantId()))
-                .toList();
+        return deviceAdminService.listDeviceRefs(operatorId);
     }
 
     @Transactional(readOnly = true)
     public OpsDashboardBundleDto dashboardBundle(Long operatorId) {
-        permissionService.requirePermission(operatorId, PERM_OPS_DASHBOARD_VIEW);
-        AdminStatsDto stats = stats(operatorId);
-        OpsWorkbenchDto wb = self.workbench(operatorId);
-        long open = exceptionRepository
-                .findByStatusOrderByCreatedAtDesc("OPEN", PageRequest.of(0, 1))
-                .getTotalElements();
-        return new OpsDashboardBundleDto(stats, wb, open);
+        return workbenchQueryService.dashboardBundle(operatorId);
     }
 
     public AdminStatsDto stats(Long operatorId) {
-        permissionService.requireAnyPermission(operatorId, PERM_OPS_DASHBOARD_VIEW, PERM_OPS_ANALYTICS_VIEW);
-        Instant todayStart = LocalDate.now(ZoneId.systemDefault())
-                .atStartOfDay(ZoneId.systemDefault()).toInstant();
-        Instant since24h = Instant.now().minus(24, ChronoUnit.HOURS);
-        Set<String> scopedDevices = merchantScopeService.allowedDeviceIds(operatorId);
-        if (scopedDevices != null && scopedDevices.isEmpty()) {
-            return emptyStats();
-        }
-        if (scopedDevices == null) {
-            return globalStats(todayStart, since24h, operatorId);
-        }
-        List<DeviceInfo> devices = merchantScopeService.allowedDevices(operatorId);
-        long deviceTotal = devices.size();
-        long deviceOnline = devices.stream()
-                .filter(d -> CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(d.getOnlineStatus()))
-                .count();
-        long completed24h = sessionRepository.countByDeviceIdInAndStateAndUpdatedAtAfter(
-                scopedDevices, SessionState.COMPLETED, since24h);
-        long disputed24h = sessionRepository.countByDeviceIdInAndStateAndUpdatedAtAfter(
-                scopedDevices, SessionState.DISPUTED, since24h);
-        long closed24h = completed24h + disputed24h;
-        double recognitionAutoRate = closed24h > 0 ? (double) completed24h / closed24h : 1.0;
-        double disputeRate = closed24h > 0 ? (double) disputed24h / closed24h : 0.0;
-        var slaRealtime = slaMetricsService.realtimeMetrics(operatorId);
-        long sessionActive = sessionRepository.countByDeviceIdInAndStateIn(scopedDevices, ACTIVE_STATES);
-        long deviceOccupied = countOccupiedDevices(scopedDevices);
-        return new AdminStatsDto(
-                deviceTotal,
-                deviceOnline,
-                sessionActive,
-                deviceOccupied,
-                sessionRepository.countByDeviceIdInAndCreatedAtAfter(scopedDevices, todayStart),
-                orderRepository.countByDeviceIdInAndCreatedAtAfter(scopedDevices, todayStart),
-                orderRepository.sumTotalAmountByDeviceIdInSince(scopedDevices, todayStart),
-                orderRepository.countByDeviceIdIn(scopedDevices),
-                orderRepository.sumTotalAmountByDeviceIdIn(scopedDevices),
-                disputeRepository.countOpenByDeviceIds(scopedDevices),
-                disputeSlaService.countOverdue(),
-                disputeSlaService.countNearSla(),
-                sessionRepository.countByDeviceIdInAndState(scopedDevices, SessionState.WAITING_UPLOAD),
-                slaRealtime.doorSuccessRate24h(),
-                disputeRate,
-                recognitionAutoRate,
-                inventoryRepository.countLowStock(),
-                splitRepository.countByStatusIn(PENDING_SPLIT_STATUSES),
-                inventoryLotService.countNearExpiryLots(),
-                inventoryLotService.countExpiredLotsWithStock(),
-                inventoryLotService.countOpenPullOffTasks(),
-                deviceSlotService.countDiscrepancies(operatorId)
-        );
+        return workbenchQueryService.stats(operatorId);
     }
 
     @Transactional(readOnly = true)
     public OpsWorkbenchDto workbench(Long operatorId) {
-        permissionService.requirePermission(operatorId, PERM_OPS_DASHBOARD_VIEW);
-        Set<String> scopedDevices = merchantScopeService.allowedDeviceIds(operatorId);
-        List<OpsActionItemDto> items = new java.util.ArrayList<>();
-        collectDisputeActionItems(scopedDevices, items);
-        collectUploadStuckItems(scopedDevices, items);
-        collectOfflineDeviceItems(scopedDevices, items);
-        collectLowStockItems(scopedDevices, items);
-        collectReplenishmentActionItems(scopedDevices, items);
-        collectStaleSessionItems(scopedDevices, items);
-        collectReconMismatchItems(items);
-        collectSplitExceptionItems(scopedDevices, items);
-        collectInTransitOverdueItems(scopedDevices, items);
-
-        items.sort(java.util.Comparator
-                .comparingInt((OpsActionItemDto item) -> severityRank(item.severity()))
-                .thenComparing(item -> item.dueAt() != null ? item.dueAt() : Instant.MAX));
-
-        return buildWorkbenchDto(operatorId, scopedDevices, items);
+        return workbenchQueryService.workbench(operatorId);
     }
 
-    private void collectDisputeActionItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
-        disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
-                .filter(d -> inDeviceScope(scopedDevices, sessionDeviceId(d.getSessionId())))
-                .forEach(d -> items.add(new OpsActionItemDto(
-                        "DISPUTE",
-                        disputeSeverity(d),
-                        "待审核争议",
-                        formatDisputeReasonText(d.getReason()),
-                        sessionDeviceId(d.getSessionId()),
-                        d.getSessionId(),
-                        d.getTicketId(),
-                        null,
-                        null,
-                        d.getCreatedAt(),
-                        d.getSlaDueAt()
-                )));
-    }
-
-    private void collectUploadStuckItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
-        sessionRepository.findTop10ByStateOrderByUpdatedAtAsc(SessionState.WAITING_UPLOAD).stream()
-                .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
-                .forEach(s -> items.add(new OpsActionItemDto(
-                        "UPLOAD_STUCK",
-                        uploadSeverity(s),
-                        "视频待上传",
-                        "上传状态：" + uploadStatusLabel(s.getUploadStatus()),
-                        s.getDeviceId(),
-                        s.getSessionId(),
-                        null,
-                        null,
-                        null,
-                        s.getCreatedAt(),
-                        s.getUpdatedAt().plus(30, ChronoUnit.MINUTES)
-                )));
-    }
-
-    private void collectOfflineDeviceItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
-        deviceRepository.findByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE, WORKBENCH_ITEM_CAP).stream()
-                .filter(d -> inDeviceScope(scopedDevices, d.getDeviceId()))
-                .forEach(d -> items.add(new OpsActionItemDto(
-                        "DEVICE_OFFLINE",
-                        offlineSeverity(d),
-                        "设备离线",
-                        d.getDeviceName() != null && !d.getDeviceName().isBlank()
-                                ? d.getDeviceName() : d.getDeviceId(),
-                        d.getDeviceId(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        d.getUpdatedAt(),
-                        null
-                )));
-    }
-
-    private void collectLowStockItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
-        inventoryRepository.findLowStockLimit(WORKBENCH_ITEM_CAP).stream()
-                .filter(i -> inDeviceScope(scopedDevices, i.getId().getDeviceId()))
-                .forEach(i -> items.add(new OpsActionItemDto(
-                        "LOW_STOCK",
-                        MEDIUM,
-                        "库存偏低",
-                        "当前库存 " + i.getQuantity() + "，预警阈值 " + i.getLowThreshold(),
-                        i.getId().getDeviceId(),
-                        null,
-                        null,
-                        i.getId().getSkuId(),
-                        null,
-                        i.getUpdatedAt(),
-                        null
-                )));
-    }
-
-    private void collectReplenishmentActionItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
-        replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(
-                        List.of(STATUS_PENDING, STATUS_IN_PROGRESS), WORKBENCH_ITEM_CAP).stream()
-                .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
-                .forEach(t -> items.add(new OpsActionItemDto(
-                        "REPLENISHMENT",
-                        MEDIUM,
-                        "补货任务待处理",
-                        "状态：" + replenishStatusLabel(t.getStatus()),
-                        t.getDeviceId(),
-                        null,
-                        null,
-                        null,
-                        t.getTaskId(),
-                        t.getCreatedAt(),
-                        null
-                )));
-    }
-
-    private void collectStaleSessionItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
-        findStaleSessions(scopedDevices).forEach(s -> items.add(new OpsActionItemDto(
-                "SESSION_STALE",
-                staleSessionSeverity(s),
-                "购物会话可能超时",
-                "状态 " + s.getState() + "，上传 " + uploadStatusLabel(s.getUploadStatus()),
-                s.getDeviceId(),
-                s.getSessionId(),
-                null,
-                null,
-                null,
-                s.getCreatedAt(),
-                s.getUpdatedAt().plus(STALE_SESSION_MINUTES, ChronoUnit.MINUTES)
-        )));
-    }
-
-    private void collectReconMismatchItems(List<OpsActionItemDto> items) {
-        reconciliationRepository.findTop10ByStatusOrderByCompletedAtDesc("MISMATCH")
-                .forEach(r -> items.add(new OpsActionItemDto(
-                        "RECON_MISMATCH",
-                        Math.abs(r.getDiffCents()) > 0 ? "HIGH" : MEDIUM,
-                        "对账存在差异",
-                        "日期 " + r.getReconDate() + " · 渠道 " + payChannelLabel(r.getChannel())
-                                + " · 差额 ¥" + String.format("%.2f", r.getDiffCents() / 100.0)
-                                + " · 未匹配 " + r.getUnmatchedCount() + " 笔",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        r.getCompletedAt() != null ? r.getCompletedAt() : r.getCreatedAt(),
-                        null
-                )));
-    }
-
-    private void collectSplitExceptionItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
-        SPLIT_EXCEPTION_STATUSES.forEach(status ->
-                splitRepository.findTop20ByStatusOrderByCreatedAtAsc(status).stream()
-                        .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
-                        .limit(5)
-                        .forEach(s -> items.add(new OpsActionItemDto(
-                                "SPLIT_EXCEPTION",
-                                CabinetConstants.ORDER_STATUS_FAILED.equalsIgnoreCase(s.getStatus())
-                                        || WECHAT_FAILED.equalsIgnoreCase(s.getStatus())
-                                        ? "HIGH" : MEDIUM,
-                                "分账待跟进",
-                                "订单 " + s.getOrderId() + " · 状态 " + splitStatusLabel(s.getStatus())
-                                        + (s.getFailureReason() != null && !s.getFailureReason().isBlank()
-                                        ? " · 原因 " + s.getFailureReason() : ""),
-                                s.getDeviceId(),
-                                null,
-                                null,
-                                null,
-                                null,
-                                s.getCreatedAt(),
-                                s.getSettleAfter() != null
-                                        ? s.getSettleAfter().atStartOfDay(ZoneId.systemDefault()).toInstant()
-                                        : null
-                        )))
-        );
-    }
-
-    private void collectInTransitOverdueItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
-        Instant transitCutoff = Instant.now().minus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS);
-        // 先按行拉取再按出库单聚合，避免同一出库单拆成十几条「紧急」刷屏
-        List<WarehouseInTransit> overdueLines = inTransitRepository
-                .findByStatusAndCreatedAtBefore(IN_TRANSIT, transitCutoff, 500)
-                .stream()
-                .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
-                .toList();
-        items.addAll(aggregateInTransitOverdueActionItems(overdueLines));
-    }
-
-    /**
-     * 将超时在途行按出库单聚合为工作台告警；无出库单号的行仍逐条保留。
-     * package-visible 便于单测。
-     */
-    static List<OpsActionItemDto> aggregateInTransitOverdueActionItems(List<WarehouseInTransit> overdueLines) {
-        if (overdueLines == null || overdueLines.isEmpty()) {
-            return List.of();
-        }
-        Map<Long, List<WarehouseInTransit>> byOutbound = new java.util.LinkedHashMap<>();
-        List<WarehouseInTransit> orphans = new java.util.ArrayList<>();
-        for (WarehouseInTransit line : overdueLines) {
-            if (line.getOutboundId() == null) {
-                orphans.add(line);
-                continue;
-            }
-            byOutbound.computeIfAbsent(line.getOutboundId(), key -> new java.util.ArrayList<>()).add(line);
-        }
-        List<OpsActionItemDto> aggregated = new java.util.ArrayList<>();
-        for (Map.Entry<Long, List<WarehouseInTransit>> entry : byOutbound.entrySet()) {
-            if (aggregated.size() >= WORKBENCH_ITEM_CAP) {
-                break;
-            }
-            List<WarehouseInTransit> lines = entry.getValue();
-            WarehouseInTransit first = lines.get(0);
-            Instant oldestCreated = lines.stream()
-                    .map(WarehouseInTransit::getCreatedAt)
-                    .filter(java.util.Objects::nonNull)
-                    .min(Instant::compareTo)
-                    .orElse(first.getCreatedAt());
-            long skuCount = lines.stream()
-                    .map(WarehouseInTransit::getSkuId)
-                    .filter(sku -> sku != null && !sku.isBlank())
-                    .distinct()
-                    .count();
-            int quantitySum = lines.stream().mapToInt(WarehouseInTransit::getQuantity).sum();
-            aggregated.add(new OpsActionItemDto(
-                    "IN_TRANSIT_OVERDUE",
-                    "HIGH",
-                    "补货签收超时",
-                    "出库单 " + entry.getKey()
-                            + " · " + skuCount + " 个 SKU"
-                            + " · 共 " + quantitySum + " 件",
-                    first.getDeviceId(),
-                    null,
-                    null,
-                    null,
-                    entry.getKey(),
-                    oldestCreated,
-                    oldestCreated != null
-                            ? oldestCreated.plus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS)
-                            : null
-            ));
-        }
-        for (WarehouseInTransit orphan : orphans) {
-            if (aggregated.size() >= WORKBENCH_ITEM_CAP) {
-                break;
-            }
-            aggregated.add(new OpsActionItemDto(
-                    "IN_TRANSIT_OVERDUE",
-                    "HIGH",
-                    "补货签收超时",
-                    "商品 " + orphan.getSkuId()
-                            + " · 批次 " + orphan.getBatchNo()
-                            + " · 数量 " + orphan.getQuantity(),
-                    orphan.getDeviceId(),
-                    null,
-                    null,
-                    orphan.getSkuId(),
-                    orphan.getTransitId(),
-                    orphan.getCreatedAt(),
-                    orphan.getCreatedAt() != null
-                            ? orphan.getCreatedAt().plus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS)
-                            : null
-            ));
-        }
-        return aggregated;
-    }
-
-    private long countInTransitOverdue(Set<String> scopedDevices) {
-        Instant cutoff = Instant.now().minus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS);
-        // 与告警明细一致：按出库单计数（无出库单号时按在途行）
-        return inTransitRepository.findByStatusAndCreatedAtBefore(IN_TRANSIT, cutoff, 500).stream()
-                .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
-                .map(t -> t.getOutboundId() != null ? t.getOutboundId() : t.getTransitId())
-                .filter(java.util.Objects::nonNull)
-                .distinct()
-                .count();
-    }
-
-    private OpsWorkbenchDto buildWorkbenchDto(
-            Long operatorId, Set<String> scopedDevices, List<OpsActionItemDto> items) {
-        List<DeviceInfo> scopedDeviceList = merchantScopeService.allowedDevices(operatorId);
-        long devicesSalesLocked = scopedDeviceList.stream().filter(DeviceInfo::salesLockedEnabled).count();
-        return new OpsWorkbenchDto(
-                countOpenDisputes(scopedDevices),
-                disputeSlaService.countOverdue(),
-                countOfflineDevices(scopedDevices),
-                countWaitingUploads(scopedDevices),
-                countLowStock(scopedDevices),
-                countPendingReplenishments(scopedDevices),
-                countStaleSessions(scopedDevices),
-                reconciliationRepository.countByStatus("MISMATCH"),
-                countSplitExceptions(scopedDevices),
-                countInTransitOverdue(scopedDevices),
-                items.stream().limit(100).toList(),
-                scopedDeviceList.size() - devicesSalesLocked,
-                devicesSalesLocked,
-                countOverdueUnpaidOrders(operatorId)
-        );
-    }
-
-    private AdminStatsDto globalStats(Instant todayStart, Instant since24h, Long operatorId) {
-        long completed24h = sessionRepository.countByStateAndUpdatedAtAfter(SessionState.COMPLETED, since24h);
-        long disputed24h = sessionRepository.countByStateAndUpdatedAtAfter(SessionState.DISPUTED, since24h);
-        long closed24h = completed24h + disputed24h;
-        double recognitionAutoRate = closed24h > 0 ? (double) completed24h / closed24h : 1.0;
-        double disputeRate = closed24h > 0 ? (double) disputed24h / closed24h : 0.0;
-        var slaRealtime = slaMetricsService.realtimeMetrics(operatorId);
-        long sessionActive = sessionRepository.countByStateIn(ACTIVE_STATES);
-        long deviceOccupied = countOccupiedDevices(null);
-        return new AdminStatsDto(
-                deviceRepository.count(),
-                deviceRepository.countByOnlineStatus(CabinetConstants.DEVICE_ONLINE),
-                sessionActive,
-                deviceOccupied,
-                sessionRepository.countByCreatedAtAfter(todayStart),
-                orderRepository.countByCreatedAtAfter(todayStart),
-                orderRepository.sumTotalAmountSince(todayStart),
-                orderRepository.count(),
-                orderRepository.sumTotalAmount(),
-                disputeRepository.countByStatus("OPEN"),
-                disputeSlaService.countOverdue(),
-                disputeSlaService.countNearSla(),
-                sessionRepository.countByState(SessionState.WAITING_UPLOAD),
-                slaRealtime.doorSuccessRate24h(),
-                disputeRate,
-                recognitionAutoRate,
-                inventoryRepository.countLowStock(),
-                splitRepository.countByStatusIn(PENDING_SPLIT_STATUSES),
-                inventoryLotService.countNearExpiryLots(),
-                inventoryLotService.countExpiredLotsWithStock(),
-                inventoryLotService.countOpenPullOffTasks(),
-                deviceSlotService.countDiscrepancies(operatorId)
-        );
-    }
-
-    private static AdminStatsDto emptyStats() {
-        return new AdminStatsDto(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.0, 0.0, 1.0, 0, 0, 0, 0, 0, 0);
-    }
-
-    private long countOccupiedDevices(Set<String> scopedDevices) {
-        if (scopedDevices != null && scopedDevices.isEmpty()) {
-            return 0;
-        }
-        Set<String> occupied = new HashSet<>();
-        long sessionDevices = scopedDevices == null
-                ? sessionRepository.countDistinctDeviceIdByStateIn(ACTIVE_STATES)
-                : sessionRepository.countDistinctDeviceIdByDeviceIdInAndStateIn(scopedDevices, ACTIVE_STATES);
-        // 补货 IN_PROGRESS 占柜：与会话设备并集（任务量通常远小于会话全表）
-        for (ReplenishmentTask t : replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(
-                List.of(STATUS_IN_PROGRESS), 500)) {
-            if (inDeviceScope(scopedDevices, t.getDeviceId())) {
-                occupied.add(t.getDeviceId());
-            }
-        }
-        // 无法无会话设备列表精确并集时：取「会话占柜」与「补货占柜」的上界近似
-        // （补货设备通常也有补货会话；若仅有任务无会话，用 max 会略低估，可接受）
-        return Math.max(sessionDevices, occupied.size());
-    }
-
-    private long countOpenDisputes(Set<String> scopedDevices) {
-        if (scopedDevices == null) {
-            return disputeRepository.countByStatus("OPEN");
-        }
-        // 作用域内无法无会话表直算时，用有限样本过滤计数（与待办列表一致上限）
-        return disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN", 500).stream()
-                .filter(d -> inDeviceScope(scopedDevices, sessionDeviceId(d.getSessionId())))
-                .count();
-    }
-
-    private long countOfflineDevices(Set<String> scopedDevices) {
-        if (scopedDevices == null) {
-            return deviceRepository.countByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE);
-        }
-        return deviceRepository.countByDeviceIdInAndOnlineStatusNot(scopedDevices, CabinetConstants.DEVICE_ONLINE);
-    }
-
-    private long countWaitingUploads(Set<String> scopedDevices) {
-        if (scopedDevices == null) {
-            return sessionRepository.countByState(SessionState.WAITING_UPLOAD);
-        }
-        return sessionRepository.countByDeviceIdInAndState(scopedDevices, SessionState.WAITING_UPLOAD);
-    }
-
-    private long countLowStock(Set<String> scopedDevices) {
-        if (scopedDevices == null) {
-            return inventoryRepository.countLowStock();
-        }
-        return inventoryRepository.countLowStockByDeviceIds(scopedDevices);
-    }
-
-    private long countPendingReplenishments(Set<String> scopedDevices) {
-        List<String> statuses = List.of(STATUS_PENDING, STATUS_IN_PROGRESS);
-        if (scopedDevices == null) {
-            return replenishmentTaskRepository.countByStatusIn(statuses);
-        }
-        return replenishmentTaskRepository.countByStatusInAndDeviceIdIn(statuses, scopedDevices);
-    }
-
-    private List<ShoppingSession> findStaleSessions(Set<String> scopedDevices) {
-        Instant cutoff = Instant.now().minus(STALE_SESSION_MINUTES, ChronoUnit.MINUTES);
-        return sessionRepository.findByStateInAndUpdatedAtBefore(ACTIVE_STATES, cutoff, WORKBENCH_ITEM_CAP).stream()
-                .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
-                .toList();
-    }
-
-    private long countStaleSessions(Set<String> scopedDevices) {
-        Instant cutoff = Instant.now().minus(STALE_SESSION_MINUTES, ChronoUnit.MINUTES);
-        if (scopedDevices == null) {
-            return sessionRepository.countByStateInAndUpdatedAtBefore(ACTIVE_STATES, cutoff);
-        }
-        return sessionRepository.countByDeviceIdInAndStateInAndUpdatedAtBefore(
-                scopedDevices, ACTIVE_STATES, cutoff);
-    }
-
-    private long countSplitExceptions(Set<String> scopedDevices) {
-        if (scopedDevices == null) {
-            return splitRepository.countByStatusIn(SPLIT_EXCEPTION_STATUSES);
-        }
-        return splitRepository.countByStatusInAndDeviceIdIn(SPLIT_EXCEPTION_STATUSES, scopedDevices);
-    }
-
-    private String sessionDeviceId(String sessionId) {
-        return sessionRepository.findById(sessionId).map(ShoppingSession::getDeviceId).orElse(null);
-    }
-
-    private static String staleSessionSeverity(ShoppingSession session) {
-        if (session.getState() == SessionState.WAITING_UPLOAD) {
-            return "HIGH";
-        }
-        if (session.getState() == SessionState.OPENING || session.getState() == SessionState.SETTLING) {
-            return "HIGH";
-        }
-        return MEDIUM;
-    }
-
-    private static boolean inDeviceScope(Set<String> scopedDevices, String deviceId) {
-        return scopedDevices == null || (deviceId != null && scopedDevices.contains(deviceId));
-    }
-
-    private static String disputeSeverity(DisputeTicket ticket) {
-        if (ticket.getSlaDueAt() != null && !ticket.getSlaDueAt().isAfter(Instant.now())) {
-            return CRITICAL;
-        }
-        if ("URGENT".equalsIgnoreCase(ticket.getPriority())) {
-            return CRITICAL;
-        }
-        if ("HIGH".equalsIgnoreCase(ticket.getPriority())) {
-            return "HIGH";
-        }
-        return MEDIUM;
-    }
-
-    private static String uploadSeverity(ShoppingSession session) {
-        return session.getUpdatedAt().isBefore(Instant.now().minus(30, ChronoUnit.MINUTES))
-                ? "HIGH" : MEDIUM;
-    }
-
-    private static String offlineSeverity(DeviceInfo device) {
-        Instant updated = device.getUpdatedAt();
-        return updated != null && updated.isBefore(Instant.now().minus(2, ChronoUnit.HOURS))
-                ? "HIGH" : MEDIUM;
-    }
-
-    private static int severityRank(String severity) {
-        return switch (String.valueOf(severity).toUpperCase()) {
-            case CRITICAL -> 0;
-            case "HIGH" -> 1;
-            case MEDIUM -> 2;
-            default -> 3;
-        };
-    }
-
-    private Set<String> replenishingDeviceIds() {
-        return replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(List.of(STATUS_IN_PROGRESS), 500).stream()
-                .map(ReplenishmentTask::getDeviceId)
-                .collect(Collectors.toSet());
+    /** 在途超时告警聚合（表征测试 / 门面兼容入口）。 */
+    public static List<OpsActionItemDto> aggregateInTransitOverdueActionItems(
+            List<WarehouseInTransit> overdueLines) {
+        return OpsWorkbenchQueryService.aggregateInTransitOverdueActionItems(overdueLines);
     }
 
     public List<AdminDeviceDto> listDevices(Long operatorId) {
-        return listDevicesPaged(operatorId, 0, 5000, null, null).items();
+        return deviceAdminService.listDevices(operatorId);
     }
 
     @Transactional(readOnly = true)
     public AdminDeviceDto getDevice(Long operatorId, String deviceId) {
-        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_LIST);
-        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
-        DeviceInfo d = deviceRepository.findById(deviceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
-        return toDeviceDto(d, findSessionForDeviceList(deviceId), replenishingDeviceIds().contains(deviceId));
+        return deviceAdminService.getDevice(operatorId, deviceId);
     }
 
     public PageResult<AdminDeviceDto> listDevicesPaged(Long operatorId, int page, int size,
                                                          String q, String online) {
-        return listDevicesPaged(operatorId, new DeviceListQuery(page, size, q, online, null, null, null, null));
+        return deviceAdminService.listDevicesPaged(operatorId, page, size, q, online);
     }
 
     public PageResult<AdminDeviceDto> listDevicesPaged(Long operatorId, int page, int size,
                                                          String q, String online, Boolean salesLocked) {
-        return listDevicesPaged(operatorId,
-                new DeviceListQuery(page, size, q, online, salesLocked, null, null, null));
+        return deviceAdminService.listDevicesPaged(operatorId, page, size, q, online, salesLocked);
     }
 
-    public PageResult<AdminDeviceDto> listDevicesPaged(Long operatorId, DeviceListQuery query) {
-        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_LIST);
-        List<DeviceInfo> devices = merchantScopeService.allowedDevices(operatorId);
-        Set<String> replenishing = replenishingDeviceIds();
-        Map<String, ShoppingSession> sessionByDevice = sessionRepository.findByStateIn(ACTIVE_STATES, 2000).stream()
-                .collect(Collectors.toMap(
-                        ShoppingSession::getDeviceId,
-                        s -> s,
-                        AdminDashboardService::preferSessionForDeviceList
-                ));
-
-        DeviceListFilters filters = DeviceListFilters.from(
-                query.q(), query.online(), query.salesLocked(),
-                query.lifecycleStatus(), query.coopMode(), query.routeCode());
-        List<AdminDeviceDto> filtered = devices.stream()
-                .map(d -> toDeviceDto(d, sessionByDevice.get(d.getDeviceId()), replenishing.contains(d.getDeviceId())))
-                .filter(d -> matchesDeviceListFilters(d, filters))
-                .toList();
-
-        int safeSize = Math.min(Math.max(query.size(), 1), 200);
-        int safePage = Math.max(query.page(), 0);
-        int from = Math.min(safePage * safeSize, filtered.size());
-        int to = Math.min(from + safeSize, filtered.size());
-        return new PageResult<>(filtered.subList(from, to), safePage, safeSize, filtered.size());
-    }
-
-    public record DeviceListQuery(int page, int size, String q, String online, Boolean salesLocked,
-                                  String lifecycleStatus, String coopMode, String routeCode) {}
-
-    private record DeviceListFilters(String kw, String onlineFilter, Boolean salesLocked,
-                                     String lifeFilter, String coopFilter, String routeFilter) {
-        static DeviceListFilters from(String q, String online, Boolean salesLocked,
-                                      String lifecycleStatus, String coopMode, String routeCode) {
-            return new DeviceListFilters(
-                    q == null ? "" : q.trim().toLowerCase(),
-                    online == null ? "" : online.trim().toUpperCase(),
-                    salesLocked,
-                    lifecycleStatus == null ? "" : lifecycleStatus.trim().toUpperCase(),
-                    coopMode == null ? "" : coopMode.trim().toUpperCase(),
-                    routeCode == null ? "" : routeCode.trim().toLowerCase()
-            );
-        }
-    }
-
-    private static boolean matchesDeviceListFilters(AdminDeviceDto device, DeviceListFilters filters) {
-        if (!filters.onlineFilter().isEmpty()
-                && !filters.onlineFilter().equalsIgnoreCase(String.valueOf(device.onlineStatus()))) {
-            return false;
-        }
-        if (filters.salesLocked() != null && device.salesLocked() != filters.salesLocked()) {
-            return false;
-        }
-        if (!filters.lifeFilter().isEmpty()
-                && !filters.lifeFilter().equalsIgnoreCase(
-                String.valueOf(device.lifecycleStatus() == null ? DEPLOYED : device.lifecycleStatus()))) {
-            return false;
-        }
-        if (!filters.coopFilter().isEmpty()
-                && !filters.coopFilter().equalsIgnoreCase(
-                String.valueOf(device.coopMode() == null ? "" : device.coopMode()))) {
-            return false;
-        }
-        if (!filters.routeFilter().isEmpty()
-                && !String.valueOf(device.routeCode() == null ? "" : device.routeCode())
-                .toLowerCase().contains(filters.routeFilter())) {
-            return false;
-        }
-        return matchesDeviceKeyword(device, filters.kw());
-    }
-
-    private static boolean matchesDeviceKeyword(AdminDeviceDto device, String kw) {
-        if (kw.isEmpty()) {
-            return true;
-        }
-        return containsIgnoreCase(device.deviceId(), kw)
-                || containsIgnoreCase(device.deviceName(), kw)
-                || containsIgnoreCase(device.merchantId(), kw)
-                || containsIgnoreCase(device.merchantName(), kw)
-                || containsIgnoreCase(device.imei(), kw)
-                || containsIgnoreCase(device.assetOwner(), kw)
-                || containsIgnoreCase(device.opsTags(), kw)
-                || containsIgnoreCase(device.routeCode(), kw);
-    }
-
-    private static boolean containsIgnoreCase(Object value, String kw) {
-        return String.valueOf(value == null ? "" : value).toLowerCase().contains(kw);
-    }
-
-    private static ShoppingSession preferSessionForDeviceList(ShoppingSession a, ShoppingSession b) {
-        boolean aActive = ACTIVE_STATES.contains(a.getState());
-        boolean bActive = ACTIVE_STATES.contains(b.getState());
-        if (aActive != bActive) {
-            return aActive ? a : b;
-        }
-        Instant au = sessionTouchTime(a);
-        Instant bu = sessionTouchTime(b);
-        return au.isAfter(bu) ? a : b;
-    }
-
-    private static Instant sessionTouchTime(ShoppingSession s) {
-        if (s.getUpdatedAt() != null) {
-            return s.getUpdatedAt();
-        }
-        return s.getCreatedAt() != null ? s.getCreatedAt() : Instant.EPOCH;
+    public PageResult<AdminDeviceDto> listDevicesPaged(Long operatorId, OpsDeviceAdminService.DeviceListQuery query) {
+        return deviceAdminService.listDevicesPaged(operatorId, query);
     }
 
     public PageResult<AdminSessionDto> listSessions(Long operatorId, int page, int size,
                                                       String deviceId, SessionState state) {
-        return listSessions(operatorId, new SessionListQuery(
-                page, size, deviceId, state, null, null, null, null, null, null, false, 30));
+        return sessionOrderQueryService.listSessions(operatorId, page, size, deviceId, state);
     }
 
-    public PageResult<AdminSessionDto> listSessions(Long operatorId, SessionListQuery query) {
-        permissionService.requireAnyPermission(operatorId, "ops:session:list", "ops:session:upload");
-        Pageable pageable = PageRequest.of(query.page(), Math.min(query.size(), 100));
-        Instant updatedBefore = query.stuckOnly()
-                ? Instant.now().minus(Math.max(query.stuckMinutes(), 1), ChronoUnit.MINUTES)
-                : null;
-        Page<ShoppingSession> result = querySessions(
-                operatorId,
-                new SessionQueryCriteria(
-                        query.deviceId(), query.state(), query.sessionId(), query.userId(),
-                        query.from(), query.to(), query.keyword(), blankToNull(query.uploadStatus()), updatedBefore),
-                pageable);
-        return new PageResult<>(
-                result.getContent().stream().map(this::toSessionDto).toList(),
-                result.getNumber(),
-                result.getSize(),
-                result.getTotalElements()
-        );
+    public PageResult<AdminSessionDto> listSessions(Long operatorId, OpsSessionOrderQueryService.SessionListQuery query) {
+        return sessionOrderQueryService.listSessions(operatorId, query);
     }
-
-    public record SessionListQuery(
-            int page, int size, String deviceId, SessionState state,
-            String sessionId, Long userId, Instant from, Instant to, String keyword,
-            String uploadStatus, boolean stuckOnly, int stuckMinutes) {}
 
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(Long operatorId, int page, int size, String deviceId) {
-        return self.listOrders(operatorId, new OrderListQuery(
-                page, size, deviceId, null, false, null, null, null, null, null, null, null, null, false));
+        return sessionOrderQueryService.listOrders(operatorId, page, size, deviceId);
     }
 
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(
             Long operatorId, int page, int size, String deviceId, String status) {
-        return self.listOrders(operatorId, new OrderListQuery(
-                page, size, deviceId, status, false, null, null, null, null, null, null, null, null, false));
+        return sessionOrderQueryService.listOrders(operatorId, page, size, deviceId, status);
     }
 
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(
             Long operatorId, int page, int size, String deviceId, String status, boolean overdueOnly) {
-        return self.listOrders(operatorId, new OrderListQuery(
-                page, size, deviceId, status, overdueOnly, null, null, null, null, null, null, null, null, false));
+        return sessionOrderQueryService.listOrders(operatorId, page, size, deviceId, status, overdueOnly);
     }
 
     @Transactional(readOnly = true)
-    public PageResult<AdminOrderSummaryDto> listOrders(Long operatorId, OrderListQuery query) {
-        permissionService.requirePermission(operatorId, "ops:order:list");
-        Pageable pageable = PageRequest.of(query.page(), Math.min(query.size(), 100));
-        String status = query.status();
-        Instant createdBefore = null;
-        if (query.overdueOnly()) {
-            createdBefore = Instant.now().minus(UNPAID_OPS_OVERDUE_MINUTES, ChronoUnit.MINUTES);
-            if (status == null || status.isBlank()) {
-                status = STATUS_PENDING;
-            }
-        }
-        Page<CabinetOrder> result = queryOrders(
-                operatorId,
-                new OrderQueryCriteria(
-                        query.deviceId(), status, createdBefore, query.from(), query.to(),
-                        query.orderId(), query.userId(), query.sessionId(),
-                        query.payTradeNo(), query.payChannel(), query.keyword(),
-                        query.excludeZeroAmount()),
-                pageable);
-        List<String> orderIds = result.getContent().stream().map(CabinetOrder::getOrderId).toList();
-        Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(orderIds);
-        Map<String, List<CabinetOrderLine>> linesByOrder = loadOrderLinesByOrderIds(orderIds);
-        Map<String, String> splitStatusByOrder = loadSplitStatusByOrderIds(orderIds);
-        return new PageResult<>(
-                result.getContent().stream()
-                        .map(o -> toOrderSummary(
-                                o,
-                                qtyByOrder.getOrDefault(o.getOrderId(), 0),
-                                linesByOrder.getOrDefault(o.getOrderId(), List.of()),
-                                splitStatusByOrder.get(o.getOrderId())))
-                        .toList(),
-                result.getNumber(),
-                result.getSize(),
-                result.getTotalElements()
-        );
-    }
-
-    public record OrderListQuery(
-            int page, int size, String deviceId, String status, boolean overdueOnly,
-            String orderId, Long userId, String sessionId, String payTradeNo, String payChannel,
-            Instant from, Instant to, String keyword, boolean excludeZeroAmount) {}
-
-    private long countOverdueUnpaidOrders(Long operatorId) {
-        Instant cutoff = Instant.now().minus(UNPAID_OPS_OVERDUE_MINUTES, ChronoUnit.MINUTES);
-        return queryOrders(operatorId, null, STATUS_PENDING, cutoff, PageRequest.of(0, 1)).getTotalElements();
+    public PageResult<AdminOrderSummaryDto> listOrders(Long operatorId, OpsSessionOrderQueryService.OrderListQuery query) {
+        return sessionOrderQueryService.listOrders(operatorId, query);
     }
 
     @Transactional(readOnly = true)
     public OrderDto getOrder(Long operatorId, String orderId) {
-        permissionService.requirePermission(operatorId, "ops:order:list");
-        CabinetOrder order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        merchantScopeService.requireDeviceAccess(operatorId, order.getDeviceId());
-        return settlementService.getOrderBySession(order.getSessionId());
+        return sessionOrderQueryService.getOrder(operatorId, orderId);
     }
 
     @Transactional
     public AdminSessionDto cancelSession(Long operatorId, String sessionId) {
-        permissionService.requirePermission(operatorId, "ops:session:cancel");
-        ShoppingSession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
-        if (EnumSet.of(SessionState.COMPLETED, SessionState.CANCELLED, SessionState.FAILED).contains(session.getState())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SESSION_FINISHED);
-        }
-        // 识别/结算中请走异常中心，避免截断库存与录像链路
-        if (EnumSet.of(SessionState.WAITING_UPLOAD, SessionState.RECOGNIZING, SessionState.SETTLING, SessionState.DISPUTED)
-                .contains(session.getState())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "识别/结算中的会话请到异常中心处理，不可直接取消");
-        }
-        SessionState previous = session.getState();
-        session.setState(SessionState.CANCELLED);
-        sessionRepository.save(session);
-        auditService.appendLog(operatorId, "SESSION_CANCEL", "SESSION", sessionId,
-                "device=" + session.getDeviceId() + " previous=" + previous);
-        return toSessionDto(session);
+        return sessionOrderQueryService.cancelSession(operatorId, sessionId);
     }
 
     @Transactional(readOnly = true)
     public void streamSessionVideo(Long operatorId, String sessionId,
                                    jakarta.servlet.http.HttpServletRequest request,
                                    HttpServletResponse response) {
-        permissionService.requireAnyPermission(operatorId, "ops:session:list", "ops:session:upload", "ops:dispute");
-        ShoppingSession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
-        String videoUri = session.getVideoUri();
-        if (videoUri == null || videoUri.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "该会话没有关联视频");
-        }
-        minioVideoService.streamTo(videoUri, request, response);
+        sessionOrderQueryService.streamSessionVideo(operatorId, sessionId, request, response);
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.aicabinet.common.dto.DeviceMapPointDto> listDeviceMapPoints(
+            Long operatorId, String lifecycleStatus, String routeCode, String online) {
+        return deviceAdminService.listDeviceMapPoints(operatorId, lifecycleStatus, routeCode, online);
     }
 
     public PageResult<AdminDeviceReportDto> deviceReports(
@@ -1031,99 +292,18 @@ public class AdminDashboardService {
             String keyword,
             String online,
             String deviceId) {
-        permissionService.requirePermission(operatorId, "ops:report:device");
-        Instant todayStart = LocalDate.now(ZoneId.systemDefault())
-                .atStartOfDay(ZoneId.systemDefault()).toInstant();
-        Map<String, ShoppingSession> activeByDevice = sessionRepository.findByStateIn(ACTIVE_STATES, 2000).stream()
-                .collect(Collectors.toMap(ShoppingSession::getDeviceId, s -> s, (a, b) -> a));
-
-        String kw = keyword == null ? "" : keyword.trim().toLowerCase();
-        String onlineNorm = online == null || online.isBlank() ? null : online.trim().toUpperCase();
-        String deviceFilter = deviceId == null || deviceId.isBlank() ? null : deviceId.trim();
-
-        Map<String, String> merchantNames = merchantRepository.findAll().stream()
-                .collect(Collectors.toMap(
-                        com.aicabinet.trade.domain.Merchant::getMerchantId,
-                        m -> m.getMerchantName() == null ? "" : m.getMerchantName(),
-                        (a, b) -> a));
-
-        List<AdminDeviceReportDto> filtered = merchantScopeService.allowedDevices(operatorId).stream()
-                .filter(d -> matchesDeviceReportFilter(d, deviceFilter, onlineNorm, kw))
-                .map(d -> toDeviceReportDto(d, todayStart, activeByDevice, merchantNames))
-                .sorted(Comparator.comparing(AdminDeviceReportDto::deviceId, Comparator.nullsLast(String::compareTo)))
-                .toList();
-
-        int p = Math.max(page, 0);
-        int s = Math.min(Math.max(size, 1), 100);
-        long total = filtered.size();
-        int from = Math.min(p * s, filtered.size());
-        int to = Math.min(from + s, filtered.size());
-        return new PageResult<>(filtered.subList(from, to), p, s, total);
-    }
-
-    private static boolean matchesDeviceReportFilter(DeviceInfo d, String deviceFilter, String onlineNorm, String kw) {
-        if (deviceFilter != null && !deviceFilter.equals(d.getDeviceId())) {
-            return false;
-        }
-        if (onlineNorm != null
-                && !onlineNorm.equalsIgnoreCase(d.getOnlineStatus() == null ? "" : d.getOnlineStatus())) {
-            return false;
-        }
-        if (kw.isEmpty()) {
-            return true;
-        }
-        String id = d.getDeviceId() == null ? "" : d.getDeviceId().toLowerCase();
-        String name = d.getDeviceName() == null ? "" : d.getDeviceName().toLowerCase();
-        return id.contains(kw) || name.contains(kw);
-    }
-
-    private AdminDeviceReportDto toDeviceReportDto(
-            DeviceInfo d,
-            Instant todayStart,
-            Map<String, ShoppingSession> activeByDevice,
-            Map<String, String> merchantNames) {
-        String id = d.getDeviceId();
-        long orderTotal = orderRepository.countByDeviceId(id);
-        long revenueTotal = orderRepository.sumAmountByDeviceId(id);
-        long orderToday = orderRepository.countByDeviceIdAndCreatedAtAfter(id, todayStart);
-        long revenueToday = orderRepository.sumAmountByDeviceIdSince(id, todayStart);
-        String merchantId = d.getMerchantId();
-        String merchantName = merchantId == null ? null : merchantNames.get(merchantId);
-        if (merchantName != null && merchantName.isBlank()) {
-            merchantName = null;
-        }
-        return new AdminDeviceReportDto(
-                id,
-                d.getDeviceName(),
-                d.getOnlineStatus(),
-                orderTotal,
-                revenueTotal,
-                orderToday,
-                revenueToday,
-                sessionRepository.countByDeviceId(id),
-                activeByDevice.containsKey(id) ? 1 : 0,
-                merchantId,
-                merchantName,
-                d.getRouteCode(),
-                d.getAddress(),
-                d.salesLockedEnabled(),
-                d.getSalesLockReason(),
-                d.getCurrentTempC(),
-                d.getFirmwareVersion(),
-                orderToday > 0 ? revenueToday / orderToday : 0,
-                orderTotal > 0 ? revenueTotal / orderTotal : 0
-        );
+        return deviceAdminService.deviceReports(operatorId, page, size, keyword, online, deviceId);
     }
 
     /** @deprecated 兼容旧调用：返回全量列表 */
     @Deprecated(since = "2026-08", forRemoval = false)
     @SuppressWarnings("java:S1133")
     public List<AdminDeviceReportDto> deviceReports(Long operatorId) {
-        return deviceReports(operatorId, 0, 10_000, null, null, null).items();
+        return deviceAdminService.deviceReports(operatorId);
     }
 
     public PageResult<AdminAuditLogDto> listAuditLogs(Long operatorId, int page, int size, boolean logIdAsc) {
-        return listAuditLogs(operatorId, page, size, logIdAsc, null, null, false);
+        return auditQueryService.listAuditLogs(operatorId, page, size, logIdAsc);
     }
 
     public PageResult<AdminAuditLogDto> listAuditLogs(
@@ -1134,1299 +314,129 @@ public class AdminDashboardService {
             String action,
             String targetType,
             boolean mineOnly) {
-        permissionService.requirePermission(operatorId, "ops:audit:list");
-        int p = Math.max(page, 0);
-        int s = Math.min(Math.max(size, 1), 100);
-        Long operatorFilter = mineOnly ? operatorId : null;
-        Page<com.aicabinet.trade.domain.AdminAuditLog> result = auditLogRepository.searchPage(
-                operatorFilter, blankToNull(action), blankToNull(targetType), logIdAsc, p, s);
-        return toAuditPage(result);
+        return auditQueryService.listAuditLogs(operatorId, page, size, logIdAsc, action, targetType, mineOnly);
     }
 
     public List<AdminAuditLogDto> listRecentAuditLogs(Long operatorId, int size, boolean mineOnly) {
-        permissionService.requireAnyPermission(operatorId, "ops:audit:recent", "ops:audit:list");
-        int limit = Math.min(Math.max(size, 1), 50);
-        Pageable pageable = PageRequest.of(0, limit);
-        Page<com.aicabinet.trade.domain.AdminAuditLog> result = mineOnly
-                ? auditLogRepository.findByOperatorIdOrderByCreatedAtDesc(operatorId, pageable)
-                : auditLogRepository.findAllByOrderByCreatedAtDesc(pageable);
-        return enrichAuditLogs(result.getContent());
-    }
-
-    private PageResult<AdminAuditLogDto> toAuditPage(Page<com.aicabinet.trade.domain.AdminAuditLog> result) {
-        return new PageResult<>(
-                enrichAuditLogs(result.getContent()),
-                result.getNumber(),
-                result.getSize(),
-                result.getTotalElements()
-        );
-    }
-
-    private List<AdminAuditLogDto> enrichAuditLogs(List<com.aicabinet.trade.domain.AdminAuditLog> logs) {
-        if (logs.isEmpty()) {
-            return List.of();
-        }
-        List<Long> operatorIds = logs.stream()
-                .map(com.aicabinet.trade.domain.AdminAuditLog::getOperatorId)
-                .distinct()
-                .toList();
-        Map<Long, UserInfo> users = userInfoRepository.findByUserIdIn(operatorIds).stream()
-                .collect(Collectors.toMap(UserInfo::getUserId, u -> u));
-        return logs.stream()
-                .map(log -> toAuditDto(log, users.get(log.getOperatorId())))
-                .toList();
+        return auditQueryService.listRecentAuditLogs(operatorId, size, mineOnly);
     }
 
     public PageResult<AdminUserDto> listUsers(Long operatorId, int page, int size, Long userId,
                                               String phone, String name, String role, Boolean verified) {
-        permissionService.requirePermission(operatorId, "ops:user:list");
-        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
-        Long minUserId = null;
-        Long maxUserId = null;
-        if (role != null && !role.isBlank()) {
-            if ("OPERATOR".equalsIgnoreCase(role.trim())) {
-                minUserId = CabinetConstants.OPERATOR_USER_ID_START;
-            } else if ("CONSUMER".equalsIgnoreCase(role.trim())) {
-                maxUserId = CabinetConstants.OPERATOR_USER_ID_START - 1;
-            }
-        }
-        Page<UserInfo> result = userInfoRepository.searchForAdmin(
-                userId,
-                trimToNull(phone),
-                trimToNull(name),
-                verified,
-                minUserId,
-                maxUserId,
-                pageable);
-        List<Long> userIds = result.getContent().stream().map(UserInfo::getUserId).toList();
-        Map<Long, Member> memberByUser = memberRepository.findByUserIds(userIds).stream()
-                .collect(Collectors.toMap(Member::getUserId, m -> m, (a, b) -> a));
-        Set<Long> blacklistedUsers = blacklistRepository.findActiveUserIds(userIds);
-        Map<Long, Integer> balanceByUser = userAccountRepository.findByUserIds(userIds).stream()
-                .collect(Collectors.toMap(UserAccount::getUserId, UserAccount::getBalanceCents, (a, b) -> a));
-        return new PageResult<>(
-                result.getContent().stream()
-                        .map(u -> toUserDto(u,
-                                balanceByUser.getOrDefault(u.getUserId(), 0),
-                                memberByUser.get(u.getUserId()),
-                                blacklistedUsers.contains(u.getUserId())))
-                        .toList(),
-                result.getNumber(),
-                result.getSize(),
-                result.getTotalElements()
-        );
+        return memberFinanceAdminService.listUsers(operatorId, page, size, userId, phone, name, role, verified);
     }
 
     public List<SkuCatalogDto> listSkus(Long operatorId) {
-        return self.listSkus(operatorId, null, null, null);
+        return catalogAdminService.listSkus(operatorId);
     }
 
     @Transactional(readOnly = true)
     public List<SkuCatalogDto> listSkus(Long operatorId, String q, String status, String category) {
-        permissionService.requireAnyPermission(operatorId, "ops:sku:list", "ops:replenishment:list", "ops:warehouse:list");
-        return self.listSkusPage(operatorId, q, status, category, 0, 500).items();
+        return catalogAdminService.listSkus(operatorId, q, status, category);
     }
 
     @Transactional(readOnly = true)
     public PageResult<SkuCatalogDto> listSkusPage(
             Long operatorId, String q, String status, String category, int page, int size) {
-        permissionService.requireAnyPermission(operatorId, "ops:sku:list", "ops:replenishment:list", "ops:warehouse:list");
-        int p = Math.max(page, 0);
-        int s = Math.min(Math.max(size, 1), 500);
-        var result = skuCatalogRepository.search(q, status, category, p, s);
-        List<SkuCatalogDto> items = result.getRecords().stream().map(SkuCatalog::toDto).toList();
-        return new PageResult<>(items, p, s, result.getTotal());
+        return catalogAdminService.listSkusPage(operatorId, q, status, category, page, size);
     }
 
     @Transactional
     public SkuCatalogDto createSku(Long operatorId, UpsertSkuRequest request) {
-        permissionService.requirePermission(operatorId, "ops:sku:edit");
-        long code = skuCatalogRepository.nextSkuCode();
-        String skuId = request.skuId() != null && !request.skuId().isBlank()
-                ? request.skuId().trim()
-                : "SKU-" + code;
-        if (skuCatalogRepository.existsById(skuId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_EXISTS);
-        }
-        String barcode = trimToNull(request.barcode());
-        assertBarcodeUnique(barcode, null);
-        assertSkuNameUnique(request.skuName(), null);
-        SkuCatalog sku = new SkuCatalog();
-        sku.setSkuId(skuId);
-        sku.setSkuCode(code);
-        applySkuRequest(sku, request);
-        syncSkuCategoryId(sku);
-        touchSkuUpdater(sku, operatorId);
-        if (sku.getCreatedAt() == null) {
-            sku.setCreatedAt(Instant.now());
-        }
-        skuCatalogRepository.save(sku);
-        auditService.appendLog(operatorId, "SKU_CREATE", "SKU", sku.getSkuId(),
-                "code=" + sku.getSkuCode() + " " + sku.getSkuName() + " price=" + sku.getPriceCents());
-        return sku.toDto();
+        return catalogAdminService.createSku(operatorId, request);
     }
 
     @Transactional
     public SkuCatalogDto updateSku(Long operatorId, String skuId, UpsertSkuRequest request) {
-        permissionService.requirePermission(operatorId, "ops:sku:edit");
-        SkuCatalog sku = skuCatalogRepository.findById(skuId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SKU_NOT_FOUND));
-        String oldImageUrl = sku.getImageUrl();
-        String barcode = trimToNull(request.barcode());
-        assertBarcodeUnique(barcode, skuId);
-        assertSkuNameUnique(request.skuName(), skuId);
-        applySkuRequest(sku, request);
-        syncSkuCategoryId(sku);
-        touchSkuUpdater(sku, operatorId);
-        skuCatalogRepository.save(sku);
-        String newImageUrl = trimToNull(request.imageUrl());
-        if (oldImageUrl != null && !oldImageUrl.equals(newImageUrl)) {
-            // 主图被替换/清空时释放旧图（无引用则删除对象），避免孤儿文件堆积
-            fileAttachmentService.releaseSkuImageIfUnused(oldImageUrl);
-        }
-        auditService.appendLog(operatorId, "SKU_UPDATE", "SKU", sku.getSkuId(),
-                "code=" + sku.getSkuCode() + " " + sku.getSkuName() + " price=" + sku.getPriceCents());
-        return sku.toDto();
-    }
-
-    private void assertBarcodeUnique(String barcode, String excludeSkuId) {
-        if (skuCatalogRepository.existsByBarcode(barcode, excludeSkuId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_BARCODE_EXISTS);
-        }
-    }
-
-    private void assertSkuNameUnique(String skuName, String excludeSkuId) {
-        if (skuCatalogRepository.existsBySkuName(skuName, excludeSkuId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_NAME_EXISTS);
-        }
-    }
-
-    private static void applySkuRequest(SkuCatalog sku, UpsertSkuRequest request) {
-        sku.setSkuName(request.skuName().trim());
-        sku.setPriceCents(request.priceCents());
-        sku.setWeightGrams(request.weightGrams());
-        sku.setVisionEnabled(request.visionEnabled());
-        sku.setImageUrl(trimToNull(request.imageUrl()));
-        sku.setDescription(trimToNull(request.description()));
-        sku.setCategory(trimToNull(request.category()));
-        sku.setBarcode(trimToNull(request.barcode()));
-        sku.setBrand(trimToNull(request.brand()));
-        sku.setSpec(trimToNull(request.spec()));
-        sku.setUnit(request.unit() != null && !request.unit().isBlank() ? request.unit().trim() : "件");
-        sku.setStatus(request.status());
-        sku.setShelfLifeDays(request.shelfLifeDays());
-        sku.setNearExpiryDays(request.nearExpiryDays());
-        sku.setBlockSaleDaysBeforeExpiry(request.blockSaleDaysBeforeExpiry());
-        sku.setStorageType(request.storageType());
-        sku.setPurchaseCostCents(request.purchaseCostCents());
-        sku.setNearExpiryPriceCents(request.nearExpiryPriceCents());
-        if (request.minChargeConfidence() != null) {
-            sku.setMinChargeConfidence(request.minChargeConfidence());
-        }
-        if (request.yoloClassName() != null && !request.yoloClassName().isBlank()) {
-            sku.setYoloClassName(request.yoloClassName().trim());
-        }
-        if (request.visionEnrollmentStatus() != null && !request.visionEnrollmentStatus().isBlank()) {
-            sku.setVisionEnrollmentStatus(request.visionEnrollmentStatus().trim().toUpperCase());
-        }
-        if (request.detectionMinConfidence() != null) {
-            sku.setDetectionMinConfidence(request.detectionMinConfidence());
-        }
-        if (request.referenceImageUrlsJson() != null) {
-            sku.setReferenceImageUrlsJson(trimToNull(request.referenceImageUrlsJson()));
-        }
-    }
-
-    private void touchSkuUpdater(SkuCatalog sku, Long operatorId) {
-        if (operatorId == null || operatorId <= 0L) {
-            sku.setUpdatedByUserId(null);
-            sku.setUpdatedByName("系统");
-            return;
-        }
-        sku.setUpdatedByUserId(operatorId);
-        UserInfo user = userInfoRepository.findById(operatorId).orElse(null);
-        String name = user != null ? user.getName() : null;
-        String phone = user != null ? user.getPhoneNumber() : null;
-        if (name == null || name.isBlank()) {
-            name = phone != null && !phone.isBlank() ? phone : ("账号 " + operatorId);
-        }
-        sku.setUpdatedByName(name);
-    }
-
-    private void syncSkuCategoryId(SkuCatalog sku) {
-        String category = sku.getCategory();
-        if (category == null || category.isBlank()) {
-            sku.setCategoryId(null);
-            return;
-        }
-        AliyunCategoryMapping mapping = aliyunCategoryMappingRepository.selectOne(
-                Wrappers.<AliyunCategoryMapping>lambdaQuery()
-                        .eq(AliyunCategoryMapping::getCategoryName, category.trim())
-                        .last("LIMIT 1"));
-        sku.setCategoryId(mapping != null ? mapping.getCategoryId() : null);
-    }
-
-    private static String trimToNull(String value) {
-        if (value == null) {
-            return null;
-        }
-        String trimmed = value.trim();
-        return trimmed.isEmpty() ? null : trimmed;
+        return catalogAdminService.updateSku(operatorId, skuId, request);
     }
 
     @Transactional
     public AdminDeviceDto createDevice(Long operatorId, UpsertDeviceRequest request) {
-        permissionService.requirePermission(operatorId, "ops:device:edit");
-        String deviceId = deviceIdService.resolveForCreate(request.deviceId());
-        DeviceInfo device = new DeviceInfo();
-        device.setDeviceId(deviceId);
-        device.setDeviceName(request.deviceName() != null ? request.deviceName().trim() : deviceId);
-        device.setDeviceType(request.deviceType() != null && !request.deviceType().isBlank()
-                ? request.deviceType().trim() : "AI_CABINET_V1");
-        device.setOnlineStatus("OFFLINE");
-        device.setSalesLocked(false);
-        if (request.merchantId() != null && !request.merchantId().isBlank()) {
-            String merchantId = request.merchantId().trim();
-            requireMerchant(merchantId);
-            merchantScopeService.requireMerchantAccess(operatorId, merchantId);
-            device.setMerchantId(merchantId);
-            device.setLifecycleStatus(DEPLOYED);
-            device.setDeployedAt(Instant.now());
-        } else {
-            device.setLifecycleStatus(INBOUND);
-        }
-        deviceRepository.save(device);
-        deviceSlotService.ensureDefaultSlots(deviceId, device.getDeviceType());
-        auditService.appendLog(operatorId, "DEVICE_CREATE", "DEVICE", deviceId, device.getDeviceName());
-        return toDeviceDto(device, null, false);
+        return deviceAdminService.createDevice(operatorId, request);
     }
 
     @Transactional
     public AdminDeviceDto resetHardwareBinding(Long operatorId, String deviceId) {
-        permissionService.requirePermission(operatorId, "ops:device:edit");
-        DeviceInfo device = deviceRepository.findByIdForUpdate(deviceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
-        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
-        device.setImei(null);
-        device.setOnlineStatus("OFFLINE");
-        device.setOnlineSince(null);
-        deviceRepository.clearOnlineSince(deviceId);
-        device.markHeartbeatReceived();
-        deviceRepository.save(device);
-        auditService.appendLog(operatorId, "DEVICE_RESET_HARDWARE", "DEVICE", deviceId, "cleared imei for rebind");
-        return toDeviceDto(device, null, replenishingDeviceIds().contains(deviceId));
+        return deviceAdminService.resetHardwareBinding(operatorId, deviceId);
     }
 
     @Transactional
     public AdminDeviceDto regenerateDeviceId(Long operatorId, String oldDeviceId) {
-        permissionService.requirePermission(operatorId, "ops:device:edit");
-        DeviceInfo device = deviceRepository.findByIdForUpdate(oldDeviceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
-        merchantScopeService.requireDeviceAccess(operatorId, oldDeviceId);
-        if (!INBOUND.equalsIgnoreCase(device.getLifecycleStatus())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅入库状态设备可重新生成编号");
-        }
-        deviceIdRenameService.assertRenumberAllowed(oldDeviceId);
-        String newDeviceId = deviceIdService.allocateRandomDeviceId();
-        String remark = appendRenumberRemark(device.getLifecycleRemark(), oldDeviceId, newDeviceId);
-        deviceIdRenameService.renameInPlace(oldDeviceId, newDeviceId);
-        Instant now = Instant.now();
-        deviceRepository.update(null, Wrappers.<DeviceInfo>lambdaUpdate()
-                .eq(DeviceInfo::getDeviceId, newDeviceId)
-                .set(DeviceInfo::getLifecycleRemark, remark)
-                .set(DeviceInfo::getUpdatedAt, now));
-        DeviceInfo renamed = deviceRepository.findById(newDeviceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "设备编号更新失败"));
-        auditService.appendLog(operatorId, "DEVICE_REGENERATE_ID", "DEVICE", newDeviceId, "from=" + oldDeviceId);
-        return toDeviceDto(renamed, null, false);
-    }
-
-    private static String appendRenumberRemark(String existing, String oldDeviceId, String newDeviceId) {
-        String line = "编号已由 " + oldDeviceId + " 更换为 " + newDeviceId;
-        if (existing == null || existing.isBlank()) {
-            return line;
-        }
-        return existing.trim() + "；" + line;
+        return deviceAdminService.regenerateDeviceId(operatorId, oldDeviceId);
     }
 
     @Transactional
     public AdminDeviceDto updateDevice(Long operatorId, String deviceId, UpdateDeviceRequest request) {
-        permissionService.requirePermission(operatorId, "ops:device:edit");
-        DeviceInfo device = deviceRepository.findById(deviceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
-        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
-        RefundPolicyPatch refundPatch = applyUpdateDeviceFields(operatorId, device, request);
-        Instant now = Instant.now();
-        device.setUpdatedAt(now);
-        deviceRepository.save(device);
-        if (refundPatch.touch()) {
-            deviceRepository.update(null, Wrappers.<DeviceInfo>lambdaUpdate()
-                    .eq(DeviceInfo::getDeviceId, deviceId)
-                    .set(DeviceInfo::getRefundPolicy, refundPatch.stored())
-                    .set(DeviceInfo::getUpdatedAt, now));
-            device.setRefundPolicy(refundPatch.stored());
-            device.setUpdatedAt(now);
-        }
-        auditService.appendLog(operatorId, "DEVICE_UPDATE", "DEVICE", deviceId,
-                device.getDeviceName() + "; refundPolicy=" + device.getRefundPolicy());
-        DeviceInfo fresh = deviceRepository.findById(deviceId).orElse(device);
-        ShoppingSession session = findSessionForDeviceList(deviceId);
-        return toDeviceDto(fresh, session, replenishingDeviceIds().contains(fresh.getDeviceId()));
-    }
-
-    private record RefundPolicyPatch(boolean touch, String stored) {}
-
-    private RefundPolicyPatch applyUpdateDeviceFields(Long operatorId, DeviceInfo device, UpdateDeviceRequest request) {
-        if (request.deviceName() != null && !request.deviceName().isBlank()) {
-            device.setDeviceName(request.deviceName().trim());
-        }
-        if (request.deviceType() != null && !request.deviceType().isBlank()) {
-            device.setDeviceType(request.deviceType().trim());
-        }
-        applyUpdateDeviceMerchant(operatorId, device, request.merchantId());
-        boolean touchRefundPolicy = request.refundPolicy() != null;
-        String storedRefundPolicy = null;
-        if (touchRefundPolicy) {
-            storedRefundPolicy = RefundPolicyService.normalizeStored(request.refundPolicy());
-            device.setRefundPolicy(storedRefundPolicy);
-        }
-        applyUpdateDeviceOptionalFields(device, request);
-        return new RefundPolicyPatch(touchRefundPolicy, storedRefundPolicy);
-    }
-
-    private void applyUpdateDeviceMerchant(Long operatorId, DeviceInfo device, String merchantId) {
-        if (merchantId == null) {
-            return;
-        }
-        // 归属变更统一走生命周期 BIND/UNBIND，避免旁路绕过状态机
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                "请通过设备生命周期「绑定商户 / 解绑」变更归属，勿直接改 merchantId");
-    }
-
-    private static void applyUpdateDeviceOptionalFields(DeviceInfo device, UpdateDeviceRequest request) {
-        if (request.imei() != null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "IMEI 仅能通过柜机心跳自动绑定，请使用「解绑硬件」后由柜机重新上报");
-        }
-        if (request.assetOwner() != null) {
-            device.setAssetOwner(trimToNull(request.assetOwner()));
-        }
-        if (request.coopMode() != null) {
-            device.setCoopMode(DeviceAssetService.normalizeCoop(request.coopMode()));
-        }
-        if (request.depositCents() != null) {
-            device.setDepositCents(request.depositCents() < 0 ? 0L : request.depositCents());
-        }
-        if (request.dataFeeCents() != null) {
-            device.setDataFeeCents(request.dataFeeCents() < 0 ? 0L : request.dataFeeCents());
-        }
-        if (request.opsTags() != null) {
-            device.setOpsTags(trimToNull(request.opsTags()));
-        }
-        if (request.routeCode() != null) {
-            device.setRouteCode(trimToNull(request.routeCode()));
-        }
-        if (request.lifecycleRemark() != null) {
-            device.setLifecycleRemark(trimToNull(request.lifecycleRemark()));
-        }
-        if (request.latitude() != null) {
-            device.setLatitude(request.latitude());
-        }
-        if (request.longitude() != null) {
-            device.setLongitude(request.longitude());
-        }
-        if (request.address() != null) {
-            device.setAddress(trimToNull(request.address()));
-        }
+        return deviceAdminService.updateDevice(operatorId, deviceId, request);
     }
 
     @Transactional(readOnly = true)
     public byte[] exportOrdersCsv(Long operatorId, String deviceId) {
-        return self.exportOrdersCsv(operatorId, new OrderExportQuery(
-                deviceId, null, "orders", null, null, null, null, null, null, null, null, false));
+        return sessionOrderQueryService.exportOrdersCsv(operatorId, deviceId);
     }
 
     @Transactional(readOnly = true)
     public byte[] exportOrdersCsv(Long operatorId, String deviceId, String status, String mode) {
-        return self.exportOrdersCsv(operatorId, new OrderExportQuery(
-                deviceId, status, mode, null, null, null, null, null, null, null, null, false));
+        return sessionOrderQueryService.exportOrdersCsv(operatorId, deviceId, status, mode);
     }
 
     @Transactional(readOnly = true)
-    public byte[] exportOrdersCsv(Long operatorId, OrderExportQuery query) {
-        permissionService.requirePermission(operatorId, "ops:order:export");
-        Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, CREATEDAT));
-        Page<CabinetOrder> page = queryOrders(
-                operatorId,
-                new OrderQueryCriteria(
-                        query.deviceId(), query.status(), null, query.from(), query.to(),
-                        query.orderId(), query.userId(), query.sessionId(),
-                        query.payTradeNo(), query.payChannel(), query.keyword(),
-                        query.excludeZeroAmount()),
-                pageable);
-        boolean byLines = query.mode() != null
-                && (query.mode().equalsIgnoreCase("lines") || query.mode().equalsIgnoreCase("product"));
-        if (byLines) {
-            StringBuilder sb = new StringBuilder(
-                    "orderId,deviceId,status,skuId,skuName,quantity,unitPriceCents,lineAmountCents,createdAt\n");
-            for (CabinetOrder o : page.getContent()) {
-                List<CabinetOrderLine> lines = orderLineRepository.findByOrderId(o.getOrderId());
-                if (lines.isEmpty()) {
-                    sb.append(csv(o.getOrderId())).append(',')
-                            .append(csv(o.getDeviceId())).append(',')
-                            .append(csv(o.getStatus())).append(',')
-                            .append(',').append(',').append("0,0,0,")
-                            .append(csv(String.valueOf(o.getCreatedAt()))).append('\n');
-                    continue;
-                }
-                for (CabinetOrderLine line : lines) {
-                    sb.append(csv(o.getOrderId())).append(',')
-                            .append(csv(o.getDeviceId())).append(',')
-                            .append(csv(o.getStatus())).append(',')
-                            .append(csv(line.getSkuId())).append(',')
-                            .append(csv(line.getSkuName())).append(',')
-                            .append(line.getQuantity()).append(',')
-                            .append(line.getUnitPriceCents()).append(',')
-                            .append(line.getLineAmountCents()).append(',')
-                            .append(csv(String.valueOf(o.getCreatedAt()))).append('\n');
-                }
-            }
-            return sb.toString().getBytes(StandardCharsets.UTF_8);
-        }
-        List<String> orderIds = page.getContent().stream().map(CabinetOrder::getOrderId).toList();
-        Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(orderIds);
-        Map<String, List<CabinetOrderLine>> linesByOrder = loadOrderLinesByOrderIds(orderIds);
-        Map<String, String> splitStatusByOrder = loadSplitStatusByOrderIds(orderIds);
-        StringBuilder sb = new StringBuilder(
-                "orderId,sessionId,userId,deviceId,merchantId,totalAmountCents,originalAmountCents,status,payChannel,"
-                        + "payTradeNo,paymentOperationId,lineCount,lineSummary,inventoryDeducted,"
-                        + "couponDiscountCents,memberDiscountCents,refundPolicy,refundedCents,refundedAt,createdAt,splitStatus\n");
-        for (CabinetOrder o : page.getContent()) {
-            AdminOrderSummaryDto row = toOrderSummary(
-                    o,
-                    qtyByOrder.getOrDefault(o.getOrderId(), 0),
-                    linesByOrder.getOrDefault(o.getOrderId(), List.of()),
-                    splitStatusByOrder.get(o.getOrderId()));
-            sb.append(csv(row.orderId())).append(',')
-                    .append(csv(row.sessionId())).append(',')
-                    .append(row.userId()).append(',')
-                    .append(csv(row.deviceId())).append(',')
-                    .append(csv(row.merchantId())).append(',')
-                    .append(row.totalAmountCents()).append(',')
-                    .append(row.originalAmountCents()).append(',')
-                    .append(csv(row.status())).append(',')
-                    .append(csv(row.payChannel())).append(',')
-                    .append(csv(row.payTradeNo())).append(',')
-                    .append(csv(row.paymentOperationId())).append(',')
-                    .append(row.lineCount()).append(',')
-                    .append(csv(row.lineSummary())).append(',')
-                    .append(row.inventoryDeducted()).append(',')
-                    .append(row.couponDiscountCents()).append(',')
-                    .append(row.memberDiscountCents()).append(',')
-                    .append(csv(row.refundPolicy())).append(',')
-                    .append(row.refundedCents()).append(',')
-                    .append(csv(row.refundedAt() == null ? "" : String.valueOf(row.refundedAt()))).append(',')
-                    .append(csv(String.valueOf(row.createdAt()))).append(',')
-                    .append(csv(row.splitStatus() == null ? "" : row.splitStatus())).append('\n');
-        }
-        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    public byte[] exportOrdersCsv(Long operatorId, OpsSessionOrderQueryService.OrderExportQuery query) {
+        return sessionOrderQueryService.exportOrdersCsv(operatorId, query);
     }
-
-    public record OrderExportQuery(
-            String deviceId, String status, String mode,
-            String orderId, Long userId, String sessionId, String payTradeNo, String payChannel,
-            Instant from, Instant to, String keyword, boolean excludeZeroAmount) {}
-
-    public record SessionExportQuery(
-            String deviceId, SessionState state,
-            String sessionId, Long userId, Instant from, Instant to, String keyword,
-            boolean stuckOnly, int stuckMinutes) {}
 
     public byte[] exportSessionsCsv(Long operatorId, String deviceId, SessionState state) {
-        return exportSessionsCsv(operatorId, new SessionExportQuery(
-                deviceId, state, null, null, null, null, null, false, 30));
+        return sessionOrderQueryService.exportSessionsCsv(operatorId, deviceId, state);
     }
 
-    public byte[] exportSessionsCsv(Long operatorId, SessionExportQuery query) {
-        permissionService.requirePermission(operatorId, "ops:session:export");
-        Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, CREATEDAT));
-        Instant updatedBefore = query.stuckOnly()
-                ? Instant.now().minus(Math.max(query.stuckMinutes(), 1), ChronoUnit.MINUTES)
-                : null;
-        Page<ShoppingSession> page = querySessions(
-                operatorId,
-                new SessionQueryCriteria(
-                        query.deviceId(), query.state(), query.sessionId(), query.userId(),
-                        query.from(), query.to(), query.keyword(), null, updatedBefore),
-                pageable);
-        StringBuilder sb = new StringBuilder(
-                "sessionId,userId,deviceId,state,sessionKind,entryChannel,orderId,uploadStatus,failReason,"
-                        + "openTime,closeTime,createdAt,updatedAt\n");
-        for (ShoppingSession s : page.getContent()) {
-            sb.append(csv(s.getSessionId())).append(',')
-                    .append(s.getUserId()).append(',')
-                    .append(csv(s.getDeviceId())).append(',')
-                    .append(s.getState()).append(',')
-                    .append(csv(DeviceValidationService.sessionKind(s))).append(',')
-                    .append(csv(s.getEntryChannel())).append(',')
-                    .append(csv(s.getOrderId())).append(',')
-                    .append(csv(s.getUploadStatus())).append(',')
-                    .append(csv(s.getFailReason())).append(',')
-                    .append(csv(String.valueOf(s.getOpenTime()))).append(',')
-                    .append(csv(String.valueOf(s.getCloseTime()))).append(',')
-                    .append(csv(String.valueOf(s.getCreatedAt()))).append(',')
-                    .append(csv(String.valueOf(s.getUpdatedAt()))).append('\n');
-        }
-        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    public byte[] exportSessionsCsv(Long operatorId, OpsSessionOrderQueryService.SessionExportQuery query) {
+        return sessionOrderQueryService.exportSessionsCsv(operatorId, query);
     }
 
     public AdminTrendDto orderTrend(Long operatorId) {
-        return orderTrend(operatorId, 7);
+        return analyticsQueryService.orderTrend(operatorId);
     }
 
     public AdminTrendDto orderTrend(Long operatorId, int days) {
-        permissionService.requireAnyPermission(operatorId, PERM_OPS_DASHBOARD_VIEW, PERM_OPS_ANALYTICS_VIEW);
-        int window = normalizeTrendDays(days);
-        ZoneId zone = ZoneId.systemDefault();
-        LocalDate today = LocalDate.now(zone);
-        LocalDate start = today.minusDays(window - 1L);
-        Instant since = start.atStartOfDay(zone).toInstant();
-
-        Map<LocalDate, long[]> buckets = new java.util.LinkedHashMap<>();
-        for (int i = 0; i < window; i++) {
-            buckets.put(start.plusDays(i), new long[]{0, 0});
-        }
-        for (CabinetOrder order : queryTrendOrders(operatorId, since)) {
-            LocalDate day = order.getCreatedAt().atZone(zone).toLocalDate();
-            long[] bucket = buckets.get(day);
-            if (bucket != null) {
-                bucket[0]++;
-                bucket[1] += order.getTotalAmountCents();
-            }
-        }
-        List<AdminDailyStatDto> points = buckets.entrySet().stream()
-                .map(e -> new AdminDailyStatDto(
-                        e.getKey().toString(),
-                        e.getValue()[0],
-                        e.getValue()[1]))
-                .toList();
-        return new AdminTrendDto(points);
+        return analyticsQueryService.orderTrend(operatorId, days);
     }
 
     public AdminChannelBreakdownDto channelBreakdown(Long operatorId, int days) {
-        permissionService.requireAnyPermission(operatorId, PERM_OPS_DASHBOARD_VIEW, PERM_OPS_ANALYTICS_VIEW);
-        int window = normalizeTrendDays(days);
-        ZoneId zone = ZoneId.systemDefault();
-        LocalDate today = LocalDate.now(zone);
-        Instant since = today.minusDays(window - 1L).atStartOfDay(zone).toInstant();
-
-        Map<String, long[]> orderBuckets = new java.util.LinkedHashMap<>();
-        for (CabinetOrder order : queryTrendOrders(operatorId, since)) {
-            String channel = normalizePayChannel(order.getPayChannel());
-            long[] bucket = orderBuckets.computeIfAbsent(channel, k -> new long[]{0, 0});
-            bucket[0]++;
-            bucket[1] += Math.max(order.getTotalAmountCents(), 0);
-        }
-
-        Map<String, long[]> rechargeBuckets = new java.util.LinkedHashMap<>();
-        for (RechargeOrder recharge : rechargeOrderRepository.findByCreatedAtAfter(since)) {
-            if (!"PAID".equalsIgnoreCase(recharge.getStatus())) {
-                continue;
-            }
-            String channel = normalizePayChannel(recharge.getChannel());
-            long[] bucket = rechargeBuckets.computeIfAbsent(channel, k -> new long[]{0, 0});
-            bucket[0]++;
-            bucket[1] += Math.max(recharge.getAmountCents(), 0);
-        }
-
-        return new AdminChannelBreakdownDto(
-                toChannelStats(orderBuckets),
-                toChannelStats(rechargeBuckets)
-        );
-    }
-
-    private static List<AdminChannelStatDto> toChannelStats(Map<String, long[]> buckets) {
-        return buckets.entrySet().stream()
-                .sorted((a, b) -> Long.compare(b.getValue()[1], a.getValue()[1]))
-                .map(e -> new AdminChannelStatDto(e.getKey(), e.getValue()[0], e.getValue()[1]))
-                .toList();
-    }
-
-    private static String normalizePayChannel(String channel) {
-        if (channel == null || channel.isBlank()) {
-            return "UNKNOWN";
-        }
-        return channel.trim().toUpperCase();
+        return analyticsQueryService.channelBreakdown(operatorId, days);
     }
 
     public AdminOpsTrendDto opsTrend(Long operatorId) {
-        return opsTrend(operatorId, 7);
+        return analyticsQueryService.opsTrend(operatorId);
     }
 
     public AdminOpsTrendDto opsTrend(Long operatorId, int days) {
-        permissionService.requireAnyPermission(operatorId, PERM_OPS_DASHBOARD_VIEW, PERM_OPS_ANALYTICS_VIEW);
-        int window = normalizeTrendDays(days);
-        ZoneId zone = ZoneId.systemDefault();
-        LocalDate today = LocalDate.now(zone);
-        LocalDate start = today.minusDays(window - 1L);
-        Instant since = start.atStartOfDay(zone).toInstant();
-
-        Map<LocalDate, long[]> buckets = initDailyCountBuckets(start, window);
-        Set<String> scopedDevices = merchantScopeService.allowedDeviceIds(operatorId);
-        accumulateOpsTrendSessions(buckets,
-                sessionRepository.findByStateInAndUpdatedAtAfter(CLOSED_STATES, since),
-                scopedDevices, zone);
-        return new AdminOpsTrendDto(toOpsDailyPoints(buckets));
-    }
-
-    private static Map<LocalDate, long[]> initDailyCountBuckets(LocalDate start, int window) {
-        Map<LocalDate, long[]> buckets = new java.util.LinkedHashMap<>();
-        for (int i = 0; i < window; i++) {
-            buckets.put(start.plusDays(i), new long[]{0, 0});
-        }
-        return buckets;
-    }
-
-    private static void accumulateOpsTrendSessions(Map<LocalDate, long[]> buckets,
-                                                   List<ShoppingSession> sessions,
-                                                   Set<String> scopedDevices, ZoneId zone) {
-        for (ShoppingSession session : sessions) {
-            if (scopedDevices != null && !scopedDevices.contains(session.getDeviceId())) {
-                // skip out-of-scope devices
-            } else {
-                LocalDate day = session.getUpdatedAt().atZone(zone).toLocalDate();
-                long[] bucket = buckets.get(day);
-                if (bucket != null) {
-                    if (session.getState() == SessionState.COMPLETED) {
-                        bucket[0]++;
-                    } else if (session.getState() == SessionState.DISPUTED) {
-                        bucket[1]++;
-                    }
-                }
-            }
-        }
-    }
-
-    private static List<AdminOpsDailyDto> toOpsDailyPoints(Map<LocalDate, long[]> buckets) {
-        return buckets.entrySet().stream()
-                .map(e -> {
-                    long completed = e.getValue()[0];
-                    long disputed = e.getValue()[1];
-                    long total = completed + disputed;
-                    double recognitionRate = total > 0 ? (double) completed / total : 1.0;
-                    double disputeRate = total > 0 ? (double) disputed / total : 0.0;
-                    return new AdminOpsDailyDto(
-                            e.getKey().toString(), completed, disputed, recognitionRate, disputeRate);
-                })
-                .toList();
+        return analyticsQueryService.opsTrend(operatorId, days);
     }
 
     @Transactional
     public AdminUserDto adjustBalance(Long operatorId, Long userId, AdjustBalanceRequest request) {
-        permissionService.requirePermission(operatorId, "ops:user:balance");
-        if (userId >= CabinetConstants.OPERATOR_USER_ID_START) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.CANNOT_ADJUST_OPERATOR_BALANCE);
-        }
-        return runWithUserBalanceLock(userId, () -> {
-            UserInfo user = userInfoRepository.findById(userId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
-            var ledger = balanceLedgerService.change(userId, request.deltaCents(), "ADMIN_ADJUST",
-                    "ADMIN-" + userId, "ADMIN:" + request.idempotencyKey().trim(), request.reason());
-            auditService.appendLog(operatorId, "BALANCE_ADJUST", "USER", String.valueOf(userId),
-                    "delta=" + request.deltaCents() + " balance=" + ledger.getBalanceAfterCents()
-                            + " reason=" + request.reason().trim());
-            return toUserDto(user);
-        });
+        return memberFinanceAdminService.adjustBalance(operatorId, userId, request);
     }
 
-    static String userBalanceLockKey(long userId) {
-        return "user:balance:" + userId;
-    }
-
-    private <T> T runWithUserBalanceLock(long userId, java.util.function.Supplier<T> action) {
-        if (!distributedLockService.tryLock(userBalanceLockKey(userId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "余额处理中，请稍后重试");
-        }
-        try {
-            return action.get();
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
-        } finally {
-            distributedLockService.unlock(userBalanceLockKey(userId));
-        }
+    /** 消费者余额锁 key（门面兼容入口）。 */
+    public static String userBalanceLockKey(long userId) {
+        return OpsMemberFinanceAdminService.userBalanceLockKey(userId);
     }
 
     @Transactional
     public AdminUserDto setUserVerified(Long operatorId, Long userId, VerifyUserRequest request) {
-        permissionService.requirePermission(operatorId, "ops:user:verify");
-        if (userId >= CabinetConstants.OPERATOR_USER_ID_START) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
-        }
-        UserInfo user = userInfoRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
-        user.setVerified(request.verified());
-        if (request.realName() != null && !request.realName().isBlank()) {
-            user.setName(request.realName().trim());
-        }
-        userInfoRepository.save(user);
-        auditService.appendLog(operatorId, request.verified() ? "USER_VERIFY" : "USER_UNVERIFY", "USER",
-                String.valueOf(userId), "verified=" + request.verified());
-        return toUserDto(user);
+        return memberFinanceAdminService.setUserVerified(operatorId, userId, request);
     }
 
     @Transactional(readOnly = true)
     public PageResult<RechargeOrderDto> listRecharges(Long operatorId, int page, int size,
                                                       String status, Long userId) {
-        permissionService.requirePermission(operatorId, "ops:recharge:list");
-        Pageable pageable = PageRequest.of(page, Math.min(size, 100),
-                Sort.by(Sort.Direction.DESC, CREATEDAT));
-        String st = (status == null || status.isBlank()) ? null : status.trim();
-        Page<RechargeOrder> result = rechargeOrderRepository.search(st, userId, pageable);
-        return new PageResult<>(
-                result.getContent().stream().map(this::toRechargeDto).toList(),
-                result.getNumber(),
-                result.getSize(),
-                result.getTotalElements()
-        );
+        return memberFinanceAdminService.listRecharges(operatorId, page, size, status, userId);
     }
 
     @Transactional
     public RechargeOrderDto refundRecharge(Long operatorId, String orderId, String reason) {
-        permissionService.requirePermission(operatorId, "ops:recharge:edit");
-        RechargeOrderDto result = paymentService.refundRecharge(orderId, reason);
-        auditService.appendLog(operatorId, "RECHARGE_REFUND", "RECHARGE", orderId,
-                "userId=" + result.userId() + " amount=" + result.amountCents());
-        return result;
-    }
-
-    private RechargeOrderDto toRechargeDto(RechargeOrder order) {
-        return new RechargeOrderDto(
-                order.getOrderId(),
-                order.getUserId(),
-                order.getAmountCents(),
-                order.getChannel(),
-                order.getStatus(),
-                order.getWxPrepayId(),
-                order.getWxTransactionId(),
-                order.getAlipayTradeNo(),
-                order.getCreatedAt(),
-                order.getPaidAt(),
-                order.getRefundedAt()
-        );
-    }
-
-    private AdminAuditLogDto toAuditDto(com.aicabinet.trade.domain.AdminAuditLog log, UserInfo operator) {
-        Long opId = log.getOperatorId();
-        String phone = operator != null ? operator.getPhoneNumber() : null;
-        String name = operator != null ? operator.getName() : null;
-        // 0 / 空：定时任务、心跳恢复等系统写入
-        if (opId == null || opId <= 0L) {
-            name = "系统";
-            phone = null;
-        } else if (name == null || name.isBlank()) {
-            name = phone != null && !phone.isBlank() ? phone : ("账号 " + opId);
-        }
-        return new AdminAuditLogDto(
-                log.getLogId(), opId, phone, name, log.getAction(),
-                log.getTargetType(), log.getTargetId(), log.getDetail(), log.getCreatedAt()
-        );
-    }
-
-    private ShoppingSession findActiveSession(String deviceId) {
-        return sessionRepository.findByDeviceIdAndStateIn(deviceId, ACTIVE_STATES).stream()
-                .findFirst().orElse(null);
-    }
-
-    private ShoppingSession findSessionForDeviceList(String deviceId) {
-        ShoppingSession active = findActiveSession(deviceId);
-        if (active != null) {
-            return active;
-        }
-        return sessionRepository.findByDeviceIdOrderByCreatedAtDesc(deviceId, PageRequest.of(0, 1))
-                .stream()
-                .findFirst()
-                .orElse(null);
-    }
-
-    private AdminUserDto toUserDto(UserInfo u) {
-        int balance = userAccountRepository.findById(u.getUserId())
-                .map(a -> a.getBalanceCents()).orElse(0);
-        Member member = memberRepository.findByUserId(u.getUserId()).orElse(null);
-        boolean blacklisted = blacklistRepository.findActiveByUserId(u.getUserId()).isPresent();
-        return toUserDto(u, balance, member, blacklisted);
-    }
-
-    private AdminUserDto toUserDto(UserInfo u, int balance, Member member, boolean blacklisted) {
-        String role = u.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START ? "OPERATOR" : "CONSUMER";
-        return new AdminUserDto(
-                u.getUserId(), u.getPhoneNumber(), resolveUserDisplayName(u), u.isVerified(),
-                balance, role, u.getCreatedAt(),
-                member != null ? member.getMemberLevel() : "NORMAL",
-                member != null && member.getAvailablePoints() != null ? member.getAvailablePoints() : 0,
-                blacklisted
-        );
-    }
-
-    /** 列表展示名：优先实名/昵称，空则留 null 由前端显示「暂无」。 */
-    private static String resolveUserDisplayName(UserInfo u) {
-        if (u.getName() != null && !u.getName().isBlank()) {
-            return u.getName().trim();
-        }
-        return null;
-    }
-
-    private static String csv(String value) {
-        if (value == null || "null".equals(value)) {
-            return "";
-        }
-        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
-            return "\"" + value.replace("\"", "\"\"") + "\"";
-        }
-        return value;
-    }
-
-    private record SessionQueryCriteria(
-            String deviceId, SessionState state, String sessionId, Long userId,
-            Instant from, Instant to, String keyword, String uploadStatus, Instant updatedBefore) {}
-
-    private record OrderQueryCriteria(
-            String deviceId, String status, Instant createdBefore, Instant createdFrom, Instant createdTo,
-            String orderId, Long userId, String sessionId, String payTradeNo, String payChannel,
-            String keyword, boolean excludeZeroAmount) {}
-
-    private Page<ShoppingSession> querySessions(
-            Long operatorId, SessionQueryCriteria criteria, Pageable pageable) {
-        Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(operatorId, criteria.deviceId());
-        if (deviceScope != null && deviceScope.isEmpty()) {
-            return Page.empty(pageable);
-        }
-        String deviceFilter = (criteria.deviceId() != null && !criteria.deviceId().isBlank())
-                ? criteria.deviceId().trim() : null;
-        Collection<String> scopeFilter = deviceFilter == null ? deviceScope : null;
-        return sessionRepository.findByFiltersOrderByCreatedAtDesc(
-                new ShoppingSessionMapper.SessionFilterCriteria(
-                        deviceFilter,
-                        scopeFilter,
-                        criteria.state(),
-                        blankToNull(criteria.sessionId()),
-                        criteria.userId(),
-                        criteria.from(),
-                        criteria.to(),
-                        blankToNull(criteria.keyword()),
-                        criteria.uploadStatus(),
-                        criteria.updatedBefore()),
-                pageable);
-    }
-
-    private Page<CabinetOrder> queryOrders(
-            Long operatorId, String deviceId, String status, Instant createdBefore, Pageable pageable) {
-        return queryOrders(operatorId,
-                new OrderQueryCriteria(deviceId, status, createdBefore, null, null,
-                        null, null, null, null, null, null, false),
-                pageable);
-    }
-
-    private Page<CabinetOrder> queryOrders(
-            Long operatorId, OrderQueryCriteria criteria, Pageable pageable) {
-        Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(operatorId, criteria.deviceId());
-        if (deviceScope != null && deviceScope.isEmpty()) {
-            return Page.empty(pageable);
-        }
-        String statusFilter = (criteria.status() != null && !criteria.status().isBlank())
-                ? criteria.status().trim() : null;
-        String deviceFilter = (criteria.deviceId() != null && !criteria.deviceId().isBlank())
-                ? criteria.deviceId().trim() : null;
-        Collection<String> scopeFilter = deviceFilter == null ? deviceScope : null;
-        return orderRepository.findByFiltersOrderByCreatedAtDesc(
-                new CabinetOrderMapper.OrderFilterCriteria(
-                        deviceFilter,
-                        scopeFilter,
-                        statusFilter,
-                        criteria.createdBefore(),
-                        criteria.createdFrom(),
-                        criteria.createdTo(),
-                        blankToNull(criteria.orderId()),
-                        criteria.userId(),
-                        blankToNull(criteria.sessionId()),
-                        blankToNull(criteria.payTradeNo()),
-                        blankToNull(criteria.payChannel()),
-                        blankToNull(criteria.keyword()),
-                        criteria.excludeZeroAmount()),
-                pageable);
-    }
-
-    private static String blankToNull(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return value.trim();
-    }
-
-    private Map<String, List<CabinetOrderLine>> loadOrderLinesByOrderIds(List<String> orderIds) {
-        if (orderIds == null || orderIds.isEmpty()) {
-            return Map.of();
-        }
-        return orderLineRepository.selectList(
-                        Wrappers.<CabinetOrderLine>lambdaQuery().in(CabinetOrderLine::getOrderId, orderIds))
-                .stream()
-                .collect(Collectors.groupingBy(CabinetOrderLine::getOrderId));
-    }
-
-    private static String buildAdminLineSummary(List<CabinetOrderLine> lines) {
-        if (lines == null || lines.isEmpty()) {
-            return "";
-        }
-        String preview = lines.stream()
-                .limit(2)
-                .map(l -> {
-                    String name = (l.getSkuName() == null ? l.getSkuId() : l.getSkuName()) + " x" + l.getQuantity();
-                    if (l.getBatchNo() != null && !l.getBatchNo().isBlank()) {
-                        name += " @" + l.getBatchNo();
-                    }
-                    return name;
-                })
-                .reduce((a, b) -> a + "、" + b)
-                .orElse("");
-        if (lines.size() > 2) {
-            return preview + " 等" + lines.size() + "种";
-        }
-        return preview;
-    }
-
-    private List<CabinetOrder> queryTrendOrders(Long operatorId, Instant since) {
-        Set<String> scopedDevices = merchantScopeService.allowedDeviceIds(operatorId);
-        if (scopedDevices != null && scopedDevices.isEmpty()) {
-            return List.of();
-        }
-        if (scopedDevices == null) {
-            return orderRepository.findByCreatedAtAfter(since);
-        }
-        return orderRepository.findByDeviceIdInAndCreatedAtAfter(scopedDevices, since);
-    }
-
-    private AdminDeviceDto toDeviceDto(DeviceInfo d, ShoppingSession active, boolean replenishmentInProgress) {
-        String merchantName = null;
-        if (d.getMerchantId() != null) {
-            merchantName = merchantRepository.findById(d.getMerchantId())
-                    .map(com.aicabinet.trade.domain.Merchant::getMerchantName)
-                    .orElse(null);
-        }
-        return new AdminDeviceDto(
-                d.getDeviceId(),
-                d.getDeviceName(),
-                d.getDeviceType(),
-                d.getOnlineStatus(),
-                d.getMerchantId(),
-                merchantName,
-                active != null ? active.getSessionId() : null,
-                active != null ? active.getState().name() : null,
-                d.getUpdatedAt(),
-                replenishmentInProgress,
-                d.getRefundPolicy(),
-                refundPolicyService.resolveForDevice(d.getDeviceId()).name(),
-                d.salesLockedEnabled(),
-                DeviceAssetService.normalizeLifecycle(d.getLifecycleStatus()),
-                d.getImei(),
-                d.getAssetOwner(),
-                d.getCoopMode(),
-                d.getDepositCents(),
-                d.getDataFeeCents(),
-                d.getOpsTags(),
-                d.getRouteCode(),
-                d.getDeployedAt(),
-                d.getLifecycleRemark(),
-                d.getLatitude(),
-                d.getLongitude(),
-                d.getAddress(),
-                d.getId(),
-                d.getCurrentTempC(),
-                d.getTargetTempC(),
-                d.getFirmwareVersion(),
-                d.getSalesLockReason()
-        );
-    }
-
-    @Transactional(readOnly = true)
-    public List<com.aicabinet.common.dto.DeviceMapPointDto> listDeviceMapPoints(
-            Long operatorId, String lifecycleStatus, String routeCode, String online) {
-        permissionService.requireAnyPermission(operatorId, PERM_OPS_DEVICE_LIST, "ops:device-map:view");
-        String life = lifecycleStatus == null || lifecycleStatus.isBlank() ? DEPLOYED : lifecycleStatus.trim().toUpperCase();
-        String route = routeCode == null ? "" : routeCode.trim();
-        String onlineFilter = online == null ? "" : online.trim().toUpperCase();
-        List<DeviceInfo> devices = merchantScopeService.allowedDevices(operatorId);
-        return devices.stream()
-                .filter(d -> d.getLatitude() != null && d.getLongitude() != null)
-                .filter(d -> "ALL".equals(life)
-                        || life.equalsIgnoreCase(DeviceAssetService.normalizeLifecycle(d.getLifecycleStatus())))
-                .filter(d -> route.isEmpty() || route.equalsIgnoreCase(String.valueOf(d.getRouteCode())))
-                .filter(d -> onlineFilter.isEmpty()
-                        || onlineFilter.equalsIgnoreCase(String.valueOf(d.getOnlineStatus())))
-                .map(d -> new com.aicabinet.common.dto.DeviceMapPointDto(
-                        d.getDeviceId(),
-                        d.getDeviceName(),
-                        d.getMerchantId(),
-                        d.getOnlineStatus(),
-                        DeviceAssetService.normalizeLifecycle(d.getLifecycleStatus()),
-                        d.getRouteCode(),
-                        d.salesLockedEnabled(),
-                        d.getLatitude(),
-                        d.getLongitude(),
-                        d.getAddress(),
-                        d.getCoopMode()
-                ))
-                .toList();
-    }
-
-    private void requireMerchant(String merchantId) {
-        if (!merchantRepository.existsById(merchantId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
-        }
-    }
-
-    private AdminSessionDto toSessionDto(ShoppingSession s) {
-        String previewUrl = minioVideoService.presignPlaybackUrl(s.getVideoUri()).orElse(null);
-        Long shoppingMs = null;
-        if (s.getOpenTime() != null && s.getCloseTime() != null) {
-            shoppingMs = Math.max(0L, java.time.Duration.between(s.getOpenTime(), s.getCloseTime()).toMillis());
-        }
-        Long recognitionMs = null;
-        if (s.getCloseTime() != null && s.getUpdatedAt() != null
-                && !s.getUpdatedAt().isBefore(s.getCloseTime())) {
-            recognitionMs = Math.max(0L, java.time.Duration.between(s.getCloseTime(), s.getUpdatedAt()).toMillis());
-        }
-        return new AdminSessionDto(
-                s.getSessionId(), s.getUserId(), s.getDeviceId(), s.getState(),
-                s.getOpenTime(), s.getCloseTime(), s.getOrderId(), s.getVideoUri(),
-                s.getUploadStatus(), s.getCameraFusionMode(), previewUrl,
-                s.getFailReason(),
-                s.getCreatedAt(), s.getUpdatedAt(),
-                DeviceValidationService.sessionKind(s),
-                s.getReplenishmentTaskId(),
-                s.getEntryChannel(),
-                s.getEntryChannel(),
-                s.getPreauthCents() > 0 ? s.getPreauthCents() : null,
-                s.getPreauthStatus(),
-                shoppingMs,
-                recognitionMs,
-                s.getDeviceName()
-        );
-    }
-
-    private AdminOrderSummaryDto toOrderSummary(
-            CabinetOrder o, int lineCount, List<CabinetOrderLine> lines, String splitStatus) {
-        String payChannel = resolveOrderPayChannel(o);
-        OrderDisplaySnapshot display = resolveOrderDisplaySnapshot(o);
-        int coupon = Math.max(0, o.getCouponDiscountCents());
-        int member = Math.max(0, o.getMemberDiscountCents());
-        int original = o.getOriginalAmountCents() > 0
-                ? o.getOriginalAmountCents()
-                : o.getTotalAmountCents() + coupon + member;
-        String refundPolicy = resolveRefundPolicyName(o.getDeviceId());
-        return new AdminOrderSummaryDto(
-                o.getOrderId(),
-                o.getSessionId(),
-                o.getUserId(),
-                o.getDeviceId(),
-                display.merchantId(),
-                o.getTotalAmountCents(),
-                original,
-                coupon,
-                member,
-                o.getStatus(),
-                payChannel,
-                lineCount,
-                buildAdminLineSummary(lines),
-                resolvePayTradeNo(o),
-                o.getPaymentOperationId(),
-                o.getRefundedAt(),
-                o.isInventoryDeducted(),
-                refundPolicy,
-                o.getCreatedAt(),
-                display.deviceName(),
-                display.merchantName(),
-                Math.max(0, o.getRefundedCents()),
-                resolvePaidAt(o),
-                splitStatus
-        );
-    }
-
-    private Map<String, String> loadSplitStatusByOrderIds(List<String> orderIds) {
-        if (orderIds == null || orderIds.isEmpty()) {
-            return Map.of();
-        }
-        return splitRepository.findByOrderIdIn(orderIds).stream()
-                .filter(s -> s.getOrderId() != null && s.getStatus() != null && !s.getStatus().isBlank())
-                .collect(Collectors.toMap(OrderRevenueSplit::getOrderId, OrderRevenueSplit::getStatus, (a, b) -> a));
-    }
-
-    /** 优先订单上的渠道流水号；空则回退支付操作上的网关单号。 */
-    private String resolvePayTradeNo(CabinetOrder o) {
-        if (o.getPayTradeNo() != null && !o.getPayTradeNo().isBlank()) {
-            return o.getPayTradeNo();
-        }
-        String opId = o.getPaymentOperationId();
-        if (opId == null || opId.isBlank()) {
-            return null;
-        }
-        try {
-            return paymentService.findGatewayTradeNo(opId).orElse(null);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /**
-     * 已产生扣款的订单返回支付完成时间：优先支付操作创建时间，否则回退订单创建时间。
-     * 待支付/关单/失败返回 null。
-     */
-    private Instant resolvePaidAt(CabinetOrder o) {
-        String status = o.getStatus();
-        if (status == null
-                || STATUS_PENDING.equals(status)
-                || "CANCELLED".equals(status)
-                || CabinetConstants.ORDER_STATUS_FAILED.equals(status)) {
-            return null;
-        }
-        String opId = o.getPaymentOperationId();
-        if (opId != null && !opId.isBlank()) {
-            try {
-                Instant at = paymentService.findOperationCreatedAt(opId).orElse(null);
-                if (at != null) {
-                    return at;
-                }
-            } catch (Exception ignored) {
-                // fall through
-            }
-        }
-        return o.getCreatedAt();
-    }
-
-    private static String resolveOrderPayChannel(CabinetOrder o) {
-        String payChannel = o.getPayChannel();
-        if (o.getPaymentOperationId() != null && o.getPaymentOperationId().startsWith("BL-")) {
-            return "BALANCE";
-        }
-        return payChannel;
-    }
-
-    private String resolveRefundPolicyName(String deviceId) {
-        try {
-            return refundPolicyService.resolveForDevice(deviceId).name();
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
-    private OrderDisplaySnapshot resolveOrderDisplaySnapshot(CabinetOrder o) {
-        String merchantId = o.getMerchantId();
-        String deviceName = o.getDeviceName();
-        String merchantName = o.getMerchantName();
-        boolean needLookup = isBlank(merchantId) || isBlank(deviceName) || isBlank(merchantName);
-        if (!needLookup || o.getDeviceId() == null) {
-            return new OrderDisplaySnapshot(merchantId, deviceName, merchantName);
-        }
-        return deviceRepository.findById(o.getDeviceId())
-                .map(device -> {
-                    String mid = isBlank(merchantId) ? device.getMerchantId() : merchantId;
-                    String dname = isBlank(deviceName) ? device.getDeviceName() : deviceName;
-                    String mname = merchantName;
-                    if (isBlank(mname) && mid != null) {
-                        mname = merchantRepository.findById(mid)
-                                .map(com.aicabinet.trade.domain.Merchant::getMerchantName)
-                                .orElse(null);
-                    }
-                    return new OrderDisplaySnapshot(mid, dname, mname);
-                })
-                .orElse(new OrderDisplaySnapshot(merchantId, deviceName, merchantName));
-    }
-
-    private static boolean isBlank(String value) {
-        return value == null || value.isBlank();
-    }
-
-    private record OrderDisplaySnapshot(String merchantId, String deviceName, String merchantName) {}
-
-    private static String formatDisputeReasonText(String reason) {
-        if (reason == null || reason.isBlank()) {
-            return "识别结果需人工审核";
-        }
-        String trimmed = reason.trim();
-        if (trimmed.chars().anyMatch(c -> c >= 0x4E00 && c <= 0x9FFF)) {
-            return trimmed;
-        }
-        String lower = trimmed.toLowerCase();
-        if (lower.contains("recognition needs manual review") || lower.contains("manual review")) {
-            return "识别结果需人工审核";
-        }
-        if (lower.contains("no items") || lower.contains("not recognized")) {
-            return "未识别到商品，需人工审核";
-        }
-        return trimmed;
-    }
-
-    private static String uploadStatusLabel(String status) {
-        if (status == null || status.isBlank()) {
-            return "未上传";
-        }
-        return switch (status.toUpperCase()) {
-            case "LOCAL_QUEUED" -> "本地排队";
-            case "UPLOADING" -> "上传中";
-            case "UPLOADED" -> "已上传";
-            case CabinetConstants.ORDER_STATUS_FAILED -> "上传失败";
-            default -> status;
-        };
-    }
-
-    private static String replenishStatusLabel(String status) {
-        if (status == null || status.isBlank()) {
-            return "未知";
-        }
-        return switch (status.toUpperCase()) {
-            case STATUS_PENDING -> "待处理";
-            case STATUS_IN_PROGRESS -> "进行中";
-            case "COMPLETED" -> "已完成";
-            case "CANCELLED" -> "已取消";
-            default -> status;
-        };
-    }
-
-    private static int normalizeTrendDays(int days) {
-        if (days >= 90) {
-            return 90;
-        }
-        if (days >= 30) {
-            return 30;
-        }
-        return 7;
-    }
-
-    private static String payChannelLabel(String channel) {
-        if (channel == null || channel.isBlank()) {
-            return "未知";
-        }
-        return switch (channel.toUpperCase()) {
-            case "WECHAT" -> "微信";
-            case "ALIPAY" -> "支付宝";
-            case "BALANCE" -> "余额";
-            case "MOCK" -> "其他";
-            case "UNKNOWN" -> "未知";
-            default -> channel;
-        };
-    }
-
-    private static String splitStatusLabel(String status) {
-        if (status == null || status.isBlank()) {
-            return "未知";
-        }
-        return switch (status.toUpperCase()) {
-            case STATUS_PENDING -> "待分账";
-            case "SETTLED" -> "已分账";
-            case "VOIDED", "REVERSED" -> "已冲正";
-            case CabinetConstants.ORDER_STATUS_FAILED, WECHAT_FAILED -> "分账失败";
-            case LEDGER_ONLY -> "仅记账";
-            default -> status;
-        };
+        return memberFinanceAdminService.refundRecharge(operatorId, orderId, reason);
     }
 }
