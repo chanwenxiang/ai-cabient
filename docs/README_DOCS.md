@@ -1,130 +1,71 @@
-# AI开门柜项目上线执行文档索引
+# AI Cabinet 文档索引
 
-## 文档概览
-
-本套文档详细分析了AI开门柜项目的各个端，识别了核心阻塞问题、业务缺失、代码Bug和UI问题，提供了完整的上线执行方案。
+> **现行真源**：日常开发/测试先读 [CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md) + [STARTUP_REFERENCE.md](STARTUP_REFERENCE.md)。  
+> 本文原为 2026-07 上线执行索引，已于 2026-09 收敛；历史分析见 `archive/`。
 
 ---
 
-## 文档清单
+## 现行文档（优先）
 
-### 主文档
-| 文档 | 大小 | 说明 |
-|------|------|------|
-| [GO_LIVE_EXECUTION_PLAN.md](GO_LIVE_EXECUTION_PLAN.md) | 19KB | **主执行文档** - 项目概览、核心阻塞、时间规划 |
-
-### 端分析文档
-| 文档 | 大小 | 说明 |
-|------|------|------|
-| [ANALYSIS_ADMIN_VUE.md](archive/ANALYSIS_ADMIN_VUE.md) | 8KB | 运营管理后台详细分析 |
-| [ANALYSIS_CONSUMER_MP.md](archive/ANALYSIS_CONSUMER_MP.md) | 9KB | 消费者小程序详细分析 |
-| [ANALYSIS_MERCHANT_MP.md](archive/ANALYSIS_MERCHANT_MP.md) | 8KB | 补货员/商户小程序详细分析 |
-| [ANALYSIS_BACKEND_SERVICES.md](archive/ANALYSIS_BACKEND_SERVICES.md) | 12KB | 后端服务详细分析 |
-| [ANALYSIS_HARDWARE_INTEGRATION.md](archive/ANALYSIS_HARDWARE_INTEGRATION.md) | 13KB | 硬件对接详细分析 |
-
-### 问题修复文档
-| 文档 | 大小 | 说明 |
-|------|------|------|
-| [CODE_FIX_CHECKLIST.md](CODE_FIX_CHECKLIST.md) | 8KB | 代码问题修复清单 |
-
-### 浏览器 UAT（现行）
 | 文档 | 说明 |
 |------|------|
-| [BROWSER_MIN_UAT.md](BROWSER_MIN_UAT.md) | 最小可执行 UAT 包 |
+| [CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md) | **全仓底稿**：架构、关键链路、测试资产、优化热点、验证矩阵 |
+| [STARTUP_REFERENCE.md](STARTUP_REFERENCE.md) | 端口 / 账号 / 启动模式速查 |
+| [LOCAL_SETUP.md](LOCAL_SETUP.md) | 本地联调完整说明 |
+| [MODULES.md](MODULES.md) | 模块路径与职责 |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 架构边界与识别策略 |
+| [DEMO_ACCOUNTS.md](DEMO_ACCOUNTS.md) | 演示账号矩阵 |
+| [BROWSER_MIN_UAT.md](BROWSER_MIN_UAT.md) | 最小浏览器 UAT |
 | [BROWSER_FULL_UAT_PLAN.md](BROWSER_FULL_UAT_PLAN.md) | 全量 UAT 计划 |
+| [PRODUCTION.md](PRODUCTION.md) | 生产部署 |
+| [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md) | 端侧识别对接（替代已删除的云端 YOLO 文档） |
+| [DEVOPS.md](DEVOPS.md) | 监控 / Sonar / Runner |
 
 ---
 
-## 核心发现
+## 上线与历史规划
 
-### 🔴 P0阻塞问题
+| 文档 | 说明 |
+|------|------|
+| [GO_LIVE_EXECUTION_PLAN.md](GO_LIVE_EXECUTION_PLAN.md) | 2026-07 上线主计划（**含过时 YOLO 叙述**，文首有勘误） |
+| [CODE_FIX_CHECKLIST.md](CODE_FIX_CHECKLIST.md) | 代码修复清单 |
+| [production-launch-checklist.md](production-launch-checklist.md) | 上线门禁清单 |
 
-| 阻塞项 | 影响 | 解决方案 | 预计时间 |
-|--------|------|----------|----------|
-| 无营业执照 | 无法发布小程序 | 注册个体工商户/公司 | 2-4周 |
-| Mock支付 | 无法真实收费 | 申请微信/支付宝商户号 | 1-2周 |
-| 未对接硬件 | 柜机无法开门 | 获取协议文档后对接 | 1-2周 |
-| 通用YOLO模型 | 无法识别SKU | 训练专用模型 | 2-3周 |
+### 历史 P0（2026-07 快照，供对照）
 
-### 🟡 P1业务缺失
-
-| 缺失功能 | 端 | 影响 |
-|----------|------|------|
-| 退款入口 | 消费者端 | 用户无法自助退款 |
-| 提现功能 | 商户端 | 商户无法提现 |
-| 发票管理 | 商户端 | 商户无法获取发票 |
-| 员工管理 | 商户端 | 无法管理多员工 |
-
-### 🟢 P2-P3问题
-
-- 6个前端Bug（4个已修复，2个待处理）
-- 4个后端Bug（1个已修复，3个待验证）
-- 10+个UI/按钮问题
+| 阻塞项 | 现行状态（2026-09） |
+|--------|---------------------|
+| 无营业执照 | 仍属行政阻塞 |
+| Mock 支付 | 仍需真实商户号；dev 可 mock |
+| 未对接硬件 | edge/android + 模拟器；真柜协议持续联调 |
+| 通用 YOLO 模型 | **策略已变**：不做云端自研 YOLO，改端侧识别 |
 
 ---
 
 ## 快速导航
 
-### 按角色查看
-| 角色 | 推荐阅读顺序 |
-|------|--------------|
-| **项目经理** | GO_LIVE_EXECUTION_PLAN.md → CODE_FIX_CHECKLIST.md |
-| **后端开发** | archive/ANALYSIS_BACKEND_SERVICES.md → archive/ANALYSIS_HARDWARE_INTEGRATION.md |
-| **前端开发** | archive/ANALYSIS_ADMIN_VUE.md → archive/ANALYSIS_CONSUMER_MP.md → archive/ANALYSIS_MERCHANT_MP.md |
-| **测试工程师** | CODE_FIX_CHECKLIST.md → 各端验证清单 |
-| **运维工程师** | archive/ANALYSIS_HARDWARE_INTEGRATION.md → 生产部署配置 |
-
-### 按阶段查看
-| 阶段 | 推荐文档 |
+| 角色 | 推荐阅读 |
 |------|----------|
-| **当前状态分析** | 各ANALYSIS_*.md文档 |
-| **问题识别** | CODE_FIX_CHECKLIST.md |
-| **上线规划** | GO_LIVE_EXECUTION_PLAN.md |
-| **硬件对接** | archive/ANALYSIS_HARDWARE_INTEGRATION.md |
+| 开发 / 测试 | CODEBASE_FOUNDATION → STARTUP_REFERENCE → BROWSER_MIN_UAT |
+| 后端 | CODEBASE_FOUNDATION §3–§5 → ARCHITECTURE → VISION_QUECTEL |
+| 前端 | CODEBASE_FOUNDATION §6 → BROWSER_* → MODULES |
+| 运维 | PRODUCTION → DEVOPS → production-launch-checklist |
+| 项目经理 | GO_LIVE（勘误后）→ CODE_FIX_CHECKLIST |
 
 ---
-
-## 上线时间线
-
-`
-Week 1-2:  营业执照申请、支付商户号申请
-Week 3-4:  硬件协议对接、真实柜机联调
-Week 5-6:  SKU模型训练、识别准确率验证
-Week 7-8:  灰度部署（5-10台柜机）
-Week 9-10: 正式上线
-`
-
----
-
-## 立即可执行项
-
-### 📋 行政事项
-- [ ] 启动营业执照注册流程
-- [ ] 联系硬件厂商获取协议文档
-- [ ] 准备微信小程序注册材料
-
-### 💻 技术事项
-- [ ] 申请微信支付测试商户号
-- [ ] 申请支付宝沙箱账号
-- [ ] 开始商品图片采集（每SKU 100+张）
-
-### 🧹 清理事项
-- [ ] 清理测试数据
-- [ ] 移除/隐藏Mock相关UI
-- [ ] 配置生产环境参数
-
----
-
-## 联系与反馈
-
-如有问题或建议，请联系项目负责人或在项目群内讨论。
-
----
-
-**创建日期**: 2026-07-17
-**文档版本**: v1.0
-**下次更新**: 灰度测试阶段
 
 ## 历史归档
 
-以下为历史执行产物，已归档至 [docs/archive/](archive/)：ANALYSIS_*（端分析）、BROWSER_FULL_UAT_REPORT/TRACKING、BROWSER_REGRESSION_TRACKING、superpowers/（设计会话）、uat-screenshots/（旧截图证据）。
+已归档至 [docs/archive/](archive/)：
+
+- `ANALYSIS_*`（各端 2026-07 分析）
+- `BROWSER_FULL_UAT_REPORT` / `TRACKING` / `REGRESSION_TRACKING`
+- `TEST_REPORT_2026-08-13.md`、`THREE_END_DATA_VALIDATION_REPORT.md`（点状验收报告）
+- `superpowers/`（设计会话）
+- `uat-screenshots/`（旧截图证据）
+
+**已删除（勿再引用）**：`OPEN_CABINET_DATA_COLLECTION.md`、`VISION_SKU_MODEL.md`、`VISION_YOLO_TEST.md`、`scripts/verify-vision-model.ps1` 及一批一次性 Sonar/编码修复脚本。
+
+---
+
+**索引更新日期**: 2026-09-07

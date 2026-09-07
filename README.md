@@ -32,6 +32,8 @@
 
 完整模块说明见 **[docs/MODULES.md](docs/MODULES.md)**。
 
+> **测试与优化底稿**（全仓结构、关键链路、验证矩阵、热点清单）：**[docs/CODEBASE_FOUNDATION.md](docs/CODEBASE_FOUNDATION.md)**
+
 ## 本迭代新增能力
 
 | 模块 | 说明 | 迁移 |

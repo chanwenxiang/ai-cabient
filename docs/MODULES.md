@@ -64,6 +64,7 @@
 | 文档 | 内容 |
 |------|------|
 | [README.md](../README.md) | 项目总览 |
+| [CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md) | **全仓底稿**：架构、关键链路、测试资产、优化热点、验证矩阵 |
 | [LOCAL_SETUP.md](LOCAL_SETUP.md) | 本地联调 |
 | [STARTUP_REFERENCE.md](STARTUP_REFERENCE.md) | 端口 / 账号速查 |
 | [PRODUCTION.md](PRODUCTION.md) | 生产部署 |

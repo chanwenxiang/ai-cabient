@@ -24,17 +24,11 @@ if (-not (Test-Path $envProd)) {
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host ""
-Write-Host "==> Vision model gate (prod template; use -AllowGenericModel if stack not up yet)"
-$visionArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $Root "scripts\verify-vision-model.ps1"), "-AllowGenericModel")
-& powershell @visionArgs
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-Write-Host ""
-Write-Host "Manual steps (see docs/VISION_SKU_MODEL.md + docs/PRODUCTION.md):"
-Write-Host "  [ ] 训练/导出 cabinet-skus-v*.pt 至 vision-service/models 或 infra/models/production"
-Write-Host "  [ ] 运营后台维护 YOLO_SKU 映射，停用 YOLO_COCO 用于真实扣款"
+Write-Host "Manual steps (see docs/VISION_QUECTEL_INTEGRATION.md + docs/PRODUCTION.md):"
+Write-Host "  [ ] 端侧识别提供方（移远等）联调完成，或明确仅 mock/争议路径上线"
+Write-Host "  [ ] 运营后台维护端侧类名 → SKU 映射（sku_vision_mapping）"
 Write-Host "  [ ] TLS / 域名 / 微信小程序 downloadFile & request 合法域名"
-Write-Host "  [ ] PostgreSQL 备份与 Flyway 迁移 (含 V58 sku_vision_mapping)"
+Write-Host "  [ ] PostgreSQL 备份与 Flyway 迁移"
 Write-Host "  [ ] WECHAT_* 商户与小程序密钥"
 Write-Host "  [ ] SMS_WEBHOOK_URL 生产短信网关"
 Write-Host "  [ ] MINIO/OSS 视频桶 CORS 与生命周期"

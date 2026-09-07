@@ -97,16 +97,9 @@ MQTT_PERSISTENCE_DIR=/data/aicabinet/mqtt-paho
 
 ```bash
 VISION_API_KEY=<与 trade-service aicabinet.vision-api.key 相同>
-MOCK_ENABLED=false
-RECOGNIZER_BACKEND=yolo
-YOLO_RECOGNITION_MODE=delta
-
-# SKU 专用模型（§10 真实扣款前必须）
-YOLO_MODEL_PATH=/app/models/cabinet-skus-v1.0.0.pt
-YOLO_MODEL_VERSION=cabinet-skus-v1.0.0
-YOLO_AUTO_DOWNLOAD=false
-YOLO_CONF=0.45
-YOLO_REVIEW_CONF=0.72
+MOCK_ENABLED=true
+# 开发默认 mock；生产关闭 mock 前须端侧识别上报可用（见 VISION_QUECTEL_INTEGRATION.md）
+RECOGNIZER_BACKEND=mock
 
 # 对象存储（生产 OSS）
 MINIO_ENDPOINT=https://oss-cn-shanghai.aliyuncs.com
@@ -121,7 +114,7 @@ KAFKA_ENABLED=true
 KAFKA_BOOTSTRAP=redpanda:9092
 ```
 
-详见 [ARCHITECTURE.md](ARCHITECTURE.md) 商业落地一节。
+详见 [ARCHITECTURE.md](ARCHITECTURE.md) 商业落地一节与 [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md)。
 
 ---
 
@@ -249,7 +242,7 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps u
 | `WECHAT_*` | 微信支付 V3 + 小程序 |
 | `SMS_WEBHOOK_URL` | 短信网关 |
 | `AICABINET_MOCK_ENABLED` | 生产设为 `false` |
-| `VISION_MOCK_ENABLED` | 生产设为 `false`（需挂载 YOLO SKU 模型；栈为 YOLO + DeepSeek + 重力，无阿里云） |
+| `VISION_MOCK_ENABLED` | 生产关闭前须端侧识别上报可用；云端不再挂载自研 YOLO |
 | `RECON_MOCK_ENABLED` | 生产设为 `false` 且须配齐 `WECHAT_*`；无渠道凭证时保持 `true`，勿空跑对账 |
 | `CHECKOUT_BALANCE_ONLY` | 无支付分/微信密钥的预发可设 `true`，强制余额结算 |
 | `PAYSCORE_LIVE_CHARGE_ENABLED` | 真支付分扣款前须 `true` 并配置 charge gateway；mock 关闭后禁止静默回落余额 |
@@ -284,11 +277,12 @@ copy infra\.env.staging.example infra\.env.staging
 |------|------|
 | `infra/.env.staging.example` | 预发环境变量模板（mock 关闭、微信可留空） |
 | `infra/docker-compose.staging.yml` | 叠加 sms-webhook-mock + `SPRING_PROFILES_ACTIVE=staging` |
-| `scripts/sms-webhook-mock.py` | 本地/容器 SMS 接收器，供 webhook 联调 |
+| `sms-webhook-mock.py` | 本地/容器 SMS 接收器，供 webhook 联调 |
+| ~~`VISION_SKU_MODEL.md` / `verify-vision-model.ps1`~~ | **已移除**（云端 YOLO 废弃）；改见 [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md) |
 
-正式上线：将 `SPRING_PROFILES_ACTIVE=prod`，填写全部 `WECHAT_*`，`MQTT_BROKER=ssl://...`，`VISION_MOCK_ENABLED=false`，配置 SKU 模型见 [`VISION_SKU_MODEL.md`](VISION_SKU_MODEL.md)。
+正式上线：将 `SPRING_PROFILES_ACTIVE=prod`，填写全部 `WECHAT_*`，`MQTT_BROKER=ssl://...`，生产识别走 **端侧提供方**（移远等），见 [`VISION_QUECTEL_INTEGRATION.md`](VISION_QUECTEL_INTEGRATION.md)。云端 vision-service 默认 mock + DeepSeek 争议辅助，**不再维护自研 YOLO 权重**。
 
-识别栈为 **本地 YOLO + DeepSeek + 重力**（无阿里云）。`VISION_MOCK_ENABLED=false` 时需挂载 YOLO 模型；重力兜底仅 staging / `AICABINET_GRAVITY_FALLBACK_SETTLE=true`；`AICABINET_MOCK_ENABLED=false` 时空识别 escalate 争议，不静默零结算。运营后台「识别映射」仅展示 YOLO 类名映射。
+`VISION_MOCK_ENABLED=false` 时须已有端侧结果上报路径，否则低置信/无结果进争议，不静默零结算。重力融合见 `GravitySettlementHelper`（staging / `AICABINET_GRAVITY_FALLBACK_SETTLE`）。运营后台维护端侧类名 → SKU 映射。
 
 生产 Compose：
 
@@ -303,7 +297,7 @@ docker compose -p ai-cabinet -f docker-compose.yml -f docker-compose.apps.yml -f
 | 能力 | 说明 |
 |------|------|
 | 分环境配置 | `application-dev.yml` / `application-prod.yml` |
-| 商业架构（OSS + 阿里云识别） | [ARCHITECTURE.md](ARCHITECTURE.md) 商业落地一节 |
+| 商业架构（OSS + 端侧识别） | [ARCHITECTURE.md](ARCHITECTURE.md) / [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md) |
 | 内部 API 鉴权 | trade + device `/internal/**` |
 | 会话 IDOR 防护 | 用户只能查自己的 session/order |
 | 争议/运营 API | 需 operator 账号 (userId ≥ 100000000) |
@@ -322,7 +316,7 @@ docker compose -p ai-cabinet -f docker-compose.yml -f docker-compose.apps.yml -f
 - [ ] 微信商户号、小程序、支付回调 URL 已配置并验签通过
 - [ ] SMS Webhook 实测能收到验证码
 - [ ] 验证码不使用内置 mock 码（123456 / 000000）
-- [ ] YOLO 模型已打入 vision 镜像，`MOCK_ENABLED=false`
+- [ ] 端侧识别联调完成或明确仅 mock+争议灰度；`MOCK_ENABLED` / 映射表与 [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md) 一致
 - [ ] MinIO bucket 已创建，生命周期策略已设
 - [ ] EMQX TLS + 设备 ACL 已配置
 - [ ] Ingress 不暴露 `/internal/**`

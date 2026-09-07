@@ -272,19 +272,9 @@ Hyper-V 常保留 **`5433–5532`**，导致 PostgreSQL 默认宿主机端口无
 
 IDEA 本地连库时使用 `jdbc:postgresql://localhost:15433/aicabinet`。
 
---- `pip install` / `zlib.error`（解压 wheel 失败）
+--- `pip install` / 视觉镜像
 
-`requirements.txt` 中的 **ultralytics** 会拉取数百 MB 的 **torch**，网络不稳时易出现 `invalid stored block lengths`。
-
-Compose 默认 **`VISION_INSTALL_ML=false`**，镜像只装基础依赖（`MOCK_ENABLED=true` 时足够 E2E）。需要真实 YOLO 时在 `.env` 设：
-
-```env
-VISION_INSTALL_ML=true
-```
-
-然后 `docker compose ... build vision-service`。ML 层会先装 CPU 版 torch 并带 `--retries 5`。
-
-**Phase 1 冷启动（无自有标注，Retail-OS）**：叠加 `docker-compose.vision-local.yml`，见 [`docs/VISION_SKU_MODEL.md`](../docs/VISION_SKU_MODEL.md) §0。宿主机可用 `..\scripts\load-vision-dev-env.ps1` + `infra/.env.vision-dev.example`。
+Compose 默认 **`VISION_INSTALL_ML=false`**，镜像只装 `requirements-base.txt`（`MOCK_ENABLED=true` 足够本地 E2E）。云端自研 YOLO / Retail-OS 本地叠加已废弃；生产识别见 [docs/VISION_QUECTEL_INTEGRATION.md](../docs/VISION_QUECTEL_INTEGRATION.md)。
 
 ---
 
@@ -295,9 +285,7 @@ VISION_INSTALL_ML=true
 | `docker-compose.yml` | PostgreSQL、Redis、EMQX、MinIO、Redpanda、Gateway、监控 |
 | `docker-compose.apps.yml` | trade / device / vision 应用服务（profile: `apps`）、healthcheck、depends_on |
 | `docker-compose.devops.yml` | SonarQube、GHA Runner（profile: `devops`），详见 [docs/DEVOPS.md](../docs/DEVOPS.md) |
-| `docker-compose.vision-local.yml` | Phase 1 Retail-OS 本地 YOLO 叠加（INSTALL_ML + FORCE_REAL） |
 | `.env.example` | 环境变量模板 |
-| `.env.vision-dev.example` | 宿主机真实 YOLO 环境模板 |
 | `up.ps1` | 全栈启动脚本（`-Build` / `-Down` / `-Prod`） |
 | `gateway/nginx.conf` | 本地开发 gateway（转发 host.docker.internal） |
 | `gateway/nginx.compose.conf` | 全栈 gateway（转发 trade-service 容器） |

@@ -77,7 +77,7 @@
 cd vision-service
 python -m venv .venv
 .\.venv\Scripts\pip install -r requirements-base.txt
-# 需要真实 YOLO 时再装：pip install -r requirements-ml.txt
+# 开发联调默认 mock，无需 ML 依赖；端侧对接见 VISION_QUECTEL_INTEGRATION.md
 ```
 
 启动：
@@ -570,7 +570,8 @@ Gateway 转发到 `host.docker.internal:8080`，需宿主机上 trade-service �
 
 | 文档 | 内容 |
 |------|------|
+| [CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md) | 全仓底稿（测试与优化） |
 | [MODULES.md](MODULES.md) | 模块路径与职责 |
 | [PRODUCTION.md](PRODUCTION.md) | **生产部署**、环境变量、安全清单 |
-| [VISION_YOLO_TEST.md](VISION_YOLO_TEST.md) | **真实 YOLO 图片识别**测试 |
+| [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md) | 端侧识别对接（替代已废弃的云端 YOLO 文档） |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 架构速查 |
