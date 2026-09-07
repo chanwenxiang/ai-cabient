@@ -759,7 +759,8 @@ onUnmounted(() => {
   gap: 6px;
   flex: 0 1 auto;
   min-width: 0;
-  overflow: hidden;
+  /* 勿 overflow:hidden：会裁切右侧全局搜索点击区，表现为点了无反应 */
+  overflow: visible;
 }
 .user-trigger {
   display: flex;

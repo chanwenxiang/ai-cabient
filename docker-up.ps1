@@ -36,12 +36,16 @@ if (-not $NoBuild) { $composeArgs += "--build" }
 & docker @composeArgs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-# Keep devops tooling stopped unless explicitly requested
+# Keep devops tooling stopped unless explicitly requested（容器不存在时忽略）
 if (-not $DevOps) {
-  docker stop ai-cabinet-sonarqube-1 ai-cabinet-sonarqube-db-1 ai-cabinet-github-runner-1 2>$null | Out-Null
+  foreach ($name in @('ai-cabinet-sonarqube-1', 'ai-cabinet-sonarqube-db-1', 'ai-cabinet-github-runner-1')) {
+    cmd /c "docker stop $name >nul 2>nul"
+  }
 }
 if (-not $WithMonitoring -and -not $DevOps) {
-  docker stop ai-cabinet-prometheus-1 ai-cabinet-grafana-1 2>$null | Out-Null
+  foreach ($name in @('ai-cabinet-prometheus-1', 'ai-cabinet-grafana-1')) {
+    cmd /c "docker stop $name >nul 2>nul"
+  }
 }
 
 Write-Host "Waiting for trade-service..."

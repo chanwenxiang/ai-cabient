@@ -62,7 +62,11 @@ public class LineWalletService {
 
     }
 
-
+    /** 只读查询：不自动建户，避免列表等 readOnly 事务里 INSERT 失败。 */
+    @Transactional(readOnly = true)
+    public LineWalletAccount findAccount(long managerId) {
+        return accountMapper.selectById(managerId);
+    }
 
     private LineWalletAccount doEnsureAccount(long managerId) {
 

@@ -230,7 +230,7 @@ services:
 
   device-simulator:
     build: { context: .., dockerfile: edge/device-simulator/Dockerfile }
-    command: ["587212913996", "tcp://emqx:1883"]
+    command: ["330449777078", "tcp://emqx:1883"]
     environment:
       TRADE_SERVICE_URL: http://trade-service:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}

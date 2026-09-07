@@ -587,7 +587,12 @@ function contextLabel(row: OpsActionItem) {
   if (row.deviceId) parts.push(`设备 ${row.deviceId}`);
   if (row.sessionId) parts.push(`会话 ${shortId(row.sessionId)}`);
   if (row.ticketId) parts.push(`工单 ${shortId(row.ticketId)}`);
-  if (row.skuId) parts.push(`SKU ${row.skuId}`);
+  // 补货签收超时已按出库单聚合：taskId = outboundId
+  if (row.type === 'IN_TRANSIT_OVERDUE' && row.taskId != null) {
+    parts.push(`出库单 ${row.taskId}`);
+  } else if (row.skuId) {
+    parts.push(`SKU ${row.skuId}`);
+  }
   return parts.length ? parts.join(' · ') : '无';
 }
 

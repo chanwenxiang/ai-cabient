@@ -1,16 +1,19 @@
 <template>
+  <!-- 用 button 触发，勿依赖只读 el-input 的 click 穿透（部分环境下点了无弹层） -->
   <div class="global-search" title="全局搜索（Ctrl+K）">
-    <el-input
-      :model-value="''"
-      readonly
+    <button
+      type="button"
+      class="search-trigger"
       aria-label="全局搜索"
-      placeholder="搜索页面名称或关键词…"
-      title="全局搜索（Ctrl+K）"
-      :prefix-icon="Search"
-      class="search-input search-trigger"
-      @click="openPalette"
+      aria-haspopup="dialog"
+      aria-keyshortcuts="Control+K Meta+K"
+      @click.stop="openPalette"
       @keydown.enter.prevent="openPalette"
-    />
+      @keydown.space.prevent="openPalette"
+    >
+      <el-icon class="search-trigger__icon" aria-hidden="true"><Search /></el-icon>
+      <span class="search-trigger__text">搜索页面名称或关键词…</span>
+    </button>
     <el-dialog
       v-model="open"
       title="全局搜索"
@@ -18,6 +21,7 @@
       append-to-body
       destroy-on-close
       :close-on-click-modal="true"
+      align-center
       @opened="focusInput"
       @closed="onClosed"
     >
@@ -99,6 +103,7 @@ const results = computed(() =>
 
 function openPalette() {
   if (Date.now() < suppressOpenUntil) return;
+  if (open.value) return;
   open.value = true;
 }
 
@@ -273,19 +278,48 @@ onUnmounted(() => {
 
 <style scoped>
 .global-search {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
   max-width: 220px;
 }
-.search-input {
+.search-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   width: clamp(108px, 16vw, 220px);
   max-width: 100%;
-}
-.search-trigger :deep(.el-input__wrapper) {
+  height: 32px;
+  padding: 0 11px;
+  margin: 0;
+  border: 1px solid var(--el-border-color);
+  border-radius: var(--el-border-radius-base, 4px);
+  background: var(--el-fill-color-blank, #fff);
+  color: var(--el-text-color-placeholder);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
   cursor: pointer;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
 }
-.search-trigger :deep(.el-input__inner) {
-  cursor: pointer;
+.search-trigger:hover {
+  border-color: var(--el-border-color-hover, var(--el-color-primary));
+}
+.search-trigger:focus-visible {
+  outline: none;
+  border-color: var(--el-color-primary);
+  box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+}
+.search-trigger__icon {
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--el-text-color-placeholder);
+}
+.search-trigger__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
 }
 .result-list {
   margin-top: 12px;
@@ -336,20 +370,12 @@ onUnmounted(() => {
   .global-search {
     max-width: 40px;
   }
-  .search-input {
+  .search-trigger {
     width: 40px;
-  }
-  .search-input :deep(.el-input__inner) {
-    padding-left: 0;
-    padding-right: 0;
-    opacity: 0;
-    width: 0;
-  }
-  .search-input :deep(.el-input__wrapper) {
     padding: 0 8px;
     justify-content: center;
   }
-  .search-input :deep(.el-input__suffix) {
+  .search-trigger__text {
     display: none;
   }
 }

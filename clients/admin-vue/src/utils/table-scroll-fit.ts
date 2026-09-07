@@ -257,7 +257,8 @@ function scheduleSync(): void {
   }, 48);
 }
 
-function onVisualViewportChange(): void {
+/** 仅跟 visualViewport 尺寸（缩放），不跟 scroll：桌面端鼠标移到边缘偶发触发 scroll，会反复测宽/reflow，主区上下抖 1～2px */
+function onVisualViewportResize(): void {
   scheduleSync();
   scheduleDockUpdate();
 }
@@ -275,9 +276,8 @@ export function observeTableScrollFit(root: HTMLElement): void {
   });
   syncTableScrollFit();
   window.addEventListener('resize', scheduleSync);
-  // 浏览器缩放 / 触控缩放常改 visualViewport 而不触发 window.resize
-  window.visualViewport?.addEventListener('resize', onVisualViewportChange);
-  window.visualViewport?.addEventListener('scroll', onVisualViewportChange);
+  // 浏览器缩放 / 触控缩放常改 visualViewport 而不触发 window.resize；切勿监听 scroll
+  window.visualViewport?.addEventListener('resize', onVisualViewportResize);
   root.addEventListener('scroll', scheduleDockUpdate, { passive: true });
 }
 
@@ -289,8 +289,7 @@ export function stopTableScrollFit(): void {
   }
   observedRoot = null;
   window.removeEventListener('resize', scheduleSync);
-  window.visualViewport?.removeEventListener('resize', onVisualViewportChange);
-  window.visualViewport?.removeEventListener('scroll', onVisualViewportChange);
+  window.visualViewport?.removeEventListener('resize', onVisualViewportResize);
   if (debounceTimer) globalThis.clearTimeout(debounceTimer);
   debounceTimer = 0;
   if (rafId) cancelAnimationFrame(rafId);

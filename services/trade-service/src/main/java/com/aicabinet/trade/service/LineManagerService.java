@@ -271,7 +271,8 @@ public class LineManagerService {
     }
 
     public LineManagerDto toDto(LineManager manager) {
-        LineWalletAccount account = lineWalletService.ensureAccount(manager.getManagerId());
+        // 列表/详情为 readOnly：勿 ensureAccount（会 INSERT）。缺户按 0 展示，建档/入账路径再 ensure。
+        LineWalletAccount account = lineWalletService.findAccount(manager.getManagerId());
         List<String> deviceIds = deviceMapper.findActiveByManagerId(manager.getManagerId()).stream()
                 .map(LineDevice::getDeviceId)
                 .toList();
@@ -285,8 +286,8 @@ public class LineManagerService {
                 manager.getOrgName(),
                 manager.getCommissionRateBps(),
                 manager.getCommissionFixedCents(),
-                value(account.getBalanceCents()),
-                value(account.getFrozenCents()),
+                value(account == null ? null : account.getBalanceCents()),
+                value(account == null ? null : account.getFrozenCents()),
                 deviceIds,
                 manager.getCreatedAt(),
                 manager.getUpdatedAt()

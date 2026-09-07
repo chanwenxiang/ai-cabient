@@ -204,9 +204,9 @@ public class LineWithdrawService {
     public LineWalletOverviewDto merchantOverview(Long userId) {
         return lineManagerService.findByUserId(userId)
                 .map(manager -> {
-                    LineWalletAccount account = lineWalletService.ensureAccount(manager.getManagerId());
-                    long balance = value(account.getBalanceCents());
-                    long frozen = value(account.getFrozenCents());
+                    LineWalletAccount account = lineWalletService.findAccount(manager.getManagerId());
+                    long balance = value(account == null ? null : account.getBalanceCents());
+                    long frozen = value(account == null ? null : account.getFrozenCents());
                     return new LineWalletOverviewDto(
                             true,
                             manager.getManagerId(),

@@ -1422,24 +1422,31 @@ select {
 }
 
 /*
- * .table-scroll 已承担横滚；EP sticky 固定列在 CSS zoom / 高倍缩放下会钉错位，
- * 中间大块留白。统一降级为普通列，整表一起横滑。
+ * .table-scroll 已承担横滚。左侧固定列在 CSS zoom / 高倍缩放下易钉错位，
+ * 仍降级为普通列；右侧操作列（业务必看）保留 sticky，随外壳横滚钉在右缘。
  */
 .table-scroll .el-table__header-wrapper tr th.el-table-fixed-column--left,
-.table-scroll .el-table__header-wrapper tr th.el-table-fixed-column--right,
 .table-scroll .el-table__body-wrapper tr td.el-table-fixed-column--left,
-.table-scroll .el-table__body-wrapper tr td.el-table-fixed-column--right,
-.table-scroll .el-table__footer-wrapper tr td.el-table-fixed-column--left,
-.table-scroll .el-table__footer-wrapper tr td.el-table-fixed-column--right {
+.table-scroll .el-table__footer-wrapper tr td.el-table-fixed-column--left {
   position: static !important;
   left: auto !important;
   right: auto !important;
   z-index: auto !important;
 }
-.table-scroll .el-table-fixed-column--right.is-first-column::before,
 .table-scroll .el-table-fixed-column--left.is-last-column::before {
   display: none !important;
   box-shadow: none !important;
+}
+/* 右侧操作列：相对 .table-scroll--h 横滚容器钉死 */
+.table-scroll .el-table__header-wrapper tr th.el-table-fixed-column--right,
+.table-scroll .el-table__body-wrapper tr td.el-table-fixed-column--right,
+.table-scroll .el-table__footer-wrapper tr td.el-table-fixed-column--right {
+  position: sticky !important;
+  right: 0 !important;
+  z-index: 5 !important;
+}
+.table-scroll .el-table__header-wrapper tr th.el-table-fixed-column--right {
+  z-index: 7 !important; /* 高于 sticky 表头其它格，避免横滑时被盖住 */
 }
 
 .table-scroll .el-table__inner-wrapper {

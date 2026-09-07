@@ -103,11 +103,15 @@
             ><el-empty v-if="listHydrated && !loading" description="暂无对账记录"
           /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="对账" min-width="160" align="center" class-name="col-text">
+          <el-table-column label="对账ID" width="88" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <span class="mono">{{ row.reconId }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="账期" min-width="120" align="center" class-name="col-text">
             <template #default="{ row }">
               <button type="button" class="recon-cell" @click="openDetail(row)">
-                <strong>{{ row.reconDate || row.reconId }}</strong>
-                <small>{{ row.reconId }}</small>
+                <strong>{{ row.reconDate || '—' }}</strong>
               </button>
             </template>
           </el-table-column>
