@@ -90,7 +90,13 @@ let blobUrl = '';
 function sniffImageMime(bytes: Uint8Array, declaredType: string): string | null {
   const declared = String(declaredType || '').toLowerCase();
   if (declared.startsWith('image/')) return declared;
-  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  ) {
     return 'image/png';
   }
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {

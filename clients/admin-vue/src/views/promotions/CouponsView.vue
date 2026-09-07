@@ -400,12 +400,8 @@ async function loadActiveCoupons() {
 async function loadActivityOptions() {
   try {
     activityOptions.value =
-      (
-        await api.request<{ items: any[] }>(
-          '/api/v2/ops/promotions?page=0&size=200',
-          'GET'
-        )
-      ).items || [];
+      (await api.request<{ items: any[] }>('/api/v2/ops/promotions?page=0&size=200', 'GET'))
+        .items || [];
   } catch {
     activityOptions.value = [];
   }
