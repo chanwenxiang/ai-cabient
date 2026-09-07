@@ -1,5 +1,7 @@
 # AI开门柜项目上线执行文档
 
+> **注意（2026-09）**：下文部分「云端 YOLO / 专用 SKU 模型训练」表述已过时。现行识别策略为 **端侧提供方 + 云端 mock/争议辅助**，见 [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md) 与 [CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md)。本文保留作 2026-07 上线规划历史参考，执行前请以现行文档为准。
+
 ## 文档概述
 
 - **项目名称**: AI Cabinet（AI 智能开门柜）

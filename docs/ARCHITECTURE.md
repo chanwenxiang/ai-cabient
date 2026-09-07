@@ -1,6 +1,6 @@
 # 设计文档索引
 
-完整架构设计见对话记录；本文档为项目内快速参考。模块路径与启动方式见 [MODULES.md](MODULES.md)。
+完整架构设计见对话记录；本文档为项目内快速参考。模块路径与启动方式见 [MODULES.md](MODULES.md)。测试与优化底稿见 [CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md)。
 
 ## 与旧系统关系
 

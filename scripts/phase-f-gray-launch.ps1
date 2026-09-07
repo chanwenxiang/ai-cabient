@@ -170,8 +170,8 @@ if ($devGrayFailed.Count -gt 0) {
 
 Write-Host ""
 Write-Host "Gray launch pre-check complete. Manual steps remaining:"
-Write-Host "  1. Install ultralytics + SKU model (vision-service/requirements-ml.txt)"
-Write-Host "  2. Set VISION_MOCK_ENABLED=false, AICABINET_MOCK_ENABLED=false in production .env"
+Write-Host "  1. Complete edge vision provider integration (docs/VISION_QUECTEL_INTEGRATION.md) or keep mock+dispute only for gray"
+Write-Host "  2. Set VISION_MOCK_ENABLED=false (only after edge results path is live), AICABINET_MOCK_ENABLED=false in production .env"
 Write-Host "  3. Configure HTTPS domain + mini-program legal domains"
 Write-Host "  4. Deploy 1-3 cabinets with gray whitelist; run daily reconciliation for $ObservationDays days"
 

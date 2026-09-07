@@ -58,7 +58,7 @@
 2. `CHECKOUT_BALANCE_ONLY=true`（结算仅走余额，不强制 live 微信预下单）
 3. `RECON_MOCK_ENABLED=true`（无微信账单时保持对账 mock）
 4. 消费者端使用 **生产构建**（`npm run build:mp-weixin`）验收：不应出现「验证码 123456 / 模拟充值」文案；开发构建（`DEV`）才显示联调入口
-5. Vision：另设 `MOCK_ENABLED=false` + 挂载柜机 SKU 模型（见 `docs/VISION_SKU_MODEL.md`）
+5. Vision：开发可用 mock；关闭 mock 前须确认端侧识别上报可用（见 `docs/VISION_QUECTEL_INTEGRATION.md`），勿再依赖已移除的云端 YOLO 权重
 
 说明：正式 `prod` profile 仍要求微信 V3 / 小程序配置；本路径只用于预发验证业务闭环，不能替代真钱进件。
 

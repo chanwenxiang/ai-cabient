@@ -173,7 +173,7 @@
 
 ## M7 沙箱模拟全栈（2026-07-13）
 
-计划：[`VISION_YOLO_TEST.md` §8](VISION_YOLO_TEST.md) · 环境：`infra/.env.sandbox.example`
+计划：云端 YOLO 专项（`VISION_YOLO_TEST.md`）已废弃；现行争议/视觉联调用 `e2e-dispute-recognition.ps1` / `VISION_QUECTEL_INTEGRATION.md` · 环境：`infra/.env.sandbox.example`
 
 | ID | 状态 | 备注 |
 |----|------|------|

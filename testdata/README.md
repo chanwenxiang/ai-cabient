@@ -2,10 +2,12 @@
 
 | 文件 | 用途 |
 |------|------|
-| `bottle.jpg` | 含瓶子/杯子的静态图，YOLO COCO → `SKU-DEMO-001` |
+| `bottle.jpg` | 静态图，供 mock / 上传接口联调 |
 | `cola.png` | 备用静态图 |
-| `take-one-bottle.mp4` | 合成视频：前几帧有瓶、末帧空白；**delta 模式应识别 taken=1** |
-| `static-bottle.mp4` | 合成视频：全程有瓶；delta 模式 items 为空 → 人工审核 |
+| `take-one-bottle.mp4` | 合成视频：前几帧有瓶、末帧空白 |
+| `static-bottle.mp4` | 合成视频：全程有瓶 |
+
+> 云端自研 YOLO 已废弃。开发联调默认 `MOCK_ENABLED=true`；生产识别见 [VISION_QUECTEL_INTEGRATION.md](../docs/VISION_QUECTEL_INTEGRATION.md)。
 
 ## 生成测试视频
 
@@ -15,25 +17,15 @@ pip install opencv-python-headless numpy
 python scripts/generate_test_videos.py
 ```
 
-## 真实 YOLO 识别（vision-service）
+## mock 识别联调（vision-service）
 
 ```powershell
-cd ai-cabinet
-.\scripts\load-vision-dev-env.ps1
-cd vision-service
-pip install -r requirements-ml.txt
-python scripts\setup_yolo.py
-python -m uvicorn app.main:app --port 8082
+cd ai-cabinet/vision-service
+.\.venv\Scripts\pip install -r requirements-base.txt
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8082
 ```
 
-另开终端：
-
-```powershell
-cd ai-cabinet
-.\scripts\verify-vision-model.ps1 -AllowGenericModel
-```
-
-## 上传 mp4 测试
+上传测试：
 
 ```powershell
 curl.exe -X POST "http://localhost:8082/api/v2/vision/recognize/upload" `
@@ -42,13 +34,12 @@ curl.exe -X POST "http://localhost:8082/api/v2/vision/recognize/upload" `
   -F "file=@testdata\take-one-bottle.mp4"
 ```
 
-期望：`model_version` 含 `yolov8` 且非 `mock-v1`；`detected_classes` 含 `bottle`（取决于 YOLO 对合成帧的检测）。
+期望：`model_version` 为 mock 系列；可用 `POST /api/v2/vision/debug/force-need-review` 强制进争议路径。
 
 ## 端到端
 
 ```powershell
 .\scripts\verify-local.ps1 -WithVision
 .\scripts\e2e-shopping.ps1
+.\scripts\e2e-dispute-recognition.ps1
 ```
-
-用 `bus.jpg` 或不匹配 COCO 映射的视频时，会话会进入 **争议审核**，说明真实 YOLO 已跑通。
