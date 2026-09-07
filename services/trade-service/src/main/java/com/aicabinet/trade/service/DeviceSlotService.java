@@ -937,16 +937,21 @@ public class DeviceSlotService {
     private int doApplyPlanogramTemplate(String deviceId, String deviceType) {
         requireDevice(deviceId);
         int created = 0;
+        int skippedMissingSku = 0;
         for (UpsertDeviceSlotRequest req : PlanogramTemplateService.templateFor(deviceType)) {
             DeviceSlotId id = new DeviceSlotId(deviceId, req.slotCode());
             if (slotRepository.existsById(id)) {
                 continue;
             }
+            String assignedSkuId = resolveTemplateSkuId(deviceId, req.slotCode(), req.assignedSkuId());
+            if (req.assignedSkuId() != null && !req.assignedSkuId().isBlank() && assignedSkuId == null) {
+                skippedMissingSku++;
+            }
             DeviceSlot slot = new DeviceSlot();
             slot.setId(id);
             slot.setRowNo(req.rowNo());
             slot.setColNo(req.colNo());
-            slot.setAssignedSkuId(req.assignedSkuId());
+            slot.setAssignedSkuId(assignedSkuId);
             slot.setParLevel(req.parLevel());
             slot.setMinLevel(req.minLevel());
             slot.setMaxLevel(req.maxLevel() != null && req.maxLevel() > 0 ? req.maxLevel() : req.parLevel());
@@ -955,9 +960,26 @@ public class DeviceSlotService {
             created++;
         }
         if (created > 0) {
-            log.info("planogram template applied device={} type={} slots={}", deviceId, deviceType, created);
+            log.info("planogram template applied device={} type={} slots={} skippedMissingSku={}",
+                    deviceId, deviceType, created, skippedMissingSku);
         }
         return created;
+    }
+
+    /**
+     * 模板 SKU 在目录中不存在时返回 null，避免 device_slot FK 失败拖垮创建设备事务（BUG-015）。
+     */
+    private String resolveTemplateSkuId(String deviceId, String slotCode, String templateSkuId) {
+        if (templateSkuId == null || templateSkuId.isBlank()) {
+            return null;
+        }
+        String skuId = templateSkuId.trim();
+        if (skuCatalogRepository == null || skuCatalogRepository.findById(skuId).isEmpty()) {
+            log.warn("planogram template sku missing, leave slot unbound device={} slot={} sku={}",
+                    deviceId, slotCode, skuId);
+            return null;
+        }
+        return skuId;
     }
 
     /** 运营端：按设备类型套用 planogram（仅填充缺失货道）。 */

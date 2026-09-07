@@ -1,11 +1,13 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.DeviceSlot;
 import com.aicabinet.trade.domain.DeviceSlotId;
 import com.aicabinet.trade.mapper.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
@@ -13,8 +15,14 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -28,15 +36,21 @@ class DeviceSlotServiceTest {
     @Mock
     private DeviceSkuLotMapper lotRepository;
     @Mock
+    private DeviceInfoMapper deviceRepository;
+    @Mock
+    private SkuCatalogMapper skuCatalogRepository;
+    @Mock
     private SalesVelocityService salesVelocityService;
+    @Mock
+    private DistributedLockService distributedLockService;
 
     private DeviceSlotService deviceSlotService;
 
     @BeforeEach
     void setUp() {
         deviceSlotService = new DeviceSlotService(
-                slotRepository, lotRepository, null, null, null, null, null, null,
-                salesVelocityService, null, null, null, null, null);
+                slotRepository, lotRepository, deviceRepository, null, skuCatalogRepository, null, null, null,
+                salesVelocityService, null, null, null, distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(deviceSlotService, "self", deviceSlotService);
     }
 
@@ -135,6 +149,32 @@ class DeviceSlotServiceTest {
 
         assertEquals(12, a1.getLastPhysicalQty());
         verify(slotRepository).save(a1);
+    }
+
+    /** BUG-015：清库后模板 SKU 不存在时，仍应建空货道，不可因 FK 导致创建设备事务回滚。 */
+    @Test
+    void ensureDefaultSlots_missingCatalogSku_createsSlotsWithoutSku() {
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId(DEVICE_ID);
+        device.setDeviceType(PlanogramTemplateService.DEFAULT_DEVICE_TYPE);
+        when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        when(deviceRepository.findById(DEVICE_ID)).thenReturn(Optional.of(device));
+        when(slotRepository.countByIdDeviceIdAndEnabledTrue(DEVICE_ID)).thenReturn(0L);
+        when(slotRepository.existsById(any())).thenReturn(false);
+        when(skuCatalogRepository.findById(anyString())).thenReturn(Optional.empty());
+
+        assertDoesNotThrow(() -> deviceSlotService.ensureDefaultSlots(DEVICE_ID));
+
+        ArgumentCaptor<DeviceSlot> captor = ArgumentCaptor.forClass(DeviceSlot.class);
+        verify(slotRepository, atLeastOnce()).save(captor.capture());
+        List<DeviceSlot> saved = captor.getAllValues();
+        assertFalse(saved.isEmpty());
+        assertEquals(PlanogramTemplateService.standardTemplate().size(), saved.size());
+        Set<String> assigned = saved.stream()
+                .map(DeviceSlot::getAssignedSkuId)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toSet());
+        assertTrue(assigned.isEmpty(), "missing catalog SKUs must not be written to device_slot");
     }
 
     private static DeviceSlot slot(String slotCode, String skuId, int maxLevel) {

@@ -118,6 +118,7 @@ public final class ApiMessages {
     public static final String ROLE_NOT_FOUND = "角色不存在";
     public static final String NOT_OPERATOR_ACCOUNT = "不是运营账号";
     public static final String CANNOT_MODIFY_ADMIN_ROLE = "不能修改管理员角色权限";
+    public static final String CANNOT_ASSIGN_ADMIN_ROLE = "仅超级管理员可授予「超级管理员」角色";
     public static final String ACCOUNT_DISABLED = "账号已停用";
     public static final String PHONE_ALREADY_EXISTS = "该手机号已注册";
     public static final String CANNOT_DISABLE_SELF = "不能停用当前登录账号";
