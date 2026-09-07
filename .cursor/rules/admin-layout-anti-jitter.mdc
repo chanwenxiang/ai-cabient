@@ -1,0 +1,36 @@
+---
+description: 运营后台主区防抖硬约束（svh / 勿听 visualViewport.scroll / 勿 translateZ）
+globs: clients/admin-vue/**/*.{vue,ts,css}
+alwaysApply: false
+---
+
+# 运营后台布局防抖（禁止回归）
+
+历史多次复现：鼠标上下移动时主区抖 1～2px。改布局、表格滚动、浮动横滑条前必须遵守下列硬约束。
+
+## 必须
+
+1. **视口高度用 `100svh`（可回退 `100vh`）**，禁止 `100dvh`。  
+   `dvh` 会随浏览器栏/任务栏显隐变化，鼠标移到上下边缘时整页抖。
+2. **`table-scroll-fit` 只观察 `childList`**，禁止监听 `attributes` / class。  
+   EP 行悬停会狂写 `hover-row`，听 class 会反复测宽 + reflow。
+3. **忽略表体行增删**（`tbody` / `.el-table__body*`），轮询刷新数据也不要触发测宽。
+4. **只跟 `window.resize` + `visualViewport.resize`**（缩放）；**禁止** `visualViewport.addEventListener('scroll', …)`。  
+   桌面端鼠标移动偶发触发 vv scroll → 测宽/reflow → 主区抖。
+5. **主区勿用 `transform: translateZ(0)` / 强开合成层**；偶发亚像素错位，刷新才消，像「随机跳动」。
+6. 主滚动容器保持：`overflow-y: scroll` + `scrollbar-gutter: stable` + `overflow-anchor: none`。
+
+## 关键文件
+
+- `clients/admin-vue/src/layouts/AdminLayout.vue`
+- `clients/admin-vue/src/utils/table-scroll-fit.ts`
+- `clients/admin-vue/src/styles/main.css`
+
+## 改完自检
+
+- 源码与构建产物中：**有 `100svh`、无 `100dvh`**；**无** `visualViewport`…`scroll` 监听；**无** `translateZ(0)` 挂在 `.layout-main-scroll`。
+- 设备/订单等列表页：上下移鼠标时主区 `scrollTop` / `getBoundingClientRect().top` 不应跳变。
+
+## 禁止借口
+
+「浮动横滑条 / 缩放适配需要听 vv scroll」「dvh 更跟手」「translateZ 能减轻重绘」——均已验证会抖或偶发坏状态；需要缩放只听 `resize`。

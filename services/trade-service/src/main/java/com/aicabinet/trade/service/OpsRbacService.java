@@ -21,6 +21,8 @@ import com.aicabinet.trade.mapper.OpsUserRoleMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
+import com.aicabinet.trade.mapper.FileAttachmentMapper;
+import com.aicabinet.trade.domain.FileAttachment;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -58,6 +60,7 @@ public class OpsRbacService {
     private final DepartmentService departmentService;
     private final OpsUserDepartmentMapper userDepartmentRepository;
     private final OpsDepartmentMapper departmentRepository;
+    private final FileAttachmentMapper fileAttachmentRepository;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final OpsRbacService self;
 
@@ -76,7 +79,9 @@ public class OpsRbacService {
                           DistributedLockService distributedLockService,
                           DepartmentService departmentService,
                           OpsUserDepartmentMapper userDepartmentRepository,
-                          OpsDepartmentMapper departmentRepository, @Lazy OpsRbacService self) {
+                          OpsDepartmentMapper departmentRepository,
+                          FileAttachmentMapper fileAttachmentRepository,
+                          @Lazy OpsRbacService self) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
         this.rolePermissionRepository = rolePermissionRepository;
@@ -93,6 +98,7 @@ public class OpsRbacService {
         this.departmentService = departmentService;
         this.userDepartmentRepository = userDepartmentRepository;
         this.departmentRepository = departmentRepository;
+        this.fileAttachmentRepository = fileAttachmentRepository;
         this.self = self;
     }
 
@@ -574,13 +580,37 @@ public class OpsRbacService {
                 user.getPhoneNumber(),
                 user.getName(),
                 user.getEmail(),
-                user.getAvatarUrl(),
+                resolveAvatarUrl(user.getAvatarUrl()),
                 roleNames,
                 permCount,
                 global,
                 merchantIds,
                 merchantNames
         );
+    }
+
+    /**
+     * 清库/附件被删后 user_info.avatar_url 可能悬空；对已失效的 ops-avatars 链接返回 null，避免侧栏反复 404。
+     */
+    private String resolveAvatarUrl(String avatarUrl) {
+        if (avatarUrl == null || avatarUrl.isBlank()) {
+            return null;
+        }
+        String trimmed = avatarUrl.trim();
+        String prefix = "/api/v2/media/ops-avatars/";
+        if (!trimmed.startsWith(prefix)) {
+            return trimmed;
+        }
+        try {
+            long fileId = Long.parseLong(trimmed.substring(prefix.length()).trim());
+            FileAttachment row = fileAttachmentRepository.selectById(fileId);
+            if (row == null || !FileAttachmentService.REF_OPS_AVATAR.equals(row.getRefType())) {
+                return null;
+            }
+            return trimmed;
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     /** 运营账号自助更新个人资料（姓名 / 手机 / 邮箱 / 头像）。 */

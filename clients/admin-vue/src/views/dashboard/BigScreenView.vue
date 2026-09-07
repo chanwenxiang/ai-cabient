@@ -268,10 +268,12 @@
           </div>
         </div>
       </div>
+    </section>
 
-      <div class="bs-panel bs-panel--wide">
+    <section class="bs-panels bs-panels--bottom">
+      <div class="bs-panel">
         <div class="bs-panel-title">货柜排行（今日营收）</div>
-        <div class="bs-panel-body bs-rank-grid">
+        <div class="bs-panel-body">
           <div v-for="(d, i) in topDevices" :key="d.deviceId" class="bs-rank">
             <span class="bs-rank-idx">{{ i + 1 }}</span>
             <span class="bs-rank-name">{{ d.deviceName || d.deviceId }}</span>
@@ -281,25 +283,36 @@
         </div>
       </div>
 
-      <div class="bs-panel bs-panel--full">
+      <div class="bs-panel">
         <div class="bs-panel-title">支付渠道（近 7 天）</div>
         <div class="bs-panel-body">
-          <div v-for="ch in channels" :key="ch.channel" class="bs-bar-row">
-            <span class="bs-bar-label">{{ dictLabel('pay_channel', ch.channel) }}</span>
+          <div v-for="ch in channels" :key="ch.channel" class="bs-channel">
+            <div class="bs-channel-head">
+              <span class="bs-channel-label">{{ dictLabel('pay_channel', ch.channel) }}</span>
+              <span class="bs-channel-num">{{ ch.count }} 笔 · {{ yuan(ch.amountCents) }}</span>
+            </div>
             <div class="bs-bar">
               <div class="bs-bar-fill" :style="{ width: barWidth(ch) }" />
             </div>
-            <span class="bs-bar-num">{{ ch.count }} 笔 · {{ yuan(ch.amountCents) }}</span>
           </div>
           <div v-if="!channels.length" class="bs-empty">暂无渠道数据</div>
         </div>
       </div>
-    </section>
 
-    <section class="bs-risks">
-      <span v-for="r in risks" :key="r.label" class="bs-risk">
-        {{ r.label }} <b :class="{ warn: r.value > 0 }">{{ r.value }}</b>
-      </span>
+      <div class="bs-panel">
+        <div class="bs-panel-title">风险指标</div>
+        <div class="bs-risk-grid">
+          <div
+            v-for="r in risks"
+            :key="r.label"
+            class="bs-risk-tile"
+            :class="{ 'is-warn': r.value > 0 }"
+          >
+            <span class="bs-risk-tile__label">{{ r.label }}</span>
+            <b class="bs-risk-tile__value">{{ r.value }}</b>
+          </div>
+        </div>
+      </div>
     </section>
   </div>
 </template>
@@ -672,6 +685,12 @@ onBeforeUnmount(() => {
   gap: 12px;
   margin-bottom: 16px;
 }
+.bs-panels--bottom {
+  align-items: stretch;
+}
+.bs-panels--bottom .bs-panel {
+  min-height: 0;
+}
 .bs-panel {
   background: var(--layout-card);
   border: 1px solid var(--layout-border);
@@ -724,11 +743,6 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: var(--layout-muted);
 }
-.bs-rank-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-}
 .bs-rank {
   display: flex;
   align-items: center;
@@ -757,7 +771,9 @@ onBeforeUnmount(() => {
   color: var(--layout-text);
 }
 .bs-rank-num {
+  flex-shrink: 0;
   color: var(--layout-muted);
+  font-variant-numeric: tabular-nums;
 }
 .bs-action {
   display: flex;
@@ -797,21 +813,32 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.bs-bar-row {
+.bs-channel {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 6px;
+}
+.bs-channel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   gap: 8px;
   font-size: 13px;
 }
-.bs-bar-label {
-  width: 54px;
+.bs-channel-label {
+  color: var(--layout-text);
+  font-weight: 500;
+}
+.bs-channel-num {
   color: var(--layout-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .bs-bar {
-  flex: 1;
-  height: 10px;
+  width: 100%;
+  height: 8px;
   background: var(--layout-border);
-  border-radius: 5px;
+  border-radius: 4px;
   overflow: hidden;
 }
 .bs-bar-fill {
@@ -821,35 +848,42 @@ onBeforeUnmount(() => {
     var(--app-primary, #0f766e),
     color-mix(in srgb, var(--app-primary, #0f766e) 55%, #38bdf8)
   );
-  border-radius: 5px;
-}
-.bs-bar-num {
-  width: 150px;
-  text-align: right;
-  color: var(--layout-muted);
+  border-radius: 4px;
 }
 .bs-empty {
   color: var(--layout-muted);
   font-size: 13px;
 }
-.bs-risks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+.bs-risk-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
-.bs-risk {
-  background: var(--layout-card);
-  border: 1px solid var(--layout-border);
+.bs-risk-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
   border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 13px;
+  background: color-mix(in srgb, var(--layout-border) 45%, var(--layout-card));
+  border: 1px solid transparent;
+}
+.bs-risk-tile.is-warn {
+  background: color-mix(in srgb, var(--el-color-danger, #ef4444) 8%, var(--layout-card));
+  border-color: color-mix(in srgb, var(--el-color-danger, #ef4444) 28%, transparent);
+}
+.bs-risk-tile__label {
+  font-size: 12px;
   color: var(--layout-muted);
 }
-.bs-risk b {
-  margin-left: 6px;
+.bs-risk-tile__value {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
   color: var(--layout-text);
+  font-variant-numeric: tabular-nums;
 }
-.bs-risk b.warn {
+.bs-risk-tile.is-warn .bs-risk-tile__value {
   color: var(--el-color-danger, #ef4444);
 }
 @media (max-width: 1100px) {
@@ -858,6 +892,12 @@ onBeforeUnmount(() => {
   }
   .bs-panels {
     grid-template-columns: 1fr;
+  }
+  .bs-panels--bottom {
+    grid-template-columns: 1fr;
+  }
+  .bs-risk-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

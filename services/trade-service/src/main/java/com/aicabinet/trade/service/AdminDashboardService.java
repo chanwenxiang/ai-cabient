@@ -16,6 +16,7 @@ import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.domain.AliyunCategoryMapping;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
+import com.aicabinet.trade.domain.WarehouseInTransit;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
@@ -449,22 +450,102 @@ public class AdminDashboardService {
 
     private void collectInTransitOverdueItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
         Instant transitCutoff = Instant.now().minus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS);
-        inTransitRepository.findByStatusAndCreatedAtBefore(IN_TRANSIT, transitCutoff, WORKBENCH_ITEM_CAP).stream()
+        // 先按行拉取再按出库单聚合，避免同一出库单拆成十几条「紧急」刷屏
+        List<WarehouseInTransit> overdueLines = inTransitRepository
+                .findByStatusAndCreatedAtBefore(IN_TRANSIT, transitCutoff, 500)
+                .stream()
                 .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
-                .forEach(t -> items.add(new OpsActionItemDto(
-                        "IN_TRANSIT_OVERDUE",
-                        "HIGH",
-                        "补货签收超时",
-                        "出库单 " + t.getOutboundId() + " · 商品 " + t.getSkuId()
-                                + " · 批次 " + t.getBatchNo() + " · 数量 " + t.getQuantity(),
-                        t.getDeviceId(),
-                        null,
-                        null,
-                        t.getSkuId(),
-                        null,
-                        t.getCreatedAt(),
-                        t.getCreatedAt().plus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS)
-                )));
+                .toList();
+        items.addAll(aggregateInTransitOverdueActionItems(overdueLines));
+    }
+
+    /**
+     * 将超时在途行按出库单聚合为工作台告警；无出库单号的行仍逐条保留。
+     * package-visible 便于单测。
+     */
+    static List<OpsActionItemDto> aggregateInTransitOverdueActionItems(List<WarehouseInTransit> overdueLines) {
+        if (overdueLines == null || overdueLines.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, List<WarehouseInTransit>> byOutbound = new java.util.LinkedHashMap<>();
+        List<WarehouseInTransit> orphans = new java.util.ArrayList<>();
+        for (WarehouseInTransit line : overdueLines) {
+            if (line.getOutboundId() == null) {
+                orphans.add(line);
+                continue;
+            }
+            byOutbound.computeIfAbsent(line.getOutboundId(), key -> new java.util.ArrayList<>()).add(line);
+        }
+        List<OpsActionItemDto> aggregated = new java.util.ArrayList<>();
+        for (Map.Entry<Long, List<WarehouseInTransit>> entry : byOutbound.entrySet()) {
+            if (aggregated.size() >= WORKBENCH_ITEM_CAP) {
+                break;
+            }
+            List<WarehouseInTransit> lines = entry.getValue();
+            WarehouseInTransit first = lines.get(0);
+            Instant oldestCreated = lines.stream()
+                    .map(WarehouseInTransit::getCreatedAt)
+                    .filter(java.util.Objects::nonNull)
+                    .min(Instant::compareTo)
+                    .orElse(first.getCreatedAt());
+            long skuCount = lines.stream()
+                    .map(WarehouseInTransit::getSkuId)
+                    .filter(sku -> sku != null && !sku.isBlank())
+                    .distinct()
+                    .count();
+            int quantitySum = lines.stream().mapToInt(WarehouseInTransit::getQuantity).sum();
+            aggregated.add(new OpsActionItemDto(
+                    "IN_TRANSIT_OVERDUE",
+                    "HIGH",
+                    "补货签收超时",
+                    "出库单 " + entry.getKey()
+                            + " · " + skuCount + " 个 SKU"
+                            + " · 共 " + quantitySum + " 件",
+                    first.getDeviceId(),
+                    null,
+                    null,
+                    null,
+                    entry.getKey(),
+                    oldestCreated,
+                    oldestCreated != null
+                            ? oldestCreated.plus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS)
+                            : null
+            ));
+        }
+        for (WarehouseInTransit orphan : orphans) {
+            if (aggregated.size() >= WORKBENCH_ITEM_CAP) {
+                break;
+            }
+            aggregated.add(new OpsActionItemDto(
+                    "IN_TRANSIT_OVERDUE",
+                    "HIGH",
+                    "补货签收超时",
+                    "商品 " + orphan.getSkuId()
+                            + " · 批次 " + orphan.getBatchNo()
+                            + " · 数量 " + orphan.getQuantity(),
+                    orphan.getDeviceId(),
+                    null,
+                    null,
+                    orphan.getSkuId(),
+                    orphan.getTransitId(),
+                    orphan.getCreatedAt(),
+                    orphan.getCreatedAt() != null
+                            ? orphan.getCreatedAt().plus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS)
+                            : null
+            ));
+        }
+        return aggregated;
+    }
+
+    private long countInTransitOverdue(Set<String> scopedDevices) {
+        Instant cutoff = Instant.now().minus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS);
+        // 与告警明细一致：按出库单计数（无出库单号时按在途行）
+        return inTransitRepository.findByStatusAndCreatedAtBefore(IN_TRANSIT, cutoff, 500).stream()
+                .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
+                .map(t -> t.getOutboundId() != null ? t.getOutboundId() : t.getTransitId())
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .count();
     }
 
     private OpsWorkbenchDto buildWorkbenchDto(
@@ -608,15 +689,6 @@ public class AdminDashboardService {
             return splitRepository.countByStatusIn(SPLIT_EXCEPTION_STATUSES);
         }
         return splitRepository.countByStatusInAndDeviceIdIn(SPLIT_EXCEPTION_STATUSES, scopedDevices);
-    }
-
-    private long countInTransitOverdue(Set<String> scopedDevices) {
-        Instant cutoff = Instant.now().minus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS);
-        if (scopedDevices == null) {
-            return inTransitRepository.countByStatusAndCreatedAtBefore(IN_TRANSIT, cutoff);
-        }
-        return inTransitRepository.countByStatusAndCreatedAtBeforeAndDeviceIdIn(
-                IN_TRANSIT, cutoff, scopedDevices);
     }
 
     private String sessionDeviceId(String sessionId) {
