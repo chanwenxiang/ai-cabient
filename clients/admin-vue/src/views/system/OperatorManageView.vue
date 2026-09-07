@@ -919,22 +919,18 @@ async function saveRoles() {
   }
   if (canAssignAdminRole.value && assignAdminRoles.value.some((r) => selected.has(r.roleId))) {
     try {
-      await ElMessageBox.confirm(
-        '将授予「超级管理员」全部权限，确认继续？',
-        '授予超级管理员',
-        { type: 'warning' }
-      );
+      await ElMessageBox.confirm('将授予「超级管理员」全部权限，确认继续？', '授予超级管理员', {
+        type: 'warning'
+      });
     } catch {
       return;
     }
   }
   saving.value = true;
   try {
-    await api.request(
-      `/api/v2/ops/admin/rbac/users/${currentUserId.value}/roles`,
-      'PUT',
-      [...selected]
-    );
+    await api.request(`/api/v2/ops/admin/rbac/users/${currentUserId.value}/roles`, 'PUT', [
+      ...selected
+    ]);
     ElMessage.success('角色已更新');
     roleDlg.value = false;
     const tasks: Promise<unknown>[] = [loadOperators()];

@@ -209,9 +209,12 @@ async function fillPlaceholder(page, placeholder, value) {
 }
 
 function captchaFromRedis(captchaId) {
-  const raw = execSync(`docker exec ${REDIS_CONTAINER} redis-cli GET aicabinet:captcha:${captchaId}`, {
-    encoding: 'utf8'
-  }).trim();
+  const raw = execSync(
+    `docker exec ${REDIS_CONTAINER} redis-cli GET aicabinet:captcha:${captchaId}`,
+    {
+      encoding: 'utf8'
+    }
+  ).trim();
   if (!raw || /nil|ERR/i.test(raw)) throw new Error(`captcha missing in redis: ${captchaId}`);
   return raw.toLowerCase();
 }
@@ -228,10 +231,9 @@ function pickCaptchaId(body) {
  */
 async function loginViaSms(page, phone = DEMO_PHONE, sms = DEMO_SMS) {
   const waitCaptcha = () =>
-    page.waitForResponse(
-      (r) => /\/api\/v2\/auth\/captcha(?:\?|$)/.test(r.url()) && r.ok(),
-      { timeout: 12000 }
-    );
+    page.waitForResponse((r) => /\/api\/v2\/auth\/captcha(?:\?|$)/.test(r.url()) && r.ok(), {
+      timeout: 12000
+    });
 
   let captchaWait = waitCaptcha().catch(() => null);
   const smsTab = page.locator('[data-testid="login-tab-sms"]');
@@ -245,7 +247,11 @@ async function loginViaSms(page, phone = DEMO_PHONE, sms = DEMO_SMS) {
   let resp = await captchaWait;
   if (!resp) {
     captchaWait = waitCaptcha().catch(() => null);
-    await page.locator('.btn-captcha').first().click({ timeout: 5000 }).catch(() => {});
+    await page
+      .locator('.btn-captcha')
+      .first()
+      .click({ timeout: 5000 })
+      .catch(() => {});
     resp = await captchaWait;
   }
   if (!resp) throw new Error('图形验证码接口未返回');

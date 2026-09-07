@@ -581,8 +581,7 @@ export const consumerApi = {
   reportAdPlay: (
     deviceId: string,
     body: { campaignId: number; assetId: number; eventType: 'IMPRESSION' | 'COMPLETE' | 'CLICK' }
-  ) =>
-    request<null>(`/api/v2/devices/${encodeURIComponent(deviceId)}/ad-play`, 'POST', body),
+  ) => request<null>(`/api/v2/devices/${encodeURIComponent(deviceId)}/ad-play`, 'POST', body),
   nearbyDevices: (q: { lat: number; lng: number; radiusKm?: number; limit?: number }) => {
     const radiusKm = q.radiusKm ?? 5;
     const limit = q.limit ?? 20;
