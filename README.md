@@ -32,7 +32,8 @@
 
 完整模块说明见 **[docs/MODULES.md](docs/MODULES.md)**。
 
-> **测试与优化底稿**（全仓结构、关键链路、验证矩阵、热点清单）：**[docs/CODEBASE_FOUNDATION.md](docs/CODEBASE_FOUNDATION.md)**
+> **测试与优化底稿**：[docs/CODEBASE_FOUNDATION.md](docs/CODEBASE_FOUNDATION.md)  
+> **文件级代码清单（精确测试点名）**：[docs/CODEBASE_INVENTORY.md](docs/CODEBASE_INVENTORY.md)
 
 ## 本迭代新增能力
 

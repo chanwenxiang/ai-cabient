@@ -115,4 +115,26 @@ class InventoryServiceTest {
         verify(inventoryLotService, never()).restoreToBatch(any(), any(), any(), anyInt(), any(), any());
         verify(inventoryLotService, never()).deductFefo(any(), any(), anyInt(), any(), any(), any());
     }
+
+    /** I1: 有 lot 账本可售不足时 409，禁止汇总表虚扣。 */
+    @Test
+    void deduct_lotLedgerInsufficient_doesNotTouchAggregateInventory() {
+        when(inventoryLotService.deviceUsesLotLedger("CAB-001")).thenReturn(true);
+        when(inventoryLotService.deductFefo(eq("CAB-001"), eq("SKU-DEMO-001"), eq(2), anyString(), anyString()))
+                .thenThrow(new ResponseStatusException(
+                        org.springframework.http.HttpStatus.CONFLICT,
+                        "sellable lot inventory insufficient for sku=SKU-DEMO-001 need=2"));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> inventoryService.deductForOrder("CAB-001",
+                        List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 1f)), "S-I1"));
+
+        assertEquals(org.springframework.http.HttpStatus.CONFLICT, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("sellable lot inventory insufficient"));
+        verify(inventoryRepository, never()).findById(any());
+        verify(inventoryRepository, never()).save(any());
+        verify(deviceSlotService, never()).applyPhysicalAfterSale(any(), any(), any());
+        verify(deviceSlotService, never()).applyPhysicalAfterSkuSale(any(), any(), any());
+        verify(lockService).unlock(InventoryService.deviceLockKey("CAB-001"));
+    }
 }

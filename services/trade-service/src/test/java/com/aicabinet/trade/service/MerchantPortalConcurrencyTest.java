@@ -44,9 +44,6 @@ class MerchantPortalConcurrencyTest {
     @Mock private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
     @Mock private com.aicabinet.trade.mapper.DeviceTemperatureReadingMapper temperatureReadingRepository;
     @Mock private com.aicabinet.trade.client.DeviceServiceClient deviceServiceClient;
-    @Mock private com.aicabinet.trade.payment.WeChatProfitSharingService profitSharingService;
-    @Mock private com.aicabinet.trade.config.ProfitSharingProperties profitSharingProperties;
-    @Mock private com.aicabinet.trade.config.WeChatPayProperties weChatPayProperties;
     @Mock private OperatorUserIdAllocator operatorUserIdAllocator;
     @Mock private MerchantSelfServiceGate merchantSelfServiceGate;
     @Mock private MerchantFeaturePackService merchantFeaturePackService;
@@ -54,18 +51,29 @@ class MerchantPortalConcurrencyTest {
     @Mock private DisputeService disputeService;
 
     private MerchantPortalService service;
+    private MerchantDevicePortalService devicePortalService;
+    private MerchantTeamAdminService teamAdminService;
 
     @BeforeEach
     void setUp() {
+        devicePortalService = new MerchantDevicePortalService(
+                permissionService, merchantPortalGuard, merchantFeaturePackService,
+                deviceRepository, deviceSlotService, auditService, temperatureReadingRepository,
+                deviceServiceClient, sessionRepository, orderRepository, replenishmentTaskRepository,
+                merchantRepository, distributedLockService, merchantSelfServiceGate);
+        teamAdminService = new MerchantTeamAdminService(
+                permissionService, merchantPortalGuard, merchantFeaturePackService,
+                userInfoRepository, userAccountRepository, userMerchantRepository,
+                userRoleRepository, roleRepository, auditService, passwordEncoder,
+                operatorUserIdAllocator, distributedLockService);
         service = new MerchantPortalService(merchantFinanceService, permissionService, merchantScopeService,
                 merchantPortalGuard, userInfoRepository, userAccountRepository, userMerchantRepository,
                 userRoleRepository, roleRepository, permissionRepository, merchantRepository, deviceRepository,
                 orderRepository, splitRepository, sessionRepository, replenishmentTaskRepository,
                 replenishmentTaskLineRepository, replenishmentRouteRepository, disputeRepository, inventoryRepository, pullOffTaskRepository,
                 deviceSlotService, inventoryLotService, auditService, passwordEncoder, temperatureReadingRepository,
-                deviceServiceClient, profitSharingService, profitSharingProperties, weChatPayProperties,
-                operatorUserIdAllocator, merchantSelfServiceGate, merchantFeaturePackService, distributedLockService,
-                disputeService, null);
+                deviceServiceClient, operatorUserIdAllocator, merchantSelfServiceGate, merchantFeaturePackService, distributedLockService,
+                disputeService, null, devicePortalService, null, teamAdminService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

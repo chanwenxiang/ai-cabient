@@ -4,10 +4,7 @@ import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.DeviceServiceClient;
-import com.aicabinet.trade.config.ProfitSharingProperties;
-import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.*;
-import com.aicabinet.trade.payment.WeChatProfitSharingService;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.DeviceNameSupport;
@@ -34,40 +31,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class MerchantPortalService {
-    private static final String MERCHANT_SETTLEMENTS_VIEW = "merchant:settlements:view";
-    private static final String MERCHANT_INVENTORY_VIEW = "merchant:inventory:view";
-    private static final String MERCHANT_STORE_MANAGER = "merchant_store_manager";
-    private static final String MERCHANT_REPLENISHER = "merchant_replenisher";
-    private static final String MERCHANT_USERS_EDIT = "merchant:users:edit";
-    private static final String MERCHANT_FINANCE = "merchant_finance";
-    private static final String MERCHANT_STAFF = "merchant_staff";
-    private static final String MERCHANT_ADMIN = "merchant_admin";
-    private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
-    private static final String MERCHANT = "merchant";
-    private static final String STATUS_PENDING = "PENDING";
-    private static final String MEDIUM = "MEDIUM";
-    private static final String LITERAL = "成员不存在";
 
-
-    private static final List<SessionState> ACTIVE_STATES = List.of(
-            SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
-            SessionState.RECOGNIZING, SessionState.WAITING_UPLOAD, SessionState.SETTLING
-    );
-    private static final List<String> PENDING_SPLIT_STATUSES = List.of(
-            STATUS_PENDING, "ACCRUED", "LEDGER_ONLY", "WECHAT_SUBMITTED", "SUBMITTED"
-    );
-    private static final List<String> FAILED_SPLIT_STATUSES = List.of("WECHAT_FAILED", "FAILED");
-    private static final int WORKBENCH_ITEM_CAP = 50;
-    private static final int EXPORT_LIMIT = 5000;
-    private static final long MERCHANT_ROLE_ID = 6L;
-    private static final long MERCHANT_STAFF_ROLE_ID = 7L;
-    private static final long MERCHANT_FINANCE_ROLE_ID = 8L;
-    private static final long MERCHANT_STORE_MANAGER_ROLE_ID = 10L;
-    private static final long MERCHANT_REPLENISHER_ROLE_ID = 11L;
-    private static final Set<String> MERCHANT_TEAM_ROLE_KEYS = Set.of(
-            MERCHANT, MERCHANT_ADMIN, MERCHANT_STAFF, MERCHANT_FINANCE,
-            MERCHANT_STORE_MANAGER, MERCHANT_REPLENISHER
-    );
 
     private final PermissionService permissionService;
     private final MerchantFinanceService merchantFinanceService;
@@ -96,14 +60,15 @@ public class MerchantPortalService {
     private final PasswordEncoder passwordEncoder;
     private final DeviceTemperatureReadingMapper temperatureReadingRepository;
     private final DeviceServiceClient deviceServiceClient;
-    private final WeChatProfitSharingService profitSharingService;
-    private final ProfitSharingProperties profitSharingProperties;
-    private final WeChatPayProperties weChatPayProperties;
     private final OperatorUserIdAllocator operatorUserIdAllocator;
     private final MerchantSelfServiceGate merchantSelfServiceGate;
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final DistributedLockService distributedLockService;
     private final DisputeService disputeService;
+    private final MerchantWorkbenchQueryService workbenchQueryService;
+    private final MerchantDevicePortalService devicePortalService;
+    private final MerchantInventoryPortalService inventoryPortalService;
+    private final MerchantTeamAdminService teamAdminService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final MerchantPortalService self;
 
@@ -134,14 +99,15 @@ public class MerchantPortalService {
                                  PasswordEncoder passwordEncoder,
                                  DeviceTemperatureReadingMapper temperatureReadingRepository,
                                  DeviceServiceClient deviceServiceClient,
-                                 WeChatProfitSharingService profitSharingService,
-                                 ProfitSharingProperties profitSharingProperties,
-                                 WeChatPayProperties weChatPayProperties,
                                  OperatorUserIdAllocator operatorUserIdAllocator,
                                  MerchantSelfServiceGate merchantSelfServiceGate,
                                  MerchantFeaturePackService merchantFeaturePackService,
                                  DistributedLockService distributedLockService,
                                  @Lazy DisputeService disputeService,
+                                 MerchantWorkbenchQueryService workbenchQueryService,
+                                 MerchantDevicePortalService devicePortalService,
+                                 MerchantInventoryPortalService inventoryPortalService,
+                                 MerchantTeamAdminService teamAdminService,
                                  @Lazy MerchantPortalService self) {
         this.merchantFinanceService = merchantFinanceService;
         this.permissionService = permissionService;
@@ -170,14 +136,15 @@ public class MerchantPortalService {
         this.passwordEncoder = passwordEncoder;
         this.temperatureReadingRepository = temperatureReadingRepository;
         this.deviceServiceClient = deviceServiceClient;
-        this.profitSharingService = profitSharingService;
-        this.profitSharingProperties = profitSharingProperties;
-        this.weChatPayProperties = weChatPayProperties;
         this.operatorUserIdAllocator = operatorUserIdAllocator;
         this.merchantSelfServiceGate = merchantSelfServiceGate;
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.distributedLockService = distributedLockService;
         this.disputeService = disputeService;
+        this.workbenchQueryService = workbenchQueryService;
+        this.devicePortalService = devicePortalService;
+        this.inventoryPortalService = inventoryPortalService;
+        this.teamAdminService = teamAdminService;
         this.self = self;
     }
 
@@ -208,393 +175,48 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public MerchantDashboardStatsDto getStats(Long userId) {
-        merchantPortalGuard.requireAccess(userId);
-        List<DeviceInfo> devices = merchantFeaturePackService.allowedDevicesForPack(
-                userId, MerchantFeaturePacks.FIELD);
-        int online = (int) devices.stream().filter(d -> CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(d.getOnlineStatus())).count();
-        int offline = devices.size() - online;
-
-        boolean canFinanceKpi = permissionService.hasAnyPermission(
-                userId,
-                "merchant:reports:view",
-                MERCHANT_SETTLEMENTS_VIEW,
-                "merchant:trend:view",
-                "merchant:analytics:view");
-        if (!canFinanceKpi) {
-            return new MerchantDashboardStatsDto(
-                    devices.size(), online, offline, 0, 0, 0, 0, 0, 0, 0, 0);
-        }
-
-        Instant startOfDay = LocalDate.now(ZoneId.systemDefault())
-                .atStartOfDay(ZoneId.systemDefault()).toInstant();
-
-        Set<String> bizDeviceIds = merchantFeaturePackService.allowedDeviceIdsForPack(
-                userId, MerchantFeaturePacks.BIZ);
-        if (bizDeviceIds == null) {
-            bizDeviceIds = deviceRepository.findAll().stream()
-                    .map(DeviceInfo::getDeviceId)
-                    .collect(Collectors.toSet());
-        }
-        long ordersToday = bizDeviceIds.isEmpty() ? 0
-                : orderRepository.countByDeviceIdInAndCreatedAtAfter(bizDeviceIds, startOfDay);
-        long revenueToday = bizDeviceIds.isEmpty() ? 0
-                : orderRepository.sumTotalAmountByDeviceIdInSince(bizDeviceIds, startOfDay);
-
-        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
-                userId, MerchantFeaturePacks.BIZ);
-        if (merchantIds == null) {
-            merchantIds = Set.of();
-        }
-        long incomeToday = merchantIds.isEmpty() ? 0
-                : splitRepository.sumMerchantCentsByMerchantIdInSince(merchantIds, startOfDay);
-        long incomeTotal = merchantIds.isEmpty() ? 0
-                : splitRepository.sumMerchantCentsByMerchantIdIn(merchantIds);
-        long pendingSplits = merchantIds.isEmpty() ? 0
-                : splitRepository.countByMerchantIdInAndStatusIn(merchantIds, PENDING_SPLIT_STATUSES);
-        long pendingAmount = merchantIds.isEmpty() ? 0
-                : splitRepository.sumMerchantCentsByMerchantIdInAndStatusIn(merchantIds, PENDING_SPLIT_STATUSES);
-        Instant startOfMonth = LocalDate.now(ZoneId.systemDefault()).withDayOfMonth(1)
-                .atStartOfDay(ZoneId.systemDefault()).toInstant();
-        long settledMonth = merchantIds.isEmpty() ? 0
-                : splitRepository.sumSuccessMerchantCentsByMerchantIdInSince(merchantIds, startOfMonth);
-        long failedSplits = merchantIds.isEmpty() ? 0
-                : splitRepository.countByMerchantIdInAndStatusIn(merchantIds, FAILED_SPLIT_STATUSES);
-
-        return new MerchantDashboardStatsDto(
-                devices.size(), online, offline, ordersToday, revenueToday,
-                incomeToday, incomeTotal, pendingSplits, pendingAmount, settledMonth, failedSplits
-        );
+        return workbenchQueryService.getStats(userId);
     }
 
     @Transactional(readOnly = true)
     public MerchantTrendDto getTrend(Long userId, int days) {
-        permissionService.requirePermission(userId, "merchant:trend:view");
-        merchantPortalGuard.requireAccess(userId);
-        int window = Math.min(Math.max(days, 1), 90);
-        ZoneId zone = ZoneId.systemDefault();
-        LocalDate today = LocalDate.now(zone);
-        LocalDate start = today.minusDays(window - 1L);
-        Instant since = start.atStartOfDay(zone).toInstant();
-
-        Set<String> deviceIds = merchantFeaturePackService.allowedDeviceIdsForPack(
-                userId, MerchantFeaturePacks.BIZ);
-        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
-                userId, MerchantFeaturePacks.BIZ);
-
-        Map<LocalDate, long[]> orderBuckets = new LinkedHashMap<>();
-        for (int i = 0; i < window; i++) {
-            orderBuckets.put(start.plusDays(i), new long[]{0, 0});
-        }
-        if (deviceIds != null && !deviceIds.isEmpty()) {
-            for (CabinetOrder order : orderRepository.findByDeviceIdInAndCreatedAtAfter(deviceIds, since)) {
-                LocalDate day = order.getCreatedAt().atZone(zone).toLocalDate();
-                long[] bucket = orderBuckets.get(day);
-                if (bucket != null) {
-                    bucket[0]++;
-                    bucket[1] += order.getTotalAmountCents();
-                }
-            }
-        }
-
-        Map<LocalDate, Long> incomeByDay = new LinkedHashMap<>();
-        for (int i = 0; i < window; i++) {
-            incomeByDay.put(start.plusDays(i), 0L);
-        }
-        if (merchantIds != null && !merchantIds.isEmpty()) {
-            for (OrderRevenueSplit split : splitRepository.findByMerchantIdInAndCreatedAtAfter(merchantIds, since)) {
-                LocalDate day = split.getCreatedAt().atZone(zone).toLocalDate();
-                incomeByDay.merge(day, split.getMerchantCents(), Long::sum);
-            }
-        }
-
-        List<MerchantDailyTrendDto> trendDays = orderBuckets.entrySet().stream()
-                .map(e -> new MerchantDailyTrendDto(
-                        e.getKey().toString(),
-                        e.getValue()[0],
-                        e.getValue()[1],
-                        incomeByDay.getOrDefault(e.getKey(), 0L)))
-                .toList();
-        return new MerchantTrendDto(trendDays);
+        return workbenchQueryService.getTrend(userId, days);
     }
 
     @Transactional(readOnly = true)
     public MerchantWorkbenchDto getWorkbench(Long userId) {
-        permissionService.requirePermission(userId, "merchant:alerts:view");
-        merchantPortalGuard.requireAccess(userId);
-        Set<String> deviceIds = merchantFeaturePackService.allowedDeviceIdsForPack(
-                userId, MerchantFeaturePacks.FIELD);
-        Set<String> bizDeviceIds = merchantFeaturePackService.allowedDeviceIdsForPack(
-                userId, MerchantFeaturePacks.BIZ);
-        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
-                userId, MerchantFeaturePacks.BIZ);
-        if (deviceIds != null && deviceIds.isEmpty()
-                && bizDeviceIds != null && bizDeviceIds.isEmpty()
-                && merchantIds != null && merchantIds.isEmpty()) {
-            return new MerchantWorkbenchDto(0, 0, 0, 0, 0, 0, List.of());
-        }
-
-        List<OpsActionItemDto> items = new ArrayList<>();
-        long openDisputes = appendOpenDisputeItems(items, bizDeviceIds);
-        long offline = appendOfflineDeviceItems(items, deviceIds);
-        long lowStock = appendLowStockItems(items, deviceIds);
-        long expiry = appendExpiryItems(items, deviceIds);
-        List<SlotDiscrepancyAlertDto> discrepancies = appendSlotDiscrepancyItems(items, deviceIds, userId);
-        appendReplenishmentItems(items, deviceIds);
-
-        long pendingSplits = merchantIds == null ? 0
-                : splitRepository.countByMerchantIdInAndStatusIn(merchantIds, PENDING_SPLIT_STATUSES);
-
-        items.sort(Comparator
-                .comparing((OpsActionItemDto i) -> severityRank(i.severity())).reversed()
-                .thenComparing(OpsActionItemDto::createdAt, Comparator.nullsLast(Comparator.reverseOrder())));
-
-        return new MerchantWorkbenchDto(
-                openDisputes, offline, lowStock, expiry,
-                discrepancies.size(), pendingSplits,
-                items.stream().limit(100).toList()
-        );
-    }
-
-    private long appendOpenDisputeItems(List<OpsActionItemDto> items, Set<String> bizDeviceIds) {
-        long openDisputes;
-        if (bizDeviceIds == null) {
-            openDisputes = disputeRepository.countByStatus("OPEN");
-        } else if (bizDeviceIds.isEmpty()) {
-            openDisputes = 0;
-        } else {
-            openDisputes = disputeRepository.countOpenByDeviceIds(bizDeviceIds);
-        }
-        disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
-                .filter(d -> inDeviceScope(bizDeviceIds, sessionDeviceId(d.getSessionId())))
-                .forEach(d -> items.add(new OpsActionItemDto(
-                        "DISPUTE", "HIGH", "待审核争议",
-                        formatDisputeReason(d.getReason()),
-                        sessionDeviceId(d.getSessionId()), d.getSessionId(), d.getTicketId(),
-                        null, null, d.getCreatedAt(), d.getSlaDueAt())));
-        return openDisputes;
-    }
-
-    private long appendOfflineDeviceItems(List<OpsActionItemDto> items, Set<String> deviceIds) {
-        long offline;
-        if (deviceIds == null) {
-            offline = deviceRepository.countByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE);
-        } else if (deviceIds.isEmpty()) {
-            offline = 0;
-        } else {
-            offline = deviceRepository.countByDeviceIdInAndOnlineStatusNot(deviceIds, CabinetConstants.DEVICE_ONLINE);
-        }
-        deviceRepository.findByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE, WORKBENCH_ITEM_CAP).stream()
-                .filter(d -> inDeviceScope(deviceIds, d.getDeviceId()))
-                .forEach(d -> items.add(new OpsActionItemDto(
-                        "DEVICE_OFFLINE", "HIGH", "柜机离线",
-                        d.getDeviceName() != null ? d.getDeviceName() : d.getDeviceId(),
-                        d.getDeviceId(), null, null, null, null, d.getUpdatedAt(), null)));
-        return offline;
-    }
-
-    private long appendLowStockItems(List<OpsActionItemDto> items, Set<String> deviceIds) {
-        long lowStock;
-        if (deviceIds == null) {
-            lowStock = inventoryRepository.countLowStock();
-        } else if (deviceIds.isEmpty()) {
-            lowStock = 0;
-        } else {
-            lowStock = inventoryRepository.countLowStockByDeviceIds(deviceIds);
-        }
-        inventoryRepository.findLowStockLimit(WORKBENCH_ITEM_CAP).stream()
-                .filter(inv -> inDeviceScope(deviceIds, inv.getId().getDeviceId()))
-                .forEach(inv -> items.add(new OpsActionItemDto(
-                        "LOW_STOCK", MEDIUM, "库存偏低",
-                        "SKU " + inv.getId().getSkuId() + " 当前 " + inv.getQuantity()
-                                + " / 阈值 " + inv.getLowThreshold(),
-                        inv.getId().getDeviceId(), null, null, inv.getId().getSkuId(),
-                        null, inv.getUpdatedAt(), null)));
-        return lowStock;
-    }
-
-    private long appendExpiryItems(List<OpsActionItemDto> items, Set<String> deviceIds) {
-        long expiry;
-        if (deviceIds == null) {
-            expiry = pullOffTaskRepository.countByStatus("OPEN");
-        } else if (deviceIds.isEmpty()) {
-            expiry = 0;
-        } else {
-            expiry = pullOffTaskRepository.countByStatusAndDeviceIdIn("OPEN", deviceIds);
-        }
-        pullOffTaskRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
-                .filter(task -> inDeviceScope(deviceIds, task.getDeviceId()))
-                .forEach(task -> items.add(new OpsActionItemDto(
-                        "EXPIRY", MEDIUM, "临期/过期下架",
-                        "SKU " + task.getSkuId() + " · " + task.getReason(),
-                        task.getDeviceId(), null, null, task.getSkuId(),
-                        task.getTaskId(), task.getCreatedAt(), null)));
-        return expiry;
-    }
-
-    private List<SlotDiscrepancyAlertDto> appendSlotDiscrepancyItems(List<OpsActionItemDto> items,
-                                                                     Set<String> deviceIds, Long userId) {
-        List<SlotDiscrepancyAlertDto> discrepancies = deviceSlotService.listDiscrepancyAlerts(userId, null).stream()
-                .filter(a -> inDeviceScope(deviceIds, a.deviceId()))
-                .limit(WORKBENCH_ITEM_CAP)
-                .toList();
-        discrepancies.forEach(a -> items.add(new OpsActionItemDto(
-                "SLOT_DISCREPANCY", MEDIUM, "货道账实差异",
-                a.slotCode() + " 账面 " + a.bookQty() + " 实测 " + a.physicalQty(),
-                a.deviceId(), null, null, a.assignedSkuId(),
-                null, a.lastPhysicalAt(), null)));
-        return discrepancies;
-    }
-
-    private void appendReplenishmentItems(List<OpsActionItemDto> items, Set<String> deviceIds) {
-        replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(
-                        List.of(STATUS_PENDING, STATUS_IN_PROGRESS), WORKBENCH_ITEM_CAP).stream()
-                .filter(t -> inDeviceScope(deviceIds, t.getDeviceId()))
-                .forEach(t -> items.add(new OpsActionItemDto(
-                        "REPLENISHMENT", MEDIUM, "补货任务进行中",
-                        "状态 " + replenishmentStatusLabel(t.getStatus())
-                                + (t.getNotes() != null ? " · " + t.getNotes() : ""),
-                        t.getDeviceId(), null, null, null, t.getTaskId(), t.getCreatedAt(), null)));
+        return workbenchQueryService.getWorkbench(userId);
     }
 
     @Transactional(readOnly = true)
     public List<MerchantDeviceDto> listDevices(Long userId) {
-        permissionService.requirePermission(userId, "merchant:devices:list");
-        merchantPortalGuard.requireAccess(userId);
-        return buildDeviceDtos(merchantFeaturePackService.allowedDevicesForPack(userId, MerchantFeaturePacks.FIELD));
+        return devicePortalService.listDevices(userId);
     }
 
     @Transactional(readOnly = true)
     public DeviceDetailDto getDeviceDetail(Long userId, String deviceId) {
-        permissionService.requirePermission(userId, "merchant:devices:detail");
-        merchantPortalGuard.requireAccess(userId);
-        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
-        return deviceSlotService.getDeviceDetail(userId, deviceId);
+        return devicePortalService.getDeviceDetail(userId, deviceId);
     }
 
     @Transactional(readOnly = true)
     public MerchantDeviceSettingsDto getDeviceSettings(Long userId, String deviceId) {
-        permissionService.requirePermission(userId, "merchant:devices:detail");
-        merchantPortalGuard.requireAccess(userId);
-        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
-        DeviceInfo device = deviceRepository.findById(deviceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
-        return toDeviceSettings(device);
+        return devicePortalService.getDeviceSettings(userId, deviceId);
     }
 
     @Transactional
     public MerchantDeviceSettingsDto updateDeviceSettings(Long userId, String deviceId,
                                                           UpdateMerchantDeviceSettingsRequest request) {
-        permissionService.requirePermission(userId, "merchant:devices:edit");
-        merchantPortalGuard.requireAccess(userId);
-        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
-        return runWithDeviceSettingsLock(deviceId, () -> doUpdateDeviceSettings(userId, deviceId, request));
-    }
-
-    private MerchantDeviceSettingsDto doUpdateDeviceSettings(Long userId, String deviceId,
-                                                           UpdateMerchantDeviceSettingsRequest request) {
-        DeviceInfo device = deviceRepository.findByIdForUpdate(deviceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
-
-        applyDeviceSettingFields(device, request);
-        deviceRepository.save(device);
-        TempCommandResult tempResult = dispatchTargetTempIfRequested(device, request.targetTempC());
-        auditService.appendLog(userId, "MERCHANT_DEVICE_SETTINGS", "DEVICE", deviceId,
-                "名称：" + device.getDeviceName());
-        return toDeviceSettings(device, tempResult.sent(), tempResult.message());
-    }
-
-    private void applyDeviceSettingFields(DeviceInfo device, UpdateMerchantDeviceSettingsRequest request) {
-        if (request.deviceName() != null && !request.deviceName().isBlank()) {
-            device.setDeviceName(request.deviceName().trim());
-        }
-        if (request.alertContactName() != null) {
-            device.setAlertContactName(blankToNull(request.alertContactName()));
-        }
-        if (request.alertContactPhone() != null) {
-            device.setAlertContactPhone(blankToNull(request.alertContactPhone()));
-        }
-        if (request.targetTempC() != null) {
-            int temp = request.targetTempC();
-            if (temp < -30 || temp > 30) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "目标温度应在 -30°C ~ 30°C 之间");
-            }
-            device.setTargetTempC(temp);
-        }
-        if (request.opsRemark() != null) {
-            device.setOpsRemark(blankToNull(request.opsRemark()));
-        }
-    }
-
-    private TempCommandResult dispatchTargetTempIfRequested(DeviceInfo device, Integer targetTempC) {
-        if (targetTempC == null) {
-            return TempCommandResult.none();
-        }
-        if (CabinetConstants.DEVICE_ONLINE.equalsIgnoreCase(device.getOnlineStatus())) {
-            try {
-                deviceServiceClient.requestSetTargetTemp(device.getDeviceId(), targetTempC);
-                return new TempCommandResult(true, "已向柜机下发目标温度 " + targetTempC + "°C");
-            } catch (Exception ex) {
-                return new TempCommandResult(false, "设置已保存，柜机指令下发失败（请确认 device-service 在线）");
-            }
-        }
-        return new TempCommandResult(false, "设置已保存，柜机离线时将在上线后手动同步");
-    }
-
-    private record TempCommandResult(Boolean sent, String message) {
-        static TempCommandResult none() {
-            return new TempCommandResult(null, null);
-        }
+        return devicePortalService.updateDeviceSettings(userId, deviceId, request);
     }
 
     @Transactional(readOnly = true)
     public List<DeviceTemperatureReadingDto> getTemperatureHistory(Long userId, String deviceId, int hours) {
-        permissionService.requirePermission(userId, "merchant:temp:history");
-        merchantPortalGuard.requireAccess(userId);
-        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
-        int clampedHours = Math.min(Math.max(hours, 1), 168);
-        Instant since = Instant.now().minus(clampedHours, ChronoUnit.HOURS);
-        return temperatureReadingRepository.findByDeviceIdSince(deviceId, since).stream()
-                .map(r -> new DeviceTemperatureReadingDto(r.getDeviceId(), r.getTempC(), r.getReportedAt()))
-                .toList();
+        return devicePortalService.getTemperatureHistory(userId, deviceId, hours);
     }
 
     @Transactional(readOnly = true)
     public List<MerchantDeviceReportDto> deviceReports(Long userId) {
-        permissionService.requirePermission(userId, "merchant:reports:view");
-        merchantPortalGuard.requireAccess(userId);
-        Instant todayStart = LocalDate.now(ZoneId.systemDefault())
-                .atStartOfDay(ZoneId.systemDefault()).toInstant();
-        Map<String, ShoppingSession> activeByDevice = sessionRepository.findByStateIn(ACTIVE_STATES, 2000).stream()
-                .collect(Collectors.toMap(ShoppingSession::getDeviceId, s -> s, (a, b) -> a));
-
-        return merchantFeaturePackService.allowedDevicesForPack(userId, MerchantFeaturePacks.BIZ).stream()
-                .map(d -> {
-                    String id = d.getDeviceId();
-                    long orderTotal = orderRepository.countByDeviceId(id);
-                    long revenueTotal = orderRepository.sumAmountByDeviceId(id);
-                    long orderToday = orderRepository.countByDeviceIdAndCreatedAtAfter(id, todayStart);
-                    long revenueToday = orderRepository.sumAmountByDeviceIdSince(id, todayStart);
-                    return new MerchantDeviceReportDto(
-                            id,
-                            DeviceNameSupport.resolve(id, d.getDeviceName()),
-                            d.getOnlineStatus(),
-                            orderTotal,
-                            revenueTotal,
-                            orderToday,
-                            revenueToday,
-                            sessionRepository.countByDeviceId(id),
-                            activeByDevice.containsKey(id) ? 1 : 0,
-                            orderToday > 0 ? revenueToday / orderToday : 0,
-                            orderTotal > 0 ? revenueTotal / orderTotal : 0,
-                            d.getRouteCode(),
-                            d.getAddress(),
-                            d.salesLockedEnabled(),
-                            d.getSalesLockReason(),
-                            d.getCurrentTempC(),
-                            d.getFirmwareVersion()
-                    );
-                })
-                .toList();
+        return devicePortalService.deviceReports(userId);
     }
 
     @Transactional(readOnly = true)
@@ -633,81 +255,17 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public List<DeviceInventoryDto> listInventory(Long userId, String deviceId, boolean lowStockOnly) {
-        permissionService.requirePermission(userId, MERCHANT_INVENTORY_VIEW);
-        merchantPortalGuard.requireAccess(userId);
-        Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
-                userId, MerchantFeaturePacks.FIELD);
-        if (allowed != null && allowed.isEmpty()) {
-            return List.of();
-        }
-
-        List<DeviceSkuInventory> rows;
-        if (deviceId != null && !deviceId.isBlank()) {
-            String dev = deviceId.trim();
-            if (allowed != null && !allowed.contains(dev)) {
-                return List.of();
-            }
-            rows = inventoryRepository.findByIdDeviceId(dev);
-        } else if (lowStockOnly) {
-            rows = inventoryRepository.findLowStockLimit(500);
-        } else if (allowed != null) {
-            rows = inventoryRepository.findByIdDeviceIdIn(allowed);
-        } else {
-            rows = inventoryRepository.findAllLimit(2000);
-        }
-
-        Map<String, Boolean> ledgerByDevice = new HashMap<>();
-        Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
-        return rows.stream()
-                .filter(i -> inDeviceScope(allowed, i.getId().getDeviceId()))
-                .map(i -> {
-                    String dev = i.getId().getDeviceId();
-                    String skuId = i.getId().getSkuId();
-                    boolean ledger = ledgerByDevice.computeIfAbsent(dev, inventoryLotService::deviceUsesLotLedger);
-                    int qty = i.getQuantity();
-                    if (ledger) {
-                        qty = sellableByDevice.computeIfAbsent(dev, inventoryLotService::sellableQtyBySku)
-                                .getOrDefault(skuId, 0);
-                    }
-                    return new DeviceInventoryDto(
-                            dev, skuId, qty, i.getCapacity(), i.getLowThreshold(), i.getUpdatedAt());
-                })
-                .filter(d -> !lowStockOnly || d.quantity() <= d.lowThreshold())
-                .toList();
+        return inventoryPortalService.listInventory(userId, deviceId, lowStockOnly);
     }
 
     @Transactional(readOnly = true)
     public List<PullOffTaskDto> listExpiryAlerts(Long userId) {
-        permissionService.requirePermission(userId, MERCHANT_INVENTORY_VIEW);
-        merchantPortalGuard.requireAccess(userId);
-        Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
-                userId, MerchantFeaturePacks.FIELD);
-        return pullOffTaskRepository.findByStatusOrderByCreatedAtDesc("OPEN", 500).stream()
-                .filter(t -> inDeviceScope(allowed, t.getDeviceId()))
-                .map(t -> {
-                    int headroom = 0;
-                    try {
-                        headroom = deviceSlotService.totalHeadroomForSku(t.getDeviceId(), t.getSkuId());
-                    } catch (Exception ignored) {
-                        headroom = 0;
-                    }
-                    return new PullOffTaskDto(
-                            t.getTaskId(), t.getDeviceId(), t.getSkuId(), t.getLotId(),
-                            t.getBatchNo(), t.getQuantity(), t.getReason(), t.getStatus(), t.getCreatedAt(),
-                            Math.max(0, headroom));
-                })
-                .toList();
+        return inventoryPortalService.listExpiryAlerts(userId);
     }
 
     @Transactional(readOnly = true)
     public List<SlotDiscrepancyAlertDto> listSlotDiscrepancies(Long userId, String deviceId) {
-        permissionService.requirePermission(userId, MERCHANT_INVENTORY_VIEW);
-        merchantPortalGuard.requireAccess(userId);
-        Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
-                userId, MerchantFeaturePacks.FIELD);
-        return deviceSlotService.listDiscrepancyAlerts(userId, deviceId).stream()
-                .filter(a -> inDeviceScope(allowed, a.deviceId()))
-                .toList();
+        return inventoryPortalService.listSlotDiscrepancies(userId, deviceId);
     }
 
     @Transactional
@@ -750,141 +308,33 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public MerchantSettlementOverviewDto getSettlementOverview(Long userId) {
-        permissionService.requirePermission(userId, MERCHANT_SETTLEMENTS_VIEW);
-        merchantPortalGuard.requireAccess(userId);
-        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.BIZ);
-        if (merchantIds == null || merchantIds.isEmpty()) {
-            return new MerchantSettlementOverviewDto(0, 0, 0, 0, buildProfitSharingStatus(), List.of());
-        }
-        long pendingAmount = splitRepository.sumMerchantCentsByMerchantIdInAndStatusIn(
-                merchantIds, PENDING_SPLIT_STATUSES);
-        long pendingCount = splitRepository.countByMerchantIdInAndStatusIn(merchantIds, PENDING_SPLIT_STATUSES);
-        Instant startOfMonth = LocalDate.now(ZoneId.systemDefault()).withDayOfMonth(1)
-                .atStartOfDay(ZoneId.systemDefault()).toInstant();
-        long settledMonth = splitRepository.sumSuccessMerchantCentsByMerchantIdInSince(merchantIds, startOfMonth);
-        long failedCount = splitRepository.countByMerchantIdInAndStatusIn(merchantIds, FAILED_SPLIT_STATUSES);
-        Map<String, String> merchantNames = merchantRepository.findAll().stream()
-                .filter(m -> merchantIds.contains(m.getMerchantId()))
-                .collect(Collectors.toMap(
-                        Merchant::getMerchantId,
-                        m -> com.aicabinet.trade.support.MerchantNameSupport.resolve(
-                                m.getMerchantId(), m.getMerchantName()),
-                        (a, b) -> a));
-        List<RevenueSplitDto> recentFailures = splitRepository
-                .findTop5ByMerchantIdInAndStatusInOrderByCreatedAtDesc(merchantIds, FAILED_SPLIT_STATUSES)
-                .stream()
-                .map(s -> toSplitDto(s, merchantNames.get(s.getMerchantId())))
-                .toList();
-        return new MerchantSettlementOverviewDto(
-                pendingAmount, pendingCount, settledMonth, failedCount,
-                buildProfitSharingStatus(), recentFailures);
+        return merchantFinanceService.getSettlementOverview(userId);
     }
 
     @Transactional(readOnly = true)
     public List<MerchantDailySettlementDto> listDailySettlements(Long userId, String fromDate, String toDate) {
-        permissionService.requirePermission(userId, MERCHANT_SETTLEMENTS_VIEW);
-        merchantPortalGuard.requireAccess(userId);
-        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.BIZ);
-        if (merchantIds == null || merchantIds.isEmpty()) {
-            return List.of();
-        }
-        Instant from = parseDateStart(fromDate != null ? fromDate : LocalDate.now().minusDays(30).toString());
-        Instant to = parseDateEnd(toDate != null ? toDate : LocalDate.now().toString());
-        return splitRepository.aggregateDailyByMerchants(merchantIds, from, to).stream()
-                .map(this::toDailySettlement)
-                .toList();
+        return merchantFinanceService.listDailySettlements(userId, fromDate, toDate);
     }
 
     @Transactional(readOnly = true)
     public List<MerchantSettlementBatchDto> listSettlementBatches(Long userId, String fromDate, String toDate) {
-        permissionService.requirePermission(userId, MERCHANT_SETTLEMENTS_VIEW);
-        merchantPortalGuard.requireAccess(userId);
-        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.BIZ);
-        if (merchantIds == null || merchantIds.isEmpty()) {
-            return List.of();
-        }
-        Instant from = parseDateStart(fromDate != null ? fromDate : LocalDate.now().minusDays(90).toString());
-        Instant to = parseDateEnd(toDate != null ? toDate : LocalDate.now().toString());
-        Map<String, String> merchantNames = merchantRepository.findAll().stream()
-                .filter(m -> merchantIds.contains(m.getMerchantId()))
-                .collect(Collectors.toMap(
-                        Merchant::getMerchantId,
-                        m -> com.aicabinet.trade.support.MerchantNameSupport.resolve(
-                                m.getMerchantId(), m.getMerchantName()),
-                        (a, b) -> a));
-        return splitRepository.aggregateBatchByMerchants(merchantIds, from, to).stream()
-                .map(row -> toBatchSettlement(row, merchantNames))
-                .toList();
+        return merchantFinanceService.listSettlementBatches(userId, fromDate, toDate);
     }
 
     @Transactional(readOnly = true)
     public List<RevenueSplitDto> getSettlementBatchDetail(Long userId, String batchNo) {
-        permissionService.requirePermission(userId, MERCHANT_SETTLEMENTS_VIEW);
-        merchantPortalGuard.requireAccess(userId);
-        if (batchNo == null || batchNo.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "批次号不能为空");
-        }
-        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.BIZ);
-        Map<String, String> merchantNames = merchantRepository.findAll().stream()
-                .filter(m -> merchantIds.contains(m.getMerchantId()))
-                .collect(Collectors.toMap(
-                        Merchant::getMerchantId,
-                        m -> com.aicabinet.trade.support.MerchantNameSupport.resolve(
-                                m.getMerchantId(), m.getMerchantName()),
-                        (a, b) -> a));
-        return splitRepository.findByMerchantIdInAndSettlementBatchNoOrderByCreatedAtDesc(
-                        merchantIds, batchNo.trim()).stream()
-                .map(s -> toSplitDto(s, merchantNames.get(s.getMerchantId())))
-                .toList();
+        return merchantFinanceService.getSettlementBatchDetail(userId, batchNo);
     }
 
     @Transactional(readOnly = true)
     public byte[] exportSettlementsCsv(Long userId, String fromDate, String toDate) {
-        permissionService.requirePermission(userId, "merchant:settlements:export");
-        merchantPortalGuard.requireAccess(userId);
-        List<MerchantDailySettlementDto> days = self.listDailySettlements(userId, fromDate, toDate);
-        StringBuilder sb = new StringBuilder();
-        sb.append("date,orderCount,grossCents,platformCents,merchantCents,settledCents,pendingCents,failedCount\n");
-        for (MerchantDailySettlementDto d : days) {
-            sb.append(d.date()).append(',')
-                    .append(d.orderCount()).append(',')
-                    .append(d.grossCents()).append(',')
-                    .append(d.platformCents()).append(',')
-                    .append(d.merchantCents()).append(',')
-                    .append(d.settledCents()).append(',')
-                    .append(d.pendingCents()).append(',')
-                    .append(d.failedCount()).append('\n');
-        }
-        return sb.toString().getBytes(StandardCharsets.UTF_8);
+        return merchantFinanceService.exportSettlementsCsv(userId, fromDate, toDate);
     }
 
     @Transactional(readOnly = true)
     public PageResult<RevenueSplitDto> listSplits(Long userId, int page, int size,
                                                  String status, String fromDate, String toDate) {
-        permissionService.requirePermission(userId, "merchant:splits:list");
-        merchantPortalGuard.requireAccess(userId);
-        Set<String> allowed = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.BIZ);
-        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
-        Instant from = resolveSplitRangeStart(fromDate);
-        Instant to = resolveSplitRangeEnd(toDate);
-        String normalizedStatus = status != null && !status.isBlank() ? status.trim().toUpperCase() : null;
-
-        Page<OrderRevenueSplit> result = splitRepository.searchByMerchants(
-                allowed, normalizedStatus != null ? normalizedStatus : "", from, to, pageable);
-
-        Map<String, String> merchantNames = merchantRepository.findAll().stream()
-                .filter(m -> allowed.contains(m.getMerchantId()))
-                .collect(Collectors.toMap(
-                        Merchant::getMerchantId,
-                        m -> com.aicabinet.trade.support.MerchantNameSupport.resolve(
-                                m.getMerchantId(), m.getMerchantName()),
-                        (a, b) -> a));
-        return new PageResult<>(
-                result.getContent().stream()
-                        .map(s -> toSplitDto(s, merchantNames.get(s.getMerchantId())))
-                        .toList(),
-                result.getNumber(), result.getSize(), result.getTotalElements()
-        );
+        return merchantFinanceService.listSplits(userId, page, size, status, fromDate, toDate);
     }
 
     @Transactional(readOnly = true)
@@ -894,336 +344,58 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public byte[] exportSplitsCsv(Long userId, String status, String fromDate, String toDate) {
-        permissionService.requirePermission(userId, "merchant:reports:export");
-        merchantPortalGuard.requireAccess(userId);
-        Set<String> allowed = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.BIZ);
-        Pageable pageable = PageRequest.of(0, EXPORT_LIMIT);
-        Page<OrderRevenueSplit> page = splitRepository.searchByMerchants(
-                allowed, normalizedStatus(blankToNull(status)) != null
-                        ? normalizedStatus(blankToNull(status)) : "",
-                resolveSplitRangeStart(fromDate), resolveSplitRangeEnd(toDate), pageable);
-        Map<String, String> merchantNames = merchantRepository.findAll().stream()
-                .filter(m -> allowed.contains(m.getMerchantId()))
-                .collect(Collectors.toMap(
-                        Merchant::getMerchantId,
-                        m -> com.aicabinet.trade.support.MerchantNameSupport.resolve(
-                                m.getMerchantId(), m.getMerchantName()),
-                        (a, b) -> a));
-        StringBuilder sb = new StringBuilder(
-                "splitId,orderId,merchantId,merchantName,deviceId,grossCents,platformCents,merchantCents,status,createdAt\n");
-        for (OrderRevenueSplit s : page.getContent()) {
-            sb.append(csv(s.getSplitId())).append(',')
-                    .append(csv(s.getOrderId())).append(',')
-                    .append(csv(s.getMerchantId())).append(',')
-                    .append(csv(merchantNames.get(s.getMerchantId()))).append(',')
-                    .append(csv(s.getDeviceId())).append(',')
-                    .append(s.getGrossCents()).append(',')
-                    .append(s.getPlatformCents()).append(',')
-                    .append(s.getMerchantCents()).append(',')
-                    .append(csv(s.getStatus())).append(',')
-                    .append(csv(String.valueOf(s.getCreatedAt()))).append('\n');
-        }
-        return sb.toString().getBytes(StandardCharsets.UTF_8);
+        return merchantFinanceService.exportSplitsCsv(userId, status, fromDate, toDate);
     }
 
     @Transactional(readOnly = true)
     public byte[] exportDeviceReportsCsv(Long userId) {
-        permissionService.requirePermission(userId, "merchant:reports:export");
-        merchantPortalGuard.requireAccess(userId);
-        StringBuilder sb = new StringBuilder(
-                "deviceId,deviceName,onlineStatus,routeCode,address,salesLocked,salesLockReason,currentTempC,firmwareVersion,orderTotal,revenueTotalCents,avgOrderValueTotalCents,orderToday,revenueTodayCents,avgOrderValueTodayCents,sessionTotal,sessionActive\n");
-        for (MerchantDeviceReportDto r : self.deviceReports(userId)) {
-            sb.append(csv(r.deviceId())).append(',')
-                    .append(csv(r.deviceName())).append(',')
-                    .append(csv(r.onlineStatus())).append(',')
-                    .append(csv(r.routeCode())).append(',')
-                    .append(csv(r.address())).append(',')
-                    .append(r.salesLocked()).append(',')
-                    .append(csv(r.salesLockReason())).append(',')
-                    .append(r.currentTempC() == null ? "" : r.currentTempC()).append(',')
-                    .append(csv(r.firmwareVersion())).append(',')
-                    .append(r.orderTotal()).append(',')
-                    .append(r.revenueTotalCents()).append(',')
-                    .append(r.avgOrderValueTotalCents()).append(',')
-                    .append(r.orderToday()).append(',')
-                    .append(r.revenueTodayCents()).append(',')
-                    .append(r.avgOrderValueTodayCents()).append(',')
-                    .append(r.sessionTotal()).append(',')
-                    .append(r.sessionActive()).append('\n');
-        }
-        return sb.toString().getBytes(StandardCharsets.UTF_8);
+        return devicePortalService.exportDeviceReportsCsv(userId);
     }
 
     @Transactional(readOnly = true)
     public List<ReplenishmentTaskDto> listReplenishmentTasks(Long userId, String status, String deviceId) {
-        permissionService.requirePermission(userId, "merchant:replenishment:view");
-        merchantPortalGuard.requireAccess(userId);
-        Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
-                userId, MerchantFeaturePacks.FIELD);
-        if (allowed != null && allowed.isEmpty()) {
-            return List.of();
-        }
-        if (deviceId != null && !deviceId.isBlank()) {
-            merchantFeaturePackService.requireDevicePack(
-                    userId, deviceId.trim(), MerchantFeaturePacks.FIELD);
-        }
-        List<String> statuses = status != null && !status.isBlank()
-                ? List.of(status.trim().toUpperCase())
-                : List.of(STATUS_PENDING, STATUS_IN_PROGRESS, "COMPLETED");
-        List<ReplenishmentTask> tasks = replenishmentTaskRepository.findByStatusIn(statuses).stream()
-                .filter(t -> inDeviceScope(allowed, t.getDeviceId()))
-                .filter(t -> deviceId == null || deviceId.isBlank() || deviceId.trim().equals(t.getDeviceId()))
-                .sorted(Comparator.comparing(ReplenishmentTask::getCreatedAt).reversed())
-                .limit(100)
-                .toList();
-        Map<Long, ReplenishmentRoute> routesById = loadRoutesById(tasks);
-        return tasks.stream()
-                .map(t -> toReplenishmentTaskDto(t, routesById.get(t.getRouteId())))
-                .toList();
+        return inventoryPortalService.listReplenishmentTasks(userId, status, deviceId);
     }
 
     @Transactional(readOnly = true)
     public List<ReplenishmentTaskLineDto> getReplenishmentTaskLines(Long userId, Long taskId) {
-        permissionService.requirePermission(userId, "merchant:replenishment:view");
-        merchantPortalGuard.requireAccess(userId);
-        ReplenishmentTask task = replenishmentTaskRepository.findById(taskId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存在"));
-        merchantFeaturePackService.requireDevicePack(
-                userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
-        return replenishmentTaskLineRepository.findByTaskIdOrderByLineIdAsc(taskId).stream()
-                .map(this::toReplenishmentLineDto)
-                .toList();
+        return inventoryPortalService.getReplenishmentTaskLines(userId, taskId);
     }
 
     @Transactional(readOnly = true)
     public List<MerchantUserDto> listTeamUsers(Long userId) {
-        permissionService.requirePermission(userId, "merchant:users:list");
-        merchantPortalGuard.requireAccess(userId);
-        Set<String> merchants = merchantFeaturePackService.allowedMerchantIdsForPack(
-                userId, MerchantFeaturePacks.TEAM);
-        if (merchants == null || merchants.isEmpty()) {
-            return List.of();
-        }
-        Set<Long> userIds = userMerchantRepository.findByMerchantIdIn(merchants).stream()
-                .map(m -> m.getId().getUserId())
-                .collect(Collectors.toSet());
-        if (userIds.isEmpty()) {
-            return List.of();
-        }
-        return userInfoRepository.findByUserIdIn(new ArrayList<>(userIds)).stream()
-                .sorted(Comparator.comparing(UserInfo::getUserId))
-                .map(u -> toMerchantUserDto(u, u.getUserId().equals(userId)))
-                .toList();
+        return teamAdminService.listTeamUsers(userId);
     }
 
     @Transactional(readOnly = true)
     public List<MerchantTeamRoleDto> listTeamRoles(Long userId) {
-        permissionService.requireAnyPermission(userId, "merchant:users:invite", MERCHANT_USERS_EDIT);
-        merchantPortalGuard.requireAccess(userId);
-        return List.of(
-                new MerchantTeamRoleDto(MERCHANT, "商户管理员", "全量经营与团队管理"),
-                new MerchantTeamRoleDto(MERCHANT_STORE_MANAGER, "店长", "现场+经营只读，可看团队"),
-                new MerchantTeamRoleDto(MERCHANT_FINANCE, "财务", "结算对账与钱包只读"),
-                new MerchantTeamRoleDto(MERCHANT_REPLENISHER, "补货员", "柜机补货与库存"),
-                new MerchantTeamRoleDto(MERCHANT_STAFF, "店员", "通用只读协同")
-        );
+        return teamAdminService.listTeamRoles(userId);
     }
 
     @Transactional
     public MerchantUserDto updateTeamUser(Long operatorId, Long targetUserId, UpdateMerchantUserRequest request) {
-        permissionService.requirePermission(operatorId, MERCHANT_USERS_EDIT);
-        merchantPortalGuard.requireAccess(operatorId);
-        return runWithTeamUserLock(targetUserId, () -> doUpdateTeamUser(operatorId, targetUserId, request));
-    }
-
-    private MerchantUserDto doUpdateTeamUser(Long operatorId, Long targetUserId, UpdateMerchantUserRequest request) {
-        UserInfo target = userInfoRepository.findByIdForUpdate(targetUserId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
-        assertTeamMemberAccess(operatorId, targetUserId);
-        if (request.displayName() != null && !request.displayName().isBlank()) {
-            target.setName(request.displayName().trim());
-        }
-        if (request.roleKey() != null && !request.roleKey().isBlank()) {
-            if (targetUserId.equals(operatorId)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能修改自己的角色");
-            }
-            long roleId = resolveMerchantRoleId(request.roleKey());
-            userRoleRepository.deleteByIdUserId(targetUserId);
-            userRoleRepository.insert(new OpsUserRole(targetUserId, roleId));
-        }
-        userInfoRepository.save(target);
-        auditService.appendLog(operatorId, "MERCHANT_USER_UPDATE", "USER", String.valueOf(targetUserId),
-                "role=" + request.roleKey() + ",name=" + request.displayName());
-        return toMerchantUserDto(target, false);
+        return teamAdminService.updateTeamUser(operatorId, targetUserId, request);
     }
 
     @Transactional
     public MerchantUserDto disableTeamUser(Long operatorId, Long targetUserId) {
-        permissionService.requirePermission(operatorId, "merchant:users:disable");
-        merchantPortalGuard.requireAccess(operatorId);
-        if (targetUserId.equals(operatorId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能停用自己");
-        }
-        return runWithTeamUserLock(targetUserId, () -> doDisableTeamUser(operatorId, targetUserId));
-    }
-
-    private MerchantUserDto doDisableTeamUser(Long operatorId, Long targetUserId) {
-        UserInfo target = userInfoRepository.findByIdForUpdate(targetUserId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
-        assertTeamMemberAccess(operatorId, targetUserId);
-        target.setStatus("INACTIVE");
-        userInfoRepository.save(target);
-        auditService.appendLog(operatorId, "MERCHANT_USER_DISABLE", "USER", String.valueOf(targetUserId), null);
-        return toMerchantUserDto(target, false);
+        return teamAdminService.disableTeamUser(operatorId, targetUserId);
     }
 
     @Transactional
     public MerchantUserDto enableTeamUser(Long operatorId, Long targetUserId) {
-        permissionService.requirePermission(operatorId, MERCHANT_USERS_EDIT);
-        merchantPortalGuard.requireAccess(operatorId);
-        return runWithTeamUserLock(targetUserId, () -> doEnableTeamUser(operatorId, targetUserId));
-    }
-
-    private MerchantUserDto doEnableTeamUser(Long operatorId, Long targetUserId) {
-        UserInfo target = userInfoRepository.findByIdForUpdate(targetUserId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
-        assertTeamMemberAccess(operatorId, targetUserId);
-        target.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
-        userInfoRepository.save(target);
-        auditService.appendLog(operatorId, "MERCHANT_USER_ENABLE", "USER", String.valueOf(targetUserId), null);
-        return toMerchantUserDto(target, false);
+        return teamAdminService.enableTeamUser(operatorId, targetUserId);
     }
 
     @Transactional
     public MerchantUserDto resetTeamUserPassword(Long operatorId, Long targetUserId,
                                                  ResetMerchantUserPasswordRequest request) {
-        permissionService.requirePermission(operatorId, "merchant:users:reset-password");
-        merchantPortalGuard.requireAccess(operatorId);
-        if (request == null || request.password() == null || request.password().length() < 6) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "密码至少 6 位");
-        }
-        return runWithTeamUserLock(targetUserId, () -> doResetTeamUserPassword(operatorId, targetUserId, request));
-    }
-
-    private MerchantUserDto doResetTeamUserPassword(Long operatorId, Long targetUserId,
-                                                    ResetMerchantUserPasswordRequest request) {
-        UserInfo target = userInfoRepository.findByIdForUpdate(targetUserId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
-        assertTeamMemberAccess(operatorId, targetUserId);
-        target.setPasswordHash(passwordEncoder.encode(request.password()));
-        userInfoRepository.save(target);
-        auditService.appendLog(operatorId, "MERCHANT_USER_RESET_PASSWORD", "USER", String.valueOf(targetUserId), null);
-        return toMerchantUserDto(target, targetUserId.equals(operatorId));
+        return teamAdminService.resetTeamUserPassword(operatorId, targetUserId, request);
     }
 
     @Transactional
     public MerchantUserDto createTeamUser(Long userId, CreateMerchantUserRequest request) {
-        permissionService.requirePermission(userId, "merchant:users:invite");
-        merchantPortalGuard.requireAccess(userId);
-        if (request.phoneNumber() == null || request.phoneNumber().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "手机号不能为空");
-        }
-        if (request.password() == null || request.password().length() < 6) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "密码至少 6 位");
-        }
-        String phone = request.phoneNumber().trim();
-        return runWithTeamPhoneLock(phone, () -> doCreateTeamUser(userId, request, phone));
-    }
-
-    private MerchantUserDto doCreateTeamUser(Long userId, CreateMerchantUserRequest request, String phone) {
-        if (userInfoRepository.findByPhoneNumber(phone).isPresent()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "该手机号已注册");
-        }
-        Set<String> merchants = merchantFeaturePackService.allowedMerchantIdsForPack(
-                userId, MerchantFeaturePacks.TEAM);
-        if (merchants == null || merchants.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "该商户未开通对应功能包");
-        }
-        long newUserId = operatorUserIdAllocator.nextId();
-
-        UserInfo user = new UserInfo();
-        user.setUserId(newUserId);
-        user.setAccountType(CabinetConstants.ACCOUNT_TYPE_OPERATOR);
-        user.setPhoneNumber(phone);
-        user.setName(request.displayName() != null && !request.displayName().isBlank()
-                ? request.displayName().trim() : "商户成员");
-        user.setVerified(true);
-        user.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
-        user.setPasswordHash(passwordEncoder.encode(request.password()));
-        userInfoRepository.save(user);
-
-        UserAccount account = new UserAccount();
-        account.setUserId(newUserId);
-        account.setBalanceCents(0);
-        userAccountRepository.save(account);
-
-        long roleId = resolveMerchantRoleId(request.roleKey());
-        userRoleRepository.insert(new OpsUserRole(newUserId, roleId));
-        for (String merchantId : merchants) {
-            userMerchantRepository.insert(new OpsUserMerchant(newUserId, merchantId));
-        }
-        auditService.appendLog(userId, "MERCHANT_USER_CREATE", "USER", String.valueOf(newUserId),
-                "phone=" + phone + ",role=" + request.roleKey());
-        return toMerchantUserDto(user, false);
-    }
-
-    private void assertTeamMemberAccess(Long operatorId, Long targetUserId) {
-        Set<String> merchants = merchantFeaturePackService.allowedMerchantIdsForPack(
-                operatorId, MerchantFeaturePacks.TEAM);
-        if (merchants == null || merchants.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "该商户未开通对应功能包");
-        }
-        Set<String> targetMerchants = userMerchantRepository.findByIdUserId(targetUserId).stream()
-                .map(m -> m.getId().getMerchantId())
-                .collect(Collectors.toSet());
-        boolean overlap = targetMerchants.stream().anyMatch(merchants::contains);
-        if (!overlap) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权管理该成员");
-        }
-    }
-
-    private MerchantUserDto toMerchantUserDto(UserInfo user, boolean self) {
-        String roleKey = resolveMerchantRoleKey(user.getUserId());
-        String roleName = switch (roleKey) {
-            case MERCHANT -> "商户管理员";
-            case MERCHANT_STORE_MANAGER -> "店长";
-            case MERCHANT_FINANCE -> "财务";
-            case MERCHANT_REPLENISHER -> "补货员";
-            case MERCHANT_STAFF -> "店员";
-            default -> roleKey;
-        };
-        return new MerchantUserDto(
-                user.getUserId(),
-                user.getPhoneNumber(),
-                user.getName(),
-                roleKey,
-                roleName,
-                user.getStatus() == null ? CabinetConstants.PROMOTION_STATUS_ACTIVE : user.getStatus(),
-                self
-        );
-    }
-
-    private List<MerchantDeviceDto> buildDeviceDtos(List<DeviceInfo> devices) {
-        Set<String> replenishing = replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(List.of(STATUS_IN_PROGRESS), 500).stream()
-                .map(ReplenishmentTask::getDeviceId)
-                .collect(Collectors.toSet());
-        Map<String, ShoppingSession> activeByDevice = sessionRepository.findByStateIn(ACTIVE_STATES, 2000).stream()
-                .collect(Collectors.toMap(
-                        ShoppingSession::getDeviceId,
-                        s -> s,
-                        (a, b) -> a.getCreatedAt().isAfter(b.getCreatedAt()) ? a : b
-                ));
-        Map<String, String> merchantNames = merchantRepository.findAll().stream()
-                .collect(Collectors.toMap(
-                        Merchant::getMerchantId,
-                        m -> com.aicabinet.trade.support.MerchantNameSupport.resolve(
-                                m.getMerchantId(), m.getMerchantName()),
-                        (a, b) -> a));
-
-        return devices.stream()
-                .map(d -> toDeviceDto(d, activeByDevice.get(d.getDeviceId()),
-                        replenishing.contains(d.getDeviceId()), merchantNames))
-                .toList();
+        return teamAdminService.createTeamUser(userId, request);
     }
 
     private MerchantDto toMerchantDto(Merchant m, long deviceCount) {
@@ -1237,147 +409,6 @@ public class MerchantPortalService {
                 m.getParentMerchantId(),
                 m.getCreatedAt(), m.getUpdatedAt()
         );
-    }
-
-    private MerchantDeviceDto toDeviceDto(DeviceInfo d, ShoppingSession active,
-                                       boolean replenishmentInProgress,
-                                       Map<String, String> merchantNames) {
-        return new MerchantDeviceDto(
-                d.getDeviceId(), DeviceNameSupport.resolve(d.getDeviceId(), d.getDeviceName()), d.getDeviceType(), d.getOnlineStatus(),
-                d.getMerchantId(),
-                d.getMerchantId() != null ? merchantNames.get(d.getMerchantId()) : null,
-                active != null ? active.getSessionId() : null,
-                active != null ? active.getState().name() : null,
-                d.getUpdatedAt(), replenishmentInProgress,
-                d.salesLockedEnabled(),
-                d.getAddress(),
-                d.getRouteCode(),
-                d.getCurrentTempC(),
-                d.getTargetTempC(),
-                d.getLifecycleStatus(),
-                null,
-                null,
-                d.getSalesLockReason(),
-                d.getLatitude(),
-                d.getLongitude(),
-                d.getFirmwareVersion()
-        );
-    }
-
-    private MerchantDeviceSettingsDto toDeviceSettings(DeviceInfo d) {
-        return toDeviceSettings(d, null, null);
-    }
-
-    private MerchantDeviceSettingsDto toDeviceSettings(DeviceInfo d, Boolean tempCommandSent, String tempCommandMessage) {
-        return new MerchantDeviceSettingsDto(
-                d.getDeviceId(), DeviceNameSupport.resolve(d.getDeviceId(), d.getDeviceName()), d.getDeviceType(), d.getOnlineStatus(),
-                d.getAddress(), d.getAlertContactName(), d.getAlertContactPhone(),
-                d.getTargetTempC(), d.getCurrentTempC(), d.getTempReportedAt(),
-                isTempOutOfRange(d), d.getOpsRemark(), tempCommandSent, tempCommandMessage,
-                d.salesLockedEnabled(),
-                d.getRouteCode(),
-                d.getLifecycleStatus(),
-                d.getSalesLockReason(),
-                d.getLatitude(),
-                d.getLongitude(),
-                d.getFirmwareVersion()
-        );
-    }
-
-    private ReplenishmentTaskDto toReplenishmentTaskDto(ReplenishmentTask t) {
-        ReplenishmentRoute route = t.getRouteId() == null
-                ? null
-                : replenishmentRouteRepository.findById(t.getRouteId()).orElse(null);
-        return toReplenishmentTaskDto(t, route);
-    }
-
-    private ReplenishmentTaskDto toReplenishmentTaskDto(ReplenishmentTask t, ReplenishmentRoute route) {
-        String deviceName = null;
-        if (t.getDeviceId() != null) {
-            deviceName = deviceRepository.findById(t.getDeviceId())
-                    .map(DeviceInfo::getDeviceName)
-                    .orElse(null);
-        }
-        return new ReplenishmentTaskDto(
-                t.getTaskId(), t.getRouteId(), t.getDeviceId(), t.getAssigneeUserId(),
-                t.getStatus(), t.getNotes(), t.getCompletedAt(),
-                t.getCheckInAt(), t.getCheckInLat(), t.getCheckInLng(),
-                resolveCheckInDistanceM(t),
-                t.getRequestId(), t.getOutboundId(), t.getCreatedAt(),
-                deviceName,
-                route != null ? route.getRouteName() : null,
-                route != null ? route.getPlannedDate() : null
-        );
-    }
-
-    private Map<Long, ReplenishmentRoute> loadRoutesById(Collection<ReplenishmentTask> tasks) {
-        Set<Long> routeIds = tasks.stream()
-                .map(ReplenishmentTask::getRouteId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        if (routeIds.isEmpty()) {
-            return Map.of();
-        }
-        return replenishmentRouteRepository.findAllById(routeIds).stream()
-                .collect(Collectors.toMap(ReplenishmentRoute::getRouteId, r -> r, (a, b) -> a));
-    }
-
-    private Double resolveCheckInDistanceM(ReplenishmentTask t) {
-        if (t.getCheckInLat() == null || t.getCheckInLng() == null || t.getDeviceId() == null) {
-            return null;
-        }
-        DeviceInfo device = deviceRepository.findById(t.getDeviceId()).orElse(null);
-        if (device == null || device.getLatitude() == null || device.getLongitude() == null) {
-            return null;
-        }
-        double r = 6371000;
-        double dLat = Math.toRadians(t.getCheckInLat() - device.getLatitude());
-        double dLon = Math.toRadians(t.getCheckInLng() - device.getLongitude());
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(Math.toRadians(device.getLatitude())) * Math.cos(Math.toRadians(t.getCheckInLat()))
-                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        return r * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
-
-    private ReplenishmentTaskLineDto toReplenishmentLineDto(ReplenishmentTaskLine line) {
-        return new ReplenishmentTaskLineDto(
-                line.getLineId(), line.getLineType(), line.getSkuId(), line.getBatchNo(),
-                line.getProductionDate(), line.getExpiryDate(), line.getQuantity(),
-                line.getSlotId(), line.isApplied()
-        );
-    }
-
-    private long resolveMerchantRoleId(String roleKey) {
-        if (roleKey == null || roleKey.isBlank()) {
-            return MERCHANT_STAFF_ROLE_ID;
-        }
-        String key = roleKey.trim().toLowerCase(Locale.ROOT);
-        return switch (key) {
-            case MERCHANT, MERCHANT_ADMIN -> MERCHANT_ROLE_ID;
-            case MERCHANT_FINANCE -> MERCHANT_FINANCE_ROLE_ID;
-            case MERCHANT_STORE_MANAGER -> MERCHANT_STORE_MANAGER_ROLE_ID;
-            case MERCHANT_REPLENISHER -> MERCHANT_REPLENISHER_ROLE_ID;
-            case MERCHANT_STAFF -> MERCHANT_STAFF_ROLE_ID;
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的角色: " + roleKey);
-        };
-    }
-
-    private String resolveMerchantRoleKey(Long userId) {
-        return userRoleRepository.findByIdUserId(userId).stream()
-                .map(ur -> roleRepository.findById(ur.getId().getRoleId()))
-                .flatMap(Optional::stream)
-                .map(OpsRole::getRoleKey)
-                .filter(MERCHANT_TEAM_ROLE_KEYS::contains)
-                .map(key -> MERCHANT_ADMIN.equals(key) ? MERCHANT : key)
-                .findFirst()
-                .orElse(MERCHANT_STAFF);
-    }
-
-    private static boolean isTempOutOfRange(DeviceInfo d) {
-        if (d.getTargetTempC() == null || d.getCurrentTempC() == null) {
-            return false;
-        }
-        return Math.abs(d.getCurrentTempC() - d.getTargetTempC()) > 3;
     }
 
     private MerchantDisputeSummaryDto toMerchantDisputeSummary(DisputeTicket ticket) {
@@ -1435,154 +466,6 @@ public class MerchantPortalService {
         );
     }
 
-    private RevenueSplitDto toSplitDto(OrderRevenueSplit s, String merchantName) {
-        String deviceName = null;
-        if (s.getOrderId() != null && !s.getOrderId().isBlank()) {
-            deviceName = orderRepository.findById(s.getOrderId())
-                    .map(CabinetOrder::getDeviceName)
-                    .filter(n -> n != null && !n.isBlank())
-                    .orElse(null);
-        }
-        if ((deviceName == null || deviceName.isBlank()) && s.getDeviceId() != null) {
-            deviceName = deviceRepository.findById(s.getDeviceId())
-                    .map(DeviceInfo::getDeviceName)
-                    .orElse(null);
-        }
-        return new RevenueSplitDto(
-                s.getSplitId(), s.getOrderId(), s.getMerchantId(), merchantName,
-                s.getDeviceId(), s.getGrossCents(), s.getPlatformCents(),
-                s.getMerchantCents(), s.getStatus(), s.getWechatOutOrderNo(),
-                s.getWechatTransactionId(), s.getFailureReason(), s.getCreatedAt(),
-                s.getSettlementBatchNo(), s.getSettleAfter(), s.getSettledAt(),
-                deviceName
-        );
-    }
-
-    private ProfitSharingStatusDto buildProfitSharingStatus() {
-        boolean enabled = profitSharingProperties.enabled();
-        boolean apiReady = profitSharingService.isApiReady();
-        boolean mock = profitSharingService.isMockMode();
-        String note;
-        if (!enabled) {
-            note = "平台分账功能未启用，当前为记账模式";
-        } else if (mock) {
-            note = "平台分账联调 Mock 已启用";
-        } else if (!weChatPayProperties.isConfigured()) {
-            note = "微信支付未配置，分账将延迟到账";
-        } else if (!apiReady) {
-            note = "分账 API 未就绪，请联系平台运营";
-        } else {
-            note = "分账 API 已就绪，待分账款项将由平台定期提交";
-        }
-        return new ProfitSharingStatusDto(
-                enabled, apiReady, profitSharingProperties.retryEnabled(),
-                profitSharingProperties.retryBatchSize(),
-                wechatConfigLabel(mock, weChatPayProperties.isConfigured()),
-                note
-        );
-    }
-
-    private MerchantDailySettlementDto toDailySettlement(Object[] row) {
-        return new MerchantDailySettlementDto(
-                String.valueOf(at(row, 0)),
-                toLong(at(row, 1)), toLong(at(row, 2)), toLong(at(row, 3)), toLong(at(row, 4)),
-                toLong(at(row, 5)), toLong(at(row, 6)), toLong(at(row, 7))
-        );
-    }
-
-    private MerchantSettlementBatchDto toBatchSettlement(Object[] row, Map<String, String> merchantNames) {
-        String batchNo = at(row, 0) != null ? String.valueOf(at(row, 0)) : null;
-        String merchantId = at(row, 1) != null ? String.valueOf(at(row, 1)) : null;
-        LocalDate settleAfter = toLocalDate(at(row, 2));
-        Instant settledAt = toInstant(at(row, 3));
-        long orderCount = toLong(at(row, 4));
-        long gross = toLong(at(row, 5));
-        long platform = toLong(at(row, 6));
-        long merchant = toLong(at(row, 7));
-        long settled = toLong(at(row, 8));
-        long pending = toLong(at(row, 9));
-        long failed = toLong(at(row, 10));
-        String status = settlementBatchStatus(failed, pending, STATUS_PENDING);
-        return new MerchantSettlementBatchDto(
-                batchNo, merchantId, merchantNames.get(merchantId), settleAfter, settledAt,
-                orderCount, gross, platform, merchant, settled, pending, failed, status
-        );
-    }
-
-    private static Object at(Object[] row, int index) {
-        return row != null && index >= 0 && index < row.length ? row[index] : null;
-    }
-
-    private static long toLong(Object value) {
-        if (value == null) {
-            return 0L;
-        }
-        if (value instanceof Number n) {
-            return n.longValue();
-        }
-        return Long.parseLong(String.valueOf(value));
-    }
-
-    private static LocalDate toLocalDate(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof LocalDate d) {
-            return d;
-        }
-        if (value instanceof java.sql.Date d) {
-            return d.toLocalDate();
-        }
-        if (value instanceof java.sql.Timestamp t) {
-            return t.toLocalDateTime().toLocalDate();
-        }
-        if (value instanceof java.time.LocalDateTime ldt) {
-            return ldt.toLocalDate();
-        }
-        if (value instanceof java.time.OffsetDateTime odt) {
-            return odt.toLocalDate();
-        }
-        if (value instanceof Instant i) {
-            return LocalDate.ofInstant(i, ZoneId.systemDefault());
-        }
-        String raw = String.valueOf(value).trim();
-        if (raw.length() >= 10 && raw.charAt(4) == '-' && raw.charAt(7) == '-') {
-            return LocalDate.parse(raw.substring(0, 10));
-        }
-        return null;
-    }
-
-    private static Instant toInstant(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Instant i) {
-            return i;
-        }
-        if (value instanceof java.sql.Timestamp t) {
-            return t.toInstant();
-        }
-        if (value instanceof java.time.OffsetDateTime odt) {
-            return odt.toInstant();
-        }
-        if (value instanceof java.time.LocalDateTime ldt) {
-            return ldt.atZone(ZoneId.systemDefault()).toInstant();
-        }
-        if (value instanceof Number n) {
-            long epoch = n.longValue();
-            return Instant.ofEpochMilli(epoch < 100_000_000_000L ? epoch * 1000L : epoch);
-        }
-        String raw = String.valueOf(value).trim();
-        if (raw.isEmpty() || raw.matches("^\\d{1,2}$")) {
-            return null;
-        }
-        try {
-            return Instant.parse(raw);
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
     private String sessionDeviceId(String sessionId) {
         return sessionRepository.findById(sessionId).map(ShoppingSession::getDeviceId).orElse(null);
     }
@@ -1595,69 +478,6 @@ public class MerchantPortalService {
     private static String blankToNull(String s) {
         if (s == null || s.isBlank()) return null;
         return s.trim();
-    }
-
-    private static String normalizedStatus(String status) {
-        return status != null ? status.toUpperCase() : null;
-    }
-
-    private static Instant parseDateStart(String date) {
-        if (date == null || date.isBlank()) {
-            return null;
-        }
-        return LocalDate.parse(date.trim()).atStartOfDay(ZoneId.systemDefault()).toInstant();
-    }
-
-    private static Instant parseDateEnd(String date) {
-        if (date == null || date.isBlank()) {
-            return null;
-        }
-        return LocalDate.parse(date.trim()).plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
-    }
-
-    private static Instant resolveSplitRangeStart(String fromDate) {
-        Instant from = parseDateStart(fromDate);
-        if (from != null) {
-            return from;
-        }
-        return LocalDate.now(ZoneId.systemDefault()).minusYears(10)
-                .atStartOfDay(ZoneId.systemDefault()).toInstant();
-    }
-
-    private static Instant resolveSplitRangeEnd(String toDate) {
-        Instant to = parseDateEnd(toDate);
-        if (to != null) {
-            return to;
-        }
-        return LocalDate.now(ZoneId.systemDefault()).plusDays(1)
-                .atStartOfDay(ZoneId.systemDefault()).toInstant();
-    }
-
-    private static int severityRank(String severity) {
-        return switch (severity != null ? severity : "") {
-            case "HIGH" -> 3;
-            case MEDIUM -> 2;
-            case "LOW" -> 1;
-            default -> 0;
-        };
-    }
-
-    private static String formatDisputeReason(String reason) {
-        if (reason == null || reason.isBlank()) return "识别结果需人工审核";
-        return reason.trim();
-    }
-
-    private static String replenishmentStatusLabel(String status) {
-        if (status == null || status.isBlank()) {
-            return "未知";
-        }
-        return switch (status.toUpperCase()) {
-            case STATUS_PENDING -> "待处理";
-            case STATUS_IN_PROGRESS -> "进行中";
-            case "COMPLETED" -> "已完成";
-            case "CANCELLED" -> "已取消";
-            default -> status;
-        };
     }
 
     private static String csv(String value) {
@@ -1673,18 +493,13 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public List<DeviceSlotDto> listDeviceSlots(Long userId, String deviceId) {
-        permissionService.requirePermission(userId, "merchant:slots:view");
-        merchantPortalGuard.requireAccess(userId);
-        return deviceSlotService.listSlots(userId, deviceId);
+        return devicePortalService.listDeviceSlots(userId, deviceId);
     }
 
     @Transactional
     public List<DeviceSlotDto> upsertDeviceSlots(Long userId, String deviceId,
                                                  List<UpsertDeviceSlotRequest> body) {
-        permissionService.requirePermission(userId, "merchant:slots:edit");
-        merchantPortalGuard.requireAccess(userId);
-        merchantSelfServiceGate.requirePlanogramEdit(userId, deviceId);
-        return deviceSlotService.upsertSlots(userId, deviceId, body);
+        return devicePortalService.upsertDeviceSlots(userId, deviceId, body);
     }
 
     static String merchantProfileLockKey(long userId) {
@@ -1692,23 +507,11 @@ public class MerchantPortalService {
     }
 
     static String merchantTeamPhoneLockKey(String phone) {
-        return "merchant:team-phone:" + phone;
-    }
-
-    private <T> T runWithDeviceSettingsLock(String deviceId, Supplier<T> action) {
-        return runWithLock(DeviceAssetService.deviceAssetLockKey(deviceId), "设备设置处理中，请稍后重试", action);
+        return MerchantTeamAdminService.merchantTeamPhoneLockKey(phone);
     }
 
     private <T> T runWithMerchantProfileLock(long userId, Supplier<T> action) {
         return runWithLock(merchantProfileLockKey(userId), "商户资料处理中，请稍后重试", action);
-    }
-
-    private <T> T runWithTeamUserLock(long targetUserId, Supplier<T> action) {
-        return runWithLock(AccountService.userAccountLockKey(targetUserId), "成员处理中，请稍后重试", action);
-    }
-
-    private <T> T runWithTeamPhoneLock(String phone, Supplier<T> action) {
-        return runWithLock(merchantTeamPhoneLockKey(phone), "成员邀请处理中，请稍后重试", action);
     }
 
     private <T> T runWithLock(String lockKey, String busyMessage, Supplier<T> action) {
@@ -1724,22 +527,5 @@ public class MerchantPortalService {
         } finally {
             distributedLockService.unlock(lockKey);
         }
-    }
-
-    private static String wechatConfigLabel(boolean mock, boolean configured) {
-        if (mock) {
-            return "MOCK";
-        }
-        return configured ? "CONFIGURED" : "MISSING";
-    }
-
-    private static String settlementBatchStatus(long failed, long pending, String pendingStatus) {
-        if (failed > 0) {
-            return "PARTIAL_FAILED";
-        }
-        if (pending > 0) {
-            return pendingStatus;
-        }
-        return "SETTLED";
     }
 }

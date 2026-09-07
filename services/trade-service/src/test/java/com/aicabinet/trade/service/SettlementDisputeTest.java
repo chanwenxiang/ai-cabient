@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -219,6 +220,210 @@ class SettlementDisputeTest {
 
         org.junit.jupiter.api.Assertions.assertEquals("PENDING", order.status());
         verifyNoInteractions(orderPaymentService);
+    }
+
+    /**
+     * M5: 余额不足转 PENDING —— 已扣库存、不 markUsed、无 CHARGE/分账。
+     */
+    @Test
+    void unpaidPending_deductsInventory_skipsCouponMarkAndCharge() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-M5");
+        session.setUserId(10001L);
+        session.setDeviceId("CAB-001");
+
+        SkuCatalog sku = new SkuCatalog();
+        sku.setSkuId("SKU-DEMO-001");
+        sku.setSkuName("可乐");
+        sku.setPriceCents(350);
+
+        when(orderRepository.findBySessionId("S-M5")).thenReturn(java.util.Optional.empty());
+        when(sessionRepository.findById("S-M5")).thenReturn(java.util.Optional.of(session));
+        when(securityProperties.mockEnabled()).thenReturn(true);
+        when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(gravityHelper.toRecognizedItems(any())).thenReturn(
+                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 0.9f)));
+        when(skuCatalogRepository.findById("SKU-DEMO-001")).thenReturn(java.util.Optional.of(sku));
+        when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
+        when(memberService.applyMemberPriceDiscount(any(), anyInt())).thenAnswer(inv -> inv.getArgument(1));
+        when(couponService.selectPreferredOrBest(eq(10001L), any(), eq(700)))
+                .thenReturn(java.util.Optional.of(new CouponService.BestCoupon(42L, 100, "满减券")));
+        when(userValidationService.canChargeViaPasswordFree(any(), any())).thenReturn(false);
+        // 折后应付 600 仍不足
+        doThrow(new BalanceInsufficientException(ApiMessages.INSUFFICIENT_BALANCE))
+                .when(userValidationService).validateSufficientBalanceForCharge(eq(10001L), eq(600), anyInt());
+        when(inventoryService.deductForOrder(any(), any(), any(), any()))
+                .thenReturn(java.util.Map.of("SKU-DEMO-001", "BATCH-1"));
+        when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(revenueSplitService.findStatusByOrderId(anyString())).thenReturn(java.util.Optional.empty());
+
+        var order = settlementService.processRecognitionResult(session,
+                new VisionServiceClient.RecognitionResult("T-m5", List.of(), 0.9f, false, "yolov8", List.of()));
+
+        org.junit.jupiter.api.Assertions.assertEquals("PENDING", order.status());
+        org.junit.jupiter.api.Assertions.assertEquals(700, order.totalAmountCents());
+        verify(inventoryService).deductForOrder(eq("CAB-001"), any(), eq("S-M5"), any());
+        verify(couponService, never()).markUsed(any(), any(), any(), any(), anyInt());
+        verify(orderPaymentService, never()).chargeOrder(any());
+        verify(revenueSplitService, never()).recordSplit(any());
+        verify(orderRepository).save(argThat(o ->
+                "PENDING".equals(o.getStatus())
+                        && o.isInventoryDeducted()
+                        && o.getCouponId() == null
+                        && o.getCouponDiscountCents() == 0
+                        && o.getTotalAmountCents() == 700));
+    }
+
+    /**
+     * M6: 预检余额够，charge 中途 412 → PENDING；已扣库、清券、不 markUsed/不分账。
+     */
+    @Test
+    void chargeMidwayInsufficient_convertsToPending_clearsCoupon() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-M6");
+        session.setUserId(10001L);
+        session.setDeviceId("CAB-001");
+
+        SkuCatalog sku = new SkuCatalog();
+        sku.setSkuId("SKU-DEMO-001");
+        sku.setSkuName("可乐");
+        sku.setPriceCents(350);
+
+        when(orderRepository.findBySessionId("S-M6")).thenReturn(java.util.Optional.empty());
+        when(sessionRepository.findById("S-M6")).thenReturn(java.util.Optional.of(session));
+        when(securityProperties.mockEnabled()).thenReturn(true);
+        when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(gravityHelper.toRecognizedItems(any())).thenReturn(
+                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 0.9f)));
+        when(skuCatalogRepository.findById("SKU-DEMO-001")).thenReturn(java.util.Optional.of(sku));
+        when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
+        when(memberService.applyMemberPriceDiscount(any(), anyInt())).thenAnswer(inv -> inv.getArgument(1));
+        when(couponService.selectPreferredOrBest(eq(10001L), any(), eq(700)))
+                .thenReturn(java.util.Optional.of(new CouponService.BestCoupon(7L, 100, "券")));
+        when(userValidationService.canChargeViaPasswordFree(any(), any())).thenReturn(false);
+        // 预检通过（折后 600）
+        org.mockito.Mockito.doNothing().when(userValidationService)
+                .validateSufficientBalanceForCharge(eq(10001L), eq(600), anyInt());
+        when(inventoryService.deductForOrder(any(), any(), any(), any()))
+                .thenReturn(java.util.Map.of("SKU-DEMO-001", "BATCH-1"));
+        when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(revenueSplitService.findStatusByOrderId(anyString())).thenReturn(java.util.Optional.empty());
+        org.mockito.Mockito.doThrow(new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.PRECONDITION_FAILED, "可用余额不足"))
+                .when(orderPaymentService).chargeOrder(any());
+
+        var order = settlementService.processRecognitionResult(session,
+                new VisionServiceClient.RecognitionResult("T-m6", List.of(), 0.9f, false, "yolov8", List.of()));
+
+        org.junit.jupiter.api.Assertions.assertEquals("PENDING", order.status());
+        org.junit.jupiter.api.Assertions.assertEquals(700, order.totalAmountCents());
+        verify(orderPaymentService).chargeOrder(any());
+        verify(couponService, never()).markUsed(any(), any(), any(), any(), anyInt());
+        verify(revenueSplitService, never()).recordSplit(any());
+        verify(orderRepository, org.mockito.Mockito.atLeastOnce()).save(argThat(o ->
+                "PENDING".equals(o.getStatus())
+                        && o.isInventoryDeducted()
+                        && o.getCouponId() == null
+                        && o.getTotalAmountCents() == 700));
+    }
+
+    /**
+     * M3: 生产关闭 mock、need_review → 争议；释放预授权；不扣库不扣款。
+     */
+    @Test
+    void needReview_production_escalatesAndReleasesPreauth() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-M3");
+        session.setUserId(10001L);
+        session.setDeviceId("CAB-001");
+        session.setPreauthStatus(ConsumerPreauthService.STATUS_FROZEN);
+        session.setPreauthCents(500);
+
+        when(orderRepository.findBySessionId("S-M3")).thenReturn(java.util.Optional.empty());
+        when(stagingProperties.stagingMode()).thenReturn(false);
+        when(stagingProperties.gravityFallbackSettle()).thenReturn(false);
+        when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var items = List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 0.5f));
+        var recognition = new VisionServiceClient.RecognitionResult(
+                "T-m3", items, 0.5f, true, "cabinet-skus-v1", List.of());
+
+        assertThrows(DisputeRequiredException.class,
+                () -> settlementService.processRecognitionResult(session, recognition, false));
+
+        verify(consumerPreauthService).releaseIfFrozen(session);
+        verify(disputeService).createTicket(eq(session), any(VisionServiceClient.RecognitionResult.class),
+                eq("识别结果需人工审核"));
+        verifyNoInteractions(orderPaymentService, inventoryService, revenueSplitService);
+        verify(couponService, never()).markUsed(any(), any(), any(), any(), anyInt());
+    }
+
+    /**
+     * M4: 高置信自动结算 → PAID；扣库、核销券、分账、调用 charge（预授权由 charge 路径冲抵）。
+     */
+    @Test
+    void highConfidenceFinalize_paid_deductsMarksCouponAndSplits() {
+        when(systemConfigService.usesGravityFusion()).thenReturn(false);
+
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-M4");
+        session.setUserId(10001L);
+        session.setDeviceId("CAB-001");
+        session.setPreauthStatus(ConsumerPreauthService.STATUS_FROZEN);
+        session.setPreauthCents(500);
+
+        SkuCatalog sku = new SkuCatalog();
+        sku.setSkuId("SKU-DEMO-001");
+        sku.setSkuName("可乐");
+        sku.setPriceCents(350);
+
+        when(orderRepository.findBySessionId("S-M4")).thenReturn(java.util.Optional.empty());
+        when(sessionRepository.findById("S-M4")).thenReturn(java.util.Optional.of(session));
+        when(confidenceService.reviewReasonIfNeeded(any())).thenReturn(null);
+        when(skuVisionEnrollmentService.validateSettlementItems(any(), any()))
+                .thenReturn(java.util.Optional.empty());
+        when(skuCatalogRepository.findById("SKU-DEMO-001")).thenReturn(java.util.Optional.of(sku));
+        when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
+        when(memberService.applyMemberPriceDiscount(any(), anyInt())).thenAnswer(inv -> inv.getArgument(1));
+        when(couponService.selectPreferredOrBest(eq(10001L), any(), eq(700)))
+                .thenReturn(java.util.Optional.of(new CouponService.BestCoupon(99L, 100, "满减")));
+        when(userValidationService.canChargeViaPasswordFree(any(), any())).thenReturn(false);
+        org.mockito.Mockito.doNothing().when(userValidationService)
+                .validateSufficientBalanceForCharge(eq(10001L), eq(600), anyInt());
+        when(inventoryService.deductForOrder(any(), any(), any(), any()))
+                .thenReturn(java.util.Map.of("SKU-DEMO-001", "BATCH-M4"));
+        org.mockito.Mockito.doNothing().when(orderPaymentService).chargeOrder(any());
+        when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(revenueSplitService.recordSplit(any())).thenReturn(java.util.Optional.empty());
+        org.mockito.Mockito.doNothing().when(deviceValidationService).ensureSettlementAllowed("CAB-001");
+        org.mockito.Mockito.doNothing().when(couponService)
+                .markUsed(eq(10001L), eq(99L), anyString(), eq("CAB-001"), eq(100));
+
+        var items = List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 0.97f));
+        var recognition = new VisionServiceClient.RecognitionResult(
+                "T-m4", items, 0.97f, false, "cabinet-skus-v1", List.of("bottle"));
+
+        var order = settlementService.processRecognitionResult(session, recognition, false);
+
+        org.junit.jupiter.api.Assertions.assertEquals("PAID", order.status());
+        org.junit.jupiter.api.Assertions.assertEquals(600, order.totalAmountCents());
+        org.junit.jupiter.api.Assertions.assertEquals(100, order.couponDiscountCents());
+        verifyNoInteractions(disputeService);
+        verify(inventoryService).deductForOrder(eq("CAB-001"), any(), eq("S-M4"), eq(null));
+        verify(orderPaymentService).chargeOrder(argThat(o ->
+                "PAID".equals(o.getStatus())
+                        && o.getCouponId() != null
+                        && o.getCouponId() == 99L
+                        && o.getTotalAmountCents() == 600
+                        && o.isInventoryDeducted()));
+        verify(couponService).markUsed(eq(10001L), eq(99L), anyString(), eq("CAB-001"), eq(100));
+        verify(revenueSplitService).recordSplit(argThat(o ->
+                "PAID".equals(o.getStatus()) && o.getTotalAmountCents() == 600));
+        verify(consumerPreauthService, never()).releaseIfFrozen(any());
     }
 
     @Test
