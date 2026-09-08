@@ -432,10 +432,10 @@
 
 | ID | 模块 | 步骤 | 期望 | 状态 |
 |----|------|------|------|------|
-| T-01 | 告警规则 | 配置阈值→制造触发条件 | 告警/待办出现 |  |
-| T-02 | 告警规则 | 停用规则 | 同条件不再触发 |  |
+| T-01 | 告警规则 | 配置阈值→制造触发条件 | 告警/待办出现 | PASS（`device.temp.alert_max_c=8`；heartbeat 27℃→`TEMP_ABNORMAL` OPEN） |
+| T-02 | 告警规则 | 停用规则 | 同条件不再触发 | PASS（`alert_max_c=0` 后超温不建 OPEN；已恢复 8） |
 | T-03 | 定时任务 | 手动「执行」对账/巡检类 | 有结果行或日志；与按钮文案一致 | PASS（`compensation-process` 手动执行；`lastRunAt` 更新） |
-| T-04 | 定时任务 | 停用后等待触发点 | 不执行 |  |
+| T-04 | 定时任务 | 停用后等待触发点 | 不执行 | PASS（停用后 `/run`→`result=SKIPPED`「任务已停用」；已重新启用） |
 | T-05 | 审计 | 完成提现打款/改角色/改分账比例 | `/audit` 有操作人、动作、资源 id | PASS（`/audit-logs` 含 DISPUTE_RESOLVE / MERCHANT_CREATE 等；字典改动未入审计另记） |
 | T-06 | 审计 | 只读账号 | 无写操作审计噪音；不可清日志（若产品禁止） | PASS（005 audit-logs 403；DELETE 405） |
 
@@ -467,7 +467,7 @@
 | P-02 | 余额不足 | 不开门或明确阻断；无幽灵会话 | PASS（balance=0→412 预授权不足；activeSession 空） |
 | P-03 | 支付回调重放 | 不双扣 | PASS（充值 mock-success 重放：余额 +200 后再次同回调 +0） |
 | P-04 | 开门指令 | 设备侧/mock 收到；会话 OPENING→SHOPPING | PASS（MQTT e2e） |
-| P-05 | 门未关超时 | 有兜底/告警；主流程不裸崩 |  |
+| P-05 | 门未关超时 | 有兜底/告警；主流程不裸崩 | PASS（SHOPPING 回拨 open_time→`CANCELLED`「开门超时自动关闭（超过10分钟未关门）」） |
 
 ### 10.3 库存 / 补货 / 仓库
 
@@ -475,7 +475,7 @@
 |----|------|---------|------|
 | I-01 | 销售出库 | 货道数量↓与订单行一致 | PASS（order `…100194` qty=1 SALE -1 batch=B-NEAR；inventoryDeducted） |
 | I-02 | 补货实盘 | 「按实盘调账面」后账面=实盘 | PASS（stocktake `SKU-WATER-001` 5→9） |
-| I-03 | 采购入库 | 仓存↑；确认付款状态机正确 |  |
+| I-03 | 采购入库 | 仓存↑；确认付款状态机正确 | PASS（PO=2 审批→RECEIVED；`SKU-WATER-001` 仓存 102→105；payable=UNPAID） |
 | I-04 | FEFO | 出库批次符合近效期优先（PASS_3D） | PASS（LOT-NEAR/FAR 各5；write-off×3→NEAR=2 FAR=5） |
 
 ### 10.4 营销 / 会员 / 积分
@@ -485,8 +485,8 @@
 | MK-01 | 发券 | 消费者 `coupons` 可见 | PASS（defId=1 AMOUNT_OFF；issue couponId=1 UNUSED；消费者列表可见） |
 | MK-02 | 下单抵扣 | 订单优惠额；券核销 | PASS（session=`…6562649` preferredCoupon=1；order=`…0185959` PAID original350 discount50 total300；券 USED） |
 | MK-03 | 停用活动 | 新单不可用 | PASS（def=2 INACTIVE 后发券→400「优惠券已停用」） |
-| MK-04 | 积分兑换 | 积分↓；兑换记录；库存项↓ |  |
-| MK-05 | 会员倍率 | 升级后积分入账倍率符合规则 |  |
+| MK-04 | 积分兑换 | 积分↓；兑换记录；库存项↓ | PASS（item=1 扣 100 分→4900；redeemed 0→1；发券 couponId=3；流水 USE/REDEEM） |
+| MK-05 | 会员倍率 | 升级后积分入账倍率符合规则 | PASS（GOLD `pointsRate=3`；确认争议单 paid=200→入账 6 分=`floor(2×3)`） |
 
 ### 10.5 风控 / 用户
 
@@ -617,6 +617,7 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 再续3：A-02/A-04 PASS；C-01 品牌 UAT 可见后恢复；§8.2 38002/38004/38007 PASS；I-04 FEFO PASS；曾为 A-04 给 operator/finance 补 `ops:balance-refund:review`。
   - 再续4：C-02；运营登商户门户 403；G-11～G-14；T-06；MK-03；P-02；I-01；R-03。
   - 再续5：M-01～M-04；R-01/R-02；P-03；I-02；E-01；T-03；A-05/A-06。角色权限 PUT 体为 permissionId 数组；审批改名后旧实例保留快照节点名。
+  - 再续6：T-01/T-02/T-04；I-03；MK-04/MK-05；P-05。告警列表 page 从 0 起；会员等级按 minSpent 重算后才吃到倍率。
   - 证据目录: docs/uat-screenshots/2026-09-08/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
     withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /
