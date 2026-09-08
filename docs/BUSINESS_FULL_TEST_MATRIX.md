@@ -295,7 +295,7 @@
 |---|------|----------|----------|-------------------------|------------|------|
 | 1 | 扫码开门→结算 | 消费者 `index` → 柜机 → `result`/`orders` | 扫码/柜号、开门、关门结算 | 会话状态机推进；订单生成；金额可读；可进视频；MQTT/mock 门事件一致 | 未登录/未开通支付/柜离线/门超时/连点开门 | PASS（P0-01） |
 | 2 | 争议闭环 | 消费者争议 → 运营 `/disputes` `/exceptions` → 商户 `disputes` | 提交；调整/免单/结案 | 退款到账或免单；库存回库策略符合；**分账 void/adjust**；三端状态一致；二次结案幂等 | 无权限结案；重复提交；部分退与全额退 | PASS（P0-05 + S-06/07） |
-| 3 | 补货履约 | 运营补货 → 商户 `replenishment`/`request` → 设备货道 | 规划、接单、补货开门、实盘 | 任务完结；货道账面变化；FEFO/实盘调账符合 PASS_3D | 未签到完成、扫错柜、超权限开门 | PARTIAL（P0-08 库存 PUT；全链路补货脚本未绿） |
+| 3 | 补货履约 | 运营补货 → 商户 `replenishment`/`request` → 设备货道 | 规划、接单、补货开门、实盘 | 任务完结；货道账面变化；FEFO/实盘调账符合 PASS_3D | 未签到完成、扫错柜、超权限开门 | PASS（task=2 route=2：plan→出库发运→签到→开门→凭证→COMPLETED；货道 book 0→PAR FULL；商户 H5 已完成可见） |
 | 4 | **分账入账** | 运营 `/merchants` 比例 → 消费者购物支付成功 → 商户 `splits`+`wallet` | 保存比例；完成一单支付 | 见 **§10.1**：有 split 记录；`merchantShare` 符合 bps；LEDGER_ONLY 则钱包+流水；重放不双入 | 比例 0/10000；ACCRUED 不误断言本地钱包；关 mock 支付 | PASS（§10.1） |
 | 5 | 提现打款 | 商户 `wallet` 申请 → 运营 `/merchant-withdraw` | 申请；通过并打款/驳回 | 冻结→PAID consume 或 REJECT 释放；FAILED 冻结仍在；流水类型正确 | 低于最低额；超日限；双 requestNo；无审批人 | PASS（P0-04/10） |
 | 6 | 营销核销 | 运营券/活动 → 消费者领用 → 下单 | 发券、领券、抵扣 | 订单优惠金额；核销次数；ROI/券状态；停用后不可用 | 过期券、叠用规则、库存券发完 | PASS（MK-01～03） |
@@ -534,7 +534,7 @@
 | P0-05 | §4#2 · 争议 | 结案后金额/退款/分账冲正三端一致 | ticketId, orderId | PASS | ticket=`1788832791807266280` CONFIRM→RESOLVED；session=`1788832699823814767` COMPLETED；order=`1788833033656619333` PAID；钱包 +315（新分账） |
 | P0-06 | §8.1 | 只读 `005` 无打款/结案写按钮；直链 forbidden | 截图 | PASS | `13900000005` 直链 `/merchant-withdraw`→`/forbidden`（`P0-06-viewer-withdraw-forbidden.png`）；争议页仅查询/刷新，无结案写按钮（`P0-06-viewer-disputes.png`） |
 | P0-07 | §8.2 | `38003` 不可见默认商户订单/钱包 | 截图或 403 | PASS | `13800138003`→钱包 `merchantId=MCH-OTHER` bal=0；订单 `total=0`（不含 DEFAULT 单 `1788832425799859794`） |
-| P0-08 | §4#3 抽测 | 补货或实盘后货道账面变化 | deviceId, 前后库存 | PASS | `PUT /api/v2/ops/admin/inventory`：CAB-001 `SKU-WATER-001` 0→6（`e2e-replenishment.ps1` 因 slot 缺口为空/签到坐标暂未全绿，本项以库存写接口 L3 计） |
+| P0-08 | §4#3 抽测 | 补货或实盘后货道账面变化 | deviceId, 前后库存 | PASS | 全链路 task=`2`/outbound=`2`：货道 book 0→PAR FULL；另曾用库存 PUT；脚本已修签到坐标+凭证上传 |
 | P0-09 | G-04/G-05 | 开门或支付连点 / 同业务键重放 | 仅一次生效 | PASS | `e2e-fund-safety.ps1` TC-5.7：同幂等键重放返回同一 session=`1788832794705173923`；日志 `e2e-fund-safety.log` |
 | P0-10 | §9 A-01 或提现审批 | 审批未完成不能终态生效 | 实例 id | PASS | 大额提现 withdraw=`3` `PENDING_REVIEW` 冻结 50000；`approval_instance` id=`1` MERCHANT_WITHDRAW PENDING；未审直接 payout→409「当前状态不可打款」；采购 PO=`1` `PENDING_APPROVAL` instance=`2` |
 
@@ -608,9 +608,9 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
 备注:
   - 开测前 DB 缺 DEMO_ACCOUNTS 多角色/商户（仅超管+补货员+消费者）；已按 Flyway 同 hash 补种 002/003/005/38001/38003 + MCH-DEFAULT/MCH-OTHER，消费者补 password。
   - 商户账号须 account_type=OPERATOR 才能走 admin-password-login。
-  - e2e-replenishment 全链路未绿（suggest 无 slot 缺口；曾因柜坐标强制签到失败）；P0-08 以库存 PUT L3 计。
+  - e2e-replenishment：曾卡在 IN_TRANSIT 抵消缺口 + 签到须坐标 + 完成须凭证；已 cancel-unreceived 清理并修好脚本；§4-3/P0-08 全链路 PASS（task=2）。
   - 角色回归脚本 role-regression-uat.mjs 缺 playwright 包未跑；P0-06/§8 改 Playwright MCP 实操（005+002）。
-  - 续测：§8 财务 002 争议 forbidden / 提现可达；§10.1 S-01～S-09（S-08 SKIP）；§4 主链路 1/2/4/5/9/10 PASS，3 PARTIAL。
+  - 续测：§8 财务 002 争议 forbidden / 提现可达；§10.1 S-01～S-09（S-08 SKIP）；§4 主链路当时 1/2/4/5/9/10 PASS、3 PARTIAL（再续9 已补绿）。
   - 部分退：`e2e-partial-refund-line.ps1` order=`1788833639119970182` VOIDED + PARTIAL_REVERSE。
   - 再续：§9 D-01～D-04 PASS；C-03/T-05 PASS；§8 003/004 API+003 UI 提现 forbidden；pack_biz 关→钱包/订单/分账 403；MK-01 发券 couponId=1。
   - 再续2：MK-02 抵扣 PASS；pack_field/pack_team PASS；A-01 强制 ACTIVE 拦截；§7 G-01～G-08 抽样 PASS；管理后台 403/404 错误页铺满居中布局修复。
@@ -620,6 +620,7 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 再续6：T-01/T-02/T-04；I-03；MK-04/MK-05；P-05。告警列表 page 从 0 起；会员等级按 minSpent 重算后才吃到倍率。
   - 再续7：E-02/E-03；G-09 Offline / G-10 abort / G-15 余额调整二次确认取消（余额不变）。
   - 再续8：§1 运营后台 65 菜单 L1 冒烟 64 PASS / recognition-demo SKIP；§2 商户 H5 22 页 L1 PASS；§3 消费者 H5 23 页 L1 PASS（登录后余额/券/公告）；§4-7 维修工单闭环；§4-8 公告两端可见；§4-6 营销核销改 PASS。
+  - 再续9：§4-3 补货履约 PASS（清理卡住 IN_TRANSIT 后 task=2 全链路；根因=在途抵消缺口；脚本补签到坐标+现场凭证）；商户 H5 已完成可见任务#2。
   - 证据目录: docs/uat-screenshots/2026-09-08/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
     withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /

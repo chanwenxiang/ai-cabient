@@ -139,9 +139,27 @@ try {
     $outboundId = $null
 }
 
-Write-Host "==> 5. Merchant check-in (no geo)"
+Write-Host "==> 5. Merchant check-in (device coords when configured)"
+$checkInBody = @{}
+try {
+    $dev = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
+        -Path "/api/v2/ops/admin/devices/$DeviceId" -Headers $opsAuth
+    $lat = $null; $lng = $null
+    if ($dev.latitude -ne $null) { $lat = [double]$dev.latitude }
+    elseif ($dev.device -and $dev.device.latitude -ne $null) { $lat = [double]$dev.device.latitude }
+    if ($dev.longitude -ne $null) { $lng = [double]$dev.longitude }
+    elseif ($dev.device -and $dev.device.longitude -ne $null) { $lng = [double]$dev.device.longitude }
+    if ($null -ne $lat -and $null -ne $lng) {
+        $checkInBody = @{ latitude = $lat; longitude = $lng }
+        Write-Host "    using device coords lat=$lat lng=$lng"
+    } else {
+        Write-Host "    device has no coords — empty check-in body"
+    }
+} catch {
+    Write-Warning "Device lookup for check-in coords failed: $_"
+}
 $checked = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
-    -Path "/api/v2/merchant/replenishment/tasks/$taskId/check-in" -Headers $mchAuth -Body @{}
+    -Path "/api/v2/merchant/replenishment/tasks/$taskId/check-in" -Headers $mchAuth -Body $checkInBody
 Write-Host "    status=$($checked.status) checkInAt=$($checked.checkInAt)"
 
 Write-Host "==> 6. Merchant open-door"
@@ -201,7 +219,25 @@ if ($lines.Count -eq 0) {
     Write-Host "    warehouse lines already present — skip re-submit"
 }
 
-Write-Host "==> 9. Complete task"
+Write-Host "==> 9. Upload site evidence (merchant complete requires >=1 photo)"
+$evidencePng = Join-Path ([IO.Path]::GetTempPath()) "e2e-replenishment-evidence-$taskId.png"
+# 1x1 PNG
+[IO.File]::WriteAllBytes($evidencePng, [Convert]::FromBase64String(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="))
+$evidenceUri = "$BaseUrl/api/v2/merchant/replenishment/tasks/$taskId/evidence"
+$curlArgs = @(
+    "-s", "-X", "POST", $evidenceUri,
+    "-H", "Authorization: Bearer $($mchLogin.token)",
+    "-F", "file=@$evidencePng;type=image/png"
+)
+$evidenceRaw = & curl.exe @curlArgs
+$evidenceResp = $evidenceRaw | ConvertFrom-Json
+if ($null -eq $evidenceResp -or [int]$evidenceResp.code -ne 0) {
+    throw "evidence upload failed: $evidenceRaw"
+}
+Write-Host "    evidence fileId=$($evidenceResp.data.fileId)"
+
+Write-Host "==> 10. Complete task"
 $done = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
     -Path "/api/v2/merchant/replenishment/tasks/$taskId/complete" -Headers $mchAuth
 if ($done.status -ne "COMPLETED") {
@@ -209,7 +245,7 @@ if ($done.status -ne "COMPLETED") {
 }
 Write-Host "    taskId=$taskId COMPLETED outboundId=$($done.outboundId)"
 
-Write-Host "==> 10. Assert merchant task list reflects completion"
+Write-Host "==> 11. Assert merchant task list reflects completion"
 $tasks = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
     -Path "/api/v2/merchant/replenishment/tasks?status=COMPLETED" -Headers $mchAuth
 $found = @($tasks) | Where-Object { [long]$_.taskId -eq $taskId } | Select-Object -First 1
