@@ -377,10 +377,10 @@
 | 关 `pack_field` | 管理员登录 | 补货/柜机/待办入口裁剪或不可用 | PASS（off：devices/replenishment 403；wallet/orders 仍 ALLOW；me.enabledPacks 无 field） |
 | 关 `pack_biz` | 同上 | 结算/钱包/分账/订单等 biz 入口不可用 | PASS（off：wallet/orders/revenue-splits 403；devices 仍 ALLOW；恢复后 wallet OK） |
 | 关 `pack_team` | 同上 | 团队入口不可用 | PASS（off：team/users·roles 403；enabledPacks 无 team；恢复后 team/users OK） |
-| 店员 `38002` | 进设置/邀请 | 只读或 403 |  |
+| 店员 `38002` | 进设置/邀请 | 只读或 403 | PASS（wallet/team 邀请 403；devices/orders 可读） |
 | 他商户 `38003` | 打开默认商户订单 URL | 403/空；不见 MCH-DEFAULT | PASS（订单 total=0；钱包 MCH-OTHER） |
-| 财务 `38004` | 设备写操作 | 拒绝；结算可读 |  |
-| 补货员 `38007` | 提现/团队 | 不可；补货可 |  |
+| 财务 `38004` | 设备写操作 | 拒绝；结算可读 | PASS（wallet 可读；settings PATCH 403；replenishment 403） |
+| 补货员 `38007` | 提现/团队 | 不可；补货可 | PASS（replenishment/devices ALLOW；wallet/team/orders 403） |
 | 运营号登商户门户 | — | 403（DEMO_ACCOUNTS 约定） |  |
 
 ### 8.3 菜单管理 vs 前端 NAV
@@ -411,7 +411,7 @@
 
 | ID | 步骤 | 期望 | 状态 |
 |----|------|------|------|
-| C-01 | 改品牌名/Logo 保存 | 文档标题、登录页品牌可见变化 |  |
+| C-01 | 改品牌名/Logo 保存 | 文档标题、登录页品牌可见变化 | PASS（`ops.brand.title`→`前海易购-UAT`；`/api/v2/public/ops-branding`+登录页标题含 `-UAT`；已恢复） |
 | C-02 | 非法配置值 | 拒绝保存 |  |
 | C-03 | 无 `ops:config:list` | 不可进或只读 | PASS（005 system-configs API 403） |
 
@@ -422,9 +422,9 @@
 | ID | 业务 | 步骤 | 期望 | 状态 |
 |----|------|------|------|------|
 | A-01 | 进件 `MERCHANT_ONBOARD` | 提交→总部通过→财务通过 | 才 ACTIVE；中途不可手工 ACTIVE | PASS（onboarding=1 强制 ACTIVE→409「须审批通过后方可生效」；SUBMITTED + instance=3 PENDING） |
-| A-02 | 进件 | 财务账号越权审总部节点 | 403 或无待办 |  |
+| A-02 | 进件 | 财务账号越权审总部节点 | 403 或无待办 | PASS（002 待办无进件；review→403「不是当前审批节点的处理人」；仍 SUBMITTED） |
 | A-03 | 提现 `MERCHANT_WITHDRAW` | 超阈值：经理→财务 | 节点未过不能打款 | PASS（wd3 PENDING_REVIEW；payout 409；instance=1） |
-| A-04 | 余额退款 | 经理→财务 | 通过后才退；驳回不退 |  |
+| A-04 | 余额退款 | 经理→财务 | 通过后才退；驳回不退 | PASS（req=1：经理后仍 PENDING+冻结；财务后 REFUNDED -300；req=2 驳回释放冻结） |
 | A-05 | 改审批流后新单 | 走新节点；旧单仍按实例 |  |  |
 | A-06 | 部门撤成员 | 待办不再派给该人 |  |  |
 
@@ -476,7 +476,7 @@
 | I-01 | 销售出库 | 货道数量↓与订单行一致 |  |
 | I-02 | 补货实盘 | 「按实盘调账面」后账面=实盘 |  |
 | I-03 | 采购入库 | 仓存↑；确认付款状态机正确 |  |
-| I-04 | FEFO | 出库批次符合近效期优先（PASS_3D） |  |
+| I-04 | FEFO | 出库批次符合近效期优先（PASS_3D） | PASS（LOT-NEAR/FAR 各5；write-off×3→NEAR=2 FAR=5） |
 
 ### 10.4 营销 / 会员 / 积分
 
@@ -614,11 +614,13 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 部分退：`e2e-partial-refund-line.ps1` order=`1788833639119970182` VOIDED + PARTIAL_REVERSE。
   - 再续：§9 D-01～D-04 PASS；C-03/T-05 PASS；§8 003/004 API+003 UI 提现 forbidden；pack_biz 关→钱包/订单/分账 403；MK-01 发券 couponId=1。
   - 再续2：MK-02 抵扣 PASS；pack_field/pack_team PASS；A-01 强制 ACTIVE 拦截；§7 G-01～G-08 抽样 PASS；管理后台 403/404 错误页铺满居中布局修复。
+  - 再续3：A-02/A-04 PASS；C-01 品牌 UAT 可见后恢复；§8.2 38002/38004/38007 PASS；I-04 FEFO PASS；曾为 A-04 给 operator/finance 补 `ops:balance-refund:review`。
   - 证据目录: docs/uat-screenshots/2026-09-08/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
     withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /
     refund-order 1788833639119970182 / split 1788833639197767270 / couponDef=1 couponId=1 /
-    MK-02 order 1788837712840185959 / onboard=1 approval_instance=3
+    MK-02 order 1788837712840185959 / onboard=1 approval_instance=3 /
+    balance-refund 1 REFUNDED + 2 REJECTED / writeOff=1 FEFO
 ```
 
 截图目录建议：`docs/uat-screenshots/YYYY-MM-DD/`（历史大图可放 `docs/archive/uat-screenshots/`）。
