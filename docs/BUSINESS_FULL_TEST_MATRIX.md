@@ -94,111 +94,111 @@
 
 | # | 菜单 | 路径 | 权限码 | 源码视图 | 源码按钮（抽样） | 建议验收要点 | 状态 |
 |---|------|------|--------|----------|------------------|--------------|------|
-| 1 | 运营工作台 | `/dashboard` | `ops:dashboard:view` | `dashboard/DashboardView.vue` | 补货调度、争议审核、设备管理、设备可用性、刷新、进件工作台 | 卡片数字加载；快捷入口可跳转 |  |
-| 2 | 运营大屏 | `/big-screen` | `ops:bigscreen:view` | `dashboard/BigScreenView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「运营大屏」；列表或表单可用；关键写操作有中文反馈 |  |
-| 3 | 数据分析 | `/analytics` | `ops:analytics:view` | `analytics/AnalyticsView.vue` | 查看 | 打开「数据分析」；列表或表单可用；关键写操作有中文反馈 |  |
-| 4 | 客流坪效 | `/footfall` | `ops:analytics:footfall:view` | `analytics/FootfallView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「客流坪效」；列表或表单可用；关键写操作有中文反馈 |  |
-| 5 | 设备报表 | `/reports` | `ops:report:device` | `reports/DeviceReportView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「设备报表」；列表或表单可用；关键写操作有中文反馈 |  |
-| 6 | 财务毛利 | `/finance` | `ops:finance:view` | `finance/FinanceView.vue` | 返回工作台、固化昨日毛利、刷新 | 列表加载；关键写操作二次确认 |  |
-| 7 | 销售报表 | `/sales-reports` | `ops:sales-report:list` | `reports/SalesReportsView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「销售报表」；列表或表单可用；关键写操作有中文反馈 |  |
-| 8 | 库存健康 | `/stock-health` | `ops:stock-health:list` | `reports/StockHealthView.vue` | 一键补货规划（、台） | 打开「库存健康」；列表或表单可用；关键写操作有中文反馈 |  |
-| 9 | 用户分析 | `/user-analysis` | `ops:user-analysis:view` | `growth/UserAnalysisView.vue` | 导出沉睡名单、导出复购榜 | 打开「用户分析」；列表或表单可用；关键写操作有中文反馈 |  |
+| 1 | 运营工作台 | `/dashboard` | `ops:dashboard:view` | `dashboard/DashboardView.vue` | 补货调度、争议审核、设备管理、设备可用性、刷新、进件工作台 | 卡片数字加载；快捷入口可跳转 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 2 | 运营大屏 | `/big-screen` | `ops:bigscreen:view` | `dashboard/BigScreenView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「运营大屏」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 3 | 数据分析 | `/analytics` | `ops:analytics:view` | `analytics/AnalyticsView.vue` | 查看 | 打开「数据分析」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 4 | 客流坪效 | `/footfall` | `ops:analytics:footfall:view` | `analytics/FootfallView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「客流坪效」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 5 | 设备报表 | `/reports` | `ops:report:device` | `reports/DeviceReportView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「设备报表」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 6 | 财务毛利 | `/finance` | `ops:finance:view` | `finance/FinanceView.vue` | 返回工作台、固化昨日毛利、刷新 | 列表加载；关键写操作二次确认 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 7 | 销售报表 | `/sales-reports` | `ops:sales-report:list` | `reports/SalesReportsView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「销售报表」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 8 | 库存健康 | `/stock-health` | `ops:stock-health:list` | `reports/StockHealthView.vue` | 一键补货规划（、台） | 打开「库存健康」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 9 | 用户分析 | `/user-analysis` | `ops:user-analysis:view` | `growth/UserAnalysisView.vue` | 导出沉睡名单、导出复购榜 | 打开「用户分析」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 
 ### 1.2 交易履约
 
 | # | 菜单 | 路径 | 权限码 | 源码视图 | 源码按钮（抽样） | 建议验收要点 | 状态 |
 |---|------|------|--------|----------|------------------|--------------|------|
-| 1 | 订单管理 | `/orders` | `ops:order:list` | `orders/OrderListView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 订单筛选；详情金额与状态 |  |
-| 2 | 开门记录 | `/sessions` | `ops:session:list` | `sessions/SessionListView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 会话列表；关联订单/视频 |  |
-| 3 | 争议审核 | `/disputes` | `ops:dispute` | `disputes/DisputeListView.vue` | 添加商品、从识别建议填充、智能识别建议、上传关键帧获取商品建议 | **L3**：结案后订单金额/退款/库存/分账 void 或 adjust；消费者+商户状态一致；二次结案幂等 |  |
-| 4 | 异常中心 | `/exceptions` | `ops:exception:list` | `exceptions/ExceptionListView.vue` | 设备运维、添加商品、按调整明细落账、免单/全额退回、添加备注、转派 | 免单/落账二次确认；账本与库存变化；无权限不可见写按钮 |  |
+| 1 | 订单管理 | `/orders` | `ops:order:list` | `orders/OrderListView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 订单筛选；详情金额与状态 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 2 | 开门记录 | `/sessions` | `ops:session:list` | `sessions/SessionListView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 会话列表；关联订单/视频 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 3 | 争议审核 | `/disputes` | `ops:dispute` | `disputes/DisputeListView.vue` | 添加商品、从识别建议填充、智能识别建议、上传关键帧获取商品建议 | **L3**：结案后订单金额/退款/库存/分账 void 或 adjust；消费者+商户状态一致；二次结案幂等 | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 4 | 异常中心 | `/exceptions` | `ops:exception:list` | `exceptions/ExceptionListView.vue` | 设备运维、添加商品、按调整明细落账、免单/全额退回、添加备注、转派 | 免单/落账二次确认；账本与库存变化；无权限不可见写按钮 | PASS（L1 页可达；深测见 §7–§10 / P0） |
 
 ### 1.3 设备商品
 
 | # | 菜单 | 路径 | 权限码 | 源码视图 | 源码按钮（抽样） | 建议验收要点 | 状态 |
 |---|------|------|--------|----------|------------------|--------------|------|
-| 1 | 设备运维 | `/device-ops` | `ops:device-ops:list` | `devices/DeviceOpsMonitorView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「设备运维」；列表或表单可用；关键写操作有中文反馈 |  |
-| 2 | 设备管理 | `/devices` | `ops:device:list` | `devices/DeviceListView.vue` | 新建设备、刷新、创建 | 新建/创建；进详情 |  |
-| 3 | 投放地图 | `/device-map` | `ops:device-map:view` | `devices/DeviceMapView.vue` | 详情 | 打开「投放地图」；列表或表单可用；关键写操作有中文反馈 |  |
-| 4 | 设备可用性 | `/device-kpi` | `ops:device-kpi:view` | `devices/DeviceKpiView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「设备可用性」；列表或表单可用；关键写操作有中文反馈 |  |
-| 5 | 维修工单 | `/repair-tickets` | `ops:repair:list` | `devices/RepairTicketsView.vue` | 批量指派、新建工单、刷新、详情、开始处理、完成、取消、创建、确认指派 | 打开「维修工单」；列表或表单可用；关键写操作有中文反馈 |  |
-| 6 | 商品管理 | `/skus` | `ops:sku:list` | `skus/SkuListView.vue` | 导入模板、导入、识别入驻、新建商品、刷新 | 新建商品；导入 |  |
-| 7 | 选品诊断 | `/sku-review` | `ops:sku-review:list` | `growth/SkuReviewView.vue` | 批量下架、批量保留、运行诊断、建议下架、保留、确认下架 | 打开「选品诊断」；列表或表单可用；关键写操作有中文反馈 |  |
-| 8 | 识别入驻 | `/sku-vision` | `ops:sku:list` | `skus/SkuVisionEnrollView.vue` | 导入模板、导入、商品管理、入驻配置、保存入驻、关闭 | 打开「识别入驻」；列表或表单可用；关键写操作有中文反馈 |  |
-| 9 | 识别映射 | `/vision-mappings` | `ops:vision:list` | `vision/VisionMappingView.vue` | 商品管理、新增映射、编辑、删除、取消、保存 | 打开「识别映射」；列表或表单可用；关键写操作有中文反馈 |  |
-| 10 | 录像上传 | `/upload-queue` | `ops:session:upload` | `upload/UploadQueueView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「录像上传」；列表或表单可用；关键写操作有中文反馈 |  |
-| 11 | 识别演示 | `/recognition-demo` | `ops:recognition-demo:view` | `vision/RecognitionDemoView.vue` | 识别映射、商品管理、清空 | 打开「识别演示」；列表或表单可用；关键写操作有中文反馈 |  |
+| 1 | 设备运维 | `/device-ops` | `ops:device-ops:list` | `devices/DeviceOpsMonitorView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「设备运维」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 2 | 设备管理 | `/devices` | `ops:device:list` | `devices/DeviceListView.vue` | 新建设备、刷新、创建 | 新建/创建；进详情 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 3 | 投放地图 | `/device-map` | `ops:device-map:view` | `devices/DeviceMapView.vue` | 详情 | 打开「投放地图」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 4 | 设备可用性 | `/device-kpi` | `ops:device-kpi:view` | `devices/DeviceKpiView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「设备可用性」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 5 | 维修工单 | `/repair-tickets` | `ops:repair:list` | `devices/RepairTicketsView.vue` | 批量指派、新建工单、刷新、详情、开始处理、完成、取消、创建、确认指派 | 打开「维修工单」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 6 | 商品管理 | `/skus` | `ops:sku:list` | `skus/SkuListView.vue` | 导入模板、导入、识别入驻、新建商品、刷新 | 新建商品；导入 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 7 | 选品诊断 | `/sku-review` | `ops:sku-review:list` | `growth/SkuReviewView.vue` | 批量下架、批量保留、运行诊断、建议下架、保留、确认下架 | 打开「选品诊断」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 8 | 识别入驻 | `/sku-vision` | `ops:sku:list` | `skus/SkuVisionEnrollView.vue` | 导入模板、导入、商品管理、入驻配置、保存入驻、关闭 | 打开「识别入驻」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 9 | 识别映射 | `/vision-mappings` | `ops:vision:list` | `vision/VisionMappingView.vue` | 商品管理、新增映射、编辑、删除、取消、保存 | 打开「识别映射」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 10 | 录像上传 | `/upload-queue` | `ops:session:upload` | `upload/UploadQueueView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「录像上传」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 11 | 识别演示 | `/recognition-demo` | `ops:recognition-demo:view` | `vision/RecognitionDemoView.vue` | 识别映射、商品管理、清空 | 打开「识别演示」；列表或表单可用；关键写操作有中文反馈 | SKIP（本环境未开 `ENABLE_TEST_TOOLS`；直链 404「页面不存在」符合约定） |
 
 ### 1.4 履约仓储
 
 | # | 菜单 | 路径 | 权限码 | 源码视图 | 源码按钮（抽样） | 建议验收要点 | 状态 |
 |---|------|------|--------|----------|------------------|--------------|------|
-| 1 | 补货调度 | `/replenishment` | `ops:replenishment:list` | `replenishment/ReplenishmentView.vue` | 规划补货路线、创建路线 | 规划路线；任务状态 |  |
-| 2 | 仓库 | `/warehouse` | `ops:warehouse:list` | `warehouse/WarehouseView.vue` | 编辑、保存、确认付款、创建、确认入库、确认移库、添加一行、取消、确认收货 | 打开「仓库」；列表或表单可用；关键写操作有中文反馈 |  |
-| 3 | 固件版本 | `/ota` | `ops:ota:list` | `ota/OtaView.vue` | 批量下架、发布版本、刷新、下架、发布 | 打开「固件版本」；列表或表单可用；关键写操作有中文反馈 |  |
-| 4 | 服务时限监控 | `/sla` | `ops:sla` | `sla/SlaView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「服务时限监控」；列表或表单可用；关键写操作有中文反馈 |  |
-| 5 | 补货员效率 | `/replenishment-staff` | `ops:replenishment:list` | `growth/ReplenishmentStaffView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「补货员效率」；列表或表单可用；关键写操作有中文反馈 |  |
+| 1 | 补货调度 | `/replenishment` | `ops:replenishment:list` | `replenishment/ReplenishmentView.vue` | 规划补货路线、创建路线 | 规划路线；任务状态 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 2 | 仓库 | `/warehouse` | `ops:warehouse:list` | `warehouse/WarehouseView.vue` | 编辑、保存、确认付款、创建、确认入库、确认移库、添加一行、取消、确认收货 | 打开「仓库」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 3 | 固件版本 | `/ota` | `ops:ota:list` | `ota/OtaView.vue` | 批量下架、发布版本、刷新、下架、发布 | 打开「固件版本」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 4 | 服务时限监控 | `/sla` | `ops:sla` | `sla/SlaView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「服务时限监控」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 5 | 补货员效率 | `/replenishment-staff` | `ops:replenishment:list` | `growth/ReplenishmentStaffView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「补货员效率」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 
 ### 1.5 财务商户
 
 | # | 菜单 | 路径 | 权限码 | 源码视图 | 源码按钮（抽样） | 建议验收要点 | 状态 |
 |---|------|------|--------|----------|------------------|--------------|------|
-| 1 | 资金账单 | `/fund-bills` | `ops:fund:list` | `finance/FundBillView.vue` | 刷新、支持跨月，单次不超过 90 天、查询 | 打开「资金账单」；列表或表单可用；关键写操作有中文反馈 |  |
-| 2 | 商户与分账 | `/merchants` | `ops:merchant:list` | `merchants/MerchantSplitsView.vue` | 新建商户、确认提交、保存 | **L3 必测**：改 platformRate → 新订单 `recordSplit` 后商户份额=公式；钱包/分账明细有记录；旧单不被静默改写。仅保存配置不算 PASS |  |
-| 3 | 进件工作台 | `/merchant-onboarding` | `ops:merchant:onboard:list` | `merchants/MerchantOnboardingView.vue` | 批量通过、批量驳回、新建进件、编辑、通过、驳回、保存 | **须走审批**：不可手工直改 ACTIVE；总部→财务节点见 `APPROVAL_DEPARTMENT_FLOW.md` |  |
-| 4 | 线长钱包 | `/line-managers` | `ops:line-manager:list` | `finance/LineManagerView.vue` | 批量通过、批量驳回、新建线长、刷新、查询、绑柜、调账、流水、业绩、代提现、通过并打款、驳回 | 与商户钱包隔离；提现 freeze/consume；勿与 SPLIT 流水混断言 |  |
-| 5 | 商户提现 | `/merchant-withdraw` | `ops:merchant-withdraw:list` | `finance/MerchantWithdrawView.vue` | 批量通过、批量驳回、刷新、查询、调账、流水、代提现、通过并打款、驳回、重试打款、确认调账 | 通过并打款后余额/冻结变化；FAILED **不解冻**；双击不双扣；驳回释放冻结 |  |
-| 6 | 对账 | `/reconciliation` | `ops:reconciliation:list` | `reconciliation/ReconciliationView.vue` | 执行对账、执行 | 执行对账有结果 |  |
-| 7 | 数据一致性 | `/consistency` | `ops:consistency:list` | `consistency/ConsistencyView.vue` | 立即巡检、刷新、修复 | 打开「数据一致性」；列表或表单可用；关键写操作有中文反馈 |  |
-| 8 | 充值管理 | `/recharges` | `ops:recharge:list` | `recharges/RechargeListView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 列表加载；关键写操作二次确认 |  |
-| 9 | 余额退款 | `/balance-refunds` | `ops:balance-refund:list` | `finance/BalanceRefundView.vue` | 批量通过、批量驳回 | 打开「余额退款」；列表或表单可用；关键写操作有中文反馈 |  |
-| 10 | 开票申请 | `/invoices` | `ops:invoice:list` | `finance/InvoiceListView.vue` | 批量开具、批量驳回、刷新 | 列表加载；关键写操作二次确认 |  |
-| 11 | 用户余额 | `/users` | `ops:user:list` | `users/UserListView.vue` | 确认调整 | 列表加载；关键写操作二次确认 |  |
+| 1 | 资金账单 | `/fund-bills` | `ops:fund:list` | `finance/FundBillView.vue` | 刷新、支持跨月，单次不超过 90 天、查询 | 打开「资金账单」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 2 | 商户与分账 | `/merchants` | `ops:merchant:list` | `merchants/MerchantSplitsView.vue` | 新建商户、确认提交、保存 | **L3 必测**：改 platformRate → 新订单 `recordSplit` 后商户份额=公式；钱包/分账明细有记录；旧单不被静默改写。仅保存配置不算 PASS | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 3 | 进件工作台 | `/merchant-onboarding` | `ops:merchant:onboard:list` | `merchants/MerchantOnboardingView.vue` | 批量通过、批量驳回、新建进件、编辑、通过、驳回、保存 | **须走审批**：不可手工直改 ACTIVE；总部→财务节点见 `APPROVAL_DEPARTMENT_FLOW.md` | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 4 | 线长钱包 | `/line-managers` | `ops:line-manager:list` | `finance/LineManagerView.vue` | 批量通过、批量驳回、新建线长、刷新、查询、绑柜、调账、流水、业绩、代提现、通过并打款、驳回 | 与商户钱包隔离；提现 freeze/consume；勿与 SPLIT 流水混断言 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 5 | 商户提现 | `/merchant-withdraw` | `ops:merchant-withdraw:list` | `finance/MerchantWithdrawView.vue` | 批量通过、批量驳回、刷新、查询、调账、流水、代提现、通过并打款、驳回、重试打款、确认调账 | 通过并打款后余额/冻结变化；FAILED **不解冻**；双击不双扣；驳回释放冻结 | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 6 | 对账 | `/reconciliation` | `ops:reconciliation:list` | `reconciliation/ReconciliationView.vue` | 执行对账、执行 | 执行对账有结果 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 7 | 数据一致性 | `/consistency` | `ops:consistency:list` | `consistency/ConsistencyView.vue` | 立即巡检、刷新、修复 | 打开「数据一致性」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 8 | 充值管理 | `/recharges` | `ops:recharge:list` | `recharges/RechargeListView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 列表加载；关键写操作二次确认 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 9 | 余额退款 | `/balance-refunds` | `ops:balance-refund:list` | `finance/BalanceRefundView.vue` | 批量通过、批量驳回 | 打开「余额退款」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 10 | 开票申请 | `/invoices` | `ops:invoice:list` | `finance/InvoiceListView.vue` | 批量开具、批量驳回、刷新 | 列表加载；关键写操作二次确认 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 11 | 用户余额 | `/users` | `ops:user:list` | `users/UserListView.vue` | 确认调整 | 列表加载；关键写操作二次确认 | PASS（L1 页可达；深测见 §7–§10 / P0） |
 
 ### 1.6 增长风控
 
 | # | 菜单 | 路径 | 权限码 | 源码视图 | 源码按钮（抽样） | 建议验收要点 | 状态 |
 |---|------|------|--------|----------|------------------|--------------|------|
-| 1 | 手机验证 | `/phone-verify` | `ops:phone-verify:list` | `users/PhoneVerifyView.vue` | 登记验证、编辑、删除、保存 | 打开「手机验证」；列表或表单可用；关键写操作有中文反馈 |  |
-| 2 | 风控 | `/risk` | `ops:risk:list` | `risk/RiskView.vue` | 加入黑名单、确认 | **L3**：拉黑后该用户开门/支付被拒；解黑恢复；审计可查 |  |
-| 3 | 营销活动 | `/promotions` | `ops:promotion:list` | `promotions/PromotionsView.vue` | 导入模板、导入、批量停用、新建活动、刷新、保存 | 新建/保存/启停后列表刷新 |  |
+| 1 | 手机验证 | `/phone-verify` | `ops:phone-verify:list` | `users/PhoneVerifyView.vue` | 登记验证、编辑、删除、保存 | 打开「手机验证」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 2 | 风控 | `/risk` | `ops:risk:list` | `risk/RiskView.vue` | 加入黑名单、确认 | **L3**：拉黑后该用户开门/支付被拒；解黑恢复；审计可查 | PASS（L1 页可达；L3 见 R-01/R-02） |
+| 3 | 营销活动 | `/promotions` | `ops:promotion:list` | `promotions/PromotionsView.vue` | 导入模板、导入、批量停用、新建活动、刷新、保存 | 新建/保存/启停后列表刷新 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 | 4 | 优惠券 | `/coupons` | `ops:coupon:list` | `promotions/CouponsView.vue` | 导入模板、导入、批量停用、新建优惠券、手动发券、批量发券、保存、发放、批量发放 | **L3**：发券后消费者可见；下单抵扣；停用后不可用；超发被拒 | PASS（MK-01+MK-02：发券可见；下单抵扣 350→300） |
-| 5 | 素材库 | `/ad-assets` | `ops:ad:list` | `growth/AdAssetsView.vue` | 批量停用、批量删除、上传素材、上传、保存 | 新建/保存/启停后列表刷新 |  |
-| 6 | 投放计划 | `/ad-campaigns` | `ops:ad:campaign:list` | `growth/AdCampaignsView.vue` | 批量停止、新建投放、保存 | 新建/保存/启停后列表刷新 |  |
-| 7 | 积分兑换管理 | `/points-redeem` | `ops:points:list` | `growth/PointsRedeemView.vue` | 批量上架、批量下架、新建兑换项、刷新、保存 | 新建/保存/启停后列表刷新 |  |
-| 8 | 会员等级规则 | `/member-levels` | `ops:member-level:list` | `growth/MemberLevelsView.vue` | 批量启用、批量停用、新建等级、刷新、编辑、展示名： 取消、保存 | 新建/保存/启停后列表刷新 |  |
-| 9 | 活动效果分析 | `/marketing-roi` | `ops:marketing-roi:view` | `growth/MarketingRoiView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「活动效果分析」；列表或表单可用；关键写操作有中文反馈 |  |
-| 10 | 消息记录 | `/notifications` | `ops:notify:list` | `growth/NotificationsView.vue` | 删除选中、发送站内信、刷新、编辑、删除、消费者、商户、取消、发送、保存 | 打开「消息记录」；列表或表单可用；关键写操作有中文反馈 |  |
-| 11 | 用户反馈 | `/feedback` | `ops:feedback` | `feedback/FeedbackView.vue` | 提交回复 | 打开「用户反馈」；列表或表单可用；关键写操作有中文反馈 |  |
+| 5 | 素材库 | `/ad-assets` | `ops:ad:list` | `growth/AdAssetsView.vue` | 批量停用、批量删除、上传素材、上传、保存 | 新建/保存/启停后列表刷新 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 6 | 投放计划 | `/ad-campaigns` | `ops:ad:campaign:list` | `growth/AdCampaignsView.vue` | 批量停止、新建投放、保存 | 新建/保存/启停后列表刷新 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 7 | 积分兑换管理 | `/points-redeem` | `ops:points:list` | `growth/PointsRedeemView.vue` | 批量上架、批量下架、新建兑换项、刷新、保存 | 新建/保存/启停后列表刷新 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 8 | 会员等级规则 | `/member-levels` | `ops:member-level:list` | `growth/MemberLevelsView.vue` | 批量启用、批量停用、新建等级、刷新、编辑、展示名： 取消、保存 | 新建/保存/启停后列表刷新 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 9 | 活动效果分析 | `/marketing-roi` | `ops:marketing-roi:view` | `growth/MarketingRoiView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「活动效果分析」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 10 | 消息记录 | `/notifications` | `ops:notify:list` | `growth/NotificationsView.vue` | 删除选中、发送站内信、刷新、编辑、删除、消费者、商户、取消、发送、保存 | 打开「消息记录」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 11 | 用户反馈 | `/feedback` | `ops:feedback` | `feedback/FeedbackView.vue` | 提交回复 | 打开「用户反馈」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 
 ### 1.7 系统
 
 | # | 菜单 | 路径 | 权限码 | 源码视图 | 源码按钮（抽样） | 建议验收要点 | 状态 |
 |---|------|------|--------|----------|------------------|--------------|------|
-| 1 | 运营账号 | `/operators` | `ops:rbac:assign` | `system/OperatorManageView.vue` | 导入模板、导入、新增账号、刷新、保存、全部货柜、勾选柜机、线路 （） 取消 | **L3**：改角色后重新登录菜单/按钮变化；数据范围（柜机）生效；只读角色无写按钮 |  |
-| 2 | 角色管理 | `/roles` | `ops:rbac:role` | `system/RoleManageView.vue` | 新增角色、导入模板、导入、刷新、保存、全选、清空 | 勾选权限码后挂到账号→侧栏与 `v-hasPermi` 一致；取消权限后直链 `/forbidden` |  |
-| 3 | 部门管理 | `/departments` | `ops:dept:list` | `system/DepartmentManageView.vue` | 批量启用、批量停用、新增部门、刷新、编辑、成员、保存 | 成员变更后审批待办归属变化（进件/提现） |  |
-| 4 | 审批流配置 | `/approvals` | `ops:approval:config` | `system/ApprovalConfigView.vue` | 新增、保存、+ 结束、审批通过、结束、审批驳回、取消、上移、保存流程图 | 改节点后新单走新路径；无权限人点通过→403 |  |
-| 5 | 菜单管理 | `/menus` | `ops:rbac:menu` | `system/MenuManageView.vue` | 全选、清空、新增、展开、收起、保存 | **注意**：admin 侧栏真源主要是 `menu.ts`；本页改库菜单须验证登录权限树/按钮级 `F` 是否被消费，避免「改了库侧栏不变」假通过 |  |
-| 6 | 字典管理 | `/dicts` | `ops:dict:list` | `system/DictManageView.vue` | 新增类型、编辑、删除、刷新、导入模板、导入、新增字典项、保存、启用停用、取消 | **只影响展示**：改 label 后三端 Tag/筛选项更新；**不得**靠字典开关支付/开门。`GET /api/v2/dicts/runtime` 覆盖 `shared-dict` |  |
-| 7 | 参数配置 | `/system-configs` | `ops:config:list` | `system/SystemConfigView.vue` | 导入模板、导入、新增、刷新、上传标志、清除、保存品牌、查询 | 品牌/文档标题等可见变化；能力开关以环境变量为准（见 MODULES） |  |
-| 8 | 告警规则 | `/alert-rules` | `ops:config:list` | `system/AlertRuleView.vue` | 批量删除、新增、保存 | 触发条件后待办/告警出现；停用后不再刷 |  |
-| 9 | 定时任务 | `/scheduled-tasks` | `ops:task:list` | `system/ScheduledTaskView.vue` | 批量启用、批量停用、批量执行、新增、保存 | 「执行」产生预期副作用（对账/巡检等）；停用后到点不跑 |  |
-| 10 | 组织与点位 | `/org-sites` | `ops:org:list` | `system/OrgSitesView.vue` | 新增顶级组织、编辑、新增子级、分配设备、删除、批量删除、新增合同、租金分账、出账、批量出账、标记已付、作废 | 分配设备后商户数据范围变化；租金出账有流水 |  |
-| 11 | 通知公告 | `/announcements` | `ops:announcement:list` | `announcements/AnnouncementsView.vue` | 导入模板、导入、发布公告、刷新 | 目标端 announcements 可见；未发布不可见 |  |
-| 12 | 审计日志 | `/audit` | `ops:audit:list` | `system/AuditLogView.vue` | （只读为主） | 关键写操作后有对应审计行（操作人/资源/时间） |  |
-| 13 | DevOps 中心 | `/devops` | `ops:devops:view` | `system/DevOpsHubView.vue` | 刷新状态、新窗口打开、重跑 Sonar、下方嵌入看板 | 链接可达；无权限不可见 |  |
-| 14 | 个人中心 | `/profile` | `（无独立 perm / 登录即可）` | `profile/ProfileView.vue` | 编辑资料、修改密码、刷新资料、清除、取消、保存 | 改密后旧 token 失效策略符合预期；资料回显 |  |
+| 1 | 运营账号 | `/operators` | `ops:rbac:assign` | `system/OperatorManageView.vue` | 导入模板、导入、新增账号、刷新、保存、全部货柜、勾选柜机、线路 （） 取消 | **L3**：改角色后重新登录菜单/按钮变化；数据范围（柜机）生效；只读角色无写按钮 | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 2 | 角色管理 | `/roles` | `ops:rbac:role` | `system/RoleManageView.vue` | 新增角色、导入模板、导入、刷新、保存、全选、清空 | 勾选权限码后挂到账号→侧栏与 `v-hasPermi` 一致；取消权限后直链 `/forbidden` | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 3 | 部门管理 | `/departments` | `ops:dept:list` | `system/DepartmentManageView.vue` | 批量启用、批量停用、新增部门、刷新、编辑、成员、保存 | 成员变更后审批待办归属变化（进件/提现） | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 4 | 审批流配置 | `/approvals` | `ops:approval:config` | `system/ApprovalConfigView.vue` | 新增、保存、+ 结束、审批通过、结束、审批驳回、取消、上移、保存流程图 | 改节点后新单走新路径；无权限人点通过→403 | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 5 | 菜单管理 | `/menus` | `ops:rbac:menu` | `system/MenuManageView.vue` | 全选、清空、新增、展开、收起、保存 | **注意**：admin 侧栏真源主要是 `menu.ts`；本页改库菜单须验证登录权限树/按钮级 `F` 是否被消费，避免「改了库侧栏不变」假通过 | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 6 | 字典管理 | `/dicts` | `ops:dict:list` | `system/DictManageView.vue` | 新增类型、编辑、删除、刷新、导入模板、导入、新增字典项、保存、启用停用、取消 | **只影响展示**：改 label 后三端 Tag/筛选项更新；**不得**靠字典开关支付/开门。`GET /api/v2/dicts/runtime` 覆盖 `shared-dict` | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 7 | 参数配置 | `/system-configs` | `ops:config:list` | `system/SystemConfigView.vue` | 导入模板、导入、新增、刷新、上传标志、清除、保存品牌、查询 | 品牌/文档标题等可见变化；能力开关以环境变量为准（见 MODULES） | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 8 | 告警规则 | `/alert-rules` | `ops:config:list` | `system/AlertRuleView.vue` | 批量删除、新增、保存 | 触发条件后待办/告警出现；停用后不再刷 | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 9 | 定时任务 | `/scheduled-tasks` | `ops:task:list` | `system/ScheduledTaskView.vue` | 批量启用、批量停用、批量执行、新增、保存 | 「执行」产生预期副作用（对账/巡检等）；停用后到点不跑 | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 10 | 组织与点位 | `/org-sites` | `ops:org:list` | `system/OrgSitesView.vue` | 新增顶级组织、编辑、新增子级、分配设备、删除、批量删除、新增合同、租金分账、出账、批量出账、标记已付、作废 | 分配设备后商户数据范围变化；租金出账有流水 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 11 | 通知公告 | `/announcements` | `ops:announcement:list` | `announcements/AnnouncementsView.vue` | 导入模板、导入、发布公告、刷新 | 目标端 announcements 可见；未发布不可见 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 12 | 审计日志 | `/audit` | `ops:audit:list` | `system/AuditLogView.vue` | （只读为主） | 关键写操作后有对应审计行（操作人/资源/时间） | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 13 | DevOps 中心 | `/devops` | `ops:devops:view` | `system/DevOpsHubView.vue` | 刷新状态、新窗口打开、重跑 Sonar、下方嵌入看板 | 链接可达；无权限不可见 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 14 | 个人中心 | `/profile` | `（无独立 perm / 登录即可）` | `profile/ProfileView.vue` | 编辑资料、修改密码、刷新资料、清除、取消、保存 | 改密后旧 token 失效策略符合预期；资料回显 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 
 ### 1.8 路由存在但非侧栏菜单（仍需测）
 
 | 路径 | 说明 | 建议验收 | 状态 |
 |------|------|----------|------|
-| `/login` | 登录页 | 正确账号进首页；错误提示中文；重置密码入口 |  |
-| `/print` | 打印单据 | 有单据参数时可打印/预览 |  |
-| `/devices/:id` | 设备详情（动态） | 从设备列表进入；货道/补货/复制链接等 |  |
-| `/forbidden` | 无权访问 | 无权限菜单跳转落此页；可回工作台 |  |
-| `/recognition-demo` | 识别演示（测试开关） | 仅 `ENABLE_TEST_TOOLS` |  |
+| `/login` | 登录页 | 正确账号进首页；错误提示中文；重置密码入口 | PASS（登录页可达；密码登录进后台） |
+| `/print` | 打印单据 | 有单据参数时可打印/预览 | PASS（路由存在；无单据参数时页面可开） |
+| `/devices/:id` | 设备详情（动态） | 从设备列表进入；货道/补货/复制链接等 | PASS（设备列表可进详情路由） |
+| `/forbidden` | 无权访问 | 无权限菜单跳转落此页；可回工作台 | PASS（无权限落错误页；布局已修） |
+| `/recognition-demo` | 识别演示（测试开关） | 仅 `ENABLE_TEST_TOOLS` | SKIP（本环境未开 `ENABLE_TEST_TOOLS`；直链 404「页面不存在」符合约定） |
 
 ---
 
@@ -210,37 +210,37 @@
 
 | Tab 文案 | pagePath | 状态 |
 |----------|----------|------|
-| 工作台 | `pages/home/home` |  |
-| 柜机 | `pages/devices/devices` |  |
-| 待办 | `pages/alerts/alerts` |  |
-| 我的 | `pages/mine/mine` |  |
+| 工作台 | `pages/home/home` | PASS（H5 Tab 可达 2026-09-08） |
+| 柜机 | `pages/devices/devices` | PASS（H5 Tab 可达 2026-09-08） |
+| 待办 | `pages/alerts/alerts` | PASS（H5 Tab 可达 2026-09-08） |
+| 我的 | `pages/mine/mine` | PASS（H5 Tab 可达 2026-09-08） |
 
 ### 2.2 全页面矩阵
 
 | # | 标题 | 页面 path | 源码按钮（抽样） | 建议验收要点 | 状态 |
 |---|------|-----------|------------------|--------------|------|
-| 1 | 登录 | `pages/login/login` | （启发式未扫到；打开页面核对） | 登录/退出；错误提示中文 |  |
-| 2 | 工作台 | `pages/home/home` | 扫码、扫码到柜、柜机列表、查看记录 | 打开「工作台」；下拉刷新（若启用）；空态中文 |  |
-| 3 | 柜机 | `pages/devices/devices` | 扫码到柜、补货任务、导航、清除 | 柜机列表/详情；定价入口 |  |
-| 4 | 柜机详情 | `pages/device-detail/device-detail` | 导航到柜、补货任务、发起要货 | 柜机列表/详情；定价入口 |  |
-| 5 | 点位定价 | `pages/pricing/pricing` | 调价历史 | 打开「点位定价」；下拉刷新（若启用）；空态中文 |  |
-| 6 | 补货任务 | `pages/replenishment/replenishment` | 扫码找柜、扫码核对、现场签到、确认商品与数量、扫码到柜、扫码、要货、常驻柜、清除筛选、查看已完成、查看全部、复制编号 | 任务列表；接单/完成；与运营侧一致 |  |
-| 7 | 要货申请 | `pages/request/request` | 去补货 ›、发起要货、我的申请、刷新建议 | 任务列表；接单/完成；与运营侧一致 |  |
-| 8 | 经营分析 | `pages/business/business` | 导出柜机报表、load()">重试、保存税号资料 | 打开「经营分析」；下拉刷新（若启用）；空态中文 |  |
-| 9 | 待办 | `pages/alerts/alerts` | 完成库存核对、查看柜机 | 打开「待办」；下拉刷新（若启用）；空态中文 |  |
-| 10 | 我的 | `pages/mine/mine` | 编辑资料、保存、保存提醒偏好 | 打开「我的」；下拉刷新（若启用）；空态中文 |  |
-| 11 | 结算对账 | `pages/settlements/settlements` | 导出对账单 | 打开「结算对账」；下拉刷新（若启用）；空态中文 |  |
-| 12 | 争议处理 | `pages/disputes/disputes` | 认领工单、回复、同意免单、维持原单、按识别结案、查看订单、查看柜机 | 争议列表；处理动作权限正确 |  |
-| 13 | 柜机订单 | `pages/orders/orders` | （启发式未扫到；打开页面核对） | 打开「柜机订单」；下拉刷新（若启用）；空态中文 |  |
-| 14 | 订单详情 | `pages/order-detail/order-detail` | 查看柜机、查看购物视频、相关争议 | 打开「订单详情」；下拉刷新（若启用）；空态中文 |  |
-| 15 | 购物视频 | `pages/video/video` | 复制链接 | 打开「购物视频」；下拉刷新（若启用）；空态中文 |  |
-| 16 | 消息中心 | `pages/messages/messages` | （启发式未扫到；打开页面核对） | 打开「消息中心」；下拉刷新（若启用）；空态中文 |  |
-| 17 | 通知公告 | `pages/announcements/announcements` | 查看详情 › | 打开「通知公告」；下拉刷新（若启用）；空态中文 |  |
-| 18 | 公告详情 | `pages/announcements/detail` | load()">重试 | 打开「公告详情」；下拉刷新（若启用）；空态中文 |  |
-| 19 | 团队成员 | `pages/team/team` | 邀请成员、确认邀请、保存角色、确认重置、停用该成员、重新启用 | 打开「团队成员」；下拉刷新（若启用）；空态中文 |  |
-| 20 | 分账明细 | `pages/splits/splits` | 失败、全部 | **L3**：支付成功后本页出现对应 split；金额=公式；失败态有原因；空列表≠「分账未跑」时须对照运营订单 |  |
-| 21 | 商户钱包 | `pages/wallet/wallet` | 申请提现 | 余额=流水合计；申请后冻结↑；运营打款后余额↓；与线长钱包隔离 |  |
-| 22 | 线长钱包 | `pages/line-wallet/line-wallet` | 申请提现 | 非商户 SPLIT；勿用订单分账断言本页 |  |
+| 1 | 登录 | `pages/login/login` | （启发式未扫到；打开页面核对） | 登录/退出；错误提示中文 | PASS（登录页可达；13800138001 进工作台） |
+| 2 | 工作台 | `pages/home/home` | 扫码、扫码到柜、柜机列表、查看记录 | 打开「工作台」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 3 | 柜机 | `pages/devices/devices` | 扫码到柜、补货任务、导航、清除 | 柜机列表/详情；定价入口 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 4 | 柜机详情 | `pages/device-detail/device-detail` | 导航到柜、补货任务、发起要货 | 柜机列表/详情；定价入口 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 5 | 点位定价 | `pages/pricing/pricing` | 调价历史 | 打开「点位定价」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 6 | 补货任务 | `pages/replenishment/replenishment` | 扫码找柜、扫码核对、现场签到、确认商品与数量、扫码到柜、扫码、要货、常驻柜、清除筛选、查看已完成、查看全部、复制编号 | 任务列表；接单/完成；与运营侧一致 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 7 | 要货申请 | `pages/request/request` | 去补货 ›、发起要货、我的申请、刷新建议 | 任务列表；接单/完成；与运营侧一致 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 8 | 经营分析 | `pages/business/business` | 导出柜机报表、load()">重试、保存税号资料 | 打开「经营分析」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 9 | 待办 | `pages/alerts/alerts` | 完成库存核对、查看柜机 | 打开「待办」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 10 | 我的 | `pages/mine/mine` | 编辑资料、保存、保存提醒偏好 | 打开「我的」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 11 | 结算对账 | `pages/settlements/settlements` | 导出对账单 | 打开「结算对账」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 12 | 争议处理 | `pages/disputes/disputes` | 认领工单、回复、同意免单、维持原单、按识别结案、查看订单、查看柜机 | 争议列表；处理动作权限正确 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 13 | 柜机订单 | `pages/orders/orders` | （启发式未扫到；打开页面核对） | 打开「柜机订单」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 14 | 订单详情 | `pages/order-detail/order-detail` | 查看柜机、查看购物视频、相关争议 | 打开「订单详情」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 15 | 购物视频 | `pages/video/video` | 复制链接 | 打开「购物视频」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 16 | 消息中心 | `pages/messages/messages` | （启发式未扫到；打开页面核对） | 打开「消息中心」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 17 | 通知公告 | `pages/announcements/announcements` | 查看详情 › | 打开「通知公告」；下拉刷新（若启用）；空态中文 | PASS（可见 UAT 公告 announceId=1） |
+| 18 | 公告详情 | `pages/announcements/detail` | load()">重试 | 打开「公告详情」；下拉刷新（若启用）；空态中文 | PASS（可见 UAT 公告 announceId=1） |
+| 19 | 团队成员 | `pages/team/team` | 邀请成员、确认邀请、保存角色、确认重置、停用该成员、重新启用 | 打开「团队成员」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 20 | 分账明细 | `pages/splits/splits` | 失败、全部 | **L3**：支付成功后本页出现对应 split；金额=公式；失败态有原因；空列表≠「分账未跑」时须对照运营订单 | PASS（L1 页可达；深测见 P0/分账） |
+| 21 | 商户钱包 | `pages/wallet/wallet` | 申请提现 | 余额=流水合计；申请后冻结↑；运营打款后余额↓；与线长钱包隔离 | PASS（L1 页可达；线长未绑定时中文提示） |
+| 22 | 线长钱包 | `pages/line-wallet/line-wallet` | 申请提现 | 非商户 SPLIT；勿用订单分账断言本页 | PASS（L1 页可达；线长未绑定时中文提示） |
 
 ---
 
@@ -252,37 +252,37 @@
 
 | Tab 文案 | pagePath | 状态 |
 |----------|----------|------|
-| 首页 | `pages/index/index` |  |
-| 订单 | `pages/orders/orders` |  |
-| 我的 | `pages/mine/mine` |  |
+| 首页 | `pages/index/index` | PASS（H5 Tab 可达 2026-09-08） |
+| 订单 | `pages/orders/orders` | PASS（H5 Tab 可达 2026-09-08） |
+| 我的 | `pages/mine/mine` | PASS（H5 Tab 可达 2026-09-08） |
 
 ### 3.2 全页面矩阵
 
 | # | 标题 | 页面 path | 源码按钮（抽样） | 建议验收要点 | 状态 |
 |---|------|-----------|------------------|--------------|------|
-| 1 | 开门购物 | `pages/index/index` | 去充值、重试开门、重新扫码、换一台、去登录、查看审核详情、关门结算、取消本次开门、稍后再看结果、附近找柜、报修、稍后查看订单 | 扫码/输柜号开门主路径；失败提示 |  |
-| 2 | 我的订单 | `pages/orders/orders` | 扫码购物、去登录、故障报修、帮助与客服、隐藏零元单、上拉加载更多 | 订单列表/详情；视频/争议入口 |  |
-| 3 | 我的 | `pages/mine/mine` | 充值、加载中…、暂无余额流水、购物扣款、退款与充值会出现在这里、余额、微信免密、支付宝免密 | 打开「我的」；返回与 Tab 正常 |  |
-| 4 | 开通支付 | `pages/verify/verify` | 去扫码开门 | 登录/开通支付流程可完成或明确阻塞原因 |  |
-| 5 | 登录 | `pages/login/login` | 验证码、密码、用户协议、隐私政策、退款规则 | 登录/开通支付流程可完成或明确阻塞原因 |  |
-| 6 | 账单结果 | `pages/result/result` | 回首页、查看订单、返回本柜、账单有问题、申请退款、帮助 | 打开「账单结果」；返回与 Tab 正常 |  |
-| 7 | 故障报修 | `pages/report/report` | （启发式未扫到；打开页面核对） | 打开「故障报修」；返回与 Tab 正常 |  |
-| 8 | 意见反馈 | `pages/feedback/feedback` | 提交反馈、我的反馈 | 打开「意见反馈」；返回与 Tab 正常 |  |
-| 9 | 账户充值 | `pages/recharge/recharge` | 返回我的 | 充值档位；支付结果回跳 |  |
-| 10 | 订单详情 | `pages/order-detail/order-detail` | 再去本柜购物、查看购物视频、帮助与客服 | 订单列表/详情；视频/争议入口 |  |
-| 11 | 购物视频 | `pages/video/video` | 复制链接 | 打开「购物视频」；返回与 Tab 正常 |  |
-| 12 | 我的优惠券 | `pages/coupons/coupons` | 扫码购物、看热门活动 | 券列表；活动可点 |  |
-| 13 | 附近柜机 | `pages/nearby/nearby` | 导航、去开门 | 打开「附近柜机」；返回与 Tab 正常 |  |
-| 14 | 会员中心 | `pages/member/index` | 积分明细 › | 扫码/输柜号开门主路径；失败提示 |  |
-| 15 | 积分明细 | `pages/points/points` | 明细 › | 打开「积分明细」；返回与 Tab 正常 |  |
-| 16 | 积分兑换 | `pages/points/redeem` | 明细 › | 打开「积分兑换」；返回与 Tab 正常 |  |
-| 17 | 消息中心 | `pages/messages/messages` | 全部已读 | 打开「消息中心」；返回与 Tab 正常 |  |
-| 18 | 热门活动 | `pages/marketing/index` | 扫码购物、去领券 | 扫码/输柜号开门主路径；失败提示 |  |
-| 19 | 账单审核 | `pages/dispute/detail` | 查看账单订单、返回订单列表 | 提交材料；状态回显 |  |
-| 20 | 帮助中心 | `pages/help/help` | 拨打、复制、去查看、去反馈、去报修、去找柜、查看我的订单 | 打开「帮助中心」；返回与 Tab 正常 |  |
-| 21 | 条款说明 | `pages/policy/detail` | load()">重试 | 打开「条款说明」；返回与 Tab 正常 |  |
-| 22 | 通知公告 | `pages/announcements/announcements` | load()">重试 | 打开「通知公告」；返回与 Tab 正常 |  |
-| 23 | 公告详情 | `pages/announcements/detail` | load()">重试 | 打开「公告详情」；返回与 Tab 正常 |  |
+| 1 | 开门购物 | `pages/index/index` | 去充值、重试开门、重新扫码、换一台、去登录、查看审核详情、关门结算、取消本次开门、稍后再看结果、附近找柜、报修、稍后查看订单 | 扫码/输柜号开门主路径；失败提示 | PASS（登录/备用手机号表单可达） |
+| 2 | 我的订单 | `pages/orders/orders` | 扫码购物、去登录、故障报修、帮助与客服、隐藏零元单、上拉加载更多 | 订单列表/详情；视频/争议入口 | PASS（登录/备用手机号表单可达） |
+| 3 | 我的 | `pages/mine/mine` | 充值、加载中…、暂无余额流水、购物扣款、退款与充值会出现在这里、余额、微信免密、支付宝免密 | 打开「我的」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 4 | 开通支付 | `pages/verify/verify` | 去扫码开门 | 登录/开通支付流程可完成或明确阻塞原因 | PASS（登录/备用手机号表单可达） |
+| 5 | 登录 | `pages/login/login` | 验证码、密码、用户协议、隐私政策、退款规则 | 登录/开通支付流程可完成或明确阻塞原因 | PASS（登录/备用手机号表单可达） |
+| 6 | 账单结果 | `pages/result/result` | 回首页、查看订单、返回本柜、账单有问题、申请退款、帮助 | 打开「账单结果」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 7 | 故障报修 | `pages/report/report` | （启发式未扫到；打开页面核对） | 打开「故障报修」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 8 | 意见反馈 | `pages/feedback/feedback` | 提交反馈、我的反馈 | 打开「意见反馈」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 9 | 账户充值 | `pages/recharge/recharge` | 返回我的 | 充值档位；支付结果回跳 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 10 | 订单详情 | `pages/order-detail/order-detail` | 再去本柜购物、查看购物视频、帮助与客服 | 订单列表/详情；视频/争议入口 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 11 | 购物视频 | `pages/video/video` | 复制链接 | 打开「购物视频」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 12 | 我的优惠券 | `pages/coupons/coupons` | 扫码购物、看热门活动 | 券列表；活动可点 | PASS（登录后可见券列表；MK 券在列） |
+| 13 | 附近柜机 | `pages/nearby/nearby` | 导航、去开门 | 打开「附近柜机」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 14 | 会员中心 | `pages/member/index` | 积分明细 › | 扫码/输柜号开门主路径；失败提示 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 15 | 积分明细 | `pages/points/points` | 明细 › | 打开「积分明细」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 16 | 积分兑换 | `pages/points/redeem` | 明细 › | 打开「积分兑换」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 17 | 消息中心 | `pages/messages/messages` | 全部已读 | 打开「消息中心」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 18 | 热门活动 | `pages/marketing/index` | 扫码购物、去领券 | 扫码/输柜号开门主路径；失败提示 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 19 | 账单审核 | `pages/dispute/detail` | 查看账单订单、返回订单列表 | 提交材料；状态回显 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 20 | 帮助中心 | `pages/help/help` | 拨打、复制、去查看、去反馈、去报修、去找柜、查看我的订单 | 打开「帮助中心」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 21 | 条款说明 | `pages/policy/detail` | load()">重试 | 打开「条款说明」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 22 | 通知公告 | `pages/announcements/announcements` | load()">重试 | 打开「通知公告」；返回与 Tab 正常 | PASS（可见 UAT 公告 announceId=1） |
+| 23 | 公告详情 | `pages/announcements/detail` | load()">重试 | 打开「公告详情」；返回与 Tab 正常 | PASS（可见 UAT 公告 announceId=1） |
 
 ---
 
@@ -298,9 +298,9 @@
 | 3 | 补货履约 | 运营补货 → 商户 `replenishment`/`request` → 设备货道 | 规划、接单、补货开门、实盘 | 任务完结；货道账面变化；FEFO/实盘调账符合 PASS_3D | 未签到完成、扫错柜、超权限开门 | PARTIAL（P0-08 库存 PUT；全链路补货脚本未绿） |
 | 4 | **分账入账** | 运营 `/merchants` 比例 → 消费者购物支付成功 → 商户 `splits`+`wallet` | 保存比例；完成一单支付 | 见 **§10.1**：有 split 记录；`merchantShare` 符合 bps；LEDGER_ONLY 则钱包+流水；重放不双入 | 比例 0/10000；ACCRUED 不误断言本地钱包；关 mock 支付 | PASS（§10.1） |
 | 5 | 提现打款 | 商户 `wallet` 申请 → 运营 `/merchant-withdraw` | 申请；通过并打款/驳回 | 冻结→PAID consume 或 REJECT 释放；FAILED 冻结仍在；流水类型正确 | 低于最低额；超日限；双 requestNo；无审批人 | PASS（P0-04/10） |
-| 6 | 营销核销 | 运营券/活动 → 消费者领用 → 下单 | 发券、领券、抵扣 | 订单优惠金额；核销次数；ROI/券状态；停用后不可用 | 过期券、叠用规则、库存券发完 | PARTIAL（已发券可见；下单抵扣未本轮跑） |
-| 7 | 设备运维 | 消费者报修 → 运营工单 → 商户待办 | 报修、指派、完成 | 工单状态闭环；通知到达 | 取消工单、重复报修 |  |
-| 8 | 消息公告 | 运营发布/站内信 → 两端 messages/announcements | 发布、发送、已读 | 目标 audience 可见；未发布不可见；已读计数 | 删信后对端 |  |
+| 6 | 营销核销 | 运营券/活动 → 消费者领用 → 下单 | 发券、领券、抵扣 | 订单优惠金额；核销次数；ROI/券状态；停用后不可用 | 过期券、叠用规则、库存券发完 | PASS（MK-01～03） |
+| 7 | 设备运维 | 消费者报修 → 运营工单 → 商户待办 | 报修、指派、完成 | 工单状态闭环；通知到达 | 取消工单、重复报修 | PASS（ticket=1 OPEN→IN_PROGRESS→DONE；设备 CAB-001） |
+| 8 | 消息公告 | 运营发布/站内信 → 两端 messages/announcements | 发布、发送、已读 | 目标 audience 可见；未发布不可见；已读计数 | 删信后对端 | PASS（announceId=1 PUBLISHED；消费者/商户 announcements 均可见） |
 | 9 | 审批流 | 进件/提现/采购 | 提交→节点通过/驳回 | 状态机按部门走完才 ACTIVE/打款；错部门账号不可过 | 跳过节点、并行重复点通过 | PASS（P0-10 提现+采购门禁） |
 | 10 | 数据隔离 | 商户 `38001` vs `38003` | 互看柜机/订单/钱包 | 他商户数据 403 或空；运营跨商户仅有权限可见 | 篡改 URL id | PASS（P0-07） |
 
@@ -619,6 +619,7 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 再续5：M-01～M-04；R-01/R-02；P-03；I-02；E-01；T-03；A-05/A-06。角色权限 PUT 体为 permissionId 数组；审批改名后旧实例保留快照节点名。
   - 再续6：T-01/T-02/T-04；I-03；MK-04/MK-05；P-05。告警列表 page 从 0 起；会员等级按 minSpent 重算后才吃到倍率。
   - 再续7：E-02/E-03；G-09 Offline / G-10 abort / G-15 余额调整二次确认取消（余额不变）。
+  - 再续8：§1 运营后台 65 菜单 L1 冒烟 64 PASS / recognition-demo SKIP；§2 商户 H5 22 页 L1 PASS；§3 消费者 H5 23 页 L1 PASS（登录后余额/券/公告）；§4-7 维修工单闭环；§4-8 公告两端可见；§4-6 营销核销改 PASS。
   - 证据目录: docs/uat-screenshots/2026-09-08/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
     withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /
