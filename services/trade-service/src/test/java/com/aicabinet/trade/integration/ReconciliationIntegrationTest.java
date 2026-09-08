@@ -66,7 +66,8 @@ class ReconciliationIntegrationTest {
 
     @Test
     void mockReconciliation_matchesInsertedOrder() {
-        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        // 与 ReconciliationService / MockPlatformBillProvider 日界一致（勿用系统默认时区）
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
         Instant now = Instant.now();
         ShoppingSession session = new ShoppingSession();
         session.setSessionId("IT-SES-1");
@@ -83,6 +84,8 @@ class ReconciliationIntegrationTest {
         order.setDeviceId("CAB-001");
         order.setTotalAmountCents(350);
         order.setStatus("PAID");
+        // mock 通道账单只纳入网关支付渠道订单；缺省 null 会被排除 → MISMATCH
+        order.setPayChannel("MOCK");
         order.setCreatedAt(now);
         orderRepository.save(order);
 

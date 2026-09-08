@@ -57,7 +57,7 @@ class ReplenishmentServiceOutboundTest {
         replenishmentService = new ReplenishmentService(
                 null, routeRepository, taskRepository, taskLineRepository, null, null, null, pullOffTaskRepository,
                 new ObjectMapper(), warehouseService, null, deviceSlotService, inTransitService,
-                sessionService, null, null, notificationService, distributedLockService, null);
+                sessionService, null, null, notificationService, distributedLockService, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(replenishmentService, "self", replenishmentService);
         lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }

@@ -51,7 +51,7 @@ public final class ApiMessages {
     public static final String REPLENISHMENT_TASK_ASSIGNEE = "仅任务负责人可执行此补货操作";
     public static final String REPLENISHMENT_CHECK_IN_REQUIRED = "请先到店签到后再补货开门";
     public static final String REPLENISHMENT_COMPLETE_CHECK_IN_REQUIRED = "请先到店签到后再完成补货上架";
-    /** 商户端完成任务前须至少上传一张现场凭证 */
+    /** 商户端完成任务前须至少上传一张现场凭证（可由系统参数关闭） */
     public static final String REPLENISHMENT_COMPLETE_EVIDENCE_REQUIRED = "请先上传现场凭证照片后再完成补货";
     /** 商户端完成任务前须通过本任务下发过补货开门 */
     public static final String REPLENISHMENT_COMPLETE_DOOR_REQUIRED = "请先补货开门后再完成上架";
@@ -71,9 +71,10 @@ public final class ApiMessages {
     public static final String WAREHOUSE_OUTBOUND_CANCEL_BLOCKED =
             "出库单已有签收/部分签收记录，不能整单作废回仓";
     public static final String REPLENISHMENT_WAREHOUSE_STOCK_INSUFFICIENT = "仓库可用库存不足，未生成出库明细";
+    /** %1$d=实际距离米；%2$d=系统允许上限米（replenishment.check_in.max_distance_m） */
     public static final String REPLENISHMENT_CHECK_IN_TOO_FAR =
-            "签到位置距柜机约 %d 米，超出 500 米范围，请到柜前再签到";
-    /** 柜机已配置坐标时，签到请求必须带经纬度，禁止空 body 绕过距离校验 */
+            "签到位置距柜机约 %d 米，超出 %d 米范围，请到柜前再签到";
+    /** 柜机已配置坐标且 require_location=true 时，签到必须带经纬度 */
     public static final String REPLENISHMENT_CHECK_IN_LOCATION_REQUIRED =
             "请开启定位后到柜前签到（本柜已配置坐标，不可跳过定位）";
     public static final String REPLENISHMENT_SLOT_CAPACITY =
@@ -302,8 +303,8 @@ public final class ApiMessages {
         }
         if (lower.startsWith("check-in too far from device")) {
             var m = Pattern.compile("(\\d{1,6})\\s{0,4}m").matcher(lower);
-            return String.format(REPLENISHMENT_CHECK_IN_TOO_FAR,
-                    m.find() ? Integer.parseInt(m.group(1)) : 500);
+            int distM = m.find() ? Integer.parseInt(m.group(1)) : 500;
+            return String.format(REPLENISHMENT_CHECK_IN_TOO_FAR, distM, 500);
         }
         if (lower.startsWith("permission denied:")) {
             return PERMISSION_DENIED;

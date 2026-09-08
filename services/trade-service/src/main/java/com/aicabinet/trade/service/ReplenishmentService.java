@@ -120,6 +120,7 @@ public class ReplenishmentService {
     private final MerchantReplenishmentRequestLineMapper merchantRequestLineRepository;
     private final NotificationService notificationService;
     private final DistributedLockService distributedLockService;
+    private final SystemConfigService systemConfigService;
 
 
 
@@ -149,7 +150,9 @@ public class ReplenishmentService {
                                 MerchantReplenishmentRequestMapper merchantRequestRepository,
                                 MerchantReplenishmentRequestLineMapper merchantRequestLineRepository,
                                 NotificationService notificationService,
-                                DistributedLockService distributedLockService, @Lazy ReplenishmentService self) {
+                                DistributedLockService distributedLockService,
+                                SystemConfigService systemConfigService,
+                                @Lazy ReplenishmentService self) {
 
         this.inventoryRepository = inventoryRepository;
 
@@ -178,6 +181,7 @@ public class ReplenishmentService {
         this.merchantRequestLineRepository = merchantRequestLineRepository;
         this.notificationService = notificationService;
         this.distributedLockService = distributedLockService;
+        this.systemConfigService = systemConfigService;
 
         this.self = self;
     }
@@ -579,11 +583,17 @@ public class ReplenishmentService {
                 && request.latitude() != null
                 && request.longitude() != null;
         if (deviceHasCoords && !requestHasCoords) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    ApiMessages.REPLENISHMENT_CHECK_IN_LOCATION_REQUIRED);
+            boolean requireLocation = systemConfigService.getBoolean(
+                    SystemConfigService.REPLENISHMENT_CHECK_IN_REQUIRE_LOCATION, true);
+            if (requireLocation) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        ApiMessages.REPLENISHMENT_CHECK_IN_LOCATION_REQUIRED);
+            }
         }
         if (requestHasCoords) {
-            validateCheckInLocation(device, request.latitude(), request.longitude());
+            int maxDistanceM = systemConfigService.getInt(
+                    SystemConfigService.REPLENISHMENT_CHECK_IN_MAX_DISTANCE_M, 500);
+            validateCheckInLocation(device, request.latitude(), request.longitude(), maxDistanceM);
             task.setCheckInLat(request.latitude());
             task.setCheckInLng(request.longitude());
         }
@@ -611,14 +621,18 @@ public class ReplenishmentService {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.REPLENISHMENT_CHECK_IN_NO_LINES);
     }
 
-    private void validateCheckInLocation(DeviceInfo device, double lat, double lng) {
+    private void validateCheckInLocation(DeviceInfo device, double lat, double lng, int maxDistanceM) {
         if (device.getLatitude() == null || device.getLongitude() == null) {
             return;
         }
+        if (maxDistanceM <= 0) {
+            return;
+        }
         double distM = haversineMeters(device.getLatitude(), device.getLongitude(), lat, lng);
-        if (distM > 500) {
+        if (distM > maxDistanceM) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    String.format(ApiMessages.REPLENISHMENT_CHECK_IN_TOO_FAR, Math.round(distM)));
+                    String.format(ApiMessages.REPLENISHMENT_CHECK_IN_TOO_FAR,
+                            Math.round(distM), maxDistanceM));
         }
     }
 
