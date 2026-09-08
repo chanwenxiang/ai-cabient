@@ -456,7 +456,7 @@
 | S-05 | 幂等 | 触发重复 recordSplit（或重放结算） | 钱包不双入 | 余额翻倍 | PASS（UK + doRecordSplit 短路） |
 | S-06 | 全额退 | 争议 WAIVE/全额退 | split VOIDED；钱包 reverse；余额回退 | 订单退了钱包不减 | PASS（order `…0182` REFUNDED；split VOIDED；`SPLIT_REVERSE` -180） |
 | S-07 | 部分退 | 改单减额 | `SPLIT_PARTIAL_REV`；份额更新 | 只改订单不分账 | PASS（`e2e-partial-refund-line`；`SPLIT_PARTIAL_REVERSE` -180；库存 6→4→5） |
-| S-08 | ACCRUED 路径 | 有微信接收方时 | 文档化：本地可能不入账；**勿**用钱包余额当微信分账对账 | 误报「分账坏了」或误报「好了」 | SKIP（本轮无 wechat_receiver；均为 LEDGER_ONLY） |
+| S-08 | ACCRUED 路径 | 有微信接收方时 | 文档化：本地可能不入账；**勿**用钱包余额当微信分账对账 | 误报「分账坏了」或误报「好了」 | PASS（设 `wechat_receiver_id=1900000109`；order=`1788856474057503504` split=`…0713583` **ACCRUED** 360；钱包仍 80900 无 SPLIT_CREDIT；已清 receiver） |
 | S-09 | 提现联动 | 入账后申请提现→运营打款 | 冻结/consume 链路完整 | 申请成功但余额逻辑错 | PASS（wd1 PAID；wd3 PENDING 冻结 50000） |
 
 ### 10.2 交易 / 支付 / 开门
@@ -610,7 +610,7 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 商户账号须 account_type=OPERATOR 才能走 admin-password-login。
   - e2e-replenishment：曾卡在 IN_TRANSIT 抵消缺口 + 签到须坐标 + 完成须凭证；已 cancel-unreceived 清理并修好脚本；§4-3/P0-08 全链路 PASS（task=2）。
   - 角色回归脚本 role-regression-uat.mjs 缺 playwright 包未跑；P0-06/§8 改 Playwright MCP 实操（005+002）。
-  - 续测：§8 财务 002 争议 forbidden / 提现可达；§10.1 S-01～S-09（S-08 SKIP）；§4 主链路当时 1/2/4/5/9/10 PASS、3 PARTIAL（再续9 已补绿）。
+  - 续测：§8 财务 002 争议 forbidden / 提现可达；§10.1 S-01～S-09（当时 S-08 SKIP，再续10 已 PASS）；§4 主链路当时 1/2/4/5/9/10 PASS、3 PARTIAL（再续9 已补绿）。
   - 部分退：`e2e-partial-refund-line.ps1` order=`1788833639119970182` VOIDED + PARTIAL_REVERSE。
   - 再续：§9 D-01～D-04 PASS；C-03/T-05 PASS；§8 003/004 API+003 UI 提现 forbidden；pack_biz 关→钱包/订单/分账 403；MK-01 发券 couponId=1。
   - 再续2：MK-02 抵扣 PASS；pack_field/pack_team PASS；A-01 强制 ACTIVE 拦截；§7 G-01～G-08 抽样 PASS；管理后台 403/404 错误页铺满居中布局修复。
@@ -621,13 +621,15 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 再续7：E-02/E-03；G-09 Offline / G-10 abort / G-15 余额调整二次确认取消（余额不变）。
   - 再续8：§1 运营后台 65 菜单 L1 冒烟 64 PASS / recognition-demo SKIP；§2 商户 H5 22 页 L1 PASS；§3 消费者 H5 23 页 L1 PASS（登录后余额/券/公告）；§4-7 维修工单闭环；§4-8 公告两端可见；§4-6 营销核销改 PASS。
   - 再续9：§4-3 补货履约 PASS（清理卡住 IN_TRANSIT 后 task=2 全链路；根因=在途抵消缺口；脚本补签到坐标+现场凭证）；商户 H5 已完成可见任务#2。
+  - 再续10：S-08 ACCRUED PASS（有 wechat_receiver 时本地钱包不入账）；矩阵本轮收口：PASS≈219 + recognition-demo SKIP×2；无 PARTIAL/FAIL。
   - 证据目录: docs/uat-screenshots/2026-09-08/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
     withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /
     refund-order 1788833639119970182 / split 1788833639197767270 / couponDef=1 couponId=1 /
     MK-02 order 1788837712840185959 / onboard=1 approval_instance=3 /
     balance-refund 1 REFUNDED + 2 REJECTED / writeOff=1 FEFO /
-    G-11 refund=3 / I-01 order 1788847793616100194 / couponDef=2 INACTIVE
+    G-11 refund=3 / I-01 order 1788847793616100194 / couponDef=2 INACTIVE /
+    S-08 order 1788856474057503504 split 1788856474140713583 ACCRUED
 ```
 
 截图目录建议：`docs/uat-screenshots/YYYY-MM-DD/`（历史大图可放 `docs/archive/uat-screenshots/`）。
