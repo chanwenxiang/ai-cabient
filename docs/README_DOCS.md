@@ -22,8 +22,9 @@
 | [MODULES.md](MODULES.md) | 模块路径与职责 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 架构边界与识别策略 |
 | [DEMO_ACCOUNTS.md](DEMO_ACCOUNTS.md) | 演示账号矩阵 |
-| [BROWSER_MIN_UAT.md](BROWSER_MIN_UAT.md) | 最小浏览器 UAT |
-| [BROWSER_FULL_UAT_PLAN.md](BROWSER_FULL_UAT_PLAN.md) | 全量 UAT 计划 |
+| [BUSINESS_FULL_TEST_MATRIX.md](BUSINESS_FULL_TEST_MATRIX.md) | **全业务测试矩阵 v1.2**：页面+L3 挂钩+权限/字典/边界；含 **P0 子集/证据/环境/H5≠小程序/自动化对照** |
+| [BROWSER_MIN_UAT.md](BROWSER_MIN_UAT.md) | 最小浏览器 UAT（抽样） |
+| [BROWSER_FULL_UAT_PLAN.md](BROWSER_FULL_UAT_PLAN.md) | 全量 UAT 计划（抽样场景编排） |
 | [PRODUCTION.md](PRODUCTION.md) | 生产部署 |
 | [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md) | 端侧识别对接（替代已删除的云端 YOLO 文档） |
 | [DEVOPS.md](DEVOPS.md) | 监控 / Sonar / Runner |
@@ -53,9 +54,9 @@
 
 | 角色 | 推荐阅读 |
 |------|----------|
-| 开发 / 测试 | CODEBASE_FOUNDATION → STARTUP_REFERENCE → BROWSER_MIN_UAT |
+| 开发 / 测试 | CODEBASE_FOUNDATION → STARTUP_REFERENCE → BUSINESS_FULL_TEST_MATRIX → BROWSER_MIN_UAT |
 | 后端 | CODEBASE_FOUNDATION §3–§5 → ARCHITECTURE → VISION_QUECTEL |
-| 前端 | CODEBASE_FOUNDATION §6 → BROWSER_* → MODULES |
+| 前端 | CODEBASE_FOUNDATION §6 → BUSINESS_FULL_TEST_MATRIX → BROWSER_* → MODULES |
 | 运维 | PRODUCTION → DEVOPS → production-launch-checklist |
 | 项目经理 | GO_LIVE（勘误后）→ CODE_FIX_CHECKLIST |
 
@@ -75,4 +76,4 @@
 
 ---
 
-**索引更新日期**: 2026-09-07
+**索引更新日期**: 2026-09-08
