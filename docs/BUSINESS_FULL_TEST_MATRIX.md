@@ -293,16 +293,16 @@
 
 | # | 链路 | 关键节点 | 关键动作 | **L3 业务挂钩（必查）** | 边界/异常 | 状态 |
 |---|------|----------|----------|-------------------------|------------|------|
-| 1 | 扫码开门→结算 | 消费者 `index` → 柜机 → `result`/`orders` | 扫码/柜号、开门、关门结算 | 会话状态机推进；订单生成；金额可读；可进视频；MQTT/mock 门事件一致 | 未登录/未开通支付/柜离线/门超时/连点开门 |  |
-| 2 | 争议闭环 | 消费者争议 → 运营 `/disputes` `/exceptions` → 商户 `disputes` | 提交；调整/免单/结案 | 退款到账或免单；库存回库策略符合；**分账 void/adjust**；三端状态一致；二次结案幂等 | 无权限结案；重复提交；部分退与全额退 |  |
-| 3 | 补货履约 | 运营补货 → 商户 `replenishment`/`request` → 设备货道 | 规划、接单、补货开门、实盘 | 任务完结；货道账面变化；FEFO/实盘调账符合 PASS_3D | 未签到完成、扫错柜、超权限开门 |  |
-| 4 | **分账入账** | 运营 `/merchants` 比例 → 消费者购物支付成功 → 商户 `splits`+`wallet` | 保存比例；完成一单支付 | 见 **§10.1**：有 split 记录；`merchantShare` 符合 bps；LEDGER_ONLY 则钱包+流水；重放不双入 | 比例 0/10000；ACCRUED 不误断言本地钱包；关 mock 支付 |  |
-| 5 | 提现打款 | 商户 `wallet` 申请 → 运营 `/merchant-withdraw` | 申请；通过并打款/驳回 | 冻结→PAID consume 或 REJECT 释放；FAILED 冻结仍在；流水类型正确 | 低于最低额；超日限；双 requestNo；无审批人 |  |
+| 1 | 扫码开门→结算 | 消费者 `index` → 柜机 → `result`/`orders` | 扫码/柜号、开门、关门结算 | 会话状态机推进；订单生成；金额可读；可进视频；MQTT/mock 门事件一致 | 未登录/未开通支付/柜离线/门超时/连点开门 | PASS（P0-01） |
+| 2 | 争议闭环 | 消费者争议 → 运营 `/disputes` `/exceptions` → 商户 `disputes` | 提交；调整/免单/结案 | 退款到账或免单；库存回库策略符合；**分账 void/adjust**；三端状态一致；二次结案幂等 | 无权限结案；重复提交；部分退与全额退 | PASS（P0-05 + S-06/07） |
+| 3 | 补货履约 | 运营补货 → 商户 `replenishment`/`request` → 设备货道 | 规划、接单、补货开门、实盘 | 任务完结；货道账面变化；FEFO/实盘调账符合 PASS_3D | 未签到完成、扫错柜、超权限开门 | PARTIAL（P0-08 库存 PUT；全链路补货脚本未绿） |
+| 4 | **分账入账** | 运营 `/merchants` 比例 → 消费者购物支付成功 → 商户 `splits`+`wallet` | 保存比例；完成一单支付 | 见 **§10.1**：有 split 记录；`merchantShare` 符合 bps；LEDGER_ONLY 则钱包+流水；重放不双入 | 比例 0/10000；ACCRUED 不误断言本地钱包；关 mock 支付 | PASS（§10.1） |
+| 5 | 提现打款 | 商户 `wallet` 申请 → 运营 `/merchant-withdraw` | 申请；通过并打款/驳回 | 冻结→PAID consume 或 REJECT 释放；FAILED 冻结仍在；流水类型正确 | 低于最低额；超日限；双 requestNo；无审批人 | PASS（P0-04/10） |
 | 6 | 营销核销 | 运营券/活动 → 消费者领用 → 下单 | 发券、领券、抵扣 | 订单优惠金额；核销次数；ROI/券状态；停用后不可用 | 过期券、叠用规则、库存券发完 |  |
 | 7 | 设备运维 | 消费者报修 → 运营工单 → 商户待办 | 报修、指派、完成 | 工单状态闭环；通知到达 | 取消工单、重复报修 |  |
 | 8 | 消息公告 | 运营发布/站内信 → 两端 messages/announcements | 发布、发送、已读 | 目标 audience 可见；未发布不可见；已读计数 | 删信后对端 |  |
-| 9 | 审批流 | 进件/提现/采购 | 提交→节点通过/驳回 | 状态机按部门走完才 ACTIVE/打款；错部门账号不可过 | 跳过节点、并行重复点通过 |  |
-| 10 | 数据隔离 | 商户 `38001` vs `38003` | 互看柜机/订单/钱包 | 他商户数据 403 或空；运营跨商户仅有权限可见 | 篡改 URL id |  |
+| 9 | 审批流 | 进件/提现/采购 | 提交→节点通过/驳回 | 状态机按部门走完才 ACTIVE/打款；错部门账号不可过 | 跳过节点、并行重复点通过 | PASS（P0-10 提现+采购门禁） |
+| 10 | 数据隔离 | 商户 `38001` vs `38003` | 互看柜机/订单/钱包 | 他商户数据 403 或空；运营跨商户仅有权限可见 | 篡改 URL id | PASS（P0-07） |
 
 专项深读：金钱 [`PASS_3A`](pass-notes/PASS_3A_MONEY.md) · 争议 [`PASS_3B`](pass-notes/PASS_3B_DISPUTE.md) · MQTT [`PASS_3C`](pass-notes/PASS_3C_MQTT.md) · 库存 [`PASS_3D`](pass-notes/PASS_3D_INVENTORY.md) · 钱包分账 [`PASS_3E`](pass-notes/PASS_3E_MERCHANT_WALLET.md)。
 
@@ -360,11 +360,11 @@
 
 | 检查项 | 超管 001 | 财务 002 | 运营 003 | 补货员 004 | 只读 005 | 状态 |
 |--------|----------|----------|----------|------------|----------|------|
-| 登录后默认落地页合理 | ✓ | 财务相关 | 运营相关 | 补货/仓 | 工作台或首个可读 |  |
-| 侧栏仅显示有 `perm` 的项 | ✓ | 无设备写等高危（按种子） | 按种子 | 按种子 | 几乎只读 |  |
-| 直链无权限 path → `/forbidden` | — | 测 1～2 个写页 | 测财务写页 | 测提现打款 | 测任意 edit |  |
-| 写按钮 `v-hasPermi` 隐藏 | — | — | — | — | **无**新建/通过/打款 |  |
-| 数据范围（柜机/商户） | 全局 | 全局财务 | 按配置 | 绑商户范围 | 只读全局或按配置 |  |
+| 登录后默认落地页合理 | ✓ | 财务相关 | 运营相关 | 补货/仓 | 工作台或首个可读 | PASS（001/002/005 已测） |
+| 侧栏仅显示有 `perm` 的项 | ✓ | 无设备写等高危（按种子） | 按种子 | 按种子 | 几乎只读 | PASS（002/005 抽样） |
+| 直链无权限 path → `/forbidden` | — | 测 1～2 个写页 | 测财务写页 | 测提现打款 | 测任意 edit | PASS（002→`/disputes` forbidden；005→`/merchant-withdraw` forbidden） |
+| 写按钮 `v-hasPermi` 隐藏 | — | — | — | — | **无**新建/通过/打款 | PASS（005 争议页无结案） |
+| 数据范围（柜机/商户） | 全局 | 全局财务 | 按配置 | 绑商户范围 | 只读全局或按配置 | PARTIAL（001/002/005；003/004 未本轮 UI） |
 
 脚本参考：`clients/admin-vue/tests/role-regression-uat.mjs`。
 
@@ -378,7 +378,7 @@
 | 关 `pack_biz` | 同上 | 结算/钱包/分账/订单等 biz 入口不可用 |  |
 | 关 `pack_team` | 同上 | 团队入口不可用 |  |
 | 店员 `38002` | 进设置/邀请 | 只读或 403 |  |
-| 他商户 `38003` | 打开默认商户订单 URL | 403/空；不见 MCH-DEFAULT |  |
+| 他商户 `38003` | 打开默认商户订单 URL | 403/空；不见 MCH-DEFAULT | PASS（订单 total=0；钱包 MCH-OTHER） |
 | 财务 `38004` | 设备写操作 | 拒绝；结算可读 |  |
 | 补货员 `38007` | 提现/团队 | 不可；补货可 |  |
 | 运营号登商户门户 | — | 403（DEMO_ACCOUNTS 约定） |  |
@@ -423,7 +423,7 @@
 |----|------|------|------|------|
 | A-01 | 进件 `MERCHANT_ONBOARD` | 提交→总部通过→财务通过 | 才 ACTIVE；中途不可手工 ACTIVE |  |
 | A-02 | 进件 | 财务账号越权审总部节点 | 403 或无待办 |  |
-| A-03 | 提现 `MERCHANT_WITHDRAW` | 超阈值：经理→财务 | 节点未过不能打款 |  |
+| A-03 | 提现 `MERCHANT_WITHDRAW` | 超阈值：经理→财务 | 节点未过不能打款 | PASS（wd3 PENDING_REVIEW；payout 409；instance=1） |
 | A-04 | 余额退款 | 经理→财务 | 通过后才退；驳回不退 |  |
 | A-05 | 改审批流后新单 | 走新节点；旧单仍按实例 |  |  |
 | A-06 | 部门撤成员 | 待办不再派给该人 |  |  |
@@ -449,24 +449,24 @@
 
 | ID | 场景 | 步骤 | **必须核对** | 失败判定（假通过） | 状态 |
 |----|------|------|--------------|-------------------|------|
-| S-01 | 配置生效 | `/merchants` 设 `platformRateBps` 保存 | 配置回显 | 只 Toast 成功 |  |
-| S-02 | 支付后入账 | 消费者完成一单 PAID | 存在 split；`merchantShare=gross-platform`；状态多为 `LEDGER_ONLY` | **仅**分账列表空、或金额不对 |  |
-| S-03 | 钱包挂钩 | 打开商户 `wallet` | 余额增加≈ merchantShare；流水 `SPLIT`/splitId | 有 splits 页但钱包不变 |  |
-| S-04 | 商户端明细 | `splits` 筛选该 order | 状态/金额与运营一致 | 两端不一致 |  |
-| S-05 | 幂等 | 触发重复 recordSplit（或重放结算） | 钱包不双入 | 余额翻倍 |  |
-| S-06 | 全额退 | 争议 WAIVE/全额退 | split VOIDED；钱包 reverse；余额回退 | 订单退了钱包不减 |  |
-| S-07 | 部分退 | 改单减额 | `SPLIT_PARTIAL_REV`；份额更新 | 只改订单不分账 |  |
-| S-08 | ACCRUED 路径 | 有微信接收方时 | 文档化：本地可能不入账；**勿**用钱包余额当微信分账对账 | 误报「分账坏了」或误报「好了」 |  |
-| S-09 | 提现联动 | 入账后申请提现→运营打款 | 冻结/consume 链路完整 | 申请成功但余额逻辑错 |  |
+| S-01 | 配置生效 | `/merchants` 设 `platformRateBps` 保存 | 配置回显 | 只 Toast 成功 | PASS（POST upsert 1000→1500→回读 1500→恢复 1000） |
+| S-02 | 支付后入账 | 消费者完成一单 PAID | 存在 split；`merchantShare=gross-platform`；状态多为 `LEDGER_ONLY` | **仅**分账列表空、或金额不对 | PASS（order `…9794` split `…1232` 350/35/315） |
+| S-03 | 钱包挂钩 | 打开商户 `wallet` | 余额增加≈ merchantShare；流水 `SPLIT`/splitId | 有 splits 页但钱包不变 | PASS（`SPLIT_CREDIT` +315；商户 wallet API） |
+| S-04 | 商户端明细 | `splits` 筛选该 order | 状态/金额与运营一致 | 两端不一致 | PASS（`GET /merchant/revenue-splits` 含 order `…9333` LEDGER_ONLY 315） |
+| S-05 | 幂等 | 触发重复 recordSplit（或重放结算） | 钱包不双入 | 余额翻倍 | PASS（UK + doRecordSplit 短路） |
+| S-06 | 全额退 | 争议 WAIVE/全额退 | split VOIDED；钱包 reverse；余额回退 | 订单退了钱包不减 | PASS（order `…0182` REFUNDED；split VOIDED；`SPLIT_REVERSE` -180） |
+| S-07 | 部分退 | 改单减额 | `SPLIT_PARTIAL_REV`；份额更新 | 只改订单不分账 | PASS（`e2e-partial-refund-line`；`SPLIT_PARTIAL_REVERSE` -180；库存 6→4→5） |
+| S-08 | ACCRUED 路径 | 有微信接收方时 | 文档化：本地可能不入账；**勿**用钱包余额当微信分账对账 | 误报「分账坏了」或误报「好了」 | SKIP（本轮无 wechat_receiver；均为 LEDGER_ONLY） |
+| S-09 | 提现联动 | 入账后申请提现→运营打款 | 冻结/consume 链路完整 | 申请成功但余额逻辑错 | PASS（wd1 PAID；wd3 PENDING 冻结 50000） |
 
 ### 10.2 交易 / 支付 / 开门
 
 | ID | 场景 | L3 核对 | 状态 |
 |----|------|---------|------|
-| P-01 | 余额支付成功 | 消费者余额↓；订单 PAID；分账触发（S-02） |  |
+| P-01 | 余额支付成功 | 消费者余额↓；订单 PAID；分账触发（S-02） | PASS（P0-01/02） |
 | P-02 | 余额不足 | 不开门或明确阻断；无幽灵会话 |  |
 | P-03 | 支付回调重放 | 不双扣 |  |
-| P-04 | 开门指令 | 设备侧/mock 收到；会话 OPENING→SHOPPING |  |
+| P-04 | 开门指令 | 设备侧/mock 收到；会话 OPENING→SHOPPING | PASS（MQTT e2e） |
 | P-05 | 门未关超时 | 有兜底/告警；主流程不裸崩 |  |
 
 ### 10.3 库存 / 补货 / 仓库
@@ -609,10 +609,13 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 开测前 DB 缺 DEMO_ACCOUNTS 多角色/商户（仅超管+补货员+消费者）；已按 Flyway 同 hash 补种 002/003/005/38001/38003 + MCH-DEFAULT/MCH-OTHER，消费者补 password。
   - 商户账号须 account_type=OPERATOR 才能走 admin-password-login。
   - e2e-replenishment 全链路未绿（suggest 无 slot 缺口；曾因柜坐标强制签到失败）；P0-08 以库存 PUT L3 计。
-  - 角色回归脚本 role-regression-uat.mjs 缺 playwright 包未跑；P0-06 改 Playwright MCP 实操。
+  - 角色回归脚本 role-regression-uat.mjs 缺 playwright 包未跑；P0-06/§8 改 Playwright MCP 实操（005+002）。
+  - 续测：§8 财务 002 争议 forbidden / 提现可达；§10.1 S-01～S-09（S-08 SKIP）；§4 主链路 1/2/4/5/9/10 PASS，3 PARTIAL。
+  - 部分退：`e2e-partial-refund-line.ps1` order=`1788833639119970182` VOIDED + PARTIAL_REVERSE。
   - 证据目录: docs/uat-screenshots/2026-09-08/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
-    withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1
+    withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /
+    refund-order 1788833639119970182 / split 1788833639197767270
 ```
 
 截图目录建议：`docs/uat-screenshots/YYYY-MM-DD/`（历史大图可放 `docs/archive/uat-screenshots/`）。
