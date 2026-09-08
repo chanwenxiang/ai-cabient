@@ -162,7 +162,7 @@
 | 1 | 手机验证 | `/phone-verify` | `ops:phone-verify:list` | `users/PhoneVerifyView.vue` | 登记验证、编辑、删除、保存 | 打开「手机验证」；列表或表单可用；关键写操作有中文反馈 |  |
 | 2 | 风控 | `/risk` | `ops:risk:list` | `risk/RiskView.vue` | 加入黑名单、确认 | **L3**：拉黑后该用户开门/支付被拒；解黑恢复；审计可查 |  |
 | 3 | 营销活动 | `/promotions` | `ops:promotion:list` | `promotions/PromotionsView.vue` | 导入模板、导入、批量停用、新建活动、刷新、保存 | 新建/保存/启停后列表刷新 |  |
-| 4 | 优惠券 | `/coupons` | `ops:coupon:list` | `promotions/CouponsView.vue` | 导入模板、导入、批量停用、新建优惠券、手动发券、批量发券、保存、发放、批量发放 | **L3**：发券后消费者可见；下单抵扣；停用后不可用；超发被拒 |  |
+| 4 | 优惠券 | `/coupons` | `ops:coupon:list` | `promotions/CouponsView.vue` | 导入模板、导入、批量停用、新建优惠券、手动发券、批量发券、保存、发放、批量发放 | **L3**：发券后消费者可见；下单抵扣；停用后不可用；超发被拒 | PASS（发券可见；抵扣未测） |
 | 5 | 素材库 | `/ad-assets` | `ops:ad:list` | `growth/AdAssetsView.vue` | 批量停用、批量删除、上传素材、上传、保存 | 新建/保存/启停后列表刷新 |  |
 | 6 | 投放计划 | `/ad-campaigns` | `ops:ad:campaign:list` | `growth/AdCampaignsView.vue` | 批量停止、新建投放、保存 | 新建/保存/启停后列表刷新 |  |
 | 7 | 积分兑换管理 | `/points-redeem` | `ops:points:list` | `growth/PointsRedeemView.vue` | 批量上架、批量下架、新建兑换项、刷新、保存 | 新建/保存/启停后列表刷新 |  |
@@ -298,7 +298,7 @@
 | 3 | 补货履约 | 运营补货 → 商户 `replenishment`/`request` → 设备货道 | 规划、接单、补货开门、实盘 | 任务完结；货道账面变化；FEFO/实盘调账符合 PASS_3D | 未签到完成、扫错柜、超权限开门 | PARTIAL（P0-08 库存 PUT；全链路补货脚本未绿） |
 | 4 | **分账入账** | 运营 `/merchants` 比例 → 消费者购物支付成功 → 商户 `splits`+`wallet` | 保存比例；完成一单支付 | 见 **§10.1**：有 split 记录；`merchantShare` 符合 bps；LEDGER_ONLY 则钱包+流水；重放不双入 | 比例 0/10000；ACCRUED 不误断言本地钱包；关 mock 支付 | PASS（§10.1） |
 | 5 | 提现打款 | 商户 `wallet` 申请 → 运营 `/merchant-withdraw` | 申请；通过并打款/驳回 | 冻结→PAID consume 或 REJECT 释放；FAILED 冻结仍在；流水类型正确 | 低于最低额；超日限；双 requestNo；无审批人 | PASS（P0-04/10） |
-| 6 | 营销核销 | 运营券/活动 → 消费者领用 → 下单 | 发券、领券、抵扣 | 订单优惠金额；核销次数；ROI/券状态；停用后不可用 | 过期券、叠用规则、库存券发完 |  |
+| 6 | 营销核销 | 运营券/活动 → 消费者领用 → 下单 | 发券、领券、抵扣 | 订单优惠金额；核销次数；ROI/券状态；停用后不可用 | 过期券、叠用规则、库存券发完 | PARTIAL（已发券可见；下单抵扣未本轮跑） |
 | 7 | 设备运维 | 消费者报修 → 运营工单 → 商户待办 | 报修、指派、完成 | 工单状态闭环；通知到达 | 取消工单、重复报修 |  |
 | 8 | 消息公告 | 运营发布/站内信 → 两端 messages/announcements | 发布、发送、已读 | 目标 audience 可见；未发布不可见；已读计数 | 删信后对端 |  |
 | 9 | 审批流 | 进件/提现/采购 | 提交→节点通过/驳回 | 状态机按部门走完才 ACTIVE/打款；错部门账号不可过 | 跳过节点、并行重复点通过 | PASS（P0-10 提现+采购门禁） |
@@ -360,11 +360,11 @@
 
 | 检查项 | 超管 001 | 财务 002 | 运营 003 | 补货员 004 | 只读 005 | 状态 |
 |--------|----------|----------|----------|------------|----------|------|
-| 登录后默认落地页合理 | ✓ | 财务相关 | 运营相关 | 补货/仓 | 工作台或首个可读 | PASS（001/002/005 已测） |
-| 侧栏仅显示有 `perm` 的项 | ✓ | 无设备写等高危（按种子） | 按种子 | 按种子 | 几乎只读 | PASS（002/005 抽样） |
-| 直链无权限 path → `/forbidden` | — | 测 1～2 个写页 | 测财务写页 | 测提现打款 | 测任意 edit | PASS（002→`/disputes` forbidden；005→`/merchant-withdraw` forbidden） |
+| 登录后默认落地页合理 | ✓ | 财务相关 | 运营相关 | 补货/仓 | 工作台或首个可读 | PASS（001/002/003/005 UI；004 API） |
+| 侧栏仅显示有 `perm` 的项 | ✓ | 无设备写等高危（按种子） | 按种子 | 按种子 | 几乎只读 | PASS（002/003/005 抽样） |
+| 直链无权限 path → `/forbidden` | — | 测 1～2 个写页 | 测财务写页 | 测提现打款 | 测任意 edit | PASS（002→争议；003→提现；005→提现） |
 | 写按钮 `v-hasPermi` 隐藏 | — | — | — | — | **无**新建/通过/打款 | PASS（005 争议页无结案） |
-| 数据范围（柜机/商户） | 全局 | 全局财务 | 按配置 | 绑商户范围 | 只读全局或按配置 | PARTIAL（001/002/005；003/004 未本轮 UI） |
+| 数据范围（柜机/商户） | 全局 | 全局财务 | 按配置 | 绑商户范围 | 只读全局或按配置 | PASS（003 设备/订单/争议 ALLOW、提现 403；004 补货/仓 ALLOW、设备/订单/争议/提现 403） |
 
 脚本参考：`clients/admin-vue/tests/role-regression-uat.mjs`。
 
@@ -375,7 +375,7 @@
 | 检查项 | 操作 | 期望 | 状态 |
 |--------|------|------|------|
 | 关 `pack_field` | 管理员登录 | 补货/柜机/待办入口裁剪或不可用 |  |
-| 关 `pack_biz` | 同上 | 结算/钱包/分账/订单等 biz 入口不可用 |  |
+| 关 `pack_biz` | 同上 | 结算/钱包/分账/订单等 biz 入口不可用 | PASS（off：wallet/orders/revenue-splits 403；devices 仍 ALLOW；恢复后 wallet OK） |
 | 关 `pack_team` | 同上 | 团队入口不可用 |  |
 | 店员 `38002` | 进设置/邀请 | 只读或 403 |  |
 | 他商户 `38003` | 打开默认商户订单 URL | 403/空；不见 MCH-DEFAULT | PASS（订单 total=0；钱包 MCH-OTHER） |
@@ -402,10 +402,10 @@
 
 | ID | 步骤 | L3 期望 | 状态 |
 |----|------|---------|------|
-| D-01 | 改某状态 label（如订单状态文案） | 运营列表 Tag、商户/消费者筛选项（runtime）更新 |  |
-| D-02 | 停用某字典项 | 新单筛选项不再可选；历史展示降级策略可接受 |  |
-| D-03 | 新增项后拉 `GET /api/v2/dicts/runtime` | ACTIVE 项出现；失败时前端回退编译期 DICT |  |
-| D-04 | **反例** | 改字典 **不能** 打开/关闭支付或开门；能力仍看环境变量/Java 常量 |  |
+| D-01 | 改某状态 label（如订单状态文案） | 运营列表 Tag、商户/消费者筛选项（runtime）更新 | PASS（PAID label→`已支付-UAT` runtime 同步；已恢复原文案） |
+| D-02 | 停用某字典项 | 新单筛选项不再可选；历史展示降级策略可接受 | PASS（INACTIVE 后 runtime 不再返回该项；已恢复 ACTIVE） |
+| D-03 | 新增项后拉 `GET /api/v2/dicts/runtime` | ACTIVE 项出现；失败时前端回退编译期 DICT | PASS（改 label 后 `/api/v2/dicts/runtime` 立即可见） |
+| D-04 | **反例** | 改字典 **不能** 打开/关闭支付或开门；能力仍看环境变量/Java 常量 | PASS（改字典后 account/device status 仍正常） |
 
 ### 9.2 参数配置 / 品牌（`/system-configs`）
 
@@ -413,7 +413,7 @@
 |----|------|------|------|
 | C-01 | 改品牌名/Logo 保存 | 文档标题、登录页品牌可见变化 |  |
 | C-02 | 非法配置值 | 拒绝保存 |  |
-| C-03 | 无 `ops:config:list` | 不可进或只读 |  |
+| C-03 | 无 `ops:config:list` | 不可进或只读 | PASS（005 system-configs API 403） |
 
 ### 9.3 审批流 × 部门（`/approvals` `/departments`）
 
@@ -436,7 +436,7 @@
 | T-02 | 告警规则 | 停用规则 | 同条件不再触发 |  |
 | T-03 | 定时任务 | 手动「执行」对账/巡检类 | 有结果行或日志；与按钮文案一致 |  |
 | T-04 | 定时任务 | 停用后等待触发点 | 不执行 |  |
-| T-05 | 审计 | 完成提现打款/改角色/改分账比例 | `/audit` 有操作人、动作、资源 id |  |
+| T-05 | 审计 | 完成提现打款/改角色/改分账比例 | `/audit` 有操作人、动作、资源 id | PASS（`/audit-logs` 含 DISPUTE_RESOLVE / MERCHANT_CREATE 等；字典改动未入审计另记） |
 | T-06 | 审计 | 只读账号 | 无写操作审计噪音；不可清日志（若产品禁止） |  |
 
 ---
@@ -482,7 +482,7 @@
 
 | ID | 场景 | L3 核对 | 状态 |
 |----|------|---------|------|
-| MK-01 | 发券 | 消费者 `coupons` 可见 |  |
+| MK-01 | 发券 | 消费者 `coupons` 可见 | PASS（defId=1 AMOUNT_OFF；issue couponId=1 UNUSED；消费者列表可见） |
 | MK-02 | 下单抵扣 | 订单优惠额；券核销 |  |
 | MK-03 | 停用活动 | 新单不可用 |  |
 | MK-04 | 积分兑换 | 积分↓；兑换记录；库存项↓ |  |
@@ -612,10 +612,11 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 角色回归脚本 role-regression-uat.mjs 缺 playwright 包未跑；P0-06/§8 改 Playwright MCP 实操（005+002）。
   - 续测：§8 财务 002 争议 forbidden / 提现可达；§10.1 S-01～S-09（S-08 SKIP）；§4 主链路 1/2/4/5/9/10 PASS，3 PARTIAL。
   - 部分退：`e2e-partial-refund-line.ps1` order=`1788833639119970182` VOIDED + PARTIAL_REVERSE。
+  - 再续：§9 D-01～D-04 PASS；C-03/T-05 PASS；§8 003/004 API+003 UI 提现 forbidden；pack_biz 关→钱包/订单/分账 403；MK-01 发券 couponId=1。
   - 证据目录: docs/uat-screenshots/2026-09-08/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
     withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /
-    refund-order 1788833639119970182 / split 1788833639197767270
+    refund-order 1788833639119970182 / split 1788833639197767270 / couponDef=1 couponId=1
 ```
 
 截图目录建议：`docs/uat-screenshots/YYYY-MM-DD/`（历史大图可放 `docs/archive/uat-screenshots/`）。
