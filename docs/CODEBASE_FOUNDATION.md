@@ -311,7 +311,7 @@ Compose 入口见 `infra/README.md`：`docker-compose.yml`（infra）/ `full.yml
 | `consumer-mp/tests/consumer-h5-uat.mjs` | 消费者 H5 `:3002` |
 | `merchant-mp/tests/merchant-h5-uat.mjs` | 商户 H5 `:3001` |
 
-说明见 [BROWSER_MIN_UAT.md](BROWSER_MIN_UAT.md)、[BROWSER_FULL_UAT_PLAN.md](BROWSER_FULL_UAT_PLAN.md)。  
+说明见 [BUSINESS_FULL_TEST_MATRIX.md](BUSINESS_FULL_TEST_MATRIX.md)（全页面+按钮+**L3 业务挂钩**/权限/字典/边界）、[BROWSER_MIN_UAT.md](BROWSER_MIN_UAT.md)、[BROWSER_FULL_UAT_PLAN.md](BROWSER_FULL_UAT_PLAN.md)。  
 **禁止**仅用 curl/日志宣称 UI 通过。
 
 ### 9.4 演示账号（dev）
@@ -444,7 +444,8 @@ Compose 入口见 `infra/README.md`：`docker-compose.yml`（infra）/ `full.yml
 | 模块路径 | [MODULES.md](MODULES.md) |
 | 架构边界 | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | 账号 | [DEMO_ACCOUNTS.md](DEMO_ACCOUNTS.md) |
-| UI UAT | [BROWSER_MIN_UAT.md](BROWSER_MIN_UAT.md) |
+| UI 全量节点矩阵 | [BUSINESS_FULL_TEST_MATRIX.md](BUSINESS_FULL_TEST_MATRIX.md) |
+| UI UAT（抽样） | [BROWSER_MIN_UAT.md](BROWSER_MIN_UAT.md) |
 | 上线阻塞 | [GO_LIVE_EXECUTION_PLAN.md](GO_LIVE_EXECUTION_PLAN.md) / [CODE_FIX_CHECKLIST.md](CODE_FIX_CHECKLIST.md) |
 | 生产 | [PRODUCTION.md](PRODUCTION.md) |
 | 端侧视觉 | [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md) |
