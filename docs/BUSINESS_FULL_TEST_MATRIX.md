@@ -162,7 +162,7 @@
 | 1 | 手机验证 | `/phone-verify` | `ops:phone-verify:list` | `users/PhoneVerifyView.vue` | 登记验证、编辑、删除、保存 | 打开「手机验证」；列表或表单可用；关键写操作有中文反馈 |  |
 | 2 | 风控 | `/risk` | `ops:risk:list` | `risk/RiskView.vue` | 加入黑名单、确认 | **L3**：拉黑后该用户开门/支付被拒；解黑恢复；审计可查 |  |
 | 3 | 营销活动 | `/promotions` | `ops:promotion:list` | `promotions/PromotionsView.vue` | 导入模板、导入、批量停用、新建活动、刷新、保存 | 新建/保存/启停后列表刷新 |  |
-| 4 | 优惠券 | `/coupons` | `ops:coupon:list` | `promotions/CouponsView.vue` | 导入模板、导入、批量停用、新建优惠券、手动发券、批量发券、保存、发放、批量发放 | **L3**：发券后消费者可见；下单抵扣；停用后不可用；超发被拒 | PASS（发券可见；抵扣未测） |
+| 4 | 优惠券 | `/coupons` | `ops:coupon:list` | `promotions/CouponsView.vue` | 导入模板、导入、批量停用、新建优惠券、手动发券、批量发券、保存、发放、批量发放 | **L3**：发券后消费者可见；下单抵扣；停用后不可用；超发被拒 | PASS（MK-01+MK-02：发券可见；下单抵扣 350→300） |
 | 5 | 素材库 | `/ad-assets` | `ops:ad:list` | `growth/AdAssetsView.vue` | 批量停用、批量删除、上传素材、上传、保存 | 新建/保存/启停后列表刷新 |  |
 | 6 | 投放计划 | `/ad-campaigns` | `ops:ad:campaign:list` | `growth/AdCampaignsView.vue` | 批量停止、新建投放、保存 | 新建/保存/启停后列表刷新 |  |
 | 7 | 积分兑换管理 | `/points-redeem` | `ops:points:list` | `growth/PointsRedeemView.vue` | 批量上架、批量下架、新建兑换项、刷新、保存 | 新建/保存/启停后列表刷新 |  |
@@ -336,14 +336,14 @@
 
 | ID | 类型 | 操作 | 期望 | 状态 |
 |----|------|------|------|------|
-| G-01 | 空提交 | 必填未填点保存/提交 | 前端校验或 400；中文提示；无脏行 |  |
-| G-02 | 非法值 | 负数金额、超长字符串、非法枚举 | 拒绝；DB 无写入 |  |
-| G-03 | 状态机 | 在错误状态下点动作（如已结案再免单） | 409/业务码；状态不变 |  |
-| G-04 | 连点 | 500ms 内双击同一提交 | 仅一次生效；或第二次明确「处理中/已存在」 |  |
-| G-05 | 幂等键 | 同 `requestNo` / 同业务 ref 重放 | 不双入账、不双开门 |  |
-| G-06 | 401 | 清 token 后点写操作 | 跳转登录；无半成功 |  |
-| G-07 | 403 | 无权限账号点隐藏/直调 | 按钮不可见或 403；无数据泄露 |  |
-| G-08 | 404 | 篡改详情 id | 空态/404 中文；不 500 白屏 |  |
+| G-01 | 空提交 | 必填未填点保存/提交 | 前端校验或 400；中文提示；无脏行 | PASS（商户 upsert 空 merchantId→400「不能为空」） |
+| G-02 | 非法值 | 负数金额、超长字符串、非法枚举 | 拒绝；DB 无写入 | PASS（券面值 -10→400「满减券面值须大于 0」） |
+| G-03 | 状态机 | 在错误状态下点动作（如已结案再免单） | 409/业务码；状态不变 | PASS（已结案争议再 resolve→409「工单已处理」） |
+| G-04 | 连点 | 500ms 内双击同一提交 | 仅一次生效；或第二次明确「处理中/已存在」 | PASS（同 P0-09） |
+| G-05 | 幂等键 | 同 `requestNo` / 同业务 ref 重放 | 不双入账、不双开门 | PASS（同 P0-09 / S-05） |
+| G-06 | 401 | 清 token 后点写操作 | 跳转登录；无半成功 | PASS（无 token 写商户→401「请先登录」） |
+| G-07 | 403 | 无权限账号点隐藏/直调 | 按钮不可见或 403；无数据泄露 | PASS（§8 角色/功能包 403） |
+| G-08 | 404 | 篡改详情 id | 空态/404 中文；不 500 白屏 | PASS（假订单 id→404「资源不存在」） |
 | G-09 | 网络 | DevTools Offline 点提交 | 可读失败；可重试；不假成功 |  |
 | G-10 | 超时 | 慢网/下游超时 | 超时提示；资金类符合冻结/回滚语义 |  |
 | G-11 | 并发 | 两角色同时审同一单 | 仅一方成功；另一方冲突提示 |  |
@@ -374,9 +374,9 @@
 
 | 检查项 | 操作 | 期望 | 状态 |
 |--------|------|------|------|
-| 关 `pack_field` | 管理员登录 | 补货/柜机/待办入口裁剪或不可用 |  |
+| 关 `pack_field` | 管理员登录 | 补货/柜机/待办入口裁剪或不可用 | PASS（off：devices/replenishment 403；wallet/orders 仍 ALLOW；me.enabledPacks 无 field） |
 | 关 `pack_biz` | 同上 | 结算/钱包/分账/订单等 biz 入口不可用 | PASS（off：wallet/orders/revenue-splits 403；devices 仍 ALLOW；恢复后 wallet OK） |
-| 关 `pack_team` | 同上 | 团队入口不可用 |  |
+| 关 `pack_team` | 同上 | 团队入口不可用 | PASS（off：team/users·roles 403；enabledPacks 无 team；恢复后 team/users OK） |
 | 店员 `38002` | 进设置/邀请 | 只读或 403 |  |
 | 他商户 `38003` | 打开默认商户订单 URL | 403/空；不见 MCH-DEFAULT | PASS（订单 total=0；钱包 MCH-OTHER） |
 | 财务 `38004` | 设备写操作 | 拒绝；结算可读 |  |
@@ -421,7 +421,7 @@
 
 | ID | 业务 | 步骤 | 期望 | 状态 |
 |----|------|------|------|------|
-| A-01 | 进件 `MERCHANT_ONBOARD` | 提交→总部通过→财务通过 | 才 ACTIVE；中途不可手工 ACTIVE |  |
+| A-01 | 进件 `MERCHANT_ONBOARD` | 提交→总部通过→财务通过 | 才 ACTIVE；中途不可手工 ACTIVE | PASS（onboarding=1 强制 ACTIVE→409「须审批通过后方可生效」；SUBMITTED + instance=3 PENDING） |
 | A-02 | 进件 | 财务账号越权审总部节点 | 403 或无待办 |  |
 | A-03 | 提现 `MERCHANT_WITHDRAW` | 超阈值：经理→财务 | 节点未过不能打款 | PASS（wd3 PENDING_REVIEW；payout 409；instance=1） |
 | A-04 | 余额退款 | 经理→财务 | 通过后才退；驳回不退 |  |
@@ -483,7 +483,7 @@
 | ID | 场景 | L3 核对 | 状态 |
 |----|------|---------|------|
 | MK-01 | 发券 | 消费者 `coupons` 可见 | PASS（defId=1 AMOUNT_OFF；issue couponId=1 UNUSED；消费者列表可见） |
-| MK-02 | 下单抵扣 | 订单优惠额；券核销 |  |
+| MK-02 | 下单抵扣 | 订单优惠额；券核销 | PASS（session=`…6562649` preferredCoupon=1；order=`…0185959` PAID original350 discount50 total300；券 USED） |
 | MK-03 | 停用活动 | 新单不可用 |  |
 | MK-04 | 积分兑换 | 积分↓；兑换记录；库存项↓ |  |
 | MK-05 | 会员倍率 | 升级后积分入账倍率符合规则 |  |
@@ -613,10 +613,12 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 续测：§8 财务 002 争议 forbidden / 提现可达；§10.1 S-01～S-09（S-08 SKIP）；§4 主链路 1/2/4/5/9/10 PASS，3 PARTIAL。
   - 部分退：`e2e-partial-refund-line.ps1` order=`1788833639119970182` VOIDED + PARTIAL_REVERSE。
   - 再续：§9 D-01～D-04 PASS；C-03/T-05 PASS；§8 003/004 API+003 UI 提现 forbidden；pack_biz 关→钱包/订单/分账 403；MK-01 发券 couponId=1。
+  - 再续2：MK-02 抵扣 PASS；pack_field/pack_team PASS；A-01 强制 ACTIVE 拦截；§7 G-01～G-08 抽样 PASS；管理后台 403/404 错误页铺满居中布局修复。
   - 证据目录: docs/uat-screenshots/2026-09-08/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
     withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /
-    refund-order 1788833639119970182 / split 1788833639197767270 / couponDef=1 couponId=1
+    refund-order 1788833639119970182 / split 1788833639197767270 / couponDef=1 couponId=1 /
+    MK-02 order 1788837712840185959 / onboard=1 approval_instance=3
 ```
 
 截图目录建议：`docs/uat-screenshots/YYYY-MM-DD/`（历史大图可放 `docs/archive/uat-screenshots/`）。

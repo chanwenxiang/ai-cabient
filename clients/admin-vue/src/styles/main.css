@@ -932,6 +932,26 @@ select {
   max-height: none;
 }
 
+/*
+ * 403/404 错误页：铺满主区剩余高度并把结果区垂直居中。
+ * 否则全局「高度跟内容」会让白卡片贴顶，下方大片灰底，比例失调。
+ */
+.layout-main-scroll > .page-card.error-page.el-card {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-height: 0;
+  height: auto;
+}
+
+.layout-main-scroll > .page-card.error-page > .el-card__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
 .layout-main-scroll > .page-card > .el-card__header,
 .layout-main-scroll > .page-fill > .page-card > .el-card__header {
   flex-shrink: 0;

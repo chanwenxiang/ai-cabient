@@ -33,10 +33,9 @@ function goProfile() {
 </script>
 
 <style scoped>
-.error-page {
-  min-height: 420px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* 铺满高度与居中见 main.css `.layout-main-scroll > .page-card.error-page` */
+.error-page :deep(.el-result) {
+  width: 100%;
+  max-width: 560px;
 }
 </style>
