@@ -127,7 +127,7 @@
 | 8 | 识别入驻 | `/sku-vision` | `ops:sku:list` | `skus/SkuVisionEnrollView.vue` | 导入模板、导入、商品管理、入驻配置、保存入驻、关闭 | 打开「识别入驻」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 | 9 | 识别映射 | `/vision-mappings` | `ops:vision:list` | `vision/VisionMappingView.vue` | 商品管理、新增映射、编辑、删除、取消、保存 | 打开「识别映射」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 | 10 | 录像上传 | `/upload-queue` | `ops:session:upload` | `upload/UploadQueueView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「录像上传」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 11 | 识别演示 | `/recognition-demo` | `ops:recognition-demo:view` | `vision/RecognitionDemoView.vue` | 识别映射、商品管理、清空 | 打开「识别演示」；列表或表单可用；关键写操作有中文反馈 | SKIP（本环境未开 `ENABLE_TEST_TOOLS`；直链 404「页面不存在」符合约定） |
+| 11 | 识别演示 | `/recognition-demo` | `ops:recognition-demo:view` | `vision/RecognitionDemoView.vue` | 识别映射、商品管理、清空 | 打开「识别演示」；列表或表单可用；关键写操作有中文反馈 | PASS（`VITE_ENABLE_TEST_TOOLS`+vite DEV：侧栏可见；上传 shelf-sample→识别 雪碧/`SKU-SODA-001` 75%；生产包无该路由仍门控） |
 
 ### 1.4 履约仓储
 
@@ -198,7 +198,7 @@
 | `/print` | 打印单据 | 有单据参数时可打印/预览 | PASS（路由存在；无单据参数时页面可开） |
 | `/devices/:id` | 设备详情（动态） | 从设备列表进入；货道/补货/复制链接等 | PASS（设备列表可进详情路由） |
 | `/forbidden` | 无权访问 | 无权限菜单跳转落此页；可回工作台 | PASS（无权限落错误页；布局已修） |
-| `/recognition-demo` | 识别演示（测试开关） | 仅 `ENABLE_TEST_TOOLS` | SKIP（本环境未开 `ENABLE_TEST_TOOLS`；直链 404「页面不存在」符合约定） |
+| `/recognition-demo` | 识别演示（测试开关） | 仅 `ENABLE_TEST_TOOLS` | PASS（`VITE_ENABLE_TEST_TOOLS`+vite DEV：侧栏可见；上传 shelf-sample→识别 雪碧/`SKU-SODA-001` 75%；生产包无该路由仍门控） |
 
 ---
 
@@ -557,13 +557,13 @@ P0 本轮：**10/10 PASS**（环境曾缺演示账号/商户，已临时补种�
 
 矩阵 §2～§3 默认可用 **H5** 跑通业务逻辑；下列项 **H5 PASS 不等于小程序 PASS**，须 `client:mp-weixin` 另测或标 BLOCK：
 
-| 能力 | 为何 H5 不够 | 建议验法 |
-|------|--------------|----------|
-| 扫码开门 | 相机/扫码组件差异 | 真机扫柜码 |
-| 微信/支付宝免密、支付 | JSAPI / 小程序支付 | 真机 + 对应 mock/live |
-| 胶囊与自定义顶栏 | `getBelowCapsulePadPx` 等 | 对照 dist，看遮挡 |
-| 分包/包体积 | 仅 mp 构建 | 确认 `dist/dev/mp-weixin` mtime 含本次改动 |
-| 下拉刷新 / 分享 / 定位附近柜 | 端能力不同 | 真机点选 |
+| 能力 | 为何 H5 不够 | 建议验法 | 本轮（2026-09-08 · client:h5） |
+|------|--------------|----------|--------------------------------|
+| 扫码开门 | 相机/扫码组件差异 | 真机扫柜码 | BLOCK（未开微信开发者工具/真机；H5 仅业务 API 替代） |
+| 微信/支付宝免密、支付 | JSAPI / 小程序支付 | 真机 + 对应 mock/live | BLOCK（本轮 pay:mock + H5；未验 JSAPI） |
+| 胶囊与自定义顶栏 | `getBelowCapsulePadPx` 等 | 对照 dist，看遮挡 | DOCUMENTED（源码 `packages/shared-uni/src/status-bar.ts` 有实现；未真机量遮挡） |
+| 分包/包体积 | 仅 mp 构建 | 确认 `dist/dev/mp-weixin` mtime 含本次改动 | DOCUMENTED（consumer/merchant dist 存在，mtime≈09-04，本轮未重编） |
+| 下拉刷新 / 分享 / 定位附近柜 | 端能力不同 | 真机点选 | BLOCK（H5 附近柜页可达≠小程序定位能力） |
 
 ### 12.4 自动化对照（能自动则先自动，再补 UI 证据）
 
@@ -621,7 +621,8 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 再续7：E-02/E-03；G-09 Offline / G-10 abort / G-15 余额调整二次确认取消（余额不变）。
   - 再续8：§1 运营后台 65 菜单 L1 冒烟 64 PASS / recognition-demo SKIP；§2 商户 H5 22 页 L1 PASS；§3 消费者 H5 23 页 L1 PASS（登录后余额/券/公告）；§4-7 维修工单闭环；§4-8 公告两端可见；§4-6 营销核销改 PASS。
   - 再续9：§4-3 补货履约 PASS（清理卡住 IN_TRANSIT 后 task=2 全链路；根因=在途抵消缺口；脚本补签到坐标+现场凭证）；商户 H5 已完成可见任务#2。
-  - 再续10：S-08 ACCRUED PASS（有 wechat_receiver 时本地钱包不入账）；矩阵本轮收口：PASS≈219 + recognition-demo SKIP×2；无 PARTIAL/FAIL。
+  - 再续10：S-08 ACCRUED PASS（有 wechat_receiver 时本地钱包不入账）；当时矩阵收口曾记 recognition-demo SKIP（再续11 已 PASS）。
+  - 再续11：recognition-demo PASS（vite DEV + ENABLE_TEST_TOOLS；识别 SKU-SODA-001 75%）；§12.3 小程序原生项标 BLOCK/DOCUMENTED（client:h5 收口）。
   - 证据目录: docs/uat-screenshots/2026-09-08/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
     withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /
