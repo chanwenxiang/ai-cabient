@@ -87,6 +87,29 @@ public class SystemConfigService {
     public static final String SETTLEMENT_RECOGNITION_MODE = "settlement.recognition_mode";
     public static final String RECOGNITION_MODE_VISION = "VISION";
     public static final String RECOGNITION_MODE_VISION_GRAVITY = "VISION_GRAVITY";
+    /**
+     * 商户端完成补货任务是否必须上传现场凭证照片。
+     * true=至少 1 张；false=可跳过（仍允许上传，便于抽检）。
+     */
+    public static final String REPLENISHMENT_COMPLETE_REQUIRE_EVIDENCE =
+            "replenishment.complete.require_evidence";
+    /**
+     * 柜机已配置坐标时，签到是否必须带定位。
+     * true=缺定位拒签；false=允许空定位（仍可带坐标并受距离校验）。
+     */
+    public static final String REPLENISHMENT_CHECK_IN_REQUIRE_LOCATION =
+            "replenishment.check_in.require_location";
+    /**
+     * 签到距柜机最大允许距离（米）。≤0 表示关闭距离校验。
+     */
+    public static final String REPLENISHMENT_CHECK_IN_MAX_DISTANCE_M =
+            "replenishment.check_in.max_distance_m";
+    /**
+     * 商户端完成补货是否必须先补货开门。
+     * true=须有补货开门会话；false=可跳过（运营后台代完成本就不拦）。
+     */
+    public static final String REPLENISHMENT_COMPLETE_REQUIRE_DOOR =
+            "replenishment.complete.require_door";
 
     private final SystemConfigMapper repository;
     private final SecurityProperties securityProperties;
@@ -349,11 +372,28 @@ public class SystemConfigService {
         upsertIfAbsent(OPS_BRAND_SUBTITLE, "运营管理系统", "运营后台副标题（登录页副文案）");
         upsertIfAbsent(OPS_BRAND_SIDEBAR_TITLE, "AI开门柜运营", "侧栏展开时的品牌文案");
         upsertIfAbsent(OPS_BRAND_LOGO_URL, "", "品牌标志图片地址（留空则用标题末字）");
-        // 兼容旧默认值中的英文 OPS
+        upsertIfAbsent(REPLENISHMENT_COMPLETE_REQUIRE_EVIDENCE, "true",
+                "商户端完成补货是否必须上传现场凭证照片；false=可跳过（仍可上传）");
+        upsertIfAbsent(REPLENISHMENT_CHECK_IN_REQUIRE_LOCATION, "true",
+                "柜机已配置坐标时签到是否必须带定位；false=允许空定位签到");
+        upsertIfAbsent(REPLENISHMENT_CHECK_IN_MAX_DISTANCE_M, "500",
+                "签到距柜机最大允许距离（米）；≤0=关闭距离校验");
+        upsertIfAbsent(REPLENISHMENT_COMPLETE_REQUIRE_DOOR, "true",
+                "商户端完成补货是否必须先补货开门；false=可跳过");
+        // 兼容旧默认值中的英文 OPS / 损坏的副标题（历史编码写成 ??????）
         repository.findById(OPS_BRAND_SIDEBAR_TITLE).ifPresent(row -> {
             if ("AI开门柜 OPS".equals(row.getConfigValue())) {
                 row.setConfigValue("AI开门柜运营");
                 row.setDescription("侧栏展开时的品牌文案");
+                row.setUpdatedAt(Instant.now());
+                repository.save(row);
+            }
+        });
+        repository.findById(OPS_BRAND_SUBTITLE).ifPresent(row -> {
+            String v = row.getConfigValue();
+            if (v != null && !v.isBlank() && v.chars().allMatch(c -> c == '?')) {
+                row.setConfigValue("运营管理系统");
+                row.setDescription("运营后台副标题（登录页副文案）");
                 row.setUpdatedAt(Instant.now());
                 repository.save(row);
             }
@@ -365,6 +405,12 @@ public class SystemConfigService {
                 repository.save(row);
             }
         });
+        refreshDescriptionIfPresent(REPLENISHMENT_CHECK_IN_REQUIRE_LOCATION,
+                "柜机已配置坐标时签到是否必须带定位；false=允许空定位签到");
+        refreshDescriptionIfPresent(REPLENISHMENT_CHECK_IN_MAX_DISTANCE_M,
+                "签到距柜机最大允许距离（米）；≤0=关闭距离校验");
+        refreshDescriptionIfPresent(REPLENISHMENT_COMPLETE_REQUIRE_DOOR,
+                "商户端完成补货是否必须先补货开门；false=可跳过");
         upsertIfAbsent(CHECKOUT_PREAUTH_CENTS,
                 String.valueOf(com.aicabinet.common.constants.CabinetConstants.MIN_BALANCE_CENTS),
                 "消费者开门预授权冻结金额(分)");

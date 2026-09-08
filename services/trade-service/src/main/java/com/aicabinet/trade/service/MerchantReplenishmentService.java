@@ -48,6 +48,7 @@ public class MerchantReplenishmentService {
     private final DistributedLockService distributedLockService;
     private final ApprovalWorkflowService approvalWorkflowService;
     private final ShoppingSessionMapper shoppingSessionRepository;
+    private final SystemConfigService systemConfigService;
     private final MerchantReplenishmentService self;
 
     public MerchantReplenishmentService(PermissionService permissionService,
@@ -69,6 +70,7 @@ public class MerchantReplenishmentService {
                                         DistributedLockService distributedLockService,
                                         ApprovalWorkflowService approvalWorkflowService,
                                         ShoppingSessionMapper shoppingSessionRepository,
+                                        SystemConfigService systemConfigService,
                                         @Lazy MerchantReplenishmentService self) {
         this.permissionService = permissionService;
         this.merchantFeaturePackService = merchantFeaturePackService;
@@ -89,6 +91,7 @@ public class MerchantReplenishmentService {
         this.distributedLockService = distributedLockService;
         this.approvalWorkflowService = approvalWorkflowService;
         this.shoppingSessionRepository = shoppingSessionRepository;
+        this.systemConfigService = systemConfigService;
         this.self = self;
     }
 
@@ -169,14 +172,19 @@ public class MerchantReplenishmentService {
     }
 
     /**
-     * 商户现场完成：须已补货开门 + 至少一张凭证（运营后台/联调 complete 不走本入口）。
+     * 商户现场完成：补货开门 / 现场凭证是否必填由系统参数控制（默认均 true）。
+     * 运营后台 complete 不走本入口。
      */
     private void assertMerchantFieldCompletionGates(Long taskId) {
-        if (!shoppingSessionRepository.existsByReplenishmentTaskId(taskId)) {
+        boolean requireDoor = systemConfigService.getBoolean(
+                SystemConfigService.REPLENISHMENT_COMPLETE_REQUIRE_DOOR, true);
+        if (requireDoor && !shoppingSessionRepository.existsByReplenishmentTaskId(taskId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     ApiMessages.REPLENISHMENT_COMPLETE_DOOR_REQUIRED);
         }
-        if (fileAttachmentService.countReplenishmentEvidence(taskId) < 1) {
+        boolean requireEvidence = systemConfigService.getBoolean(
+                SystemConfigService.REPLENISHMENT_COMPLETE_REQUIRE_EVIDENCE, true);
+        if (requireEvidence && fileAttachmentService.countReplenishmentEvidence(taskId) < 1) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     ApiMessages.REPLENISHMENT_COMPLETE_EVIDENCE_REQUIRED);
         }

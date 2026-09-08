@@ -69,6 +69,7 @@ public class MerchantPortalService {
     private final MerchantDevicePortalService devicePortalService;
     private final MerchantInventoryPortalService inventoryPortalService;
     private final MerchantTeamAdminService teamAdminService;
+    private final SystemConfigService systemConfigService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final MerchantPortalService self;
 
@@ -108,6 +109,7 @@ public class MerchantPortalService {
                                  MerchantDevicePortalService devicePortalService,
                                  MerchantInventoryPortalService inventoryPortalService,
                                  MerchantTeamAdminService teamAdminService,
+                                 SystemConfigService systemConfigService,
                                  @Lazy MerchantPortalService self) {
         this.merchantFinanceService = merchantFinanceService;
         this.permissionService = permissionService;
@@ -145,6 +147,7 @@ public class MerchantPortalService {
         this.devicePortalService = devicePortalService;
         this.inventoryPortalService = inventoryPortalService;
         this.teamAdminService = teamAdminService;
+        this.systemConfigService = systemConfigService;
         this.self = self;
     }
 
@@ -168,9 +171,18 @@ public class MerchantPortalService {
                         .toList());
         boolean canEditPricing = merchants.stream().anyMatch(MerchantDto::allowMerchantPricingEdit);
         List<String> enabledPacks = merchantFeaturePackService.enabledPacksList(userId);
+        boolean requireEvidence = systemConfigService.getBoolean(
+                SystemConfigService.REPLENISHMENT_COMPLETE_REQUIRE_EVIDENCE, true);
+        boolean requireDoor = systemConfigService.getBoolean(
+                SystemConfigService.REPLENISHMENT_COMPLETE_REQUIRE_DOOR, true);
+        boolean requireCheckInLocation = systemConfigService.getBoolean(
+                SystemConfigService.REPLENISHMENT_CHECK_IN_REQUIRE_LOCATION, true);
+        int checkInMaxDistanceM = systemConfigService.getInt(
+                SystemConfigService.REPLENISHMENT_CHECK_IN_MAX_DISTANCE_M, 500);
         return new MerchantMeDto(
                 user.getUserId(), user.getPhoneNumber(), user.getName(),
-                merchants, permissions, canEditPricing, enabledPacks);
+                merchants, permissions, canEditPricing, enabledPacks,
+                requireEvidence, requireDoor, requireCheckInLocation, checkInMaxDistanceM);
     }
 
     @Transactional(readOnly = true)

@@ -40,6 +40,7 @@ class MerchantReplenishmentCompleteGatesTest {
     @Mock private ReplenishmentTaskMapper taskRepository;
     @Mock private FileAttachmentService fileAttachmentService;
     @Mock private ShoppingSessionMapper shoppingSessionRepository;
+    @Mock private SystemConfigService systemConfigService;
 
     private MerchantReplenishmentService service;
 
@@ -49,8 +50,16 @@ class MerchantReplenishmentCompleteGatesTest {
                 permissionService, merchantFeaturePackService, merchantPortalGuard, replenishmentService,
                 null, null, auditService, deviceRepository, null, null, null,
                 null, null, null, taskRepository, fileAttachmentService,
-                null, null, shoppingSessionRepository, null);
+                null, null, shoppingSessionRepository, systemConfigService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        org.mockito.Mockito.lenient()
+                .when(systemConfigService.getBoolean(
+                        SystemConfigService.REPLENISHMENT_COMPLETE_REQUIRE_EVIDENCE, true))
+                .thenReturn(true);
+        org.mockito.Mockito.lenient()
+                .when(systemConfigService.getBoolean(
+                        SystemConfigService.REPLENISHMENT_COMPLETE_REQUIRE_DOOR, true))
+                .thenReturn(true);
     }
 
     private ReplenishmentTask scopedTask() {
@@ -75,6 +84,21 @@ class MerchantReplenishmentCompleteGatesTest {
     }
 
     @Test
+    void completeTask_skipsDoorWhenConfigDisabled() {
+        scopedTask();
+        when(systemConfigService.getBoolean(
+                SystemConfigService.REPLENISHMENT_COMPLETE_REQUIRE_DOOR, true))
+                .thenReturn(false);
+        when(fileAttachmentService.countReplenishmentEvidence(9L)).thenReturn(1);
+        ReplenishmentTaskDto dto = org.mockito.Mockito.mock(ReplenishmentTaskDto.class);
+        when(replenishmentService.completeTask(100L, 9L)).thenReturn(dto);
+
+        service.completeTask(100L, 9L);
+        verify(shoppingSessionRepository, never()).existsByReplenishmentTaskId(anyLong());
+        verify(replenishmentService).completeTask(100L, 9L);
+    }
+
+    @Test
     void completeTask_requiresEvidence() {
         scopedTask();
         when(shoppingSessionRepository.existsByReplenishmentTaskId(9L)).thenReturn(true);
@@ -85,6 +109,21 @@ class MerchantReplenishmentCompleteGatesTest {
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
         assertEquals(ApiMessages.REPLENISHMENT_COMPLETE_EVIDENCE_REQUIRED, ex.getReason());
         verify(replenishmentService, never()).completeTask(anyLong(), anyLong());
+    }
+
+    @Test
+    void completeTask_skipsEvidenceWhenConfigDisabled() {
+        scopedTask();
+        when(shoppingSessionRepository.existsByReplenishmentTaskId(9L)).thenReturn(true);
+        when(systemConfigService.getBoolean(
+                SystemConfigService.REPLENISHMENT_COMPLETE_REQUIRE_EVIDENCE, true))
+                .thenReturn(false);
+        ReplenishmentTaskDto dto = org.mockito.Mockito.mock(ReplenishmentTaskDto.class);
+        when(replenishmentService.completeTask(100L, 9L)).thenReturn(dto);
+
+        service.completeTask(100L, 9L);
+        verify(fileAttachmentService, never()).countReplenishmentEvidence(anyLong());
+        verify(replenishmentService).completeTask(100L, 9L);
     }
 
     @Test

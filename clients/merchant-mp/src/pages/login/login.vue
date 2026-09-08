@@ -25,7 +25,7 @@
 
       <view class="form-card">
         <text class="title">登录</text>
-        <text class="subtitle">平台补货员与商户补货员共用；靠商户归属看不同任务</text>
+        <text class="subtitle">补货员与商户运营共用入口</text>
 
         <view class="field">
           <text class="field-label">手机号</text>

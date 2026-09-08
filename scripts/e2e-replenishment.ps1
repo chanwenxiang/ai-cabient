@@ -219,7 +219,9 @@ if ($lines.Count -eq 0) {
     Write-Host "    warehouse lines already present — skip re-submit"
 }
 
-Write-Host "==> 9. Upload site evidence (merchant complete requires >=1 photo)"
+Write-Host "==> 9. Upload site evidence (when require_evidence=true; skip if ops disabled the gate)"
+# Note: require_door / require_location / max_distance_m are also system_config toggles (defaults true/500).
+
 $evidencePng = Join-Path ([IO.Path]::GetTempPath()) "e2e-replenishment-evidence-$taskId.png"
 # 1x1 PNG
 [IO.File]::WriteAllBytes($evidencePng, [Convert]::FromBase64String(

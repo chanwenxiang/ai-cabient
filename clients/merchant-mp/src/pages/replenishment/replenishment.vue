@@ -254,6 +254,7 @@
           <view
             v-if="
               canSkipLocation &&
+              requireReplenishmentCheckInLocation &&
               canRequest &&
               selected?.status !== 'COMPLETED' &&
               !selected?.checkInAt
@@ -266,12 +267,25 @@
           >
             <view class="skip-loc-copy">
               <text class="skip-loc-label">跳过定位验证</text>
-              <text class="skip-loc-hint">仅开发调试；柜机有坐标时服务端仍会拒绝空定位</text>
+              <text class="skip-loc-hint">仅开发调试；当前策略要求定位时服务端仍会校验</text>
             </view>
             <text class="skip-loc-switch" :class="{ on: skipLocationCheck }">{{
               skipLocationCheck ? '开' : '关'
             }}</text>
           </view>
+          <text
+            v-if="
+              !requireReplenishmentCheckInLocation &&
+              canRequest &&
+              selected?.status !== 'COMPLETED' &&
+              !selected?.checkInAt
+            "
+            class="door-tip"
+          >
+            当前策略未强制定位签到{{
+              checkInMaxDistanceM > 0 ? `（若上报坐标，须在柜前 ${checkInMaxDistanceM} 米内）` : ''
+            }}
+          </text>
 
           <button
             v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
@@ -307,13 +321,20 @@
                 selected?.checkInAt
                   ? evidenceItems.length
                     ? `已上传 ${evidenceItems.length}/5 · 点图可放大核对`
-                    : '建议拍柜内/货道全景，最多 5 张'
+                    : requireReplenishmentEvidence
+                      ? '须至少 1 张现场照片，最多 5 张'
+                      : '选填：建议拍柜内/货道全景，最多 5 张'
                   : '签到后可拍照留存，最多 5 张'
               }}</text>
             </view>
             <text
               class="line-count"
-              :class="{ warn: evidenceItems.length === 0 && !!selected?.checkInAt }"
+              :class="{
+                warn:
+                  requireReplenishmentEvidence &&
+                  evidenceItems.length === 0 &&
+                  !!selected?.checkInAt
+              }"
             >
               {{ evidenceItems.length }} 张
             </text>
@@ -366,7 +387,9 @@
                 selected?.checkInAt
                   ? selected?.status === 'COMPLETED'
                     ? '完成后不可再补传'
-                    : '点击拍照或从相册上传'
+                    : requireReplenishmentEvidence
+                      ? '完成前须上传 · 点击拍照或从相册上传'
+                      : '可选上传 · 点击拍照或从相册上传'
                   : '签到后可拍照'
               }}</text>
             </view>
@@ -613,6 +636,20 @@ import type { DeviceSlot } from '@aicabinet/shared-types';
 const { me, refresh: refreshMe } = useMerchantMe();
 const canReplenish = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
 const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:request'));
+/** 系统参数控制；缺省 true（与后端一致） */
+const requireReplenishmentEvidence = computed(
+  () => me.value?.requireReplenishmentEvidence !== false
+);
+const requireReplenishmentDoor = computed(
+  () => me.value?.requireReplenishmentDoor !== false
+);
+const requireReplenishmentCheckInLocation = computed(
+  () => me.value?.requireReplenishmentCheckInLocation !== false
+);
+const checkInMaxDistanceM = computed(() => {
+  const n = me.value?.replenishmentCheckInMaxDistanceM;
+  return typeof n === 'number' && Number.isFinite(n) ? n : 500;
+});
 const canSkipLocation = showDevTools();
 if (!canSkipLocation) {
   setSkipCheckInLocation(false);
@@ -1781,6 +1818,9 @@ async function obtainCheckInLocation(): Promise<{
   body: Record<string, number>;
   locationOk: boolean;
 } | null> {
+  if (!requireReplenishmentCheckInLocation.value) {
+    return { body: {}, locationOk: false };
+  }
   if (canSkipLocation && (skipLocationCheck.value || getSkipCheckInLocation())) {
     skipLocationCheck.value = true;
     return { body: {}, locationOk: false };
@@ -1794,7 +1834,10 @@ async function obtainCheckInLocation(): Promise<{
   } catch {
     const cont = await askConfirm({
       title: '定位失败',
-      content: '无法获取当前位置。请开启定位权限后重试；柜机已配置坐标时不能空定位签到。',
+      content:
+        checkInMaxDistanceM.value > 0
+          ? `无法获取当前位置。请开启定位权限后重试；柜机已配置坐标时须在约 ${checkInMaxDistanceM.value} 米内签到。`
+          : '无法获取当前位置。请开启定位权限后重试；当前策略要求带定位签到。',
       confirmText: '重试',
       cancelText: '取消'
     });
@@ -1819,8 +1862,11 @@ async function submitCheckIn(body: Record<string, number>, locationOk: boolean) 
     body
   )) as Task;
   syncTaskInList(selected.value);
+  const skipTitle = !requireReplenishmentCheckInLocation.value
+    ? '已签到（未强制定位）'
+    : '已签到（开发跳过定位）';
   uni.showToast({
-    title: locationOk ? '签到成功' : '已签到（开发跳过定位）',
+    title: locationOk ? '签到成功' : skipTitle,
     icon: locationOk ? 'success' : 'none'
   });
 }
@@ -2050,6 +2096,7 @@ function pullOffCopy(restockText: string, pullOffText: string): string {
 }
 
 async function confirmDoorOpenedIfNeeded(): Promise<boolean> {
+  if (!requireReplenishmentDoor.value) return true;
   if (doorOpened.value || openSessionId.value) return true;
   await askConfirm({
     title: '尚未开门',
@@ -2064,12 +2111,13 @@ async function confirmDoorOpenedIfNeeded(): Promise<boolean> {
 }
 
 async function confirmEvidenceIfNeeded(): Promise<boolean> {
+  if (!requireReplenishmentEvidence.value) return true;
   if (evidenceItems.value.length > 0) return true;
   const goPhoto = await askConfirm({
     title: '缺少现场凭证',
     content: pullOffCopy(
-      '完成前须至少上传 1 张补货现场照片，便于后台抽检。',
-      '完成前须至少上传 1 张下架现场照片，便于后台抽检。'
+      '当前策略要求至少上传 1 张补货现场照片，便于后台抽检。',
+      '当前策略要求至少上传 1 张下架现场照片，便于后台抽检。'
     ),
     confirmText: '去拍照',
     cancelText: '关闭'
