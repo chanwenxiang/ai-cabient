@@ -346,10 +346,10 @@
 | G-08 | 404 | 篡改详情 id | 空态/404 中文；不 500 白屏 | PASS（假订单 id→404「资源不存在」） |
 | G-09 | 网络 | DevTools Offline 点提交 | 可读失败；可重试；不假成功 |  |
 | G-10 | 超时 | 慢网/下游超时 | 超时提示；资金类符合冻结/回滚语义 |  |
-| G-11 | 并发 | 两角色同时审同一单 | 仅一方成功；另一方冲突提示 |  |
-| G-12 | 空态 | 无数据列表 | 中文空态；非转圈死锁 |  |
-| G-13 | 分页 | 大数据翻页/筛选 | 条数与筛选条件一致；无串页 |  |
-| G-14 | 导出 | 导出按钮 | 文件可打开；权限不足不可导出 |  |
+| G-11 | 并发 | 两角色同时审同一单 | 仅一方成功；另一方冲突提示 | PASS（退款 req=3：001 APPROVED / 003 SKIPPED→403「不是处理人」） |
+| G-12 | 空态 | 无数据列表 | 中文空态；非转圈死锁 | PASS（merchants q 无匹配 total=0 items=0） |
+| G-13 | 分页 | 大数据翻页/筛选 | 条数与筛选条件一致；无串页 | PASS（orders page0/1 size=2 overlap=0） |
+| G-14 | 导出 | 导出按钮 | 文件可打开；权限不足不可导出 | PASS（超管 CSV 可读；005 export 403） |
 | G-15 | 二次确认 | 免单/删除/打款 | 取消则不执行；确认才 L3 |  |
 
 ---
@@ -381,7 +381,7 @@
 | 他商户 `38003` | 打开默认商户订单 URL | 403/空；不见 MCH-DEFAULT | PASS（订单 total=0；钱包 MCH-OTHER） |
 | 财务 `38004` | 设备写操作 | 拒绝；结算可读 | PASS（wallet 可读；settings PATCH 403；replenishment 403） |
 | 补货员 `38007` | 提现/团队 | 不可；补货可 | PASS（replenishment/devices ALLOW；wallet/team/orders 403） |
-| 运营号登商户门户 | — | 403（DEMO_ACCOUNTS 约定） |  |
+| 运营号登商户门户 | — | 403（DEMO_ACCOUNTS 约定） | PASS（001→`/merchant/me`·wallet 403） |
 
 ### 8.3 菜单管理 vs 前端 NAV
 
@@ -412,7 +412,7 @@
 | ID | 步骤 | 期望 | 状态 |
 |----|------|------|------|
 | C-01 | 改品牌名/Logo 保存 | 文档标题、登录页品牌可见变化 | PASS（`ops.brand.title`→`前海易购-UAT`；`/api/v2/public/ops-branding`+登录页标题含 `-UAT`；已恢复） |
-| C-02 | 非法配置值 | 拒绝保存 |  |
+| C-02 | 非法配置值 | 拒绝保存 | PASS（空 key→400「配置键不能为空」；超长→400「最长 2048」） |
 | C-03 | 无 `ops:config:list` | 不可进或只读 | PASS（005 system-configs API 403） |
 
 ### 9.3 审批流 × 部门（`/approvals` `/departments`）
@@ -437,7 +437,7 @@
 | T-03 | 定时任务 | 手动「执行」对账/巡检类 | 有结果行或日志；与按钮文案一致 |  |
 | T-04 | 定时任务 | 停用后等待触发点 | 不执行 |  |
 | T-05 | 审计 | 完成提现打款/改角色/改分账比例 | `/audit` 有操作人、动作、资源 id | PASS（`/audit-logs` 含 DISPUTE_RESOLVE / MERCHANT_CREATE 等；字典改动未入审计另记） |
-| T-06 | 审计 | 只读账号 | 无写操作审计噪音；不可清日志（若产品禁止） |  |
+| T-06 | 审计 | 只读账号 | 无写操作审计噪音；不可清日志（若产品禁止） | PASS（005 audit-logs 403；DELETE 405） |
 
 ---
 
@@ -464,7 +464,7 @@
 | ID | 场景 | L3 核对 | 状态 |
 |----|------|---------|------|
 | P-01 | 余额支付成功 | 消费者余额↓；订单 PAID；分账触发（S-02） | PASS（P0-01/02） |
-| P-02 | 余额不足 | 不开门或明确阻断；无幽灵会话 |  |
+| P-02 | 余额不足 | 不开门或明确阻断；无幽灵会话 | PASS（balance=0→412 预授权不足；activeSession 空） |
 | P-03 | 支付回调重放 | 不双扣 |  |
 | P-04 | 开门指令 | 设备侧/mock 收到；会话 OPENING→SHOPPING | PASS（MQTT e2e） |
 | P-05 | 门未关超时 | 有兜底/告警；主流程不裸崩 |  |
@@ -473,7 +473,7 @@
 
 | ID | 场景 | L3 核对 | 状态 |
 |----|------|---------|------|
-| I-01 | 销售出库 | 货道数量↓与订单行一致 |  |
+| I-01 | 销售出库 | 货道数量↓与订单行一致 | PASS（order `…100194` qty=1 SALE -1 batch=B-NEAR；inventoryDeducted） |
 | I-02 | 补货实盘 | 「按实盘调账面」后账面=实盘 |  |
 | I-03 | 采购入库 | 仓存↑；确认付款状态机正确 |  |
 | I-04 | FEFO | 出库批次符合近效期优先（PASS_3D） | PASS（LOT-NEAR/FAR 各5；write-off×3→NEAR=2 FAR=5） |
@@ -484,7 +484,7 @@
 |----|------|---------|------|
 | MK-01 | 发券 | 消费者 `coupons` 可见 | PASS（defId=1 AMOUNT_OFF；issue couponId=1 UNUSED；消费者列表可见） |
 | MK-02 | 下单抵扣 | 订单优惠额；券核销 | PASS（session=`…6562649` preferredCoupon=1；order=`…0185959` PAID original350 discount50 total300；券 USED） |
-| MK-03 | 停用活动 | 新单不可用 |  |
+| MK-03 | 停用活动 | 新单不可用 | PASS（def=2 INACTIVE 后发券→400「优惠券已停用」） |
 | MK-04 | 积分兑换 | 积分↓；兑换记录；库存项↓ |  |
 | MK-05 | 会员倍率 | 升级后积分入账倍率符合规则 |  |
 
@@ -494,7 +494,7 @@
 |----|------|---------|------|
 | R-01 | 加黑名单 | 该用户无法开门/支付（产品约定） |  |
 | R-02 | 解黑 | 恢复 |  |
-| R-03 | 调余额 | `/users` 调整后消费者余额一致；有审计 |  |
+| R-03 | 调余额 | `/users` 调整后消费者余额一致；有审计 | PASS（+123→19773；同幂等键重放余额不变；`BALANCE_ADJUST` 审计） |
 
 ### 10.6 设备 / OTA / 识别
 
@@ -615,12 +615,14 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 再续：§9 D-01～D-04 PASS；C-03/T-05 PASS；§8 003/004 API+003 UI 提现 forbidden；pack_biz 关→钱包/订单/分账 403；MK-01 发券 couponId=1。
   - 再续2：MK-02 抵扣 PASS；pack_field/pack_team PASS；A-01 强制 ACTIVE 拦截；§7 G-01～G-08 抽样 PASS；管理后台 403/404 错误页铺满居中布局修复。
   - 再续3：A-02/A-04 PASS；C-01 品牌 UAT 可见后恢复；§8.2 38002/38004/38007 PASS；I-04 FEFO PASS；曾为 A-04 给 operator/finance 补 `ops:balance-refund:review`。
+  - 再续4：C-02；运营登商户门户 403；G-11～G-14；T-06；MK-03；P-02；I-01；R-03。
   - 证据目录: docs/uat-screenshots/2026-09-08/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
     withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /
     refund-order 1788833639119970182 / split 1788833639197767270 / couponDef=1 couponId=1 /
-    MK-02 order 1788837712840185959 / onboard=1 approval_instance=3 /
-    balance-refund 1 REFUNDED + 2 REJECTED / writeOff=1 FEFO
+    MK-02 order 1788847712840185959 / onboard=1 approval_instance=3 /
+    balance-refund 1 REFUNDED + 2 REJECTED / writeOff=1 FEFO /
+    G-11 refund=3 / I-01 order 1788847793616100194 / couponDef=2 INACTIVE
 ```
 
 截图目录建议：`docs/uat-screenshots/YYYY-MM-DD/`（历史大图可放 `docs/archive/uat-screenshots/`）。
