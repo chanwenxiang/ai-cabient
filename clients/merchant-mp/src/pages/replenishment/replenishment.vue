@@ -640,9 +640,7 @@ const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:requ
 const requireReplenishmentEvidence = computed(
   () => me.value?.requireReplenishmentEvidence !== false
 );
-const requireReplenishmentDoor = computed(
-  () => me.value?.requireReplenishmentDoor !== false
-);
+const requireReplenishmentDoor = computed(() => me.value?.requireReplenishmentDoor !== false);
 const requireReplenishmentCheckInLocation = computed(
   () => me.value?.requireReplenishmentCheckInLocation !== false
 );
