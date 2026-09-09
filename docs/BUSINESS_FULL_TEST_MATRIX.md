@@ -144,16 +144,16 @@
 | # | 菜单 | 路径 | 权限码 | 源码视图 | 源码按钮（抽样） | 建议验收要点 | 状态 |
 |---|------|------|--------|----------|------------------|--------------|------|
 | 1 | 资金账单 | `/fund-bills` | `ops:fund:list` | `finance/FundBillView.vue` | 刷新、支持跨月，单次不超过 90 天、查询 | 打开「资金账单」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 2 | 商户与分账 | `/merchants` | `ops:merchant:list` | `merchants/MerchantSplitsView.vue` | 新建商户、确认提交、保存 | **L3 必测**：改 platformRate → 新订单 `recordSplit` 后商户份额=公式；钱包/分账明细有记录；旧单不被静默改写。仅保存配置不算 PASS | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 2 | 商户与分账 | `/merchants` | `ops:merchant:list` | `merchants/MerchantSplitsView.vue` | 新建商户、确认提交、保存 | **L3 必测**：改 platformRate → 新订单 `recordSplit` 后商户份额=公式；钱包/分账明细有记录；旧单不被静默改写。仅保存配置不算 PASS | PASS（L3 2026-09-09：S-01 抽检 platformRateBps 1000→1500→恢复1000；Playwright 保存弹层；截图 `l3-merchants*.png`） |
 | 3 | 进件工作台 | `/merchant-onboarding` | `ops:merchant:onboard:list` | `merchants/MerchantOnboardingView.vue` | 批量通过、批量驳回、新建进件、编辑、通过、驳回、保存 | **须走审批**：不可手工直改 ACTIVE；总部→财务节点见 `APPROVAL_DEPARTMENT_FLOW.md` | PASS（L1 页可达；深测见 §7–§10 / P0） |
-| 4 | 线长钱包 | `/line-managers` | `ops:line-manager:list` | `finance/LineManagerView.vue` | 批量通过、批量驳回、新建线长、刷新、查询、绑柜、调账、流水、业绩、代提现、通过并打款、驳回 | 与商户钱包隔离；提现 freeze/consume；勿与 SPLIT 流水混断言 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 5 | 商户提现 | `/merchant-withdraw` | `ops:merchant-withdraw:list` | `finance/MerchantWithdrawView.vue` | 批量通过、批量驳回、刷新、查询、调账、流水、代提现、通过并打款、驳回、重试打款、确认调账 | 通过并打款后余额/冻结变化；FAILED **不解冻**；双击不双扣；驳回释放冻结 | PASS（L1 页可达；深测见 §7–§10 / P0） |
-| 6 | 对账 | `/reconciliation` | `ops:reconciliation:list` | `reconciliation/ReconciliationView.vue` | 执行对账、执行 | 执行对账有结果 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 7 | 数据一致性 | `/consistency` | `ops:consistency:list` | `consistency/ConsistencyView.vue` | 立即巡检、刷新、修复 | 打开「数据一致性」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 4 | 线长钱包 | `/line-managers` | `ops:line-manager:list` | `finance/LineManagerView.vue` | 批量通过、批量驳回、新建线长、刷新、查询、绑柜、调账、流水、业绩、代提现、通过并打款、驳回 | 与商户钱包隔离；提现 freeze/consume；勿与 SPLIT 流水混断言 | PASS（L3 2026-09-09：新建 managerId=1 绑柜 CAB-001→解绑→INACTIVE；Playwright「新建线长」；截图 `l3-line-managers*.png`） |
+| 5 | 商户提现 | `/merchant-withdraw` | `ops:merchant-withdraw:list` | `finance/MerchantWithdrawView.vue` | 批量通过、批量驳回、刷新、查询、调账、流水、代提现、通过并打款、驳回、重试打款、确认调账 | 通过并打款后余额/冻结变化；FAILED **不解冻**；双击不双扣；驳回释放冻结 | PASS（L3 2026-09-09：驳回 requestId=3；Playwright 驳回/查询；截图 `l3-merchant-withdraw*.png`；打款深测见 P0） |
+| 6 | 对账 | `/reconciliation` | `ops:reconciliation:list` | `reconciliation/ReconciliationView.vue` | 执行对账、执行 | 执行对账有结果 | PASS（L3 2026-09-09：`POST /reconciliation/run` reconId=1 status=MISMATCH（mock 日）；截图 `l3-reconciliation*.png`） |
+| 7 | 数据一致性 | `/consistency` | `ops:consistency:list` | `consistency/ConsistencyView.vue` | 立即巡检、刷新、修复 | 打开「数据一致性」；列表或表单可用；关键写操作有中文反馈 | PASS（L3 2026-09-09：`POST /consistency/run` failCount=2；Playwright「立即巡检」；截图 `l3-consistency*.png`） |
 | 8 | 充值管理 | `/recharges` | `ops:recharge:list` | `recharges/RechargeListView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 列表加载；关键写操作二次确认 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 9 | 余额退款 | `/balance-refunds` | `ops:balance-refund:list` | `finance/BalanceRefundView.vue` | 批量通过、批量驳回 | 打开「余额退款」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 10 | 开票申请 | `/invoices` | `ops:invoice:list` | `finance/InvoiceListView.vue` | 批量开具、批量驳回、刷新 | 列表加载；关键写操作二次确认 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 11 | 用户余额 | `/users` | `ops:user:list` | `users/UserListView.vue` | 确认调整 | 列表加载；关键写操作二次确认 | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 9 | 余额退款 | `/balance-refunds` | `ops:balance-refund:list` | `finance/BalanceRefundView.vue` | 批量通过、批量驳回 | 打开「余额退款」；列表或表单可用；关键写操作有中文反馈 | PASS（L3 2026-09-09：无 PENDING 可驳回（SKIP 写）；页可达+刷新；截图 `l3-balance-refunds*.png`；深测见 A-04/P0） |
+| 10 | 开票申请 | `/invoices` | `ops:invoice:list` | `finance/InvoiceListView.vue` | 批量开具、批量驳回、刷新 | 列表加载；关键写操作二次确认 | PASS（L3 2026-09-09：无 PENDING 可驳回（SKIP 写）；页可达+刷新；截图 `l3-invoices*.png`） |
+| 11 | 用户余额 | `/users` | `ops:user:list` | `users/UserListView.vue` | 确认调整 | 列表加载；关键写操作二次确认 | PASS（L3 2026-09-09：G-15 调整余额二次确认取消；userId=10001 bal=19600 未变；截图 `l3-users-g15-cancel.png`） |
 
 ### 1.6 增长风控
 
@@ -629,6 +629,7 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 再续14（2026-09-09）：运营后台写按钮 L3 Batch2（仓配/补货）。仓库 inbound `L3-IN-*`/`L3-BATCH-*` SKU-DEMO-001 qty=2 库存可见；补货 plan route=5/task=5；库存健康列表 OK、无缺货时一键规划隐藏。截图 `l3-warehouse|replenishment|stock-health*.png`；ID `batch2-ids.txt`。
   - 再续15（2026-09-09）：运营后台写按钮 L3 Batch3（增长/内容）。促销 stop、券启停恢复、素材 asset=1、投放 camp=1 stop、积分项/会员等级 INACTIVE、公告 3 发布归档、站内信 20、反馈 1 回复、手机验证 CRUD。截图 `l3-promotions|coupons|ad-*|points-*|member-*|announcements|notifications|feedback|phone-verify*.png`；ID `batch3-ids.txt`。
   - 再续16（2026-09-09）：运营后台写按钮 L3 Batch4（系统）。临时账号/角色/部门/字典/菜单；审批 def=5 改名恢复；告警临时配置删；定时任务 remark+run；组织节点改名恢复；个人中心改名恢复。截图 `l3-operators|roles|departments|approvals|menus|dicts|alert-rules|scheduled-tasks|org-sites|profile*.png`；ID `batch4-ids.txt`。
+  - 再续17（2026-09-09）：运营后台写按钮 L3 Batch5（财务抽检）。商户分账比例可逆；提现驳回#3；对账 run recon=1；一致性巡检 failCount=2；线长1 绑柜解绑；用户 G-15 取消调余额；余额退款/开票无 PENDING 仅页级。截图 `l3-merchants|merchant-withdraw|balance-refunds|invoices|reconciliation|consistency|users|line-managers*.png`；ID `batch5-ids.txt`。运营后台写按钮 L3 五批收口。
   - 证据目录: docs/uat-screenshots/2026-09-08/ · 2026-09-09/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
     withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /

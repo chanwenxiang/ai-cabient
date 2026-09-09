@@ -1,0 +1,14 @@
+﻿{
+  "merchantId": "MCH-DEFAULT",
+  "platformRateBpsRestored": 1000,
+  "reconId": 1,
+  "reconStatus": "MISMATCH",
+  "consistencyFailCount": 2,
+  "balanceRefundRejected": "none",
+  "invoiceRejected": "none",
+  "withdrawRejected": 3,
+  "lineManagerId": 1,
+  "userId": 10001,
+  "userBalanceCents": 19600,
+  "g15": "UI cancel"
+}
