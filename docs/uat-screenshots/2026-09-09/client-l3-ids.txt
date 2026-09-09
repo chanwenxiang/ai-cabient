@@ -1,0 +1,9 @@
+﻿{
+  "requestId": 1,
+  "teamUserId": 100000028,
+  "feedbackId": 2,
+  "faultReportId": "1",
+  "withdrawId": 4,
+  "withdrawStatus": "PAID_AUTO_MOCK",
+  "redeemItemId": 2
+}

@@ -213,7 +213,7 @@
 | 工作台 | `pages/home/home` | PASS（H5 Tab 可达 2026-09-08） |
 | 柜机 | `pages/devices/devices` | PASS（H5 Tab 可达 2026-09-08） |
 | 待办 | `pages/alerts/alerts` | PASS（H5 Tab 可达 2026-09-08） |
-| 我的 | `pages/mine/mine` | PASS（H5 Tab 可达 2026-09-08） |
+| 我的 | `pages/mine/mine` | PASS（L3 2026-09-09：商户 `PATCH /merchant/profile` 改提醒联系人后恢复；H5「编辑资料」；截图 `l3-mch-mine*.png`） |
 
 ### 2.2 全页面矩阵
 
@@ -224,22 +224,22 @@
 | 3 | 柜机 | `pages/devices/devices` | 扫码到柜、补货任务、导航、清除 | 柜机列表/详情；定价入口 | PASS（H5 L1 Playwright 可达 2026-09-08） |
 | 4 | 柜机详情 | `pages/device-detail/device-detail` | 导航到柜、补货任务、发起要货 | 柜机列表/详情；定价入口 | PASS（H5 L1 Playwright 可达 2026-09-08） |
 | 5 | 点位定价 | `pages/pricing/pricing` | 调价历史 | 打开「点位定价」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
-| 6 | 补货任务 | `pages/replenishment/replenishment` | 扫码找柜、扫码核对、现场签到、确认商品与数量、扫码到柜、扫码、要货、常驻柜、清除筛选、查看已完成、查看全部、复制编号 | 任务列表；接单/完成；与运营侧一致 | PASS（H5 L1 Playwright 可达 2026-09-08） |
-| 7 | 要货申请 | `pages/request/request` | 去补货 ›、发起要货、我的申请、刷新建议 | 任务列表；接单/完成；与运营侧一致 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 6 | 补货任务 | `pages/replenishment/replenishment` | 扫码找柜、扫码核对、现场签到、确认商品与数量、扫码到柜、扫码、要货、常驻柜、清除筛选、查看已完成、查看全部、复制编号 | 任务列表；接单/完成；与运营侧一致 | PASS（L3 2026-09-09：页可达+截图 `l3-mch-replenishment.png`；履约深测见 P0-08/§4-3/C-04） |
+| 7 | 要货申请 | `pages/request/request` | 去补货 ›、发起要货、我的申请、刷新建议 | 任务列表；接单/完成；与运营侧一致 | PASS（L3 2026-09-09：`POST /merchant/replenishment/requests` requestId=1 CAB-001；H5 登录后「发起要货」；截图 `l3-mch-request*.png`） |
 | 8 | 经营分析 | `pages/business/business` | 导出柜机报表、load()">重试、保存税号资料 | 打开「经营分析」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
 | 9 | 待办 | `pages/alerts/alerts` | 完成库存核对、查看柜机 | 打开「待办」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
-| 10 | 我的 | `pages/mine/mine` | 编辑资料、保存、保存提醒偏好 | 打开「我的」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 10 | 我的 | `pages/mine/mine` | 编辑资料、保存、保存提醒偏好 | 打开「我的」；下拉刷新（若启用）；空态中文 | PASS（L3 2026-09-09：商户 `PATCH /merchant/profile` 改提醒联系人后恢复；H5「编辑资料」；截图 `l3-mch-mine*.png`） |
 | 11 | 结算对账 | `pages/settlements/settlements` | 导出对账单 | 打开「结算对账」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
 | 12 | 争议处理 | `pages/disputes/disputes` | 认领工单、回复、同意免单、维持原单、按识别结案、查看订单、查看柜机 | 争议列表；处理动作权限正确 | PASS（H5 L1 Playwright 可达 2026-09-08） |
 | 13 | 柜机订单 | `pages/orders/orders` | （启发式未扫到；打开页面核对） | 打开「柜机订单」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
 | 14 | 订单详情 | `pages/order-detail/order-detail` | 查看柜机、查看购物视频、相关争议 | 打开「订单详情」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
 | 15 | 购物视频 | `pages/video/video` | 复制链接 | 打开「购物视频」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
-| 16 | 消息中心 | `pages/messages/messages` | （启发式未扫到；打开页面核对） | 打开「消息中心」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 16 | 消息中心 | `pages/messages/messages` | （启发式未扫到；打开页面核对） | 打开「消息中心」；下拉刷新（若启用）；空态中文 | PASS（L3 2026-09-09：商户消息列表可达；截图 `l3-mch-messages.png`） |
 | 17 | 通知公告 | `pages/announcements/announcements` | 查看详情 › | 打开「通知公告」；下拉刷新（若启用）；空态中文 | PASS（可见 UAT 公告 announceId=1） |
 | 18 | 公告详情 | `pages/announcements/detail` | load()">重试 | 打开「公告详情」；下拉刷新（若启用）；空态中文 | PASS（可见 UAT 公告 announceId=1） |
-| 19 | 团队成员 | `pages/team/team` | 邀请成员、确认邀请、保存角色、确认重置、停用该成员、重新启用 | 打开「团队成员」；下拉刷新（若启用）；空态中文 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 19 | 团队成员 | `pages/team/team` | 邀请成员、确认邀请、保存角色、确认重置、停用该成员、重新启用 | 打开「团队成员」；下拉刷新（若启用）；空态中文 | PASS（L3 2026-09-09：邀请临时员 userId=100000028 后 disable；H5「邀请成员」；截图 `l3-mch-team*.png`） |
 | 20 | 分账明细 | `pages/splits/splits` | 失败、全部 | **L3**：支付成功后本页出现对应 split；金额=公式；失败态有原因；空列表≠「分账未跑」时须对照运营订单 | PASS（L1 页可达；深测见 P0/分账） |
-| 21 | 商户钱包 | `pages/wallet/wallet` | 申请提现 | 余额=流水合计；申请后冻结↑；运营打款后余额↓；与线长钱包隔离 | PASS（L1 页可达；线长未绑定时中文提示） |
+| 21 | 商户钱包 | `pages/wallet/wallet` | 申请提现 | 余额=流水合计；申请后冻结↑；运营打款后余额↓；与线长钱包隔离 | PASS（L3 2026-09-09：申请提现 1 元 requestId=4 低于审核阈自动 Mock PAID；H5「申请提现」；截图 `l3-mch-wallet*.png`） |
 | 22 | 线长钱包 | `pages/line-wallet/line-wallet` | 申请提现 | 非商户 SPLIT；勿用订单分账断言本页 | PASS（L1 页可达；线长未绑定时中文提示） |
 
 ---
@@ -266,8 +266,8 @@
 | 4 | 开通支付 | `pages/verify/verify` | 去扫码开门 | 登录/开通支付流程可完成或明确阻塞原因 | PASS（登录/备用手机号表单可达） |
 | 5 | 登录 | `pages/login/login` | 验证码、密码、用户协议、隐私政策、退款规则 | 登录/开通支付流程可完成或明确阻塞原因 | PASS（登录/备用手机号表单可达） |
 | 6 | 账单结果 | `pages/result/result` | 回首页、查看订单、返回本柜、账单有问题、申请退款、帮助 | 打开「账单结果」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
-| 7 | 故障报修 | `pages/report/report` | （启发式未扫到；打开页面核对） | 打开「故障报修」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
-| 8 | 意见反馈 | `pages/feedback/feedback` | 提交反馈、我的反馈 | 打开「意见反馈」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 7 | 故障报修 | `pages/report/report` | （启发式未扫到；打开页面核对） | 打开「故障报修」；返回与 Tab 正常 | PASS（L3 2026-09-09：`POST /devices/CAB-001/fault-report` reportId=1；截图 `l3-csm-report.png`） |
+| 8 | 意见反馈 | `pages/feedback/feedback` | 提交反馈、我的反馈 | 打开「意见反馈」；返回与 Tab 正常 | PASS（L3 2026-09-09：`POST /feedback` feedbackId=2；H5「提交反馈」；截图 `l3-csm-feedback*.png`） |
 | 9 | 账户充值 | `pages/recharge/recharge` | 返回我的 | 充值档位；支付结果回跳 | PASS（H5 L1 Playwright 可达 2026-09-08） |
 | 10 | 订单详情 | `pages/order-detail/order-detail` | 再去本柜购物、查看购物视频、帮助与客服 | 订单列表/详情；视频/争议入口 | PASS（H5 L1 Playwright 可达 2026-09-08） |
 | 11 | 购物视频 | `pages/video/video` | 复制链接 | 打开「购物视频」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
@@ -275,8 +275,8 @@
 | 13 | 附近柜机 | `pages/nearby/nearby` | 导航、去开门 | 打开「附近柜机」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
 | 14 | 会员中心 | `pages/member/index` | 积分明细 › | 扫码/输柜号开门主路径；失败提示 | PASS（H5 L1 Playwright 可达 2026-09-08） |
 | 15 | 积分明细 | `pages/points/points` | 明细 › | 打开「积分明细」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
-| 16 | 积分兑换 | `pages/points/redeem` | 明细 › | 打开「积分兑换」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
-| 17 | 消息中心 | `pages/messages/messages` | 全部已读 | 打开「消息中心」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
+| 16 | 积分兑换 | `pages/points/redeem` | 明细 › | 打开「积分兑换」；返回与 Tab 正常 | PASS（L3 2026-09-09：兑换 itemId=2→couponId=4；H5「立即兑换」确认框；截图 `l3-csm-redeem*.png`） |
+| 17 | 消息中心 | `pages/messages/messages` | 全部已读 | 打开「消息中心」；返回与 Tab 正常 | PASS（L3 2026-09-09：`POST /member/notifications/read-all`；H5 消息页；截图 `l3-csm-messages*.png`） |
 | 18 | 热门活动 | `pages/marketing/index` | 扫码购物、去领券 | 扫码/输柜号开门主路径；失败提示 | PASS（H5 L1 Playwright 可达 2026-09-08） |
 | 19 | 账单审核 | `pages/dispute/detail` | 查看账单订单、返回订单列表 | 提交材料；状态回显 | PASS（H5 L1 Playwright 可达 2026-09-08） |
 | 20 | 帮助中心 | `pages/help/help` | 拨打、复制、去查看、去反馈、去报修、去找柜、查看我的订单 | 打开「帮助中心」；返回与 Tab 正常 | PASS（H5 L1 Playwright 可达 2026-09-08） |
@@ -630,6 +630,7 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 再续15（2026-09-09）：运营后台写按钮 L3 Batch3（增长/内容）。促销 stop、券启停恢复、素材 asset=1、投放 camp=1 stop、积分项/会员等级 INACTIVE、公告 3 发布归档、站内信 20、反馈 1 回复、手机验证 CRUD。截图 `l3-promotions|coupons|ad-*|points-*|member-*|announcements|notifications|feedback|phone-verify*.png`；ID `batch3-ids.txt`。
   - 再续16（2026-09-09）：运营后台写按钮 L3 Batch4（系统）。临时账号/角色/部门/字典/菜单；审批 def=5 改名恢复；告警临时配置删；定时任务 remark+run；组织节点改名恢复；个人中心改名恢复。截图 `l3-operators|roles|departments|approvals|menus|dicts|alert-rules|scheduled-tasks|org-sites|profile*.png`；ID `batch4-ids.txt`。
   - 再续17（2026-09-09）：运营后台写按钮 L3 Batch5（财务抽检）。商户分账比例可逆；提现驳回#3；对账 run recon=1；一致性巡检 failCount=2；线长1 绑柜解绑；用户 G-15 取消调余额；余额退款/开票无 PENDING 仅页级。截图 `l3-merchants|merchant-withdraw|balance-refunds|invoices|reconciliation|consistency|users|line-managers*.png`；ID `batch5-ids.txt`。运营后台写按钮 L3 五批收口。
+  - 再续18（2026-09-09）：商户/消费者 H5 写按钮 L3。商户：要货 request=1、资料 PATCH 恢复、团队邀请+停用、提现1元自动 Mock PAID(#4)、消息/补货页。消费者：反馈#2、消息 read-all、积分兑换 coupon#4、故障报修#1。Playwright 真登录 `:3001`/`:3002`；截图 `l3-mch-*`/`l3-csm-*`；ID `client-l3-ids.txt`。§12.3 微信原生仍 BLOCK。
   - 证据目录: docs/uat-screenshots/2026-09-08/ · 2026-09-09/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
     withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /
