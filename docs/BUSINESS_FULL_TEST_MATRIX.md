@@ -14,7 +14,7 @@
 > | 角色账号 | [`DEMO_ACCOUNTS.md`](DEMO_ACCOUNTS.md) |
 > | 资金/争议深分支 | `docs/pass-notes/PASS_3A`～`3E` |
 
-版本：1.2 · 更新日期：2026-09-08
+版本：1.2 · 更新日期：2026-09-09
 
 ---
 
@@ -181,7 +181,7 @@
 | 4 | 审批流配置 | `/approvals` | `ops:approval:config` | `system/ApprovalConfigView.vue` | 新增、保存、+ 结束、审批通过、结束、审批驳回、取消、上移、保存流程图 | 改节点后新单走新路径；无权限人点通过→403 | PASS（L1 页可达；深测见 §7–§10 / P0） |
 | 5 | 菜单管理 | `/menus` | `ops:rbac:menu` | `system/MenuManageView.vue` | 全选、清空、新增、展开、收起、保存 | **注意**：admin 侧栏真源主要是 `menu.ts`；本页改库菜单须验证登录权限树/按钮级 `F` 是否被消费，避免「改了库侧栏不变」假通过 | PASS（L1 页可达；深测见 §7–§10 / P0） |
 | 6 | 字典管理 | `/dicts` | `ops:dict:list` | `system/DictManageView.vue` | 新增类型、编辑、删除、刷新、导入模板、导入、新增字典项、保存、启用停用、取消 | **只影响展示**：改 label 后三端 Tag/筛选项更新；**不得**靠字典开关支付/开门。`GET /api/v2/dicts/runtime` 覆盖 `shared-dict` | PASS（L1 页可达；深测见 §7–§10 / P0） |
-| 7 | 参数配置 | `/system-configs` | `ops:config:list` | `system/SystemConfigView.vue` | 导入模板、导入、新增、刷新、上传标志、清除、保存品牌、查询 | 品牌/文档标题等可见变化；能力开关以环境变量为准（见 MODULES） | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 7 | 参数配置 | `/system-configs` | `ops:config:list` | `system/SystemConfigView.vue` | 导入模板、导入、新增、刷新、上传标志、清除、保存品牌、查询 | 品牌/文档标题等可见变化；能力开关以环境变量为准（见 MODULES）；补货门禁见 C-04 | PASS（L1 + C-04 补货四门禁 2026-09-09） |
 | 8 | 告警规则 | `/alert-rules` | `ops:config:list` | `system/AlertRuleView.vue` | 批量删除、新增、保存 | 触发条件后待办/告警出现；停用后不再刷 | PASS（L1 页可达；深测见 §7–§10 / P0） |
 | 9 | 定时任务 | `/scheduled-tasks` | `ops:task:list` | `system/ScheduledTaskView.vue` | 批量启用、批量停用、批量执行、新增、保存 | 「执行」产生预期副作用（对账/巡检等）；停用后到点不跑 | PASS（L1 页可达；深测见 §7–§10 / P0） |
 | 10 | 组织与点位 | `/org-sites` | `ops:org:list` | `system/OrgSitesView.vue` | 新增顶级组织、编辑、新增子级、分配设备、删除、批量删除、新增合同、租金分账、出账、批量出账、标记已付、作废 | 分配设备后商户数据范围变化；租金出账有流水 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
@@ -414,6 +414,7 @@
 | C-01 | 改品牌名/Logo 保存 | 文档标题、登录页品牌可见变化 | PASS（`ops.brand.title`→`前海易购-UAT`；`/api/v2/public/ops-branding`+登录页标题含 `-UAT`；已恢复） |
 | C-02 | 非法配置值 | 拒绝保存 | PASS（空 key→400「配置键不能为空」；超长→400「最长 2048」） |
 | C-03 | 无 `ops:config:list` | 不可进或只读 | PASS（005 system-configs API 403） |
+| C-04 | 补货门禁四参数切换 | `require_evidence` / `require_door` / `require_location` / `max_distance_m` 开关后商户 `/me` 与签到/完成行为一致；关后可跳过对应硬拦 | PASS（2026-09-09：重建 trade 后 API 全绿；参数页可见四键；商户详情文案「当前策略未强制定位签到…」；默认已恢复 true/500） |
 
 ### 9.3 审批流 × 部门（`/approvals` `/departments`）
 
@@ -623,7 +624,8 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 再续9：§4-3 补货履约 PASS（清理卡住 IN_TRANSIT 后 task=2 全链路；根因=在途抵消缺口；脚本补签到坐标+现场凭证）；商户 H5 已完成可见任务#2。
   - 再续10：S-08 ACCRUED PASS（有 wechat_receiver 时本地钱包不入账）；当时矩阵收口曾记 recognition-demo SKIP（再续11 已 PASS）。
   - 再续11：recognition-demo PASS（vite DEV + ENABLE_TEST_TOOLS；识别 SKU-SODA-001 75%）；§12.3 小程序原生项标 BLOCK/DOCUMENTED（client:h5 收口）。
-  - 证据目录: docs/uat-screenshots/2026-09-08/
+  - 再续12（2026-09-09）：补货可配置门禁实机验 C-04 PASS。先重建/重启 trade-service（旧镜像无 `/me` 门禁字段）。API：空定位拦/关定位可签；500m 过远拦 / max=0 放行；完成须开门拦 / 关门禁后越过；须凭证拦；`/me` 四字段跟随配置。UI：参数配置搜 replenishment 四键可见；商户任务#4 详情提示「当前策略未强制定位签到（若上报坐标，须在柜前 500 米内）」。默认已恢复 true/500/true/true。截图 `docs/uat-screenshots/2026-09-09/`。
+  - 证据目录: docs/uat-screenshots/2026-09-08/ · 2026-09-09/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
     withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /
     refund-order 1788833639119970182 / split 1788833639197767270 / couponDef=1 couponId=1 /
