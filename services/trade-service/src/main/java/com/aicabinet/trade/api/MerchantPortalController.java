@@ -6,6 +6,7 @@ import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.api.support.MerchantPortalControllerSupport;
 import com.aicabinet.trade.service.MerchantFinanceService;
 import com.aicabinet.trade.service.MerchantPortalService;
+import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -111,8 +112,9 @@ public class MerchantPortalController {
     }
 
     @RequiresPermissions("merchant:orders:list")
+    @JsonView(OrderViews.Merchant.class)
     @GetMapping("/orders")
-    public ApiResponse<PageResult<MerchantOrderSummaryDto>> orders(
+    public ApiResponse<PageResult<OrderReadModel>> orders(
             HttpServletRequest request,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size,
@@ -127,8 +129,9 @@ public class MerchantPortalController {
     }
 
     @RequiresPermissions("merchant:orders:list")
+    @JsonView(OrderViews.Merchant.class)
     @GetMapping("/orders/{orderId}")
-    public ApiResponse<OrderDto> order(
+    public ApiResponse<OrderReadModel> order(
             HttpServletRequest request, @PathVariable String orderId) {
         return ApiResponse.ok(support.merchantFinanceService().getOrder(userId(request), orderId));
     }

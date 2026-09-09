@@ -214,10 +214,16 @@ public class SysDictBootstrap implements ApplicationRunner {
                 CabinetConstants.PROMOTION_STATUS_DRAFT, "草稿", "RUNNING", "投放中", "STOPPED", "已停止")));
         map.put("consistency_check_type", t("一致性检查类型", m(
                 "ORDER_AMOUNT", "订单金额", "PAYMENT_AMOUNT", "支付净额",
-                "INVENTORY_MISMATCH", "库存汇总",
-                "POINTS_BALANCE", "积分余额", "COUPON_ISSUED", "发券数量",
-                "WALLET_BALANCE", "钱包余额", "REFUND_AMOUNT", "退款金额",
-                "ORDER_LINE_SUM", "订单行金额", "COUPON_USED_LINK", "券核销关联")));
+                "INVENTORY_MISMATCH", "库存汇总", "INVENTORY_ORPHAN_LOT", "孤儿批次",
+                "POINTS_BALANCE", "积分余额", "POINTS_IDENTITY", "积分恒等式",
+                "COUPON_ISSUED", "发券数量", "COUPON_OVER_QUOTA", "发券超配额",
+                "WALLET_BALANCE", "用户钱包", "MERCHANT_WALLET", "商户钱包", "LINE_WALLET", "线路钱包",
+                "REFUND_AMOUNT", "退款金额",
+                "ORDER_LINE_SUM", "订单行金额", "COUPON_USED_LINK", "券核销关联",
+                "REVENUE_SPLIT_SUM", "分账金额", "REVENUE_SPLIT_MISSING", "分账缺失",
+                "SLOT_SKU_MISMATCH", "货道SKU", "SLOT_CAPACITY", "货道容量",
+                "SLOT_PHYSICAL", "货道盘点", "WAREHOUSE_NEGATIVE", "仓存负库存",
+                "CROSS_LINK", "关联投影")));
         map.put("sku_perf_level", t("选品表现等级", m(
                 "BEST_SELLER", "畅销", STATUS_NORMAL, "正常", "SLOW_MOVER", "慢销", "NO_SALES", "无销量")));
         map.put("sku_review_status", t("选品评审状态", m(

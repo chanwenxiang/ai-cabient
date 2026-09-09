@@ -9,10 +9,9 @@ import com.aicabinet.trade.domain.OrderRevenueSplit;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
-import com.aicabinet.trade.mapper.DeviceInfoMapper;
-import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.service.view.OrderViewAssembler;
 import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -59,8 +58,7 @@ public class OpsSessionOrderQueryService {
     private final MinioVideoService minioVideoService;
     private final PaymentService paymentService;
     private final RefundPolicyService refundPolicyService;
-    private final DeviceInfoMapper deviceRepository;
-    private final MerchantMapper merchantRepository;
+    private final OrderViewAssembler orderViewAssembler;
 
     public OpsSessionOrderQueryService(PermissionService permissionService,
                                        MerchantScopeService merchantScopeService,
@@ -73,8 +71,7 @@ public class OpsSessionOrderQueryService {
                                        MinioVideoService minioVideoService,
                                        PaymentService paymentService,
                                        RefundPolicyService refundPolicyService,
-                                       DeviceInfoMapper deviceRepository,
-                                       MerchantMapper merchantRepository) {
+                                       OrderViewAssembler orderViewAssembler) {
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
         this.sessionRepository = sessionRepository;
@@ -86,8 +83,7 @@ public class OpsSessionOrderQueryService {
         this.minioVideoService = minioVideoService;
         this.paymentService = paymentService;
         this.refundPolicyService = refundPolicyService;
-        this.deviceRepository = deviceRepository;
-        this.merchantRepository = merchantRepository;
+        this.orderViewAssembler = orderViewAssembler;
     }
 
     public PageResult<AdminSessionDto> listSessions(Long operatorId, int page, int size,
@@ -122,27 +118,27 @@ public class OpsSessionOrderQueryService {
             String uploadStatus, boolean stuckOnly, int stuckMinutes) {}
 
     @Transactional(readOnly = true)
-    public PageResult<AdminOrderSummaryDto> listOrders(Long operatorId, int page, int size, String deviceId) {
+    public PageResult<OrderReadModel> listOrders(Long operatorId, int page, int size, String deviceId) {
         return listOrders(operatorId, new OrderListQuery(
                 page, size, deviceId, null, false, null, null, null, null, null, null, null, null, false));
     }
 
     @Transactional(readOnly = true)
-    public PageResult<AdminOrderSummaryDto> listOrders(
+    public PageResult<OrderReadModel> listOrders(
             Long operatorId, int page, int size, String deviceId, String status) {
         return listOrders(operatorId, new OrderListQuery(
                 page, size, deviceId, status, false, null, null, null, null, null, null, null, null, false));
     }
 
     @Transactional(readOnly = true)
-    public PageResult<AdminOrderSummaryDto> listOrders(
+    public PageResult<OrderReadModel> listOrders(
             Long operatorId, int page, int size, String deviceId, String status, boolean overdueOnly) {
         return listOrders(operatorId, new OrderListQuery(
                 page, size, deviceId, status, overdueOnly, null, null, null, null, null, null, null, null, false));
     }
 
     @Transactional(readOnly = true)
-    public PageResult<AdminOrderSummaryDto> listOrders(Long operatorId, OrderListQuery query) {
+    public PageResult<OrderReadModel> listOrders(Long operatorId, OrderListQuery query) {
         permissionService.requirePermission(operatorId, "ops:order:list");
         Pageable pageable = PageRequest.of(query.page(), Math.min(query.size(), 100));
         String status = query.status();
@@ -190,7 +186,7 @@ public class OpsSessionOrderQueryService {
     }
 
     @Transactional(readOnly = true)
-    public OrderDto getOrder(Long operatorId, String orderId) {
+    public OrderReadModel getOrder(Long operatorId, String orderId) {
         permissionService.requirePermission(operatorId, "ops:order:list");
         CabinetOrder order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
@@ -298,7 +294,7 @@ public class OpsSessionOrderQueryService {
                         + "payTradeNo,paymentOperationId,lineCount,lineSummary,inventoryDeducted,"
                         + "couponDiscountCents,memberDiscountCents,refundPolicy,refundedCents,refundedAt,createdAt,splitStatus\n");
         for (CabinetOrder o : page.getContent()) {
-            AdminOrderSummaryDto row = toOrderSummary(
+            OrderReadModel row = toOrderSummary(
                     o,
                     qtyByOrder.getOrDefault(o.getOrderId(), 0),
                     linesByOrder.getOrDefault(o.getOrderId(), List.of()),
@@ -474,24 +470,7 @@ public class OpsSessionOrderQueryService {
     }
 
     static String buildAdminLineSummary(List<CabinetOrderLine> lines) {
-        if (lines == null || lines.isEmpty()) {
-            return "";
-        }
-        String preview = lines.stream()
-                .limit(2)
-                .map(l -> {
-                    String name = (l.getSkuName() == null ? l.getSkuId() : l.getSkuName()) + " x" + l.getQuantity();
-                    if (l.getBatchNo() != null && !l.getBatchNo().isBlank()) {
-                        name += " @" + l.getBatchNo();
-                    }
-                    return name;
-                })
-                .reduce((a, b) -> a + "、" + b)
-                .orElse("");
-        if (lines.size() > 2) {
-            return preview + " 等" + lines.size() + "种";
-        }
-        return preview;
+        return OrderViewAssembler.buildLineSummary(lines);
     }
 
     private AdminSessionDto toSessionDto(ShoppingSession s) {
@@ -523,42 +502,15 @@ public class OpsSessionOrderQueryService {
         );
     }
 
-    private AdminOrderSummaryDto toOrderSummary(
+    private OrderReadModel toOrderSummary(
             CabinetOrder o, int lineCount, List<CabinetOrderLine> lines, String splitStatus) {
-        String payChannel = resolveOrderPayChannel(o);
-        OrderDisplaySnapshot display = resolveOrderDisplaySnapshot(o);
-        int coupon = Math.max(0, o.getCouponDiscountCents());
-        int member = Math.max(0, o.getMemberDiscountCents());
-        int original = o.getOriginalAmountCents() > 0
-                ? o.getOriginalAmountCents()
-                : o.getTotalAmountCents() + coupon + member;
-        String refundPolicy = resolveRefundPolicyName(o.getDeviceId());
-        return new AdminOrderSummaryDto(
-                o.getOrderId(),
-                o.getSessionId(),
-                o.getUserId(),
-                o.getDeviceId(),
-                display.merchantId(),
-                o.getTotalAmountCents(),
-                original,
-                coupon,
-                member,
-                o.getStatus(),
-                payChannel,
-                lineCount,
-                buildAdminLineSummary(lines),
-                resolvePayTradeNo(o),
-                o.getPaymentOperationId(),
-                o.getRefundedAt(),
-                o.isInventoryDeducted(),
-                refundPolicy,
-                o.getCreatedAt(),
-                display.deviceName(),
-                display.merchantName(),
-                Math.max(0, o.getRefundedCents()),
+        return orderViewAssembler.assembleSummary(
+                o,
+                lines,
+                splitStatus,
                 resolvePaidAt(o),
-                splitStatus
-        );
+                resolveRefundPolicyName(o.getDeviceId()),
+                resolvePayTradeNo(o));
     }
 
     private Map<String, String> loadSplitStatusByOrderIds(List<String> orderIds) {
@@ -612,14 +564,6 @@ public class OpsSessionOrderQueryService {
         return o.getCreatedAt();
     }
 
-    private static String resolveOrderPayChannel(CabinetOrder o) {
-        String payChannel = o.getPayChannel();
-        if (o.getPaymentOperationId() != null && o.getPaymentOperationId().startsWith("BL-")) {
-            return "BALANCE";
-        }
-        return payChannel;
-    }
-
     private String resolveRefundPolicyName(String deviceId) {
         try {
             return refundPolicyService.resolveForDevice(deviceId).name();
@@ -627,34 +571,5 @@ public class OpsSessionOrderQueryService {
             return null;
         }
     }
-
-    private OrderDisplaySnapshot resolveOrderDisplaySnapshot(CabinetOrder o) {
-        String merchantId = o.getMerchantId();
-        String deviceName = o.getDeviceName();
-        String merchantName = o.getMerchantName();
-        boolean needLookup = isBlank(merchantId) || isBlank(deviceName) || isBlank(merchantName);
-        if (!needLookup || o.getDeviceId() == null) {
-            return new OrderDisplaySnapshot(merchantId, deviceName, merchantName);
-        }
-        return deviceRepository.findById(o.getDeviceId())
-                .map(device -> {
-                    String mid = isBlank(merchantId) ? device.getMerchantId() : merchantId;
-                    String dname = isBlank(deviceName) ? device.getDeviceName() : deviceName;
-                    String mname = merchantName;
-                    if (isBlank(mname) && mid != null) {
-                        mname = merchantRepository.findById(mid)
-                                .map(com.aicabinet.trade.domain.Merchant::getMerchantName)
-                                .orElse(null);
-                    }
-                    return new OrderDisplaySnapshot(mid, dname, mname);
-                })
-                .orElse(new OrderDisplaySnapshot(merchantId, deviceName, merchantName));
-    }
-
-    private static boolean isBlank(String value) {
-        return value == null || value.isBlank();
-    }
-
-    private record OrderDisplaySnapshot(String merchantId, String deviceName, String merchantName) {}
 
 }

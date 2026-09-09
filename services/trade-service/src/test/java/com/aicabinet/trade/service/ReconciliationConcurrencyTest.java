@@ -71,6 +71,11 @@ class ReconciliationConcurrencyTest {
                 .thenReturn(0L);
         when(rechargeRepository.sumPaidAmountBetween(
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(0L);
+        when(paymentOperationRepository.sumGatewayRechargeRefundBetween(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(0L);
+        when(paymentOperationRepository.sumRechargeRefundByChannel(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), eq("MOCK")))
+                .thenReturn(0L);
         when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), eq("MOCK")))
                 .thenReturn(java.util.List.of());

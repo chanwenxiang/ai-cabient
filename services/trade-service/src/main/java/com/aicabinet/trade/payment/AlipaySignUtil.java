@@ -1,5 +1,7 @@
 package com.aicabinet.trade.payment;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -17,6 +19,7 @@ import java.util.stream.Collectors;
 
 @Component
 public class AlipaySignUtil {
+    private static final Logger log = LoggerFactory.getLogger(AlipaySignUtil.class);
 
     public boolean verifyRsa2(Map<String, String> params, String sign, String publicKeyPem) {
         if (sign == null || sign.isBlank()) {
@@ -35,6 +38,7 @@ public class AlipaySignUtil {
             signature.update(content.getBytes(StandardCharsets.UTF_8));
             return signature.verify(Base64.getDecoder().decode(sign));
         } catch (Exception e) {
+            log.error("支付宝验签异常（按失败处理）", e);
             return false;
         }
     }

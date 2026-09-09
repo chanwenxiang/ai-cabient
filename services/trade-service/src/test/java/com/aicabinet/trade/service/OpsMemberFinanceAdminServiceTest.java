@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.RechargeOrderDto;
 import com.aicabinet.trade.domain.RechargeOrder;
+import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.MemberMapper;
 import com.aicabinet.trade.mapper.RechargeOrderMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
@@ -19,9 +20,11 @@ import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
@@ -48,6 +51,27 @@ class OpsMemberFinanceAdminServiceTest {
                 permissionService, userInfoRepository, userAccountRepository,
                 memberRepository, blacklistRepository, balanceLedgerService, auditService,
                 paymentService, rechargeOrderRepository, distributedLockService);
+    }
+
+    @Test
+    void listUsers_masksPhoneNumber() {
+        UserInfo user = new UserInfo();
+        user.setUserId(10001L);
+        user.setPhoneNumber("13900000001");
+        user.setVerified(true);
+        user.setCreatedAt(Instant.parse("2026-09-01T00:00:00Z"));
+        Page<UserInfo> page = new PageImpl<>(List.of(user));
+        when(userInfoRepository.searchForAdmin(
+                isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(page);
+        when(memberRepository.findByUserIds(anyCollection())).thenReturn(List.of());
+        when(blacklistRepository.findActiveUserIds(anyCollection())).thenReturn(Set.of());
+        when(userAccountRepository.findByUserIds(anyCollection())).thenReturn(List.of());
+
+        var result = service.listUsers(1L, 0, 20, null, null, null, null, null);
+
+        assertEquals(1, result.total());
+        assertEquals("139****0001", result.items().get(0).phoneNumber());
     }
 
     @Test

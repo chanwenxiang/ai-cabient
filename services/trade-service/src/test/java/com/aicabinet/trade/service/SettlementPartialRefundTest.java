@@ -52,7 +52,7 @@ class SettlementPartialRefundTest {
                 null, null, inventoryService, orderPaymentService,
                 null, null, null, null, null, null,
                 null, couponService, null, null, null, null,
-                null, null, null, null, displaySnapshotHelper);
+                null, null, null, null, displaySnapshotHelper, new com.aicabinet.trade.service.view.OrderViewAssembler());
         org.springframework.test.util.ReflectionTestUtils.setField(settlementService, "self", settlementService);
         lenient().doNothing().when(couponService).recalcOrRestoreAfterPartialRefund(any(), anyInt());
     }

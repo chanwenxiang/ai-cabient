@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.*;
+import com.aicabinet.common.util.PhoneMask;
 import com.aicabinet.trade.domain.OpsPermission;
 import com.aicabinet.trade.domain.OpsRole;
 import com.aicabinet.trade.domain.OpsRolePermission;
@@ -695,7 +696,7 @@ public class OpsRbacService {
                 : departmentRepository.findById(primaryDeptId).map(OpsDepartment::getDeptName).orElse(null);
         return new OpsOperatorDto(
                 user.getUserId(),
-                user.getPhoneNumber(),
+                PhoneMask.mask(user.getPhoneNumber()),
                 user.getName(),
                 user.getStatus() == null || user.getStatus().isBlank() ? CabinetConstants.PROMOTION_STATUS_ACTIVE : user.getStatus(),
                 roleNames,

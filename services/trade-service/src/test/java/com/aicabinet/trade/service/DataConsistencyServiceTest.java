@@ -402,9 +402,9 @@ class DataConsistencyServiceTest {
 
     @Test
     void checkRefundAmountConsistency_recordsMismatch() {
-        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(
-                Map.of("order_id", "O-R1", "expected", 100, "actual", 80)
-        ));
+        when(jdbcTemplate.queryForList(anyString()))
+                .thenReturn(List.of(Map.of("order_id", "O-R1", "expected", 100, "actual", 80)))
+                .thenReturn(List.of());
         when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
                 anyString(), anyString(), anyString())).thenReturn(List.of());
         when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
@@ -416,6 +416,32 @@ class DataConsistencyServiceTest {
         verify(consistencyRepository).save(captor.capture());
         assertEquals("REFUND_AMOUNT", captor.getValue().getCheckType());
         assertEquals("O-R1", captor.getValue().getCheckKey());
+    }
+
+    @Test
+    void checkRefundAmountConsistency_recordsRechargeOverRefund() {
+        when(jdbcTemplate.queryForList(anyString()))
+                .thenReturn(List.of())
+                .thenReturn(List.of(Map.of(
+                        "order_id", "RCH-9",
+                        "expected", 1000,
+                        "actual", 1200,
+                        "recharge_status", "PAID")));
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
+                anyString(), anyString(), anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkRefundAmountConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, times(2)).queryForList(sqlCaptor.capture());
+        assertTrue(sqlCaptor.getAllValues().get(1).contains("RECHARGE_REFUND"));
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository).save(captor.capture());
+        assertEquals("REFUND_AMOUNT", captor.getValue().getCheckType());
+        assertEquals("RCH|RCH-9", captor.getValue().getCheckKey());
+        assertTrue(captor.getValue().getErrorMessage().contains("超过原单"));
     }
 
     @Test
@@ -510,5 +536,200 @@ class DataConsistencyServiceTest {
         assertTrue(outcome.fixed());
         assertTrue(outcome.message().contains("6"));
         assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
+    }
+
+    @Test
+    void checkOrderConsistency_includesPartialRefunded() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkOrderConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        assertTrue(sqlCaptor.getValue().contains("PARTIAL_REFUNDED"));
+    }
+
+    @Test
+    void checkInventoryOrphanLotConsistency_usesNotExistsInventory() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(
+                Map.of("device_id", "CAB-1", "sku_id", "SKU-1", "lot_qty", 5)
+        ));
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
+                anyString(), anyString(), anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkInventoryOrphanLotConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        assertTrue(sqlCaptor.getValue().contains("NOT EXISTS"));
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository).save(captor.capture());
+        assertEquals("INVENTORY_ORPHAN_LOT", captor.getValue().getCheckType());
+        assertEquals("CAB-1|SKU-1", captor.getValue().getCheckKey());
+    }
+
+    @Test
+    void checkPointsIdentityConsistency_comparesTriangle() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkPointsIdentityConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("available_points"));
+        assertTrue(sql.contains("used_points"));
+        assertTrue(sql.contains("expired_points"));
+        assertTrue(sql.contains("total_points"));
+    }
+
+    @Test
+    void checkMerchantWalletConsistency_joinsLatestLedger() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkMerchantWalletConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("merchant_wallet_account"));
+        assertTrue(sql.contains("merchant_wallet_ledger"));
+        assertTrue(sql.contains("balance_after"));
+    }
+
+    @Test
+    void checkRevenueSplitSumAndMissing_coverSettlement() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkRevenueSplitSumConsistency();
+        service.checkRevenueSplitMissingConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, times(2)).queryForList(sqlCaptor.capture());
+        List<String> sqls = sqlCaptor.getAllValues();
+        assertTrue(sqls.get(0).contains("platform_cents"));
+        assertTrue(sqls.get(0).contains("merchant_cents"));
+        assertTrue(sqls.get(1).contains("order_revenue_split"));
+        assertTrue(sqls.get(1).contains("PAID"));
+    }
+
+    @Test
+    void checkSlotAndWarehouseChecks_emitExpectedSql() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkSlotSkuMismatchConsistency();
+        service.checkSlotCapacityConsistency();
+        service.checkSlotPhysicalConsistency();
+        service.checkWarehouseNegativeConsistency();
+        service.checkCouponOverQuotaConsistency();
+        service.checkLineWalletConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, times(6)).queryForList(sqlCaptor.capture());
+        List<String> sqls = sqlCaptor.getAllValues();
+        assertTrue(sqls.get(0).contains("assigned_sku_id"));
+        assertTrue(sqls.get(1).contains("max_level"));
+        assertTrue(sqls.get(2).contains("last_physical_qty"));
+        assertTrue(sqls.get(3).contains("warehouse_inventory"));
+        assertTrue(sqls.get(4).contains("max_issue_count"));
+        assertTrue(sqls.get(5).contains("line_wallet_account"));
+    }
+
+    @Test
+    void fixInconsistency_orphanLot_upsertsInventory() {
+        DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
+        consistencyRecord.setId(21L);
+        consistencyRecord.setCheckType("INVENTORY_ORPHAN_LOT");
+        consistencyRecord.setCheckKey("CAB-X|SKU-Y");
+        consistencyRecord.setActualValue("7");
+        consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
+
+        when(consistencyRepository.findByIdForUpdate(21L)).thenReturn(java.util.Optional.of(consistencyRecord));
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(quantity)"), anyIntExtractor(),
+                eq("CAB-X"), eq("SKU-Y"))).thenReturn(7);
+        when(jdbcTemplate.update(startsWith("INSERT INTO device_sku_inventory"),
+                eq("CAB-X"), eq("SKU-Y"), eq(7))).thenReturn(1);
+
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(21L);
+        assertTrue(outcome.fixed());
+        assertTrue(outcome.message().contains("7"));
+        assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
+    }
+
+    @Test
+    void fixInconsistency_pointsIdentity_rewritesTotal() {
+        DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
+        consistencyRecord.setId(22L);
+        consistencyRecord.setCheckType("POINTS_IDENTITY");
+        consistencyRecord.setCheckKey("9");
+        consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
+
+        when(consistencyRepository.findByIdForUpdate(22L)).thenReturn(java.util.Optional.of(consistencyRecord));
+        when(jdbcTemplate.update(startsWith("UPDATE member SET total_points"), eq("9"))).thenReturn(1);
+
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(22L);
+        assertTrue(outcome.fixed());
+        assertTrue(outcome.message().contains("累计积分"));
+    }
+
+    @Test
+    void checkCrossLinkConsistency_recordsSaleRefundDisputeAndMerchantDrift() {
+        when(jdbcTemplate.queryForList(contains("inventory_deducted")))
+                .thenReturn(List.of(Map.of("order_id", "O-SALE", "reason", "INVENTORY_FLAG")));
+        when(jdbcTemplate.queryForList(contains("REFUND_KEPT")))
+                .thenReturn(List.of(Map.of("order_id", "O-RF")));
+        when(jdbcTemplate.queryForList(contains("dispute_ticket")))
+                .thenReturn(List.of(Map.of(
+                        "ticket_id", "T-1",
+                        "ticket_status", "OPEN",
+                        "order_id", "O-D",
+                        "order_status", "PAID")));
+        when(jdbcTemplate.queryForList(contains("device_merchant")))
+                .thenReturn(List.of(Map.of(
+                        "order_id", "O-M",
+                        "order_merchant", "M-OLD",
+                        "device_merchant", "M-NEW")));
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(eq("CROSS_LINK"), anyString()))
+                .thenReturn(List.of());
+
+        service.checkCrossLinkConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, times(4)).save(captor.capture());
+        List<String> keys = captor.getAllValues().stream().map(DataConsistencyRecord::getCheckKey).toList();
+        assertTrue(keys.contains("SALE|O-SALE"));
+        assertTrue(keys.contains("RFINV|O-RF"));
+        assertTrue(keys.contains("DSP|T-1"));
+        assertTrue(keys.contains("ODV|O-M"));
+        assertTrue(captor.getAllValues().stream().allMatch(r -> "CROSS_LINK".equals(r.getCheckType())));
+    }
+
+    @Test
+    void fixInconsistency_crossLink_isManualOnly() {
+        DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
+        consistencyRecord.setId(23L);
+        consistencyRecord.setCheckType("CROSS_LINK");
+        consistencyRecord.setCheckKey("SALE|O-1");
+        consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
+
+        when(consistencyRepository.findByIdForUpdate(23L)).thenReturn(java.util.Optional.of(consistencyRecord));
+
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(23L);
+        assertFalse(outcome.fixed());
+        assertTrue(outcome.message().contains("人工"));
     }
 }

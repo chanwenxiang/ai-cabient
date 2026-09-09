@@ -1166,6 +1166,7 @@ public class DisputeService {
                     .map(i -> new OrderLineDto(i.skuId(), i.skuId(), i.quantity(), 0, 0))
                     .toList();
         } catch (Exception e) {
+            log.warn("dispute parseItems failed, return empty", e);
             return List.of();
         }
     }
@@ -1175,11 +1176,12 @@ public class DisputeService {
             return lines;
         }
         List<String> skuIds = lines.stream().map(OrderLineDto::skuId).distinct().toList();
-        Map<String, String> names = skuCatalogRepository.findAllById(skuIds).stream()
+        var catalogs = skuCatalogRepository.findAllById(skuIds);
+        Map<String, String> names = catalogs.stream()
                 .collect(Collectors.toMap(
                         com.aicabinet.trade.domain.SkuCatalog::getSkuId,
                         com.aicabinet.trade.domain.SkuCatalog::getSkuName));
-        Map<String, Integer> prices = skuCatalogRepository.findAllById(skuIds).stream()
+        Map<String, Integer> prices = catalogs.stream()
                 .collect(Collectors.toMap(
                         com.aicabinet.trade.domain.SkuCatalog::getSkuId,
                         com.aicabinet.trade.domain.SkuCatalog::getPriceCents));
@@ -1303,6 +1305,7 @@ public class DisputeService {
         try {
             return objectMapper.readValue(raw, new TypeReference<List<String>>() {});
         } catch (Exception e) {
+            log.warn("dispute parseDetectedClasses failed raw={}", raw, e);
             return List.of();
         }
     }

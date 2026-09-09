@@ -5,9 +5,8 @@ import com.aicabinet.trade.domain.CabinetOrderLine;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
-import com.aicabinet.trade.mapper.DeviceInfoMapper;
-import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
+import com.aicabinet.trade.service.view.OrderViewAssembler;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
@@ -43,8 +42,6 @@ class OpsSessionOrderQueryServiceTest {
     @Mock MinioVideoService minioVideoService;
     @Mock PaymentService paymentService;
     @Mock RefundPolicyService refundPolicyService;
-    @Mock DeviceInfoMapper deviceRepository;
-    @Mock MerchantMapper merchantRepository;
 
     private OpsSessionOrderQueryService service;
 
@@ -53,7 +50,7 @@ class OpsSessionOrderQueryServiceTest {
         service = new OpsSessionOrderQueryService(
                 permissionService, merchantScopeService, sessionRepository, orderRepository,
                 orderLineRepository, splitRepository, settlementService, auditService,
-                minioVideoService, paymentService, refundPolicyService, deviceRepository, merchantRepository);
+                minioVideoService, paymentService, refundPolicyService, new OrderViewAssembler());
     }
 
     @Test
@@ -62,7 +59,7 @@ class OpsSessionOrderQueryServiceTest {
         CabinetOrderLine b = line("B", "面包", 2, "B1");
         CabinetOrderLine c = line("C", "水", 1, null);
         assertEquals("", OpsSessionOrderQueryService.buildAdminLineSummary(List.of()));
-        assertEquals("牛奶 x1、面包 x2 @B1 等3种",
+        assertEquals("牛奶 x1、面包 x2 @B1 等3件",
                 OpsSessionOrderQueryService.buildAdminLineSummary(List.of(a, b, c)));
     }
 

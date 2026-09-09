@@ -1,6 +1,6 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.common.dto.OrderDto;
+import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.client.VisionServiceClient;
@@ -60,7 +60,7 @@ class BalanceInsufficientSettlementTest {
     @Test
     void syncSettlement_balanceInsufficient_transitionsToDisputedWithoutOrder() {
         ShoppingSession session = session("S-BAL-01", 13800138000L, "CAB-001", SessionState.RECOGNIZING);
-        when(repository.findByIdForUpdate("S-BAL-01")).thenReturn(Optional.of(session));
+        when(repository.findById("S-BAL-01")).thenReturn(Optional.of(session));
         when(visionAsyncProperties.enabled()).thenReturn(false);
         when(settlementService.settle(session)).thenThrow(
                 new BalanceInsufficientException(ApiMessages.INSUFFICIENT_BALANCE));
@@ -78,7 +78,7 @@ class BalanceInsufficientSettlementTest {
     @Test
     void asyncRecognition_balanceInsufficient_transitionsToDisputedWithoutOrder() {
         ShoppingSession session = session("S-BAL-02", 13800138000L, "CAB-001", SessionState.RECOGNIZING);
-        when(repository.findByIdForUpdate("S-BAL-02")).thenReturn(Optional.of(session));
+        when(repository.findById("S-BAL-02")).thenReturn(Optional.of(session));
         var recognition = new VisionServiceClient.RecognitionResult(
                 "T-1", List.of(), 0.9f, false, "mock", List.of());
         when(settlementService.processRecognitionResult(session, recognition)).thenThrow(
@@ -97,11 +97,9 @@ class BalanceInsufficientSettlementTest {
     @Test
     void syncSettlement_exactBalance_completesNormally() {
         ShoppingSession session = session("S-BAL-03", 13800138000L, "CAB-001", SessionState.RECOGNIZING);
-        when(repository.findByIdForUpdate("S-BAL-03")).thenReturn(Optional.of(session));
+        when(repository.findById("S-BAL-03")).thenReturn(Optional.of(session));
         when(visionAsyncProperties.enabled()).thenReturn(false);
-        when(settlementService.settle(session)).thenReturn(new OrderDto(
-                "O-EXACT", "S-BAL-03", 13800138000L, "CAB-001", 600,
-                List.of(), "PAID", "BALANCE", null, 1100, 500, null));
+        when(settlementService.settle(session)).thenReturn(OrderReadModelFixtures.sample("O-EXACT", "S-BAL-03"));
         when(orderRepository.findById("O-EXACT")).thenReturn(Optional.empty());
 
         var result = service.settleAfterClose("S-BAL-03");

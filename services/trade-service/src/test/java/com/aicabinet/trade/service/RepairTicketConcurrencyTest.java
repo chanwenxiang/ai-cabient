@@ -26,6 +26,7 @@ class RepairTicketConcurrencyTest {
     @Mock private RepairTicketEventMapper eventMapper;
     @Mock private DeviceInfoMapper deviceInfoMapper;
     @Mock private PermissionService permissionService;
+    @Mock private MerchantScopeService merchantScopeService;
     @Mock private DeviceSalesLockService salesLockService;
     @Mock private OpsExceptionService opsExceptionService;
     @Mock private DistributedLockService distributedLockService;
@@ -35,7 +36,8 @@ class RepairTicketConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new RepairTicketService(ticketMapper, eventMapper, deviceInfoMapper,
-                permissionService, salesLockService, opsExceptionService, distributedLockService, null, null);
+                permissionService, merchantScopeService, salesLockService, opsExceptionService,
+                distributedLockService, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

@@ -1,7 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.CancelUnpaidOrderRequest;
-import com.aicabinet.common.dto.OrderDto;
+import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.dto.UnpaidOrderActionResultDto;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.config.WeChatMiniAppProperties;
@@ -64,6 +64,7 @@ public class UnpaidOrderService {
     private final ConsumerPreauthService consumerPreauthService;
     private final NotificationService notificationService;
     private final DistributedLockService distributedLockService;
+    private final ApiRateLimitService apiRateLimitService;
 
     public UnpaidOrderService(CabinetOrderMapper orderRepository,
                               CabinetOrderLineMapper orderLineRepository,
@@ -84,7 +85,8 @@ public class UnpaidOrderService {
                               @Lazy SettlementService settlementService,
                               ConsumerPreauthService consumerPreauthService,
                               NotificationService notificationService,
-                              DistributedLockService distributedLockService) {
+                              DistributedLockService distributedLockService,
+                              ApiRateLimitService apiRateLimitService) {
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
         this.userInfoRepository = userInfoRepository;
@@ -105,9 +107,12 @@ public class UnpaidOrderService {
         this.consumerPreauthService = consumerPreauthService;
         this.notificationService = notificationService;
         this.distributedLockService = distributedLockService;
+        this.apiRateLimitService = apiRateLimitService;
     }
 
-    @Transactional
+    /**
+     * 催付：微信订阅消息在事务外发送，避免占用 DB 连接等待渠道。
+     */
     public UnpaidOrderActionResultDto remind(Long operatorId, String orderId) {
         permissionService.requirePermission(operatorId, "ops:order:remind");
         CabinetOrder order = requirePendingScoped(operatorId, orderId);
@@ -167,7 +172,7 @@ public class UnpaidOrderService {
     }
 
     @Transactional
-    public OrderDto collect(Long operatorId, String orderId) {
+    public OrderReadModel collect(Long operatorId, String orderId) {
         permissionService.requireAnyPermission(operatorId, "ops:order:remind", "ops:order:cancel", "ops:order:refund");
         return runWithOrderPaymentLock(orderId, () -> {
             CabinetOrder order = requirePendingScoped(operatorId, orderId);
@@ -178,7 +183,8 @@ public class UnpaidOrderService {
     }
 
     @Transactional
-    public OrderDto collectByUser(Long userId, String orderId) {
+    public OrderReadModel collectByUser(Long userId, String orderId) {
+        apiRateLimitService.assertOrderPayAllowed(userId);
         return runWithOrderPaymentLock(orderId, () -> {
             CabinetOrder order = orderRepository.findByIdForUpdate(orderId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));

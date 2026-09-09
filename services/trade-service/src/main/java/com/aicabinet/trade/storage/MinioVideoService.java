@@ -101,6 +101,7 @@ public class MinioVideoService {
             try {
                 return Files.isRegularFile(Paths.get(URI.create(storageUri)));
             } catch (Exception e) {
+                log.warn("local video objectExists failed uri={}", storageUri, e);
                 return false;
             }
         }
@@ -118,6 +119,7 @@ public class MinioVideoService {
                     .build());
             return true;
         } catch (Exception e) {
+            log.warn("minio objectExists failed bucket={} key={}", parsed.bucket(), parsed.objectKey(), e);
             return false;
         }
     }

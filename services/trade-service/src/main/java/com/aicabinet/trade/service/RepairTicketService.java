@@ -45,6 +45,7 @@ public class RepairTicketService {
     private final RepairTicketEventMapper eventMapper;
     private final DeviceInfoMapper deviceInfoMapper;
     private final PermissionService permissionService;
+    private final MerchantScopeService merchantScopeService;
     private final DeviceSalesLockService salesLockService;
     private final OpsExceptionService opsExceptionService;
     private final DistributedLockService distributedLockService;
@@ -56,6 +57,7 @@ public class RepairTicketService {
                                RepairTicketEventMapper eventMapper,
                                DeviceInfoMapper deviceInfoMapper,
                                PermissionService permissionService,
+                               MerchantScopeService merchantScopeService,
                                DeviceSalesLockService salesLockService,
                                @Lazy OpsExceptionService opsExceptionService,
                                DistributedLockService distributedLockService,
@@ -65,6 +67,7 @@ public class RepairTicketService {
         this.eventMapper = eventMapper;
         this.deviceInfoMapper = deviceInfoMapper;
         this.permissionService = permissionService;
+        this.merchantScopeService = merchantScopeService;
         this.salesLockService = salesLockService;
         this.opsExceptionService = opsExceptionService;
         this.distributedLockService = distributedLockService;
@@ -84,12 +87,20 @@ public class RepairTicketService {
         permissionService.requireAnyPermission(operatorId, PERM_OPS_REPAIR_LIST, PERM_OPS_DEVICE_LIST);
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
+        Set<String> allowedDevices = merchantScopeService.allowedDeviceIds(operatorId);
         LambdaQueryWrapper<RepairTicket> q = new LambdaQueryWrapper<>();
         if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status)) {
             q.eq(RepairTicket::getStatus, status.trim().toUpperCase(Locale.ROOT));
         }
         if (deviceId != null && !deviceId.isBlank()) {
-            q.eq(RepairTicket::getDeviceId, deviceId.trim());
+            String trimmed = deviceId.trim();
+            merchantScopeService.requireDeviceAccess(operatorId, trimmed);
+            q.eq(RepairTicket::getDeviceId, trimmed);
+        } else if (allowedDevices != null) {
+            if (allowedDevices.isEmpty()) {
+                return new PageResult<>(List.of(), p, s, 0);
+            }
+            q.in(RepairTicket::getDeviceId, allowedDevices);
         }
         if (priority != null && !priority.isBlank()) {
             q.eq(RepairTicket::getPriority, priority.trim().toUpperCase(Locale.ROOT));
@@ -106,6 +117,7 @@ public class RepairTicketService {
     @Transactional(readOnly = true)
     public List<RepairTicketDto> listByDevice(Long operatorId, String deviceId, int limit) {
         permissionService.requireAnyPermission(operatorId, PERM_OPS_REPAIR_LIST, PERM_OPS_DEVICE_LIST, "ops:device:edit");
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         int lim = Math.min(Math.max(limit, 1), 50);
         return ticketMapper.selectList(new LambdaQueryWrapper<RepairTicket>()
                         .eq(RepairTicket::getDeviceId, deviceId)
@@ -118,6 +130,7 @@ public class RepairTicketService {
     public RepairTicketDetailDto detail(Long operatorId, long ticketId) {
         permissionService.requireAnyPermission(operatorId, PERM_OPS_REPAIR_LIST, PERM_OPS_DEVICE_LIST);
         RepairTicket ticket = requireTicket(ticketId);
+        merchantScopeService.requireDeviceAccess(operatorId, ticket.getDeviceId());
         List<RepairTicketEventDto> events = eventMapper.selectList(new LambdaQueryWrapper<RepairTicketEvent>()
                         .eq(RepairTicketEvent::getTicketId, ticketId)
                         .orderByDesc(RepairTicketEvent::getCreatedAt))
@@ -136,6 +149,7 @@ public class RepairTicketService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "标题必填");
         }
         String trimmedDeviceId = deviceId.trim();
+        merchantScopeService.requireDeviceAccess(operatorId, trimmedDeviceId);
         if (deviceInfoMapper.selectById(trimmedDeviceId) == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在");
         }
@@ -173,6 +187,7 @@ public class RepairTicketService {
     private RepairTicketDto doUpdate(Long operatorId, long ticketId, String title, String faultType,
                                      String assignee, String priority, String remark) {
         RepairTicket ticket = requireTicketForUpdate(ticketId);
+        merchantScopeService.requireDeviceAccess(operatorId, ticket.getDeviceId());
         if ("DONE".equals(ticket.getStatus()) || STATUS_CANCELLED.equals(ticket.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "已关闭工单不可编辑");
         }
@@ -207,6 +222,7 @@ public class RepairTicketService {
 
     private boolean doAssignOne(Long operatorId, Long ticketId, String name) {
         RepairTicket ticket = requireTicketForUpdate(ticketId);
+        merchantScopeService.requireDeviceAccess(operatorId, ticket.getDeviceId());
         if ("DONE".equals(ticket.getStatus()) || STATUS_CANCELLED.equals(ticket.getStatus())) {
             return false;
         }
@@ -232,6 +248,7 @@ public class RepairTicketService {
     private RepairTicketDto doTransition(Long operatorId, long ticketId, String toStatus, String remark,
                                        boolean unlockDevice) {
         RepairTicket ticket = requireTicketForUpdate(ticketId);
+        merchantScopeService.requireDeviceAccess(operatorId, ticket.getDeviceId());
         String target = toStatus == null ? "" : toStatus.trim().toUpperCase(Locale.ROOT);
         if (!STATUSES.contains(target)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "无效状态");

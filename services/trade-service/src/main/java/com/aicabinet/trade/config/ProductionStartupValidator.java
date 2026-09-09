@@ -85,8 +85,8 @@ public class ProductionStartupValidator {
         }
         validateSmsMockCode();
         validateCookieSecurity();
-        warnIfDefaultMinioCredentials();
-        warnIfLocalhostCors();
+        rejectDefaultMinioCredentials();
+        rejectLocalhostCorsInProd();
         if (isStagingProfile()) {
             validateStagingProfile();
         } else {
@@ -136,6 +136,8 @@ public class ProductionStartupValidator {
         if (checkoutProperties.balanceOnly()) {
             log.info("Staging CHECKOUT_BALANCE_ONLY=true — suitable for no-merchant balance-only soak tests");
         }
+        // soak 环境同样禁止空 CIDR：内网接口不能仅靠可猜 key
+        requireInternalApiCidr("Staging");
         validateReconciliationConfig(false);
     }
 
@@ -160,9 +162,14 @@ public class ProductionStartupValidator {
                     "Production requires IDENTITY_VERIFY_BASE_URL / aicabinet.identity-verify.base-url "
                             + "(or keep AICABINET_MOCK_ENABLED=true only in non-prod)");
         }
+        requireInternalApiCidr("Production");
+    }
+
+    private void requireInternalApiCidr(String envLabel) {
         if (!internalApiProperties.hasCidrRestriction()) {
-            log.warn("INTERNAL_API_ALLOWED_CIDRS is empty — /internal/** accepts any source IP with valid key; "
-                    + "set private Docker/VPC CIDRs for defense in depth (gateway already blocks public /internal/)");
+            throw new IllegalStateException(
+                    envLabel + " requires INTERNAL_API_ALLOWED_CIDRS (private Docker/VPC CIDRs); "
+                            + "empty CIDR means any source IP with a valid key can call /internal/**");
         }
     }
 
@@ -270,21 +277,24 @@ public class ProductionStartupValidator {
         return false;
     }
 
-    private void warnIfDefaultMinioCredentials() {
+    private void rejectDefaultMinioCredentials() {
         if ("minioadmin".equals(minioProperties.accessKey())
                 || "minioadmin".equals(minioProperties.secretKey())) {
-            log.warn("MinIO/OSS still using default minioadmin credentials — change before production go-live");
+            throw new IllegalStateException(
+                    "Production/staging cannot use default MinIO credentials (minioadmin); "
+                            + "set MINIO_ACCESS_KEY / MINIO_SECRET_KEY");
         }
     }
 
-    private void warnIfLocalhostCors() {
-        if (corsProperties.allowedOrigins() == null) {
+    private void rejectLocalhostCorsInProd() {
+        if (!isProdProfile() || corsProperties.allowedOrigins() == null || corsProperties.allowedOrigins().isEmpty()) {
             return;
         }
-        boolean localhostOnly = corsProperties.allowedOrigins().stream()
-                .allMatch(o -> o != null && (o.contains("localhost") || o.contains("127.0.0.1")));
-        if (localhostOnly && isProdProfile()) {
-            log.warn("CORS_ORIGIN still points to localhost — set real ops domain before go-live");
+        boolean hasLocalhost = corsProperties.allowedOrigins().stream()
+                .anyMatch(o -> o != null && (o.contains("localhost") || o.contains("127.0.0.1")));
+        if (hasLocalhost) {
+            throw new IllegalStateException(
+                    "Production CORS_ORIGIN must not include localhost/127.0.0.1; set real ops domain(s)");
         }
     }
 

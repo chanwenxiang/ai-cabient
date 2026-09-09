@@ -10,6 +10,9 @@ aicabinet:
   risk:
     max-opens-per-hour: 200
     max-disputes-per-7-days: 50
+  rate-limit:
+    max-coupon-claims-per-hour: 200
+    max-order-pays-per-hour: 200
   reconciliation:
     mock-enabled: true
     wechat-bill-type: ALL

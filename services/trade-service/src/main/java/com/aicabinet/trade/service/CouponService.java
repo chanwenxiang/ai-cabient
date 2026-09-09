@@ -20,6 +20,7 @@ import java.util.*;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class CouponService {
@@ -206,10 +207,11 @@ public class CouponService {
         List<UserCoupon> coupons = (statusFilter != null && !statusFilter.isBlank())
                 ? userCouponRepository.findByUserIdAndStatus(userId, statusFilter)
                 : userCouponRepository.findByUserIdOrderByCreatedAtDesc(userId);
-        return coupons.stream().map(uc -> {
-            CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
-            return toDto(uc, def);
-        }).toList();
+        Map<Long, CouponDefinition> defs = loadDefinitionsByIds(
+                coupons.stream().map(UserCoupon::getCouponDefId).toList());
+        return coupons.stream()
+                .map(uc -> toDto(uc, defs.get(uc.getCouponDefId())))
+                .toList();
     }
 
     public long countAvailable(Long userId) {
@@ -353,9 +355,13 @@ public class CouponService {
             return Optional.empty();
         }
         Instant now = Instant.now();
+        List<UserCoupon> unused = userCouponRepository.findByUserIdAndStatus(
+                userId, CabinetConstants.COUPON_STATUS_UNUSED);
+        Map<Long, CouponDefinition> defs = loadDefinitionsByIds(
+                unused.stream().map(UserCoupon::getCouponDefId).toList());
         BestCoupon best = null;
-        for (UserCoupon uc : userCouponRepository.findByUserIdAndStatus(userId, CabinetConstants.COUPON_STATUS_UNUSED)) {
-            Optional<BestCoupon> cand = evaluateCoupon(uc, subtotalCents, now);
+        for (UserCoupon uc : unused) {
+            Optional<BestCoupon> cand = evaluateCoupon(uc, defs.get(uc.getCouponDefId()), subtotalCents, now);
             if (cand.isEmpty()) {
                 continue;
             }
@@ -382,10 +388,14 @@ public class CouponService {
     }
 
     private Optional<BestCoupon> evaluateCoupon(UserCoupon uc, int subtotalCents, Instant now) {
+        CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
+        return evaluateCoupon(uc, def, subtotalCents, now);
+    }
+
+    private Optional<BestCoupon> evaluateCoupon(UserCoupon uc, CouponDefinition def, int subtotalCents, Instant now) {
         if (uc.getExpireAt() != null && uc.getExpireAt().isBefore(now)) {
             return Optional.empty();
         }
-        CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
         if (def == null || !CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(def.getStatus())) {
             return Optional.empty();
         }
@@ -572,10 +582,11 @@ public class CouponService {
         String summary = "本次无过期优惠券";
         try {
             List<UserCoupon> expired = userCouponRepository.findByStatusAndExpireAtBefore(CabinetConstants.COUPON_STATUS_UNUSED, Instant.now());
+            Map<Long, CouponDefinition> defs = loadDefinitionsByIds(
+                    expired.stream().map(UserCoupon::getCouponDefId).toList());
             for (UserCoupon uc : expired) {
                 uc.setStatus(CabinetConstants.COUPON_STATUS_EXPIRED);
-                CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
-                releasePromotionBudgetIfAny(def);
+                releasePromotionBudgetIfAny(defs.get(uc.getCouponDefId()));
             }
             userCouponRepository.saveAll(expired);
             if (!expired.isEmpty()) {
@@ -664,6 +675,23 @@ public class CouponService {
                 d.getDenominationCents(), d.getMinSpendCents(), d.getDiscountPercent(),
                 d.getValidityDays(), d.getMaxIssueCount(), d.getIssuedCount(),
                 d.getStatus(), d.getDescription(), d.getActivityId());
+    }
+
+    private Map<Long, CouponDefinition> loadDefinitionsByIds(Collection<Long> defIds) {
+        if (defIds == null || defIds.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> unique = defIds.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+        if (unique.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, CouponDefinition> map = new HashMap<>();
+        for (CouponDefinition def : definitionRepository.findAllById(unique)) {
+            if (def != null && def.getCouponDefId() != null) {
+                map.put(def.getCouponDefId(), def);
+            }
+        }
+        return map;
     }
 
     private CouponDto toDto(UserCoupon uc, CouponDefinition def) {

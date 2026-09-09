@@ -200,12 +200,14 @@ class CouponServiceTest {
         def.setCouponDefId(1L);
         def.setCouponName("测试券");
         def.setDenominationCents(500);
-        when(definitionRepository.findById(1L)).thenReturn(Optional.of(def));
+        when(definitionRepository.findAllById(anyCollection())).thenReturn(List.of(def));
 
         var result = couponService.listUserCoupons(10001L, "UNUSED");
 
         assertEquals(1, result.size());
         assertEquals("测试券", result.get(0).couponName());
+        verify(definitionRepository, times(1)).findAllById(anyCollection());
+        verify(definitionRepository, never()).findById(any());
     }
 
     @Test
@@ -409,7 +411,7 @@ class CouponServiceTest {
 
         when(userCouponRepository.findByStatusAndExpireAtBefore(eq("UNUSED"), any()))
                 .thenReturn(List.of(expired));
-        when(definitionRepository.findById(10L)).thenReturn(Optional.of(def));
+        when(definitionRepository.findAllById(anyCollection())).thenReturn(List.of(def));
 
         couponService.expireOverdueCoupons();
 

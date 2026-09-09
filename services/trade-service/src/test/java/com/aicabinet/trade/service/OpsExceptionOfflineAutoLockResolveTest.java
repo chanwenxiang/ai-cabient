@@ -49,7 +49,8 @@ class OpsExceptionOfflineAutoLockResolveTest {
         when(repository.findByIdForUpdate("E-1")).thenReturn(Optional.of(open));
         when(repository.save(any(OpsException.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        OpsExceptionService service = new OpsExceptionService(repository, permission, support, lock, null);
+        OpsExceptionService service = new OpsExceptionService(repository, permission,
+                mock(MerchantScopeService.class), support, lock, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         service.resolveOfflineAutoLockFault("CAB-009", "测试关闭");
 
@@ -73,7 +74,8 @@ class OpsExceptionOfflineAutoLockResolveTest {
         when(repository.findFirstByDedupKeyAndStatusIn(eq("DEVICE_FAULT:CAB-010"), any()))
                 .thenReturn(Optional.of(open));
 
-        OpsExceptionService service = new OpsExceptionService(repository, permission, support, lock, null);
+        OpsExceptionService service = new OpsExceptionService(repository, permission,
+                mock(MerchantScopeService.class), support, lock, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         service.resolveOfflineAutoLockFault("CAB-010", "不应关闭");
 

@@ -16,7 +16,9 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:aicabinet}
     hikari:
       maximum-pool-size: ${DB_POOL_SIZE:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
       connection-timeout: 30000
+      leak-detection-threshold: ${DB_LEAK_DETECTION_MS:60000}
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -141,6 +143,10 @@ aicabinet:
     enabled: ${RISK_CONTROL_ENABLED:true}
     max-opens-per-hour: ${RISK_MAX_OPENS_PER_HOUR:5}
     max-disputes-per-7-days: ${RISK_MAX_DISPUTES_PER_7_DAYS:3}
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    max-coupon-claims-per-hour: ${RATE_LIMIT_COUPON_CLAIMS_PER_HOUR:20}
+    max-order-pays-per-hour: ${RATE_LIMIT_ORDER_PAYS_PER_HOUR:30}
   profit-sharing:
     enabled: ${PROFIT_SHARING_ENABLED:false}
     mock-enabled: ${PROFIT_SHARING_MOCK_ENABLED:false}
@@ -253,6 +259,12 @@ resilience4j:
     instances:
       deviceService:
         base-config: default
+
+# ── 日志：MDC 串联 sessionId + micrometer-tracing 注入的 traceId/spanId ──
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}] [%X{sessionId:-}] %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}] [%X{sessionId:-}] %logger{36} - %msg%n"
 
 # ── 分布式追踪（OpenTelemetry） ──
 tracing:

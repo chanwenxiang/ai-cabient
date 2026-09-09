@@ -34,3 +34,7 @@ management:
   endpoint:
     health:
       show-details: when_authorized
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"

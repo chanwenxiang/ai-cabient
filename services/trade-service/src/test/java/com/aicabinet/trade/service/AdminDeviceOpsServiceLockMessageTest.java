@@ -59,7 +59,9 @@ class AdminDeviceOpsServiceLockMessageTest {
                 merchantScopeService,
                 permissionService,
                 auditService,
-                distributedLockService);
+                distributedLockService,
+                null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

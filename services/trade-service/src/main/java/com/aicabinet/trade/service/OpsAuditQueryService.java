@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.AdminAuditLogDto;
 import com.aicabinet.common.dto.PageResult;
+import com.aicabinet.common.util.PhoneMask;
 import com.aicabinet.trade.domain.AdminAuditLog;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.AdminAuditLogMapper;
@@ -91,7 +92,7 @@ public class OpsAuditQueryService {
 
     private static AdminAuditLogDto toAuditDto(AdminAuditLog log, UserInfo operator) {
         Long opId = log.getOperatorId();
-        String phone = operator != null ? operator.getPhoneNumber() : null;
+        String phone = operator != null ? PhoneMask.mask(operator.getPhoneNumber()) : null;
         String name = operator != null ? operator.getName() : null;
         if (opId == null || opId <= 0L) {
             name = "系统";

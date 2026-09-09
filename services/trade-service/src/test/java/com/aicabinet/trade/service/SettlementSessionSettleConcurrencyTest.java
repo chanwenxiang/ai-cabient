@@ -34,7 +34,7 @@ class SettlementSessionSettleConcurrencyTest {
                 null, null, null, null,
                 null, null, null, null, null,
                 null, null, null, null, null, null, null,
-                null, null, distributedLockService, null, displaySnapshotHelper);
+                null, null, distributedLockService, null, displaySnapshotHelper, new com.aicabinet.trade.service.view.OrderViewAssembler());
         org.springframework.test.util.ReflectionTestUtils.setField(settlementService, "self", settlementService);
     }
 

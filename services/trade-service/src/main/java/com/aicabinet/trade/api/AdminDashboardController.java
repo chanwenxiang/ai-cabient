@@ -8,6 +8,7 @@ import com.aicabinet.trade.api.support.AdminDashboardControllerSupport;
 import com.aicabinet.trade.service.AdminDashboardService;
 import com.aicabinet.trade.service.OpsDeviceAdminService;
 import com.aicabinet.trade.service.OpsSessionOrderQueryService;
+import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
@@ -280,8 +281,9 @@ public class AdminDashboardController {
     }
 
     @RequiresPermissions("ops:order:list")
+    @JsonView(OrderViews.Admin.class)
     @GetMapping("/orders")
-    public ApiResponse<PageResult<AdminOrderSummaryDto>> orders(
+    public ApiResponse<PageResult<OrderReadModel>> orders(
             HttpServletRequest request,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size,
@@ -330,8 +332,9 @@ public class AdminDashboardController {
     }
 
     @RequiresPermissions("ops:order:list")
+    @JsonView(OrderViews.Admin.class)
     @GetMapping("/orders/{orderId}")
-    public ApiResponse<OrderDto> orderDetail(
+    public ApiResponse<OrderReadModel> orderDetail(
             HttpServletRequest request,
             @PathVariable("orderId") String orderId) {
         return ApiResponse.ok(adminService.getOrder(operatorId(request), orderId));
@@ -419,8 +422,9 @@ public class AdminDashboardController {
 
     @RequiresPermissions(value = {"ops:order:remind", "ops:order:cancel", "ops:order:refund"},
             logical = RequiresPermissions.Logical.OR)
+    @JsonView(OrderViews.Admin.class)
     @PostMapping("/orders/{orderId}/collect")
-    public ApiResponse<OrderDto> collectUnpaidOrder(
+    public ApiResponse<OrderReadModel> collectUnpaidOrder(
             HttpServletRequest request,
             @PathVariable("orderId") String orderId) {
         return ApiResponse.ok(support.unpaidOrderService().collect(operatorId(request), orderId));

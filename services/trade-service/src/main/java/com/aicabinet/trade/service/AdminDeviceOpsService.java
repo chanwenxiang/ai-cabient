@@ -10,6 +10,7 @@ import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +30,7 @@ public class AdminDeviceOpsService {
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
+    private final AdminDeviceOpsService self;
 
     public AdminDeviceOpsService(DeviceInfoMapper deviceRepository,
                                  ShoppingSessionMapper sessionRepository,
@@ -38,7 +40,8 @@ public class AdminDeviceOpsService {
                                  MerchantScopeService merchantScopeService,
                                  PermissionService permissionService,
                                  AdminAuditService auditService,
-                                 DistributedLockService distributedLockService) {
+                                 DistributedLockService distributedLockService,
+                                 @Lazy AdminDeviceOpsService self) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.deviceValidationService = deviceValidationService;
@@ -48,9 +51,10 @@ public class AdminDeviceOpsService {
         this.permissionService = permissionService;
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
+        this.self = self;
     }
 
-    @Transactional
+    /** 无外层长事务：落库短事务与 device-service MQTT 指令分离。 */
     public DeviceOpsCommandResultDto execute(Long operatorId, String deviceId, DeviceOpsCommandRequest request) {
         permissionService.requireAnyPermission(operatorId, "ops:device:list", "ops:device:edit");
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
@@ -83,20 +87,12 @@ public class AdminDeviceOpsService {
         deviceValidationService.ensureOpsRemoteDoorAllowed(device.getDeviceId());
 
         String sessionId = "ADM" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase();
-        ShoppingSession session = new ShoppingSession();
-        session.setSessionId(sessionId);
-        session.setUserId(operatorId);
-        session.setDeviceId(device.getDeviceId());
-        session.setIdempotencyKey("OPS_REMOTE:" + operatorId + ":" + sessionId);
-        session.setState(SessionState.OPENING);
-        sessionRepository.save(session);
+        self.createOpsRemoteOpeningSession(sessionId, operatorId, device.getDeviceId());
 
         try {
             deviceClient.requestOpenDoorOperator(sessionId, device.getDeviceId(), operatorId);
         } catch (Exception e) {
-            session.setState(SessionState.FAILED);
-            session.setFailReason("开门指令下发失败");
-            sessionRepository.save(session);
+            self.markOpsRemoteSessionFailed(sessionId, "开门指令下发失败");
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "开门指令下发失败（请确认 device-service 在线）");
         }
@@ -104,6 +100,28 @@ public class AdminDeviceOpsService {
                 "设备：" + device.getDeviceId() + "；" + reason);
         return new DeviceOpsCommandResultDto(device.getDeviceId(), "OPEN_DOOR", sessionId,
                 "运维开门会话已创建并下发：" + sessionId, device.salesLockedEnabled());
+    }
+
+    @Transactional
+    public void createOpsRemoteOpeningSession(String sessionId, Long operatorId, String deviceId) {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId(sessionId);
+        session.setUserId(operatorId);
+        session.setDeviceId(deviceId);
+        session.setIdempotencyKey("OPS_REMOTE:" + operatorId + ":" + sessionId);
+        session.setState(SessionState.OPENING);
+        sessionRepository.save(session);
+    }
+
+    @Transactional
+    public void markOpsRemoteSessionFailed(String sessionId, String failReason) {
+        ShoppingSession session = sessionRepository.findById(sessionId).orElse(null);
+        if (session == null) {
+            return;
+        }
+        session.setState(SessionState.FAILED);
+        session.setFailReason(failReason);
+        sessionRepository.save(session);
     }
 
     private <T> T runWithDeviceOpenLock(String deviceId, java.util.function.Supplier<T> action) {
@@ -151,8 +169,7 @@ public class AdminDeviceOpsService {
         if (targetTempC < -30 || targetTempC > 30) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "目标温度应在 -30°C ~ 30°C 之间");
         }
-        device.setTargetTempC(targetTempC);
-        deviceRepository.save(device);
+        self.persistTargetTemp(device.getDeviceId(), targetTempC);
         String commandId = "LOCAL-" + UUID.randomUUID().toString().substring(0, 8);
         String message;
         if ("ONLINE".equalsIgnoreCase(device.getOnlineStatus())) {
@@ -169,5 +186,13 @@ public class AdminDeviceOpsService {
                 reason + "；目标温度=" + targetTempC + "℃；指令编号=" + commandId);
         return new DeviceOpsCommandResultDto(device.getDeviceId(), "SET_TEMP", commandId,
                 message, device.salesLockedEnabled());
+    }
+
+    @Transactional
+    public void persistTargetTemp(String deviceId, int targetTempC) {
+        DeviceInfo device = deviceRepository.findById(deviceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
+        device.setTargetTempC(targetTempC);
+        deviceRepository.save(device);
     }
 }

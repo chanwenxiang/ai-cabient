@@ -49,6 +49,10 @@ class ReconciliationServiceTest {
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(paymentOperationRepository.sumGatewayRechargeRefundBetween(any(), any()))
+                .thenReturn(0L);
+        org.mockito.Mockito.lenient().when(paymentOperationRepository.sumRechargeRefundByChannel(any(), any(), anyString()))
+                .thenReturn(0L);
     }
 
     @Test
@@ -160,6 +164,68 @@ class ReconciliationServiceTest {
         assertEquals("MATCHED", result.status());
         assertEquals(350, result.ledgerTotal());
         assertEquals(350, result.platformTotal());
+    }
+
+    @Test
+    void runDaily_mockLedgerNetsGatewayRechargeRefunds() {
+        LocalDate date = LocalDate.of(2024, 6, 3);
+        when(reconRepository.findByReconDateAndChannel(date, "MOCK")).thenReturn(Optional.empty());
+        when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("MOCK"))).thenReturn(0L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(2700L);
+        when(paymentOperationRepository.sumGatewayRechargeRefundBetween(any(), any())).thenReturn(450L);
+        when(paymentOperationRepository.sumRechargeRefundByChannel(any(), any(), eq("MOCK"))).thenReturn(0L);
+        when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("MOCK")))
+                .thenReturn(List.of());
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of("RCH-1"));
+        when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of(
+                new PlatformBillLine("P-R1", "RCH-1", 2700, Instant.now(), "RECHARGE", "{}"),
+                new PlatformBillLine("P-RF1", "RCH-1", -450, Instant.now(), "REFUND", "{}")
+        ));
+        when(reconRepository.save(any())).thenAnswer(inv -> {
+            var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
+            if (r.getReconId() == null) {
+                r.setReconId(12L);
+            }
+            return r;
+        });
+
+        var result = service.runDaily(100000001L, date, "MOCK");
+
+        assertEquals("MATCHED", result.status());
+        assertEquals(2250, result.platformTotal());
+        assertEquals(2250, result.ledgerTotal());
+        assertEquals(0, result.diffCents());
+    }
+
+    @Test
+    void runDaily_wechatDoesNotDoubleSubtractRechargeRefund() {
+        LocalDate date = LocalDate.of(2024, 6, 4);
+        when(reconRepository.findByReconDateAndChannel(date, "WECHAT")).thenReturn(Optional.empty());
+        // 净流入已含本渠道 RECHARGE_REFUND -450
+        when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("WECHAT"))).thenReturn(-450L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(2700L);
+        when(paymentOperationRepository.sumGatewayRechargeRefundBetween(any(), any())).thenReturn(450L);
+        when(paymentOperationRepository.sumRechargeRefundByChannel(any(), any(), eq("WECHAT"))).thenReturn(450L);
+        when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("WECHAT")))
+                .thenReturn(List.of());
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of("RCH-1"));
+        when(billProviderRegistry.fetchBill("WECHAT", date)).thenReturn(List.of(
+                new PlatformBillLine("P-R1", "RCH-1", 2700, Instant.now(), "RECHARGE", "{}"),
+                new PlatformBillLine("P-RF1", "RCH-1", -450, Instant.now(), "REFUND", "{}")
+        ));
+        when(reconRepository.save(any())).thenAnswer(inv -> {
+            var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
+            if (r.getReconId() == null) {
+                r.setReconId(13L);
+            }
+            return r;
+        });
+
+        var result = service.runDaily(100000001L, date, "WECHAT");
+
+        assertEquals("MATCHED", result.status());
+        assertEquals(2250, result.ledgerTotal());
+        assertEquals(0, result.diffCents());
     }
 
     @Test

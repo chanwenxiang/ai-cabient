@@ -35,16 +35,19 @@ public class OpsExceptionService {
     private static final List<String> OPEN = List.of("OPEN", PROCESSING);
     private final OpsExceptionMapper repository;
     private final PermissionService permissionService;
+    private final MerchantScopeService merchantScopeService;
     private final OpsExceptionServiceSupport support;
     private final DistributedLockService distributedLockService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final OpsExceptionService self;
 
     public OpsExceptionService(OpsExceptionMapper repository, PermissionService permissionService,
+                               MerchantScopeService merchantScopeService,
                                OpsExceptionServiceSupport support,
                                DistributedLockService distributedLockService, @Lazy OpsExceptionService self) {
         this.repository = repository;
         this.permissionService = permissionService;
+        this.merchantScopeService = merchantScopeService;
         this.support = support;
         this.distributedLockService = distributedLockService;
         this.self = self;
@@ -90,6 +93,7 @@ public class OpsExceptionService {
     public OpsExceptionDetailDto detail(Long operatorId, String exceptionId) {
         requireExceptionRead(operatorId);
         OpsException item = require(exceptionId);
+        requireScopedDeviceAccess(operatorId, item.getDeviceId());
         var actions = support.auditRepository().findByTargetTypeAndTargetIdOrderByCreatedAtAsc(OPS_EXCEPTION, exceptionId)
                 .stream().map(log -> new OpsExceptionActionDto(log.getLogId(), log.getOperatorId(),
                         log.getAction(), log.getDetail(), log.getCreatedAt())).toList();
@@ -114,7 +118,12 @@ public class OpsExceptionService {
         var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100));
         String statusFilter = status == null || status.isBlank() ? null : status.trim().toUpperCase();
         String severityFilter = severity == null || severity.isBlank() ? null : severity.trim().toUpperCase();
-        var result = repository.findFiltered(statusFilter, severityFilter, overdueOnly, archived, pageable);
+        Set<String> scopedDevices = merchantScopeService.allowedDeviceIds(operatorId);
+        if (scopedDevices != null && scopedDevices.isEmpty()) {
+            return new PageResult<>(List.of(), pageable.getPageNumber(), pageable.getPageSize(), 0);
+        }
+        var result = repository.findFiltered(statusFilter, severityFilter, overdueOnly, archived,
+                scopedDevices, pageable);
         return new PageResult<>(result.getContent().stream().map(this::toDto).toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements());
     }
@@ -152,6 +161,7 @@ public class OpsExceptionService {
         requireExceptionHandle(operatorId);
         return runWithExceptionLock(exceptionId, () -> {
             OpsException item = requireForUpdate(exceptionId);
+            requireScopedDeviceAccess(operatorId, item.getDeviceId());
             if (STATUS_RESOLVED.equals(item.getStatus())) return toDto(item);
             item.setAssigneeUserId(operatorId); item.setStatus(PROCESSING); repository.save(item);
             support.auditService().appendLog(operatorId, "OPS_EXCEPTION_CLAIM", OPS_EXCEPTION, exceptionId, item.getExceptionType());
@@ -164,6 +174,7 @@ public class OpsExceptionService {
         requireExceptionHandle(operatorId);
         return runWithExceptionLock(exceptionId, () -> {
             OpsException item = requireForUpdate(exceptionId);
+            requireScopedDeviceAccess(operatorId, item.getDeviceId());
             item.setAssigneeUserId(operatorId); item.setStatus(STATUS_RESOLVED); item.setResolution(trim(resolution));
             item.setResolvedAt(Instant.now()); repository.save(item);
             support.auditService().appendLog(operatorId, "OPS_EXCEPTION_RESOLVE", OPS_EXCEPTION, exceptionId, trim(resolution));
@@ -176,6 +187,7 @@ public class OpsExceptionService {
         requireExceptionHandle(operatorId);
         return runWithExceptionLock(exceptionId, () -> {
             OpsException item = requireForUpdate(exceptionId);
+            requireScopedDeviceAccess(operatorId, item.getDeviceId());
             if (!STATUS_RESOLVED.equals(item.getStatus())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "仅已解决的异常可归档");
             }
@@ -196,6 +208,7 @@ public class OpsExceptionService {
         requireExceptionHandle(operatorId);
         return runWithExceptionLock(exceptionId, () -> {
             OpsException item = requireForUpdate(exceptionId);
+            requireScopedDeviceAccess(operatorId, item.getDeviceId());
             if (!Boolean.TRUE.equals(item.getArchived())) {
                 return toDto(item);
             }
@@ -216,6 +229,7 @@ public class OpsExceptionService {
         requireExceptionHandle(operatorId);
         return runWithExceptionLock(exceptionId, () -> {
             OpsException item = requireForUpdate(exceptionId);
+            requireScopedDeviceAccess(operatorId, item.getDeviceId());
             if (STATUS_RESOLVED.equals(item.getStatus())) {
                 return toDto(item);
             }
@@ -354,6 +368,7 @@ public class OpsExceptionService {
         requireExceptionHandle(operatorId);
         return runWithExceptionLock(exceptionId, () -> {
             OpsException item = requireOpenForUpdate(exceptionId);
+            requireScopedDeviceAccess(operatorId, item.getDeviceId());
             item.setAssigneeUserId(assigneeUserId);
             item.setStatus(PROCESSING);
             repository.save(item);
@@ -367,7 +382,8 @@ public class OpsExceptionService {
     public OpsExceptionDto addNote(Long operatorId, String exceptionId, String note) {
         requireExceptionHandle(operatorId);
         return runWithExceptionLock(exceptionId, () -> {
-            requireOpenForUpdate(exceptionId);
+            OpsException open = requireOpenForUpdate(exceptionId);
+            requireScopedDeviceAccess(operatorId, open.getDeviceId());
             support.auditService().appendLog(operatorId, "OPS_EXCEPTION_NOTE", OPS_EXCEPTION, exceptionId, trim(note));
             return toDto(require(exceptionId));
         });
@@ -379,6 +395,7 @@ public class OpsExceptionService {
         requireExceptionHandle(operatorId);
         return runWithExceptionLock(exceptionId, () -> {
             OpsException item = requireOpenForUpdate(exceptionId);
+            requireScopedDeviceAccess(operatorId, item.getDeviceId());
             item.setAssigneeUserId(operatorId);
             item.setStatus(PROCESSING);
             repository.save(item);
@@ -394,6 +411,7 @@ public class OpsExceptionService {
         requireExceptionHandle(operatorId);
         return runWithExceptionLock(exceptionId, () -> {
             OpsException item = requireForUpdate(exceptionId);
+            requireScopedDeviceAccess(operatorId, item.getDeviceId());
             if (STATUS_RESOLVED.equals(item.getStatus())) return toDto(item);
             item.setAssigneeUserId(operatorId);
             item.setStatus(STATUS_RESOLVED);
@@ -420,6 +438,7 @@ public class OpsExceptionService {
                                             List<ResolveDisputeRequest.ManualLineItem> lines,
                                             String idempotencyKey, String reason) {
         OpsException item = requireForUpdate(exceptionId);
+        requireScopedDeviceAccess(operatorId, item.getDeviceId());
         if (!Set.of("BALANCE_INSUFFICIENT", "RECOGNITION_UNAVAILABLE", "RECOGNITION_FAILED",
                 "SETTLEMENT_FAILED").contains(item.getExceptionType())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该异常类型不支持人工商品或资金处置");
@@ -609,5 +628,16 @@ public class OpsExceptionService {
 
     private void requireExceptionHandle(Long operatorId) {
         permissionService.requirePermission(operatorId, "ops:exception:handle");
+    }
+
+    /** 有设备 ID 时按商户/货柜范围校验；无设备的异常仅全局运营可看。 */
+    private void requireScopedDeviceAccess(Long operatorId, String deviceId) {
+        if (deviceId != null && !deviceId.isBlank()) {
+            merchantScopeService.requireDeviceAccess(operatorId, deviceId);
+            return;
+        }
+        if (!merchantScopeService.isGlobalScope(operatorId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED);
+        }
     }
 }

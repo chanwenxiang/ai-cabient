@@ -3,6 +3,8 @@ package com.aicabinet.common.dto;
 import java.time.Instant;
 import java.util.List;
 
+/** @deprecated 使用 {@link OrderReadModel}；保留兼容过渡。 */
+@Deprecated(since = "order-read-model", forRemoval = true)
 public record OrderDto(
         String orderId,
         String sessionId,

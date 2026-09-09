@@ -14,7 +14,8 @@ final class InternalRestClientFactory {
     static RestClient create(String baseUrl) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(10_000);
-        factory.setReadTimeout(120_000);
+        // 视觉识别等内部调用；120s 过长易拖垮线程池，与 resilience4j 重试配合用 30s
+        factory.setReadTimeout(30_000);
         return RestClient.builder()
                 .baseUrl(baseUrl)
                 .requestFactory(factory)

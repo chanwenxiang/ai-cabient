@@ -32,6 +32,14 @@ public class ProductionStartupValidator {
             return;
         }
         requireSecret(internalApiProperties.key(), DEV_INTERNAL_KEY, "INTERNAL_API_KEY");
+        if (isProdProfile() && !internalApiProperties.hasCidrRestriction()) {
+            throw new IllegalStateException(
+                    "Production requires INTERNAL_API_ALLOWED_CIDRS for device-service /internal/**");
+        }
+        if (isStagingProfile() && !internalApiProperties.hasCidrRestriction()) {
+            throw new IllegalStateException(
+                    "Staging requires INTERNAL_API_ALLOWED_CIDRS for device-service /internal/**");
+        }
         if (isStagingProfile()) {
             log.warn("device-service staging mode — MQTT TLS check skipped");
             return;

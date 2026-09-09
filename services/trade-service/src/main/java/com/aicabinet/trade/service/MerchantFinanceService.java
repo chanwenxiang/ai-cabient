@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.storage.MinioVideoService;
+import com.aicabinet.trade.service.view.OrderViewAssembler;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import jakarta.servlet.http.HttpServletRequest;
@@ -49,6 +50,7 @@ public class MerchantFinanceService {
     private final WeChatPayProperties weChatPayProperties;
     private final ShoppingSessionMapper sessionRepository;
     private final MinioVideoService minioVideoService;
+    private final OrderViewAssembler orderViewAssembler;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final MerchantFinanceService self;
 
@@ -65,6 +67,7 @@ public class MerchantFinanceService {
                                   WeChatPayProperties weChatPayProperties,
                                   ShoppingSessionMapper sessionRepository,
                                   MinioVideoService minioVideoService,
+                                  OrderViewAssembler orderViewAssembler,
                                   @Lazy MerchantFinanceService self) {
         this.permissionService = permissionService;
         this.merchantFeaturePackService = merchantFeaturePackService;
@@ -79,18 +82,17 @@ public class MerchantFinanceService {
         this.weChatPayProperties = weChatPayProperties;
         this.sessionRepository = sessionRepository;
         this.minioVideoService = minioVideoService;
+        this.orderViewAssembler = orderViewAssembler;
         this.self = self;
     }
 
     @Transactional(readOnly = true)
-    public PageResult<MerchantOrderSummaryDto> listOrders(Long userId, MerchantOrderListQuery query) {
+    public PageResult<OrderReadModel> listOrders(Long userId, MerchantOrderListQuery query) {
         permissionService.requirePermission(userId, "merchant:orders:list");
         merchantPortalGuard.requireAccess(userId);
         Pageable pageable = PageRequest.of(query.page(), Math.min(query.size(), 100));
         Page<CabinetOrder> result = queryOrders(userId, query.deviceId(), query.status(),
                 query.fromDate(), query.toDate(), query.keyword(), pageable);
-        Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(
-                result.getContent().stream().map(CabinetOrder::getOrderId).toList());
         List<String> orderIds = result.getContent().stream().map(CabinetOrder::getOrderId).toList();
         Map<String, List<CabinetOrderLine>> linesByOrder = orderLineRepository.findByOrderIds(orderIds)
                 .stream()
@@ -100,11 +102,13 @@ public class MerchantFinanceService {
                 .collect(Collectors.toMap(OrderRevenueSplit::getOrderId, OrderRevenueSplit::getStatus, (a, b) -> a));
         return new PageResult<>(
                 result.getContent().stream()
-                        .map(o -> toMerchantOrderSummary(
+                        .map(o -> orderViewAssembler.assembleSummary(
                                 o,
-                                qtyByOrder.getOrDefault(o.getOrderId(), 0),
-                                buildLineSummary(linesByOrder.getOrDefault(o.getOrderId(), List.of())),
-                                splitStatusByOrder.get(o.getOrderId())))
+                                linesByOrder.getOrDefault(o.getOrderId(), List.of()),
+                                splitStatusByOrder.get(o.getOrderId()),
+                                null,
+                                null,
+                                null))
                         .toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements()
         );
@@ -114,12 +118,12 @@ public class MerchantFinanceService {
             int page, int size, String deviceId, String status, String fromDate, String toDate, String keyword) {}
 
     @Transactional(readOnly = true)
-    public OrderDto getOrder(Long userId, String orderId) {
+    public OrderReadModel getOrder(Long userId, String orderId) {
         permissionService.requirePermission(userId, "merchant:orders:list");
         merchantPortalGuard.requireAccess(userId);
         CabinetOrder order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        merchantFeaturePackService.requireDevicePack(userId, order.getDeviceId(), MerchantFeaturePacks.BIZ);
+        assertOrderBelongsToMerchant(userId, order);
         return settlementService.getOrderBySession(order.getSessionId());
     }
 
@@ -132,7 +136,7 @@ public class MerchantFinanceService {
         merchantPortalGuard.requireAccess(userId);
         CabinetOrder order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        merchantFeaturePackService.requireDevicePack(userId, order.getDeviceId(), MerchantFeaturePacks.BIZ);
+        assertOrderBelongsToMerchant(userId, order);
         String sessionId = order.getSessionId();
         if (sessionId == null || sessionId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "该订单没有关联会话");
@@ -329,6 +333,21 @@ public class MerchantFinanceService {
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 
+    /**
+     * 有订单快照 merchantId 时按快照归属校验（防柜机转租后新商户读历史单）；
+     * 无快照的旧数据回退到当前柜机功能包校验。
+     */
+    private void assertOrderBelongsToMerchant(Long userId, CabinetOrder order) {
+        String snapshotMerchantId = order.getMerchantId();
+        if (snapshotMerchantId != null && !snapshotMerchantId.isBlank()) {
+            merchantFeaturePackService.requireMerchantPack(
+                    userId, snapshotMerchantId, MerchantFeaturePacks.BIZ);
+            return;
+        }
+        merchantFeaturePackService.requireDevicePack(
+                userId, order.getDeviceId(), MerchantFeaturePacks.BIZ);
+    }
+
     private Page<CabinetOrder> queryOrders(Long userId, String deviceId, String status,
                                            String fromDate, String toDate, String keyword, Pageable pageable) {
         String normalizedDeviceId = (deviceId == null || deviceId.isBlank()) ? null : deviceId.trim();
@@ -353,68 +372,9 @@ public class MerchantFinanceService {
     }
 
     /** lineCount 口径与运营侧一致：商品件数（quantity 合计），非行数。 */
-    private MerchantOrderSummaryDto toMerchantOrderSummary(
-            CabinetOrder o, int itemQty, String lineSummary, String splitStatus) {
-        int coupon = Math.max(0, o.getCouponDiscountCents());
-        int member = Math.max(0, o.getMemberDiscountCents());
-        int original = o.getOriginalAmountCents() > 0
-                ? o.getOriginalAmountCents()
-                : o.getTotalAmountCents() + coupon + member;
-        return new MerchantOrderSummaryDto(
-                o.getOrderId(),
-                o.getSessionId(),
-                o.getDeviceId(),
-                o.getTotalAmountCents(),
-                o.getStatus(),
-                itemQty,
-                o.getCreatedAt(),
-                lineSummary,
-                resolvePayChannel(o),
-                coupon,
-                member,
-                original,
-                o.getRefundedAt(),
-                Math.max(0, o.getRefundedCents()),
-                o.getDeviceName(),
-                o.getMerchantName(),
-                o.getPayTradeNo(),
-                o.getPaymentOperationId(),
-                splitStatus
-        );
-    }
-
-    /** 与运营/用户端口径一致：余额账本扣款按 BL- 操作号归一为 BALANCE。 */
-    private static String resolvePayChannel(CabinetOrder o) {
-        String channel = o.getPayChannel();
-        if (o.getPaymentOperationId() != null && o.getPaymentOperationId().startsWith("BL-")) {
-            channel = "BALANCE";
-        }
-        return channel == null || channel.isBlank() ? "UNKNOWN" : channel;
-    }
-
-    /** 商品摘要，口径与用户端一致：名称 x数量、等N件。 */
-    private static String buildLineSummary(List<CabinetOrderLine> lines) {
-        if (lines == null || lines.isEmpty()) {
-            return "";
-        }
-        String preview = lines.stream()
-                .limit(2)
-                .map(l -> {
-                    String name = l.getSkuName() + " x" + l.getQuantity();
-                    if (l.getSlotId() != null && !l.getSlotId().isBlank()) {
-                        name += " ·货道" + l.getSlotId().trim();
-                    }
-                    if (l.getBatchNo() != null && !l.getBatchNo().isBlank()) {
-                        name += " @" + l.getBatchNo().trim();
-                    }
-                    return name;
-                })
-                .reduce((a, b) -> a + "、" + b)
-                .orElse("");
-        if (lines.size() > 2) {
-            return preview + " 等" + lines.size() + "件";
-        }
-        return preview;
+    private OrderReadModel toMerchantOrderSummary(
+            CabinetOrder o, List<CabinetOrderLine> lines, String splitStatus) {
+        return orderViewAssembler.assembleSummary(o, lines, splitStatus, null, null, null);
     }
 
     private RevenueSplitDto toSplitDto(OrderRevenueSplit s, String merchantName) {

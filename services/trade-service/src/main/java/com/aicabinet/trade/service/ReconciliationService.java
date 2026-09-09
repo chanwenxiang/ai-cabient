@@ -224,18 +224,36 @@ public class ReconciliationService {
         return categories;
     }
 
+    /**
+     * 本账合计：渠道净现金流入 + 充值毛额 − 网关充值退款。
+     * <p>
+     * 充值原单多记在 BALANCE 入账流水，{@code sumNetCashflowBetween(MOCK/WECHAT)} 不含毛额，
+     * 须另加 {@code sumPaidAmountBetween}；退款常记在 WECHAT/ALIPAY，Mock 账单会纳入负向，
+     * 故对本账统一扣网关 {@code RECHARGE_REFUND}，并加回已计入本渠道净流入的部分，避免 WECHAT 对账双扣。
+     */
     private long sumLedger(Instant start, Instant end, String channel) {
         long total = support.paymentOperationRepository().sumNetCashflowBetween(start, end, channel);
-        if (CabinetConstants.PAY_CHANNEL_WECHAT.equals(channel) || "MOCK".equals(channel) || "ALIPAY".equals(channel)) {
-            total += support.rechargeRepository().sumPaidAmountBetween(start, end);
+        if (!isGatewayReconChannel(channel)) {
+            return total;
         }
-        return total;
+        long rechargeGross = support.rechargeRepository().sumPaidAmountBetween(start, end);
+        long gatewayRefunds = support.paymentOperationRepository()
+                .sumGatewayRechargeRefundBetween(start, end);
+        long refundsAlreadyInChannel = support.paymentOperationRepository()
+                .sumRechargeRefundByChannel(start, end, channel);
+        return total + rechargeGross - gatewayRefunds + refundsAlreadyInChannel;
+    }
+
+    private static boolean isGatewayReconChannel(String channel) {
+        return CabinetConstants.PAY_CHANNEL_WECHAT.equals(channel)
+                || "MOCK".equals(channel)
+                || "ALIPAY".equals(channel);
     }
 
     private Set<String> collectLedgerOrderIds(Instant start, Instant end, String channel) {
         Set<String> ids = new HashSet<>(support.paymentOperationRepository().findDistinctCabinetOrderIdsBetween(
                 start, end, channel));
-        if (CabinetConstants.PAY_CHANNEL_WECHAT.equals(channel) || "MOCK".equals(channel) || "ALIPAY".equals(channel)) {
+        if (isGatewayReconChannel(channel)) {
             ids.addAll(support.rechargeRepository().findPaidOrderIdsBetween(start, end));
         }
         return ids;

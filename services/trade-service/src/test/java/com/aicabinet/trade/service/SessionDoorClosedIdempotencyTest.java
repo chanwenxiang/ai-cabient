@@ -1,7 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.DoorEventRequest;
-import com.aicabinet.common.dto.OrderDto;
+import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.enums.DoorState;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.DeviceServiceClient;
@@ -76,9 +76,7 @@ class SessionDoorClosedIdempotencyTest {
         when(repository.findByIdForUpdate("S-Q3")).thenReturn(Optional.of(session));
         when(repository.findById("S-Q3")).thenReturn(Optional.of(session));
         when(visionAsyncProperties.enabled()).thenReturn(false);
-        when(settlementService.settle(session)).thenReturn(new OrderDto(
-                "O-Q3", "S-Q3", 7L, "CAB-001", 100, List.of(), "PAID",
-                "BALANCE", null, null, null, Instant.now()));
+        when(settlementService.settle(session)).thenReturn(OrderReadModelFixtures.sample("O-Q3", "S-Q3"));
 
         DoorEventRequest first = new DoorEventRequest(
                 "S-Q3", "CAB-001", DoorState.CLOSED, System.currentTimeMillis(), "s3://v1");
