@@ -23,7 +23,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -86,9 +85,10 @@ public class OrderPaymentService {
     }
 
     /**
-     * 挂起外层结算事务：支付分/渠道 HTTP 与账本短事务分开，避免长事务占连接。
+     * 订单扣款：须参与调用方事务，以便结算/争议确认中「先落单再扣款」可见未提交订单。
+     * 渠道 HTTP 仍可能在本事务内（PayScore）；与 vision 长事务拆分目标不同。
      */
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional
     public void chargeOrder(CabinetOrder order) {
         if (order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
             order.setPayChannel(PayChannels.BALANCE);
@@ -204,7 +204,7 @@ public class OrderPaymentService {
         sessionRepository.findById(order.getSessionId()).ifPresent(consumerPreauthService::releaseIfFrozen);
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional
     public void applyPaymentDelta(CabinetOrder order, int deltaCents) {
         if (deltaCents == 0 || order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
             return;
@@ -222,7 +222,7 @@ public class OrderPaymentService {
         });
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional
     public void refundOrder(CabinetOrder order, int amountCents, String reason) {
         if (amountCents <= 0 || order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
             return;
