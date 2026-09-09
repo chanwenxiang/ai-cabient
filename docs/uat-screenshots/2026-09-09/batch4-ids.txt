@@ -1,0 +1,13 @@
+﻿{
+  "operatorUserId": 100000027,
+  "roleId": 18,
+  "deptId": 6,
+  "dictDataId": 601,
+  "dictType": "feedback_type",
+  "permissionId": 19056,
+  "approvalDefId": 5,
+  "orgNodeId": 1,
+  "taskKey": "compensation-process",
+  "profile": "Ops-UAT then restore 运营超管",
+  "alertConfig": "ops.alert.uat_l3_tmp deleted"
+}

@@ -159,7 +159,7 @@
 
 | # | 菜单 | 路径 | 权限码 | 源码视图 | 源码按钮（抽样） | 建议验收要点 | 状态 |
 |---|------|------|--------|----------|------------------|--------------|------|
-| 1 | 手机验证 | `/phone-verify` | `ops:phone-verify:list` | `users/PhoneVerifyView.vue` | 登记验证、编辑、删除、保存 | 打开「手机验证」；列表或表单可用；关键写操作有中文反馈 | PASS（L3 2026-09-09：登记→编辑→删除演示号 logId=2；Playwright「登记验证」；截图 `l3-phone-verify*.png`） |
+| 1 | 手机验证 | `/phone-verify` | `ops:phone-verify:list` | `users/PhoneVerifyView.vue` | 登记验证、编辑、删除、保存 | 打开「手机验证」；列表或表单可用；关键写操作有中文反馈 | PASS（L3 2026-09-09：登记→编辑→删除演示号 logId=2；Playwright「登记验证」；截图 `l3-phone-reg*.png`） |
 | 2 | 风控 | `/risk` | `ops:risk:list` | `risk/RiskView.vue` | 加入黑名单、确认 | **L3**：拉黑后该用户开门/支付被拒；解黑恢复；审计可查 | PASS（L1 页可达；L3 见 R-01/R-02） |
 | 3 | 营销活动 | `/promotions` | `ops:promotion:list` | `promotions/PromotionsView.vue` | 导入模板、导入、批量停用、新建活动、刷新、保存 | 新建/保存/启停后列表刷新 | PASS（L3 2026-09-09：新建活动 id=1 后 stop；Playwright「新建活动」；截图 `l3-promotions*.png`） |
 | 4 | 优惠券 | `/coupons` | `ops:coupon:list` | `promotions/CouponsView.vue` | 导入模板、导入、批量停用、新建优惠券、手动发券、批量发券、保存、发放、批量发放 | **L3**：发券后消费者可见；下单抵扣；停用后不可用；超发被拒 | PASS（L3 2026-09-09：MK-01/02 深测保留；本轮 def=1 ACTIVE↔INACTIVE 启停+UI「新建优惠券」；截图 `l3-coupons*.png`） |
@@ -175,20 +175,20 @@
 
 | # | 菜单 | 路径 | 权限码 | 源码视图 | 源码按钮（抽样） | 建议验收要点 | 状态 |
 |---|------|------|--------|----------|------------------|--------------|------|
-| 1 | 运营账号 | `/operators` | `ops:rbac:assign` | `system/OperatorManageView.vue` | 导入模板、导入、新增账号、刷新、保存、全部货柜、勾选柜机、线路 （） 取消 | **L3**：改角色后重新登录菜单/按钮变化；数据范围（柜机）生效；只读角色无写按钮 | PASS（L1 页可达；深测见 §7–§10 / P0） |
-| 2 | 角色管理 | `/roles` | `ops:rbac:role` | `system/RoleManageView.vue` | 新增角色、导入模板、导入、刷新、保存、全选、清空 | 勾选权限码后挂到账号→侧栏与 `v-hasPermi` 一致；取消权限后直链 `/forbidden` | PASS（L1 页可达；深测见 §7–§10 / P0） |
-| 3 | 部门管理 | `/departments` | `ops:dept:list` | `system/DepartmentManageView.vue` | 批量启用、批量停用、新增部门、刷新、编辑、成员、保存 | 成员变更后审批待办归属变化（进件/提现） | PASS（L1 页可达；深测见 §7–§10 / P0） |
-| 4 | 审批流配置 | `/approvals` | `ops:approval:config` | `system/ApprovalConfigView.vue` | 新增、保存、+ 结束、审批通过、结束、审批驳回、取消、上移、保存流程图 | 改节点后新单走新路径；无权限人点通过→403 | PASS（L1 页可达；深测见 §7–§10 / P0） |
-| 5 | 菜单管理 | `/menus` | `ops:rbac:menu` | `system/MenuManageView.vue` | 全选、清空、新增、展开、收起、保存 | **注意**：admin 侧栏真源主要是 `menu.ts`；本页改库菜单须验证登录权限树/按钮级 `F` 是否被消费，避免「改了库侧栏不变」假通过 | PASS（L1 页可达；深测见 §7–§10 / P0） |
-| 6 | 字典管理 | `/dicts` | `ops:dict:list` | `system/DictManageView.vue` | 新增类型、编辑、删除、刷新、导入模板、导入、新增字典项、保存、启用停用、取消 | **只影响展示**：改 label 后三端 Tag/筛选项更新；**不得**靠字典开关支付/开门。`GET /api/v2/dicts/runtime` 覆盖 `shared-dict` | PASS（L1 页可达；深测见 §7–§10 / P0） |
+| 1 | 运营账号 | `/operators` | `ops:rbac:assign` | `system/OperatorManageView.vue` | 导入模板、导入、新增账号、刷新、保存、全部货柜、勾选柜机、线路 （） 取消 | **L3**：改角色后重新登录菜单/按钮变化；数据范围（柜机）生效；只读角色无写按钮 | PASS（L3 2026-09-09：新建临时员 userId=100000027 后禁用；Playwright「新增账号」；截图 `l3-operators*.png`） |
+| 2 | 角色管理 | `/roles` | `ops:rbac:role` | `system/RoleManageView.vue` | 新增角色、导入模板、导入、刷新、保存、全选、清空 | 勾选权限码后挂到账号→侧栏与 `v-hasPermi` 一致；取消权限后直链 `/forbidden` | PASS（L3 2026-09-09：新建角色 roleId=18 后 INACTIVE；Playwright「新增角色」；截图 `l3-roles*.png`） |
+| 3 | 部门管理 | `/departments` | `ops:dept:list` | `system/DepartmentManageView.vue` | 批量启用、批量停用、新增部门、刷新、编辑、成员、保存 | 成员变更后审批待办归属变化（进件/提现） | PASS（L3 2026-09-09：新建部门 deptId=6；Playwright「新增部门」；截图 `l3-departments*.png`） |
+| 4 | 审批流配置 | `/approvals` | `ops:approval:config` | `system/ApprovalConfigView.vue` | 新增、保存、+ 结束、审批通过、结束、审批驳回、取消、上移、保存流程图 | 改节点后新单走新路径；无权限人点通过→403 | PASS（L3 2026-09-09：defId=5 改名→恢复节点名；Playwright「新增」；截图 `l3-approvals*.png`） |
+| 5 | 菜单管理 | `/menus` | `ops:rbac:menu` | `system/MenuManageView.vue` | 全选、清空、新增、展开、收起、保存 | **注意**：admin 侧栏真源主要是 `menu.ts`；本页改库菜单须验证登录权限树/按钮级 `F` 是否被消费，避免「改了库侧栏不变」假通过 | PASS（L3 2026-09-09：临时菜单 permissionId=655 创建/删除；Playwright「新增」；截图 `l3-menus*.png`） |
+| 6 | 字典管理 | `/dicts` | `ops:dict:list` | `system/DictManageView.vue` | 新增类型、编辑、删除、刷新、导入模板、导入、新增字典项、保存、启用停用、取消 | **只影响展示**：改 label 后三端 Tag/筛选项更新；**不得**靠字典开关支付/开门。`GET /api/v2/dicts/runtime` 覆盖 `shared-dict` | PASS（L3 2026-09-09：feedback_type 临时项 601 增删；Playwright 写按钮；截图 `l3-dicts*.png`） |
 | 7 | 参数配置 | `/system-configs` | `ops:config:list` | `system/SystemConfigView.vue` | 导入模板、导入、新增、刷新、上传标志、清除、保存品牌、查询 | 品牌/文档标题等可见变化；能力开关以环境变量为准（见 MODULES）；补货门禁见 C-04 | PASS（L1 + C-04 补货四门禁 2026-09-09） |
-| 8 | 告警规则 | `/alert-rules` | `ops:config:list` | `system/AlertRuleView.vue` | 批量删除、新增、保存 | 触发条件后待办/告警出现；停用后不再刷 | PASS（L1 页可达；深测见 §7–§10 / P0） |
-| 9 | 定时任务 | `/scheduled-tasks` | `ops:task:list` | `system/ScheduledTaskView.vue` | 批量启用、批量停用、批量执行、新增、保存 | 「执行」产生预期副作用（对账/巡检等）；停用后到点不跑 | PASS（L1 页可达；深测见 §7–§10 / P0） |
-| 10 | 组织与点位 | `/org-sites` | `ops:org:list` | `system/OrgSitesView.vue` | 新增顶级组织、编辑、新增子级、分配设备、删除、批量删除、新增合同、租金分账、出账、批量出账、标记已付、作废 | 分配设备后商户数据范围变化；租金出账有流水 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 8 | 告警规则 | `/alert-rules` | `ops:config:list` | `system/AlertRuleView.vue` | 批量删除、新增、保存 | 触发条件后待办/告警出现；停用后不再刷 | PASS（L3 2026-09-09：临时配置 `ops.alert.uat_l3_tmp` 写入后删除；Playwright「新增」；截图 `l3-alert-rules*.png`） |
+| 9 | 定时任务 | `/scheduled-tasks` | `ops:task:list` | `system/ScheduledTaskView.vue` | 批量启用、批量停用、批量执行、新增、保存 | 「执行」产生预期副作用（对账/巡检等）；停用后到点不跑 | PASS（L3 2026-09-09：compensation-process remark 改回 + `/run` TRIGGERED；截图 `l3-scheduled-tasks*.png`） |
+| 10 | 组织与点位 | `/org-sites` | `ops:org:list` | `system/OrgSitesView.vue` | 新增顶级组织、编辑、新增子级、分配设备、删除、批量删除、新增合同、租金分账、出账、批量出账、标记已付、作废 | 分配设备后商户数据范围变化；租金出账有流水 | PASS（L3 2026-09-09：组织节点1 改名→恢复；Playwright「分配设备/新增」；截图 `l3-org-sites*.png`） |
 | 11 | 通知公告 | `/announcements` | `ops:announcement:list` | `announcements/AnnouncementsView.vue` | 导入模板、导入、发布公告、刷新 | 目标端 announcements 可见；未发布不可见 | PASS（L3 2026-09-09：announceId=3 DRAFT→PUBLISHED→ARCHIVED；Playwright「发布公告」；截图 `l3-announcements*.png`） |
 | 12 | 审计日志 | `/audit` | `ops:audit:list` | `system/AuditLogView.vue` | （只读为主） | 关键写操作后有对应审计行（操作人/资源/时间） | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 | 13 | DevOps 中心 | `/devops` | `ops:devops:view` | `system/DevOpsHubView.vue` | 刷新状态、新窗口打开、重跑 Sonar、下方嵌入看板 | 链接可达；无权限不可见 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 14 | 个人中心 | `/profile` | `（无独立 perm / 登录即可）` | `profile/ProfileView.vue` | 编辑资料、修改密码、刷新资料、清除、取消、保存 | 改密后旧 token 失效策略符合预期；资料回显 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 14 | 个人中心 | `/profile` | `（无独立 perm / 登录即可）` | `profile/ProfileView.vue` | 编辑资料、修改密码、刷新资料、清除、取消、保存 | 改密后旧 token 失效策略符合预期；资料回显 | PASS（L3 2026-09-09：资料 name Ops-UAT→恢复「运营超管」；Playwright「编辑资料」；截图 `l3-profile*.png`） |
 
 ### 1.8 路由存在但非侧栏菜单（仍需测）
 
@@ -628,6 +628,7 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 再续13（2026-09-09）：运营后台写按钮 L3 Batch1（设备/商品）。`/devices` 新建 `545117487697`；`/repair-tickets` ticket=2 OPEN→DONE；`/skus` 新建 `SKU-100056`；`/vision-mappings` YOLO 临时类增删；`/sku-vision` enroll 保存 DRAFT。Playwright 页可达+写按钮弹窗截图 `l3-devices|repair|skus|vision|sku-vision*.png`；ID 见 `batch1-ids.txt`。
   - 再续14（2026-09-09）：运营后台写按钮 L3 Batch2（仓配/补货）。仓库 inbound `L3-IN-*`/`L3-BATCH-*` SKU-DEMO-001 qty=2 库存可见；补货 plan route=5/task=5；库存健康列表 OK、无缺货时一键规划隐藏。截图 `l3-warehouse|replenishment|stock-health*.png`；ID `batch2-ids.txt`。
   - 再续15（2026-09-09）：运营后台写按钮 L3 Batch3（增长/内容）。促销 stop、券启停恢复、素材 asset=1、投放 camp=1 stop、积分项/会员等级 INACTIVE、公告 3 发布归档、站内信 20、反馈 1 回复、手机验证 CRUD。截图 `l3-promotions|coupons|ad-*|points-*|member-*|announcements|notifications|feedback|phone-verify*.png`；ID `batch3-ids.txt`。
+  - 再续16（2026-09-09）：运营后台写按钮 L3 Batch4（系统）。临时账号/角色/部门/字典/菜单；审批 def=5 改名恢复；告警临时配置删；定时任务 remark+run；组织节点改名恢复；个人中心改名恢复。截图 `l3-operators|roles|departments|approvals|menus|dicts|alert-rules|scheduled-tasks|org-sites|profile*.png`；ID `batch4-ids.txt`。
   - 证据目录: docs/uat-screenshots/2026-09-08/ · 2026-09-09/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
     withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /
