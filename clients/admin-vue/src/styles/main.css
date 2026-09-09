@@ -1406,6 +1406,19 @@ select {
   box-sizing: border-box;
 }
 
+/*
+ * 表格长文案：用原生 title，勿用 show-overflow-tooltip。
+ * EP 浮层挂在表内，`.table-scroll` 横滚 + 右侧 sticky 操作列时会漂到操作列上。
+ */
+.cell-ellipsis {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
 .table-scroll .el-table {
   width: 100% !important;
   min-width: 100% !important;

@@ -415,6 +415,7 @@ import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
 import { comparePrimaryKey } from '@/utils/sort-by-pk';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 
 interface SessionRow {
   sessionId: string;
@@ -963,10 +964,8 @@ async function cancelSession(sessionId: string) {
     await api.request(`/api/v2/ops/admin/sessions/${encodeURIComponent(sessionId)}/cancel`, 'POST');
     ElMessage.success('已取消');
     load();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '操作失败');
-    }
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '操作失败'));
   }
 }
 

@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import NProgress from 'nprogress';
 import 'nprogress/nprogress.css';
 import { isLoggedIn } from '@/api/client';
@@ -11,7 +11,7 @@ import { resolveHomePath } from '@/composables/useNavAccess';
 
 NProgress.configure({ showSpinner: false, trickleSpeed: 200, minimum: 0.08 });
 
-const bizChildren: any[] = [
+const bizChildren: RouteRecordRaw[] = [
   {
     path: 'dashboard',
     name: 'dashboard',

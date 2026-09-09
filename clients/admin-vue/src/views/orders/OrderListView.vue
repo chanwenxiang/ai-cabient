@@ -6,7 +6,7 @@
           <div class="page-card-head__title">
             <span class="title">订单管理</span>
             <span class="hint"
-              >支付 / 退款状态分列；待支付支持账龄追缴；可按订单或按商品行导出</span
+              >支付 / 退款状态分列；未支付订单支持账龄追缴；可按订单或按商品行导出</span
             >
           </div>
         </div>
@@ -27,11 +27,11 @@
 
     <el-tabs v-model="statusTab" class="status-tabs" @tab-change="onStatusTab">
       <el-tab-pane label="全部" name="ALL" />
-      <el-tab-pane label="待支付" name="PENDING" />
-      <el-tab-pane label="已支付" name="PAID" />
-      <el-tab-pane label="争议中" name="DISPUTED" />
-      <el-tab-pane label="已退款" name="REFUNDED" />
-      <el-tab-pane label="已关闭" name="CANCELLED" />
+      <el-tab-pane :label="dictLabel('order_status', 'PENDING')" name="PENDING" />
+      <el-tab-pane :label="dictLabel('order_status', 'PAID')" name="PAID" />
+      <el-tab-pane :label="dictLabel('order_status', 'DISPUTED')" name="DISPUTED" />
+      <el-tab-pane :label="dictLabel('order_status', 'REFUNDED')" name="REFUNDED" />
+      <el-tab-pane :label="dictLabel('order_status', 'CANCELLED')" name="CANCELLED" />
     </el-tabs>
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
@@ -567,7 +567,7 @@
               v-if="detail.status === 'REFUNDED' || detail.status === 'PARTIAL_REFUNDED'"
               :timestamp="detail.refundedAt ? formatDateTime(detail.refundedAt) : '暂无'"
               type="warning"
-              >{{ detail.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款' }}</el-timeline-item
+              >{{ dictLabel('order_status', detail.status) }}</el-timeline-item
             >
             <el-timeline-item
               v-if="detail.sessionId"
@@ -643,7 +643,13 @@ import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
-import type { OrderSummary, PageResult } from '@aicabinet/shared-types';
+import type {
+  OrderLineDto,
+  OrderReadModel,
+  OrderSummary,
+  OpenApiOrderReadModelAdmin,
+  PageResult
+} from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
 import { orderAmountDiffNote } from '@/utils/dispute-amount-note';
@@ -729,7 +735,7 @@ const size = ref(20);
 const total = ref(0);
 const detailOpen = ref(false);
 const detailLoading = ref(false);
-const detail = ref<any>(null);
+const detail = ref<OrderReadModel | null>(null);
 const selectedOrderAmountDiffNote = computed(() => orderAmountDiffNote(detail.value));
 
 const displayItems = computed(() => {
@@ -858,8 +864,9 @@ function orderStatusType(s?: string) {
 }
 
 function refundColumnLabel(s?: string) {
-  if (s === 'REFUNDED') return '已退款';
-  if (s === 'PARTIAL_REFUNDED') return '部分退款';
+  if (s === 'REFUNDED' || s === 'PARTIAL_REFUNDED') {
+    return dictLabel('order_status', s);
+  }
   return '无';
 }
 
@@ -1020,10 +1027,10 @@ async function openDetail(row: OrderSummary) {
   // 切换订单才清空，避免同单软刷新（退款后重拉）闪空白抽屉
   if (detail.value?.orderId !== row.orderId) detail.value = null;
   try {
-    detail.value = await api.request(
+    detail.value = (await api.request<OpenApiOrderReadModelAdmin>(
       `/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}`,
       'GET'
-    );
+    )) as OrderReadModel;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '详情加载失败');
     detailOpen.value = false;
@@ -1088,7 +1095,7 @@ async function refundOrder(row: { orderId: string; status?: string }) {
       await openDetail(row as OrderSummary);
     }
     await load();
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '退款失败');
     }
@@ -1109,12 +1116,19 @@ type PartialRow = {
 };
 const partialRows = ref<PartialRow[]>([]);
 
-function openPartialRefund(row: OrderSummary & { lines?: any[]; items?: any[] }) {
-  const lines = (row.lines ||
+type PartialLineSource = Partial<OrderLineDto> & {
+  sku_id?: string;
+  sku_name?: string;
+  qty?: number;
+  title?: string;
+};
+
+function openPartialRefund(row: OrderSummary) {
+  const lines: PartialLineSource[] = row.lines ||
     row.items ||
     detail.value?.lines ||
     detail.value?.items ||
-    []) as any[];
+    [];
   if (!lines.length) {
     ElMessage.warning('无商品行，无法按行退款');
     return;
@@ -1122,10 +1136,10 @@ function openPartialRefund(row: OrderSummary & { lines?: any[]; items?: any[] })
   partialOrderId.value = row.orderId;
   partialReason.value = '按行部分退款';
   partialRows.value = lines
-    .filter((l) => l && (l.skuId || l.sku_id) && (l.quantity || l.qty) > 0)
+    .filter((l) => l && (l.skuId || l.sku_id) && Number(l.quantity || l.qty || 0) > 0)
     .map((l) => ({
       skuId: String(l.skuId || l.sku_id),
-      skuName: String(l.skuName || l.sku_name || l.title || l.skuId || ''),
+      skuName: String(l.skuName || l.sku_name || l.title || l.skuId || l.sku_id || ''),
       maxQty: Number(l.quantity || l.qty || 0),
       qty: 0,
       restore: false
@@ -1185,7 +1199,7 @@ async function remindOrder(row: { orderId: string }) {
       'POST'
     );
     ElMessage.success(result.message || '催付已处理');
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '催付失败');
     }
@@ -1208,7 +1222,7 @@ async function collectUnpaid(row: { orderId: string }) {
       await openDetail(row as OrderSummary);
     }
     await load();
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '补扣失败');
     }
@@ -1218,8 +1232,8 @@ async function collectUnpaid(row: { orderId: string }) {
 async function cancelUnpaid(row: { orderId: string }) {
   try {
     const { value } = await ElMessageBox.prompt(
-      `关闭待支付订单 ${row.orderId} 将回滚库存。可选同时拉黑用户。`,
-      '关闭待支付',
+      `关闭未支付订单 ${row.orderId} 将回滚库存。可选同时拉黑用户。`,
+      '关闭未支付订单',
       {
         inputPlaceholder: '关单原因（至少4字）',
         inputValidator: (v) =>
@@ -1248,7 +1262,7 @@ async function cancelUnpaid(row: { orderId: string }) {
     ElMessage.success(result.message || '已关单');
     detailOpen.value = false;
     await load();
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '关单失败');
     }
@@ -1300,11 +1314,11 @@ async function load() {
     } else if (status.value) {
       q.set('status', status.value);
     }
-    const data = await api.request<PageResult<OrderSummary>>(
+    const data = await api.request<PageResult<OpenApiOrderReadModelAdmin>>(
       `/api/v2/ops/admin/orders?${q}`,
       'GET'
     );
-    items.value = data.items || [];
+    items.value = (data.items || []) as OrderSummary[];
     total.value = data.total || 0;
     clearSelection();
     await maybeOpenFocusedOrder();

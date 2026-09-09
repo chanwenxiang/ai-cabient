@@ -147,8 +147,16 @@
                 min-width="110"
                 show-overflow-tooltip
               />
-              <el-table-column prop="siteName" label="场地" min-width="140" show-overflow-tooltip />
-              <el-table-column prop="address" label="地址" min-width="150" show-overflow-tooltip />
+              <el-table-column label="场地" min-width="140" class-name="col-text">
+                <template #default="{ row }">
+                  <span class="cell-ellipsis" :title="row.siteName || ''">{{ row.siteName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="地址" min-width="150" class-name="col-text">
+                <template #default="{ row }">
+                  <span class="cell-ellipsis" :title="row.address || ''">{{ row.address }}</span>
+                </template>
+              </el-table-column>
               <el-table-column prop="landlordName" label="场地主" width="100" />
               <el-table-column label="联系电话" width="120" align="center">
                 <template #default="{ row }">{{ row.landlordPhone || '暂无' }}</template>
@@ -171,8 +179,12 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="备注" min-width="100" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.remark || '暂无' }}</template>
+              <el-table-column label="备注" min-width="100" class-name="col-text">
+                <template #default="{ row }">
+                  <span class="cell-ellipsis" :title="row.remark || ''">{{
+                    row.remark || '暂无'
+                  }}</span>
+                </template>
               </el-table-column>
               <el-table-column label="操作" width="300" align="center" fixed="right">
                 <template #default="{ row }">
@@ -267,7 +279,11 @@
               border
             >
               <el-table-column prop="billMonth" label="账期" width="90" align="center" />
-              <el-table-column prop="siteName" label="场地" min-width="120" show-overflow-tooltip />
+              <el-table-column label="场地" min-width="120" class-name="col-text">
+                <template #default="{ row }">
+                  <span class="cell-ellipsis" :title="row.siteName || ''">{{ row.siteName }}</span>
+                </template>
+              </el-table-column>
               <el-table-column
                 prop="deviceId"
                 label="设备ID"

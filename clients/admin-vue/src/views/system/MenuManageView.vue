@@ -213,6 +213,7 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { buildPermTree, flattenForParentSelect, type PermRow } from '@/utils/rbac-tree';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 
 type MenuScope = 'ops' | 'merchant' | 'all';
 
@@ -519,10 +520,8 @@ async function onRemove(row: PermRow) {
     syncRouteQuery();
     await load();
     await auth.refreshPermissions();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '停用失败');
-    }
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '停用失败'));
   }
 }
 
@@ -540,10 +539,8 @@ async function onEnable(row: PermRow) {
     ElMessage.success('已启用');
     await load();
     await auth.refreshPermissions();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '启用失败');
-    }
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '启用失败'));
   }
 }
 

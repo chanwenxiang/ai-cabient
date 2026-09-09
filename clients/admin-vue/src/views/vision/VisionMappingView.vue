@@ -276,6 +276,7 @@ import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 
 interface YoloMappingRow {
   className?: string;
@@ -556,10 +557,8 @@ async function onDelete(row: YoloMappingRow) {
     );
     ElMessage.success('已删除');
     await load();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '删除失败');
-    }
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '删除失败'));
   }
 }
 

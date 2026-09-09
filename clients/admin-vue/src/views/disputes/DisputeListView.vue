@@ -683,6 +683,7 @@ import type {
 } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 
 interface ResolveDisputeResultDto {
   order?: { orderId?: string } | null;
@@ -1206,9 +1207,9 @@ async function confirmResolveAction(
       }
     );
     return true;
-  } catch (e: any) {
-    if (e === 'cancel' || e === 'close') return false;
-    ElMessage.error(e instanceof Error ? e.message : '确认失败');
+  } catch (e: unknown) {
+    if (isUserDismiss(e)) return false;
+    ElMessage.error(errorMessage(e, '确认失败'));
     return false;
   }
 }

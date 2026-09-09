@@ -542,6 +542,7 @@ import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { yuanToCents } from '@/utils/display';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 
 interface Manager {
   managerId: number;
@@ -572,6 +573,43 @@ interface Withdraw {
   reviewRemark?: string;
   createdAt?: string;
   paidAt?: string;
+}
+
+interface LedgerRow {
+  entryType?: string;
+  amountCents?: number;
+  balanceAfter?: number;
+  frozenAfter?: number;
+  refType?: string;
+  remark?: string;
+  createdAt?: string;
+}
+
+interface KpiDaily {
+  bizDate?: string;
+  gmvCents?: number;
+  commissionCents?: number;
+  orderCount?: number;
+}
+
+interface ManagerKpi {
+  gmvCents?: number;
+  commissionCents?: number;
+  deviceCount?: number;
+  activeDays?: number;
+  dailies?: KpiDaily[];
+}
+
+interface PromoTask {
+  taskId?: number;
+  managerId?: number;
+  title?: string;
+  routeCode?: string;
+  doneQty?: number;
+  targetQty?: number;
+  bountyCents?: number;
+  status?: string;
+  dueDate?: string;
 }
 
 const auth = useAuthStore();
@@ -630,12 +668,12 @@ const bindDeviceId = ref('');
 const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 const ledgerVisible = ref(false);
 const ledgerHydrated = ref(false);
-const ledgers = ref<any[]>([]);
+const ledgers = ref<LedgerRow[]>([]);
 const kpiVisible = ref(false);
 const kpiHydrated = ref(false);
 const kpiTitle = ref('');
-const kpi = ref<any>(null);
-const promoTasks = ref<any[]>([]);
+const kpi = ref<ManagerKpi | null>(null);
+const promoTasks = ref<PromoTask[]>([]);
 const promoLoading = ref(false);
 const promoHydrated = ref(false);
 const promoVisible = ref(false);
@@ -846,8 +884,8 @@ async function adjust(row: Manager) {
     });
     ElMessage.success('已调账');
     await loadManagers();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') ElMessage.error(e instanceof Error ? e.message : '失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '失败'));
   }
 }
 
@@ -855,7 +893,7 @@ async function showLedgers(row: Manager) {
   ledgers.value = [];
   ledgerVisible.value = true;
   try {
-    ledgers.value = await api.request(
+    ledgers.value = await api.request<LedgerRow[]>(
       `/api/v2/ops/admin/line-managers/${row.managerId}/ledgers?limit=50`,
       'GET'
     );
@@ -873,7 +911,10 @@ async function showKpi(row: Manager) {
   kpiVisible.value = true;
   kpiHydrated.value = false;
   try {
-    kpi.value = await api.request(`/api/v2/ops/admin/line-managers/${row.managerId}/kpi`, 'GET');
+    kpi.value = await api.request<ManagerKpi>(
+      `/api/v2/ops/admin/line-managers/${row.managerId}/kpi`,
+      'GET'
+    );
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载 KPI 失败');
   } finally {
@@ -884,7 +925,7 @@ async function showKpi(row: Manager) {
 async function loadPromoTasks() {
   promoLoading.value = true;
   try {
-    promoTasks.value = await api.request('/api/v2/ops/admin/line-promo-tasks', 'GET');
+    promoTasks.value = await api.request<PromoTask[]>('/api/v2/ops/admin/line-promo-tasks', 'GET');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载地推任务失败');
   } finally {
@@ -950,8 +991,8 @@ async function proxyWithdraw(row: Manager) {
     tab.value = 'withdraws';
     wStatus.value = '';
     await loadWithdraws();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') ElMessage.error(e instanceof Error ? e.message : '失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '失败'));
   }
 }
 

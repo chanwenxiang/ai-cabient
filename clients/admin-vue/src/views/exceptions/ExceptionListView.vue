@@ -576,6 +576,7 @@ import {
   View
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
@@ -792,7 +793,7 @@ function isDeviceScopedException(row: OpsException) {
   return t === 'DEVICE_FAULT' || t === 'DEVICE_OFFLINE' || t === 'DOOR_OPEN_TOO_LONG';
 }
 
-function emptyRefLabel(row: OpsException) {
+function emptyRefLabel(_row: OpsException) {
   return '暂无';
 }
 
@@ -869,11 +870,11 @@ async function archiveRow(row: OpsException) {
   }
   try {
     await api.request(`/api/v2/ops/admin/exceptions/${row.exceptionId}/archive`, 'POST');
-    ElMessage.success('已归档');
+    ElMessage.success('归档成功');
     await load();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '归档失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '归档失败'));
     }
   }
 }
@@ -892,9 +893,9 @@ async function unarchiveRow(row: OpsException) {
     await api.request(`/api/v2/ops/admin/exceptions/${row.exceptionId}/unarchive`, 'POST');
     ElMessage.success('已取消归档');
     await load();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '取消归档失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '取消归档失败'));
     }
   }
 }
@@ -1087,9 +1088,9 @@ async function claim(row: OpsException) {
     await api.request(`/api/v2/ops/admin/exceptions/${row.exceptionId}/claim`, 'POST');
     ElMessage.success('已领取');
     await load();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '领取失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '领取失败'));
     }
   }
 }
@@ -1105,9 +1106,9 @@ async function resolve(row: OpsException) {
     });
     ElMessage.success('异常已解决');
     await load();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '解决失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '解决失败'));
     }
   }
 }
@@ -1162,9 +1163,9 @@ async function addNote() {
     );
     ElMessage.success('备注已记录');
     await refreshDetail();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '添加备注失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '添加备注失败'));
     }
   }
 }
@@ -1185,9 +1186,9 @@ async function transfer() {
     );
     ElMessage.success('已转派');
     await Promise.all([load(), refreshDetail()]);
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '转派失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '转派失败'));
     }
   }
 }
@@ -1211,9 +1212,9 @@ async function cancelSession() {
     });
     ElMessage.success('会话已终止，设备占用已释放');
     await Promise.all([load(), refreshDetail()]);
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '终止会话失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '终止会话失败'));
     }
   }
 }
@@ -1251,9 +1252,9 @@ async function resolveWithRepairRow(row: OpsException): Promise<boolean> {
     ElMessage.success('已建维修工单并结案');
     await load();
     return true;
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '结案失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '结案失败'));
     }
     return false;
   }
@@ -1290,9 +1291,9 @@ async function retryException() {
     });
     ElMessage.success('重试请求已执行');
     await Promise.all([load(), refreshDetail()]);
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '重试失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '重试失败'));
     }
   }
 }
@@ -1327,9 +1328,9 @@ async function submitManualResolve() {
         confirmButtonText: '确认结算'
       }
     );
-  } catch (e: any) {
-    if (e === 'cancel' || e === 'close') return;
-    ElMessage.error(e instanceof Error ? e.message : '确认失败');
+  } catch (e: unknown) {
+    if (isUserDismiss(e)) return;
+    ElMessage.error(errorMessage(e, '确认失败'));
     return;
   }
   manualSubmitting.value = true;
@@ -1368,9 +1369,9 @@ async function waiveOrder() {
       }
     );
     reason = value;
-  } catch (e: any) {
-    if (e === 'cancel' || e === 'close') return;
-    ElMessage.error(e instanceof Error ? e.message : '确认失败');
+  } catch (e: unknown) {
+    if (isUserDismiss(e)) return;
+    ElMessage.error(errorMessage(e, '确认失败'));
     return;
   }
   manualSubmitting.value = true;

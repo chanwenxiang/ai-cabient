@@ -117,7 +117,11 @@
                   "
                   class="card-refund"
                 >
-                  {{ item.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
+                  {{
+                    displayLabel(
+                      'order_status',
+                      item.status === 'PARTIAL_REFUNDED' ? 'PARTIAL_REFUNDED' : 'REFUNDED'
+                    )
                   }}{{ refundCents(item) > 0 ? ` ${money(refundCents(item))}` : ''
                   }}{{ item.refundedAt ? ` · ${formatTime(item.refundedAt)}` : '' }}
                 </text>
@@ -155,6 +159,7 @@ import {
   fmtMoney,
   shortBizNo
 } from '@aicabinet/shared-uni/format';
+import { displayLabel } from '@aicabinet/shared-dict';
 import EmptyState from '@/components/empty-state.vue';
 import {
   hasPerm,
@@ -217,10 +222,10 @@ const filtersActive = computed(
 const deviceOptions = ref<{ label: string; value: string }[]>([]);
 const statusOptions = [
   { value: '', label: '全部' },
-  { value: 'PAID', label: '已支付' },
-  { value: 'REFUNDED', label: '已退款' },
-  { value: 'DISPUTED', label: '争议中' },
-  { value: 'CANCELLED', label: '已取消' }
+  { value: 'PAID', label: displayLabel('order_status', 'PAID') },
+  { value: 'REFUNDED', label: displayLabel('order_status', 'REFUNDED') },
+  { value: 'DISPUTED', label: displayLabel('order_status', 'DISPUTED') },
+  { value: 'CANCELLED', label: displayLabel('order_status', 'CANCELLED') }
 ];
 const timeOptions = [
   { value: 'all', label: '全部时间' },

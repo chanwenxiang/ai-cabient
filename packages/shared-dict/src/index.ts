@@ -235,6 +235,12 @@ export const DICT = {
     PUBLISHED: '已发布',
     ARCHIVED: '已归档'
   },
+  balance_refund_status: {
+    PENDING_REVIEW: '待审核',
+    REFUNDED: '已退款',
+    REJECTED: '已驳回',
+    FAILED: '失败'
+  },
   announcement_audience: {
     ALL: '全部用户',
     MERCHANT: '商户',
@@ -560,12 +566,24 @@ export const DICT = {
     ORDER_AMOUNT: '订单金额',
     PAYMENT_AMOUNT: '支付净额',
     INVENTORY_MISMATCH: '库存汇总',
+    INVENTORY_ORPHAN_LOT: '孤儿批次',
     POINTS_BALANCE: '积分余额',
+    POINTS_IDENTITY: '积分恒等式',
     COUPON_ISSUED: '发券数量',
-    WALLET_BALANCE: '钱包余额',
+    COUPON_OVER_QUOTA: '发券超配额',
+    WALLET_BALANCE: '用户钱包',
+    MERCHANT_WALLET: '商户钱包',
+    LINE_WALLET: '线路钱包',
     REFUND_AMOUNT: '退款金额',
     ORDER_LINE_SUM: '订单行金额',
-    COUPON_USED_LINK: '券核销关联'
+    COUPON_USED_LINK: '券核销关联',
+    REVENUE_SPLIT_SUM: '分账金额',
+    REVENUE_SPLIT_MISSING: '分账缺失',
+    SLOT_SKU_MISMATCH: '货道SKU',
+    SLOT_CAPACITY: '货道容量',
+    SLOT_PHYSICAL: '货道盘点',
+    WAREHOUSE_NEGATIVE: '仓存负库存',
+    CROSS_LINK: '关联投影'
   },
   sku_perf_level: {
     BEST_SELLER: '畅销',

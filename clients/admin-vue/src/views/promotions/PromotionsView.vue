@@ -150,8 +150,12 @@
           <el-table-column label="每人限次" width="90" align="center">
             <template #default="{ row }">{{ row.userLimit || '不限' }}</template>
           </el-table-column>
-          <el-table-column label="适用柜" min-width="120" align="center" show-overflow-tooltip>
-            <template #default="{ row }">{{ deviceScopeLabel(row) }}</template>
+          <el-table-column label="适用柜" min-width="120" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-ellipsis" :title="deviceScopeLabel(row) || ''">{{
+                deviceScopeLabel(row)
+              }}</span>
+            </template>
           </el-table-column>
           <el-table-column label="状态" width="88" align="center">
             <template #default="{ row }">
@@ -302,6 +306,8 @@ import PagePager from '@/components/PagePager.vue';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName, csvRowsToObjects, downloadCsv, parseCsv } from '@/utils/csv';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { errorMessage } from '@/utils/error-message';
+import type { PromotionActivityDto } from '@aicabinet/shared-types';
 
 const route = useRoute();
 const router = useRouter();
@@ -311,7 +317,7 @@ const loading = ref(false);
 const listHydrated = ref(false);
 const saving = ref(false);
 const importing = ref(false);
-const list = ref<any[]>([]);
+const list = ref<PromotionActivityDto[]>([]);
 const total = ref(0);
 const keyword = ref('');
 const statusFilter = ref('');
@@ -436,7 +442,7 @@ async function loadDevices() {
   }
 }
 
-function rowActions(row: any): TableAction[] {
+function rowActions(row: PromotionActivityDto): TableAction[] {
   const acts: TableAction[] = [];
   if (!isEnabled(row.status) && row.status !== 'ENDED' && auth.hasPerm('ops:promotion:edit')) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
@@ -456,11 +462,11 @@ const showActionColumn = computed(() =>
   displayList.value.some((row) => rowActions(row).length > 0)
 );
 
-function onSelectionChange(rows: any[]) {
+function onSelectionChange(rows: PromotionActivityDto[]) {
   selectedIds.value = rows.map((r) => r.activityId).filter(Boolean);
 }
 
-async function onAction(key: string, row: any) {
+async function onAction(key: string, row: PromotionActivityDto) {
   if (key === 'edit') openEdit(row);
   else if (key === 'toggle') await onToggleStatus(row);
 }
@@ -468,7 +474,7 @@ async function onAction(key: string, row: any) {
 async function load() {
   loading.value = true;
   try {
-    const data = await api.request<{ items: any[]; total: number }>(
+    const data = await api.request<{ items: PromotionActivityDto[]; total: number }>(
       `/api/v2/ops/promotions?${queryParams()}`,
       'GET'
     );
@@ -476,7 +482,7 @@ async function load() {
     total.value = Number(data.total) || 0;
     selectedIds.value = [];
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
+    ElMessage.error(errorMessage(e, '加载失败'));
   } finally {
     listHydrated.value = true;
     loading.value = false;
@@ -489,7 +495,7 @@ function openCreate() {
   showDialog.value = true;
 }
 
-function openEdit(row: any) {
+function openEdit(row: PromotionActivityDto) {
   editingId.value = row.activityId;
   const deviceIds = parseRuleDeviceIds(row.ruleConfig);
   let formDeviceIds: string[];
@@ -501,8 +507,8 @@ function openEdit(row: any) {
     formDeviceIds = [];
   }
   form.value = {
-    activityName: row.activityName,
-    activityType: row.activityType,
+    activityName: row.activityName || '',
+    activityType: row.activityType || 'FULL_REDUCE',
     startTime: row.startTime ? new Date(row.startTime) : '',
     endTime: row.endTime ? new Date(row.endTime) : '',
     budgetYuan: (Number(row.budgetCents) || 0) / 100,
@@ -551,13 +557,13 @@ async function onSubmit() {
     showDialog.value = false;
     await load();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+    ElMessage.error(errorMessage(e, '保存失败'));
   } finally {
     saving.value = false;
   }
 }
 
-async function onToggleStatus(row: any) {
+async function onToggleStatus(row: PromotionActivityDto) {
   const enable = !isEnabled(row.status);
   const action = enable ? '启用' : '停用';
   try {
@@ -571,7 +577,7 @@ async function onToggleStatus(row: any) {
     }
     ElMessage.success(`已${action}`);
     await load();
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : `${action}失败`);
     }
@@ -590,20 +596,20 @@ async function batchDisable() {
     }
     ElMessage.success(`已停用 ${targets.length} 个活动`);
     await load();
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '批量停用失败');
+      ElMessage.error(errorMessage(e, '批量停用失败'));
     }
   }
 }
 
-function toExportRows(items: any[]) {
+function toExportRows(items: PromotionActivityDto[]) {
   return items.map((row) => [
-    row.activityName,
+    row.activityName || '',
     displayLabel('promotion_type', row.activityType, '未知类型'),
-    formatTime(row.startTime),
-    formatTime(row.endTime),
-    yuan(row.budgetCents),
+    formatTime(row.startTime || ''),
+    formatTime(row.endTime || ''),
+    yuan(row.budgetCents || 0),
     row.userLimit ?? 1,
     row.description || '',
     statusLabel(row.status)
@@ -670,7 +676,7 @@ async function onImportFile(ev: Event) {
       if (!start || !end || end <= start) {
         throw new Error(`活动「${name}」时间无效`);
       }
-      const created = await api.request<any>('/api/v2/ops/promotions', 'POST', {
+      const created = await api.request<PromotionActivityDto>('/api/v2/ops/promotions', 'POST', {
         activityName: name,
         activityType: type,
         startTime: start.toISOString(),
@@ -690,7 +696,7 @@ async function onImportFile(ev: Event) {
     ElMessage.success(`导入成功 ${ok} 条`);
     await load();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '导入失败');
+    ElMessage.error(errorMessage(e, '导入失败'));
   } finally {
     importing.value = false;
   }

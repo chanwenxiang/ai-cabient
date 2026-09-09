@@ -325,6 +325,7 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { loadRuntimeDict } from '@/stores/dict-runtime';
 import { useAuthStore } from '@/stores/auth';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 
 interface DictTypeRow {
   dictType: string;
@@ -666,10 +667,8 @@ async function removeItem(row: DictItemRow) {
     await api.request(`/api/v2/ops/admin/dicts/items/${row.dictDataId}`, 'DELETE');
     ElMessage.success('已删除');
     await Promise.all([loadItems(), loadTypes(), loadRuntimeDict()]);
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '删除失败');
-    }
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '删除失败'));
   }
 }
 

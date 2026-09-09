@@ -111,12 +111,14 @@
                         }}</span
                       >
                     </div>
-                    <el-table
-                      :data="sortedRouteTasks(row.tasks)"
-                      size="small"
-                      class="line-table"
-                      empty-text=" "
-                    >
+                    <div class="route-task-scroll table-scroll table-scroll--h">
+                      <div class="table-scroll-inner route-task-scroll-inner">
+                        <el-table
+                          :data="sortedRouteTasks(row.tasks)"
+                          size="small"
+                          class="line-table"
+                          empty-text=" "
+                        >
                       <el-table-column label="任务" width="70" align="center" class-name="col-text">
                         <template #default="scope">
                           <span class="cell-id">{{ scope.row.taskId }}</span>
@@ -205,7 +207,7 @@
                         fixed="right"
                       >
                         <template #default="scope">
-                          <el-button link type="primary" @click="openTaskLines(scope.row)"
+                          <el-button link type="primary" @click.stop="openTaskLines(scope.row)"
                             >明细</el-button
                           >
                           <el-button
@@ -213,7 +215,7 @@
                             link
                             type="warning"
                             :loading="checkInLoading === scope.row.taskId"
-                            @click="checkInRestockTask(scope.row)"
+                            @click.stop="checkInRestockTask(scope.row)"
                             >签到</el-button
                           >
                           <el-button
@@ -221,7 +223,7 @@
                             link
                             type="primary"
                             :loading="openDoorLoading === scope.row.taskId"
-                            @click="openRestockDoor(scope.row)"
+                            @click.stop="openRestockDoor(scope.row)"
                             >{{
                               deviceSalesLocked(scope.row.deviceId) ? '开门(停售)' : '开门'
                             }}</el-button
@@ -231,7 +233,7 @@
                             link
                             type="success"
                             :loading="completeLoading === scope.row.taskId"
-                            @click="completeRestockTask(scope.row)"
+                            @click.stop="completeRestockTask(scope.row)"
                             >完成上架</el-button
                           >
                           <span
@@ -252,7 +254,9 @@
                           description="该路线暂无设备任务"
                           :image-size="48"
                       /></template>
-                    </el-table>
+                        </el-table>
+                      </div>
+                    </div>
                   </div>
                 </template>
               </el-table-column>
@@ -480,8 +484,18 @@
                   <span v-else class="muted">暂无</span>
                 </template>
               </el-table-column>
-              <el-table-column label="备注" min-width="140" align="center" show-overflow-tooltip>
-                <template #default="{ row }">{{ formatTaskNotesBrief(row.notes) }}</template>
+              <el-table-column label="备注" min-width="140" align="center" class-name="col-text">
+                <template #default="{ row }">
+                  <span
+                    class="cell-ellipsis"
+                    :title="
+                      formatTaskNotesBrief(row.notes) === '暂无'
+                        ? ''
+                        : formatTaskNotesBrief(row.notes)
+                    "
+                    >{{ formatTaskNotesBrief(row.notes) }}</span
+                  >
+                </template>
               </el-table-column>
               <el-table-column
                 label="操作"
@@ -930,6 +944,15 @@
     >
       <div v-loading="linesLoading" class="lines-drawer">
         <el-descriptions v-if="linesTask" :column="1" border size="small" class="lines-meta">
+          <el-descriptions-item label="任务">
+            <span class="mono">{{ linesTask.taskId }}</span>
+            <el-tag
+              :type="dictTagType(linesTask.status)"
+              size="small"
+              class="lines-status-tag"
+              >{{ dictLabel('replenishment_task_status', linesTask.status) }}</el-tag
+            >
+          </el-descriptions-item>
           <el-descriptions-item label="设备"
             >{{ deviceName(linesTask.deviceId, linesTask.deviceName) }}（{{
               linesTask.deviceId
@@ -1285,6 +1308,7 @@ import { sortByPrimaryKey } from '@/utils/sort-by-pk';
 import { dictLabel, dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 
 type Row = Record<string, any>;
 
@@ -2741,10 +2765,8 @@ async function onRequestAction(row: Row, key: string) {
     }
     await loadTab(tab.value, true);
     refreshRequestFlowDrawer(row);
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '操作失败');
-    }
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '操作失败'));
   }
 }
 
@@ -3017,7 +3039,12 @@ onActivated(() => {
   flex-wrap: wrap;
 }
 .route-detail {
+  /* width:0 + min-width:100%：展开行不把外层表撑宽，横滚落在子表外壳 */
+  width: 0;
+  min-width: 100%;
+  box-sizing: border-box;
   padding: 8px 44px 12px;
+  overflow: hidden;
 }
 .route-meta {
   display: flex;
@@ -3026,6 +3053,19 @@ onActivated(() => {
   margin-bottom: 12px;
   color: var(--layout-muted);
   font-size: 13px;
+}
+.route-task-scroll {
+  /* 嵌套子任务表：底部可右拉的横滚条 */
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  border-radius: 6px;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+.route-task-scroll-inner {
+  min-width: 0;
+  width: 100%;
 }
 .line-table {
   width: 100%;

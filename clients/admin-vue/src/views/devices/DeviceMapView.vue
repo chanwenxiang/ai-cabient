@@ -287,12 +287,12 @@ function ensureMap() {
   };
   attach(0);
 
-  const group = (L as any).markerClusterGroup({
+  const group = L.markerClusterGroup({
     showCoverageOnHover: false,
     maxClusterRadius: 70,
     spiderfyOnMaxZoom: true,
     disableClusteringAtZoom: 17,
-    iconCreateFunction(c: any) {
+    iconCreateFunction(c: L.MarkerCluster) {
       const count = c.getChildCount();
       const tone = clusterTone(count);
       const size = clusterSize(count);
@@ -308,8 +308,8 @@ function ensureMap() {
         iconAnchor: L.point((size + 36) / 2, (size + 36) / 2)
       });
     }
-  }) as L.Layer;
-  cluster = group as any;
+  }) as L.MarkerClusterGroup;
+  cluster = group;
   map.addLayer(group);
 }
 
@@ -387,9 +387,9 @@ function focusPoint(p: MapPoint) {
     const m = markerById.get(p.deviceId);
     if (!m || !map || !cluster) return;
     // 若仍被聚合包住，先缩放到能看到单点
-    const visible = (cluster as any).getVisibleParent?.(m);
+    const visible = cluster.getVisibleParent?.(m);
     if (visible && visible !== m) {
-      (cluster as any).zoomToShowLayer?.(m, () => m.openPopup());
+      cluster.zoomToShowLayer?.(m, () => m.openPopup());
     } else {
       m.openPopup();
     }

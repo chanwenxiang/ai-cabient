@@ -6,7 +6,11 @@ function withBodyAppend(options?: ElMessageBoxOptions | null): ElMessageBoxOptio
   return { appendTo: document.body, ...(options || {}) };
 }
 
-type AnyMsg = (...args: any[]) => ReturnType<typeof ElMessageBox.confirm>;
+type AnyMsg = (
+  message: string,
+  titleOrOptions?: string | ElMessageBoxOptions,
+  options?: ElMessageBoxOptions
+) => ReturnType<typeof ElMessageBox.confirm>;
 
 function wrap(method: AnyMsg): AnyMsg {
   return (

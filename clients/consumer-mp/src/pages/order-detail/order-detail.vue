@@ -93,7 +93,11 @@
           >
             <text class="info-label">退款</text>
             <text class="info-value"
-              >{{ order?.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
+              >{{
+                displayLabel(
+                  'order_status',
+                  order?.status === 'PARTIAL_REFUNDED' ? 'PARTIAL_REFUNDED' : 'REFUNDED'
+                )
               }}{{ refundCents > 0 ? ` ${fmtMoney(refundCents)}` : '' }}</text
             >
           </view>
@@ -137,7 +141,7 @@
             :disabled="refundLoading || disputeLoading"
             @click="openRefund"
           >
-            {{ refundDone ? '已退款' : '立即退款' }}
+            {{ refundDone ? displayLabel('order_status', 'REFUNDED') : '立即退款' }}
           </button>
           <button
             v-if="canDispute"
@@ -569,8 +573,11 @@ async function submitInvoice() {
     invoiceDone.value = true;
     showInvoice.value = false;
     uni.showToast({ title: '开票申请已提交', icon: 'success' });
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '提交失败', icon: 'none' });
+  } catch (e: unknown) {
+    uni.showToast({
+      title: e instanceof Error ? e.message : '提交失败',
+      icon: 'none'
+    });
   } finally {
     invoiceLoading.value = false;
   }
@@ -589,8 +596,12 @@ function syncRefundLines() {
     }));
 }
 
-function onPartialQty(row: RefundLineRow, e: any) {
-  const raw = String(e?.detail?.value ?? e?.target?.value ?? '').trim();
+function onPartialQty(row: RefundLineRow, e: { detail?: { value?: string }; target?: { value?: string } } | Event) {
+  const raw = String(
+    (e as { detail?: { value?: string } })?.detail?.value ??
+      (e as { target?: { value?: string } })?.target?.value ??
+      ''
+  ).trim();
   if (!raw) {
     row.qty = 0;
     return;

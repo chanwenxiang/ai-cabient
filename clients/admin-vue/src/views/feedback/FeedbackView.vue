@@ -75,14 +75,12 @@
               {{ dictLabel('feedback_type', row.feedbackType) || '反馈' }}
             </template>
           </el-table-column>
-          <el-table-column
-            label="内容"
-            min-width="220"
-            align="center"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
-            <template #default="{ row }">{{ row.content || '无' }}</template>
+          <el-table-column label="内容" min-width="220" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-ellipsis" :title="row.content || ''">{{
+                row.content || '无'
+              }}</span>
+            </template>
           </el-table-column>
           <el-table-column label="用户" width="100" align="center" class-name="col-text">
             <template #default="{ row }">
@@ -187,7 +185,7 @@ import { ChatDotRound, Delete, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
-import TableActions from '@/components/TableActions.vue';
+import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
@@ -302,12 +300,7 @@ function openReply(row: Row) {
 }
 
 function feedbackActions(row: Row) {
-  const acts: {
-    key: string;
-    label: string;
-    icon: any;
-    type?: 'primary' | 'success' | 'warning' | 'danger' | 'info';
-  }[] = [];
+  const acts: TableAction[] = [];
   if (canReply.value && row.status === 'PENDING') {
     acts.push({ key: 'reply', label: '回复', icon: ChatDotRound, type: 'primary' });
   }

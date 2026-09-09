@@ -66,13 +66,21 @@
             </template>
           </el-table-column>
           <el-table-column prop="title" label="标题" min-width="150" align="center" />
-          <el-table-column label="内容" min-width="240" show-overflow-tooltip>
-            <template #default="{ row }">{{ rewriteBizNosInText(row.body) }}</template>
+          <el-table-column label="内容" min-width="240" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-ellipsis" :title="rewriteBizNosInText(row.body) || ''">{{
+                rewriteBizNosInText(row.body)
+              }}</span>
+            </template>
           </el-table-column>
-          <el-table-column label="业务" width="100" align="center" show-overflow-tooltip>
-            <template #default="{ row }">{{
-              dictLabel('notification_biz_type', row.bizType)
-            }}</template>
+          <el-table-column label="业务" width="100" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <span
+                class="cell-ellipsis"
+                :title="dictLabel('notification_biz_type', row.bizType) || ''"
+                >{{ dictLabel('notification_biz_type', row.bizType) }}</span
+              >
+            </template>
           </el-table-column>
           <el-table-column label="关联单号" width="150" align="center" class-name="col-text">
             <template #default="{ row }">{{ displayBizNo(row.bizId, '无') }}</template>

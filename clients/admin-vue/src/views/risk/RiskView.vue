@@ -267,6 +267,7 @@ import {
   formatRiskEventDetail
 } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 
 function dispositionLabel(s?: string) {
   const m: Record<string, string> = {
@@ -505,10 +506,8 @@ async function removeBlacklist(row: Row) {
     await api.request(`/api/v2/ops/admin/risk/blacklist/${row.userId}`, 'DELETE');
     ElMessage.success('已移出');
     await loadBlacklist();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '操作失败');
-    }
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '操作失败'));
   }
 }
 

@@ -9,10 +9,20 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./generated/openapi": {
+      "types": "./src/generated/openapi.ts",
+      "import": "./src/generated/openapi.ts",
+      "default": "./src/generated/openapi.ts"
+    },
+    "./generated/order-models": {
+      "types": "./src/generated/order-models.ts",
+      "import": "./src/generated/order-models.ts",
+      "default": "./src/generated/order-models.ts"
     }
   },
   "scripts": {
-    "build": "tsc"
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json"
   },
   "devDependencies": {
     "typescript": "^5.4.5"

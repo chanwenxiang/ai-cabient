@@ -1218,6 +1218,7 @@ import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, authFetch, downloadAuthFile } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
@@ -1229,6 +1230,8 @@ import type {
   DeviceTempPlan,
   DeviceInfo,
   DeviceSlot,
+  SessionDto,
+  OrderReadModel,
   PageResult,
   SkuCatalog,
   UpsertDeviceSlotRequest
@@ -1341,7 +1344,7 @@ async function saveTempPlan() {
     ElMessage.success('温控计划已保存并应用');
     await loadTempPlan();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+    ElMessage.error(errorMessage(e, '保存失败'));
   } finally {
     tempPlanSaving.value = false;
   }
@@ -1356,7 +1359,7 @@ async function applyTempPlanNow() {
     );
     ElMessage.success('已按当前时段下发目标温度');
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '下发失败');
+    ElMessage.error(errorMessage(e, '下发失败'));
   } finally {
     tempPlanSaving.value = false;
   }
@@ -1492,8 +1495,8 @@ const repairTickets = ref<
 >([]);
 const slots = ref<DeviceSlot[]>([]);
 const skus = ref<SkuCatalog[]>([]);
-const sessions = ref<any[]>([]);
-const orders = ref<any[]>([]);
+const sessions = ref<SessionDto[]>([]);
+const orders = ref<OrderReadModel[]>([]);
 const editorVisible = ref(false);
 const qrUrl = ref('');
 const qrPreviewUrl = ref('');
@@ -1537,7 +1540,7 @@ async function loadQr() {
   } catch (e) {
     qrUrl.value = '';
     revokeQrPreview();
-    ElMessage.error(e instanceof Error ? e.message : '加载二维码失败');
+    ElMessage.error(errorMessage(e, '加载二维码失败'));
   } finally {
     qrHydrated.value = true;
     qrLoading.value = false;
@@ -1562,7 +1565,7 @@ async function downloadQr() {
       `${deviceId}-qr.png`
     );
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '下载失败');
+    ElMessage.error(errorMessage(e, '下载失败'));
   } finally {
     qrDownloading.value = false;
   }
@@ -1662,9 +1665,9 @@ async function createRepair() {
     });
     ElMessage.success('工单已创建');
     await loadRepairTickets();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '创建失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '创建失败'));
     }
   }
 }
@@ -1741,7 +1744,7 @@ async function saveRefundPolicy() {
       }`
     );
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '退款规则保存失败');
+    ElMessage.error(errorMessage(e, '退款规则保存失败'));
   } finally {
     refundPolicySaving.value = false;
   }
@@ -1770,7 +1773,7 @@ async function saveAsset() {
     fillAsset(row);
     ElMessage.success('资产信息已保存');
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+    ElMessage.error(errorMessage(e, '保存失败'));
   } finally {
     assetSaving.value = false;
   }
@@ -1800,7 +1803,7 @@ async function resolveAddress() {
     }
     ElMessage.success('已写入经纬度，可再手动微调后保存');
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '地址解析失败');
+    ElMessage.error(errorMessage(e, '地址解析失败'));
   } finally {
     geoLoading.value = false;
   }
@@ -1895,7 +1898,7 @@ async function openBindDialog() {
     bindMerchantOptions.value = data.items || [];
   } catch (e) {
     bindMerchantOptions.value = [];
-    ElMessage.error(e instanceof Error ? e.message : '加载商户失败');
+    ElMessage.error(errorMessage(e, '加载商户失败'));
   } finally {
     bindMerchantsLoading.value = false;
   }
@@ -1946,9 +1949,9 @@ async function runLifecycle(action: string, requireRemark = false, merchantId?: 
     fillAsset(row);
     ElMessage.success(`${lifecycleActionLabel(action)}成功`);
     await Promise.all([loadDetail(), loadLifecycleEvents()]);
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '操作失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '操作失败'));
     }
   } finally {
     lifeLoading.value = '';
@@ -1976,7 +1979,7 @@ async function resetHardwareBinding() {
     device.value = row;
     ElMessage.success('硬件绑定已解除，请让柜机重新联网');
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '解绑失败');
+    ElMessage.error(errorMessage(e, '解绑失败'));
   } finally {
     hardwareResetLoading.value = false;
   }
@@ -2002,7 +2005,7 @@ async function regenerateDeviceId() {
     ElMessage.success(`新编号 ${row.deviceId}`);
     await router.replace(`/devices/${encodeURIComponent(row.deviceId)}`);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '重新生成失败');
+    ElMessage.error(errorMessage(e, '重新生成失败'));
   } finally {
     regenerateIdLoading.value = false;
   }
@@ -2019,7 +2022,7 @@ async function savePolicy() {
     ElMessage.success('策略已更新');
     await loadDetail();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '策略保存失败');
+    ElMessage.error(errorMessage(e, '策略保存失败'));
   }
 }
 
@@ -2027,17 +2030,17 @@ async function loadRelated() {
   try {
     const [sess, ord] = await Promise.all([
       api
-        .request<PageResult<any>>(
+        .request<PageResult<SessionDto>>(
           `/api/v2/ops/admin/sessions?page=0&size=8&deviceId=${encodeURIComponent(deviceId)}`,
           'GET'
         )
-        .catch(() => ({ items: [] as any[] })),
+        .catch(() => ({ items: [] })),
       api
-        .request<PageResult<any>>(
+        .request<PageResult<OrderReadModel>>(
           `/api/v2/ops/admin/orders?page=0&size=8&deviceId=${encodeURIComponent(deviceId)}`,
           'GET'
         )
-        .catch(() => ({ items: [] as any[] }))
+        .catch(() => ({ items: [] }))
     ]);
     sessions.value = sess.items || [];
     orders.value = ord.items || [];
@@ -2065,7 +2068,7 @@ async function reload() {
     metricsHydrated.value = true;
     await Promise.all([loadRelated(), loadSkus()]);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
+    ElMessage.error(errorMessage(e, '加载失败'));
     metricsHydrated.value = true;
     slotsHydrated.value = true;
     repairHydrated.value = true;
@@ -2105,9 +2108,9 @@ async function sendCommand(command: string) {
     );
     ElMessage.success(result.message || '指令已下发');
     await loadDetail();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '指令失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '指令失败'));
     }
   } finally {
     cmdLoading.value = '';
@@ -2137,9 +2140,9 @@ async function setTargetTemp() {
     );
     ElMessage.success(result.message || '温度已下发');
     await loadDetail();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '设温失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '设温失败'));
     }
   } finally {
     cmdLoading.value = '';
@@ -2168,7 +2171,7 @@ async function applyTemplate() {
     ElMessage.success(`已套用模板，新增 ${n} 个货道`);
     await loadDetail();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '套用失败');
+    ElMessage.error(errorMessage(e, '套用失败'));
   } finally {
     applying.value = false;
   }
@@ -2229,7 +2232,7 @@ async function runStocktake(adjustBookQty: boolean) {
     editForm.adjustBookQty = false;
     await loadDetail();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '盘点失败');
+    ElMessage.error(errorMessage(e, '盘点失败'));
   } finally {
     stocktaking.value = false;
   }
@@ -2265,7 +2268,7 @@ async function saveSlot() {
     ElMessage.success('已保存');
     await loadDetail();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+    ElMessage.error(errorMessage(e, '保存失败'));
   } finally {
     saving.value = false;
   }
@@ -2278,7 +2281,7 @@ onMounted(async () => {
     metricsHydrated.value = true;
     await Promise.all([loadRelated(), loadSkus()]);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
+    ElMessage.error(errorMessage(e, '加载失败'));
     metricsHydrated.value = true;
     slotsHydrated.value = true;
     repairHydrated.value = true;

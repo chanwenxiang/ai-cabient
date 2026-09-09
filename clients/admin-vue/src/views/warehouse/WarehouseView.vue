@@ -425,16 +425,27 @@
                     }}</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="明细" min-width="180" show-overflow-tooltip>
+                <el-table-column label="明细" min-width="180" class-name="col-text">
                   <template #default="{ row }">
-                    {{
-                      (row.lines || [])
-                        .map(
-                          (l: any) =>
-                            `${skuName(l.skuId) || l.skuId}×${l.quantity}${l.batchNo ? '(' + l.batchNo + ')' : ''}`
-                        )
-                        .join(' · ') || ''
-                    }}
+                    <span
+                      class="cell-ellipsis"
+                      :title="
+                        (row.lines || [])
+                          .map(
+                            (l: WarehouseLine) =>
+                              `${skuName(l.skuId) || l.skuId}×${l.quantity}${l.batchNo ? '(' + l.batchNo + ')' : ''}`
+                          )
+                          .join(' · ') || ''
+                      "
+                      >{{
+                        (row.lines || [])
+                          .map(
+                            (l: WarehouseLine) =>
+                              `${skuName(l.skuId) || l.skuId}×${l.quantity}${l.batchNo ? '(' + l.batchNo + ')' : ''}`
+                          )
+                          .join(' · ') || ''
+                      }}</span
+                    >
                   </template>
                 </el-table-column>
                 <el-table-column label="发运" width="150" align="center">
@@ -451,8 +462,12 @@
                     }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="备注" min-width="100" show-overflow-tooltip>
-                  <template #default="{ row }">{{ row.notes || '' }}</template>
+                <el-table-column label="备注" min-width="100" class-name="col-text">
+                  <template #default="{ row }">
+                    <span class="cell-ellipsis" :title="row.notes || ''">{{
+                      row.notes || ''
+                    }}</span>
+                  </template>
                 </el-table-column>
                 <el-table-column
                   v-if="canWarehouseEdit"
@@ -2351,6 +2366,7 @@ import { computed, nextTick, onActivated, onMounted, onUnmounted, reactive, ref,
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, RefreshLeft } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { api, authFetch, downloadAuthFile } from '@/api/client';
 import { yuanToCents } from '@/utils/display';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
@@ -2368,7 +2384,16 @@ import {
   formatPurchaseReviewError
 } from '@/utils/purchase-order-sync';
 
+/** 仓储调拨明细行 */
+type WarehouseLine = {
+  skuId?: string;
+  quantity?: number;
+  batchNo?: string;
+  expiryDate?: string;
+};
+/** 仓储多 Tab 共用行（字段随业务表变化） */
 type Row = Record<string, any>;
+
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
@@ -3283,7 +3308,7 @@ async function onExport() {
     );
     ElMessage.success('已导出');
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '导出失败');
+    ElMessage.error(errorMessage(e, '导出失败'));
   }
 }
 
@@ -3319,8 +3344,10 @@ function deviceName(id?: string, snapshot?: string | null) {
   if (!deviceId) return '无';
   return devices.value.find((d) => d.deviceId === deviceId)?.deviceName || deviceId;
 }
-function skuName(id: string) {
-  return skus.value.find((s) => s.skuId === id)?.skuName || id || '无';
+function skuName(id?: string) {
+  const skuId = id != null ? String(id) : '';
+  if (!skuId) return '无';
+  return skus.value.find((s) => s.skuId === skuId)?.skuName || skuId;
 }
 function suggestionReasonText(code: string) {
   return displayLabel('purchase_suggestion_reason', code, '暂无');
@@ -3723,7 +3750,7 @@ async function saveTransfer() {
     loadedTabs.value.delete('transfers');
     await loadTab('transfers', true);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '创建失败');
+    ElMessage.error(errorMessage(e, '创建失败'));
   } finally {
     saving.value = false;
   }
@@ -3784,7 +3811,7 @@ async function loadTab(name: string, force = false) {
     await loadWarehouseTabData(name);
     loadedTabs.value.add(name);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
+    ElMessage.error(errorMessage(e, '加载失败'));
   } finally {
     const next = new Set(hydratedTabs.value);
     next.add(name);
@@ -3874,7 +3901,7 @@ async function saveWarehouse() {
     loadedTabs.value.delete('warehouses');
     await loadTab('warehouses', true);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+    ElMessage.error(errorMessage(e, '保存失败'));
   } finally {
     saving.value = false;
   }
@@ -3917,7 +3944,7 @@ async function saveSupplier() {
     loadedTabs.value.delete('suppliers');
     await loadTab('suppliers', true);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+    ElMessage.error(errorMessage(e, '保存失败'));
   } finally {
     saving.value = false;
   }
@@ -4006,7 +4033,7 @@ async function savePayment() {
     loadedTabs.value.delete('payables');
     await loadTab('payables', true);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '付款登记失败');
+    ElMessage.error(errorMessage(e, '付款登记失败'));
   } finally {
     saving.value = false;
   }
@@ -4035,7 +4062,7 @@ async function saveStocktake() {
     loadedTabs.value.delete('stocktakes');
     await loadTab('stocktakes', true);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '创建失败');
+    ElMessage.error(errorMessage(e, '创建失败'));
   } finally {
     saving.value = false;
   }
@@ -4048,7 +4075,7 @@ async function openStocktakeDetail(row: Row) {
     );
     stocktakeDetailDialog.value = true;
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
+    ElMessage.error(errorMessage(e, '加载失败'));
   }
 }
 function triggerStocktakePhotoScan() {
@@ -4085,7 +4112,7 @@ async function onStocktakePhoto(event: Event) {
     loadedTabs.value.delete('stocktakes');
     await loadTab('stocktakes', true);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '识别失败');
+    ElMessage.error(errorMessage(e, '识别失败'));
   } finally {
     scanningPhoto.value = false;
   }
@@ -4118,7 +4145,7 @@ async function saveStocktakeLines() {
     ElMessage.success('实盘数据已保存');
     await reloadStocktakeDetail();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+    ElMessage.error(errorMessage(e, '保存失败'));
   } finally {
     saving.value = false;
   }
@@ -4131,7 +4158,7 @@ async function completeStocktakeAction() {
     ElMessage.success('盘点已完成');
     await reloadStocktakeDetail();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '完成失败');
+    ElMessage.error(errorMessage(e, '完成失败'));
   } finally {
     saving.value = false;
   }
@@ -4144,7 +4171,7 @@ async function adjustStocktakeAction() {
     ElMessage.success('差异已调整入库');
     await reloadStocktakeDetail();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '调整失败');
+    ElMessage.error(errorMessage(e, '调整失败'));
   } finally {
     saving.value = false;
   }
@@ -4157,7 +4184,7 @@ async function cancelStocktakeAction() {
     ElMessage.success('盘点单已取消');
     await reloadStocktakeDetail();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '取消失败');
+    ElMessage.error(errorMessage(e, '取消失败'));
   } finally {
     saving.value = false;
   }
@@ -4189,7 +4216,7 @@ async function saveBin() {
     loadedTabs.value.delete('bins');
     await loadTab('bins', true);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+    ElMessage.error(errorMessage(e, '保存失败'));
   } finally {
     saving.value = false;
   }
@@ -4248,7 +4275,7 @@ async function saveBinInbound() {
     loadedTabs.value.delete('bins');
     await loadTab('bins', true);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '入库失败');
+    ElMessage.error(errorMessage(e, '入库失败'));
   } finally {
     saving.value = false;
   }
@@ -4293,7 +4320,7 @@ async function saveBinMove() {
     loadedTabs.value.delete('bins');
     await loadTab('bins', true);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '移库失败');
+    ElMessage.error(errorMessage(e, '移库失败'));
   } finally {
     saving.value = false;
   }
@@ -4356,7 +4383,7 @@ async function savePurchase() {
     loadedTabs.value.delete('purchase');
     await loadTab('purchase', true);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '创建失败');
+    ElMessage.error(errorMessage(e, '创建失败'));
   } finally {
     saving.value = false;
   }
@@ -4426,9 +4453,9 @@ async function saveReceive() {
     loadedTabs.value.delete('purchase');
     loadedTabs.value.delete('inventory');
     await loadTab('purchase', true);
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close')
-      ElMessage.error(e instanceof Error ? e.message : '收货失败');
+      ElMessage.error(errorMessage(e, '收货失败'));
   } finally {
     saving.value = false;
   }
@@ -4505,9 +4532,9 @@ async function saveReturn() {
     loadedTabs.value.delete('movements');
     tab.value = 'returns';
     await loadTab('returns', true);
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close')
-      ElMessage.error(e instanceof Error ? e.message : '退货失败');
+      ElMessage.error(errorMessage(e, '退货失败'));
   } finally {
     saving.value = false;
   }
@@ -4579,8 +4606,8 @@ async function cleanupStaleOutbounds() {
     loadedTabs.value.delete('transit');
     loadedTabs.value.delete('inventory');
     await loadTab('outbounds', true);
-  } catch (e: any) {
-    ElMessage.error(e instanceof Error ? e.message : '清理失败');
+  } catch (e: unknown) {
+    ElMessage.error(errorMessage(e, '清理失败'));
   } finally {
     cleanupStaleLoading.value = false;
   }
@@ -4612,8 +4639,8 @@ async function submitOutboundConfirm() {
     loadedTabs.value.delete('transit');
     loadedTabs.value.delete('inventory');
     await loadTab('outbounds', true);
-  } catch (e: any) {
-    ElMessage.error(e instanceof Error ? e.message : '操作失败');
+  } catch (e: unknown) {
+    ElMessage.error(errorMessage(e, '操作失败'));
   } finally {
     outboundConfirm.saving = false;
     outboundConfirm.outboundId = null;
@@ -4660,7 +4687,7 @@ async function saveInbound() {
     tab.value = 'inventory';
     await loadTab('inventory', true);
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '入库失败');
+    ElMessage.error(errorMessage(e, '入库失败'));
   } finally {
     saving.value = false;
   }
