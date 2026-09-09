@@ -15,9 +15,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -39,6 +41,7 @@ class MerchantWithdrawConcurrencyTest {
     @Mock private MerchantWalletService merchantWalletService;
     @Mock private MerchantWithdrawPayoutService payoutService;
     @Mock private MerchantFeaturePackService merchantFeaturePackService;
+    @Mock private MerchantScopeService merchantScopeService;
     @Mock private PermissionService permissionService;
     @Mock private AdminAuditService auditService;
     @Mock private DistributedLockService distributedLockService;
@@ -51,8 +54,9 @@ class MerchantWithdrawConcurrencyTest {
         service = new MerchantWithdrawService(
                 withdrawMapper, merchantMapper, accountMapper, ledgerMapper,
                 merchantWalletService, payoutService, properties,
-                merchantFeaturePackService, permissionService, auditService,
-                distributedLockService, null);
+                merchantFeaturePackService, merchantScopeService, permissionService, auditService,
+                distributedLockService, null, null);
+        ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test
@@ -66,7 +70,7 @@ class MerchantWithdrawConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.apply("M-1", 10_000L, "REQ-1"));
+                () -> service.apply(1L, "M-1", 10_000L, "REQ-1"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }
@@ -82,6 +86,7 @@ class MerchantWithdrawConcurrencyTest {
         account.setBalanceCents(100_000L);
         account.setFrozenCents(0L);
 
+        AtomicReference<MerchantWithdrawRequest> stored = new AtomicReference<>();
         when(merchantMapper.findById("M-1")).thenReturn(Optional.of(merchant));
         when(distributedLockService.tryLock(
                 MerchantWithdrawService.merchantWalletLockKey("M-1"), 60L, 5L))
@@ -92,12 +97,14 @@ class MerchantWithdrawConcurrencyTest {
         when(withdrawMapper.insert(any())).thenAnswer(inv -> {
             MerchantWithdrawRequest req = inv.getArgument(0);
             req.setRequestId(99L);
+            stored.set(req);
             return 1;
         });
+        when(withdrawMapper.findById(99L)).thenAnswer(inv -> Optional.ofNullable(stored.get()));
         when(payoutService.payout(any(), eq(merchant))).thenReturn(
                 new MerchantWithdrawPayoutService.PayoutResult(true, "MOCK", "PAY-1", "ok"));
 
-        MerchantWithdrawRequestDto dto = service.apply("M-1", 10_000L, "REQ-2");
+        MerchantWithdrawRequestDto dto = service.apply(1L, "M-1", 10_000L, "REQ-2");
 
         assertEquals("PAID", dto.status());
         verify(merchantWalletService).freezeForWithdraw(eq("M-1"), eq(10_000L), any(), any(), any());
@@ -116,6 +123,7 @@ class MerchantWithdrawConcurrencyTest {
         account.setBalanceCents(100_000L);
         account.setFrozenCents(0L);
 
+        AtomicReference<MerchantWithdrawRequest> stored = new AtomicReference<>();
         when(merchantMapper.findById("M-1")).thenReturn(Optional.of(merchant));
         when(distributedLockService.tryLock(
                 MerchantWithdrawService.merchantWalletLockKey("M-1"), 60L, 5L))
@@ -126,24 +134,19 @@ class MerchantWithdrawConcurrencyTest {
         when(withdrawMapper.insert(any())).thenAnswer(inv -> {
             MerchantWithdrawRequest req = inv.getArgument(0);
             req.setRequestId(77L);
+            stored.set(req);
             return 1;
         });
+        when(withdrawMapper.findById(77L)).thenAnswer(inv -> Optional.ofNullable(stored.get()));
         when(payoutService.payout(any(), eq(merchant))).thenReturn(
                 MerchantWithdrawPayoutService.PayoutResult.failure("WECHAT", null, "转账未接入"));
 
-        MerchantWithdrawRequestDto failed = service.apply("M-1", 10_000L, "REQ-FAIL");
+        MerchantWithdrawRequestDto failed = service.apply(1L, "M-1", 10_000L, "REQ-FAIL");
 
         assertEquals("FAILED", failed.status());
         verify(merchantWalletService).freezeForWithdraw(eq("M-1"), eq(10_000L), any(), any(), any());
         verify(merchantWalletService, never()).consumeFrozen(anyString(), anyLong(), anyString(), anyString(), anyString());
         verify(merchantWalletService, never()).releaseFrozen(anyString(), anyLong(), anyString(), anyString(), anyString());
-
-        MerchantWithdrawRequest stored = new MerchantWithdrawRequest();
-        stored.setRequestId(77L);
-        stored.setMerchantId("M-1");
-        stored.setAmountCents(10_000L);
-        stored.setStatus("FAILED");
-        when(withdrawMapper.findById(77L)).thenReturn(Optional.of(stored));
 
         MerchantWithdrawRequestDto cancelled = service.cancelFailed(1L, 77L, "放弃打款");
 

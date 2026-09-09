@@ -44,6 +44,7 @@ class UnpaidOrderConcurrencyTest {
     @Mock private ConsumerPreauthService consumerPreauthService;
     @Mock private NotificationService notificationService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private ApiRateLimitService apiRateLimitService;
 
     private UnpaidOrderService service;
 
@@ -55,7 +56,7 @@ class UnpaidOrderConcurrencyTest {
                 couponService, merchantScopeService, permissionService, auditService,
                 riskControlService, systemConfigService, weChatMiniAppClient,
                 weChatMiniAppProperties, settlementService, consumerPreauthService,
-                notificationService, distributedLockService);
+                notificationService, distributedLockService, apiRateLimitService);
     }
 
     @Test

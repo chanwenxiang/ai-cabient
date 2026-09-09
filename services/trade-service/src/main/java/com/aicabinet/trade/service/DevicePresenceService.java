@@ -61,6 +61,11 @@ public class DevicePresenceService {
         this.incidentNotifyService = incidentNotifyService;
     }
 
+    @Transactional(readOnly = true)
+    public boolean deviceExists(String deviceId) {
+        return deviceId != null && !deviceId.isBlank() && deviceRepository.selectById(deviceId) != null;
+    }
+
     @Transactional
     public void heartbeat(String deviceId) {
         self.heartbeat(deviceId, null, null);

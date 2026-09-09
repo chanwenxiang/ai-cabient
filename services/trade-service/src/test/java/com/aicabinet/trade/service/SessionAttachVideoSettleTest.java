@@ -1,6 +1,6 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.common.dto.OrderDto;
+import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.dto.VideoAttachRequest;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.DeviceServiceClient;
@@ -72,9 +72,7 @@ class SessionAttachVideoSettleTest {
 
         when(repository.findByIdForUpdate("S-Q6")).thenReturn(Optional.of(session));
         when(visionAsyncProperties.enabled()).thenReturn(false);
-        when(settlementService.settle(session)).thenReturn(new OrderDto(
-                "O-Q6", "S-Q6", 7L, "CAB-001", 100, List.of(), "PAID",
-                "BALANCE", null, null, null, Instant.now()));
+        when(settlementService.settle(session)).thenReturn(OrderReadModelFixtures.sample("O-Q6", "S-Q6"));
 
         var first = service.attachVideo(new VideoAttachRequest("S-Q6", "CAB-001", "s3://v.mp4", "UPLOADED", null, null));
         assertEquals(SessionState.COMPLETED, first.state());

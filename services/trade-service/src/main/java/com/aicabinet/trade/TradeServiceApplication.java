@@ -40,6 +40,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         LineWithdrawProperties.class,
         MerchantWithdrawProperties.class,
         RiskControlProperties.class,
+        com.aicabinet.trade.config.RateLimitProperties.class,
         com.aicabinet.trade.config.PayScoreProperties.class,
         NotificationProperties.class,
         com.aicabinet.trade.config.DisputeSlaProperties.class,

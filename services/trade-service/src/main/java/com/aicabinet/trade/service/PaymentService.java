@@ -26,6 +26,7 @@ import com.aicabinet.trade.support.ApiMessages;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -75,6 +76,7 @@ public class PaymentService {
     private final PayScoreService payScoreService;
     private final DistributedLockService distributedLockService;
     private final PaymentOperationMapper paymentOperationRepository;
+    private final PaymentService self;
 
     public PaymentService(RechargeOrderMapper rechargeOrderRepository,
                           UserInfoMapper userInfoRepository,
@@ -91,7 +93,8 @@ public class PaymentService {
                           NotificationService notificationService,
                           PayScoreService payScoreService,
                           DistributedLockService distributedLockService,
-                          PaymentOperationMapper paymentOperationRepository) {
+                          PaymentOperationMapper paymentOperationRepository,
+                          @Lazy PaymentService self) {
         this.rechargeOrderRepository = rechargeOrderRepository;
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
@@ -108,9 +111,12 @@ public class PaymentService {
         this.payScoreService = payScoreService;
         this.distributedLockService = distributedLockService;
         this.paymentOperationRepository = paymentOperationRepository;
+        this.self = self;
     }
 
-    @Transactional
+    /**
+     * 幂等锁内：短事务落 PENDING 单，渠道预下单 HTTP 在事务外。
+     */
     public RechargePrepayResponse createRechargePrepay(Long userId, String requestedChannel,
                                                        int amountCents, String requestedIdempotencyKey) {
         String channel = PayChannels.normalize(requestedChannel);
@@ -136,6 +142,21 @@ public class PaymentService {
             }
             return toPrepayResponse(existing);
         }
+        RechargeOrder order = self.insertPendingRechargeOrder(userId, channel, amountCents, idempotencyKey);
+        return switch (channel) {
+            case PayChannels.WECHAT -> createWeChatPrepay(order, userId);
+            case PayChannels.ALIPAY -> createAlipayPrepay(order);
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.UNSUPPORTED_CHANNEL);
+        };
+    }
+
+    @Transactional
+    public RechargeOrder insertPendingRechargeOrder(Long userId, String channel,
+                                                    int amountCents, String idempotencyKey) {
+        RechargeOrder existing = rechargeOrderRepository.findByIdempotencyKey(idempotencyKey).orElse(null);
+        if (existing != null) {
+            return existing;
+        }
         RechargeOrder order = new RechargeOrder();
         order.setOrderId(BizIds.nextNumeric());
         order.setUserId(userId);
@@ -144,12 +165,30 @@ public class PaymentService {
         order.setStatus(STATUS_PENDING);
         order.setIdempotencyKey(idempotencyKey);
         rechargeOrderRepository.save(order);
+        return order;
+    }
 
-        return switch (channel) {
-            case PayChannels.WECHAT -> createWeChatPrepay(order, userId);
-            case PayChannels.ALIPAY -> createAlipayPrepay(order);
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.UNSUPPORTED_CHANNEL);
-        };
+    @Transactional
+    public void persistWxPrepayId(String orderId, String prepayId) {
+        RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId).orElse(null);
+        if (order == null || !STATUS_PENDING.equals(order.getStatus())) {
+            return;
+        }
+        order.setWxPrepayId(prepayId);
+        rechargeOrderRepository.save(order);
+    }
+
+    @Transactional
+    public void persistAlipayTradeNoForPending(String orderId, String tradeNo) {
+        if (tradeNo == null || tradeNo.isBlank()) {
+            return;
+        }
+        RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId).orElse(null);
+        if (order == null || !STATUS_PENDING.equals(order.getStatus())) {
+            return;
+        }
+        order.setAlipayTradeNo(tradeNo.trim());
+        rechargeOrderRepository.save(order);
     }
 
     private RechargePrepayResponse toPrepayResponse(RechargeOrder order) {
@@ -184,8 +223,8 @@ public class PaymentService {
             String prepayId = weChatPayClient.unifiedOrderJsapi(
                     user.getWxOpenId(), order.getOrderId(), order.getAmountCents(),
                     "AI开门柜充值");
+            self.persistWxPrepayId(order.getOrderId(), prepayId);
             order.setWxPrepayId(prepayId);
-            rechargeOrderRepository.save(order);
 
             String timeStamp = String.valueOf(Instant.now().getEpochSecond());
             String nonceStr = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
@@ -206,7 +245,7 @@ public class PaymentService {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ApiMessages.WECHAT_PAY_NOT_CONFIGURED);
         }
         order.setWxPrepayId("mock_prepay_" + order.getOrderId());
-        rechargeOrderRepository.save(order);
+        self.persistWxPrepayId(order.getOrderId(), order.getWxPrepayId());
         WxPayParams wxPay = new WxPayParams(
                 String.valueOf(Instant.now().getEpochSecond()),
                 UUID.randomUUID().toString().replace("-", "").substring(0, 16),
@@ -227,9 +266,9 @@ public class PaymentService {
             AlipayPayClient.AlipayPrepayResult prepay = alipayPayClient.createWapPay(
                     order.getOrderId(), order.getAmountCents(), "AI Cabinet Recharge");
             if (prepay.tradeNo() != null && !prepay.tradeNo().isBlank()) {
+                self.persistAlipayTradeNoForPending(order.getOrderId(), prepay.tradeNo());
                 order.setAlipayTradeNo(prepay.tradeNo());
             }
-            rechargeOrderRepository.save(order);
             AlipayPayParams alipayPay = new AlipayPayParams(order.getOrderId(), prepay.tradeNo(), prepay.payUrl(), prepay.payFormHtml());
             return new RechargePrepayResponse(
                     PayChannels.ALIPAY,
@@ -243,7 +282,7 @@ public class PaymentService {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ApiMessages.ALIPAY_PAY_NOT_CONFIGURED);
         }
         order.setAlipayTradeNo("mock_alipay_" + order.getOrderId());
-        rechargeOrderRepository.save(order);
+        self.persistAlipayTradeNoForPending(order.getOrderId(), order.getAlipayTradeNo());
         AlipayPayParams alipayPay = new AlipayPayParams(
                 order.getOrderId(),
                 order.getAlipayTradeNo(),
@@ -268,12 +307,14 @@ public class PaymentService {
             if (!order.getUserId().equals(userId)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.ORDER_ACCESS_DENIED);
             }
-            doCreditRecharge(orderId, order.getAmountCents(), null, null);
+            self.doCreditRecharge(orderId, order.getAmountCents(), null, null);
             return toDto(rechargeOrderRepository.findById(orderId).orElse(order));
         });
     }
 
-    @Transactional
+    /**
+     * 验签（含 Redisson nonce）在事务外；入账走独立短事务，避免远程占用 DB 连接。
+     */
     public void handleWeChatNotify(String body,
                                    String timestamp,
                                    String nonce,
@@ -304,7 +345,7 @@ public class PaymentService {
         });
     }
 
-    @Transactional
+    /** 验签在事务外；入账走独立短事务。 */
     public void handleAlipayNotify(Map<String, String> params) {
         Map<String, String> verified = alipayNotifyService.parseAndVerify(params);
         if (isAlipayAgreementNotify(verified)) {
@@ -383,40 +424,28 @@ public class PaymentService {
         );
     }
 
-    @Transactional
     public RechargeOrderDto getRechargeOrder(Long userId, String orderId) {
-        RechargeOrder order = requireOwnedOrder(userId, orderId);
+        RechargeOrder order = self.requireOwnedOrder(userId, orderId);
         syncPendingOrder(order);
-        return toDto(order);
+        return toDto(rechargeOrderRepository.findById(orderId).orElse(order));
     }
 
-    @Transactional
     public RechargeOrderDto cancelRecharge(Long userId, String orderId) {
         return runWithRechargeLock(orderId, 60, () -> {
-            RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-            if (!order.getUserId().equals(userId)) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.ORDER_ACCESS_DENIED);
-            }
-            if (!STATUS_PENDING.equals(order.getStatus())) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PENDING);
-            }
+            RechargeOrder order = self.loadPendingOwnedForUpdate(userId, orderId);
             if (PayChannels.ALIPAY.equalsIgnoreCase(order.getChannel())) {
                 cancelPendingAlipay(order);
             } else {
                 cancelPendingWeChat(order);
             }
-            order.setStatus(STATUS_CANCELLED);
-            rechargeOrderRepository.save(order);
-            log.info("recharge cancelled orderId={}", orderId);
-            return toDto(order);
+            return self.markRechargeCancelled(orderId);
         });
     }
 
     /**
      * 超时未支付的充值单自动取消（先向渠道关单/同步，避免已支付漏入账）。
+     * 无外层长事务：逐单远程 + 短事务落库。
      */
-    @Transactional
     public int autoCancelExpiredPending() {
         int minutes = systemConfigService.getInt(SystemConfigService.RECHARGE_AUTO_CANCEL_MINUTES, 30);
         if (minutes <= 0) {
@@ -434,9 +463,7 @@ public class PaymentService {
                     } else {
                         cancelPendingWeChat(order);
                     }
-                    if (!"PAID".equals(order.getStatus())) {
-                        order.setStatus(STATUS_CANCELLED);
-                        rechargeOrderRepository.save(order);
+                    if (!"PAID".equals(order.getStatus()) && self.markRechargeCancelledIfPending(order.getOrderId())) {
                         n++;
                     }
                 }
@@ -450,37 +477,24 @@ public class PaymentService {
         return n;
     }
 
-    @Transactional
+    /**
+     * 先短事务扣余额，提交后再调渠道退款；渠道失败则补偿加回余额。
+     * （渠道侧无法随 DB 事务回滚，不可把 HTTP 退款包进同一事务。）
+     */
     public RechargeOrderDto refundRecharge(String orderId, String reason) {
         return runWithRechargeLock(orderId, 60, () -> {
-            RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-            if (!"PAID".equals(order.getStatus())) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PAID);
+            RechargeOrder prepared = self.debitForRechargeRefund(orderId, reason);
+            try {
+                if (PayChannels.ALIPAY.equalsIgnoreCase(prepared.getChannel())) {
+                    refundAlipay(prepared, reason);
+                } else {
+                    refundWeChat(prepared, reason);
+                }
+            } catch (RuntimeException e) {
+                self.compensateRechargeRefundDebit(orderId, reason);
+                throw e;
             }
-            UserAccount account = userAccountRepository.findByIdForUpdate(order.getUserId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ACCOUNT_NOT_FOUND));
-            if (account.getBalanceCents() < order.getAmountCents()) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.INSUFFICIENT_REFUND);
-            }
-
-            // 先扣余额再原路退，渠道失败时整笔事务回滚，避免「渠道已退、余额未扣」
-            balanceLedgerService.change(order.getUserId(), -order.getAmountCents(),
-                    "RECHARGE_REFUND", order.getOrderId(), "recharge-refund:" + order.getOrderId(),
-                    reason == null || reason.isBlank() ? "充值退款" : reason);
-
-            if (PayChannels.ALIPAY.equalsIgnoreCase(order.getChannel())) {
-                refundAlipay(order, reason);
-            } else {
-                refundWeChat(order, reason);
-            }
-
-            order.setRefundedCents(order.getAmountCents());
-            order.setStatus("REFUNDED");
-            order.setRefundedAt(Instant.now());
-            rechargeOrderRepository.save(order);
-            log.info("recharge refunded orderId={} user={} amount={}", orderId, order.getUserId(), order.getAmountCents());
-            return toDto(order);
+            return self.finalizeRechargeRefunded(orderId);
         });
     }
 
@@ -524,9 +538,9 @@ public class PaymentService {
 
     /**
      * 充值单部分/全额原路退款（仅渠道侧 + 更新 refunded_cents；余额扣减由调用方负责）。
+     * 短事务校验 → 渠道 HTTP → 短事务落库；渠道失败不改 refunded_cents。
      * @return 微信/支付宝退款商户退款单号
      */
-    @Transactional
     public String refundRechargeChannelPartial(String orderId, int refundCents, String reason, String outRefundNo) {
         if (refundCents <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
@@ -535,37 +549,56 @@ public class PaymentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "充值单处理中，请稍后重试");
         }
         try {
-            RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-            if (!"PAID".equals(order.getStatus())) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PAID);
-            }
-            int already = Math.max(0, order.getRefundedCents());
-            int refundable = order.getAmountCents() - already;
-            if (refundCents > refundable) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT,
-                        "充值单可退金额不足（剩余 ¥" + String.format("%.2f", refundable / 100.0) + "）");
-            }
-            String refundNo = outRefundNo == null || outRefundNo.isBlank()
-                    ? "RF" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase()
-                    : outRefundNo.trim();
-            if (PayChannels.ALIPAY.equalsIgnoreCase(order.getChannel())) {
-                refundAlipayPartial(order, refundCents, reason, refundNo);
+            ChannelPartialRefundPrep prep = self.prepareChannelPartialRefund(orderId, refundCents, outRefundNo);
+            if (PayChannels.ALIPAY.equalsIgnoreCase(prep.channel())) {
+                refundAlipayPartial(prep.order(), refundCents, reason, prep.refundNo());
             } else {
-                refundWeChatPartial(order, refundCents, reason, refundNo);
+                refundWeChatPartial(prep.order(), refundCents, reason, prep.refundNo());
             }
-            order.setRefundedCents(already + refundCents);
-            if (order.getRefundedCents() >= order.getAmountCents()) {
-                order.setStatus("REFUNDED");
-                order.setRefundedAt(Instant.now());
-            }
-            rechargeOrderRepository.save(order);
-            log.info("recharge channel partial refund orderId={} amount={} totalRefunded={}",
-                    orderId, refundCents, order.getRefundedCents());
-            return refundNo;
+            self.finalizeChannelPartialRefund(orderId, refundCents);
+            log.info("recharge channel partial refund orderId={} amount={} refundNo={}",
+                    orderId, refundCents, prep.refundNo());
+            return prep.refundNo();
         } finally {
             distributedLockService.unlock(rechargeLockKey(orderId));
         }
+    }
+
+    public record ChannelPartialRefundPrep(RechargeOrder order, String channel, String refundNo, int alreadyRefunded) {}
+
+    @Transactional
+    public ChannelPartialRefundPrep prepareChannelPartialRefund(String orderId, int refundCents, String outRefundNo) {
+        RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        if (!"PAID".equals(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PAID);
+        }
+        int already = Math.max(0, order.getRefundedCents());
+        int refundable = order.getAmountCents() - already;
+        if (refundCents > refundable) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "充值单可退金额不足（剩余 ¥" + String.format("%.2f", refundable / 100.0) + "）");
+        }
+        String refundNo = outRefundNo == null || outRefundNo.isBlank()
+                ? "RF" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase()
+                : outRefundNo.trim();
+        return new ChannelPartialRefundPrep(order, order.getChannel(), refundNo, already);
+    }
+
+    @Transactional
+    public void finalizeChannelPartialRefund(String orderId, int refundCents) {
+        RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        if (!"PAID".equals(order.getStatus()) && !"REFUNDED".equals(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PAID);
+        }
+        int already = Math.max(0, order.getRefundedCents());
+        order.setRefundedCents(already + refundCents);
+        if (order.getRefundedCents() >= order.getAmountCents()) {
+            order.setStatus("REFUNDED");
+            order.setRefundedAt(Instant.now());
+        }
+        rechargeOrderRepository.save(order);
     }
 
     private void refundWeChatPartial(RechargeOrder order, int refundCents, String reason, String outRefundNo) {
@@ -743,13 +776,97 @@ public class PaymentService {
         paymentOperationRepository.save(op);
     }
 
-    private RechargeOrder requireOwnedOrder(Long userId, String orderId) {
+    @Transactional(readOnly = true)
+    public RechargeOrder requireOwnedOrder(Long userId, String orderId) {
         RechargeOrder order = rechargeOrderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         if (!order.getUserId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.ORDER_ACCESS_DENIED);
         }
         return order;
+    }
+
+    @Transactional
+    public RechargeOrder loadPendingOwnedForUpdate(Long userId, String orderId) {
+        RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        if (!order.getUserId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.ORDER_ACCESS_DENIED);
+        }
+        if (!STATUS_PENDING.equals(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PENDING);
+        }
+        return order;
+    }
+
+    @Transactional
+    public RechargeOrderDto markRechargeCancelled(String orderId) {
+        RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        if ("PAID".equals(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_ALREADY_PAID);
+        }
+        if (!STATUS_CANCELLED.equals(order.getStatus())) {
+            order.setStatus(STATUS_CANCELLED);
+            rechargeOrderRepository.save(order);
+        }
+        log.info("recharge cancelled orderId={}", orderId);
+        return toDto(order);
+    }
+
+    @Transactional
+    public boolean markRechargeCancelledIfPending(String orderId) {
+        RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId).orElse(null);
+        if (order == null || !STATUS_PENDING.equals(order.getStatus())) {
+            return false;
+        }
+        order.setStatus(STATUS_CANCELLED);
+        rechargeOrderRepository.save(order);
+        return true;
+    }
+
+    /** 短事务：校验余额并扣款，状态仍为 PAID（渠道退款成功后再标 REFUNDED）。 */
+    @Transactional
+    public RechargeOrder debitForRechargeRefund(String orderId, String reason) {
+        RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        if (!"PAID".equals(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PAID);
+        }
+        UserAccount account = userAccountRepository.findByIdForUpdate(order.getUserId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ACCOUNT_NOT_FOUND));
+        if (account.getBalanceCents() < order.getAmountCents()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.INSUFFICIENT_REFUND);
+        }
+        balanceLedgerService.change(order.getUserId(), -order.getAmountCents(),
+                "RECHARGE_REFUND", order.getOrderId(), "recharge-refund:" + order.getOrderId(),
+                reason == null || reason.isBlank() ? "充值退款" : reason);
+        return order;
+    }
+
+    @Transactional
+    public void compensateRechargeRefundDebit(String orderId, String reason) {
+        RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId).orElse(null);
+        if (order == null || !"PAID".equals(order.getStatus())) {
+            return;
+        }
+        balanceLedgerService.change(order.getUserId(), order.getAmountCents(),
+                "RECHARGE_REFUND_COMPENSATE", order.getOrderId(),
+                "recharge-refund-compensate:" + order.getOrderId(),
+                reason == null || reason.isBlank() ? "充值退款渠道失败回补" : ("回补:" + reason));
+        log.warn("recharge refund compensated after channel failure orderId={}", orderId);
+    }
+
+    @Transactional
+    public RechargeOrderDto finalizeRechargeRefunded(String orderId) {
+        RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        order.setRefundedCents(order.getAmountCents());
+        order.setStatus("REFUNDED");
+        order.setRefundedAt(Instant.now());
+        rechargeOrderRepository.save(order);
+        log.info("recharge refunded orderId={} user={} amount={}", orderId, order.getUserId(), order.getAmountCents());
+        return toDto(order);
     }
 
     private void syncPendingOrder(RechargeOrder order) {
@@ -777,8 +894,9 @@ public class PaymentService {
                 }
                 creditRecharge(order.getOrderId(), weChatQueryAmountCents(remote), txnId, null);
             } else if ("CLOSED".equals(tradeState) || "REVOKED".equals(tradeState) || "PAYERROR".equals(tradeState)) {
-                order.setStatus(STATUS_CANCELLED);
-                rechargeOrderRepository.save(order);
+                if (self.markRechargeCancelledIfPending(order.getOrderId())) {
+                    order.setStatus(STATUS_CANCELLED);
+                }
             }
         } catch (Exception e) {
             log.debug("wechat query sync skipped orderId={}: {}", order.getOrderId(), e.getMessage());
@@ -800,8 +918,9 @@ public class PaymentService {
                 }
                 creditRecharge(order.getOrderId(), alipayQueryAmountCents(remote), null, tradeNo);
             } else if ("TRADE_CLOSED".equals(tradeStatus)) {
-                order.setStatus(STATUS_CANCELLED);
-                rechargeOrderRepository.save(order);
+                if (self.markRechargeCancelledIfPending(order.getOrderId())) {
+                    order.setStatus(STATUS_CANCELLED);
+                }
             }
         } catch (Exception e) {
             log.debug("alipay query sync skipped orderId={}: {}", order.getOrderId(), e.getMessage());
@@ -831,13 +950,14 @@ public class PaymentService {
             return;
         }
         try {
-            doCreditRecharge(orderId, notifyAmountCents, wxTransactionId, alipayTradeNo);
+            self.doCreditRecharge(orderId, notifyAmountCents, wxTransactionId, alipayTradeNo);
         } finally {
             distributedLockService.unlock(rechargeLockKey(orderId));
         }
     }
 
-    private void doCreditRecharge(String orderId, Integer notifyAmountCents,
+    @Transactional
+    public void doCreditRecharge(String orderId, Integer notifyAmountCents,
                                   String wxTransactionId, String alipayTradeNo) {
             RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId)
                     .orElse(null);

@@ -6,6 +6,7 @@ import com.aicabinet.common.dto.AdminUserDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.RechargeOrderDto;
 import com.aicabinet.common.dto.VerifyUserRequest;
+import com.aicabinet.common.util.PhoneMask;
 import com.aicabinet.trade.domain.Member;
 import com.aicabinet.trade.domain.RechargeOrder;
 import com.aicabinet.trade.domain.UserAccount;
@@ -227,7 +228,7 @@ public class OpsMemberFinanceAdminService {
     private AdminUserDto toUserDto(UserInfo u, int balance, Member member, boolean blacklisted) {
         String role = u.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START ? "OPERATOR" : "CONSUMER";
         return new AdminUserDto(
-                u.getUserId(), u.getPhoneNumber(), resolveUserDisplayName(u), u.isVerified(),
+                u.getUserId(), PhoneMask.mask(u.getPhoneNumber()), resolveUserDisplayName(u), u.isVerified(),
                 balance, role, u.getCreatedAt(),
                 member != null ? member.getMemberLevel() : "NORMAL",
                 member != null && member.getAvailablePoints() != null ? member.getAvailablePoints() : 0,

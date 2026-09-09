@@ -67,7 +67,7 @@ class SessionLifeConcurrencyTest {
         when(distributedLockService.tryLock(
                 SessionService.sessionLifeLockKey("S-LOCK-3"), 60L, 5L))
                 .thenReturn(true);
-        when(repository.findByIdForUpdate("S-LOCK-3")).thenReturn(Optional.of(session));
+        when(repository.findById("S-LOCK-3")).thenReturn(Optional.of(session));
 
         service.settleAfterClose("S-LOCK-3");
 

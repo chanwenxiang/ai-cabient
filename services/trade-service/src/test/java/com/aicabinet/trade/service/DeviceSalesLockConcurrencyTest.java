@@ -30,7 +30,9 @@ class DeviceSalesLockConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        service = new DeviceSalesLockService(deviceRepository, deviceClient, auditService, distributedLockService, null, null);
+        service = new DeviceSalesLockService(deviceRepository, deviceClient, auditService,
+                distributedLockService, null, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

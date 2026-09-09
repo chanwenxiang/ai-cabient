@@ -2,17 +2,22 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.OpsOpenDoorRequest;
 import com.aicabinet.common.dto.SessionDto;
+import com.aicabinet.common.dto.SkuCatalogDto;
 import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
+import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
 
 @Service
 public class OpsService {
@@ -22,6 +27,7 @@ public class OpsService {
     private final DeviceServiceClient deviceClient;
     private final ShoppingSessionMapper sessionRepository;
     private final ReplenishmentTaskMapper taskRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
     private final DistributedLockService distributedLockService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final OpsService self;
@@ -31,14 +37,23 @@ public class OpsService {
                       DeviceServiceClient deviceClient,
                       ShoppingSessionMapper sessionRepository,
                       ReplenishmentTaskMapper taskRepository,
+                      SkuCatalogMapper skuCatalogRepository,
                       DistributedLockService distributedLockService, @Lazy OpsService self) {
         this.sessionService = sessionService;
         this.deviceValidationService = deviceValidationService;
         this.deviceClient = deviceClient;
         this.sessionRepository = sessionRepository;
         this.taskRepository = taskRepository;
+        this.skuCatalogRepository = skuCatalogRepository;
         this.distributedLockService = distributedLockService;
         this.self = self;
+    }
+
+    @Transactional(readOnly = true)
+    public List<SkuCatalogDto> listSkus() {
+        return skuCatalogRepository.findAll().stream()
+                .map(SkuCatalog::toDto)
+                .toList();
     }
 
     /** 运营账号补货开门（需 userId ≥ 100000000）。 */

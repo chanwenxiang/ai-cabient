@@ -74,7 +74,7 @@ class SettlementDisputeTest {
                 securityProperties, stagingProperties, inventoryService, orderPaymentService, confidenceService, gravityHelper,
                 deviceValidationService, skuPricingService, userValidationService, videoArchiveService,
                 skuVisionEnrollmentService, couponService, memberService, null, notificationService, slotRepository,
-                consumerPreauthService, systemConfigService, distributedLockService, null, displaySnapshotHelper);
+                consumerPreauthService, systemConfigService, distributedLockService, null, displaySnapshotHelper, new com.aicabinet.trade.service.view.OrderViewAssembler());
         org.springframework.test.util.ReflectionTestUtils.setField(settlementService, "self", settlementService);
         lenient().when(systemConfigService.getBoolean(anyString(), anyBoolean()))
                 .thenAnswer(inv -> inv.getArgument(1));

@@ -5,7 +5,6 @@ import com.aicabinet.common.dto.AdPlayEventRequest;
 import com.aicabinet.common.dto.OtaCheckResponse;
 import com.aicabinet.common.dto.SkuQuantityDto;
 import com.aicabinet.common.dto.ScreenContentDto;
-import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.service.DevicePresenceService;
 import com.aicabinet.trade.service.DeviceEnvService;
 import com.aicabinet.trade.service.DeviceSlotService;
@@ -25,28 +24,23 @@ public class DeviceInternalController {
     private final DeviceSlotService deviceSlotService;
     private final DeviceEnvService envService;
     private final AdCampaignService adCampaignService;
-    private final DeviceInfoMapper deviceRepository;
 
     public DeviceInternalController(DevicePresenceService presenceService,
                                     OtaService otaService,
                                     DeviceSlotService deviceSlotService,
                                     DeviceEnvService envService,
-                                    AdCampaignService adCampaignService,
-                                    DeviceInfoMapper deviceRepository) {
+                                    AdCampaignService adCampaignService) {
         this.presenceService = presenceService;
         this.otaService = otaService;
         this.deviceSlotService = deviceSlotService;
         this.envService = envService;
         this.adCampaignService = adCampaignService;
-        this.deviceRepository = deviceRepository;
     }
 
     /** 供 device-service 发令前校验柜机是否已注册（B-22）。 */
     @GetMapping("/{deviceId}/exists")
     public ApiResponse<Map<String, Object>> exists(@PathVariable("deviceId") String deviceId) {
-        boolean exists = deviceId != null
-                && !deviceId.isBlank()
-                && deviceRepository.selectById(deviceId) != null;
+        boolean exists = presenceService.deviceExists(deviceId);
         return ApiResponse.ok(Map.of("deviceId", deviceId == null ? "" : deviceId, "exists", exists));
     }
 

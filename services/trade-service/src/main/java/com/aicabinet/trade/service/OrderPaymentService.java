@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -84,7 +85,10 @@ public class OrderPaymentService {
         this.memberService = memberService;
     }
 
-    @Transactional
+    /**
+     * 挂起外层结算事务：支付分/渠道 HTTP 与账本短事务分开，避免长事务占连接。
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void chargeOrder(CabinetOrder order) {
         if (order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
             order.setPayChannel(PayChannels.BALANCE);
@@ -200,7 +204,7 @@ public class OrderPaymentService {
         sessionRepository.findById(order.getSessionId()).ifPresent(consumerPreauthService::releaseIfFrozen);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void applyPaymentDelta(CabinetOrder order, int deltaCents) {
         if (deltaCents == 0 || order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
             return;
@@ -218,7 +222,7 @@ public class OrderPaymentService {
         });
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void refundOrder(CabinetOrder order, int amountCents, String reason) {
         if (amountCents <= 0 || order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
             return;

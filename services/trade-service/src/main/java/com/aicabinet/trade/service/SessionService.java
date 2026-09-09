@@ -7,7 +7,7 @@ import com.aicabinet.common.dto.DoorEventRequest;
 import com.aicabinet.common.dto.GravityDeltaRequest;
 import com.aicabinet.common.dto.LiveCartDto;
 import com.aicabinet.common.dto.LiveCartUpdateRequest;
-import com.aicabinet.common.dto.OrderDto;
+import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.dto.SessionCartRequest;
 import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.dto.VideoAttachRequest;
@@ -239,8 +239,7 @@ public class SessionService {
         return toDto(session);
     }
 
-    /** 开发上传识别：用真实 vision 结果结算，不走 mock 兜底。 */
-    @Transactional
+    /** 开发上传识别：用真实 vision 结果结算，不走 mock 兜底。无外层长事务。 */
     public SessionDto completeDevUploadRecognition(String sessionId,
                                                    VisionServiceClient.RecognitionResult recognition) {
         return runWithSessionLifeLock(sessionId, () -> doCompleteDevUploadRecognition(sessionId, recognition));
@@ -248,7 +247,7 @@ public class SessionService {
 
     private SessionDto doCompleteDevUploadRecognition(String sessionId,
                                                       VisionServiceClient.RecognitionResult recognition) {
-        ShoppingSession session = repository.findByIdForUpdate(sessionId)
+        ShoppingSession session = repository.findById(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (session.getState() == SessionState.SHOPPING) {
             transition(session, SessionState.RECOGNIZING);
@@ -257,7 +256,7 @@ public class SessionService {
             transition(session, SessionState.SETTLING);
         }
         try {
-            OrderDto order = settlementService.processRecognitionResult(session, recognition, false);
+            OrderReadModel order = settlementService.processRecognitionResult(session, recognition, false);
             session.setOrderId(order.orderId());
             transition(session, SessionState.COMPLETED);
             log.info("dev upload session completed session={} order={}", sessionId, order.orderId());
@@ -356,7 +355,7 @@ public class SessionService {
             log.info("demo-close zero-settle session={} device={}", sessionId, session.getDeviceId());
             transition(session, SessionState.RECOGNIZING);
             transition(session, SessionState.SETTLING);
-            OrderDto order = settlementService.settleManual(session, List.of());
+            OrderReadModel order = settlementService.settleManual(session, List.of());
             session.setOrderId(order.orderId());
             transition(session, SessionState.COMPLETED);
             cabinetMetrics.recordSettlementSuccess();
@@ -396,12 +395,29 @@ public class SessionService {
         };
     }
 
-    @Transactional
+    /**
+     * 先短事务落视频与会话态，再事务外结算（同步 vision 或异步 Kafka）。
+     */
     public SessionDto attachVideo(VideoAttachRequest request) {
-        return runWithSessionLifeLock(request.sessionId(), () -> doAttachVideo(request));
+        return runWithSessionLifeLock(request.sessionId(), () -> {
+            SessionDto afterAttach = self.persistAttachedVideo(request);
+            ShoppingSession session = repository.findById(request.sessionId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+            if (session.getState() != SessionState.RECOGNIZING) {
+                return afterAttach;
+            }
+            if (isOpsRemoteSession(session)) {
+                return afterAttach;
+            }
+            if (isRestockSession(session)) {
+                return self.finishRestockSnapshot(session.getSessionId());
+            }
+            return settleSession(session);
+        });
     }
 
-    private SessionDto doAttachVideo(VideoAttachRequest request) {
+    @Transactional
+    public SessionDto persistAttachedVideo(VideoAttachRequest request) {
         ShoppingSession session = repository.findByIdForUpdate(request.sessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!session.getDeviceId().equals(request.deviceId())) {
@@ -414,15 +430,8 @@ public class SessionService {
         if (session.getState() == SessionState.WAITING_UPLOAD) {
             transition(session, SessionState.RECOGNIZING);
         }
-        if (session.getState() == SessionState.RECOGNIZING) {
-            if (isOpsRemoteSession(session)) {
-                transition(session, SessionState.COMPLETED);
-                return toDto(session);
-            }
-            if (isRestockSession(session)) {
-                return self.finishRestockSnapshot(session.getSessionId());
-            }
-            return settleSession(session);
+        if (session.getState() == SessionState.RECOGNIZING && isOpsRemoteSession(session)) {
+            transition(session, SessionState.COMPLETED);
         }
         return toDto(session);
     }
@@ -711,11 +720,13 @@ public class SessionService {
         return toDto(session);
     }
 
-    /** 关门事务提交后再结算，避免 vision 异常回滚门状态。 */
-    @Transactional
+    /**
+     * 关门事务提交后再结算，避免 vision/扣款失败把「已关门」回滚掉。
+     * 无外层长事务：分布式锁内调用 settle / 异步投递。
+     */
     public SessionDto settleAfterClose(String sessionId) {
         return runWithSessionLifeLock(sessionId, () -> {
-            ShoppingSession session = repository.findByIdForUpdate(sessionId)
+            ShoppingSession session = repository.findById(sessionId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
             if (session.getState() != SessionState.RECOGNIZING) {
                 return toDto(session);
@@ -736,7 +747,7 @@ public class SessionService {
             transition(session, SessionState.SETTLING);
         }
         try {
-            OrderDto order = settlementService.settle(session);
+            OrderReadModel order = settlementService.settle(session);
             session.setOrderId(order.orderId());
             transition(session, SessionState.COMPLETED);
             log.info("session completed session={} order={}", session.getSessionId(), order.orderId());
@@ -790,7 +801,9 @@ public class SessionService {
         return toDto(session);
     }
 
-    @Transactional
+    /**
+     * 异步识别结果回调：无外层长事务；会话态短事务与结算短事务分离（扣款已 NOT_SUPPORTED）。
+     */
     public void completeAsyncRecognition(String sessionId, VisionServiceClient.RecognitionResult recognition) {
         runWithSessionLifeLock(sessionId, () -> {
             doCompleteAsyncRecognition(sessionId, recognition);
@@ -799,7 +812,7 @@ public class SessionService {
     }
 
     private void doCompleteAsyncRecognition(String sessionId, VisionServiceClient.RecognitionResult recognition) {
-        ShoppingSession session = repository.findByIdForUpdate(sessionId)
+        ShoppingSession session = repository.findById(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (session.getState() != SessionState.RECOGNIZING) {
             log.warn("ignore async recognition session={} state={}", sessionId, session.getState());
@@ -807,7 +820,7 @@ public class SessionService {
         }
         transition(session, SessionState.SETTLING);
         try {
-            OrderDto order = settlementService.processRecognitionResult(session, recognition);
+            OrderReadModel order = settlementService.processRecognitionResult(session, recognition);
             session.setOrderId(order.orderId());
             transition(session, SessionState.COMPLETED);
             log.info("async session completed session={} order={}", sessionId, order.orderId());
@@ -974,15 +987,22 @@ public class SessionService {
     }
 
     /** 运营重试识别/结算。订单和扣款仍由 SettlementService 的会话幂等约束保护。 */
-    @Transactional
     public SessionDto retryForOperations(String sessionId) {
-        return runWithSessionLifeLock(sessionId, () -> doRetryForOperations(sessionId));
+        return runWithSessionLifeLock(sessionId, () -> {
+            self.resetSessionForRetry(sessionId);
+            ShoppingSession session = repository.findById(sessionId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+            return settleSession(session);
+        });
     }
 
-    private SessionDto doRetryForOperations(String sessionId) {
+    @Transactional
+    public void resetSessionForRetry(String sessionId) {
         ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        if (session.getState() == SessionState.COMPLETED) return toDto(session);
+        if (session.getState() == SessionState.COMPLETED) {
+            return;
+        }
         if (!EnumSet.of(SessionState.FAILED, SessionState.DISPUTED, SessionState.RECOGNIZING,
                 SessionState.SETTLING).contains(session.getState())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前会话状态不支持重新识别或结算");
@@ -996,11 +1016,10 @@ public class SessionService {
         session.setState(SessionState.RECOGNIZING);
         repository.save(session);
         cabinetMetrics.recordSessionState(SessionState.RECOGNIZING);
-        return settleSession(session);
     }
 
     @Transactional(readOnly = true)
-    public OrderDto getSessionOrder(Long userId, String sessionId) {
+    public OrderReadModel getSessionOrder(Long userId, String sessionId) {
         self.getSession(userId, sessionId);
         return settlementService.getOrderBySession(sessionId);
     }

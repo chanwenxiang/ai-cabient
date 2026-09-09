@@ -14,9 +14,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -46,7 +48,8 @@ class LineWithdrawConcurrencyTest {
         service = new LineWithdrawService(
                 withdrawMapper, managerMapper, deviceMapper, lineManagerService,
                 lineWalletService, payoutService, properties,
-                permissionService, auditService, distributedLockService, null);
+                permissionService, auditService, distributedLockService, null, null);
+        ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test
@@ -76,6 +79,7 @@ class LineWithdrawConcurrencyTest {
         account.setBalanceCents(100_000L);
         account.setFrozenCents(0L);
 
+        AtomicReference<LineWithdrawRequest> stored = new AtomicReference<>();
         when(lineManagerService.requireManager(8L)).thenReturn(manager);
         when(distributedLockService.tryLock(
                 LineWithdrawService.lineWalletLockKey(8L), 60L, 5L))
@@ -87,8 +91,10 @@ class LineWithdrawConcurrencyTest {
         when(withdrawMapper.insert(any())).thenAnswer(inv -> {
             LineWithdrawRequest req = inv.getArgument(0);
             req.setRequestId(99L);
+            stored.set(req);
             return 1;
         });
+        when(withdrawMapper.findById(99L)).thenAnswer(inv -> Optional.ofNullable(stored.get()));
         when(payoutService.payout(any(), eq(manager))).thenReturn(
                 new LineWithdrawPayoutService.PayoutResult(true, "MOCK", "PAY-1", "ok"));
 

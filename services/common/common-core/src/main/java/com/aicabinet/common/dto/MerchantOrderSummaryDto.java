@@ -2,6 +2,8 @@ package com.aicabinet.common.dto;
 
 import java.time.Instant;
 
+/** @deprecated 使用 {@link OrderReadModel}；保留兼容过渡。 */
+@Deprecated(since = "order-read-model", forRemoval = true)
 public record MerchantOrderSummaryDto(
         String orderId,
         String sessionId,

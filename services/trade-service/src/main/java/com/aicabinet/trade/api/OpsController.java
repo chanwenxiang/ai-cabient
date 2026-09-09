@@ -6,8 +6,6 @@ import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.dto.SkuCatalogDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
-import com.aicabinet.trade.domain.SkuCatalog;
-import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.service.OpsService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -20,21 +18,16 @@ import java.util.List;
 public class OpsController {
 
     private final OpsService opsService;
-    private final SkuCatalogMapper skuCatalogRepository;
 
-    public OpsController(OpsService opsService, SkuCatalogMapper skuCatalogRepository) {
+    public OpsController(OpsService opsService) {
         this.opsService = opsService;
-        this.skuCatalogRepository = skuCatalogRepository;
     }
 
     /** 商品目录（争议审核 / 异常选品） */
     @RequiresPermissions(value = {"ops:sku:list", "ops:dispute", "ops:exception:handle"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/skus")
     public ApiResponse<List<SkuCatalogDto>> listSkus() {
-        List<SkuCatalogDto> list = skuCatalogRepository.findAll().stream()
-                .map(SkuCatalog::toDto)
-                .toList();
-        return ApiResponse.ok(list);
+        return ApiResponse.ok(opsService.listSkus());
     }
 
     /** 运营补货开门 */

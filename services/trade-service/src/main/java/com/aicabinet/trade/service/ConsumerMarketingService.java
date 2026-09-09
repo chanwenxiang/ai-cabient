@@ -47,6 +47,7 @@ public class ConsumerMarketingService {
     private final UserCouponMapper userCouponRepository;
     private final CouponService couponService;
     private final DistributedLockService distributedLockService;
+    private final ApiRateLimitService apiRateLimitService;
     private final String couponsPagePath;
 
     public ConsumerMarketingService(PromotionService promotionService,
@@ -55,6 +56,7 @@ public class ConsumerMarketingService {
                                     UserCouponMapper userCouponRepository,
                                     CouponService couponService,
                                     DistributedLockService distributedLockService,
+                                    ApiRateLimitService apiRateLimitService,
                                     @Value("${aicabinet.consumer.coupons-page-path:/pages/coupons/coupons}") String couponsPagePath) {
         this.promotionService = promotionService;
         this.activityRepository = activityRepository;
@@ -62,6 +64,7 @@ public class ConsumerMarketingService {
         this.userCouponRepository = userCouponRepository;
         this.couponService = couponService;
         this.distributedLockService = distributedLockService;
+        this.apiRateLimitService = apiRateLimitService;
         this.couponsPagePath = couponsPagePath;
     }
 
@@ -117,6 +120,7 @@ public class ConsumerMarketingService {
         if (userId == null || userId <= 0) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
         }
+        apiRateLimitService.assertCouponClaimAllowed(userId);
         return runWithCampaignClaimLock(userId, activityId, () -> doClaimCampaign(userId, activityId));
     }
 

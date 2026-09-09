@@ -1,7 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.FileDisputeRequest;
-import com.aicabinet.common.dto.OrderDto;
+import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.client.VisionServiceClient;
@@ -148,7 +148,7 @@ class DuplicateCallbackTest {
             }
             return Optional.of(second);
         };
-        when(repository.findByIdForUpdate(sessionId)).thenAnswer(answer);
+        when(repository.findById(sessionId)).thenAnswer(answer);
     }
 
     private static VisionServiceClient.RecognitionResult sampleRecognition() {
@@ -156,10 +156,8 @@ class DuplicateCallbackTest {
                 "T-1", List.of(), 0.9f, false, "mock", List.of());
     }
 
-    private static OrderDto sampleOrder(String orderId, String sessionId) {
-        return new OrderDto(
-                orderId, sessionId, 7L, "CAB-001", 500,
-                List.of(), "PAID", "BALANCE", null, 1000, 500, null);
+    private static OrderReadModel sampleOrder(String orderId, String sessionId) {
+        return OrderReadModelFixtures.sample(orderId, sessionId);
     }
 
     private ShoppingSession session(String id, SessionState state) {

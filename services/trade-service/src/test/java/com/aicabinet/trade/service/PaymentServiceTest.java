@@ -63,7 +63,8 @@ class PaymentServiceTest {
                 weChatPayProperties, securityProperties,
                 weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService,
                 balanceLedgerService, systemConfigService, notificationService, payScoreService,
-                distributedLockService, paymentOperationRepository);
+                distributedLockService, paymentOperationRepository, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(paymentService, "self", paymentService);
     }
 
     @Test
@@ -166,6 +167,7 @@ class PaymentServiceTest {
         when(systemConfigService.getInt(SystemConfigService.RECHARGE_AUTO_CANCEL_MINUTES, 30)).thenReturn(30);
         when(rechargeOrderRepository.findByStatusAndCreatedAtBefore(eq("PENDING"), any()))
                 .thenReturn(java.util.List.of(old));
+        when(rechargeOrderRepository.findByIdForUpdate("R-OLD")).thenReturn(Optional.of(old));
 
         int n = paymentService.autoCancelExpiredPending();
 
@@ -184,7 +186,8 @@ class PaymentServiceTest {
                 weChatPayProperties, securityProperties,
                 weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService,
                 balanceLedgerService, systemConfigService, notificationService, payScoreService,
-                distributedLockService, paymentOperationRepository);
+                distributedLockService, paymentOperationRepository, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(paymentService, "self", paymentService);
 
         RechargeOrder order = paidOrder("R-WX", 10001L, 500);
         order.setChannel("WECHAT");
@@ -210,7 +213,8 @@ class PaymentServiceTest {
                 new SecurityProperties(false),
                 weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService,
                 balanceLedgerService, systemConfigService, notificationService, payScoreService,
-                distributedLockService, paymentOperationRepository);
+                distributedLockService, paymentOperationRepository, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(paymentService, "self", paymentService);
         when(alipayPayClient.isConfigured()).thenReturn(true);
 
         RechargeOrder order = paidOrder("R-ALI", 10001L, 500);
@@ -238,7 +242,8 @@ class PaymentServiceTest {
                 weChatPayProperties, securityProperties,
                 weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService,
                 balanceLedgerService, systemConfigService, notificationService, payScoreService,
-                distributedLockService, paymentOperationRepository);
+                distributedLockService, paymentOperationRepository, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(paymentService, "self", paymentService);
 
         RechargeOrder order = paidOrder("R-WX-BF", 10001L, 500);
         order.setChannel("WECHAT");
@@ -263,7 +268,8 @@ class PaymentServiceTest {
                 new SecurityProperties(false),
                 weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService,
                 balanceLedgerService, systemConfigService, notificationService, payScoreService,
-                distributedLockService, paymentOperationRepository);
+                distributedLockService, paymentOperationRepository, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(paymentService, "self", paymentService);
         when(alipayPayClient.isConfigured()).thenReturn(true);
 
         RechargeOrder order = paidOrder("R-ALI-BF", 10001L, 500);

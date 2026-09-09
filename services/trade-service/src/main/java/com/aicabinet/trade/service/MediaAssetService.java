@@ -10,6 +10,8 @@ import com.aicabinet.trade.storage.MinioVideoService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,9 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -26,10 +31,25 @@ import java.util.UUID;
  */
 @Service
 public class MediaAssetService {
+    private static final Logger log = LoggerFactory.getLogger(MediaAssetService.class);
     private static final String VIDEO = "VIDEO";
-
+    private static final String IMAGE = "IMAGE";
+    private static final String STATUS_ACTIVE = "ACTIVE";
 
     private static final long MAX_BYTES = 50L * 1024 * 1024;
+    /** 仅允许图片/视频；禁止 HTML 等可执行内容经公开预览路径投毒。 */
+    private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of(
+            "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif");
+    private static final Set<String> ALLOWED_VIDEO_TYPES = Set.of(
+            "video/mp4", "video/webm");
+    private static final Map<String, String> EXT_BY_TYPE = Map.of(
+            "image/jpeg", "jpg",
+            "image/jpg", "jpg",
+            "image/png", "png",
+            "image/webp", "webp",
+            "image/gif", "gif",
+            "video/mp4", "mp4",
+            "video/webm", "webm");
 
     private final MediaAssetMapper assetRepository;
     private final AdCampaignItemMapper campaignItemMapper;
@@ -70,13 +90,15 @@ public class MediaAssetService {
         if (file.getSize() > MAX_BYTES) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "文件不能超过 50MB");
         }
-        String type = normalizeType(assetType, file.getContentType());
-        String ext = extensionOf(file.getOriginalFilename());
+        String contentType = normalizeContentType(file.getContentType(), file.getOriginalFilename());
+        String type = resolveAssetType(assetType, contentType);
+        assertMimeAllowed(type, contentType);
+        String ext = EXT_BY_TYPE.getOrDefault(contentType, "bin");
         String objectKey = "ad/" + LocalDate.now(ZoneId.of("Asia/Shanghai"))
                 + "/" + UUID.randomUUID().toString().replace("-", "") + "." + ext;
         String storageUri;
         try {
-            storageUri = minioVideoService.putObject(objectKey, file.getBytes(), file.getContentType())
+            storageUri = minioVideoService.putObject(objectKey, file.getBytes(), contentType)
                     .orElseThrow(() -> new ResponseStatusException(
                             HttpStatus.SERVICE_UNAVAILABLE, "文件上传失败"));
         } catch (ResponseStatusException e) {
@@ -89,7 +111,7 @@ public class MediaAssetService {
         asset.setAssetType(type);
         asset.setStorageUri(storageUri);
         asset.setDurationSeconds(resolveDurationSeconds(durationSeconds, type));
-        asset.setStatus("ACTIVE");
+        asset.setStatus(STATUS_ACTIVE);
         asset.setUploadedBy(operatorId);
         assetRepository.insert(asset);
         return toDto(asset);
@@ -130,8 +152,8 @@ public class MediaAssetService {
         // MinIO 对象尽力清理，失败不影响元数据删除结果
         try {
             minioVideoService.removeObject(asset.getStorageUri());
-        } catch (Exception ignored) {
-            // best-effort
+        } catch (Exception e) {
+            log.warn("ad asset minio cleanup failed assetId={} uri={}", assetId, asset.getStorageUri(), e);
         }
     }
 
@@ -161,10 +183,14 @@ public class MediaAssetService {
         }
     }
 
-    /** 同源流式预览（浏览器不直连 MinIO public endpoint）。 */
+    /** 同源流式预览（浏览器不直连 MinIO public endpoint）；仅 ACTIVE 可公开访问。 */
     @Transactional(readOnly = true)
     public void streamPreview(Long assetId, HttpServletRequest request, HttpServletResponse response) {
         MediaAsset asset = requireAsset(assetId);
+        if (!STATUS_ACTIVE.equalsIgnoreCase(asset.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "素材不可用");
+        }
+        response.setHeader("X-Content-Type-Options", "nosniff");
         minioVideoService.streamTo(asset.getStorageUri(), request, response);
     }
 
@@ -177,29 +203,70 @@ public class MediaAssetService {
                 asset.getStatus(), asset.getCreatedAt());
     }
 
-    private static String normalizeType(String requested, String contentType) {
+    private static String resolveAssetType(String requested, String contentType) {
         if (requested != null && !requested.isBlank()) {
-            String t = requested.trim().toUpperCase();
-            if (t.equals("IMAGE") || t.equals(VIDEO) || t.equals("H5")) {
+            String t = requested.trim().toUpperCase(Locale.ROOT);
+            if (IMAGE.equals(t) || VIDEO.equals(t)) {
                 return t;
             }
-        }
-        if (contentType != null) {
-            if (contentType.startsWith("image/")) {
-                return "IMAGE";
+            if ("H5".equals(t)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "H5 素材请使用投放计划外链，禁止上传可执行页面文件");
             }
-            if (contentType.startsWith("video/")) {
-                return VIDEO;
-            }
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "素材类型仅支持 IMAGE 或 VIDEO");
         }
-        return "H5";
+        if (ALLOWED_IMAGE_TYPES.contains(contentType)) {
+            return IMAGE;
+        }
+        if (ALLOWED_VIDEO_TYPES.contains(contentType)) {
+            return VIDEO;
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的文件类型");
     }
 
-    private static String extensionOf(String filename) {
-        if (filename == null || !filename.contains(".")) {
-            return "bin";
+    private static void assertMimeAllowed(String assetType, String contentType) {
+        if (IMAGE.equals(assetType) && ALLOWED_IMAGE_TYPES.contains(contentType)) {
+            return;
         }
-        return filename.substring(filename.lastIndexOf('.') + 1).replaceAll("[^a-zA-Z0-9]", "bin");
+        if (VIDEO.equals(assetType) && ALLOWED_VIDEO_TYPES.contains(contentType)) {
+            return;
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "文件类型与素材类型不匹配，仅支持 jpg/png/webp/gif 或 mp4/webm");
+    }
+
+    private static String normalizeContentType(String contentType, String fileName) {
+        if (contentType != null && !contentType.isBlank()) {
+            String type = contentType.trim().toLowerCase(Locale.ROOT);
+            int semi = type.indexOf(';');
+            if (semi > 0) {
+                type = type.substring(0, semi).trim();
+            }
+            if (ALLOWED_IMAGE_TYPES.contains(type) || ALLOWED_VIDEO_TYPES.contains(type)) {
+                return type;
+            }
+        }
+        String name = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
+        if (name.endsWith(".jpg") || name.endsWith(".jpeg")) {
+            return "image/jpeg";
+        }
+        if (name.endsWith(".png")) {
+            return "image/png";
+        }
+        if (name.endsWith(".webp")) {
+            return "image/webp";
+        }
+        if (name.endsWith(".gif")) {
+            return "image/gif";
+        }
+        if (name.endsWith(".mp4")) {
+            return "video/mp4";
+        }
+        if (name.endsWith(".webm")) {
+            return "video/webm";
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "不支持的文件类型，仅允许 jpg/png/webp/gif/mp4/webm");
     }
 
     private static int resolveDurationSeconds(int durationSeconds, String type) {

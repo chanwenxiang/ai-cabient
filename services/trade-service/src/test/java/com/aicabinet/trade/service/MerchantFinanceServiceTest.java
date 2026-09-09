@@ -54,7 +54,8 @@ class MerchantFinanceServiceTest {
                 permissionService, merchantFeaturePackService, merchantPortalGuard,
                 orderRepository, orderLineRepository, splitRepository, merchantRepository,
                 settlementService, profitSharingService, profitSharingProperties, weChatPayProperties,
-                sessionRepository, minioVideoService, null);
+                sessionRepository, minioVideoService,
+                new com.aicabinet.trade.service.view.OrderViewAssembler(), null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

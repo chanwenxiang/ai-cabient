@@ -120,6 +120,34 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
                                @Param("end") java.time.Instant end,
                                @Param("channel") String channel);
 
+    /**
+     * 窗口内网关渠道（WECHAT/ALIPAY/MOCK）已完成充值退款合计（正数）。
+     * 与 Mock/通道账单负向退款对齐。
+     */
+    @Select("""
+            SELECT COALESCE(SUM(amount_cents), 0)
+            FROM payment_operation
+            WHERE status = 'COMPLETED'
+              AND operation_type = 'RECHARGE_REFUND'
+              AND created_at >= #{start} AND created_at < #{end}
+              AND UPPER(channel) IN ('WECHAT', 'ALIPAY', 'MOCK')
+            """)
+    long sumGatewayRechargeRefundBetween(@Param("start") java.time.Instant start,
+                                         @Param("end") java.time.Instant end);
+
+    /** 指定渠道窗口内已完成充值退款合计（正数）。 */
+    @Select("""
+            SELECT COALESCE(SUM(amount_cents), 0)
+            FROM payment_operation
+            WHERE status = 'COMPLETED'
+              AND operation_type = 'RECHARGE_REFUND'
+              AND created_at >= #{start} AND created_at < #{end}
+              AND UPPER(channel) = UPPER(#{channel})
+            """)
+    long sumRechargeRefundByChannel(@Param("start") java.time.Instant start,
+                                    @Param("end") java.time.Instant end,
+                                    @Param("channel") String channel);
+
     /** 对账匹配：窗口内有购物入账流水的订单号（不含充值）。 */
     @Select("""
             SELECT DISTINCT order_id FROM payment_operation

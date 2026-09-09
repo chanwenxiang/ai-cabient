@@ -50,6 +50,98 @@ class ProductionStartupValidatorTest {
         validator.validateProductionConfig();
     }
 
+    @Test
+    void prodRejectsDefaultMinioCredentials() {
+        Environment environment = mock(Environment.class);
+        when(environment.getActiveProfiles()).thenReturn(new String[] {"prod"});
+        MinioProperties minio = mock(MinioProperties.class);
+        when(minio.accessKey()).thenReturn("minioadmin");
+        when(minio.secretKey()).thenReturn("changed-secret-key-32bytes!!!!!");
+        ProductionStartupValidator v = buildValidatorWithMinioCorsCidr(
+                environment, minio, List.of("https://ops.example.com"), true);
+        assertThatThrownBy(v::validateProductionConfig)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("MinIO");
+    }
+
+    @Test
+    void prodRejectsLocalhostCors() {
+        Environment environment = mock(Environment.class);
+        when(environment.getActiveProfiles()).thenReturn(new String[] {"prod"});
+        MinioProperties minio = mock(MinioProperties.class);
+        when(minio.accessKey()).thenReturn("prod-minio-user");
+        when(minio.secretKey()).thenReturn("prod-minio-secret-32bytes-at-least");
+        ProductionStartupValidator v = buildValidatorWithMinioCorsCidr(
+                environment, minio, List.of("http://localhost:5173", "https://ops.example.com"), true);
+        assertThatThrownBy(v::validateProductionConfig)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("CORS_ORIGIN");
+    }
+
+    @Test
+    void prodRejectsEmptyInternalCidr() {
+        Environment environment = mock(Environment.class);
+        when(environment.getActiveProfiles()).thenReturn(new String[] {"prod"});
+        MinioProperties minio = mock(MinioProperties.class);
+        when(minio.accessKey()).thenReturn("prod-minio-user");
+        when(minio.secretKey()).thenReturn("prod-minio-secret-32bytes-at-least");
+        ProductionStartupValidator v = buildValidatorWithMinioCorsCidr(
+                environment, minio, List.of("https://ops.example.com"), false);
+        assertThatThrownBy(v::validateProductionConfig)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("INTERNAL_API_ALLOWED_CIDRS");
+    }
+
+    private ProductionStartupValidator buildValidatorWithMinioCorsCidr(
+            Environment environment,
+            MinioProperties minioProperties,
+            List<String> corsOrigins,
+            boolean hasCidr) {
+        SecurityProperties securityProperties = mock(SecurityProperties.class);
+        when(securityProperties.mockEnabled()).thenReturn(false);
+        StagingProperties stagingProperties = mock(StagingProperties.class);
+        when(stagingProperties.stagingMode()).thenReturn(false);
+        InternalApiProperties internalApiProperties = mock(InternalApiProperties.class);
+        when(internalApiProperties.key()).thenReturn("prod-internal-key-32bytes-at-least!!");
+        when(internalApiProperties.hasCidrRestriction()).thenReturn(hasCidr);
+        AuthProperties authProperties = mock(AuthProperties.class);
+        when(authProperties.jwtSecret()).thenReturn("prod-jwt-secret-32bytes-at-least!!!!");
+        when(authProperties.cookieEnabled()).thenReturn(true);
+        when(authProperties.cookieSecure()).thenReturn(true);
+        when(authProperties.sms()).thenReturn(new SmsProperties(
+                "482913", 300, "https://sms.example.com/send",
+                "webhook", null, null, null, null, null));
+        WeChatPayProperties weChatPayProperties = mock(WeChatPayProperties.class);
+        when(weChatPayProperties.isConfigured()).thenReturn(true);
+        when(weChatPayProperties.platformCertAutoFetch()).thenReturn(true);
+        when(weChatPayProperties.platformCert()).thenReturn(null);
+        WeChatMiniAppProperties weChatMiniAppProperties = mock(WeChatMiniAppProperties.class);
+        when(weChatMiniAppProperties.isConfigured()).thenReturn(true);
+        VisionApiProperties visionApiProperties = mock(VisionApiProperties.class);
+        when(visionApiProperties.key()).thenReturn("prod-vision-key-32bytes-at-least!!");
+        CorsProperties corsProperties = mock(CorsProperties.class);
+        when(corsProperties.allowedOrigins()).thenReturn(corsOrigins);
+        ProfitSharingProperties profitSharingProperties = mock(ProfitSharingProperties.class);
+        when(profitSharingProperties.enabled()).thenReturn(false);
+        PayScoreProperties payScoreProperties = mock(PayScoreProperties.class);
+        when(payScoreProperties.enabled()).thenReturn(false);
+        ReconciliationProperties reconciliationProperties = mock(ReconciliationProperties.class);
+        when(reconciliationProperties.mockEnabled()).thenReturn(false);
+        CheckoutProperties checkoutProperties = mock(CheckoutProperties.class);
+        when(checkoutProperties.balanceOnly()).thenReturn(false);
+        LineWithdrawProperties lineWithdrawProperties = mock(LineWithdrawProperties.class);
+        when(lineWithdrawProperties.mockEnabled()).thenReturn(false);
+        MerchantWithdrawProperties merchantWithdrawProperties = mock(MerchantWithdrawProperties.class);
+        when(merchantWithdrawProperties.mockEnabled()).thenReturn(false);
+        IdentityVerifyProperties identityVerifyProperties = mock(IdentityVerifyProperties.class);
+        when(identityVerifyProperties.isConfigured()).thenReturn(true);
+        return new ProductionStartupValidator(
+                environment, securityProperties, stagingProperties, internalApiProperties, authProperties,
+                weChatPayProperties, weChatMiniAppProperties, visionApiProperties, minioProperties, corsProperties,
+                profitSharingProperties, payScoreProperties, reconciliationProperties, checkoutProperties,
+                lineWithdrawProperties, merchantWithdrawProperties, identityVerifyProperties);
+    }
+
     private ProductionStartupValidator buildValidator(
             String profile, String smsCode, boolean cookieEnabled, boolean cookieSecure) {
         Environment environment = mock(Environment.class);

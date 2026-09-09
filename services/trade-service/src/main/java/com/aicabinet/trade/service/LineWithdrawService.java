@@ -14,6 +14,7 @@ import com.aicabinet.trade.mapper.LineWithdrawRequestMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +49,8 @@ public class LineWithdrawService {
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
     private final ApprovalWorkflowService approvalWorkflowService;
+    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
+    private final LineWithdrawService self;
 
     private static final String BIZ_LINE_WITHDRAW = "LINE_WITHDRAW";
 
@@ -61,7 +64,8 @@ public class LineWithdrawService {
                                PermissionService permissionService,
                                AdminAuditService auditService,
                                DistributedLockService distributedLockService,
-                               ApprovalWorkflowService approvalWorkflowService) {
+                               ApprovalWorkflowService approvalWorkflowService,
+                               @Lazy LineWithdrawService self) {
         this.withdrawMapper = withdrawMapper;
         this.managerMapper = managerMapper;
         this.deviceMapper = deviceMapper;
@@ -73,6 +77,7 @@ public class LineWithdrawService {
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
         this.approvalWorkflowService = approvalWorkflowService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -101,13 +106,11 @@ public class LineWithdrawService {
         return payoutService.modeInfo();
     }
 
-    @Transactional
     public LineWithdrawRequestDto apply(long managerId, long amountCents, String requestNo) {
         LineManager manager = lineManagerService.requireManager(managerId);
         return createWithdraw(manager, amountCents, requestNo, null);
     }
 
-    @Transactional
     public LineWithdrawRequestDto merchantApply(Long userId, long amountCents, String requestNo) {
         LineManager manager = lineManagerService.findByUserId(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未绑定线长身份"));
@@ -117,16 +120,21 @@ public class LineWithdrawService {
         return createWithdraw(manager, amountCents, requestNo, userId);
     }
 
-    @Transactional
     public LineWithdrawRequestDto review(Long operatorId, long requestId, boolean approve, String remark) {
         permissionService.requirePermission(operatorId, PERM_OPS_LINE_WITHDRAW_REVIEW);
         LineWithdrawRequest request = requireRequest(requestId);
-        return runWithLineWalletLock(request.getManagerId(),
-                () -> doReview(operatorId, request, approve, remark));
+        return runWithLineWalletLock(request.getManagerId(), () -> {
+            PayoutGate gate = self.completeReview(operatorId, requestId, approve, remark);
+            if (gate.shouldPayout()) {
+                return self.executePayout(gate.requestId());
+            }
+            return gate.dto();
+        });
     }
 
-    private LineWithdrawRequestDto doReview(Long operatorId, LineWithdrawRequest request,
-                                            boolean approve, String remark) {
+    @Transactional
+    public PayoutGate completeReview(Long operatorId, long requestId, boolean approve, String remark) {
+        LineWithdrawRequest request = requireRequest(requestId);
         if (!"PENDING_REVIEW".equals(request.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可审核");
         }
@@ -145,7 +153,7 @@ public class LineWithdrawService {
             auditService.appendLog(operatorId, LINE_WITHDRAW_REVIEW, BIZ_LINE_WITHDRAW,
                     String.valueOf(request.getRequestId()), "驳回；金额(分)=" + request.getAmountCents()
                             + "；备注=" + trim(remark));
-            return toDto(request);
+            return PayoutGate.done(toDto(request));
         }
         approvalWorkflowService.completeApproved(
                 operatorId, BIZ_LINE_WITHDRAW, String.valueOf(request.getRequestId()), trim(remark));
@@ -153,17 +161,16 @@ public class LineWithdrawService {
                 BIZ_LINE_WITHDRAW, String.valueOf(request.getRequestId()))) {
             auditService.appendLog(operatorId, LINE_WITHDRAW_REVIEW, BIZ_LINE_WITHDRAW,
                     String.valueOf(request.getRequestId()), "初审通过；金额(分)=" + request.getAmountCents());
-            return toDto(request);
+            return PayoutGate.done(toDto(request));
         }
         request.setStatus(STATUS_APPROVED);
         withdrawMapper.updateById(request);
         auditService.appendLog(operatorId, LINE_WITHDRAW_REVIEW, BIZ_LINE_WITHDRAW,
                 String.valueOf(request.getRequestId()), "通过；金额(分)=" + request.getAmountCents()
                         + "；备注=" + trim(remark));
-        return attemptPayout(request);
+        return PayoutGate.needPayout(toDto(request));
     }
 
-    @Transactional
     public LineWithdrawRequestDto payout(Long operatorId, long requestId) {
         permissionService.requirePermission(operatorId, PERM_OPS_LINE_WITHDRAW_REVIEW);
         LineWithdrawRequest request = requireRequest(requestId);
@@ -173,7 +180,7 @@ public class LineWithdrawService {
             }
             auditService.appendLog(operatorId, "LINE_WITHDRAW_PAYOUT", BIZ_LINE_WITHDRAW,
                     String.valueOf(requestId), "打款金额(分)=" + request.getAmountCents());
-            return attemptPayout(request);
+            return self.executePayout(requestId);
         });
     }
 
@@ -227,17 +234,23 @@ public class LineWithdrawService {
 
     private LineWithdrawRequestDto createWithdraw(LineManager manager, long amountCents, String requestNo,
                                                   Long submitterUserId) {
-        return runWithLineWalletLock(manager.getManagerId(),
-                () -> doCreateWithdraw(manager, amountCents, requestNo, submitterUserId));
+        return runWithLineWalletLock(manager.getManagerId(), () -> {
+            PayoutGate gate = self.persistWithdrawApplication(manager, amountCents, requestNo, submitterUserId);
+            if (gate.shouldPayout()) {
+                return self.executePayout(gate.requestId());
+            }
+            return gate.dto();
+        });
     }
 
-    private LineWithdrawRequestDto doCreateWithdraw(LineManager manager, long amountCents, String requestNo,
-                                                    Long submitterUserId) {
+    @Transactional
+    public PayoutGate persistWithdrawApplication(LineManager manager, long amountCents, String requestNo,
+                                                 Long submitterUserId) {
         validateAmount(manager.getManagerId(), amountCents);
         String no = normalizeRequestNo(requestNo);
         var existing = withdrawMapper.findByRequestNo(no);
         if (existing.isPresent()) {
-            return toDto(existing.get());
+            return PayoutGate.done(toDto(existing.get()));
         }
         Instant now = Instant.now();
         LineWithdrawRequest request = new LineWithdrawRequest();
@@ -260,7 +273,7 @@ public class LineWithdrawService {
                     submitterUserId,
                     "线长提现 " + request.getRequestNo() + " ¥"
                             + String.format(Locale.ROOT, "%.2f", amountCents / 100.0));
-            return toDto(request);
+            return PayoutGate.done(toDto(request));
         }
         request.setStatus(STATUS_APPROVED);
         request.setReviewRemark("低于审核阈值自动通过");
@@ -268,16 +281,31 @@ public class LineWithdrawService {
         withdrawMapper.insert(request);
         lineWalletService.freezeForWithdraw(manager.getManagerId(), amountCents,
                 WITHDRAW, String.valueOf(request.getRequestId()), "提现申请冻结");
-        return attemptPayout(request);
+        return PayoutGate.needPayout(toDto(request));
     }
 
-    private LineWithdrawRequestDto attemptPayout(LineWithdrawRequest request) {
-        LineManager manager = lineManagerService.requireManager(request.getManagerId());
+    public LineWithdrawRequestDto executePayout(long requestId) {
+        LineWithdrawRequest paying = self.markPaying(requestId);
+        LineManager manager = lineManagerService.requireManager(paying.getManagerId());
+        LineWithdrawPayoutService.PayoutResult result = payoutService.payout(paying, manager);
+        return self.finalizePayout(requestId, result);
+    }
+
+    @Transactional
+    public LineWithdrawRequest markPaying(long requestId) {
+        LineWithdrawRequest request = requireRequest(requestId);
+        if (!Set.of(STATUS_APPROVED, "FAILED", "PAYING").contains(request.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可打款");
+        }
         request.setStatus("PAYING");
         request.setUpdatedAt(Instant.now());
         withdrawMapper.updateById(request);
+        return request;
+    }
 
-        LineWithdrawPayoutService.PayoutResult result = payoutService.payout(request, manager);
+    @Transactional
+    public LineWithdrawRequestDto finalizePayout(long requestId, LineWithdrawPayoutService.PayoutResult result) {
+        LineWithdrawRequest request = requireRequest(requestId);
         Instant now = Instant.now();
         request.setPayChannel(result.payChannel());
         request.setPayoutRef(result.payoutRef());
@@ -294,6 +322,16 @@ public class LineWithdrawService {
         request.setStatus("FAILED");
         withdrawMapper.updateById(request);
         return toDto(request);
+    }
+
+    public record PayoutGate(LineWithdrawRequestDto dto, boolean shouldPayout, long requestId) {
+        static PayoutGate done(LineWithdrawRequestDto dto) {
+            return new PayoutGate(dto, false, dto.requestId() == null ? 0L : dto.requestId());
+        }
+
+        static PayoutGate needPayout(LineWithdrawRequestDto dto) {
+            return new PayoutGate(dto, true, dto.requestId());
+        }
     }
 
     private void validateAmount(long managerId, long amountCents) {

@@ -67,13 +67,12 @@ public class NotificationService {
         this.self = self;
     }
 
-    @Transactional
+    /** 站内信短事务落库；Kafka/外部渠道在事务外。 */
     public void notifyConsumer(Long userId, String templateCode, Map<String, String> params,
                                String bizType, String bizId) {
         self.send(CONSUMER, userId, null, templateCode, params, bizType, bizId);
     }
 
-    @Transactional
     public void notifyMerchant(String merchantId, String templateCode, Map<String, String> params,
                                String bizType, String bizId) {
         self.send(MERCHANT, null, merchantId, templateCode, params, bizType, bizId);
@@ -123,7 +122,6 @@ public class NotificationService {
         });
     }
 
-    @Transactional
     public void send(String audience, Long userId, String merchantId, String templateCode,
                      Map<String, String> params, String bizType, String bizId) {
         NotificationTemplate tpl = templateRepository.findByCode(templateCode).orElse(null);
@@ -139,7 +137,7 @@ public class NotificationService {
 
         List<String> channelList = channels(tpl.getChannels(), tpl.getChannel());
         if (channelList.contains(IN_APP)) {
-            saveLog(new NotificationLogDraft(tpl.getTemplateCode(), IN_APP,
+            self.persistInAppLog(new NotificationLogDraft(tpl.getTemplateCode(), IN_APP,
                     new NotificationLogDraft.NotificationTarget(audience, userId, merchantId),
                     new NotificationLogDraft.NotificationContent(title, body, bizType, bizId)));
         }
@@ -158,6 +156,11 @@ public class NotificationService {
             log.warn("notify async enabled but producer unavailable, fallback sync");
         }
         externalDispatcher.dispatch(message);
+    }
+
+    @Transactional
+    public void persistInAppLog(NotificationLogDraft draft) {
+        saveLog(draft);
     }
 
     private record NotificationLogDraft(

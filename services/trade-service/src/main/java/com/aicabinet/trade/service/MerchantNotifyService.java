@@ -94,18 +94,23 @@ public class MerchantNotifyService {
         return new MerchantNotifyPrefDto(user.getWxOpenId() != null && !user.getWxOpenId().isBlank(), enabled);
     }
 
-    @Transactional
+    /** code2Session 在事务外；落库走短事务。 */
     public MerchantNotifyPrefDto bindWxOpenId(Long userId, String wxCode) {
         merchantPortalGuard.requireAccess(userId);
         return runWithUserAccountLock(userId, () -> {
-            UserInfo user = userInfoRepository.findByIdForUpdate(userId)
-                    .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
-                            org.springframework.http.HttpStatus.NOT_FOUND, "用户不存在"));
             var session = weChatMiniAppClient.code2Session(wxCode);
-            user.setWxOpenId(session.openId());
-            userInfoRepository.save(user);
+            self.persistWxOpenId(userId, session.openId());
             return self.getPrefs(userId);
         });
+    }
+
+    @Transactional
+    public void persistWxOpenId(Long userId, String openId) {
+        UserInfo user = userInfoRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND, "用户不存在"));
+        user.setWxOpenId(openId);
+        userInfoRepository.save(user);
     }
 
     @Transactional
@@ -135,7 +140,7 @@ public class MerchantNotifyService {
         return self.getPrefs(userId);
     }
 
-    @Transactional
+    /** 无外层长事务：逐用户通知内部分离微信发送与短事务落库。 */
     public int dispatchWorkbenchAlerts() {
         List<Long> userIds = subscribePrefRepository.findAll().stream()
                 .filter(MerchantSubscribePref::isEnabled)
@@ -155,7 +160,7 @@ public class MerchantNotifyService {
         return sent;
     }
 
-    @Transactional
+    /** 订阅消息发送在事务外；成功后再短事务写通知日志。 */
     public boolean maybeNotifyUser(Long userId) {
         return runWithNotifyUserLock(userId, () -> doMaybeNotifyUser(userId));
     }
@@ -196,14 +201,19 @@ public class MerchantNotifyService {
                         "time3", TIME_FMT.format(Instant.now())
                 ));
         if (sent) {
-            MerchantNotifyLog row = new MerchantNotifyLog();
-            row.setUserId(userId);
-            row.setDigest(digest);
-            row.setPayload(summary);
-            notifyLogRepository.save(row);
+            self.persistNotifyLog(userId, digest, summary);
             return true;
         }
         return false;
+    }
+
+    @Transactional
+    public void persistNotifyLog(Long userId, String digest, String summary) {
+        MerchantNotifyLog row = new MerchantNotifyLog();
+        row.setUserId(userId);
+        row.setDigest(digest);
+        row.setPayload(summary);
+        notifyLogRepository.save(row);
     }
 
     private long countOpenExceptions(Long userId) {

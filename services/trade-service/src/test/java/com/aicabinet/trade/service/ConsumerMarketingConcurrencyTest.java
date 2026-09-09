@@ -24,6 +24,7 @@ class ConsumerMarketingConcurrencyTest {
     @Mock private UserCouponMapper userCouponRepository;
     @Mock private CouponService couponService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private ApiRateLimitService apiRateLimitService;
 
     private ConsumerMarketingService service;
 
@@ -31,7 +32,7 @@ class ConsumerMarketingConcurrencyTest {
     void setUp() {
         service = new ConsumerMarketingService(promotionService, activityRepository,
                 couponDefinitionRepository, userCouponRepository, couponService, distributedLockService,
-                "/pages/coupons/coupons");
+                apiRateLimitService, "/pages/coupons/coupons");
     }
 
     @Test

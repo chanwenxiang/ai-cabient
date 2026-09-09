@@ -232,13 +232,13 @@ public class MerchantPortalService {
     }
 
     @Transactional(readOnly = true)
-    public PageResult<MerchantOrderSummaryDto> listOrders(Long userId, int page, int size, String deviceId) {
+    public PageResult<OrderReadModel> listOrders(Long userId, int page, int size, String deviceId) {
         return merchantFinanceService.listOrders(userId, new MerchantFinanceService.MerchantOrderListQuery(
                 page, size, deviceId, null, null, null, null));
     }
 
     @Transactional(readOnly = true)
-    public OrderDto getOrder(Long userId, String orderId) {
+    public OrderReadModel getOrder(Long userId, String orderId) {
         return merchantFinanceService.getOrder(userId, orderId);
     }
 

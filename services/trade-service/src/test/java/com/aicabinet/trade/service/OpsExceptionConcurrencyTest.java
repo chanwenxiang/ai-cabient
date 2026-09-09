@@ -21,13 +21,15 @@ class OpsExceptionConcurrencyTest {
 
     @Mock private OpsExceptionMapper repository;
     @Mock private PermissionService permissionService;
+    @Mock private MerchantScopeService merchantScopeService;
     @Mock private DistributedLockService distributedLockService;
 
     private OpsExceptionService service;
 
     @BeforeEach
     void setUp() {
-        service = new OpsExceptionService(repository, permissionService, null, distributedLockService, null);
+        service = new OpsExceptionService(repository, permissionService, merchantScopeService, null,
+                distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

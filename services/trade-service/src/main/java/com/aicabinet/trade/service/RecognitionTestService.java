@@ -5,7 +5,7 @@ import com.aicabinet.common.dto.DevRecognitionItemDto;
 import com.aicabinet.common.dto.DevRecognitionPreviewDto;
 import com.aicabinet.common.dto.DevRecognitionTestRequest;
 import com.aicabinet.common.dto.DevRecognitionTestResponse;
-import com.aicabinet.common.dto.OrderDto;
+import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.VisionServiceClient;
@@ -134,7 +134,7 @@ public class RecognitionTestService {
             sessionRepository.save(session);
 
             SessionDto settled = sessionService.completeDevUploadRecognition(session.getSessionId(), recognition);
-            OrderDto order = tryLoadOrder(settled);
+            OrderReadModel order = tryLoadOrder(settled);
             String hint = buildHint(settled, order, preview);
             log.info("ops upload recognition session={} state={} items={}",
                     settled.sessionId(), settled.state(), preview.items().size());
@@ -244,7 +244,7 @@ public class RecognitionTestService {
         return "未识别到商品，请换一张清晰的单品照片。";
     }
 
-    private OrderDto tryLoadOrder(SessionDto session) {
+    private OrderReadModel tryLoadOrder(SessionDto session) {
         if (session.state() != SessionState.COMPLETED) {
             return null;
         }
@@ -258,7 +258,7 @@ public class RecognitionTestService {
         }
     }
 
-    private static String buildHint(SessionDto session, OrderDto order, DevRecognitionPreviewDto preview) {
+    private static String buildHint(SessionDto session, OrderReadModel order, DevRecognitionPreviewDto preview) {
         if (session.state() == SessionState.COMPLETED && order != null) {
             return "识别成功，已生成订单。" + preview.hint();
         }

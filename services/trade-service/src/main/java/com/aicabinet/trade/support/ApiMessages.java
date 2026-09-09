@@ -89,6 +89,8 @@ public final class ApiMessages {
     // 风控
     public static final String USER_BLACKLISTED = "账号受限，请联系客服";
     public static final String TOO_MANY_OPENS = "开门过于频繁，请稍后再试";
+    public static final String TOO_MANY_COUPON_CLAIMS = "领券过于频繁，请稍后再试";
+    public static final String TOO_MANY_ORDER_PAYS = "支付请求过于频繁，请稍后再试";
 
     // 订单/支付/争议
     public static final String ORDER_NOT_FOUND = "订单不存在";

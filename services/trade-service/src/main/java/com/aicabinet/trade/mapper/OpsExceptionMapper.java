@@ -59,9 +59,14 @@ public interface OpsExceptionMapper extends BaseTradeMapper<OpsException> {
         return findFiltered(status, severity, overdueOnly, null, pageable);
     }
 
-    /** archived：null/false 仅看未归档（默认）；true 仅看已归档。 */
+    /** archived：null/false 仅看未归档（默认）；true 仅看已归档。deviceIds null=不限制；空集应在调用方直接返回空页。 */
     default Page<OpsException> findFiltered(String status, String severity, boolean overdueOnly,
                                             Boolean archived, Pageable pageable) {
+        return findFiltered(status, severity, overdueOnly, archived, null, pageable);
+    }
+
+    default Page<OpsException> findFiltered(String status, String severity, boolean overdueOnly,
+                                            Boolean archived, Collection<String> deviceIds, Pageable pageable) {
     var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<OpsException>(
             pageable.getPageNumber() + 1L, pageable.getPageSize());
     var query = Wrappers.<OpsException>lambdaQuery();
@@ -80,6 +85,9 @@ public interface OpsExceptionMapper extends BaseTradeMapper<OpsException> {
         query.eq(OpsException::getSeverity, severity);
     }
     query.eq(OpsException::getArchived, Boolean.TRUE.equals(archived));
+    if (deviceIds != null) {
+        query.in(OpsException::getDeviceId, deviceIds);
+    }
     if (overdueOnly) {
         query.orderByAsc(OpsException::getSlaDueAt).orderByDesc(OpsException::getCreatedAt);
     } else {

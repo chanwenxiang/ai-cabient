@@ -3,15 +3,16 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.CreateInvoiceRequest;
 import com.aicabinet.common.dto.InvoiceRequestDto;
-import com.aicabinet.common.dto.OrderDto;
+import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.dto.OrderRefundRequest;
 import com.aicabinet.common.dto.OrderRefundResultDto;
-import com.aicabinet.common.dto.OrderSummaryDto;
+import com.aicabinet.common.dto.OrderViews;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.service.InvoiceService;
 import com.aicabinet.trade.service.OrderService;
 import com.aicabinet.trade.service.UnpaidOrderService;
+import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -40,8 +41,9 @@ public class OrderController {
         this.invoiceService = invoiceService;
     }
 
+    @JsonView(OrderViews.Consumer.class)
     @GetMapping
-    public ApiResponse<PageResult<OrderSummaryDto>> list(
+    public ApiResponse<PageResult<OrderReadModel>> list(
             HttpServletRequest request,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -49,8 +51,9 @@ public class OrderController {
         return ApiResponse.ok(orderService.listMyOrders(userId, page, size));
     }
 
+    @JsonView(OrderViews.Consumer.class)
     @GetMapping("/{orderId}")
-    public ApiResponse<OrderDto> get(
+    public ApiResponse<OrderReadModel> get(
             HttpServletRequest request,
             @PathVariable("orderId") String orderId) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
@@ -66,8 +69,9 @@ public class OrderController {
         orderService.streamMyOrderVideo(userId, orderId, request, response);
     }
 
+    @JsonView(OrderViews.Consumer.class)
     @PostMapping("/{orderId}/pay")
-    public ApiResponse<OrderDto> payPending(
+    public ApiResponse<OrderReadModel> payPending(
             HttpServletRequest request,
             @PathVariable("orderId") String orderId) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);

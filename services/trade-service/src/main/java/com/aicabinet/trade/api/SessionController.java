@@ -3,12 +3,14 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.CreateSessionRequest;
 import com.aicabinet.common.dto.LiveCartDto;
-import com.aicabinet.common.dto.OrderDto;
+import com.aicabinet.common.dto.OrderReadModel;
+import com.aicabinet.common.dto.OrderViews;
 import com.aicabinet.common.dto.SessionCartRequest;
 import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.service.SessionService;
+import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -78,8 +80,9 @@ public class SessionController {
         return ApiResponse.ok(sessionService.demoCloseSession(userId, sessionId));
     }
 
+    @JsonView(OrderViews.Consumer.class)
     @GetMapping("/{sessionId}/order")
-    public ApiResponse<OrderDto> getOrder(
+    public ApiResponse<OrderReadModel> getOrder(
             HttpServletRequest request,
             @PathVariable("sessionId") String sessionId) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);

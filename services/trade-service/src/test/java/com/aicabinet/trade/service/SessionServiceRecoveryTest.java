@@ -103,7 +103,7 @@ class SessionServiceRecoveryTest {
     @Test
     void recognitionDispute_createsHighPriorityOpsException() {
         ShoppingSession existing = session("S-DISPUTED", 7L, "CAB-001", SessionState.RECOGNIZING);
-        when(repository.findByIdForUpdate("S-DISPUTED")).thenReturn(Optional.of(existing));
+        when(repository.findById("S-DISPUTED")).thenReturn(Optional.of(existing));
         when(visionAsyncProperties.enabled()).thenReturn(false);
         when(settlementService.settle(existing))
                 .thenThrow(new DisputeRequiredException("识别服务暂时不可用，已转人工审核，本次暂未扣款"));

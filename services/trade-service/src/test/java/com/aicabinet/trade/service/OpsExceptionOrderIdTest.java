@@ -1,7 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.OpsExceptionDto;
-import com.aicabinet.common.dto.OrderDto;
+import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.dto.ResolveDisputeRequest;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.OpsException;
@@ -34,6 +34,7 @@ class OpsExceptionOrderIdTest {
 
     @Mock OpsExceptionMapper repository;
     @Mock PermissionService permissionService;
+    @Mock MerchantScopeService merchantScopeService;
     @Mock AdminAuditService auditService;
     @Mock AdminAuditLogMapper auditRepository;
     @Mock ShoppingSessionMapper sessionRepository;
@@ -48,19 +49,22 @@ class OpsExceptionOrderIdTest {
     void setUp() {
         OpsExceptionServiceSupport support = new OpsExceptionServiceSupport(
                 auditService, auditRepository, sessionRepository, settlementService, disputeService, repairTicketService);
-        service = new OpsExceptionService(repository, permissionService, support, distributedLockService, null);
+        service = new OpsExceptionService(repository, permissionService, merchantScopeService, support,
+                distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
+        org.mockito.Mockito.lenient().when(merchantScopeService.isGlobalScope(org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(true);
     }
 
     @Test
     void manualResolveConfirm_writesOrderIdToExceptionAndSession() {
         OpsException item = openRecognitionException("EX-OID-001", "S-OID-001");
         ShoppingSession session = disputedSession("S-OID-001");
-        OrderDto order = sampleOrder("ORD-CONFIRM-1", "S-OID-001");
+        OrderReadModel order = sampleOrder("ORD-CONFIRM-1", "S-OID-001");
         stubManualResolve(item, session);
         when(settlementService.confirmDisputedItems(eq(session), anyList()))
                 .thenReturn(new SettlementService.ConfirmDisputeResult(order, 0, 500, 500));
@@ -82,7 +86,7 @@ class OpsExceptionOrderIdTest {
     void manualResolveAdjust_writesOrderIdToExceptionAndSession() {
         OpsException item = openRecognitionException("EX-OID-002", "S-OID-002");
         ShoppingSession session = disputedSession("S-OID-002");
-        OrderDto order = sampleOrder("ORD-ADJUST-1", "S-OID-002");
+        OrderReadModel order = sampleOrder("ORD-ADJUST-1", "S-OID-002");
         stubManualResolve(item, session);
         when(settlementService.confirmDisputedItems(eq(session), anyList()))
                 .thenReturn(new SettlementService.ConfirmDisputeResult(order, 300, 500, 200));
@@ -193,8 +197,7 @@ class OpsExceptionOrderIdTest {
         return session;
     }
 
-    private static OrderDto sampleOrder(String orderId, String sessionId) {
-        return new OrderDto(orderId, sessionId, 1L, "DEV-1", 500, List.of(),
-                "PAID", "BALANCE", null, 1000, 500, Instant.now());
+    private static OrderReadModel sampleOrder(String orderId, String sessionId) {
+        return OrderReadModelFixtures.sample(orderId, sessionId);
     }
 }

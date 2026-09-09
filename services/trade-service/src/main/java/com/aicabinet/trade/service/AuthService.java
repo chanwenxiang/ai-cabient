@@ -184,23 +184,26 @@ public class AuthService {
         });
     }
 
-    /** 微信小程序 wx.login：已绑定 openId 直接登录；否则自动建档（竞品扫码免注册） */
-    @Transactional
+    /** 微信小程序 wx.login：code2Session 在事务外；建档/登录走短事务。 */
     public LoginResponse wxLogin(WxLoginRequest request) {
         var session = weChatMiniAppClient.code2Session(request.code());
-        return loginOrCreateByOpenId(session.openId(), request.phoneNumber());
+        return self.loginOrCreateByOpenId(session.openId(), request.phoneNumber());
     }
 
-    /** H5 微信网页授权：公众号 OAuth code → openid 后同小程序建档/登录。 */
-    @Transactional
+    /** H5 微信网页授权：OAuth 换 openid 在事务外。 */
     public LoginResponse wxH5Login(String code, String phoneNumber) {
         var session = weChatWebOAuthClient.webCode2Session(code);
-        return loginOrCreateByOpenId(session.openId(), phoneNumber);
+        return self.loginOrCreateByOpenId(session.openId(), phoneNumber);
+    }
+
+    /** 支付宝授权换 userId 在事务外；建档/登录走短事务。 */
+    public LoginResponse alipayLogin(AlipayLoginRequest request) {
+        String alipayUserId = alipayOauthClient.resolveUserId(request.authCode());
+        return self.completeAlipayLogin(alipayUserId);
     }
 
     @Transactional
-    public LoginResponse alipayLogin(AlipayLoginRequest request) {
-        String alipayUserId = alipayOauthClient.resolveUserId(request.authCode());
+    public LoginResponse completeAlipayLogin(String alipayUserId) {
         return runWithAlipayUserLock(alipayUserId, () -> {
             var byAlipay = userInfoRepository.findByAlipayUserId(alipayUserId);
             if (byAlipay.isPresent()) {
@@ -210,7 +213,8 @@ public class AuthService {
         });
     }
 
-    private LoginResponse loginOrCreateByOpenId(String openId, String phoneNumber) {
+    @Transactional
+    public LoginResponse loginOrCreateByOpenId(String openId, String phoneNumber) {
         return runWithWxOpenIdLock(openId, () -> {
             var byOpenId = userInfoRepository.findByWxOpenId(openId);
             if (byOpenId.isPresent()) {

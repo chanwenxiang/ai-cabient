@@ -241,29 +241,29 @@ public class AdminDashboardService {
     }
 
     @Transactional(readOnly = true)
-    public PageResult<AdminOrderSummaryDto> listOrders(Long operatorId, int page, int size, String deviceId) {
+    public PageResult<OrderReadModel> listOrders(Long operatorId, int page, int size, String deviceId) {
         return sessionOrderQueryService.listOrders(operatorId, page, size, deviceId);
     }
 
     @Transactional(readOnly = true)
-    public PageResult<AdminOrderSummaryDto> listOrders(
+    public PageResult<OrderReadModel> listOrders(
             Long operatorId, int page, int size, String deviceId, String status) {
         return sessionOrderQueryService.listOrders(operatorId, page, size, deviceId, status);
     }
 
     @Transactional(readOnly = true)
-    public PageResult<AdminOrderSummaryDto> listOrders(
+    public PageResult<OrderReadModel> listOrders(
             Long operatorId, int page, int size, String deviceId, String status, boolean overdueOnly) {
         return sessionOrderQueryService.listOrders(operatorId, page, size, deviceId, status, overdueOnly);
     }
 
     @Transactional(readOnly = true)
-    public PageResult<AdminOrderSummaryDto> listOrders(Long operatorId, OpsSessionOrderQueryService.OrderListQuery query) {
+    public PageResult<OrderReadModel> listOrders(Long operatorId, OpsSessionOrderQueryService.OrderListQuery query) {
         return sessionOrderQueryService.listOrders(operatorId, query);
     }
 
     @Transactional(readOnly = true)
-    public OrderDto getOrder(Long operatorId, String orderId) {
+    public OrderReadModel getOrder(Long operatorId, String orderId) {
         return sessionOrderQueryService.getOrder(operatorId, orderId);
     }
 

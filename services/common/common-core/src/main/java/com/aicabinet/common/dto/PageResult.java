@@ -1,10 +1,12 @@
 package com.aicabinet.common.dto;
 
+import com.fasterxml.jackson.annotation.JsonView;
+
 import java.util.List;
 
 public record PageResult<T>(
-        List<T> items,
-        int page,
-        int size,
-        long total
+        @JsonView(OrderViews.Public.class) List<T> items,
+        @JsonView(OrderViews.Public.class) int page,
+        @JsonView(OrderViews.Public.class) int size,
+        @JsonView(OrderViews.Public.class) long total
 ) {}

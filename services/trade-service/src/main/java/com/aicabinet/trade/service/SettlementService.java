@@ -1,8 +1,7 @@
 package com.aicabinet.trade.service;
 import com.aicabinet.common.constants.CabinetConstants;
 
-import com.aicabinet.common.dto.OrderDto;
-import com.aicabinet.common.dto.OrderLineDto;
+import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.dto.OrderRefundRequest;
 import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.client.VisionServiceClient;
@@ -11,6 +10,7 @@ import com.aicabinet.trade.config.StagingProperties;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.messaging.VisionRecognitionProducer;
 import com.aicabinet.trade.mapper.*;
+import com.aicabinet.trade.service.view.OrderViewAssembler;
 import com.aicabinet.trade.support.ApiMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,6 +64,7 @@ public class SettlementService {
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final SettlementService self;
     private final DisplaySnapshotHelper displaySnapshotHelper;
+    private final OrderViewAssembler orderViewAssembler;
 
     public SettlementService(ShoppingSessionMapper sessionRepository,
                              SkuCatalogMapper skuCatalogRepository,
@@ -93,7 +94,8 @@ public class SettlementService {
                              SystemConfigService systemConfigService,
                              DistributedLockService distributedLockService,
                              @Lazy SettlementService self,
-                             DisplaySnapshotHelper displaySnapshotHelper) {
+                             DisplaySnapshotHelper displaySnapshotHelper,
+                             OrderViewAssembler orderViewAssembler) {
         this.sessionRepository = sessionRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.orderRepository = orderRepository;
@@ -123,42 +125,63 @@ public class SettlementService {
         this.distributedLockService = distributedLockService;
         this.self = self;
         this.displaySnapshotHelper = displaySnapshotHelper;
+        this.orderViewAssembler = orderViewAssembler;
     }
 
     /** 人工审核后确认清单：无订单则首次扣款；有订单则按差额退/补。 */
     public record ConfirmDisputeResult(
-            OrderDto order,
+            OrderReadModel order,
             int originalAmountCents,
             int finalAmountCents,
             int adjustmentCents
     ) {}
 
-    @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
-    public OrderDto settle(ShoppingSession session) {
+    /**
+     * 视觉识别 HTTP 在事务外；分布式锁内先识别再短事务落库/扣款，避免占用 DB 连接等待 vision。
+     */
+    public OrderReadModel settle(ShoppingSession session) {
         return runWithSessionSettleLock(session.getSessionId(), () -> {
-            sessionRepository.findByIdForUpdate(session.getSessionId());
             if (orderRepository.findBySessionId(session.getSessionId()).isPresent()) {
                 return toDto(orderRepository.findBySessionId(session.getSessionId()).get());
             }
             deviceValidationService.ensureSettlementAllowed(session.getDeviceId());
 
+            VisionServiceClient.RecognitionResult recognition;
             try {
-                VisionServiceClient.RecognitionResult recognition = visionClient.recognize(session);
+                recognition = visionClient.recognize(session);
                 recognition = withGravityFallback(session, recognition);
-                return processRecognitionResultUnlocked(session, recognition);
             } catch (RestClientException | IllegalStateException e) {
                 VisionServiceClient.RecognitionResult unavailable = new VisionServiceClient.RecognitionResult(
                         "UNAVAILABLE-" + session.getSessionId(), List.of(), 0f, true,
                         "vision-unavailable", List.of());
-                escalateToDispute(session, unavailable, "识别服务暂时不可用，已转人工审核，本次暂未扣款");
-                throw new IllegalStateException(
-                        "vision unavailable session=" + session.getSessionId(), e);
+                log.warn("vision unavailable session={}", session.getSessionId(), e);
+                // 经代理进入短事务写争议单，并抛出 DisputeRequiredException
+                return self.escalateVisionUnavailable(session, unavailable);
             }
+            return self.processRecognitionAfterVision(session, recognition);
         });
     }
 
+    /** 识别已完成：短事务内 forUpdate + 落单/扣款。 */
     @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
-    public OrderDto processRecognitionResult(ShoppingSession session,
+    public OrderReadModel processRecognitionAfterVision(ShoppingSession session,
+                                                        VisionServiceClient.RecognitionResult recognition) {
+        sessionRepository.findByIdForUpdate(session.getSessionId());
+        return processRecognitionResultUnlocked(session, recognition);
+    }
+
+    /**
+     * 识别不可用：短事务建争议单后抛 {@link DisputeRequiredException}（方法签名供调用方 return）。
+     */
+    @Transactional(noRollbackFor = {DisputeRequiredException.class})
+    public OrderReadModel escalateVisionUnavailable(ShoppingSession session,
+                                                    VisionServiceClient.RecognitionResult unavailable) {
+        escalateToDispute(session, unavailable, "识别服务暂时不可用，已转人工审核，本次暂未扣款");
+        throw new IllegalStateException("unreachable after dispute escalate");
+    }
+
+    @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
+    public OrderReadModel processRecognitionResult(ShoppingSession session,
                                              VisionServiceClient.RecognitionResult recognition) {
         return self.processRecognitionResult(session, recognition, true);
     }
@@ -169,7 +192,7 @@ public class SettlementService {
      * @param allowDevFallback 为 false 时不注入 mock SKU（运营识别测试）
      */
     @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
-    public OrderDto processRecognitionResult(ShoppingSession session,
+    public OrderReadModel processRecognitionResult(ShoppingSession session,
                                              VisionServiceClient.RecognitionResult recognition,
                                              boolean allowDevFallback) {
         return runWithSessionSettleLock(session.getSessionId(), () -> {
@@ -178,12 +201,12 @@ public class SettlementService {
         });
     }
 
-    private OrderDto processRecognitionResultUnlocked(ShoppingSession session,
+    private OrderReadModel processRecognitionResultUnlocked(ShoppingSession session,
                                                       VisionServiceClient.RecognitionResult recognition) {
         return processRecognitionResultUnlocked(session, recognition, true);
     }
 
-    private OrderDto processRecognitionResultUnlocked(ShoppingSession session,
+    private OrderReadModel processRecognitionResultUnlocked(ShoppingSession session,
                                                       VisionServiceClient.RecognitionResult recognition,
                                                       boolean allowDevFallback) {
         var existingOrder = orderRepository.findBySessionId(session.getSessionId());
@@ -200,7 +223,7 @@ public class SettlementService {
             throw new IllegalStateException("recognition result is null after gravity/review normalize");
         }
 
-        OrderDto early = trySettleWhenReviewRequired(session, recognition, allowDevFallback);
+        OrderReadModel early = trySettleWhenReviewRequired(session, recognition, allowDevFallback);
         if (early != null) {
             return early;
         }
@@ -215,7 +238,7 @@ public class SettlementService {
 
         String confidenceReason = confidenceService.reviewReasonIfNeeded(recognition);
         if (confidenceReason != null) {
-            OrderDto stagingOrder = tryStagingGravitySettle(session);
+            OrderReadModel stagingOrder = tryStagingGravitySettle(session);
             if (stagingOrder != null) {
                 return stagingOrder;
             }
@@ -240,7 +263,7 @@ public class SettlementService {
      * 视觉显式 need_review：沙箱 gravity-fill / 本地 mock 重力证据可静默结算，否则进审单。
      * @return 已结算订单，或 null 表示未拦截（继续后续路径）
      */
-    private OrderDto trySettleWhenReviewRequired(ShoppingSession session,
+    private OrderReadModel trySettleWhenReviewRequired(ShoppingSession session,
                                                  VisionServiceClient.RecognitionResult recognition,
                                                  boolean allowDevFallback) {
         if (!recognition.needReview()) {
@@ -248,14 +271,14 @@ public class SettlementService {
         }
         // 沙箱：gravity-fill（视觉空+重力有货）允许按重力结算；错配仍禁止静默扣款
         if (!blocksSilentSettle(recognition) || allowsSandboxGravityFillSettle(recognition)) {
-            OrderDto stagingOrder = tryStagingGravitySettle(session);
+            OrderReadModel stagingOrder = tryStagingGravitySettle(session);
             if (stagingOrder != null) {
                 return stagingOrder;
             }
         }
         // 本地 mock：有重力扣减证据时按购物车结算（OBS-012）；纯 mock 无证据仍进审单
         if (allowDevFallback) {
-            OrderDto cartOrder = tryDevMockEvidenceSettle(session, recognition);
+            OrderReadModel cartOrder = tryDevMockEvidenceSettle(session, recognition);
             if (cartOrder != null) {
                 return cartOrder;
             }
@@ -267,7 +290,7 @@ public class SettlementService {
     /**
      * 本地 mock 自动结算路径：标称结果不可当作生产精度，有重力证据或沙箱 gravity-fill 除外。
      */
-    private OrderDto trySettleDevMock(ShoppingSession session,
+    private OrderReadModel trySettleDevMock(ShoppingSession session,
                                       VisionServiceClient.RecognitionResult recognition,
                                       boolean allowDevFallback) {
         if (!allowDevFallback || !securityProperties.mockEnabled()) {
@@ -275,12 +298,12 @@ public class SettlementService {
         }
         if (blocksSilentSettle(recognition)) {
             if (allowsSandboxGravityFillSettle(recognition)) {
-                OrderDto stagingOrder = tryStagingGravitySettle(session);
+                OrderReadModel stagingOrder = tryStagingGravitySettle(session);
                 if (stagingOrder != null) {
                     return stagingOrder;
                 }
             }
-            OrderDto cartOrder = tryDevMockEvidenceSettle(session, recognition);
+            OrderReadModel cartOrder = tryDevMockEvidenceSettle(session, recognition);
             if (cartOrder != null) {
                 return cartOrder;
             }
@@ -301,13 +324,13 @@ public class SettlementService {
     }
 
     /** 视觉空结果：重力零结 / mock 零结 / 进审单。 */
-    private OrderDto trySettleEmptyRecognition(ShoppingSession session,
+    private OrderReadModel trySettleEmptyRecognition(ShoppingSession session,
                                                VisionServiceClient.RecognitionResult recognition,
                                                boolean allowDevFallback) {
         if (!recognition.items().isEmpty()) {
             return null;
         }
-        OrderDto stagingOrder = tryStagingGravitySettle(session);
+        OrderReadModel stagingOrder = tryStagingGravitySettle(session);
         if (stagingOrder != null) {
             return stagingOrder;
         }
@@ -358,7 +381,7 @@ public class SettlementService {
     }
 
     /** 预发/沙箱 E2E：有重力扣减信号时优先按重力结算，避免无真实购物视频时误入争议。 */
-    private OrderDto tryStagingGravitySettle(ShoppingSession session) {
+    private OrderReadModel tryStagingGravitySettle(ShoppingSession session) {
         if (!allowsGravityEvidenceSettle()) {
             return null;
         }
@@ -394,7 +417,7 @@ public class SettlementService {
      * 覆盖 mock-v1 / gravity-fill / gravity-mismatch（演示柜模拟器常带重力，视觉 mock 易错配）。
      * 生产（mock 关闭）不走此分支；无重力证据返回 null，由调用方进审单。
      */
-    private OrderDto tryDevMockEvidenceSettle(ShoppingSession session,
+    private OrderReadModel tryDevMockEvidenceSettle(ShoppingSession session,
                                              VisionServiceClient.RecognitionResult recognition) {
         if (!allowsGravityEvidenceSettle()) {
             return null;
@@ -487,14 +510,24 @@ public class SettlementService {
             throw new IllegalStateException("vision async not enabled");
         }
         String taskId = "T-" + session.getSessionId();
+        self.persistRecognitionTaskId(session.getSessionId(), taskId);
         session.setRecognitionTaskId(taskId);
-        sessionRepository.save(session);
         producer.publish(session.getSessionId(), session.getVideoUri(), taskId,
                 session.getVideoClips(), session.getCameraFusionMode());
     }
 
     @Transactional
-    public OrderDto settleManual(ShoppingSession session,
+    public void persistRecognitionTaskId(String sessionId, String taskId) {
+        ShoppingSession session = sessionRepository.findByIdForUpdate(sessionId).orElse(null);
+        if (session == null) {
+            return;
+        }
+        session.setRecognitionTaskId(taskId);
+        sessionRepository.save(session);
+    }
+
+    @Transactional
+    public OrderReadModel settleManual(ShoppingSession session,
                                  List<VisionServiceClient.RecognizedItem> items) {
         return runWithSessionSettleLock(session.getSessionId(), () -> {
             sessionRepository.findByIdForUpdate(session.getSessionId());
@@ -522,7 +555,7 @@ public class SettlementService {
 
         var existing = orderRepository.findBySessionId(session.getSessionId());
         if (existing.isEmpty()) {
-            OrderDto order = finalizeOrder(session, items);
+            OrderReadModel order = finalizeOrder(session, items);
             int amount = order.totalAmountCents();
             return new ConfirmDisputeResult(order, 0, amount, amount);
         }
@@ -912,7 +945,7 @@ public class SettlementService {
         return remaining;
     }
 
-    private OrderDto finalizeOrder(ShoppingSession session,
+    private OrderReadModel finalizeOrder(ShoppingSession session,
                                    List<VisionServiceClient.RecognizedItem> items) {
         deviceValidationService.ensureSettlementAllowed(session.getDeviceId());
         CabinetOrder order = buildOrder(session, items);
@@ -993,7 +1026,7 @@ public class SettlementService {
         }
     }
 
-    private OrderDto finishUnpaidOrder(ShoppingSession session, CabinetOrder order) {
+    private OrderReadModel finishUnpaidOrder(ShoppingSession session, CabinetOrder order) {
         session.setOrderId(order.getOrderId());
         sessionRepository.save(session);
         videoArchiveService.archiveAfterSettlement(session);
@@ -1159,17 +1192,14 @@ public class SettlementService {
         order.setSessionId(session.getSessionId());
         order.setUserId(session.getUserId());
         order.setDeviceId(session.getDeviceId());
-        if (session.getDeviceName() != null && !session.getDeviceName().isBlank()) {
-            order.setDeviceName(session.getDeviceName());
-        }
-        displaySnapshotHelper.applyOrderSnapshot(order);
+        displaySnapshotHelper.stampOrderSnapshot(order);
         order.setStatus("PAID");
         applyItemsToOrder(order, items);
         return order;
     }
 
     @Transactional(readOnly = true)
-    public OrderDto getOrderBySession(String sessionId) {
+    public OrderReadModel getOrderBySession(String sessionId) {
         return orderRepository.findBySessionId(sessionId)
                 .map(this::toDto)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
@@ -1207,64 +1237,19 @@ public class SettlementService {
         order.setLines(new java.util.ArrayList<>(orderLineRepository.findByOrderId(order.getOrderId())));
     }
 
-    private OrderDto toDto(CabinetOrder order) {
+    private OrderReadModel toDto(CabinetOrder order) {
         hydrateOrderLines(order);
-        Integer couponDiscount = order.getCouponDiscountCents() > 0
-                ? Integer.valueOf(order.getCouponDiscountCents())
+        String refundPolicy = refundPolicyService != null
+                ? refundPolicyService.resolveForDevice(order.getDeviceId()).name()
                 : null;
-        // Avoid int/null nested ternary: javac unboxes the Integer branch and NPEs on null.
-        Integer originalAmount = null;
-        if (order.getOriginalAmountCents() > 0) {
-            originalAmount = order.getOriginalAmountCents();
-        } else if (order.getCouponDiscountCents() > 0) {
-            originalAmount = order.getTotalAmountCents() + order.getCouponDiscountCents();
-        }
-        List<OrderLineDto> lines = order.getLines() == null
-                ? List.of()
-                : order.getLines().stream()
-                        .map(l -> new OrderLineDto(
-                                l.getSkuId(), l.getSkuName(), l.getQuantity(),
-                                l.getUnitPriceCents(), l.getLineAmountCents(), l.getBatchNo(), l.getSlotId()))
-                        .toList();
-        Integer memberDiscount = order.getMemberDiscountCents() > 0
-                ? Integer.valueOf(order.getMemberDiscountCents())
-                : null;
-        if (originalAmount == null && order.getMemberDiscountCents() > 0) {
-            originalAmount = order.getTotalAmountCents()
-                    + order.getCouponDiscountCents()
-                    + order.getMemberDiscountCents();
-        }
-        displaySnapshotHelper.applyOrderSnapshot(order);
-        String merchantId = order.getMerchantId();
-        String deviceName = order.getDeviceName();
-        String merchantName = order.getMerchantName();
-        return new OrderDto(
-                order.getOrderId(),
-                order.getSessionId(),
-                order.getUserId(),
-                order.getDeviceId(),
-                order.getTotalAmountCents(),
-                lines,
-                order.getStatus(),
-                order.getPayChannel() != null ? order.getPayChannel() : "BALANCE",
-                order.getPaymentOperationId(), order.getBalanceBeforeCents(), order.getBalanceAfterCents(),
-                order.getCreatedAt(),
-                couponDiscount,
-                originalAmount,
-                refundPolicyService != null
-                        ? refundPolicyService.resolveForDevice(order.getDeviceId()).name()
-                        : null,
-                memberDiscount,
-                order.getPayTradeNo(),
-                order.getRefundedAt(),
-                order.isInventoryDeducted(),
-                merchantId,
-                Math.max(0, order.getRefundedCents()),
-                deviceName,
-                merchantName,
+        String splitStatus = revenueSplitService.findStatusByOrderId(order.getOrderId()).orElse(null);
+        return orderViewAssembler.assembleDetail(
+                order,
+                order.getLines(),
+                splitStatus,
                 resolvePaidAt(order),
-                revenueSplitService.findStatusByOrderId(order.getOrderId()).orElse(null)
-        );
+                refundPolicy,
+                null);
     }
 
     private Instant resolvePaidAt(CabinetOrder order) {

@@ -25,6 +25,7 @@ class OpsExceptionReverseSyncTest {
 
     @Mock OpsExceptionMapper repository;
     @Mock PermissionService permissionService;
+    @Mock MerchantScopeService merchantScopeService;
     @Mock AdminAuditService auditService;
     @Mock AdminAuditLogMapper auditRepository;
     @Mock ShoppingSessionMapper sessionRepository;
@@ -39,7 +40,8 @@ class OpsExceptionReverseSyncTest {
     void setUp() {
         OpsExceptionServiceSupport support = new OpsExceptionServiceSupport(
                 auditService, auditRepository, sessionRepository, settlementService, disputeService, repairTicketService);
-        service = new OpsExceptionService(repository, permissionService, support, distributedLockService, null);
+        service = new OpsExceptionService(repository, permissionService, merchantScopeService, support,
+                distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),

@@ -68,7 +68,7 @@ public class MerchantWalletController {
         long amount = body.get(AMOUNTCENTS) instanceof Number n ? n.longValue()
                 : Long.parseLong(String.valueOf(body.get(AMOUNTCENTS)));
         String requestNo = body.get("requestNo") == null ? null : String.valueOf(body.get("requestNo"));
-        return ApiResponse.ok(merchantWithdrawService.apply(merchantId, amount, requestNo));
+        return ApiResponse.ok(merchantWithdrawService.apply(operator(request), merchantId, amount, requestNo));
     }
 
     private Long operator(HttpServletRequest request) {
