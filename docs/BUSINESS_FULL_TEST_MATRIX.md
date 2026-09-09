@@ -101,7 +101,7 @@
 | 5 | 设备报表 | `/reports` | `ops:report:device` | `reports/DeviceReportView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「设备报表」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 | 6 | 财务毛利 | `/finance` | `ops:finance:view` | `finance/FinanceView.vue` | 返回工作台、固化昨日毛利、刷新 | 列表加载；关键写操作二次确认 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 | 7 | 销售报表 | `/sales-reports` | `ops:sales-report:list` | `reports/SalesReportsView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「销售报表」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 8 | 库存健康 | `/stock-health` | `ops:stock-health:list` | `reports/StockHealthView.vue` | 一键补货规划（、台） | 打开「库存健康」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 8 | 库存健康 | `/stock-health` | `ops:stock-health:list` | `reports/StockHealthView.vue` | 一键补货规划（、台） | 打开「库存健康」；列表或表单可用；关键写操作有中文反馈 | PASS（L3 2026-09-09：列表/刷新 L2；`planDeviceIds=0` 时「一键补货规划」正确隐藏；截图 `l3-stock-health.png`） |
 | 9 | 用户分析 | `/user-analysis` | `ops:user-analysis:view` | `growth/UserAnalysisView.vue` | 导出沉睡名单、导出复购榜 | 打开「用户分析」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 
 ### 1.2 交易履约
@@ -133,8 +133,8 @@
 
 | # | 菜单 | 路径 | 权限码 | 源码视图 | 源码按钮（抽样） | 建议验收要点 | 状态 |
 |---|------|------|--------|----------|------------------|--------------|------|
-| 1 | 补货调度 | `/replenishment` | `ops:replenishment:list` | `replenishment/ReplenishmentView.vue` | 规划补货路线、创建路线 | 规划路线；任务状态 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 2 | 仓库 | `/warehouse` | `ops:warehouse:list` | `warehouse/WarehouseView.vue` | 编辑、保存、确认付款、创建、确认入库、确认移库、添加一行、取消、确认收货 | 打开「仓库」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 1 | 补货调度 | `/replenishment` | `ops:replenishment:list` | `replenishment/ReplenishmentView.vue` | 规划补货路线、创建路线 | 规划路线；任务状态 | PASS（L3 2026-09-09：`POST /replenishment/plan` routeId=5 taskId=5 PENDING CAB-001；Playwright「规划补货路线」弹窗；截图 `l3-replenishment*.png`） |
+| 2 | 仓库 | `/warehouse` | `ops:warehouse:list` | `warehouse/WarehouseView.vue` | 编辑、保存、确认付款、创建、确认入库、确认移库、添加一行、取消、确认收货 | 打开「仓库」；列表或表单可用；关键写操作有中文反馈 | PASS（L3 2026-09-09：`POST /warehouse/inbound` ref=`L3-IN-*` batch 入账 qty=2；Playwright 库存组「其他入库」+货位写按钮；截图 `l3-warehouse*.png`） |
 | 3 | 固件版本 | `/ota` | `ops:ota:list` | `ota/OtaView.vue` | 批量下架、发布版本、刷新、下架、发布 | 打开「固件版本」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 | 4 | 服务时限监控 | `/sla` | `ops:sla` | `sla/SlaView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「服务时限监控」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 | 5 | 补货员效率 | `/replenishment-staff` | `ops:replenishment:list` | `growth/ReplenishmentStaffView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「补货员效率」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
@@ -626,6 +626,7 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 再续11：recognition-demo PASS（vite DEV + ENABLE_TEST_TOOLS；识别 SKU-SODA-001 75%）；§12.3 小程序原生项标 BLOCK/DOCUMENTED（client:h5 收口）。
   - 再续12（2026-09-09）：补货可配置门禁实机验 C-04 PASS。先重建/重启 trade-service（旧镜像无 `/me` 门禁字段）。API：空定位拦/关定位可签；500m 过远拦 / max=0 放行；完成须开门拦 / 关门禁后越过；须凭证拦；`/me` 四字段跟随配置。UI：参数配置搜 replenishment 四键可见；商户任务#4 详情提示「当前策略未强制定位签到（若上报坐标，须在柜前 500 米内）」。默认已恢复 true/500/true/true。截图 `docs/uat-screenshots/2026-09-09/`。
   - 再续13（2026-09-09）：运营后台写按钮 L3 Batch1（设备/商品）。`/devices` 新建 `545117487697`；`/repair-tickets` ticket=2 OPEN→DONE；`/skus` 新建 `SKU-100056`；`/vision-mappings` YOLO 临时类增删；`/sku-vision` enroll 保存 DRAFT。Playwright 页可达+写按钮弹窗截图 `l3-devices|repair|skus|vision|sku-vision*.png`；ID 见 `batch1-ids.txt`。
+  - 再续14（2026-09-09）：运营后台写按钮 L3 Batch2（仓配/补货）。仓库 inbound `L3-IN-*`/`L3-BATCH-*` SKU-DEMO-001 qty=2 库存可见；补货 plan route=5/task=5；库存健康列表 OK、无缺货时一键规划隐藏。截图 `l3-warehouse|replenishment|stock-health*.png`；ID `batch2-ids.txt`。
   - 证据目录: docs/uat-screenshots/2026-09-08/ · 2026-09-09/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
     withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /
