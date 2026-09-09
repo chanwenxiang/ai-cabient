@@ -1,0 +1,7 @@
+﻿devices=545117487697
+repair=2
+sku=SKU-100056
+visionClass=uat_l3_cls_1788920071
+notes=API create+repair DONE; Playwright pages+create dialogs 2026-09-09
+visionClass2=uat_l3_cls_1788920562
+enrollClass=uat_l3_enroll_1788920562

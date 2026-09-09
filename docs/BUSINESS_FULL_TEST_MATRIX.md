@@ -118,14 +118,14 @@
 | # | 菜单 | 路径 | 权限码 | 源码视图 | 源码按钮（抽样） | 建议验收要点 | 状态 |
 |---|------|------|--------|----------|------------------|--------------|------|
 | 1 | 设备运维 | `/device-ops` | `ops:device-ops:list` | `devices/DeviceOpsMonitorView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「设备运维」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 2 | 设备管理 | `/devices` | `ops:device:list` | `devices/DeviceListView.vue` | 新建设备、刷新、创建 | 新建/创建；进详情 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 2 | 设备管理 | `/devices` | `ops:device:list` | `devices/DeviceListView.vue` | 新建设备、刷新、创建 | 新建/创建；进详情 | PASS（L3 2026-09-09：API 新建 `545117487697`；Playwright 列表+「新建设备」弹窗；截图 `l3-devices*.png`） |
 | 3 | 投放地图 | `/device-map` | `ops:device-map:view` | `devices/DeviceMapView.vue` | 详情 | 打开「投放地图」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 | 4 | 设备可用性 | `/device-kpi` | `ops:device-kpi:view` | `devices/DeviceKpiView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「设备可用性」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 5 | 维修工单 | `/repair-tickets` | `ops:repair:list` | `devices/RepairTicketsView.vue` | 批量指派、新建工单、刷新、详情、开始处理、完成、取消、创建、确认指派 | 打开「维修工单」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 6 | 商品管理 | `/skus` | `ops:sku:list` | `skus/SkuListView.vue` | 导入模板、导入、识别入驻、新建商品、刷新 | 新建商品；导入 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 5 | 维修工单 | `/repair-tickets` | `ops:repair:list` | `devices/RepairTicketsView.vue` | 批量指派、新建工单、刷新、详情、开始处理、完成、取消、创建、确认指派 | 打开「维修工单」；列表或表单可用；关键写操作有中文反馈 | PASS（L3 2026-09-09：ticket=`2` OPEN→IN_PROGRESS→DONE on CAB-001；Playwright「新建工单」弹窗；截图 `l3-repair*.png`） |
+| 6 | 商品管理 | `/skus` | `ops:sku:list` | `skus/SkuListView.vue` | 导入模板、导入、识别入驻、新建商品、刷新 | 新建商品；导入 | PASS（L3 2026-09-09：API 新建 `SKU-100056`；Playwright「新建商品」弹窗；截图 `l3-skus*.png`） |
 | 7 | 选品诊断 | `/sku-review` | `ops:sku-review:list` | `growth/SkuReviewView.vue` | 批量下架、批量保留、运行诊断、建议下架、保留、确认下架 | 打开「选品诊断」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 8 | 识别入驻 | `/sku-vision` | `ops:sku:list` | `skus/SkuVisionEnrollView.vue` | 导入模板、导入、商品管理、入驻配置、保存入驻、关闭 | 打开「识别入驻」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 9 | 识别映射 | `/vision-mappings` | `ops:vision:list` | `vision/VisionMappingView.vue` | 商品管理、新增映射、编辑、删除、取消、保存 | 打开「识别映射」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 8 | 识别入驻 | `/sku-vision` | `ops:sku:list` | `skus/SkuVisionEnrollView.vue` | 导入模板、导入、商品管理、入驻配置、保存入驻、关闭 | 打开「识别入驻」；列表或表单可用；关键写操作有中文反馈 | PASS（L3 2026-09-09：`POST /sku-vision/enroll` 保存 `SKU-100056` DRAFT conf=0.55；Playwright「入驻配置」；截图 `l3-sku-vision*.png`） |
+| 9 | 识别映射 | `/vision-mappings` | `ops:vision:list` | `vision/VisionMappingView.vue` | 商品管理、新增映射、编辑、删除、取消、保存 | 打开「识别映射」；列表或表单可用；关键写操作有中文反馈 | PASS（L3 2026-09-09：YOLO 映射 CRUD `uat_l3_cls_*`→SKU-100056→DELETE code=0；Playwright「新增映射」弹窗；截图 `l3-vision*.png`） |
 | 10 | 录像上传 | `/upload-queue` | `ops:session:upload` | `upload/UploadQueueView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「录像上传」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 | 11 | 识别演示 | `/recognition-demo` | `ops:recognition-demo:view` | `vision/RecognitionDemoView.vue` | 识别映射、商品管理、清空 | 打开「识别演示」；列表或表单可用；关键写操作有中文反馈 | PASS（`VITE_ENABLE_TEST_TOOLS`+vite DEV：侧栏可见；上传 shelf-sample→识别 雪碧/`SKU-SODA-001` 75%；生产包无该路由仍门控） |
 
@@ -625,6 +625,7 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 再续10：S-08 ACCRUED PASS（有 wechat_receiver 时本地钱包不入账）；当时矩阵收口曾记 recognition-demo SKIP（再续11 已 PASS）。
   - 再续11：recognition-demo PASS（vite DEV + ENABLE_TEST_TOOLS；识别 SKU-SODA-001 75%）；§12.3 小程序原生项标 BLOCK/DOCUMENTED（client:h5 收口）。
   - 再续12（2026-09-09）：补货可配置门禁实机验 C-04 PASS。先重建/重启 trade-service（旧镜像无 `/me` 门禁字段）。API：空定位拦/关定位可签；500m 过远拦 / max=0 放行；完成须开门拦 / 关门禁后越过；须凭证拦；`/me` 四字段跟随配置。UI：参数配置搜 replenishment 四键可见；商户任务#4 详情提示「当前策略未强制定位签到（若上报坐标，须在柜前 500 米内）」。默认已恢复 true/500/true/true。截图 `docs/uat-screenshots/2026-09-09/`。
+  - 再续13（2026-09-09）：运营后台写按钮 L3 Batch1（设备/商品）。`/devices` 新建 `545117487697`；`/repair-tickets` ticket=2 OPEN→DONE；`/skus` 新建 `SKU-100056`；`/vision-mappings` YOLO 临时类增删；`/sku-vision` enroll 保存 DRAFT。Playwright 页可达+写按钮弹窗截图 `l3-devices|repair|skus|vision|sku-vision*.png`；ID 见 `batch1-ids.txt`。
   - 证据目录: docs/uat-screenshots/2026-09-08/ · 2026-09-09/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
     withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /
