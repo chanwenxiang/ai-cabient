@@ -159,17 +159,17 @@
 
 | # | 菜单 | 路径 | 权限码 | 源码视图 | 源码按钮（抽样） | 建议验收要点 | 状态 |
 |---|------|------|--------|----------|------------------|--------------|------|
-| 1 | 手机验证 | `/phone-verify` | `ops:phone-verify:list` | `users/PhoneVerifyView.vue` | 登记验证、编辑、删除、保存 | 打开「手机验证」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 1 | 手机验证 | `/phone-verify` | `ops:phone-verify:list` | `users/PhoneVerifyView.vue` | 登记验证、编辑、删除、保存 | 打开「手机验证」；列表或表单可用；关键写操作有中文反馈 | PASS（L3 2026-09-09：登记→编辑→删除演示号 logId=2；Playwright「登记验证」；截图 `l3-phone-verify*.png`） |
 | 2 | 风控 | `/risk` | `ops:risk:list` | `risk/RiskView.vue` | 加入黑名单、确认 | **L3**：拉黑后该用户开门/支付被拒；解黑恢复；审计可查 | PASS（L1 页可达；L3 见 R-01/R-02） |
-| 3 | 营销活动 | `/promotions` | `ops:promotion:list` | `promotions/PromotionsView.vue` | 导入模板、导入、批量停用、新建活动、刷新、保存 | 新建/保存/启停后列表刷新 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 4 | 优惠券 | `/coupons` | `ops:coupon:list` | `promotions/CouponsView.vue` | 导入模板、导入、批量停用、新建优惠券、手动发券、批量发券、保存、发放、批量发放 | **L3**：发券后消费者可见；下单抵扣；停用后不可用；超发被拒 | PASS（MK-01+MK-02：发券可见；下单抵扣 350→300） |
-| 5 | 素材库 | `/ad-assets` | `ops:ad:list` | `growth/AdAssetsView.vue` | 批量停用、批量删除、上传素材、上传、保存 | 新建/保存/启停后列表刷新 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 6 | 投放计划 | `/ad-campaigns` | `ops:ad:campaign:list` | `growth/AdCampaignsView.vue` | 批量停止、新建投放、保存 | 新建/保存/启停后列表刷新 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 7 | 积分兑换管理 | `/points-redeem` | `ops:points:list` | `growth/PointsRedeemView.vue` | 批量上架、批量下架、新建兑换项、刷新、保存 | 新建/保存/启停后列表刷新 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 8 | 会员等级规则 | `/member-levels` | `ops:member-level:list` | `growth/MemberLevelsView.vue` | 批量启用、批量停用、新建等级、刷新、编辑、展示名： 取消、保存 | 新建/保存/启停后列表刷新 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 3 | 营销活动 | `/promotions` | `ops:promotion:list` | `promotions/PromotionsView.vue` | 导入模板、导入、批量停用、新建活动、刷新、保存 | 新建/保存/启停后列表刷新 | PASS（L3 2026-09-09：新建活动 id=1 后 stop；Playwright「新建活动」；截图 `l3-promotions*.png`） |
+| 4 | 优惠券 | `/coupons` | `ops:coupon:list` | `promotions/CouponsView.vue` | 导入模板、导入、批量停用、新建优惠券、手动发券、批量发券、保存、发放、批量发放 | **L3**：发券后消费者可见；下单抵扣；停用后不可用；超发被拒 | PASS（L3 2026-09-09：MK-01/02 深测保留；本轮 def=1 ACTIVE↔INACTIVE 启停+UI「新建优惠券」；截图 `l3-coupons*.png`） |
+| 5 | 素材库 | `/ad-assets` | `ops:ad:list` | `growth/AdAssetsView.vue` | 批量停用、批量删除、上传素材、上传、保存 | 新建/保存/启停后列表刷新 | PASS（L3 2026-09-09：上传素材 assetId=1；Playwright「上传素材」；截图 `l3-ad-assets*.png`） |
+| 6 | 投放计划 | `/ad-campaigns` | `ops:ad:campaign:list` | `growth/AdCampaignsView.vue` | 批量停止、新建投放、保存 | 新建/保存/启停后列表刷新 | PASS（L3 2026-09-09：新建投放 campaignId=1 后 stop；Playwright「新建投放」；截图 `l3-ad-campaigns*.png`） |
+| 7 | 积分兑换管理 | `/points-redeem` | `ops:points:list` | `growth/PointsRedeemView.vue` | 批量上架、批量下架、新建兑换项、刷新、保存 | 新建/保存/启停后列表刷新 | PASS（L3 2026-09-09：新建兑换项 itemId=2 INACTIVE；Playwright「新建兑换项」；截图 `l3-points-redeem*.png`） |
+| 8 | 会员等级规则 | `/member-levels` | `ops:member-level:list` | `growth/MemberLevelsView.vue` | 批量启用、批量停用、新建等级、刷新、编辑、展示名： 取消、保存 | 新建/保存/启停后列表刷新 | PASS（L3 2026-09-09：新建等级 id=3 INACTIVE；Playwright「新建等级」；截图 `l3-member-levels*.png`） |
 | 9 | 活动效果分析 | `/marketing-roi` | `ops:marketing-roi:view` | `growth/MarketingRoiView.vue` | （模板未扫到 el-button 或按钮为动态/插槽） | 打开「活动效果分析」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 10 | 消息记录 | `/notifications` | `ops:notify:list` | `growth/NotificationsView.vue` | 删除选中、发送站内信、刷新、编辑、删除、消费者、商户、取消、发送、保存 | 打开「消息记录」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 11 | 用户反馈 | `/feedback` | `ops:feedback` | `feedback/FeedbackView.vue` | 提交回复 | 打开「用户反馈」；列表或表单可用；关键写操作有中文反馈 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 10 | 消息记录 | `/notifications` | `ops:notify:list` | `growth/NotificationsView.vue` | 删除选中、发送站内信、刷新、编辑、删除、消费者、商户、取消、发送、保存 | 打开「消息记录」；列表或表单可用；关键写操作有中文反馈 | PASS（L3 2026-09-09：发送站内信 id=20；Playwright「发送站内信」；截图 `l3-notifications*.png`） |
+| 11 | 用户反馈 | `/feedback` | `ops:feedback` | `feedback/FeedbackView.vue` | 提交回复 | 打开「用户反馈」；列表或表单可用；关键写操作有中文反馈 | PASS（L3 2026-09-09：消费者建反馈 id=1 + 运营回复；截图 `l3-feedback.png`） |
 
 ### 1.7 系统
 
@@ -185,7 +185,7 @@
 | 8 | 告警规则 | `/alert-rules` | `ops:config:list` | `system/AlertRuleView.vue` | 批量删除、新增、保存 | 触发条件后待办/告警出现；停用后不再刷 | PASS（L1 页可达；深测见 §7–§10 / P0） |
 | 9 | 定时任务 | `/scheduled-tasks` | `ops:task:list` | `system/ScheduledTaskView.vue` | 批量启用、批量停用、批量执行、新增、保存 | 「执行」产生预期副作用（对账/巡检等）；停用后到点不跑 | PASS（L1 页可达；深测见 §7–§10 / P0） |
 | 10 | 组织与点位 | `/org-sites` | `ops:org:list` | `system/OrgSitesView.vue` | 新增顶级组织、编辑、新增子级、分配设备、删除、批量删除、新增合同、租金分账、出账、批量出账、标记已付、作废 | 分配设备后商户数据范围变化；租金出账有流水 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
-| 11 | 通知公告 | `/announcements` | `ops:announcement:list` | `announcements/AnnouncementsView.vue` | 导入模板、导入、发布公告、刷新 | 目标端 announcements 可见；未发布不可见 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
+| 11 | 通知公告 | `/announcements` | `ops:announcement:list` | `announcements/AnnouncementsView.vue` | 导入模板、导入、发布公告、刷新 | 目标端 announcements 可见；未发布不可见 | PASS（L3 2026-09-09：announceId=3 DRAFT→PUBLISHED→ARCHIVED；Playwright「发布公告」；截图 `l3-announcements*.png`） |
 | 12 | 审计日志 | `/audit` | `ops:audit:list` | `system/AuditLogView.vue` | （只读为主） | 关键写操作后有对应审计行（操作人/资源/时间） | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 | 13 | DevOps 中心 | `/devops` | `ops:devops:view` | `system/DevOpsHubView.vue` | 刷新状态、新窗口打开、重跑 Sonar、下方嵌入看板 | 链接可达；无权限不可见 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
 | 14 | 个人中心 | `/profile` | `（无独立 perm / 登录即可）` | `profile/ProfileView.vue` | 编辑资料、修改密码、刷新资料、清除、取消、保存 | 改密后旧 token 失效策略符合预期；资料回显 | PASS（L1 Playwright 可达冒烟 2026-09-08） |
@@ -627,6 +627,7 @@ P0 结果: 10/10 PASS · FAIL: （无） · BLOCK: （无）
   - 再续12（2026-09-09）：补货可配置门禁实机验 C-04 PASS。先重建/重启 trade-service（旧镜像无 `/me` 门禁字段）。API：空定位拦/关定位可签；500m 过远拦 / max=0 放行；完成须开门拦 / 关门禁后越过；须凭证拦；`/me` 四字段跟随配置。UI：参数配置搜 replenishment 四键可见；商户任务#4 详情提示「当前策略未强制定位签到（若上报坐标，须在柜前 500 米内）」。默认已恢复 true/500/true/true。截图 `docs/uat-screenshots/2026-09-09/`。
   - 再续13（2026-09-09）：运营后台写按钮 L3 Batch1（设备/商品）。`/devices` 新建 `545117487697`；`/repair-tickets` ticket=2 OPEN→DONE；`/skus` 新建 `SKU-100056`；`/vision-mappings` YOLO 临时类增删；`/sku-vision` enroll 保存 DRAFT。Playwright 页可达+写按钮弹窗截图 `l3-devices|repair|skus|vision|sku-vision*.png`；ID 见 `batch1-ids.txt`。
   - 再续14（2026-09-09）：运营后台写按钮 L3 Batch2（仓配/补货）。仓库 inbound `L3-IN-*`/`L3-BATCH-*` SKU-DEMO-001 qty=2 库存可见；补货 plan route=5/task=5；库存健康列表 OK、无缺货时一键规划隐藏。截图 `l3-warehouse|replenishment|stock-health*.png`；ID `batch2-ids.txt`。
+  - 再续15（2026-09-09）：运营后台写按钮 L3 Batch3（增长/内容）。促销 stop、券启停恢复、素材 asset=1、投放 camp=1 stop、积分项/会员等级 INACTIVE、公告 3 发布归档、站内信 20、反馈 1 回复、手机验证 CRUD。截图 `l3-promotions|coupons|ad-*|points-*|member-*|announcements|notifications|feedback|phone-verify*.png`；ID `batch3-ids.txt`。
   - 证据目录: docs/uat-screenshots/2026-09-08/ · 2026-09-09/
   - 关键 ID: session 1788832341471405582 / order 1788832425799859794 / split 1788832425876341232 /
     withdraw 1+3 / ticket 1788832791807266280 / order 1788833033656619333 / approval_instance 1+2 / PO 1 /
