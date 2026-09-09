@@ -10,6 +10,21 @@ $Infra = Join-Path $Root "infra"
 $EnvFile = Join-Path $Infra ".env"
 if (-not (Test-Path $EnvFile)) { Copy-Item (Join-Path $Infra ".env.example") $EnvFile }
 
+# 钉镜像标签：未设置 IMAGE_TAG 时用当前 git short SHA，避免默认 latest 漂移
+if (-not $env:IMAGE_TAG -or $env:IMAGE_TAG.Trim() -eq "") {
+  try {
+    $sha = (& git -C $Root rev-parse --short HEAD 2>$null)
+    if ($LASTEXITCODE -eq 0 -and $sha) {
+      $env:IMAGE_TAG = $sha.Trim()
+    } else {
+      $env:IMAGE_TAG = "local"
+    }
+  } catch {
+    $env:IMAGE_TAG = "local"
+  }
+}
+Write-Host "IMAGE_TAG=$($env:IMAGE_TAG)"
+
 $composeFiles = @(
   "-f", (Join-Path $Infra "docker-compose.full.yml")
 )

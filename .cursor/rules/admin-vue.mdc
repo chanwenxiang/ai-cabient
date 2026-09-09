@@ -9,7 +9,7 @@ alwaysApply: false
 - 栈：Vue3 + TypeScript + Element Plus + Pinia + Vue Router；不要换 UI 库。
 - HTTP：用 `src/api/client.ts` 的 `api` / `get` / `post` / `put` / `del`（基于 `@aicabinet/shared-api`），勿另写 fetch 封装。
 - 页面：`src/views/<domain>/*View.vue`；列表页沿用 `el-card.page-card`、filter-bar、表格与 `TableActions` 等现有布局。
-- **布局防抖**：改 `AdminLayout` / `table-scroll-fit` / `main.css` 时必须遵守 `admin-layout-anti-jitter`（`100svh`、勿听 `visualViewport.scroll`、勿 `translateZ(0)`）。
+- **布局防抖**：改 `AdminLayout` / `table-scroll-fit` / `main.css` 时必须遵守 `admin-layout-anti-jitter`（`100svh`、禁止任何 `visualViewport` 监听、勿 `translateZ(0)`、dock 几何取整）。
 - 权限：按钮用 `v-hasPermi="['ops:...']"`；路由/菜单对齐 `src/config/menu.ts`、`sidebar.ts` 与后端权限码。
 - 状态：认证/字典用 `stores/auth.ts`、`stores/dict-runtime.ts`。
 - 共享类型优先 `@aicabinet/shared-types`；改 API 契约时同步共享包。

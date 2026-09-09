@@ -44,10 +44,11 @@ services:
 
   trade-service:
     restart: unless-stopped
+    # 单副本：Flyway + 定时任务未做多实例选举前勿 scale>1
     build:
       context: ..
       dockerfile: infra/docker/trade-service.Dockerfile
-    image: ai-cabinet/trade-service:${IMAGE_TAG:-latest}
+    image: ai-cabinet/trade-service:${IMAGE_TAG:-local}
     ports:
       - "8080:8080"
     environment:
@@ -131,7 +132,7 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/device-service.Dockerfile
-    image: ai-cabinet/device-service:${IMAGE_TAG:-latest}
+    image: ai-cabinet/device-service:${IMAGE_TAG:-local}
     ports:
       - "8081:8081"
     environment:
@@ -161,7 +162,7 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/vision-service.Dockerfile
-    image: ai-cabinet/vision-service:${IMAGE_TAG:-latest}
+    image: ai-cabinet/vision-service:${IMAGE_TAG:-local}
     ports:
       - "8082:8082"
     environment:
