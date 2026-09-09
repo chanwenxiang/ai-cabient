@@ -14,7 +14,7 @@
           }}</el-button>
           <el-button
             v-hasPermi="['ops:announcement:import']"
-            @click="onDownloadTemplate(['示例公告', '公告正文', '全部', '普通', '已发布', ''])"
+            @click="onDownloadTemplate(['示例公告', '公告正文', '全部', '普通', displayLabel('announcement_status', 'PUBLISHED'), ''])"
             >导入模板</el-button
           >
           <el-button
@@ -245,7 +245,7 @@
       <el-descriptions v-if="previewRow" :column="2" border>
         <el-descriptions-item label="标题" :span="2">{{ previewRow.title }}</el-descriptions-item>
         <el-descriptions-item label="优先级">{{
-          priorityMap[previewRow.priority] || '普通'
+          priorityMap[previewRow.priority || ''] || '普通'
         }}</el-descriptions-item>
         <el-descriptions-item label="目标">{{
           displayLabel('announcement_audience', previewRow.targetScope)
@@ -254,7 +254,7 @@
           displayLabel('announcement_status', previewRow.status)
         }}</el-descriptions-item>
         <el-descriptions-item label="发布时间">{{
-          formatTime(previewRow.publishAt) || '无'
+          formatTime(previewRow.publishAt || '') || '无'
         }}</el-descriptions-item>
         <el-descriptions-item label="内容" :span="2">
           <div class="announcement-content">{{ previewRow.content || '暂无内容' }}</div>
@@ -270,6 +270,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { EditPen, FolderOpened, Promotion, Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
+import type { AnnouncementDto, PageResult } from '@aicabinet/shared-types';
 import { get, post, put } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
@@ -277,6 +278,14 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { errorMessage } from '@/utils/error-message';
+
+type AnnouncementForm = {
+  title: string;
+  content: string;
+  targetScope: string;
+  priority: string;
+};
 
 const route = useRoute();
 const router = useRouter();
@@ -286,7 +295,7 @@ const loading = ref(false);
 const listHydrated = ref(false);
 const saving = ref(false);
 const error = ref('');
-const list = ref<any[]>([]);
+const list = ref<AnnouncementDto[]>([]);
 const total = ref(0);
 const page = ref(1);
 const size = ref(20);
@@ -296,10 +305,10 @@ const priorityFilter = ref('');
 const showForm = ref(false);
 const editingId = ref<number | null>(null);
 const previewVisible = ref(false);
-const previewRow = ref<any>(null);
-const form = ref<any>({ title: '', content: '', targetScope: 'ALL', priority: 'NORMAL' });
+const previewRow = ref<AnnouncementDto | null>(null);
+const form = ref<AnnouncementForm>({ title: '', content: '', targetScope: 'ALL', priority: 'NORMAL' });
 
-function emptyForm() {
+function emptyForm(): AnnouncementForm {
   return { title: '', content: '', targetScope: 'ALL', priority: 'NORMAL' };
 }
 
@@ -309,7 +318,7 @@ const filtered = computed(() => sortById(list.value));
 const paged = computed(() => filtered.value);
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<any>((r) => r.announceId ?? `${r.title}-${r.publishAt}`);
+  useTableSelection<AnnouncementDto>((r) => r.announceId ?? `${r.title}-${r.publishAt}`);
 
 const priorityMap: Record<string, string> = Object.fromEntries(
   dictOptions('dispute_priority').map((o) => [o.value, o.label])
@@ -345,9 +354,9 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         row.title,
         row.content || '',
         displayLabel('announcement_audience', row.targetScope),
-        priorityMap[row.priority] || '普通',
+        priorityMap[row.priority || ''] || '普通',
         displayLabel('announcement_status', row.status),
-        formatTime(row.publishAt)
+        formatTime(row.publishAt || '')
       ]),
     onImportRows: async (rows) => {
       const statusCodeByLabel: Record<string, string> = Object.fromEntries(
@@ -364,7 +373,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         const title = row['标题'] || row.title;
         if (!title?.trim()) continue;
         // 后端 create 固定为 DRAFT，忽略 body.publishAt；需发布时再调 publish
-        const created = await post('/api/v2/ops/announcements', {
+        const created = await post<AnnouncementDto>('/api/v2/ops/announcements', {
           title: title.trim(),
           content: row['内容'] || row.content || '',
           targetScope: scopeCodeByLabel[row['目标'] || row.targetScope] || 'ALL',
@@ -442,12 +451,14 @@ async function load() {
     if (keyword.value.trim()) q.set('q', keyword.value.trim());
     if (statusFilter.value) q.set('status', statusFilter.value);
     if (priorityFilter.value) q.set('priority', priorityFilter.value);
-    const res = await get(`/api/v2/ops/announcements?${q}`);
-    list.value = (res.data?.items as any[]) ?? [];
+    const res = await get<PageResult<AnnouncementDto> & { items?: AnnouncementDto[]; total?: number }>(
+      `/api/v2/ops/announcements?${q}`
+    );
+    list.value = res.data?.items ?? [];
     total.value = Number(res.data?.total ?? 0);
     clearSelection();
-  } catch (e: any) {
-    error.value = e?.message || '加载失败';
+  } catch (e: unknown) {
+    error.value = errorMessage(e, '加载失败');
     ElMessage.error('加载失败');
   } finally {
     listHydrated.value = true;
@@ -475,7 +486,7 @@ function formatTime(t: string) {
   return t.substring(0, 16).replace('T', ' ');
 }
 
-function rowActions(row: any): TableAction[] {
+function rowActions(row: AnnouncementDto): TableAction[] {
   const actions: TableAction[] = [{ key: 'preview', label: '查看', icon: View, type: 'primary' }];
   if (row.status !== 'ARCHIVED' && auth.hasPerm('ops:announcement:edit')) {
     actions.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
@@ -489,7 +500,7 @@ function rowActions(row: any): TableAction[] {
   return actions;
 }
 
-function onRowAction(key: string, row: any) {
+function onRowAction(key: string, row: AnnouncementDto) {
   if (key === 'preview') onPreview(row);
   else if (key === 'edit') openEdit(row);
   else if (key === 'publish') onPublish(row);
@@ -502,7 +513,7 @@ function openCreate() {
   showForm.value = true;
 }
 
-function openEdit(row: any) {
+function openEdit(row: AnnouncementDto) {
   editingId.value = row.announceId;
   form.value = {
     title: row.title || '',
@@ -536,8 +547,8 @@ async function onSaveSubmit() {
     editingId.value = null;
     form.value = emptyForm();
     await load();
-  } catch (e: any) {
-    ElMessage.error(e?.message || '保存失败');
+  } catch (e: unknown) {
+    ElMessage.error(errorMessage(e, '保存失败'));
   } finally {
     saving.value = false;
   }
@@ -550,7 +561,7 @@ async function onPublishSubmit() {
   }
   saving.value = true;
   try {
-    const res = await post('/api/v2/ops/announcements', formBody());
+    const res = await post<AnnouncementDto>('/api/v2/ops/announcements', formBody());
     const id = res?.data?.announceId;
     if (id) {
       await post(`/api/v2/ops/announcements/${id}/publish`);
@@ -560,37 +571,37 @@ async function onPublishSubmit() {
     editingId.value = null;
     form.value = emptyForm();
     await load();
-  } catch (e: any) {
-    ElMessage.error(e?.message || '发布失败');
+  } catch (e: unknown) {
+    ElMessage.error(errorMessage(e, '发布失败'));
   } finally {
     saving.value = false;
   }
 }
 
-function onPreview(row: any) {
+function onPreview(row: AnnouncementDto) {
   previewRow.value = row;
   previewVisible.value = true;
 }
 
-async function onPublish(row: any) {
+async function onPublish(row: AnnouncementDto) {
   try {
     await post(`/api/v2/ops/announcements/${row.announceId}/publish`);
-    ElMessage.success('已发布');
+    ElMessage.success('发布成功');
     load();
-  } catch (e: any) {
-    ElMessage.error(e?.message || '发布失败');
+  } catch (e: unknown) {
+    ElMessage.error(errorMessage(e, '发布失败'));
   }
 }
 
-async function onArchive(row: any) {
+async function onArchive(row: AnnouncementDto) {
   try {
     await ElMessageBox.confirm(`确认归档公告「${row.title}」？`, '归档公告');
     await post(`/api/v2/ops/announcements/${row.announceId}/archive`);
-    ElMessage.success('已归档');
+    ElMessage.success('归档成功');
     await load();
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e === 'cancel' || e === 'close') return;
-    ElMessage.error(e?.message || '归档失败');
+    ElMessage.error(errorMessage(e, '归档失败'));
   }
 }
 

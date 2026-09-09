@@ -100,7 +100,11 @@
             class="info-row"
             ><text class="lbl">退款</text
             ><text class="val"
-              >{{ order.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
+              >{{
+                displayLabel(
+                  'order_status',
+                  order.status === 'PARTIAL_REFUNDED' ? 'PARTIAL_REFUNDED' : 'REFUNDED'
+                )
               }}{{ refundCents > 0 ? ` ${fmtMoney(refundCents)}` : ''
               }}{{ order.refundedAt ? ` · ${formatTime(order.refundedAt)}` : '' }}</text
             ></view

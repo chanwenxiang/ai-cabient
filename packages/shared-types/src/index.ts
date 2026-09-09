@@ -346,7 +346,11 @@ export interface ProfitSharingStatus {
   note: string;
 }
 
-export interface OrderSummary {
+/**
+ * 三端共用订单聚合读模型（与后端 {@code OrderReadModel} 字段对齐；时间为 ISO 字符串）。
+ * OpenAPI 生成类型见 {@link ./generated/openapi.ts}。
+ */
+export interface OrderReadModel {
   orderId: string;
   sessionId?: string;
   userId?: string | number;
@@ -371,9 +375,31 @@ export interface OrderSummary {
   createdAt?: string;
   /** 支付完成时间 */
   paidAt?: string;
+  /** 兼容部分响应里的更新时间 */
+  updatedAt?: string;
   /** 分账状态（联 order_revenue_split） */
   splitStatus?: string;
+  /** 详情才有；列表为 undefined */
+  lines?: OrderLineDto[];
+  /** 兼容部分旧响应里的 items 别名 */
+  items?: OrderLineDto[];
+  balanceBeforeCents?: number;
+  balanceAfterCents?: number;
+  videoUri?: string;
+  payTime?: string;
 }
+
+/** @deprecated 使用 OrderReadModel */
+export type OrderSummary = OrderReadModel;
+
+/** OpenAPI 生成的订单读模型别名（与 springdoc /v3/api-docs 同步；优先用于 API 响应泛型）。 */
+export type {
+  OpenApiOrderReadModel,
+  OpenApiOrderReadModelAdmin,
+  OpenApiOrderReadModelMerchant,
+  OpenApiOrderReadModelConsumer,
+  OpenApiOrderLineDto
+} from './generated/order-models';
 
 export interface DisputeSummary {
   ticketId: string;
@@ -910,8 +936,43 @@ export interface AnnouncementDto {
   announceType?: string;
   targetScope?: string;
   priority?: string;
+  status?: string;
   publishAt?: string;
   expireAt?: string;
+}
+
+/** 优惠券定义（对齐 OpenAPI CouponDefinitionDto） */
+export interface CouponDefinitionDto {
+  couponDefId: number;
+  couponName?: string;
+  couponType?: string;
+  denominationCents?: number;
+  minSpendCents?: number;
+  discountPercent?: number | null;
+  validityDays?: number;
+  maxIssueCount?: number;
+  issuedCount?: number;
+  status?: string;
+  description?: string;
+  activityId?: number | null;
+}
+
+/** 营销活动（对齐 OpenAPI PromotionActivityDto） */
+export interface PromotionActivityDto {
+  activityId: number;
+  activityName?: string;
+  activityType?: string;
+  status?: string;
+  startTime?: string;
+  endTime?: string;
+  budgetCents?: number;
+  usedCents?: number;
+  userLimit?: number;
+  deviceScope?: string;
+  /** 设备范围等 JSON/配置 */
+  ruleConfig?: string;
+  description?: string;
+  deviceIds?: string[];
 }
 
 export interface DisputeTicketDto {

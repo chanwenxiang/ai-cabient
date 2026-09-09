@@ -472,6 +472,7 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 
 const route = useRoute();
 const router = useRouter();
@@ -885,10 +886,8 @@ async function onDisable(row: OperatorRow) {
     await api.request(`/api/v2/ops/admin/rbac/operators/${row.userId}`, 'DELETE');
     ElMessage.success('已停用');
     await loadOperators();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '停用失败');
-    }
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '停用失败'));
   }
 }
 
@@ -1007,11 +1006,12 @@ async function openDevices(row: OperatorRow) {
       return;
     }
     if (!allDevices.value.length) {
-      const list = await api.request<{ items: any[] }>(
+      type DeviceListItem = { deviceId: string; deviceName?: string; routeCode?: string };
+      const list = await api.request<{ items?: DeviceListItem[] }>(
         '/api/v2/ops/admin/devices?page=0&size=200',
         'GET'
       );
-      allDevices.value = (list.items || []).map((d: any) => ({
+      allDevices.value = (list.items || []).map((d) => ({
         deviceId: d.deviceId,
         deviceName: d.deviceName,
         routeCode: d.routeCode

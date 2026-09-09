@@ -166,7 +166,11 @@
               <text
                 v-if="o.status === 'REFUNDED' || o.status === 'PARTIAL_REFUNDED' || o.refundedAt"
                 class="order-hint refund"
-                >{{ o.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
+                >{{
+                  displayLabel(
+                    'order_status',
+                    o.status === 'PARTIAL_REFUNDED' ? 'PARTIAL_REFUNDED' : 'REFUNDED'
+                  )
                 }}{{ o.refundedAt ? ` · ${formatTime(o.refundedAt)}` : '' }} ›</text
               >
               <text v-else-if="o.status === 'DISPUTED'" class="order-hint">审核中 ›</text>
@@ -247,11 +251,11 @@ const reviewingDisputesMore = computed(() =>
 );
 const filters = [
   { label: '全部', value: 'all' as const },
-  { label: '已完成', value: 'paid' as const },
-  { label: '待支付', value: 'pending' as const },
+  { label: displayLabel('order_status', 'COMPLETED'), value: 'paid' as const },
+  { label: displayLabel('order_status', 'PENDING'), value: 'pending' as const },
   { label: '有疑问', value: 'issue' as const },
-  { label: '已退款', value: 'refunded' as const },
-  { label: '已取消', value: 'cancelled' as const }
+  { label: displayLabel('order_status', 'REFUNDED'), value: 'refunded' as const },
+  { label: displayLabel('order_status', 'CANCELLED'), value: 'cancelled' as const }
 ];
 const timeFilters = [
   { label: '全部时间', value: 'all' as const },

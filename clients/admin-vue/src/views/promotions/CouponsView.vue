@@ -160,8 +160,12 @@
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="说明" min-width="140" align="center" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.description || '暂无' }}</template>
+          <el-table-column label="说明" min-width="140" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-ellipsis" :title="row.description || ''">{{
+                row.description || '暂无'
+              }}</span>
+            </template>
           </el-table-column>
           <el-table-column label="状态" width="88" align="center">
             <template #default="{ row }">
@@ -363,6 +367,8 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { errorMessage } from '@/utils/error-message';
+import type { CouponDefinitionDto, PromotionActivityDto } from '@aicabinet/shared-types';
 
 const route = useRoute();
 const router = useRouter();
@@ -371,14 +377,14 @@ const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('couponDefId
 const loading = ref(false);
 const listHydrated = ref(false);
 const saving = ref(false);
-const list = ref<any[]>([]);
+const list = ref<CouponDefinitionDto[]>([]);
 const total = ref(0);
 const keyword = ref('');
 const statusFilter = ref('');
 const page = ref(1);
 const size = ref(20);
-const activeCoupons = ref<any[]>([]);
-const activityOptions = ref<any[]>([]);
+const activeCoupons = ref<CouponDefinitionDto[]>([]);
+const activityOptions = ref<PromotionActivityDto[]>([]);
 const showCreate = ref(false);
 const editingId = ref<number | null>(null);
 const displayList = computed(() => sortById(list.value));
@@ -387,7 +393,7 @@ async function loadActiveCoupons() {
   try {
     activeCoupons.value =
       (
-        await api.request<{ items: any[] }>(
+        await api.request<{ items: CouponDefinitionDto[] }>(
           '/api/v2/coupons/definitions?status=ACTIVE&page=0&size=500',
           'GET'
         )
@@ -400,7 +406,7 @@ async function loadActiveCoupons() {
 async function loadActivityOptions() {
   try {
     activityOptions.value =
-      (await api.request<{ items: any[] }>('/api/v2/ops/promotions?page=0&size=200', 'GET'))
+      (await api.request<{ items: PromotionActivityDto[] }>('/api/v2/ops/promotions?page=0&size=200', 'GET'))
         .items || [];
   } catch {
     activityOptions.value = [];
@@ -434,7 +440,7 @@ const {
   pickSelected,
   exportButtonLabel,
   clearSelection
-} = useTableSelection<any>((r) => r.couponDefId);
+} = useTableSelection<CouponDefinitionDto>((r) => r.couponDefId);
 
 async function batchDisable() {
   const targets = list.value.filter(
@@ -455,9 +461,9 @@ async function batchDisable() {
     clearSelection();
     await load();
     await loadActiveCoupons();
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '批量停用失败');
+      ElMessage.error(errorMessage(e, '批量停用失败'));
     }
   }
 }
@@ -520,8 +526,8 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
       pickSelected(displayList.value).map((row) => [
         row.couponName,
         displayLabel('coupon_type', row.couponType, '未知类型'),
-        yuan(row.denominationCents),
-        yuan(row.minSpendCents),
+        yuan(row.denominationCents || 0),
+        yuan(row.minSpendCents || 0),
         row.discountPercent ?? '',
         row.validityDays,
         row.maxIssueCount || 0,
@@ -533,7 +539,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
       for (const row of rows) {
         const name = row['名称'] || row.couponName;
         if (!name?.trim()) continue;
-        const created = await api.request<any>('/api/v2/coupons/definitions', 'POST', {
+        const created = await api.request<CouponDefinitionDto>('/api/v2/coupons/definitions', 'POST', {
           couponName: name.trim(),
           couponType: typeCodeByLabel[row['类型'] || row.couponType] || 'AMOUNT_OFF',
           denominationCents: yuanToCents(row['面值(元)'] || row.denominationYuan) ?? 0,
@@ -563,7 +569,7 @@ function yuan(cents: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
 }
 
-function rowActions(row: any): TableAction[] {
+function rowActions(row: CouponDefinitionDto): TableAction[] {
   const acts: TableAction[] = [];
   if (auth.hasPerm('ops:coupon:edit')) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
@@ -586,7 +592,7 @@ const showActionColumn = computed(() =>
   displayList.value.some((row) => rowActions(row).length > 0)
 );
 
-async function onAction(key: string, row: any) {
+async function onAction(key: string, row: CouponDefinitionDto) {
   if (key === 'edit') {
     openEdit(row);
   } else if (key === 'issue') {
@@ -614,7 +620,7 @@ function openCreate() {
   showCreate.value = true;
 }
 
-function openEdit(row: any) {
+function openEdit(row: CouponDefinitionDto) {
   editingId.value = row.couponDefId;
   createForm.value = {
     couponName: row.couponName || '',
@@ -634,7 +640,7 @@ function openEdit(row: any) {
 async function load() {
   loading.value = true;
   try {
-    const data = await api.request<{ items: any[]; total: number }>(
+    const data = await api.request<{ items: CouponDefinitionDto[]; total: number }>(
       `/api/v2/coupons/definitions?${queryParams()}`,
       'GET'
     );
@@ -642,7 +648,7 @@ async function load() {
     total.value = Number(data.total) || 0;
     clearSelection();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
+    ElMessage.error(errorMessage(e, '加载失败'));
   } finally {
     listHydrated.value = true;
     loading.value = false;
@@ -696,7 +702,7 @@ async function onCreateSubmit() {
     await load();
     await loadActiveCoupons();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+    ElMessage.error(errorMessage(e, '保存失败'));
   } finally {
     saving.value = false;
   }
@@ -721,7 +727,7 @@ async function onIssueSubmit() {
     ElMessage.success('发券成功');
     showIssue.value = false;
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '发券失败');
+    ElMessage.error(errorMessage(e, '发券失败'));
   } finally {
     saving.value = false;
   }
@@ -764,13 +770,13 @@ async function onBatchIssueSubmit() {
     ElMessage.success(`已向 ${userIds.length} 个用户发券`);
     batchVisible.value = false;
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '发券失败');
+    ElMessage.error(errorMessage(e, '发券失败'));
   } finally {
     saving.value = false;
   }
 }
 
-async function onToggleStatus(row: any) {
+async function onToggleStatus(row: CouponDefinitionDto) {
   const next = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
   const action = next === 'INACTIVE' ? '停用' : '启用';
   try {
@@ -784,7 +790,7 @@ async function onToggleStatus(row: any) {
     ElMessage.success(`已${action}`);
     await load();
     await loadActiveCoupons();
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : `${action}失败`);
     }

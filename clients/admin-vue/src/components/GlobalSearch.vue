@@ -137,10 +137,11 @@ async function searchRecords(q: string) {
   const seq = ++searchSeq;
   const hits: RecordHit[] = [];
   const SEARCH_TIMEOUT_MS = 8_000;
-  const take = (perm: string, url: string, pick: (items: any[]) => RecordHit[]) => {
+  type PageOrList<T> = T[] | { items?: T[] };
+  const take = <T>(perm: string, url: string, pick: (items: T[]) => RecordHit[]) => {
     if (!auth.hasPerm(perm)) return Promise.resolve();
     const req = api
-      .request<any>(url, 'GET')
+      .request<PageOrList<T>>(url, 'GET')
       .then((data) => {
         if (seq !== searchSeq) return;
         const items = Array.isArray(data) ? data : data?.items || [];
@@ -156,22 +157,22 @@ async function searchRecords(q: string) {
     ]);
   };
   await Promise.all([
-    take(
+    take<{ deviceId: string; deviceName?: string; onlineStatus?: string }>(
       'ops:device:list',
       `/api/v2/ops/admin/devices?page=0&size=5&q=${encodeURIComponent(q)}`,
       (items) =>
-        items.map((d: any) => ({
+        items.map((d) => ({
           type: 'device',
           title: d.deviceName || d.deviceId,
           meta: `设备 ${d.deviceId} · ${displayLabel('online_status', String(d.onlineStatus || ''), '未知')}`,
           path: `/devices/${encodeURIComponent(d.deviceId)}`
         }))
     ),
-    take(
+    take<{ orderId?: string; payChannel?: string; channel?: string; status?: string }>(
       'ops:order:list',
       `/api/v2/ops/admin/orders?page=0&size=5&orderId=${encodeURIComponent(q)}`,
       (items) =>
-        items.map((o: any) => ({
+        items.map((o) => ({
           type: 'order',
           title: String(o.orderId || ''),
           meta: [
@@ -185,11 +186,11 @@ async function searchRecords(q: string) {
           query: { orderId: String(o.orderId) }
         }))
     ),
-    take(
+    take<{ sessionId?: string; deviceId?: string; state?: string }>(
       'ops:session:list',
       `/api/v2/ops/admin/sessions?page=0&size=5&q=${encodeURIComponent(q)}`,
       (items) =>
-        items.map((s: any) => ({
+        items.map((s) => ({
           type: 'session',
           title: String(s.sessionId || ''),
           meta: ['会话', s.deviceId || '', displayLabel('session_state', String(s.state || ''), '')]
@@ -199,11 +200,11 @@ async function searchRecords(q: string) {
           query: { sessionId: String(s.sessionId) }
         }))
     ),
-    take(
+    take<{ phoneNumber?: string; userId?: string | number }>(
       'ops:user:list',
       `/api/v2/ops/admin/users?page=0&size=5&phone=${encodeURIComponent(q)}`,
       (items) =>
-        items.map((u: any) => ({
+        items.map((u) => ({
           type: 'user',
           title: String(u.phoneNumber || u.userId || ''),
           meta: `用户 ${u.userId || ''}`,
@@ -211,11 +212,11 @@ async function searchRecords(q: string) {
           query: { keyword: String(u.phoneNumber || u.userId || '') }
         }))
     ),
-    take(
+    take<{ merchantId?: string; merchantName?: string }>(
       'ops:merchant:list',
       `/api/v2/ops/admin/merchants?page=0&size=5&q=${encodeURIComponent(q)}`,
       (items) =>
-        items.slice(0, 5).map((m: any) => ({
+        items.slice(0, 5).map((m) => ({
           type: 'merchant',
           title: m.merchantName || String(m.merchantId || ''),
           meta: `商户 ${m.merchantId || ''}`,

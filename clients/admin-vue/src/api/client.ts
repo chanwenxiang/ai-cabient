@@ -120,23 +120,23 @@ export async function logoutSession() {
 }
 
 /** Compatibility helpers for views that expect `{ data }` wrappers. */
-export async function get(path: string): Promise<{ data: any }> {
-  const data = await api.request<any>(path, 'GET');
+export async function get<T = unknown>(path: string): Promise<{ data: T }> {
+  const data = await api.request<T>(path, 'GET');
   return { data };
 }
 
-export async function post(path: string, body?: unknown): Promise<{ data: any }> {
-  const data = await api.request<any>(path, 'POST', body);
+export async function post<T = unknown>(path: string, body?: unknown): Promise<{ data: T }> {
+  const data = await api.request<T>(path, 'POST', body);
   return { data };
 }
 
-export async function put(path: string, body?: unknown): Promise<{ data: any }> {
-  const data = await api.request<any>(path, 'PUT', body);
+export async function put<T = unknown>(path: string, body?: unknown): Promise<{ data: T }> {
+  const data = await api.request<T>(path, 'PUT', body);
   return { data };
 }
 
-export async function del(path: string): Promise<{ data: any }> {
-  const data = await api.request<any>(path, 'DELETE');
+export async function del<T = unknown>(path: string): Promise<{ data: T }> {
+  const data = await api.request<T>(path, 'DELETE');
   return { data };
 }
 

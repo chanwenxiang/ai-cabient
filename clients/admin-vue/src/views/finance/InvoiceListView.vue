@@ -363,12 +363,18 @@ onMounted(load);
           <el-table-column label="用户" width="90" align="center">
             <template #default="{ row }">{{ row.userId ?? '' }}</template>
           </el-table-column>
-          <el-table-column prop="title" label="抬头" min-width="140" show-overflow-tooltip />
+          <el-table-column label="抬头" min-width="140" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-ellipsis" :title="row.title || ''">{{ row.title }}</span>
+            </template>
+          </el-table-column>
           <el-table-column label="税号" width="140" show-overflow-tooltip>
             <template #default="{ row }">{{ row.taxNo || '' }}</template>
           </el-table-column>
-          <el-table-column label="邮箱" min-width="140" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.email || '' }}</template>
+          <el-table-column label="邮箱" min-width="140" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-ellipsis" :title="row.email || ''">{{ row.email || '' }}</span>
+            </template>
           </el-table-column>
           <el-table-column label="金额" width="100" align="right">
             <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
@@ -380,8 +386,12 @@ onMounted(load);
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="驳回原因" min-width="120" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.rejectReason || '' }}</template>
+          <el-table-column label="驳回原因" min-width="120" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-ellipsis" :title="row.rejectReason || ''">{{
+                row.rejectReason || ''
+              }}</span>
+            </template>
           </el-table-column>
           <el-table-column label="申请时间" width="150">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) || '' }}</template>

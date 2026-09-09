@@ -110,11 +110,19 @@
               <div v-if="row.approvalStatus === 'PENDING'" class="muted">审批中</div>
             </template>
           </el-table-column>
-          <el-table-column label="外部商户号" min-width="140" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.externalMchId || '' }}</template>
+          <el-table-column label="外部商户号" min-width="140" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-ellipsis" :title="row.externalMchId || ''">{{
+                row.externalMchId || ''
+              }}</span>
+            </template>
           </el-table-column>
-          <el-table-column label="外部单号" min-width="120" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.externalRef || '' }}</template>
+          <el-table-column label="外部单号" min-width="120" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-ellipsis" :title="row.externalRef || ''">{{
+                row.externalRef || ''
+              }}</span>
+            </template>
           </el-table-column>
           <el-table-column label="支付模式" width="90">
             <template #default="{ row }">
@@ -123,8 +131,10 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="备注" min-width="120" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.note || '' }}</template>
+          <el-table-column label="备注" min-width="120" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-ellipsis" :title="row.note || ''">{{ row.note || '' }}</span>
+            </template>
           </el-table-column>
           <el-table-column label="最近同步" width="160">
             <template #default="{ row }">{{

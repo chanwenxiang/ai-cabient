@@ -238,6 +238,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useBrandStore } from '@/stores/brand';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { sortByPrimaryKey } from '@/utils/sort-by-pk';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 
 const BRAND_KEYS = {
   title: 'ops.brand.title',
@@ -345,10 +346,8 @@ async function onDelete(row: SystemConfigRow) {
     );
     ElMessage.success('已删除');
     await load();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '删除失败');
-    }
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '删除失败'));
   }
 }
 

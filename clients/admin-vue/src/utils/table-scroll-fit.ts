@@ -14,6 +14,7 @@
  *   也不该反复测宽。测宽会强制 reflow，鼠标移动时主区会上下抖。
  * - 同步期间断开 MutationObserver，且不监听 style（EP 写列宽会连环触发）。
  * - 浏览器缩放会改 clientWidth/列宽亚像素；用回滞避免 --h 反复开关导致白框右边「断掉」。
+ * - 禁止监听 visualViewport（含 resize/scroll）：桌面端鼠标移到边缘会误触发，反复测宽/写 dock 导致主区抖。
  */
 let rafId = 0;
 let dockRafId = 0;
@@ -27,7 +28,25 @@ let dockScroller: HTMLElement | null = null;
 let dockSpacer: HTMLElement | null = null;
 let activeTable: HTMLElement | null = null;
 let scrollSyncing = false;
+/** 上次写入的 dock 几何，避免亚像素抖动反复写 style */
+let lastDockGeom = { left: -1, width: -1, bottom: -1, scrollWidth: -1 };
 const tableScrollBound = new WeakSet<HTMLElement>();
+
+function setDockGeom(dock: HTMLElement, spacer: HTMLElement, next: typeof lastDockGeom): void {
+  if (
+    lastDockGeom.left === next.left &&
+    lastDockGeom.width === next.width &&
+    lastDockGeom.bottom === next.bottom &&
+    lastDockGeom.scrollWidth === next.scrollWidth
+  ) {
+    return;
+  }
+  lastDockGeom = next;
+  spacer.style.width = `${next.scrollWidth}px`;
+  dock.style.left = `${next.left}px`;
+  dock.style.width = `${next.width}px`;
+  dock.style.bottom = `${next.bottom}px`;
+}
 
 const OBSERVE_OPTIONS: MutationObserverInit = {
   childList: true,
@@ -161,6 +180,7 @@ function hideDock(): void {
   if (!dockEl) return;
   dockEl.hidden = true;
   activeTable = null;
+  lastDockGeom = { left: -1, width: -1, bottom: -1, scrollWidth: -1 };
 }
 
 function updateFloatingHScrollDock(): void {
@@ -201,13 +221,18 @@ function updateFloatingHScrollDock(): void {
   const target: HTMLElement = best;
   const { dock, scroller, spacer } = ensureDock();
   const tableRect = target.getBoundingClientRect();
-  const left = Math.max(tableRect.left, mainRect.left);
-  const right = Math.min(tableRect.right, mainRect.right);
+  // 取整：innerHeight 与 getBoundingClientRect 亚像素差会写成 bottom:0.11px，视觉上像整页微抖
+  const left = Math.round(Math.max(tableRect.left, mainRect.left));
+  const right = Math.round(Math.min(tableRect.right, mainRect.right));
+  const rawBottom = Math.max(0, window.innerHeight - mainRect.bottom);
+  const bottom = rawBottom < 1 ? 0 : Math.round(rawBottom);
   activeTable = target;
-  spacer.style.width = `${target.scrollWidth}px`;
-  dock.style.left = `${left}px`;
-  dock.style.width = `${Math.max(0, right - left)}px`;
-  dock.style.bottom = `${Math.max(0, window.innerHeight - mainRect.bottom)}px`;
+  setDockGeom(dock, spacer, {
+    left,
+    width: Math.max(0, right - left),
+    bottom,
+    scrollWidth: target.scrollWidth
+  });
   dock.hidden = false;
   if (!scrollSyncing && Math.abs(scroller.scrollLeft - target.scrollLeft) > 1) {
     scrollSyncing = true;
@@ -257,12 +282,6 @@ function scheduleSync(): void {
   }, 48);
 }
 
-/** 仅跟 visualViewport 尺寸（缩放），不跟 scroll：桌面端鼠标移到边缘偶发触发 scroll，会反复测宽/reflow，主区上下抖 1～2px */
-function onVisualViewportResize(): void {
-  scheduleSync();
-  scheduleDockUpdate();
-}
-
 export function observeTableScrollFit(root: HTMLElement): void {
   // 单页仅一个主内容根；换根时先完整拆除，避免双实例共享 dock / listener 串状态
   if (observedRoot && observedRoot !== root) {
@@ -275,9 +294,8 @@ export function observeTableScrollFit(root: HTMLElement): void {
     scheduleSync();
   });
   syncTableScrollFit();
+  // 只跟 window.resize；勿挂 visualViewport（resize/scroll 在桌面端鼠标移边缘时都会误触发）
   window.addEventListener('resize', scheduleSync);
-  // 浏览器缩放 / 触控缩放常改 visualViewport 而不触发 window.resize；切勿监听 scroll
-  window.visualViewport?.addEventListener('resize', onVisualViewportResize);
   root.addEventListener('scroll', scheduleDockUpdate, { passive: true });
 }
 
@@ -289,7 +307,6 @@ export function stopTableScrollFit(): void {
   }
   observedRoot = null;
   window.removeEventListener('resize', scheduleSync);
-  window.visualViewport?.removeEventListener('resize', onVisualViewportResize);
   if (debounceTimer) globalThis.clearTimeout(debounceTimer);
   debounceTimer = 0;
   if (rafId) cancelAnimationFrame(rafId);

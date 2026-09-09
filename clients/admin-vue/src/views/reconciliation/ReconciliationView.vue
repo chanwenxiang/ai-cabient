@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">对账</span>
-            <span class="hint">按渠道 / 状态筛选；差异笔数标红，可查看明细行</span>
+            <span class="hint">按渠道 / 状态筛选；金额差额与未匹配笔数标红，可查看明细</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -24,7 +24,7 @@
       show-icon
       class="t1-alert"
       title="T+1 结算说明"
-      description="对账按 T+1 结算节奏核对渠道流水与平台订单；当日交易通常次日可完整对账。差异笔数标红请优先处理。"
+      description="对账按 T+1 核对渠道账单与本账流水。状态「存在差异」可能因金额轧差或单据未匹配：未匹配笔数=账单对不上单号的行数；差额=渠道合计−本账合计（可为负）。二者可独立出现。"
     />
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
@@ -129,7 +129,14 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="差异笔数" width="100" align="center">
+          <el-table-column label="差额" width="110" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <span :class="{ 'is-mismatch': Number(row.diffCents ?? 0) !== 0 }">
+                {{ formatCents(row.diffCents) }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="未匹配笔数" width="110" align="center">
             <template #default="{ row }">
               <span :class="{ 'is-mismatch': (row.unmatchedCount ?? 0) > 0 }">
                 {{ row.unmatchedCount ?? 0 }}
@@ -224,10 +231,25 @@
                 {{ dictLabel('reconciliation_status', detail.summary?.status) }}
               </el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="差异笔数">
+            <el-descriptions-item label="渠道合计">
+              {{ formatCents(detail.summary?.platformTotal) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="本账合计">
+              {{ formatCents(detail.summary?.ledgerTotal) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="差额">
+              <span :class="{ 'is-mismatch': Number(detail.summary?.diffCents ?? 0) !== 0 }">
+                {{ formatCents(detail.summary?.diffCents) }}
+              </span>
+              <span v-if="amountOnlyMismatch" class="recon-diff-hint">
+                （单据均已匹配，差额来自金额轧差）
+              </span>
+            </el-descriptions-item>
+            <el-descriptions-item label="未匹配笔数">
               <span :class="{ 'is-mismatch': (detail.summary?.unmatchedCount ?? 0) > 0 }">
                 {{ detail.summary?.unmatchedCount ?? 0 }}
               </span>
+              <span class="recon-diff-hint">（渠道账单对不上商户单号的行数）</span>
             </el-descriptions-item>
             <el-descriptions-item label="创建时间">
               {{ formatDateTime(detail.summary?.createdAt) }}
@@ -348,15 +370,29 @@ const mismatchBatchCount = computed(
 );
 const matchedBatchCount = computed(() => items.value.length - mismatchBatchCount.value);
 
+const amountOnlyMismatch = computed(() => {
+  const s = detail.value?.summary;
+  if (!s || s.status !== 'MISMATCH') return false;
+  return Number(s.diffCents ?? 0) !== 0 && Number(s.unmatchedCount ?? 0) === 0;
+});
+
+function formatCents(cents: unknown) {
+  const n = Number(cents ?? 0);
+  if (!Number.isFinite(n)) return '¥0.00';
+  const sign = n < 0 ? '-' : '';
+  return `${sign}¥${(Math.abs(n) / 100).toFixed(2)}`;
+}
+
 const { onExport } = useListCsv({
   filePrefix: '对账',
-  headers: ['对账ID', '日期', '渠道', '状态', '差异笔数', '创建时间'],
+  headers: ['对账ID', '日期', '渠道', '状态', '差额(分)', '未匹配笔数', '创建时间'],
   toRows: () =>
     pickSelected(filtered.value).map((row) => [
       row.reconId,
       row.reconDate || '',
       dictLabel('pay_channel', row.channel),
       dictLabel('reconciliation_status', row.status),
+      row.diffCents ?? 0,
       row.unmatchedCount ?? 0,
       formatDateTime(row.createdAt)
     ])
@@ -571,6 +607,11 @@ onActivated(() => {
 }
 .recon-detail-pane {
   min-height: 160px;
+}
+.recon-diff-hint {
+  margin-left: 6px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 .recon-cell small {
   color: var(--el-text-color-secondary);

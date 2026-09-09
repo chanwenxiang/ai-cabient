@@ -509,6 +509,7 @@ import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { findNavByPath } from '@/config/menu';
 import { consumeDictRuntimeEpoch } from '@/stores/dict-runtime';
 import { yuanToCents } from '@/utils/display';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import type {
   DevRecognitionPreviewDto,
   FileAttachmentDto,
@@ -1049,10 +1050,8 @@ async function suggestClassName(forceReplace: boolean) {
       if (!confirmed) return;
     }
     enrollForm.yoloClassName = data.yoloClassName;
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '建议失败');
-    }
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '建议失败'));
   } finally {
     suggestingClass.value = false;
   }

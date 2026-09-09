@@ -215,18 +215,26 @@
                   }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="联系人" min-width="100" align="center" show-overflow-tooltip>
-                <template #default="{ row }">{{
-                  row.alertContactName || row.contactName || '暂无'
-                }}</template>
+              <el-table-column label="联系人" min-width="100" align="center" class-name="col-text">
+                <template #default="{ row }">
+                  <span
+                    class="cell-ellipsis"
+                    :title="row.alertContactName || row.contactName || ''"
+                    >{{ row.alertContactName || row.contactName || '暂无' }}</span
+                  >
+                </template>
               </el-table-column>
               <el-table-column label="电话" width="120" align="center">
                 <template #default="{ row }">{{
                   row.contactPhone || row.alertContactPhone || '暂无'
                 }}</template>
               </el-table-column>
-              <el-table-column label="备注" min-width="100" align="center" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.remark || '暂无' }}</template>
+              <el-table-column label="备注" min-width="100" align="center" class-name="col-text">
+                <template #default="{ row }">
+                  <span class="cell-ellipsis" :title="row.remark || ''">{{
+                    row.remark || '暂无'
+                  }}</span>
+                </template>
               </el-table-column>
             </el-table>
           </div>
@@ -718,6 +726,7 @@ import type {
 } from '@aicabinet/shared-types';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 
 const route = useRoute();
 const { router, goPath } = useNavAccess();
@@ -774,10 +783,35 @@ function onMerchantSizeChange() {
 }
 const psStatus = ref<ProfitSharingStatus | null>(null);
 const opsConfigMerchantId = ref('');
-const opsConfig = ref<any>(null);
+type MerchantOpsConfig = {
+  stockingType?: string;
+  stockoutThresholdPct?: number;
+  tallyMode?: string;
+  useStockingList?: boolean;
+  replenishInputType?: string;
+  photoStocktake?: boolean;
+  photoReplenish?: boolean;
+  maxInflightOrders?: number;
+};
+type MerchantRoleTemplate = {
+  templateName?: string;
+  templateCode?: string;
+  code?: string;
+  description?: string;
+  permissionHint?: string;
+  permissions?: unknown[];
+  permissionCount?: number;
+};
+type AssignDeviceRow = {
+  deviceId: string;
+  deviceName?: string;
+  merchantId?: string;
+  lifecycleStatus?: string;
+};
+const opsConfig = ref<MerchantOpsConfig | null>(null);
 const opsConfigLoading = ref(false);
 const savingOpsConfig = ref(false);
-const roleTemplates = ref<any[]>([]);
+const roleTemplates = ref<MerchantRoleTemplate[]>([]);
 
 const submitDialog = ref(false);
 const wxTransactionId = ref('');
@@ -1145,7 +1179,10 @@ function onTabChange(name: string | number) {
 
 async function loadRoleTemplates() {
   try {
-    roleTemplates.value = await api.request('/api/v2/ops/admin/merchant-role-templates', 'GET');
+    roleTemplates.value = await api.request<MerchantRoleTemplate[]>(
+      '/api/v2/ops/admin/merchant-role-templates',
+      'GET'
+    );
   } catch {
     roleTemplates.value = [];
   }
@@ -1159,7 +1196,7 @@ async function loadOpsConfig() {
   opsConfig.value = null;
   opsConfigLoading.value = true;
   try {
-    opsConfig.value = await api.request(
+    opsConfig.value = await api.request<MerchantOpsConfig>(
       `/api/v2/ops/admin/merchants/${encodeURIComponent(opsConfigMerchantId.value)}/ops-config`,
       'GET'
     );
@@ -1174,7 +1211,7 @@ async function saveOpsConfig() {
   if (!opsConfigMerchantId.value || !opsConfig.value) return;
   savingOpsConfig.value = true;
   try {
-    opsConfig.value = await api.request(
+    opsConfig.value = await api.request<MerchantOpsConfig>(
       `/api/v2/ops/admin/merchants/${encodeURIComponent(opsConfigMerchantId.value)}/ops-config`,
       'PUT',
       opsConfig.value
@@ -1233,10 +1270,8 @@ async function confirmLedger(row: RevenueSplit) {
     );
     ElMessage.success('已确认完结');
     await loadSplits();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '确认失败');
-    }
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '确认失败'));
   } finally {
     acting.value = false;
   }
@@ -1424,9 +1459,11 @@ async function openAssignDevices(row: MerchantDto) {
       return;
     }
     if (!allDevices.value.length) {
-      allDevices.value = await api
-        .request('/api/v2/ops/admin/devices?page=0&size=200', 'GET')
-        .then((page: any) => page?.items || page || []);
+      const page = await api.request<PageResult<AssignDeviceRow> | AssignDeviceRow[]>(
+        '/api/v2/ops/admin/devices?page=0&size=200',
+        'GET'
+      );
+      allDevices.value = Array.isArray(page) ? page : page?.items || [];
     }
     assignDeviceIds.value = allDevices.value
       .filter((d) => d.merchantId === row.merchantId)

@@ -142,8 +142,12 @@
           <el-table-column label="线路" width="100" align="center" show-overflow-tooltip>
             <template #default="{ row }">{{ row.routeCode || '—' }}</template>
           </el-table-column>
-          <el-table-column label="地址" min-width="140" align="center" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.address || '—' }}</template>
+          <el-table-column label="地址" min-width="140" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-ellipsis" :title="row.address || ''">{{
+                row.address || '—'
+              }}</span>
+            </template>
           </el-table-column>
           <el-table-column label="停售" width="88" align="center">
             <template #default="{ row }">

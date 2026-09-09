@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">数据一致性</span>
-            <span class="hint">巡检订单/支付/库存/积分/发券；未通过项可按规则修复</span>
+            <span class="hint">巡检订单/支付/库存批次/积分/券/钱包/分账/货道/仓存；未通过项可按规则修复</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -23,7 +23,7 @@
       show-icon
       class="t1-alert"
       title="一致性巡检说明"
-      description="默认只记录未通过项、不自动改数。覆盖订单/支付/库存/积分/发券/钱包/退款/行金额/券关联九类。订单金额与库存汇总可点「修复」；支付与退款偏差请走退款/调账。"
+      description="默认只记录未通过项、不自动改数。覆盖订单/支付/库存汇总与孤儿批、积分余额与恒等式、发券与超配额、用户/商户/线路钱包、退款、行金额、券核销、分账金额与缺失、货道 SKU/容量/盘点、仓存负库存等。订单金额、库存类与积分恒等式等可点「修复」；支付/退款/分账/钱包偏差请走退款或调账。"
     />
 
     <div class="kpi-tags">
@@ -94,7 +94,6 @@
             min-width="200"
             align="center"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">
               <el-button
@@ -102,11 +101,12 @@
                 type="primary"
                 link
                 class="key-link"
+                :title="row.checkKey"
                 @click="openKey(row)"
               >
                 <code class="mono">{{ row.checkKey }}</code>
               </el-button>
-              <code v-else class="mono">{{ row.checkKey }}</code>
+              <code v-else class="mono" :title="row.checkKey">{{ row.checkKey }}</code>
             </template>
           </el-table-column>
           <el-table-column
@@ -115,8 +115,13 @@
             width="140"
             align="center"
             class-name="col-text"
-            show-overflow-tooltip
-          />
+          >
+            <template #default="{ row }">
+              <span class="cell-ellipsis" :title="row.tableName || ''">{{
+                row.tableName || '暂无'
+              }}</span>
+            </template>
+          </el-table-column>
           <el-table-column label="级别" width="90" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="severityTag(row)">{{ severityLabel(row) }}</el-tag>
@@ -132,15 +137,12 @@
               <span class="is-mismatch" :title="actualHint(row)">{{ row.actualValue }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="说明"
-            min-width="160"
-            align="center"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="说明" min-width="160" align="center" class-name="col-text">
             <template #default="{ row }">
-              <span v-if="row.errorMessage" class="err-msg">{{ row.errorMessage }}</span>
+              <!-- 勿用 show-overflow-tooltip：横滚/右侧 sticky 操作列时会漂到操作列上 -->
+              <span v-if="row.errorMessage" class="err-msg" :title="row.errorMessage">{{
+                row.errorMessage
+              }}</span>
               <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
@@ -270,11 +272,31 @@ const severityCounts = computed(() => {
 });
 
 function rowSeverity(row: Row): 'high' | 'medium' | 'low' {
-  if (row.checkType === 'PAYMENT_AMOUNT' || row.checkType === 'WALLET_BALANCE') return 'high';
+  if (
+    row.checkType === 'PAYMENT_AMOUNT' ||
+    row.checkType === 'WALLET_BALANCE' ||
+    row.checkType === 'MERCHANT_WALLET' ||
+    row.checkType === 'LINE_WALLET' ||
+    row.checkType === 'REVENUE_SPLIT_SUM' ||
+    row.checkType === 'REVENUE_SPLIT_MISSING' ||
+    row.checkType === 'WAREHOUSE_NEGATIVE' ||
+    row.checkType === 'CROSS_LINK'
+  ) {
+    return 'high';
+  }
   const msg = String(row.errorMessage || '');
   if (msg.includes('实付') && msg.includes('均不符')) return 'high';
   if (msg.includes('券抵扣超过明细') || msg.includes('券字段未生效')) return 'medium';
-  if (row.checkType === 'ORDER_AMOUNT' || row.checkType === 'INVENTORY_MISMATCH') return 'medium';
+  if (
+    row.checkType === 'ORDER_AMOUNT' ||
+    row.checkType === 'INVENTORY_MISMATCH' ||
+    row.checkType === 'INVENTORY_ORPHAN_LOT' ||
+    row.checkType === 'SLOT_SKU_MISMATCH' ||
+    row.checkType === 'SLOT_CAPACITY' ||
+    row.checkType === 'COUPON_OVER_QUOTA'
+  ) {
+    return 'medium';
+  }
   return 'low';
 }
 
@@ -295,6 +317,12 @@ function severityTag(row: Row) {
 function fixPreview(row: Row): string {
   if (row.checkType === 'INVENTORY_MISMATCH') {
     return `将汇总库存改为在架批次合计 ${row.actualValue ?? '—'}`;
+  }
+  if (row.checkType === 'INVENTORY_ORPHAN_LOT') {
+    return `按在架批次合计 ${row.actualValue ?? '—'} 补齐汇总库存行`;
+  }
+  if (row.checkType === 'POINTS_IDENTITY') {
+    return '按 available+used+expired 回写累计积分';
   }
   if (row.checkType === 'ORDER_AMOUNT') {
     const msg = String(row.errorMessage || '');
@@ -341,6 +369,16 @@ function valueHint(row: Row) {
       return '期望净入账';
     case 'INVENTORY_MISMATCH':
       return '汇总库存';
+    case 'INVENTORY_ORPHAN_LOT':
+      return '期望汇总行';
+    case 'POINTS_IDENTITY':
+      return '累计积分';
+    case 'REVENUE_SPLIT_SUM':
+      return '分账毛额';
+    case 'SLOT_CAPACITY':
+      return '货道容量';
+    case 'SLOT_PHYSICAL':
+      return '盘点数量';
     default:
       return '期望值';
   }
@@ -353,6 +391,15 @@ function actualHint(row: Row) {
     case 'PAYMENT_AMOUNT':
       return '实际净入账';
     case 'INVENTORY_MISMATCH':
+      return '在架批次合计';
+    case 'INVENTORY_ORPHAN_LOT':
+      return '在架批次合计';
+    case 'POINTS_IDENTITY':
+      return 'available+used+expired';
+    case 'REVENUE_SPLIT_SUM':
+      return '平台+商户';
+    case 'SLOT_CAPACITY':
+    case 'SLOT_PHYSICAL':
       return '在架批次合计';
     default:
       return '实际值';
@@ -373,12 +420,22 @@ function typeTag(t: string) {
     case 'PAYMENT_AMOUNT':
       return 'danger';
     case 'INVENTORY_MISMATCH':
+    case 'INVENTORY_ORPHAN_LOT':
       return 'info';
     case 'WALLET_BALANCE':
+    case 'MERCHANT_WALLET':
+    case 'LINE_WALLET':
     case 'REFUND_AMOUNT':
+    case 'REVENUE_SPLIT_SUM':
+    case 'REVENUE_SPLIT_MISSING':
+    case 'WAREHOUSE_NEGATIVE':
+    case 'CROSS_LINK':
       return 'danger';
     case 'ORDER_LINE_SUM':
     case 'COUPON_USED_LINK':
+    case 'SLOT_SKU_MISMATCH':
+    case 'SLOT_CAPACITY':
+    case 'COUPON_OVER_QUOTA':
       return 'warning';
     default:
       return '';
@@ -389,6 +446,8 @@ function isFixable(t: string) {
   return (
     t === 'ORDER_AMOUNT' ||
     t === 'INVENTORY_MISMATCH' ||
+    t === 'INVENTORY_ORPHAN_LOT' ||
+    t === 'POINTS_IDENTITY' ||
     t === 'ORDER_LINE_SUM' ||
     t === 'COUPON_USED_LINK' ||
     t === 'PAYMENT_AMOUNT'
@@ -400,17 +459,35 @@ function keyLink(row: Row): 'order' | 'device' | 'member' | 'coupon' | null {
   if (
     row.checkType === 'ORDER_AMOUNT' ||
     row.checkType === 'PAYMENT_AMOUNT' ||
-    row.checkType === 'REFUND_AMOUNT' ||
-    row.checkType === 'COUPON_USED_LINK'
+    row.checkType === 'COUPON_USED_LINK' ||
+    row.checkType === 'REVENUE_SPLIT_MISSING'
   ) {
+    return 'order';
+  }
+  if (row.checkType === 'CROSS_LINK') {
+    return row.checkKey.startsWith('DSP|') ? null : 'order';
+  }
+  if (row.checkType === 'REFUND_AMOUNT') {
+    return row.checkKey?.startsWith('RCH|') ? null : 'order';
+  }
+  if (row.checkType === 'REVENUE_SPLIT_SUM' && row.checkKey.includes('|')) {
     return 'order';
   }
   if (row.checkType === 'ORDER_LINE_SUM' && row.checkKey.includes('|')) {
     return 'order';
   }
-  if (row.checkType === 'INVENTORY_MISMATCH' && row.checkKey.includes('|')) return 'device';
-  if (row.checkType === 'POINTS_BALANCE') return 'member';
-  if (row.checkType === 'COUPON_ISSUED') return 'coupon';
+  if (
+    (row.checkType === 'INVENTORY_MISMATCH' ||
+      row.checkType === 'INVENTORY_ORPHAN_LOT' ||
+      row.checkType === 'SLOT_SKU_MISMATCH' ||
+      row.checkType === 'SLOT_CAPACITY' ||
+      row.checkType === 'SLOT_PHYSICAL') &&
+    row.checkKey.includes('|')
+  ) {
+    return 'device';
+  }
+  if (row.checkType === 'POINTS_BALANCE' || row.checkType === 'POINTS_IDENTITY') return 'member';
+  if (row.checkType === 'COUPON_ISSUED' || row.checkType === 'COUPON_OVER_QUOTA') return 'coupon';
   return null;
 }
 
@@ -418,7 +495,11 @@ function openKey(row: Row) {
   const kind = keyLink(row);
   if (kind === 'order') {
     const orderId =
-      row.checkType === 'ORDER_LINE_SUM' ? row.checkKey.split('|', 2)[0] : row.checkKey;
+      row.checkType === 'ORDER_LINE_SUM' || row.checkType === 'REVENUE_SPLIT_SUM'
+        ? row.checkKey.split('|', 2)[0]
+        : row.checkType === 'CROSS_LINK'
+          ? row.checkKey.split('|', 2)[1] || row.checkKey
+          : row.checkKey;
     router.push({ path: '/orders', query: { orderId } }).catch(() => {});
     return;
   }
@@ -518,8 +599,14 @@ onActivated(load);
   font-weight: 600;
 }
 .err-msg {
+  display: inline-block;
+  max-width: 100%;
   color: var(--el-text-color-regular);
   font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
 }
 .muted {
   color: var(--el-text-color-placeholder);

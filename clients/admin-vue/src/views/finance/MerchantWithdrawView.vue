@@ -425,6 +425,7 @@ import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { useAdminListTable } from '@/composables/useAdminListTable';
@@ -441,6 +442,19 @@ interface WalletRow {
   balanceCents?: number;
   frozenCents?: number;
   availableCents?: number;
+}
+
+interface LedgerRow {
+  ledgerId?: number;
+  merchantId?: string;
+  entryType?: string;
+  amountCents?: number;
+  balanceAfter?: number;
+  frozenAfter?: number;
+  refType?: string;
+  refId?: string;
+  remark?: string;
+  createdAt?: string;
 }
 
 interface Withdraw {
@@ -477,7 +491,7 @@ const wdTotal = ref(0);
 const wdStatus = ref('');
 const ledgerVisible = ref(false);
 const ledgerHydrated = ref(false);
-const ledgers = ref<any[]>([]);
+const ledgers = ref<LedgerRow[]>([]);
 const adjustVisible = ref(false);
 const adjustSaving = ref(false);
 const adjustTarget = ref<WalletRow | null>(null);
@@ -590,8 +604,8 @@ async function loadWallets() {
     wallets.value = res.items || [];
     wTotal.value = res.total || 0;
     clearWalletSelection();
-  } catch (e: any) {
-    ElMessage.error(e?.message || '加载失败');
+  } catch (e: unknown) {
+    ElMessage.error(errorMessage(e, '加载失败'));
   } finally {
     walletsHydrated.value = true;
     walletsLoading.value = false;
@@ -613,8 +627,8 @@ async function loadWithdraws() {
     withdraws.value = res.items || [];
     wdTotal.value = res.total || 0;
     clearWdSelection();
-  } catch (e: any) {
-    ElMessage.error(e?.message || '加载失败');
+  } catch (e: unknown) {
+    ElMessage.error(errorMessage(e, '加载失败'));
   } finally {
     withdrawsHydrated.value = true;
     withdrawsLoading.value = false;
@@ -654,7 +668,7 @@ async function submitAdjust() {
     adjustVisible.value = false;
     await loadWallets();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '调账失败');
+    ElMessage.error(errorMessage(e, '调账失败'));
   } finally {
     adjustSaving.value = false;
   }
@@ -664,12 +678,12 @@ async function showLedgers(row: WalletRow) {
   ledgers.value = [];
   ledgerVisible.value = true;
   try {
-    ledgers.value = await api.request(
+    ledgers.value = await api.request<LedgerRow[]>(
       `/api/v2/ops/admin/merchant-wallets/${encodeURIComponent(row.merchantId)}/ledgers?limit=50`,
       'GET'
     );
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载流水失败');
+    ElMessage.error(errorMessage(e, '加载流水失败'));
     ledgers.value = [];
   } finally {
     ledgerHydrated.value = true;
@@ -710,7 +724,7 @@ async function submitWithdraw() {
     tab.value = 'withdraws';
     await loadWithdraws();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '代提现失败');
+    ElMessage.error(errorMessage(e, '代提现失败'));
   } finally {
     withdrawSaving.value = false;
   }
@@ -729,9 +743,9 @@ async function review(row: Withdraw, approve: boolean) {
     });
     ElMessage.success(approve ? '已通过' : '已驳回');
     await loadWithdraws();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '审核失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '审核失败'));
     }
   }
 }
@@ -789,9 +803,9 @@ async function payout(row: Withdraw) {
     await api.request(`/api/v2/ops/admin/merchant-withdraws/${row.requestId}/payout`, 'POST', {});
     ElMessage.success('已重试打款');
     await loadWithdraws();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '打款失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '打款失败'));
     }
   }
 }
@@ -812,9 +826,9 @@ async function cancelFailed(row: Withdraw) {
     });
     ElMessage.success('已取消并解冻');
     await loadWithdraws();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '取消失败');
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '取消失败'));
     }
   }
 }

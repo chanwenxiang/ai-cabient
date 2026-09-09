@@ -316,7 +316,11 @@ export interface ProfitSharingStatus {
     wechatPayConfigured: string;
     note: string;
 }
-export interface OrderSummary {
+/**
+ * 三端共用订单聚合读模型（与后端 {@code OrderReadModel} 字段对齐；时间为 ISO 字符串）。
+ * OpenAPI 生成类型见 {@link ./generated/openapi.ts}。
+ */
+export interface OrderReadModel {
     orderId: string;
     sessionId?: string;
     userId?: string | number;
@@ -341,9 +345,21 @@ export interface OrderSummary {
     createdAt?: string;
     /** 支付完成时间 */
     paidAt?: string;
+    /** 兼容部分响应里的更新时间 */
+    updatedAt?: string;
     /** 分账状态（联 order_revenue_split） */
     splitStatus?: string;
+    /** 详情才有；列表为 undefined */
+    lines?: OrderLineDto[];
+    /** 兼容部分旧响应里的 items 别名 */
+    items?: OrderLineDto[];
+    balanceBeforeCents?: number;
+    balanceAfterCents?: number;
+    videoUri?: string;
+    payTime?: string;
 }
+/** @deprecated 使用 OrderReadModel */
+export type OrderSummary = OrderReadModel;
 export interface DisputeSummary {
     ticketId: string;
     sessionId?: string;
@@ -481,6 +497,26 @@ export interface MerchantMe {
     canEditPricing?: boolean;
     /** 绑定商户功能包并集：field / biz / team */
     enabledPacks?: string[];
+    /**
+     * 完成补货是否必须上传现场凭证。
+     * 来自系统参数 replenishment.complete.require_evidence；缺省 true。
+     */
+    requireReplenishmentEvidence?: boolean;
+    /**
+     * 完成补货是否必须先补货开门。
+     * 来自系统参数 replenishment.complete.require_door；缺省 true。
+     */
+    requireReplenishmentDoor?: boolean;
+    /**
+     * 柜机有坐标时签到是否必须带定位。
+     * 来自系统参数 replenishment.check_in.require_location；缺省 true。
+     */
+    requireReplenishmentCheckInLocation?: boolean;
+    /**
+     * 签到距柜机最大允许距离（米）；≤0 表示关闭距离校验。
+     * 来自系统参数 replenishment.check_in.max_distance_m；缺省 500。
+     */
+    replenishmentCheckInMaxDistanceM?: number;
 }
 export interface MerchantWorkbench {
     openDisputes: number;

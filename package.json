@@ -17,6 +17,7 @@
     "test:mp": "pnpm --filter @aicabinet/consumer-mp run test:ci && pnpm --filter @aicabinet/merchant-mp run test:ci",
     "check:nav-perms": "node scripts/check-nav-perms.mjs",
     "smoke:realms": "node scripts/smoke-realms.mjs",
+    "gen:api-types": "node scripts/gen-openapi-types.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"clients/**/*.{ts,vue,js,mjs,css,html,json}\" \"packages/**/*.{ts,json}\" \"scripts/**/*.mjs\"",
@@ -37,6 +38,7 @@
     "eslint-config-prettier": "^9",
     "eslint-plugin-vue": "^9",
     "globals": "^15",
+    "openapi-typescript": "^7.4.4",
     "prettier": "^3",
     "typescript-eslint": "^8"
   }

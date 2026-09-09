@@ -162,11 +162,17 @@
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="负责人" width="84" show-overflow-tooltip align="center">
-            <template #default="{ row }">{{ row.assignee || '无' }}</template>
+          <el-table-column label="负责人" width="84" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-ellipsis" :title="row.assignee || ''">{{
+                row.assignee || '无'
+              }}</span>
+            </template>
           </el-table-column>
-          <el-table-column label="备注" min-width="96" show-overflow-tooltip align="center">
-            <template #default="{ row }">{{ row.remark || '无' }}</template>
+          <el-table-column label="备注" min-width="96" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-ellipsis" :title="row.remark || ''">{{ row.remark || '无' }}</span>
+            </template>
           </el-table-column>
           <el-table-column label="创建时间" width="124" align="center">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) || '无' }}</template>

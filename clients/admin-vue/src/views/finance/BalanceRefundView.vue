@@ -10,6 +10,7 @@ import { useListCsv } from '@/composables/useListCsv';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import type { BalanceRefundRequestDto, PageResult } from '@aicabinet/shared-types';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
 const auth = useAuthStore();
@@ -79,18 +80,7 @@ function yuan(cents?: number) {
 }
 
 function statusLabel(s?: string) {
-  switch (String(s || '').toUpperCase()) {
-    case 'PENDING_REVIEW':
-      return '待审核';
-    case 'REFUNDED':
-      return '已退款';
-    case 'REJECTED':
-      return '已驳回';
-    case 'FAILED':
-      return '失败';
-    default:
-      return '未知状态';
-  }
+  return displayLabel('balance_refund_status', s, '未知状态');
 }
 
 function statusTagType(s?: string): 'success' | 'warning' | 'danger' | 'info' {
@@ -187,7 +177,9 @@ async function review(row: BalanceRefundRequestDto, approve: boolean) {
       approve,
       remark: value || undefined
     });
-    ElMessage.success(approve ? '已退款' : '已驳回');
+    ElMessage.success(
+      displayLabel('balance_refund_status', approve ? 'REFUNDED' : 'REJECTED')
+    );
     await load();
   } catch (e) {
     if (e === 'cancel' || e === 'close') return;
@@ -282,9 +274,9 @@ onMounted(load);
     </template>
 
     <el-tabs v-model="statusTab" class="status-tabs" @tab-change="onStatusTab">
-      <el-tab-pane label="待审核" name="PENDING_REVIEW" />
-      <el-tab-pane label="已退款" name="REFUNDED" />
-      <el-tab-pane label="已驳回" name="REJECTED" />
+      <el-tab-pane :label="displayLabel('balance_refund_status', 'PENDING_REVIEW')" name="PENDING_REVIEW" />
+      <el-tab-pane :label="displayLabel('balance_refund_status', 'REFUNDED')" name="REFUNDED" />
+      <el-tab-pane :label="displayLabel('balance_refund_status', 'REJECTED')" name="REJECTED" />
       <el-tab-pane label="失败" name="FAILED" />
       <el-tab-pane label="全部" name="ALL" />
     </el-tabs>
