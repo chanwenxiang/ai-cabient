@@ -14,9 +14,12 @@ ENV MOCK_ENABLED=true
 COPY vision-service/requirements-base.txt ./
 
 RUN pip install --upgrade pip setuptools wheel \
-    && pip install --no-cache-dir --retries 10 --timeout 300 -r requirements-base.txt
+    && pip install --no-cache-dir --retries 10 --timeout 300 -r requirements-base.txt \
+    && groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin app \
+    && chown -R app:app /app
 
-COPY vision-service/app ./app
+COPY --chown=app:app vision-service/app ./app
 
+USER app
 EXPOSE 8082
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8082"]

@@ -58,7 +58,7 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/vision-service.Dockerfile
-    image: ai-cabinet/vision-service:${IMAGE_TAG:-latest}
+    image: ai-cabinet/vision-service:${IMAGE_TAG:-local}
     environment:
       MOCK_ENABLED: ${VISION_MOCK_ENABLED:-true}
       VISION_FORCE_REAL: ${VISION_FORCE_REAL:-false}
@@ -86,7 +86,7 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/trade-service.Dockerfile
-    image: ai-cabinet/trade-service:${IMAGE_TAG:-latest}
+    image: ai-cabinet/trade-service:${IMAGE_TAG:-local}
     environment:
       SPRING_PROFILES_ACTIVE: dev
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aicabinet

@@ -111,11 +111,12 @@ docker build -f infra/docker/trade-service.Dockerfile -t ai-cabinet/trade-servic
 
 | Dockerfile | 镜像 | 说明 |
 |------------|------|------|
-| `docker/trade-service.Dockerfile` | `ai-cabinet/trade-service:${IMAGE_TAG:-latest}` | 含运营后台 + Flyway |
-| `docker/device-service.Dockerfile` | `ai-cabinet/device-service:${IMAGE_TAG:-latest}` | MQTT 设备服务 |
-| `docker/vision-service.Dockerfile` | `ai-cabinet/vision-service:${IMAGE_TAG:-latest}` | Python 识别服务 |
+| `docker/trade-service.Dockerfile` | `ai-cabinet/trade-service:${IMAGE_TAG:-local}` | 含运营后台 + Flyway |
+| `docker/device-service.Dockerfile` | `ai-cabinet/device-service:${IMAGE_TAG:-local}` | MQTT 设备服务 |
+| `docker/vision-service.Dockerfile` | `ai-cabinet/vision-service:${IMAGE_TAG:-local}` | Python 识别服务 |
 
-在 `infra/.env` 可设置 `IMAGE_TAG=v0.6.0` 固定版本。
+在 `infra/.env` 可设置 `IMAGE_TAG=v0.6.0` 固定版本；`docker-up.ps1` 未设置时默认写入当前 git short SHA（避免 `latest` 漂移）。
+本地 compose 默认单副本：trade 含 Flyway/定时任务，扩副本需 Swarm/K8s + 任务选举，勿在未改造时 `scale=2`。
 
 ### 本地 Maven 与 Docker 的关系
 
