@@ -1,0 +1,11 @@
+﻿{
+  "promoId": 1,
+  "pointsItemId": 2,
+  "memberLevelId": 3,
+  "announcementId": 3,
+  "notificationId": 20,
+  "phoneLogId": 2,
+  "assetId": 1,
+  "campaignId": 1,
+  "feedbackId": 1
+}
