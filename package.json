@@ -25,7 +25,8 @@
     "format": "prettier --write \"clients/**/*.{ts,vue,js,mjs,css,html,json}\" \"packages/**/*.{ts,json}\" \"scripts/**/*.mjs\"",
     "format:check": "prettier --check \"clients/**/*.{ts,vue,js,mjs,css,html,json}\" \"packages/**/*.{ts,json}\" \"scripts/**/*.mjs\"",
     "check": "pnpm lint && pnpm format:check && pnpm check:shared",
-    "audit:deps": "pnpm audit --registry https://registry.npmjs.org/"
+    "audit:deps": "pnpm audit --registry https://registry.npmjs.org/",
+    "audit:backend": "node scripts/audit-backend-deps.mjs"
   },
   "engines": {
     "node": ">=24.18.0",

@@ -66,7 +66,19 @@
         <dependency>
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
-            <version>8.5.12</version>
+            <version>${minio.version}</version>
+            <!-- OkHttp 5 的 okhttp 工件是 Gradle 空壳；Maven 需显式拉 okhttp-jvm -->
+            <exclusions>
+                <exclusion>
+                    <groupId>com.squareup.okhttp3</groupId>
+                    <artifactId>okhttp</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp-jvm</artifactId>
+            <version>${okhttp.version}</version>
         </dependency>
         <dependency>
             <groupId>org.postgresql</groupId>
@@ -76,6 +88,11 @@
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
+        </dependency>
+        <!-- Boot 3.4+/Flyway 10+：PostgreSQL 支持拆到独立模块 -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
@@ -97,7 +114,7 @@
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.5.0</version>
+            <version>${springdoc.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -129,17 +146,17 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- Redisson for distributed locks -->
+        <!-- Redisson for distributed locks（3.49+ 带 spring-data-35，对齐 Boot 3.5） -->
         <dependency>
             <groupId>org.redisson</groupId>
             <artifactId>redisson-spring-boot-starter</artifactId>
-            <version>3.27.0</version>
+            <version>${redisson.version}</version>
         </dependency>
-    
+
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
-            <version>3.5.5</version>
+            <version>${mybatis-plus.version}</version>
         </dependency>
         <!-- XXL-JOB 分布式任务调度（执行器；调度中心单独部署） -->
         <dependency>
