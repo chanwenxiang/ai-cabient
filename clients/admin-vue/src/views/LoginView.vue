@@ -89,7 +89,7 @@
         <p v-if="err" class="err" role="alert">{{ err }}</p>
         <div class="login-extras">
           <div class="remember-group">
-            <el-checkbox v-model="rememberCredentials" size="small">记住账号和密码</el-checkbox>
+            <el-checkbox v-model="rememberPhone" size="small">记住账号</el-checkbox>
           </div>
           <button type="button" class="link-btn" @click="openResetDialog">忘记密码？</button>
         </div>
@@ -271,38 +271,18 @@ const particles = Array.from({ length: 16 }, (_, i) => {
 
 const phone = ref(localStorage.getItem('admin_phone') || (ENABLE_TEST_TOOLS ? '13900000001' : ''));
 
-/** 记住密码：base64 轻量混淆存储。localStorage 本身无法加密，仅避免密码明文直读。 */
+/** 只记住手机号；密码禁止写入 localStorage（旧版 base64「混淆」已清除）。 */
 const PW_STORE_KEY = 'admin_password';
 const PW_FLAG_KEY = 'admin_remember_password';
-
-function encodePassword(raw: string): string {
-  return `v1:${btoa(encodeURIComponent(raw))}`;
+try {
+  localStorage.removeItem(PW_STORE_KEY);
+  localStorage.removeItem(PW_FLAG_KEY);
+} catch {
+  /* ignore quota / private mode */
 }
 
-function decodePassword(stored: string | null): string {
-  if (!stored || !stored.startsWith('v1:')) return '';
-  try {
-    return decodeURIComponent(atob(stored.slice(3)));
-  } catch {
-    return '';
-  }
-}
-
-const rememberPassword = ref(localStorage.getItem(PW_FLAG_KEY) !== '0');
-/** 记住账号和密码（合并开关）：任一旧选项开启过则默认勾选，兼容历史 localStorage */
-const rememberCredentials = ref(
-  rememberPassword.value || localStorage.getItem('admin_remember_phone') !== '0'
-);
-function initialPassword(): string {
-  if (rememberCredentials.value) {
-    return decodePassword(localStorage.getItem(PW_STORE_KEY));
-  }
-  if (ENABLE_TEST_TOOLS) {
-    return '123456';
-  }
-  return '';
-}
-const password = ref(initialPassword());
+const rememberPhone = ref(localStorage.getItem('admin_remember_phone') !== '0');
+const password = ref(ENABLE_TEST_TOOLS ? '123456' : '');
 const captchaCode = ref('');
 const captchaId = ref('');
 const captchaImage = ref('');
@@ -474,17 +454,15 @@ onMounted(async () => {
 });
 
 async function finishLogin(normalizedPhone: string) {
-  if (rememberCredentials.value) {
+  if (rememberPhone.value) {
     localStorage.setItem('admin_remember_phone', '1');
     localStorage.setItem('admin_phone', normalizedPhone);
-    localStorage.setItem(PW_FLAG_KEY, '1');
-    localStorage.setItem(PW_STORE_KEY, encodePassword(password.value));
   } else {
     localStorage.removeItem('admin_phone');
     localStorage.setItem('admin_remember_phone', '0');
-    localStorage.setItem(PW_FLAG_KEY, '0');
-    localStorage.removeItem(PW_STORE_KEY);
   }
+  localStorage.removeItem(PW_STORE_KEY);
+  localStorage.removeItem(PW_FLAG_KEY);
   const home = resolveHomePath(auth);
   const requested = safeRedirectPath(route.query.redirect, home);
   const nav = findNavByPath(requested);

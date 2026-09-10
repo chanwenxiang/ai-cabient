@@ -1,0 +1,1 @@
+function t(s,n="操作失败"){if(s instanceof Error&&s.message)return s.message;if(typeof s=="string"&&s)return s;if(s&&typeof s=="object"&&"message"in s){const e=s.message;if(typeof e=="string"&&e)return e}return n}function i(s){return s==="cancel"||s==="close"}export{t as e,i};
