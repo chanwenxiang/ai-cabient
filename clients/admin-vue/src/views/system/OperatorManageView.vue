@@ -14,7 +14,16 @@
           }}</el-button>
           <el-button
             v-hasPermi="['ops:rbac:assign:import']"
-            @click="onDownloadTemplate(['', '张三', '13900000099', 'Passw0rd', '正常', ''])"
+            @click="
+              onDownloadTemplate([
+                '',
+                '张三',
+                '13900000099',
+                'Passw0rd',
+                displayLabel('merchant_status', 'ACTIVE'),
+                ''
+              ])
+            "
             >导入模板</el-button
           >
           <el-button
@@ -94,7 +103,7 @@
           <el-table-column label="状态" width="90" align="center">
             <template #default="{ row }">
               <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-                {{ row.status === 'ACTIVE' ? '正常' : '停用' }}
+                {{ displayLabel('merchant_status', row.status) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -473,6 +482,7 @@ import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
+import { displayLabel } from '@aicabinet/shared-dict';
 
 const route = useRoute();
 const router = useRouter();
@@ -606,7 +616,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         row.name,
         row.phoneNumber,
         '',
-        row.status === 'ACTIVE' ? '正常' : '停用',
+        displayLabel('merchant_status', row.status || 'ACTIVE'),
         (row.roleNames || []).join('、') || '未分配',
         (row.merchantNames || row.merchantIds || []).length
           ? (row.merchantNames || row.merchantIds || []).join('、')
@@ -688,7 +698,13 @@ function rowActions(row: OperatorRow): TableAction[] {
     row.status === 'ACTIVE' &&
     row.userId !== Number(auth.userId)
   ) {
-    acts.push({ key: 'disable', label: '停用', icon: Delete, type: 'danger', overflow: true });
+    acts.push({
+      key: 'disable',
+      label: displayLabel('enable_status', 'INACTIVE'),
+      icon: Delete,
+      type: 'danger',
+      overflow: true
+    });
   }
   return acts;
 }

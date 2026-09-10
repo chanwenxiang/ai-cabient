@@ -104,7 +104,7 @@
           <el-table-column label="状态" width="90" align="center">
             <template #default="{ row }">
               <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{
-                row.status === 'ACTIVE' ? '启用' : '停用'
+                displayLabel('enable_status', row.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE')
               }}</el-tag>
             </template>
           </el-table-column>
@@ -187,6 +187,7 @@ import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useListCsv } from '@/composables/useListCsv';
 import { useAuthStore } from '@/stores/auth';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 type RedeemItem = {
@@ -261,7 +262,7 @@ const { onExport } = useListCsv({
       r.stockTotal,
       r.redeemedCount,
       r.sortOrder,
-      r.status === 'ACTIVE' ? '启用' : '停用'
+      displayLabel('enable_status', r.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE')
     ])
 });
 
@@ -297,7 +298,7 @@ function rowActions(row: RedeemItem): TableAction[] {
     { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' },
     {
       key: 'toggle',
-      label: row.status === 'ACTIVE' ? '停用' : '启用',
+      label: displayLabel('enable_status', row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'),
       icon: SwitchButton,
       type: row.status === 'ACTIVE' ? 'danger' : 'success'
     }

@@ -24,7 +24,7 @@
                 '30',
                 '100',
                 '示例描述',
-                '停用'
+                displayLabel('enable_status', 'INACTIVE')
               ])
             "
             >导入模板</el-button
@@ -77,8 +77,8 @@
           style="width: 120px"
           @change="search"
         >
-          <el-option label="启用" value="ACTIVE" />
-          <el-option label="停用" value="INACTIVE" />
+          <el-option :label="displayLabel('enable_status', 'ACTIVE')" value="ACTIVE" />
+          <el-option :label="displayLabel('enable_status', 'INACTIVE')" value="INACTIVE" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -558,7 +558,9 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
           }
         );
         const statusRaw = (row['状态'] || row.status || '').trim();
-        const wantsActive = statusRaw === '启用' || statusRaw.toUpperCase() === 'ACTIVE';
+        const wantsActive =
+          statusRaw.toUpperCase() === 'ACTIVE' ||
+          statusRaw === displayLabel('enable_status', 'ACTIVE');
         if (!wantsActive && created?.couponDefId) {
           await api.request(
             `/api/v2/coupons/definitions/${created.couponDefId}/status?status=INACTIVE`,
@@ -588,7 +590,7 @@ function rowActions(row: CouponDefinitionDto): TableAction[] {
   if (auth.hasPerm('ops:coupon:edit')) {
     acts.push({
       key: 'toggle',
-      label: row.status === 'ACTIVE' ? '停用' : '启用',
+      label: displayLabel('enable_status', row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'),
       icon: SwitchButton,
       type: row.status === 'ACTIVE' ? 'warning' : 'success'
     });
@@ -786,7 +788,7 @@ async function onBatchIssueSubmit() {
 
 async function onToggleStatus(row: CouponDefinitionDto) {
   const next = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-  const action = next === 'INACTIVE' ? '停用' : '启用';
+  const action = displayLabel('enable_status', next);
   try {
     await ElMessageBox.confirm(`确认${action}优惠券「${row.couponName}」？`, '优惠券状态', {
       type: 'warning'

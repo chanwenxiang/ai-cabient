@@ -96,8 +96,14 @@
 
     <el-tabs v-model="boardTab" class="status-tabs" @tab-change="onBoardTab">
       <el-tab-pane :label="boardTabLabel('ALL', '全部')" name="ALL" />
-      <el-tab-pane :label="boardTabLabel('ONLINE', '在线')" name="ONLINE" />
-      <el-tab-pane :label="boardTabLabel('OFFLINE', '离线')" name="OFFLINE" />
+      <el-tab-pane
+        :label="boardTabLabel('ONLINE', displayLabel('online_status', 'ONLINE'))"
+        name="ONLINE"
+      />
+      <el-tab-pane
+        :label="boardTabLabel('OFFLINE', displayLabel('online_status', 'OFFLINE'))"
+        name="OFFLINE"
+      />
       <el-tab-pane :label="boardTabLabel('ON_SALE', '在售')" name="ON_SALE" />
       <el-tab-pane :label="boardTabLabel('LOCKED', '停售')" name="LOCKED" />
     </el-tabs>
@@ -494,7 +500,7 @@ import { computed, onActivated, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh, Setting, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
@@ -555,8 +561,8 @@ const attentionOverlap = ref(0);
 const boardHydrated = ref(false);
 const boardTiles: { key: BoardTab; label: string; hint?: string; warn?: boolean }[] = [
   { key: 'ALL', label: '全部设备' },
-  { key: 'ONLINE', label: '在线', hint: '心跳正常' },
-  { key: 'OFFLINE', label: '离线', hint: '需巡检', warn: true },
+  { key: 'ONLINE', label: displayLabel('online_status', 'ONLINE'), hint: '心跳正常' },
+  { key: 'OFFLINE', label: displayLabel('online_status', 'OFFLINE'), hint: '需巡检', warn: true },
   { key: 'ON_SALE', label: '在售', hint: '可营业' },
   { key: 'LOCKED', label: '停售', hint: '已锁机', warn: true }
 ];
@@ -650,7 +656,7 @@ const { onExport } = useListCsv({
     '设备编号',
     '名称',
     '类型',
-    '在线',
+    displayLabel('online_status', 'ONLINE'),
     '运营态',
     '停售原因',
     '柜内温度',

@@ -1147,7 +1147,7 @@
               <el-table-column label="状态" min-width="90" align="center">
                 <template #default="{ row }">
                   <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-                    {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
+                    {{ displayLabel('enable_status', row.status) }}
                   </el-tag>
                 </template>
               </el-table-column>
@@ -2470,8 +2470,19 @@ function statusCode(raw: string | undefined, fallback = 'ACTIVE') {
     if (upper === 'DISABLED') return 'INACTIVE';
     return upper;
   }
-  if (v === '启用' || v === '正常') return 'ACTIVE';
-  if (v === '停用' || v === '禁用') return 'INACTIVE';
+  if (
+    v === displayLabel('enable_status', 'ACTIVE') ||
+    v === displayLabel('warehouse_status', 'ACTIVE')
+  ) {
+    return 'ACTIVE';
+  }
+  if (
+    v === displayLabel('enable_status', 'INACTIVE') ||
+    v === displayLabel('warehouse_status', 'INACTIVE') ||
+    v === '禁用'
+  ) {
+    return 'INACTIVE';
+  }
   return fallback;
 }
 
@@ -3140,9 +3151,20 @@ const importing = computed(() => importingWarehouses.value || importingSuppliers
 
 function onDownloadImportTemplate() {
   if (tab.value === 'warehouses') {
-    downloadWarehouseTemplate(['演示中心仓', 'WH-DEMO-001', '上海市示例路 1 号', '启用']);
+    downloadWarehouseTemplate([
+      '演示中心仓',
+      'WH-DEMO-001',
+      '上海市示例路 1 号',
+      displayLabel('warehouse_status', 'ACTIVE')
+    ]);
   } else if (tab.value === 'suppliers') {
-    downloadSupplierTemplate(['演示饮品供应商', 'SUP-DEMO-001', '张三', '13800000000', '启用']);
+    downloadSupplierTemplate([
+      '演示饮品供应商',
+      'SUP-DEMO-001',
+      '张三',
+      '13800000000',
+      displayLabel('supplier_status', 'ACTIVE')
+    ]);
   }
 }
 
@@ -3314,9 +3336,9 @@ async function onExport() {
 
 function returnStatusLabel(status?: string) {
   const code = (status || 'COMPLETED').toUpperCase();
-  if (code === 'COMPLETED') return '已完成';
-  if (code === 'CANCELLED') return '已取消';
-  return status || '已完成';
+  if (code === 'COMPLETED') return displayLabel('order_status', 'COMPLETED');
+  if (code === 'CANCELLED') return displayLabel('order_status', 'CANCELLED');
+  return status || displayLabel('order_status', 'COMPLETED');
 }
 function supplierName(id: string) {
   return suppliers.value.find((s) => s.supplierId === id)?.supplierName || id || '无';
@@ -3326,16 +3348,12 @@ function warehouseName(id: string) {
 }
 function transferStatusLabel(status?: string) {
   if (!status) return '';
-  return (
-    (
-      {
-        DRAFT: '草稿',
-        SHIPPED: '已发运',
-        RECEIVED: '已收货',
-        CANCELLED: '已取消'
-      } as Record<string, string>
-    )[String(status).toUpperCase()] || status
-  );
+  const code = String(status).toUpperCase();
+  if (code === 'DRAFT') return displayLabel('stocktake_status', 'DRAFT');
+  if (code === 'SHIPPED') return displayLabel('warehouse_outbound_status', 'SHIPPED');
+  if (code === 'RECEIVED') return displayLabel('purchase_order_status', 'RECEIVED');
+  if (code === 'CANCELLED') return displayLabel('order_status', 'CANCELLED');
+  return status;
 }
 function deviceName(id?: string, snapshot?: string | null) {
   const snap = snapshot != null ? String(snapshot).trim() : '';
@@ -3769,7 +3787,7 @@ async function receiveTransfer(row: Row) {
 }
 async function cancelTransfer(row: Row) {
   await api.request(`/api/v2/ops/admin/warehouse/transfers/${row.transferId}/cancel`, 'POST');
-  ElMessage.success('已取消');
+  ElMessage.success(displayLabel('order_status', 'CANCELLED'));
   loadedTabs.value.delete('transfers');
   await loadTab('transfers', true);
 }

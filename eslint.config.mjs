@@ -52,13 +52,20 @@ export default tseslint.config(
     }
   },
   {
-    // 状态文案 + any 收紧：订单 / 公告 / 异常 / 余额退款 / 小程序订单与争议
+    // 状态文案：订单/公告/异常/退款/小程序争议 + admin 启用/在线等高频域
     files: [
       'clients/admin-vue/src/views/orders/**/*.{vue,ts}',
       'clients/admin-vue/src/views/announcements/**/*.{vue,ts}',
       'clients/admin-vue/src/views/exceptions/**/*.{vue,ts}',
       'clients/admin-vue/src/views/finance/BalanceRefundView.vue',
       'clients/admin-vue/src/api/client.ts',
+      'clients/admin-vue/src/views/system/**/*.{vue,ts}',
+      'clients/admin-vue/src/views/devices/**/*.{vue,ts}',
+      'clients/admin-vue/src/views/growth/**/*.{vue,ts}',
+      'clients/admin-vue/src/views/promotions/**/*.{vue,ts}',
+      'clients/admin-vue/src/views/warehouse/**/*.{vue,ts}',
+      'clients/admin-vue/src/views/replenishment/**/*.{vue,ts}',
+      'clients/admin-vue/src/views/dashboard/**/*.{vue,ts}',
       'clients/*/src/pages/orders/**/*.{vue,ts}',
       'clients/*/src/pages/order-detail/**/*.{vue,ts}',
       'clients/*/src/pages/dispute*/**/*.{vue,ts}',
@@ -68,22 +75,6 @@ export default tseslint.config(
     rules: {
       'local/no-hardcoded-status-label': 'error',
       '@typescript-eslint/no-explicit-any': 'warn'
-    }
-  },
-  {
-    // admin 启用/停用/在线等：先 warn 暴露清单，下轮收口改 error
-    files: [
-      'clients/admin-vue/src/views/system/**/*.{vue,ts}',
-      'clients/admin-vue/src/views/devices/**/*.{vue,ts}',
-      'clients/admin-vue/src/views/growth/**/*.{vue,ts}',
-      'clients/admin-vue/src/views/promotions/**/*.{vue,ts}',
-      'clients/admin-vue/src/views/warehouse/**/*.{vue,ts}',
-      'clients/admin-vue/src/views/replenishment/**/*.{vue,ts}',
-      'clients/admin-vue/src/views/dashboard/**/*.{vue,ts}'
-    ],
-    plugins: { local },
-    rules: {
-      'local/no-hardcoded-status-label': 'warn'
     }
   },
   {

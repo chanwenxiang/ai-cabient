@@ -102,7 +102,7 @@
                 @change="(v: boolean) => onToggle(row, v)"
               />
               <el-tag v-else :type="row.enabled ? 'success' : 'info'">
-                {{ row.enabled ? '启用' : '停用' }}
+                {{ displayLabel('enable_status', row.enabled ? 'ACTIVE' : 'INACTIVE') }}
               </el-tag>
             </template>
           </el-table-column>
@@ -198,7 +198,7 @@
         <el-form-item label="调度说明">
           <el-input v-model="editForm.scheduleDesc" placeholder="如 每日 03:00" />
         </el-form-item>
-        <el-form-item v-if="creating" label="启用">
+        <el-form-item v-if="creating" :label="displayLabel('enable_status', 'ACTIVE')">
           <el-switch v-model="editForm.enabled" />
         </el-form-item>
         <el-form-item label="备注">
@@ -229,7 +229,7 @@ import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useListCsv } from '@/composables/useListCsv';
 import { useAuthStore } from '@/stores/auth';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface ScheduledTaskRow {
@@ -302,7 +302,7 @@ const { onExport } = useListCsv({
       r.taskKey,
       dictLabel('scheduled_task_group', r.taskGroup),
       r.scheduleDesc || '',
-      r.enabled ? '启用' : '停用',
+      displayLabel('enable_status', r.enabled ? 'ACTIVE' : 'INACTIVE'),
       r.lastRunAt ? formatDateTime(r.lastRunAt) : '',
       r.lastMessage || ''
     ])
@@ -383,10 +383,11 @@ async function batchToggle(enabled: boolean) {
     ElMessage.warning('请先勾选任务');
     return;
   }
+  const label = displayLabel('enable_status', enabled ? 'ACTIVE' : 'INACTIVE');
   try {
     await ElMessageBox.confirm(
-      `确认批量${enabled ? '启用' : '停用'}选中的 ${targets.length} 个任务？`,
-      `批量${enabled ? '启用' : '停用'}`,
+      `确认批量${label}选中的 ${targets.length} 个任务？`,
+      `批量${label}`,
       { type: 'warning' }
     );
   } catch {
@@ -404,9 +405,7 @@ async function batchToggle(enabled: boolean) {
   );
   batchLoading.value = '';
   const ok = results.filter((r) => r.status === 'fulfilled').length;
-  ElMessage.success(
-    `批量${enabled ? '启用' : '停用'}完成：成功 ${ok}，失败 ${targets.length - ok}`
-  );
+  ElMessage.success(`批量${label}完成：成功 ${ok}，失败 ${targets.length - ok}`);
   await load();
 }
 

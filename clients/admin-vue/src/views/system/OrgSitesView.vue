@@ -36,7 +36,8 @@
             <div class="tree-node">
               <span class="tree-name">{{ data.name }}</span>
               <el-tag size="small" :type="data.enabled ? 'success' : 'info'" effect="plain">
-                {{ data.enabled ? '启用' : '停用' }} · {{ data.deviceIds.length }} 台
+                {{ displayLabel('enable_status', data.enabled ? 'ACTIVE' : 'INACTIVE') }} ·
+                {{ data.deviceIds.length }} 台
               </el-tag>
               <div class="tree-actions">
                 <el-button
@@ -69,7 +70,7 @@
                   link
                   @click.stop="toggleNode(data)"
                 >
-                  {{ data.enabled ? '停用' : '启用' }}
+                  {{ displayLabel('enable_status', data.enabled ? 'INACTIVE' : 'ACTIVE') }}
                 </el-button>
                 <el-button
                   v-hasPermi="['ops:org:edit']"
@@ -622,7 +623,7 @@
             <label>状态</label>
             <el-select v-model="r.status" style="width: 100%">
               <el-option label="生效" value="ACTIVE" />
-              <el-option label="停用" value="INACTIVE" />
+              <el-option :label="displayLabel('enable_status', 'INACTIVE')" value="INACTIVE" />
             </el-select>
           </div>
         </div>

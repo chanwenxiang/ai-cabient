@@ -1173,7 +1173,9 @@
         <el-form-item label="最大容量"
           ><el-input-number v-model="editForm.maxLevel" :min="0"
         /></el-form-item>
-        <el-form-item label="启用"><el-switch v-model="editForm.enabled" /></el-form-item>
+        <el-form-item :label="displayLabel('enable_status', 'ACTIVE')"
+          ><el-switch v-model="editForm.enabled"
+        /></el-form-item>
         <el-divider content-position="left">现场盘点</el-divider>
         <el-form-item label="账面库存">
           <span>{{ editForm.bookQty }}</span>
