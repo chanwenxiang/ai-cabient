@@ -61,6 +61,7 @@ class SettlementSessionSettleConcurrencyTest {
                 SettlementService.sessionSettleLockKey("S-LOCK-2"), 60L, 5L))
                 .thenReturn(true);
         when(sessionRepository.findByIdForUpdate("S-LOCK-2")).thenReturn(java.util.Optional.of(session));
+        when(sessionRepository.findById("S-LOCK-2")).thenReturn(java.util.Optional.of(session));
         when(orderRepository.findBySessionId("S-LOCK-2")).thenReturn(java.util.Optional.empty());
 
         int refunded = settlementService.waiveAndRefund(session);

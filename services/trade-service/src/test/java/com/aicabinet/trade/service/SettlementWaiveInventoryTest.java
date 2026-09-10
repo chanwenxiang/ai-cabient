@@ -61,6 +61,11 @@ class SettlementWaiveInventoryTest {
             s.setSessionId(inv.getArgument(0));
             return Optional.of(s);
         });
+        lenient().when(sessionRepository.findById(anyString())).thenAnswer(inv -> {
+            ShoppingSession s = new ShoppingSession();
+            s.setSessionId(inv.getArgument(0));
+            return Optional.of(s);
+        });
     }
 
     /** I3: WAIVE 默认回库 → restoreForOrder，不写 REFUND_KEPT。 */
@@ -70,6 +75,7 @@ class SettlementWaiveInventoryTest {
         CabinetOrder order = deductedOrder("O-I3", "S-I3");
 
         when(orderRepository.findBySessionId("S-I3")).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate("O-I3")).thenReturn(Optional.of(order));
         when(orderPaymentService.netCompletedCents("O-I3")).thenReturn(0);
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         doNothing().when(inventoryService).restoreForOrder(anyString(), anyList(), anyMap());
@@ -97,6 +103,7 @@ class SettlementWaiveInventoryTest {
         CabinetOrder order = deductedOrder("O-I4", "S-I4");
 
         when(orderRepository.findBySessionId("S-I4")).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate("O-I4")).thenReturn(Optional.of(order));
         when(orderPaymentService.netCompletedCents("O-I4")).thenReturn(0);
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         doNothing().when(inventoryService).recordRefundKeptGoods(anyString(), anyList(), anyMap(), anyString());

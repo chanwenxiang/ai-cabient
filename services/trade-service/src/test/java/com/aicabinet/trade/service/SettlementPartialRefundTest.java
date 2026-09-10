@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -75,6 +76,7 @@ class SettlementPartialRefundTest {
                 line("SKU-B", "B", 2, 300, "B2"))));
 
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(orderRepository.findByIdForUpdate("O-C")).thenReturn(Optional.of(order));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         doNothing().when(orderPaymentService).refundOrder(any(), anyInt(), anyString());
         doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(false));
@@ -116,6 +118,7 @@ class SettlementPartialRefundTest {
         order.setLines(new ArrayList<>(List.of(a, b)));
 
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(orderRepository.findByIdForUpdate("O-1")).thenReturn(Optional.of(order));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         when(orderLineRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         doNothing().when(orderPaymentService).refundOrder(any(), anyInt(), anyString());
@@ -181,6 +184,7 @@ class SettlementPartialRefundTest {
         order.setLines(new ArrayList<>(List.of(line("SKU-A", "A", 1, 400, "B1"))));
 
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(orderRepository.findByIdForUpdate("O-2")).thenReturn(Optional.of(order));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         doNothing().when(orderPaymentService).refundOrder(any(), anyInt(), anyString());
         doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(true));

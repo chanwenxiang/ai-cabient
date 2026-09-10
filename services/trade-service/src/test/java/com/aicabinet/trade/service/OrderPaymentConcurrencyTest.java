@@ -57,7 +57,9 @@ class OrderPaymentConcurrencyTest {
                 new CheckoutProperties(true, 2000),
                 sessionRepository,
                 null,
-                memberService);
+                memberService,
+                null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test

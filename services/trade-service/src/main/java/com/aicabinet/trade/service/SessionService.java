@@ -470,33 +470,55 @@ public class SessionService {
         return toDto(session);
     }
 
-    /** 补货关门后：视觉/重力快照回写货道实测，不创建订单。 */
-    @Transactional
+    /** 补货关门后：视觉/重力快照回写货道实测，不创建订单。无外层长事务包裹 vision HTTP。 */
     public SessionDto finishRestockSnapshot(String sessionId) {
-        return runWithSessionLifeLock(sessionId, () -> doFinishRestockSnapshot(sessionId));
+        return runWithSessionLifeLock(sessionId, () -> {
+            ShoppingSession ready = self.beginRestockSnapshot(sessionId);
+            if (ready == null) {
+                return toDto(repository.findById(sessionId).orElseThrow(
+                        () -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND)));
+            }
+            try {
+                restockSnapshotService.applySnapshot(ready);
+                return self.completeRestockSnapshot(sessionId);
+            } catch (RuntimeException e) {
+                log.error("restock snapshot failed session={}", sessionId, e);
+                return self.failRestockSnapshot(sessionId);
+            }
+        });
     }
 
-    private SessionDto doFinishRestockSnapshot(String sessionId) {
+    @Transactional
+    public ShoppingSession beginRestockSnapshot(String sessionId) {
         ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!isRestockSession(session)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "not a restock session");
         }
         if (session.getState() != SessionState.RECOGNIZING && session.getState() != SessionState.SHOPPING) {
-            return toDto(session);
+            return null;
         }
         if (session.getState() == SessionState.RECOGNIZING) {
             transition(session, SessionState.SETTLING);
         }
-        try {
-            restockSnapshotService.applySnapshot(session);
-            transition(session, SessionState.COMPLETED);
-            log.info("restock snapshot completed session={} device={}", sessionId, session.getDeviceId());
-        } catch (RuntimeException e) {
-            log.error("restock snapshot failed session={}", sessionId, e);
-            session.setFailReason("restock snapshot failed");
-            transition(session, SessionState.FAILED);
-        }
+        return session;
+    }
+
+    @Transactional
+    public SessionDto completeRestockSnapshot(String sessionId) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        transition(session, SessionState.COMPLETED);
+        log.info("restock snapshot completed session={} device={}", sessionId, session.getDeviceId());
+        return toDto(session);
+    }
+
+    @Transactional
+    public SessionDto failRestockSnapshot(String sessionId) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        session.setFailReason("restock snapshot failed");
+        transition(session, SessionState.FAILED);
         return toDto(session);
     }
 
