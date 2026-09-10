@@ -654,31 +654,8 @@ if (!canSkipLocation) {
 }
 const preferredId = ref(getPreferredDeviceId());
 
-type Task = {
-  taskId: number;
-  deviceId: string;
-  deviceName?: string;
-  status: string;
-  notes?: string;
-  routeId?: number;
-  routeName?: string;
-  /** 线路计划日 YYYY-MM-DD */
-  plannedDate?: string;
-  outboundId?: number;
-  checkInAt?: string;
-  createdAt?: string;
-};
-type Line = {
-  lineId?: number;
-  lineType: string;
-  skuId: string;
-  batchNo?: string;
-  productionDate?: string;
-  expiryDate?: string;
-  quantity: number;
-  slotId?: string;
-  applied: boolean;
-};
+type Task = import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto;
+type Line = import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto;
 
 const loading = ref(false);
 let loadSeq = 0;
@@ -1188,13 +1165,13 @@ async function ensureReplenishmentMe(seq: number): Promise<boolean> {
 }
 
 function applyReplenishmentListData(
-  taskRows: Record<string, unknown>[],
+  taskRows: Task[],
   deviceRows: Record<string, unknown>[],
   skuRows: Record<string, unknown>[],
   eff: MerchantReplenishmentEfficiency | null,
   lowStockRows: DeviceLowStockItem[]
 ) {
-  allTasks.value = taskRows as Task[];
+  allTasks.value = taskRows || [];
   devices.value = deviceRows;
   skus.value = (skuRows || []) as Record<string, unknown>[];
   efficiency.value = eff;
@@ -1256,7 +1233,7 @@ async function load() {
   if (!allTasks.value.length) loading.value = true;
   try {
     const [taskRows, deviceRows, skuRows, eff, lowStockRows] = await Promise.all([
-      merchantApi.replenishmentTasks().catch(() => [] as Record<string, unknown>[]),
+      merchantApi.replenishmentTasks().catch(() => [] as Task[]),
       merchantApi.devices().catch(() => [] as Record<string, unknown>[]),
       merchantApi.pricing().catch(() => [] as Record<string, unknown>[]),
       merchantApi.myReplenishmentEfficiency().catch(() => null),

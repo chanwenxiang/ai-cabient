@@ -401,6 +401,68 @@ export type {
   OpenApiOrderLineDto
 } from './generated/order-models';
 
+export type {
+  OpenApiReplenishmentSuggestDto,
+  OpenApiMerchantReplenishmentEfficiencyDto,
+  OpenApiDeviceInventoryDto,
+  OpenApiSlotDiscrepancyAlertDto,
+  OpenApiSlotReplenishmentSuggestDto,
+  OpenApiMerchantReplenishmentRequestDto,
+  OpenApiMerchantReplenishmentRequestLineDto,
+  OpenApiCreateMerchantReplenishmentRequest,
+  OpenApiCreateMerchantReplenishmentRequestLine,
+  OpenApiReplenishmentTaskDto,
+  OpenApiReplenishmentTaskLineDto,
+  OpenApiSubmitReplenishmentLinesRequest,
+  OpenApiPullOffTaskDto,
+  OpenApiReplenishmentCheckInRequest,
+  OpenApiMerchantReplenishmentDeviceAccessDto,
+  OpenApiMerchantReplenishmentDoorSessionDto,
+  OpenApiSessionDto
+} from './generated/replenishment-models';
+
+export type {
+  OpenApiMemberProfileDto,
+  OpenApiMemberLevelRuleDto,
+  OpenApiMemberPointsSummaryDto,
+  OpenApiMemberPointsLogDto,
+  OpenApiPointsRedeemItemDto,
+  OpenApiCouponDto
+} from './generated/member-coupon-models';
+
+export type {
+  OpenApiNotificationDto,
+  OpenApiNotifyPrefDto,
+  OpenApiMerchantNotifyPrefDto,
+  OpenApiMarketingBannerDto,
+  OpenApiMarketingCampaignDto
+} from './generated/notify-marketing-models';
+
+export type {
+  OpenApiMerchantWalletLedgerDto,
+  OpenApiMerchantWithdrawRequestDto,
+  OpenApiMerchantWalletOverviewDto,
+  OpenApiLineWalletLedgerDto,
+  OpenApiLineWithdrawRequestDto,
+  OpenApiLineWalletOverviewDto,
+  OpenApiMerchantDisputeSummaryDto,
+  OpenApiDisputeTicketDto,
+  OpenApiDisputeMessageDto,
+  OpenApiMerchantDisputeDetailDto
+} from './generated/merchant-finance-models';
+
+export type {
+  OpenApiMerchantDeviceReportDto,
+  OpenApiUpdateMerchantProfileRequest,
+  OpenApiMerchantTrendDto,
+  OpenApiMerchantDailyTrendDto,
+  OpenApiMerchantDashboardStatsDto,
+  OpenApiOpsExceptionDto,
+  OpenApiSalesReportRowDto,
+  OpenApiMerchantDto,
+  OpenApiMerchantTaxProfileDto
+} from './generated/merchant-ops-models';
+
 export interface DisputeSummary {
   ticketId: string;
   sessionId?: string;

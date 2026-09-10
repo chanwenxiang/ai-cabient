@@ -814,132 +814,30 @@ export const consumerApi = {
     )
 };
 
-export type MemberProfileDto = {
-  memberId: number;
-  userId: number;
-  levelCode: string;
-  levelName: string;
-  totalSpent: number;
-  availablePoints: number;
-  totalPoints: number;
-  orderCount: number;
-  spentToNextLevel: number;
-  nextLevelName?: string | null;
-  progressPercent: number;
-  levels: Array<{
-    levelCode: string;
-    levelName: string;
-    minSpent: number;
-    maxSpent?: number | null;
-    minPoints: number;
-    maxPoints?: number | null;
-    pointsRate: number;
-    /** 会员价折扣百分比，0 表示无折扣 */
-    priceDiscountPct?: number;
-    sortOrder: number;
-  }>;
-  createdAt?: string;
-};
+/** @deprecated 使用 OpenApiMemberProfileDto */
+export type MemberProfileDto = import('@aicabinet/shared-types').OpenApiMemberProfileDto;
 
-export type MemberPointsSummaryDto = {
-  availablePoints: number;
-  totalPoints: number;
-  usedPoints: number;
-  expiredPoints: number;
-  levelCode: string;
-  levelName: string;
-  pointsRate: number;
-  nextLevelPointsGap: number;
-};
+/** @deprecated 使用 OpenApiMemberPointsSummaryDto */
+export type MemberPointsSummaryDto =
+  import('@aicabinet/shared-types').OpenApiMemberPointsSummaryDto;
 
-export type MemberPointsLogDto = {
-  id: number;
-  points: number;
-  pointsType: string;
-  sourceType?: string;
-  description?: string;
-  createdAt: string;
-  expireAt?: string | null;
-};
+/** @deprecated 使用 OpenApiMemberPointsLogDto */
+export type MemberPointsLogDto = import('@aicabinet/shared-types').OpenApiMemberPointsLogDto;
 
-export type PointsRedeemItemDto = {
-  itemId: number;
-  title: string;
-  subtitle?: string;
-  coverEmoji: string;
-  pointsCost: number;
-  couponDefId: number;
-  couponName?: string;
-  stockTotal: number;
-  redeemedCount: number;
-  availableStock: number;
-  sortOrder: number;
-  status: string;
-  createdAt?: string;
-  denominationCents?: number;
-  minSpendCents?: number;
-  validityDays?: number;
-  deviceScope?: string;
-};
+/** @deprecated 使用 OpenApiPointsRedeemItemDto */
+export type PointsRedeemItemDto = import('@aicabinet/shared-types').OpenApiPointsRedeemItemDto;
 
-export type NotificationDto = {
-  id: number;
-  title: string;
-  body: string;
-  templateCode?: string;
-  channel?: string;
-  audience?: string;
-  bizType?: string;
-  bizId?: string;
-  read: boolean;
-  readAt?: string | null;
-  createdAt: string;
-};
+/** @deprecated 使用 OpenApiNotificationDto */
+export type NotificationDto = import('@aicabinet/shared-types').OpenApiNotificationDto;
 
-export type NotifyPrefDto = {
-  category: string;
-  label: string;
-  enabled: boolean;
-};
+/** @deprecated 使用 OpenApiNotifyPrefDto */
+export type NotifyPrefDto = import('@aicabinet/shared-types').OpenApiNotifyPrefDto;
 
-export type MarketingBannerDto = {
-  id: number;
-  title: string;
-  subtitle?: string;
-  tone: string;
-  emoji: string;
-  campaignId?: number | null;
-  ctaPath: string;
-};
+/** @deprecated 使用 OpenApiMarketingBannerDto */
+export type MarketingBannerDto = import('@aicabinet/shared-types').OpenApiMarketingBannerDto;
 
-export type MarketingCampaignDto = {
-  id: number;
-  title: string;
-  description?: string;
-  type: string;
-  typeLabel: string;
-  coverColor: string;
-  coverEmoji: string;
-  startTime?: string;
-  endTime?: string;
-  status: string;
-  ctaLabel: string;
-  ctaPath: string;
-  claimed?: boolean | null;
-  claimable?: boolean | null;
-};
+/** @deprecated 使用 OpenApiMarketingCampaignDto */
+export type MarketingCampaignDto = import('@aicabinet/shared-types').OpenApiMarketingCampaignDto;
 
-export type CouponDto = {
-  couponId: number;
-  couponName: string;
-  couponType: string;
-  denominationCents: number;
-  minSpendCents: number;
-  status: string;
-  expireAt?: string;
-  receivedAt?: string;
-  usedAt?: string;
-  couponCode?: string;
-  deviceScope?: string;
-  description?: string;
-};
+/** @deprecated 使用 OpenApiCouponDto */
+export type CouponDto = import('@aicabinet/shared-types').OpenApiCouponDto;

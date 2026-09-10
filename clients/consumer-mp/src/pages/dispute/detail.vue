@@ -185,7 +185,10 @@ const timeline = computed(() => {
       current: status === 'OPEN' || status === 'PENDING'
     },
     {
-      title: status === 'OPEN' || status === 'PENDING' ? '运营审核中' : '运营已审核',
+      title:
+        status === 'OPEN' || status === 'PENDING'
+          ? t.consumerReviewTitle || '运营审核中'
+          : '运营已审核',
       time: t.resolvedAt ? formatTime(t.resolvedAt) : '',
       detail: reviewStepDetail(t, resolved),
       done: resolved,
@@ -198,7 +201,9 @@ const timeline = computed(() => {
           ? formatTime(t.resolvedAt || (t as { closedAt?: string }).closedAt)
           : '',
       detail: resolved
-        ? `最终扣款 ${fmtMoney(t.billedAmountCents ?? 0)}`
+        ? t.consumerStatusLabel ||
+          t.consumerReviewDetail ||
+          `最终扣款 ${fmtMoney(t.billedAmountCents ?? 0)}`
         : '结案后可在订单详情查看退款到账',
       done: resolved,
       current: false

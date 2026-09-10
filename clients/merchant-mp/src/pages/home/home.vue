@@ -422,10 +422,8 @@ const EMPTY_WORKBENCH = {
 };
 
 async function fetchHomeTrend() {
-  if (!canTrend.value) return { last7Days: [] as { date: string; revenueCents: number }[] };
-  return (
-    merchantApi.trend(7) as Promise<{ last7Days?: { date: string; revenueCents: number }[] }>
-  ).catch((e) => {
+  if (!canTrend.value) return { last7Days: [] as { date?: string; revenueCents?: number }[] };
+  return merchantApi.trend(7).catch((e) => {
     uni.showToast({
       title: (e instanceof Error ? e.message : '趋势加载失败').slice(0, 40),
       icon: 'none'
@@ -507,7 +505,7 @@ async function fetchHomeDashboardBundle() {
         title: (e instanceof Error ? e.message : '统计加载失败').slice(0, 40),
         icon: 'none'
       });
-      return {} as Record<string, number>;
+      return {} as import('@aicabinet/shared-types').OpenApiMerchantDashboardStatsDto;
     }),
     fetchHomeTrend(),
     fetchHomeWorkbench(),
@@ -521,11 +519,11 @@ async function fetchHomeDashboardBundle() {
 }
 
 function applyHomeFinanceKpis(
-  s: Record<string, number>,
+  s: import('@aicabinet/shared-types').OpenApiMerchantDashboardStatsDto,
   analytics: { days?: number; avgOrderValueCents?: number | null } | null,
-  days: { date: string; revenueCents: number }[]
+  days: { date?: string; revenueCents?: number }[]
 ) {
-  const maxRev = Math.max(...days.map((d) => d.revenueCents), 1);
+  const maxRev = Math.max(...days.map((d) => Number(d.revenueCents || 0)), 1);
   revenueToday.value = canFinanceKpi.value ? fmtMoney(s.revenueTodayCents) : '暂无';
   incomeToday.value = canFinanceKpi.value ? fmtMoney(s.merchantIncomeTodayCents) : '暂无';
   analyticsDays.value = Number(analytics?.days || 7);
@@ -535,15 +533,15 @@ function applyHomeFinanceKpis(
       : '暂无';
   trendBars.value = canFinanceKpi.value
     ? days.map((d) => ({
-        date: d.date,
-        label: d.date.slice(5),
-        height: Math.max(16, Math.round((d.revenueCents / maxRev) * 120))
+        date: d.date || '',
+        label: (d.date || '').slice(5),
+        height: Math.max(16, Math.round((Number(d.revenueCents || 0) / maxRev) * 120))
       }))
     : [];
 }
 
 function applyHomeAlerts(
-  s: Record<string, number>,
+  s: import('@aicabinet/shared-types').OpenApiMerchantDashboardStatsDto,
   workbench: typeof EMPTY_WORKBENCH,
   exceptionPage: { items?: unknown[] },
   expiryRows: unknown[]

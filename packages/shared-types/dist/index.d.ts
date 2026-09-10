@@ -360,6 +360,13 @@ export interface OrderReadModel {
 }
 /** @deprecated 使用 OrderReadModel */
 export type OrderSummary = OrderReadModel;
+/** OpenAPI 生成的订单读模型别名（与 springdoc /v3/api-docs 同步；优先用于 API 响应泛型）。 */
+export type { OpenApiOrderReadModel, OpenApiOrderReadModelAdmin, OpenApiOrderReadModelMerchant, OpenApiOrderReadModelConsumer, OpenApiOrderLineDto } from './generated/order-models';
+export type { OpenApiReplenishmentSuggestDto, OpenApiMerchantReplenishmentEfficiencyDto, OpenApiDeviceInventoryDto, OpenApiSlotDiscrepancyAlertDto, OpenApiSlotReplenishmentSuggestDto, OpenApiMerchantReplenishmentRequestDto, OpenApiMerchantReplenishmentRequestLineDto, OpenApiCreateMerchantReplenishmentRequest, OpenApiCreateMerchantReplenishmentRequestLine, OpenApiReplenishmentTaskDto, OpenApiReplenishmentTaskLineDto, OpenApiSubmitReplenishmentLinesRequest, OpenApiPullOffTaskDto, OpenApiReplenishmentCheckInRequest, OpenApiMerchantReplenishmentDeviceAccessDto, OpenApiMerchantReplenishmentDoorSessionDto, OpenApiSessionDto } from './generated/replenishment-models';
+export type { OpenApiMemberProfileDto, OpenApiMemberLevelRuleDto, OpenApiMemberPointsSummaryDto, OpenApiMemberPointsLogDto, OpenApiPointsRedeemItemDto, OpenApiCouponDto } from './generated/member-coupon-models';
+export type { OpenApiNotificationDto, OpenApiNotifyPrefDto, OpenApiMerchantNotifyPrefDto, OpenApiMarketingBannerDto, OpenApiMarketingCampaignDto } from './generated/notify-marketing-models';
+export type { OpenApiMerchantWalletLedgerDto, OpenApiMerchantWithdrawRequestDto, OpenApiMerchantWalletOverviewDto, OpenApiLineWalletLedgerDto, OpenApiLineWithdrawRequestDto, OpenApiLineWalletOverviewDto, OpenApiMerchantDisputeSummaryDto, OpenApiDisputeTicketDto, OpenApiDisputeMessageDto, OpenApiMerchantDisputeDetailDto } from './generated/merchant-finance-models';
+export type { OpenApiMerchantDeviceReportDto, OpenApiUpdateMerchantProfileRequest, OpenApiMerchantTrendDto, OpenApiMerchantDailyTrendDto, OpenApiMerchantDashboardStatsDto, OpenApiOpsExceptionDto, OpenApiSalesReportRowDto, OpenApiMerchantDto, OpenApiMerchantTaxProfileDto } from './generated/merchant-ops-models';
 export interface DisputeSummary {
     ticketId: string;
     sessionId?: string;
@@ -857,8 +864,41 @@ export interface AnnouncementDto {
     announceType?: string;
     targetScope?: string;
     priority?: string;
+    status?: string;
     publishAt?: string;
     expireAt?: string;
+}
+/** 优惠券定义（对齐 OpenAPI CouponDefinitionDto） */
+export interface CouponDefinitionDto {
+    couponDefId: number;
+    couponName?: string;
+    couponType?: string;
+    denominationCents?: number;
+    minSpendCents?: number;
+    discountPercent?: number | null;
+    validityDays?: number;
+    maxIssueCount?: number;
+    issuedCount?: number;
+    status?: string;
+    description?: string;
+    activityId?: number | null;
+}
+/** 营销活动（对齐 OpenAPI PromotionActivityDto） */
+export interface PromotionActivityDto {
+    activityId: number;
+    activityName?: string;
+    activityType?: string;
+    status?: string;
+    startTime?: string;
+    endTime?: string;
+    budgetCents?: number;
+    usedCents?: number;
+    userLimit?: number;
+    deviceScope?: string;
+    /** 设备范围等 JSON/配置 */
+    ruleConfig?: string;
+    description?: string;
+    deviceIds?: string[];
 }
 export interface DisputeTicketDto {
     ticketId: string;
@@ -890,6 +930,12 @@ export interface DisputeTicketDto {
     detectedClasses?: string[];
     /** 处理人展示名（结案写入） */
     assignee?: string;
+    /** 后端派生：消费者状态行（含金额） */
+    consumerStatusLabel?: string;
+    consumerReviewTitle?: string;
+    consumerReviewDetail?: string;
+    /** 后端派生：识别参考 vs 实扣差额说明 */
+    amountDiffNote?: string;
 }
 export interface SessionCartRequest {
     items: {

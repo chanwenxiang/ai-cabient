@@ -11821,8 +11821,34 @@ export interface components {
         CreateMerchantReplenishmentRequest: {
             deviceId?: string;
             notes?: string;
-            lines?: components["schemas"]["Line"][];
+            lines?: components["schemas"]["CreateMerchantReplenishmentRequestLine"][];
             evidenceFileIds?: number[];
+        };
+        CreateMerchantReplenishmentRequestLine: {
+            skuId?: string;
+            /** Format: int32 */
+            requestedQty?: number;
+        };
+        MerchantReplenishmentDeviceAccessDto: {
+            deviceId?: string;
+            allowed?: boolean;
+        };
+        ApiResponseMerchantReplenishmentDeviceAccessDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MerchantReplenishmentDeviceAccessDto"];
+        };
+        MerchantReplenishmentDoorSessionDto: {
+            doorOpened?: boolean;
+            sessionId?: string;
+            state?: string;
+        };
+        ApiResponseMerchantReplenishmentDoorSessionDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MerchantReplenishmentDoorSessionDto"];
         };
         MerchantWxBindRequest: {
             code?: string;
@@ -27834,7 +27860,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseMapStringObject"];
+                    "*/*": components["schemas"]["ApiResponseMerchantReplenishmentDoorSessionDto"];
                 };
             };
         };
@@ -27963,7 +27989,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseMapStringObject"];
+                    "*/*": components["schemas"]["ApiResponseMerchantReplenishmentDeviceAccessDto"];
                 };
             };
         };
