@@ -328,6 +328,7 @@ import TableActions from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
@@ -342,6 +343,7 @@ const canRun = computed(() => auth.hasPerm('ops:reconciliation:run'));
 
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const saving = ref(false);
 const channel = ref('');
 const statusFilter = ref('');
@@ -415,6 +417,7 @@ function syncRouteQuery() {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const q = new URLSearchParams({
@@ -433,8 +436,10 @@ async function load() {
     total.value = pageData.total;
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

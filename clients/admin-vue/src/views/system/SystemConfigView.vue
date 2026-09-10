@@ -233,6 +233,7 @@ import { api, authFetch } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { useBrandStore } from '@/stores/brand';
@@ -260,6 +261,7 @@ const auth = useAuthStore();
 const brandStore = useBrandStore();
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const saving = ref(false);
 const brandSaving = ref(false);
 const brandLogoUploading = ref(false);
@@ -404,14 +406,17 @@ function applyRouteQuery() {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     items.value = await api.request<SystemConfigRow[]>('/api/v2/ops/admin/system-configs', 'GET');
     syncBrandFormFromItems();
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

@@ -364,6 +364,7 @@ import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
@@ -379,6 +380,7 @@ const auth = useAuthStore();
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('couponDefId');
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const saving = ref(false);
 const list = ref<OpenApiCouponDefinitionDto[]>([]);
 const total = ref(0);
@@ -652,6 +654,7 @@ function openEdit(row: OpenApiCouponDefinitionDto) {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const data = await api.request<{ items: OpenApiCouponDefinitionDto[]; total: number }>(
@@ -662,8 +665,10 @@ async function load() {
     total.value = Number(data.total) || 0;
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(errorMessage(e, '加载失败'));
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

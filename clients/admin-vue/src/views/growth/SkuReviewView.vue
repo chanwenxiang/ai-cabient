@@ -142,6 +142,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useListCsv } from '@/composables/useListCsv';
 import { displayLabel } from '@aicabinet/shared-dict';
 
@@ -163,6 +164,7 @@ type ReviewRow = {
 const loading = ref(false);
 const running = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const batchLoading = ref<'delist' | 'keep' | ''>('');
 const days = ref(30);
 const page = ref(1);
@@ -232,6 +234,7 @@ const { onExport } = useListCsv({
 onMounted(load);
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const q = new URLSearchParams({
@@ -245,8 +248,10 @@ async function load() {
     total.value = Number(data.total) || 0;
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

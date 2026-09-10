@@ -221,6 +221,7 @@ import type { TableColumnCtx } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -259,6 +260,7 @@ const { canAccessPath, goPath } = useNavAccess();
 
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
@@ -478,6 +480,7 @@ function queryParams(includePage = true) {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const data = await api.request<{
@@ -490,12 +493,14 @@ async function load() {
     summary.value = data.summary || null;
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
     if (!listHydrated.value) {
       rows.value = [];
       summary.value = null;
     }
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

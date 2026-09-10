@@ -182,6 +182,7 @@ import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import { displayBizNo, rewriteBizNosInText } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 
@@ -197,6 +198,7 @@ type NotificationRow = {
 
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const sending = ref(false);
 const saving = ref(false);
 const batchDeleting = ref(false);
@@ -243,6 +245,7 @@ function audienceLabel(audience?: string) {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   clearSelection();
   try {
@@ -256,8 +259,10 @@ async function load() {
     list.value = data.items || [];
     total.value = Number(data.total) || 0;
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

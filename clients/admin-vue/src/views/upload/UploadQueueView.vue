@@ -231,6 +231,7 @@ import { ElMessage } from 'element-plus';
 import { dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { useDictOptions } from '@/composables/useDictOptions';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
@@ -260,6 +261,7 @@ const { router, goPath } = useNavAccess();
 const { playSessionVideo } = useSessionVideo();
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const helpOpen = ref(false);
 const keyword = ref('');
 const uploadStatus = ref('');
@@ -551,6 +553,7 @@ async function maybeScrollToFocus() {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const q = new URLSearchParams({
@@ -580,8 +583,10 @@ async function load() {
     clearSelection();
     await maybeScrollToFocus();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

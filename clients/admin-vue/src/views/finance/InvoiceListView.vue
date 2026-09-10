@@ -5,6 +5,7 @@ import { CircleCheck, CircleClose, Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { useAdminListTable } from '@/composables/useAdminListTable';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
@@ -25,6 +26,7 @@ interface InvoiceRow {
 
 const auth = useAuthStore();
 const loading = ref(false);
+const loadSeq = createLoadSeq();
 const hydrated = ref(false);
 const rows = ref<InvoiceRow[]>([]);
 const page = ref(1);
@@ -223,6 +225,7 @@ async function batchReject() {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const q = new URLSearchParams({
@@ -237,6 +240,7 @@ async function load() {
     total.value = Number(data.total) || 0;
     clearSelection();
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     loading.value = false;
     hydrated.value = true;
   }

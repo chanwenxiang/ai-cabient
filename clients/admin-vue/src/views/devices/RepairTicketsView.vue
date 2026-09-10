@@ -405,6 +405,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { useNavAccess } from '@/composables/useNavAccess';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -446,6 +447,7 @@ const route = useRoute();
 const { canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const saving = ref(false);
 const rows = ref<Ticket[]>([]);
 const {
@@ -575,6 +577,7 @@ function faultLabel(f?: string) {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const q = new URLSearchParams({
@@ -592,8 +595,10 @@ async function load() {
     rows.value = res.items || [];
     total.value = Number(res.total || 0);
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

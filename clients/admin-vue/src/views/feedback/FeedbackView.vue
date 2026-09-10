@@ -187,6 +187,7 @@ import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
@@ -206,6 +207,7 @@ const canDelete = computed(
 
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const saving = ref(false);
 const status = ref('');
 const page = ref(1);
@@ -253,6 +255,7 @@ function applyRouteQuery() {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const q = new URLSearchParams({
@@ -268,8 +271,10 @@ async function load() {
     total.value = Number(data.total) || 0;
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

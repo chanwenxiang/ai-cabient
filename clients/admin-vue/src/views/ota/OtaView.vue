@@ -194,6 +194,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useAuthStore } from '@/stores/auth';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { useListCsv } from '@/composables/useListCsv';
@@ -239,6 +240,7 @@ const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 const auth = useAuthStore();
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
@@ -309,6 +311,7 @@ const { onExport } = useListCsv({
 });
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const q = new URLSearchParams({
@@ -324,8 +327,10 @@ async function load() {
     total.value = pageData.total;
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

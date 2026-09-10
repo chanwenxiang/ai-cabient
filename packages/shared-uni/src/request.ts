@@ -35,6 +35,8 @@ export interface MpApiSession {
   baseUrl: string;
   isDevBuild?: boolean;
   timeoutMs?: number;
+  /** GET/HEAD 超时/网络错误额外重试次数（不含首次），默认 2 */
+  getRetryCount?: number;
   refreshPath?: string;
   getToken(): string;
   clearSession(): void;
@@ -141,9 +143,60 @@ export async function refreshTokenSilently(opts: MpApiSession): Promise<boolean>
 
 /**
  * 统一请求：拼 baseUrl、带鉴权头、401 静默刷新重试、403/业务码/网络错误本地化文案。
+ * GET/HEAD 在超时/网络错误时额外最多重试 2 次（指数退避）；写操作不自动重试。
  * 与各端原有 request 签名保持一致（path, method, data, auth, retried）。
  */
 export function mpRequest<T>(
+  opts: MpApiSession,
+  path: string,
+  method: UniApp.RequestOptions['method'] = 'GET',
+  data?: unknown,
+  auth = true,
+  retried = false
+): Promise<T> {
+  const methodUpper = String(method || 'GET').toUpperCase();
+  const canRetry = methodUpper === 'GET' || methodUpper === 'HEAD';
+  if (!canRetry) {
+    return mpRequestOnce<T>(opts, path, method, data, auth, retried);
+  }
+  const maxAttempts = 1 + (opts.getRetryCount ?? 2);
+  return (async () => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        return await mpRequestOnce<T>(opts, path, method, data, auth, retried);
+      } catch (err) {
+        lastError = err;
+        if (!isRetriableMpTransportError(err) || attempt >= maxAttempts - 1) {
+          throw err;
+        }
+        await sleep(200 * 2 ** attempt);
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : createMpApiError('网络错误，请稍后重试');
+  })();
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetriableMpTransportError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  // 鉴权失败不重试；仅超时/网络层
+  if (isMpAuthFailure(err)) return false;
+  const msg = err.message || '';
+  return (
+    msg.includes('请求超时') ||
+    msg.includes('网络不太稳定') ||
+    msg.includes('网络错误') ||
+    msg.includes('timeout')
+  );
+}
+
+function mpRequestOnce<T>(
   opts: MpApiSession,
   path: string,
   method: UniApp.RequestOptions['method'] = 'GET',
@@ -169,7 +222,9 @@ export function mpRequest<T>(
         if (res.statusCode === 401) {
           if (auth && !retried) {
             refreshTokenSilently(opts)
-              .then(() => mpRequest<T>(opts, path, method, data, auth, true).then(resolve, reject))
+              .then(() =>
+                mpRequestOnce<T>(opts, path, method, data, auth, true).then(resolve, reject)
+              )
               .catch(() => reject(opts.handleUnauthorized(body?.message)));
             return;
           }

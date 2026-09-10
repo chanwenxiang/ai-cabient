@@ -582,6 +582,7 @@ import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
@@ -664,6 +665,7 @@ const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('exceptionId
 const statusCounts = reactive({ OPEN: 0, PROCESSING: 0, RESOLVED: 0, CLOSED: 0, ARCHIVED: 0 });
 /** 首屏未完成加载前不展示「0 / 暂无」，避免与工作台计数短暂不一致 */
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const drawer = ref(false);
 const detailLoading = ref(false);
 const detail = ref<OpsDetail | null>(null);
@@ -1034,6 +1036,7 @@ function onStatusTab(name: string | number) {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
@@ -1054,8 +1057,10 @@ async function load() {
     clearSelection();
     await refreshStatusCounts();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }
