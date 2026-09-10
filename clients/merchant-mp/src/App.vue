@@ -2,14 +2,30 @@
 import { onLaunch } from '@dcloudio/uni-app';
 import { loadRuntimeDict } from '@/utils/dict-runtime';
 
-onLaunch(() => {
+/** H5 / 微信小程序通用：当前是否登录页（避免无 token 深链先闪业务页）。 */
+function isLoginLaunch(options?: { path?: string }): boolean {
+  const launchPath = String(options?.path || '');
+  if (launchPath === 'pages/login/login' || launchPath.includes('pages/login/login')) {
+    return true;
+  }
   if (typeof location !== 'undefined') {
-    const path = location.pathname || '';
-    const onLogin = path.includes('/pages/login/login');
-    if (!uni.getStorageSync('merchant_token') && !onLogin) {
-      uni.reLaunch({ url: '/pages/login/login' });
-      return;
-    }
+    const href = String(location.href || '');
+    if (href.includes('/pages/login/login')) return true;
+  }
+  try {
+    const pages = getCurrentPages();
+    const route = String(pages[pages.length - 1]?.route || '');
+    if (route === 'pages/login/login' || route.endsWith('/pages/login/login')) return true;
+  } catch {
+    /* launch 早期可能尚无页面栈 */
+  }
+  return false;
+}
+
+onLaunch((options) => {
+  if (!uni.getStorageSync('merchant_token') && !isLoginLaunch(options)) {
+    uni.reLaunch({ url: '/pages/login/login' });
+    return;
   }
   if (!uni.getStorageSync('merchant_token')) return;
   void loadRuntimeDict();
