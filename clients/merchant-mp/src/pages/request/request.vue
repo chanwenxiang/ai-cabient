@@ -165,6 +165,7 @@ import { computed, ref, watch } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
+import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 import {
   hasPerm,
   merchantApi,
@@ -494,6 +495,7 @@ async function addEvidence() {
   });
   for (const path of paths) {
     try {
+      await assertLocalImageSize(path);
       const uploaded = await merchantApi.uploadReplenishmentRequestEvidence(path);
       evidenceItems.value.push({ localPath: path, fileId: uploaded.fileId });
     } catch (e) {

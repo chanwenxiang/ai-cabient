@@ -141,6 +141,7 @@ import { ElMessage } from 'element-plus';
 import type { DevRecognitionPreviewDto } from '@aicabinet/shared-types';
 import { authFetch } from '@/api/client';
 import { useNavAccess } from '@/composables/useNavAccess';
+import { validateImageFile } from '@/utils/upload-validate';
 
 const { canAccessPath, goPath } = useNavAccess();
 const dragging = ref(false);
@@ -170,14 +171,28 @@ function triggerPick() {
 }
 
 function onPick(ev: Event) {
-  const file = (ev.target as HTMLInputElement).files?.[0];
-  if (file) setFile(file);
+  const input = ev.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  const check = validateImageFile(file);
+  if (!check.ok) {
+    ElMessage.warning(check.message);
+    input.value = '';
+    return;
+  }
+  setFile(file);
 }
 
 function onDrop(ev: DragEvent) {
   dragging.value = false;
   const file = ev.dataTransfer?.files?.[0];
-  if (file?.type.startsWith('image/')) setFile(file);
+  if (!file) return;
+  const check = validateImageFile(file);
+  if (!check.ok) {
+    ElMessage.warning(check.message);
+    return;
+  }
+  setFile(file);
 }
 
 function clearImage() {

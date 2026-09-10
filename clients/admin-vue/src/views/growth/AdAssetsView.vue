@@ -197,6 +197,7 @@ import { useAuthStore } from '@/stores/auth';
 import { displayLabel } from '@aicabinet/shared-dict';
 import type { MediaAssetDto } from '@aicabinet/shared-types';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { validateAdAssetFile } from '@/utils/upload-validate';
 
 const loading = ref(false);
 const auth = useAuthStore();
@@ -329,8 +330,10 @@ function doUpload() {
 }
 
 async function doUploadFile(file: File) {
-  if (file.size > 50 * 1024 * 1024) {
-    ElMessage.warning('文件不能超过 50MB');
+  const assetType = uploadForm.value.assetType === 'VIDEO' ? 'VIDEO' : 'IMAGE';
+  const check = validateAdAssetFile(file, assetType);
+  if (!check.ok) {
+    ElMessage.warning(check.message);
     return;
   }
   uploading.value = true;

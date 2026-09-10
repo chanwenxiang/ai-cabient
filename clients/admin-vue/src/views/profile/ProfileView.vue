@@ -210,6 +210,7 @@ import { api, authFetch } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { useSettingsStore } from '@/stores/settings';
 import type { TwoFactorEnroll, TwoFactorStatus } from '@aicabinet/shared-types';
+import { validateImageFile } from '@/utils/upload-validate';
 
 const auth = useAuthStore();
 const settings = useSettingsStore();
@@ -327,8 +328,9 @@ function openEditDialog() {
 async function uploadAvatar(options: UploadRequestOptions) {
   const file = options.file as File;
   if (!file) return;
-  if (file.size > 5 * 1024 * 1024) {
-    ElMessage.warning('图片不能超过 5MB');
+  const check = validateImageFile(file);
+  if (!check.ok) {
+    ElMessage.warning(check.message);
     return;
   }
   avatarUploading.value = true;
