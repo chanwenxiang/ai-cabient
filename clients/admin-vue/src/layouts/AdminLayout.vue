@@ -1,12 +1,18 @@
 <template>
   <el-container class="layout-main">
-    <el-aside :width="sidebarCollapsed ? '64px' : '220px'" class="sidebar">
+    <el-aside
+      :width="sidebarCollapsed ? '64px' : '220px'"
+      class="sidebar"
+      role="navigation"
+      aria-label="主导航"
+    >
       <button
         type="button"
         class="brand"
         :class="{ collapsed: sidebarCollapsed }"
         :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
         :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+        :aria-expanded="!sidebarCollapsed"
         @click="toggleSidebar"
       >
         <el-icon class="brand-toggle"><Expand v-if="sidebarCollapsed" /><Fold v-else /></el-icon>
@@ -112,7 +118,13 @@
         </div>
       </el-header>
 
-      <div class="tags-view" @click="hideTagMenu" @contextmenu.prevent="onTagsContextMenu">
+      <div
+        class="tags-view"
+        role="navigation"
+        aria-label="已打开页面"
+        @click="hideTagMenu"
+        @contextmenu.prevent="onTagsContextMenu"
+      >
         <div ref="tagsScrollRef" class="tags-scroll">
           <span
             v-for="tag in tags"
@@ -132,6 +144,7 @@
               @click="router.push(tag.path)"
               @keydown.enter.prevent="router.push(tag.path)"
               @keydown.space.prevent="router.push(tag.path)"
+              @keydown.f10.shift.prevent="openTagMenuFromKeyboard(tag)"
               @close.prevent="closeTag(tag.path)"
               >{{ tag.title }}</el-tag
             >
@@ -145,16 +158,61 @@
       <Teleport to="body">
         <ul
           v-if="tagMenu.visible"
+          ref="tagMenuRef"
           class="tag-context-menu"
+          role="menu"
+          aria-label="标签页操作"
           :style="{ left: tagMenu.x + 'px', top: tagMenu.y + 'px' }"
           @click.stop
           @contextmenu.prevent
+          @keydown.escape.prevent="hideTagMenu"
         >
-          <li @click="runTagAction('close')">关闭</li>
-          <li @click="runTagAction('others')">关闭其他</li>
-          <li @click="runTagAction('left')">关闭左侧</li>
-          <li @click="runTagAction('right')">关闭右侧</li>
-          <li class="danger" @click="confirmCloseAllTags">关闭全部</li>
+          <li
+            role="menuitem"
+            tabindex="0"
+            @click="runTagAction('close')"
+            @keydown.enter.prevent="runTagAction('close')"
+            @keydown.space.prevent="runTagAction('close')"
+          >
+            关闭
+          </li>
+          <li
+            role="menuitem"
+            tabindex="0"
+            @click="runTagAction('others')"
+            @keydown.enter.prevent="runTagAction('others')"
+            @keydown.space.prevent="runTagAction('others')"
+          >
+            关闭其他
+          </li>
+          <li
+            role="menuitem"
+            tabindex="0"
+            @click="runTagAction('left')"
+            @keydown.enter.prevent="runTagAction('left')"
+            @keydown.space.prevent="runTagAction('left')"
+          >
+            关闭左侧
+          </li>
+          <li
+            role="menuitem"
+            tabindex="0"
+            @click="runTagAction('right')"
+            @keydown.enter.prevent="runTagAction('right')"
+            @keydown.space.prevent="runTagAction('right')"
+          >
+            关闭右侧
+          </li>
+          <li
+            class="danger"
+            role="menuitem"
+            tabindex="0"
+            @click="confirmCloseAllTags"
+            @keydown.enter.prevent="confirmCloseAllTags"
+            @keydown.space.prevent="confirmCloseAllTags"
+          >
+            关闭全部
+          </li>
         </ul>
       </Teleport>
 
@@ -226,6 +284,7 @@ const menuEpoch = ref(0);
 const ignoreMenuClose = ref(false);
 const OPENED_MENUS_KEY = 'admin_vue_sidebar_openeds';
 const tagMenu = ref({ visible: false, x: 0, y: 0, path: '' });
+const tagMenuRef = ref<HTMLElement | null>(null);
 const compactViewport = ref(false);
 /** 列表验收建议宽度：低于此值提示（IMP-048） */
 const narrowOpsViewport = ref(false);
@@ -483,6 +542,29 @@ function openTagMenu(e: MouseEvent, tag: { path: string; title: string }) {
   const x = Math.min(e.clientX, globalThis.innerWidth - menuW - 8);
   const y = Math.min(e.clientY, globalThis.innerHeight - menuH - 8);
   tagMenu.value = { visible: true, x: Math.max(8, x), y: Math.max(8, y), path: tag.path };
+  focusTagMenu();
+}
+
+function openTagMenuFromKeyboard(tag: { path: string; title: string }) {
+  const escaped =
+    typeof CSS !== 'undefined' && CSS.escape
+      ? CSS.escape(tag.path)
+      : tag.path.replaceAll('"', String.raw`\"`);
+  const wrap = tagsScrollRef.value?.querySelector(
+    `.tag-wrap[data-path="${escaped}"]`
+  ) as HTMLElement | null;
+  const rect = wrap?.getBoundingClientRect();
+  const x = rect ? Math.min(rect.left, globalThis.innerWidth - 168) : 24;
+  const y = rect ? Math.min(rect.bottom + 4, globalThis.innerHeight - 228) : 72;
+  tagMenu.value = { visible: true, x: Math.max(8, x), y: Math.max(8, y), path: tag.path };
+  focusTagMenu();
+}
+
+function focusTagMenu() {
+  nextTick(() => {
+    const first = tagMenuRef.value?.querySelector('[role="menuitem"]') as HTMLElement | null;
+    first?.focus();
+  });
 }
 
 function onTagsContextMenu(e: MouseEvent) {
@@ -493,6 +575,14 @@ function onTagsContextMenu(e: MouseEvent) {
 
 function hideTagMenu() {
   tagMenu.value.visible = false;
+}
+
+function onTagMenuKeydown(e: KeyboardEvent) {
+  if (!tagMenu.value.visible) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    hideTagMenu();
+  }
 }
 
 function runTagAction(action: 'close' | 'others' | 'left' | 'right' | 'all') {
@@ -597,6 +687,7 @@ onMounted(() => {
   observeTableScrollFit(document.getElementById('main-content') as HTMLElement);
   globalThis.addEventListener('click', hideTagMenu);
   globalThis.addEventListener('scroll', hideTagMenu, true);
+  globalThis.addEventListener('keydown', onTagMenuKeydown);
   globalThis.addEventListener('resize', syncSidebarWithViewport);
   globalThis.addEventListener('focus', onWindowFocus);
   document.addEventListener('fullscreenchange', onFullscreenChange);
@@ -606,6 +697,7 @@ onUnmounted(() => {
   stopTableScrollFit();
   globalThis.removeEventListener('click', hideTagMenu);
   globalThis.removeEventListener('scroll', hideTagMenu, true);
+  globalThis.removeEventListener('keydown', onTagMenuKeydown);
   globalThis.removeEventListener('resize', syncSidebarWithViewport);
   globalThis.removeEventListener('focus', onWindowFocus);
   document.removeEventListener('fullscreenchange', onFullscreenChange);
@@ -1011,8 +1103,13 @@ onUnmounted(() => {
   font-size: var(--admin-font-size-table);
   cursor: pointer;
 }
-.tag-context-menu li:hover {
+.tag-context-menu li:hover,
+.tag-context-menu li:focus-visible {
   background: var(--layout-hover);
+  outline: none;
+}
+.tag-context-menu li:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--el-color-primary);
 }
 .tag-context-menu li.danger {
   color: #f87171;

@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
+import { nextTick } from 'vue';
 import NProgress from 'nprogress';
 import 'nprogress/nprogress.css';
 import { isLoggedIn } from '@/api/client';
@@ -504,13 +505,22 @@ router.beforeEach(async (to) => {
   return true;
 });
 
-// 动态页面标题：每个路由的 meta.title 会拼到浏览器标签页上
+// 动态页面标题：每个路由的 meta.title 会拼到浏览器标签页上；切页后把焦点落到主内容（键盘/读屏）
 router.afterEach((to) => {
   NProgress.done();
   const brand = useBrandStore();
   const base = brand.documentBaseTitle || 'AI开门柜 · 运营管理系统';
   const pageTitle = to.meta.title as string | undefined;
   document.title = pageTitle ? `${pageTitle} · ${base}` : base;
+  // 登录页自行聚焦手机号，避免与 #main-content 抢焦点
+  if (to.path === '/login' || to.name === 'login') return;
+  void nextTick(() => {
+    const main = document.getElementById('main-content');
+    if (!(main instanceof HTMLElement)) return;
+    // 已在主内容内输入时不抢焦点（如表单 keep-alive 后回页）
+    if (main.contains(document.activeElement)) return;
+    main.focus({ preventScroll: true });
+  });
 });
 
 router.onError(() => {

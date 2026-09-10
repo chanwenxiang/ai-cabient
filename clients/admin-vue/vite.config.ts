@@ -74,20 +74,22 @@ export default defineConfig(({ mode }) => {
             // 避免把 CSS 硬塞进 JS chunk
             if (id.endsWith('.css')) return;
             const norm = id.replace(/\\/g, '/');
-            if (norm.includes('/element-plus/') || norm.includes('/@element-plus/')) {
-              return 'element-plus';
-            }
             if (norm.includes('/leaflet') || norm.includes('/leaflet.markercluster')) {
               return 'leaflet';
             }
+            // vue 与 element-plus 必须同 chunk：拆开会形成双向 import，生产 TDZ 白屏
+            // （Circular chunk: element-plus → vue-vendor → element-plus）
             if (
+              norm.includes('/element-plus/') ||
+              norm.includes('/@element-plus/') ||
               norm.includes('/vue/') ||
               norm.includes('/vue-router/') ||
               norm.includes('/pinia/') ||
               norm.includes('/@vue/') ||
+              norm.includes('/@vueuse/') ||
               norm.includes('/nprogress/')
             ) {
-              return 'vue-vendor';
+              return 'ui-vendor';
             }
           }
         }

@@ -11,7 +11,7 @@
       <i v-for="p in particles" :key="p.left" class="fx-particle" :style="p.style" />
     </div>
     <div class="login-overlay" aria-hidden="true" />
-    <div class="login-card">
+    <div id="main-content" class="login-card" tabindex="-1">
       <div class="card-header">
         <div v-if="brand.logoUrl" class="brand-mark brand-mark--img" aria-hidden="true">
           <img :src="brand.logoUrl" alt="" />
@@ -675,6 +675,13 @@ async function onSubmitTwoFactor() {
   box-shadow:
     0 24px 64px rgba(2, 10, 14, 0.38),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.login-card:focus {
+  outline: none;
+}
+.login-card:focus-visible {
+  outline: 2px solid #5eead4;
+  outline-offset: 3px;
 }
 .card-header {
   margin-bottom: 28px;
