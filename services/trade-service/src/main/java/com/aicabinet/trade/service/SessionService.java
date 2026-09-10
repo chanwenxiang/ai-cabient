@@ -158,7 +158,9 @@ public class SessionService {
     }
 
     private SessionDto createSessionAndRequestOpen(Long userId, CreateSessionRequest request) {
+        // 会话创建与开门分计：防刷会话与防刷开门互补（风控小时开门上限仍生效）
         apiRateLimitService.assertSessionCreateAllowed(userId);
+        apiRateLimitService.assertOpenDoorAllowed(userId);
         SessionDto dto = self.persistConsumerOpeningSession(userId, request);
         try {
             deviceClient.requestOpenDoor(dto.sessionId(), request.deviceId(), userId, false);

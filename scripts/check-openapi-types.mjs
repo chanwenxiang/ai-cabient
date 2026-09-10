@@ -16,6 +16,11 @@ const root = resolve(__dirname, '..');
 const generatedDir = join(root, 'packages', 'shared-types', 'src', 'generated');
 const openapiTs = join(generatedDir, 'openapi.ts');
 const orderModels = join(generatedDir, 'order-models.ts');
+const replenishmentModels = join(generatedDir, 'replenishment-models.ts');
+const memberCouponModels = join(generatedDir, 'member-coupon-models.ts');
+const notifyMarketingModels = join(generatedDir, 'notify-marketing-models.ts');
+const merchantFinanceModels = join(generatedDir, 'merchant-finance-models.ts');
+const merchantOpsModels = join(generatedDir, 'merchant-ops-models.ts');
 const indexTs = join(root, 'packages', 'shared-types', 'src', 'index.ts');
 
 function fail(msg) {
@@ -23,7 +28,16 @@ function fail(msg) {
   process.exit(1);
 }
 
-for (const f of [openapiTs, orderModels, indexTs]) {
+for (const f of [
+  openapiTs,
+  orderModels,
+  replenishmentModels,
+  memberCouponModels,
+  notifyMarketingModels,
+  merchantFinanceModels,
+  merchantOpsModels,
+  indexTs
+]) {
   if (!existsSync(f)) fail(`missing ${f}`);
 }
 
@@ -38,6 +52,93 @@ for (const name of [
   if (!orderModelsSrc.includes(name)) fail(`order-models.ts missing export ${name}`);
 }
 
+const replenishmentModelsSrc = readFileSync(replenishmentModels, 'utf8');
+for (const name of [
+  'OpenApiReplenishmentSuggestDto',
+  'OpenApiMerchantReplenishmentEfficiencyDto',
+  'OpenApiDeviceInventoryDto',
+  'OpenApiSlotDiscrepancyAlertDto',
+  'OpenApiSlotReplenishmentSuggestDto',
+  'OpenApiMerchantReplenishmentRequestDto',
+  'OpenApiMerchantReplenishmentRequestLineDto',
+  'OpenApiCreateMerchantReplenishmentRequest',
+  'OpenApiCreateMerchantReplenishmentRequestLine',
+  'OpenApiReplenishmentTaskDto',
+  'OpenApiReplenishmentTaskLineDto',
+  'OpenApiSubmitReplenishmentLinesRequest',
+  'OpenApiPullOffTaskDto',
+  'OpenApiReplenishmentCheckInRequest',
+  'OpenApiMerchantReplenishmentDeviceAccessDto',
+  'OpenApiMerchantReplenishmentDoorSessionDto',
+  'OpenApiSessionDto'
+]) {
+  if (!replenishmentModelsSrc.includes(name)) {
+    fail(`replenishment-models.ts missing export ${name}`);
+  }
+}
+
+const memberCouponModelsSrc = readFileSync(memberCouponModels, 'utf8');
+for (const name of [
+  'OpenApiMemberProfileDto',
+  'OpenApiMemberLevelRuleDto',
+  'OpenApiMemberPointsSummaryDto',
+  'OpenApiMemberPointsLogDto',
+  'OpenApiPointsRedeemItemDto',
+  'OpenApiCouponDto'
+]) {
+  if (!memberCouponModelsSrc.includes(name)) {
+    fail(`member-coupon-models.ts missing export ${name}`);
+  }
+}
+
+const notifyMarketingModelsSrc = readFileSync(notifyMarketingModels, 'utf8');
+for (const name of [
+  'OpenApiNotificationDto',
+  'OpenApiNotifyPrefDto',
+  'OpenApiMerchantNotifyPrefDto',
+  'OpenApiMarketingBannerDto',
+  'OpenApiMarketingCampaignDto'
+]) {
+  if (!notifyMarketingModelsSrc.includes(name)) {
+    fail(`notify-marketing-models.ts missing export ${name}`);
+  }
+}
+
+const merchantFinanceModelsSrc = readFileSync(merchantFinanceModels, 'utf8');
+for (const name of [
+  'OpenApiMerchantWalletLedgerDto',
+  'OpenApiMerchantWithdrawRequestDto',
+  'OpenApiMerchantWalletOverviewDto',
+  'OpenApiLineWalletLedgerDto',
+  'OpenApiLineWithdrawRequestDto',
+  'OpenApiLineWalletOverviewDto',
+  'OpenApiMerchantDisputeSummaryDto',
+  'OpenApiDisputeTicketDto',
+  'OpenApiDisputeMessageDto',
+  'OpenApiMerchantDisputeDetailDto'
+]) {
+  if (!merchantFinanceModelsSrc.includes(name)) {
+    fail(`merchant-finance-models.ts missing export ${name}`);
+  }
+}
+
+const merchantOpsModelsSrc = readFileSync(merchantOpsModels, 'utf8');
+for (const name of [
+  'OpenApiMerchantDeviceReportDto',
+  'OpenApiUpdateMerchantProfileRequest',
+  'OpenApiMerchantTrendDto',
+  'OpenApiMerchantDailyTrendDto',
+  'OpenApiMerchantDashboardStatsDto',
+  'OpenApiOpsExceptionDto',
+  'OpenApiSalesReportRowDto',
+  'OpenApiMerchantDto',
+  'OpenApiMerchantTaxProfileDto'
+]) {
+  if (!merchantOpsModelsSrc.includes(name)) {
+    fail(`merchant-ops-models.ts missing export ${name}`);
+  }
+}
+
 const openapiSrc = readFileSync(openapiTs, 'utf8');
 if (!openapiSrc.includes('OrderReadModel')) {
   fail('openapi.ts missing OrderReadModel schema');
@@ -46,6 +147,18 @@ if (!openapiSrc.includes('OrderReadModel')) {
 const indexSrc = readFileSync(indexTs, 'utf8');
 if (!indexSrc.includes('OpenApiOrderReadModelMerchant')) {
   fail('shared-types index.ts must re-export OpenApiOrderReadModelMerchant');
+}
+if (!indexSrc.includes('OpenApiMerchantWalletOverviewDto')) {
+  fail('shared-types index.ts must re-export OpenApiMerchantWalletOverviewDto');
+}
+if (!indexSrc.includes('OpenApiMerchantDisputeSummaryDto')) {
+  fail('shared-types index.ts must re-export OpenApiMerchantDisputeSummaryDto');
+}
+if (!indexSrc.includes('OpenApiMerchantDeviceReportDto')) {
+  fail('shared-types index.ts must re-export OpenApiMerchantDeviceReportDto');
+}
+if (!indexSrc.includes('OpenApiMerchantReplenishmentRequestDto')) {
+  fail('shared-types index.ts must re-export OpenApiMerchantReplenishmentRequestDto');
 }
 
 const openApiFile = process.env.OPENAPI_FILE

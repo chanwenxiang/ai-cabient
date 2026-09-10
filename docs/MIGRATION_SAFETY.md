@@ -15,6 +15,7 @@
 | 操作 | 风险 | 推荐 |
 |---|---|---|
 | `DROP COLUMN` / 改类型 | AccessExclusiveLock，大表可卡分钟级 | 先停写引用 → 发版去读列 → 下个版本再 DROP；或低峰 + 短停写 |
+| `ALTER COLUMN ... TYPE` / `SET NOT NULL` | 可能全表重写或长锁 | 热表必须 `MIGRATION_REVIEWED` + staging 锁等待实测；分批 backfill 后再加约束 |
 | `ADD COLUMN ... DEFAULT`（旧 PG） | 全表重写 | PG 11+ 常量默认较安全；非标量默认仍慎用 |
 | `CREATE INDEX`（无 CONCURRENTLY） | 写锁/阻塞 | **大表**用 `CREATE INDEX CONCURRENTLY`（单独 migration，不可与事务型语句混写） |
 | `DROP INDEX` | 可能阻塞 | 大表优先 `DROP INDEX CONCURRENTLY` |
@@ -39,6 +40,8 @@ pnpm check:migration-safety
 对 **新增** `V*.sql`（相对 `origin/dev` 或 `origin/main`）扫描：
 
 - 裸 `DROP COLUMN`（无评审注释）→ 失败
+- 热表上的 `ALTER COLUMN` / `TYPE` / `SET NOT NULL`（无 `MIGRATION_REVIEWED`）→ 失败
+- 非热表 `ALTER COLUMN` 无评审 → 警告
 - 大表名（`cabinet_order` / `shopping_session` / `payment_operation` 等）上的非 CONCURRENTLY 建索引 → 警告/失败
 
 历史已合并脚本不重审；只拦 PR 增量。

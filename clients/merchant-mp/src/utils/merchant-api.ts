@@ -6,156 +6,46 @@ import { localizeApiMessage } from '@aicabinet/shared-uni/format';
 import { withQuery } from '@aicabinet/shared-uni/query';
 import { mpRequest, createMpApiError, type MpApiSession } from '@aicabinet/shared-uni/request';
 
-export type MerchantReplenishmentSuggest = {
-  deviceId?: string;
-  skuId: string;
-  currentQty?: number;
-  capacity?: number;
-  lowThreshold?: number;
-  suggestQty: number;
-  inTransitQty?: number;
-  soldQty7d?: number;
-  soldQty14d?: number;
-  ropPoint?: number;
-  suggestReason?: string;
-};
+export type MerchantReplenishmentSuggest =
+  import('@aicabinet/shared-types').OpenApiReplenishmentSuggestDto;
 
-export type MerchantReplenishmentEfficiency = {
-  todayAssigned: number;
-  todayCompleted: number;
-  todayInProgress: number;
-  todayPending: number;
-  completionRatePercent: number;
-};
+export type MerchantReplenishmentEfficiency =
+  import('@aicabinet/shared-types').OpenApiMerchantReplenishmentEfficiencyDto;
 
-export type DeviceLowStockItem = {
-  deviceId: string;
-  skuId: string;
-  quantity: number;
-  capacity: number;
-  lowThreshold: number;
-  updatedAt?: string;
-};
+/** @deprecated 使用 OpenApiDeviceInventoryDto；低库存列表即库存行 */
+export type DeviceLowStockItem = import('@aicabinet/shared-types').OpenApiDeviceInventoryDto;
 
-export type MerchantSlotDiscrepancy = {
-  deviceId: string;
-  deviceName?: string;
-  slotCode: string;
-  assignedSkuId?: string;
-  assignedSkuName?: string;
-  bookQty: number;
-  physicalQty: number;
-  qtyDiff: number;
-  lastPhysicalAt?: string;
-};
+/** @deprecated 使用 OpenApiSlotDiscrepancyAlertDto */
+export type MerchantSlotDiscrepancy =
+  import('@aicabinet/shared-types').OpenApiSlotDiscrepancyAlertDto;
 
-export type MerchantDeviceReport = {
-  deviceId: string;
-  deviceName: string;
-  onlineStatus: string;
-  orderTotal: number;
-  revenueTotalCents: number;
-  orderToday: number;
-  revenueTodayCents: number;
-  sessionTotal: number;
-  sessionActive: number;
-  avgOrderValueTodayCents?: number;
-  avgOrderValueTotalCents?: number;
-  routeCode?: string;
-  address?: string;
-  salesLocked?: boolean;
-  salesLockReason?: string;
-  currentTempC?: number | null;
-  firmwareVersion?: string | null;
-};
+/** @deprecated 使用 OpenApiMerchantDeviceReportDto */
+export type MerchantDeviceReport =
+  import('@aicabinet/shared-types').OpenApiMerchantDeviceReportDto;
 
-export type MerchantProfileUpdate = {
-  contactPhone?: string;
-  alertContactName?: string;
-  alertContactPhone?: string;
-};
+/** @deprecated 使用 OpenApiUpdateMerchantProfileRequest */
+export type MerchantProfileUpdate =
+  import('@aicabinet/shared-types').OpenApiUpdateMerchantProfileRequest;
 
-export type MerchantReplenishmentRequestLine = {
-  lineId?: number;
-  skuId: string;
-  skuName?: string;
-  suggestedQty?: number;
-  requestedQty: number;
-  approvedQty?: number;
-};
+/** @deprecated 使用 OpenApiMerchantReplenishmentRequestLineDto */
+export type MerchantReplenishmentRequestLine =
+  import('@aicabinet/shared-types').OpenApiMerchantReplenishmentRequestLineDto;
 
-export type MerchantReplenishmentRequest = {
-  requestId: number;
-  merchantId?: string;
-  merchantName?: string;
-  deviceId: string;
-  deviceName?: string;
-  status: string;
-  notes?: string;
-  createdBy?: number;
-  createdByName?: string;
-  submittedAt?: string;
-  reviewedAt?: string;
-  reviewerId?: number;
-  reviewerName?: string;
-  rejectReason?: string;
-  replenishmentTaskId?: number;
-  outboundId?: number;
-  dueAt?: string;
-  evidenceCount?: number;
-  lines?: MerchantReplenishmentRequestLine[];
-};
+/** @deprecated 使用 OpenApiMerchantReplenishmentRequestDto */
+export type MerchantReplenishmentRequest =
+  import('@aicabinet/shared-types').OpenApiMerchantReplenishmentRequestDto;
 
-export type WalletLedger = {
-  ledgerId?: string | number;
-  entryType?: string;
-  amountCents?: number;
-  balanceAfter?: number;
-  frozenAfter?: number;
-  refType?: string;
-  refId?: string;
-  remark?: string;
-  createdAt?: string;
-};
+/** @deprecated 使用 OpenApiMerchantWalletLedgerDto */
+export type WalletLedger = import('@aicabinet/shared-types').OpenApiMerchantWalletLedgerDto;
 
-export type WithdrawRecord = {
-  requestId?: string;
-  requestNo?: string;
-  amountCents?: number;
-  /** 手续费（分） */
-  feeCents?: number;
-  status?: string;
-  payChannel?: string;
-  payoutRef?: string;
-  payoutMessage?: string;
-  reviewRemark?: string;
-  createdAt?: string;
-  paidAt?: string;
-  reviewedAt?: string;
-};
+/** @deprecated 使用 OpenApiMerchantWithdrawRequestDto */
+export type WithdrawRecord = import('@aicabinet/shared-types').OpenApiMerchantWithdrawRequestDto;
 
-export type WalletOverview = {
-  bound: boolean;
-  merchantId?: string;
-  merchantName?: string;
-  balanceCents?: number;
-  frozenCents?: number;
-  availableCents?: number;
-  recentLedgers?: WalletLedger[];
-  recentWithdraws?: WithdrawRecord[];
-};
+/** @deprecated 使用 OpenApiMerchantWalletOverviewDto */
+export type WalletOverview = import('@aicabinet/shared-types').OpenApiMerchantWalletOverviewDto;
 
-export type LineWalletOverview = {
-  bound: boolean;
-  managerId?: number;
-  managerName?: string;
-  phone?: string;
-  balanceCents?: number;
-  frozenCents?: number;
-  availableCents?: number;
-  recentLedgers?: WalletLedger[];
-  recentWithdraws?: WithdrawRecord[];
-};
+/** @deprecated 使用 OpenApiLineWalletOverviewDto */
+export type LineWalletOverview = import('@aicabinet/shared-types').OpenApiLineWalletOverviewDto;
 
 export function getToken() {
   return uni.getStorageSync('merchant_token') || '';
@@ -428,9 +318,12 @@ export function downloadReplenishmentRequestEvidenceFile(
 
 export const merchantApi = {
   me: () => request<import('@aicabinet/shared-types').MerchantMe>('/api/v2/merchant/me'),
-  stats: () => request<Record<string, number>>('/api/v2/merchant/stats'),
+  stats: () =>
+    request<import('@aicabinet/shared-types').OpenApiMerchantDashboardStatsDto>(
+      '/api/v2/merchant/stats'
+    ),
   trend: (days = 7) =>
-    request<{ last7Days?: { date: string; revenueCents: number }[] }>(
+    request<import('@aicabinet/shared-types').OpenApiMerchantTrendDto>(
       `/api/v2/merchant/trend?days=${days}`
     ),
   devices: () =>
@@ -503,9 +396,11 @@ export const merchantApi = {
       { password }
     ),
   notifyPrefs: () =>
-    request<{ wxBound: boolean; enabledAlertTypes: string[] }>('/api/v2/merchant/notify/prefs'),
+    request<import('@aicabinet/shared-types').OpenApiMerchantNotifyPrefDto>(
+      '/api/v2/merchant/notify/prefs'
+    ),
   notifyWxBind: (code: string) =>
-    request<{ wxBound: boolean; enabledAlertTypes: string[] }>(
+    request<import('@aicabinet/shared-types').OpenApiMerchantNotifyPrefDto>(
       '/api/v2/merchant/notify/wx-bind',
       'POST',
       {
@@ -513,7 +408,7 @@ export const merchantApi = {
       }
     ),
   notifySubscribe: (alertTypes: string[]) =>
-    request<{ wxBound: boolean; enabledAlertTypes: string[] }>(
+    request<import('@aicabinet/shared-types').OpenApiMerchantNotifyPrefDto>(
       '/api/v2/merchant/notify/subscribe',
       'POST',
       {
@@ -521,27 +416,16 @@ export const merchantApi = {
       }
     ),
   exceptions: (status = 'OPEN', page = 0, size = 100) =>
-    request<{
-      items: Array<{
-        exceptionId: string;
-        exceptionType: string;
-        title: string;
-        detail?: string;
-        deviceId?: string;
-      }>;
-      total: number;
-    }>(
+    request<
+      import('@aicabinet/shared-types').PageResult<
+        import('@aicabinet/shared-types').OpenApiOpsExceptionDto
+      >
+    >(
       `/api/v2/merchant/exceptions?status=${encodeURIComponent(status)}&page=${page}&size=${size}`
     ),
   /** OPEN + PROCESSING；最多拉 3 页（300 条），返回去重后的 items 与合计 total */
   openExceptions: async (pageSize = 100) => {
-    type ExRow = {
-      exceptionId: string;
-      exceptionType: string;
-      title: string;
-      detail?: string;
-      deviceId?: string;
-    };
+    type ExRow = import('@aicabinet/shared-types').OpenApiOpsExceptionDto;
     const size = Math.min(Math.max(pageSize, 1), 100);
     const MAX_PAGES = 3;
     const mergePages = async (status: string) => {
@@ -578,17 +462,9 @@ export const merchantApi = {
       `/api/v2/merchant/analytics/overview?days=${days}`
     ),
   salesReports: (dim = 'PRODUCT', fromDate?: string, toDate?: string) =>
-    request<
-      Array<{
-        dimKey: string;
-        dimLabel: string;
-        orderCount: number;
-        qty: number;
-        revenueCents: number;
-        cogsCents: number;
-        marginCents: number;
-      }>
-    >(withQuery('/api/v2/merchant/analytics/sales-reports', { dim, fromDate, toDate })),
+    request<import('@aicabinet/shared-types').OpenApiSalesReportRowDto[]>(
+      withQuery('/api/v2/merchant/analytics/sales-reports', { dim, fromDate, toDate })
+    ),
   skuSales: (days = 30, deviceId?: string) =>
     request<import('@aicabinet/shared-types').MerchantSkuSales[]>(
       withQuery('/api/v2/merchant/analytics/sku-sales', { days, deviceId })
@@ -617,10 +493,16 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').MerchantSettlementOverview>(
       '/api/v2/merchant/settlements/overview'
     ),
-  lineWallet: () => request<LineWalletOverview>('/api/v2/merchant/line-wallet'),
+  lineWallet: () =>
+    request<import('@aicabinet/shared-types').OpenApiLineWalletOverviewDto>(
+      '/api/v2/merchant/line-wallet'
+    ),
   lineWalletWithdraw: (body: { amountCents: number; requestNo?: string }) =>
     request('/api/v2/merchant/line-wallet/withdraw', 'POST', body),
-  wallet: () => request<WalletOverview>('/api/v2/merchant/wallet'),
+  wallet: () =>
+    request<import('@aicabinet/shared-types').OpenApiMerchantWalletOverviewDto>(
+      '/api/v2/merchant/wallet'
+    ),
   walletWithdraw: (body: { amountCents: number; requestNo?: string }) =>
     request('/api/v2/merchant/wallet/withdraw', 'POST', body),
   dailySettlements: (from: string, to: string) =>
@@ -647,40 +529,32 @@ export const merchantApi = {
       `/api/v2/merchant/replenishment/suggestions?deviceId=${encodeURIComponent(deviceId)}`
     ),
   getTaxProfile: (merchantId: string) =>
-    request<{
-      merchantId: string;
-      companyName: string;
-      taxNo: string;
-      address?: string;
-      bankName?: string;
-      bankAccount?: string;
-      phone?: string;
-    }>(`/api/v2/merchant/tax-profile?merchantId=${encodeURIComponent(merchantId)}`),
-  saveTaxProfile: (body: {
-    merchantId: string;
-    companyName: string;
-    taxNo: string;
-    address?: string;
-    bankName?: string;
-    bankAccount?: string;
-    phone?: string;
-  }) => request('/api/v2/merchant/tax-profile', 'PUT', body),
+    request<import('@aicabinet/shared-types').OpenApiMerchantTaxProfileDto>(
+      `/api/v2/merchant/tax-profile?merchantId=${encodeURIComponent(merchantId)}`
+    ),
+  saveTaxProfile: (body: import('@aicabinet/shared-types').OpenApiMerchantTaxProfileDto) =>
+    request<import('@aicabinet/shared-types').OpenApiMerchantTaxProfileDto>(
+      '/api/v2/merchant/tax-profile',
+      'PUT',
+      body
+    ),
   myReplenishmentEfficiency: () =>
     request<MerchantReplenishmentEfficiency>('/api/v2/merchant/replenishment/my-efficiency'),
   /** 缺货巡柜：全部低库存 SKU 明细（按柜聚合由页面完成） */
   lowStockDevices: () =>
     request<DeviceLowStockItem[]>('/api/v2/merchant/inventory?lowStockOnly=true'),
   replenishmentRequests: (status?: string, deviceId?: string) =>
-    request<MerchantReplenishmentRequest[]>(
+    request<import('@aicabinet/shared-types').OpenApiMerchantReplenishmentRequestDto[]>(
       withQuery('/api/v2/merchant/replenishment/requests', { status, deviceId })
     ),
-  submitReplenishmentRequest: (body: {
-    deviceId: string;
-    notes?: string;
-    lines: { skuId: string; requestedQty: number }[];
-    evidenceFileIds?: number[];
-  }) =>
-    request<MerchantReplenishmentRequest>('/api/v2/merchant/replenishment/requests', 'POST', body),
+  submitReplenishmentRequest: (
+    body: import('@aicabinet/shared-types').OpenApiCreateMerchantReplenishmentRequest
+  ) =>
+    request<import('@aicabinet/shared-types').OpenApiMerchantReplenishmentRequestDto>(
+      '/api/v2/merchant/replenishment/requests',
+      'POST',
+      body
+    ),
   listReplenishmentRequestEvidence: (requestId: number) =>
     request<import('@aicabinet/shared-types').FileAttachmentDto[]>(
       `/api/v2/merchant/replenishment/requests/${requestId}/evidence`
@@ -693,32 +567,51 @@ export const merchantApi = {
     const path = status
       ? `/api/v2/merchant/replenishment/tasks?status=${encodeURIComponent(status)}`
       : '/api/v2/merchant/replenishment/tasks';
-    return request<Record<string, unknown>[]>(path);
+    return request<import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto[]>(path);
   },
   /** 扫码柜机归属校验：须在当前账号 FIELD 管辖范围 */
   assertReplenishmentDeviceAccess: (deviceId: string) =>
-    request<{ deviceId: string; allowed: boolean }>(
+    request<import('@aicabinet/shared-types').OpenApiMerchantReplenishmentDeviceAccessDto>(
       `/api/v2/merchant/replenishment/devices/${encodeURIComponent(deviceId)}/access`
     ),
   /** 补货开门状态：以服务端会话为准 */
   replenishmentDoorSession: (taskId: number) =>
-    request<{ doorOpened?: boolean; sessionId?: string; state?: string }>(
+    request<import('@aicabinet/shared-types').OpenApiMerchantReplenishmentDoorSessionDto>(
       `/api/v2/merchant/replenishment/tasks/${taskId}/door-session`
     ),
   replenishmentTaskLines: (taskId: number) =>
-    request<Record<string, unknown>[]>(`/api/v2/merchant/replenishment/tasks/${taskId}/lines`),
-  checkInReplenishmentTask: (taskId: number, body?: { latitude?: number; longitude?: number }) =>
-    request(`/api/v2/merchant/replenishment/tasks/${taskId}/check-in`, 'POST', body || {}),
+    request<import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto[]>(
+      `/api/v2/merchant/replenishment/tasks/${taskId}/lines`
+    ),
+  checkInReplenishmentTask: (
+    taskId: number,
+    body?: import('@aicabinet/shared-types').OpenApiReplenishmentCheckInRequest
+  ) =>
+    request<import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto>(
+      `/api/v2/merchant/replenishment/tasks/${taskId}/check-in`,
+      'POST',
+      body || {}
+    ),
   /** 补货员开门：签到后调用，绑定补货任务，不产生消费者账单 */
   openReplenishmentDoor: (taskId: number) =>
-    request<{ sessionId: string; state?: string }>(
+    request<import('@aicabinet/shared-types').OpenApiSessionDto>(
       `/api/v2/merchant/replenishment/tasks/${taskId}/open-door`,
       'POST'
     ),
-  confirmReplenishmentLines: (taskId: number, lines: Record<string, unknown>[]) =>
-    request(`/api/v2/merchant/replenishment/tasks/${taskId}/lines`, 'POST', { lines }),
+  confirmReplenishmentLines: (
+    taskId: number,
+    lines: import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto[]
+  ) =>
+    request<import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto[]>(
+      `/api/v2/merchant/replenishment/tasks/${taskId}/lines`,
+      'POST',
+      { lines } satisfies import('@aicabinet/shared-types').OpenApiSubmitReplenishmentLinesRequest
+    ),
   completeReplenishmentTask: (taskId: number) =>
-    request(`/api/v2/merchant/replenishment/tasks/${taskId}/complete`, 'POST'),
+    request<import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto>(
+      `/api/v2/merchant/replenishment/tasks/${taskId}/complete`,
+      'POST'
+    ),
   listReplenishmentEvidence: (taskId: number) =>
     request<import('@aicabinet/shared-types').FileAttachmentDto[]>(
       `/api/v2/merchant/replenishment/tasks/${taskId}/evidence`
@@ -728,29 +621,29 @@ export const merchantApi = {
   downloadReplenishmentEvidence: (taskId: number, fileId: number) =>
     downloadReplenishmentEvidenceFile(taskId, fileId),
   expiryAlerts: () =>
-    request<
-      {
-        taskId?: number;
-        deviceId: string;
-        skuId?: string;
-        batchNo?: string;
-        quantity?: number;
-        reason?: string;
-        status?: string;
-        restockHeadroom?: number;
-      }[]
-    >('/api/v2/merchant/expiry-alerts'),
+    request<import('@aicabinet/shared-types').OpenApiPullOffTaskDto[]>(
+      '/api/v2/merchant/expiry-alerts'
+    ),
   slotDiscrepancies: (deviceId?: string) => {
     const q = deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : '';
     return request<MerchantSlotDiscrepancy[]>(`/api/v2/merchant/slot-discrepancies${q}`);
   },
-  deviceReports: () => request<MerchantDeviceReport[]>('/api/v2/merchant/device-reports'),
-  updateMerchantProfile: (body: MerchantProfileUpdate) =>
-    request<unknown[]>('/api/v2/merchant/profile', 'PATCH', body),
-  disputes: (status?: string, page = 0, size = 100) =>
-    request<import('@aicabinet/shared-types').PageResult<MerchantDisputeTicket>>(
-      withQuery('/api/v2/merchant/disputes', { page, size, status })
+  deviceReports: () =>
+    request<import('@aicabinet/shared-types').OpenApiMerchantDeviceReportDto[]>(
+      '/api/v2/merchant/device-reports'
     ),
+  updateMerchantProfile: (body: MerchantProfileUpdate) =>
+    request<import('@aicabinet/shared-types').OpenApiMerchantDto[]>(
+      '/api/v2/merchant/profile',
+      'PATCH',
+      body
+    ),
+  disputes: (status?: string, page = 0, size = 100) =>
+    request<
+      import('@aicabinet/shared-types').PageResult<
+        import('@aicabinet/shared-types').OpenApiMerchantDisputeSummaryDto
+      >
+    >(withQuery('/api/v2/merchant/disputes', { page, size, status })),
   orders: (
     opts: {
       deviceId?: string;
@@ -782,9 +675,11 @@ export const merchantApi = {
       `/api/v2/merchant/orders/${encodeURIComponent(orderId)}`
     ),
   disputeDetail: (ticketId: string) =>
-    request<MerchantDisputeDetail>(`/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}`),
+    request<import('@aicabinet/shared-types').OpenApiMerchantDisputeDetailDto>(
+      `/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}`
+    ),
   disputeReply: (ticketId: string, body: string) =>
-    request<MerchantDisputeDetail>(
+    request<import('@aicabinet/shared-types').OpenApiMerchantDisputeDetailDto>(
       `/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}/reply`,
       'POST',
       { body }
@@ -803,7 +698,7 @@ export const merchantApi = {
       body
     ),
   disputeClaim: (ticketId: string) =>
-    request<MerchantDisputeTicket>(
+    request<import('@aicabinet/shared-types').OpenApiDisputeTicketDto>(
       `/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}/claim`,
       'POST'
     ),
@@ -819,51 +714,31 @@ export const merchantApi = {
 export type MerchantOrderSummary =
   import('@aicabinet/shared-types').OpenApiOrderReadModelMerchant;
 
-export type MerchantDisputeTicket = {
-  ticketId: string;
-  status?: string;
-  reason?: string;
-  deviceId?: string;
-  deviceName?: string;
-  createdAt?: string;
-  resolvedAt?: string;
-  slaDueAt?: string;
-  slaOverdue?: boolean;
-  slaHoursRemaining?: number;
-  category?: string;
-  lastMessage?: string;
-  canReply?: boolean;
-  orderId?: string;
-  billedAmountCents?: number;
-  refundedAmountCents?: number;
-  claimedAmountCents?: number;
-  assignee?: string;
-  sessionId?: string;
-  videoUri?: string;
-  videoPreviewUrl?: string;
-  suggestedItems?: { skuId?: string; skuName?: string; quantity?: number }[];
-};
+/**
+ * @deprecated 列表契约为 OpenApiMerchantDisputeSummaryDto。
+ * lastMessage / canReply 为前端可选投影（摘要接口通常不下发）。
+ */
+export type MerchantDisputeTicket =
+  import('@aicabinet/shared-types').OpenApiMerchantDisputeSummaryDto & {
+    lastMessage?: string;
+    canReply?: boolean;
+  };
 
-export type MerchantDisputeDetail = {
-  ticket?: MerchantDisputeTicket;
-  messages?: { body?: string; authorType?: string; createdAt?: string }[];
-  canReply?: boolean;
-  canResolve?: boolean;
-};
+/** @deprecated 使用 OpenApiMerchantDisputeDetailDto */
+export type MerchantDisputeDetail =
+  import('@aicabinet/shared-types').OpenApiMerchantDisputeDetailDto;
 
-export type MerchantNotificationDto = {
-  id: number;
-  title: string;
-  body: string;
-  templateCode?: string;
-  channel?: string;
-  audience?: string;
-  bizType?: string;
-  bizId?: string;
-  read: boolean;
-  readAt?: string | null;
-  createdAt: string;
-};
+/**
+ * 详情弹层视图：契约工单 + 前端从 messages 拼出的最近一条文案。
+ * lastMessage 非 OpenAPI 字段。
+ */
+export type MerchantDisputeDetailView =
+  import('@aicabinet/shared-types').OpenApiDisputeTicketDto & {
+    lastMessage?: string;
+  };
+
+/** @deprecated 使用 OpenApiNotificationDto（与消费者通知同契约） */
+export type MerchantNotificationDto = import('@aicabinet/shared-types').OpenApiNotificationDto;
 
 export function canEditPlanogram(me: import('@aicabinet/shared-types').MerchantMe | null) {
   if (!me?.merchants?.length) return false;

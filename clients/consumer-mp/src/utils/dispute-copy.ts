@@ -173,7 +173,10 @@ export function disputeAmountDiffNote(
   return `识别参考 ${fmtMoney(claimed)}，实扣 ${fmtMoney(billed)}（差额 ${fmtMoney(Math.abs(diff))}）`;
 }
 
-/** 状态行：优先后端 consumerStatusLabel */
+/**
+ * 状态行：优先后端 consumerStatusLabel。
+ * 下列分支仅兼容旧响应（无派生字段时）；新接口勿再依赖此本地拼装。
+ */
 export function consumerDisputeStatusLabel(
   ticket?: Pick<
     DisputeTicketDto,

@@ -245,7 +245,12 @@ import { displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
 import { merchantDisputeDisplayCopy, merchantDisputeAmountDiffNote } from '@/utils/dispute-copy';
 import EmptyState from '@/components/empty-state.vue';
-import { hasPerm, merchantApi, type MerchantDisputeTicket } from '@/utils/merchant-api';
+import {
+  hasPerm,
+  merchantApi,
+  type MerchantDisputeTicket,
+  type MerchantDisputeDetailView
+} from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { promptText } from '@/utils/text-prompt';
 import type { MerchantMe } from '@aicabinet/shared-types';
@@ -274,7 +279,7 @@ const PAGE_SIZE = 100;
 const pendingTicketId = ref('');
 const pendingSessionId = ref('');
 const detailVisible = ref(false);
-const detail = ref<MerchantDisputeTicket | null>(null);
+const detail = ref<MerchantDisputeDetailView | null>(null);
 const detailAmountDiffNote = computed(() => merchantDisputeAmountDiffNote(detail.value));
 const canReplyDetail = ref(false);
 const canResolveDetail = ref(false);
@@ -305,7 +310,7 @@ function isTerminalDispute(status?: string | null) {
   return s === 'RESOLVED' || s === 'CLOSED';
 }
 
-function canReplyTicket(item: MerchantDisputeTicket) {
+function canReplyTicket(item: MerchantDisputeTicket | MerchantDisputeDetailView) {
   return canReply.value && (item.status || '').toUpperCase() === 'OPEN';
 }
 
@@ -367,7 +372,9 @@ async function handlePendingTicketId() {
   if (!pendingTicketId.value) return;
   const tid = pendingTicketId.value;
   pendingTicketId.value = '';
-  let row = list.value.find((t) => t.ticketId === tid);
+  let row: MerchantDisputeTicket | MerchantDisputeDetailView | undefined = list.value.find(
+    (t) => t.ticketId === tid
+  );
   if (!row) {
     try {
       const detailRes = await merchantApi.disputeDetail(tid);
@@ -417,8 +424,9 @@ function formatTime(t?: string) {
   return formatDateTimeShort(t, '暂无');
 }
 
-async function onDetail(item: MerchantDisputeTicket) {
-  let row: MerchantDisputeTicket = { ...item };
+async function onDetail(item: MerchantDisputeTicket | MerchantDisputeDetailView) {
+  if (!item.ticketId) return;
+  let row: MerchantDisputeDetailView = { ...item };
   let canReplyFromApi: boolean | undefined;
   let canResolveFromApi: boolean | undefined;
   try {
@@ -553,11 +561,12 @@ function goDeviceFromDetail() {
   }
 }
 
-async function onReply(item: MerchantDisputeTicket) {
+async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) {
   if (!canReply.value) {
     uni.showToast({ title: '无回复权限', icon: 'none' });
     return;
   }
+  if (!item.ticketId) return;
   const body = await promptText({
     title: '回复争议',
     hint: '回复内容将同步给消费者与运营',

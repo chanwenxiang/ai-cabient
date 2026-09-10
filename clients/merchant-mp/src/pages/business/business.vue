@@ -356,17 +356,7 @@ const reportDims = [
 ];
 const reportDim = ref('PRODUCT');
 const reportLoading = ref(false);
-const salesRows = ref<
-  Array<{
-    dimKey: string;
-    dimLabel: string;
-    orderCount: number;
-    qty: number;
-    revenueCents: number;
-    cogsCents: number;
-    marginCents: number;
-  }>
->([]);
+const salesRows = ref<import('@aicabinet/shared-types').OpenApiSalesReportRowDto[]>([]);
 const marginRate = computed(() =>
   analytics.value.revenueCents
     ? `${((analytics.value.grossMarginCents / analytics.value.revenueCents) * 100).toFixed(1)}%`
@@ -385,8 +375,9 @@ function changeClass(pct?: number | null) {
 function skuUnitPrice(sku: MerchantSkuSales) {
   return sku.qtySold > 0 ? Math.round(sku.revenueCents / sku.qtySold) : 0;
 }
-function rowAov(r: { orderCount: number; revenueCents: number }) {
-  return r.orderCount > 0 ? Math.round(r.revenueCents / r.orderCount) : 0;
+function rowAov(r: { orderCount?: number; revenueCents?: number }) {
+  const orders = Number(r.orderCount || 0);
+  return orders > 0 ? Math.round(Number(r.revenueCents || 0) / orders) : 0;
 }
 function formatTime(iso?: string) {
   if (!iso) return '';

@@ -53,20 +53,22 @@ function git(args) {
 const baseRef = process.env.MIGRATION_BASE_REF || 'origin/dev';
 let diffList = git(['diff', '--name-only', '--diff-filter=A', `${baseRef}...HEAD`, '--', migrationDir]);
 if (!diffList.ok) {
-  // 本地无 remote 跟踪时：相对 merge-base 与 main/dev 失败则只扫工作区未提交新增
+  // 无 remote 基线时：相对 HEAD 已暂存/未提交的新增
   diffList = git(['diff', '--name-only', '--diff-filter=A', 'HEAD', '--', migrationDir]);
-  const untracked = git(['ls-files', '--others', '--exclude-standard', '--', migrationDir]);
-  const names = new Set([
-    ...(diffList.ok && diffList.out ? diffList.out.split(/\r?\n/).filter(Boolean) : []),
-    ...(untracked.ok && untracked.out ? untracked.out.split(/\r?\n/).filter(Boolean) : [])
-  ]);
-  diffList = { ok: true, out: [...names].join('\n') };
 }
-
-const files = diffList.out ? diffList.out.split(/\r?\n/).filter(Boolean) : [];
+const untracked = git(['ls-files', '--others', '--exclude-standard', '--', migrationDir]);
+const names = new Set([
+  ...(diffList.ok && diffList.out ? diffList.out.split(/\r?\n/).filter(Boolean) : []),
+  ...(untracked.ok && untracked.out ? untracked.out.split(/\r?\n/).filter(Boolean) : [])
+]);
+const files = [...names];
 if (files.length === 0) {
   console.log('[check-migration-safety] no new Flyway scripts vs baseline; OK');
   process.exit(0);
+}
+
+function touchesHotTable(body) {
+  return HOT_TABLES.some((t) => new RegExp(`\\b${t}\\b`, 'i').test(body));
 }
 
 const errors = [];
@@ -90,13 +92,28 @@ for (const rel of files) {
       `${rel}: DROP COLUMN without "MIGRATION_REVIEWED: yes" header (see docs/MIGRATION_SAFETY.md)`
     );
   }
+  // PostgreSQL: ALTER COLUMN ... TYPE / SET NOT NULL / DROP DEFAULT 等可触发重写或长锁
+  const alterColumn =
+    /ALTER\s+COLUMN/i.test(body) ||
+    /ALTER\s+TABLE[\s\S]{0,400}?\b(TYPE|SET\s+NOT\s+NULL|DROP\s+NOT\s+NULL|SET\s+DEFAULT|DROP\s+DEFAULT)\b/i.test(
+      body
+    );
+  if (alterColumn && touchesHotTable(body) && !reviewed) {
+    errors.push(
+      `${rel}: ALTER COLUMN (or TYPE/SET NOT NULL) on hot table without "MIGRATION_REVIEWED: yes"`
+    );
+  } else if (alterColumn && !reviewed) {
+    warnings.push(
+      `${rel}: ALTER COLUMN without MIGRATION_REVIEWED — confirm lock risk on staging`
+    );
+  }
   if (/LOCK_RISK\s*:\s*high/i.test(body) && !String(notes).trim()) {
     errors.push(`${rel}: LOCK_RISK high requires non-empty NOTES`);
   }
 
   const createIndex = /CREATE\s+(UNIQUE\s+)?INDEX(?!\s+CONCURRENTLY)/i.test(body);
   const dropIndex = /DROP\s+INDEX(?!\s+IF\s+EXISTS)(?!\s+CONCURRENTLY)/i.test(body);
-  const touchesHot = HOT_TABLES.some((t) => new RegExp(`\\b${t}\\b`, 'i').test(body));
+  const touchesHot = touchesHotTable(body);
   if (createIndex && touchesHot && !/CONCURRENTLY/i.test(body)) {
     const msg = `${rel}: CREATE INDEX on hot table without CONCURRENTLY`;
     if (reviewed && lockRisk === 'high') warnings.push(msg);

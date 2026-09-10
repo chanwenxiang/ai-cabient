@@ -346,15 +346,15 @@ public class MerchantPortalController {
 
     @RequiresPermissions("merchant:replenishment:view")
     @GetMapping("/replenishment/devices/{deviceId}/access")
-    public ApiResponse<Map<String, Object>> replenishmentDeviceAccess(
+    public ApiResponse<MerchantReplenishmentDeviceAccessDto> replenishmentDeviceAccess(
             HttpServletRequest request, @PathVariable String deviceId) {
         support.merchantReplenishmentService().assertDeviceInFieldScope(userId(request), deviceId);
-        return ApiResponse.ok(Map.of("deviceId", deviceId.trim(), "allowed", true));
+        return ApiResponse.ok(new MerchantReplenishmentDeviceAccessDto(deviceId.trim(), true));
     }
 
     @RequiresPermissions("merchant:replenishment:view")
     @GetMapping("/replenishment/tasks/{taskId}/door-session")
-    public ApiResponse<Map<String, Object>> replenishmentDoorSession(
+    public ApiResponse<MerchantReplenishmentDoorSessionDto> replenishmentDoorSession(
             HttpServletRequest request, @PathVariable Long taskId) {
         return ApiResponse.ok(support.merchantReplenishmentService().resolveDoorSession(userId(request), taskId));
     }

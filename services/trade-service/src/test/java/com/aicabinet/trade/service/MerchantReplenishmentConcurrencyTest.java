@@ -56,7 +56,7 @@ class MerchantReplenishmentConcurrencyTest {
                 () -> service.submitRequest(1L, new com.aicabinet.common.dto.CreateMerchantReplenishmentRequest(
                         "CAB-001",
                         null,
-                        java.util.List.of(new com.aicabinet.common.dto.CreateMerchantReplenishmentRequest.Line(
+                        java.util.List.of(new com.aicabinet.common.dto.CreateMerchantReplenishmentRequestLine(
                                 "SKU-1", 1)),
                         null)));
 

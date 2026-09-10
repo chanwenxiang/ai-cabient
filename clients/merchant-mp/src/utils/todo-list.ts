@@ -1,13 +1,11 @@
 import { formatExceptionDetail } from '@aicabinet/shared-dict';
 import { alertTypeLabel, merchantAlertTitle } from '@/utils/merchant-api';
+import type { OpenApiOpsExceptionDto, OpenApiPullOffTaskDto } from '@aicabinet/shared-types';
 
-export type TodoSourceException = {
-  exceptionId: string;
-  exceptionType: string;
-  title: string;
-  detail?: string;
-  deviceId?: string;
-};
+export type TodoSourceException = Pick<
+  OpenApiOpsExceptionDto,
+  'exceptionId' | 'exceptionType' | 'title' | 'detail' | 'deviceId'
+>;
 
 export type TodoSourceAction = {
   type: string;
@@ -19,14 +17,10 @@ export type TodoSourceAction = {
   severity?: string;
 };
 
-export type TodoSourceExpiry = {
-  deviceId?: string;
-  skuId?: string;
-  batchNo?: string;
-  quantity?: number;
-  reason?: string;
-  status?: string;
-};
+export type TodoSourceExpiry = Pick<
+  OpenApiPullOffTaskDto,
+  'deviceId' | 'skuId' | 'batchNo' | 'quantity' | 'reason' | 'status'
+>;
 
 export type TodoListItem = {
   type: string;
@@ -57,9 +51,9 @@ export function mergeTodoItems(input: {
   expiryRows?: TodoSourceExpiry[];
 }): TodoListItem[] {
   const exceptionItems = (input.exceptions || []).map((a) => ({
-    type: a.exceptionType,
-    typeLabel: alertTypeLabel(a.exceptionType),
-    title: merchantAlertTitle(a.exceptionType, a.title),
+    type: a.exceptionType || '',
+    typeLabel: alertTypeLabel(a.exceptionType || ''),
+    title: merchantAlertTitle(a.exceptionType || '', a.title || ''),
     detail: formatExceptionDetail(a.detail || ''),
     deviceId: a.deviceId,
     exceptionId: a.exceptionId

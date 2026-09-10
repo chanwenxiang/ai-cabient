@@ -220,22 +220,18 @@ public class MerchantReplenishmentService {
      * 商户端同步开门状态：以服务端补货会话为准（本地缓存仅作乐观展示）。
      */
     @Transactional(readOnly = true)
-    public Map<String, Object> resolveDoorSession(Long userId, Long taskId) {
+    public MerchantReplenishmentDoorSessionDto resolveDoorSession(Long userId, Long taskId) {
         permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
         merchantPortalGuard.requireAccess(userId);
         ReplenishmentTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         merchantFeaturePackService.requireDevicePack(userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("doorOpened", false);
-        shoppingSessionRepository.findLatestByReplenishmentTaskId(taskId).ifPresent(session -> {
-            out.put("doorOpened", true);
-            out.put("sessionId", session.getSessionId());
-            if (session.getState() != null) {
-                out.put("state", session.getState().name());
-            }
-        });
-        return out;
+        return shoppingSessionRepository.findLatestByReplenishmentTaskId(taskId)
+                .map(session -> new MerchantReplenishmentDoorSessionDto(
+                        true,
+                        session.getSessionId(),
+                        session.getState() != null ? session.getState().name() : null))
+                .orElseGet(() -> new MerchantReplenishmentDoorSessionDto(false, null, null));
     }
 
     /**
@@ -334,7 +330,7 @@ public class MerchantReplenishmentService {
         request.setSubmittedAt(now);
         request = requestRepository.save(request);
 
-        for (CreateMerchantReplenishmentRequest.Line line : body.lines()) {
+        for (CreateMerchantReplenishmentRequestLine line : body.lines()) {
             if (line == null || line.skuId() == null || line.skuId().isBlank()) {
                 continue;
             }
