@@ -1,6 +1,7 @@
 package com.aicabinet.trade.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
  * 业务写接口用户维度限流（与短信/登录限流互补）。
@@ -9,11 +10,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "aicabinet.rate-limit")
 public record RateLimitProperties(
-        boolean enabled,
-        int maxCouponClaimsPerHour,
-        int maxOrderPaysPerHour,
-        int maxSessionCreatesPerHour,
-        int maxOpenDoorsPerHour
+        @DefaultValue("true") boolean enabled,
+        @DefaultValue("20") int maxCouponClaimsPerHour,
+        @DefaultValue("30") int maxOrderPaysPerHour,
+        @DefaultValue("20") int maxSessionCreatesPerHour,
+        @DefaultValue("30") int maxOpenDoorsPerHour
 ) {
     public RateLimitProperties {
         if (maxCouponClaimsPerHour <= 0) {
@@ -28,10 +29,5 @@ public record RateLimitProperties(
         if (maxOpenDoorsPerHour <= 0) {
             maxOpenDoorsPerHour = 30;
         }
-    }
-
-    /** 兼容旧测试与仅配置券/支付两项的局部构造。 */
-    public RateLimitProperties(boolean enabled, int maxCouponClaimsPerHour, int maxOrderPaysPerHour) {
-        this(enabled, maxCouponClaimsPerHour, maxOrderPaysPerHour, 20, 30);
     }
 }
