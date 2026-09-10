@@ -3801,7 +3801,9 @@ async function loadWarehouseTabData(name: string) {
       Promise.all([
         loadReturns(),
         loadReturnablePurchaseOrders(),
-        loadPurchase().catch(() => {}),
+        loadPurchase().catch((err) => {
+          console.warn('[warehouse] 退货弹窗预载采购单失败', err);
+        }),
         loadSuppliersSoft(),
         loadWarehousesSoft()
       ]),
@@ -4488,7 +4490,9 @@ async function openReturn() {
   dialogBootLoading.value = true;
   try {
     await Promise.all([
-      loadPurchase().catch(() => {}),
+      loadPurchase().catch((err) => {
+        console.warn('[warehouse] 弹窗启动预载采购单失败', err);
+      }),
       loadSuppliersSoft(),
       loadWarehousesSoft(),
       ensureMeta()
@@ -4784,7 +4788,9 @@ onMounted(async () => {
     patchPurchaseOrderRow(updated as Row);
     if (tab.value === 'purchase') {
       loadedTabs.value.delete('purchase');
-      loadTab('purchase', true).catch(() => {});
+      loadTab('purchase', true).catch((err) => {
+        console.warn('[warehouse] 采购单更新后刷新列表失败', err);
+      });
     }
   });
   applyTabFromQuery();
