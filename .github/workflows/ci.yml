@@ -35,7 +35,7 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -78,16 +78,18 @@ jobs:
           grep -q '^JWT_SECRET=CHANGE-ME-production-jwt-secret-32bytes-min$' "$env_file" \
             || { echo "JWT_SECRET must stay as CHANGE-ME placeholder in production template"; exit 1; }
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: maven
 
       # Matches pom.xml <node.version>v24.18.0</node.version> (frontend-maven-plugin also pins this)
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '24.18.0'
+          # build job 只用 node 跑脚本，不走 pnpm install；关掉 v5 按 packageManager 自动缓存
+          package-manager-cache: false
 
       - name: Migration safety gate (new Flyway scripts)
         # 纯 Node 脚本，无需 pnpm install（此前 pnpm 无 node_modules 时 exit -2）
@@ -178,7 +180,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-results
           path: '**/target/surefire-reports/*.xml'
@@ -189,11 +191,13 @@ jobs:
     env:
       npm_config_script_shell: /bin/bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '24.18.0'
+          # 仍用 corepack 启 pnpm；避免 setup-node 自动缓存与手动 prepare 抢跑
+          package-manager-cache: false
 
       - name: Enable pnpm
         run: |
