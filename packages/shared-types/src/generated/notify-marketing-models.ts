@@ -5,6 +5,7 @@
  */
 import type { components } from './openapi';
 
+/** 通知/营销读模型别名。 */
 /** 站内通知（消费者/商户共用结构） */
 export type OpenApiNotificationDto = components['schemas']['NotificationDto'];
 /** 消费者通知偏好 */

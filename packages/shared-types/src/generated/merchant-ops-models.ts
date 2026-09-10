@@ -5,18 +5,17 @@
  */
 import type { components } from './openapi';
 
+/** 商户运营读模型别名（设备报表/资料/趋势/异常等）。 */
 /** 商户设备经营报表行 */
 export type OpenApiMerchantDeviceReportDto = components['schemas']['MerchantDeviceReportDto'];
 /** 更新商户资料 */
-export type OpenApiUpdateMerchantProfileRequest =
-  components['schemas']['UpdateMerchantProfileRequest'];
+export type OpenApiUpdateMerchantProfileRequest = components['schemas']['UpdateMerchantProfileRequest'];
 /** 商户趋势 */
 export type OpenApiMerchantTrendDto = components['schemas']['MerchantTrendDto'];
 /** 商户日趋势点 */
 export type OpenApiMerchantDailyTrendDto = components['schemas']['MerchantDailyTrendDto'];
 /** 商户工作台统计 */
-export type OpenApiMerchantDashboardStatsDto =
-  components['schemas']['MerchantDashboardStatsDto'];
+export type OpenApiMerchantDashboardStatsDto = components['schemas']['MerchantDashboardStatsDto'];
 /** 运营/商户异常工单 */
 export type OpenApiOpsExceptionDto = components['schemas']['OpsExceptionDto'];
 /** 销售报表行（商户 analytics） */

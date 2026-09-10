@@ -5,6 +5,7 @@
  */
 import type { components } from './openapi';
 
+/** 精简订单读模型别名，便于业务侧对照契约而不整包 import paths。 */
 export type OpenApiOrderReadModel = components['schemas']['OrderReadModel'];
 export type OpenApiOrderReadModelAdmin = components['schemas']['OrderReadModel_Admin'];
 export type OpenApiOrderReadModelMerchant = components['schemas']['OrderReadModel_Merchant'];
