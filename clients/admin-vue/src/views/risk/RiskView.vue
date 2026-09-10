@@ -254,6 +254,7 @@ import { api, downloadAuthFile } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
@@ -268,6 +269,8 @@ import {
 } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
+
+const loadSeq = createLoadSeq();
 
 function dispositionLabel(s?: string) {
   const m: Record<string, string> = {
@@ -394,6 +397,7 @@ function applyRouteQuery() {
 }
 
 async function loadEvents() {
+  const seq = loadSeq.begin('loadEvents');
   eventsLoading.value = true;
   try {
     const q = new URLSearchParams({
@@ -410,8 +414,10 @@ async function loadEvents() {
     clearEventsSelection();
     loaded.value.add('events');
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadEvents')) return;
     ElMessage.error(e instanceof Error ? e.message : '风险事件加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadEvents')) return;
     eventsHydrated.value = true;
     eventsLoading.value = false;
   }
@@ -423,6 +429,7 @@ function onEventSizeChange() {
 }
 
 async function loadBlacklist() {
+  const seq = loadSeq.begin('loadBlacklist');
   if (!canBlacklist.value) {
     blacklist.value = [];
     blacklistHydrated.value = true;
@@ -445,8 +452,10 @@ async function loadBlacklist() {
     clearBlacklistSelection();
     loaded.value.add('blacklist');
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadBlacklist')) return;
     ElMessage.error(e instanceof Error ? e.message : '黑名单加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadBlacklist')) return;
     blacklistHydrated.value = true;
     blacklistLoading.value = false;
   }

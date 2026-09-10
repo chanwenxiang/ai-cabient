@@ -536,6 +536,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { useAdminListTable } from '@/composables/useAdminListTable';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
@@ -543,6 +544,8 @@ import { useDictOptions } from '@/composables/useDictOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { yuanToCents } from '@/utils/display';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
+
+const loadSeq = createLoadSeq();
 
 interface Manager {
   managerId: number;
@@ -722,6 +725,7 @@ function promoStatusLabel(s?: string) {
 }
 
 async function loadManagers() {
+  const seq = loadSeq.begin('loadManagers');
   managersLoading.value = true;
   try {
     const q = new URLSearchParams({ page: String(mPage.value - 1), size: String(mSize.value) });
@@ -734,14 +738,17 @@ async function loadManagers() {
     managers.value = sortById(res.items || []);
     mTotal.value = Number(res.total || 0);
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadManagers')) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadManagers')) return;
     managersHydrated.value = true;
     managersLoading.value = false;
   }
 }
 
 async function loadWithdraws() {
+  const seq = loadSeq.begin('loadWithdraws');
   withdrawsLoading.value = true;
   try {
     const q = new URLSearchParams({ page: String(wPage.value - 1), size: String(wSize.value) });
@@ -754,8 +761,10 @@ async function loadWithdraws() {
     wTotal.value = Number(res.total || 0);
     clearWdSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadWithdraws')) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadWithdraws')) return;
     withdrawsHydrated.value = true;
     withdrawsLoading.value = false;
   }
@@ -788,9 +797,11 @@ function reload() {
 }
 
 async function loadPayoutMode() {
+  const seq = loadSeq.begin('loadPayoutMode');
   try {
     payoutMode.value = await api.request('/api/v2/ops/admin/line-withdraws/payout-mode', 'GET');
   } catch {
+    if (!loadSeq.isCurrent(seq, 'loadPayoutMode')) return;
     payoutMode.value = {
       mockEnabled: true,
       note: '无法读取打款模式；演示环境通常为 Mock（非真实转账到零钱）'
@@ -923,12 +934,15 @@ async function showKpi(row: Manager) {
 }
 
 async function loadPromoTasks() {
+  const seq = loadSeq.begin('loadPromoTasks');
   promoLoading.value = true;
   try {
     promoTasks.value = await api.request<PromoTask[]>('/api/v2/ops/admin/line-promo-tasks', 'GET');
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadPromoTasks')) return;
     ElMessage.error(e instanceof Error ? e.message : '加载地推任务失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadPromoTasks')) return;
     promoHydrated.value = true;
     promoLoading.value = false;
   }

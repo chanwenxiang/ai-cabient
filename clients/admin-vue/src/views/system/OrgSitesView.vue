@@ -679,6 +679,7 @@ import { api } from '@/api/client';
 import { yuanToCents } from '@/utils/display';
 import PagePager from '@/components/PagePager.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useListCsv } from '@/composables/useListCsv';
 import { useAuthStore } from '@/stores/auth';
 import type {
@@ -695,6 +696,7 @@ const FEE_KIND_DATA = 'DATA_FEE';
 const auth = useAuthStore();
 const canEditOrg = computed(() => auth.hasPerm('ops:org:edit'));
 const loading = ref(false);
+const loadSeq = createLoadSeq();
 const saving = ref(false);
 const tab = ref('org');
 const orgTree = ref<OrgNodeDto[]>([]);
@@ -875,6 +877,7 @@ watch(tab, (name) => {
 });
 
 async function loadAll() {
+  const seq = loadSeq.begin('loadAll');
   loading.value = true;
   try {
     orgTree.value = (await api.request<OrgNodeDto[]>('/api/v2/ops/admin/org/tree', 'GET')) || [];
@@ -883,13 +886,16 @@ async function loadAll() {
       await loadBills();
     }
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadAll')) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadAll')) return;
     loading.value = false;
   }
 }
 
 async function loadContracts() {
+  const seq = loadSeq.begin('loadContracts');
   loading.value = true;
   try {
     const q = new URLSearchParams({
@@ -904,8 +910,10 @@ async function loadContracts() {
     contractTotal.value = Number(data.total) || 0;
     clearContractSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadContracts')) return;
     ElMessage.error(e instanceof Error ? e.message : '合同加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadContracts')) return;
     contractsHydrated.value = true;
     loading.value = false;
   }
@@ -953,6 +961,7 @@ async function batchDeleteContracts() {
 }
 
 async function loadDevices() {
+  const seq = loadSeq.begin('loadDevices');
   try {
     deviceOptions.value =
       (await api.request<{ deviceId: string; deviceName?: string }[]>(
@@ -960,6 +969,7 @@ async function loadDevices() {
         'GET'
       )) || [];
   } catch {
+    if (!loadSeq.isCurrent(seq, 'loadDevices')) return;
     deviceOptions.value = [];
   }
 }
@@ -1233,6 +1243,7 @@ function onFeeBillKindChange() {
 }
 
 async function loadBills() {
+  const seq = loadSeq.begin('loadBills');
   loading.value = true;
   try {
     // 账单接口约定 page 从 1 起（FeeBillMonthResolver.clampPage）；合约/事件等为 0 起，勿混用
@@ -1260,8 +1271,10 @@ async function loadBills() {
       billTotal.value = Number(data?.total) || 0;
     }
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadBills')) return;
     ElMessage.error(e instanceof Error ? e.message : '账单加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadBills')) return;
     billsHydrated.value = true;
     loading.value = false;
   }

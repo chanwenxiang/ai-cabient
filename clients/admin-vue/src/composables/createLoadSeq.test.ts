@@ -19,4 +19,13 @@ describe('createLoadSeq', () => {
     g.begin();
     expect(g.isCurrent(first)).toBe(false);
   });
+
+  it('不同 channel 互不干扰', () => {
+    const g = createLoadSeq();
+    const a1 = g.begin('a');
+    const b1 = g.begin('b');
+    g.begin('a');
+    expect(g.isCurrent(a1, 'a')).toBe(false);
+    expect(g.isCurrent(b1, 'b')).toBe(true);
+  });
 });

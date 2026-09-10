@@ -1310,6 +1310,7 @@ import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -1359,6 +1360,7 @@ function sortedRouteTasks(tasks: Row[] | undefined | null): Row[] {
 const loading = ref(false);
 const loadingTabs = ref(new Set<string>());
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 
 function isTabLoading(name: string) {
   return loadingTabs.value.has(name);
@@ -1847,6 +1849,7 @@ function ensureAssigneeOption(userId: number, name?: string) {
 }
 
 async function loadAssignees() {
+  const seq = loadSeq.begin('loadAssignees');
   if (assigneeLoading.value) return;
   assigneeLoading.value = true;
   try {
@@ -1858,6 +1861,7 @@ async function loadAssignees() {
     assigneeOptions.value = items;
     ensureAssigneeOption(currentAssigneeId(), auth.displayName);
   } catch {
+    if (!loadSeq.isCurrent(seq, 'loadAssignees')) return;
     ensureAssigneeOption(currentAssigneeId(), auth.displayName);
     if (!assigneeOptions.value.length) {
       assigneeOptions.value = [
@@ -1865,6 +1869,7 @@ async function loadAssignees() {
       ];
     }
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadAssignees')) return;
     assigneeLoading.value = false;
   }
 }
@@ -1982,6 +1987,7 @@ function onPagerSizeChange() {
 }
 
 async function loadSummary() {
+  const seq = loadSeq.begin('loadSummary');
   try {
     const data = await api.request<{
       pendingTaskCount: number;
@@ -1996,11 +2002,13 @@ async function loadSummary() {
       pendingRequestCount: Number(data.pendingRequestCount) || 0
     };
   } catch {
+    if (!loadSeq.isCurrent(seq, 'loadSummary')) return;
     /* KPI 汇总失败不阻断列表 */
   }
 }
 
 async function loadRoutes() {
+  const seq = loadSeq.begin('loadRoutes');
   const extra: Record<string, string> = {};
   if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
   const data = await api.request<{ items: Row[]; total: number }>(
@@ -2013,6 +2021,7 @@ async function loadRoutes() {
 }
 
 async function loadFulfillment() {
+  const seq = loadSeq.begin('loadFulfillment');
   const extra: Record<string, string> = {};
   if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
   if (fulfillmentStatus.value) extra.status = fulfillmentStatus.value;
@@ -2027,6 +2036,7 @@ async function loadFulfillment() {
 }
 
 async function loadRequests() {
+  const seq = loadSeq.begin('loadRequests');
   const status = requestStatusFilter.value || 'ALL';
   const data = await api.request<{ items: Row[]; total: number }>(
     `/api/v2/ops/admin/replenishment/requests?${replenishmentListParams({ status })}`,
@@ -2038,15 +2048,18 @@ async function loadRequests() {
 }
 
 async function loadDeviceRefs() {
+  const seq = loadSeq.begin('loadDeviceRefs');
   if (devices.value.length) return;
   try {
     devices.value = await api.request<Row[]>('/api/v2/ops/admin/devices/ref', 'GET');
   } catch {
+    if (!loadSeq.isCurrent(seq, 'loadDeviceRefs')) return;
     devices.value = [];
   }
 }
 
 async function loadShortages() {
+  const seq = loadSeq.begin('loadShortages');
   const extra: Record<string, string> = {};
   if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
   const data = await api.request<{
@@ -2064,6 +2077,7 @@ async function loadShortages() {
 }
 
 async function loadTab(name: string, force = false) {
+  const seq = loadSeq.begin('loadTab');
   if (!force && !SERVER_PAGINATED_TABS.has(name)) return;
   markTabsLoading([name], true);
   loading.value = true;
@@ -2077,8 +2091,10 @@ async function loadTab(name: string, force = false) {
       await loadShortages();
     } else if (name === 'expiry') await loadExpiryAlerts();
   } catch (error) {
+    if (!loadSeq.isCurrent(seq, 'loadTab')) return;
     ElMessage.error(error instanceof Error ? error.message : '补货数据加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadTab')) return;
     listHydrated.value = true;
     loading.value = false;
     markTabsLoading([name], false);
@@ -2174,6 +2190,7 @@ function planSingleDevice(deviceId: string) {
 }
 
 async function loadExpiryAlerts() {
+  const seq = loadSeq.begin('loadExpiryAlerts');
   expiryLoading.value = true;
   try {
     const data = await api.request<{ items: Row[]; total: number }>(
@@ -2188,8 +2205,10 @@ async function loadExpiryAlerts() {
     tabTotals.value = { ...tabTotals.value, expiry: Number(data.total) || 0 };
     clearExpirySelection();
   } catch (error) {
+    if (!loadSeq.isCurrent(seq, 'loadExpiryAlerts')) return;
     ElMessage.error(error instanceof Error ? error.message : '临期告警加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadExpiryAlerts')) return;
     expiryLoading.value = false;
   }
 }
@@ -2467,6 +2486,7 @@ async function loadEvidencePreviews(
     previewUrl?: string;
   }[]
 ) {
+  const seq = loadSeq.begin();
   const base = globalThis.location.origin;
   const next: typeof files = [];
   const urls: string[] = [];
@@ -2482,11 +2502,13 @@ async function loadEvidencePreviews(
         );
         if (res.ok) {
           const blob = await res.blob();
+          if (!loadSeq.isCurrent(seq)) return;
           const url = URL.createObjectURL(blob);
           urls.push(url);
           item.previewUrl = url;
         }
       } catch {
+    if (!loadSeq.isCurrent(seq)) return;
         /* list-only fallback */
       }
     }
@@ -2896,6 +2918,7 @@ function revokeRequestEvidenceUrls() {
 }
 
 async function loadRequestEvidence(row: Row) {
+  const seq = loadSeq.begin('loadRequestEvidence');
   revokeRequestEvidenceUrls();
   const requestId = Number(row.requestId);
   if (!requestId) return;
@@ -2903,6 +2926,7 @@ async function loadRequestEvidence(row: Row) {
     const files = await api.request<
       { fileId: number; fileName?: string; fileSize?: number; contentType?: string; url?: string }[]
     >(`/api/v2/ops/admin/replenishment/requests/${requestId}/evidence`, 'GET');
+    if (!loadSeq.isCurrent(seq, 'loadRequestEvidence')) return;
     if (!files?.length) return;
     const base = globalThis.location.origin;
     const urls: string[] = [];
@@ -2920,6 +2944,7 @@ async function loadRequestEvidence(row: Row) {
             );
             if (res.ok) {
               const blob = await res.blob();
+              if (!loadSeq.isCurrent(seq, 'loadRequestEvidence')) return item;
               const objectUrl = URL.createObjectURL(blob);
               urls.push(objectUrl);
               item.previewUrl = objectUrl;
@@ -2931,9 +2956,11 @@ async function loadRequestEvidence(row: Row) {
         return item;
       })
     );
+    if (!loadSeq.isCurrent(seq, 'loadRequestEvidence')) return;
     requestEvidenceObjectUrls.value = urls;
     requestEvidence.value = mapped;
   } catch {
+    if (!loadSeq.isCurrent(seq, 'loadRequestEvidence')) return;
     requestEvidence.value = [];
   }
 }

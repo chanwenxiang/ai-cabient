@@ -715,6 +715,7 @@ import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
@@ -736,6 +737,7 @@ const canSplit = computed(() => auth.hasPerm('ops:merchant:split'));
 
 const tab = ref('org');
 const loading = ref(false);
+const loadSeq = createLoadSeq();
 const loadingMerchants = ref(false);
 const merchantsHydrated = ref(false);
 const loadingStatus = ref(false);
@@ -1058,6 +1060,7 @@ async function fetchAllMerchants(): Promise<MerchantDto[]> {
 }
 
 async function loadMerchantsTab() {
+  const seq = loadSeq.begin('loadMerchantsTab');
   loadingMerchants.value = true;
   try {
     const q = new URLSearchParams({
@@ -1073,27 +1076,33 @@ async function loadMerchantsTab() {
     merchantTotal.value = data.total ?? 0;
     clearMerchantsSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadMerchantsTab')) return;
     ElMessage.error(e instanceof Error ? e.message : '商户列表加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadMerchantsTab')) return;
     merchantsHydrated.value = true;
     loadingMerchants.value = false;
   }
 }
 
 async function loadMerchants() {
+  const seq = loadSeq.begin('loadMerchants');
   loadingMerchants.value = true;
   try {
     merchants.value = await fetchAllMerchants();
     clearMerchantsSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadMerchants')) return;
     ElMessage.error(e instanceof Error ? e.message : '商户加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadMerchants')) return;
     merchantsHydrated.value = true;
     loadingMerchants.value = false;
   }
 }
 
 async function loadStatus() {
+  const seq = loadSeq.begin('loadStatus');
   if (!canSplit.value) return;
   loadingStatus.value = true;
   try {
@@ -1102,13 +1111,16 @@ async function loadStatus() {
       'GET'
     );
   } catch {
+    if (!loadSeq.isCurrent(seq, 'loadStatus')) return;
     psStatus.value = null;
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadStatus')) return;
     loadingStatus.value = false;
   }
 }
 
 async function loadSplits() {
+  const seq = loadSeq.begin('loadSplits');
   if (!canSplit.value) {
     splits.value = [];
     splitTotal.value = 0;
@@ -1131,8 +1143,10 @@ async function loadSplits() {
     splitTotal.value = data.total ?? splits.value.length;
     clearSplitsSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadSplits')) return;
     ElMessage.error(e instanceof Error ? e.message : '分账明细加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadSplits')) return;
     splitsLoaded.value = true;
     loading.value = false;
   }
@@ -1178,17 +1192,20 @@ function onTabChange(name: string | number) {
 }
 
 async function loadRoleTemplates() {
+  const seq = loadSeq.begin('loadRoleTemplates');
   try {
     roleTemplates.value = await api.request<MerchantRoleTemplate[]>(
       '/api/v2/ops/admin/merchant-role-templates',
       'GET'
     );
   } catch {
+    if (!loadSeq.isCurrent(seq, 'loadRoleTemplates')) return;
     roleTemplates.value = [];
   }
 }
 
 async function loadOpsConfig() {
+  const seq = loadSeq.begin('loadOpsConfig');
   if (!opsConfigMerchantId.value) {
     opsConfig.value = null;
     return;
@@ -1201,8 +1218,10 @@ async function loadOpsConfig() {
       'GET'
     );
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadOpsConfig')) return;
     ElMessage.error(e instanceof Error ? e.message : '加载运营配置失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadOpsConfig')) return;
     opsConfigLoading.value = false;
   }
 }

@@ -429,10 +429,13 @@ import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { useAdminListTable } from '@/composables/useAdminListTable';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { yuanToCents } from '@/utils/display';
+
+const loadSeq = createLoadSeq();
 
 interface WalletRow {
   merchantId: string;
@@ -559,9 +562,11 @@ function reload() {
 }
 
 async function loadPayoutMode() {
+  const seq = loadSeq.begin('loadPayoutMode');
   try {
     payoutMode.value = await api.request('/api/v2/ops/admin/merchant-withdraws/payout-mode', 'GET');
   } catch {
+    if (!loadSeq.isCurrent(seq, 'loadPayoutMode')) return;
     payoutMode.value = {
       mockEnabled: true,
       note: '无法读取打款模式；演示环境通常为 Mock（非真实转账）'
@@ -590,6 +595,7 @@ function onWdSizeChange() {
 }
 
 async function loadWallets() {
+  const seq = loadSeq.begin('loadWallets');
   walletsLoading.value = true;
   try {
     const q = new URLSearchParams({
@@ -605,14 +611,17 @@ async function loadWallets() {
     wTotal.value = res.total || 0;
     clearWalletSelection();
   } catch (e: unknown) {
+    if (!loadSeq.isCurrent(seq, 'loadWallets')) return;
     ElMessage.error(errorMessage(e, '加载失败'));
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadWallets')) return;
     walletsHydrated.value = true;
     walletsLoading.value = false;
   }
 }
 
 async function loadWithdraws() {
+  const seq = loadSeq.begin('loadWithdraws');
   withdrawsLoading.value = true;
   try {
     const q = new URLSearchParams({
@@ -628,8 +637,10 @@ async function loadWithdraws() {
     wdTotal.value = res.total || 0;
     clearWdSelection();
   } catch (e: unknown) {
+    if (!loadSeq.isCurrent(seq, 'loadWithdraws')) return;
     ElMessage.error(errorMessage(e, '加载失败'));
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadWithdraws')) return;
     withdrawsHydrated.value = true;
     withdrawsLoading.value = false;
   }
