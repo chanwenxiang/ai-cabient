@@ -17,6 +17,7 @@
     "test:mp": "pnpm --filter @aicabinet/consumer-mp run test:ci && pnpm --filter @aicabinet/merchant-mp run test:ci",
     "check:nav-perms": "node scripts/check-nav-perms.mjs",
     "check:openapi-types": "node scripts/check-openapi-types.mjs",
+    "check:migration-safety": "node scripts/check-migration-safety.mjs",
     "smoke:realms": "node scripts/smoke-realms.mjs",
     "gen:api-types": "node scripts/gen-openapi-types.mjs",
     "lint": "eslint .",

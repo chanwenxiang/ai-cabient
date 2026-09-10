@@ -95,6 +95,7 @@ public class SessionService {
     private final ScheduledTaskService taskService;
     private final ObjectMapper objectMapper;
     private final DisplaySnapshotHelper displaySnapshotHelper;
+    private final ApiRateLimitService apiRateLimitService;
 
     public SessionService(ShoppingSessionMapper repository,
                           DeviceServiceClient deviceClient,
@@ -117,7 +118,8 @@ public class SessionService {
                           DistributedLockService distributedLockService,
                           ScheduledTaskService taskService,
                           ObjectMapper objectMapper,
-                          DisplaySnapshotHelper displaySnapshotHelper) {
+                          DisplaySnapshotHelper displaySnapshotHelper,
+                          ApiRateLimitService apiRateLimitService) {
         this.repository = repository;
         this.deviceClient = deviceClient;
         this.userValidationService = userValidationService;
@@ -140,6 +142,7 @@ public class SessionService {
         this.taskService = taskService;
         this.objectMapper = objectMapper;
         this.displaySnapshotHelper = displaySnapshotHelper;
+        this.apiRateLimitService = apiRateLimitService;
     }
 
     /** 无外层长事务：落库短事务与 MQTT 开门分离。 */
@@ -155,6 +158,7 @@ public class SessionService {
     }
 
     private SessionDto createSessionAndRequestOpen(Long userId, CreateSessionRequest request) {
+        apiRateLimitService.assertSessionCreateAllowed(userId);
         SessionDto dto = self.persistConsumerOpeningSession(userId, request);
         try {
             deviceClient.requestOpenDoor(dto.sessionId(), request.deviceId(), userId, false);

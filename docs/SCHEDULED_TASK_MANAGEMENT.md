@@ -23,10 +23,13 @@
 所有写型定时任务统一经过 `ScheduledTaskService.tryBegin/finish`：
 
 1. **启停开关**：`scheduled_task.enabled=false` 时跳过；
-2. **分布式锁**：`job:<taskKey>`，多实例同一任务只跑一个；
+2. **分布式锁**：`job:<taskKey>`（Redis，**等同 ShedLock**），多实例同一任务只跑一个；
 3. **执行记录**：最近时间/结果/耗时；
 4. **XXL 让位**：`XXL_JOB_ENABLED=true` 且 taskKey ∈ `XxlJobManagedTasks` 时，内置 `@Scheduled` 让位；
    仅 XXL 线程或运营「立即执行」（`runAllowingBuiltin`）可进入。
+5. **ArchUnit**：`TradeArchitectureTest.scheduledMustCallTryBegin` 禁止新增裸 `@Scheduled`。
+
+多副本部署见 [HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md)。
 
 ## 四、与 XXL-JOB（仓库根目录启动）
 

@@ -848,13 +848,12 @@ public class DisputeService {
         String deviceId = session != null ? session.getDeviceId() : null;
         String sessionState = session != null ? session.getState().name() : null;
         String orderId = session != null ? session.getOrderId() : null;
-        Integer billedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
-                .map(DisputeService::resolveBilledAmountCents)
-                .orElse(null);
-        Integer refundedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
-                .map(DisputeService::resolveRefundedAmountCents)
-                .orElse(null);
+        var orderOpt = orderRepository.findBySessionId(ticket.getSessionId());
+        Integer billedAmountCents = orderOpt.map(DisputeService::resolveBilledAmountCents).orElse(null);
+        Integer refundedAmountCents = orderOpt.map(DisputeService::resolveRefundedAmountCents).orElse(null);
         Integer claimedAmountCents = sumLineAmountCents(suggested);
+        int memberDiscount = orderOpt.map(o -> o.getMemberDiscountCents()).orElse(0);
+        int couponDiscount = orderOpt.map(o -> o.getCouponDiscountCents()).orElse(0);
         String previewUrl = minioVideoService.presignPlaybackUrl(videoUri).orElse(null);
         Instant now = Instant.now();
         boolean slaOverdue = "OPEN".equals(ticket.getStatus())
@@ -867,6 +866,12 @@ public class DisputeService {
         String reviewCode = resolveReviewCode(ticket);
         String displayReason = com.aicabinet.trade.support.MerchantNameSupport.disputeReason(
                 reviewCode, ticket.getReason());
+        var consumerCopy = com.aicabinet.common.util.DisputeConsumerCopy.reviewCopy(
+                ticket.getStatus(), displayReason, billedAmountCents, refundedAmountCents);
+        String statusLabel = com.aicabinet.common.util.DisputeConsumerCopy.statusLabel(
+                ticket.getStatus(), billedAmountCents, refundedAmountCents);
+        String amountDiff = com.aicabinet.common.util.DisputeConsumerCopy.amountDiffNote(
+                claimedAmountCents, billedAmountCents, memberDiscount, couponDiscount);
         return new DisputeTicketDto(
                 ticket.getTicketId(), ticket.getSessionId(), deviceId, displayReason,
                 ticket.getStatus(), suggested, resolved, ticket.getCreatedAt(), ticket.getResolvedAt(),
@@ -880,7 +885,11 @@ public class DisputeService {
                 refundedAmountCents,
                 claimedAmountCents,
                 session != null ? session.getDeviceName() : null,
-                ticket.getAssignee());
+                ticket.getAssignee(),
+                statusLabel,
+                consumerCopy.title(),
+                consumerCopy.detail(),
+                amountDiff);
     }
 
     @Transactional(readOnly = true)
@@ -994,13 +1003,12 @@ public class DisputeService {
         String orderId = session != null ? session.getOrderId() : null;
         String videoUri = session != null ? session.getVideoUri() : null;
         String previewUrl = minioVideoService.presignPlaybackUrl(videoUri).orElse(null);
-        Integer billedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
-                .map(DisputeService::resolveBilledAmountCents)
-                .orElse(null);
-        Integer refundedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
-                .map(DisputeService::resolveRefundedAmountCents)
-                .orElse(null);
+        var orderOpt = orderRepository.findBySessionId(ticket.getSessionId());
+        Integer billedAmountCents = orderOpt.map(DisputeService::resolveBilledAmountCents).orElse(null);
+        Integer refundedAmountCents = orderOpt.map(DisputeService::resolveRefundedAmountCents).orElse(null);
         Integer claimedAmountCents = sumLineAmountCents(suggested);
+        int memberDiscount = orderOpt.map(o -> o.getMemberDiscountCents()).orElse(0);
+        int couponDiscount = orderOpt.map(o -> o.getCouponDiscountCents()).orElse(0);
         Instant now = Instant.now();
         boolean slaOverdue = "OPEN".equals(ticket.getStatus())
                 && ticket.getSlaDueAt() != null
@@ -1012,6 +1020,12 @@ public class DisputeService {
         String reviewCode = resolveReviewCode(ticket);
         String displayReason = com.aicabinet.trade.support.MerchantNameSupport.disputeReason(
                 reviewCode, ticket.getReason());
+        var consumerCopy = com.aicabinet.common.util.DisputeConsumerCopy.reviewCopy(
+                ticket.getStatus(), displayReason, billedAmountCents, refundedAmountCents);
+        String statusLabel = com.aicabinet.common.util.DisputeConsumerCopy.statusLabel(
+                ticket.getStatus(), billedAmountCents, refundedAmountCents);
+        String amountDiff = com.aicabinet.common.util.DisputeConsumerCopy.amountDiffNote(
+                claimedAmountCents, billedAmountCents, memberDiscount, couponDiscount);
         return new DisputeTicketDto(
                 ticket.getTicketId(), ticket.getSessionId(), deviceId, displayReason,
                 ticket.getStatus(), suggested, resolved, ticket.getCreatedAt(), ticket.getResolvedAt(),
@@ -1025,7 +1039,11 @@ public class DisputeService {
                 refundedAmountCents,
                 claimedAmountCents,
                 session != null ? session.getDeviceName() : null,
-                ticket.getAssignee());
+                ticket.getAssignee(),
+                statusLabel,
+                consumerCopy.title(),
+                consumerCopy.detail(),
+                amountDiff);
     }
 
     private static Integer resolveBilledAmountCents(CabinetOrder order) {

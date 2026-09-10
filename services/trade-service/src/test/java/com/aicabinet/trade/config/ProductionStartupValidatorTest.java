@@ -51,6 +51,21 @@ class ProductionStartupValidatorTest {
     }
 
     @Test
+    void prodRejectsDefaultDatasourcePassword() {
+        Environment environment = mock(Environment.class);
+        when(environment.getActiveProfiles()).thenReturn(new String[] {"prod"});
+        MinioProperties minio = mock(MinioProperties.class);
+        when(minio.accessKey()).thenReturn("prod-minio-user");
+        when(minio.secretKey()).thenReturn("prod-minio-secret-32bytes-at-least");
+        ProductionStartupValidator v = buildValidatorWithMinioCorsCidr(
+                environment, minio, List.of("https://ops.example.com"), true);
+        when(environment.getProperty("spring.datasource.password", "")).thenReturn("aicabinet");
+        assertThatThrownBy(v::validateProductionConfig)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("SPRING_DATASOURCE_PASSWORD");
+    }
+
+    @Test
     void prodRejectsDefaultMinioCredentials() {
         Environment environment = mock(Environment.class);
         when(environment.getActiveProfiles()).thenReturn(new String[] {"prod"});
@@ -97,6 +112,7 @@ class ProductionStartupValidatorTest {
             MinioProperties minioProperties,
             List<String> corsOrigins,
             boolean hasCidr) {
+        when(environment.getProperty("spring.datasource.password", "")).thenReturn("prod-db-password-not-default");
         SecurityProperties securityProperties = mock(SecurityProperties.class);
         when(securityProperties.mockEnabled()).thenReturn(false);
         StagingProperties stagingProperties = mock(StagingProperties.class);
@@ -146,6 +162,7 @@ class ProductionStartupValidatorTest {
             String profile, String smsCode, boolean cookieEnabled, boolean cookieSecure) {
         Environment environment = mock(Environment.class);
         when(environment.getActiveProfiles()).thenReturn(new String[] {profile});
+        when(environment.getProperty("spring.datasource.password", "")).thenReturn("prod-db-password-not-default");
 
         SecurityProperties securityProperties = mock(SecurityProperties.class);
         when(securityProperties.mockEnabled()).thenReturn(false);

@@ -15,6 +15,8 @@ public class ProductionStartupValidator {
     private static final String DEV_JWT_SECRET = "ai-cabinet-dev-secret-key-32bytes!!";
     private static final String DEV_INTERNAL_KEY = "dev-internal-key-change-me";
     private static final String DEV_VISION_KEY = "dev-vision-key-change-me";
+    /** application.yml / docker-compose 本地默认库密码，prod/staging 必须覆盖。 */
+    private static final String DEV_DATASOURCE_PASSWORD = "aicabinet";
 
     private final Environment environment;
     private final SecurityProperties securityProperties;
@@ -80,6 +82,7 @@ public class ProductionStartupValidator {
         requireSecret(authProperties.jwtSecret(), DEV_JWT_SECRET, "JWT_SECRET / aicabinet.auth.jwt-secret");
         requireSecret(internalApiProperties.key(), DEV_INTERNAL_KEY, "INTERNAL_API_KEY / aicabinet.internal-api.key");
         requireSecret(visionApiProperties.key(), DEV_VISION_KEY, "VISION_API_KEY / aicabinet.vision-api.key");
+        rejectDefaultDatasourcePassword();
         if (!authProperties.sms().hasWebhook()) {
             throw new IllegalStateException("Production/staging requires SMS webhook: aicabinet.auth.sms.webhook-url");
         }
@@ -277,6 +280,15 @@ public class ProductionStartupValidator {
         return false;
     }
 
+    private void rejectDefaultDatasourcePassword() {
+        String password = environment.getProperty("spring.datasource.password", "");
+        if (password == null || password.isBlank() || DEV_DATASOURCE_PASSWORD.equals(password)) {
+            throw new IllegalStateException(
+                    "Production/staging cannot use default DB password (aicabinet); "
+                            + "set SPRING_DATASOURCE_PASSWORD / POSTGRES_PASSWORD");
+        }
+    }
+
     private void rejectDefaultMinioCredentials() {
         if ("minioadmin".equals(minioProperties.accessKey())
                 || "minioadmin".equals(minioProperties.secretKey())) {
@@ -318,6 +330,12 @@ public class ProductionStartupValidator {
         if (mockCode != null && ("123456".equals(mockCode) || "000000".equals(mockCode))) {
             log.warn("SMS mock code is {} (dev-only). Strict prod/staging profiles reject this; disable mock SMS before go-live.",
                     mockCode);
+        }
+        String dbPassword = environment.getProperty("spring.datasource.password", "");
+        if (dbPassword == null || dbPassword.isBlank() || DEV_DATASOURCE_PASSWORD.equals(dbPassword)) {
+            log.warn("SPRING_DATASOURCE_PASSWORD is unset or still the default '{}'. "
+                            + "Strict prod/staging profiles reject this; set a strong password before go-live.",
+                    DEV_DATASOURCE_PASSWORD);
         }
     }
 

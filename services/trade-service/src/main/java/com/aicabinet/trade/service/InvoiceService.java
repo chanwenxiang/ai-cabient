@@ -217,7 +217,7 @@ public class InvoiceService {
         MerchantTaxProfile p = taxProfileRepository.selectById(device.getMerchantId());
         return p == null
                 ? new MerchantTaxProfileDto(device.getMerchantId(), "", "", null, null, null, null)
-                : toTaxDto(p);
+                : toTaxDto(p, true);
     }
 
     private InvoiceRequestDto toDto(InvoiceRequest r) {
@@ -228,9 +228,20 @@ public class InvoiceService {
     }
 
     private static MerchantTaxProfileDto toTaxDto(MerchantTaxProfile p) {
+        return toTaxDto(p, false);
+    }
+
+    /** @param maskSensitive 运营侧查看他人税档时脱敏银行卡/电话 */
+    private static MerchantTaxProfileDto toTaxDto(MerchantTaxProfile p, boolean maskSensitive) {
+        String bank = p.getBankAccount();
+        String phone = p.getPhone();
+        if (maskSensitive) {
+            bank = com.aicabinet.common.util.SensitiveMask.bankCard(bank);
+            phone = com.aicabinet.common.util.PhoneMask.mask(phone);
+        }
         return new MerchantTaxProfileDto(
                 p.getMerchantId(), p.getCompanyName(), p.getTaxNo(),
-                p.getAddress(), p.getBankName(), p.getBankAccount(), p.getPhone());
+                p.getAddress(), p.getBankName(), bank, phone);
     }
 
     private static String blankToNull(String s) {

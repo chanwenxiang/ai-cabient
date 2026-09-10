@@ -321,7 +321,8 @@ docker compose -p ai-cabinet -f docker-compose.yml -f docker-compose.apps.yml -f
 - [ ] EMQX TLS + 设备 ACL 已配置
 - [ ] Ingress 不暴露 `/internal/**`
 - [ ] 公网网关不暴露 `/actuator/prometheus` 等内网端点
-- [ ] 数据库备份与 Flyway 迁移已在预发验证
+- [ ] 数据库备份与 Flyway 迁移已在预发验证（大表变更遵循 [MIGRATION_SAFETY.md](MIGRATION_SAFETY.md)）
+- [ ] trade ≥2 副本浸泡（[HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md)；定时任务 Redis 选举 + 建议 XXL）
 - [ ] 运营账号已创建（非种子 123456 依赖）
 
 ---

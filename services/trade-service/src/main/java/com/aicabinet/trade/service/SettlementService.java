@@ -1283,8 +1283,11 @@ public class SettlementService {
         return order;
     }
 
+    /**
+     * 仅同包服务在归属校验后调用；勿对 Controller / 跨模块公开，防 IDOR 绕过。
+     */
     @Transactional(readOnly = true)
-    public OrderReadModel getOrderBySession(String sessionId) {
+    OrderReadModel getOrderBySession(String sessionId) {
         return orderRepository.findBySessionId(sessionId)
                 .map(this::toDto)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));

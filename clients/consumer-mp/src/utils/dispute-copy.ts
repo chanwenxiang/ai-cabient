@@ -59,13 +59,37 @@ export function localizeConsumerDisputeReason(reason?: string | null): string {
   return localizeDisputeReason(reason);
 }
 
-/** 消费者端：争议/人工审核卡片文案（与后端 ticket.reason 对齐） */
+/**
+ * 消费者端：争议/人工审核卡片文案。
+ * 优先使用后端派生字段（consumerReview*），旧响应回退本地拼装。
+ */
 export function consumerDisputeReviewCopy(
   ticket?: Pick<
     DisputeTicketDto,
-    'reason' | 'status' | 'billedAmountCents' | 'refundedAmountCents'
+    | 'reason'
+    | 'status'
+    | 'billedAmountCents'
+    | 'refundedAmountCents'
+    | 'consumerReviewTitle'
+    | 'consumerReviewDetail'
   > | null
 ): ConsumerDisputeReviewCopy {
+  if (ticket?.consumerReviewTitle && ticket?.consumerReviewDetail) {
+    const s = (ticket.status || '').toUpperCase();
+    const tone: ConsumerDisputeReviewCopy['tone'] =
+      s === 'RESOLVED' || s === 'CLOSED'
+        ? 'success'
+        : /识别服务暂不可用|vision/i.test(ticket.consumerReviewTitle + ticket.consumerReviewDetail)
+          ? 'warn'
+          : 'wait';
+    return {
+      icon: tone === 'success' ? '✓' : '!',
+      title: ticket.consumerReviewTitle,
+      detail: ticket.consumerReviewDetail,
+      tone
+    };
+  }
+
   const raw = (ticket?.reason || '').trim();
   const reason = localizeDisputeReason(raw);
 
@@ -118,15 +142,16 @@ function sumLineAmountCents(lines?: Array<{ lineAmountCents?: number | null }> |
 
 /**
  * 建议价与实扣不一致时的说明（会员/优惠差额）。
- * 无差额时返回空串。
+ * 优先后端 amountDiffNote；无则本地回退。
  */
 export function disputeAmountDiffNote(
   ticket?: Pick<
     DisputeTicketDto,
-    'claimedAmountCents' | 'billedAmountCents' | 'suggestedItems'
+    'claimedAmountCents' | 'billedAmountCents' | 'suggestedItems' | 'amountDiffNote'
   > | null,
   extras?: { memberDiscountCents?: number | null; couponDiscountCents?: number | null }
 ): string {
+  if (ticket?.amountDiffNote) return ticket.amountDiffNote;
   if (!ticket) return '';
   const claimed =
     Number(ticket.claimedAmountCents ?? 0) || sumLineAmountCents(ticket.suggestedItems);
@@ -146,6 +171,28 @@ export function disputeAmountDiffNote(
     return `识别参考 ${fmtMoney(claimed)}，实扣 ${fmtMoney(billed)}（优惠/折扣 ${fmtMoney(diff)}）`;
   }
   return `识别参考 ${fmtMoney(claimed)}，实扣 ${fmtMoney(billed)}（差额 ${fmtMoney(Math.abs(diff))}）`;
+}
+
+/** 状态行：优先后端 consumerStatusLabel */
+export function consumerDisputeStatusLabel(
+  ticket?: Pick<
+    DisputeTicketDto,
+    'status' | 'billedAmountCents' | 'refundedAmountCents' | 'consumerStatusLabel'
+  > | null
+): string {
+  if (ticket?.consumerStatusLabel) return ticket.consumerStatusLabel;
+  const s = ticket?.status || '';
+  if (s === 'OPEN' || s === 'PENDING') return '审核中 · 暂未扣款';
+  if (s === 'RESOLVED' || s === 'CLOSED') {
+    const billed = Number(ticket?.billedAmountCents ?? 0);
+    const refunded = Number(ticket?.refundedAmountCents ?? 0);
+    if (refunded > 0 && billed > 0)
+      return `已结案 · 扣款 ${fmtMoney(billed)} / 退款 ${fmtMoney(refunded)}`;
+    if (refunded > 0) return `已结案 · 退款 ${fmtMoney(refunded)}`;
+    if (billed > 0) return `已结案 · 扣款 ${fmtMoney(billed)}`;
+    return '已结案 · 未扣款';
+  }
+  return '处理中';
 }
 
 /** 消费者提交申诉/退款失败时的友好文案（覆盖后端 409 等冲突提示） */

@@ -27,13 +27,15 @@ class OpsServiceConcurrencyTest {
     @Mock private ReplenishmentTaskMapper taskRepository;
     @Mock private com.aicabinet.trade.mapper.SkuCatalogMapper skuCatalogRepository;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private ApiRateLimitService apiRateLimitService;
 
     private OpsService service;
 
     @BeforeEach
     void setUp() {
         service = new OpsService(sessionService, deviceValidationService, deviceClient,
-                sessionRepository, taskRepository, skuCatalogRepository, distributedLockService, null);
+                sessionRepository, taskRepository, skuCatalogRepository, distributedLockService, null,
+                apiRateLimitService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

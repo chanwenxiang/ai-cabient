@@ -36,7 +36,13 @@ public record DisputeTicketDto(
         Integer claimedAmountCents,
         String deviceName,
         /** 处理人展示名（结案写入） */
-        String assignee
+        String assignee,
+        /** 消费者端状态行（含金额），前端勿再拼装 */
+        String consumerStatusLabel,
+        String consumerReviewTitle,
+        String consumerReviewDetail,
+        /** 识别参考 vs 实扣差额说明；无差额时为空 */
+        String amountDiffNote
 ) {
     public DisputeTicketDto(
             String ticketId,
@@ -70,7 +76,7 @@ public record DisputeTicketDto(
                 createdAt, resolvedAt, videoUri, videoPreviewUrl, sessionState, orderId,
                 billedAmountCents, slaDueAt, slaOverdue, slaHoursRemaining, category, priority,
                 operatorNote, closedAt, reopenedAt, messages, evidence, reviewCode, detectedClasses,
-                null, null, null, null);
+                null, null, null, null, null, null, null, null);
     }
 
     public DisputeTicketDto(
@@ -106,7 +112,7 @@ public record DisputeTicketDto(
                 createdAt, resolvedAt, videoUri, videoPreviewUrl, sessionState, orderId,
                 billedAmountCents, slaDueAt, slaOverdue, slaHoursRemaining, category, priority,
                 operatorNote, closedAt, reopenedAt, messages, evidence, reviewCode, detectedClasses,
-                refundedAmountCents, null, null, null);
+                refundedAmountCents, null, null, null, null, null, null, null);
     }
 
     public DisputeTicketDto(
@@ -143,7 +149,7 @@ public record DisputeTicketDto(
                 createdAt, resolvedAt, videoUri, videoPreviewUrl, sessionState, orderId,
                 billedAmountCents, slaDueAt, slaOverdue, slaHoursRemaining, category, priority,
                 operatorNote, closedAt, reopenedAt, messages, evidence, reviewCode, detectedClasses,
-                refundedAmountCents, null, deviceName, null);
+                refundedAmountCents, null, deviceName, null, null, null, null, null);
     }
 
     public DisputeTicketDto(
@@ -181,6 +187,47 @@ public record DisputeTicketDto(
                 createdAt, resolvedAt, videoUri, videoPreviewUrl, sessionState, orderId,
                 billedAmountCents, slaDueAt, slaOverdue, slaHoursRemaining, category, priority,
                 operatorNote, closedAt, reopenedAt, messages, evidence, reviewCode, detectedClasses,
-                refundedAmountCents, claimedAmountCents, deviceName, null);
+                refundedAmountCents, claimedAmountCents, deviceName, null, null, null, null, null);
+    }
+
+    /** 含 assignee，消费者文案字段为空（兼容旧装配）。 */
+    public DisputeTicketDto(
+            String ticketId,
+            String sessionId,
+            String deviceId,
+            String reason,
+            String status,
+            List<OrderLineDto> suggestedItems,
+            List<OrderLineDto> resolutionItems,
+            Instant createdAt,
+            Instant resolvedAt,
+            String videoUri,
+            String videoPreviewUrl,
+            String sessionState,
+            String orderId,
+            Integer billedAmountCents,
+            Instant slaDueAt,
+            boolean slaOverdue,
+            Long slaHoursRemaining,
+            String category,
+            String priority,
+            String operatorNote,
+            Instant closedAt,
+            Instant reopenedAt,
+            List<DisputeMessageDto> messages,
+            List<FileAttachmentDto> evidence,
+            String reviewCode,
+            List<String> detectedClasses,
+            Integer refundedAmountCents,
+            Integer claimedAmountCents,
+            String deviceName,
+            String assignee
+    ) {
+        this(ticketId, sessionId, deviceId, reason, status, suggestedItems, resolutionItems,
+                createdAt, resolvedAt, videoUri, videoPreviewUrl, sessionState, orderId,
+                billedAmountCents, slaDueAt, slaOverdue, slaHoursRemaining, category, priority,
+                operatorNote, closedAt, reopenedAt, messages, evidence, reviewCode, detectedClasses,
+                refundedAmountCents, claimedAmountCents, deviceName, assignee,
+                null, null, null, null);
     }
 }
