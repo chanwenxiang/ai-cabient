@@ -1,0 +1,1 @@
+import{aA as a}from"./vue-vendor-DHFOAPe-.js";import{c,E as s}from"./index-0Rh92zmC.js";function k(){const o=a(),n=c();function t(){return s(n)}function r(){o.replace(t())}function u(){var e;if(((e=window.history.state)==null?void 0:e.back)!=null){o.back();return}r()}return{resolveHome:t,goHome:r,goBack:u}}export{k as u};

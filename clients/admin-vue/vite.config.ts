@@ -66,7 +66,32 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: OUT_DIR,
       emptyOutDir: true,
-      chunkSizeWarningLimit: 600
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return;
+            // 避免把 CSS 硬塞进 JS chunk
+            if (id.endsWith('.css')) return;
+            const norm = id.replace(/\\/g, '/');
+            if (norm.includes('/element-plus/') || norm.includes('/@element-plus/')) {
+              return 'element-plus';
+            }
+            if (norm.includes('/leaflet') || norm.includes('/leaflet.markercluster')) {
+              return 'leaflet';
+            }
+            if (
+              norm.includes('/vue/') ||
+              norm.includes('/vue-router/') ||
+              norm.includes('/pinia/') ||
+              norm.includes('/@vue/') ||
+              norm.includes('/nprogress/')
+            ) {
+              return 'vue-vendor';
+            }
+          }
+        }
+      }
     }
   };
 });
