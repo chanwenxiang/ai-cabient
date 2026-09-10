@@ -538,26 +538,55 @@ public class SettlementService {
         });
     }
 
-    @Transactional(noRollbackFor = {BalanceInsufficientException.class})
+    /**
+     * 争议确认清单。无外层长事务包裹支付渠道：
+     * 首次落单仍同事务 {@code chargeOrder}；改单为库存短事务 → 支付差额 → 状态短事务。
+     */
     public ConfirmDisputeResult confirmDisputedItems(ShoppingSession session,
                                                    List<VisionServiceClient.RecognizedItem> items) {
         return runWithSessionSettleLock(session.getSessionId(), () -> {
-            sessionRepository.findByIdForUpdate(session.getSessionId());
-            return confirmDisputedItemsUnlocked(session, items);
+            ConfirmDisputePrep prep = self.prepareConfirmDispute(session.getSessionId(), items);
+            if (prep.firstChargeDone()) {
+                return prep.result();
+            }
+            if (prep.paymentDelta() != 0) {
+                orderPaymentService.applyPaymentDelta(prep.order(), prep.paymentDelta());
+            }
+            return self.finalizeConfirmDispute(prep);
         });
     }
 
-    private ConfirmDisputeResult confirmDisputedItemsUnlocked(ShoppingSession session,
-                                                              List<VisionServiceClient.RecognizedItem> items) {
+    public record ConfirmDisputePrep(
+            boolean firstChargeDone,
+            ConfirmDisputeResult result,
+            CabinetOrder order,
+            int originalPayable,
+            int finalTotal,
+            int paymentDelta) {
+        static ConfirmDisputePrep firstCharge(ConfirmDisputeResult result) {
+            return new ConfirmDisputePrep(true, result, null, 0, 0, 0);
+        }
+
+        static ConfirmDisputePrep adjust(CabinetOrder order, int originalPayable, int finalTotal, int paymentDelta) {
+            return new ConfirmDisputePrep(false, null, order, originalPayable, finalTotal, paymentDelta);
+        }
+    }
+
+    @Transactional(noRollbackFor = {BalanceInsufficientException.class})
+    public ConfirmDisputePrep prepareConfirmDispute(String sessionId,
+                                                    List<VisionServiceClient.RecognizedItem> items) {
         if (items == null || items.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_ITEMS_REQUIRED);
         }
+        sessionRepository.findByIdForUpdate(sessionId);
+        ShoppingSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
 
-        var existing = orderRepository.findBySessionId(session.getSessionId());
+        var existing = orderRepository.findBySessionId(sessionId);
         if (existing.isEmpty()) {
             OrderReadModel order = finalizeOrder(session, items);
             int amount = order.totalAmountCents();
-            return new ConfirmDisputeResult(order, 0, amount, amount);
+            return ConfirmDisputePrep.firstCharge(new ConfirmDisputeResult(order, 0, amount, amount));
         }
 
         CabinetOrder order = existing.get();
@@ -583,7 +612,7 @@ public class SettlementService {
         int finalTotal = order.getTotalAmountCents();
         int delta = finalTotal - originalPayable;
 
-        // 先校验余额再动库存/账本，避免 412 触发 UnexpectedRollbackException（BUG-007）
+        // 先校验余额再动库存，避免 412 触发 UnexpectedRollbackException（BUG-007）
         if (delta > 0 && !userValidationService.canChargeViaPasswordFree(
                 session.getUserId(), session.getEntryChannel())) {
             userValidationService.validateSufficientBalanceForCharge(session.getUserId(), delta);
@@ -599,19 +628,29 @@ public class SettlementService {
             applyBatchNos(order, deductedBatches);
             order.setInventoryDeducted(true);
         }
-        orderPaymentService.applyPaymentDelta(order, delta);
+        orderRepository.save(order);
+        replaceOrderLines(order);
+        log.info("dispute confirm prepare session={} order={} original={} final={} delta={}",
+                sessionId, order.getOrderId(), originalPayable, finalTotal, delta);
+        return ConfirmDisputePrep.adjust(order, originalPayable, finalTotal, delta);
+    }
+
+    @Transactional
+    public ConfirmDisputeResult finalizeConfirmDispute(ConfirmDisputePrep prep) {
+        CabinetOrder order = orderRepository.findByIdForUpdate(prep.order().getOrderId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        hydrateOrderLines(order);
         // 三端一致：确认/改单后退出争议态（DisputeService 结案兜底也会对齐）
         if ("DISPUTED".equals(order.getStatus())) {
             order.setStatus("PAID");
         }
-        if (delta != 0) {
-            revenueSplitService.adjustSplitAfterOrderChange(order, originalPayable);
+        if (prep.paymentDelta() != 0) {
+            revenueSplitService.adjustSplitAfterOrderChange(order, prep.originalPayable());
         }
         orderRepository.save(order);
-        replaceOrderLines(order);
-        log.info("dispute adjust session={} order={} original={} final={} delta={}",
-                session.getSessionId(), order.getOrderId(), originalPayable, finalTotal, delta);
-        return new ConfirmDisputeResult(toDto(order), originalPayable, finalTotal, delta);
+        log.info("dispute confirm finalize order={} original={} final={} delta={}",
+                order.getOrderId(), prep.originalPayable(), prep.finalTotal(), prep.paymentDelta());
+        return new ConfirmDisputeResult(toDto(order), prep.originalPayable(), prep.finalTotal(), prep.paymentDelta());
     }
 
     /** 免单：退还该会话已扣款项（原路退回）；默认回库（兼容历史免单=误识别）。 */
