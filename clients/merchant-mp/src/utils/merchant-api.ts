@@ -763,7 +763,9 @@ export const merchantApi = {
     } = {}
   ) => {
     const { deviceId, status, from, to, keyword, page = 0, size = 50 } = opts;
-    return request<import('@aicabinet/shared-types').PageResult<MerchantOrderSummary>>(
+    return request<import('@aicabinet/shared-types').PageResult<
+      import('@aicabinet/shared-types').OpenApiOrderReadModelMerchant
+    >>(
       withQuery('/api/v2/merchant/orders', {
         page,
         size,
@@ -776,7 +778,9 @@ export const merchantApi = {
     );
   },
   orderDetail: (orderId: string) =>
-    request<Record<string, unknown>>(`/api/v2/merchant/orders/${encodeURIComponent(orderId)}`),
+    request<import('@aicabinet/shared-types').OpenApiOrderReadModelMerchant>(
+      `/api/v2/merchant/orders/${encodeURIComponent(orderId)}`
+    ),
   disputeDetail: (ticketId: string) =>
     request<MerchantDisputeDetail>(`/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}`),
   disputeReply: (ticketId: string, body: string) =>
@@ -811,29 +815,9 @@ export const merchantApi = {
     request<void>(`/api/v2/merchant/notifications/${id}/read`, 'POST')
 };
 
-export type MerchantOrderSummary = {
-  orderId: string;
-  sessionId?: string;
-  deviceId?: string;
-  deviceName?: string;
-  merchantName?: string;
-  status?: string;
-  totalAmountCents?: number;
-  originalAmountCents?: number;
-  lineCount?: number;
-  lineSummary?: string;
-  payChannel?: string;
-  couponDiscountCents?: number;
-  memberDiscountCents?: number;
-  refundedAt?: string;
-  /** 累计已退款（分） */
-  refundedCents?: number;
-  createdAt?: string;
-  payTradeNo?: string;
-  paymentOperationId?: string;
-  /** 分账状态；无分账记录为空 */
-  splitStatus?: string;
-};
+/** @deprecated 使用 OpenApiOrderReadModelMerchant；保留别名避免旧 import 立刻炸掉 */
+export type MerchantOrderSummary =
+  import('@aicabinet/shared-types').OpenApiOrderReadModelMerchant;
 
 export type MerchantDisputeTicket = {
   ticketId: string;

@@ -371,12 +371,6 @@ public class MerchantFinanceService {
                 pageable);
     }
 
-    /** lineCount 口径与运营侧一致：商品件数（quantity 合计），非行数。 */
-    private OrderReadModel toMerchantOrderSummary(
-            CabinetOrder o, List<CabinetOrderLine> lines, String splitStatus) {
-        return orderViewAssembler.assembleSummary(o, lines, splitStatus, null, null, null);
-    }
-
     private RevenueSplitDto toSplitDto(OrderRevenueSplit s, String merchantName) {
         String deviceName = null;
         if (s.getOrderId() != null && !s.getOrderId().isBlank()) {

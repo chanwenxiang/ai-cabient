@@ -203,7 +203,7 @@
               :loading="resolving"
               @click="resolveFromDetail('WAIVE')"
             >
-              同意免单
+              {{ displayLabel('dispute_resolution', 'WAIVE') }}
             </button>
             <button
               v-if="canResolveDetail"
@@ -214,14 +214,14 @@
             </button>
             <template v-if="canResolveDetail && moreActionsOpen">
               <button class="btn-outline" :loading="resolving" @click="resolveFromDetail('KEEP')">
-                维持原单
+                {{ displayLabel('dispute_resolution', 'KEEP') }}
               </button>
               <button
                 class="btn-outline"
                 :loading="resolving"
                 @click="resolveFromDetail('CONFIRM')"
               >
-                按识别结案
+                {{ displayLabel('dispute_resolution', 'CONFIRM') }}
               </button>
             </template>
             <button v-if="detail?.orderId" class="btn-outline" @click="goOrderFromDetail">
@@ -464,7 +464,11 @@ async function claimFromDetail() {
 
 async function resolveFromDetail(type: 'KEEP' | 'WAIVE' | 'CONFIRM') {
   if (!detail.value?.ticketId || resolving.value) return;
-  const labels = { KEEP: '维持原单', WAIVE: '同意免单退款', CONFIRM: '按识别清单结案' };
+  const labels = {
+    KEEP: displayLabel('dispute_resolution', 'KEEP'),
+    WAIVE: displayLabel('dispute_resolution', 'WAIVE'),
+    CONFIRM: displayLabel('dispute_resolution', 'CONFIRM')
+  };
   const ok = await new Promise<boolean>((resolve) => {
     uni.showModal({
       title: labels[type],
