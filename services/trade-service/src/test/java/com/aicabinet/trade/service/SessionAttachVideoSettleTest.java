@@ -71,6 +71,8 @@ class SessionAttachVideoSettleTest {
         session.setState(SessionState.WAITING_UPLOAD);
 
         when(repository.findByIdForUpdate("S-Q6")).thenReturn(Optional.of(session));
+        // attachVideo 在 persist 后会再 findById 取会话态，决定是否 settle
+        when(repository.findById("S-Q6")).thenReturn(Optional.of(session));
         when(visionAsyncProperties.enabled()).thenReturn(false);
         when(settlementService.settle(session)).thenReturn(OrderReadModelFixtures.sample("O-Q6", "S-Q6"));
 
