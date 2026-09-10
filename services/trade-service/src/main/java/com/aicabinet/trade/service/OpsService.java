@@ -72,7 +72,7 @@ public class OpsService {
      */
     public SessionDto openDoorForRestockAsUser(Long userId, String deviceId, Long taskId) {
         return runWithReplenishmentLock(taskId, () -> {
-            apiRateLimitService.assertOpenDoorAllowed(userId);
+            apiRateLimitService.assertOpenDoorAllowed(userId, deviceId);
             SessionDto dto = self.persistRestockOpeningSession(userId, deviceId, taskId);
             try {
                 deviceClient.requestOpenDoorOperator(dto.sessionId(), deviceId, userId);

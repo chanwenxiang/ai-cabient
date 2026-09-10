@@ -15,7 +15,9 @@ import org.springframework.web.server.ResponseStatusException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -24,12 +26,13 @@ class ApiRateLimitServiceTest {
 
     @Mock private RedissonClient redisson;
     @Mock private RAtomicLong counter;
+    @Mock private RAtomicLong deviceCounter;
 
     private ApiRateLimitService service;
 
     @BeforeEach
     void setUp() {
-        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 20, 30));
+        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 20, 30, 60));
     }
 
     @Test
@@ -58,7 +61,7 @@ class ApiRateLimitServiceTest {
 
     @Test
     void assertOrderPayAllowed_whenDisabled_skipsRedis() {
-        service = new ApiRateLimitService(redisson, new RateLimitProperties(false, 2, 2, 20, 30));
+        service = new ApiRateLimitService(redisson, new RateLimitProperties(false, 2, 2, 20, 30, 60));
 
         service.assertOrderPayAllowed(10001L);
 
@@ -69,7 +72,7 @@ class ApiRateLimitServiceTest {
     void assertSessionCreateAllowed_whenAtLimit_rejects() {
         when(redisson.getAtomicLong(anyString())).thenReturn(counter);
         when(counter.get()).thenReturn(2L);
-        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 2, 2));
+        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 2, 2, 2));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.assertSessionCreateAllowed(10001L));
@@ -79,14 +82,48 @@ class ApiRateLimitServiceTest {
     }
 
     @Test
-    void assertOpenDoorAllowed_whenUnderLimit_increments() {
-        when(redisson.getAtomicLong(anyString())).thenReturn(counter);
+    void assertOpenDoorAllowed_whenUnderLimit_incrementsUserAndDevice() {
+        when(redisson.getAtomicLong(eq("aicabinet:rate:open_door:10001"))).thenReturn(counter);
+        when(redisson.getAtomicLong(eq("aicabinet:rate:open_door_device:DEV-1"))).thenReturn(deviceCounter);
         when(counter.get()).thenReturn(0L);
         when(counter.incrementAndGet()).thenReturn(1L);
-        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 2, 2));
+        when(deviceCounter.get()).thenReturn(0L);
+        when(deviceCounter.incrementAndGet()).thenReturn(1L);
+        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 2, 2, 2));
 
-        service.assertOpenDoorAllowed(10001L);
+        service.assertOpenDoorAllowed(10001L, "DEV-1");
 
         verify(counter).expire(java.time.Duration.ofHours(1));
+        verify(deviceCounter).expire(java.time.Duration.ofHours(1));
+    }
+
+    @Test
+    void assertOpenDoorAllowed_whenDeviceAtLimit_rejects() {
+        when(redisson.getAtomicLong(eq("aicabinet:rate:open_door:10001"))).thenReturn(counter);
+        when(redisson.getAtomicLong(eq("aicabinet:rate:open_door_device:DEV-1"))).thenReturn(deviceCounter);
+        when(counter.get()).thenReturn(0L);
+        when(counter.incrementAndGet()).thenReturn(1L);
+        when(deviceCounter.get()).thenReturn(2L);
+        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 2, 2, 2));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.assertOpenDoorAllowed(10001L, "DEV-1"));
+
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, ex.getStatusCode());
+        assertEquals(ApiMessages.TOO_MANY_OPENS, ex.getReason());
+        verify(deviceCounter, never()).incrementAndGet();
+        verify(counter, times(1)).incrementAndGet();
+    }
+
+    @Test
+    void assertOpenDoorAllowed_whenDeviceIdBlank_onlyUserDimension() {
+        when(redisson.getAtomicLong(eq("aicabinet:rate:open_door:10001"))).thenReturn(counter);
+        when(counter.get()).thenReturn(0L);
+        when(counter.incrementAndGet()).thenReturn(1L);
+        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 2, 2, 2));
+
+        service.assertOpenDoorAllowed(10001L, "  ");
+
+        verify(redisson, times(1)).getAtomicLong(anyString());
     }
 }

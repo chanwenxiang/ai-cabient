@@ -102,7 +102,8 @@ for (const rel of files) {
   // PostgreSQL: ALTER COLUMN ... TYPE / SET NOT NULL / DROP DEFAULT 等可触发重写或长锁
   const alterColumn =
     /ALTER\s+COLUMN/i.test(body) ||
-    /ALTER\s+TABLE[\s\S]{0,400}?\b(TYPE|SET\s+NOT\s+NULL|DROP\s+NOT\s+NULL|SET\s+DEFAULT|DROP\s+DEFAULT)\b/i.test(
+    // 窗口须覆盖长表名/多子句；过短会漏检超长 ALTER（曾用 400）
+    /ALTER\s+TABLE[\s\S]{0,2000}?\b(TYPE|SET\s+NOT\s+NULL|DROP\s+NOT\s+NULL|SET\s+DEFAULT|DROP\s+DEFAULT)\b/i.test(
       body
     );
   if (alterColumn && touchesHotTable(body) && !reviewed) {
