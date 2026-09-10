@@ -7,7 +7,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
@@ -16,6 +15,7 @@ import java.util.Map;
 
 /**
  * 补货关门后：重力/视觉快照回写货道实测数量（不结算、不扣库存）。
+ * 视觉识别 HTTP 在事务外；货道落库由 DeviceSlotService 短事务完成。
  */
 @Service
 public class RestockSnapshotService {
@@ -38,7 +38,6 @@ public class RestockSnapshotService {
         this.distributedLockService = distributedLockService;
     }
 
-    @Transactional
     public int applySnapshot(ShoppingSession session) {
         return runWithRestockSnapshotLock(session.getSessionId(), () -> doApplySnapshot(session));
     }

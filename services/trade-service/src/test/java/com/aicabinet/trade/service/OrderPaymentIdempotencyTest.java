@@ -65,7 +65,9 @@ class OrderPaymentIdempotencyTest {
                 new CheckoutProperties(true, 2000),
                 sessionRepository,
                 null,
-                memberService);
+                memberService,
+                null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test
@@ -162,7 +164,9 @@ class OrderPaymentIdempotencyTest {
                 new CheckoutProperties(true, 2000),
                 sessionRepository,
                 null,
-                memberService);
+                memberService,
+                null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         CabinetOrder order = order("O-WX-PROD", 10001L, 500, "WECHAT");
         stubOrderLock(order);
         stubNetCharged("O-WX-PROD", 500);
@@ -190,7 +194,9 @@ class OrderPaymentIdempotencyTest {
                 new CheckoutProperties(true, 2000),
                 sessionRepository,
                 null,
-                memberService);
+                memberService,
+                null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         CabinetOrder order = order("O-ALI-PROD", 10001L, 300, "ALIPAY");
         stubOrderLock(order);
         stubNetCharged("O-ALI-PROD", 300);
@@ -219,7 +225,9 @@ class OrderPaymentIdempotencyTest {
                 new CheckoutProperties(true, 2000),
                 sessionRepository,
                 null,
-                memberService);
+                memberService,
+                null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         CabinetOrder order = order("O-WX-NOTXN", 10001L, 500, "WECHAT");
         stubOrderLock(order);
         order.setPayTradeNo(null);
@@ -249,7 +257,9 @@ class OrderPaymentIdempotencyTest {
                 new CheckoutProperties(true, 2000),
                 sessionRepository,
                 null,
-                memberService);
+                memberService,
+                null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         when(alipayPayClient.isConfigured()).thenReturn(true);
         CabinetOrder order = order("O-ALI-NOTXN", 10001L, 300, "ALIPAY");
         stubOrderLock(order);
@@ -280,7 +290,9 @@ class OrderPaymentIdempotencyTest {
                 new CheckoutProperties(true, 2000),
                 sessionRepository,
                 null,
-                memberService);
+                memberService,
+                null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         CabinetOrder order = order("O-WX-BACKFILL", 10001L, 500, "WECHAT");
         stubOrderLock(order);
         order.setPayTradeNo(null);
@@ -318,7 +330,9 @@ class OrderPaymentIdempotencyTest {
                 new CheckoutProperties(true, 2000),
                 sessionRepository,
                 null,
-                memberService);
+                memberService,
+                null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         when(alipayPayClient.isConfigured()).thenReturn(true);
         CabinetOrder order = order("O-ALI-BACKFILL", 10001L, 300, "ALIPAY");
         stubOrderLock(order);

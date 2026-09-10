@@ -615,53 +615,76 @@ public class SettlementService {
     }
 
     /** 免单：退还该会话已扣款项（原路退回）；默认回库（兼容历史免单=误识别）。 */
-    @Transactional
     public int waiveAndRefund(ShoppingSession session) {
         return self.waiveAndRefund(session, true);
     }
 
     /**
-     * 免单/全额退款。
+     * 免单/全额退款。无外层长事务：库存短事务 → 退款（可含渠道 HTTP）→ 状态短事务。
      *
      * @param restoreInventory true=退货退款回库；false=仅退款不回库（货已离柜）
      */
-    @Transactional
     public int waiveAndRefund(ShoppingSession session, boolean restoreInventory) {
         return runWithSessionSettleLock(session.getSessionId(), () -> {
-            sessionRepository.findByIdForUpdate(session.getSessionId());
-            return waiveAndRefundUnlocked(session, restoreInventory);
+            WaiveRefundPrep prep = self.prepareWaiveRefund(session.getSessionId(), restoreInventory);
+            if (prep == null) {
+                return 0;
+            }
+            if (prep.refundCents() > 0) {
+                orderPaymentService.refundOrder(prep.order(), prep.refundCents(), prep.reason());
+            }
+            return self.finalizeWaiveRefund(prep);
         });
     }
 
-    private int waiveAndRefundUnlocked(ShoppingSession session, boolean restoreInventory) {
-        return orderRepository.findBySessionId(session.getSessionId())
-                .map(order -> executeWaiveRefund(session, order, restoreInventory))
-                .orElse(0);
+    public record WaiveRefundPrep(CabinetOrder order, int refundCents, String reason, boolean restoreInventory) {}
+
+    @Transactional
+    public WaiveRefundPrep prepareWaiveRefund(String sessionId, boolean restoreInventory) {
+        sessionRepository.findByIdForUpdate(sessionId);
+        ShoppingSession session = sessionRepository.findById(sessionId).orElse(null);
+        if (session == null) {
+            return null;
+        }
+        return orderRepository.findBySessionId(sessionId)
+                .map(order -> buildWaiveRefundPrep(session, order, restoreInventory))
+                .orElse(null);
     }
 
-    private int executeWaiveRefund(ShoppingSession session, CabinetOrder order, boolean restoreInventory) {
+    private WaiveRefundPrep buildWaiveRefundPrep(ShoppingSession session, CabinetOrder order,
+                                                 boolean restoreInventory) {
         hydrateOrderLines(order);
         if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
-            return 0;
+            return null;
         }
         int amount = Math.max(0, orderPaymentService.netCompletedCents(order.getOrderId()));
         boolean didRestore = applyWaiveInventoryPolicy(order, restoreInventory);
-        if (amount > 0) {
-            orderPaymentService.refundOrder(order, amount,
-                    restoreInventory ? "争议免单退款(回库)" : "争议免单退款(不回库)");
-        } else {
-            log.warn("waive skip refund: no net charge order={}", order.getOrderId());
+        String reason = restoreInventory ? "争议免单退款(回库)" : "争议免单退款(不回库)";
+        log.info("waive prepare session={} order={} refund={} restoreInventory={} didRestore={}",
+                session.getSessionId(), order.getOrderId(), amount, restoreInventory, didRestore);
+        return new WaiveRefundPrep(order, amount, reason, restoreInventory);
+    }
+
+    @Transactional
+    public int finalizeWaiveRefund(WaiveRefundPrep prep) {
+        CabinetOrder order = orderRepository.findByIdForUpdate(prep.order().getOrderId())
+                .orElse(prep.order());
+        if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
+            return prep.refundCents();
         }
         if (order.getRefundedAt() == null) {
             order.setRefundedAt(java.time.Instant.now());
         }
+        // 支付层可能已累加 refundedCents；此处兜底保证免单后金额可见
+        if (prep.refundCents() > 0 && order.getRefundedCents() < prep.refundCents()) {
+            order.setRefundedCents(prep.refundCents());
+        }
         order.setStatus(CabinetConstants.ORDER_STATUS_REFUNDED);
         orderRepository.save(order);
         revenueSplitService.voidSplitOnFullRefund(order.getOrderId());
-        log.info("争议免单退款 session={} order={} refund={} channel={} restoreInventory={} didRestore={}",
-                session.getSessionId(), order.getOrderId(), amount, order.getPayChannel(),
-                restoreInventory, didRestore);
-        return amount;
+        log.info("争议免单退款完成 order={} refund={} channel={} restoreInventory={}",
+                order.getOrderId(), prep.refundCents(), order.getPayChannel(), prep.restoreInventory());
+        return prep.refundCents();
     }
 
     private boolean applyWaiveInventoryPolicy(CabinetOrder order, boolean restoreInventory) {
@@ -690,8 +713,8 @@ public class SettlementService {
     /**
      * 按行部分退款（竞品口径）：指定 SKU/数量退款；行级或默认决定是否回库。
      * 退完全部行 → {@code REFUNDED}；否则 → {@code PARTIAL_REFUNDED}。
+     * 无外层长事务：库存/行改短事务 → 退款（可含渠道）→ 状态短事务。
      */
-    @Transactional
     public PartialRefundResult partialRefund(CabinetOrder order,
                                              List<OrderRefundRequest.PartialRefundLine> refundLines,
                                              boolean defaultRestore,
@@ -699,6 +722,25 @@ public class SettlementService {
         if (order == null || refundLines == null || refundLines.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请指定要退款的商品行");
         }
+        PartialRefundPrep prep = self.preparePartialRefund(order.getOrderId(), refundLines, defaultRestore);
+        orderPaymentService.refundOrder(prep.order(), prep.refundCents(),
+                reason == null ? "按行部分退款" : reason);
+        return self.finalizePartialRefund(prep);
+    }
+
+    public record PartialRefundPrep(
+            CabinetOrder order,
+            int refundCents,
+            int priorRefunded,
+            boolean remainingEmpty,
+            boolean anyRestored) {}
+
+    @Transactional
+    public PartialRefundPrep preparePartialRefund(String orderId,
+                                                  List<OrderRefundRequest.PartialRefundLine> refundLines,
+                                                  boolean defaultRestore) {
+        CabinetOrder order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         hydrateOrderLines(order);
         if (order.getLines() == null || order.getLines().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "订单无商品行，无法按行退款");
@@ -718,11 +760,36 @@ public class SettlementService {
         }
 
         applyPartialRefundInventory(order, partition, remaining.isEmpty());
-        finalizePartialRefundPayment(order, refundCents, reason, remaining.isEmpty());
-        log.info("partial refund order={} refundCents={} status={} restoredLines={} keptLines={}",
-                order.getOrderId(), refundCents, order.getStatus(),
-                partition.restoreItems().size(), partition.keptItems().size());
-        return new PartialRefundResult(refundCents, order.getStatus(), partition.anyRestored());
+        int priorRefunded = Math.max(0, order.getRefundedCents());
+        orderRepository.save(order);
+        replaceOrderLines(order);
+        return new PartialRefundPrep(order, refundCents, priorRefunded, remaining.isEmpty(), partition.anyRestored());
+    }
+
+    @Transactional
+    public PartialRefundResult finalizePartialRefund(PartialRefundPrep prep) {
+        CabinetOrder order = orderRepository.findByIdForUpdate(prep.order().getOrderId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        hydrateOrderLines(order);
+        int refundCents = prep.refundCents();
+        // 支付层正常会累加 refundedCents；演示账号早退 / 历史路径漏写时在此兜底
+        if (order.getRefundedCents() < prep.priorRefunded() + refundCents) {
+            order.setRefundedCents(prep.priorRefunded() + refundCents);
+        }
+        if (order.getRefundedAt() == null) {
+            order.setRefundedAt(java.time.Instant.now());
+        }
+        boolean full = prep.remainingEmpty() || order.getTotalAmountCents() <= 0;
+        order.setStatus(full ? CabinetConstants.ORDER_STATUS_REFUNDED : "PARTIAL_REFUNDED");
+        if (full) {
+            order.setRefundedAt(java.time.Instant.now());
+        }
+        revenueSplitService.adjustSplitAfterPartialRefund(order, full);
+        orderRepository.save(order);
+        replaceOrderLines(order);
+        log.info("partial refund order={} refundCents={} status={} anyRestored={}",
+                order.getOrderId(), refundCents, order.getStatus(), prep.anyRestored());
+        return new PartialRefundResult(refundCents, order.getStatus(), prep.anyRestored());
     }
 
     private record PartialRefundPartition(
@@ -787,27 +854,6 @@ public class SettlementService {
         if (remainingEmpty) {
             order.setInventoryDeducted(false);
         }
-    }
-
-    private void finalizePartialRefundPayment(CabinetOrder order, int refundCents, String reason,
-                                              boolean remainingEmpty) {
-        int priorRefunded = Math.max(0, order.getRefundedCents());
-        orderPaymentService.refundOrder(order, refundCents, reason == null ? "按行部分退款" : reason);
-        // 支付层正常会累加 refundedCents；演示账号早退 / 历史路径漏写时在此兜底，避免 PARTIAL_REFUNDED 金额为 0
-        if (order.getRefundedCents() < priorRefunded + refundCents) {
-            order.setRefundedCents(priorRefunded + refundCents);
-        }
-        if (order.getRefundedAt() == null) {
-            order.setRefundedAt(java.time.Instant.now());
-        }
-        boolean full = remainingEmpty || order.getTotalAmountCents() <= 0;
-        order.setStatus(full ? CabinetConstants.ORDER_STATUS_REFUNDED : "PARTIAL_REFUNDED");
-        if (full) {
-            order.setRefundedAt(java.time.Instant.now());
-        }
-        revenueSplitService.adjustSplitAfterPartialRefund(order, full);
-        orderRepository.save(order);
-        replaceOrderLines(order);
     }
 
     public record PartialRefundResult(int refundedCents, String status, boolean anyInventoryRestored) {}
