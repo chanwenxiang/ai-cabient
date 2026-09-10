@@ -125,8 +125,10 @@ jobs:
         run: git diff --exit-code -- services/trade-service/src/main/resources/static/admin
 
       # 契约对齐：启动刚构建的 jar，导出 /v3/api-docs 并校验 generated TS 已提交
+      # 仓库 .npmrc 为 Windows 配了 script-shell=cmd.exe；Linux CI 须改回 bash
       - name: Verify OpenAPI-generated types are up-to-date
         env:
+          npm_config_script_shell: /bin/bash
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:15433/aicabinet
           SPRING_DATASOURCE_USERNAME: aicabinet
           SPRING_DATASOURCE_PASSWORD: aicabinet
