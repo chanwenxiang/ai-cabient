@@ -2,8 +2,7 @@
  * 本地快速校验：空头 MIGRATION_REVIEWED 应失败。
  * Run: node scripts/check-migration-reviewed-gate.test.mjs
  */
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
