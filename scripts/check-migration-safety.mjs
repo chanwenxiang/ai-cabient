@@ -93,12 +93,9 @@ for (const rel of files) {
   const reviewed = /MIGRATION_REVIEWED\s*:\s*yes/i.test(body);
   const lockRisk = (body.match(/LOCK_RISK\s*:\s*(low|medium|high)/i) || [])[1] || '';
   const notes = (body.match(/NOTES\s*:\s*(.+)/i) || [])[1] || '';
+  const tables = (body.match(/TABLES\s*:\s*(.+)/i) || [])[1] || '';
 
-  if (/DROP\s+COLUMN/i.test(body) && !reviewed) {
-    errors.push(
-      `${rel}: DROP COLUMN without "MIGRATION_REVIEWED: yes" header (see docs/MIGRATION_SAFETY.md)`
-    );
-  }
+  const hasDropColumn = /DROP\s+COLUMN/i.test(body);
   // PostgreSQL: ALTER COLUMN ... TYPE / SET NOT NULL / DROP DEFAULT 等可触发重写或长锁
   const alterColumn =
     /ALTER\s+COLUMN/i.test(body) ||
@@ -106,7 +103,33 @@ for (const rel of files) {
     /ALTER\s+TABLE[\s\S]{0,2000}?\b(TYPE|SET\s+NOT\s+NULL|DROP\s+NOT\s+NULL|SET\s+DEFAULT|DROP\s+DEFAULT)\b/i.test(
       body
     );
-  if (alterColumn && touchesHotTable(body) && !reviewed) {
+  const createIndex = /CREATE\s+(UNIQUE\s+)?INDEX(?!\s+CONCURRENTLY)/i.test(body);
+  const dropIndex = /DROP\s+INDEX(?!\s+IF\s+EXISTS)(?!\s+CONCURRENTLY)/i.test(body);
+  const touchesHot = touchesHotTable(body);
+  const needsReviewGate =
+    hasDropColumn || (alterColumn && touchesHot) || (createIndex && touchesHot);
+
+  // 禁止空头「MIGRATION_REVIEWED: yes」绕过：凡触发评审门禁的脚本必须带齐元数据
+  if (reviewed && needsReviewGate) {
+    if (!lockRisk) {
+      errors.push(
+        `${rel}: MIGRATION_REVIEWED yes requires LOCK_RISK: low|medium|high (see docs/MIGRATION_SAFETY.md)`
+      );
+    }
+    if (!String(notes).trim()) {
+      errors.push(`${rel}: MIGRATION_REVIEWED yes requires non-empty NOTES`);
+    }
+    if (!String(tables).trim()) {
+      errors.push(`${rel}: MIGRATION_REVIEWED yes requires TABLES: <name> (~rows)`);
+    }
+  }
+
+  if (hasDropColumn && !reviewed) {
+    errors.push(
+      `${rel}: DROP COLUMN without "MIGRATION_REVIEWED: yes" header (see docs/MIGRATION_SAFETY.md)`
+    );
+  }
+  if (alterColumn && touchesHot && !reviewed) {
     errors.push(
       `${rel}: ALTER COLUMN (or TYPE/SET NOT NULL) on hot table without "MIGRATION_REVIEWED: yes"`
     );
@@ -117,9 +140,6 @@ for (const rel of files) {
     errors.push(`${rel}: LOCK_RISK high requires non-empty NOTES`);
   }
 
-  const createIndex = /CREATE\s+(UNIQUE\s+)?INDEX(?!\s+CONCURRENTLY)/i.test(body);
-  const dropIndex = /DROP\s+INDEX(?!\s+IF\s+EXISTS)(?!\s+CONCURRENTLY)/i.test(body);
-  const touchesHot = touchesHotTable(body);
   if (createIndex && touchesHot && !/CONCURRENTLY/i.test(body)) {
     const msg = `${rel}: CREATE INDEX on hot table without CONCURRENTLY`;
     if (reviewed && lockRisk === 'high') warnings.push(msg);

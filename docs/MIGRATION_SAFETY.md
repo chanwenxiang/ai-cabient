@@ -56,4 +56,10 @@ pnpm check:migration-safety
 -- NOTES: 低峰执行；已在 staging 验证锁等待 < Ns
 ```
 
-含 `MIGRATION_REVIEWED: yes` 且 `LOCK_RISK: high` 时，CI 仍要求 `NOTES` 非空。
+含 `MIGRATION_REVIEWED: yes` 时，若脚本含高风险 DDL（`DROP COLUMN` / 热表 `ALTER` / 热表非 CONCURRENTLY 建索引），**必须同时**具备：
+
+- `LOCK_RISK: low|medium|high`
+- `NOTES:` 非空（说明 staging 验证或执行窗口）
+- `TABLES:` 非空（表名与估行数）
+
+禁止只写 `MIGRATION_REVIEWED: yes` 空头豁免。`LOCK_RISK: high` 时 NOTES 同样强制非空。

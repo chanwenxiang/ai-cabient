@@ -5,14 +5,13 @@
  */
 import type { components } from './openapi';
 
+/** 商户钱包/提现/争议读模型别名。 */
 /** 商户钱包流水 */
 export type OpenApiMerchantWalletLedgerDto = components['schemas']['MerchantWalletLedgerDto'];
 /** 商户提现申请 */
-export type OpenApiMerchantWithdrawRequestDto =
-  components['schemas']['MerchantWithdrawRequestDto'];
+export type OpenApiMerchantWithdrawRequestDto = components['schemas']['MerchantWithdrawRequestDto'];
 /** 商户钱包总览 */
-export type OpenApiMerchantWalletOverviewDto =
-  components['schemas']['MerchantWalletOverviewDto'];
+export type OpenApiMerchantWalletOverviewDto = components['schemas']['MerchantWalletOverviewDto'];
 /** 线路经理钱包流水 */
 export type OpenApiLineWalletLedgerDto = components['schemas']['LineWalletLedgerDto'];
 /** 线路经理提现申请 */
@@ -20,12 +19,10 @@ export type OpenApiLineWithdrawRequestDto = components['schemas']['LineWithdrawR
 /** 线路经理钱包总览 */
 export type OpenApiLineWalletOverviewDto = components['schemas']['LineWalletOverviewDto'];
 /** 商户端争议列表摘要 */
-export type OpenApiMerchantDisputeSummaryDto =
-  components['schemas']['MerchantDisputeSummaryDto'];
+export type OpenApiMerchantDisputeSummaryDto = components['schemas']['MerchantDisputeSummaryDto'];
 /** 争议工单（认领/详情 ticket） */
 export type OpenApiDisputeTicketDto = components['schemas']['DisputeTicketDto'];
 /** 争议消息 */
 export type OpenApiDisputeMessageDto = components['schemas']['DisputeMessageDto'];
 /** 商户端争议详情 */
-export type OpenApiMerchantDisputeDetailDto =
-  components['schemas']['MerchantDisputeDetailDto'];
+export type OpenApiMerchantDisputeDetailDto = components['schemas']['MerchantDisputeDetailDto'];

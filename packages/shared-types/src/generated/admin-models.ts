@@ -5,12 +5,12 @@
  */
 import type { components } from './openapi';
 
+/** 运营后台读模型别名（设备/优惠券/营销/公告等）。 */
 export type OpenApiAdminDeviceDto = components['schemas']['AdminDeviceDto'];
 export type OpenApiPageResultAdminDeviceDto = components['schemas']['PageResultAdminDeviceDto'];
 export type OpenApiCouponDefinitionDto = components['schemas']['CouponDefinitionDto'];
 export type OpenApiPromotionActivityDto = components['schemas']['PromotionActivityDto'];
-export type OpenApiPageResultPromotionActivityDto =
-  components['schemas']['PageResultPromotionActivityDto'];
+export type OpenApiPageResultPromotionActivityDto = components['schemas']['PageResultPromotionActivityDto'];
 export type OpenApiAnnouncement = components['schemas']['Announcement'];
 export type OpenApiPageResultAnnouncement = components['schemas']['PageResultAnnouncement'];
 /** 与 springdoc PageResult* 结构对齐的泛型分页壳（Java 泛型擦除） */
@@ -20,3 +20,4 @@ export type OpenApiPageResultOf<T> = {
   size?: number;
   total?: number;
 };
+

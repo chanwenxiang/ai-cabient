@@ -8,11 +8,13 @@
  *   OPENAPI_FILE=.tmp/live-openapi.json pnpm gen:api-types
  *
  * 默认先读 OPENAPI_FILE / .tmp/live-openapi.json，没有再拉 OPENAPI_URL。
+ * 别名组定义见 scripts/openapi-alias-groups.mjs（与 check 共用）。
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { OPENAPI_ALIAS_GROUPS, renderAliasGroupFile } from './openapi-alias-groups.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
@@ -94,191 +96,11 @@ if (!body.startsWith('/**\n * AUTO-GENERATED')) {
 }
 console.log(`[gen-openapi-types] 写入 ${outFile}`);
 
-/** 精简订单读模型别名，便于业务侧对照契约而不整包 import paths。 */
-const orderAliasFile = join(outDir, 'order-models.ts');
-const orderAlias = `${banner}import type { components } from './openapi';
-
-export type OpenApiOrderReadModel = components['schemas']['OrderReadModel'];
-export type OpenApiOrderReadModelAdmin = components['schemas']['OrderReadModel_Admin'];
-export type OpenApiOrderReadModelMerchant = components['schemas']['OrderReadModel_Merchant'];
-export type OpenApiOrderReadModelConsumer = components['schemas']['OrderReadModel_Consumer'];
-export type OpenApiOrderLineDto = components['schemas']['OrderLineDto'];
-`;
-writeFileSync(orderAliasFile, orderAlias, 'utf8');
-console.log(`[gen-openapi-types] 写入 ${orderAliasFile}`);
-
-/** 补货/库存读模型别名（商户端本地投影迁出用）。 */
-const replenishmentAliasFile = join(outDir, 'replenishment-models.ts');
-const replenishmentAlias = `${banner}import type { components } from './openapi';
-
-/** 补货建议（商户/运营） */
-export type OpenApiReplenishmentSuggestDto = components['schemas']['ReplenishmentSuggestDto'];
-/** 商户补货效率看板 */
-export type OpenApiMerchantReplenishmentEfficiencyDto =
-  components['schemas']['MerchantReplenishmentEfficiencyDto'];
-/** 设备库存行（含低库存列表） */
-export type OpenApiDeviceInventoryDto = components['schemas']['DeviceInventoryDto'];
-/** 货道账实差异告警 */
-export type OpenApiSlotDiscrepancyAlertDto = components['schemas']['SlotDiscrepancyAlertDto'];
-/** 货道补货建议 */
-export type OpenApiSlotReplenishmentSuggestDto =
-  components['schemas']['SlotReplenishmentSuggestDto'];
-/** 商户补货申请 */
-export type OpenApiMerchantReplenishmentRequestDto =
-  components['schemas']['MerchantReplenishmentRequestDto'];
-/** 商户补货申请行 */
-export type OpenApiMerchantReplenishmentRequestLineDto =
-  components['schemas']['MerchantReplenishmentRequestLineDto'];
-/** 创建商户补货申请 */
-export type OpenApiCreateMerchantReplenishmentRequest =
-  components['schemas']['CreateMerchantReplenishmentRequest'];
-/** 创建商户补货申请行（独立 schema，避免与仓配 Line 冲突） */
-export type OpenApiCreateMerchantReplenishmentRequestLine =
-  components['schemas']['CreateMerchantReplenishmentRequestLine'];
-/** 补货任务 */
-export type OpenApiReplenishmentTaskDto = components['schemas']['ReplenishmentTaskDto'];
-/** 补货任务明细行 */
-export type OpenApiReplenishmentTaskLineDto = components['schemas']['ReplenishmentTaskLineDto'];
-/** 提交补货明细 */
-export type OpenApiSubmitReplenishmentLinesRequest =
-  components['schemas']['SubmitReplenishmentLinesRequest'];
-/** 临期/下架任务（商户 expiry-alerts） */
-export type OpenApiPullOffTaskDto = components['schemas']['PullOffTaskDto'];
-/** 补货签到请求 */
-export type OpenApiReplenishmentCheckInRequest =
-  components['schemas']['ReplenishmentCheckInRequest'];
-/** 柜机 FIELD 管辖校验 */
-export type OpenApiMerchantReplenishmentDeviceAccessDto =
-  components['schemas']['MerchantReplenishmentDeviceAccessDto'];
-/** 补货开门会话状态 */
-export type OpenApiMerchantReplenishmentDoorSessionDto =
-  components['schemas']['MerchantReplenishmentDoorSessionDto'];
-/** 开门会话（补货开门等） */
-export type OpenApiSessionDto = components['schemas']['SessionDto'];
-`;
-writeFileSync(replenishmentAliasFile, replenishmentAlias, 'utf8');
-console.log(`[gen-openapi-types] 写入 ${replenishmentAliasFile}`);
-
-/** 会员/积分/优惠券读模型别名。 */
-const memberCouponAliasFile = join(outDir, 'member-coupon-models.ts');
-const memberCouponAlias = `${banner}import type { components } from './openapi';
-
-/** 消费者会员档案 */
-export type OpenApiMemberProfileDto = components['schemas']['MemberProfileDto'];
-/** 会员等级规则行 */
-export type OpenApiMemberLevelRuleDto = components['schemas']['MemberLevelRuleDto'];
-/** 积分汇总 */
-export type OpenApiMemberPointsSummaryDto = components['schemas']['MemberPointsSummaryDto'];
-/** 积分流水 */
-export type OpenApiMemberPointsLogDto = components['schemas']['MemberPointsLogDto'];
-/** 积分兑换货架项 */
-export type OpenApiPointsRedeemItemDto = components['schemas']['PointsRedeemItemDto'];
-/** 消费者优惠券 */
-export type OpenApiCouponDto = components['schemas']['CouponDto'];
-`;
-writeFileSync(memberCouponAliasFile, memberCouponAlias, 'utf8');
-console.log(`[gen-openapi-types] 写入 ${memberCouponAliasFile}`);
-
-/** 通知/营销读模型别名。 */
-const notifyMarketingAliasFile = join(outDir, 'notify-marketing-models.ts');
-const notifyMarketingAlias = `${banner}import type { components } from './openapi';
-
-/** 站内通知（消费者/商户共用结构） */
-export type OpenApiNotificationDto = components['schemas']['NotificationDto'];
-/** 消费者通知偏好 */
-export type OpenApiNotifyPrefDto = components['schemas']['NotifyPrefDto'];
-/** 商户告警订阅偏好 */
-export type OpenApiMerchantNotifyPrefDto = components['schemas']['MerchantNotifyPrefDto'];
-/** 营销 Banner */
-export type OpenApiMarketingBannerDto = components['schemas']['MarketingBannerDto'];
-/** 营销活动 */
-export type OpenApiMarketingCampaignDto = components['schemas']['MarketingCampaignDto'];
-`;
-writeFileSync(notifyMarketingAliasFile, notifyMarketingAlias, 'utf8');
-console.log(`[gen-openapi-types] 写入 ${notifyMarketingAliasFile}`);
-
-/** 商户钱包/提现/争议读模型别名。 */
-const merchantFinanceAliasFile = join(outDir, 'merchant-finance-models.ts');
-const merchantFinanceAlias = `${banner}import type { components } from './openapi';
-
-/** 商户钱包流水 */
-export type OpenApiMerchantWalletLedgerDto = components['schemas']['MerchantWalletLedgerDto'];
-/** 商户提现申请 */
-export type OpenApiMerchantWithdrawRequestDto =
-  components['schemas']['MerchantWithdrawRequestDto'];
-/** 商户钱包总览 */
-export type OpenApiMerchantWalletOverviewDto =
-  components['schemas']['MerchantWalletOverviewDto'];
-/** 线路经理钱包流水 */
-export type OpenApiLineWalletLedgerDto = components['schemas']['LineWalletLedgerDto'];
-/** 线路经理提现申请 */
-export type OpenApiLineWithdrawRequestDto = components['schemas']['LineWithdrawRequestDto'];
-/** 线路经理钱包总览 */
-export type OpenApiLineWalletOverviewDto = components['schemas']['LineWalletOverviewDto'];
-/** 商户端争议列表摘要 */
-export type OpenApiMerchantDisputeSummaryDto =
-  components['schemas']['MerchantDisputeSummaryDto'];
-/** 争议工单（认领/详情 ticket） */
-export type OpenApiDisputeTicketDto = components['schemas']['DisputeTicketDto'];
-/** 争议消息 */
-export type OpenApiDisputeMessageDto = components['schemas']['DisputeMessageDto'];
-/** 商户端争议详情 */
-export type OpenApiMerchantDisputeDetailDto =
-  components['schemas']['MerchantDisputeDetailDto'];
-`;
-writeFileSync(merchantFinanceAliasFile, merchantFinanceAlias, 'utf8');
-console.log(`[gen-openapi-types] 写入 ${merchantFinanceAliasFile}`);
-
-/** 商户运营读模型别名（设备报表/资料/趋势/异常等）。 */
-const merchantOpsAliasFile = join(outDir, 'merchant-ops-models.ts');
-const merchantOpsAlias = `${banner}import type { components } from './openapi';
-
-/** 商户设备经营报表行 */
-export type OpenApiMerchantDeviceReportDto = components['schemas']['MerchantDeviceReportDto'];
-/** 更新商户资料 */
-export type OpenApiUpdateMerchantProfileRequest =
-  components['schemas']['UpdateMerchantProfileRequest'];
-/** 商户趋势 */
-export type OpenApiMerchantTrendDto = components['schemas']['MerchantTrendDto'];
-/** 商户日趋势点 */
-export type OpenApiMerchantDailyTrendDto = components['schemas']['MerchantDailyTrendDto'];
-/** 商户工作台统计 */
-export type OpenApiMerchantDashboardStatsDto =
-  components['schemas']['MerchantDashboardStatsDto'];
-/** 运营/商户异常工单 */
-export type OpenApiOpsExceptionDto = components['schemas']['OpsExceptionDto'];
-/** 销售报表行（商户 analytics） */
-export type OpenApiSalesReportRowDto = components['schemas']['SalesReportRowDto'];
-/** 商户实体（资料更新等） */
-export type OpenApiMerchantDto = components['schemas']['MerchantDto'];
-/** 商户开票资料 */
-export type OpenApiMerchantTaxProfileDto = components['schemas']['MerchantTaxProfileDto'];
-`;
-writeFileSync(merchantOpsAliasFile, merchantOpsAlias, 'utf8');
-console.log(`[gen-openapi-types] 写入 ${merchantOpsAliasFile}`);
-
-/** 运营后台读模型别名（设备/优惠券/营销/公告等）。 */
-const adminAliasFile = join(outDir, 'admin-models.ts');
-const adminAlias = `${banner}import type { components } from './openapi';
-
-export type OpenApiAdminDeviceDto = components['schemas']['AdminDeviceDto'];
-export type OpenApiPageResultAdminDeviceDto = components['schemas']['PageResultAdminDeviceDto'];
-export type OpenApiCouponDefinitionDto = components['schemas']['CouponDefinitionDto'];
-export type OpenApiPromotionActivityDto = components['schemas']['PromotionActivityDto'];
-export type OpenApiPageResultPromotionActivityDto =
-  components['schemas']['PageResultPromotionActivityDto'];
-export type OpenApiAnnouncement = components['schemas']['Announcement'];
-export type OpenApiPageResultAnnouncement = components['schemas']['PageResultAnnouncement'];
-/** 与 springdoc PageResult* 结构对齐的泛型分页壳（Java 泛型擦除） */
-export type OpenApiPageResultOf<T> = {
-  items?: T[];
-  page?: number;
-  size?: number;
-  total?: number;
-};
-`;
-writeFileSync(adminAliasFile, adminAlias, 'utf8');
-console.log(`[gen-openapi-types] 写入 ${adminAliasFile}`);
+for (const group of OPENAPI_ALIAS_GROUPS) {
+  const aliasFile = join(outDir, group.file);
+  writeFileSync(aliasFile, renderAliasGroupFile(banner, group), 'utf8');
+  console.log(`[gen-openapi-types] 写入 ${aliasFile}`);
+}
 
 // dist 不入库：生成后本地/CI 同步编译，供 package.json main/types 消费
 const sharedTypesDir = join(root, 'packages', 'shared-types');

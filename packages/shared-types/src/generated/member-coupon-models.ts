@@ -5,6 +5,7 @@
  */
 import type { components } from './openapi';
 
+/** 会员/积分/优惠券读模型别名。 */
 /** 消费者会员档案 */
 export type OpenApiMemberProfileDto = components['schemas']['MemberProfileDto'];
 /** 会员等级规则行 */
