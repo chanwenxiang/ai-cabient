@@ -502,6 +502,7 @@ import { api, authFetch } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useDictOptions } from '@/composables/useDictOptions';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
@@ -537,6 +538,7 @@ function goSkus() {
 }
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const saving = ref(false);
 const advancing = ref(false);
 const testing = ref(false);
@@ -1366,6 +1368,7 @@ function applyRouteQuery() {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const [rowsRes, pipeline] = await Promise.all([
@@ -1388,8 +1391,10 @@ async function load() {
     }
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

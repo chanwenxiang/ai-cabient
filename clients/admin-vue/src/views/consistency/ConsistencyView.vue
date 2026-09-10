@@ -187,6 +187,7 @@
 
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import PagePager from '@/components/PagePager.vue';
 import { useRouter } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
@@ -229,6 +230,7 @@ const canFix = computed(
 
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const running = ref(false);
 const fixingId = ref<number | null>(null);
 const items = ref<Row[]>([]);
@@ -522,12 +524,15 @@ function openKey(row: Row) {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     items.value = (await api.request<Row[]>('/api/v2/ops/admin/consistency/failures', 'GET')) || [];
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

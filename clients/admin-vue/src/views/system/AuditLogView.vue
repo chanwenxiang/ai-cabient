@@ -182,6 +182,7 @@ import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import type { PageResult } from '@aicabinet/shared-types';
 import { api } from '@/api/client';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 
@@ -201,6 +202,7 @@ const route = useRoute();
 const router = useRouter();
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const mineOnly = ref(false);
 const actionFilter = ref('');
 const targetFilter = ref('');
@@ -279,6 +281,7 @@ function applyRouteQuery() {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const q = new URLSearchParams({
@@ -297,8 +300,10 @@ async function load() {
     total.value = data.total || 0;
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

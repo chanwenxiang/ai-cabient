@@ -306,6 +306,7 @@ import PagePager from '@/components/PagePager.vue';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName, csvRowsToObjects, downloadCsv, parseCsv } from '@/utils/csv';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { errorMessage } from '@/utils/error-message';
 import type {
   OpenApiPromotionActivityDto,
@@ -318,6 +319,7 @@ const auth = useAuthStore();
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('activityId');
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const saving = ref(false);
 const importing = ref(false);
 const list = ref<OpenApiPromotionActivityDto[]>([]);
@@ -485,6 +487,7 @@ async function onAction(key: string, row: OpenApiPromotionActivityDto) {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const data = await api.request<OpenApiPageResultPromotionActivityDto>(
@@ -495,8 +498,10 @@ async function load() {
     total.value = Number(data.total) || 0;
     selectedIds.value = [];
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(errorMessage(e, '加载失败'));
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

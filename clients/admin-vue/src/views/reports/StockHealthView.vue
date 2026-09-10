@@ -271,6 +271,7 @@ import { api, downloadAuthFile } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -308,6 +309,7 @@ const { canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
 /** 首屏未拉完前勿展示 0，避免与真实库存异常数闪错 */
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const dimension = ref('ALL');
 const deviceId = ref('');
 const merchantId = ref('');
@@ -509,6 +511,7 @@ function queryString(includePage = false) {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const data = await api.request<{
@@ -529,8 +532,10 @@ async function load() {
     planDeviceIds.value = data.planDeviceIds || [];
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

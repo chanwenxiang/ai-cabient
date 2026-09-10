@@ -284,6 +284,7 @@ import { get, post, put } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
@@ -302,6 +303,7 @@ const auth = useAuthStore();
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('announceId');
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const saving = ref(false);
 const error = ref('');
 const list = ref<OpenApiAnnouncement[]>([]);
@@ -455,6 +457,7 @@ function reset() {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   error.value = '';
   try {
@@ -466,13 +469,16 @@ async function load() {
     if (statusFilter.value) q.set('status', statusFilter.value);
     if (priorityFilter.value) q.set('priority', priorityFilter.value);
     const res = await get<OpenApiPageResultAnnouncement>(`/api/v2/ops/announcements?${q}`);
+    if (!loadSeq.isCurrent(seq)) return;
     list.value = res.data?.items ?? [];
     total.value = Number(res.data?.total ?? 0);
     clearSelection();
   } catch (e: unknown) {
+    if (!loadSeq.isCurrent(seq)) return;
     error.value = errorMessage(e, '加载失败');
     ElMessage.error('加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

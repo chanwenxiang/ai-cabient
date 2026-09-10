@@ -242,6 +242,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import PagePager from '@/components/PagePager.vue';
 import { useAdminListTable } from '@/composables/useAdminListTable';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useListCsv } from '@/composables/useListCsv';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -267,6 +268,7 @@ const route = useRoute();
 const auth = useAuthStore();
 const canEdit = computed(() => auth.hasPerm('ops:merchant:onboard:edit'));
 const loading = ref(false);
+const loadSeq = createLoadSeq();
 const hydrated = ref(false);
 const saving = ref(false);
 /** 批量审批 loading：通过 / 驳回 */
@@ -397,6 +399,7 @@ function rowClassName({ row }: { row: OnboardRow }) {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const q = new URLSearchParams({
@@ -422,8 +425,10 @@ async function load() {
     clearSelection();
     applyRouteHighlight();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     loading.value = false;
     hydrated.value = true;
   }

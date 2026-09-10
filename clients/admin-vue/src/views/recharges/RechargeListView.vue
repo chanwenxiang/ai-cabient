@@ -177,6 +177,7 @@ import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useAuthStore } from '@/stores/auth';
@@ -189,6 +190,7 @@ const auth = useAuthStore();
 const canRefund = computed(() => auth.hasPerm('ops:recharge:edit'));
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
@@ -271,6 +273,7 @@ function parseUserIdFilter(raw: string): number | null {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
@@ -285,8 +288,10 @@ async function load() {
     total.value = data.total || 0;
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

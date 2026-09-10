@@ -229,6 +229,7 @@ import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
@@ -260,6 +261,7 @@ const { router, canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
 /** 首屏未拉完前勿展示 0 / ¥0.00 */
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const rows = ref<DeviceReportRow[]>([]);
 const total = ref(0);
 const offlineTotal = ref(0);
@@ -446,6 +448,7 @@ async function loadOfflineTotal() {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const data = await api.request<{ items: DeviceReportRow[]; total: number }>(
@@ -456,8 +459,10 @@ async function load() {
     total.value = Number(data.total) || 0;
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

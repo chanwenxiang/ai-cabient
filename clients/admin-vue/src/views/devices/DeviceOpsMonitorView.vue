@@ -171,6 +171,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, type Sort } from 'element-plus';
 import { api } from '@/api/client';
 import { useAdminListTable } from '@/composables/useAdminListTable';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { useListCsv } from '@/composables/useListCsv';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -192,6 +193,7 @@ interface OpsEvent {
 
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const eventType = ref('');
 const severity = ref('');
 const deviceFilter = ref('');
@@ -305,6 +307,7 @@ function onSortChange(payload: Sort) {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const q = new URLSearchParams({
@@ -323,8 +326,10 @@ async function load() {
     total.value = Number(data.total ?? items.value.length);
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

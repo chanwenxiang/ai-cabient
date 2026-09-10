@@ -299,6 +299,7 @@ import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { shortBizNo } from '@aicabinet/shared-uni/format';
 import type { OpsWorkbench, PageResult } from '@aicabinet/shared-types';
@@ -337,6 +338,7 @@ const { router, canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
 /** 首屏未拉完前勿展示「0 / 运行正常」，避免与异常中心真实待办数闪错 */
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const stats = ref<OpsStats>({});
 const workbench = ref<OpsWorkbench | null>(null);
 const openExceptionCount = ref(0);
@@ -720,14 +722,17 @@ async function loadOnboardPending() {
 }
 
 async function load(opts?: { silent?: boolean }) {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     let { s, wb, ex } = await fetchWorkbenchBundle();
     // 登录刚进页时偶发 token/网关未就绪，静默重试一次，避免误报「加载失败」
     if (!s && !wb) {
       await new Promise((r) => setTimeout(r, 450));
+      if (!loadSeq.isCurrent(seq)) return;
       ({ s, wb, ex } = await fetchWorkbenchBundle());
     }
+    if (!loadSeq.isCurrent(seq)) return;
     if (!s && !wb) {
       if (!opts?.silent) {
         ElMessage.warning('工作台暂无数据，请稍后点刷新重试');
@@ -740,10 +745,12 @@ async function load(opts?: { silent?: boolean }) {
     openExceptionCount.value = ex?.total || 0;
     await loadOnboardPending();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     if (!opts?.silent) {
       ElMessage.error(e instanceof Error ? e.message : '加载失败');
     }
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

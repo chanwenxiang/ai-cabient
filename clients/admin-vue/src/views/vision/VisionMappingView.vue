@@ -272,6 +272,7 @@ import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
@@ -307,6 +308,7 @@ const { router, canAccessPath, goPath } = useNavAccess();
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('className');
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const saving = ref(false);
 const keyword = ref('');
 const page = ref(1);
@@ -414,6 +416,7 @@ async function loadSkus() {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const q = new URLSearchParams({
@@ -435,8 +438,10 @@ async function load() {
     aliyunMappings.value = all.aliyun || [];
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }
