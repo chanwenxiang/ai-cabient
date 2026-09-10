@@ -72,11 +72,11 @@ async function resolveSpecPath() {
 }
 
 const specPath = await resolveSpecPath();
-const result = spawnSync(
-  'pnpm',
-  ['exec', 'openapi-typescript', specPath, '-o', outFile],
-  { cwd: root, stdio: 'inherit', shell: true }
-);
+const result = spawnSync('pnpm', ['exec', 'openapi-typescript', specPath, '-o', outFile], {
+  cwd: root,
+  stdio: 'inherit',
+  shell: true
+});
 
 if (result.status !== 0) {
   process.exit(result.status || 1);

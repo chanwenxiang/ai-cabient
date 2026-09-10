@@ -120,7 +120,12 @@
               <span v-else class="cell-hint">尚未执行</span>
             </template>
           </el-table-column>
-          <el-table-column label="最近结果说明" min-width="200" align="center" class-name="col-text">
+          <el-table-column
+            label="最近结果说明"
+            min-width="200"
+            align="center"
+            class-name="col-text"
+          >
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="row.lastMessage || ''">{{
                 row.lastMessage || '暂无'
@@ -129,7 +134,9 @@
           </el-table-column>
           <el-table-column label="备注" min-width="180" align="center" class-name="col-text">
             <template #default="{ row }">
-              <span class="cell-ellipsis" :title="row.remark || ''">{{ row.remark || '暂无' }}</span>
+              <span class="cell-ellipsis" :title="row.remark || ''">{{
+                row.remark || '暂无'
+              }}</span>
             </template>
           </el-table-column>
           <el-table-column

@@ -90,11 +90,8 @@ jobs:
           node-version: '24.18.0'
 
       - name: Migration safety gate (new Flyway scripts)
-        run: |
-          set -euo pipefail
-          corepack enable
-          corepack prepare pnpm@9.15.9 --activate
-          pnpm check:migration-safety
+        # 纯 Node 脚本，无需 pnpm install（此前 pnpm 无 node_modules 时 exit -2）
+        run: node scripts/check-migration-safety.mjs
         env:
           MIGRATION_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/dev' }}
 

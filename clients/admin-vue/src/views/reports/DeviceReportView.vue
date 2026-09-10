@@ -144,9 +144,7 @@
           </el-table-column>
           <el-table-column label="地址" min-width="140" align="center" class-name="col-text">
             <template #default="{ row }">
-              <span class="cell-ellipsis" :title="row.address || ''">{{
-                row.address || '—'
-              }}</span>
+              <span class="cell-ellipsis" :title="row.address || ''">{{ row.address || '—' }}</span>
             </template>
           </el-table-column>
           <el-table-column label="停售" width="88" align="center">

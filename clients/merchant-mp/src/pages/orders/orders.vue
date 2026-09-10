@@ -161,12 +161,7 @@ import {
 } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import EmptyState from '@/components/empty-state.vue';
-import {
-  hasPerm,
-  merchantApi,
-  downloadAuthedFile,
-  openExportedFile
-} from '@/utils/merchant-api';
+import { hasPerm, merchantApi, downloadAuthedFile, openExportedFile } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { MerchantMe, OpenApiOrderReadModelMerchant } from '@aicabinet/shared-types';
 import { cleanLineSummary, skuImageFor } from '@aicabinet/shared-uni/product-image';

@@ -1124,11 +1124,8 @@ type PartialLineSource = Partial<OrderLineDto> & {
 };
 
 function openPartialRefund(row: OrderSummary) {
-  const lines: PartialLineSource[] = row.lines ||
-    row.items ||
-    detail.value?.lines ||
-    detail.value?.items ||
-    [];
+  const lines: PartialLineSource[] =
+    row.lines || row.items || detail.value?.lines || detail.value?.items || [];
   if (!lines.length) {
     ElMessage.warning('无商品行，无法按行退款');
     return;

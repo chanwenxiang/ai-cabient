@@ -4454,8 +4454,7 @@ async function saveReceive() {
     loadedTabs.value.delete('inventory');
     await loadTab('purchase', true);
   } catch (e: unknown) {
-    if (e !== 'cancel' && e !== 'close')
-      ElMessage.error(errorMessage(e, '收货失败'));
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(errorMessage(e, '收货失败'));
   } finally {
     saving.value = false;
   }
@@ -4533,8 +4532,7 @@ async function saveReturn() {
     tab.value = 'returns';
     await loadTab('returns', true);
   } catch (e: unknown) {
-    if (e !== 'cancel' && e !== 'close')
-      ElMessage.error(errorMessage(e, '退货失败'));
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(errorMessage(e, '退货失败'));
   } finally {
     saving.value = false;
   }

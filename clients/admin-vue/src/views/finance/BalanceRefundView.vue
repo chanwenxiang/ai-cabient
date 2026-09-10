@@ -177,9 +177,7 @@ async function review(row: BalanceRefundRequestDto, approve: boolean) {
       approve,
       remark: value || undefined
     });
-    ElMessage.success(
-      displayLabel('balance_refund_status', approve ? 'REFUNDED' : 'REJECTED')
-    );
+    ElMessage.success(displayLabel('balance_refund_status', approve ? 'REFUNDED' : 'REJECTED'));
     await load();
   } catch (e) {
     if (e === 'cancel' || e === 'close') return;
@@ -274,7 +272,10 @@ onMounted(load);
     </template>
 
     <el-tabs v-model="statusTab" class="status-tabs" @tab-change="onStatusTab">
-      <el-tab-pane :label="displayLabel('balance_refund_status', 'PENDING_REVIEW')" name="PENDING_REVIEW" />
+      <el-tab-pane
+        :label="displayLabel('balance_refund_status', 'PENDING_REVIEW')"
+        name="PENDING_REVIEW"
+      />
       <el-tab-pane :label="displayLabel('balance_refund_status', 'REFUNDED')" name="REFUNDED" />
       <el-tab-pane :label="displayLabel('balance_refund_status', 'REJECTED')" name="REJECTED" />
       <el-tab-pane label="失败" name="FAILED" />

@@ -10,3 +10,5 @@ vision-service
 services
 edge
 testdata
+# openapi-typescript 产物；format 与 gen 冲突会导致 CI OpenAPI regen 失败
+packages/shared-types/src/generated/

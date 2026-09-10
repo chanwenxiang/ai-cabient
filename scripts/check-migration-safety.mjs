@@ -51,7 +51,14 @@ function git(args) {
 }
 
 const baseRef = process.env.MIGRATION_BASE_REF || 'origin/dev';
-let diffList = git(['diff', '--name-only', '--diff-filter=A', `${baseRef}...HEAD`, '--', migrationDir]);
+let diffList = git([
+  'diff',
+  '--name-only',
+  '--diff-filter=A',
+  `${baseRef}...HEAD`,
+  '--',
+  migrationDir
+]);
 if (!diffList.ok) {
   // 无 remote 基线时：相对 HEAD 已暂存/未提交的新增
   diffList = git(['diff', '--name-only', '--diff-filter=A', 'HEAD', '--', migrationDir]);
@@ -103,9 +110,7 @@ for (const rel of files) {
       `${rel}: ALTER COLUMN (or TYPE/SET NOT NULL) on hot table without "MIGRATION_REVIEWED: yes"`
     );
   } else if (alterColumn && !reviewed) {
-    warnings.push(
-      `${rel}: ALTER COLUMN without MIGRATION_REVIEWED — confirm lock risk on staging`
-    );
+    warnings.push(`${rel}: ALTER COLUMN without MIGRATION_REVIEWED — confirm lock risk on staging`);
   }
   if (/LOCK_RISK\s*:\s*high/i.test(body) && !String(notes).trim()) {
     errors.push(`${rel}: LOCK_RISK high requires non-empty NOTES`);

@@ -138,7 +138,7 @@ async function searchRecords(q: string) {
   const hits: RecordHit[] = [];
   const SEARCH_TIMEOUT_MS = 8_000;
   type PageOrList<T> = T[] | { items?: T[] };
-  const take = <T>(perm: string, url: string, pick: (items: T[]) => RecordHit[]) => {
+  const take = <T,>(perm: string, url: string, pick: (items: T[]) => RecordHit[]) => {
     if (!auth.hasPerm(perm)) return Promise.resolve();
     const req = api
       .request<PageOrList<T>>(url, 'GET')

@@ -20,8 +20,7 @@ export type MerchantSlotDiscrepancy =
   import('@aicabinet/shared-types').OpenApiSlotDiscrepancyAlertDto;
 
 /** @deprecated 使用 OpenApiMerchantDeviceReportDto */
-export type MerchantDeviceReport =
-  import('@aicabinet/shared-types').OpenApiMerchantDeviceReportDto;
+export type MerchantDeviceReport = import('@aicabinet/shared-types').OpenApiMerchantDeviceReportDto;
 
 /** @deprecated 使用 OpenApiUpdateMerchantProfileRequest */
 export type MerchantProfileUpdate =
@@ -420,9 +419,7 @@ export const merchantApi = {
       import('@aicabinet/shared-types').PageResult<
         import('@aicabinet/shared-types').OpenApiOpsExceptionDto
       >
-    >(
-      `/api/v2/merchant/exceptions?status=${encodeURIComponent(status)}&page=${page}&size=${size}`
-    ),
+    >(`/api/v2/merchant/exceptions?status=${encodeURIComponent(status)}&page=${page}&size=${size}`),
   /** OPEN + PROCESSING；最多拉 3 页（300 条），返回去重后的 items 与合计 total */
   openExceptions: async (pageSize = 100) => {
     type ExRow = import('@aicabinet/shared-types').OpenApiOpsExceptionDto;
@@ -656,9 +653,11 @@ export const merchantApi = {
     } = {}
   ) => {
     const { deviceId, status, from, to, keyword, page = 0, size = 50 } = opts;
-    return request<import('@aicabinet/shared-types').PageResult<
-      import('@aicabinet/shared-types').OpenApiOrderReadModelMerchant
-    >>(
+    return request<
+      import('@aicabinet/shared-types').PageResult<
+        import('@aicabinet/shared-types').OpenApiOrderReadModelMerchant
+      >
+    >(
       withQuery('/api/v2/merchant/orders', {
         page,
         size,
@@ -711,8 +710,7 @@ export const merchantApi = {
 };
 
 /** @deprecated 使用 OpenApiOrderReadModelMerchant；保留别名避免旧 import 立刻炸掉 */
-export type MerchantOrderSummary =
-  import('@aicabinet/shared-types').OpenApiOrderReadModelMerchant;
+export type MerchantOrderSummary = import('@aicabinet/shared-types').OpenApiOrderReadModelMerchant;
 
 /**
  * @deprecated 列表契约为 OpenApiMerchantDisputeSummaryDto。

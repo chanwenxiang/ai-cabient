@@ -14,7 +14,16 @@
           }}</el-button>
           <el-button
             v-hasPermi="['ops:announcement:import']"
-            @click="onDownloadTemplate(['示例公告', '公告正文', '全部', '普通', displayLabel('announcement_status', 'PUBLISHED'), ''])"
+            @click="
+              onDownloadTemplate([
+                '示例公告',
+                '公告正文',
+                '全部',
+                '普通',
+                displayLabel('announcement_status', 'PUBLISHED'),
+                ''
+              ])
+            "
             >导入模板</el-button
           >
           <el-button
@@ -306,7 +315,12 @@ const showForm = ref(false);
 const editingId = ref<number | null>(null);
 const previewVisible = ref(false);
 const previewRow = ref<AnnouncementDto | null>(null);
-const form = ref<AnnouncementForm>({ title: '', content: '', targetScope: 'ALL', priority: 'NORMAL' });
+const form = ref<AnnouncementForm>({
+  title: '',
+  content: '',
+  targetScope: 'ALL',
+  priority: 'NORMAL'
+});
 
 function emptyForm(): AnnouncementForm {
   return { title: '', content: '', targetScope: 'ALL', priority: 'NORMAL' };
@@ -451,9 +465,9 @@ async function load() {
     if (keyword.value.trim()) q.set('q', keyword.value.trim());
     if (statusFilter.value) q.set('status', statusFilter.value);
     if (priorityFilter.value) q.set('priority', priorityFilter.value);
-    const res = await get<PageResult<AnnouncementDto> & { items?: AnnouncementDto[]; total?: number }>(
-      `/api/v2/ops/announcements?${q}`
-    );
+    const res = await get<
+      PageResult<AnnouncementDto> & { items?: AnnouncementDto[]; total?: number }
+    >(`/api/v2/ops/announcements?${q}`);
     list.value = res.data?.items ?? [];
     total.value = Number(res.data?.total ?? 0);
     clearSelection();
