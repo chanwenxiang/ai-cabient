@@ -465,7 +465,7 @@ router.beforeEach(async (to) => {
   NProgress.start();
   if (to.name === 'login' && isLoggedIn()) {
     const auth = useAuthStore();
-    if (!auth.permissions.length) {
+    if (!auth.rbacHydrated) {
       await auth.restore();
     }
     const home = resolveHomePath(auth);
@@ -484,7 +484,7 @@ router.beforeEach(async (to) => {
   if (to.name === 'forbidden' || to.name === 'not-found') return true;
 
   const auth = useAuthStore();
-  if (!auth.permissions.length) {
+  if (!auth.rbacHydrated) {
     await auth.restore();
   }
   const nav = findNavByPath(to.path);

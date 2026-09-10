@@ -248,7 +248,7 @@ import {
   openExportedFile,
   type MerchantDeviceReport
 } from '@/utils/merchant-api';
-import { useMerchantMe } from '@/composables/useMerchantMe';
+import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type {
   MerchantAnalyticsOverview,
   MerchantMe,
@@ -410,7 +410,7 @@ async function ensureAccess() {
     await refreshMe();
   } catch {
     if (!getToken()) return false;
-    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+    seedMerchantMeDisplayCache(me);
   }
   if (!canViewBusiness.value) {
     loading.value = false;

@@ -145,7 +145,7 @@
 import { computed, reactive, ref } from 'vue';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
-import { useMerchantMe } from '@/composables/useMerchantMe';
+import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type { MerchantMe, MerchantTeamRoleDto, MerchantUserDto } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -244,7 +244,7 @@ async function load() {
     }
   } catch (e) {
     if (!uni.getStorageSync('merchant_token')) return;
-    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+    seedMerchantMeDisplayCache(me);
     if (!list.value.length) {
       list.value = [];
       error.value = e instanceof Error ? e.message : '加载失败';

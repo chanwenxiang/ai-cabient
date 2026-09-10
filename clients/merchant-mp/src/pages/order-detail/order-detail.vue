@@ -134,7 +134,7 @@ import {
   fmtMoney
 } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
-import { useMerchantMe } from '@/composables/useMerchantMe';
+import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type { MerchantMe } from '@aicabinet/shared-types';
 
 type OrderLine = {
@@ -216,7 +216,7 @@ async function load() {
   try {
     await refreshMe();
   } catch {
-    me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+    seedMerchantMeDisplayCache(me);
   }
   if (!canList.value) {
     uni.showToast({ title: '无订单权限', icon: 'none' });

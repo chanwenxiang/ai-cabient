@@ -235,7 +235,7 @@
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
-import { canAccessNav, hasPack, useMerchantMe } from '@/composables/useMerchantMe';
+import { canAccessNav, hasPack, useMerchantMe, seedMerchantMeDisplayCache, peekMerchantMeCacheForDisplay } from '@/composables/useMerchantMe';
 import { MERCHANT_BIZ_NAV, MERCHANT_FIELD_NAV } from '@/config/merchant-nav';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
@@ -383,11 +383,9 @@ async function onScan() {
 }
 
 function hydrateFromCache() {
-  const cached = (uni.getStorageSync('merchant_me') || {}) as MerchantMe;
-  if (cached && (cached.permissions || cached.displayName || cached.phoneNumber)) {
-    me.value = cached;
-  }
-  if (cached.displayName || cached.phoneNumber) {
+  const cached = peekMerchantMeCacheForDisplay();
+  if (cached && (cached.displayName || cached.phoneNumber)) {
+    seedMerchantMeDisplayCache(me);
     meName.value = cached.displayName || cached.phoneNumber || '同事';
     merchantNames.value = formatMerchantNames(cached.merchants);
   }
@@ -405,10 +403,9 @@ async function fetchHomeProfile(seq: number): Promise<MerchantMe | null> {
     return profile;
   } catch {
     if (!uni.getStorageSync('merchant_token')) return null;
-    const profile = (uni.getStorageSync('merchant_me') as MerchantMe) || ({} as MerchantMe);
-    me.value = profile;
+    seedMerchantMeDisplayCache(me);
     if (seq !== loadSeq) return null;
-    return profile;
+    return me.value;
   }
 }
 

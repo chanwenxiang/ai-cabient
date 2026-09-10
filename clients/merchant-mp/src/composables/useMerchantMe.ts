@@ -10,6 +10,37 @@ const loadingRef = ref(false);
 let meSeq = 0;
 let inflight: Promise<MerchantMe> | null = null;
 
+/** 去掉授权字段，仅保留展示信息，避免 storage 篡改抬权 */
+export function stripMerchantGrants(me: MerchantMe): MerchantMe {
+  return {
+    ...me,
+    permissions: [],
+    enabledPacks: [],
+    canEditPricing: false,
+    merchants: (me.merchants || []).map((m) => ({
+      ...m,
+      allowMerchantPricingEdit: false,
+      allowMerchantPlanogramEdit: false,
+      packFieldEnabled: false,
+      packBizEnabled: false,
+      packTeamEnabled: false
+    }))
+  };
+}
+
+/** 本地缓存仅作弱网展示；权限/套餐一律清空 */
+export function peekMerchantMeCacheForDisplay(): MerchantMe | null {
+  const raw = uni.getStorageSync('merchant_me');
+  if (!raw || typeof raw !== 'object') return null;
+  return stripMerchantGrants(raw as MerchantMe);
+}
+
+/** me 为空时用去权缓存占位；已有内存态（多半来自服务端）不覆盖 */
+export function seedMerchantMeDisplayCache(target: { value: MerchantMe | null }): void {
+  if (target.value) return;
+  target.value = peekMerchantMeCacheForDisplay();
+}
+
 export async function refreshMerchantMe(): Promise<MerchantMe> {
   if (inflight) return inflight;
   const seq = ++meSeq;
@@ -38,8 +69,10 @@ export function useMerchantMe() {
   onShow(() => {
     if (getToken()) {
       refreshMerchantMe().catch(() => {
-        if (!getToken()) return;
-        meRef.value = uni.getStorageSync('merchant_me') || null;
+        // 软失败不回读 storage 里的 permissions（可被篡改抬权）；仅保留本会话已成功拉取的内存态
+        if (!getToken()) {
+          meRef.value = null;
+        }
       });
     }
   });

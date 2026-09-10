@@ -149,7 +149,7 @@ import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { merchantApi, hasPerm } from '@/utils/merchant-api';
-import { useMerchantMe, canEditPlanogramForMerchant } from '@/composables/useMerchantMe';
+import { useMerchantMe, canEditPlanogramForMerchant, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import {
   clearPreferredDeviceId,
   getPreferredDeviceId,
@@ -343,7 +343,7 @@ async function refreshDeviceDetailMe(seq: number): Promise<boolean> {
     await refreshMe();
   } catch {
     if (!uni.getStorageSync('merchant_token')) return false;
-    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+    seedMerchantMeDisplayCache(me);
   }
   return seq === loadSeq;
 }
