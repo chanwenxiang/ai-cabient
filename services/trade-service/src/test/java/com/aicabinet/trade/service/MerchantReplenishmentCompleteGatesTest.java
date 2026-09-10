@@ -166,9 +166,9 @@ class MerchantReplenishmentCompleteGatesTest {
                 .thenReturn(Optional.of(session));
 
         var info = service.resolveDoorSession(100L, 9L);
-        assertEquals(Boolean.TRUE, info.get("doorOpened"));
-        assertEquals("S-RESTOCK-1", info.get("sessionId"));
-        assertEquals("SHOPPING", info.get("state"));
+        assertEquals(true, info.doorOpened());
+        assertEquals("S-RESTOCK-1", info.sessionId());
+        assertEquals("SHOPPING", info.state());
     }
 
     @Test
@@ -181,6 +181,6 @@ class MerchantReplenishmentCompleteGatesTest {
                 .thenReturn(Optional.empty());
 
         var info = service.resolveDoorSession(100L, 9L);
-        assertEquals(Boolean.FALSE, info.get("doorOpened"));
+        assertEquals(false, info.doorOpened());
     }
 }
