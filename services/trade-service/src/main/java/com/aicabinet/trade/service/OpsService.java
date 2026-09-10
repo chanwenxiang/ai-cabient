@@ -57,22 +57,34 @@ public class OpsService {
     }
 
     /** 运营账号补货开门（需 userId ≥ 100000000）。 */
-    @Transactional
     public SessionDto openDoorForRestock(Long operatorUserId, OpsOpenDoorRequest request) {
         requireOperator(operatorUserId);
         return self.openDoorForRestockAsUser(operatorUserId, request.deviceId(), request.taskId());
     }
 
     /**
-     * 补货开门核心逻辑（运营 / 商户补货员共用）：
+     * 补货开门：落库短事务与 MQTT 分离；运营 / 商户补货员共用。
      * 绑定补货任务，不校验消费者余额，不触发购物结算。
      */
-    @Transactional
     public SessionDto openDoorForRestockAsUser(Long userId, String deviceId, Long taskId) {
-        return runWithReplenishmentLock(taskId, () -> doOpenDoorForRestockAsUser(userId, deviceId, taskId));
+        return runWithReplenishmentLock(taskId, () -> {
+            SessionDto dto = self.persistRestockOpeningSession(userId, deviceId, taskId);
+            try {
+                deviceClient.requestOpenDoorOperator(dto.sessionId(), deviceId, userId);
+            } catch (ResponseStatusException e) {
+                self.markRestockOpenFailed(dto.sessionId(), "开门指令下发失败");
+                throw e;
+            } catch (Exception e) {
+                self.markRestockOpenFailed(dto.sessionId(), "开门指令下发失败");
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                        "开门指令下发失败（请确认 device-service 在线）", e);
+            }
+            return sessionService.getSession(userId, dto.sessionId());
+        });
     }
 
-    private SessionDto doOpenDoorForRestockAsUser(Long userId, String deviceId, Long taskId) {
+    @Transactional
+    public SessionDto persistRestockOpeningSession(Long userId, String deviceId, Long taskId) {
         deviceValidationService.requireDevice(deviceId);
         ReplenishmentTask task = deviceValidationService.ensureRestockDoorAllowed(deviceId, taskId, userId);
         ReplenishmentTask lockedTask = taskRepository.findByIdForUpdate(task.getTaskId())
@@ -92,9 +104,23 @@ public class OpsService {
             lockedTask.setStatus("IN_PROGRESS");
             taskRepository.save(lockedTask);
         }
-
-        deviceClient.requestOpenDoorOperator(session.getSessionId(), deviceId, userId);
         return sessionService.getSession(userId, session.getSessionId());
+    }
+
+    @Transactional
+    public void markRestockOpenFailed(String sessionId, String failReason) {
+        ShoppingSession session = sessionRepository.findById(sessionId).orElse(null);
+        if (session == null) {
+            return;
+        }
+        if (session.getState() == com.aicabinet.common.enums.SessionState.FAILED
+                || session.getState() == com.aicabinet.common.enums.SessionState.CANCELLED
+                || session.getState() == com.aicabinet.common.enums.SessionState.COMPLETED) {
+            return;
+        }
+        session.setState(com.aicabinet.common.enums.SessionState.FAILED);
+        session.setFailReason(failReason);
+        sessionRepository.save(session);
     }
 
     private <T> T runWithReplenishmentLock(Long taskId, java.util.function.Supplier<T> action) {
