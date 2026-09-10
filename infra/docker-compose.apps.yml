@@ -44,7 +44,8 @@ services:
 
   trade-service:
     restart: unless-stopped
-    # 单副本：Flyway + 定时任务未做多实例选举前勿 scale>1
+    # 默认同机单副本；多实例见 infra/docker-compose.ha.yml + docs/HIGH_AVAILABILITY.md
+    # （定时任务已 Redis 选举，Flyway 有 PG advisory lock，可 --scale trade-service=2）
     build:
       context: ..
       dockerfile: infra/docker/trade-service.Dockerfile

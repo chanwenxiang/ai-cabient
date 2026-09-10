@@ -13,7 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Duration;
 
 /**
- * 按用户 + 动作的小时窗口限流（Redisson 计数），用于领券、待支付订单收款等写接口。
+ * 按用户 + 动作的小时窗口限流（Redisson 计数），用于领券、待支付收款、建会话、开门等写接口。
  */
 @Service
 public class ApiRateLimitService {
@@ -24,6 +24,8 @@ public class ApiRateLimitService {
 
     public static final String ACTION_COUPON_CLAIM = "coupon_claim";
     public static final String ACTION_ORDER_PAY = "order_pay";
+    public static final String ACTION_SESSION_CREATE = "session_create";
+    public static final String ACTION_OPEN_DOOR = "open_door";
 
     private final RedissonClient redisson;
     private final RateLimitProperties properties;
@@ -41,6 +43,16 @@ public class ApiRateLimitService {
     public void assertOrderPayAllowed(Long userId) {
         assertAllowed(ACTION_ORDER_PAY, userId, properties.maxOrderPaysPerHour(),
                 ApiMessages.TOO_MANY_ORDER_PAYS);
+    }
+
+    public void assertSessionCreateAllowed(Long userId) {
+        assertAllowed(ACTION_SESSION_CREATE, userId, properties.maxSessionCreatesPerHour(),
+                ApiMessages.TOO_MANY_SESSION_CREATES);
+    }
+
+    public void assertOpenDoorAllowed(Long userId) {
+        assertAllowed(ACTION_OPEN_DOOR, userId, properties.maxOpenDoorsPerHour(),
+                ApiMessages.TOO_MANY_OPENS);
     }
 
     void assertAllowed(String action, Long userId, int maxPerHour, String message) {

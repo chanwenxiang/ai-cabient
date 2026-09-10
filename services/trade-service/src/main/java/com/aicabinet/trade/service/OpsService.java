@@ -31,6 +31,7 @@ public class OpsService {
     private final DistributedLockService distributedLockService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final OpsService self;
+    private final ApiRateLimitService apiRateLimitService;
 
     public OpsService(SessionService sessionService,
                       DeviceValidationService deviceValidationService,
@@ -38,7 +39,9 @@ public class OpsService {
                       ShoppingSessionMapper sessionRepository,
                       ReplenishmentTaskMapper taskRepository,
                       SkuCatalogMapper skuCatalogRepository,
-                      DistributedLockService distributedLockService, @Lazy OpsService self) {
+                      DistributedLockService distributedLockService,
+                      @Lazy OpsService self,
+                      ApiRateLimitService apiRateLimitService) {
         this.sessionService = sessionService;
         this.deviceValidationService = deviceValidationService;
         this.deviceClient = deviceClient;
@@ -47,6 +50,7 @@ public class OpsService {
         this.skuCatalogRepository = skuCatalogRepository;
         this.distributedLockService = distributedLockService;
         this.self = self;
+        this.apiRateLimitService = apiRateLimitService;
     }
 
     @Transactional(readOnly = true)
@@ -68,6 +72,7 @@ public class OpsService {
      */
     public SessionDto openDoorForRestockAsUser(Long userId, String deviceId, Long taskId) {
         return runWithReplenishmentLock(taskId, () -> {
+            apiRateLimitService.assertOpenDoorAllowed(userId);
             SessionDto dto = self.persistRestockOpeningSession(userId, deviceId, taskId);
             try {
                 deviceClient.requestOpenDoorOperator(dto.sessionId(), deviceId, userId);

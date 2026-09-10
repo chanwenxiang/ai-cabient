@@ -1005,6 +1005,12 @@ export interface DisputeTicketDto {
   detectedClasses?: string[];
   /** 处理人展示名（结案写入） */
   assignee?: string;
+  /** 后端派生：消费者状态行（含金额） */
+  consumerStatusLabel?: string;
+  consumerReviewTitle?: string;
+  consumerReviewDetail?: string;
+  /** 后端派生：识别参考 vs 实扣差额说明 */
+  amountDiffNote?: string;
 }
 
 export interface SessionCartRequest {

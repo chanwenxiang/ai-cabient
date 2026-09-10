@@ -2,6 +2,7 @@ package com.aicabinet.common.util;
 
 /**
  * 手机号脱敏：日志与管理端列表响应统一使用，避免明文 PII 外泄。
+ * 身份证/银行卡见 {@link SensitiveMask}。
  */
 public final class PhoneMask {
 

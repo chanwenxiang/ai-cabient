@@ -1,0 +1,23 @@
+# 高可用叠加层：trade-service 多副本
+#
+# 前置：定时任务已用 ScheduledTaskService.tryBegin（Redis）选举；Flyway 有 PG advisory lock。
+# 详见 docs/HIGH_AVAILABILITY.md
+#
+# 用法（仓库根目录）：
+#   docker compose -p ai-cabinet \
+#     -f infra/docker-compose.yml \
+#     -f infra/docker-compose.apps.yml \
+#     -f infra/docker-compose.ha.yml \
+#     --profile apps up -d --scale trade-service=2
+#
+# 注意：清空宿主机 8080 映射，避免 scale 端口冲突；经 gateway 访问。
+
+services:
+  trade-service:
+    # 清空 apps.yml 的 8080 映射，避免 --scale 端口冲突；经 gateway 访问
+    ports: !reset []
+    environment:
+      # 多副本务必走 Redis 锁 +（建议）XXL
+      XXL_JOB_ENABLED: ${XXL_JOB_ENABLED:-true}
+      # 执行器端口在容器网络内各自独立，无需改
+      XXL_JOB_EXECUTOR_PORT: ${XXL_JOB_EXECUTOR_PORT:-9999}

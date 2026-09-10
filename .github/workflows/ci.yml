@@ -36,6 +36,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # 防止真实密钥/私钥被提交进仓库（测试用的动态生成密钥不含固定 PEM 内容）
       - name: Secret scan (tracked files only)
@@ -86,6 +88,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24.18.0'
+
+      - name: Migration safety gate (new Flyway scripts)
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@9.15.9 --activate
+          pnpm check:migration-safety
+        env:
+          MIGRATION_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/dev' }}
 
       - name: Build & Test (trade-service)
         run: mvn verify -DskipITs -pl services/trade-service -am

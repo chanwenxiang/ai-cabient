@@ -64,4 +64,29 @@ class ApiRateLimitServiceTest {
 
         verify(redisson, never()).getAtomicLong(anyString());
     }
+
+    @Test
+    void assertSessionCreateAllowed_whenAtLimit_rejects() {
+        when(redisson.getAtomicLong(anyString())).thenReturn(counter);
+        when(counter.get()).thenReturn(2L);
+        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 2, 2));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.assertSessionCreateAllowed(10001L));
+
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, ex.getStatusCode());
+        assertEquals(ApiMessages.TOO_MANY_SESSION_CREATES, ex.getReason());
+    }
+
+    @Test
+    void assertOpenDoorAllowed_whenUnderLimit_increments() {
+        when(redisson.getAtomicLong(anyString())).thenReturn(counter);
+        when(counter.get()).thenReturn(0L);
+        when(counter.incrementAndGet()).thenReturn(1L);
+        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 2, 2));
+
+        service.assertOpenDoorAllowed(10001L);
+
+        verify(counter).expire(java.time.Duration.ofHours(1));
+    }
 }
