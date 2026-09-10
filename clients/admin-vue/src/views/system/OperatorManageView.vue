@@ -477,6 +477,7 @@ import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
@@ -525,6 +526,7 @@ interface MerchantRow {
 
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const saving = ref(false);
 const operators = ref<OperatorRow[]>([]);
 const roles = ref<RoleRow[]>([]);
@@ -718,24 +720,29 @@ function onRowAction(key: string, row: OperatorRow) {
 }
 
 async function loadDepartments() {
+  const seq = loadSeq.begin('loadDepartments');
   try {
     departments.value =
       (await api.request<DeptRow[]>('/api/v2/ops/admin/departments', 'GET').catch(() => [])) || [];
   } catch {
+    if (!loadSeq.isCurrent(seq, 'loadDepartments')) return;
     departments.value = [];
   }
 }
 
 async function loadRoles() {
+  const seq = loadSeq.begin('loadRoles');
   try {
     roles.value = await api.request<RoleRow[]>('/api/v2/ops/admin/rbac/roles', 'GET');
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadRoles')) return;
     roles.value = [];
     ElMessage.error(e instanceof Error ? e.message : '加载角色失败');
   }
 }
 
 async function loadMerchants() {
+  const seq = loadSeq.begin('loadMerchants');
   try {
     const data = await api.request<{ items?: MerchantRow[] }>(
       '/api/v2/ops/admin/merchants?page=0&size=500',
@@ -743,11 +750,13 @@ async function loadMerchants() {
     );
     merchants.value = data.items || [];
   } catch {
+    if (!loadSeq.isCurrent(seq, 'loadMerchants')) return;
     merchants.value = [];
   }
 }
 
 async function loadOperators() {
+  const seq = loadSeq.begin('loadOperators');
   loading.value = true;
   try {
     const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
@@ -760,8 +769,10 @@ async function loadOperators() {
     total.value = data.total;
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadOperators')) return;
     ElMessage.error(e instanceof Error ? e.message : '加载运营账号失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadOperators')) return;
     listHydrated.value = true;
     loading.value = false;
   }

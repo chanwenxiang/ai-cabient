@@ -276,6 +276,7 @@ import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { displayBizNo } from '@aicabinet/shared-uni/format';
 import { api, downloadAuthFile } from '@/api/client';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { csvFileName } from '@/utils/csv';
@@ -310,6 +311,7 @@ const MAX_RANGE_DAYS = 90;
 const tab = ref('bills');
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const ledgerLoading = ref(false);
 const ledgerHydrated = ref(false);
 const bills = ref<BillRow[]>([]);
@@ -483,6 +485,7 @@ function reloadCurrent() {
 }
 
 async function loadBills() {
+  const seq = loadSeq.begin('loadBills');
   if (!assertRangeOk()) return;
   loading.value = true;
   try {
@@ -501,14 +504,17 @@ async function loadBills() {
     billTotal.value = Number(data.total) || 0;
     clearBillSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadBills')) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadBills')) return;
     listHydrated.value = true;
     loading.value = false;
   }
 }
 
 async function loadLedger() {
+  const seq = loadSeq.begin('loadLedger');
   if (!assertRangeOk()) return;
   ledgerLoading.value = true;
   try {
@@ -526,8 +532,10 @@ async function loadLedger() {
     ledgerTotal.value = data.total || 0;
     clearLedgerSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadLedger')) return;
     ElMessage.error(e instanceof Error ? e.message : '账务明细加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadLedger')) return;
     ledgerHydrated.value = true;
     ledgerLoading.value = false;
   }

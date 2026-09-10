@@ -2372,6 +2372,7 @@ import { yuanToCents } from '@/utils/display';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
@@ -2383,6 +2384,8 @@ import {
   showPurchaseReviewToast,
   formatPurchaseReviewError
 } from '@/utils/purchase-order-sync';
+
+const loadSeq = createLoadSeq();
 
 /** 仓储调拨明细行 */
 type WarehouseLine = {
@@ -3505,6 +3508,7 @@ async function ensureMeta() {
 }
 
 async function loadWarehouses() {
+  const seq = loadSeq.begin('loadWarehouses');
   const q = new URLSearchParams({
     page: String(page.value - 1),
     size: String(size.value)
@@ -3518,6 +3522,7 @@ async function loadWarehouses() {
   tabTotals.value = { ...tabTotals.value, warehouses: Number(data.total) || 0 };
 }
 async function loadWarehousesSoft() {
+  const seq = loadSeq.begin('loadWarehousesSoft');
   try {
     const data = await api.request<{ items: Row[] }>(
       '/api/v2/ops/admin/warehouse/list?page=0&size=500',
@@ -3525,10 +3530,12 @@ async function loadWarehousesSoft() {
     );
     warehouses.value = data.items || [];
   } catch {
+    if (!loadSeq.isCurrent(seq, 'loadWarehousesSoft')) return;
     /* 筛选用元数据失败时保留旧列表，不拖垮库存/出库主数据 */
   }
 }
 async function loadSuppliers() {
+  const seq = loadSeq.begin('loadSuppliers');
   const q = new URLSearchParams({
     page: String(page.value - 1),
     size: String(size.value)
@@ -3542,6 +3549,7 @@ async function loadSuppliers() {
   tabTotals.value = { ...tabTotals.value, suppliers: Number(data.total) || 0 };
 }
 async function loadSuppliersSoft() {
+  const seq = loadSeq.begin('loadSuppliersSoft');
   try {
     const data = await api.request<{ items: Row[] }>(
       '/api/v2/ops/admin/suppliers?page=0&size=500',
@@ -3549,10 +3557,12 @@ async function loadSuppliersSoft() {
     );
     suppliers.value = data.items || [];
   } catch {
+    if (!loadSeq.isCurrent(seq, 'loadSuppliersSoft')) return;
     /* 采购/退货筛选项可选 */
   }
 }
 async function loadPurchase() {
+  const seq = loadSeq.begin('loadPurchase');
   const q = warehouseListParams();
   if (hideTestPurchaseOrders.value) q.set('excludeTestRef', 'true');
   const data = await api.request<{ items: Row[]; total: number }>(
@@ -3563,6 +3573,7 @@ async function loadPurchase() {
   tabTotals.value = { ...tabTotals.value, purchase: Number(data.total) || 0 };
 }
 async function loadReturnablePurchaseOrders() {
+  const seq = loadSeq.begin('loadReturnablePurchaseOrders');
   try {
     returnablePurchaseOrders.value =
       (
@@ -3572,10 +3583,12 @@ async function loadReturnablePurchaseOrders() {
         )
       ).items || [];
   } catch {
+    if (!loadSeq.isCurrent(seq, 'loadReturnablePurchaseOrders')) return;
     returnablePurchaseOrders.value = [];
   }
 }
 async function loadReturns() {
+  const seq = loadSeq.begin('loadReturns');
   const q = new URLSearchParams({
     page: String(page.value - 1),
     size: String(size.value)
@@ -3590,6 +3603,7 @@ async function loadReturns() {
   tabTotals.value = { ...tabTotals.value, returns: Number(data.total) || 0 };
 }
 async function loadOutbounds() {
+  const seq = loadSeq.begin('loadOutbounds');
   const data = await api.request<{ items: Row[]; total: number }>(
     `/api/v2/ops/admin/warehouse/outbounds?${warehouseListParams()}`,
     'GET'
@@ -3598,6 +3612,7 @@ async function loadOutbounds() {
   tabTotals.value = { ...tabTotals.value, outbounds: Number(data.total) || 0 };
 }
 async function loadTransit() {
+  const seq = loadSeq.begin('loadTransit');
   const q = new URLSearchParams({
     page: String(page.value - 1),
     size: String(size.value)
@@ -3611,6 +3626,7 @@ async function loadTransit() {
   tabTotals.value = { ...tabTotals.value, transit: Number(data.total) || 0 };
 }
 async function loadInventory() {
+  const seq = loadSeq.begin('loadInventory');
   const data = await api.request<{ items: Row[]; total: number }>(
     `/api/v2/ops/admin/warehouse/inventory?${warehouseListParams()}`,
     'GET'
@@ -3619,6 +3635,7 @@ async function loadInventory() {
   tabTotals.value = { ...tabTotals.value, inventory: Number(data.total) || 0 };
 }
 async function loadMovements() {
+  const seq = loadSeq.begin('loadMovements');
   const data = await api.request<{ items: Row[]; total: number }>(
     `/api/v2/ops/admin/warehouse/movements?${warehouseListParams()}`,
     'GET'
@@ -3650,6 +3667,7 @@ function onPagerSizeChange() {
   }
 }
 async function loadSuggestions() {
+  const seq = loadSeq.begin('loadSuggestions');
   const params = new URLSearchParams({
     page: String(page.value - 1),
     size: String(size.value)
@@ -3671,6 +3689,7 @@ async function loadSuggestions() {
   tabTotals.value = { ...tabTotals.value, suggestions: Number(data.total) || 0 };
 }
 async function loadPayables() {
+  const seq = loadSeq.begin('loadPayables');
   const params = new URLSearchParams({
     page: String(page.value - 1),
     size: String(size.value)
@@ -3685,11 +3704,13 @@ async function loadPayables() {
   tabTotals.value = { ...tabTotals.value, payables: Number(data.total) || 0 };
 }
 async function loadPayableSummary() {
+  const seq = loadSeq.begin('loadPayableSummary');
   payableSummary.value = await api
     .request<Row[]>('/api/v2/ops/admin/suppliers/payables/summary', 'GET')
     .catch(() => []);
 }
 async function loadStocktakes() {
+  const seq = loadSeq.begin('loadStocktakes');
   const params = new URLSearchParams({
     page: String(page.value - 1),
     size: String(size.value)
@@ -3704,9 +3725,11 @@ async function loadStocktakes() {
   tabTotals.value = { ...tabTotals.value, stocktakes: Number(data.total) || 0 };
 }
 async function loadBins() {
+  const seq = loadSeq.begin('loadBins');
   bins.value = await api.request<Row[]>('/api/v2/ops/admin/warehouse/bins', 'GET');
 }
 async function loadBinStock() {
+  const seq = loadSeq.begin('loadBinStock');
   const params = new URLSearchParams({
     page: String(page.value - 1),
     size: String(size.value)
@@ -3721,6 +3744,7 @@ async function loadBinStock() {
   tabTotals.value = { ...tabTotals.value, bins: Number(data.total) || 0 };
 }
 async function loadTransfers() {
+  const seq = loadSeq.begin('loadTransfers');
   const q = new URLSearchParams({
     page: String(page.value - 1),
     size: String(size.value)
@@ -3793,6 +3817,7 @@ async function cancelTransfer(row: Row) {
 }
 
 async function loadWarehouseTabData(name: string) {
+  const seq = loadSeq.begin('loadWarehouseTabData');
   const loaders: Record<string, () => Promise<unknown>> = {
     warehouses: () => loadWarehouses(),
     suppliers: () => loadSuppliers(),
@@ -3822,6 +3847,7 @@ async function loadWarehouseTabData(name: string) {
 }
 
 async function loadTab(name: string, force = false) {
+  const seq = loadSeq.begin('loadTab');
   if (!force && loadedTabs.value.has(name) && name !== 'inventory' && name !== 'movements') return;
   const nextLoading = new Set(loadingTabs.value);
   nextLoading.add(name);
@@ -3831,8 +3857,10 @@ async function loadTab(name: string, force = false) {
     await loadWarehouseTabData(name);
     loadedTabs.value.add(name);
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadTab')) return;
     ElMessage.error(errorMessage(e, '加载失败'));
   } finally {
+    if (!loadSeq.isCurrent(seq, 'loadTab')) return;
     const next = new Set(hydratedTabs.value);
     next.add(name);
     hydratedTabs.value = next;
