@@ -256,3 +256,16 @@ export type OpenApiMerchantTaxProfileDto = components['schemas']['MerchantTaxPro
 `;
 writeFileSync(merchantOpsAliasFile, merchantOpsAlias, 'utf8');
 console.log(`[gen-openapi-types] 写入 ${merchantOpsAliasFile}`);
+
+// dist 不入库：生成后本地/CI 同步编译，供 package.json main/types 消费
+const sharedTypesDir = join(root, 'packages', 'shared-types');
+const tsc = spawnSync('node', ['./node_modules/typescript/bin/tsc', '-p', 'tsconfig.json'], {
+  cwd: sharedTypesDir,
+  stdio: 'inherit',
+  shell: true
+});
+if (tsc.status !== 0) {
+  console.error('[gen-openapi-types] shared-types tsc 失败（src 已写入；请检查后重跑 build）');
+  process.exit(tsc.status || 1);
+}
+console.log('[gen-openapi-types] 已同步 packages/shared-types/dist');

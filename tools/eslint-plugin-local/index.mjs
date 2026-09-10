@@ -19,9 +19,18 @@ const STATUS_LABELS = new Map([
   ['已归档', "dictLabel/displayLabel('announcement_status', code)"],
   // dispute_status / balance_refund
   ['待审核', "dictLabel/displayLabel('dispute_status'|'balance_refund_status', code)"],
+  ['审核中', "dictLabel/displayLabel('dispute_status', code)"],
+  ['运营审核中', "dictLabel/displayLabel('dispute_status', code) + ' 或后端 consumerReviewTitle'"],
+  ['运营已审核', "后端 consumerReviewTitle / displayLabel('dispute_status', code)"],
   ['已结案', "dictLabel/displayLabel('dispute_status', code)"],
   ['已关闭', "dictLabel/displayLabel('dispute_status'|'recharge_status', code)"],
-  ['已驳回', "dictLabel/displayLabel('balance_refund_status', code)"]
+  ['已驳回', "dictLabel/displayLabel('balance_refund_status', code)"],
+  // enable / online / role status（admin 高频漏网）
+  ['启用', "dictLabel/displayLabel('enable_status'|'coupon_status'|…, code)"],
+  ['停用', "dictLabel/displayLabel('enable_status'|'merchant_status'|…, code)"],
+  ['正常', "dictLabel/displayLabel('merchant_status'|'warehouse_status'|…, code)"],
+  ['在线', "dictLabel/displayLabel('online_status', 'ONLINE')"],
+  ['离线', "dictLabel/displayLabel('online_status', 'OFFLINE')"]
 ]);
 
 const ALLOWED_CALLEES = new Set(['dictLabel', 'displayLabel', 'dictOptions']);

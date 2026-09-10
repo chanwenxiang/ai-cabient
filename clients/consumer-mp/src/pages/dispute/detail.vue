@@ -166,8 +166,10 @@ function reviewStepDetail(t: NonNullable<typeof ticket.value>, resolved: boolean
 }
 
 function closeStepTitle(status: string): string {
-  if (status === 'RESOLVED') return '已结案';
-  if (status === 'CLOSED') return '已关闭';
+  const s = String(status || '').toUpperCase();
+  if (s === 'RESOLVED' || s === 'CLOSED') {
+    return displayLabel('dispute_status', s);
+  }
   return '待结案';
 }
 
@@ -186,9 +188,10 @@ const timeline = computed(() => {
     },
     {
       title:
-        status === 'OPEN' || status === 'PENDING'
-          ? t.consumerReviewTitle || '运营审核中'
-          : '运营已审核',
+        t.consumerReviewTitle ||
+        (status === 'OPEN' || status === 'PENDING'
+          ? displayLabel('dispute_status', 'OPEN')
+          : displayLabel('dispute_status', 'RESOLVED')),
       time: t.resolvedAt ? formatTime(t.resolvedAt) : '',
       detail: reviewStepDetail(t, resolved),
       done: resolved,

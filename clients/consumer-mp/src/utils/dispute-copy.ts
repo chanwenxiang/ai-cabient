@@ -1,3 +1,4 @@
+import { displayLabel } from '@aicabinet/shared-dict';
 import type { DisputeTicketDto } from '@aicabinet/shared-types';
 import { fmtMoney, localizeDisputeReason } from '@aicabinet/shared-uni/format';
 
@@ -174,28 +175,13 @@ export function disputeAmountDiffNote(
 }
 
 /**
- * 状态行：优先后端 consumerStatusLabel。
- * 下列分支仅兼容旧响应（无派生字段时）；新接口勿再依赖此本地拼装。
+ * 状态行：优先后端 consumerStatusLabel；缺省走 shared-dict，不再本地拼金额结论。
  */
 export function consumerDisputeStatusLabel(
-  ticket?: Pick<
-    DisputeTicketDto,
-    'status' | 'billedAmountCents' | 'refundedAmountCents' | 'consumerStatusLabel'
-  > | null
+  ticket?: Pick<DisputeTicketDto, 'status' | 'consumerStatusLabel'> | null
 ): string {
   if (ticket?.consumerStatusLabel) return ticket.consumerStatusLabel;
-  const s = ticket?.status || '';
-  if (s === 'OPEN' || s === 'PENDING') return '审核中 · 暂未扣款';
-  if (s === 'RESOLVED' || s === 'CLOSED') {
-    const billed = Number(ticket?.billedAmountCents ?? 0);
-    const refunded = Number(ticket?.refundedAmountCents ?? 0);
-    if (refunded > 0 && billed > 0)
-      return `已结案 · 扣款 ${fmtMoney(billed)} / 退款 ${fmtMoney(refunded)}`;
-    if (refunded > 0) return `已结案 · 退款 ${fmtMoney(refunded)}`;
-    if (billed > 0) return `已结案 · 扣款 ${fmtMoney(billed)}`;
-    return '已结案 · 未扣款';
-  }
-  return '处理中';
+  return displayLabel('dispute_status', ticket?.status);
 }
 
 /** 消费者提交申诉/退款失败时的友好文案（覆盖后端 409 等冲突提示） */
