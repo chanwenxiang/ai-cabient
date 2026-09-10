@@ -123,11 +123,7 @@
           <el-table-column label="状态" width="90" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
-                {{
-                  row.status === 'ACTIVE'
-                    ? '在用'
-                    : displayLabel('enable_status', 'INACTIVE')
-                }}
+                {{ row.status === 'ACTIVE' ? '在用' : displayLabel('enable_status', 'INACTIVE') }}
               </el-tag>
             </template>
           </el-table-column>

@@ -24,14 +24,26 @@ export const OPENAPI_ALIAS_GROUPS = [
     file: 'replenishment-models.ts',
     title: '补货/库存读模型别名（商户端本地投影迁出用）。',
     exports: [
-      { name: 'OpenApiReplenishmentSuggestDto', schema: 'ReplenishmentSuggestDto', comment: '补货建议（商户/运营）' },
+      {
+        name: 'OpenApiReplenishmentSuggestDto',
+        schema: 'ReplenishmentSuggestDto',
+        comment: '补货建议（商户/运营）'
+      },
       {
         name: 'OpenApiMerchantReplenishmentEfficiencyDto',
         schema: 'MerchantReplenishmentEfficiencyDto',
         comment: '商户补货效率看板'
       },
-      { name: 'OpenApiDeviceInventoryDto', schema: 'DeviceInventoryDto', comment: '设备库存行（含低库存列表）' },
-      { name: 'OpenApiSlotDiscrepancyAlertDto', schema: 'SlotDiscrepancyAlertDto', comment: '货道账实差异告警' },
+      {
+        name: 'OpenApiDeviceInventoryDto',
+        schema: 'DeviceInventoryDto',
+        comment: '设备库存行（含低库存列表）'
+      },
+      {
+        name: 'OpenApiSlotDiscrepancyAlertDto',
+        schema: 'SlotDiscrepancyAlertDto',
+        comment: '货道账实差异告警'
+      },
       {
         name: 'OpenApiSlotReplenishmentSuggestDto',
         schema: 'SlotReplenishmentSuggestDto',
@@ -68,7 +80,11 @@ export const OPENAPI_ALIAS_GROUPS = [
         schema: 'SubmitReplenishmentLinesRequest',
         comment: '提交补货明细'
       },
-      { name: 'OpenApiPullOffTaskDto', schema: 'PullOffTaskDto', comment: '临期/下架任务（商户 expiry-alerts）' },
+      {
+        name: 'OpenApiPullOffTaskDto',
+        schema: 'PullOffTaskDto',
+        comment: '临期/下架任务（商户 expiry-alerts）'
+      },
       {
         name: 'OpenApiReplenishmentCheckInRequest',
         schema: 'ReplenishmentCheckInRequest',
@@ -92,10 +108,22 @@ export const OPENAPI_ALIAS_GROUPS = [
     title: '会员/积分/优惠券读模型别名。',
     exports: [
       { name: 'OpenApiMemberProfileDto', schema: 'MemberProfileDto', comment: '消费者会员档案' },
-      { name: 'OpenApiMemberLevelRuleDto', schema: 'MemberLevelRuleDto', comment: '会员等级规则行' },
-      { name: 'OpenApiMemberPointsSummaryDto', schema: 'MemberPointsSummaryDto', comment: '积分汇总' },
+      {
+        name: 'OpenApiMemberLevelRuleDto',
+        schema: 'MemberLevelRuleDto',
+        comment: '会员等级规则行'
+      },
+      {
+        name: 'OpenApiMemberPointsSummaryDto',
+        schema: 'MemberPointsSummaryDto',
+        comment: '积分汇总'
+      },
       { name: 'OpenApiMemberPointsLogDto', schema: 'MemberPointsLogDto', comment: '积分流水' },
-      { name: 'OpenApiPointsRedeemItemDto', schema: 'PointsRedeemItemDto', comment: '积分兑换货架项' },
+      {
+        name: 'OpenApiPointsRedeemItemDto',
+        schema: 'PointsRedeemItemDto',
+        comment: '积分兑换货架项'
+      },
       { name: 'OpenApiCouponDto', schema: 'CouponDto', comment: '消费者优惠券' }
     ]
   },
@@ -103,9 +131,17 @@ export const OPENAPI_ALIAS_GROUPS = [
     file: 'notify-marketing-models.ts',
     title: '通知/营销读模型别名。',
     exports: [
-      { name: 'OpenApiNotificationDto', schema: 'NotificationDto', comment: '站内通知（消费者/商户共用结构）' },
+      {
+        name: 'OpenApiNotificationDto',
+        schema: 'NotificationDto',
+        comment: '站内通知（消费者/商户共用结构）'
+      },
       { name: 'OpenApiNotifyPrefDto', schema: 'NotifyPrefDto', comment: '消费者通知偏好' },
-      { name: 'OpenApiMerchantNotifyPrefDto', schema: 'MerchantNotifyPrefDto', comment: '商户告警订阅偏好' },
+      {
+        name: 'OpenApiMerchantNotifyPrefDto',
+        schema: 'MerchantNotifyPrefDto',
+        comment: '商户告警订阅偏好'
+      },
       { name: 'OpenApiMarketingBannerDto', schema: 'MarketingBannerDto', comment: '营销 Banner' },
       { name: 'OpenApiMarketingCampaignDto', schema: 'MarketingCampaignDto', comment: '营销活动' }
     ]
@@ -114,7 +150,11 @@ export const OPENAPI_ALIAS_GROUPS = [
     file: 'merchant-finance-models.ts',
     title: '商户钱包/提现/争议读模型别名。',
     exports: [
-      { name: 'OpenApiMerchantWalletLedgerDto', schema: 'MerchantWalletLedgerDto', comment: '商户钱包流水' },
+      {
+        name: 'OpenApiMerchantWalletLedgerDto',
+        schema: 'MerchantWalletLedgerDto',
+        comment: '商户钱包流水'
+      },
       {
         name: 'OpenApiMerchantWithdrawRequestDto',
         schema: 'MerchantWithdrawRequestDto',
@@ -125,15 +165,31 @@ export const OPENAPI_ALIAS_GROUPS = [
         schema: 'MerchantWalletOverviewDto',
         comment: '商户钱包总览'
       },
-      { name: 'OpenApiLineWalletLedgerDto', schema: 'LineWalletLedgerDto', comment: '线路经理钱包流水' },
-      { name: 'OpenApiLineWithdrawRequestDto', schema: 'LineWithdrawRequestDto', comment: '线路经理提现申请' },
-      { name: 'OpenApiLineWalletOverviewDto', schema: 'LineWalletOverviewDto', comment: '线路经理钱包总览' },
+      {
+        name: 'OpenApiLineWalletLedgerDto',
+        schema: 'LineWalletLedgerDto',
+        comment: '线路经理钱包流水'
+      },
+      {
+        name: 'OpenApiLineWithdrawRequestDto',
+        schema: 'LineWithdrawRequestDto',
+        comment: '线路经理提现申请'
+      },
+      {
+        name: 'OpenApiLineWalletOverviewDto',
+        schema: 'LineWalletOverviewDto',
+        comment: '线路经理钱包总览'
+      },
       {
         name: 'OpenApiMerchantDisputeSummaryDto',
         schema: 'MerchantDisputeSummaryDto',
         comment: '商户端争议列表摘要'
       },
-      { name: 'OpenApiDisputeTicketDto', schema: 'DisputeTicketDto', comment: '争议工单（认领/详情 ticket）' },
+      {
+        name: 'OpenApiDisputeTicketDto',
+        schema: 'DisputeTicketDto',
+        comment: '争议工单（认领/详情 ticket）'
+      },
       { name: 'OpenApiDisputeMessageDto', schema: 'DisputeMessageDto', comment: '争议消息' },
       {
         name: 'OpenApiMerchantDisputeDetailDto',
@@ -157,16 +213,28 @@ export const OPENAPI_ALIAS_GROUPS = [
         comment: '更新商户资料'
       },
       { name: 'OpenApiMerchantTrendDto', schema: 'MerchantTrendDto', comment: '商户趋势' },
-      { name: 'OpenApiMerchantDailyTrendDto', schema: 'MerchantDailyTrendDto', comment: '商户日趋势点' },
+      {
+        name: 'OpenApiMerchantDailyTrendDto',
+        schema: 'MerchantDailyTrendDto',
+        comment: '商户日趋势点'
+      },
       {
         name: 'OpenApiMerchantDashboardStatsDto',
         schema: 'MerchantDashboardStatsDto',
         comment: '商户工作台统计'
       },
       { name: 'OpenApiOpsExceptionDto', schema: 'OpsExceptionDto', comment: '运营/商户异常工单' },
-      { name: 'OpenApiSalesReportRowDto', schema: 'SalesReportRowDto', comment: '销售报表行（商户 analytics）' },
+      {
+        name: 'OpenApiSalesReportRowDto',
+        schema: 'SalesReportRowDto',
+        comment: '销售报表行（商户 analytics）'
+      },
       { name: 'OpenApiMerchantDto', schema: 'MerchantDto', comment: '商户实体（资料更新等）' },
-      { name: 'OpenApiMerchantTaxProfileDto', schema: 'MerchantTaxProfileDto', comment: '商户开票资料' }
+      {
+        name: 'OpenApiMerchantTaxProfileDto',
+        schema: 'MerchantTaxProfileDto',
+        comment: '商户开票资料'
+      }
     ]
   },
   {
