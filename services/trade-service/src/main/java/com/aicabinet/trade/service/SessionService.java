@@ -142,19 +142,35 @@ public class SessionService {
         this.displaySnapshotHelper = displaySnapshotHelper;
     }
 
-    @Transactional
+    /** 无外层长事务：落库短事务与 MQTT 开门分离。 */
     public SessionDto createSession(Long userId, CreateSessionRequest request) {
         String idempotencyKey = normalizeIdempotencyKey(request.idempotencyKey());
         if (idempotencyKey != null) {
             return repository.findByIdempotencyKey(idempotencyKey)
                     .map(existing -> validateIdempotentReplay(userId, request.deviceId(), existing))
                     .orElseGet(() -> runWithDeviceOpenLock(request.deviceId(),
-                            () -> doCreateSession(userId, request)));
+                            () -> createSessionAndRequestOpen(userId, request)));
         }
-        return runWithDeviceOpenLock(request.deviceId(), () -> doCreateSession(userId, request));
+        return runWithDeviceOpenLock(request.deviceId(), () -> createSessionAndRequestOpen(userId, request));
     }
 
-    private SessionDto doCreateSession(Long userId, CreateSessionRequest request) {
+    private SessionDto createSessionAndRequestOpen(Long userId, CreateSessionRequest request) {
+        SessionDto dto = self.persistConsumerOpeningSession(userId, request);
+        try {
+            deviceClient.requestOpenDoor(dto.sessionId(), request.deviceId(), userId, false);
+        } catch (ResponseStatusException e) {
+            self.markOpenDoorFailed(dto.sessionId(), "开门指令下发失败");
+            throw e;
+        } catch (Exception e) {
+            self.markOpenDoorFailed(dto.sessionId(), "开门指令下发失败");
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "开门指令下发失败（请确认 device-service 在线）", e);
+        }
+        return dto;
+    }
+
+    @Transactional
+    public SessionDto persistConsumerOpeningSession(Long userId, CreateSessionRequest request) {
         String entryChannel = resolveEntryChannel(userId, request.entryChannel());
         userValidationService.validateCanOpenDoor(userId, request.deviceId(), entryChannel);
         deviceValidationService.requireDevice(request.deviceId());
@@ -178,9 +194,27 @@ public class SessionService {
         consumerPreauthService.freezeForOpen(session, passwordFree);
 
         transition(session, SessionState.OPENING);
-        deviceClient.requestOpenDoor(session.getSessionId(), session.getDeviceId(), userId, false);
-
         return toDto(session);
+    }
+
+    @Transactional
+    public void markOpenDoorFailed(String sessionId, String failReason) {
+        ShoppingSession session = repository.findById(sessionId).orElse(null);
+        if (session == null) {
+            return;
+        }
+        if (session.getState() == SessionState.FAILED || session.getState() == SessionState.CANCELLED
+                || session.getState() == SessionState.COMPLETED) {
+            return;
+        }
+        session.setState(SessionState.FAILED);
+        session.setFailReason(failReason);
+        repository.save(session);
+        try {
+            consumerPreauthService.releaseIfFrozen(session);
+        } catch (Exception e) {
+            log.warn("release preauth after open fail session={}", sessionId, e);
+        }
     }
 
     /**
