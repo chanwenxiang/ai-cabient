@@ -55,7 +55,11 @@
             </template>
           </el-table-column>
           <el-table-column prop="defName" label="名称" min-width="140" align="center" />
-          <el-table-column :label="displayLabel('enable_status', 'ACTIVE')" width="90" align="center">
+          <el-table-column
+            :label="displayLabel('enable_status', 'ACTIVE')"
+            width="90"
+            align="center"
+          >
             <template #default="{ row }">
               <el-tag :type="row.enabled ? 'success' : 'info'" size="small">
                 {{ row.enabled ? '是' : '否' }}

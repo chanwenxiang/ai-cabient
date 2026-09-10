@@ -452,9 +452,7 @@ const {
 async function batchDisable() {
   const targets = list.value.filter(
     (r) =>
-      r.couponDefId != null &&
-      selectedIds.value.includes(r.couponDefId) &&
-      r.status === 'ACTIVE'
+      r.couponDefId != null && selectedIds.value.includes(r.couponDefId) && r.status === 'ACTIVE'
   );
   if (!targets.length) return ElMessage.warning('请勾选已启用的优惠券');
   try {

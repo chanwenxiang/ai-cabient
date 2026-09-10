@@ -72,7 +72,9 @@
           <div class="row-main">
             <strong>{{ p.deviceName || p.deviceId }}</strong>
             <el-tag size="small" :type="p.onlineStatus === 'ONLINE' ? 'success' : 'info'">
-              {{ displayLabel('online_status', p.onlineStatus === 'ONLINE' ? 'ONLINE' : 'OFFLINE') }}
+              {{
+                displayLabel('online_status', p.onlineStatus === 'ONLINE' ? 'ONLINE' : 'OFFLINE')
+              }}
             </el-tag>
           </div>
           <div class="row-sub">

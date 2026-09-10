@@ -46,9 +46,7 @@
             <view class="review-body">
               <view class="review-top">
                 <text class="review-title">{{ reviewCopy(d).title }}</text>
-                <text class="chip pending">{{
-                  displayLabel('dispute_status', d.status)
-                }}</text>
+                <text class="chip pending">{{ displayLabel('dispute_status', d.status) }}</text>
               </view>
               <text class="review-detail">{{ reviewCopy(d).detail }}</text>
               <view class="review-foot">
