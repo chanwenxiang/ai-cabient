@@ -116,6 +116,44 @@ jobs:
       - name: Verify admin UI artifacts are up-to-date
         run: git diff --exit-code -- services/trade-service/src/main/resources/static/admin
 
+      # 契约对齐：启动刚构建的 jar，导出 /v3/api-docs 并校验 generated TS 已提交
+      - name: Verify OpenAPI-generated types are up-to-date
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:15433/aicabinet
+          SPRING_DATASOURCE_USERNAME: aicabinet
+          SPRING_DATASOURCE_PASSWORD: aicabinet
+          REDIS_HOST: localhost
+          REDIS_PORT: "6379"
+          AICABINET_MOCK_ENABLED: "true"
+          JWT_SECRET: ci-openapi-check-jwt-secret-32bytes-min
+          INTERNAL_API_KEY: ci-internal-api-key
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@9.15.9 --activate
+          pnpm install --frozen-lockfile
+          JAR=$(ls services/trade-service/target/trade-service-*.jar | grep -v original | head -1)
+          test -n "$JAR"
+          mkdir -p .tmp
+          java -jar "$JAR" --server.port=18080 > .tmp/trade-openapi.log 2>&1 &
+          PID=$!
+          cleanup() { kill "$PID" 2>/dev/null || true; }
+          trap cleanup EXIT
+          ok=0
+          for i in $(seq 1 90); do
+            if curl -sf "http://127.0.0.1:18080/v3/api-docs" -o .tmp/live-openapi.json; then
+              ok=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ok" != "1" ]; then
+            echo "trade-service failed to expose /v3/api-docs"
+            tail -n 80 .tmp/trade-openapi.log || true
+            exit 1
+          fi
+          OPENAPI_CHECK_REGEN=1 OPENAPI_FILE=.tmp/live-openapi.json pnpm check:openapi-types
+
       - name: Build (device-service)
         run: mvn compile -pl services/device-service -am
         env:
@@ -165,6 +203,9 @@ jobs:
 
       - name: Nav-permission alignment check
         run: pnpm check:nav-perms
+
+      - name: OpenAPI types structural gate
+        run: pnpm check:openapi-types
 
       - name: Lint
         run: pnpm lint

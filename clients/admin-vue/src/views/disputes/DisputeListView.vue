@@ -629,7 +629,7 @@
           type="primary"
           :loading="resolving"
           @click="resolveSelected('KEEP')"
-          >维持原账单</el-button
+          >{{ displayLabel('dispute_resolution', 'KEEP') }}</el-button
         >
         <el-button
           v-hasPermi="['ops:dispute:resolve']"
@@ -637,7 +637,7 @@
           :loading="resolving"
           :disabled="!draftConfirmItems.length"
           @click="resolveSelected('ADJUST')"
-          >按调整明细落账</el-button
+          >{{ displayLabel('dispute_resolution', 'ADJUST') }}</el-button
         >
         <el-button
           v-hasPermi="['ops:dispute:resolve']"
@@ -645,7 +645,7 @@
           plain
           :loading="resolving"
           @click="resolveSelected('WAIVE')"
-          >免单并退款</el-button
+          >{{ displayLabel('dispute_resolution', 'WAIVE') }}</el-button
         >
       </div>
     </ResizableDrawer>
@@ -1187,9 +1187,16 @@ function validateResolveVideoReview(): boolean {
 type DisputeResolutionType = 'KEEP' | 'WAIVE' | 'CONFIRM' | 'ADJUST';
 
 function resolveActionLabel(resolutionType: DisputeResolutionType): string {
-  if (resolutionType === 'KEEP') return '维持原账单';
-  if (resolutionType === 'WAIVE') return '免单并退回全部已扣余额';
-  return '按调整明细落账（可能补扣或退差）';
+  if (resolutionType === 'WAIVE') {
+    return displayLabel('dispute_resolution', 'WAIVE', '免单并退款') + '（退回全部已扣余额）';
+  }
+  if (resolutionType === 'ADJUST') {
+    return displayLabel('dispute_resolution', 'ADJUST', '按调整明细落账') + '（可能补扣或退差）';
+  }
+  if (resolutionType === 'CONFIRM') {
+    return displayLabel('dispute_resolution', 'CONFIRM', '按识别清单结案');
+  }
+  return displayLabel('dispute_resolution', 'KEEP', '维持原账单');
 }
 
 async function confirmResolveAction(

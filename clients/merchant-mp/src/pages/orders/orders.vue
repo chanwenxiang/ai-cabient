@@ -165,11 +165,10 @@ import {
   hasPerm,
   merchantApi,
   downloadAuthedFile,
-  openExportedFile,
-  type MerchantOrderSummary
+  openExportedFile
 } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
-import type { MerchantMe } from '@aicabinet/shared-types';
+import type { MerchantMe, OpenApiOrderReadModelMerchant } from '@aicabinet/shared-types';
 import { cleanLineSummary, skuImageFor } from '@aicabinet/shared-uni/product-image';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -200,7 +199,7 @@ const loading = ref(false);
 const booting = ref(true);
 const loadingMore = ref(false);
 const error = ref('');
-const list = ref<MerchantOrderSummary[]>([]);
+const list = ref<OpenApiOrderReadModelMerchant[]>([]);
 let loadSeq = 0;
 const listTotal = ref(0);
 const pageIndex = ref(0);
@@ -306,7 +305,7 @@ function resetFilters() {
   load();
 }
 
-function lineSummaryText(item: MerchantOrderSummary) {
+function lineSummaryText(item: OpenApiOrderReadModelMerchant) {
   const summary = cleanLineSummary(item.lineSummary);
   if (summary) return summary;
   return `${item.lineCount ?? 0} 件商品`;
@@ -333,7 +332,7 @@ async function ensureOrdersMerchantMe(seq: number): Promise<boolean> {
 }
 
 function applyOrdersResponse(
-  res: MerchantOrderSummary[] | { items?: MerchantOrderSummary[]; total?: number }
+  res: OpenApiOrderReadModelMerchant[] | { items?: OpenApiOrderReadModelMerchant[]; total?: number }
 ) {
   if (Array.isArray(res)) {
     list.value = res;
@@ -454,7 +453,7 @@ function money(cents?: number) {
   return fmtMoney(cents);
 }
 
-function refundCents(item: MerchantOrderSummary) {
+function refundCents(item: OpenApiOrderReadModelMerchant) {
   // M-6：只信服务端 refundedCents，不再用 REFUNDED 状态反推全额
   const n = Number(item.refundedCents ?? 0);
   return Number.isFinite(n) && n > 0 ? n : 0;
@@ -468,7 +467,7 @@ function formatTime(t?: string) {
   return formatDateTimeShort(t, '暂无');
 }
 
-function onDetail(item: MerchantOrderSummary) {
+function onDetail(item: OpenApiOrderReadModelMerchant) {
   if (!item.orderId) return;
   uni.navigateTo({
     url: `/pages/order-detail/order-detail?orderId=${encodeURIComponent(item.orderId)}`

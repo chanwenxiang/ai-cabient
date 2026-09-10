@@ -104,6 +104,12 @@ export const DICT = {
     FAILED: '上传失败'
   },
   dispute_status: { OPEN: '待审核', RESOLVED: '已结案', CLOSED: '已关闭' },
+  dispute_resolution: {
+    KEEP: '维持原账单',
+    WAIVE: '免单并退款',
+    CONFIRM: '按识别清单结案',
+    ADJUST: '按调整明细落账'
+  },
   dispute_category: {
     USER_APPEAL: '用户申诉',
     RECOGNITION: '识别争议',

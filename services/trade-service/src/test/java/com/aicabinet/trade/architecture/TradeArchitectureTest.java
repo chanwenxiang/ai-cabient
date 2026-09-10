@@ -16,7 +16,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
- * 防回潮：Controller 不得直调 Mapper；订单摘要类须显式 @Deprecated；
+ * 防回潮：Controller 不得直调 Mapper；禁止复活旧订单摘要 DTO；
  * 写事务内禁止 MQTT 开门指令（须事务外或 @AllowTransactionalRemote）。
  */
 @AnalyzeClasses(
@@ -31,18 +31,18 @@ class TradeArchitectureTest {
                     .because("Controller 须经 Service，禁止直调 Mapper");
 
     @ArchTest
-    static final ArchRule legacyOrderSummaryDtosMustBeDeprecated =
-            classes().that().resideInAPackage("com.aicabinet.common.dto..")
-                    .and().haveSimpleNameEndingWith("OrderSummaryDto")
-                    .should().beAnnotatedWith(Deprecated.class)
-                    .because("订单契约已收敛到 OrderReadModel，旧 *OrderSummaryDto 须 @Deprecated");
+    static final ArchRule legacyOrderSummaryDtosMustNotExist =
+            noClasses().that().haveSimpleNameEndingWith("OrderSummaryDto")
+                    .should().resideInAnyPackage("com.aicabinet.common.dto..")
+                    .because("旧 *OrderSummaryDto 已删除；订单契约统一 OrderReadModel")
+                    .allowEmptyShould(true);
 
     @ArchTest
-    static final ArchRule legacyOrderDtoMustBeDeprecated =
-            classes().that().resideInAPackage("com.aicabinet.common.dto..")
-                    .and().haveSimpleName("OrderDto")
-                    .should().beAnnotatedWith(Deprecated.class)
-                    .because("订单契约已收敛到 OrderReadModel，OrderDto 须 @Deprecated");
+    static final ArchRule legacyOrderDtoMustNotExist =
+            noClasses().that().haveSimpleName("OrderDto")
+                    .should().resideInAnyPackage("com.aicabinet.common.dto..")
+                    .because("旧 OrderDto 已删除；订单契约统一 OrderReadModel")
+                    .allowEmptyShould(true);
 
     @ArchTest
     static final ArchRule writeTransactionalMustNotRequestOpenDoor =
