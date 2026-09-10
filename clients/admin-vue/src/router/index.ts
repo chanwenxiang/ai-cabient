@@ -440,7 +440,8 @@ const router = createRouter({
       path: '/print',
       name: 'print',
       component: () => import('@/views/print/PrintView.vue'),
-      meta: { title: '打印单据' }
+      // 权限由 findNavByPath('/print') → ops:warehouse:list 在 beforeEach 校验
+      meta: { title: '打印单据', group: '履约仓储' }
     },
     {
       path: '/',

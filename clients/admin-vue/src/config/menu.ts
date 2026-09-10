@@ -501,6 +501,17 @@ export function findNavByPath(path: string) {
       perm: 'ops:device:list'
     };
   }
+  // 打印页不进侧栏，但须与仓储同权，避免仅登录即可打开采购/出库单据
+  if (path === '/print') {
+    return {
+      path: '/print',
+      title: '打印单据',
+      group: '履约仓储',
+      parentTitle: '仓储中心',
+      parentPath: '/warehouse',
+      perm: 'ops:warehouse:list'
+    };
+  }
   return NAV_ITEMS.find((n) => n.path === path);
 }
 
