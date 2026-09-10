@@ -257,6 +257,29 @@ export type OpenApiMerchantTaxProfileDto = components['schemas']['MerchantTaxPro
 writeFileSync(merchantOpsAliasFile, merchantOpsAlias, 'utf8');
 console.log(`[gen-openapi-types] 写入 ${merchantOpsAliasFile}`);
 
+/** 运营后台读模型别名（设备/优惠券/营销/公告等）。 */
+const adminAliasFile = join(outDir, 'admin-models.ts');
+const adminAlias = `${banner}import type { components } from './openapi';
+
+export type OpenApiAdminDeviceDto = components['schemas']['AdminDeviceDto'];
+export type OpenApiPageResultAdminDeviceDto = components['schemas']['PageResultAdminDeviceDto'];
+export type OpenApiCouponDefinitionDto = components['schemas']['CouponDefinitionDto'];
+export type OpenApiPromotionActivityDto = components['schemas']['PromotionActivityDto'];
+export type OpenApiPageResultPromotionActivityDto =
+  components['schemas']['PageResultPromotionActivityDto'];
+export type OpenApiAnnouncement = components['schemas']['Announcement'];
+export type OpenApiPageResultAnnouncement = components['schemas']['PageResultAnnouncement'];
+/** 与 springdoc PageResult* 结构对齐的泛型分页壳（Java 泛型擦除） */
+export type OpenApiPageResultOf<T> = {
+  items?: T[];
+  page?: number;
+  size?: number;
+  total?: number;
+};
+`;
+writeFileSync(adminAliasFile, adminAlias, 'utf8');
+console.log(`[gen-openapi-types] 写入 ${adminAliasFile}`);
+
 // dist 不入库：生成后本地/CI 同步编译，供 package.json main/types 消费
 const sharedTypesDir = join(root, 'packages', 'shared-types');
 const tsc = spawnSync('node', ['./node_modules/typescript/bin/tsc', '-p', 'tsconfig.json'], {

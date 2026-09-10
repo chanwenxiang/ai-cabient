@@ -21,6 +21,7 @@ const memberCouponModels = join(generatedDir, 'member-coupon-models.ts');
 const notifyMarketingModels = join(generatedDir, 'notify-marketing-models.ts');
 const merchantFinanceModels = join(generatedDir, 'merchant-finance-models.ts');
 const merchantOpsModels = join(generatedDir, 'merchant-ops-models.ts');
+const adminModels = join(generatedDir, 'admin-models.ts');
 const indexTs = join(root, 'packages', 'shared-types', 'src', 'index.ts');
 
 function fail(msg) {
@@ -36,6 +37,7 @@ for (const f of [
   notifyMarketingModels,
   merchantFinanceModels,
   merchantOpsModels,
+  adminModels,
   indexTs
 ]) {
   if (!existsSync(f)) fail(`missing ${f}`);
@@ -139,6 +141,22 @@ for (const name of [
   }
 }
 
+const adminModelsSrc = readFileSync(adminModels, 'utf8');
+for (const name of [
+  'OpenApiAdminDeviceDto',
+  'OpenApiPageResultAdminDeviceDto',
+  'OpenApiCouponDefinitionDto',
+  'OpenApiPromotionActivityDto',
+  'OpenApiPageResultPromotionActivityDto',
+  'OpenApiAnnouncement',
+  'OpenApiPageResultAnnouncement',
+  'OpenApiPageResultOf'
+]) {
+  if (!adminModelsSrc.includes(name)) {
+    fail(`admin-models.ts missing export ${name}`);
+  }
+}
+
 const openapiSrc = readFileSync(openapiTs, 'utf8');
 if (!openapiSrc.includes('OrderReadModel')) {
   fail('openapi.ts missing OrderReadModel schema');
@@ -159,6 +177,9 @@ if (!indexSrc.includes('OpenApiMerchantDeviceReportDto')) {
 }
 if (!indexSrc.includes('OpenApiMerchantReplenishmentRequestDto')) {
   fail('shared-types index.ts must re-export OpenApiMerchantReplenishmentRequestDto');
+}
+if (!indexSrc.includes('OpenApiAdminDeviceDto')) {
+  fail('shared-types index.ts must re-export OpenApiAdminDeviceDto');
 }
 
 const openApiFile = process.env.OPENAPI_FILE

@@ -1230,7 +1230,7 @@ import { useAuthStore } from '@/stores/auth';
 import type {
   DeviceEnvReading,
   DeviceTempPlan,
-  DeviceInfo,
+  OpenApiAdminDeviceDto,
   DeviceSlot,
   SessionDto,
   OrderReadModel,
@@ -1573,7 +1573,7 @@ async function downloadQr() {
   }
 }
 
-function fillAsset(row: DeviceInfo) {
+function fillAsset(row: OpenApiAdminDeviceDto) {
   asset.lifecycleStatus = row.lifecycleStatus || '';
   asset.imei = row.imei || '';
   asset.assetOwner = row.assetOwner || '';
@@ -1604,7 +1604,7 @@ const editForm = reactive({
 });
 
 async function loadAsset() {
-  const row = await api.request<DeviceInfo>(
+  const row = await api.request<OpenApiAdminDeviceDto>(
     `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}`,
     'GET'
   );
@@ -1729,7 +1729,7 @@ async function saveRefundPolicy() {
   if (!canEditDevice.value) return;
   refundPolicySaving.value = true;
   try {
-    const updated = await api.request<DeviceInfo>(
+    const updated = await api.request<OpenApiAdminDeviceDto>(
       `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}`,
       'PATCH',
       { refundPolicy: refundPolicyDraft.value }
@@ -1756,7 +1756,7 @@ async function saveAsset() {
   if (!canEditDevice.value) return;
   assetSaving.value = true;
   try {
-    const row = await api.request<DeviceInfo>(
+    const row = await api.request<OpenApiAdminDeviceDto>(
       `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}`,
       'PATCH',
       {
@@ -1943,7 +1943,7 @@ async function runLifecycle(action: string, requireRemark = false, merchantId?: 
       );
     }
     lifeLoading.value = action;
-    const row = await api.request<DeviceInfo>(
+    const row = await api.request<OpenApiAdminDeviceDto>(
       `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/lifecycle`,
       'POST',
       { action, merchantId, remark: remark || undefined }
@@ -1973,12 +1973,22 @@ async function resetHardwareBinding() {
   }
   hardwareResetLoading.value = true;
   try {
-    const row = await api.request<DeviceInfo>(
+    const row = await api.request<OpenApiAdminDeviceDto>(
       `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/reset-hardware-binding`,
       'POST'
     );
     fillAsset(row);
-    device.value = row;
+    device.value = {
+      deviceId: row.deviceId ?? deviceId,
+      deviceName: row.deviceName,
+      onlineStatus: row.onlineStatus,
+      merchantId: row.merchantId,
+      merchantName: row.merchantName,
+      activeSessionId: row.activeSessionId,
+      activeSessionState: row.activeSessionState,
+      refundPolicy: row.refundPolicy,
+      effectiveRefundPolicy: row.effectiveRefundPolicy
+    };
     ElMessage.success('硬件绑定已解除，请让柜机重新联网');
   } catch (e) {
     ElMessage.error(errorMessage(e, '解绑失败'));
@@ -2000,12 +2010,13 @@ async function regenerateDeviceId() {
   }
   regenerateIdLoading.value = true;
   try {
-    const row = await api.request<DeviceInfo>(
+    const row = await api.request<OpenApiAdminDeviceDto>(
       `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/regenerate-id`,
       'POST'
     );
-    ElMessage.success(`新编号 ${row.deviceId}`);
-    await router.replace(`/devices/${encodeURIComponent(row.deviceId)}`);
+    const newId = row.deviceId ?? '';
+    ElMessage.success(`新编号 ${newId}`);
+    await router.replace(`/devices/${encodeURIComponent(newId)}`);
   } catch (e) {
     ElMessage.error(errorMessage(e, '重新生成失败'));
   } finally {

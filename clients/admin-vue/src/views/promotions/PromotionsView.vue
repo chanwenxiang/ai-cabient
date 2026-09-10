@@ -307,7 +307,10 @@ import { useAuthStore } from '@/stores/auth';
 import { csvFileName, csvRowsToObjects, downloadCsv, parseCsv } from '@/utils/csv';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { errorMessage } from '@/utils/error-message';
-import type { PromotionActivityDto } from '@aicabinet/shared-types';
+import type {
+  OpenApiPromotionActivityDto,
+  OpenApiPageResultPromotionActivityDto
+} from '@aicabinet/shared-types';
 
 const route = useRoute();
 const router = useRouter();
@@ -317,7 +320,7 @@ const loading = ref(false);
 const listHydrated = ref(false);
 const saving = ref(false);
 const importing = ref(false);
-const list = ref<PromotionActivityDto[]>([]);
+const list = ref<OpenApiPromotionActivityDto[]>([]);
 const total = ref(0);
 const keyword = ref('');
 const statusFilter = ref('');
@@ -442,7 +445,7 @@ async function loadDevices() {
   }
 }
 
-function rowActions(row: PromotionActivityDto): TableAction[] {
+function rowActions(row: OpenApiPromotionActivityDto): TableAction[] {
   const acts: TableAction[] = [];
   if (!isEnabled(row.status) && row.status !== 'ENDED' && auth.hasPerm('ops:promotion:edit')) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
@@ -472,11 +475,11 @@ const showActionColumn = computed(() =>
   displayList.value.some((row) => rowActions(row).length > 0)
 );
 
-function onSelectionChange(rows: PromotionActivityDto[]) {
-  selectedIds.value = rows.map((r) => r.activityId).filter(Boolean);
+function onSelectionChange(rows: OpenApiPromotionActivityDto[]) {
+  selectedIds.value = rows.map((r) => r.activityId).filter((id): id is number => id != null);
 }
 
-async function onAction(key: string, row: PromotionActivityDto) {
+async function onAction(key: string, row: OpenApiPromotionActivityDto) {
   if (key === 'edit') openEdit(row);
   else if (key === 'toggle') await onToggleStatus(row);
 }
@@ -484,7 +487,7 @@ async function onAction(key: string, row: PromotionActivityDto) {
 async function load() {
   loading.value = true;
   try {
-    const data = await api.request<{ items: PromotionActivityDto[]; total: number }>(
+    const data = await api.request<OpenApiPageResultPromotionActivityDto>(
       `/api/v2/ops/promotions?${queryParams()}`,
       'GET'
     );
@@ -505,8 +508,8 @@ function openCreate() {
   showDialog.value = true;
 }
 
-function openEdit(row: PromotionActivityDto) {
-  editingId.value = row.activityId;
+function openEdit(row: OpenApiPromotionActivityDto) {
+  editingId.value = row.activityId ?? null;
   const deviceIds = parseRuleDeviceIds(row.ruleConfig);
   let formDeviceIds: string[];
   if (deviceIds.length) {
@@ -573,7 +576,7 @@ async function onSubmit() {
   }
 }
 
-async function onToggleStatus(row: PromotionActivityDto) {
+async function onToggleStatus(row: OpenApiPromotionActivityDto) {
   const enable = !isEnabled(row.status);
   const action = displayLabel('enable_status', enable ? 'ACTIVE' : 'INACTIVE');
   try {
@@ -596,7 +599,7 @@ async function onToggleStatus(row: PromotionActivityDto) {
 
 async function batchDisable() {
   const targets = list.value.filter(
-    (r) => selectedIds.value.includes(r.activityId) && isEnabled(r.status)
+    (r) => r.activityId != null && selectedIds.value.includes(r.activityId) && isEnabled(r.status)
   );
   if (!targets.length) return ElMessage.warning('请勾选已启用的活动');
   try {
@@ -613,7 +616,7 @@ async function batchDisable() {
   }
 }
 
-function toExportRows(items: PromotionActivityDto[]) {
+function toExportRows(items: OpenApiPromotionActivityDto[]) {
   return items.map((row) => [
     row.activityName || '',
     displayLabel('promotion_type', row.activityType, '未知类型'),
@@ -628,7 +631,9 @@ function toExportRows(items: PromotionActivityDto[]) {
 
 function onExport() {
   const rows = selectedIds.value.length
-    ? displayList.value.filter((r) => selectedIds.value.includes(r.activityId))
+    ? displayList.value.filter(
+        (r) => r.activityId != null && selectedIds.value.includes(r.activityId)
+      )
     : displayList.value;
   if (!rows.length) return ElMessage.warning('暂无数据可导出');
   downloadCsv(csvFileName('营销活动'), CSV_HEADERS, toExportRows(rows));
@@ -686,18 +691,22 @@ async function onImportFile(ev: Event) {
       if (!start || !end || end <= start) {
         throw new Error(`活动「${name}」时间无效`);
       }
-      const created = await api.request<PromotionActivityDto>('/api/v2/ops/promotions', 'POST', {
-        activityName: name,
-        activityType: type,
-        startTime: start.toISOString(),
-        endTime: end.toISOString(),
-        budgetCents: yuanToCents(row['预算(元)'] || row.budgetYuan) ?? 0,
-        userLimit: (() => {
-          const n = Number(row['每人限制'] || row.userLimit);
-          return Number.isFinite(n) && n > 0 ? n : 1;
-        })(),
-        description: row['描述'] || row.description || ''
-      });
+      const created = await api.request<OpenApiPromotionActivityDto>(
+        '/api/v2/ops/promotions',
+        'POST',
+        {
+          activityName: name,
+          activityType: type,
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          budgetCents: yuanToCents(row['预算(元)'] || row.budgetYuan) ?? 0,
+          userLimit: (() => {
+            const n = Number(row['每人限制'] || row.userLimit);
+            return Number.isFinite(n) && n > 0 ? n : 1;
+          })(),
+          description: row['描述'] || row.description || ''
+        }
+      );
       if (wantsEnabled(row['状态'] || row.status) && created?.activityId) {
         await api.request(`/api/v2/ops/promotions/${created.activityId}/launch`, 'POST');
       }

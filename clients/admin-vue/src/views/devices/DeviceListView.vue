@@ -507,7 +507,10 @@ import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
-import type { DeviceInfo, PageResult } from '@aicabinet/shared-types';
+import type {
+  OpenApiAdminDeviceDto,
+  OpenApiPageResultAdminDeviceDto
+} from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
@@ -528,7 +531,7 @@ const lifecycleFilter = ref('');
 const coopFilter = ref('');
 const routeFilter = ref('');
 const boardTab = ref<BoardTab>('ALL');
-const devices = ref<DeviceInfo[]>([]);
+const devices = ref<OpenApiAdminDeviceDto[]>([]);
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('deviceId', {
   onChange: () => {
     devices.value = sortById([...devices.value], 'deviceId');
@@ -623,7 +626,7 @@ function tabFromRouteQuery(): BoardTab {
   return 'ALL';
 }
 
-function effectivePolicy(row: DeviceInfo) {
+function effectivePolicy(row: OpenApiAdminDeviceDto) {
   return row.effectiveRefundPolicy || row.refundPolicy || 'AUTO_REFUND';
 }
 
@@ -637,7 +640,7 @@ function lifecycleLabel(status?: string | null) {
 }
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection, selectedKeys } =
-  useTableSelection<DeviceInfo>((r) => r.deviceId);
+  useTableSelection<OpenApiAdminDeviceDto>((r) => r.deviceId ?? '');
 
 const policyHint = computed(() => {
   switch (policyForm.refundPolicy) {
@@ -700,7 +703,9 @@ async function batchLifecycle(action: 'DEPLOY' | 'UNDEPLOY') {
     ElMessage.warning('无设备编辑权限');
     return;
   }
-  const targets = devices.value.filter((d) => selectedKeys.value.map(String).includes(d.deviceId));
+  const targets = devices.value.filter((d) =>
+    selectedKeys.value.map(String).includes(d.deviceId ?? '')
+  );
   if (!targets.length) {
     ElMessage.warning('请先勾选设备');
     return;
@@ -722,7 +727,7 @@ async function batchLifecycle(action: 'DEPLOY' | 'UNDEPLOY') {
     for (const row of targets) {
       try {
         await api.request(
-          `/api/v2/ops/admin/devices/${encodeURIComponent(row.deviceId)}/lifecycle`,
+          `/api/v2/ops/admin/devices/${encodeURIComponent(row.deviceId ?? '')}/lifecycle`,
           'POST',
           { action, remark: `batch-${action.toLowerCase()}` }
         );
@@ -745,7 +750,9 @@ async function batchRetire() {
     ElMessage.warning('无设备编辑权限');
     return;
   }
-  const targets = devices.value.filter((d) => selectedKeys.value.map(String).includes(d.deviceId));
+  const targets = devices.value.filter((d) =>
+    selectedKeys.value.map(String).includes(d.deviceId ?? '')
+  );
   if (!targets.length) {
     ElMessage.warning('请先勾选设备');
     return;
@@ -773,7 +780,7 @@ async function batchRetire() {
     for (const row of targets) {
       try {
         await api.request(
-          `/api/v2/ops/admin/devices/${encodeURIComponent(row.deviceId)}/lifecycle`,
+          `/api/v2/ops/admin/devices/${encodeURIComponent(row.deviceId ?? '')}/lifecycle`,
           'POST',
           { action: 'RETIRE', remark }
         );
@@ -796,7 +803,9 @@ async function batchCommand(command: 'LOCK' | 'UNLOCK') {
     ElMessage.warning('无设备编辑权限');
     return;
   }
-  const targets = devices.value.filter((d) => selectedKeys.value.map(String).includes(d.deviceId));
+  const targets = devices.value.filter((d) =>
+    selectedKeys.value.map(String).includes(d.deviceId ?? '')
+  );
   if (!targets.length) {
     ElMessage.warning('请先勾选设备');
     return;
@@ -818,7 +827,7 @@ async function batchCommand(command: 'LOCK' | 'UNLOCK') {
     for (const row of targets) {
       try {
         const result = await api.request<{ salesLocked?: boolean }>(
-          `/api/v2/ops/admin/devices/${encodeURIComponent(row.deviceId)}/commands`,
+          `/api/v2/ops/admin/devices/${encodeURIComponent(row.deviceId ?? '')}/commands`,
           'POST',
           { command, reason: `batch-${command.toLowerCase()}` }
         );
@@ -842,20 +851,21 @@ async function batchCommand(command: 'LOCK' | 'UNLOCK') {
   }
 }
 
-function goDetail(row: DeviceInfo) {
-  if (!row?.deviceId) return;
+function goDetail(row: OpenApiAdminDeviceDto) {
+  const id = row.deviceId ?? '';
+  if (!id) return;
   // 使用具名路由 + encode，避免偶发路径匹配失败被 catch-all 打回工作台
   router
     .push({
       name: 'device-detail',
-      params: { id: row.deviceId }
+      params: { id }
     })
     .catch(() => {
-      router.push(`/devices/${encodeURIComponent(row.deviceId)}`);
+      router.push(`/devices/${encodeURIComponent(id)}`);
     });
 }
 
-function deviceActions(_row: DeviceInfo): TableAction[] {
+function deviceActions(_row: OpenApiAdminDeviceDto): TableAction[] {
   const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
   if (auth.hasPerm('ops:device:edit')) {
     actions.push({ key: 'policy', label: '退款设置', icon: Setting, type: 'warning' });
@@ -863,7 +873,7 @@ function deviceActions(_row: DeviceInfo): TableAction[] {
   return actions;
 }
 
-function onRowAction(key: string, row: DeviceInfo) {
+function onRowAction(key: string, row: OpenApiAdminDeviceDto) {
   if (key === 'detail') {
     goDetail(row);
     return;
@@ -873,9 +883,11 @@ function onRowAction(key: string, row: DeviceInfo) {
   }
 }
 
-function openPolicy(row: DeviceInfo) {
-  policyForm.deviceId = row.deviceId;
-  policyForm.deviceLabel = row.deviceName ? `${row.deviceName}（${row.deviceId}）` : row.deviceId;
+function openPolicy(row: OpenApiAdminDeviceDto) {
+  policyForm.deviceId = row.deviceId ?? '';
+  policyForm.deviceLabel = row.deviceName
+    ? `${row.deviceName}（${row.deviceId ?? ''}）`
+    : (row.deviceId ?? '');
   policyForm.refundPolicy = row.refundPolicy || 'INHERIT';
   policyVisible.value = true;
 }
@@ -887,7 +899,7 @@ async function savePolicy() {
   }
   policySaving.value = true;
   try {
-    const updated = await api.request<DeviceInfo>(
+    const updated = await api.request<OpenApiAdminDeviceDto>(
       `/api/v2/ops/admin/devices/${encodeURIComponent(policyForm.deviceId)}`,
       'PATCH',
       { refundPolicy: policyForm.refundPolicy }
@@ -937,7 +949,7 @@ async function refreshBoardCounts() {
           if (keyword.value.trim()) q.set('q', keyword.value.trim());
           if (spec.online) q.set('online', spec.online);
           if (spec.salesLocked) q.set('salesLocked', spec.salesLocked);
-          const data = await api.request<PageResult<DeviceInfo>>(
+          const data = await api.request<OpenApiPageResultAdminDeviceDto>(
             `/api/v2/ops/admin/devices?${q}`,
             'GET'
           );
@@ -955,7 +967,7 @@ async function refreshBoardCounts() {
             salesLocked: 'true'
           });
           if (keyword.value.trim()) q.set('q', keyword.value.trim());
-          const data = await api.request<PageResult<DeviceInfo>>(
+          const data = await api.request<OpenApiPageResultAdminDeviceDto>(
             `/api/v2/ops/admin/devices?${q}`,
             'GET'
           );
@@ -999,7 +1011,10 @@ async function load(showToast = false) {
     const filters = boardQuery(boardTab.value);
     if (filters.online) q.set('online', filters.online);
     if (filters.salesLocked) q.set('salesLocked', filters.salesLocked);
-    const data = await api.request<PageResult<DeviceInfo>>(`/api/v2/ops/admin/devices?${q}`, 'GET');
+    const data = await api.request<OpenApiPageResultAdminDeviceDto>(
+      `/api/v2/ops/admin/devices?${q}`,
+      'GET'
+    );
     devices.value = sortById(data.items || [], 'deviceId');
     total.value = data.total || 0;
     if (boardTab.value in boardCounts) {
