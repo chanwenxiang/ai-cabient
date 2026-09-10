@@ -10205,6 +10205,10 @@ export interface components {
             claimedAmountCents?: number;
             deviceName?: string;
             assignee?: string;
+            consumerStatusLabel?: string;
+            consumerReviewTitle?: string;
+            consumerReviewDetail?: string;
+            amountDiffNote?: string;
         };
         FileAttachmentDto: {
             /** Format: int64 */
@@ -11827,27 +11831,6 @@ export interface components {
             skuId?: string;
             /** Format: int32 */
             requestedQty?: number;
-        };
-        MerchantReplenishmentDeviceAccessDto: {
-            deviceId?: string;
-            allowed?: boolean;
-        };
-        ApiResponseMerchantReplenishmentDeviceAccessDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["MerchantReplenishmentDeviceAccessDto"];
-        };
-        MerchantReplenishmentDoorSessionDto: {
-            doorOpened?: boolean;
-            sessionId?: string;
-            state?: string;
-        };
-        ApiResponseMerchantReplenishmentDoorSessionDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["MerchantReplenishmentDoorSessionDto"];
         };
         MerchantWxBindRequest: {
             code?: string;
@@ -14898,6 +14881,17 @@ export interface components {
             message?: string;
             data?: components["schemas"]["RevenueSplitDto"][];
         };
+        ApiResponseMerchantReplenishmentDoorSessionDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MerchantReplenishmentDoorSessionDto"];
+        };
+        MerchantReplenishmentDoorSessionDto: {
+            doorOpened?: boolean;
+            sessionId?: string;
+            state?: string;
+        };
         ApiResponseListMerchantReplenishmentRequestDto: {
             /** Format: int32 */
             code?: number;
@@ -14921,6 +14915,16 @@ export interface components {
             todayPending?: number;
             /** Format: double */
             completionRatePercent?: number;
+        };
+        ApiResponseMerchantReplenishmentDeviceAccessDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MerchantReplenishmentDeviceAccessDto"];
+        };
+        MerchantReplenishmentDeviceAccessDto: {
+            deviceId?: string;
+            allowed?: boolean;
         };
         ApiResponseListMerchantSkuPricingDto: {
             /** Format: int32 */
