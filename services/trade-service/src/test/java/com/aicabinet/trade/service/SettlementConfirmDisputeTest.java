@@ -67,8 +67,18 @@ class SettlementConfirmDisputeTest {
         lenient().when(sessionRepository.findByIdForUpdate(anyString())).thenAnswer(inv -> {
             ShoppingSession s = new ShoppingSession();
             s.setSessionId(inv.getArgument(0));
+            s.setUserId(10001L);
+            s.setDeviceId("CAB-1");
             return Optional.of(s);
         });
+        lenient().when(sessionRepository.findById(anyString())).thenAnswer(inv -> {
+            ShoppingSession s = new ShoppingSession();
+            s.setSessionId(inv.getArgument(0));
+            s.setUserId(10001L);
+            s.setDeviceId("CAB-1");
+            return Optional.of(s);
+        });
+        lenient().when(revenueSplitService.findStatusByOrderId(anyString())).thenReturn(Optional.empty());
     }
 
     @Test
@@ -93,6 +103,7 @@ class SettlementConfirmDisputeTest {
         sku.setSkuName("A");
 
         when(orderRepository.findBySessionId("S-D1")).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate("O-D1")).thenReturn(Optional.of(order));
         when(skuCatalogRepository.findById("SKU-A")).thenReturn(Optional.of(sku));
         when(skuPricingService.resolveUnitPriceCents("CAB-1", sku)).thenReturn(400);
         when(memberService.applyMemberPriceDiscount(10001L, 400)).thenReturn(400);
@@ -138,6 +149,7 @@ class SettlementConfirmDisputeTest {
         sku.setSkuName("A");
 
         when(orderRepository.findBySessionId("S-D2")).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate("O-D2")).thenReturn(Optional.of(order));
         when(skuCatalogRepository.findById("SKU-A")).thenReturn(Optional.of(sku));
         when(skuPricingService.resolveUnitPriceCents("CAB-1", sku)).thenReturn(400);
         when(memberService.applyMemberPriceDiscount(10001L, 400)).thenReturn(400);
@@ -184,6 +196,7 @@ class SettlementConfirmDisputeTest {
         sku.setSkuName("A");
 
         when(orderRepository.findBySessionId("S-D3")).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate("O-D3")).thenReturn(Optional.of(order));
         when(skuCatalogRepository.findById("SKU-A")).thenReturn(Optional.of(sku));
         when(skuPricingService.resolveUnitPriceCents("CAB-1", sku)).thenReturn(400);
         when(memberService.applyMemberPriceDiscount(10001L, 400)).thenReturn(400);
@@ -231,6 +244,7 @@ class SettlementConfirmDisputeTest {
         sku.setSkuName("A");
 
         when(orderRepository.findBySessionId("S-D4")).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate("O-D4")).thenReturn(Optional.of(order));
         when(skuCatalogRepository.findById("SKU-A")).thenReturn(Optional.of(sku));
         when(skuPricingService.resolveUnitPriceCents("CAB-1", sku)).thenReturn(400);
         when(memberService.applyMemberPriceDiscount(10001L, 400)).thenReturn(400);
