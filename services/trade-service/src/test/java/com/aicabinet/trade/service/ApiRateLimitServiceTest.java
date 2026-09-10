@@ -29,7 +29,7 @@ class ApiRateLimitServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2));
+        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 20, 30));
     }
 
     @Test
@@ -58,7 +58,7 @@ class ApiRateLimitServiceTest {
 
     @Test
     void assertOrderPayAllowed_whenDisabled_skipsRedis() {
-        service = new ApiRateLimitService(redisson, new RateLimitProperties(false, 2, 2));
+        service = new ApiRateLimitService(redisson, new RateLimitProperties(false, 2, 2, 20, 30));
 
         service.assertOrderPayAllowed(10001L);
 
