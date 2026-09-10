@@ -384,10 +384,12 @@ async function load() {
 
 async function loadMore() {
   if (!hasMore.value || loadingMore.value || loading.value) return;
+  const seq = ++loadSeq;
   loadingMore.value = true;
   try {
     const next = pageIndex.value + 1;
     const res = await merchantApi.orders(orderParams(next, PAGE_SIZE));
+    if (seq !== loadSeq) return;
     const items = Array.isArray(res) ? res : res?.items || [];
     if (!items.length) {
       hasMore.value = false;
@@ -401,9 +403,10 @@ async function loadMore() {
     listTotal.value = total;
     hasMore.value = list.value.length < total && items.length >= PAGE_SIZE;
   } catch (e) {
+    if (seq !== loadSeq) return;
     uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
   } finally {
-    loadingMore.value = false;
+    if (seq === loadSeq) loadingMore.value = false;
   }
 }
 

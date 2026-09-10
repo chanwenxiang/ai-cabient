@@ -1,4 +1,12 @@
 import { localizeApiMessage } from '@aicabinet/shared-uni/format';
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+function isRetriableTransportError(err) {
+    if (!(err instanceof Error))
+        return false;
+    return err.message.includes('请求超时') || err.message.includes('网络错误');
+}
 export class ApiClient {
     constructor(opts) {
         this.refreshPromise = null;
@@ -10,15 +18,38 @@ export class ApiClient {
         this.hasSession = opts.hasSession ?? (() => Boolean(this.getToken()));
         this.fetchImpl = opts.fetchImpl ?? fetch.bind(globalThis);
         this.timeoutMs = opts.timeoutMs ?? 30000;
+        this.getRetryCount = Math.max(0, opts.getRetryCount ?? 2);
     }
     async request(path, method = 'GET', body, auth = true, retried = false) {
+        const methodUpper = String(method || 'GET').toUpperCase();
+        const canRetry = methodUpper === 'GET' || methodUpper === 'HEAD';
+        const maxAttempts = canRetry ? 1 + this.getRetryCount : 1;
+        let lastError;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            try {
+                return await this.requestOnce(path, method, body, auth, retried);
+            }
+            catch (err) {
+                lastError = err;
+                if (!canRetry || !isRetriableTransportError(err) || attempt >= maxAttempts - 1) {
+                    throw err;
+                }
+                await sleep(200 * 2 ** attempt);
+            }
+        }
+        throw lastError instanceof Error ? lastError : new Error('网络错误，请稍后重试');
+    }
+    async requestOnce(path, method = 'GET', body, auth = true, retried = false) {
         // X-Requested-With：Cookie 会话的写请求需携带同源标记（后端 CSRF 双保险校验）
         const headers = {
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest'
         };
-        if (auth && this.getToken())
-            headers.Authorization = `Bearer ${this.getToken()}`;
+        if (auth) {
+            const token = this.getToken();
+            if (token)
+                headers.Authorization = `Bearer ${token}`;
+        }
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), this.timeoutMs);
         let res;
@@ -44,7 +75,7 @@ export class ApiClient {
         if (res.status === 401 && auth && !retried) {
             const ok = await this.refreshSilently();
             if (ok)
-                return this.request(path, method, body, auth, true);
+                return this.requestOnce(path, method, body, auth, true);
         }
         // 401 = session invalid → clear & redirect. 403 = missing permission for this API only.
         if (res.status === 401) {
@@ -67,7 +98,7 @@ export class ApiClient {
             return this.refreshPromise;
         this.refreshPromise = (async () => {
             try {
-                const data = await this.request('/api/v2/auth/refresh', 'POST', undefined, true, true);
+                const data = await this.requestOnce('/api/v2/auth/refresh', 'POST', undefined, true, true);
                 this.setToken(data.token, data.userId, data.expiresInSeconds);
                 return true;
             }

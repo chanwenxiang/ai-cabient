@@ -505,6 +505,7 @@ import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type {
@@ -526,6 +527,7 @@ const route = useRoute();
 const auth = useAuthStore();
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const keyword = ref('');
 const lifecycleFilter = ref('');
 const coopFilter = ref('');
@@ -998,6 +1000,7 @@ function onBoardTab(name: string | number) {
 }
 
 async function load(showToast = false) {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const q = new URLSearchParams({
@@ -1015,6 +1018,7 @@ async function load(showToast = false) {
       `/api/v2/ops/admin/devices?${q}`,
       'GET'
     );
+    if (!loadSeq.isCurrent(seq)) return;
     devices.value = sortById(data.items || [], 'deviceId');
     total.value = data.total || 0;
     if (boardTab.value in boardCounts) {
@@ -1024,8 +1028,10 @@ async function load(showToast = false) {
     void refreshBoardCounts();
     if (showToast) ElMessage.success('已刷新');
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

@@ -216,6 +216,7 @@ import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
@@ -304,6 +305,7 @@ async function verifyUser(row: UserRow) {
 
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const keyword = ref('');
 const adjustVisible = ref(false);
 const adjustSaving = ref(false);
@@ -372,11 +374,13 @@ async function findUserById(userId: string): Promise<UserRow | null> {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const classified = classifyKeyword(keyword.value);
     if (classified.userId) {
       const hit = await findUserById(classified.userId);
+      if (!loadSeq.isCurrent(seq)) return;
       items.value = sortById(hit ? [hit] : []);
       total.value = hit ? 1 : 0;
     } else {
@@ -384,13 +388,16 @@ async function load() {
       if (classified.phone) q.set('phone', classified.phone);
       if (classified.name) q.set('name', classified.name);
       const data = await api.request<PageResult<UserRow>>(`/api/v2/ops/admin/users?${q}`, 'GET');
+      if (!loadSeq.isCurrent(seq)) return;
       items.value = sortById(data.items || []);
       total.value = data.total || 0;
     }
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

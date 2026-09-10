@@ -639,6 +639,7 @@ import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
@@ -698,6 +699,7 @@ const { playSessionVideo } = useSessionVideo();
 const auth = useAuthStore();
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const videoLoading = ref(false);
 const refundingId = ref('');
 const keyword = ref('');
@@ -1298,6 +1300,7 @@ function onHideZeroToggle() {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const q = new URLSearchParams({
@@ -1315,13 +1318,16 @@ async function load() {
       `/api/v2/ops/admin/orders?${q}`,
       'GET'
     );
+    if (!loadSeq.isCurrent(seq)) return;
     items.value = (data.items || []) as OrderSummary[];
     total.value = data.total || 0;
     clearSelection();
     await maybeOpenFocusedOrder();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

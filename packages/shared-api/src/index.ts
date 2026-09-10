@@ -18,7 +18,21 @@ export interface ApiClientOptions {
   hasSession?: () => boolean;
   /** 单次请求超时（毫秒），默认 30s */
   timeoutMs?: number;
+  /**
+   * GET/HEAD 在超时/网络错误时的额外重试次数（不含首次）。
+   * 默认 2（共最多 3 次）；写操作永不自动重试。
+   */
+  getRetryCount?: number;
   fetchImpl?: typeof fetch;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetriableTransportError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return err.message.includes('请求超时') || err.message.includes('网络错误');
 }
 
 export class ApiClient {
@@ -30,6 +44,7 @@ export class ApiClient {
   private readonly hasSession: () => boolean;
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
+  private readonly getRetryCount: number;
   private refreshPromise: Promise<boolean> | null = null;
 
   constructor(opts: ApiClientOptions) {
@@ -41,9 +56,35 @@ export class ApiClient {
     this.hasSession = opts.hasSession ?? (() => Boolean(this.getToken()));
     this.fetchImpl = opts.fetchImpl ?? fetch.bind(globalThis);
     this.timeoutMs = opts.timeoutMs ?? 30000;
+    this.getRetryCount = Math.max(0, opts.getRetryCount ?? 2);
   }
 
   async request<T>(
+    path: string,
+    method = 'GET',
+    body?: unknown,
+    auth = true,
+    retried = false
+  ): Promise<T> {
+    const methodUpper = String(method || 'GET').toUpperCase();
+    const canRetry = methodUpper === 'GET' || methodUpper === 'HEAD';
+    const maxAttempts = canRetry ? 1 + this.getRetryCount : 1;
+    let lastError: unknown;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        return await this.requestOnce<T>(path, method, body, auth, retried);
+      } catch (err) {
+        lastError = err;
+        if (!canRetry || !isRetriableTransportError(err) || attempt >= maxAttempts - 1) {
+          throw err;
+        }
+        await sleep(200 * 2 ** attempt);
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error('网络错误，请稍后重试');
+  }
+
+  private async requestOnce<T>(
     path: string,
     method = 'GET',
     body?: unknown,
@@ -81,7 +122,7 @@ export class ApiClient {
     const json = (await res.json().catch(() => ({}))) as ApiResponse<T>;
     if (res.status === 401 && auth && !retried) {
       const ok = await this.refreshSilently();
-      if (ok) return this.request(path, method, body, auth, true);
+      if (ok) return this.requestOnce(path, method, body, auth, true);
     }
     // 401 = session invalid → clear & redirect. 403 = missing permission for this API only.
     if (res.status === 401) {
@@ -103,7 +144,7 @@ export class ApiClient {
     if (this.refreshPromise) return this.refreshPromise;
     this.refreshPromise = (async () => {
       try {
-        const data = await this.request<LoginResponse>(
+        const data = await this.requestOnce<LoginResponse>(
           '/api/v2/auth/refresh',
           'POST',
           undefined,

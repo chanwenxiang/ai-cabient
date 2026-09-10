@@ -671,6 +671,7 @@ import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
 import { disputeAmountDiffNote } from '@/utils/dispute-amount-note';
@@ -703,6 +704,7 @@ const { auth, canAccessPath, goPath } = useNavAccess();
 const { playSessionVideo, fetchSessionVideoBlob } = useSessionVideo();
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const videoLoading = ref(false);
 const videoAttempted = ref(false);
 const embedVideoUrl = ref('');
@@ -1421,22 +1423,27 @@ async function applyNumericKeywordFallback() {
 }
 
 async function load(showToast = false) {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const data = await api.request<PageResult<DisputeTicketDto>>(
       `/api/v2/ops/disputes?${buildDisputeListQuery()}`,
       'GET'
     );
+    if (!loadSeq.isCurrent(seq)) return;
     items.value = sortById(data.items || [], 'ticketId');
     total.value = data.total || 0;
     // 关键词若是工单号（雪花）被当成 sessionId 会空；回退按 ticketId 拉详情
     await applyNumericKeywordFallback();
+    if (!loadSeq.isCurrent(seq)) return;
     clearSelection();
     await openFocusedTicket();
     if (showToast) ElMessage.success('已刷新');
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }

@@ -18,6 +18,11 @@ export interface ApiClientOptions {
     hasSession?: () => boolean;
     /** 单次请求超时（毫秒），默认 30s */
     timeoutMs?: number;
+    /**
+     * GET/HEAD 在超时/网络错误时的额外重试次数（不含首次）。
+     * 默认 2（共最多 3 次）；写操作永不自动重试。
+     */
+    getRetryCount?: number;
     fetchImpl?: typeof fetch;
 }
 export declare class ApiClient {
@@ -29,9 +34,11 @@ export declare class ApiClient {
     private readonly hasSession;
     private readonly fetchImpl;
     private readonly timeoutMs;
+    private readonly getRetryCount;
     private refreshPromise;
     constructor(opts: ApiClientOptions);
     request<T>(path: string, method?: string, body?: unknown, auth?: boolean, retried?: boolean): Promise<T>;
+    private requestOnce;
     refreshSilently(): Promise<boolean>;
     loginByPassword(phone: string, password: string, captcha?: {
         captchaId: string;
