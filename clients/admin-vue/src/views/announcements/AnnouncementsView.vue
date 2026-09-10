@@ -279,7 +279,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { EditPen, FolderOpened, Promotion, Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
-import type { AnnouncementDto, PageResult } from '@aicabinet/shared-types';
+import type { OpenApiAnnouncement, OpenApiPageResultAnnouncement } from '@aicabinet/shared-types';
 import { get, post, put } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
@@ -304,7 +304,7 @@ const loading = ref(false);
 const listHydrated = ref(false);
 const saving = ref(false);
 const error = ref('');
-const list = ref<AnnouncementDto[]>([]);
+const list = ref<OpenApiAnnouncement[]>([]);
 const total = ref(0);
 const page = ref(1);
 const size = ref(20);
@@ -314,7 +314,7 @@ const priorityFilter = ref('');
 const showForm = ref(false);
 const editingId = ref<number | null>(null);
 const previewVisible = ref(false);
-const previewRow = ref<AnnouncementDto | null>(null);
+const previewRow = ref<OpenApiAnnouncement | null>(null);
 const form = ref<AnnouncementForm>({
   title: '',
   content: '',
@@ -332,7 +332,7 @@ const filtered = computed(() => sortById(list.value));
 const paged = computed(() => filtered.value);
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<AnnouncementDto>((r) => r.announceId ?? `${r.title}-${r.publishAt}`);
+  useTableSelection<OpenApiAnnouncement>((r) => r.announceId ?? `${r.title}-${r.publishAt}`);
 
 const priorityMap: Record<string, string> = Object.fromEntries(
   dictOptions('dispute_priority').map((o) => [o.value, o.label])
@@ -387,7 +387,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         const title = row['标题'] || row.title;
         if (!title?.trim()) continue;
         // 后端 create 固定为 DRAFT，忽略 body.publishAt；需发布时再调 publish
-        const created = await post<AnnouncementDto>('/api/v2/ops/announcements', {
+        const created = await post<OpenApiAnnouncement>('/api/v2/ops/announcements', {
           title: title.trim(),
           content: row['内容'] || row.content || '',
           targetScope: scopeCodeByLabel[row['目标'] || row.targetScope] || 'ALL',
@@ -465,9 +465,7 @@ async function load() {
     if (keyword.value.trim()) q.set('q', keyword.value.trim());
     if (statusFilter.value) q.set('status', statusFilter.value);
     if (priorityFilter.value) q.set('priority', priorityFilter.value);
-    const res = await get<
-      PageResult<AnnouncementDto> & { items?: AnnouncementDto[]; total?: number }
-    >(`/api/v2/ops/announcements?${q}`);
+    const res = await get<OpenApiPageResultAnnouncement>(`/api/v2/ops/announcements?${q}`);
     list.value = res.data?.items ?? [];
     total.value = Number(res.data?.total ?? 0);
     clearSelection();
@@ -500,7 +498,7 @@ function formatTime(t: string) {
   return t.substring(0, 16).replace('T', ' ');
 }
 
-function rowActions(row: AnnouncementDto): TableAction[] {
+function rowActions(row: OpenApiAnnouncement): TableAction[] {
   const actions: TableAction[] = [{ key: 'preview', label: '查看', icon: View, type: 'primary' }];
   if (row.status !== 'ARCHIVED' && auth.hasPerm('ops:announcement:edit')) {
     actions.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
@@ -514,7 +512,7 @@ function rowActions(row: AnnouncementDto): TableAction[] {
   return actions;
 }
 
-function onRowAction(key: string, row: AnnouncementDto) {
+function onRowAction(key: string, row: OpenApiAnnouncement) {
   if (key === 'preview') onPreview(row);
   else if (key === 'edit') openEdit(row);
   else if (key === 'publish') onPublish(row);
@@ -527,8 +525,8 @@ function openCreate() {
   showForm.value = true;
 }
 
-function openEdit(row: AnnouncementDto) {
-  editingId.value = row.announceId;
+function openEdit(row: OpenApiAnnouncement) {
+  editingId.value = row.announceId ?? null;
   form.value = {
     title: row.title || '',
     content: row.content || '',
@@ -575,7 +573,7 @@ async function onPublishSubmit() {
   }
   saving.value = true;
   try {
-    const res = await post<AnnouncementDto>('/api/v2/ops/announcements', formBody());
+    const res = await post<OpenApiAnnouncement>('/api/v2/ops/announcements', formBody());
     const id = res?.data?.announceId;
     if (id) {
       await post(`/api/v2/ops/announcements/${id}/publish`);
@@ -592,14 +590,14 @@ async function onPublishSubmit() {
   }
 }
 
-function onPreview(row: AnnouncementDto) {
+function onPreview(row: OpenApiAnnouncement) {
   previewRow.value = row;
   previewVisible.value = true;
 }
 
-async function onPublish(row: AnnouncementDto) {
+async function onPublish(row: OpenApiAnnouncement) {
   try {
-    await post(`/api/v2/ops/announcements/${row.announceId}/publish`);
+    await post(`/api/v2/ops/announcements/${row.announceId ?? 0}/publish`);
     ElMessage.success('发布成功');
     load();
   } catch (e: unknown) {
@@ -607,10 +605,10 @@ async function onPublish(row: AnnouncementDto) {
   }
 }
 
-async function onArchive(row: AnnouncementDto) {
+async function onArchive(row: OpenApiAnnouncement) {
   try {
     await ElMessageBox.confirm(`确认归档公告「${row.title}」？`, '归档公告');
-    await post(`/api/v2/ops/announcements/${row.announceId}/archive`);
+    await post(`/api/v2/ops/announcements/${row.announceId ?? 0}/archive`);
     ElMessage.success('归档成功');
     await load();
   } catch (e: unknown) {

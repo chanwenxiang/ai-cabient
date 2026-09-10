@@ -4,6 +4,9 @@ export interface ApiResponse<T> {
   data: T;
 }
 
+/**
+ * @deprecated 优先使用 OpenApiPageResultOf&lt;T&gt; 或具体 OpenApiPageResult*（springdoc 分页壳）。
+ */
 export interface PageResult<T> {
   items: T[];
   total: number;
@@ -205,48 +208,8 @@ export interface AdCampaignDto {
   completeCount?: number;
 }
 
-export interface DeviceInfo {
-  deviceId: string;
-  deviceName?: string;
-  deviceType?: string;
-  merchantId?: string;
-  merchantName?: string;
-  onlineStatus?: string;
-  activeSessionId?: string;
-  activeSessionState?: string;
-  updatedAt?: string;
-  /** 设备覆盖：AUTO_REFUND | DISPUTE_ONLY | null/空=继承全局 */
-  refundPolicy?: string | null;
-  /** 生效策略（已解析全局默认） */
-  effectiveRefundPolicy?: string;
-  /** 锁机停售 */
-  salesLocked?: boolean;
-  /** 停售原因 */
-  salesLockReason?: string;
-  replenishmentInProgress?: boolean;
-  /** INBOUND|IDLE|DEPLOYED|RETURNING|RETIRED */
-  lifecycleStatus?: string;
-  imei?: string;
-  assetOwner?: string;
-  /** SELF|FRANCHISE|CONSIGN */
-  coopMode?: string;
-  depositCents?: number;
-  dataFeeCents?: number;
-  opsTags?: string;
-  routeCode?: string;
-  latitude?: number;
-  longitude?: number;
-  address?: string;
-  deployedAt?: string;
-  lifecycleRemark?: string;
-  /** 柜机最近上报温度（℃） */
-  currentTempC?: number | null;
-  /** 固件版本 */
-  firmwareVersion?: string | null;
-  /** 商户端列表可选：缺货/低库存货道数 */
-  oosSlotCount?: number | null;
-  lowStockSlotCount?: number | null;
-}
+/** @deprecated 使用 OpenApiAdminDeviceDto（springdoc AdminDeviceDto） */
+export type DeviceInfo = import('./generated/admin-models').OpenApiAdminDeviceDto;
 
 export interface DeviceSlot {
   deviceId: string;
@@ -462,6 +425,17 @@ export type {
   OpenApiMerchantDto,
   OpenApiMerchantTaxProfileDto
 } from './generated/merchant-ops-models';
+
+export type {
+  OpenApiAdminDeviceDto,
+  OpenApiPageResultAdminDeviceDto,
+  OpenApiCouponDefinitionDto,
+  OpenApiPromotionActivityDto,
+  OpenApiPageResultPromotionActivityDto,
+  OpenApiAnnouncement,
+  OpenApiPageResultAnnouncement,
+  OpenApiPageResultOf
+} from './generated/admin-models';
 
 export interface DisputeSummary {
   ticketId: string;
@@ -991,51 +965,14 @@ export interface UserFeedbackDto {
   createdAt?: string;
 }
 
-export interface AnnouncementDto {
-  announceId: number;
-  title: string;
-  content: string;
-  announceType?: string;
-  targetScope?: string;
-  priority?: string;
-  status?: string;
-  publishAt?: string;
-  expireAt?: string;
-}
+/** @deprecated 使用 OpenApiAnnouncement（springdoc Announcement） */
+export type AnnouncementDto = import('./generated/admin-models').OpenApiAnnouncement;
 
-/** 优惠券定义（对齐 OpenAPI CouponDefinitionDto） */
-export interface CouponDefinitionDto {
-  couponDefId: number;
-  couponName?: string;
-  couponType?: string;
-  denominationCents?: number;
-  minSpendCents?: number;
-  discountPercent?: number | null;
-  validityDays?: number;
-  maxIssueCount?: number;
-  issuedCount?: number;
-  status?: string;
-  description?: string;
-  activityId?: number | null;
-}
+/** @deprecated 使用 OpenApiCouponDefinitionDto（springdoc CouponDefinitionDto） */
+export type CouponDefinitionDto = import('./generated/admin-models').OpenApiCouponDefinitionDto;
 
-/** 营销活动（对齐 OpenAPI PromotionActivityDto） */
-export interface PromotionActivityDto {
-  activityId: number;
-  activityName?: string;
-  activityType?: string;
-  status?: string;
-  startTime?: string;
-  endTime?: string;
-  budgetCents?: number;
-  usedCents?: number;
-  userLimit?: number;
-  deviceScope?: string;
-  /** 设备范围等 JSON/配置 */
-  ruleConfig?: string;
-  description?: string;
-  deviceIds?: string[];
-}
+/** @deprecated 使用 OpenApiPromotionActivityDto（springdoc PromotionActivityDto） */
+export type PromotionActivityDto = import('./generated/admin-models').OpenApiPromotionActivityDto;
 
 export interface DisputeTicketDto {
   ticketId: string;

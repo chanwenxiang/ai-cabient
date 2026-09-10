@@ -368,7 +368,10 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { errorMessage } from '@/utils/error-message';
-import type { CouponDefinitionDto, PromotionActivityDto } from '@aicabinet/shared-types';
+import type {
+  OpenApiCouponDefinitionDto,
+  OpenApiPromotionActivityDto
+} from '@aicabinet/shared-types';
 
 const route = useRoute();
 const router = useRouter();
@@ -377,14 +380,14 @@ const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('couponDefId
 const loading = ref(false);
 const listHydrated = ref(false);
 const saving = ref(false);
-const list = ref<CouponDefinitionDto[]>([]);
+const list = ref<OpenApiCouponDefinitionDto[]>([]);
 const total = ref(0);
 const keyword = ref('');
 const statusFilter = ref('');
 const page = ref(1);
 const size = ref(20);
-const activeCoupons = ref<CouponDefinitionDto[]>([]);
-const activityOptions = ref<PromotionActivityDto[]>([]);
+const activeCoupons = ref<OpenApiCouponDefinitionDto[]>([]);
+const activityOptions = ref<OpenApiPromotionActivityDto[]>([]);
 const showCreate = ref(false);
 const editingId = ref<number | null>(null);
 const displayList = computed(() => sortById(list.value));
@@ -393,7 +396,7 @@ async function loadActiveCoupons() {
   try {
     activeCoupons.value =
       (
-        await api.request<{ items: CouponDefinitionDto[] }>(
+        await api.request<{ items: OpenApiCouponDefinitionDto[] }>(
           '/api/v2/coupons/definitions?status=ACTIVE&page=0&size=500',
           'GET'
         )
@@ -407,7 +410,7 @@ async function loadActivityOptions() {
   try {
     activityOptions.value =
       (
-        await api.request<{ items: PromotionActivityDto[] }>(
+        await api.request<{ items: OpenApiPromotionActivityDto[] }>(
           '/api/v2/ops/promotions?page=0&size=200',
           'GET'
         )
@@ -444,11 +447,14 @@ const {
   pickSelected,
   exportButtonLabel,
   clearSelection
-} = useTableSelection<CouponDefinitionDto>((r) => r.couponDefId);
+} = useTableSelection<OpenApiCouponDefinitionDto>((r) => r.couponDefId ?? 0);
 
 async function batchDisable() {
   const targets = list.value.filter(
-    (r) => selectedIds.value.includes(r.couponDefId) && r.status === 'ACTIVE'
+    (r) =>
+      r.couponDefId != null &&
+      selectedIds.value.includes(r.couponDefId) &&
+      r.status === 'ACTIVE'
   );
   if (!targets.length) return ElMessage.warning('请勾选已启用的优惠券');
   try {
@@ -543,7 +549,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
       for (const row of rows) {
         const name = row['名称'] || row.couponName;
         if (!name?.trim()) continue;
-        const created = await api.request<CouponDefinitionDto>(
+        const created = await api.request<OpenApiCouponDefinitionDto>(
           '/api/v2/coupons/definitions',
           'POST',
           {
@@ -579,7 +585,7 @@ function yuan(cents: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
 }
 
-function rowActions(row: CouponDefinitionDto): TableAction[] {
+function rowActions(row: OpenApiCouponDefinitionDto): TableAction[] {
   const acts: TableAction[] = [];
   if (auth.hasPerm('ops:coupon:edit')) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
@@ -602,11 +608,11 @@ const showActionColumn = computed(() =>
   displayList.value.some((row) => rowActions(row).length > 0)
 );
 
-async function onAction(key: string, row: CouponDefinitionDto) {
+async function onAction(key: string, row: OpenApiCouponDefinitionDto) {
   if (key === 'edit') {
     openEdit(row);
   } else if (key === 'issue') {
-    issueForm.value.couponDefId = row.couponDefId;
+    issueForm.value.couponDefId = row.couponDefId ?? null;
     showIssue.value = true;
   } else if (key === 'toggle') {
     await onToggleStatus(row);
@@ -630,8 +636,8 @@ function openCreate() {
   showCreate.value = true;
 }
 
-function openEdit(row: CouponDefinitionDto) {
-  editingId.value = row.couponDefId;
+function openEdit(row: OpenApiCouponDefinitionDto) {
+  editingId.value = row.couponDefId ?? null;
   createForm.value = {
     couponName: row.couponName || '',
     couponType: row.couponType || 'AMOUNT_OFF',
@@ -650,7 +656,7 @@ function openEdit(row: CouponDefinitionDto) {
 async function load() {
   loading.value = true;
   try {
-    const data = await api.request<{ items: CouponDefinitionDto[]; total: number }>(
+    const data = await api.request<{ items: OpenApiCouponDefinitionDto[]; total: number }>(
       `/api/v2/coupons/definitions?${queryParams()}`,
       'GET'
     );
@@ -786,7 +792,7 @@ async function onBatchIssueSubmit() {
   }
 }
 
-async function onToggleStatus(row: CouponDefinitionDto) {
+async function onToggleStatus(row: OpenApiCouponDefinitionDto) {
   const next = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
   const action = displayLabel('enable_status', next);
   try {
@@ -794,7 +800,7 @@ async function onToggleStatus(row: CouponDefinitionDto) {
       type: 'warning'
     });
     await api.request(
-      `/api/v2/coupons/definitions/${row.couponDefId}/status?status=${next}`,
+      `/api/v2/coupons/definitions/${row.couponDefId ?? 0}/status?status=${next}`,
       'PUT'
     );
     ElMessage.success(`已${action}`);
