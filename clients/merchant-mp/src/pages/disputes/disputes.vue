@@ -251,7 +251,7 @@ import {
   type MerchantDisputeTicket,
   type MerchantDisputeDetailView
 } from '@/utils/merchant-api';
-import { useMerchantMe } from '@/composables/useMerchantMe';
+import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { promptText } from '@/utils/text-prompt';
 import type { MerchantMe } from '@aicabinet/shared-types';
 
@@ -319,11 +319,11 @@ async function refreshDisputesMerchantMe(seq: number): Promise<boolean> {
     await refreshMe();
   } catch {
     if (!uni.getStorageSync('merchant_token')) return false;
-    me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+    seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return false;
   if (!me.value) {
-    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+    seedMerchantMeDisplayCache(me);
   }
   return true;
 }

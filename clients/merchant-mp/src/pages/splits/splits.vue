@@ -47,7 +47,7 @@
 import { ref } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
-import { useMerchantMe } from '@/composables/useMerchantMe';
+import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, displayBizNo, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 import type { MerchantMe, RevenueSplit } from '@aicabinet/shared-types';
@@ -136,7 +136,7 @@ async function load() {
     }
   } catch (e) {
     if (!uni.getStorageSync('merchant_token')) return;
-    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+    seedMerchantMeDisplayCache(me);
     list.value = [];
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {

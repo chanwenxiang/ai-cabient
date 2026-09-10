@@ -162,7 +162,7 @@ import {
 import { displayLabel } from '@aicabinet/shared-dict';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi, downloadAuthedFile, openExportedFile } from '@/utils/merchant-api';
-import { useMerchantMe } from '@/composables/useMerchantMe';
+import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type { MerchantMe, OpenApiOrderReadModelMerchant } from '@aicabinet/shared-types';
 import { cleanLineSummary, skuImageFor } from '@aicabinet/shared-uni/product-image';
 
@@ -317,11 +317,11 @@ async function ensureOrdersMerchantMe(seq: number): Promise<boolean> {
     await refreshMe();
   } catch {
     if (!uni.getStorageSync('merchant_token')) return false;
-    me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+    seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return false;
   if (!me.value) {
-    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+    seedMerchantMeDisplayCache(me);
   }
   return true;
 }

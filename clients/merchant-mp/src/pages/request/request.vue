@@ -172,7 +172,7 @@ import {
   type MerchantReplenishmentRequest,
   type MerchantReplenishmentSuggest
 } from '@/utils/merchant-api';
-import { useMerchantMe } from '@/composables/useMerchantMe';
+import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import type { DeviceInfo, DeviceSlot, MerchantMe } from '@aicabinet/shared-types';
 
@@ -271,7 +271,7 @@ async function bootstrap(preferDeviceId?: string) {
     await refreshMe();
   } catch {
     if (!uni.getStorageSync('merchant_token')) return;
-    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+    seedMerchantMeDisplayCache(me);
   }
   if (!canView.value) {
     uni.showToast({ title: '无补货查看权限', icon: 'none' });

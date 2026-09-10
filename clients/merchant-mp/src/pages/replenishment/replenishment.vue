@@ -625,7 +625,7 @@ import {
   type DeviceLowStockItem,
   type MerchantReplenishmentEfficiency
 } from '@/utils/merchant-api';
-import { useMerchantMe } from '@/composables/useMerchantMe';
+import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { promptText } from '@/utils/text-prompt';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
@@ -1152,15 +1152,11 @@ async function ensureReplenishmentMe(seq: number): Promise<boolean> {
     await refreshMe();
   } catch {
     if (!uni.getStorageSync('merchant_token')) return false;
-    me.value =
-      me.value ||
-      (uni.getStorageSync('merchant_me') as import('@aicabinet/shared-types').MerchantMe) ||
-      null;
+    seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return false;
   if (!me.value) {
-    me.value =
-      (uni.getStorageSync('merchant_me') as import('@aicabinet/shared-types').MerchantMe) || null;
+    seedMerchantMeDisplayCache(me);
   }
   return true;
 }

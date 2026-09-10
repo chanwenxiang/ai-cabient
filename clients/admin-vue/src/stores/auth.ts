@@ -9,34 +9,11 @@ import {
   logoutSession
 } from '@/api/client';
 import { loadRuntimeDict, resetRuntimeDict } from '@/stores/dict-runtime';
+import { permissionsAfterSoftFail } from '@/utils/rbac-cache-policy';
 
 const PERM_KEY = 'admin_permissions';
 const NAV_KEY = 'admin_active_nav';
 const TWO_FACTOR_KEY = 'admin_2fa_challenge';
-
-function readCachedPermissions(): string[] {
-  try {
-    const raw = localStorage.getItem(PERM_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string') : [];
-  } catch {
-    localStorage.removeItem(PERM_KEY);
-    return [];
-  }
-}
-
-function readCachedActiveNav(): string[] {
-  try {
-    const raw = localStorage.getItem(NAV_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string') : [];
-  } catch {
-    localStorage.removeItem(NAV_KEY);
-    return [];
-  }
-}
 
 export interface OpsProfile {
   userId: string;
@@ -52,11 +29,14 @@ export interface OpsProfile {
 }
 
 export const useAuthStore = defineStore('auth', () => {
+  // 不从 localStorage 初始化权限：避免篡改缓存跳过路由 restore、抬权菜单
   const userId = ref(localStorage.getItem('admin_userId') || '');
-  const permissions = ref<string[]>(readCachedPermissions());
+  const permissions = ref<string[]>([]);
   /** ACTIVE 菜单/目录权限码（系统级，停用后对所有人含超管隐藏导航） */
-  const activeNavPerms = ref<string[]>(readCachedActiveNav());
-  const activeNavLoaded = ref(readCachedActiveNav().length > 0);
+  const activeNavPerms = ref<string[]>([]);
+  const activeNavLoaded = ref(false);
+  /** 本会话是否已成功从服务端拉取过 permissions */
+  const rbacHydrated = ref(false);
   const phone = ref(localStorage.getItem('admin_phone') || '');
   const profile = ref<OpsProfile | null>(null);
   /** 首屏 /me 未完成前勿用「未分配角色 / 运营账号」等默认文案占位 */
@@ -120,17 +100,18 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const perms = await api.request<string[]>('/api/v2/ops/admin/rbac/me/permissions', 'GET');
       permissions.value = perms || [];
+      rbacHydrated.value = true;
       localStorage.setItem(PERM_KEY, JSON.stringify(permissions.value));
     } catch (e) {
       // 401 already clears session via ApiClient; keep token only for soft failures
       const msg = e instanceof Error ? e.message : '';
       if (/401|登录|未授权|失效/i.test(msg) || !isLoggedIn()) {
         permissions.value = [];
+        rbacHydrated.value = false;
         localStorage.setItem(PERM_KEY, '[]');
         return;
       }
-      // Keep last-known perms from localStorage if soft-fail (network blip)
-      permissions.value = readCachedPermissions();
+      permissions.value = permissionsAfterSoftFail(rbacHydrated.value, permissions.value);
     }
   }
 
@@ -148,10 +129,9 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.setItem(NAV_KEY, '[]');
         return;
       }
-      // Soft-fail: keep cache; if never loaded, don't block all nav
-      const cached = readCachedActiveNav();
-      if (cached.length) {
-        activeNavPerms.value = cached;
+      // 未同步过：fail-closed（空 ACTIVE 列表），避免未加载时 isNavMenuActive 全放行
+      if (!activeNavLoaded.value) {
+        activeNavPerms.value = [];
         activeNavLoaded.value = true;
       }
     }
@@ -253,10 +233,12 @@ export const useAuthStore = defineStore('auth', () => {
     permissions.value = [];
     activeNavPerms.value = [];
     activeNavLoaded.value = false;
+    rbacHydrated.value = false;
     phone.value = '';
     profile.value = null;
     profileHydrated.value = false;
     localStorage.removeItem(NAV_KEY);
+    localStorage.removeItem(PERM_KEY);
   }
 
   function hasPerm(code?: string | null) {
@@ -272,6 +254,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   function canAccessNav(item: { perm?: string } | null | undefined) {
     if (!item) return false;
+    // 服务端 RBAC 未就绪前不放行带权限菜单（防本地缓存抬权）
+    if (item.perm && !rbacHydrated.value) return false;
     if (!hasPerm(item.perm)) return false;
     return isNavMenuActive(item.perm);
   }
@@ -294,6 +278,7 @@ export const useAuthStore = defineStore('auth', () => {
     permissions,
     activeNavPerms,
     activeNavLoaded,
+    rbacHydrated,
     phone,
     email,
     avatarUrl,

@@ -87,7 +87,7 @@ import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import type { MerchantSlotDiscrepancy } from '@/utils/merchant-api';
-import { useMerchantMe } from '@/composables/useMerchantMe';
+import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { promptText } from '@/utils/text-prompt';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
@@ -180,11 +180,11 @@ async function load() {
     await refreshMe();
   } catch {
     if (!uni.getStorageSync('merchant_token')) return;
-    me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+    seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return;
   if (!me.value) {
-    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+    seedMerchantMeDisplayCache(me);
   }
   if (!canViewAlerts.value) {
     uni.showToast({ title: '无待办权限', icon: 'none' });

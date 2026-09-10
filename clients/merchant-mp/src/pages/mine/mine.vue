@@ -160,7 +160,7 @@ import {
   requestMerchantSubscribe,
   wxLoginCode
 } from '@/utils/notify';
-import { canAccessNav, useMerchantMe } from '@/composables/useMerchantMe';
+import { canAccessNav, useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import {
   MERCHANT_BIZ_NAV,
   MERCHANT_FIELD_NAV,
@@ -259,9 +259,10 @@ onShow(async () => {
     await refreshMe();
   } catch {
     if (!uni.getStorageSync('merchant_token')) return;
-    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+    seedMerchantMeDisplayCache(me);
   }
-  const profile = me.value || ((uni.getStorageSync('merchant_me') || {}) as MerchantMe);
+  seedMerchantMeDisplayCache(me);
+  const profile = me.value || ({} as MerchantMe);
   meName.value = profile.displayName || profile.phoneNumber || '商户';
   merchantNames.value = formatMerchantNames(profile.merchants, '未绑定');
   phone.value = profile.phoneNumber || '';

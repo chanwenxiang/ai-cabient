@@ -177,7 +177,7 @@ import {
   openExportedFile,
   getToken
 } from '@/utils/merchant-api';
-import { useMerchantMe } from '@/composables/useMerchantMe';
+import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type {
   MerchantDailySettlement,
   MerchantMe,
@@ -350,7 +350,7 @@ async function load() {
     await refreshMe();
   } catch {
     if (!getToken()) return;
-    me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+    seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return;
   if (!canViewSettlements.value) {

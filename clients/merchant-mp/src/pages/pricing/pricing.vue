@@ -97,7 +97,7 @@ import { onShow } from '@dcloudio/uni-app';
 import EmptyState from '@/components/empty-state.vue';
 import { yuanToCents } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
-import { useMerchantMe, canEditPricingWithPerm } from '@/composables/useMerchantMe';
+import { useMerchantMe, canEditPricingWithPerm, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type {
   MerchantMe,
   MerchantSkuPriceChange,
@@ -221,7 +221,7 @@ async function ensurePricingAccess(seq: number): Promise<boolean> {
     await refreshMe();
   } catch {
     if (!uni.getStorageSync('merchant_token')) return false;
-    me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+    seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return false;
   if (!canView.value) {
