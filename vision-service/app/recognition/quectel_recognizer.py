@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 
 
 class QuectelRecognizer:
-    """移远端侧识别适配层占位：未接入 SDK 前始终不可用，避免静默降级。"""
+    """移远端侧识别适配层占位：未接入 SDK 前不可用，识别请求返回 need_review（不抛 500）。"""
 
     def __init__(self) -> None:
         self.endpoint = os.getenv("QUECTEL_ENDPOINT", "")
@@ -38,7 +38,35 @@ class QuectelRecognizer:
         )
         log.warning(self.load_error)
 
-    def recognize(self, session_id: str, video_uri: str | None,
-                  device_id: str | None = None,
-                  mode: str | None = None) -> RecognitionOutput:
-        raise NotImplementedError(self.load_error)
+    def _pending_review(self, session_id: str) -> RecognitionOutput:
+        log.warning("Quectel stub → need_review session=%s", session_id)
+        return RecognitionOutput(
+            items=[],
+            overall_confidence=0.0,
+            model_version=self.model_version,
+            need_review=True,
+            detected_classes=["quectel-pending"],
+        )
+
+    def recognize(
+        self,
+        session_id: str,
+        video_uri: str | None,
+        device_id: str | None = None,
+        recognition_mode: str | None = None,
+        mode: str | None = None,
+        **_kwargs,
+    ) -> RecognitionOutput:
+        # 兼容 main.py 的 recognition_mode 与旧 mode 参数；未实现 SDK 时不抛 NotImplementedError
+        _ = (video_uri, device_id, recognition_mode, mode)
+        return self._pending_review(session_id)
+
+    def recognize_upload(
+        self,
+        session_id: str,
+        data: bytes,
+        filename: str,
+        device_id: str | None = None,
+    ) -> RecognitionOutput:
+        _ = (data, filename, device_id)
+        return self._pending_review(session_id)

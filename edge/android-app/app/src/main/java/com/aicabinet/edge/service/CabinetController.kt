@@ -18,6 +18,8 @@ import com.aicabinet.edge.video.SessionVideoRecorder
 import com.aicabinet.edge.video.VideoClipJson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import java.util.Collections
+import java.util.LinkedHashSet
 
 class CabinetController(
     private val context: Context,
@@ -34,6 +36,9 @@ class CabinetController(
     private val minioUploader = MinioUploader()
     private val offlineQueue = OfflineUploadQueue(appContext, minioUploader)
     private lateinit var mqtt: MqttDeviceClient
+    /** 近期已处理的开门 commandId，防 MQTT 重投重复开锁 */
+    private val recentCommandIds: MutableSet<String> =
+        Collections.synchronizedSet(LinkedHashSet())
 
     fun start() {
         if (!useMockDriver) {
@@ -69,6 +74,20 @@ class CabinetController(
 
     fun mockDriverEnabled(): Boolean = useMockDriver
 
+    private fun rememberCommand(commandId: String): Boolean {
+        if (commandId.isBlank()) return true
+        synchronized(recentCommandIds) {
+            if (!recentCommandIds.add(commandId)) return false
+            while (recentCommandIds.size > MAX_RECENT_COMMANDS) {
+                val iterator = recentCommandIds.iterator()
+                if (!iterator.hasNext()) break
+                iterator.next()
+                iterator.remove()
+            }
+            return true
+        }
+    }
+
     private fun handleOpenDoor(cmd: MqttDeviceClient.OpenDoorCommand) {
         scope.launch {
             handleOpenDoorInternal(cmd)
@@ -76,9 +95,12 @@ class CabinetController(
     }
 
     private suspend fun handleOpenDoorInternal(cmd: MqttDeviceClient.OpenDoorCommand) {
+        if (!rememberCommand(cmd.commandId)) {
+            Log.w(TAG, "duplicate OPEN_DOOR ignored commandId=${cmd.commandId}")
+            return
+        }
         Log.i(TAG, "OPEN_DOOR session=${cmd.sessionId} operator=${cmd.operatorMode}")
         DeviceStatusHub.setDoorState(DoorState.OPENING, cmd.sessionId, "收到开门指令")
-        mqtt.publishAck(cmd.commandId, true)
 
         if (!cmd.operatorMode) {
             videoRecorder.start(cmd.sessionId)
@@ -90,6 +112,8 @@ class CabinetController(
             DeviceStatusHub.setError("开锁失败: ${it.message}")
             return
         }
+        // 仅在开锁成功后 ACK，避免先 success 再 failure 双 ACK
+        mqtt.publishAck(cmd.commandId, true)
         mqtt.publishDoorEvent(cmd.sessionId, DoorState.OPEN.name)
         DeviceStatusHub.setDoorState(DoorState.OPEN, cmd.sessionId, "门已开")
 
@@ -155,6 +179,7 @@ class CabinetController(
 
     companion object {
         private const val TAG = "CabinetController"
+        private const val MAX_RECENT_COMMANDS = 64
     }
 }
 

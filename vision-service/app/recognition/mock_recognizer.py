@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from pathlib import Path
 
 from app.recognition.mapping_client import fetch_default_sku, fetch_inventory_snapshot
@@ -11,6 +12,19 @@ from app.recognition.types import RecognizedItem, RecognitionOutput
 from app.storage import VIDEO_CACHE_DIR
 
 log = logging.getLogger(__name__)
+
+_SAFE_SESSION_STEM = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+def safe_session_file_stem(session_id: str) -> str:
+    """上传落盘用安全文件名，防 session_id 路径穿越。"""
+    raw = (session_id or "").strip()
+    if _SAFE_SESSION_STEM.match(raw) and ".." not in raw:
+        return raw
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", raw)[:128].strip("._-")
+    if not cleaned or cleaned in {".", ".."} or ".." in cleaned:
+        return "upload"
+    return cleaned
 
 MOCK_SKU = os.getenv("MOCK_SKU_ID", "SKU-DEMO-001")
 MOCK_ENABLED = os.getenv("MOCK_ENABLED", "true").lower() == "true"
@@ -71,12 +85,15 @@ class MockRecognizer:
         filename: str,
         device_id: str | None = None,
     ) -> RecognitionOutput:
-        upload_dir = Path(VIDEO_CACHE_DIR) / "uploads"
+        upload_dir = (Path(VIDEO_CACHE_DIR) / "uploads").resolve()
         upload_dir.mkdir(parents=True, exist_ok=True)
         ext = Path(filename).suffix.lower() if filename else ".jpg"
         if ext not in {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".mp4", ".avi", ".mov"}:
             ext = ".jpg"
-        local = upload_dir / f"{session_id}{ext}"
+        stem = safe_session_file_stem(session_id)
+        local = (upload_dir / f"{stem}{ext}").resolve()
+        if not str(local).startswith(str(upload_dir) + os.sep) and local != upload_dir:
+            raise ValueError("upload path escaped cache dir")
         local.write_bytes(data)
         if use_real_inference():
             return self._empty_review("edge-provider-required")

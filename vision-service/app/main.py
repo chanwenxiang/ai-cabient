@@ -1,5 +1,6 @@
 """AI 视觉服务 — 开发 mock + 端侧识别对接占位（无自研 YOLO）。"""
 
+import hmac
 import logging
 import os
 
@@ -11,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.kafka_worker import start_kafka_worker
 from app.recognition.mock_recognizer import get_force_need_review, set_force_need_review
+from app.recognition.types import RecognitionOutput
 from app.recognizer import get_recognizer
 from app.storage import OBJECT_STORAGE_ENDPOINT
 
@@ -37,6 +39,10 @@ start_kafka_worker(recognizer)
 MOCK_ENABLED = os.getenv("MOCK_ENABLED", "true").lower() == "true"
 VISION_FORCE_REAL = os.getenv("VISION_FORCE_REAL", "false").lower() == "true"
 DEV_VISION_KEY = "dev-vision-key-change-me"
+if _IS_PROD and MOCK_ENABLED:
+    raise RuntimeError("production forbids MOCK_ENABLED=true")
+if _IS_PROD and VISION_API_KEY == DEV_VISION_KEY:
+    raise RuntimeError("production forbids default VISION_API_KEY")
 if VISION_API_KEY == DEV_VISION_KEY and not MOCK_ENABLED:
     raise RuntimeError("MOCK_ENABLED=false requires a strong VISION_API_KEY (not dev default)")
 if (not MOCK_ENABLED or VISION_FORCE_REAL) and not getattr(recognizer, "available", False):
@@ -57,12 +63,18 @@ print(f"  health        = http://localhost:8082/health")
 print("=" * 60)
 
 
+def _api_key_ok(provided: str | None) -> bool:
+    if not VISION_API_KEY or not provided:
+        return False
+    return hmac.compare_digest(provided, VISION_API_KEY)
+
+
 @app.middleware("http")
 async def verify_api_key(request: Request, call_next):
     path = request.url.path
     if path.startswith("/api/"):
         provided = request.headers.get(API_KEY_HEADER)
-        if not VISION_API_KEY or provided != VISION_API_KEY:
+        if not _api_key_ok(provided):
             return JSONResponse(status_code=401, content={"detail": "unauthorized"})
     return await call_next(request)
 
@@ -126,7 +138,7 @@ def health():
 def health_detail(request: Request):
     """运维详情：需内部 API Key（与 /api/* 同级）。"""
     provided = request.headers.get(API_KEY_HEADER)
-    if not VISION_API_KEY or provided != VISION_API_KEY:
+    if not _api_key_ok(provided):
         return JSONResponse(status_code=401, content={"detail": "unauthorized"})
     deepseek_key = os.getenv("DEEPSEEK_API_KEY", "")
     return {
@@ -156,8 +168,35 @@ class ForceNeedReviewRequest(BaseModel):
 @app.post("/api/v2/vision/debug/force-need-review")
 def debug_force_need_review(req: ForceNeedReviewRequest):
     """Local/E2E helper: toggle mock need_review without recreating the container."""
+    if _IS_PROD or not MOCK_ENABLED:
+        raise HTTPException(status_code=403, detail="debug endpoint disabled")
     enabled = set_force_need_review(req.enabled)
     return {"ok": True, "mock_force_need_review": enabled}
+
+
+def _empty_need_review(session_id: str, reason: str) -> RecognitionOutput:
+    return RecognitionOutput(
+        items=[],
+        overall_confidence=0.0,
+        model_version=reason,
+        need_review=True,
+        detected_classes=[reason],
+    )
+
+
+def _run_recognize(
+    session_id: str,
+    video_uri: str | None,
+    device_id: str | None,
+    recognition_mode: str | None,
+) -> RecognitionOutput:
+    try:
+        return recognizer.recognize(
+            session_id, video_uri, device_id, recognition_mode=recognition_mode or None
+        )
+    except Exception:
+        log.exception("recognize failed session=%s", session_id)
+        return _empty_need_review(session_id, "recognize-error")
 
 
 @app.post("/api/v2/vision/recognize", response_model=RecognizeResponse)
@@ -176,22 +215,16 @@ def recognize(req: RecognizeRequest):
                 continue
             cam = clip.get("camera", "?")
             sid = f"{req.session_id}:{cam}"
-            outputs.append(
-                recognizer.recognize(sid, uri, req.device_id, recognition_mode=mode or None)
-            )
+            outputs.append(_run_recognize(sid, uri, req.device_id, mode or None))
         out = fuse_outputs(outputs, fusion_mode)
         return _to_response(req.session_id, req.video_uri, out)
 
     if fusion_mode == "MULTI" and len(clips) == 1:
         uri = clips[0].get("videoUri") or clips[0].get("video_uri")
-        out = recognizer.recognize(
-            req.session_id, uri or req.video_uri, req.device_id, recognition_mode=mode or None
-        )
+        out = _run_recognize(req.session_id, uri or req.video_uri, req.device_id, mode or None)
         return _to_response(req.session_id, uri or req.video_uri, out)
 
-    out = recognizer.recognize(
-        req.session_id, req.video_uri, req.device_id, recognition_mode=mode or None
-    )
+    out = _run_recognize(req.session_id, req.video_uri, req.device_id, mode or None)
     return _to_response(req.session_id, req.video_uri, out)
 
 
@@ -223,9 +256,13 @@ async def recognize_upload(
     filename = file.filename or "image.jpg"
     upload = recognizer.recognize_upload
     try:
-        out = upload(session_id, data, filename, device_id=device_id or None)  # type: ignore[call-arg]
-    except TypeError:
-        out = upload(session_id, data, filename)
+        try:
+            out = upload(session_id, data, filename, device_id=device_id or None)  # type: ignore[call-arg]
+        except TypeError:
+            out = upload(session_id, data, filename)
+    except Exception:
+        log.exception("recognize_upload failed session=%s", session_id)
+        out = _empty_need_review(session_id, "upload-error")
     return _to_response(session_id, f"upload://{file.filename}", out)
 
 

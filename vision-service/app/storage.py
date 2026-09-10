@@ -41,13 +41,31 @@ def parse_object_uri(uri: str) -> tuple[str, str] | None:
     return None
 
 
+def _is_under_cache_root(path: Path) -> bool:
+    """仅允许 VIDEO_CACHE_DIR 内路径，防 file:// 任意读。"""
+    try:
+        root = Path(VIDEO_CACHE_DIR).resolve()
+        path.resolve().relative_to(root)
+        return True
+    except (ValueError, OSError):
+        return False
+
+
 def resolve_video_path(video_uri: str | None) -> str | None:
     """将 file:// 或 minio:// / oss:// URI 解析为本地可读路径。"""
     if not video_uri:
         return None
     if video_uri.startswith("file://"):
-        path = video_uri[7:]
-        return path if os.path.exists(path) else None
+        raw = video_uri[7:]
+        # file:///C:/... → /C:/... ；去掉盘符前多余斜杠
+        if len(raw) >= 3 and raw[0] == "/" and raw[2] == ":":
+            raw = raw[1:]
+        path = Path(raw)
+        if not _is_under_cache_root(path):
+            log.warning("rejected file:// outside VIDEO_CACHE_DIR uri=%s", video_uri)
+            return None
+        resolved = path.resolve()
+        return str(resolved) if resolved.is_file() else None
     parsed = parse_object_uri(video_uri)
     if parsed is None:
         return None
