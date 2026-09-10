@@ -239,6 +239,7 @@ import { useBrandStore } from '@/stores/brand';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { sortByPrimaryKey } from '@/utils/sort-by-pk';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
+import { validateImageFile } from '@/utils/upload-validate';
 
 const BRAND_KEYS = {
   title: 'ops.brand.title',
@@ -477,8 +478,9 @@ async function saveBrand() {
 async function uploadBrandLogo(options: UploadRequestOptions) {
   const file = options.file as File;
   if (!file) return;
-  if (file.size > 5 * 1024 * 1024) {
-    ElMessage.warning('图片不能超过 5MB');
+  const check = validateImageFile(file);
+  if (!check.ok) {
+    ElMessage.warning(check.message);
     return;
   }
   brandLogoUploading.value = true;

@@ -18,6 +18,7 @@
     "./dict-runtime": "./src/dict-runtime.ts",
     "./status-bar": "./src/status-bar.ts",
     "./announcements": "./src/announcements.ts",
+    "./upload-limits": "./src/upload-limits.ts",
     "./theme.css": "./src/theme.css"
   },
   "dependencies": {

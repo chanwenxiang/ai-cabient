@@ -684,6 +684,7 @@ import type {
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
+import { validateImageFile } from '@/utils/upload-validate';
 
 interface ResolveDisputeResultDto {
   order?: { orderId?: string } | null;
@@ -1121,6 +1122,12 @@ async function onDisputeImagePick(ev: Event) {
   const input = ev.target as HTMLInputElement;
   const file = input.files?.[0];
   if (!file) return;
+  const check = validateImageFile(file);
+  if (!check.ok) {
+    ElMessage.warning(check.message);
+    input.value = '';
+    return;
+  }
   suggestingDispute.value = true;
   disputeSuggestHint.value = '';
   try {

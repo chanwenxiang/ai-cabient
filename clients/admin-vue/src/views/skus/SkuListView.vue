@@ -380,6 +380,7 @@ import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { findNavByPath } from '@/config/menu';
 import { consumeDictRuntimeEpoch } from '@/stores/dict-runtime';
 import { yuanToCents } from '@/utils/display';
+import { validateImageFile } from '@/utils/upload-validate';
 import type { FileAttachmentDto, SkuCatalog, UpsertSkuRequest } from '@aicabinet/shared-types';
 
 const route = useRoute();
@@ -502,9 +503,10 @@ function onThumbError(e: Event) {
 async function onImageUpload(options: UploadRequestOptions) {
   const file = options.file as File;
   if (!file) return;
-  if (file.size > 5 * 1024 * 1024) {
-    ElMessage.warning('单张图片不能超过 5MB');
-    options.onError?.(new Error('too large') as never);
+  const check = validateImageFile(file);
+  if (!check.ok) {
+    ElMessage.warning(check.message);
+    options.onError?.(new Error(check.message) as never);
     return;
   }
   imageUploading.value = true;

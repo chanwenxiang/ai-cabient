@@ -1,6 +1,7 @@
 import { consumerApi, getConsumerToken } from '@/utils/consumer-api';
 import { API_BASE_URL } from '@/config/api';
 import type { FileAttachmentDto } from '@aicabinet/shared-types';
+import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 
 export type LocalEvidence = {
   localPath: string;
@@ -40,6 +41,15 @@ export async function pickAndUploadEvidence(
   const next = [...current];
   const notify = () => onChange?.([...next]);
   for (const path of paths) {
+    try {
+      await assertLocalImageSize(path);
+    } catch (e) {
+      uni.showToast({
+        title: e instanceof Error ? e.message : '图片过大',
+        icon: 'none'
+      });
+      continue;
+    }
     const placeholder: LocalEvidence = { localPath: path, uploading: true };
     next.push(placeholder);
     notify();
