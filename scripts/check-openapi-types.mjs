@@ -189,9 +189,7 @@ if (shouldRegen) {
     fail('generated OpenAPI types are stale; run pnpm gen:api-types and commit');
   }
 } else {
-  console.log(
-    '[check-openapi-types] structural OK (set OPENAPI_CHECK_REGEN=1 to regenerate+diff)'
-  );
+  console.log('[check-openapi-types] structural OK (set OPENAPI_CHECK_REGEN=1 to regenerate+diff)');
 }
 
 console.log('[check-openapi-types] OK');

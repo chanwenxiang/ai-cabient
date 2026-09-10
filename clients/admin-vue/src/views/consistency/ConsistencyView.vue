@@ -5,7 +5,9 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">数据一致性</span>
-            <span class="hint">巡检订单/支付/库存批次/积分/券/钱包/分账/货道/仓存；未通过项可按规则修复</span>
+            <span class="hint"
+              >巡检订单/支付/库存批次/积分/券/钱包/分账/货道/仓存；未通过项可按规则修复</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -89,12 +91,7 @@
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="键"
-            min-width="200"
-            align="center"
-            class-name="col-text"
-          >
+          <el-table-column label="键" min-width="200" align="center" class-name="col-text">
             <template #default="{ row }">
               <el-button
                 v-if="keyLink(row)"

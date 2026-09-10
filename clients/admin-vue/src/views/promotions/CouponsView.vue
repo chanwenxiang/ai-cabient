@@ -406,8 +406,12 @@ async function loadActiveCoupons() {
 async function loadActivityOptions() {
   try {
     activityOptions.value =
-      (await api.request<{ items: PromotionActivityDto[] }>('/api/v2/ops/promotions?page=0&size=200', 'GET'))
-        .items || [];
+      (
+        await api.request<{ items: PromotionActivityDto[] }>(
+          '/api/v2/ops/promotions?page=0&size=200',
+          'GET'
+        )
+      ).items || [];
   } catch {
     activityOptions.value = [];
   }
@@ -539,16 +543,20 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
       for (const row of rows) {
         const name = row['名称'] || row.couponName;
         if (!name?.trim()) continue;
-        const created = await api.request<CouponDefinitionDto>('/api/v2/coupons/definitions', 'POST', {
-          couponName: name.trim(),
-          couponType: typeCodeByLabel[row['类型'] || row.couponType] || 'AMOUNT_OFF',
-          denominationCents: yuanToCents(row['面值(元)'] || row.denominationYuan) ?? 0,
-          minSpendCents: yuanToCents(row['最低消费(元)'] || row.minSpendYuan) ?? 0,
-          discountPercent: Number(row['折扣百分比'] || row.discountPercent) || 90,
-          validityDays: Number(row['有效天数'] || row.validityDays) || 30,
-          maxIssueCount: Number(row['总量限制'] || row.maxIssueCount) || 0,
-          description: row['描述'] || row.description || ''
-        });
+        const created = await api.request<CouponDefinitionDto>(
+          '/api/v2/coupons/definitions',
+          'POST',
+          {
+            couponName: name.trim(),
+            couponType: typeCodeByLabel[row['类型'] || row.couponType] || 'AMOUNT_OFF',
+            denominationCents: yuanToCents(row['面值(元)'] || row.denominationYuan) ?? 0,
+            minSpendCents: yuanToCents(row['最低消费(元)'] || row.minSpendYuan) ?? 0,
+            discountPercent: Number(row['折扣百分比'] || row.discountPercent) || 90,
+            validityDays: Number(row['有效天数'] || row.validityDays) || 30,
+            maxIssueCount: Number(row['总量限制'] || row.maxIssueCount) || 0,
+            description: row['描述'] || row.description || ''
+          }
+        );
         const statusRaw = (row['状态'] || row.status || '').trim();
         const wantsActive = statusRaw === '启用' || statusRaw.toUpperCase() === 'ACTIVE';
         if (!wantsActive && created?.couponDefId) {

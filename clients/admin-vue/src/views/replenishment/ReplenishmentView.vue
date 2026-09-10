@@ -119,141 +119,151 @@
                           class="line-table"
                           empty-text=" "
                         >
-                      <el-table-column label="任务" width="70" align="center" class-name="col-text">
-                        <template #default="scope">
-                          <span class="cell-id">{{ scope.row.taskId }}</span>
-                        </template>
-                      </el-table-column>
-                      <el-table-column label="设备" min-width="110" align="center">
-                        <template #default="scope">
-                          {{ deviceName(scope.row.deviceId, scope.row.deviceName) }}
-                          <el-tag
-                            size="small"
-                            :type="deviceOnline(scope.row.deviceId) ? 'success' : 'info'"
-                            class="online-tag"
-                            >{{ deviceOnline(scope.row.deviceId) ? '在线' : '离线' }}</el-tag
+                          <el-table-column
+                            label="任务"
+                            width="70"
+                            align="center"
+                            class-name="col-text"
                           >
-                        </template>
-                      </el-table-column>
-                      <el-table-column label="设备ID" min-width="100" align="center">
-                        <template #default="scope">
-                          <span class="mono">{{ scope.row.deviceId }}</span>
-                        </template>
-                      </el-table-column>
-                      <el-table-column label="任务状态" width="92" align="center">
-                        <template #default="scope">
-                          <el-tag :type="dictTagType(scope.row.status)" size="small">
-                            {{ dictLabel('replenishment_task_status', scope.row.status) }}
-                          </el-tag>
-                        </template>
-                      </el-table-column>
-                      <el-table-column label="人员" min-width="120" align="center">
-                        <template #default="scope">
-                          <span>{{
-                            assigneeLabel(scope.row.assigneeUserId || row.assigneeUserId, '无')
-                          }}</span>
-                        </template>
-                      </el-table-column>
-                      <el-table-column label="签到" min-width="124" align="center">
-                        <template #default="scope">
-                          <div class="check-in-cell">
-                            <el-tag :type="scope.row.checkInAt ? 'success' : 'info'" size="small">
-                              {{ scope.row.checkInAt ? '已签到' : '未签到' }}
-                            </el-tag>
-                            <el-tag
-                              v-if="scope.row.checkInAt && !checkInHasGps(scope.row)"
-                              size="small"
-                              type="warning"
-                              effect="plain"
-                              >无定位</el-tag
-                            >
-                            <small v-else-if="formatCheckInGps(scope.row)" class="gps-text">{{
-                              formatCheckInGps(scope.row)
-                            }}</small>
-                            <small v-if="formatCheckInDistance(scope.row)" class="gps-text">{{
-                              formatCheckInDistance(scope.row)
-                            }}</small>
-                          </div>
-                        </template>
-                      </el-table-column>
-                      <el-table-column label="用时" width="70" align="center">
-                        <template #default="scope">{{ formatTaskDuration(scope.row) }}</template>
-                      </el-table-column>
-                      <el-table-column
-                        label="完成"
-                        width="122"
-                        align="center"
-                        class-name="col-text"
-                      >
-                        <template #default="scope">
-                          <span class="cell-datetime">{{
-                            scope.row.completedAt ? formatDateTime(scope.row.completedAt) : '无'
-                          }}</span>
-                        </template>
-                      </el-table-column>
-                      <el-table-column label="出库单" width="70" align="center">
-                        <template #default="scope">
-                          <el-tag v-if="scope.row.outboundId" size="small" type="warning">{{
-                            scope.row.outboundId
-                          }}</el-tag>
-                          <span v-else class="muted">现场</span>
-                        </template>
-                      </el-table-column>
-                      <el-table-column
-                        label="操作"
-                        :width="canEdit ? 210 : 70"
-                        align="center"
-                        class-name="col-action"
-                        fixed="right"
-                      >
-                        <template #default="scope">
-                          <el-button link type="primary" @click.stop="openTaskLines(scope.row)"
-                            >明细</el-button
+                            <template #default="scope">
+                              <span class="cell-id">{{ scope.row.taskId }}</span>
+                            </template>
+                          </el-table-column>
+                          <el-table-column label="设备" min-width="110" align="center">
+                            <template #default="scope">
+                              {{ deviceName(scope.row.deviceId, scope.row.deviceName) }}
+                              <el-tag
+                                size="small"
+                                :type="deviceOnline(scope.row.deviceId) ? 'success' : 'info'"
+                                class="online-tag"
+                                >{{ deviceOnline(scope.row.deviceId) ? '在线' : '离线' }}</el-tag
+                              >
+                            </template>
+                          </el-table-column>
+                          <el-table-column label="设备ID" min-width="100" align="center">
+                            <template #default="scope">
+                              <span class="mono">{{ scope.row.deviceId }}</span>
+                            </template>
+                          </el-table-column>
+                          <el-table-column label="任务状态" width="92" align="center">
+                            <template #default="scope">
+                              <el-tag :type="dictTagType(scope.row.status)" size="small">
+                                {{ dictLabel('replenishment_task_status', scope.row.status) }}
+                              </el-tag>
+                            </template>
+                          </el-table-column>
+                          <el-table-column label="人员" min-width="120" align="center">
+                            <template #default="scope">
+                              <span>{{
+                                assigneeLabel(scope.row.assigneeUserId || row.assigneeUserId, '无')
+                              }}</span>
+                            </template>
+                          </el-table-column>
+                          <el-table-column label="签到" min-width="124" align="center">
+                            <template #default="scope">
+                              <div class="check-in-cell">
+                                <el-tag
+                                  :type="scope.row.checkInAt ? 'success' : 'info'"
+                                  size="small"
+                                >
+                                  {{ scope.row.checkInAt ? '已签到' : '未签到' }}
+                                </el-tag>
+                                <el-tag
+                                  v-if="scope.row.checkInAt && !checkInHasGps(scope.row)"
+                                  size="small"
+                                  type="warning"
+                                  effect="plain"
+                                  >无定位</el-tag
+                                >
+                                <small v-else-if="formatCheckInGps(scope.row)" class="gps-text">{{
+                                  formatCheckInGps(scope.row)
+                                }}</small>
+                                <small v-if="formatCheckInDistance(scope.row)" class="gps-text">{{
+                                  formatCheckInDistance(scope.row)
+                                }}</small>
+                              </div>
+                            </template>
+                          </el-table-column>
+                          <el-table-column label="用时" width="70" align="center">
+                            <template #default="scope">{{
+                              formatTaskDuration(scope.row)
+                            }}</template>
+                          </el-table-column>
+                          <el-table-column
+                            label="完成"
+                            width="122"
+                            align="center"
+                            class-name="col-text"
                           >
-                          <el-button
-                            v-if="canEdit && canCheckInTask(scope.row)"
-                            link
-                            type="warning"
-                            :loading="checkInLoading === scope.row.taskId"
-                            @click.stop="checkInRestockTask(scope.row)"
-                            >签到</el-button
+                            <template #default="scope">
+                              <span class="cell-datetime">{{
+                                scope.row.completedAt ? formatDateTime(scope.row.completedAt) : '无'
+                              }}</span>
+                            </template>
+                          </el-table-column>
+                          <el-table-column label="出库单" width="70" align="center">
+                            <template #default="scope">
+                              <el-tag v-if="scope.row.outboundId" size="small" type="warning">{{
+                                scope.row.outboundId
+                              }}</el-tag>
+                              <span v-else class="muted">现场</span>
+                            </template>
+                          </el-table-column>
+                          <el-table-column
+                            label="操作"
+                            :width="canEdit ? 210 : 70"
+                            align="center"
+                            class-name="col-action"
+                            fixed="right"
                           >
-                          <el-button
-                            v-if="canEdit && canOpenRestock(scope.row)"
-                            link
-                            type="primary"
-                            :loading="openDoorLoading === scope.row.taskId"
-                            @click.stop="openRestockDoor(scope.row)"
-                            >{{
-                              deviceSalesLocked(scope.row.deviceId) ? '开门(停售)' : '开门'
-                            }}</el-button
-                          >
-                          <el-button
-                            v-if="canEdit && canCompleteTask(scope.row)"
-                            link
-                            type="success"
-                            :loading="completeLoading === scope.row.taskId"
-                            @click.stop="completeRestockTask(scope.row)"
-                            >完成上架</el-button
-                          >
-                          <span
-                            v-else-if="
-                              canEdit &&
-                              openDoorHint(scope.row) !== '无' &&
-                              !canCompleteTask(scope.row) &&
-                              !canCheckInTask(scope.row)
-                            "
-                            class="muted"
-                            >{{ openDoorHint(scope.row) }}</span
-                          >
-                        </template>
-                      </el-table-column>
-                      <template #empty
-                        ><el-empty
-                          v-if="listHydrated && !isTabLoading('routes')"
-                          description="该路线暂无设备任务"
-                          :image-size="48"
-                      /></template>
+                            <template #default="scope">
+                              <el-button link type="primary" @click.stop="openTaskLines(scope.row)"
+                                >明细</el-button
+                              >
+                              <el-button
+                                v-if="canEdit && canCheckInTask(scope.row)"
+                                link
+                                type="warning"
+                                :loading="checkInLoading === scope.row.taskId"
+                                @click.stop="checkInRestockTask(scope.row)"
+                                >签到</el-button
+                              >
+                              <el-button
+                                v-if="canEdit && canOpenRestock(scope.row)"
+                                link
+                                type="primary"
+                                :loading="openDoorLoading === scope.row.taskId"
+                                @click.stop="openRestockDoor(scope.row)"
+                                >{{
+                                  deviceSalesLocked(scope.row.deviceId) ? '开门(停售)' : '开门'
+                                }}</el-button
+                              >
+                              <el-button
+                                v-if="canEdit && canCompleteTask(scope.row)"
+                                link
+                                type="success"
+                                :loading="completeLoading === scope.row.taskId"
+                                @click.stop="completeRestockTask(scope.row)"
+                                >完成上架</el-button
+                              >
+                              <span
+                                v-else-if="
+                                  canEdit &&
+                                  openDoorHint(scope.row) !== '无' &&
+                                  !canCompleteTask(scope.row) &&
+                                  !canCheckInTask(scope.row)
+                                "
+                                class="muted"
+                                >{{ openDoorHint(scope.row) }}</span
+                              >
+                            </template>
+                          </el-table-column>
+                          <template #empty
+                            ><el-empty
+                              v-if="listHydrated && !isTabLoading('routes')"
+                              description="该路线暂无设备任务"
+                              :image-size="48"
+                          /></template>
                         </el-table>
                       </div>
                     </div>
@@ -946,12 +956,9 @@
         <el-descriptions v-if="linesTask" :column="1" border size="small" class="lines-meta">
           <el-descriptions-item label="任务">
             <span class="mono">{{ linesTask.taskId }}</span>
-            <el-tag
-              :type="dictTagType(linesTask.status)"
-              size="small"
-              class="lines-status-tag"
-              >{{ dictLabel('replenishment_task_status', linesTask.status) }}</el-tag
-            >
+            <el-tag :type="dictTagType(linesTask.status)" size="small" class="lines-status-tag">{{
+              dictLabel('replenishment_task_status', linesTask.status)
+            }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="设备"
             >{{ deviceName(linesTask.deviceId, linesTask.deviceName) }}（{{

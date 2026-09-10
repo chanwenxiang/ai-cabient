@@ -596,7 +596,10 @@ function syncRefundLines() {
     }));
 }
 
-function onPartialQty(row: RefundLineRow, e: { detail?: { value?: string }; target?: { value?: string } } | Event) {
+function onPartialQty(
+  row: RefundLineRow,
+  e: { detail?: { value?: string }; target?: { value?: string } } | Event
+) {
   const raw = String(
     (e as { detail?: { value?: string } })?.detail?.value ??
       (e as { target?: { value?: string } })?.target?.value ??
