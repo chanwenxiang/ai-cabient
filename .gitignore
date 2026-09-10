@@ -139,10 +139,15 @@ edge/device-simulator/sim-*/
 ..tmp-*
 **/.tmp-*
 .tmp-*.png
-tmp-tsc-out.txt
+tmp-tsc*.txt
+tmp-merchant-tsc.txt
+tsc-out.txt
 tmp-*.html
 BOOT-INF/
 clients/admin-vue/eyJhbGciOiJIUzI1NiJ9.*
+
+# Workbuddy / local agent memory (do not commit)
+.workbuddy/
 
 # Sonar local analysis output
 .scannerwork/
