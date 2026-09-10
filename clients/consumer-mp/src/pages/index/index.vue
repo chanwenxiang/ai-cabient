@@ -362,6 +362,15 @@
       <text v-if="deviceId" class="flow-device">{{ deviceName || deviceId }}</text>
       <text v-if="pollError" class="flow-err">{{ pollError }}</text>
       <button
+        v-if="pollError && sessionId"
+        class="flow-cancel"
+        :loading="pollRefreshing"
+        :disabled="pollRefreshing"
+        @click="refreshSessionNow"
+      >
+        刷新会话状态
+      </button>
+      <button
         v-if="state === 'CREATED' || state === 'OPENING' || (opening && !sessionId)"
         class="flow-cancel"
         :loading="cancelling"
@@ -478,6 +487,7 @@ const stateTone = ref('idle');
 const opening = ref(false);
 const cancelling = ref(false);
 const pollError = ref('');
+const pollRefreshing = ref(false);
 const landingError = ref('');
 const landingErrorKind = ref<OpenErrorKind>('other');
 const lastFailedDeviceId = ref('');
@@ -533,6 +543,12 @@ const closingDoor = ref(false);
 const finishingSession = ref(false);
 let recognitionTimer: ReturnType<typeof setInterval> | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+/** 会话轮询进行中：弱网下 getSession 超时会超过 interval，跳过堆积请求 */
+let pollInFlight = false;
+/** 连续轮询失败次数；达到阈值后升级弱网提示 */
+let pollFailStreak = 0;
+const SESSION_POLL_MS = 2000;
+const POLL_FAIL_WARN_AT = 3;
 let devicePollTimer: ReturnType<typeof setInterval> | null = null;
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 let prepResolve: ((ok: boolean) => void) | null = null;
@@ -1842,37 +1858,82 @@ async function restoreActiveSession() {
 
 function startPoll() {
   stopPoll();
-  pollTimer = setInterval(async () => {
-    if (!sessionId.value) return;
-    try {
-      const s = await consumerApi.getSession(sessionId.value);
-      applySessionView(s);
-      pollError.value = '';
-      if (s.state === 'SHOPPING') {
-        await refreshLiveCart();
-      } else {
-        liveCartQty.value = 0;
-        liveCartAmountCents.value = 0;
-        liveCartItems.value = [];
-        cartSheetVisible.value = false;
-      }
-      if (s.state === 'COMPLETED' || s.state === 'DISPUTED') {
-        stopPoll();
-        const sid = sessionId.value;
-        await finishSession(s.state, sid);
-      } else if (['FAILED', 'CANCELLED'].includes(s.state)) {
-        stopPoll();
-        const hint =
-          sessionStateHint(s.state) || (s.state === 'CANCELLED' ? '会话已取消' : '购物未完成');
-        clearActiveSession();
-        clearOpenAttempt();
-        clearSessionUi();
-        uni.showToast({ title: hint, icon: 'none', duration: 2800 });
-      }
-    } catch (e) {
+  pollError.value = '';
+  pollFailStreak = 0;
+  // 立即拉一次，避免弱网下再等一个 interval 才知道状态
+  void tickPoll();
+  pollTimer = setInterval(() => void tickPoll(), SESSION_POLL_MS);
+}
+
+/** 单次会话轮询：防并发堆积；连续失败升级弱网文案。 */
+async function tickPoll() {
+  if (!sessionId.value || pollInFlight) return;
+  pollInFlight = true;
+  try {
+    await pollSessionOnce();
+  } finally {
+    pollInFlight = false;
+  }
+}
+
+async function refreshSessionNow() {
+  if (!sessionId.value || pollRefreshing.value) return;
+  pollRefreshing.value = true;
+  try {
+    await tickPoll();
+    if (!pollError.value) {
+      uni.showToast({ title: '状态已更新', icon: 'none' });
+    }
+  } finally {
+    pollRefreshing.value = false;
+  }
+}
+
+function isNetworkishError(e: unknown): boolean {
+  const msg = formatError(e);
+  return /超时|timeout|网络|无法连接|request:fail|ECONN|ENOTFOUND|abort/i.test(msg);
+}
+
+async function pollSessionOnce() {
+  if (!sessionId.value) return;
+  try {
+    const s = await consumerApi.getSession(sessionId.value);
+    applySessionView(s);
+    pollFailStreak = 0;
+    pollError.value = '';
+    if (s.state === 'SHOPPING') {
+      await refreshLiveCart();
+    } else {
+      liveCartQty.value = 0;
+      liveCartAmountCents.value = 0;
+      liveCartItems.value = [];
+      cartSheetVisible.value = false;
+    }
+    if (s.state === 'COMPLETED' || s.state === 'DISPUTED') {
+      stopPoll();
+      const sid = sessionId.value;
+      await finishSession(s.state, sid);
+    } else if (['FAILED', 'CANCELLED'].includes(s.state)) {
+      stopPoll();
+      const hint =
+        sessionStateHint(s.state) || (s.state === 'CANCELLED' ? '会话已取消' : '购物未完成');
+      clearActiveSession();
+      clearOpenAttempt();
+      clearSessionUi();
+      uni.showToast({ title: hint, icon: 'none', duration: 2800 });
+    }
+  } catch (e) {
+    pollFailStreak += 1;
+    if (pollFailStreak >= POLL_FAIL_WARN_AT) {
+      pollError.value = isNetworkishError(e)
+        ? '网络不稳定，正在自动重试。可点「刷新会话状态」或检查网络后再试。'
+        : formatError(e);
+    } else if (isNetworkishError(e)) {
+      pollError.value = '网络波动，正在重试…';
+    } else {
       pollError.value = formatError(e);
     }
-  }, 2000);
+  }
 }
 
 function stopPoll() {
@@ -1880,6 +1941,7 @@ function stopPoll() {
     clearInterval(pollTimer);
     pollTimer = null;
   }
+  pollFailStreak = 0;
 }
 
 function startDevicePoll() {
