@@ -56,7 +56,7 @@
           <el-table-column label="状态" width="100" align="center">
             <template #default="{ row }">
               <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-                {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
+                {{ displayLabel('enable_status', row.status) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -130,8 +130,8 @@
       </el-form-item>
       <el-form-item label="状态">
         <el-select v-model="deptForm.status" style="width: 100%">
-          <el-option value="ACTIVE" label="启用" />
-          <el-option value="INACTIVE" label="停用" />
+          <el-option value="ACTIVE" :label="displayLabel('enable_status', 'ACTIVE')" />
+          <el-option value="INACTIVE" :label="displayLabel('enable_status', 'INACTIVE')" />
         </el-select>
       </el-form-item>
       <el-form-item label="备注">
@@ -176,6 +176,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import { displayLabel } from '@aicabinet/shared-dict';
 
 interface DeptRow {
   deptId: number;
@@ -306,7 +307,7 @@ async function saveDept() {
 
 async function batchSetStatus(status: 'ACTIVE' | 'INACTIVE') {
   if (!selected.value.length) return;
-  const label = status === 'ACTIVE' ? '启用' : '停用';
+  const label = displayLabel('enable_status', status);
   try {
     await ElMessageBox.confirm(
       `确认将选中的 ${selected.value.length} 个部门设为「${label}」？`,

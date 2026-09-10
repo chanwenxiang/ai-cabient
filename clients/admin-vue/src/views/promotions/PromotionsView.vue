@@ -65,8 +65,8 @@
           style="width: 120px"
           @change="search"
         >
-          <el-option label="启用" value="ACTIVE" />
-          <el-option label="停用" value="INACTIVE" />
+          <el-option :label="displayLabel('enable_status', 'ACTIVE')" value="ACTIVE" />
+          <el-option :label="displayLabel('enable_status', 'INACTIVE')" value="INACTIVE" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -449,9 +449,19 @@ function rowActions(row: PromotionActivityDto): TableAction[] {
   }
   if (row.status !== 'ENDED') {
     if (isEnabled(row.status) && auth.hasPerm('ops:promotion:stop')) {
-      acts.push({ key: 'toggle', label: '停用', icon: SwitchButton, type: 'warning' });
+      acts.push({
+        key: 'toggle',
+        label: displayLabel('enable_status', 'INACTIVE'),
+        icon: SwitchButton,
+        type: 'warning'
+      });
     } else if (!isEnabled(row.status) && auth.hasPerm('ops:promotion:launch')) {
-      acts.push({ key: 'toggle', label: '启用', icon: SwitchButton, type: 'success' });
+      acts.push({
+        key: 'toggle',
+        label: displayLabel('enable_status', 'ACTIVE'),
+        icon: SwitchButton,
+        type: 'success'
+      });
     }
   }
   return acts;
@@ -565,7 +575,7 @@ async function onSubmit() {
 
 async function onToggleStatus(row: PromotionActivityDto) {
   const enable = !isEnabled(row.status);
-  const action = enable ? '启用' : '停用';
+  const action = displayLabel('enable_status', enable ? 'ACTIVE' : 'INACTIVE');
   try {
     await ElMessageBox.confirm(`确认${action}活动「${row.activityName}」？`, '活动状态', {
       type: 'warning'
@@ -635,7 +645,7 @@ function onDownloadTemplate() {
       '1000',
       '1',
       '示例描述',
-      '停用'
+      displayLabel('enable_status', 'INACTIVE')
     ]
   ]);
 }
@@ -653,7 +663,7 @@ function parseImportTime(raw: string): Date | null {
 
 function wantsEnabled(statusRaw: string) {
   const s = (statusRaw || '').trim();
-  return s === '启用' || s.toUpperCase() === 'ACTIVE';
+  return s === displayLabel('enable_status', 'ACTIVE') || s.toUpperCase() === 'ACTIVE';
 }
 
 async function onImportFile(ev: Event) {

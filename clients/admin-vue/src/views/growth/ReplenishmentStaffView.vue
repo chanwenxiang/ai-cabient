@@ -53,7 +53,12 @@
         <template #default="{ row }">{{ row.phone || '暂无' }}</template>
       </el-table-column>
       <el-table-column prop="totalTasks" label="任务数" width="90" align="center" />
-      <el-table-column prop="completedTasks" label="已完成" width="90" align="center" />
+      <el-table-column
+        prop="completedTasks"
+        :label="displayLabel('order_status', 'COMPLETED')"
+        width="90"
+        align="center"
+      />
       <el-table-column label="完成率" width="90" align="center">
         <template #default="{ row }">{{ pct(row.completionRate) }}</template>
       </el-table-column>
@@ -79,6 +84,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { useListCsv } from '@/composables/useListCsv';
+import { displayLabel } from '@aicabinet/shared-dict';
 
 type StaffRow = {
   userId: number;
@@ -117,7 +123,7 @@ const { onExport } = useListCsv({
     '姓名',
     '手机',
     '任务数',
-    '已完成',
+    displayLabel('order_status', 'COMPLETED'),
     '完成率',
     '平均耗时(分)',
     '待办',

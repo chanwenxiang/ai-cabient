@@ -72,7 +72,7 @@
           <div class="row-main">
             <strong>{{ p.deviceName || p.deviceId }}</strong>
             <el-tag size="small" :type="p.onlineStatus === 'ONLINE' ? 'success' : 'info'">
-              {{ p.onlineStatus === 'ONLINE' ? '在线' : '离线' }}
+              {{ displayLabel('online_status', p.onlineStatus === 'ONLINE' ? 'ONLINE' : 'OFFLINE') }}
             </el-tag>
           </div>
           <div class="row-sub">
@@ -110,7 +110,7 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster';
 import { api } from '@/api/client';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { dictOptions } from '@aicabinet/shared-dict';
+import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { useSettingsStore } from '@/stores/settings';
 
 interface MapPoint {
@@ -345,7 +345,7 @@ function renderMarkers() {
       icon: pinIcon(selectedId.value === p.deviceId)
     });
     const isOnline = p.onlineStatus === 'ONLINE';
-    const status = isOnline ? '在线' : '离线';
+    const status = displayLabel('online_status', isOnline ? 'ONLINE' : 'OFFLINE');
     const locked = p.salesLocked ? '停售' : '可售';
     marker.bindPopup(
       `<strong>${escapeHtml(p.deviceName || p.deviceId)}</strong><br/>${escapeHtml(p.deviceId)}<br/>${status} · ${locked} · ${escapeHtml(lifecycleLabel(p.lifecycleStatus))}<br/>路线：${escapeHtml(p.routeCode || '无')}<br/>${escapeHtml(p.address || '')}<br/><a href="#" class="map-goto" data-id="${escapeAttr(p.deviceId)}">查看详情</a>`

@@ -55,7 +55,7 @@
             </template>
           </el-table-column>
           <el-table-column prop="defName" label="名称" min-width="140" align="center" />
-          <el-table-column label="启用" width="90" align="center">
+          <el-table-column :label="displayLabel('enable_status', 'ACTIVE')" width="90" align="center">
             <template #default="{ row }">
               <el-tag :type="row.enabled ? 'success' : 'info'" size="small">
                 {{ row.enabled ? '是' : '否' }}
@@ -126,7 +126,7 @@
       <el-form-item label="名称" required>
         <el-input v-model="metaForm.defName" placeholder="审批流名称" />
       </el-form-item>
-      <el-form-item label="启用">
+      <el-form-item :label="displayLabel('enable_status', 'ACTIVE')">
         <el-switch v-model="metaForm.enabled" />
       </el-form-item>
       <el-form-item label="备注">
@@ -158,7 +158,7 @@
         <el-form-item label="名称">
           <el-input v-model="editForm.defName" style="width: 200px" />
         </el-form-item>
-        <el-form-item label="启用">
+        <el-form-item :label="displayLabel('enable_status', 'ACTIVE')">
           <el-switch v-model="editForm.enabled" />
         </el-form-item>
         <el-form-item label="备注">
@@ -289,7 +289,7 @@ import { ArrowDown, ArrowUp, Delete, EditPen, Refresh, Share } from '@element-pl
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAuthStore } from '@/stores/auth';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 
 interface ApprovalNode {
   nodeId?: number;

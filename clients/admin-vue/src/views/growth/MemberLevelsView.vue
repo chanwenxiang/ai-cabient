@@ -78,7 +78,7 @@
           <el-table-column label="状态" width="90" align="center">
             <template #default="{ row }">
               <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{
-                row.status === 'ACTIVE' ? '启用' : '停用'
+                displayLabel('enable_status', row.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE')
               }}</el-tag>
             </template>
           </el-table-column>
@@ -96,7 +96,9 @@
                 link
                 :type="row.status === 'ACTIVE' ? 'danger' : 'success'"
                 @click="toggleStatus(row)"
-                >{{ row.status === 'ACTIVE' ? '停用' : '启用' }}</el-button
+                >{{
+                  displayLabel('enable_status', row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE')
+                }}</el-button
               >
             </template>
           </el-table-column>
@@ -335,7 +337,7 @@ async function batchSetStatus(next: 'ACTIVE' | 'INACTIVE') {
     ElMessage.info(next === 'ACTIVE' ? '选中项均已启用' : '选中项均已停用');
     return;
   }
-  const action = next === 'ACTIVE' ? '启用' : '停用';
+  const action = displayLabel('enable_status', next);
   try {
     await ElMessageBox.confirm(
       `确认批量${action}选中的 ${targets.length} 条等级规则？`,

@@ -74,6 +74,73 @@ function reportIfBanned(context, node, value) {
   });
 }
 
+/** Walk Vue template expression AST (ESTree inside VExpressionContainer). */
+function walkExpression(context, node) {
+  if (!node || typeof node !== 'object') return;
+
+  switch (node.type) {
+    case 'Literal':
+      reportIfBanned(context, node, node.value);
+      break;
+    case 'TemplateLiteral':
+      for (const quasi of node.quasis) {
+        reportIfBanned(context, quasi, quasi.value?.cooked);
+      }
+      for (const expr of node.expressions) {
+        walkExpression(context, expr);
+      }
+      break;
+    case 'ConditionalExpression':
+      walkExpression(context, node.test);
+      walkExpression(context, node.consequent);
+      walkExpression(context, node.alternate);
+      break;
+    case 'LogicalExpression':
+    case 'BinaryExpression':
+      walkExpression(context, node.left);
+      walkExpression(context, node.right);
+      break;
+    case 'UnaryExpression':
+    case 'SpreadElement':
+      walkExpression(context, node.argument);
+      break;
+    case 'ArrayExpression':
+      for (const el of node.elements) {
+        walkExpression(context, el);
+      }
+      break;
+    case 'ObjectExpression':
+      for (const prop of node.properties) {
+        if (prop.type === 'Property') {
+          walkExpression(context, prop.key);
+          walkExpression(context, prop.value);
+        } else {
+          walkExpression(context, prop);
+        }
+      }
+      break;
+    case 'CallExpression':
+      for (const arg of node.arguments) {
+        walkExpression(context, arg);
+      }
+      break;
+    case 'MemberExpression':
+      walkExpression(context, node.object);
+      if (node.computed) walkExpression(context, node.property);
+      break;
+    case 'ChainExpression':
+      walkExpression(context, node.expression);
+      break;
+    case 'SequenceExpression':
+      for (const expr of node.expressions) {
+        walkExpression(context, expr);
+      }
+      break;
+    default:
+      break;
+  }
+}
+
 /** @type {import('eslint').Rule.RuleModule} */
 const noHardcodedStatusLabel = {
   meta: {
@@ -97,6 +164,9 @@ const noHardcodedStatusLabel = {
       },
       VLiteral(node) {
         reportIfBanned(context, node, node.value);
+      },
+      VExpressionContainer(node) {
+        walkExpression(context, node.expression);
       }
     };
   }

@@ -17,7 +17,16 @@
           }}</el-button>
           <el-button
             v-hasPermi="['ops:rbac:role:import']"
-            @click="onDownloadTemplate(['', '示例角色', 'ops_demo', '正常', '', '备注'])"
+            @click="
+              onDownloadTemplate([
+                '',
+                '示例角色',
+                'ops_demo',
+                displayLabel('merchant_status', 'ACTIVE'),
+                '',
+                '备注'
+              ])
+            "
             >导入模板</el-button
           >
           <el-button
@@ -57,8 +66,8 @@
           style="width: 120px"
           @change="search"
         >
-          <el-option label="正常" value="ACTIVE" />
-          <el-option label="停用" value="INACTIVE" />
+          <el-option :label="displayLabel('merchant_status', 'ACTIVE')" value="ACTIVE" />
+          <el-option :label="displayLabel('merchant_status', 'INACTIVE')" value="INACTIVE" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -108,7 +117,7 @@
           <el-table-column label="状态" width="88" align="center">
             <template #default="{ row }">
               <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-                {{ row.status === 'ACTIVE' ? '正常' : '停用' }}
+                {{ displayLabel('merchant_status', row.status) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -258,6 +267,7 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { buildPermTree, type PermRow } from '@/utils/rbac-tree';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { displayLabel } from '@aicabinet/shared-dict';
 
 const route = useRoute();
 const router = useRouter();
@@ -290,7 +300,7 @@ function roleActions(row: RoleRow): TableAction[] {
     const isActive = (row.status || 'ACTIVE') === 'ACTIVE';
     acts.push({
       key: 'toggle',
-      label: isActive ? '停用' : '启用',
+      label: displayLabel('enable_status', isActive ? 'INACTIVE' : 'ACTIVE'),
       icon: SwitchButton,
       type: isActive ? 'danger' : 'success',
       overflow: true
@@ -312,7 +322,7 @@ async function onToggleStatus(row: RoleRow) {
   }
   const isActive = (row.status || 'ACTIVE') === 'ACTIVE';
   const next = isActive ? 'INACTIVE' : 'ACTIVE';
-  const label = isActive ? '停用' : '启用';
+  const label = displayLabel('enable_status', next);
   try {
     await ElMessageBox.confirm(`确认${label}角色「${row.roleName}」？`, `${label}角色`, {
       type: 'warning'
@@ -396,7 +406,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         row.roleId,
         row.roleName,
         row.roleKey,
-        row.status === 'ACTIVE' ? '正常' : '停用',
+        displayLabel('merchant_status', row.status || 'ACTIVE'),
         permissionCountLabel(row),
         row.remark || ''
       ]),

@@ -123,7 +123,11 @@
           <el-table-column label="状态" width="90" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
-                {{ row.status === 'ACTIVE' ? '在用' : '停用' }}
+                {{
+                  row.status === 'ACTIVE'
+                    ? '在用'
+                    : displayLabel('enable_status', 'INACTIVE')
+                }}
               </el-tag>
             </template>
           </el-table-column>
@@ -169,7 +173,11 @@
           <el-input-number v-model="editForm.durationSeconds" :min="0" :max="3600" />
         </el-form-item>
         <el-form-item label="状态">
-          <el-switch v-model="editForm.active" active-text="在用" inactive-text="停用" />
+          <el-switch
+            v-model="editForm.active"
+            active-text="在用"
+            :inactive-text="displayLabel('enable_status', 'INACTIVE')"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -241,7 +249,7 @@ const { onExport } = useListCsv({
       r.title,
       typeLabel(r.assetType),
       r.durationSeconds ?? '',
-      r.status === 'ACTIVE' ? '在用' : '停用',
+      r.status === 'ACTIVE' ? '在用' : displayLabel('enable_status', 'INACTIVE'),
       formatDateTime(r.createdAt)
     ])
 });

@@ -136,7 +136,12 @@
                                 size="small"
                                 :type="deviceOnline(scope.row.deviceId) ? 'success' : 'info'"
                                 class="online-tag"
-                                >{{ deviceOnline(scope.row.deviceId) ? '在线' : '离线' }}</el-tag
+                                >{{
+                                  displayLabel(
+                                    'online_status',
+                                    deviceOnline(scope.row.deviceId) ? 'ONLINE' : 'OFFLINE'
+                                  )
+                                }}</el-tag
                               >
                             </template>
                           </el-table-column>
@@ -1898,7 +1903,7 @@ function stockLabel(row: Row) {
   const code = String(row.stockStatus || '').toUpperCase();
   if (code === 'OOS' || (row.bookQty ?? 0) <= 0) return '缺货';
   if (code === 'LOW') return '低库存';
-  if (code === 'OK' || code === 'NORMAL') return '正常';
+  if (code === 'OK' || code === 'NORMAL') return displayLabel('warehouse_status', 'ACTIVE');
   return row.stockStatus || ((row.bookQty ?? 0) <= (row.minLevel ?? 0) ? '低库存' : '缺货');
 }
 function stockTagType(row: Row) {
@@ -2745,7 +2750,7 @@ async function rejectReplenishmentRequest(row: Row) {
   await api.request(`/api/v2/ops/admin/replenishment/requests/${row.requestId}/reject`, 'POST', {
     reason: value
   });
-  ElMessage.success('已驳回');
+  ElMessage.success(displayLabel('replenishment_request_status', 'REJECTED'));
 }
 
 function refreshRequestFlowDrawer(row: Row) {
@@ -2854,7 +2859,10 @@ const requestFlowReviewDesc = computed(() => {
   const status = String(row.status || '');
   if (status === 'SUBMITTED') return '等待运营接单/驳回';
   const who = row.reviewerName || row.reviewerId || '审核人';
-  const result = status === 'REJECTED' ? '已驳回' : '已接单';
+  const result =
+    status === 'REJECTED'
+      ? displayLabel('replenishment_request_status', 'REJECTED')
+      : displayLabel('replenishment_request_status', 'ACCEPTED');
   const when = row.reviewedAt ? formatDateTime(row.reviewedAt) : '';
   return when ? `${who} · ${result}\n${when}` : `${who} · ${result}`;
 });

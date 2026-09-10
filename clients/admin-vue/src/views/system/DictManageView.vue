@@ -106,7 +106,14 @@
                   v-hasPermi="['ops:dict:import']"
                   size="small"
                   :disabled="!selected"
-                  @click="onDownloadTemplate(['DEMO', '示例标签', '0', '启用'])"
+                  @click="
+                    onDownloadTemplate([
+                      'DEMO',
+                      '示例标签',
+                      '0',
+                      displayLabel('enable_status', 'ACTIVE')
+                    ])
+                  "
                   >导入模板</el-button
                 >
                 <el-button
@@ -193,7 +200,7 @@
                 <el-table-column label="状态" width="88" align="center">
                   <template #default="{ row }">
                     <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
-                      {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
+                      {{ displayLabel('enable_status', row.status) }}
                     </el-tag>
                   </template>
                 </el-table-column>
@@ -326,6 +333,7 @@ import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { loadRuntimeDict } from '@/stores/dict-runtime';
 import { useAuthStore } from '@/stores/auth';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
+import { displayLabel } from '@aicabinet/shared-dict';
 
 interface DictTypeRow {
   dictType: string;
@@ -445,7 +453,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         row.dictValue,
         row.dictLabel,
         row.sortOrder,
-        row.status === 'ACTIVE' ? '启用' : '停用'
+        displayLabel('enable_status', row.status || 'ACTIVE')
       ]),
     onImportRows: async (rows) => {
       if (!selected.value) throw new Error('请先选择字典类型');

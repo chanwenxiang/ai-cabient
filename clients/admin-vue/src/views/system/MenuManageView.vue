@@ -120,7 +120,7 @@
           <el-table-column label="状态" width="80" align="center">
             <template #default="{ row }">
               <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-                {{ row.status === 'ACTIVE' ? '正常' : '停用' }}
+                {{ displayLabel('merchant_status', row.status) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -214,6 +214,7 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { buildPermTree, flattenForParentSelect, type PermRow } from '@/utils/rbac-tree';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
+import { displayLabel } from '@aicabinet/shared-dict';
 
 type MenuScope = 'ops' | 'merchant' | 'all';
 
@@ -285,10 +286,22 @@ function menuActions(row: PermRow): TableAction[] {
     acts.push({ key: 'add', label: '新增', icon: Plus, type: 'success' });
   }
   if (auth.hasPerm('ops:rbac:menu:remove') && row.status === 'ACTIVE') {
-    acts.push({ key: 'remove', label: '停用', icon: Delete, type: 'danger', overflow: true });
+    acts.push({
+      key: 'remove',
+      label: displayLabel('enable_status', 'INACTIVE'),
+      icon: Delete,
+      type: 'danger',
+      overflow: true
+    });
   }
   if (auth.hasPerm('ops:rbac:menu:edit') && row.status !== 'ACTIVE') {
-    acts.push({ key: 'enable', label: '启用', icon: CircleCheck, type: 'success', overflow: true });
+    acts.push({
+      key: 'enable',
+      label: displayLabel('enable_status', 'ACTIVE'),
+      icon: CircleCheck,
+      type: 'success',
+      overflow: true
+    });
   }
   return acts;
 }
@@ -418,7 +431,7 @@ const { onExport } = useListCsv({
       row.permCode,
       row.path || '无',
       row.sortOrder ?? 0,
-      row.status === 'ACTIVE' ? '正常' : '停用'
+      displayLabel('merchant_status', row.status || 'ACTIVE')
     ])
 });
 
