@@ -232,7 +232,7 @@ public class InventoryService {
     public Map<String, String> adjustForOrder(String deviceId,
                                List<VisionServiceClient.RecognizedItem> oldItems,
                                List<VisionServiceClient.RecognizedItem> newItems) {
-        return self.adjustForOrder(deviceId, oldItems, newItems, Map.of());
+        return self.adjustForOrder(deviceId, oldItems, newItems, Map.of(), null);
     }
 
     /**
@@ -246,13 +246,26 @@ public class InventoryService {
                                List<VisionServiceClient.RecognizedItem> oldItems,
                                List<VisionServiceClient.RecognizedItem> newItems,
                                Map<String, String> batchBySku) {
-        return runWithDeviceLock(deviceId, () -> doAdjustForOrder(deviceId, oldItems, newItems, batchBySku));
+        return self.adjustForOrder(deviceId, oldItems, newItems, batchBySku, null);
+    }
+
+    /**
+     * @param orderRefId 库存流水 ref_id，应传 cabinet_order.order_id（V271 钱货约束）
+     */
+    @Transactional
+    public Map<String, String> adjustForOrder(String deviceId,
+                               List<VisionServiceClient.RecognizedItem> oldItems,
+                               List<VisionServiceClient.RecognizedItem> newItems,
+                               Map<String, String> batchBySku,
+                               String orderRefId) {
+        return runWithDeviceLock(deviceId, () -> doAdjustForOrder(deviceId, oldItems, newItems, batchBySku, orderRefId));
     }
 
     private Map<String, String> doAdjustForOrder(String deviceId,
                                                  List<VisionServiceClient.RecognizedItem> oldItems,
                                                  List<VisionServiceClient.RecognizedItem> newItems,
-                                                 Map<String, String> batchBySku) {
+                                                 Map<String, String> batchBySku,
+                                                 String orderRefId) {
         Map<String, String> resultBatches = new HashMap<>();
         if (batchBySku != null) {
             batchBySku.forEach((sku, batch) -> {
@@ -264,7 +277,7 @@ public class InventoryService {
         Map<String, Integer> oldQty = toQtyMap(oldItems);
         Map<String, Integer> newQty = toQtyMap(newItems);
         for (String skuId : unionKeys(oldQty, newQty)) {
-            applySkuInventoryDelta(deviceId, skuId, newQty, oldQty, batchBySku, resultBatches);
+            applySkuInventoryDelta(deviceId, skuId, newQty, oldQty, batchBySku, resultBatches, orderRefId);
         }
         return resultBatches;
     }
@@ -272,14 +285,15 @@ public class InventoryService {
     private void applySkuInventoryDelta(String deviceId, String skuId,
                                         Map<String, Integer> newQty, Map<String, Integer> oldQty,
                                         Map<String, String> batchBySku,
-                                        Map<String, String> resultBatches) {
+                                        Map<String, String> resultBatches,
+                                        String orderRefId) {
         int delta = newQty.getOrDefault(skuId, 0) - oldQty.getOrDefault(skuId, 0);
         if (delta == 0) {
             return;
         }
         if (delta > 0) {
             Map<String, String> deducted = doDeductForOrder(
-                    deviceId, List.of(new VisionServiceClient.RecognizedItem(skuId, delta, 1f)), null, null);
+                    deviceId, List.of(new VisionServiceClient.RecognizedItem(skuId, delta, 1f)), orderRefId, null);
             deducted.forEach(resultBatches::putIfAbsent);
             return;
         }

@@ -98,7 +98,7 @@ class SettlementConfirmDisputeTest {
         when(memberService.applyMemberPriceDiscount(10001L, 400)).thenReturn(400);
         when(slotRepository.findByIdDeviceId("CAB-1")).thenReturn(List.of());
         when(userValidationService.canChargeViaPasswordFree(10001L, null)).thenReturn(true);
-        when(inventoryService.adjustForOrder(anyString(), anyList(), anyList(), anyMap())).thenReturn(Map.of());
+        when(inventoryService.adjustForOrder(anyString(), anyList(), anyList(), anyMap(), any())).thenReturn(Map.of());
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         when(orderLineRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -142,7 +142,7 @@ class SettlementConfirmDisputeTest {
         when(skuPricingService.resolveUnitPriceCents("CAB-1", sku)).thenReturn(400);
         when(memberService.applyMemberPriceDiscount(10001L, 400)).thenReturn(400);
         when(slotRepository.findByIdDeviceId("CAB-1")).thenReturn(List.of());
-        when(inventoryService.adjustForOrder(anyString(), anyList(), anyList(), anyMap())).thenReturn(Map.of());
+        when(inventoryService.adjustForOrder(anyString(), anyList(), anyList(), anyMap(), any())).thenReturn(Map.of());
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         when(orderLineRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -190,7 +190,7 @@ class SettlementConfirmDisputeTest {
         when(slotRepository.findByIdDeviceId("CAB-1")).thenReturn(List.of());
         when(couponService.discountForOrderCoupon(99L, 1200)).thenReturn(200);
         when(userValidationService.canChargeViaPasswordFree(10001L, null)).thenReturn(true);
-        when(inventoryService.adjustForOrder(anyString(), anyList(), anyList(), anyMap())).thenReturn(Map.of());
+        when(inventoryService.adjustForOrder(anyString(), anyList(), anyList(), anyMap(), any())).thenReturn(Map.of());
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         when(orderLineRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -235,7 +235,7 @@ class SettlementConfirmDisputeTest {
         when(skuPricingService.resolveUnitPriceCents("CAB-1", sku)).thenReturn(400);
         when(memberService.applyMemberPriceDiscount(10001L, 400)).thenReturn(400);
         when(slotRepository.findByIdDeviceId("CAB-1")).thenReturn(List.of());
-        when(inventoryService.adjustForOrder(anyString(), anyList(), anyList(), anyMap())).thenReturn(Map.of());
+        when(inventoryService.adjustForOrder(anyString(), anyList(), anyList(), anyMap(), any())).thenReturn(Map.of());
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         when(orderLineRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -291,7 +291,7 @@ class SettlementConfirmDisputeTest {
                         List.of(new VisionServiceClient.RecognizedItem("SKU-A", 2, 1f))));
 
         verify(inventoryService, org.mockito.Mockito.never())
-                .adjustForOrder(anyString(), anyList(), anyList(), anyMap());
+                .adjustForOrder(anyString(), anyList(), anyList(), anyMap(), any());
         verify(orderPaymentService, org.mockito.Mockito.never()).applyPaymentDelta(any(), anyInt());
         verify(revenueSplitService, org.mockito.Mockito.never()).adjustSplitAfterOrderChange(any(), anyInt());
         verify(orderRepository, org.mockito.Mockito.never()).save(any());

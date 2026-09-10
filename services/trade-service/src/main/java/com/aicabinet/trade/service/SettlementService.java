@@ -591,11 +591,11 @@ public class SettlementService {
 
         if (order.isInventoryDeducted()) {
             var adjustedBatches = inventoryService.adjustForOrder(
-                    session.getDeviceId(), oldItems, items, batchBySku);
+                    session.getDeviceId(), oldItems, items, batchBySku, order.getOrderId());
             applyBatchNos(order, adjustedBatches);
         } else {
             var deductedBatches = inventoryService.deductForOrder(
-                    session.getDeviceId(), items, session.getSessionId(), gravityDeltasForInventory(session));
+                    session.getDeviceId(), items, order.getOrderId(), gravityDeltasForInventory(session));
             applyBatchNos(order, deductedBatches);
             order.setInventoryDeducted(true);
         }
@@ -956,7 +956,7 @@ public class SettlementService {
             clearCouponSelection(order);
         }
         var batchBySku = inventoryService.deductForOrder(
-                session.getDeviceId(), items, session.getSessionId(), gravityDeltasForInventory(session));
+                session.getDeviceId(), items, order.getOrderId(), gravityDeltasForInventory(session));
         applyBatchNos(order, batchBySku);
         order.setInventoryDeducted(true);
         order.setStatus(unpaid ? "PENDING" : "PAID");
