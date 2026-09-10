@@ -374,6 +374,7 @@ import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useListCsv } from '@/composables/useListCsv';
+import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
@@ -391,6 +392,7 @@ const canEdit = computed(() => auth.hasPerm('ops:sku:edit'));
 
 const loading = ref(false);
 const listHydrated = ref(false);
+const loadSeq = createLoadSeq();
 const saving = ref(false);
 const imageUploading = ref(false);
 const batchDelisting = ref(false);
@@ -948,18 +950,22 @@ function applyRouteQuery() {
 }
 
 async function load() {
+  const seq = loadSeq.begin();
   loading.value = true;
   try {
     const data = await api.request<{ items: SkuCatalog[]; total: number }>(
       `/api/v2/ops/admin/skus?${skuQueryParams()}`,
       'GET'
     );
+    if (!loadSeq.isCurrent(seq)) return;
     items.value = data.items || [];
     total.value = Number(data.total) || 0;
     clearSelection();
   } catch (e) {
+    if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    if (!loadSeq.isCurrent(seq)) return;
     listHydrated.value = true;
     loading.value = false;
   }
