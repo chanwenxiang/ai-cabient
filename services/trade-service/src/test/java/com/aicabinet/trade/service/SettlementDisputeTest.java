@@ -263,7 +263,7 @@ class SettlementDisputeTest {
 
         org.junit.jupiter.api.Assertions.assertEquals("PENDING", order.status());
         org.junit.jupiter.api.Assertions.assertEquals(700, order.totalAmountCents());
-        verify(inventoryService).deductForOrder(eq("CAB-001"), any(), eq("S-M5"), any());
+        verify(inventoryService).deductForOrder(eq("CAB-001"), any(), eq(order.orderId()), any());
         verify(couponService, never()).markUsed(any(), any(), any(), any(), anyInt());
         verify(orderPaymentService, never()).chargeOrder(any());
         verify(revenueSplitService, never()).recordSplit(any());
@@ -413,7 +413,7 @@ class SettlementDisputeTest {
         org.junit.jupiter.api.Assertions.assertEquals(600, order.totalAmountCents());
         org.junit.jupiter.api.Assertions.assertEquals(100, order.couponDiscountCents());
         verifyNoInteractions(disputeService);
-        verify(inventoryService).deductForOrder(eq("CAB-001"), any(), eq("S-M4"), eq(null));
+        verify(inventoryService).deductForOrder(eq("CAB-001"), any(), eq(order.orderId()), eq(null));
         verify(orderPaymentService).chargeOrder(argThat(o ->
                 "PAID".equals(o.getStatus())
                         && o.getCouponId() != null
@@ -617,7 +617,7 @@ class SettlementDisputeTest {
         verify(gravityHelper, never())
                 .reconcileWithGravity(any(), any());
         verify(inventoryService).deductForOrder(
-                eq("CAB-001"), any(), eq("S-VISION-ONLY"), eq(null));
+                eq("CAB-001"), any(), eq(order.orderId()), eq(null));
     }
 
     @Test
