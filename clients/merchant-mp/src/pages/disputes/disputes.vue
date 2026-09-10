@@ -42,11 +42,11 @@
             <text>{{ formatTime(item.createdAt) }}</text>
             <text :class="item.slaOverdue ? 'sla-overdue' : 'sla-ok'">{{
               isTerminalDispute(item.status)
-                ? '已结案'
+                ? displayLabel('dispute_status', 'RESOLVED')
                 : item.slaOverdue
                   ? '已超时'
                   : item.slaHoursRemaining == null
-                    ? '处理中'
+                    ? displayLabel('order_status', 'PROCESSING')
                     : `剩余 ${item.slaHoursRemaining} 小时`
             }}</text>
           </view>
@@ -261,9 +261,9 @@ const canReply = computed(() => hasPerm(me.value, 'merchant:disputes:reply'));
 const canResolve = computed(() => hasPerm(me.value, 'merchant:disputes:resolve'));
 
 const tabs = [
-  { key: 'OPEN', label: '待处理' },
-  { key: 'RESOLVED', label: '已结案' },
-  { key: 'CLOSED', label: '已关闭' }
+  { key: 'OPEN', label: displayLabel('dispute_status', 'OPEN') },
+  { key: 'RESOLVED', label: displayLabel('dispute_status', 'RESOLVED') },
+  { key: 'CLOSED', label: displayLabel('dispute_status', 'CLOSED') }
 ];
 
 const activeTab = ref('OPEN');
@@ -497,7 +497,10 @@ async function resolveFromDetail(type: 'KEEP' | 'WAIVE' | 'CONFIRM') {
     } = { resolutionType: type };
     if (type === 'WAIVE') body.restoreInventory = false;
     const res = await merchantApi.disputeResolve(detail.value.ticketId, body);
-    uni.showToast({ title: res.message || '已结案', icon: 'success' });
+    uni.showToast({
+      title: res.message || displayLabel('dispute_status', 'RESOLVED'),
+      icon: 'success'
+    });
     detailVisible.value = false;
     await load();
   } catch (e) {

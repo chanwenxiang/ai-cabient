@@ -47,7 +47,7 @@
               <view class="review-top">
                 <text class="review-title">{{ reviewCopy(d).title }}</text>
                 <text class="chip pending">{{
-                  displayLabel('dispute_status', d.status, '审核中')
+                  displayLabel('dispute_status', d.status)
                 }}</text>
               </view>
               <text class="review-detail">{{ reviewCopy(d).detail }}</text>
@@ -175,7 +175,9 @@
                   )
                 }}{{ o.refundedAt ? ` · ${formatTime(o.refundedAt)}` : '' }} ›</text
               >
-              <text v-else-if="o.status === 'DISPUTED'" class="order-hint">审核中 ›</text>
+              <text v-else-if="o.status === 'DISPUTED'" class="order-hint"
+                >{{ displayLabel('order_status', 'DISPUTED') }} ›</text
+              >
               <text v-else class="order-hint">查看详情 ›</text>
             </view>
           </view>

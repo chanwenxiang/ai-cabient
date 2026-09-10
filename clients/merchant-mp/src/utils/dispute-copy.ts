@@ -1,3 +1,4 @@
+import { displayLabel } from '@aicabinet/shared-dict';
 import { fmtMoney, localizeDisputeReason } from '@aicabinet/shared-uni/format';
 
 export type MerchantDisputeCopyInput = {
@@ -13,24 +14,25 @@ function isTerminalStatus(status?: string | null) {
   return s === 'RESOLVED' || s === 'CLOSED';
 }
 
-/** 已结案：按金额组合生成结论，避免仍展示 OPEN 态「暂未扣款」话术 */
+/** 已结案金额结论：「已结案」词条走字典，金额仍按账单字段组合。 */
 function resolvedDisputeSummary(ticket: MerchantDisputeCopyInput): string {
+  const prefix = displayLabel('dispute_status', 'RESOLVED');
   const billed = Number(ticket.billedAmountCents ?? 0);
   const refunded = Number(ticket.refundedAmountCents ?? 0);
 
   if (refunded > 0 && billed <= 0) {
-    return `已结案：已免单退款 ${fmtMoney(refunded)}`;
+    return `${prefix}：已免单退款 ${fmtMoney(refunded)}`;
   }
   if (refunded > 0 && billed > 0) {
-    return `已结案：扣款 ${fmtMoney(billed)}，已退 ${fmtMoney(refunded)}`;
+    return `${prefix}：扣款 ${fmtMoney(billed)}，已退 ${fmtMoney(refunded)}`;
   }
   if (billed > 0) {
-    return `已结案：按识别扣款 ${fmtMoney(billed)}`;
+    return `${prefix}：按识别扣款 ${fmtMoney(billed)}`;
   }
   if (refunded > 0) {
-    return `已结案：已退款 ${fmtMoney(refunded)}`;
+    return `${prefix}：已退款 ${fmtMoney(refunded)}`;
   }
-  return '已结案：未产生扣款';
+  return `${prefix}：未产生扣款`;
 }
 
 /**
@@ -49,12 +51,15 @@ export function merchantDisputeAmountDiffNote(ticket?: MerchantDisputeCopyInput 
 }
 
 /**
- * 商户争议列表/详情主文案：OPEN 展示 reason；已结案展示结论摘要。
+ * 商户争议列表/详情主文案：OPEN 展示 reason；已结案展示结论摘要（状态词条同源 shared-dict）。
  */
 export function merchantDisputeDisplayCopy(ticket?: MerchantDisputeCopyInput | null): string {
   if (!ticket) return '';
   if (isTerminalStatus(ticket.status)) {
     return resolvedDisputeSummary(ticket);
   }
-  return localizeDisputeReason(ticket.reason) || '争议待处理';
+  return (
+    localizeDisputeReason(ticket.reason) ||
+    displayLabel('dispute_status', ticket.status, '争议待处理')
+  );
 }
