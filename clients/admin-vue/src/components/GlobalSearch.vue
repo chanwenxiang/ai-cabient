@@ -147,7 +147,9 @@ async function searchRecords(q: string) {
         const items = Array.isArray(data) ? data : data?.items || [];
         hits.push(...pick(items));
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.warn('[admin] 全局搜索单路失败', err);
+      });
     // 单路超时不拖垮整次搜索；慢接口被丢弃
     return Promise.race([
       req,

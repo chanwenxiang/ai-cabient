@@ -575,7 +575,9 @@ function syncSidebarWithViewport() {
 }
 
 function onWindowFocus() {
-  auth.refreshPermissions().catch(() => {});
+  auth.refreshPermissions().catch((err) => {
+    console.warn('[admin] 窗口聚焦时刷新权限失败', err);
+  });
 }
 
 onMounted(() => {
@@ -589,7 +591,9 @@ onMounted(() => {
   ) {
     userExpandedInCompact.value = true;
   }
-  auth.refreshPermissions().catch(() => {});
+  auth.refreshPermissions().catch((err) => {
+    console.warn('[admin] 启动时刷新权限失败', err);
+  });
   observeTableScrollFit(document.getElementById('main-content') as HTMLElement);
   globalThis.addEventListener('click', hideTagMenu);
   globalThis.addEventListener('scroll', hideTagMenu, true);
