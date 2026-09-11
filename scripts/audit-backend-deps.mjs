@@ -108,43 +108,41 @@ function parseDepList(text) {
 
 function runMvnDepList() {
   mkdirSync(join(root, 'target'), { recursive: true });
-  // 只读本次生成的清单，避免合并历史 dep-list*.txt（会把已升级包盖回旧版）
-  const moduleOutFiles = [
-    {
-      pl: 'services/trade-service',
-      out: join(root, 'target', 'dep-list-trade-runtime.txt')
-    },
-    {
-      pl: 'services/device-service',
-      out: join(root, 'target', 'dep-list-device-runtime.txt')
-    }
+  // 相对路径 outputFile：每个模块写到自己的 target/，避免单文件被后执行模块覆盖
+  const moduleLists = [
+    join(root, 'services', 'trade-service', 'target', 'dep-list-runtime.txt'),
+    join(root, 'services', 'device-service', 'target', 'dep-list-runtime.txt')
   ];
+  for (const f of moduleLists) {
+    if (existsSync(f)) writeFileSync(f, '', 'utf8');
+  }
+  const isWin = process.platform === 'win32';
+  const r = spawnSync(
+    isWin ? 'mvn.cmd' : 'mvn',
+    [
+      '-ntp',
+      '-pl',
+      ':trade-service,:device-service',
+      '-am',
+      'package',
+      'dependency:list',
+      '-DskipTests',
+      '-Dskip.admin.build=true',
+      '-DincludeScope=runtime',
+      '-DoutputFile=target/dep-list-runtime.txt'
+    ],
+    { cwd: root, encoding: 'utf8', shell: isWin }
+  );
+  if (r.status !== 0) {
+    console.error(r.stderr?.slice(-1200) || r.stdout?.slice(-1200));
+    throw new Error('mvn package dependency:list failed for :trade-service,:device-service');
+  }
   const chunks = [];
-  for (const { pl, out } of moduleOutFiles) {
-    if (existsSync(out)) {
-      writeFileSync(out, '', 'utf8');
+  for (const f of moduleLists) {
+    if (!existsSync(f) || !readFileSync(f, 'utf8').trim()) {
+      throw new Error(`missing dependency list output: ${f}`);
     }
-    const r = spawnSync(
-      'mvn',
-      [
-        '-pl',
-        pl,
-        '-am',
-        'dependency:list',
-        '-DincludeScope=runtime',
-        '-Dskip.admin.build=true',
-        `-DoutputFile=${out}`
-      ],
-      { cwd: root, encoding: 'utf8', shell: true }
-    );
-    if (r.status !== 0) {
-      console.error(r.stderr?.slice(-800) || r.stdout?.slice(-800));
-      throw new Error(`mvn dependency:list failed for ${pl}`);
-    }
-    if (!existsSync(out) || !readFileSync(out, 'utf8').trim()) {
-      throw new Error(`missing dependency list output: ${out}`);
-    }
-    chunks.push(readFileSync(out, 'utf8'));
+    chunks.push(readFileSync(f, 'utf8'));
   }
   return chunks.join('\n');
 }
@@ -166,18 +164,19 @@ for (const [name, ver] of pins) console.log(`  ${name}:${ver}`);
 const depMap = new Map(pins.filter(([, v]) => v));
 if (FULL && process.env.SKIP_MVN !== '1') {
   console.log('\n=== Resolving runtime dependency tree (Maven) ===');
-  try {
-    const raw = runMvnDepList();
-    const parsed = parseDepList(raw);
-    console.log(`  unique runtime jars: ${parsed.size}`);
-    for (const [k, v] of parsed) depMap.set(k, v);
-    writeFileSync(
-      join(root, 'target', 'dep-osv-input.txt'),
-      [...depMap.entries()].map(([k, v]) => `${k}:${v}`).join('\n')
+  const raw = runMvnDepList();
+  const parsed = parseDepList(raw);
+  console.log(`  unique runtime jars: ${parsed.size}`);
+  if (parsed.size < 50) {
+    throw new Error(
+      `dependency tree too small (${parsed.size}); refusing pin-only scan. Fix Maven reactor or set SKIP_MVN=1 intentionally.`
     );
-  } catch (e) {
-    console.warn('  Maven tree skipped:', e instanceof Error ? e.message : e);
   }
+  for (const [k, v] of parsed) depMap.set(k, v);
+  writeFileSync(
+    join(root, 'target', 'dep-osv-input.txt'),
+    [...depMap.entries()].map(([k, v]) => `${k}:${v}`).join('\n')
+  );
 }
 
 const packages = [...depMap.entries()];
