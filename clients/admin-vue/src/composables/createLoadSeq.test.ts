@@ -28,4 +28,20 @@ describe('createLoadSeq', () => {
     expect(g.isCurrent(a1, 'a')).toBe(false);
     expect(g.isCurrent(b1, 'b')).toBe(true);
   });
+
+  it('模拟乱序响应：慢的旧请求不得写回', async () => {
+    const g = createLoadSeq();
+    const written: number[] = [];
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    async function load(page: number, delayMs: number) {
+      const seq = g.begin();
+      await sleep(delayMs);
+      if (!g.isCurrent(seq)) return;
+      written.push(page);
+    }
+
+    await Promise.all([load(0, 80), load(1, 10)]);
+    expect(written).toEqual([1]);
+  });
 });
