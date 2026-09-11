@@ -21,6 +21,7 @@
     "smoke:realms": "node scripts/smoke-realms.mjs",
     "smoke:admin-list-race": "node scripts/smoke-admin-list-race.mjs",
     "smoke:admin-a11y": "node scripts/smoke-admin-a11y.mjs",
+    "check:admin-bundle": "node scripts/check-admin-bundle-budget.mjs",
     "gen:api-types": "node scripts/gen-openapi-types.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

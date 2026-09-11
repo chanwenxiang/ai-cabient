@@ -126,6 +126,9 @@ jobs:
       - name: Verify admin UI artifacts are up-to-date
         run: git diff --exit-code -- services/trade-service/src/main/resources/static/admin
 
+      - name: Admin bundle size budget
+        run: node scripts/check-admin-bundle-budget.mjs
+
       # 契约对齐：启动刚构建的 jar，导出 /v3/api-docs 并校验 generated TS 已提交
       # 仓库 .npmrc 为 Windows 配了 script-shell=cmd.exe；Linux CI 须改回 bash
       - name: Verify OpenAPI-generated types are up-to-date
@@ -226,6 +229,12 @@ jobs:
 
       - name: Merchant nav-guard path helpers
         run: pnpm check:merchant-nav-guard
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install chromium --with-deps
+
+      - name: Admin a11y smoke
+        run: pnpm smoke:admin-a11y
 
       - name: Build shared packages
         run: pnpm build:packages
