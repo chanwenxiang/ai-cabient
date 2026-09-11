@@ -20,6 +20,7 @@
     "check:migration-safety": "node scripts/check-migration-safety.mjs",
     "smoke:realms": "node scripts/smoke-realms.mjs",
     "smoke:admin-list-race": "node scripts/smoke-admin-list-race.mjs",
+    "smoke:admin-a11y": "node scripts/smoke-admin-a11y.mjs",
     "gen:api-types": "node scripts/gen-openapi-types.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
