@@ -9,6 +9,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import https from 'node:https';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -20,20 +21,74 @@ function readProp(pomText, name) {
   return m ? m[1].trim() : null;
 }
 
+async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** 用 node:https 避免 undici 默认 10s connectTimeout 误杀慢网/代理环境 */
+function httpsPostJson(url, bodyObj, timeoutMs = 120_000) {
+  const body = JSON.stringify(bodyObj);
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body)
+        },
+        timeout: timeoutMs
+      },
+      (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8');
+          if ((res.statusCode || 0) >= 400) {
+            reject(new Error(`OSV HTTP ${res.statusCode}: ${text.slice(0, 200)}`));
+            return;
+          }
+          try {
+            resolve(JSON.parse(text));
+          } catch (err) {
+            reject(err);
+          }
+        });
+      }
+    );
+    req.on('timeout', () => req.destroy(new Error(`OSV request timeout after ${timeoutMs}ms`)));
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
 async function osvBatchFetch(queries) {
   const chunkSize = 80;
   const results = [];
+  const maxAttempts = 3;
   for (let i = 0; i < queries.length; i += chunkSize) {
     const chunk = queries.slice(i, i + chunkSize);
-    const r = await fetch('https://api.osv.dev/v1/querybatch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ queries: chunk }),
-      signal: AbortSignal.timeout(60_000)
-    });
-    if (!r.ok) throw new Error(`OSV HTTP ${r.status}`);
-    const data = await r.json();
-    results.push(...(data.results || []));
+    let lastErr;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const data = await httpsPostJson('https://api.osv.dev/v1/querybatch', { queries: chunk });
+        results.push(...(data.results || []));
+        lastErr = undefined;
+        break;
+      } catch (err) {
+        lastErr = err;
+        if (attempt < maxAttempts) {
+          const waitMs = attempt * 2000;
+          console.warn(
+            `  OSV chunk ${i / chunkSize + 1} attempt ${attempt} failed, retry in ${waitMs}ms:`,
+            err instanceof Error ? err.message : err
+          );
+          await sleep(waitMs);
+        }
+      }
+    }
+    if (lastErr) throw lastErr;
   }
   return { results };
 }
@@ -53,53 +108,43 @@ function parseDepList(text) {
 
 function runMvnDepList() {
   mkdirSync(join(root, 'target'), { recursive: true });
-  const outFile = join(root, 'target', 'dep-list-runtime.txt');
-  const r = spawnSync(
-    'mvn',
-    [
-      '-pl',
-      'services/trade-service,services/device-service',
-      '-am',
-      'dependency:list',
-      '-DincludeScope=runtime',
-      '-Dskip.admin.build=true',
-      `-DoutputFile=${outFile}`
-    ],
-    { cwd: root, encoding: 'utf8', shell: true }
-  );
-  if (r.status !== 0) {
-    console.error(r.stderr?.slice(-800) || r.stdout?.slice(-800));
-    throw new Error('mvn dependency:list failed');
-  }
-  // Maven may write per-module files; also check module targets
+  // 只读本次生成的清单，避免合并历史 dep-list*.txt（会把已升级包盖回旧版）
+  const moduleOutFiles = [
+    {
+      pl: 'services/trade-service',
+      out: join(root, 'target', 'dep-list-trade-runtime.txt')
+    },
+    {
+      pl: 'services/device-service',
+      out: join(root, 'target', 'dep-list-device-runtime.txt')
+    }
+  ];
   const chunks = [];
-  if (existsSync(outFile)) chunks.push(readFileSync(outFile, 'utf8'));
-  for (const mod of [
-    'services/trade-service/target/dep-list-runtime.txt',
-    'services/device-service/target/dep-list-runtime.txt',
-    'services/common/common-core/target/dep-list-runtime.txt',
-    'services/trade-service/target/dep-list.txt'
-  ]) {
-    const p = join(root, mod);
-    if (existsSync(p)) chunks.push(readFileSync(p, 'utf8'));
-  }
-  // Prefer absolute path we asked for; Maven often writes relative to each module
-  const trade = join(root, 'services/trade-service/target');
-  if (existsSync(trade)) {
-    for (const f of ['dep-list-runtime.txt', 'dep-list.txt']) {
-      const p = join(trade, f);
-      if (existsSync(p)) chunks.push(readFileSync(p, 'utf8'));
+  for (const { pl, out } of moduleOutFiles) {
+    if (existsSync(out)) {
+      writeFileSync(out, '', 'utf8');
     }
-  }
-  const device = join(root, 'services/device-service/target');
-  if (existsSync(device)) {
-    for (const f of ['dep-list-runtime.txt', 'dep-list.txt']) {
-      const p = join(device, f);
-      if (existsSync(p)) chunks.push(readFileSync(p, 'utf8'));
+    const r = spawnSync(
+      'mvn',
+      [
+        '-pl',
+        pl,
+        '-am',
+        'dependency:list',
+        '-DincludeScope=runtime',
+        '-Dskip.admin.build=true',
+        `-DoutputFile=${out}`
+      ],
+      { cwd: root, encoding: 'utf8', shell: true }
+    );
+    if (r.status !== 0) {
+      console.error(r.stderr?.slice(-800) || r.stdout?.slice(-800));
+      throw new Error(`mvn dependency:list failed for ${pl}`);
     }
-  }
-  if (!chunks.length && existsSync(join(root, 'target/dep-list-trade.txt'))) {
-    chunks.push(readFileSync(join(root, 'target/dep-list-trade.txt'), 'utf8'));
+    if (!existsSync(out) || !readFileSync(out, 'utf8').trim()) {
+      throw new Error(`missing dependency list output: ${out}`);
+    }
+    chunks.push(readFileSync(out, 'utf8'));
   }
   return chunks.join('\n');
 }
@@ -111,7 +156,8 @@ const pins = [
   ['io.netty:netty-handler', readProp(pom, 'netty.version')],
   ['com.fasterxml.jackson.core:jackson-databind', readProp(pom, 'jackson-bom.version')],
   ['org.postgresql:postgresql', readProp(pom, 'postgresql.version')],
-  ['io.minio:minio', readProp(pom, 'minio.version')]
+  ['io.minio:minio', readProp(pom, 'minio.version')],
+  ['at.yawk.lz4:lz4-java', readProp(pom, 'lz4-java.version')]
 ];
 
 console.log('=== Maven pins (from root pom) ===');
