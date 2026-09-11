@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { onLaunch } from '@dcloudio/uni-app';
 import { loadRuntimeDict } from '@/utils/dict-runtime';
+import { getToken, installMerchantNavGuard, isMerchantLoginPath } from '@/utils/merchant-api';
 
 /** H5 / 微信小程序通用：当前是否登录页（避免无 token 深链先闪业务页）。 */
 function isLoginLaunch(options?: { path?: string }): boolean {
   const launchPath = String(options?.path || '');
-  if (launchPath === 'pages/login/login' || launchPath.includes('pages/login/login')) {
+  if (isMerchantLoginPath(launchPath) || launchPath.includes('pages/login/login')) {
     return true;
   }
   if (typeof location !== 'undefined') {
@@ -15,7 +16,7 @@ function isLoginLaunch(options?: { path?: string }): boolean {
   try {
     const pages = getCurrentPages();
     const route = String(pages[pages.length - 1]?.route || '');
-    if (route === 'pages/login/login' || route.endsWith('/pages/login/login')) return true;
+    if (isMerchantLoginPath(route)) return true;
   } catch {
     /* launch 早期可能尚无页面栈 */
   }
@@ -23,11 +24,12 @@ function isLoginLaunch(options?: { path?: string }): boolean {
 }
 
 onLaunch((options) => {
-  if (!uni.getStorageSync('merchant_token') && !isLoginLaunch(options)) {
+  installMerchantNavGuard();
+  if (!getToken() && !isLoginLaunch(options)) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
-  if (!uni.getStorageSync('merchant_token')) return;
+  if (!getToken()) return;
   void loadRuntimeDict();
 });
 </script>
