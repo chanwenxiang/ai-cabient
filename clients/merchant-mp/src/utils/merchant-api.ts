@@ -50,6 +50,15 @@ export function getToken() {
   return uni.getStorageSync('merchant_token') || '';
 }
 
+/** 登录页路径（去 query / 前后斜杠后比对）。 */
+export function isMerchantLoginPath(url: string): boolean {
+  const path = String(url || '')
+    .split('?')[0]
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '');
+  return path === 'pages/login/login' || path.endsWith('/pages/login/login');
+}
+
 const mpApiSession: MpApiSession = {
   baseUrl: API_BASE_URL,
   timeoutMs: 20_000,
@@ -70,13 +79,45 @@ export function clearSession() {
 }
 
 let unauthorizedHandling = false;
+let navGuardInstalled = false;
+
+/**
+ * 统一导航守卫：无 token 时拦截业务跳转并 reLaunch 登录。
+ * 冷启动深链仍依赖 App.onLaunch；本拦截覆盖运行期 navigate/redirect/reLaunch/switchTab。
+ */
+export function installMerchantNavGuard() {
+  if (navGuardInstalled) return;
+  navGuardInstalled = true;
+  const guard = {
+    invoke(args: { url?: string }) {
+      const url = String(args?.url || '');
+      if (isMerchantLoginPath(url)) return true;
+      if (getToken()) return true;
+      if (!unauthorizedHandling) {
+        unauthorizedHandling = true;
+        uni.reLaunch({
+          url: '/pages/login/login',
+          complete: () => {
+            setTimeout(() => {
+              unauthorizedHandling = false;
+            }, 800);
+          }
+        });
+      }
+      return false;
+    }
+  };
+  for (const api of ['navigateTo', 'redirectTo', 'reLaunch', 'switchTab'] as const) {
+    uni.addInterceptor(api, guard);
+  }
+}
 
 /** 401 时清会话并跳转登录（M-10：防抖 + 精确匹配登录页） */
 export function handleUnauthorized(message?: string) {
   clearSession();
   const pages = getCurrentPages();
   const route = String(pages[pages.length - 1]?.route || '');
-  const onLogin = route === 'pages/login/login' || route.endsWith('/pages/login/login');
+  const onLogin = isMerchantLoginPath(route);
   if (!onLogin && !unauthorizedHandling) {
     unauthorizedHandling = true;
     uni.reLaunch({

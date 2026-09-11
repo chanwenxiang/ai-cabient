@@ -221,6 +221,12 @@ jobs:
         env:
           CI: true
 
+      - name: Frontend dependency audit (prod)
+        run: pnpm audit:frontend
+
+      - name: Merchant nav-guard path helpers
+        run: pnpm check:merchant-nav-guard
+
       - name: Build shared packages
         run: pnpm build:packages
 
