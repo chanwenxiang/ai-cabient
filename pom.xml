@@ -44,6 +44,11 @@
         <sonar.maven.plugin.version>4.0.0.4121</sonar.maven.plugin.version>
         <jacoco.version>0.8.12</jacoco.version>
         <owasp.dependency-check.version>12.1.3</owasp.dependency-check.version>
+        <!-- OSV 全树复扫命中项（须在 Boot BOM 前显式 DM） -->
+        <log4j2.version>2.25.5</log4j2.version>
+        <commons-lang3.version>3.18.0</commons-lang3.version>
+        <opentelemetry.version>1.62.0</opentelemetry.version>
+        <bouncycastle.version>1.84</bouncycastle.version>
     </properties>
 
     <dependencyManagement>
@@ -87,6 +92,35 @@
                 <groupId>io.minio</groupId>
                 <artifactId>minio</artifactId>
                 <version>${minio.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-bom</artifactId>
+                <version>${log4j2.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-bom</artifactId>
+                <version>${opentelemetry.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commons-lang3.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpkix-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.testcontainers</groupId>
@@ -236,7 +270,10 @@
                                 <format>HTML</format>
                                 <format>JSON</format>
                             </formats>
+                            <!-- 无 key 会被 NVD 限流；导出 NVD_API_KEY 后复扫 -->
+                            <nvdApiKey>${env.NVD_API_KEY}</nvdApiKey>
                             <nvdApiDelay>2000</nvdApiDelay>
+                            <autoUpdate>true</autoUpdate>
                         </configuration>
                         <executions>
                             <execution>
