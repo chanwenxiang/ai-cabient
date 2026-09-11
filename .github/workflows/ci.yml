@@ -171,6 +171,18 @@ jobs:
         env:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:15433/aicabinet
 
+      # Maven runtime 全树 → OSV；有 finding 时 exit 1。pip-audit 尽力而为（缺工具不挡门）。
+      - name: Backend dependency OSV audit
+        run: node scripts/audit-backend-deps.mjs
+
+      - name: Upload OSV findings
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: osv-findings
+          path: target/osv-findings.json
+          if-no-files-found: ignore
+
       - name: Vision mock unit tests (pytest, no YOLO weights)
         run: |
           python -m pip install --upgrade pip
