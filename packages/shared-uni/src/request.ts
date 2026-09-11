@@ -173,9 +173,7 @@ export function mpRequest<T>(
         await sleep(200 * 2 ** attempt);
       }
     }
-    throw lastError instanceof Error
-      ? lastError
-      : createMpApiError('网络错误，请稍后重试');
+    throw lastError instanceof Error ? lastError : createMpApiError('网络错误，请稍后重试');
   })();
 }
 

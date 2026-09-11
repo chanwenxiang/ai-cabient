@@ -24,7 +24,13 @@ function ok(data) {
 
 function relativeLuminance(hex) {
   const h = hex.replace('#', '').trim();
-  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  const full =
+    h.length === 3
+      ? h
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : h;
   const n = Number.parseInt(full, 16);
   const rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
     const s = v / 255;
@@ -159,7 +165,8 @@ async function main() {
     await skip.focus();
     if (!(await skip.isVisible())) throw new Error('跳过链接聚焦后应可见');
     const skipHref = await skip.getAttribute('href');
-    if (skipHref !== '#main-content') throw new Error(`跳过链接 href 应为 #main-content，实际 ${skipHref}`);
+    if (skipHref !== '#main-content')
+      throw new Error(`跳过链接 href 应为 #main-content，实际 ${skipHref}`);
 
     const phone = page.locator('input[autocomplete="tel"], input[type="tel"]').first();
     await phone.waitFor({ timeout: 10_000 });
@@ -189,7 +196,9 @@ async function main() {
       const mutedOnCard = contrastRatio(tokens.muted, tokens.card);
       const regularOnCard = contrastRatio(tokens.regular || tokens.text, tokens.card);
       if (mutedOnCard < 4.5) {
-        throw new Error(`深色 muted/card 对比度 ${mutedOnCard.toFixed(2)} < 4.5（${tokens.muted} on ${tokens.card}）`);
+        throw new Error(
+          `深色 muted/card 对比度 ${mutedOnCard.toFixed(2)} < 4.5（${tokens.muted} on ${tokens.card}）`
+        );
       }
       if (regularOnCard < 4.5) {
         throw new Error(

@@ -160,7 +160,11 @@ import {
   requestMerchantSubscribe,
   wxLoginCode
 } from '@/utils/notify';
-import { canAccessNav, useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
+import {
+  canAccessNav,
+  useMerchantMe,
+  seedMerchantMeDisplayCache
+} from '@/composables/useMerchantMe';
 import {
   MERCHANT_BIZ_NAV,
   MERCHANT_FIELD_NAV,

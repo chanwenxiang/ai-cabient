@@ -97,7 +97,11 @@ import { onShow } from '@dcloudio/uni-app';
 import EmptyState from '@/components/empty-state.vue';
 import { yuanToCents } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
-import { useMerchantMe, canEditPricingWithPerm, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
+import {
+  useMerchantMe,
+  canEditPricingWithPerm,
+  seedMerchantMeDisplayCache
+} from '@/composables/useMerchantMe';
 import type {
   MerchantMe,
   MerchantSkuPriceChange,
