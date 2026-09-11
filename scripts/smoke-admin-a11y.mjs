@@ -1,6 +1,7 @@
 /**
  * 管理后台 a11y 冒烟（Playwright + API mock，无需后端）。
- * 检查：跳过链接、主内容锚点、深色对比度 token、登录表单字段、工作台可聚焦 KPI。
+ * 检查：跳过链接、主内容锚点、深/浅色对比度、登录表单、工作台 KPI、
+ * 多业务页 #main-content / 标题 / 图片 alt。
  *
  * Usage:
  *   ADMIN_BASE=http://127.0.0.1:3000/admin/ node scripts/smoke-admin-a11y.mjs
@@ -13,6 +14,9 @@ import { chromium } from 'playwright';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ADMIN_BASE = (process.env.ADMIN_BASE || 'http://127.0.0.1:3000/admin/').replace(/\/?$/, '/');
+
+/** 鉴权后抽样页：覆盖列表/财务/异常等常见布局 */
+const AUTHED_ROUTES = ['dashboard', 'orders', 'devices', 'exceptions', 'finance'];
 
 function ok(data) {
   return {
@@ -45,6 +49,20 @@ function contrastRatio(fg, bg) {
   const hi = Math.max(L1, L2);
   const lo = Math.min(L1, L2);
   return (hi + 0.05) / (lo + 0.05);
+}
+
+function isHexColor(v) {
+  return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(v || '').trim());
+}
+
+/** getComputedStyle 常返回 rgb()/rgba()，对比度计算统一成 hex。 */
+function cssColorToHex(input) {
+  const v = String(input || '').trim();
+  if (isHexColor(v)) return v.toLowerCase();
+  const m = v.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (!m) return '';
+  const hex = (n) => Number(n).toString(16).padStart(2, '0');
+  return `#${hex(m[1])}${hex(m[2])}${hex(m[3])}`;
 }
 
 async function waitHttpOk(url, attempts = 60) {
@@ -80,6 +98,110 @@ async function ensureAdminDev() {
   return child;
 }
 
+async function assertThemeContrast(page, theme) {
+  await page.evaluate((t) => {
+    if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    else document.documentElement.removeAttribute('data-theme');
+  }, theme);
+  const tokens = await page.evaluate(() => {
+    const s = getComputedStyle(document.documentElement);
+    const probe = document.createElement('div');
+    probe.style.position = 'fixed';
+    probe.style.left = '-9999px';
+    document.body.appendChild(probe);
+    const read = (prop, fallbackProp) => {
+      probe.style.color = '';
+      probe.style.backgroundColor = '';
+      const raw = s.getPropertyValue(prop).trim();
+      if (raw) {
+        // 强制计算为 used value
+        probe.style.color = `var(${prop})`;
+        return getComputedStyle(probe).color;
+      }
+      if (fallbackProp) {
+        probe.style.color = `var(${fallbackProp})`;
+        return getComputedStyle(probe).color;
+      }
+      return '';
+    };
+    const cardRaw = s.getPropertyValue('--layout-card').trim();
+    probe.style.backgroundColor = cardRaw ? `var(--layout-card)` : '#ffffff';
+    const card = getComputedStyle(probe).backgroundColor;
+    const muted = read('--layout-muted');
+    const text = read('--layout-text');
+    const regular = read('--el-text-color-regular', '--layout-text');
+    probe.remove();
+    return { text, muted, card, regular };
+  });
+  const muted = cssColorToHex(tokens.muted);
+  const card = cssColorToHex(tokens.card);
+  const fg = cssColorToHex(tokens.regular) || cssColorToHex(tokens.text);
+  if (!muted || !card || !fg) {
+    throw new Error(`${theme}: 无法解析对比度色（${JSON.stringify(tokens)}）`);
+  }
+  const mutedOnCard = contrastRatio(muted, card);
+  const regularOnCard = contrastRatio(fg, card);
+  if (mutedOnCard < 4.5) {
+    throw new Error(
+      `${theme} muted/card 对比度 ${mutedOnCard.toFixed(2)} < 4.5（${muted} on ${card}）`
+    );
+  }
+  if (regularOnCard < 4.5) {
+    throw new Error(
+      `${theme} regular/card 对比度 ${regularOnCard.toFixed(2)} < 4.5（${fg} on ${card}）`
+    );
+  }
+  console.log(
+    `  ${theme} contrast muted=${mutedOnCard.toFixed(2)} regular=${regularOnCard.toFixed(2)}`
+  );
+}
+
+async function assertPageShell(page, route) {
+  await page.goto(`${ADMIN_BASE}${route}`, { waitUntil: 'domcontentloaded' });
+  const main = page.locator('#main-content');
+  await main.waitFor({ timeout: 15_000 });
+
+  const skip = page.locator('a.skip-link');
+  if ((await skip.count()) < 1) throw new Error(`${route}: 缺少跳过链接`);
+  const href = await skip.first().getAttribute('href');
+  if (href !== '#main-content') throw new Error(`${route}: 跳过链接 href 异常 ${href}`);
+
+  const headingCount = await page
+    .locator(
+      [
+        '#main-content h1',
+        '#main-content h2',
+        '#main-content [role="heading"]',
+        '#main-content .page-card-head__title .title',
+        '#main-content .page-card-head__title',
+        '#main-content .page-title'
+      ].join(', ')
+    )
+    .count();
+  if (headingCount < 1) throw new Error(`${route}: 主内容区缺少页面标题`);
+
+  const badImgs = await page.evaluate(() => {
+    const imgs = [...document.querySelectorAll('#main-content img')];
+    return imgs
+      .filter((img) => {
+        if (
+          img.getAttribute('role') === 'presentation' ||
+          img.getAttribute('aria-hidden') === 'true'
+        ) {
+          return false;
+        }
+        const alt = img.getAttribute('alt');
+        return alt == null;
+      })
+      .map((img) => img.getAttribute('src') || img.outerHTML.slice(0, 80));
+  });
+  if (badImgs.length) {
+    throw new Error(`${route}: 图片缺少 alt: ${badImgs.slice(0, 3).join('; ')}`);
+  }
+
+  console.log(`  ${route}: shell OK (headings=${headingCount})`);
+}
+
 async function main() {
   let vite = null;
   try {
@@ -89,18 +211,7 @@ async function main() {
 
     await page.route('**/api/v2/**', async (route) => {
       const p = new URL(route.request().url()).pathname;
-      if (p.includes('/rbac/me/permissions')) {
-        return route.fulfill(
-          ok([
-            'ops:dashboard:view',
-            'ops:order:list',
-            'ops:device:list',
-            'ops:finance:view',
-            'ops:exception:list'
-          ])
-        );
-      }
-      if (p.includes('/rbac/me/nav')) {
+      if (p.includes('/rbac/me/permissions') || p.includes('/rbac/me/nav')) {
         return route.fulfill(
           ok([
             'ops:dashboard:view',
@@ -150,10 +261,10 @@ async function main() {
           })
         );
       }
-      if (p.includes('/exceptions')) {
-        return route.fulfill(ok({ items: [], total: 3 }));
+      if (p.includes('/exceptions') || p.includes('/orders') || p.includes('/devices')) {
+        return route.fulfill(ok({ items: [], total: 0, page: 1, size: 20 }));
       }
-      if (p.includes('/merchant-onboarding')) {
+      if (p.includes('/merchant-onboarding') || p.includes('/finance') || p.includes('/fund')) {
         return route.fulfill(ok({ items: [], total: 0 }));
       }
       return route.fulfill(ok({}));
@@ -173,54 +284,35 @@ async function main() {
     const spell = await phone.getAttribute('spellcheck');
     if (spell !== 'false') throw new Error('登录手机号应 spellcheck=false');
 
-    // --- 鉴权后工作台 ---
+    // --- 鉴权后多页 ---
     await page.addInitScript(() => {
       localStorage.setItem('admin_token', 'smoke-token');
       localStorage.setItem('admin_userId', '1');
       localStorage.setItem('admin_token_expires', String(Date.now() + 3_600_000));
     });
-    await page.goto(`${ADMIN_BASE}dashboard`, { waitUntil: 'domcontentloaded' });
-    await page.locator('#main-content').waitFor({ timeout: 15_000 });
 
-    documentTheme: {
-      await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
-      const tokens = await page.evaluate(() => {
-        const s = getComputedStyle(document.documentElement);
-        return {
-          text: s.getPropertyValue('--layout-text').trim() || '#e7ecf3',
-          muted: s.getPropertyValue('--layout-muted').trim(),
-          card: s.getPropertyValue('--layout-card').trim(),
-          regular: s.getPropertyValue('--el-text-color-regular').trim()
-        };
-      });
-      const mutedOnCard = contrastRatio(tokens.muted, tokens.card);
-      const regularOnCard = contrastRatio(tokens.regular || tokens.text, tokens.card);
-      if (mutedOnCard < 4.5) {
-        throw new Error(
-          `深色 muted/card 对比度 ${mutedOnCard.toFixed(2)} < 4.5（${tokens.muted} on ${tokens.card}）`
-        );
-      }
-      if (regularOnCard < 4.5) {
-        throw new Error(
-          `深色 regular/card 对比度 ${regularOnCard.toFixed(2)} < 4.5（${tokens.regular} on ${tokens.card}）`
-        );
-      }
-      console.log(
-        `  dark contrast muted=${mutedOnCard.toFixed(2)} regular=${regularOnCard.toFixed(2)}`
-      );
+    for (const route of AUTHED_ROUTES) {
+      await assertPageShell(page, route);
     }
 
-    const kpi = page.locator('.stat-tile[role="button"]').first();
-    if ((await kpi.count()) > 0) {
-      await kpi.focus();
-      const label = await kpi.getAttribute('aria-label');
+    await assertThemeContrast(page, 'dark');
+    await assertThemeContrast(page, 'light');
+
+    if ((await page.locator('.stat-tile[role="button"]').count()) === 0) {
+      await page.goto(`${ADMIN_BASE}dashboard`, { waitUntil: 'domcontentloaded' });
+      await page.locator('#main-content').waitFor({ timeout: 15_000 });
+    }
+    if ((await page.locator('.stat-tile[role="button"]').count()) > 0) {
+      const tile = page.locator('.stat-tile[role="button"]').first();
+      await tile.focus();
+      const label = await tile.getAttribute('aria-label');
       if (!label) throw new Error('可点击 KPI 缺少 aria-label');
     }
 
     const search = page.getByRole('button', { name: '全局搜索' });
     await search.waitFor({ timeout: 10_000 });
 
-    console.log('PASS smoke-admin-a11y');
+    console.log(`PASS smoke-admin-a11y (${AUTHED_ROUTES.length} routes + contrast)`);
     await browser.close();
   } finally {
     if (vite && !vite.killed) {
