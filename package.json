@@ -19,6 +19,7 @@
     "check:openapi-types": "node scripts/check-openapi-types.mjs",
     "check:migration-safety": "node scripts/check-migration-safety.mjs",
     "smoke:realms": "node scripts/smoke-realms.mjs",
+    "smoke:admin-list-race": "node scripts/smoke-admin-list-race.mjs",
     "gen:api-types": "node scripts/gen-openapi-types.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -50,6 +51,7 @@
     "eslint-plugin-vue": "^9",
     "globals": "^15",
     "openapi-typescript": "^7.4.4",
+    "playwright": "1.55.0",
     "prettier": "^3",
     "typescript-eslint": "^8"
   }
