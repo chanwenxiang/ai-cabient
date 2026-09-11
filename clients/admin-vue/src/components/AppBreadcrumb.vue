@@ -7,13 +7,9 @@
       <el-breadcrumb-item v-if="parentTitle" :to="parentPath">{{ parentTitle }}</el-breadcrumb-item>
       <el-breadcrumb-item>{{ currentTitle }}</el-breadcrumb-item>
     </el-breadcrumb>
-    <span
-      v-else
-      class="app-breadcrumb-compact"
-      :title="fullTrail"
-      :aria-label="fullTrail"
-      >{{ currentTitle }}</span
-    >
+    <span v-else class="app-breadcrumb-compact" :title="fullTrail" :aria-label="fullTrail">{{
+      currentTitle
+    }}</span>
   </div>
 </template>
 

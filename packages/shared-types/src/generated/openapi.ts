@@ -112,7 +112,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_6"];
+        get: operations["list"];
         put: operations["upsert"];
         post?: never;
         delete?: never;
@@ -176,7 +176,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_9"];
+        get: operations["list_1"];
         put: operations["replace"];
         post?: never;
         delete?: never;
@@ -195,7 +195,7 @@ export interface paths {
         get?: never;
         put: operations["updateMeta"];
         post?: never;
-        delete: operations["delete_2"];
+        delete: operations["delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1328,7 +1328,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_3"];
+        get: operations["list_2"];
         put?: never;
         post: operations["create_2"];
         delete?: never;
@@ -1376,7 +1376,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_4"];
+        get: operations["list_3"];
         put?: never;
         post: operations["create_3"];
         delete?: never;
@@ -1888,7 +1888,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_10"];
+        get: operations["list_4"];
         put?: never;
         post: operations["create_4"];
         delete?: never;
@@ -2080,7 +2080,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_11"];
+        get: operations["list_5"];
         put?: never;
         post: operations["create_5"];
         delete?: never;
@@ -2448,7 +2448,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_12"];
+        get: operations["list_6"];
         put?: never;
         post: operations["upsert_1"];
         delete?: never;
@@ -2592,7 +2592,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_15"];
+        get: operations["list_7"];
         put?: never;
         post: operations["create_6"];
         delete?: never;
@@ -2672,7 +2672,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_17"];
+        get: operations["list_8"];
         put?: never;
         post: operations["create_7"];
         delete?: never;
@@ -2688,7 +2688,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_18"];
+        get: operations["list_9"];
         put?: never;
         post: operations["create_8"];
         delete?: never;
@@ -3376,7 +3376,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_22"];
+        get: operations["list_10"];
         put?: never;
         post: operations["create_9"];
         delete?: never;
@@ -4416,7 +4416,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["detail_1"];
+        get: operations["detail"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4432,7 +4432,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["detail_2"];
+        get: operations["detail_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4832,7 +4832,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list"];
+        get: operations["list_11"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4928,7 +4928,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_1"];
+        get: operations["list_12"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4944,7 +4944,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_2"];
+        get: operations["list_13"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5024,7 +5024,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["detail"];
+        get: operations["detail_2"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5184,7 +5184,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_5"];
+        get: operations["list_14"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5360,7 +5360,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_7"];
+        get: operations["list_15"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5424,7 +5424,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_8"];
+        get: operations["list_16"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6144,7 +6144,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_13"];
+        get: operations["list_17"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6176,7 +6176,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_14"];
+        get: operations["list_18"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6240,7 +6240,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_16"];
+        get: operations["list_19"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6304,7 +6304,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_19"];
+        get: operations["list_20"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6544,7 +6544,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_20"];
+        get: operations["list_21"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6768,7 +6768,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_21"];
+        get: operations["list_22"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8275,7 +8275,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete"];
+        delete: operations["delete_1"];
         options?: never;
         head?: never;
         patch?: never;
@@ -8323,7 +8323,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_1"];
+        delete: operations["delete_2"];
         options?: never;
         head?: never;
         patch?: never;
@@ -8993,6 +8993,7 @@ export interface components {
         UpdateOpsMeRequest: {
             phoneNumber: string;
             name: string;
+            /** Format: email */
             email?: string;
             avatarUrl?: string;
         };
@@ -9024,7 +9025,7 @@ export interface components {
             /** Format: int32 */
             code?: number;
             message?: string;
-            data?: Record<string, never>;
+            data?: unknown;
         };
         PhoneVerifyLogDto: {
             /** Format: int64 */
@@ -10028,18 +10029,6 @@ export interface components {
             hint?: string;
             recognition?: components["schemas"]["DevRecognitionPreviewDto"];
         };
-        OrderLineDto: {
-            skuId?: string;
-            skuName?: string;
-            /** Format: int32 */
-            quantity?: number;
-            /** Format: int32 */
-            unitPriceCents?: number;
-            /** Format: int32 */
-            lineAmountCents?: number;
-            batchNo?: string;
-            slotId?: string;
-        };
         OrderReadModel: {
             orderId?: string;
             sessionId?: string;
@@ -10075,7 +10064,7 @@ export interface components {
             /** Format: date-time */
             paidAt?: string;
             splitStatus?: string;
-            lines?: components["schemas"]["OrderLineDto"][];
+            lines?: components["schemas"]["OrderLineDto_Consumer"][];
             /** Format: int32 */
             balanceBeforeCents?: number;
             /** Format: int32 */
@@ -10219,6 +10208,18 @@ export interface components {
             /** Format: int64 */
             fileSize?: number;
             url?: string;
+        };
+        OrderLineDto: {
+            skuId?: string;
+            skuName?: string;
+            /** Format: int32 */
+            quantity?: number;
+            /** Format: int32 */
+            unitPriceCents?: number;
+            /** Format: int32 */
+            lineAmountCents?: number;
+            batchNo?: string;
+            slotId?: string;
         };
         CloseDisputeRequest: {
             note?: string;
@@ -10562,7 +10563,7 @@ export interface components {
             code?: number;
             message?: string;
             data?: {
-                [key: string]: Record<string, never>;
+                [key: string]: unknown;
             };
         };
         UpsertSkuVisionEnrollmentRequest: {
@@ -11083,59 +11084,6 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["OrderReadModel_Admin"];
-        };
-        OrderLineDto_Admin: {
-            skuId?: string;
-            skuName?: string;
-            /** Format: int32 */
-            quantity?: number;
-            /** Format: int32 */
-            unitPriceCents?: number;
-            /** Format: int32 */
-            lineAmountCents?: number;
-            batchNo?: string;
-            slotId?: string;
-        };
-        OrderReadModel_Admin: {
-            orderId?: string;
-            sessionId?: string;
-            /** Format: int64 */
-            userId?: number;
-            deviceId?: string;
-            merchantId?: string;
-            deviceName?: string;
-            merchantName?: string;
-            /** Format: int32 */
-            totalAmountCents?: number;
-            /** Format: int32 */
-            originalAmountCents?: number;
-            /** Format: int32 */
-            couponDiscountCents?: number;
-            /** Format: int32 */
-            memberDiscountCents?: number;
-            status?: string;
-            payChannel?: string;
-            /** Format: int32 */
-            lineCount?: number;
-            lineSummary?: string;
-            payTradeNo?: string;
-            paymentOperationId?: string;
-            /** Format: date-time */
-            refundedAt?: string;
-            /** Format: int32 */
-            refundedCents?: number;
-            inventoryDeducted?: boolean;
-            refundPolicy?: string;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: date-time */
-            paidAt?: string;
-            splitStatus?: string;
-            lines?: components["schemas"]["OrderLineDto_Admin"][];
-            /** Format: int32 */
-            balanceBeforeCents?: number;
-            /** Format: int32 */
-            balanceAfterCents?: number;
         };
         CancelUnpaidOrderRequest: {
             reason: string;
@@ -13616,15 +13564,6 @@ export interface components {
             message?: string;
             data?: components["schemas"]["PageResultOrderReadModel_Admin"];
         };
-        PageResultOrderReadModel_Admin: {
-            items?: components["schemas"]["OrderReadModel_Admin"][];
-            /** Format: int32 */
-            page?: number;
-            /** Format: int32 */
-            size?: number;
-            /** Format: int64 */
-            total?: number;
-        };
         ApiResponsePageResultMerchantDto: {
             /** Format: int32 */
             code?: number;
@@ -14952,61 +14891,6 @@ export interface components {
             message?: string;
             data?: components["schemas"]["PageResultOrderReadModel_Merchant"];
         };
-        OrderLineDto_Merchant: {
-            skuId?: string;
-            skuName?: string;
-            /** Format: int32 */
-            quantity?: number;
-            /** Format: int32 */
-            unitPriceCents?: number;
-            /** Format: int32 */
-            lineAmountCents?: number;
-            batchNo?: string;
-            slotId?: string;
-        };
-        OrderReadModel_Merchant: {
-            orderId?: string;
-            sessionId?: string;
-            deviceId?: string;
-            merchantId?: string;
-            deviceName?: string;
-            merchantName?: string;
-            /** Format: int32 */
-            totalAmountCents?: number;
-            /** Format: int32 */
-            originalAmountCents?: number;
-            /** Format: int32 */
-            couponDiscountCents?: number;
-            /** Format: int32 */
-            memberDiscountCents?: number;
-            status?: string;
-            payChannel?: string;
-            /** Format: int32 */
-            lineCount?: number;
-            lineSummary?: string;
-            payTradeNo?: string;
-            paymentOperationId?: string;
-            /** Format: date-time */
-            refundedAt?: string;
-            /** Format: int32 */
-            refundedCents?: number;
-            refundPolicy?: string;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: date-time */
-            paidAt?: string;
-            splitStatus?: string;
-            lines?: components["schemas"]["OrderLineDto_Merchant"][];
-        };
-        PageResultOrderReadModel_Merchant: {
-            items?: components["schemas"]["OrderReadModel_Merchant"][];
-            /** Format: int32 */
-            page?: number;
-            /** Format: int32 */
-            size?: number;
-            /** Format: int64 */
-            total?: number;
-        };
         ApiResponseOrderReadModel_Merchant: {
             /** Format: int32 */
             code?: number;
@@ -15618,6 +15502,99 @@ export interface components {
             message?: string;
             data?: components["schemas"]["BalanceRefundRequestDto"][];
         };
+        OrderReadModel_Admin: {
+            orderId?: string;
+            sessionId?: string;
+            /** Format: int64 */
+            userId?: number;
+            deviceId?: string;
+            merchantId?: string;
+            deviceName?: string;
+            merchantName?: string;
+            /** Format: int32 */
+            totalAmountCents?: number;
+            /** Format: int32 */
+            originalAmountCents?: number;
+            /** Format: int32 */
+            couponDiscountCents?: number;
+            /** Format: int32 */
+            memberDiscountCents?: number;
+            status?: string;
+            payChannel?: string;
+            /** Format: int32 */
+            lineCount?: number;
+            lineSummary?: string;
+            payTradeNo?: string;
+            paymentOperationId?: string;
+            /** Format: date-time */
+            refundedAt?: string;
+            /** Format: int32 */
+            refundedCents?: number;
+            inventoryDeducted?: boolean;
+            refundPolicy?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            paidAt?: string;
+            splitStatus?: string;
+            lines?: components["schemas"]["OrderLineDto_Consumer"][];
+            /** Format: int32 */
+            balanceBeforeCents?: number;
+            /** Format: int32 */
+            balanceAfterCents?: number;
+        };
+        OrderReadModel_Merchant: {
+            orderId?: string;
+            sessionId?: string;
+            deviceId?: string;
+            merchantId?: string;
+            deviceName?: string;
+            merchantName?: string;
+            /** Format: int32 */
+            totalAmountCents?: number;
+            /** Format: int32 */
+            originalAmountCents?: number;
+            /** Format: int32 */
+            couponDiscountCents?: number;
+            /** Format: int32 */
+            memberDiscountCents?: number;
+            status?: string;
+            payChannel?: string;
+            /** Format: int32 */
+            lineCount?: number;
+            lineSummary?: string;
+            payTradeNo?: string;
+            paymentOperationId?: string;
+            /** Format: date-time */
+            refundedAt?: string;
+            /** Format: int32 */
+            refundedCents?: number;
+            refundPolicy?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            paidAt?: string;
+            splitStatus?: string;
+            lines?: components["schemas"]["OrderLineDto_Consumer"][];
+        };
+        PageResultOrderReadModel_Admin: {
+            items?: components["schemas"]["OrderReadModel_Admin"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
+        PageResultOrderReadModel_Merchant: {
+            items?: components["schemas"]["OrderReadModel_Merchant"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -15806,7 +15783,7 @@ export interface operations {
             };
         };
     };
-    list_6: {
+    list: {
         parameters: {
             query?: never;
             header?: never;
@@ -15928,7 +15905,7 @@ export interface operations {
             };
         };
     };
-    list_9: {
+    list_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -16002,7 +15979,7 @@ export interface operations {
             };
         };
     };
-    delete_2: {
+    delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -17398,7 +17375,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    [key: string]: Record<string, never>;
+                    [key: string]: unknown;
                 };
             };
         };
@@ -17893,14 +17870,18 @@ export interface operations {
     };
     notify_1: {
         parameters: {
-            query: {
-                form: components["schemas"]["MultiValueMapStringString"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/x-www-form-urlencoded": {
+                    form: components["schemas"]["MultiValueMapStringString"];
+                };
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -18342,7 +18323,7 @@ export interface operations {
             };
         };
     };
-    list_3: {
+    list_2: {
         parameters: {
             query?: {
                 q?: string;
@@ -18438,7 +18419,7 @@ export interface operations {
             };
         };
     };
-    list_4: {
+    list_3: {
         parameters: {
             query?: {
                 status?: string;
@@ -19303,7 +19284,7 @@ export interface operations {
             };
         };
     };
-    list_10: {
+    list_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -19673,7 +19654,7 @@ export interface operations {
             };
         };
     };
-    list_11: {
+    list_5: {
         parameters: {
             query?: {
                 status?: string;
@@ -19764,7 +19745,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    [key: string]: Record<string, never>;
+                    [key: string]: unknown;
                 };
             };
         };
@@ -20154,7 +20135,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    [key: string]: Record<string, never>;
+                    [key: string]: unknown;
                 };
             };
         };
@@ -20431,7 +20412,7 @@ export interface operations {
             };
         };
     };
-    list_12: {
+    list_6: {
         parameters: {
             query?: {
                 q?: string;
@@ -20565,7 +20546,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    [key: string]: Record<string, never>;
+                    [key: string]: unknown;
                 };
             };
         };
@@ -20612,7 +20593,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -20637,7 +20624,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    [key: string]: Record<string, never>;
+                    [key: string]: unknown;
                 };
             };
         };
@@ -20665,7 +20652,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    [key: string]: Record<string, never>;
+                    [key: string]: unknown;
                 };
             };
         };
@@ -20681,7 +20668,7 @@ export interface operations {
             };
         };
     };
-    list_15: {
+    list_7: {
         parameters: {
             query?: {
                 merchantId?: string;
@@ -20741,7 +20728,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    [key: string]: Record<string, never>;
+                    [key: string]: unknown;
                 };
             };
         };
@@ -20769,7 +20756,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    [key: string]: Record<string, never>;
+                    [key: string]: unknown;
                 };
             };
         };
@@ -20816,7 +20803,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -20829,7 +20822,7 @@ export interface operations {
             };
         };
     };
-    list_17: {
+    list_8: {
         parameters: {
             query?: {
                 managerId?: number;
@@ -20876,7 +20869,7 @@ export interface operations {
             };
         };
     };
-    list_18: {
+    list_9: {
         parameters: {
             query?: {
                 status?: string;
@@ -20911,7 +20904,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    [key: string]: Record<string, never>;
+                    [key: string]: unknown;
                 };
             };
         };
@@ -20939,7 +20932,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    [key: string]: Record<string, never>;
+                    [key: string]: unknown;
                 };
             };
         };
@@ -20995,7 +20988,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    [key: string]: Record<string, never>;
+                    [key: string]: unknown;
                 };
             };
         };
@@ -21020,7 +21013,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: string;
+                };
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -21113,7 +21112,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    [key: string]: Record<string, never>;
+                    [key: string]: unknown;
                 };
             };
         };
@@ -22012,7 +22011,7 @@ export interface operations {
             };
         };
     };
-    list_22: {
+    list_10: {
         parameters: {
             query?: never;
             header?: never;
@@ -22391,7 +22390,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    [key: string]: Record<string, never>;
+                    [key: string]: unknown;
                 };
             };
         };
@@ -22844,7 +22843,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    [key: string]: Record<string, never>;
+                    [key: string]: unknown;
                 };
             };
         };
@@ -23784,7 +23783,7 @@ export interface operations {
             };
         };
     };
-    detail_1: {
+    detail: {
         parameters: {
             query?: never;
             header?: never;
@@ -23834,7 +23833,7 @@ export interface operations {
             };
         };
     };
-    detail_2: {
+    detail_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -23868,7 +23867,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    [key: string]: Record<string, never>;
+                    [key: string]: unknown;
                 };
             };
         };
@@ -24466,7 +24465,7 @@ export interface operations {
             };
         };
     };
-    list: {
+    list_11: {
         parameters: {
             query?: {
                 page?: number;
@@ -24591,7 +24590,7 @@ export interface operations {
             };
         };
     };
-    list_1: {
+    list_12: {
         parameters: {
             query?: {
                 status?: string;
@@ -24615,7 +24614,7 @@ export interface operations {
             };
         };
     };
-    list_2: {
+    list_13: {
         parameters: {
             query?: {
                 page?: number;
@@ -24726,7 +24725,7 @@ export interface operations {
             };
         };
     };
-    detail: {
+    detail_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -24962,7 +24961,7 @@ export interface operations {
             };
         };
     };
-    list_5: {
+    list_14: {
         parameters: {
             query?: never;
             header?: never;
@@ -25210,7 +25209,7 @@ export interface operations {
             };
         };
     };
-    list_7: {
+    list_15: {
         parameters: {
             query?: never;
             header?: never;
@@ -25298,7 +25297,7 @@ export interface operations {
             };
         };
     };
-    list_8: {
+    list_16: {
         parameters: {
             query?: {
                 billMonth?: string;
@@ -26356,7 +26355,7 @@ export interface operations {
             };
         };
     };
-    list_13: {
+    list_17: {
         parameters: {
             query?: {
                 status?: string;
@@ -26401,7 +26400,7 @@ export interface operations {
             };
         };
     };
-    list_14: {
+    list_18: {
         parameters: {
             query?: {
                 keyword?: string;
@@ -26489,7 +26488,7 @@ export interface operations {
             };
         };
     };
-    list_16: {
+    list_19: {
         parameters: {
             query?: {
                 status?: string;
@@ -26583,7 +26582,7 @@ export interface operations {
             };
         };
     };
-    list_19: {
+    list_20: {
         parameters: {
             query?: {
                 status?: string;
@@ -26926,7 +26925,7 @@ export interface operations {
             };
         };
     };
-    list_20: {
+    list_21: {
         parameters: {
             query?: {
                 status?: string;
@@ -27244,7 +27243,7 @@ export interface operations {
             };
         };
     };
-    list_21: {
+    list_22: {
         parameters: {
             query?: {
                 billMonth?: string;
@@ -29281,7 +29280,7 @@ export interface operations {
             };
         };
     };
-    delete: {
+    delete_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -29347,7 +29346,7 @@ export interface operations {
             };
         };
     };
-    delete_1: {
+    delete_2: {
         parameters: {
             query?: never;
             header?: never;

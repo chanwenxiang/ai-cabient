@@ -149,7 +149,11 @@ import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { merchantApi, hasPerm } from '@/utils/merchant-api';
-import { useMerchantMe, canEditPlanogramForMerchant, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
+import {
+  useMerchantMe,
+  canEditPlanogramForMerchant,
+  seedMerchantMeDisplayCache
+} from '@/composables/useMerchantMe';
 import {
   clearPreferredDeviceId,
   getPreferredDeviceId,

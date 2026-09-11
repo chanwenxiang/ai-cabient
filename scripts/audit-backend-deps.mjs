@@ -40,8 +40,7 @@ async function osvBatchFetch(queries) {
 
 function parseDepList(text) {
   const out = new Map();
-  const re =
-    /([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+):jar:([0-9][a-zA-Z0-9._+-]*):(compile|runtime)/g;
+  const re = /([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+):jar:([0-9][a-zA-Z0-9._+-]*):(compile|runtime)/g;
   let m;
   while ((m = re.exec(text))) {
     const name = `${m[1]}:${m[2]}`;
@@ -126,7 +125,10 @@ if (FULL && process.env.SKIP_MVN !== '1') {
     const parsed = parseDepList(raw);
     console.log(`  unique runtime jars: ${parsed.size}`);
     for (const [k, v] of parsed) depMap.set(k, v);
-    writeFileSync(join(root, 'target', 'dep-osv-input.txt'), [...depMap.entries()].map(([k, v]) => `${k}:${v}`).join('\n'));
+    writeFileSync(
+      join(root, 'target', 'dep-osv-input.txt'),
+      [...depMap.entries()].map(([k, v]) => `${k}:${v}`).join('\n')
+    );
   } catch (e) {
     console.warn('  Maven tree skipped:', e instanceof Error ? e.message : e);
   }
@@ -181,7 +183,9 @@ for (const py of pyCandidates) {
   }
 }
 if (!pipOk) {
-  console.log('pip-audit skipped/failed — py -3.12 -m pip_audit -r vision-service/requirements-base.txt');
+  console.log(
+    'pip-audit skipped/failed — py -3.12 -m pip_audit -r vision-service/requirements-base.txt'
+  );
 }
 
 console.log('\nDone. Full NVD: set NVD_API_KEY then mvn -Powasp-depcheck -DskipTests verify');

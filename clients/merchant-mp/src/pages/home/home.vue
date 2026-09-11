@@ -235,7 +235,13 @@
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
-import { canAccessNav, hasPack, useMerchantMe, seedMerchantMeDisplayCache, peekMerchantMeCacheForDisplay } from '@/composables/useMerchantMe';
+import {
+  canAccessNav,
+  hasPack,
+  useMerchantMe,
+  seedMerchantMeDisplayCache,
+  peekMerchantMeCacheForDisplay
+} from '@/composables/useMerchantMe';
 import { MERCHANT_BIZ_NAV, MERCHANT_FIELD_NAV } from '@/config/merchant-nav';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { getPreferredDeviceId } from '@/utils/preferred-device';

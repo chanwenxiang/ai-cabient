@@ -43,10 +43,7 @@ describe('validateAdAssetFile', () => {
   });
 
   it('rejects over 50MB', () => {
-    const r = validateAdAssetFile(
-      fakeFile('a.mp4', 'video/mp4', AD_ASSET_MAX_BYTES + 1),
-      'VIDEO'
-    );
+    const r = validateAdAssetFile(fakeFile('a.mp4', 'video/mp4', AD_ASSET_MAX_BYTES + 1), 'VIDEO');
     expect(r.ok).toBe(false);
   });
 });

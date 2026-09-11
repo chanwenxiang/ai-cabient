@@ -2508,7 +2508,7 @@ async function loadEvidencePreviews(
           item.previewUrl = url;
         }
       } catch {
-    if (!loadSeq.isCurrent(seq)) return;
+        if (!loadSeq.isCurrent(seq)) return;
         /* list-only fallback */
       }
     }
