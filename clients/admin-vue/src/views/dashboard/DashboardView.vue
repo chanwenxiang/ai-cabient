@@ -41,8 +41,14 @@
             :class="{ 'is-clickable': canAccessPath('/devices') }"
             :role="canAccessPath('/devices') ? 'button' : undefined"
             :tabindex="canAccessPath('/devices') ? 0 : undefined"
+            :aria-label="
+              canAccessPath('/devices')
+                ? `在售货柜 ${listHydrated ? (workbench?.devicesOnSale ?? '无') : '加载中'}`
+                : undefined
+            "
             @click="goPath('/devices', { salesLocked: 'false' })"
             @keydown.enter="goPath('/devices', { salesLocked: 'false' })"
+            @keydown.space.prevent="goPath('/devices', { salesLocked: 'false' })"
           >
             <div class="stat-label">在售货柜</div>
             <div class="stat-value">
@@ -63,8 +69,14 @@
             :class="{ 'is-clickable': canAccessPath('/devices') }"
             :role="canAccessPath('/devices') ? 'button' : undefined"
             :tabindex="canAccessPath('/devices') ? 0 : undefined"
+            :aria-label="
+              canAccessPath('/devices')
+                ? `设备在线率 ${listHydrated ? onlineRate.toFixed(1) + '%' : '加载中'}`
+                : undefined
+            "
             @click="goDevicesByOnlineRate"
             @keydown.enter="goDevicesByOnlineRate"
+            @keydown.space.prevent="goDevicesByOnlineRate"
           >
             <div class="stat-label">设备在线率</div>
             <div class="stat-value">{{ listHydrated ? `${onlineRate.toFixed(1)}%` : '…' }}</div>
@@ -85,8 +97,14 @@
             :class="{ 'is-clickable': canAccessPath('/finance') }"
             :role="canAccessPath('/finance') ? 'button' : undefined"
             :tabindex="canAccessPath('/finance') ? 0 : undefined"
+            :aria-label="
+              canAccessPath('/finance')
+                ? `今日营收 ${listHydrated ? '¥' + ((stats.revenueTodayCents || 0) / 100).toFixed(2) : '加载中'}`
+                : undefined
+            "
             @click="goPath('/finance')"
             @keydown.enter="goPath('/finance')"
+            @keydown.space.prevent="goPath('/finance')"
           >
             <div class="stat-label">今日营收</div>
             <div class="stat-value">
@@ -109,8 +127,14 @@
             }"
             :role="canAccessPath('/exceptions') ? 'button' : undefined"
             :tabindex="canAccessPath('/exceptions') ? 0 : undefined"
+            :aria-label="
+              canAccessPath('/exceptions')
+                ? `待处理异常 ${listHydrated ? openExceptionCount : '加载中'}`
+                : undefined
+            "
             @click="goExceptions"
             @keydown.enter="goExceptions"
+            @keydown.space.prevent="goExceptions"
           >
             <div class="stat-label">待处理异常</div>
             <div class="stat-value">{{ listHydrated ? openExceptionCount : '…' }}</div>
@@ -931,6 +955,7 @@ onMounted(() => load({ silent: true }));
 .quick-tile:focus-visible {
   transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--app-primary, var(--brand)) 40%, var(--layout-border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary, var(--brand)) 18%, transparent);
   outline: none;
 }
 .quick-tile.muted {

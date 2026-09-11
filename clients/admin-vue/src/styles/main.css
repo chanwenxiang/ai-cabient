@@ -72,7 +72,8 @@
   --layout-sidebar: #111827;
   --layout-border: #2a3544;
   --layout-text: #e7ecf3;
-  --layout-muted: #8b98a8;
+  /* 次要文案 ≥ AA：相对卡片底约 4.6:1（勿再用过浅 slate） */
+  --layout-muted: #a8b4c4;
   --layout-hover: rgba(255, 255, 255, 0.06);
   --layout-card: #1a2332;
   color-scheme: dark;
@@ -88,15 +89,16 @@
   --el-fill-color-dark: #0f172a;
   --el-fill-color-darker: #0b1220;
   --el-text-color-primary: var(--layout-text);
-  --el-text-color-regular: var(--layout-muted);
-  --el-text-color-secondary: #94a3b8;
-  --el-text-color-placeholder: #64748b;
+  /* regular 必须接近正文，勿绑 muted（否则整表/表单对比度崩） */
+  --el-text-color-regular: #d5dde8;
+  --el-text-color-secondary: #a8b4c4;
+  --el-text-color-placeholder: #8b9aab;
   --el-border-color: var(--layout-border);
   --el-border-color-light: #334155;
   --el-border-color-lighter: #3d4f63;
   --el-border-color-extra-light: #475569;
   --el-mask-color: rgba(0, 0, 0, 0.72);
-  --admin-scrollbar: color-mix(in srgb, #94a3b8 45%, transparent);
+  --admin-scrollbar: color-mix(in srgb, #a8b4c4 45%, transparent);
   --admin-scrollbar-track: color-mix(in srgb, #1e293b 70%, transparent);
 }
 
@@ -735,7 +737,38 @@ select {
 }
 
 .muted {
-  color: var(--layout-muted, #94a3b8);
+  color: var(--layout-muted, #64748b);
+}
+
+/* 全局焦点环：盖住去掉 outline 却未补替代样式的控件 */
+.el-button.is-text:focus-visible,
+.el-button.is-link:focus-visible,
+.el-dropdown:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--app-primary, #0f766e);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #nprogress .bar,
+  #nprogress .peg,
+  #nprogress .spinner-icon {
+    transition: none !important;
+    animation: none !important;
+  }
+  html {
+    scroll-behavior: auto !important;
+  }
+  .stat-tile.is-clickable,
+  .quick-tile,
+  .topbar .el-button.is-text,
+  .topbar .el-button.is-link,
+  .sidebar .brand-toggle,
+  .search-trigger,
+  .result-item,
+  .user-trigger {
+    transition: none !important;
+  }
 }
 
 /* 顶栏/侧栏工具图标悬停 */
