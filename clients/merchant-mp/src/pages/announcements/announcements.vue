@@ -163,6 +163,8 @@ onPullDownRefresh(async () => {
   font-size: 24rpx;
   color: #0f766e;
   font-weight: 600;
+  text-align: right;
+  min-width: 140rpx;
 }
 .page-body {
   padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom));

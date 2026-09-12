@@ -173,6 +173,7 @@
             <text v-if="item.deviceId" class="todo-detail">柜机 {{ item.deviceId }}</text>
             <text v-if="item.detail" class="todo-detail">{{ item.detail }}</text>
           </view>
+          <text class="todo-go">去处理 ›</text>
         </view>
       </view>
 
@@ -986,9 +987,13 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: #94a3b8;
 }
 .task-go {
+  flex: 0 0 120rpx;
+  width: 120rpx;
   color: var(--brand, #0f766e);
   font-size: 26rpx;
   font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .todo-row {
@@ -996,6 +1001,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   align-items: flex-start;
   padding: 14rpx 0;
   border-top: 1rpx solid #f1f5f9;
+  gap: 12rpx;
 }
 .todo-row-hover {
   opacity: 0.72;
@@ -1004,12 +1010,23 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   width: 12rpx;
   height: 12rpx;
   flex: 0 0 auto;
-  margin: 13rpx 14rpx 0 0;
+  margin: 13rpx 2rpx 0 0;
   border-radius: 50%;
   background: #f59e0b;
 }
 .todo-copy {
   min-width: 0;
+  flex: 1;
+}
+.todo-go {
+  flex: 0 0 120rpx;
+  width: 120rpx;
+  margin-top: 4rpx;
+  color: var(--brand, #0f766e);
+  font-size: 26rpx;
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
 }
 .todo-title {
   display: block;

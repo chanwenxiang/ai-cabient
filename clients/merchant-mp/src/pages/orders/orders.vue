@@ -492,7 +492,10 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   flex-direction: column;
   align-items: flex-end;
   gap: 4rpx;
-  flex-shrink: 0;
+  flex: 0 0 140rpx;
+  width: 140rpx;
+  min-width: 140rpx;
+  box-sizing: border-box;
 }
 .card-origin {
   font-size: 20rpx;
@@ -596,11 +599,14 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   color: #94a3b8;
 }
 .card-status {
+  min-width: 108rpx;
+  text-align: center;
   font-size: 22rpx;
   color: #92400e;
   background: #fef3c7;
   padding: 4rpx 12rpx;
   border-radius: 999rpx;
+  box-sizing: border-box;
 }
 .card-status.PAID,
 .card-status.COMPLETED {

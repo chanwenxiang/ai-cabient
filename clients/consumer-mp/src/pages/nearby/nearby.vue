@@ -89,7 +89,7 @@ const lat = ref(31.2304);
 const lng = ref(121.4737);
 const locHint = computed(() =>
   usingFallbackLoc.value
-    ? '未获取定位，已用演示坐标（上海黄浦）'
+    ? '未获取定位，已按默认城区展示；可点刷新重试'
     : `已定位 · 半径 ${radiusKm.value}km`
 );
 const usingFallbackLoc = ref(false);

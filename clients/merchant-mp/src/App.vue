@@ -196,20 +196,16 @@ input {
   box-sizing: border-box;
 }
 
-/* 单独出现收窄居中；通栏交给 .btn-block / .empty-actions
+/* 单独出现收窄居中；通栏交给 .btn-block / .card / .action-card / empty-state
  * 避免 width:fit-content（旧版微信基础库不稳） */
 .btn-primary,
 .retry,
 .btn-outline,
-.empty-btn.primary,
-.empty-btn.ghost,
-.empty-btn,
 .primary-btn,
 .action-btn,
 uni-button.btn-primary,
 uni-button.btn-outline,
-uni-button.primary-btn,
-uni-button.empty-btn {
+uni-button.primary-btn {
   width: 60%;
   min-width: 240rpx;
   max-width: 100%;
@@ -218,6 +214,62 @@ uni-button.empty-btn {
   margin-left: auto;
   margin-right: auto;
   align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+  line-height: 1.2;
+  min-height: 88rpx;
+  height: 88rpx;
+}
+
+/* 卡片 / 提现区 / 抽屉内按钮通栏，避免 60% 悬空 */
+.card .btn-primary,
+.card .btn-outline,
+.card .primary-btn,
+.card .action-btn,
+.card .retry,
+.card uni-button.btn-primary,
+.card uni-button.btn-outline,
+.card uni-button.primary-btn,
+.card button.btn-primary,
+.card button.btn-outline,
+.action-card .btn-primary,
+.action-card .btn-outline,
+.action-card .primary-btn,
+.action-card uni-button.btn-primary,
+.action-card button.btn-primary,
+.sheet .primary-btn,
+.sheet .btn-primary,
+.sheet .btn-outline,
+.detail-panel .primary-btn,
+.detail-panel .btn-primary,
+.detail-panel .btn-outline,
+.detail-actions .primary-btn,
+.detail-actions .btn-primary,
+.detail-actions .btn-outline {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  align-self: stretch !important;
+}
+
+/* 空态按钮默认通栏，与列表卡片左右对齐 */
+.empty-btn.primary,
+.empty-btn.ghost,
+.empty-btn,
+uni-button.empty-btn {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  padding-left: 36rpx;
+  padding-right: 36rpx;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  align-self: stretch !important;
   display: flex;
   align-items: center;
   justify-content: center;

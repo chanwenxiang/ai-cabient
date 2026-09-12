@@ -441,6 +441,9 @@ async function onEnable() {
 .more {
   background: #f1f5f9;
   color: #64748b;
+  min-width: 88rpx;
+  text-align: center;
+  box-sizing: border-box;
 }
 .empty-btn {
   margin-top: 16rpx;

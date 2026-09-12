@@ -574,6 +574,7 @@ function onTagsContextMenu(e: MouseEvent) {
 }
 
 function hideTagMenu() {
+  if (!tagMenu.value.visible) return;
   tagMenu.value.visible = false;
 }
 
@@ -664,6 +665,12 @@ function syncSidebarWithViewport() {
   narrowOpsViewport.value = globalThis.innerWidth < 1280;
 }
 
+/** 把壳层高度钉成整数 px，避免 svh 亚像素（如 882.767）在缩放/任务栏边缘来回抖 */
+function pinLayoutViewportHeight() {
+  const h = Math.max(1, Math.round(globalThis.innerHeight || 0));
+  document.documentElement.style.setProperty('--layout-vh-px', `${h}px`);
+}
+
 function onWindowFocus() {
   auth.refreshPermissions().catch((err) => {
     console.warn('[admin] 窗口聚焦时刷新权限失败', err);
@@ -672,6 +679,7 @@ function onWindowFocus() {
 
 onMounted(() => {
   settings.init();
+  pinLayoutViewportHeight();
   syncSidebarWithViewport();
   // 窄屏且用户从未保存侧栏偏好时，首次进入默认展开（IMP-003）
   if (
@@ -689,6 +697,7 @@ onMounted(() => {
   globalThis.addEventListener('scroll', hideTagMenu, true);
   globalThis.addEventListener('keydown', onTagMenuKeydown);
   globalThis.addEventListener('resize', syncSidebarWithViewport);
+  globalThis.addEventListener('resize', pinLayoutViewportHeight);
   globalThis.addEventListener('focus', onWindowFocus);
   document.addEventListener('fullscreenchange', onFullscreenChange);
 });
@@ -699,6 +708,7 @@ onUnmounted(() => {
   globalThis.removeEventListener('scroll', hideTagMenu, true);
   globalThis.removeEventListener('keydown', onTagMenuKeydown);
   globalThis.removeEventListener('resize', syncSidebarWithViewport);
+  globalThis.removeEventListener('resize', pinLayoutViewportHeight);
   globalThis.removeEventListener('focus', onWindowFocus);
   document.removeEventListener('fullscreenchange', onFullscreenChange);
 });
@@ -708,17 +718,22 @@ onUnmounted(() => {
 .layout-main {
   width: 100%;
   /* svh：稳定小视口。dvh 会随浏览器栏/任务栏显隐变高，鼠标移到上下边缘时整页抖 */
+  /* --layout-vh-px：整数 px 覆盖，消除亚像素高度抖动 */
   height: 100vh;
   height: 100svh;
+  height: var(--layout-vh-px, 100svh);
   max-height: 100vh;
   max-height: 100svh;
+  max-height: var(--layout-vh-px, 100svh);
   overflow: hidden;
-  background: var(--layout-bg);
+  /* 侧栏宽度常为 219.99px，交界 1px 缝若透出浅灰底会像竖条；用侧栏色填缝 */
+  background: var(--layout-sidebar);
 }
 .sidebar {
   background: var(--layout-sidebar);
   height: 100vh;
   height: 100svh;
+  height: var(--layout-vh-px, 100svh);
   transition: width 0.15s ease;
   overflow: hidden;
   display: flex;
@@ -727,6 +742,43 @@ onUnmounted(() => {
   /* 侧栏内部变化不向外传导布局/滚动锚定 */
   contain: layout style;
   overscroll-behavior: contain;
+  position: relative;
+  z-index: 2;
+  border-right: none !important;
+  box-shadow: none !important;
+}
+/* 盖住侧栏与主区间任何 1px 浅色缝/菜单右边框（部分页仍可见） */
+.sidebar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -1px;
+  bottom: 0;
+  width: 2px;
+  background: var(--layout-sidebar);
+  pointer-events: none;
+  z-index: 3;
+}
+/* EP 竖向菜单默认右边框（浅灰），深色侧栏上会多出一条竖线 */
+:deep(.sidebar .el-menu),
+:deep(.el-aside.sidebar),
+:deep(.sidebar.el-aside) {
+  border-right: none !important;
+  box-shadow: none !important;
+}
+/* 侧栏滚动条：隐藏原生；自定义 thumb 用侧栏近色，避免浅灰轨 */
+:deep(.sidebar-scroll .el-scrollbar__bar.is-vertical) {
+  width: 4px;
+  right: 2px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.sidebar-scroll:hover :deep(.el-scrollbar__bar.is-vertical) {
+  opacity: 1;
+}
+:deep(.sidebar-scroll .el-scrollbar__thumb) {
+  background: rgba(148, 163, 184, 0.35);
+  opacity: 0.8;
 }
 .brand {
   display: flex;
@@ -807,14 +859,31 @@ onUnmounted(() => {
   min-width: 0;
   height: 100vh;
   height: 100svh;
+  height: var(--layout-vh-px, 100svh);
   max-height: 100vh;
   max-height: 100svh;
+  max-height: var(--layout-vh-px, 100svh);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
+  margin-left: -1px; /* 压住侧栏右缘亚像素缝 */
+  background: var(--layout-bg);
   /* 与侧栏分层隔离，避免鼠标在侧栏移动时主内容合成层亚像素上下抖 */
   isolation: isolate;
   contain: layout style;
+}
+/* 盖住侧栏交界的亚像素发丝线 / 卡片左边框残影（sidebar overflow:hidden 会裁掉自身 ::after） */
+.layout-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--layout-sidebar);
+  pointer-events: none;
+  z-index: 30;
 }
 .topbar {
   display: flex;
@@ -990,9 +1059,9 @@ onUnmounted(() => {
   gap: var(--admin-space-md, 12px);
   /* 覆盖 EP .el-main 默认 padding，避免双 padding 叠高导致亚像素溢出 */
   --el-main-padding: 0;
-  padding: var(--admin-space-md, 12px) var(--admin-space-lg, 16px);
-  /* 滚到底时分页完整露出，不贴视口裁切边 */
-  padding-bottom: 24px;
+  /* 左右对称留白；侧栏竖条已用隐藏原生滚动条解决，勿再清零左侧 padding */
+  padding: var(--admin-space-md, 12px) var(--admin-space-lg, 16px) 24px
+    var(--admin-space-lg, 16px);
   box-sizing: border-box;
   /* 页面级滚动：内容超宽时由页面横向滚动，而非表格内部滚动 */
   overflow-x: auto;

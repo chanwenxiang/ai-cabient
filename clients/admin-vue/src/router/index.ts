@@ -421,7 +421,7 @@ if (ENABLE_TEST_TOOLS) {
     path: 'recognition-demo',
     name: 'recognition-demo',
     component: () => import('@/views/vision/RecognitionDemoView.vue'),
-    meta: { title: '识别演示', group: '业务' }
+    meta: { title: '识别预览', group: '业务' }
   });
 }
 

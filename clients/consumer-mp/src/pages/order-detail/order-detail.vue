@@ -174,7 +174,7 @@
       <view v-if="showInvoice" class="dispute-mask" @click="closeInvoice">
         <view class="dispute-panel" @click.stop>
           <text class="dispute-title">申请开票</text>
-          <text class="dispute-sub">提交后运营开具电子发票（演示环境为申请留痕）</text>
+          <text class="dispute-sub">提交后由运营开具电子发票，并发送至您填写的邮箱</text>
           <text class="field-label">发票抬头</text>
           <input
             v-model="invoiceTitle"
@@ -1245,6 +1245,32 @@ function callSupport() {
   align-items: center;
   justify-content: center;
   text-align: center;
+  box-sizing: border-box;
+}
+.dispute-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 16rpx;
+  width: 100%;
+  margin-top: 8rpx;
+  box-sizing: border-box;
+}
+.dispute-actions .btn-outline,
+.dispute-actions .btn-primary,
+.dispute-actions uni-button.btn-outline,
+.dispute-actions uni-button.btn-primary,
+.dispute-actions button.btn-outline,
+.dispute-actions button.btn-primary {
+  flex: 1 1 0;
+  width: auto !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  height: 88rpx;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   box-sizing: border-box;
 }
 .dispute-cancel {

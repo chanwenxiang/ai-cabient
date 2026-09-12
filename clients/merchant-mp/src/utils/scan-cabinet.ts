@@ -17,7 +17,7 @@ async function promptManualDeviceId(hint?: string): Promise<string> {
   const value = await promptText({
     title: '输入柜机编号',
     hint: isBrowserH5() ? '浏览器无法调起扫码，请输入柜门上的编号' : undefined,
-    placeholder: '例如 CAB-001',
+    placeholder: '请输入柜机编号',
     defaultValue: hint || '',
     required: true,
     requiredMessage: '柜机编号无效',

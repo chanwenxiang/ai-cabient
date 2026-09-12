@@ -383,6 +383,10 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   flex-direction: column;
   align-items: flex-end;
   gap: 10rpx;
+  flex: 0 0 160rpx;
+  width: 160rpx;
+  max-width: 160rpx;
+  box-sizing: border-box;
 }
 .nav-btn {
   margin: 0;

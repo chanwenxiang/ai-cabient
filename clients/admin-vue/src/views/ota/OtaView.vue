@@ -6,7 +6,7 @@
           <div class="page-card-head__title">
             <span class="title">固件版本</span>
             <span class="hint"
-              >模拟器级：支持发布/灰度与 check；柜机无落地安装代理（不会自动下载安装）</span
+              >支持发布与灰度；柜机需自行安装，后台不下发自动安装</span
             >
           </div>
         </div>

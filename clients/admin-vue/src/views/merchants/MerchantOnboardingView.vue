@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">进件工作台</span>
-            <span class="hint">仅登记：外部门店号 / 进件状态留痕，不调用渠道 OpenAPI</span>
+            <span class="hint">仅登记外部门店号与进件状态，不推送到支付渠道</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -44,9 +44,9 @@
       <template #default>
         <span>
           {{ hints?.registryOnly ? '模式：仅登记 · ' : '' }}微信
-          {{ hints?.wechatPayLive ? '正式' : '演示' }} · 支付宝
-          {{ hints?.alipayPayLive ? '正式' : '演示' }} · 支付分
-          {{ hints?.payScoreLive ? '正式' : '演示' }}
+          {{ hints?.wechatPayLive ? '正式' : '测试' }} · 支付宝
+          {{ hints?.alipayPayLive ? '正式' : '测试' }} · 支付分
+          {{ hints?.payScoreLive ? '正式' : '测试' }}
         </span>
       </template>
     </el-alert>
@@ -127,7 +127,7 @@
           <el-table-column label="支付模式" width="90">
             <template #default="{ row }">
               <el-tag :type="row.payLiveHint ? 'success' : 'info'" size="small">
-                {{ row.payLiveHint ? '正式' : '演示' }}
+                {{ row.payLiveHint ? '正式' : '测试' }}
               </el-tag>
             </template>
           </el-table-column>
@@ -156,18 +156,20 @@
             align="center"
           >
             <template #default="{ row }">
-              <el-button
-                v-if="canEdit && row.status !== 'SUBMITTED'"
-                link
-                type="primary"
-                @click="openEdit(row)"
-              >
-                编辑
-              </el-button>
-              <template v-if="row.status === 'SUBMITTED' && row.approvalStatus === 'PENDING'">
-                <el-button link type="success" @click="review(row, true)">通过</el-button>
-                <el-button link type="danger" @click="review(row, false)">驳回</el-button>
-              </template>
+              <div class="table-row-actions">
+                <el-button
+                  v-if="canEdit && row.status !== 'SUBMITTED'"
+                  link
+                  type="primary"
+                  @click="openEdit(row)"
+                >
+                  编辑
+                </el-button>
+                <template v-if="row.status === 'SUBMITTED' && row.approvalStatus === 'PENDING'">
+                  <el-button link type="success" @click="review(row, true)">通过</el-button>
+                  <el-button link type="danger" @click="review(row, false)">驳回</el-button>
+                </template>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -337,7 +339,7 @@ const { onExport } = useListCsv({
       r.approvalStatus || '',
       r.externalMchId || '',
       r.externalRef || '',
-      r.payLiveHint ? '正式' : '演示',
+      r.payLiveHint ? '正式' : '测试',
       r.note || '',
       r.lastSyncedAt ? formatDateTime(r.lastSyncedAt) : '',
       formatDateTime(r.createdAt) || '',

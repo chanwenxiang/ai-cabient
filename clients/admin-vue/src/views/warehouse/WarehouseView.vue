@@ -3155,14 +3155,14 @@ const importing = computed(() => importingWarehouses.value || importingSuppliers
 function onDownloadImportTemplate() {
   if (tab.value === 'warehouses') {
     downloadWarehouseTemplate([
-      '演示中心仓',
+      '示例中心仓',
       'WH-DEMO-001',
       '上海市示例路 1 号',
       displayLabel('warehouse_status', 'ACTIVE')
     ]);
   } else if (tab.value === 'suppliers') {
     downloadSupplierTemplate([
-      '演示饮品供应商',
+      '示例饮品供应商',
       'SUP-DEMO-001',
       '张三',
       '13800000000',

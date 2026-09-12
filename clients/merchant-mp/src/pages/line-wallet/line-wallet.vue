@@ -44,10 +44,10 @@
           <text v-if="maxWithdrawYuan" class="withdraw-hint"
             >最多可提现 ¥{{ maxWithdrawYuan }}</text
           >
-          <button class="btn-primary" :disabled="submitting" @click="submitWithdraw">
+          <button class="btn-primary btn-block" :disabled="submitting" @click="submitWithdraw">
             申请提现
           </button>
-          <text class="tip">提交后由运营审核；演示环境默认 Mock 打款到账。</text>
+          <text class="tip">提交后由运营审核；到账以银行/微信回执为准。</text>
         </view>
 
         <view class="section">

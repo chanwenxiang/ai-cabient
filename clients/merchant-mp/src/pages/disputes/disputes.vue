@@ -210,7 +210,7 @@
               class="btn-outline"
               @click="moreActionsOpen = !moreActionsOpen"
             >
-              {{ moreActionsOpen ? '收起操作' : '更多操作' }}
+              {{ moreActionsOpen ? '收起' : '更多' }}
             </button>
             <template v-if="canResolveDetail && moreActionsOpen">
               <button class="btn-outline" :loading="resolving" @click="resolveFromDetail('KEEP')">
@@ -740,6 +740,9 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
   font-size: 24rpx;
 }
 .reply-hint {
+  display: inline-block;
+  min-width: 140rpx;
+  text-align: right;
   font-weight: 600;
 }
 .trunc-hint {

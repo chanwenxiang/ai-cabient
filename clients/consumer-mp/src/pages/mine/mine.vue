@@ -125,43 +125,13 @@
         </view>
         <text class="menu-arrow">›</text>
       </view>
-      <view v-if="authed" class="menu-cell" @click="toggleTransactions">
+      <view v-if="authed" class="menu-cell" @click="goBalance">
         <image class="menu-icon" :src="menuIcon('balance')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">余额明细</text>
           <text class="menu-desc">购物扣款、退款与充值记录</text>
         </view>
-        <text class="menu-arrow">{{ showTransactions ? '∨' : '›' }}</text>
-      </view>
-      <view v-if="showTransactions" class="transaction-list">
-        <view v-if="transactionsLoading" class="transaction-empty">加载中…</view>
-        <view v-else-if="!transactions.length" class="transaction-empty">
-          <text class="transaction-empty-title">暂无余额流水</text>
-          <text class="transaction-empty-hint">购物扣款、退款与充值会出现在这里</text>
-        </view>
-        <view v-for="item in transactions" :key="item.transactionId" class="transaction-row">
-          <view class="transaction-main">
-            <text class="transaction-title">{{ transactionLabel(item.businessType) }}</text>
-            <text class="transaction-time">{{ formatTransactionTime(item.createdAt) }}</text>
-            <text v-if="item.businessId" class="transaction-biz"
-              >单号 {{ shortBizNo(item.businessId) }}</text
-            >
-            <text v-if="item.balanceAfterCents != null" class="transaction-balance"
-              >余额 {{ fmtMoney(item.balanceAfterCents) }}</text
-            >
-          </view>
-          <view class="transaction-amount" :class="{ income: item.amountCents > 0 }">
-            {{ formatTransactionAmount(item.amountCents) }}
-          </view>
-        </view>
-        <view
-          v-if="transactionsHasMore"
-          class="transaction-more"
-          role="button"
-          @click="loadTransactions(false)"
-        >
-          {{ transactionsLoading ? '加载中…' : `加载更多（已显示 ${transactions.length} 条）` }}
-        </view>
+        <text class="menu-arrow">›</text>
       </view>
       <view class="menu-cell" @click="goAnnouncements">
         <image class="menu-icon" :src="menuIcon('billing')" mode="aspectFit" />
@@ -229,9 +199,9 @@
       </view>
     </view>
 
-    <!-- 开发联调：仅 DEV 构建可见，生产包不打包展示 -->
+    <!-- 体验充值：仅 DEV 构建可见，生产包不打包展示 -->
     <view v-if="devTools && authed" class="dev-section">
-      <text class="dev-label">开发联调</text>
+      <text class="dev-label">体验充值</text>
       <view
         v-if="wechatRechargeEnabled"
         class="menu-cell highlight"
@@ -240,9 +210,9 @@
       >
         <image class="menu-icon" :src="menuIcon('wechat')" mode="aspectFit" />
         <view class="menu-text">
-          <text class="menu-title">{{ wechatPayLive ? '微信支付充值' : '微信模拟充值' }}</text>
+          <text class="menu-title">{{ wechatPayLive ? '微信支付充值' : '微信充值' }}</text>
           <text class="menu-desc">{{
-            wechatPayLive ? '调起真实微信支付' : 'mock 预下单即时到账 ¥20'
+            wechatPayLive ? '调起微信支付' : '体验到账 ¥20'
           }}</text>
         </view>
         <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
@@ -255,11 +225,9 @@
       >
         <image class="menu-icon" :src="menuIcon('alipay')" mode="aspectFit" />
         <view class="menu-text">
-          <text class="menu-title">{{
-            mockRechargeEnabled ? '支付宝模拟充值' : '支付宝沙箱充值'
-          }}</text>
+          <text class="menu-title">支付宝充值</text>
           <text class="menu-desc">{{
-            mockRechargeEnabled ? 'mock 预下单即时到账 ¥20（无需进件）' : '跳转沙箱收银台充 ¥20'
+            mockRechargeEnabled ? '体验到账 ¥20' : '跳转收银台充 ¥20'
           }}</text>
         </view>
         <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
@@ -272,8 +240,8 @@
       >
         <image class="menu-icon" :src="menuIcon('mock')" mode="aspectFit" />
         <view class="menu-text">
-          <text class="menu-title">模拟充值</text>
-          <text class="menu-desc">本地发放余额，不真实扣款</text>
+          <text class="menu-title">余额充值</text>
+          <text class="menu-desc">体验到账 ¥20，不真实扣款</text>
         </view>
         <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
       </view>
@@ -302,7 +270,7 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
-import type { AccountDto, BalanceTransactionDto } from '@aicabinet/shared-types';
+import type { AccountDto } from '@aicabinet/shared-types';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import {
   consumerApi,
@@ -310,7 +278,7 @@ import {
   getConsumerToken,
   logoutConsumerSession
 } from '@/utils/consumer-api';
-import { formatDateTimeShort, fmtMoney, shortBizNo } from '@aicabinet/shared-uni/format';
+import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { menuIcon } from '@/utils/menu-icon';
 import {
   availableCents,
@@ -336,12 +304,6 @@ const devTools = showDevTools();
 const balanceYuan = ref('--');
 const authed = ref(false);
 const account = ref<AccountDto | null>(null);
-const showTransactions = ref(false);
-const transactionsLoading = ref(false);
-const transactions = ref<BalanceTransactionDto[]>([]);
-const transactionsPage = ref(0);
-const transactionsHasMore = ref(false);
-const TRANSACTION_PAGE_SIZE = 10;
 const rechargeLoading = ref(false);
 const payPrefBusy = ref(false);
 const mockRechargeEnabled = ref(false);
@@ -409,6 +371,7 @@ function syncBalanceDisplay(acc: AccountDto | null) {
 }
 
 onShow(async () => {
+  uni.showTabBar({ animation: false });
   await ensureConsumerAuth();
   authed.value = !!getConsumerToken();
   try {
@@ -456,83 +419,21 @@ onShow(async () => {
     }
   }
   if (!authed.value) return;
-  if (showTransactions.value) loadTransactions();
 });
-
-function loadTransactions(reset = true): Promise<void> {
-  if (transactionsLoading.value) return Promise.resolve();
-  if (!reset && !transactionsHasMore.value) return Promise.resolve();
-  transactionsLoading.value = true;
-  const page = reset ? 0 : transactionsPage.value + 1;
-  return consumerApi
-    .balanceTransactions(page, TRANSACTION_PAGE_SIZE)
-    .then((data) => {
-      // 注意：回调参数命名为 data，避免遮蔽外层请求页码 page
-      const items = data.items || [];
-      const total = Number(data.total ?? items.length);
-      if (reset) {
-        transactions.value = items;
-      } else {
-        const seen = new Set(transactions.value.map((t) => t.transactionId));
-        transactions.value = transactions.value.concat(
-          items.filter((t) => t.transactionId && !seen.has(t.transactionId))
-        );
-      }
-      transactionsPage.value = page;
-      transactionsHasMore.value =
-        items.length >= TRANSACTION_PAGE_SIZE &&
-        transactions.value.length < Math.max(total, transactions.value.length);
-    })
-    .catch(() => {
-      /* ignore */
-    })
-    .finally(() => {
-      transactionsLoading.value = false;
-    });
-}
-
-function toggleTransactions() {
-  showTransactions.value = !showTransactions.value;
-  if (showTransactions.value) loadTransactions();
-}
-
-function transactionLabel(type: string) {
-  if (type === 'CHARGE') return '购物扣款';
-  if (type === 'REFUND') return '订单退款';
-  if (type === 'ADMIN_ADJUST') return '运营调整';
-  if (type === 'ADJUST_CHARGE') return '订单补扣';
-  if (type === 'RECHARGE') return '余额充值';
-  return '余额变动';
-}
-
-function formatTransactionTime(value?: string) {
-  return formatDateTimeShort(value);
-}
-
-function formatTransactionAmount(cents: number) {
-  const signed = fmtMoney(Math.abs(cents || 0));
-  let sign = '';
-  if (cents > 0) sign = '+';
-  else if (cents < 0) sign = '-';
-  return `${sign}${signed}`;
-}
 
 async function refreshAccount() {
   account.value = await consumerApi.account();
   syncBalanceDisplay(account.value);
-  if (showTransactions.value) {
-    await loadTransactions(true);
-  }
 }
 
 async function onWeChatRecharge() {
   if (rechargeLoading.value) return;
   const confirmed = await new Promise<boolean>((resolve) =>
     uni.showModal({
-      title: wechatPayLive.value ? '微信支付充值' : '微信模拟充值',
+      title: wechatPayLive.value ? '微信支付充值' : '微信充值',
       content: wechatPayLive.value
         ? '将调起微信支付充值 ¥20.00。'
-        : '将通过微信 mock 通道充值 ¥20.00 余额，不会真实扣款。',
+        : '将充值 ¥20.00 到余额（体验到账，不会真实扣款）。',
       confirmText: '确认',
       success: (res) => resolve(!!res.confirm),
       fail: () => resolve(false)
@@ -557,10 +458,10 @@ async function onAlipayRecharge() {
   const isMock = mockRechargeEnabled.value;
   const confirmed = await new Promise<boolean>((resolve) =>
     uni.showModal({
-      title: isMock ? '支付宝模拟充值' : '支付宝沙箱充值',
+      title: '支付宝充值',
       content: isMock
-        ? '将模拟支付宝充值 ¥20.00 到余额（无需进件，不会真实扣款）。'
-        : '将跳转支付宝沙箱支付页充值 ¥20.00 余额。',
+        ? '将充值 ¥20.00 到余额（体验到账，不会真实扣款）。'
+        : '将跳转支付宝支付页充值 ¥20.00。',
       confirmText: isMock ? '确认到账' : '去支付',
       success: (res) => resolve(!!res.confirm),
       fail: () => resolve(false)
@@ -576,7 +477,7 @@ async function onAlipayRecharge() {
       return;
     }
     await refreshAccount();
-    uni.showToast({ title: '支付宝模拟充值成功', icon: 'success' });
+    uni.showToast({ title: '充值成功', icon: 'success' });
   } catch (error) {
     uni.showToast({ title: error instanceof Error ? error.message : '充值失败', icon: 'none' });
   } finally {
@@ -588,8 +489,8 @@ async function onMockRecharge() {
   if (rechargeLoading.value) return;
   const confirmed = await new Promise<boolean>((resolve) =>
     uni.showModal({
-      title: '确认模拟充值',
-      content: '将向当前账户发放 ¥20.00 余额（仅开发联调，不会真实扣款）。',
+      title: '确认充值',
+      content: '将向当前账户发放 ¥20.00 余额（体验到账，不会真实扣款）。',
       confirmText: '确认发放',
       success: (res) => resolve(!!res.confirm),
       fail: () => resolve(false)
@@ -642,6 +543,10 @@ function goPoints() {
   uni.navigateTo({ url: '/pages/points/points' });
 }
 
+function goBalance() {
+  uni.navigateTo({ url: '/pages/balance/balance' });
+}
+
 function goMessages() {
   uni.navigateTo({ url: '/pages/messages/messages' });
 }
@@ -689,8 +594,6 @@ function onLogout() {
       authed.value = false;
       account.value = null;
       balanceYuan.value = '--';
-      transactions.value = [];
-      showTransactions.value = false;
       uni.showToast({ title: '已退出', icon: 'none' });
     }
   });
@@ -1046,81 +949,6 @@ function onLogout() {
 .danger-cell .menu-icon {
   background: transparent;
   color: #ef4444;
-}
-.transaction-list {
-  background: #f8faf9;
-  border-radius: 0;
-  margin-bottom: 0;
-  padding: 0 24rpx;
-  border: none;
-  border-bottom: 1rpx solid #f1f5f3;
-  box-shadow: none;
-}
-.transaction-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 24rpx 0;
-  border-bottom: 1rpx solid #eee;
-}
-.transaction-row:last-child {
-  border-bottom: 0;
-}
-.transaction-main {
-  flex: 1;
-  min-width: 0;
-  padding-right: 16rpx;
-}
-.transaction-title {
-  display: block;
-  font-size: 28rpx;
-  color: #191919;
-}
-.transaction-time {
-  display: block;
-  margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #999;
-}
-.transaction-biz,
-.transaction-balance {
-  display: block;
-  margin-top: 4rpx;
-  font-size: 20rpx;
-  color: #849087;
-}
-.transaction-amount {
-  font-size: 30rpx;
-  font-weight: 600;
-  color: #191919;
-}
-.transaction-amount.income {
-  color: var(--brand-wx, #07c160);
-}
-.transaction-more {
-  text-align: center;
-  padding: 20rpx 0 6rpx;
-  font-size: 24rpx;
-  color: var(--brand, #047857);
-  font-weight: 600;
-}
-.transaction-empty {
-  padding: 28rpx;
-  text-align: center;
-  color: #849087;
-  font-size: 25rpx;
-}
-.transaction-empty-title {
-  display: block;
-  font-size: 26rpx;
-  font-weight: 650;
-  color: #64748b;
-}
-.transaction-empty-hint {
-  display: block;
-  margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #94a3b8;
 }
 
 .dev-section {

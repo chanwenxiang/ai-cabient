@@ -5,9 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">投放计划</span>
-            <span class="hint"
-              >柜机模拟器与消费者开门页会拉取 screen-content 并回写 IMPRESSION/COMPLETE</span
-            >
+            <span class="hint">投放后柜屏与开门页可拉取素材并回传曝光/完播</span>
           </div>
         </div>
         <div class="page-card-head__actions">

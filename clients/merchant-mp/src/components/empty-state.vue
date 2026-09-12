@@ -62,10 +62,11 @@ const kindClass = computed(() => `kind-${props.kind}`);
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 48rpx 32rpx;
+  /* 水平 padding 交给外层列表容器，避免按钮比卡片更窄 */
+  padding: 48rpx 0 24rpx;
 }
 .empty-state.compact {
-  padding: 28rpx 16rpx;
+  padding: 28rpx 0 16rpx;
 }
 .empty-icon {
   width: 104rpx;
@@ -111,12 +112,10 @@ const kindClass = computed(() => `kind-${props.kind}`);
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  /* 勿用 > *：scoped 会编译成 >*.data-v-xxx，WXSS 不支持通配符 * */
   gap: 16rpx;
   margin-top: 20rpx;
   width: 100%;
-}
-.empty-actions > *:not(:first-child) {
-  margin-top: 16rpx;
 }
 :deep(.empty-btn + .empty-btn),
 :deep(uni-button.empty-btn + uni-button.empty-btn),

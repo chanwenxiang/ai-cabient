@@ -93,7 +93,7 @@
             :disabled="busy"
             @click="onWeChatRecharge"
           >
-            {{ busy ? '处理中…' : wechatPayLive ? '微信支付充值 ¥20' : '微信模拟充值 ¥20' }}
+            {{ busy ? '处理中…' : wechatPayLive ? '微信支付充值 ¥20' : '微信充值 ¥20' }}
           </button>
           <button
             v-if="devTools && mockRechargeEnabled"
@@ -103,7 +103,7 @@
             :disabled="busy"
             @click="onMockRecharge"
           >
-            {{ busy ? '发放中…' : '模拟充值 ¥20' }}
+            {{ busy ? '发放中…' : '余额充值 ¥20' }}
           </button>
           <button
             v-if="devTools && alipayRechargeEnabled"
@@ -113,9 +113,7 @@
             :disabled="busy"
             @click="onAlipayRecharge"
           >
-            {{
-              busy ? '处理中…' : mockRechargeEnabled ? '支付宝模拟充值 ¥20' : '支付宝沙箱充值 ¥20'
-            }}
+            {{ busy ? '处理中…' : '支付宝充值 ¥20' }}
           </button>
           <view class="support-link" @click="goRechargePage">去充值页选择金额 ›</view>
         </view>
@@ -346,7 +344,7 @@ async function onAlipayRecharge() {
       return;
     }
     account.value = await consumerApi.account();
-    uni.showToast({ title: '支付宝模拟充值成功', icon: 'success' });
+    uni.showToast({ title: '充值成功', icon: 'success' });
   } catch (error) {
     err.value = error instanceof Error ? error.message : '充值失败';
   } finally {
@@ -358,8 +356,8 @@ async function onMockRecharge() {
   if (busy.value) return;
   const confirmed = await new Promise<boolean>((resolve) =>
     uni.showModal({
-      title: '确认模拟充值',
-      content: '将发放 ¥20.00 余额（仅开发联调，不会真实扣款）。',
+      title: '确认充值',
+      content: '将发放 ¥20.00 余额（体验到账，不会真实扣款）。',
       confirmText: '确认发放',
       success: (result) => resolve(result.confirm),
       fail: () => resolve(false)

@@ -5,10 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">商户提现</span>
-            <span class="hint"
-              >手续费由 MERCHANT_WITHDRAW_FEE_* 配置 · 到账=金额−手续费 · 默认 Mock
-              打款（非真实微信转账）</span
-            >
+            <span class="hint">手续费见系统参数 · 到账=申请额−手续费 · 测试环境可能为记账打款</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -114,21 +111,23 @@
               -->
               <el-table-column label="操作" width="260" align="center" class-name="col-action">
                 <template #default="{ row }">
-                  <el-button
-                    v-hasPermi="['ops:merchant-withdraw:adjust']"
-                    link
-                    type="primary"
-                    @click="openAdjust(row)"
-                    >调账</el-button
-                  >
-                  <el-button link @click="showLedgers(row)">流水</el-button>
-                  <el-button
-                    v-hasPermi="['ops:merchant-withdraw:adjust']"
-                    link
-                    type="warning"
-                    @click="openWithdraw(row)"
-                    >代提现</el-button
-                  >
+                  <div class="table-row-actions">
+                    <el-button
+                      v-hasPermi="['ops:merchant-withdraw:adjust']"
+                      link
+                      type="primary"
+                      @click="openAdjust(row)"
+                      >调账</el-button
+                    >
+                    <el-button link @click="showLedgers(row)">流水</el-button>
+                    <el-button
+                      v-hasPermi="['ops:merchant-withdraw:adjust']"
+                      link
+                      type="warning"
+                      @click="openWithdraw(row)"
+                      >代提现</el-button
+                    >
+                  </div>
                 </template>
               </el-table-column>
             </el-table>
@@ -189,7 +188,7 @@
             <el-table-column prop="requestId" label="单号" width="80" align="center" />
             <el-table-column
               prop="requestNo"
-              label="幂等号"
+              label="业务单号"
               min-width="160"
               show-overflow-tooltip
               align="center"
@@ -569,7 +568,7 @@ async function loadPayoutMode() {
     if (!loadSeq.isCurrent(seq, 'loadPayoutMode')) return;
     payoutMode.value = {
       mockEnabled: true,
-      note: '无法读取打款模式；演示环境通常为 Mock（非真实转账）'
+      note: '无法读取打款模式；当前可能为记账打款（非真实转账）'
     };
   }
 }

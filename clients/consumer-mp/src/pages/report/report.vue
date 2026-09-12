@@ -9,7 +9,7 @@
 
       <view class="card">
         <text class="field-label">柜机编号</text>
-        <input class="input" :value="deviceId" placeholder="例如 CAB-001" @input="onDeviceInput" />
+        <input class="input" :value="deviceId" placeholder="请输入柜机编号" type="digit" @input="onDeviceInput" />
 
         <text class="field-label">问题类型</text>
         <view class="issue-grid">
@@ -47,7 +47,7 @@
       <view class="tip-card">
         <text class="tip-title">处理说明</text>
         <text class="tip-body"
-          >提交后运营通常在营业时间内跟进；紧急情况可拨打帮助中心客服热线。报修编号将随反馈一并留存。</text
+          >提交后运营通常在营业时间内跟进；紧急情况可拨打帮助中心客服热线。</text
         >
         <text class="tip-link" @click="goHelp">查看帮助中心 ›</text>
       </view>
@@ -112,7 +112,7 @@ function onSubmit() {
     return;
   }
   if (!/^[A-Z0-9][A-Z0-9-]{2,31}$/.test(id)) {
-    err.value = '柜机编号格式不正确，例如 CAB-001';
+    err.value = '柜机编号格式不正确，请输入数字编号';
     return;
   }
   const phone = contactPhone.value.trim();
