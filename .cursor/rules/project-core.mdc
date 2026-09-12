@@ -13,3 +13,4 @@ alwaysApply: true
 - 改 API 时同步：`common-core` DTO、调用方、必要时 `packages/shared-types`；不要另起一套类型体系。
 - 禁止提交密钥；配置用环境变量（`INTERNAL_API_KEY`、`JWT_SECRET`、`VISION_API_KEY` 等）。
 - **前台用户可见文案须中文**（按钮/提示/空态/状态标签等）；详见 `ui-copy-zh` 规则。
+- **UI Token 日常三约定**（禁裸业务 hex、`z-index` 用 `--z-*`、表格列挂语义 class）：详见 `ui-token-conventions`；合入靠 `pnpm check`。

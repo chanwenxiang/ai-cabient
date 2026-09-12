@@ -4,13 +4,13 @@
  * - 统计功能性图标是否带 aria-label / aria-hidden
  *
  * 用法：node scripts/check-mp-a11y-coverage.mjs
- * 环境变量 MIN_ROLE_PCT=90（默认 90；R3-X01 从 70 收紧）
+ * 环境变量 MIN_ROLE_PCT=95（默认 95；R3-X01 收紧 70→90，R4 收紧 90→95）
  */
 import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOTS = ['clients/consumer-mp/src', 'clients/merchant-mp/src'];
-const MIN_ROLE_PCT = Number(process.env.MIN_ROLE_PCT || 90);
+const MIN_ROLE_PCT = Number(process.env.MIN_ROLE_PCT || 95);
 
 function walk(dir, files = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
