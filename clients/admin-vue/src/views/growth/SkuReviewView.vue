@@ -72,11 +72,9 @@
             <el-empty v-if="!loading" description="暂无诊断数据，点击「运行诊断」生成" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="skuId"
+          <el-table-column prop="skuId"
             label="SKU"
             width="110"
-            align="center"
             class-name="col-text"
           />
           <el-table-column prop="skuName" label="商品" min-width="140" align="center" />

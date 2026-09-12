@@ -104,11 +104,9 @@
             <el-empty v-if="listHydrated && !loading" :description="emptyHint" :image-size="88" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="sessionId"
+          <el-table-column prop="sessionId"
             label="会话编号"
             min-width="168"
-            align="center"
             class-name="col-text"
             sortable="custom"
           >
@@ -118,10 +116,10 @@
               </button>
             </template>
           </el-table-column>
-          <el-table-column label="用户" width="100" align="center" class-name="col-text">
+          <el-table-column label="用户" width="100" class-name="col-text">
             <template #default="{ row }">{{ row.userId || '无' }}</template>
           </el-table-column>
-          <el-table-column label="设备" min-width="120" align="center" class-name="col-text">
+          <el-table-column label="设备" min-width="120" class-name="col-text">
             <template #default="{ row }">
               <button
                 v-if="row.deviceId"
@@ -134,10 +132,8 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="对象路径"
+          <el-table-column label="对象路径"
             min-width="180"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -155,10 +151,8 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="等待原因"
+          <el-table-column label="等待原因"
             min-width="200"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -166,7 +160,7 @@
               <span>{{ waitReason(row) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="滞留 / 时限" width="150" align="center" class-name="col-text">
+          <el-table-column label="滞留 / 时限" width="150" class-name="col-text">
             <template #default="{ row }">
               <div class="sla-cell">
                 <template v-if="isStuck(row)">
@@ -194,12 +188,12 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="关门时间" width="168" align="center" class-name="col-text">
+          <el-table-column label="关门时间" width="168" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.closeTime) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="更新时间" width="168" align="center" class-name="col-text">
+          <el-table-column label="更新时间" width="168" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>

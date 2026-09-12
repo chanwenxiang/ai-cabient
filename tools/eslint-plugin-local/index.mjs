@@ -172,8 +172,49 @@ const noHardcodedStatusLabel = {
   }
 };
 
+/**
+ * 禁止 <el-table-column align="center" class-name="col-text">：
+ * 文本列由 main.css .col-text 左对齐，再设 align=center 会互相打架。
+ */
+const noColTextAlignCenter = {
+  meta: {
+    type: 'problem',
+    docs: {
+      description: 'disallow align=center together with class-name=col-text on el-table-column'
+    },
+    schema: [],
+    messages: {
+      conflict: '文本列（col-text）不要再写 align="center"，去掉 align 即可左齐'
+    }
+  },
+  create(context) {
+    return {
+      VElement(node) {
+        const name = node.rawName || node.name;
+        if (name !== 'el-table-column') return;
+        const attrs = node.startTag?.attributes || [];
+        let alignCenter = false;
+        let colText = false;
+        for (const attr of attrs) {
+          if (attr.type !== 'VAttribute' || attr.directive) continue;
+          const key = attr.key?.name;
+          const raw = attr.value?.value;
+          if (key === 'align' && raw === 'center') alignCenter = true;
+          if (key === 'class-name' && typeof raw === 'string' && raw.includes('col-text')) {
+            colText = true;
+          }
+        }
+        if (alignCenter && colText) {
+          context.report({ node: node.startTag || node, messageId: 'conflict' });
+        }
+      }
+    };
+  }
+};
+
 export default {
   rules: {
-    'no-hardcoded-status-label': noHardcodedStatusLabel
+    'no-hardcoded-status-label': noHardcodedStatusLabel,
+    'no-col-text-align-center': noColTextAlignCenter
   }
 };

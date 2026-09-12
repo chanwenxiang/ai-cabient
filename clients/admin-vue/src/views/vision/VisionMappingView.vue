@@ -62,11 +62,9 @@
             ><el-empty v-if="listHydrated && !loading" description="暂无识别类名映射"
           /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="className"
+          <el-table-column prop="className"
             label="类名"
             min-width="140"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
             sortable="custom"
@@ -75,10 +73,8 @@
               <span class="cell-id">{{ row.className || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="商品"
+          <el-table-column label="商品"
             min-width="160"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -216,7 +212,7 @@
       :title="creating ? '新增识别映射' : '编辑识别映射'"
       destroy-on-close
     >
-      <el-form label-width="100px">
+      <el-form label-width="auto">
         <el-form-item label="类别" required>
           <el-input
             v-model="editForm.className"

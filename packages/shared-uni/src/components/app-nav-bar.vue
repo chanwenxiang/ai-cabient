@@ -37,8 +37,8 @@ const props = withDefaults(
   }>(),
   {
     title: '',
-    bg: '#134e4a',
-    color: '#ffffff',
+    bg: 'var(--brand-deep)',
+    color: 'var(--white)',
     homeUrl: '/pages/index/index'
   }
 );

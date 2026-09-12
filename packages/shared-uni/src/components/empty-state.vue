@@ -1,3 +1,7 @@
+<!--
+  Canonical: packages/shared-uni/src/components/empty-state.vue
+  Keep in sync (uni easycom 需本地路径).
+-->
 <template>
   <view class="empty-state" :class="[{ compact }, kindClass]">
     <image
@@ -6,11 +10,18 @@
       :src="resolvedIcon"
       mode="aspectFit"
     />
+    <view
+      v-else-if="useGlyph"
+      class="empty-icon app-icon app-icon--circle empty-glyph"
+      :class="'empty-glyph--' + (kind || 'default')"
+      aria-hidden="true"
+    />
     <text
       v-else-if="resolvedIcon"
       class="empty-icon app-icon app-icon--circle"
       aria-hidden="true"
-    >{{ resolvedIcon }}</text>
+      >{{ resolvedIcon }}</text
+    >
     <text class="empty-title">{{ resolvedTitle }}</text>
     <text v-if="resolvedHint" class="empty-hint">{{ resolvedHint }}</text>
     <view v-if="$slots.default" class="empty-actions">
@@ -24,13 +35,14 @@ import { computed } from 'vue';
 
 export type EmptyKind = 'default' | 'orders' | 'devices' | 'alerts' | 'search' | 'wallet';
 
+/** icon 空字符串 = 使用 CSS 几何图形，避免 ∅ / 单汉字 */
 const KIND_PRESETS: Record<EmptyKind, { title: string; hint: string; icon: string }> = {
-  default: { title: '暂无数据', hint: '', icon: '∅' },
-  orders: { title: '暂无订单', hint: '调整筛选条件后再试', icon: '单' },
-  devices: { title: '暂无柜机', hint: '确认账号已分配柜机后再刷新', icon: '柜' },
-  alerts: { title: '暂无待办', hint: '当前没有需要处理的事项', icon: '办' },
-  search: { title: '未找到结果', hint: '试试更换关键词', icon: '搜' },
-  wallet: { title: '暂无流水', hint: '有资金变动后会显示在这里', icon: '账' }
+  default: { title: '暂无数据', hint: '', icon: '' },
+  orders: { title: '暂无订单', hint: '调整筛选条件后再试', icon: '' },
+  devices: { title: '暂无柜机', hint: '确认账号已分配柜机后再刷新', icon: '' },
+  alerts: { title: '暂无待办', hint: '当前没有需要处理的事项', icon: '' },
+  search: { title: '未找到结果', hint: '试试更换关键词', icon: '' },
+  wallet: { title: '暂无流水', hint: '有资金变动后会显示在这里', icon: '' }
 };
 
 const props = withDefaults(
@@ -56,7 +68,12 @@ const resolvedTitle = computed(() => props.title || preset.value.title);
 const resolvedHint = computed(() =>
   props.hint !== undefined && props.hint !== '' ? props.hint : preset.value.hint
 );
-const resolvedIcon = computed(() => props.icon || preset.value.icon);
+const resolvedIcon = computed(() =>
+  props.icon !== undefined && props.icon !== '' ? props.icon : preset.value.icon
+);
+const useGlyph = computed(
+  () => !resolvedIcon.value || resolvedIcon.value === '∅' || resolvedIcon.value === 'glyph'
+);
 const kindClass = computed(() => (props.kind && props.kind !== 'default' ? `kind-${props.kind}` : ''));
 </script>
 
@@ -68,7 +85,6 @@ export default { name: 'EmptyState' };
 .empty-state {
   display: flex;
   flex-direction: column;
-  /* stretch：避免 center 导致小程序里百分比宽度参照错误、按钮比上方卡片更宽 */
   align-items: stretch;
   width: 100%;
   max-width: 100%;
@@ -91,22 +107,67 @@ export default { name: 'EmptyState' };
   line-height: 88rpx;
   text-align: center;
   align-self: center;
+  position: relative;
+  box-sizing: border-box;
+}
+.empty-glyph::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  border: 3rpx solid currentColor;
+  opacity: 0.7;
+}
+.empty-glyph--default::after {
+  width: 28rpx;
+  height: 28rpx;
+  border-radius: 6rpx;
+}
+.empty-glyph--orders::after {
+  width: 34rpx;
+  height: 26rpx;
+  border-radius: 4rpx;
+  border-top-width: 8rpx;
+}
+.empty-glyph--devices::after {
+  width: 30rpx;
+  height: 30rpx;
+  border-radius: 4rpx 4rpx 8rpx 8rpx;
+}
+.empty-glyph--alerts::after {
+  width: 28rpx;
+  height: 28rpx;
+  border-radius: 50%;
+  border-style: dashed;
+}
+.empty-glyph--search::after {
+  width: 22rpx;
+  height: 22rpx;
+  border-radius: 50%;
+  box-shadow: 10rpx 10rpx 0 -5rpx currentColor;
+}
+.empty-glyph--wallet::after {
+  width: 34rpx;
+  height: 24rpx;
+  border-radius: 6rpx;
 }
 .kind-alerts .empty-icon {
-  background: #fef3c7;
-  color: #b45309;
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+  color: var(--warning, #b45309);
 }
 .kind-orders .empty-icon {
-  background: #e0f2fe;
-  color: #0369a1;
+  background: var(--info-soft);
+  color: var(--info);
 }
 .kind-devices .empty-icon {
   background: var(--brand-soft, #ecfdf5);
   color: var(--brand, #0f766e);
 }
 .kind-wallet .empty-icon {
-  background: #fce7f3;
-  color: #be185d;
+  background: var(--accent-rose-soft);
+  color: var(--accent-rose);
 }
 .empty-title {
   font-size: var(--font-size-lg);
@@ -122,24 +183,17 @@ export default { name: 'EmptyState' };
   line-height: 1.5;
   text-align: center;
   align-self: center;
+  padding: 0 24rpx;
 }
 .empty-actions {
+  margin-top: 28rpx;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 16rpx;
-  margin-top: 28rpx;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-}
-.empty-state :deep(.app-btn + .app-btn),
-:deep(.app-btn + .app-btn) {
-  margin-top: 16rpx;
-}
-:deep(.app-btn) {
-  width: 100% !important;
-  max-width: none !important;
-  min-width: 0 !important;
+  padding: 0 8rpx;
 }
 </style>

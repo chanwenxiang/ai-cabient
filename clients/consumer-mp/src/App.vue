@@ -28,7 +28,7 @@ body,
 /* 微信小程序 page 节点标准：height 100% 供 tabBar 页 flex 一屏布局 */
 page,
 uni-page-body {
-  /* 与 shared-uni / merchant / admin 统一主色 #0f766e */
+  /* 与 shared-uni / merchant / admin 统一主色 var(--brand) */
   --brand: #0f766e;
   --brand-2: #0f766e;
   --brand-deep: #134e4a;
@@ -115,12 +115,12 @@ uni-page-body::-webkit-scrollbar {
   border-radius: var(--radius-pill);
   font-size: var(--font-size-caption);
   color: var(--text-muted);
-  background: #fff;
+  background: var(--white);
   border: 1rpx solid rgba(15, 118, 110, 0.12);
   white-space: nowrap;
 }
 .filter-chip.active {
-  color: #fff;
+  color: var(--white);
   background: var(--brand);
   border-color: var(--brand);
   font-weight: 600;
@@ -191,11 +191,14 @@ input {
   padding: 0 24rpx;
 }
 
+/*
+ * M02 布局模型：水平 gutter 由 .page-body / 页面 padding 承担；.card 仅纵向间距。
+ * 与 merchant App.vue 保持同一语义（勿改回四边 page-gutter）。
+ */
 .card {
-  background: #fff;
+  background: var(--white);
   border-radius: var(--radius-card);
   padding: 24rpx;
-  /* 水平边距只由 .page-body（或页面自管 gutter）承担；此处再加 24rpx 会让卡片比通栏按钮更窄 */
   margin: 0 0 16rpx;
   width: 100%;
   max-width: 100%;
@@ -204,15 +207,21 @@ input {
   box-shadow: 0 10rpx 32rpx rgba(15, 23, 42, 0.055);
 }
 
+.page-body {
+  padding-left: var(--page-gutter, 24rpx);
+  padding-right: var(--page-gutter, 24rpx);
+  box-sizing: border-box;
+}
+
 .meta {
-  color: #888;
+  color: var(--text-subtle);
   font-size: 26rpx;
 }
 
 .cart-cta,
 .app-btn--primary {
   background: linear-gradient(135deg, var(--brand), var(--brand-2));
-  color: #fff;
+  color: var(--white);
   border: none;
   border-radius: var(--radius-pill, 44rpx);
   display: flex;
@@ -384,7 +393,7 @@ button:active,
   uni-app {
     height: 100%;
     overflow: hidden;
-    background: #e8eef2;
+    background: var(--color-border-subtle);
   }
   uni-app {
     position: relative;
@@ -409,7 +418,7 @@ button:active,
     flex-direction: column !important;
     box-shadow: 0 22px 70px rgba(15, 23, 42, 0.14);
     /* 内容区统一白底；顶栏绿色由 app-nav 自己铺，勿再把整壳染成深绿 */
-    background-color: #ffffff;
+    background-color: var(--white);
     box-sizing: border-box;
     /* 导航改文档流后，清掉 uni 为 fixed 预留的顶栏偏移 */
     --window-top: 0px !important;
@@ -526,7 +535,7 @@ button:active,
     flex-direction: column !important;
     position: relative !important;
     overflow: hidden !important;
-    background: #ffffff !important;
+    background: var(--white) !important;
     padding-top: 0 !important;
   }
   /* 桌面手机框：一律隐藏滚动条，保留滑动 */
@@ -571,7 +580,7 @@ button:active,
     flex-direction: column !important;
     box-shadow: none !important;
     box-sizing: border-box;
-    background-color: #ffffff;
+    background-color: var(--white);
     scrollbar-width: none !important;
     -ms-overflow-style: none !important;
   }

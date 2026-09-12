@@ -192,11 +192,9 @@
             <el-empty v-if="listHydrated && !loading" description="暂无设备" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="deviceId"
+          <el-table-column prop="deviceId"
             label="设备编号"
             min-width="140"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
             sortable="custom"
@@ -205,7 +203,7 @@
               <span class="cell-id">{{ row.deviceId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="设备" min-width="140" align="center" class-name="col-text">
+          <el-table-column label="设备" min-width="140" class-name="col-text">
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="goDetail(row)">
                 <img
@@ -218,10 +216,8 @@
               </button>
             </template>
           </el-table-column>
-          <el-table-column
-            label="类型"
+          <el-table-column label="类型"
             min-width="100"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -278,7 +274,7 @@
               >
             </template>
           </el-table-column>
-          <el-table-column label="锁机原因" min-width="140" align="center" class-name="col-text">
+          <el-table-column label="锁机原因" min-width="140" class-name="col-text">
             <template #default="{ row }">
               <span
                 v-if="row.salesLocked && row.salesLockReason"
@@ -289,60 +285,50 @@
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column label="固件" width="88" align="center" class-name="col-text">
+          <el-table-column label="固件" width="88" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="row.firmwareVersion || ''">{{
                 row.firmwareVersion || '暂无'
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="地址" min-width="160" align="center" class-name="col-text">
+          <el-table-column label="地址" min-width="160" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="row.address || ''">{{
                 row.address || '暂无'
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="IMEI"
+          <el-table-column label="IMEI"
             min-width="120"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.imei || '无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="资产方"
+          <el-table-column label="资产方"
             min-width="100"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.assetOwner || '无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="路线"
+          <el-table-column label="路线"
             width="90"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.routeCode || '无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="商户"
+          <el-table-column label="商户"
             min-width="120"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.merchantName || row.merchantId || '无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="退款方式"
+          <el-table-column label="退款方式"
             min-width="168"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -356,10 +342,8 @@
               <span v-if="!row.refundPolicy" class="inherit-hint">全局默认</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="最近会话"
+          <el-table-column label="最近会话"
             min-width="140"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -377,10 +361,8 @@
               }}
             </template>
           </el-table-column>
-          <el-table-column
-            label="更新时间"
+          <el-table-column label="更新时间"
             min-width="168"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -425,7 +407,7 @@
       append-to-body
       align-center
     >
-      <el-form label-width="88px">
+      <el-form label-width="auto">
         <el-form-item label="设备编号">
           <p class="form-hint muted">
             创建后由系统自动分配 12 位数字编号（无序、不可修改）；柜机首次联网时将自动绑定 IMEI /

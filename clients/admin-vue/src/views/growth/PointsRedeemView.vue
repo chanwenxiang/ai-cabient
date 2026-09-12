@@ -68,11 +68,9 @@
         >
           <template #empty><el-empty v-if="!loading" description="暂无兑换项" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="itemId"
+          <el-table-column prop="itemId"
             label="ID"
             width="80"
-            align="center"
             class-name="col-text"
           />
           <el-table-column label="兑换项" min-width="170" align="center">
@@ -136,7 +134,7 @@
       :title="editing ? '编辑兑换项' : '新建兑换项'"
       destroy-on-close
     >
-      <el-form :model="form" label-width="110px">
+      <el-form :model="form" label-width="auto">
         <el-form-item label="标题" required>
           <el-input v-model="form.title" placeholder="如：满 20 减 5 券" />
         </el-form-item>

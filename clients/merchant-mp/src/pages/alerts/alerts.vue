@@ -461,6 +461,15 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   margin-top: 4rpx;
   display: block;
 }
+/* 无 page-body：卡片水平 gutter 由页面承担（对齐 M02） */
+.alerts-page > .card,
+.alerts-page .alert-card {
+  margin-left: var(--page-gutter, 24rpx);
+  margin-right: var(--page-gutter, 24rpx);
+  width: auto;
+  max-width: none;
+  box-sizing: border-box;
+}
 .alert-card {
   margin-top: 0;
   cursor: pointer;
@@ -478,7 +487,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   pointer-events: none;
 }
 .tag.dispute {
-  background: color-mix(in srgb, var(--danger, #b91c1c) 18%, #fff);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 18%, var(--white));
   color: var(--color-danger);
 }
 .tag.offline {
@@ -486,7 +495,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: var(--text-muted, #475569);
 }
 .tag.stock {
-  background: #fde68a;
+  background: var(--warning-soft);
   color: var(--warning, #d97706);
 }
 .tag.expiry {
@@ -543,7 +552,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   line-height: 1.2;
   border-radius: var(--radius-card);
   background: var(--brand, #0f766e);
-  color: #fff;
+  color: var(--white);
   border: 0;
   font-size: var(--font-size-body);
   font-weight: 600;

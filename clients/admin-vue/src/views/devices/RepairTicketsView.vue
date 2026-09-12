@@ -162,14 +162,14 @@
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="负责人" width="84" align="center" class-name="col-text">
+          <el-table-column label="负责人" width="84" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="row.assignee || ''">{{
                 row.assignee || '无'
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="备注" min-width="96" align="center" class-name="col-text">
+          <el-table-column label="备注" min-width="96" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="row.remark || ''">{{ row.remark || '无' }}</span>
             </template>
@@ -238,7 +238,7 @@
       destroy-on-close
       append-to-body
     >
-      <el-form label-width="90px">
+      <el-form label-width="auto">
         <el-form-item label="设备" required>
           <el-select
             v-model="form.deviceId"

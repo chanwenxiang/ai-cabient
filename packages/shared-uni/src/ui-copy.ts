@@ -25,6 +25,12 @@ export const UI_COPY = {
 
 export type UiCopyKey = keyof typeof UI_COPY;
 
+/** 「商品加载中…」「任务加载中…」等带前缀加载文案 */
+export function loadingLabel(scope?: string): string {
+  if (!scope) return UI_COPY.loading;
+  return `${scope}加载中…`;
+}
+
 /** 在线/离线文案（X03：须与颜色/圆点一起展示） */
 export function onlineLabel(online: boolean): string {
   return online ? UI_COPY.online : UI_COPY.offline;

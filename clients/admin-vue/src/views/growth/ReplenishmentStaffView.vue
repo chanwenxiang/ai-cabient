@@ -39,11 +39,9 @@
     >
       <template #empty><el-empty v-if="!loading" description="暂无补货任务数据" /></template>
       <el-table-column type="selection" width="48" align="center" />
-      <el-table-column
-        prop="userId"
+      <el-table-column prop="userId"
         label="工号"
         width="110"
-        align="center"
         class-name="col-text"
       />
       <el-table-column label="姓名" min-width="110" align="center">

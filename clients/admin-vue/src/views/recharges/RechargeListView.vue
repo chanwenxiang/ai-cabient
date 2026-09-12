@@ -67,11 +67,9 @@
             ><el-empty v-if="listHydrated && !loading" description="暂无充值记录"
           /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="orderId"
+          <el-table-column prop="orderId"
             label="充值单"
             min-width="168"
-            align="center"
             class-name="col-text"
             sortable="custom"
           >
@@ -79,7 +77,7 @@
               <span class="cell-id">{{ displayBizNo(row.orderId) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="用户" width="100" align="center" class-name="col-text">
+          <el-table-column label="用户" width="100" class-name="col-text">
             <template #default="{ row }">{{ row.userId ?? '无' }}</template>
           </el-table-column>
           <el-table-column label="金额" width="120" align="center" class-name="col-money">
@@ -92,10 +90,8 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="外部单号"
+          <el-table-column label="外部单号"
             min-width="140"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -112,12 +108,12 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="创建时间" width="150" align="center" class-name="col-text">
+          <el-table-column label="创建时间" width="150" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(String(row.createdAt || '')) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="支付时间" width="150" align="center" class-name="col-text">
+          <el-table-column label="支付时间" width="150" class-name="col-text">
             <template #default="{ row }">
               <span v-if="row.paidAt" class="cell-datetime">{{
                 formatDateTime(String(row.paidAt))
@@ -125,7 +121,7 @@
               <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
-          <el-table-column label="退款时间" width="150" align="center" class-name="col-text">
+          <el-table-column label="退款时间" width="150" class-name="col-text">
             <template #default="{ row }">
               <span v-if="row.refundedAt" class="cell-datetime">{{
                 formatDateTime(String(row.refundedAt))

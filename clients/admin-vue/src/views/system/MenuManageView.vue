@@ -102,15 +102,13 @@
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="权限标识" min-width="200" align="center" class-name="col-text">
+          <el-table-column label="权限标识" min-width="200" class-name="col-text">
             <template #default="{ row }"
               ><span class="cell-id">{{ row.permCode }}</span></template
             >
           </el-table-column>
-          <el-table-column
-            label="路由"
+          <el-table-column label="路由"
             min-width="140"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -144,7 +142,7 @@
       :title="form.permissionId ? '编辑菜单' : '新增菜单'"
       destroy-on-close
     >
-      <el-form label-width="88px">
+      <el-form label-width="auto">
         <el-form-item label="上级">
           <el-select
             v-model="form.parentId"

@@ -105,11 +105,9 @@
             ><el-empty v-if="listHydrated && !loading" description="暂无优惠券"
           /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="couponDefId"
+          <el-table-column prop="couponDefId"
             label="券定义编号"
             width="100"
-            align="center"
             class-name="col-text"
             sortable="custom"
           >
@@ -117,7 +115,7 @@
               <span class="cell-id">{{ row.couponDefId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="优惠券" min-width="150" align="center" class-name="col-text">
+          <el-table-column label="优惠券" min-width="150" class-name="col-text">
             <template #default="{ row }">{{ row.couponName || '无' }}</template>
           </el-table-column>
           <el-table-column label="类型" width="100" align="center">
@@ -141,7 +139,7 @@
           <el-table-column label="有效期" width="88" align="center">
             <template #default="{ row }">{{ row.validityDays }}天</template>
           </el-table-column>
-          <el-table-column label="绑定活动" width="100" align="center" class-name="col-text">
+          <el-table-column label="绑定活动" width="100" class-name="col-text">
             <template #default="{ row }">
               <span v-if="row.activityId" class="cell-id">{{ row.activityId }}</span>
               <span v-else>未绑定</span>
@@ -160,7 +158,7 @@
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="说明" min-width="140" align="center" class-name="col-text">
+          <el-table-column label="说明" min-width="140" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="row.description || ''">{{
                 row.description || '暂无'
@@ -210,7 +208,7 @@
       :title="editingId ? '编辑优惠券' : '新建优惠券'"
       destroy-on-close
     >
-      <el-form :model="createForm" label-width="100px">
+      <el-form :model="createForm" label-width="auto">
         <el-form-item label="名称" required
           ><el-input v-model="createForm.couponName"
         /></el-form-item>
@@ -297,7 +295,7 @@
     </el-dialog>
 
     <el-dialog v-model="showIssue" title="手动发券" destroy-on-close>
-      <el-form label-width="80px">
+      <el-form label-width="auto">
         <el-form-item label="优惠券">
           <el-select v-model="issueForm.couponDefId" style="width: 100%">
             <el-option
@@ -324,7 +322,7 @@
     </el-dialog>
 
     <el-dialog v-model="batchVisible" title="批量发券" destroy-on-close>
-      <el-form label-width="80px">
+      <el-form label-width="auto">
         <el-form-item label="优惠券">
           <el-select v-model="batchForm.couponDefId" style="width: 100%">
             <el-option

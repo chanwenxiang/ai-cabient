@@ -25,7 +25,7 @@
             <text class="label">要货明细</text>
             <text role="button" class="hint" @click="loadDraft">刷新建议</text>
           </view>
-          <view v-if="draftLoading" class="empty-inline">加载建议中…</view>
+          <view v-if="draftLoading" class="empty-inline">{{ loadingLabel('建议') }}</view>
           <view v-else-if="!draftLines.length" class="empty-inline">
             该柜机暂无可要货商品（无绑定货道 SKU）
           </view>
@@ -176,7 +176,7 @@ import {
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import type { DeviceInfo, DeviceSlot, MerchantMe } from '@aicabinet/shared-types';
-import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+import { UI_COPY, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 
 type DraftLine = {
   skuId: string;
@@ -575,7 +575,7 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 }
 .tab.active {
   background: var(--brand-deep);
-  color: #fff;
+  color: var(--white);
   border-color: var(--brand-deep);
   font-weight: 600;
 }
@@ -648,7 +648,7 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   align-items: center;
   justify-content: center;
   font-size: var(--font-size-sm);
-  color: #fff;
+  color: var(--white);
   flex-shrink: 0;
 }
 .check.on {
@@ -717,7 +717,7 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   display: block;
   width: 100%;
   text-align: center;
-  color: #fff;
+  color: var(--white);
   font-weight: 600;
   font-size: var(--font-size-lg);
   line-height: 1.2;
@@ -770,7 +770,7 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   font-size: var(--font-size-sm);
   padding: 4rpx 12rpx;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
   color: var(--warning, #92400e);
 }
 .status.accepted {
@@ -778,7 +778,7 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   color: var(--brand-deep, #166534);
 }
 .status.rejected {
-  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, #fff);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, var(--white));
   color: var(--danger, #991b1b);
 }
 .status.completed {
@@ -860,7 +860,7 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   padding: 12rpx 28rpx;
   border-radius: var(--radius-pill);
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
   font-size: var(--font-size-caption);
   font-weight: 600;
 }

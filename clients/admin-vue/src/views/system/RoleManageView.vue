@@ -94,11 +94,9 @@
             ><el-empty v-if="listHydrated && !loading" description="暂无角色"
           /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="roleId"
+          <el-table-column prop="roleId"
             label="角色编号"
             width="80"
-            align="center"
             class-name="col-text"
             sortable="custom"
           >
@@ -106,10 +104,10 @@
               <span class="cell-id">{{ row.roleId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="角色" min-width="140" align="center" class-name="col-text">
+          <el-table-column label="角色" min-width="140" class-name="col-text">
             <template #default="{ row }">{{ row.roleName || row.roleKey || '无' }}</template>
           </el-table-column>
-          <el-table-column label="权限字符" min-width="140" align="center" class-name="col-text">
+          <el-table-column label="权限字符" min-width="140" class-name="col-text">
             <template #default="{ row }"
               ><span class="cell-id">{{ row.roleKey }}</span></template
             >
@@ -124,11 +122,9 @@
           <el-table-column label="权限数" width="96" align="center">
             <template #default="{ row }">{{ permissionCountLabel(row) }}</template>
           </el-table-column>
-          <el-table-column
-            prop="remark"
+          <el-table-column prop="remark"
             label="备注"
             min-width="160"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -154,7 +150,7 @@
       :title="form.roleId ? '编辑角色' : '新增角色'"
       destroy-on-close
     >
-      <el-form label-width="88px">
+      <el-form label-width="auto">
         <el-form-item label="权限字符" required>
           <el-input
             v-model="form.roleKey"

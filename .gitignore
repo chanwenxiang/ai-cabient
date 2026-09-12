@@ -111,6 +111,18 @@ scripts/_tmp*
 /login-*.png
 /*-before.png
 /*-after.png
+/td1-*.png
+/wave-*.png
+/wave-c-d-*.png
+/*-align-after.png
+/device-detail*.png
+/devices-align*.png
+/consumer-index*.png
+/help-after.png
+/marketing-align*.png
+
+# Local skill installs (not part of product)
+.cursor/skills/impeccable/
 
 # Local env files with real sandbox credentials (untracked 2026-08-08)
 infra/.env.sandbox

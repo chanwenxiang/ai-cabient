@@ -562,7 +562,7 @@ async function onAlipayRecharge() {
   box-sizing: border-box;
 }
 .balance-card {
-  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  background: linear-gradient(135deg, var(--brand-soft), var(--white));
   border: 1rpx solid var(--brand-soft, #d1fae5);
   border-radius: var(--radius-card);
   padding: 40rpx;
@@ -612,7 +612,7 @@ async function onAlipayRecharge() {
   height: 72rpx;
   padding: 0 20rpx;
   background: var(--page-bg, #f8faf9);
-  border: 1rpx solid #e3eae6;
+  border: 1rpx solid var(--color-border-subtle);
   border-radius: var(--radius-control);
   font-size: var(--font-size-md);
   box-sizing: border-box;
@@ -643,7 +643,7 @@ async function onAlipayRecharge() {
 }
 .refund-list {
   margin-top: 18rpx;
-  border-top: 1rpx solid #eef2f0;
+  border-top: 1rpx solid var(--color-border-subtle);
   padding-top: 12rpx;
 }
 .refund-item {
@@ -696,7 +696,7 @@ async function onAlipayRecharge() {
   border-radius: var(--radius-panel);
   padding: 30rpx 20rpx;
   text-align: center;
-  border: 2rpx solid #eee;
+  border: 2rpx solid var(--card-border);
 }
 .amount-card.selected {
   border-color: var(--brand);
@@ -705,11 +705,11 @@ async function onAlipayRecharge() {
 .amount-value {
   font-size: var(--font-size-h2);
   font-weight: 700;
-  color: #333;
+  color: var(--text-primary);
 }
 .amount-bonus {
   font-size: var(--font-size-sm);
-  color: #ff6b35;
+  color: var(--accent-orange);
   margin-top: 8rpx;
   display: block;
 }
@@ -732,7 +732,7 @@ async function onAlipayRecharge() {
   flex: 1;
   min-width: 200rpx;
   background: var(--page-bg, #f8faf9);
-  border: 1rpx solid #e4ebe7;
+  border: 1rpx solid var(--color-border-subtle);
   border-radius: var(--radius-control);
   padding: 16rpx 20rpx;
   font-size: var(--font-size-md);
@@ -751,7 +751,7 @@ async function onAlipayRecharge() {
   height: 88rpx;
   line-height: 1.2;
   background: linear-gradient(135deg, var(--brand), var(--brand));
-  color: #fff;
+  color: var(--white);
   border-radius: var(--radius-pill);
   font-size: var(--font-size-lg);
   font-weight: 600;
@@ -772,8 +772,8 @@ async function onAlipayRecharge() {
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.2;
-  background: #0958d9;
-  color: #fff;
+  background: var(--info);
+  color: var(--white);
   border-radius: var(--radius-pill);
   font-size: var(--font-size-lg);
   border: none;
@@ -802,7 +802,7 @@ async function onAlipayRecharge() {
   color: var(--color-link-secondary);
   border-radius: var(--radius-pill);
   font-size: var(--font-size-md);
-  border: 1rpx solid #e5e5e5;
+  border: 1rpx solid var(--card-border);
   margin-bottom: 24rpx;
   display: flex;
   align-items: center;
@@ -834,7 +834,7 @@ async function onAlipayRecharge() {
 .section-title {
   font-size: var(--font-size-md);
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
 .cleanup {
   font-size: var(--font-size-caption);
@@ -851,7 +851,7 @@ async function onAlipayRecharge() {
   justify-content: space-between;
   align-items: center;
   padding: 20rpx 0;
-  border-bottom: 1rpx solid #f0f0f0;
+  border-bottom: 1rpx solid var(--color-border-subtle);
 }
 .record-row > view:first-child {
   flex: 1;
@@ -872,7 +872,7 @@ async function onAlipayRecharge() {
 .record-channel {
   font-size: var(--font-size-sm);
   color: var(--color-link-secondary);
-  background: #f2f4f8;
+  background: var(--surface-muted);
   padding: 2rpx 10rpx;
   border-radius: var(--radius-tag);
 }

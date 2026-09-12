@@ -290,7 +290,7 @@ function remainText(end?: string) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #fff;
+  color: var(--white);
   background: linear-gradient(135deg, var(--brand-deep), var(--brand));
   box-sizing: border-box;
 }
@@ -298,13 +298,13 @@ function remainText(end?: string) {
   background: linear-gradient(135deg, var(--warning, #92400e), var(--warning, #f59e0b));
 }
 .banner-card.tone-sky {
-  background: linear-gradient(135deg, #0c4a6e, #0ea5e9);
+  background: linear-gradient(135deg, #0c4a6e, var(--info));
 }
 .banner-card.tone-rose {
-  background: linear-gradient(135deg, #9f1239, #fb7185);
+  background: linear-gradient(135deg, var(--accent-rose), var(--accent-rose));
 }
 .banner-card.tone-mint {
-  background: linear-gradient(135deg, var(--brand-deep), #10b981);
+  background: linear-gradient(135deg, var(--brand-deep), var(--success));
 }
 .banner-title {
   display: block;
@@ -340,7 +340,7 @@ function remainText(end?: string) {
   justify-content: center;
   font-size: var(--font-size-h2);
   font-weight: 800;
-  color: #fff;
+  color: var(--white);
 }
 
 .entry {
@@ -357,7 +357,7 @@ function remainText(end?: string) {
   max-width: 100%;
 }
 .entry.mint {
-  background: linear-gradient(90deg, #fff, var(--brand-soft));
+  background: linear-gradient(90deg, var(--white), var(--brand-soft));
   border: 1rpx solid var(--brand-soft, #d1fae5);
 }
 .entry-title {
@@ -405,15 +405,15 @@ function remainText(end?: string) {
 }
 .campaign-badge.tone-amber {
   color: var(--warning, #92400e);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
 }
 .campaign-badge.tone-sky {
   color: #075985;
-  background: #e0f2fe;
+  background: var(--info-soft);
 }
 .campaign-badge.tone-rose {
-  color: #9f1239;
-  background: #ffe4e6;
+  color: var(--accent-rose);
+  background: var(--danger-soft);
 }
 .campaign-title {
   display: block;

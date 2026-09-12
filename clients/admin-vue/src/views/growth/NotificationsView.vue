@@ -47,11 +47,9 @@
             ><el-empty v-if="listHydrated && !loading" description="暂无消息记录"
           /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="id"
+          <el-table-column prop="id"
             label="ID"
             width="80"
-            align="center"
             class-name="col-text"
             sortable="custom"
           />
@@ -73,7 +71,7 @@
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="业务" width="100" align="center" class-name="col-text">
+          <el-table-column label="业务" width="100" class-name="col-text">
             <template #default="{ row }">
               <span
                 class="cell-ellipsis"
@@ -82,7 +80,7 @@
               >
             </template>
           </el-table-column>
-          <el-table-column label="关联单号" width="150" align="center" class-name="col-text">
+          <el-table-column label="关联单号" width="150" class-name="col-text">
             <template #default="{ row }">{{ displayBizNo(row.bizId, '无') }}</template>
           </el-table-column>
           <el-table-column
@@ -118,7 +116,7 @@
     />
 
     <el-dialog v-model="sendVisible" title="发送站内信" destroy-on-close>
-      <el-form label-width="96px">
+      <el-form label-width="auto">
         <el-form-item label="受众" required>
           <el-radio-group v-model="sendForm.audience">
             <el-radio value="CONSUMER">消费者</el-radio>
@@ -151,7 +149,7 @@
     </el-dialog>
 
     <el-dialog v-model="editVisible" title="编辑站内信" destroy-on-close>
-      <el-form label-width="96px">
+      <el-form label-width="auto">
         <el-form-item label="标题" required>
           <el-input v-model="editForm.title" maxlength="80" show-word-limit />
         </el-form-item>

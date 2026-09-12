@@ -320,11 +320,9 @@ onMounted(load);
             <el-empty v-if="listHydrated && !loading" description="暂无申请" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="requestNo"
+          <el-table-column prop="requestNo"
             label="申请号"
             min-width="160"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -332,7 +330,7 @@ onMounted(load);
               <span class="cell-id">{{ displayBizNo(row.requestNo) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="用户" width="100" align="center" class-name="col-text">
+          <el-table-column label="用户" width="100" class-name="col-text">
             <template #default="{ row }">
               <button
                 v-if="row.userId"
@@ -355,34 +353,28 @@ onMounted(load);
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="申请原因"
+          <el-table-column label="申请原因"
             min-width="140"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.reason || '暂无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="审核备注"
+          <el-table-column label="审核备注"
             min-width="120"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.reviewRemark || '暂无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="失败原因"
+          <el-table-column label="失败原因"
             min-width="140"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.failReason || '暂无' }}</template>
           </el-table-column>
-          <el-table-column label="申请时间" width="168" align="center" class-name="col-text">
+          <el-table-column label="申请时间" width="168" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>

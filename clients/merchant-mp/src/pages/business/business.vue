@@ -108,7 +108,7 @@
               >{{ d.label }}</text
             >
           </view>
-          <view v-if="reportLoading" class="empty">加载报表…</view>
+          <view v-if="reportLoading" class="empty">{{ loadingLabel('报表') }}</view>
           <view v-else-if="!salesRows.length" class="empty">该区间暂无销售明细</view>
           <view v-for="r in salesRows.slice(0, 8)" :key="r.dimKey" class="sku-row">
             <view class="sku-main"
@@ -185,11 +185,18 @@
           <view v-for="r in deviceReports" :key="r.deviceId" class="report-row">
             <view class="report-main">
               <text class="sku-name">{{ r.deviceName }}</text>
-              <text class="meta"
-                >{{ r.deviceId }} · {{ r.onlineStatus === 'ONLINE' ? '在线' : '离线'
-                }}{{ r.routeCode ? ` · 线路 ${r.routeCode}` : ''
-                }}{{ r.salesLocked ? ' · 停售' : '' }}</text
-              >
+              <text class="meta meta-status-row">
+                <text>{{ r.deviceId }} · </text>
+                <text
+                  class="app-status"
+                  :class="r.onlineStatus === 'ONLINE' ? 'is-online' : 'is-offline'"
+                >
+                  <text class="app-status-dot" aria-hidden="true" />
+                  {{ onlineLabel(r.onlineStatus === 'ONLINE') }}
+                </text>
+                <text v-if="r.routeCode"> · 线路 {{ r.routeCode }}</text>
+                <text v-if="r.salesLocked"> · {{ UI_COPY.salesLocked }}</text>
+              </text>
               <text v-if="r.address" class="meta">{{ r.address }}</text>
               <text
                 v-if="r.currentTempC != null || r.firmwareVersion || r.salesLockReason"
@@ -239,6 +246,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { UI_COPY, onlineLabel, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import {
   showError,
   showSuccess
@@ -555,7 +563,7 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   flex: 1;
   padding: 14rpx;
   border-radius: var(--radius-control);
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
 }
 .expiry-n,
 .expiry-l {
@@ -613,7 +621,7 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 }
 .period.active {
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
 }
 .report-dims {
   display: flex;
@@ -629,7 +637,7 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 }
 .report-dim.active {
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
 }
 .state {
   margin: 24rpx;
@@ -649,7 +657,7 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   height: 72rpx;
   line-height: 72rpx;
   background: linear-gradient(135deg, var(--brand-deep), var(--brand));
-  color: #fff;
+  color: var(--white);
   border-radius: var(--radius-pill);
   font-weight: 600;
   box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
@@ -663,7 +671,7 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   padding: 32rpx;
   border-radius: var(--radius-card);
   color: var(--text-primary, #0f172a);
-  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  background: linear-gradient(135deg, var(--brand-soft), var(--white));
   border: 1rpx solid var(--brand-soft, #d1fae5);
 }
 .hero-label {
@@ -763,7 +771,7 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 .tax-save {
   margin-top: 8rpx;
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
   border-radius: var(--radius-control);
   font-size: var(--font-size-body);
 }
@@ -813,8 +821,8 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   margin: 12rpx 24rpx;
   padding: 24rpx;
   border-radius: 18rpx;
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
-  border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
+  border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
 }
 .risk-title {
   display: block;

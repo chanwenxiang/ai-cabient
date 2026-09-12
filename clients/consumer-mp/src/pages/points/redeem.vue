@@ -164,7 +164,7 @@ function goPoints() {
   padding: 26rpx 28rpx;
   border-radius: var(--radius-card);
   color: var(--text-primary, #14201b);
-  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  background: linear-gradient(135deg, var(--brand-soft), var(--white));
   border: 1rpx solid var(--brand-soft, #d1fae5);
   text-align: center;
   position: relative;
@@ -275,7 +275,7 @@ function goPoints() {
   line-height: 60rpx;
   border-radius: var(--radius-pill);
   font-size: var(--font-size-caption);
-  color: #fff;
+  color: var(--white);
   background: var(--brand);
 }
 .redeem-btn.disabled {

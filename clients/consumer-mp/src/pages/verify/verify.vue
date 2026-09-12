@@ -339,7 +339,7 @@ function goShop() {
   width: 56rpx;
   height: 56rpx;
   border-radius: 50%;
-  background: #d4d4d4;
+  background: var(--card-border);
   color: var(--text-muted, #334155);
   font-size: var(--font-size-md);
   display: flex;
@@ -350,7 +350,7 @@ function goShop() {
 .step.active .step-dot,
 .step.done .step-dot {
   background: linear-gradient(135deg, var(--brand), var(--brand));
-  color: #fff;
+  color: var(--white);
 }
 .step-label {
   font-size: var(--font-size-caption);
@@ -364,7 +364,7 @@ function goShop() {
 .step-line {
   width: 120rpx;
   height: 4rpx;
-  background: #e5e5e5;
+  background: var(--card-border);
   margin: 0 16rpx 28rpx;
 }
 .step-line.done {
@@ -428,7 +428,7 @@ function goShop() {
   display: flex;
   justify-content: space-between;
   padding: 20rpx 0;
-  border-bottom: 1rpx solid #f0f0f0;
+  border-bottom: 1rpx solid var(--color-border-subtle);
 }
 .status-label {
   font-size: var(--font-size-md);
@@ -440,7 +440,7 @@ function goShop() {
 }
 .hint {
   font-size: var(--font-size-caption);
-  color: #b2b2b2;
+  color: var(--text-subtle);
   margin-top: 24rpx;
   display: block;
   line-height: 1.5;

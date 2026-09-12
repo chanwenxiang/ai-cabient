@@ -85,7 +85,7 @@
           </view>
         </view>
         <view v-if="hasMore" class="load-more" role="button" @click="loadMore">
-          {{ loadingMore ? '加载中…' : `加载更多（已显示 ${list.length}/${listTotal}）` }}
+          {{ loadingMore ? UI_COPY.loading : `加载更多（已显示 ${list.length}/${listTotal}）` }}
         </view>
         <text v-else-if="listTruncated" class="trunc-hint">共 {{ listTotal }} 条，已全部加载</text>
       </view>
@@ -663,7 +663,7 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
 .card-video-hint {
   margin-top: 6rpx;
   font-size: var(--font-size-sm);
-  color: #0369a1;
+  color: var(--info);
 }
 .card-id {
   font-size: var(--font-size-sm);
@@ -672,7 +672,7 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
 .card-status {
   font-size: var(--font-size-sm);
   color: var(--warning, #92400e);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
   padding: 4rpx 12rpx;
   border-radius: var(--radius-pill);
 }
@@ -843,7 +843,7 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
 }
 .detail-actions .app-btn.waive {
   background: var(--color-danger);
-  color: #fff;
+  color: var(--white);
 }
 .video-block {
   margin-top: 20rpx;

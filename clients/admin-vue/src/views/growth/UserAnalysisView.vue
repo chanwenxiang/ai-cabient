@@ -120,7 +120,7 @@
     </div>
 
     <el-dialog v-model="recallVisible" title="沉睡用户召回" destroy-on-close>
-      <el-form label-width="100px">
+      <el-form label-width="auto">
         <el-form-item label="召回优惠券" required>
           <el-select
             v-model="recallCouponDefId"

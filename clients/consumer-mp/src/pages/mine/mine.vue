@@ -615,7 +615,7 @@ async function onLogout() {
   box-sizing: border-box;
   background: linear-gradient(145deg, var(--brand-deep, #134e4a) 0%, var(--brand, #0f766e) 100%);
   box-shadow: none;
-  color: #fff;
+  color: var(--white);
 }
 .profile-main {
   position: relative;
@@ -726,7 +726,7 @@ async function onLogout() {
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--brand-deep, #134e4a);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, var(--on-deep-opacity-92));
   text-align: center;
 }
 .tags {
@@ -761,12 +761,12 @@ async function onLogout() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #fff;
+  color: var(--white);
 }
 .setup-title {
   font-size: var(--font-size-md);
   font-weight: 600;
-  color: #ffffff;
+  color: var(--white);
   display: block;
 }
 .setup-desc {
@@ -779,7 +779,7 @@ async function onLogout() {
   display: inline-flex;
   align-items: center;
   gap: 8rpx;
-  color: #ffffff;
+  color: var(--white);
   font-size: var(--font-size-body);
   font-weight: 500;
   white-space: nowrap;
@@ -821,8 +821,8 @@ async function onLogout() {
   padding: 16rpx 8rpx;
   margin-right: 12rpx;
   border-radius: var(--radius-control);
-  background: #f4f7f5;
-  color: #53645b;
+  background: var(--surface-muted);
+  color: var(--text-muted);
   font-size: var(--font-size-caption);
   border: 2rpx solid transparent;
   box-sizing: border-box;
@@ -833,7 +833,7 @@ async function onLogout() {
 .pay-pref-chip.on {
   background: var(--brand-soft);
   color: var(--brand);
-  border-color: #34d399;
+  border-color: var(--success);
   font-weight: 700;
 }
 .pay-pref-chip.disabled {
@@ -940,7 +940,7 @@ async function onLogout() {
 .menu-badge {
   font-size: var(--font-size-sm);
   color: var(--danger, #991b1b);
-  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, #fff);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--white));
   padding: 4rpx 12rpx;
   border-radius: var(--radius-pill);
 }

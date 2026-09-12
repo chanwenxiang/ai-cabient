@@ -92,11 +92,9 @@
               <el-empty v-if="listHydrated && !loading" :description="emptyHint" />
             </template>
             <el-table-column type="selection" width="48" align="center" />
-            <el-table-column
-              prop="exceptionId"
+            <el-table-column prop="exceptionId"
               label="异常编号"
               min-width="140"
-              align="center"
               class-name="col-text"
               show-overflow-tooltip
               sortable="custom"
@@ -105,10 +103,8 @@
                 <span class="cell-id">{{ displayBizNo(row.exceptionId) }}</span>
               </template>
             </el-table-column>
-            <el-table-column
-              label="异常"
+            <el-table-column label="异常"
               min-width="160"
-              align="center"
               class-name="col-text"
               show-overflow-tooltip
             >
@@ -125,10 +121,8 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column
-              label="类型"
+            <el-table-column label="类型"
               min-width="120"
-              align="center"
               class-name="col-text"
               show-overflow-tooltip
             >
@@ -136,10 +130,8 @@
                 dictLabel('exception_type', row.exceptionType)
               }}</template>
             </el-table-column>
-            <el-table-column
-              label="设备"
+            <el-table-column label="设备"
               min-width="110"
-              align="center"
               class-name="col-text"
               show-overflow-tooltip
             >
@@ -155,10 +147,8 @@
                 <span v-else class="muted">无</span>
               </template>
             </el-table-column>
-            <el-table-column
-              label="会话"
+            <el-table-column label="会话"
               min-width="130"
-              align="center"
               class-name="col-text"
               show-overflow-tooltip
             >
@@ -176,10 +166,8 @@
                 }}</span>
               </template>
             </el-table-column>
-            <el-table-column
-              label="订单"
+            <el-table-column label="订单"
               min-width="120"
-              align="center"
               class-name="col-text"
               show-overflow-tooltip
             >

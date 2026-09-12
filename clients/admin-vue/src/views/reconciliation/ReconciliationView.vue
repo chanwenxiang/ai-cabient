@@ -103,12 +103,12 @@
             ><el-empty v-if="listHydrated && !loading" description="暂无对账记录"
           /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="对账ID" width="88" align="center" class-name="col-text">
+          <el-table-column label="对账ID" width="88" class-name="col-text">
             <template #default="{ row }">
               <span class="mono">{{ row.reconId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="账期" min-width="120" align="center" class-name="col-text">
+          <el-table-column label="账期" min-width="120" class-name="col-text">
             <template #default="{ row }">
               <button type="button" class="recon-cell" @click="openDetail(row)">
                 <strong>{{ row.reconDate || '—' }}</strong>
@@ -129,7 +129,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="差额" width="110" align="center" class-name="col-text">
+          <el-table-column label="差额" width="110" class-name="col-text">
             <template #default="{ row }">
               <span :class="{ 'is-mismatch': Number(row.diffCents ?? 0) !== 0 }">
                 {{ formatCents(row.diffCents) }}
@@ -143,7 +143,7 @@
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="创建时间" width="168" align="center" class-name="col-text">
+          <el-table-column label="创建时间" width="168" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
@@ -267,19 +267,15 @@
             size="small"
             empty-text=" "
           >
-            <el-table-column
-              prop="platformTradeNo"
+            <el-table-column prop="platformTradeNo"
               label="平台流水"
               min-width="140"
-              align="center"
               class-name="col-text"
               show-overflow-tooltip
             />
-            <el-table-column
-              prop="merchantOrderNo"
+            <el-table-column prop="merchantOrderNo"
               label="商户单号"
               min-width="120"
-              align="center"
               class-name="col-text"
               show-overflow-tooltip
             />
@@ -293,7 +289,7 @@
                 row.tradeType ? dictLabel('platform_bill_trade_type', row.tradeType) : '暂无'
               }}</template>
             </el-table-column>
-            <el-table-column label="交易时间" width="160" align="center" class-name="col-text">
+            <el-table-column label="交易时间" width="160" class-name="col-text">
               <template #default="{ row }">
                 <span class="cell-datetime">{{
                   row.tradeTime ? formatDateTime(row.tradeTime) : '暂无'

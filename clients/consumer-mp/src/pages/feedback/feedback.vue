@@ -246,7 +246,7 @@ async function onSubmit() {
 }
 .tab.active {
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
   font-weight: 650;
 }
 .hero {
@@ -319,7 +319,7 @@ async function onSubmit() {
   display: block;
   text-align: right;
   font-size: var(--font-size-sm);
-  color: #bbb;
+  color: var(--text-subtle);
   margin-bottom: 12rpx;
 }
 .app-btn[disabled] {
@@ -346,7 +346,7 @@ async function onSubmit() {
 }
 .app-btn {
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
   border: none;
 }
 .history-list {
@@ -381,7 +381,7 @@ async function onSubmit() {
 }
 .history-status.pending {
   color: var(--warning, #b45309);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
 }
 .history-status.muted {
   color: var(--text-muted, #475569);

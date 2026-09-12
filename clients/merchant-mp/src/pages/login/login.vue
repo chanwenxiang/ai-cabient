@@ -332,7 +332,7 @@ async function onLogin() {
 }
 .tagline {
   font-size: var(--font-size-body);
-  color: #a5b4c8;
+  color: var(--text-subtle);
   display: block;
   margin-top: 6rpx;
 }
@@ -368,9 +368,10 @@ async function onLogin() {
   margin: 0 auto;
   padding: 24rpx 22rpx 24rpx;
   border-radius: var(--radius-card);
-  background: rgba(8, 24, 30, 0.58);
+  background: rgba(8, 24, 30, 0.82);
   border: 2rpx solid rgba(148, 210, 198, 0.22);
-  backdrop-filter: blur(52rpx);
+  /* 扁平实心卡：去掉玻璃模糊，与主产品风格一致 */
+  backdrop-filter: none;
   box-shadow:
     0 -8rpx 40rpx rgba(2, 12, 16, 0.18),
     0 16rpx 48rpx rgba(2, 10, 14, 0.42);
@@ -414,7 +415,7 @@ async function onLogin() {
   font-size: var(--font-size-md);
   color: var(--page-tint, #f0fdfa);
   line-height: 76rpx;
-  backdrop-filter: blur(16rpx);
+  backdrop-filter: none;
 }
 .input:focus {
   border-color: rgba(94, 234, 212, 0.7);
@@ -465,7 +466,7 @@ async function onLogin() {
   min-width: 0 !important;
   padding: 0 !important;
   background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
-  color: #fff;
+  color: var(--white);
   border-radius: var(--radius-pill);
   min-height: 80rpx;
   height: 80rpx;

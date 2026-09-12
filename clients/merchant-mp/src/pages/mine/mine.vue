@@ -402,7 +402,7 @@ async function onLogout() {
 .btn {
   flex: 1;
   background: var(--brand, #0f766e);
-  color: #fff;
+  color: var(--white);
   border: none;
   border-radius: var(--radius-pill);
   font-size: var(--font-size-md);
@@ -440,7 +440,7 @@ async function onLogout() {
     var(--brand, #0f766e)
   );
   box-shadow: none;
-  color: #fff;
+  color: var(--white);
 }
 .profile-main {
   display: flex;
@@ -597,7 +597,7 @@ async function onLogout() {
 .save-btn {
   margin-top: 20rpx;
   background: var(--brand, #0f766e);
-  color: #fff;
+  color: var(--white);
   border: none;
   border-radius: var(--radius-control);
   font-size: var(--font-size-md);
@@ -609,6 +609,6 @@ async function onLogout() {
   background: #fffafa;
 }
 .danger-cell .menu-icon {
-  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, #fff);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--white));
 }
 </style>

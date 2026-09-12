@@ -217,14 +217,14 @@ function pickForNextOpen(c: CouponDto) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #ff6b35, #ff8f00);
+  background: linear-gradient(135deg, var(--accent-orange), var(--accent-orange));
   padding: 24rpx;
 }
 .coupon-card.expired .coupon-left {
-  background: #ccc;
+  background: var(--card-border);
 }
 .coupon-amount {
-  color: #fff;
+  color: var(--white);
   font-size: var(--font-size-display);
   font-weight: 700;
 }
@@ -261,7 +261,7 @@ function pickForNextOpen(c: CouponDto) {
 }
 .coupon-expire {
   font-size: var(--font-size-sm);
-  color: #ccc;
+  color: var(--card-border);
   margin-top: 8rpx;
   display: block;
 }
@@ -287,7 +287,7 @@ function pickForNextOpen(c: CouponDto) {
 }
 .coupon-pick.on {
   background: var(--brand-deep);
-  color: #fff;
+  color: var(--white);
   border-color: var(--brand-deep);
 }
 .coupon-status-badge {
@@ -302,7 +302,7 @@ function pickForNextOpen(c: CouponDto) {
   color: var(--brand-deep, #065f46);
 }
 .coupon-status-badge.expired {
-  background: #f5f5f5;
+  background: var(--color-border-subtle);
   color: var(--text-muted, #475569);
 }
 </style>

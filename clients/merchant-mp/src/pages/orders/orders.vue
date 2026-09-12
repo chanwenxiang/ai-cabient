@@ -138,7 +138,7 @@
             </view>
           </view>
           <view v-if="hasMore" class="load-more" role="button" @click="loadMore">
-            {{ loadingMore ? '加载中…' : `加载更多（已显示 ${list.length}/${listTotal}）` }}
+            {{ loadingMore ? UI_COPY.loading : `加载更多（已显示 ${list.length}/${listTotal}）` }}
           </view>
           <text v-else-if="listTruncated" class="trunc-hint"
             >共 {{ listTotal }} 条，已全部加载</text
@@ -563,7 +563,7 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   flex-shrink: 0;
 }
 .filter-chip.active {
-  color: #fff;
+  color: var(--white);
   background: var(--brand);
   font-weight: 600;
 }
@@ -607,7 +607,7 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   text-align: center;
   font-size: var(--font-size-sm);
   color: var(--warning, #92400e);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
   padding: 4rpx 12rpx;
   border-radius: var(--radius-pill);
   box-sizing: border-box;
@@ -624,7 +624,7 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
 }
 .card-status.DISPUTED {
   color: var(--accent-orange, #9a3412);
-  background: #ffedd5;
+  background: var(--warning-soft);
 }
 .card-status.CANCELLED,
 .card-status.FAILED {

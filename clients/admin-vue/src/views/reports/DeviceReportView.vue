@@ -97,11 +97,9 @@
           empty-text=" "
         >
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="deviceId"
+          <el-table-column prop="deviceId"
             label="设备编号"
             min-width="140"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
             sortable="custom"
@@ -110,10 +108,8 @@
               <span class="cell-id">{{ row.deviceId }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="设备"
+          <el-table-column label="设备"
             min-width="140"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -142,7 +138,7 @@
           <el-table-column label="线路" width="100" align="center" show-overflow-tooltip>
             <template #default="{ row }">{{ row.routeCode || '—' }}</template>
           </el-table-column>
-          <el-table-column label="地址" min-width="140" align="center" class-name="col-text">
+          <el-table-column label="地址" min-width="140" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="row.address || ''">{{ row.address || '—' }}</span>
             </template>

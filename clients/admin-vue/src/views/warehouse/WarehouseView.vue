@@ -324,11 +324,9 @@
                     description="暂无仓库"
                 /></template>
                 <el-table-column type="selection" width="48" align="center" />
-                <el-table-column
-                  prop="warehouseId"
+                <el-table-column prop="warehouseId"
                   label="仓库编号"
                   min-width="120"
-                  align="center"
                   class-name="col-text"
                   show-overflow-tooltip
                   sortable="custom"
@@ -337,21 +335,17 @@
                     <span class="cell-id">{{ row.warehouseId }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column
-                  label="仓库"
+                <el-table-column label="仓库"
                   min-width="140"
-                  align="center"
                   class-name="col-text"
                   show-overflow-tooltip
                 >
                   <template #default="{ row }">{{ row.warehouseName || '无' }}</template>
                 </el-table-column>
-                <el-table-column
-                  prop="address"
+                <el-table-column prop="address"
                   label="地址"
                   min-width="220"
                   show-overflow-tooltip
-                  align="center"
                   class-name="col-text"
                 />
                 <el-table-column label="状态" width="100" align="center">
@@ -525,11 +519,9 @@
                 empty-text=" "
               >
                 <el-table-column type="selection" width="48" align="center" />
-                <el-table-column
-                  prop="supplierId"
+                <el-table-column prop="supplierId"
                   label="供应商编号"
                   min-width="120"
-                  align="center"
                   class-name="col-text"
                   show-overflow-tooltip
                   sortable="custom"
@@ -538,10 +530,8 @@
                     <span class="cell-id">{{ row.supplierId }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column
-                  label="供应商"
+                <el-table-column label="供应商"
                   min-width="140"
-                  align="center"
                   class-name="col-text"
                   show-overflow-tooltip
                 >
@@ -1382,10 +1372,8 @@
                     }}</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column
-                  label="在途 / 时限"
+                <el-table-column label="在途 / 时限"
                   min-width="160"
-                  align="center"
                   class-name="col-text"
                 >
                   <template #default="{ row }">
@@ -1542,7 +1530,7 @@
         :title="warehouseForm.editing ? '编辑仓库' : '新增仓库'"
         destroy-on-close
       >
-        <el-form label-width="88px">
+        <el-form label-width="auto">
           <el-form-item label="仓库 ID" required>
             <el-input
               v-model="warehouseForm.warehouseId"
@@ -1574,7 +1562,7 @@
         :title="supplierForm.editing ? '编辑供应商' : '新增供应商'"
         destroy-on-close
       >
-        <el-form label-width="92px">
+        <el-form label-width="auto">
           <el-form-item label="供应商 ID"
             ><el-input v-model="supplierForm.supplierId" :disabled="supplierForm.editing"
           /></el-form-item>
@@ -1620,7 +1608,7 @@
       </el-dialog>
 
       <el-dialog v-model="paymentDialog" title="登记付款" destroy-on-close>
-        <el-form label-width="92px">
+        <el-form label-width="auto">
           <el-form-item label="供应商">{{ payTarget.supplierName }}</el-form-item>
           <el-form-item label="关联采购单">
             <span class="cell-id">{{ payTarget.purchaseOrderId }}</span>
@@ -1648,7 +1636,7 @@
       </el-dialog>
 
       <el-dialog v-model="stocktakeDialog" title="新建盘点" destroy-on-close>
-        <el-form label-width="92px">
+        <el-form label-width="auto">
           <el-form-item label="仓库" required>
             <el-select v-model="stocktakeForm.warehouseId" filterable style="width: 100%">
               <el-option
@@ -1780,7 +1768,7 @@
         :title="binForm.editing ? '编辑货位' : '新增货位'"
         destroy-on-close
       >
-        <el-form label-width="92px">
+        <el-form label-width="auto">
           <el-form-item label="仓库" required>
             <el-select
               v-model="binForm.warehouseId"
@@ -1820,7 +1808,7 @@
       </el-dialog>
 
       <el-dialog v-model="binInboundDialog" title="入库到货位" class="dialog-wide" destroy-on-close>
-        <el-form label-width="92px">
+        <el-form label-width="auto">
           <el-form-item label="仓库" required>
             <el-select
               v-model="binInboundForm.warehouseId"
@@ -1881,7 +1869,7 @@
       </el-dialog>
 
       <el-dialog v-model="binMoveDialog" title="货位移库" class="dialog-wide" destroy-on-close>
-        <el-form label-width="92px">
+        <el-form label-width="auto">
           <el-form-item label="源货位" required>
             <el-select
               v-model="binMoveForm.fromBinId"
@@ -1942,7 +1930,7 @@
         class="dialog-wide"
         destroy-on-close
       >
-        <el-form v-loading="dialogBootLoading" label-width="90px">
+        <el-form v-loading="dialogBootLoading" label-width="auto">
           <div class="form-grid">
             <el-form-item
               label="供应商"
@@ -2075,7 +2063,7 @@
         class="dialog-wide"
         destroy-on-close
       >
-        <el-form label-width="100px" style="margin-bottom: 8px">
+        <el-form label-width="auto" style="margin-bottom: 8px">
           <el-form-item label="收货仓库">
             <el-select v-model="receiveForm.receiveWarehouseId" filterable style="width: 100%">
               <el-option
@@ -2130,7 +2118,7 @@
       </el-dialog>
 
       <el-dialog v-model="transferDialog" title="新建仓间调拨" destroy-on-close>
-        <el-form label-width="100px">
+        <el-form label-width="auto">
           <el-form-item label="调出仓" required>
             <el-select v-model="transferForm.fromWarehouseId" filterable style="width: 100%">
               <el-option
@@ -2177,7 +2165,7 @@
         destroy-on-close
       >
         <div v-loading="dialogBootLoading">
-          <el-form label-width="90px">
+          <el-form label-width="auto">
             <el-form-item label="采购单" required>
               <el-select
                 v-model="returnForm.purchaseOrderId"
@@ -2246,7 +2234,7 @@
         class="dialog-wide"
         destroy-on-close
       >
-        <el-form v-loading="dialogBootLoading" label-width="88px">
+        <el-form v-loading="dialogBootLoading" label-width="auto">
           <div class="form-grid">
             <el-form-item label="仓库" required>
               <el-select v-model="inboundForm.warehouseId" style="width: 100%">

@@ -102,7 +102,7 @@
     :title="creating ? '新增审批流' : '编辑审批流'"
     destroy-on-close
   >
-    <el-form label-width="88px">
+    <el-form label-width="auto">
       <el-form-item label="业务类型" required>
         <el-select
           v-if="creating"
@@ -155,7 +155,7 @@
     destroy-on-close
    class="dialog-wide flow-dialog">
     <div class="flow-meta">
-      <el-form inline label-width="56px" class="flow-meta__form">
+      <el-form inline label-width="auto" class="flow-meta__form">
         <el-form-item label="名称">
           <el-input v-model="editForm.defName" style="width: 200px" />
         </el-form-item>

@@ -119,11 +119,9 @@
             <el-empty v-if="listHydrated && !loading" description="暂无公告" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="announceId"
+          <el-table-column prop="announceId"
             label="公告编号"
             width="100"
-            align="center"
             class-name="col-text"
             sortable="custom"
           >
@@ -131,7 +129,7 @@
               <span class="cell-id">{{ row.announceId ?? '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="公告" min-width="200" align="center" class-name="col-text">
+          <el-table-column label="公告" min-width="200" class-name="col-text">
             <template #default="{ row }">{{ row.title || '无' }}</template>
           </el-table-column>
           <el-table-column label="优先级" width="88" align="center">
@@ -153,7 +151,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="发布时间" width="168" align="center" class-name="col-text">
+          <el-table-column label="发布时间" width="168" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatTime(row.publishAt) || '无' }}</span>
             </template>
@@ -194,7 +192,7 @@
       :title="editingId ? '编辑公告' : '发布公告'"
       destroy-on-close
     >
-      <el-form :model="form" label-width="80px">
+      <el-form :model="form" label-width="auto">
         <el-form-item label="标题" required>
           <el-input v-model="form.title" maxlength="100" show-word-limit />
         </el-form-item>

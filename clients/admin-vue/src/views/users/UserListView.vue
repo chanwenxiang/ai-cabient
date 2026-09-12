@@ -52,11 +52,9 @@
             ><el-empty v-if="listHydrated && !loading" description="暂无用户"
           /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="userId"
+          <el-table-column prop="userId"
             label="用户编号"
             width="100"
-            align="center"
             class-name="col-text"
             sortable="custom"
           >
@@ -64,22 +62,18 @@
               <span class="cell-id">{{ row.userId }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="姓名"
+          <el-table-column label="姓名"
             min-width="120"
             class-name="col-text"
             label-class-name="col-text"
-            align="center"
             header-align="center"
           >
             <template #default="{ row }">{{ userNameText(row) }}</template>
           </el-table-column>
-          <el-table-column
-            label="手机号"
+          <el-table-column label="手机号"
             width="140"
             class-name="col-text"
             label-class-name="col-text"
-            align="center"
             header-align="center"
           >
             <template #default="{ row }">{{ textOrNone(row.phoneNumber) }}</template>
@@ -121,7 +115,7 @@
               <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
-          <el-table-column label="注册时间" width="168" align="center" class-name="col-text">
+          <el-table-column label="注册时间" width="168" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>

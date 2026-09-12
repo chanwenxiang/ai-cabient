@@ -1,9 +1,6 @@
 <template>
   <view class="page">
     <app-nav-bar title="帮助中心" />
-    <view class="hero">
-      <text class="hero-sub">常见问题与客服入口，快速解决购物疑问</text>
-    </view>
 
     <view class="card">
       <text class="card-title">联系客服</text>
@@ -14,7 +11,7 @@
         hover-class="support-row-hover"
         @click="callSupport"
       >
-        <view class="support-icon" aria-hidden="true">电</view>
+        <view class="support-icon support-icon--phone" aria-hidden="true" />
         <view class="support-main">
           <text class="support-label">客服热线</text>
           <text class="support-value">{{ supportPhoneDisplay }}</text>
@@ -29,7 +26,7 @@
         hover-class="support-row-hover"
         @click="copySupportEmail"
       >
-        <view class="support-icon" aria-hidden="true">邮</view>
+        <view class="support-icon support-icon--mail" aria-hidden="true" />
         <view class="support-main">
           <text class="support-label">客服邮箱</text>
           <text class="support-value">{{ supportEmail }}</text>
@@ -43,7 +40,7 @@
         hover-class="support-row-hover"
         @click="goAnnouncements"
       >
-        <view class="support-icon" aria-hidden="true">告</view>
+        <view class="support-icon support-icon--notice" aria-hidden="true" />
         <view class="support-main">
           <text class="support-label">平台公告</text>
           <text class="support-value">维护通知、活动与规则变更</text>
@@ -57,7 +54,7 @@
         hover-class="support-row-hover"
         @click="goFeedback"
       >
-        <view class="support-icon" aria-hidden="true">言</view>
+        <view class="support-icon support-icon--chat" aria-hidden="true" />
         <view class="support-main">
           <text class="support-label">在线留言</text>
           <text class="support-value">意见反馈，运营将跟进回复</text>
@@ -71,7 +68,7 @@
         hover-class="support-row-hover"
         @click="goReport"
       >
-        <view class="support-icon" aria-hidden="true">修</view>
+        <view class="support-icon support-icon--wrench" aria-hidden="true" />
         <view class="support-main">
           <text class="support-label">柜机故障</text>
           <text class="support-value">打不开门、关不上门等</text>
@@ -85,7 +82,7 @@
         hover-class="support-row-hover"
         @click="goMessages"
       >
-        <view class="support-icon" aria-hidden="true">信</view>
+        <view class="support-icon support-icon--bell" aria-hidden="true" />
         <view class="support-main">
           <text class="support-label">消息中心</text>
           <text class="support-value">订单、售后与优惠提醒</text>
@@ -99,7 +96,7 @@
         hover-class="support-row-hover"
         @click="goNearby"
       >
-        <view class="support-icon" aria-hidden="true">柜</view>
+        <view class="support-icon support-icon--pin" aria-hidden="true" />
         <view class="support-main">
           <text class="support-label">附近柜机</text>
           <text class="support-value">按距离找可开门的柜</text>
@@ -256,15 +253,6 @@ function goOrders() {
   box-sizing: border-box;
   background: var(--color-bg-card, #ffffff);
 }
-.hero {
-  padding: 16rpx 8rpx 20rpx;
-}
-.hero-sub {
-  display: block;
-  font-size: var(--font-size-body);
-  color: var(--text-muted, #64748b);
-  line-height: 1.5;
-}
 .card {
   background: var(--card-bg, #fff);
   border-radius: var(--radius-card, 24rpx);
@@ -304,10 +292,49 @@ function goOrders() {
   border-radius: 50%;
   background: var(--brand-soft, #ecfdf5);
   color: var(--brand, #0f766e);
-  font-size: var(--font-size-caption);
-  font-weight: 700;
-  line-height: 64rpx;
-  text-align: center;
+  position: relative;
+  box-sizing: border-box;
+}
+.support-icon::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: 28rpx 28rpx;
+  mask-size: 28rpx 28rpx;
+}
+.support-icon--phone::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.7 2.35a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.75.34 1.54.57 2.35.7A2 2 0 0 1 22 16.92z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.7 2.35a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.75.34 1.54.57 2.35.7A2 2 0 0 1 22 16.92z'/%3E%3C/svg%3E");
+}
+.support-icon--mail::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='4' width='20' height='16' rx='2'/%3E%3Cpath d='m22 7-10 7L2 7'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='4' width='20' height='16' rx='2'/%3E%3Cpath d='m22 7-10 7L2 7'/%3E%3C/svg%3E");
+}
+.support-icon--notice::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 22h16'/%3E%3Cpath d='M15 2H9v12h6V2z'/%3E%3Cpath d='M9 14h6v8H9z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 22h16'/%3E%3Cpath d='M15 2H9v12h6V2z'/%3E%3Cpath d='M9 14h6v8H9z'/%3E%3C/svg%3E");
+}
+.support-icon--chat::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'/%3E%3C/svg%3E");
+}
+.support-icon--wrench::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z'/%3E%3C/svg%3E");
+}
+.support-icon--bell::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/%3E%3Cpath d='M13.73 21a2 2 0 0 1-3.46 0'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/%3E%3Cpath d='M13.73 21a2 2 0 0 1-3.46 0'/%3E%3C/svg%3E");
+}
+.support-icon--pin::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/%3E%3Ccircle cx='12' cy='10' r='3'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/%3E%3Ccircle cx='12' cy='10' r='3'/%3E%3C/svg%3E");
 }
 .support-main {
   /* 0 基准 + 可伸缩：避免 H5/小程序里内容宽度把中间列压成「客…」 */
@@ -389,8 +416,8 @@ function goOrders() {
   line-height: 1.6;
 }
 .tip-card {
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
-  border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
+  border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
 }
 .tip-title {
   display: block;

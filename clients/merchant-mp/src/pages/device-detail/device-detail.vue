@@ -17,10 +17,14 @@
           />
           <text class="title">{{ deviceName }}</text>
           <view class="meta-block">
-            <text class="meta-line"
-              >{{ deviceId }} · {{ online ? '在线' : '离线'
-              }}{{ salesLocked ? ' · 停售中' : '' }}</text
-            >
+            <text class="meta-line meta-status-row">
+              <text>{{ deviceId }} · </text>
+              <text class="app-status" :class="online ? 'is-online' : 'is-offline'">
+                <text class="app-status-dot" aria-hidden="true" />
+                {{ onlineLabel(online) }}
+              </text>
+              <text v-if="salesLocked"> · {{ UI_COPY.salesLocked }}中</text>
+            </text>
             <text v-if="address" class="meta-line">{{ address }}</text>
             <text v-if="firmwareVersion" class="meta-line">固件 {{ firmwareVersion }}</text>
             <text v-if="routeCode || lifecycleLabel" class="meta-line">
@@ -48,7 +52,7 @@
           <view class="action-row">
             <app-button
               v-if="latitude != null && longitude != null"
-              class="action-btn"
+              class="app-btn-flex"
               :block="false"
               compact
               label="导航到柜"
@@ -56,7 +60,7 @@
             />
             <app-button
               v-if="canReplenishView"
-              class="action-btn"
+              class="app-btn-flex"
               :block="false"
               compact
               label="补货任务"
@@ -64,7 +68,7 @@
             />
             <app-button
               v-if="canRequest"
-              class="action-btn"
+              class="app-btn-flex"
               :block="false"
               compact
               label="发起要货"
@@ -188,7 +192,7 @@ import {
 } from '@/utils/preferred-device';
 import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
 import type {
-import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
   DeviceSlot,
   DeviceTemperatureReading,
   MerchantMe,
@@ -569,7 +573,7 @@ async function saveSlots() {
 .velocity-data .rop {
   color: var(--warning, #b45309);
   font-weight: 700;
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
   padding: 2rpx 10rpx;
   border-radius: var(--radius-pill);
 }
@@ -609,7 +613,7 @@ async function saveSlots() {
   margin-top: 12rpx;
   padding: 12rpx 16rpx;
   border-radius: var(--radius-control);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
   color: var(--warning, #92400e);
   font-size: var(--font-size-caption);
   line-height: 1.4;
@@ -710,7 +714,9 @@ async function saveSlots() {
   box-sizing: border-box;
 }
 .action-btn,
-:deep(.action-btn) {
+.app-btn-flex,
+:deep(.action-btn),
+:deep(.app-btn-flex) {
   flex: 1 1 0;
   width: 0 !important;
   min-width: 0 !important;

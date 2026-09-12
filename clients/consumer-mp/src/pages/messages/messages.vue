@@ -364,7 +364,7 @@ function formatTime(t: string) {
 }
 .nav-read-all {
   font-size: var(--font-size-caption);
-  color: #ffffff;
+  color: var(--white);
   opacity: 0.92;
   white-space: nowrap;
 }
@@ -511,7 +511,7 @@ function formatTime(t: string) {
   margin-bottom: 16rpx;
   padding: 24rpx;
   border-radius: var(--radius-card);
-  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  background: linear-gradient(135deg, var(--brand-soft), var(--white));
   border: 1rpx solid var(--brand-soft, #d1fae5);
 }
 .todo-banner {
@@ -521,7 +521,7 @@ function formatTime(t: string) {
   margin-bottom: 16rpx;
   padding: 24rpx;
   border-radius: var(--radius-card);
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
   border: 1rpx solid #fdba74;
 }
 .todo-copy {
@@ -570,7 +570,7 @@ function formatTime(t: string) {
   line-height: 1.2;
   border-radius: var(--radius-pill);
   font-size: var(--font-size-caption);
-  color: #fff;
+  color: var(--white);
   background: linear-gradient(135deg, var(--brand), var(--brand));
   display: flex;
   align-items: center;

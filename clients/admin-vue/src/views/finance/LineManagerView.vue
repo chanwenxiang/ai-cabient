@@ -96,11 +96,9 @@
             <template #empty
               ><el-empty v-if="managersHydrated && !managersLoading" description="暂无线长"
             /></template>
-            <el-table-column
-              prop="managerId"
+            <el-table-column prop="managerId"
               label="经理编号"
               width="100"
-              align="center"
               class-name="col-text"
               sortable="custom"
             >
@@ -108,7 +106,7 @@
                 <span class="cell-id">{{ row.managerId }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="姓名" width="110" align="center" class-name="col-text">
+            <el-table-column label="姓名" width="110" class-name="col-text">
               <template #default="{ row }">{{ row.managerName || '无' }}</template>
             </el-table-column>
             <el-table-column prop="phone" label="手机" width="120" align="center" />
@@ -369,7 +367,7 @@
     </el-tabs>
 
     <el-dialog v-model="createVisible" title="新建线长" destroy-on-close>
-      <el-form label-width="110px">
+      <el-form label-width="auto">
         <el-form-item label="姓名" required><el-input v-model="form.managerName" /></el-form-item>
         <el-form-item label="手机" required><el-input v-model="form.phone" /></el-form-item>
         <el-form-item label="组织"><el-input v-model="form.orgName" /></el-form-item>
@@ -393,7 +391,7 @@
     </el-dialog>
 
     <el-dialog v-model="bindVisible" title="绑柜" destroy-on-close>
-      <el-form label-width="90px">
+      <el-form label-width="auto">
         <el-form-item label="线长"
           >{{ bindTarget?.managerName }} · {{ bindTarget?.phone }}</el-form-item
         >
@@ -505,7 +503,7 @@
     </ResizableDrawer>
 
     <el-dialog v-model="promoVisible" title="新建地推任务" destroy-on-close>
-      <el-form label-width="100px">
+      <el-form label-width="auto">
         <el-form-item label="线长ID" required>
           <el-input-number v-model="promoForm.managerId" :min="1" style="width: 100%" />
         </el-form-item>
