@@ -101,7 +101,7 @@
         >
       </view>
 
-      <view v-if="loading && !allTasks.length" class="empty">任务加载中…</view>
+      <view v-if="loading && !allTasks.length" class="empty">{{ loadingLabel('任务') }}</view>
       <empty-state
         v-else-if="!tasks.length"
         icon="/static/menu/replenish.png"
@@ -406,7 +406,7 @@
             </view>
             <text class="line-count">{{ lines.length }} 项</text>
           </view>
-          <view v-if="detailLoading" class="empty small">明细加载中…</view>
+          <view v-if="detailLoading" class="empty small">{{ loadingLabel('明细') }}</view>
           <view v-else-if="!lines.length" class="empty small lines-empty">
             <view class="lines-empty-title">{{
               detailIsPullOff ? '暂无下架明细' : '暂无补货明细'
@@ -614,6 +614,7 @@ import {
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, formatDateTimeShort } from '@aicabinet/shared-uni/format';
+import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 import EmptyState from '@/components/empty-state.vue';
 import {
@@ -2156,7 +2157,7 @@ onPullDownRefresh(load);
   padding: 36rpx 28rpx 32rpx;
   border-radius: var(--radius-card);
   color: var(--text-primary, #0f172a);
-  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  background: linear-gradient(135deg, var(--brand-soft), var(--white));
   border: 1rpx solid var(--brand-soft, #d1fae5);
   box-shadow: none;
   text-align: center;
@@ -2252,7 +2253,7 @@ onPullDownRefresh(load);
   line-height: 1.2;
   border-radius: var(--radius-pill);
   background: linear-gradient(135deg, var(--brand-deep), var(--brand));
-  color: #fff;
+  color: var(--white);
   font-size: var(--font-size-md);
   font-weight: 700;
   box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.22);
@@ -2326,7 +2327,7 @@ onPullDownRefresh(load);
   padding: 24rpx;
   border-radius: var(--radius-card);
   background: var(--card-bg, #fff);
-  border: 1rpx solid #fcd34d;
+  border: 1rpx solid var(--warning-soft);
   box-shadow: 0 8rpx 30rpx rgba(180, 83, 9, 0.08);
 }
 .patrol-head,
@@ -2340,7 +2341,7 @@ onPullDownRefresh(load);
   display: block;
   font-size: var(--font-size-lg);
   font-weight: 700;
-  color: #78350f;
+  color: var(--warning);
 }
 .patrol-sub {
   display: block;
@@ -2351,7 +2352,7 @@ onPullDownRefresh(load);
 .patrol-count {
   padding: 6rpx 14rpx;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
   color: var(--warning, #b45309);
   font-size: var(--font-size-sm);
   font-weight: 700;
@@ -2360,11 +2361,11 @@ onPullDownRefresh(load);
   margin-top: 18rpx;
   padding: 18rpx 20rpx;
   border-radius: 18rpx;
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
   cursor: pointer;
 }
 .patrol-row-hover {
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
 }
 .patrol-name {
   flex: 1;
@@ -2383,7 +2384,7 @@ onPullDownRefresh(load);
 .patrol-badge {
   padding: 6rpx 12rpx;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
   color: var(--warning, #b45309);
   font-size: var(--font-size-xs);
   font-weight: 700;
@@ -2430,7 +2431,7 @@ onPullDownRefresh(load);
   top: 0;
   bottom: 0;
   width: 6rpx;
-  background: linear-gradient(#10b981, #0d9488);
+  background: linear-gradient(var(--success), var(--brand));
   pointer-events: none;
 }
 .task-head,
@@ -2559,14 +2560,14 @@ onPullDownRefresh(load);
   background: var(--color-border);
 }
 .skip-loc-switch.on {
-  color: #fff;
+  color: var(--white);
   background: var(--brand);
 }
 .status {
   padding: 8rpx 16rpx;
   border-radius: var(--radius-pill);
   color: var(--warning, #92400e);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
   font-size: var(--font-size-sm);
   font-weight: 600;
 }
@@ -2597,11 +2598,11 @@ onPullDownRefresh(load);
 }
 .line-cap.warn {
   color: var(--warning, #b45309);
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
 }
 .line-cap.full {
   color: var(--color-danger);
-  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, #fff);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--white));
 }
 .slot-pick {
   margin-top: 12rpx;
@@ -2628,7 +2629,7 @@ onPullDownRefresh(load);
 }
 .slot-chip.active {
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
   border-color: var(--brand);
 }
 .slot-chip.disabled {
@@ -2673,7 +2674,7 @@ onPullDownRefresh(load);
 }
 .detail-btn,
 .app-btn {
-  color: #fff;
+  color: var(--white);
   background: var(--brand);
 }
 .secondary-btn {
@@ -2713,7 +2714,7 @@ onPullDownRefresh(load);
   line-height: 72rpx;
   border-radius: var(--radius-card);
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
   font-size: var(--font-size-body);
 }
 .empty-scan.ghost {
@@ -2817,7 +2818,7 @@ onPullDownRefresh(load);
   color: var(--brand);
 }
 .step.done .step-num {
-  color: #fff;
+  color: var(--white);
   background: var(--brand);
 }
 .step.current {
@@ -2825,7 +2826,7 @@ onPullDownRefresh(load);
   font-weight: 600;
 }
 .step.current .step-num {
-  color: #fff;
+  color: var(--white);
   background: var(--brand);
   box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.2);
 }
@@ -2910,7 +2911,7 @@ onPullDownRefresh(load);
   line-height: 52rpx;
   border-radius: var(--radius-pill);
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
   font-size: var(--font-size-caption);
   font-weight: 600;
 }
@@ -3148,8 +3149,8 @@ onPullDownRefresh(load);
   background: var(--color-border-subtle, #f1f5f9);
 }
 .confirm-btn.ok {
-  color: #fff;
-  background: linear-gradient(135deg, var(--brand), #14b8a6);
+  color: var(--white);
+  background: linear-gradient(135deg, var(--brand), var(--brand));
 }
 button[disabled] {
   opacity: 0.45;

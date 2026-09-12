@@ -76,11 +76,9 @@
             <el-empty v-if="listHydrated && !loading" description="暂无审计日志" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="logId"
+          <el-table-column prop="logId"
             label="日志编号"
             width="100"
-            align="center"
             class-name="col-text"
             sortable="custom"
           >
@@ -88,27 +86,23 @@
               <span class="cell-id">{{ row.logId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="时间" width="168" align="center" class-name="col-text">
+          <el-table-column label="时间" width="168" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作人ID" width="100" align="center" class-name="col-text">
+          <el-table-column label="操作人ID" width="100" class-name="col-text">
             <template #default="{ row }">{{ row.operatorId ?? '暂无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="操作人"
+          <el-table-column label="操作人"
             min-width="120"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ operatorLabel(row) }}</template>
           </el-table-column>
-          <el-table-column
-            label="动作"
+          <el-table-column label="动作"
             min-width="160"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -116,19 +110,15 @@
               <el-tag size="small" effect="plain">{{ auditActionLabel(row.action) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="对象类型"
+          <el-table-column label="对象类型"
             min-width="110"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ auditTargetLabel(row.targetType) }}</template>
           </el-table-column>
-          <el-table-column
-            label="对象ID"
+          <el-table-column label="对象ID"
             min-width="120"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -137,10 +127,8 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="详情"
+          <el-table-column label="详情"
             min-width="220"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >

@@ -223,7 +223,7 @@
           </scroll-view>
         </view>
         <view v-if="productsLoading" class="card loading-card"
-          ><text class="meta">加载商品中…</text></view
+          ><text class="meta">{{ loadingLabel('商品') }}</text></view
         >
         <view v-else-if="!products.length" class="card loading-card catalog-empty">
           <text class="empty-title">本柜暂无上架商品</text>
@@ -434,7 +434,7 @@ import {
   type OpenErrorKind
 } from '@aicabinet/shared-uni/format';
 import { parseQuery } from '@aicabinet/shared-uni/query';
-import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+import { UI_COPY, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { resumePendingRechargeIfAny } from '@/utils/recharge';
 import { resolveMockEnabled } from '@/utils/runtime-flags';
 import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
@@ -2048,14 +2048,14 @@ function stopDevicePoll() {
 .brand {
   font-size: var(--font-size-h2);
   font-weight: 700;
-  color: #ffffff;
+  color: var(--white);
   display: block;
   letter-spacing: 1rpx;
   line-height: 1.25;
 }
 .tagline {
   font-size: var(--font-size-body);
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, var(--on-deep-opacity-92));
   margin-top: 14rpx;
   display: block;
   line-height: 1.4;
@@ -2071,12 +2071,12 @@ function stopDevicePoll() {
   border: 1rpx solid rgba(255, 255, 255, 0.32);
 }
 .pay-badge-icon {
-  color: #ffffff;
+  color: var(--white);
   font-size: var(--font-size-sm);
   font-weight: 700;
 }
 .pay-badge-text {
-  color: #ffffff;
+  color: var(--white);
   font-size: var(--font-size-xs);
 }
 
@@ -2094,13 +2094,13 @@ function stopDevicePoll() {
 .resume-title {
   font-size: var(--font-size-body);
   font-weight: 600;
-  color: #ffffff;
+  color: var(--white);
   display: block;
   text-align: center;
 }
 .resume-sub {
   font-size: var(--font-size-sm);
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, var(--on-deep-opacity-78));
   margin-top: 2rpx;
   display: block;
   text-align: center;
@@ -2158,12 +2158,12 @@ function stopDevicePoll() {
   margin-top: 16rpx;
   font-size: var(--font-size-lg);
   font-weight: 700;
-  color: #ffffff;
+  color: var(--white);
 }
 .scan-tip {
   margin-top: 10rpx;
   font-size: var(--font-size-sm);
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(255, 255, 255, var(--on-deep-opacity-88));
 }
 
 .landing-foot {
@@ -2179,7 +2179,7 @@ function stopDevicePoll() {
   margin: 0 auto;
   text-align: center;
   font-size: var(--font-size-sm);
-  color: #ffffff;
+  color: var(--white);
   padding: 8rpx 20rpx;
   border-radius: var(--radius-pill);
   background: rgba(6, 78, 59, 0.55);
@@ -2194,7 +2194,7 @@ function stopDevicePoll() {
   padding: 8rpx 4rpx;
   text-align: center;
   font-size: var(--font-size-body);
-  color: rgba(255, 255, 255, 0.92);
+  color: rgba(255, 255, 255, var(--on-deep-opacity-92));
   text-decoration: none;
 }
 .nearby-link .app-icon--chevron {
@@ -2211,7 +2211,7 @@ function stopDevicePoll() {
   position: absolute;
   width: 28rpx;
   height: 28rpx;
-  border-color: rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 255, 255, var(--on-deep-opacity-95));
   border-style: solid;
 }
 .scan-corner.tl {
@@ -2302,8 +2302,8 @@ function stopDevicePoll() {
   border: 1rpx solid var(--brand-mist, #ccfbf1);
 }
 .shopping-banner.wait {
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
-  border-color: color-mix(in srgb, var(--warning, #b45309) 28%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
+  border-color: color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
 }
 .shopping-banner-title {
   display: block;
@@ -2322,13 +2322,13 @@ function stopDevicePoll() {
   line-height: 1.4;
 }
 .shopping-banner.wait .shopping-banner-sub {
-  color: #a16207;
+  color: var(--warning);
 }
 .catalog-notice {
   margin: 14rpx 20rpx 0;
   padding: 18rpx 20rpx;
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
-  border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
+  border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
   border-radius: var(--radius-control, 12rpx);
   font-size: var(--font-size-caption);
   color: var(--warning, #b45309);
@@ -2389,7 +2389,7 @@ function stopDevicePoll() {
 }
 .category-chip.active {
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
 }
 
 .product-scroll {
@@ -2460,7 +2460,7 @@ function stopDevicePoll() {
   border-radius: var(--radius-control);
   padding: 12rpx;
   box-sizing: border-box;
-  border: 2rpx solid #eef2f0;
+  border: 2rpx solid var(--color-border-subtle);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -2468,7 +2468,7 @@ function stopDevicePoll() {
 }
 .product-cell.selected .product-cell-inner {
   border-color: var(--brand-wx, #07c160);
-  background: #f4fef8;
+  background: var(--brand-soft);
 }
 .product-thumb {
   width: 100%;
@@ -2489,10 +2489,10 @@ function stopDevicePoll() {
   gap: 8rpx;
 }
 .product-thumb.cat-drink {
-  background: linear-gradient(135deg, #e6f4ff, #bae0ff);
+  background: linear-gradient(135deg, var(--info-soft), var(--info-soft));
 }
 .product-thumb.cat-snack {
-  background: linear-gradient(135deg, #fff7e6, #ffe58f);
+  background: linear-gradient(135deg, var(--warning-soft), var(--warning-soft));
 }
 .product-thumb.cat-dairy {
   background: linear-gradient(135deg, #f9f0ff, #d3adf7);
@@ -2501,7 +2501,7 @@ function stopDevicePoll() {
   background: linear-gradient(135deg, #fff2e8, #ffbb96);
 }
 .product-thumb.cat-default {
-  background: #f5f5f5;
+  background: var(--color-border-subtle);
 }
 .product-img {
   width: 100%;
@@ -2527,7 +2527,7 @@ function stopDevicePoll() {
   padding: 0 8rpx;
   border-radius: var(--radius-panel);
   background: var(--brand-wx, #048746);
-  color: #fff;
+  color: var(--white);
   font-size: var(--font-size-xs);
   font-weight: 700;
   line-height: 32rpx;
@@ -2536,7 +2536,7 @@ function stopDevicePoll() {
 }
 .product-name {
   font-size: var(--font-size-sm);
-  color: #26342d;
+  color: var(--text-primary);
   line-height: 1.3;
   font-weight: 600;
   display: -webkit-box;
@@ -2572,7 +2572,7 @@ function stopDevicePoll() {
   width: 72rpx;
   height: 72rpx;
   border-radius: 50%;
-  background: #eef6f2;
+  background: var(--brand-soft);
   color: var(--brand, #0f766e);
   font-size: var(--font-size-xl);
   font-weight: 700;
@@ -2581,7 +2581,7 @@ function stopDevicePoll() {
 }
 .stepper-btn.plus {
   background: var(--brand, #0f766e);
-  color: #fff;
+  color: var(--white);
 }
 .stepper-btn.plus.disabled {
   opacity: 0.35;
@@ -2593,7 +2593,7 @@ function stopDevicePoll() {
   text-align: center;
   font-size: var(--font-size-xs);
   font-weight: 700;
-  color: #26342d;
+  color: var(--text-primary);
 }
 
 .cart-bar {
@@ -2663,13 +2663,13 @@ function stopDevicePoll() {
   padding: 0 8rpx;
   border-radius: var(--radius-panel);
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
   font-size: 18rpx;
   font-weight: 700;
   line-height: 32rpx;
   text-align: center;
   box-sizing: border-box;
-  border: 2rpx solid #fff;
+  border: 2rpx solid var(--white);
 }
 .cart-shop-text {
   flex: 1;
@@ -2700,7 +2700,7 @@ function stopDevicePoll() {
   height: 80rpx;
   line-height: 1.2;
   background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
-  color: #fff;
+  color: var(--white);
   border-radius: var(--radius-pill);
   font-size: var(--font-size-lg);
   font-weight: 500;
@@ -2722,7 +2722,7 @@ function stopDevicePoll() {
   height: 80rpx;
   line-height: 1.2;
   background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
-  color: #fff;
+  color: var(--white);
   border-radius: var(--radius-pill);
   font-size: var(--font-size-md);
   font-weight: 700;
@@ -2747,22 +2747,22 @@ function stopDevicePoll() {
   gap: 18rpx;
   margin: 14rpx 20rpx 0;
   padding: 22rpx;
-  border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, #fff);
+  border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
   border-radius: var(--radius-card);
-  background: linear-gradient(135deg, #fffaf0, color-mix(in srgb, var(--warning, #b45309) 8%, #fff));
+  background: linear-gradient(135deg, var(--warning-soft), color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)));
   box-shadow: 0 9rpx 26rpx rgba(194, 65, 12, 0.08);
 }
 .settlement-review-card.tone-success {
-  border-color: #bbf7d0;
+  border-color: var(--brand-mist);
   background: linear-gradient(135deg, var(--brand-soft, #ecfdf5), var(--brand-soft, #ecfdf5));
 }
 .settlement-review-card.tone-wait {
-  border-color: color-mix(in srgb, var(--warning, #b45309) 28%, #fff);
-  background: linear-gradient(135deg, #fffaf0, color-mix(in srgb, var(--warning, #b45309) 8%, #fff));
+  border-color: color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
+  background: linear-gradient(135deg, var(--warning-soft), color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)));
 }
 .settlement-review-card.tone-warn {
-  border-color: color-mix(in srgb, var(--danger, #b91c1c) 18%, #fff);
-  background: linear-gradient(135deg, #fff7f7, #fff1f2);
+  border-color: color-mix(in srgb, var(--danger, #b91c1c) 18%, var(--white));
+  background: linear-gradient(135deg, var(--danger-soft), var(--danger-soft));
 }
 .review-icon {
   display: flex;
@@ -2771,7 +2771,7 @@ function stopDevicePoll() {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  color: #fff;
+  color: var(--white);
   background: var(--accent-orange, #c2410c);
   font-weight: 800;
   font-size: var(--font-size-caption);
@@ -2800,7 +2800,7 @@ function stopDevicePoll() {
 }
 .review-detail {
   margin-top: 7rpx;
-  color: #9a5b39;
+  color: var(--accent-orange);
   font-size: var(--font-size-sm);
   line-height: 1.55;
 }
@@ -2821,7 +2821,7 @@ function stopDevicePoll() {
   color: var(--brand, #0f766e);
 }
 .review-link.subtle {
-  color: #9ca3af;
+  color: var(--text-subtle);
 }
 .cart-status-chip {
   padding: 0 32rpx;
@@ -2835,7 +2835,7 @@ function stopDevicePoll() {
 }
 .cart-status-chip.wait {
   color: var(--warning, #b45309);
-  background: #fff7e6;
+  background: var(--warning-soft);
 }
 .cart-status-chip.active {
   color: var(--brand);
@@ -2843,14 +2843,14 @@ function stopDevicePoll() {
 }
 .cart-status-chip.error {
   color: var(--danger, #991b1b);
-  background: #ffecec;
+  background: var(--danger-soft);
 }
 
 .flow-overlay {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: radial-gradient(circle at 50% 35%, var(--brand-soft, #ecfdf5), #fff 55%);
+  background: radial-gradient(circle at 50% 35%, var(--brand-soft, #ecfdf5), var(--white) 55%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2859,13 +2859,13 @@ function stopDevicePoll() {
   box-sizing: border-box;
 }
 .flow-overlay.wait {
-  background: #fffdf5;
+  background: var(--warning-soft);
 }
 .flow-overlay.active {
   background: var(--brand-soft, #ecfdf5);
 }
 .flow-overlay.error {
-  background: #fff5f5;
+  background: var(--danger-soft);
 }
 .flow-spinner {
   width: 132rpx;
@@ -2894,7 +2894,7 @@ function stopDevicePoll() {
 .flow-title {
   font-size: var(--font-size-h1);
   font-weight: 700;
-  color: #173026;
+  color: var(--text-primary);
   text-align: center;
 }
 .flow-hint {
@@ -2927,7 +2927,7 @@ function stopDevicePoll() {
   height: 72rpx;
   line-height: 1.2;
   border-radius: var(--radius-card);
-  background: #f2f3f5;
+  background: var(--surface-muted);
   color: var(--color-link-secondary);
   font-size: var(--font-size-body);
   display: flex;
@@ -2981,7 +2981,7 @@ function stopDevicePoll() {
 .landing-error.kind-balance .error-detail,
 .landing-error.kind-device_not_found .error-title,
 .landing-error.kind-device_not_found .error-detail {
-  color: rgba(255, 255, 255, 0.92);
+  color: rgba(255, 255, 255, var(--on-deep-opacity-92));
 }
 .landing-error.kind-device_not_found .error-icon {
   background: rgba(255, 255, 255, 0.28);
@@ -2993,7 +2993,7 @@ function stopDevicePoll() {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  color: #fff;
+  color: var(--white);
   background: var(--color-danger);
   font-weight: 800;
   font-size: var(--font-size-sm);
@@ -3007,13 +3007,13 @@ function stopDevicePoll() {
   display: block;
 }
 .error-title {
-  color: #ffffff;
+  color: var(--white);
   font-size: var(--font-size-caption);
   font-weight: 700;
 }
 .error-detail {
   margin-top: 4rpx;
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, var(--on-deep-opacity-78));
   font-size: var(--font-size-sm);
   line-height: 1.45;
 }
@@ -3027,13 +3027,13 @@ function stopDevicePoll() {
   padding: 6rpx 14rpx;
   border-radius: var(--radius-pill);
   border: 1rpx solid rgba(255, 255, 255, 0.32);
-  color: #ffffff;
+  color: var(--white);
   font-size: var(--font-size-sm);
   background: rgba(6, 78, 59, 0.55);
 }
 .error-action.primary {
   border-color: rgba(255, 255, 255, 0.4);
-  color: #ffffff;
+  color: var(--white);
   background: rgba(4, 120, 87, 0.55);
 }
 .error-close {
@@ -3071,14 +3071,14 @@ function stopDevicePoll() {
   display: block;
   font-size: var(--font-size-lg);
   font-weight: 700;
-  color: #ffffff;
+  color: var(--white);
   text-align: center;
 }
 .landing-sheet-body {
   display: block;
   margin-top: 8rpx;
   font-size: var(--font-size-caption);
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, var(--on-deep-opacity-78));
   line-height: 1.5;
   text-align: center;
 }
@@ -3087,7 +3087,7 @@ function stopDevicePoll() {
   margin-top: 22rpx;
   margin-bottom: 8rpx;
   font-size: var(--font-size-caption);
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, var(--on-deep-opacity-78));
   text-align: center;
 }
 .sheet-input {
@@ -3101,7 +3101,7 @@ function stopDevicePoll() {
   background: var(--brand-ink, #043f32);
   border: 1rpx solid rgba(255, 255, 255, 0.18);
   font-size: var(--font-size-md);
-  color: #ffffff;
+  color: var(--white);
 }
 .sheet-ph {
   color: rgba(255, 255, 255, 0.4);
@@ -3129,7 +3129,7 @@ function stopDevicePoll() {
   padding: 18rpx 16rpx;
   border-radius: var(--radius-pill);
   border: 1rpx solid rgba(255, 255, 255, 0.28);
-  color: #ffffff;
+  color: var(--white);
   font-size: var(--font-size-body);
   line-height: 1.2;
   text-align: center;
@@ -3152,7 +3152,7 @@ function stopDevicePoll() {
   display: block;
   width: 100%;
   text-align: center;
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, var(--on-deep-opacity-78));
   font-size: var(--font-size-body);
   padding: 8rpx 0;
   box-sizing: border-box;

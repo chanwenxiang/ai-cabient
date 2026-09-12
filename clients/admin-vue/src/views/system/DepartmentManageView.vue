@@ -98,7 +98,7 @@
     :title="deptForm.deptId ? '编辑部门' : '新增部门'"
     destroy-on-close
   >
-    <el-form label-width="90px">
+    <el-form label-width="auto">
       <el-form-item label="编码" required>
         <el-input
           v-model="deptForm.deptKey"

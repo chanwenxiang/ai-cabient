@@ -91,7 +91,7 @@ export default { name: 'AppButton' };
 }
 .app-btn--primary {
   background: var(--brand, #0f766e);
-  color: #fff;
+  color: var(--white);
   box-shadow: 0 8rpx 20rpx color-mix(in srgb, var(--brand, #0f766e) 28%, transparent);
 }
 .app-btn--ghost {
@@ -106,7 +106,7 @@ export default { name: 'AppButton' };
 }
 .app-btn--danger {
   background: var(--danger, #b91c1c);
-  color: #fff;
+  color: var(--white);
 }
 .app-btn--text {
   background: transparent;
@@ -118,13 +118,13 @@ export default { name: 'AppButton' };
   font-weight: 600;
 }
 .app-btn--alipay {
-  background: linear-gradient(135deg, #1677ff, #4096ff);
-  color: #fff;
+  background: linear-gradient(135deg, var(--brand-alipay), #4096ff);
+  color: var(--white);
   box-shadow: 0 8rpx 20rpx rgba(22, 119, 255, 0.28);
 }
 .app-btn--wechat {
-  background: linear-gradient(135deg, #07c160, #06ae56);
-  color: #fff;
+  background: linear-gradient(135deg, var(--brand-wx), #06ae56);
+  color: var(--white);
   box-shadow: 0 8rpx 20rpx rgba(7, 193, 96, 0.28);
 }
 .app-btn--soft {

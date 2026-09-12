@@ -94,11 +94,9 @@
             <el-empty v-if="listHydrated && !loading" :description="emptyHint" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="ticketId"
+          <el-table-column prop="ticketId"
             label="工单号"
             min-width="140"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
             sortable="custom"
@@ -107,10 +105,8 @@
               <span class="cell-id">{{ row.ticketId }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="工单"
+          <el-table-column label="工单"
             min-width="160"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -132,10 +128,8 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="设备"
+          <el-table-column label="设备"
             min-width="110"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -151,10 +145,8 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="会话"
+          <el-table-column label="会话"
             min-width="130"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -170,10 +162,8 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="关联订单"
+          <el-table-column label="关联订单"
             min-width="130"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -196,10 +186,8 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="处理人"
+          <el-table-column label="处理人"
             width="110"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -208,10 +196,8 @@
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="分类"
+          <el-table-column label="分类"
             width="100"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -273,12 +259,12 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="创建时间" width="168" align="center" class-name="col-text">
+          <el-table-column label="创建时间" width="168" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="结案时间" width="168" align="center" class-name="col-text">
+          <el-table-column label="结案时间" width="168" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.resolvedAt) || '无' }}</span>
             </template>
@@ -534,18 +520,14 @@
           <div v-if="selected.suggestedItems?.length" class="items-block">
             <div class="items-title">识别建议（只读）</div>
             <el-table :data="selected.suggestedItems" size="small" stripe border>
-              <el-table-column
-                prop="skuName"
+              <el-table-column prop="skuName"
                 label="商品"
                 min-width="120"
-                align="center"
                 class-name="col-text"
               />
-              <el-table-column
-                prop="skuId"
+              <el-table-column prop="skuId"
                 label="SKU"
                 min-width="100"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               />

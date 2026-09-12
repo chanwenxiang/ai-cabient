@@ -45,7 +45,7 @@
         >
           <template #empty><el-empty v-if="!loading" description="暂无等级规则" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="等级编码" width="120" align="center" class-name="col-text">
+          <el-table-column label="等级编码" width="120" class-name="col-text">
             <template #default="{ row }">
               {{ levelCodeLabel(row.levelCode, row.levelName) }}
             </template>
@@ -111,7 +111,7 @@
       :title="editing ? '编辑等级' : '新建等级'"
       destroy-on-close
     >
-      <el-form :model="form" label-width="130px">
+      <el-form :model="form" label-width="auto">
         <el-form-item label="等级编码" required>
           <el-input
             v-model="form.levelCode"

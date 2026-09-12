@@ -93,11 +93,9 @@
             ><el-empty v-if="listHydrated && !loading" description="暂无活动"
           /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="activityId"
+          <el-table-column prop="activityId"
             label="活动编号"
             width="80"
-            align="center"
             class-name="col-text"
             sortable="custom"
           >
@@ -105,7 +103,7 @@
               <span class="cell-id">{{ row.activityId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="活动" min-width="160" align="center" class-name="col-text">
+          <el-table-column label="活动" min-width="160" class-name="col-text">
             <template #default="{ row }">{{ row.activityName || '无' }}</template>
           </el-table-column>
           <el-table-column label="类型" width="120" align="center">
@@ -115,7 +113,7 @@
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="时间" min-width="200" align="center" class-name="col-text">
+          <el-table-column label="时间" min-width="200" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime"
                 >{{ formatTime(row.startTime) }} ~ {{ formatTime(row.endTime) }}</span
@@ -150,7 +148,7 @@
           <el-table-column label="每人限次" width="90" align="center">
             <template #default="{ row }">{{ row.userLimit || '不限' }}</template>
           </el-table-column>
-          <el-table-column label="适用柜" min-width="120" align="center" class-name="col-text">
+          <el-table-column label="适用柜" min-width="120" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="deviceScopeLabel(row) || ''">{{
                 deviceScopeLabel(row)
@@ -203,7 +201,7 @@
       align-center
       :close-on-click-modal="false"
      class="dialog-wide promo-dialog">
-      <el-form :model="form" label-width="96px">
+      <el-form :model="form" label-width="auto">
         <el-form-item label="活动名称" required
           ><el-input v-model="form.activityName" maxlength="80"
         /></el-form-item>

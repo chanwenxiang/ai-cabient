@@ -251,20 +251,20 @@ function goMessages() {
   padding: 36rpx 32rpx 28rpx;
   border-radius: var(--radius-card);
   color: var(--text-primary, #14201b);
-  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  background: linear-gradient(135deg, var(--brand-soft), var(--white));
   border: 1rpx solid var(--brand-soft, #d1fae5);
   box-shadow: none;
 }
 .hero.lv-silver {
-  background: linear-gradient(135deg, var(--color-border-subtle, #f1f5f9), #fff);
+  background: linear-gradient(135deg, var(--color-border-subtle, #f1f5f9), var(--white));
   border-color: var(--color-border);
 }
 .hero.lv-gold {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--warning, #b45309) 8%, #fff), #fff);
-  border-color: #fde68a;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)), var(--white));
+  border-color: var(--warning-soft);
 }
 .hero.lv-platinum {
-  background: linear-gradient(135deg, #eef2ff, #fff);
+  background: linear-gradient(135deg, #eef2ff, var(--white));
   border-color: #c7d2fe;
 }
 .hero-top {
@@ -306,7 +306,7 @@ function goMessages() {
   background: var(--color-border-subtle, #f1f5f9);
 }
 .hero.lv-gold .spent-chip {
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
 }
 .hero.lv-platinum .spent-chip {
   background: #e0e7ff;
@@ -337,7 +337,7 @@ function goMessages() {
   background: var(--color-border);
 }
 .hero.lv-gold .progress-track {
-  background: #fde68a;
+  background: var(--warning-soft);
 }
 .hero.lv-platinum .progress-track {
   background: #c7d2fe;
@@ -376,7 +376,7 @@ function goMessages() {
   background: var(--color-border-subtle, #f1f5f9);
 }
 .hero.lv-gold .points-chip {
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
 }
 .hero.lv-platinum .points-chip {
   background: #e0e7ff;

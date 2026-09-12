@@ -50,10 +50,8 @@
                     :image-size="64"
                   />
                 </template>
-                <el-table-column
-                  label="类型"
+                <el-table-column label="类型"
                   min-width="120"
-                  align="center"
                   class-name="col-text"
                   show-overflow-tooltip
                 >
@@ -164,11 +162,9 @@
                   />
                 </template>
                 <el-table-column type="selection" width="48" align="center" />
-                <el-table-column
-                  prop="dictDataId"
+                <el-table-column prop="dictDataId"
                   label="数据编号"
                   width="80"
-                  align="center"
                   class-name="col-text"
                   sortable="custom"
                 >
@@ -176,19 +172,15 @@
                     <span class="cell-id">{{ row.dictDataId }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column
-                  label="字典项"
+                <el-table-column label="字典项"
                   min-width="120"
-                  align="center"
                   class-name="col-text"
                   show-overflow-tooltip
                 >
                   <template #default="{ row }">{{ row.dictLabel || '无' }}</template>
                 </el-table-column>
-                <el-table-column
-                  label="值"
+                <el-table-column label="值"
                   min-width="100"
-                  align="center"
                   class-name="col-text"
                   show-overflow-tooltip
                 >
@@ -233,7 +225,7 @@
       "
       width="480px"
     >
-      <el-form label-width="88px">
+      <el-form label-width="auto">
         <el-form-item label="类型编码"
           ><el-input
             v-model="typeForm.dictType"
@@ -268,7 +260,7 @@
       v-model="itemDlg"
       :title="itemForm.dictDataId ? '编辑字典项' : '新增字典项'"
     >
-      <el-form label-width="88px">
+      <el-form label-width="auto">
         <el-form-item label="字典值"
           ><el-input
             v-model="itemForm.dictValue"

@@ -42,7 +42,7 @@
           <span class="hint">用于登录页、侧栏与浏览器标题；保存后刷新页面即可生效</span>
         </div>
       </template>
-      <el-form label-width="100px" class="brand-form" @submit.prevent="saveBrand">
+      <el-form label-width="auto" class="brand-form" @submit.prevent="saveBrand">
         <el-form-item label="品牌标志">
           <div class="brand-logo-row">
             <div class="brand-logo-preview">
@@ -125,24 +125,22 @@
             <el-empty v-if="listHydrated && !loading" description="暂无参数" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="配置键" min-width="180" align="center" class-name="col-text">
+          <el-table-column label="配置键" min-width="180" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.configKey }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="说明" min-width="160" align="center" class-name="col-text">
+          <el-table-column label="说明" min-width="160" class-name="col-text">
             <template #default="{ row }">{{ row.description || '无说明' }}</template>
           </el-table-column>
-          <el-table-column
-            label="配置值"
+          <el-table-column label="配置值"
             min-width="200"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.configValue || '无' }}</template>
           </el-table-column>
-          <el-table-column label="更新时间" width="168" align="center" class-name="col-text">
+          <el-table-column label="更新时间" width="168" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
@@ -181,7 +179,7 @@
       :title="creating ? '新增参数' : '编辑参数'"
       destroy-on-close
     >
-      <el-form label-width="88px">
+      <el-form label-width="auto">
         <el-form-item label="配置键" required>
           <el-input
             v-model="form.configKey"

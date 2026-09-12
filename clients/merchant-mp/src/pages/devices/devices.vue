@@ -381,7 +381,7 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 }
 .scan-btn {
   background: var(--brand, #0f766e);
-  color: #fff;
+  color: var(--white);
 }
 .replenish-btn {
   background: var(--color-bg-card, #fff);
@@ -391,6 +391,15 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 .scan-btn::after,
 .replenish-btn::after {
   border: none;
+}
+/* 无 page-body：卡片水平 gutter 由页面承担（对齐 M02） */
+.devices-page > .card,
+.devices-page .device-card {
+  margin-left: var(--page-gutter, 24rpx);
+  margin-right: var(--page-gutter, 24rpx);
+  width: auto;
+  max-width: none;
+  box-sizing: border-box;
 }
 .device-card {
   display: flex;
@@ -475,7 +484,7 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   font-size: var(--font-size-sm);
 }
 .chip.active {
-  color: #fff;
+  color: var(--white);
   background: var(--brand, #0f766e);
 }
 .pref-hint {
@@ -534,7 +543,7 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   color: var(--warning, #b45309);
   font-weight: 700;
   font-size: var(--font-size-caption);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
   padding: 4rpx 12rpx;
   border-radius: var(--radius-pill);
 }
@@ -560,7 +569,7 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 .retry {
   margin-top: 16rpx;
   background: linear-gradient(135deg, var(--brand-deep, #134e4a), var(--brand, #0f766e));
-  color: #fff;
+  color: var(--white);
   border-radius: var(--radius-pill);
   font-weight: 600;
   border: none;

@@ -576,7 +576,7 @@
         title="柜机规则优先于全局"
         :description="refundPriorityHint"
       />
-      <el-form label-width="120px" class="policy-form" @submit.prevent>
+      <el-form label-width="auto" class="policy-form" @submit.prevent>
         <el-form-item label="本柜策略">
           <el-select
             v-model="refundPolicyDraft"
@@ -623,7 +623,7 @@
         title="营业锁机与「锁机停售」同源"
         description="打开营业锁机或禁售，会同步下发边端锁机；关闭营业锁机会解除边端锁并清除禁售。勿与运维按钮各改一套。"
       />
-      <el-form v-if="policy" label-width="120px" class="policy-form" @submit.prevent>
+      <el-form v-if="policy" label-width="auto" class="policy-form" @submit.prevent>
         <el-form-item label="营业锁机">
           <el-switch
             v-model="policy.salesLocked"
@@ -705,13 +705,19 @@
         size="small"
         class="repair-mini-table"
       >
-        <el-table-column prop="ticketId" label="单号" width="70" align="center" />
+        <el-table-column
+          prop="ticketId"
+          label="单号"
+          width="70"
+          class-name="col-text"
+          show-overflow-tooltip
+        />
         <el-table-column
           prop="title"
           label="标题"
           min-width="140"
           show-overflow-tooltip
-          align="center"
+          class-name="col-text"
         />
         <el-table-column prop="status" label="状态" width="100" align="center">
           <template #default="{ row }">{{ repairStatusLabel(row.status) }}</template>
@@ -719,10 +725,10 @@
         <el-table-column label="优先级" width="88" align="center">
           <template #default="{ row }">{{ priorityLabel(row.priority) }}</template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="创建" width="150" align="center">
+        <el-table-column prop="createdAt" label="创建" width="150" class-name="col-text">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="更新" width="150" align="center">
+        <el-table-column label="更新" width="150" class-name="col-text">
           <template #default="{ row }">{{
             row.updatedAt ? formatDateTime(row.updatedAt) : '暂无'
           }}</template>
@@ -979,7 +985,6 @@
                 <el-table-column
                   label="会话"
                   min-width="160"
-                  align="center"
                   class-name="col-text"
                   show-overflow-tooltip
                 >
@@ -1018,7 +1023,6 @@
                 <el-table-column
                   label="订单"
                   min-width="120"
-                  align="center"
                   class-name="col-text"
                   show-overflow-tooltip
                 >
@@ -1029,14 +1033,14 @@
                 <el-table-column
                   label="失败原因"
                   min-width="120"
-                  align="center"
+                  class-name="col-text"
                   show-overflow-tooltip
                 >
                   <template #default="{ row }">
                     {{ row.failReason || row.failureReason || '暂无' }}
                   </template>
                 </el-table-column>
-                <el-table-column label="时间" width="168" align="center" class-name="col-text">
+                <el-table-column label="时间" width="168" class-name="col-text">
                   <template #default="{ row }">
                     <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                   </template>
@@ -1085,7 +1089,6 @@
                 <el-table-column
                   label="订单"
                   min-width="160"
-                  align="center"
                   class-name="col-text"
                   show-overflow-tooltip
                 >
@@ -1105,12 +1108,12 @@
                     {{ displayLabel('pay_channel', row.payChannel, '暂无') }}
                   </template>
                 </el-table-column>
-                <el-table-column label="金额" width="100" align="center" class-name="col-money">
+                <el-table-column label="金额" width="100" class-name="col-money">
                   <template #default="{ row }"
                     >¥{{ ((row.totalAmountCents || 0) / 100).toFixed(2) }}</template
                   >
                 </el-table-column>
-                <el-table-column label="优惠" width="88" align="center">
+                <el-table-column label="优惠" width="88" class-name="col-money">
                   <template #default="{ row }">
                     <span
                       v-if="
@@ -1130,7 +1133,7 @@
                     <span v-else class="muted">暂无</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="时间" width="168" align="center" class-name="col-text">
+                <el-table-column label="时间" width="168" class-name="col-text">
                   <template #default="{ row }">
                     <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                   </template>
@@ -1159,7 +1162,7 @@
     </el-card>
 
     <el-dialog v-model="editorVisible" :title="`编辑货道 ${editForm.slotCode}`">
-      <el-form label-width="110px">
+      <el-form label-width="auto">
         <el-form-item label="SKU">
           <el-select
             v-model="editForm.assignedSkuId"
@@ -2360,13 +2363,25 @@ onActivated(() => {
 .device-ops {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 .device-ops > .el-page-header {
-  margin-bottom: 4px;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.report-page {
+  margin-top: 4px;
 }
 .report-page :deep(.el-tabs__header) {
-  margin: 0 0 16px;
+  margin: 4px 0 20px;
+}
+.report-page :deep(.el-tabs__nav-wrap::after) {
+  height: 1px;
+}
+.report-page :deep(.el-tabs__item) {
+  font-size: var(--admin-font-size-title, 15px);
+  color: var(--el-text-color-secondary);
 }
 .report-page :deep(.el-tabs__item.is-active) {
   font-weight: 600;
@@ -2375,6 +2390,7 @@ onActivated(() => {
 .report-page :deep(.el-tabs__active-bar) {
   height: 3px;
   border-radius: 2px;
+  background-color: var(--app-primary, #0f766e);
 }
 .page-head-meta {
   display: flex;
@@ -2411,6 +2427,8 @@ onActivated(() => {
   gap: 16px;
   text-align: center;
   padding: 8px 0 4px;
+  /* A01′：首屏/弱网时避免卡片相对内容区塌陷过矮 */
+  min-height: 240px;
 }
 .qr-preview {
   width: 200px;

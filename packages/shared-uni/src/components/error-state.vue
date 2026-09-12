@@ -62,7 +62,7 @@ export default { name: 'ErrorState' };
   height: 88rpx;
   margin: 0 auto 16rpx;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--danger, var(--color-danger)) 12%, #fff);
+  background: color-mix(in srgb, var(--danger, var(--color-danger)) 12%, var(--white));
   color: var(--danger, var(--color-danger));
   font-size: var(--font-size-h1);
   font-weight: 700;

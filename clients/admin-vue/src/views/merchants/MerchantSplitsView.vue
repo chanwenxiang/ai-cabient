@@ -125,11 +125,9 @@
                 ><el-empty v-if="merchantsHydrated && !loadingMerchants" description="暂无商户"
               /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column
-                prop="merchantId"
+              <el-table-column prop="merchantId"
                 label="商户编号"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
                 sortable="custom"
@@ -138,10 +136,8 @@
                   <span class="cell-id">{{ row.merchantId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="商户"
+              <el-table-column label="商户"
                 min-width="140"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -215,7 +211,7 @@
                   }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="联系人" min-width="100" align="center" class-name="col-text">
+              <el-table-column label="联系人" min-width="100" class-name="col-text">
                 <template #default="{ row }">
                   <span
                     class="cell-ellipsis"
@@ -229,7 +225,7 @@
                   row.contactPhone || row.alertContactPhone || '暂无'
                 }}</template>
               </el-table-column>
-              <el-table-column label="备注" min-width="100" align="center" class-name="col-text">
+              <el-table-column label="备注" min-width="100" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-ellipsis" :title="row.remark || ''">{{
                     row.remark || '暂无'
@@ -288,7 +284,7 @@
             description="开启「盘点/补货拍照」后，盘点接口必须带 photoEvidenceUrl；「并发订单上限」>0 时开门建会话会拦截超限。"
             style="margin-bottom: 12px"
           />
-          <el-form v-if="opsConfig" label-width="140px" style="max-width: 640px">
+          <el-form v-if="opsConfig" label-width="auto" style="max-width: 640px">
             <el-form-item label="备货类型">
               <el-radio-group v-model="opsConfig.stockingType">
                 <el-radio value="CAPACITY">容量</el-radio>
@@ -455,20 +451,16 @@
                 ><el-empty v-if="splitsLoaded && !loading" description="暂无分账明细"
               /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column
-                label="分账编号"
+              <el-table-column label="分账编号"
                 min-width="150"
-                align="center"
                 class-name="col-text"
               >
                 <template #default="{ row }"
                   ><span class="cell-id">{{ displayBizNo(row.splitId) }}</span></template
                 >
               </el-table-column>
-              <el-table-column
-                label="订单"
+              <el-table-column label="订单"
                 min-width="130"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -484,10 +476,8 @@
                   <span v-else class="muted">无</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="商户"
+              <el-table-column label="商户"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -522,21 +512,19 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="失败原因"
+              <el-table-column label="失败原因"
                 min-width="140"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.failureReason || '无' }}</template>
               </el-table-column>
-              <el-table-column label="创建时间" width="150" align="center" class-name="col-text">
+              <el-table-column label="创建时间" width="150" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="结算时间" width="150" align="center" class-name="col-text">
+              <el-table-column label="结算时间" width="150" class-name="col-text">
                 <template #default="{ row }">
                   <span v-if="row.settledAt" class="cell-datetime">{{
                     formatDateTime(row.settledAt)

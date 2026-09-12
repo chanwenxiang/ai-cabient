@@ -883,10 +883,10 @@ function callSupport() {
 }
 .status-bar.status-paid,
 .status-bar.status-completed {
-  background: linear-gradient(135deg, var(--brand-soft, #e8f5e9), #fff);
+  background: linear-gradient(135deg, var(--brand-soft, #e8f5e9), var(--white));
 }
 .status-bar.status-refunded {
-  background: linear-gradient(135deg, #fff3e0, #fff);
+  background: linear-gradient(135deg, var(--warning-soft), var(--white));
 }
 .status-icon {
   width: 60rpx;
@@ -899,11 +899,11 @@ function callSupport() {
   font-weight: 700;
   margin-right: 20rpx;
   background: linear-gradient(135deg, var(--brand), var(--brand));
-  color: #fff;
+  color: var(--white);
   flex-shrink: 0;
 }
 .status-bar.status-refunded .status-icon {
-  background: #ff9500;
+  background: var(--accent-orange);
 }
 .status-title {
   font-size: var(--font-size-xl);
@@ -927,14 +927,14 @@ function callSupport() {
   font-weight: 600;
   margin-bottom: 16rpx;
   display: block;
-  color: #333;
+  color: var(--text-primary);
 }
 .item-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 14rpx 0;
-  border-bottom: 1rpx solid #f5f5f5;
+  border-bottom: 1rpx solid var(--color-border-subtle);
   gap: 16rpx;
 }
 .item-thumb {
@@ -974,7 +974,7 @@ function callSupport() {
 }
 .total-row.pay {
   padding-top: 12rpx;
-  border-top: 1rpx solid #eee;
+  border-top: 1rpx solid var(--card-border);
   margin-top: 8rpx;
 }
 .total-row.pay .total-amount {
@@ -988,7 +988,7 @@ function callSupport() {
 .total-amount {
   font-size: var(--font-size-display-sm);
   font-weight: 700;
-  color: #ff3b30;
+  color: var(--danger);
 }
 .discount-row {
   display: flex;
@@ -1014,7 +1014,7 @@ function callSupport() {
 }
 .info-value {
   font-size: var(--font-size-body);
-  color: #333;
+  color: var(--text-primary);
 }
 .mono {
   font-family: var(--app-font-mono);
@@ -1072,7 +1072,7 @@ function callSupport() {
   height: 88rpx;
   line-height: 1.2;
   border: none;
-  color: #fff;
+  color: var(--white);
   border-radius: var(--radius-pill);
   background: linear-gradient(135deg, var(--color-danger), var(--color-danger));
   font-size: var(--font-size-md);
@@ -1131,14 +1131,14 @@ function callSupport() {
   padding: 10rpx 18rpx;
   border-radius: var(--radius-pill);
   background: var(--color-border-subtle);
-  color: #374151;
+  color: var(--text-primary);
   font-size: var(--font-size-caption);
   border: 1rpx solid transparent;
 }
 .reason-chip.on {
-  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, #fff);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--white));
   color: var(--color-danger);
-  border-color: color-mix(in srgb, var(--danger, #b91c1c) 18%, #fff);
+  border-color: color-mix(in srgb, var(--danger, #b91c1c) 18%, var(--white));
 }
 .dispute-input {
   width: 100%;
@@ -1156,7 +1156,7 @@ function callSupport() {
 .evidence-label {
   display: block;
   font-size: var(--font-size-caption);
-  color: #6b7280;
+  color: var(--text-muted);
   margin-bottom: 12rpx;
 }
 .evidence-row {
@@ -1182,8 +1182,8 @@ function callSupport() {
   width: 36rpx;
   height: 36rpx;
   border-radius: 50%;
-  background: #111;
-  color: #fff;
+  background: var(--text-primary);
+  color: var(--white);
   text-align: center;
   line-height: 36rpx;
   font-size: var(--font-size-caption);
@@ -1195,7 +1195,7 @@ function callSupport() {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.45);
-  color: #fff;
+  color: var(--white);
   font-size: var(--font-size-sm);
   border-radius: var(--radius-control);
 }
@@ -1203,8 +1203,8 @@ function callSupport() {
   width: 140rpx;
   height: 140rpx;
   border-radius: var(--radius-control);
-  border: 2rpx dashed #d1d5db;
-  color: #9ca3af;
+  border: 2rpx dashed var(--card-border);
+  color: var(--text-subtle);
   font-size: var(--font-size-display);
   display: flex;
   align-items: center;
@@ -1216,7 +1216,7 @@ function callSupport() {
   height: 88rpx;
   line-height: 1.2;
   background: var(--color-danger);
-  color: #fff;
+  color: var(--white);
   border-radius: var(--radius-pill);
   font-size: var(--font-size-lg);
   border: none;

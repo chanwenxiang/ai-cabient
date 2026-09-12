@@ -1,6 +1,6 @@
 <template>
   <view class="video-page">
-    <app-nav-bar title="购物视频" bg="#000000" color="#ffffff" />
+    <app-nav-bar title="购物视频" bg="#000000" color="var(--white)" />
     <view class="page-body">
       <view v-if="loading" class="state">
         <text class="state-title">{{ UI_COPY.loading }}</text>
@@ -172,7 +172,7 @@ function goOrder() {
 .video-player {
   width: 100%;
   height: 56vh;
-  background: #111;
+  background: var(--text-primary);
   border-radius: 8px;
 }
 .state {
@@ -195,7 +195,7 @@ function goOrder() {
 .state .app-btn {
   margin-top: 20px;
   background: linear-gradient(135deg, var(--brand-deep), var(--brand));
-  color: #fff;
+  color: var(--white);
   border-radius: 999px;
   font-size: 14px;
 }
@@ -209,7 +209,7 @@ function goOrder() {
 .error-banner .app-btn {
   margin-top: 12px;
   background: linear-gradient(135deg, var(--brand-deep), var(--brand));
-  color: #fff;
+  color: var(--white);
   border-radius: 999px;
 }
 .tips {
@@ -245,7 +245,7 @@ function goOrder() {
   margin-top: 14px;
 }
 .back-link {
-  color: #34d399;
+  color: var(--success);
   font-size: 13px;
 }
 </style>

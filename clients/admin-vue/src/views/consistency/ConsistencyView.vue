@@ -91,7 +91,7 @@
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="键" min-width="200" align="center" class-name="col-text">
+          <el-table-column label="键" min-width="200" class-name="col-text">
             <template #default="{ row }">
               <el-button
                 v-if="keyLink(row)"
@@ -106,11 +106,9 @@
               <code v-else class="mono" :title="row.checkKey">{{ row.checkKey }}</code>
             </template>
           </el-table-column>
-          <el-table-column
-            prop="tableName"
+          <el-table-column prop="tableName"
             label="表"
             width="140"
-            align="center"
             class-name="col-text"
           >
             <template #default="{ row }">
@@ -124,17 +122,17 @@
               <el-tag size="small" :type="severityTag(row)">{{ severityLabel(row) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="基准" min-width="90" align="center" class-name="col-text">
+          <el-table-column label="基准" min-width="90" class-name="col-text">
             <template #default="{ row }">
               <span :title="valueHint(row)">{{ row.expectedValue }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="对照" min-width="100" align="center" class-name="col-text">
+          <el-table-column label="对照" min-width="100" class-name="col-text">
             <template #default="{ row }">
               <span class="is-mismatch" :title="actualHint(row)">{{ row.actualValue }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="说明" min-width="160" align="center" class-name="col-text">
+          <el-table-column label="说明" min-width="160" class-name="col-text">
             <template #default="{ row }">
               <!-- 勿用 show-overflow-tooltip：横滚/右侧 sticky 操作列时会漂到操作列上 -->
               <span v-if="row.errorMessage" class="err-msg" :title="row.errorMessage">{{

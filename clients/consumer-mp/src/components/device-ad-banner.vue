@@ -200,7 +200,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #e8eef5, #f5f7fa);
+  background: linear-gradient(135deg, #e8eef5, var(--surface-muted));
 }
 .ad-fallback-title {
   font-size: var(--font-size-md);
@@ -210,6 +210,6 @@ onBeforeUnmount(() => {
   display: block;
   padding: 8rpx 16rpx 12rpx;
   font-size: var(--font-size-sm);
-  color: #6b7280;
+  color: var(--text-muted);
 }
 </style>

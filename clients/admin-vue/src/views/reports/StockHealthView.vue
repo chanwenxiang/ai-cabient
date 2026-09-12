@@ -154,19 +154,15 @@
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="设备"
+          <el-table-column label="设备"
             min-width="120"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.deviceName || row.deviceId || '无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="设备ID"
+          <el-table-column label="设备ID"
             min-width="120"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -174,37 +170,29 @@
               <span class="cell-id">{{ row.deviceId || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="商户"
+          <el-table-column label="商户"
             min-width="110"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.merchantId || '无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="路线"
+          <el-table-column label="路线"
             width="90"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.routeCode || '无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="SKU"
+          <el-table-column label="SKU"
             min-width="120"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.skuName || row.skuId || '无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="SKU ID"
+          <el-table-column label="SKU ID"
             min-width="120"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -229,7 +217,7 @@
           <el-table-column label="断货天" width="80" align="center">
             <template #default="{ row }">{{ row.daysOutOfStock ?? '无' }}</template>
           </el-table-column>
-          <el-table-column label="到期日" width="120" align="center" class-name="col-text">
+          <el-table-column label="到期日" width="120" class-name="col-text">
             <template #default="{ row }">{{ row.expiryDate || '未填' }}</template>
           </el-table-column>
           <el-table-column

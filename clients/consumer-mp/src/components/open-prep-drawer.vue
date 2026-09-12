@@ -442,24 +442,24 @@ function onCancel() {
   width: 48rpx;
   height: 48rpx;
   border-radius: 50%;
-  background: #d4d4d4;
+  background: var(--card-border);
   color: var(--text-muted, #334155);
   font-size: var(--font-size-caption);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  box-shadow: 0 0 0 6rpx #f4f7f5;
+  box-shadow: 0 0 0 6rpx var(--surface-muted);
 }
 .prep-step.done .prep-dot {
   background: linear-gradient(135deg, var(--brand), var(--brand));
-  color: #fff;
+  color: var(--white);
   box-shadow: 0 0 0 6rpx var(--brand-soft, #d1fae5);
 }
 .prep-line {
   width: 80rpx;
   height: 4rpx;
-  background: #e5e5e5;
+  background: var(--card-border);
   margin: 0 12rpx 20rpx;
 }
 .prep-line.done {
@@ -476,7 +476,7 @@ function onCancel() {
 }
 .input {
   background: var(--page-bg, #f8faf9);
-  border: 1rpx solid #e3eae6;
+  border: 1rpx solid var(--color-border-subtle);
   border-radius: 17rpx;
   padding: 22rpx 24rpx;
   margin-bottom: 20rpx;
@@ -509,7 +509,7 @@ function onCancel() {
 }
 .hint {
   font-size: var(--font-size-caption);
-  color: #b2b2b2;
+  color: var(--text-subtle);
   display: block;
   text-align: center;
   margin-top: 16rpx;
@@ -517,7 +517,7 @@ function onCancel() {
 .fallback-block {
   margin-top: 28rpx;
   padding-top: 24rpx;
-  border-top: 1rpx solid #eef2f0;
+  border-top: 1rpx solid var(--color-border-subtle);
 }
 .fallback-title {
   display: block;
@@ -536,7 +536,7 @@ function onCancel() {
   display: block;
   padding: 20rpx;
   border-radius: var(--radius-control);
-  background: #fff7e6;
+  background: var(--warning-soft);
   color: var(--warning, #92400e);
   font-size: var(--font-size-body);
   line-height: 1.5;
@@ -554,7 +554,7 @@ function onCancel() {
   text-align: center;
   padding: 18rpx 0;
   border-radius: var(--radius-control);
-  background: #f2f4f8;
+  background: var(--surface-muted);
   color: var(--color-link-secondary);
   font-size: var(--font-size-md);
   border: 2rpx solid transparent;
@@ -562,7 +562,7 @@ function onCancel() {
 .channel-chip.on {
   background: var(--brand-soft);
   color: var(--brand);
-  border-color: #34d399;
+  border-color: var(--success);
   font-weight: 600;
 }
 .drawer-body > .app-btn,

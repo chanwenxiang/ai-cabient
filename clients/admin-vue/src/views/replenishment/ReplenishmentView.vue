@@ -119,10 +119,8 @@
                           class="line-table"
                           empty-text=" "
                         >
-                          <el-table-column
-                            label="任务"
+                          <el-table-column label="任务"
                             width="70"
-                            align="center"
                             class-name="col-text"
                           >
                             <template #default="scope">
@@ -194,10 +192,8 @@
                               formatTaskDuration(scope.row)
                             }}</template>
                           </el-table-column>
-                          <el-table-column
-                            label="完成"
+                          <el-table-column label="完成"
                             width="122"
-                            align="center"
                             class-name="col-text"
                           >
                             <template #default="scope">
@@ -275,20 +271,16 @@
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="路线"
+              <el-table-column label="路线"
                 min-width="140"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.routeName || '无' }}</template>
               </el-table-column>
-              <el-table-column
-                prop="routeId"
+              <el-table-column prop="routeId"
                 label="路线ID"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
                 sortable="custom"
@@ -300,11 +292,9 @@
               <el-table-column label="设备数" width="88" align="center">
                 <template #default="{ row }">{{ row.tasks?.length || 0 }}</template>
               </el-table-column>
-              <el-table-column
-                prop="plannedDate"
+              <el-table-column prop="plannedDate"
                 label="计划日期"
                 width="120"
-                align="center"
                 class-name="col-text"
               />
               <el-table-column label="状态" width="110" align="center">
@@ -392,11 +382,9 @@
                   :description="fulfillmentEmptyText"
               /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column
-                prop="taskId"
+              <el-table-column prop="taskId"
                 label="任务"
                 width="88"
-                align="center"
                 class-name="col-text"
                 sortable="custom"
               >
@@ -404,10 +392,8 @@
                   <span class="cell-id">{{ row.taskId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="设备"
+              <el-table-column label="设备"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -417,10 +403,8 @@
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="设备ID"
+              <el-table-column label="设备ID"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -428,10 +412,8 @@
                   <span class="cell-id">{{ row.deviceId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="路线"
+              <el-table-column label="路线"
                 min-width="140"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -480,7 +462,7 @@
               <el-table-column label="用时" width="88" align="center">
                 <template #default="{ row }">{{ formatTaskDuration(row) }}</template>
               </el-table-column>
-              <el-table-column label="完成时间" width="168" align="center" class-name="col-text">
+              <el-table-column label="完成时间" width="168" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-datetime">{{
                     row.completedAt ? formatDateTime(row.completedAt) : '无'
@@ -499,7 +481,7 @@
                   <span v-else class="muted">暂无</span>
                 </template>
               </el-table-column>
-              <el-table-column label="备注" min-width="140" align="center" class-name="col-text">
+              <el-table-column label="备注" min-width="140" class-name="col-text">
                 <template #default="{ row }">
                   <span
                     class="cell-ellipsis"
@@ -561,11 +543,9 @@
               @selection-change="onRequestsSelectionChange"
             >
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column
-                prop="requestId"
+              <el-table-column prop="requestId"
                 label="要货单"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 sortable="custom"
               >
@@ -573,18 +553,14 @@
                   ><span class="cell-id">{{ row.requestId }}</span></template
                 >
               </el-table-column>
-              <el-table-column
-                prop="merchantName"
+              <el-table-column prop="merchantName"
                 label="商户"
                 min-width="160"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               />
-              <el-table-column
-                label="目标设备"
+              <el-table-column label="目标设备"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -594,10 +570,8 @@
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="设备ID"
+              <el-table-column label="设备ID"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -605,10 +579,8 @@
                   <span class="cell-id">{{ row.deviceId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="明细"
+              <el-table-column label="明细"
                 min-width="220"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -623,10 +595,8 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="审核人"
+              <el-table-column label="审核人"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -637,7 +607,7 @@
                   <span v-else class="muted">待审核</span>
                 </template>
               </el-table-column>
-              <el-table-column label="审核时间" width="168" align="center" class-name="col-text">
+              <el-table-column label="审核时间" width="168" class-name="col-text">
                 <template #default="{ row }">
                   <span v-if="row.reviewedAt" class="cell-datetime">{{
                     formatDateTime(row.reviewedAt)
@@ -645,10 +615,8 @@
                   <span v-else class="muted">—</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="驳回原因"
+              <el-table-column label="驳回原因"
                 min-width="160"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -657,7 +625,7 @@
                   <span v-else class="muted">无</span>
                 </template>
               </el-table-column>
-              <el-table-column label="补货任务" width="110" align="center" class-name="col-text">
+              <el-table-column label="补货任务" width="110" class-name="col-text">
                 <template #default="{ row }">
                   <el-button
                     v-if="row.replenishmentTaskId"
@@ -669,7 +637,7 @@
                   <span v-else class="muted">无</span>
                 </template>
               </el-table-column>
-              <el-table-column label="提交时间" width="168" align="center" class-name="col-text">
+              <el-table-column label="提交时间" width="168" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-datetime">{{
                     formatDateTime(row.submittedAt || row.createdAt)
@@ -732,10 +700,8 @@
                   description="当前无缺货/低库存货道"
               /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column
-                label="设备"
+              <el-table-column label="设备"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -745,10 +711,8 @@
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="设备ID"
+              <el-table-column label="设备ID"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -757,11 +721,9 @@
                 </template>
               </el-table-column>
               <el-table-column prop="slotCode" label="货道" width="90" align="center" />
-              <el-table-column
-                prop="assignedSkuName"
+              <el-table-column prop="assignedSkuName"
                 label="商品"
                 min-width="140"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               />
@@ -822,10 +784,8 @@
                   description="当前无临期下架任务"
               /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column
-                label="设备"
+              <el-table-column label="设备"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -835,10 +795,8 @@
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="设备ID"
+              <el-table-column label="设备ID"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -846,35 +804,27 @@
                   <span class="cell-id">{{ row.deviceId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                prop="skuId"
+              <el-table-column prop="skuId"
                 label="商品 SKU"
                 min-width="140"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               />
-              <el-table-column
-                prop="batchNo"
+              <el-table-column prop="batchNo"
                 label="批次"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               />
-              <el-table-column
-                prop="lotId"
+              <el-table-column prop="lotId"
                 label="批次 ID"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               />
               <el-table-column prop="quantity" label="数量" width="80" align="center" />
-              <el-table-column
-                label="原因"
+              <el-table-column label="原因"
                 min-width="160"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -889,7 +839,7 @@
                   }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="创建时间" width="168" align="center" class-name="col-text">
+              <el-table-column label="创建时间" width="168" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>
@@ -1212,7 +1162,7 @@
       destroy-on-close
       data-testid="plan-route-dialog"
     >
-      <el-form label-width="96px" class="plan-form">
+      <el-form label-width="auto" class="plan-form">
         <el-form-item label="路线名称" required>
           <el-input
             v-model="planForm.routeName"

@@ -606,7 +606,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   margin: 4rpx 4rpx 10rpx;
   font-size: var(--font-size-caption);
   font-weight: 650;
-  color: #68766e;
+  color: var(--text-muted);
   letter-spacing: 1rpx;
 }
 .review-section {
@@ -648,7 +648,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   flex-shrink: 0;
 }
 .tone-warn .review-icon {
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
   color: var(--accent-orange, #c2410c);
 }
 .review-body {
@@ -670,7 +670,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   display: block;
   margin-top: 6rpx;
   font-size: var(--font-size-sm);
-  color: #68766e;
+  color: var(--text-muted);
   line-height: 1.45;
 }
 .review-foot {
@@ -681,7 +681,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .review-time {
   font-size: var(--font-size-sm);
-  color: #a1aaa5;
+  color: var(--text-subtle);
 }
 .review-link {
   font-size: var(--font-size-caption);
@@ -742,21 +742,21 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   white-space: nowrap;
   padding: 10rpx 20rpx;
   border-radius: var(--radius-pill);
-  border: 1rpx solid #e7eeea;
+  border: 1rpx solid var(--color-border-subtle);
   background: var(--card-bg, #fff);
-  color: #68766e;
+  color: var(--text-muted);
   font-size: var(--font-size-sm);
   box-shadow: 0 5rpx 16rpx rgba(15, 23, 42, 0.04);
 }
 .filter-chip.time {
   padding: 8rpx 18rpx;
   font-size: var(--font-size-sm);
-  background: #f7faf8;
-  border-color: #dceee6;
+  background: var(--surface-muted);
+  border-color: var(--brand-soft);
 }
 .filter-chip.active {
   border-color: var(--brand, #0f766e);
-  color: #fff;
+  color: var(--white);
   background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
   box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.2);
 }
@@ -801,7 +801,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   display: block;
   margin-top: 6rpx;
   font-size: var(--font-size-sm);
-  color: #a1aaa5;
+  color: var(--text-subtle);
 }
 .chip {
   flex-shrink: 0;
@@ -815,15 +815,15 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: var(--brand-deep, #065f46);
 }
 .chip.pending {
-  background: #fff8e6;
+  background: var(--warning-soft);
   color: var(--warning, #b45309);
 }
 .chip.disputed {
-  background: #ffecec;
+  background: var(--danger-soft);
   color: var(--danger, #991b1b);
 }
 .chip.refunded {
-  background: #fff3e0;
+  background: var(--warning-soft);
   color: var(--accent-orange, #c2410c);
 }
 .chip.cancelled {
@@ -831,7 +831,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: var(--text-muted, #4b5563);
 }
 .chip.default {
-  background: #f0f0f0;
+  background: var(--color-border-subtle);
   color: var(--text-muted, #475569);
 }
 .order-mid {
@@ -862,7 +862,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .order-summary {
   display: block;
   font-size: var(--font-size-body);
-  color: #53645b;
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -876,7 +876,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .order-tag {
   font-size: var(--font-size-xs);
   color: var(--color-link-secondary);
-  background: #f2f4f8;
+  background: var(--surface-muted);
   padding: 2rpx 10rpx;
   border-radius: var(--radius-tag);
   max-width: 220rpx;
@@ -894,7 +894,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .order-tag.soft {
   color: var(--warning, #b45309);
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
 }
 .order-amt-block {
   flex-shrink: 0;
@@ -905,7 +905,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .amt-origin {
   font-size: var(--font-size-sm);
-  color: #a1aaa5;
+  color: var(--text-subtle);
   text-decoration: line-through;
 }
 .amt {
@@ -931,7 +931,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .order-time {
   font-size: var(--font-size-sm);
-  color: #a1aaa5;
+  color: var(--text-subtle);
 }
 .order-refund-amt {
   font-size: var(--font-size-sm);

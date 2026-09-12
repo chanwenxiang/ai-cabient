@@ -82,11 +82,9 @@
             ><el-empty v-if="listHydrated && !loading" description="暂无运营账号"
           /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="userId"
+          <el-table-column prop="userId"
             label="用户编号"
             width="100"
-            align="center"
             class-name="col-text"
             sortable="custom"
           >
@@ -94,10 +92,10 @@
               <span class="cell-id">{{ row.userId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="账号" min-width="120" align="center" class-name="col-text">
+          <el-table-column label="账号" min-width="120" class-name="col-text">
             <template #default="{ row }">{{ row.name || '未命名' }}</template>
           </el-table-column>
-          <el-table-column label="手机号" width="140" align="center" class-name="col-text">
+          <el-table-column label="手机号" width="140" class-name="col-text">
             <template #default="{ row }">{{ row.phoneNumber || '无' }}</template>
           </el-table-column>
           <el-table-column label="状态" width="90" align="center">
@@ -107,7 +105,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="角色" min-width="160" align="center" class-name="col-text">
+          <el-table-column label="角色" min-width="160" class-name="col-text">
             <template #default="{ row }">
               <el-tooltip
                 v-if="(row.roleNames || []).length"
@@ -131,7 +129,7 @@
               <span v-else class="muted">未分配</span>
             </template>
           </el-table-column>
-          <el-table-column label="部门" min-width="140" align="center" class-name="col-text">
+          <el-table-column label="部门" min-width="140" class-name="col-text">
             <template #default="{ row }">
               <el-tooltip
                 v-if="row.primaryDeptName || (row.deptNames || []).length"
@@ -166,7 +164,7 @@
               <span v-else class="muted">未归属</span>
             </template>
           </el-table-column>
-          <el-table-column label="数据范围" min-width="180" align="center" class-name="col-text">
+          <el-table-column label="数据范围" min-width="180" class-name="col-text">
             <template #default="{ row }">
               <el-tooltip
                 v-if="(row.merchantNames || row.merchantIds || []).length"
@@ -226,7 +224,7 @@
       :title="form.userId ? '编辑账号' : '新增账号'"
       destroy-on-close
     >
-      <el-form label-width="88px">
+      <el-form label-width="auto">
         <el-form-item label="姓名" required>
           <el-input v-model="form.name" maxlength="64" />
         </el-form-item>

@@ -330,7 +330,7 @@ function playVideo() {
   margin-bottom: 20rpx;
 }
 .status-bar {
-  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  background: linear-gradient(135deg, var(--brand-soft), var(--white));
   color: var(--text-primary, #14201b);
   border-radius: var(--radius-panel);
   padding: 28rpx 24rpx;
@@ -338,18 +338,18 @@ function playVideo() {
   border: 1rpx solid var(--brand-soft, #d1fae5);
 }
 .status-bar.s-disputed {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--warning, #b45309) 8%, #fff), #fff);
-  border-color: color-mix(in srgb, var(--warning, #b45309) 28%, #fff);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)), var(--white));
+  border-color: color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
 }
 .status-bar.s-refunded,
 .status-bar.s-partial_refunded {
-  background: linear-gradient(135deg, #eff6ff, #fff);
+  background: linear-gradient(135deg, var(--info-soft), var(--white));
   border-color: #bfdbfe;
 }
 .status-bar.s-pending,
 .status-bar.s-processing {
-  background: linear-gradient(135deg, #fefce8, #fff);
-  border-color: #fde68a;
+  background: linear-gradient(135deg, var(--warning-soft), var(--white));
+  border-color: var(--warning-soft);
 }
 .status-title {
   display: block;

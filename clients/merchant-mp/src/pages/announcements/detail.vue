@@ -69,7 +69,7 @@ onLoad((query) => {
 }
 .retry {
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
   border: none;
 }
 .meta {
@@ -87,11 +87,11 @@ onLoad((query) => {
 }
 .tag.high {
   color: var(--warning, #b45309);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
 }
 .tag.urgent {
   color: var(--color-danger);
-  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, #fff);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, var(--white));
 }
 .time {
   color: var(--text-subtle);

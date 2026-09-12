@@ -121,11 +121,9 @@
             <el-empty v-if="listHydrated && !loading" :description="skuEmptyText" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="skuCode"
+          <el-table-column prop="skuCode"
             label="编号"
             width="84"
-            align="center"
             class-name="col-text"
             sortable="custom"
           >
@@ -147,20 +145,16 @@
               <div v-else class="sku-thumb sku-thumb--empty">无图</div>
             </template>
           </el-table-column>
-          <el-table-column
-            prop="barcode"
+          <el-table-column prop="barcode"
             label="条码"
             min-width="80"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.barcode || '无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="名称"
+          <el-table-column label="名称"
             min-width="96"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -174,21 +168,17 @@
               </button>
             </template>
           </el-table-column>
-          <el-table-column
-            prop="brand"
+          <el-table-column prop="brand"
             label="品牌"
             min-width="72"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.brand || '无' }}</template>
           </el-table-column>
-          <el-table-column
-            prop="spec"
+          <el-table-column prop="spec"
             label="规格"
             min-width="72"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -209,11 +199,9 @@
               }}
             </template>
           </el-table-column>
-          <el-table-column
-            prop="category"
+          <el-table-column prop="category"
             label="类目"
             min-width="88"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -226,7 +214,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="添加时间" width="96" align="center" class-name="col-text">
+          <el-table-column label="添加时间" width="96" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
@@ -262,7 +250,7 @@
     />
 
     <el-dialog v-model="editDialog" :title="form.existing ? '编辑商品' : '新建商品'" class="dialog-wide">
-      <el-form label-width="108px">
+      <el-form label-width="auto">
         <el-form-item label="数字编号">
           <el-input
             :model-value="form.skuCode ? String(form.skuCode) : '保存后自动分配'"

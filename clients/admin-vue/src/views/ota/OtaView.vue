@@ -47,18 +47,14 @@
             ><el-empty v-if="listHydrated && !loading" description="暂无固件版本"
           /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="appVersion"
+          <el-table-column prop="appVersion"
             label="版本"
             min-width="120"
-            align="center"
             class-name="col-text"
           />
-          <el-table-column
-            prop="channel"
+          <el-table-column prop="channel"
             label="渠道"
             width="100"
-            align="center"
             class-name="col-text"
           >
             <template #default="{ row }">{{ channelLabel(row.channel) }}</template>
@@ -80,14 +76,12 @@
               <span v-else>全量</span>
             </template>
           </el-table-column>
-          <el-table-column
-            prop="minVersion"
+          <el-table-column prop="minVersion"
             label="最低版本"
             width="110"
-            align="center"
             class-name="col-text"
           />
-          <el-table-column label="发布时间" width="168" align="center" class-name="col-text">
+          <el-table-column label="发布时间" width="168" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.publishedAt) }}</span>
             </template>
@@ -136,7 +130,7 @@
   </el-card>
 
   <el-dialog v-model="dialog" title="发布固件版本" destroy-on-close>
-    <el-form label-width="110px">
+    <el-form label-width="auto">
       <el-form-item label="版本号" required>
         <el-input v-model="form.appVersion" placeholder="例如 1.2.0…" />
       </el-form-item>

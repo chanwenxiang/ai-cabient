@@ -164,11 +164,9 @@
                 ><el-empty v-if="listHydrated && !loading" description="暂无商品毛利数据"
               /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column
-                prop="skuId"
+              <el-table-column prop="skuId"
                 label="商品编号"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
                 sortable="custom"
@@ -177,10 +175,8 @@
                   <span class="cell-id">{{ row.skuId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="商品"
+              <el-table-column label="商品"
                 min-width="140"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >

@@ -135,7 +135,7 @@ uni-page-body {
   white-space: nowrap;
 }
 .filter-chip.active {
-  color: #fff;
+  color: var(--white);
   background: var(--brand);
   border-color: var(--brand);
   font-weight: 600;
@@ -196,18 +196,31 @@ input {
   line-height: 1.4;
 }
 
+/*
+ * 与 consumer 对齐（M02）：水平 gutter 由 .page-body / 页面自管；
+ * .card 只留纵向间距，避免「page-body 已有 padding + card 四边 gutter」双缩进。
+ */
 .card {
   background: var(--color-bg-card, #fff);
   border-radius: var(--radius-card, 24rpx);
-  padding: 28rpx;
-  margin: var(--page-gutter, 24rpx);
+  padding: 24rpx;
+  margin: 0 0 16rpx;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   box-shadow: var(--shadow-card);
   border: 1rpx solid color-mix(in srgb, var(--brand) 6%, transparent);
 }
 
+.page-body {
+  padding-left: var(--page-gutter, 24rpx);
+  padding-right: var(--page-gutter, 24rpx);
+  box-sizing: border-box;
+}
+
 .app-btn--primary {
   background: linear-gradient(135deg, var(--brand-deep), var(--brand));
-  color: #fff;
+  color: var(--white);
   border: none;
   border-radius: var(--radius-pill, 44rpx);
   padding: 0 32rpx;
@@ -264,6 +277,7 @@ input {
 }
 
 .action-row > .app-btn,
+.action-row > .app-btn-flex,
 .action-row > .action-btn,
 .btn-inline {
   flex: 1 1 0;
@@ -298,11 +312,11 @@ input {
 }
 .slot-cell {
   min-width: 0;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--card-border);
   border-radius: 8px;
   padding: 10rpx;
   font-size: 20rpx;
-  background: #fff;
+  background: var(--white);
   box-sizing: border-box;
 }
 
@@ -314,10 +328,10 @@ input {
 .uni-modal__bd,
 .uni-modal .uni-modal__hd,
 .uni-modal .uni-modal__ft {
-  background-color: #fff !important;
+  background-color: var(--white) !important;
 }
 .uni-modal .uni-modal__bd {
-  color: #0f172a !important;
+  color: var(--text-primary) !important;
 }
 
 /* 桌面手机框：居中真机比例；消掉导航双占位；底栏贴框底（仅 H5；WXSS 不支持 ~ 等选择器） */
@@ -339,7 +353,7 @@ input {
   uni-app {
     height: 100%;
     overflow: hidden;
-    background: #e8eef2;
+    background: var(--color-border-subtle);
   }
   uni-app {
     position: relative;
@@ -363,7 +377,7 @@ input {
     flex-direction: column !important;
     box-shadow: 0 22px 70px rgba(15, 23, 42, 0.14);
     /* 内容区统一白底；顶栏绿色由 app-nav 自己铺 */
-    background: #ffffff;
+    background: var(--white);
     box-sizing: border-box;
     --window-top: 0px !important;
   }
@@ -468,7 +482,7 @@ input {
     flex-direction: column !important;
     position: relative !important;
     overflow: hidden !important;
-    background: #ffffff !important;
+    background: var(--white) !important;
     padding-top: 0 !important;
   }
   uni-page-body {
@@ -491,7 +505,7 @@ input {
     display: flex !important;
     flex-direction: column !important;
     box-shadow: none !important;
-    background: #ffffff;
+    background: var(--white);
     box-sizing: border-box;
     scrollbar-width: none !important;
     -ms-overflow-style: none !important;

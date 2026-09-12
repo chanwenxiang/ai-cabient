@@ -40,7 +40,7 @@
             role="button"
             @click="loadTransactions(false)"
           >
-            {{ loading ? '加载中…' : `加载更多（已显示 ${transactions.length} 条）` }}
+            {{ loading ? UI_COPY.loading : `加载更多（已显示 ${transactions.length} 条）` }}
           </view>
         </view>
       </view>
@@ -167,7 +167,7 @@ function goRecharge() {
   gap: 20rpx;
   padding: 32rpx;
   border-radius: var(--radius-card);
-  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  background: linear-gradient(135deg, var(--brand-soft), var(--white));
   border: 1rpx solid var(--brand-soft, #d1fae5);
   width: 100%;
   max-width: 100%;

@@ -43,7 +43,7 @@
                 ><el-empty v-if="eventsHydrated && !eventsLoading" description="暂无风险事件"
               /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column label="事件" min-width="140" align="center" class-name="col-text">
+              <el-table-column label="事件" min-width="140" class-name="col-text">
                 <template #default="{ row }">
                   <div class="id-cell">
                     <strong>{{ displayLabel('risk_event_type', row.eventType, '未知') }}</strong>
@@ -51,7 +51,7 @@
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column label="用户" width="100" align="center" class-name="col-text">
+              <el-table-column label="用户" width="100" class-name="col-text">
                 <template #default="{ row }">
                   <button
                     v-if="row.userId"
@@ -77,10 +77,8 @@
                   <span v-else class="muted">无</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="详情"
+              <el-table-column label="详情"
                 min-width="160"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -108,7 +106,7 @@
               >
                 <template #default="{ row }">{{ row.dispositionNote || '暂无' }}</template>
               </el-table-column>
-              <el-table-column label="处置时间" width="150" align="center" class-name="col-text">
+              <el-table-column label="处置时间" width="150" class-name="col-text">
                 <template #default="{ row }">
                   <span v-if="row.dispositionAt" class="cell-datetime">{{
                     formatDateTime(row.dispositionAt)
@@ -116,7 +114,7 @@
                   <span v-else class="muted">暂无</span>
                 </template>
               </el-table-column>
-              <el-table-column label="时间" width="168" align="center" class-name="col-text">
+              <el-table-column label="时间" width="168" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>
@@ -154,7 +152,7 @@
                 ><el-empty v-if="blacklistHydrated && !blacklistLoading" description="暂无黑名单"
               /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column label="用户" width="120" align="center" class-name="col-text">
+              <el-table-column label="用户" width="120" class-name="col-text">
                 <template #default="{ row }">
                   <button
                     type="button"
@@ -165,10 +163,8 @@
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="原因"
+              <el-table-column label="原因"
                 min-width="180"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -177,7 +173,7 @@
               <el-table-column label="来源" width="100" align="center">
                 <template #default="{ row }">{{ row.source || '暂无' }}</template>
               </el-table-column>
-              <el-table-column label="到期" width="150" align="center" class-name="col-text">
+              <el-table-column label="到期" width="150" class-name="col-text">
                 <template #default="{ row }">
                   <span v-if="row.expiresAt" class="cell-datetime">{{
                     formatDateTime(row.expiresAt)
@@ -185,7 +181,7 @@
                   <span v-else class="muted">永久</span>
                 </template>
               </el-table-column>
-              <el-table-column label="加入时间" width="168" align="center" class-name="col-text">
+              <el-table-column label="加入时间" width="168" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>
@@ -223,7 +219,7 @@
     </el-tabs>
 
     <el-dialog v-model="addDialog" title="加入黑名单" destroy-on-close>
-      <el-form label-width="88px">
+      <el-form label-width="auto">
         <el-form-item label="用户 ID" required>
           <el-input-number
             v-model="addForm.userId"

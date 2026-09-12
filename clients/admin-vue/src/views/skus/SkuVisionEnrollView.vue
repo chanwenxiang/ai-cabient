@@ -166,11 +166,9 @@
             <el-empty v-if="listHydrated && !loading" :description="skuEmptyText" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="skuCode"
+          <el-table-column prop="skuCode"
             label="编号"
             width="100"
-            align="center"
             class-name="col-text"
             sortable="custom"
           >
@@ -192,7 +190,7 @@
               <div v-else class="sku-thumb sku-thumb--empty">无图</div>
             </template>
           </el-table-column>
-          <el-table-column label="商品" min-width="160" align="center" class-name="col-text">
+          <el-table-column label="商品" min-width="160" class-name="col-text">
             <template #default="{ row }">
               <button
                 type="button"
@@ -215,20 +213,16 @@
               }}
             </template>
           </el-table-column>
-          <el-table-column
-            prop="category"
+          <el-table-column prop="category"
             label="类目"
             min-width="100"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ categoryLabel(row.category) }}</template>
           </el-table-column>
-          <el-table-column
-            label="端侧类名"
+          <el-table-column label="端侧类名"
             min-width="130"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -303,7 +297,7 @@
       v-model="enrollDialog"
       :title="enrollForm.existing ? '编辑识别入驻' : '识别入驻配置'" class="dialog-wide"
     >
-      <el-form label-width="108px">
+      <el-form label-width="auto">
         <el-form-item v-if="!enrollForm.existing" label="关联商品" required>
           <el-select
             v-model="enrollForm.skuId"
@@ -441,7 +435,7 @@
         title="抽检说明"
         description="预览可用测试数据。转生产只进入结算白名单；端侧若回传兜底结果或低于扣款阈值，仍会进争议，不会静默扣款。"
       />
-      <el-form label-width="96px">
+      <el-form label-width="auto">
         <el-form-item label="设备 ID">
           <el-input v-model="testForm.deviceId" placeholder="例如 CAB-001" />
         </el-form-item>

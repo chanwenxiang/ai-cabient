@@ -11,7 +11,7 @@
       >
       <view class="dash-header" :style="headerPadStyle">
         <text class="hello">你好，{{ meName }}</text>
-        <text class="sub">{{ merchantNames }}</text>
+        <text class="sub" :class="{ 'sub--unbound': isMerchantUnbound }">{{ headerSubLine }}</text>
         <view class="header-stats">
           <view class="h-stat">
             <text class="h-val">{{ pendingTaskCount }}</text>
@@ -113,14 +113,15 @@
         </view>
         <text v-if="preferredId" class="pref-tip">常驻柜 {{ preferredId }} 优先置顶</text>
         <!-- 仅首次进入显示加载；之后切回工作台保留上次列表/空态，避免「任务加载中」闪一下 -->
-        <view v-if="taskPreviewLoading && !taskPreviewBooted" class="empty-inline"
-          >任务加载中…</view
-        >
+        <view v-if="taskPreviewLoading && !taskPreviewBooted" class="empty-inline">{{
+          loadingLabel('任务')
+        }}</view>
         <empty-state
           v-else-if="!taskPreview.length"
           compact
-          title="暂无待处理补货任务"
-          hint="可扫码巡柜看缺货，或从柜机列表进详情"
+          kind="alerts"
+          :title="homeEmptyTitle"
+          :hint="homeEmptyHint"
         >
           <app-button label="扫码到柜" :loading="scanning" @click="onScan" />
           <app-button
@@ -255,7 +256,7 @@ import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
-import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+import { UI_COPY, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import { formatMerchantNames } from '@/utils/merchant-display';
 import { menuIcon } from '@/utils/menu-icon';
@@ -322,6 +323,22 @@ const onlineText = computed(() => {
   if (on == null && total == null) return '暂无';
   return `${on ?? 0} / ${total ?? 0}`;
 });
+
+/** 未绑定：与问候语互斥展示，避免「你好，商户测试」+「未绑定商户」并存 */
+const isMerchantUnbound = computed(
+  () => !merchantNames.value || merchantNames.value === '未绑定商户'
+);
+const headerSubLine = computed(() =>
+  isMerchantUnbound.value ? '尚未绑定商户，请联系运营开通后使用完整功能' : merchantNames.value
+);
+const homeEmptyTitle = computed(() =>
+  isMerchantUnbound.value ? '暂无补货任务' : '暂无待处理补货任务'
+);
+const homeEmptyHint = computed(() =>
+  isMerchantUnbound.value
+    ? '绑定商户并分配柜机后，待补货任务会显示在这里'
+    : '可扫码巡柜看缺货，或从柜机列表进详情'
+);
 
 function deviceLabel(id?: string) {
   if (!id) return '无柜机';
@@ -647,7 +664,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
     var(--brand, #0f766e) 100%
   );
   padding: 12rpx 24rpx 28rpx;
-  color: #fff;
+  color: var(--white);
   border-radius: 0;
   margin: 0;
   box-sizing: border-box;
@@ -662,6 +679,10 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   opacity: 0.85;
   display: block;
   margin-top: 4rpx;
+}
+.sub--unbound {
+  opacity: 1;
+  color: var(--warning-soft);
 }
 .header-stats {
   display: flex;
@@ -679,7 +700,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   font-weight: 800;
 }
 .h-val.urgent {
-  color: #fff;
+  color: var(--white);
   text-shadow: 0 0 0 transparent;
 }
 .h-label {
@@ -728,7 +749,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   padding: 0 28rpx;
   border-radius: var(--radius-card);
   background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
-  color: #fff;
+  color: var(--white);
   font-size: var(--font-size-md);
   font-weight: 700;
   box-shadow: 0 6rpx 16rpx rgba(15, 118, 110, 0.22);
@@ -794,7 +815,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .quick-item.primary {
   border-color: var(--brand-soft, #99f6e4);
-  background: linear-gradient(180deg, var(--page-tint, #f0fdfa), #fff);
+  background: linear-gradient(180deg, var(--page-tint, #f0fdfa), var(--white));
 }
 .quick-icon {
   display: block;
@@ -824,7 +845,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   padding: 0 8rpx;
   border-radius: var(--radius-panel);
   background: var(--color-danger);
-  color: #fff;
+  color: var(--white);
   font-size: var(--font-size-xs);
   line-height: 32rpx;
   text-align: center;
@@ -1067,7 +1088,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   margin: 16rpx 24rpx 0;
   padding: 18rpx 22rpx;
   border-radius: var(--radius-panel);
-  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, #fff);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--white));
   color: var(--color-danger);
   font-size: var(--font-size-caption);
   display: flex;

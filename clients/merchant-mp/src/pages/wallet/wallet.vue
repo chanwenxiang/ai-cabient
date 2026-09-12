@@ -360,7 +360,7 @@ onShow(load);
   font-weight: 600;
 }
 .banner-err {
-  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, #fff);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--white));
   color: var(--color-danger);
   padding: 16rpx 20rpx;
   border-radius: var(--radius-control);

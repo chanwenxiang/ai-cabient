@@ -154,7 +154,7 @@ function goRedeem() {
   padding: 32rpx;
   border-radius: var(--radius-card);
   color: var(--text-primary, #14201b);
-  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  background: linear-gradient(135deg, var(--brand-soft), var(--white));
   border: 1rpx solid var(--brand-soft, #d1fae5);
   box-shadow: none;
   width: 100%;

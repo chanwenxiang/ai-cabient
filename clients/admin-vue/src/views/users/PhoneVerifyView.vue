@@ -112,7 +112,7 @@
       :title="editingId ? '编辑手机验证' : '登记手机验证'"
       destroy-on-close
     >
-      <el-form label-width="88px">
+      <el-form label-width="auto">
         <el-form-item label="手机号" required>
           <el-input v-model="form.phone" />
         </el-form-item>

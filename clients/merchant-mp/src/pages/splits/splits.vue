@@ -167,7 +167,7 @@ async function load() {
 }
 .tab.active {
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
   border-color: var(--brand);
   font-weight: 650;
 }
@@ -190,7 +190,7 @@ async function load() {
 }
 .retry {
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
   border: none;
 }
 .head {
@@ -208,7 +208,7 @@ async function load() {
 }
 .tag.fail {
   color: var(--color-danger);
-  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, #fff);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, var(--white));
 }
 .tag.ok {
   color: var(--brand);
@@ -216,7 +216,7 @@ async function load() {
 }
 .tag.warn {
   color: var(--warning, #b45309);
-  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
 }
 .time {
   margin-left: auto;

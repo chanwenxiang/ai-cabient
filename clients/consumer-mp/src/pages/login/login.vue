@@ -121,7 +121,7 @@
                     mode="aspectFit"
                   />
                   <text v-else class="captcha-placeholder">{{
-                    captchaLoading ? '加载中' : '点击获取'
+                    captchaLoading ? UI_COPY.loading : '点击获取'
                   }}</text>
                 </view>
               </view>
@@ -182,6 +182,7 @@ import {
 } from '@/utils/notify';
 import { computed, ref, watch } from 'vue';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import {
   consumerApi,
   consumerPasswordLogin,
@@ -684,7 +685,7 @@ async function onLogin() {
 }
 .tagline {
   font-size: var(--font-size-lg);
-  color: #a5b4c8;
+  color: var(--text-subtle);
   display: block;
   margin-top: 10rpx;
 }
@@ -698,7 +699,7 @@ async function onLogin() {
   background: rgba(13, 148, 136, 0.18);
 }
 .badge-icon {
-  color: #2dd4bf;
+  color: var(--chart-1);
   font-size: var(--font-size-caption);
   font-weight: 700;
 }
@@ -720,9 +721,9 @@ async function onLogin() {
   align-items: stretch;
   padding: 32rpx 28rpx 36rpx;
   border-radius: var(--radius-card);
-  background: rgba(8, 24, 30, 0.58);
+  background: rgba(8, 24, 30, 0.82);
   border: 2rpx solid rgba(148, 210, 198, 0.22);
-  backdrop-filter: blur(52rpx);
+  backdrop-filter: none;
   box-shadow:
     0 -8rpx 40rpx rgba(2, 12, 16, 0.18),
     0 16rpx 48rpx rgba(2, 10, 14, 0.42);
@@ -791,7 +792,7 @@ async function onLogin() {
 }
 .btn-wx {
   background: linear-gradient(135deg, var(--brand-wx, #07c160), var(--brand, #0f766e));
-  color: #fff;
+  color: var(--white);
   border-radius: var(--radius-pill);
   height: 96rpx;
   line-height: 96rpx;
@@ -833,7 +834,7 @@ async function onLogin() {
 }
 .divider-text {
   font-size: var(--font-size-body);
-  color: #5eead4;
+  color: var(--chart-1);
   font-weight: 600;
   line-height: 1.2;
   pointer-events: none;
@@ -860,7 +861,7 @@ async function onLogin() {
     font-weight 0.2s ease;
 }
 .tab-item.on {
-  color: #ffffff;
+  color: var(--white);
   font-weight: 600;
   background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand-2, var(--brand)));
   box-shadow: 0 4rpx 12rpx rgba(5, 150, 105, 0.28);
@@ -887,7 +888,7 @@ async function onLogin() {
   font-size: var(--font-size-md);
   color: var(--page-bg, #f0fdfa);
   line-height: 88rpx;
-  backdrop-filter: blur(16rpx);
+  backdrop-filter: none;
 }
 .input:focus {
   border-color: rgba(94, 234, 212, 0.7);
@@ -916,11 +917,11 @@ async function onLogin() {
   border-radius: var(--radius-panel);
   background: rgba(8, 24, 30, 0.42);
   border: 2rpx solid rgba(148, 210, 198, 0.3);
-  color: #5eead4;
+  color: var(--chart-1);
   font-size: var(--font-size-body);
   font-weight: 600;
   white-space: nowrap;
-  backdrop-filter: blur(16rpx);
+  backdrop-filter: none;
 }
 .btn-captcha {
   flex-shrink: 0;
@@ -951,7 +952,7 @@ async function onLogin() {
   min-width: 168px !important;
   padding: 0 !important;
   background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
-  color: #fff;
+  color: var(--white);
   border-radius: var(--radius-pill);
   min-height: 88rpx;
   height: 88rpx;

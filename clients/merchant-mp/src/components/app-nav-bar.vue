@@ -42,7 +42,7 @@ const props = withDefaults(
   {
     title: '',
     bg: 'var(--brand-deep, #134e4a)',
-    color: '#ffffff',
+    color: 'var(--white)',
     homeUrl: '/pages/home/home'
   }
 );

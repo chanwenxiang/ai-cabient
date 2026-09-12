@@ -32,6 +32,20 @@
   --danger: #b91c1c;
   --warning: #b45309;
   --accent-orange: #c2410c;
+  --info: #0369a1;
+  --info-soft: #e0f2fe;
+  --warning-soft: #fff7ed;
+  --danger-soft: #fef2f2;
+  --accent-rose: #be185d;
+  --accent-rose-soft: #fce7f3;
+  --surface-muted: #f4f7f5;
+  --page-tint: #f0fdfa;
+  /* 数据可视化色板（图表专用，勿当业务状态色） */
+  --chart-1: #2dd4bf;
+  --chart-2: #60a5fa;
+  --chart-3: #fbbf24;
+  --chart-4: #a78bfa;
+  --chart-5: #f97316;
 
   /* —— 圆角 4 档（Web 用 px；小程序在 page 上覆写为 rpx）—— */
   --radius-pill: 999px;
@@ -45,6 +59,9 @@
   --text-subtle: #94a3b8;
   --page-bg: #f0fdfa;
   --card-bg: #ffffff;
+  /* 纯白：深底文字/描边/渐变终点；卡片底继续用 --card-bg */
+  --white: #ffffff;
+  --color-white: var(--white);
   --card-radius: var(--radius-card);
   --card-border: #e2e8f0;
   --section-gap: 20rpx;
@@ -54,6 +71,16 @@
   --spacing-sm: 12px;
   --spacing-md: 16px;
   --spacing-lg: 24px;
+
+  /*
+   * 深底上的白色透明度档（落地页 / 登录深顶栏）。
+   * 用法：rgba(255, 255, 255, var(--on-deep-opacity-78))
+   */
+  --on-deep-opacity-50: 0.5;
+  --on-deep-opacity-78: 0.78;
+  --on-deep-opacity-88: 0.88;
+  --on-deep-opacity-92: 0.92;
+  --on-deep-opacity-95: 0.95;
 
   /* —— 字号 scale（G04；Web px；小程序 page 可覆写 rpx）—— */
   --font-size-xs: 11px;
@@ -82,6 +109,7 @@
   --color-danger: var(--danger);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-info: var(--info);
   --color-link: var(--brand);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-muted);

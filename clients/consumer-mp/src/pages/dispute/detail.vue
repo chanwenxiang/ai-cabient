@@ -497,24 +497,24 @@ function previewEvidence(img: FileAttachmentDto) {
   margin: 24rpx 24rpx 0;
   padding: 30rpx;
   border-radius: var(--radius-card);
-  background: linear-gradient(135deg, var(--brand-soft, #e8f5e9), #fff);
+  background: linear-gradient(135deg, var(--brand-soft, #e8f5e9), var(--white));
   box-sizing: border-box;
 }
 .status-header.tone-wait {
-  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  background: linear-gradient(135deg, var(--brand-soft), var(--white));
 }
 .status-header.tone-warn {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--warning, #b45309) 8%, #fff), #fff);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)), var(--white));
 }
 .status-header.tone-success {
-  background: linear-gradient(135deg, var(--brand-soft, #e8f5e9), #fff);
+  background: linear-gradient(135deg, var(--brand-soft, #e8f5e9), var(--white));
 }
 .status-icon {
   width: 64rpx;
   height: 64rpx;
   border-radius: var(--radius-card);
   background: linear-gradient(135deg, var(--brand), var(--brand));
-  color: #fff;
+  color: var(--white);
   display: flex;
   align-items: center;
   justify-content: center;

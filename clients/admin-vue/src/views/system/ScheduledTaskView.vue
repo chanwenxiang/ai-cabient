@@ -77,12 +77,12 @@
             <el-empty v-if="listHydrated && !loading" description="暂无定时任务" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="任务名称" min-width="170" align="center" class-name="col-text">
+          <el-table-column label="任务名称" min-width="170" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.taskName }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="任务标识" min-width="200" align="center" class-name="col-text">
+          <el-table-column label="任务标识" min-width="200" class-name="col-text">
             <template #default="{ row }">{{ row.taskKey }}</template>
           </el-table-column>
           <el-table-column label="分组" width="110" align="center">
@@ -120,10 +120,8 @@
               <span v-else class="cell-hint">尚未执行</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="最近结果说明"
+          <el-table-column label="最近结果说明"
             min-width="200"
-            align="center"
             class-name="col-text"
           >
             <template #default="{ row }">
@@ -132,7 +130,7 @@
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="备注" min-width="180" align="center" class-name="col-text">
+          <el-table-column label="备注" min-width="180" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="row.remark || ''">{{
                 row.remark || '暂无'
@@ -173,7 +171,7 @@
       :title="creating ? '新增定时任务' : '编辑定时任务'"
       destroy-on-close
     >
-      <el-form label-width="88px">
+      <el-form label-width="auto">
         <el-form-item label="任务标识" required>
           <el-input
             v-model="editForm.taskKey"

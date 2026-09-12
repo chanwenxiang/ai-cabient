@@ -58,11 +58,9 @@
             ><el-empty v-if="listHydrated && !loading" description="暂无反馈"
           /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column
-            prop="feedbackId"
+          <el-table-column prop="feedbackId"
             label="反馈编号"
             width="100"
-            align="center"
             class-name="col-text"
             sortable="custom"
           >
@@ -75,14 +73,14 @@
               {{ dictLabel('feedback_type', row.feedbackType) || '反馈' }}
             </template>
           </el-table-column>
-          <el-table-column label="内容" min-width="220" align="center" class-name="col-text">
+          <el-table-column label="内容" min-width="220" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="row.content || ''">{{
                 row.content || '无'
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="用户" width="100" align="center" class-name="col-text">
+          <el-table-column label="用户" width="100" class-name="col-text">
             <template #default="{ row }">
               <button
                 v-if="row.userId"
@@ -95,10 +93,8 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="设备"
+          <el-table-column label="设备"
             min-width="120"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -124,7 +120,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="时间" width="168" align="center" class-name="col-text">
+          <el-table-column label="时间" width="168" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>

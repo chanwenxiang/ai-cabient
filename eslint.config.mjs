@@ -78,6 +78,13 @@ export default tseslint.config(
     }
   },
   {
+    files: ['clients/admin-vue/src/**/*.{vue,ts}'],
+    plugins: { local },
+    rules: {
+      'local/no-col-text-align-center': 'error'
+    }
+  },
+  {
     files: ['scripts/**/*.mjs'],
     languageOptions: {
       globals: { ...globals.node }

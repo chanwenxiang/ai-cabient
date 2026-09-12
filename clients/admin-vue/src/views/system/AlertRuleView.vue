@@ -62,10 +62,10 @@
           <el-table-column label="分组" width="140" align="center">
             <template #default="{ row }">{{ row.group }}</template>
           </el-table-column>
-          <el-table-column label="规则说明" min-width="220" align="center" class-name="col-text">
+          <el-table-column label="规则说明" min-width="220" class-name="col-text">
             <template #default="{ row }">{{ row.description || '暂无' }}</template>
           </el-table-column>
-          <el-table-column label="配置键" min-width="200" align="center" class-name="col-text">
+          <el-table-column label="配置键" min-width="200" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.configKey }}</span>
             </template>
@@ -73,7 +73,7 @@
           <el-table-column label="单位/提示" width="110" align="center">
             <template #default="{ row }">{{ ruleUnitHint(row.configKey) }}</template>
           </el-table-column>
-          <el-table-column label="当前值" min-width="160" align="center" class-name="col-text">
+          <el-table-column label="当前值" min-width="160" class-name="col-text">
             <template #default="{ row }">
               <template v-if="row.configKey.endsWith('_enabled')">
                 <el-tag :type="row.configValue === 'true' ? 'success' : 'info'" size="small">
@@ -112,7 +112,7 @@
       :title="creating ? '新增告警规则' : '编辑告警规则'"
       destroy-on-close
     >
-      <el-form label-width="88px">
+      <el-form label-width="auto">
         <el-form-item label="分组" required>
           <el-select v-model="form.group" filterable style="width: 100%" :disabled="creating">
             <el-option v-for="g in Object.keys(BUILTIN_GROUPS)" :key="g" :label="g" :value="g" />

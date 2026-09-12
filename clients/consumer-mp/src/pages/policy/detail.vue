@@ -255,7 +255,7 @@ onLoad((query) => {
 .related {
   margin-top: 12rpx;
   padding-top: 24rpx;
-  border-top: 1rpx solid #eef2f0;
+  border-top: 1rpx solid var(--color-border-subtle);
 }
 .related-title {
   display: block;
@@ -278,7 +278,7 @@ onLoad((query) => {
 }
 .related-link.on {
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
   font-weight: 650;
 }
 .related-link.help {

@@ -138,10 +138,8 @@
               </button>
             </template>
           </el-table-column>
-          <el-table-column
-            label="流水号"
+          <el-table-column label="流水号"
             min-width="110"
-            align="center"
             class-name="col-text"
             show-overflow-tooltip
           >
@@ -515,11 +513,9 @@
             <template #empty>
               <el-empty v-if="!detailLoading" description="无商品行" :image-size="48" />
             </template>
-            <el-table-column
-              prop="skuName"
+            <el-table-column prop="skuName"
               label="商品"
               min-width="120"
-              align="center"
               class-name="col-text"
             />
             <el-table-column

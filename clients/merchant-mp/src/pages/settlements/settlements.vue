@@ -91,7 +91,7 @@
 
       <view class="section">
         <text class="section-title">按日汇总</text>
-        <view v-if="loading && !daily.length" class="loading-inline">结算数据加载中…</view>
+        <view v-if="loading && !daily.length" class="loading-inline">{{ loadingLabel('结算数据') }}</view>
         <template v-else>
           <view v-for="d in daily" :key="d.date" class="device-row">
             <view class="device-info">
@@ -126,7 +126,7 @@
         <text class="section-title">结算批次</text>
         <view v-if="batchWarn" class="section-warn">{{ batchWarn }}</view>
         <view v-if="loading && !batches.length && !daily.length" class="loading-inline"
-          >批次加载中…</view
+          >{{ loadingLabel('批次') }}</view
         >
         <template v-else>
           <view v-for="b in batches" :key="b.batchNo" class="device-row">
@@ -174,6 +174,7 @@ import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
+import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import {
   hasPerm,
   merchantApi,
@@ -484,7 +485,7 @@ function onExport() {
   font-size: var(--font-size-body);
 }
 .summary-value {
-  color: #fff;
+  color: var(--white);
   font-size: var(--font-size-lg);
   font-weight: 600;
 }
@@ -492,7 +493,7 @@ function onExport() {
   color: rgba(255, 255, 255, 0.7);
 }
 .summary-value.danger {
-  color: color-mix(in srgb, var(--danger, #b91c1c) 18%, #fff);
+  color: color-mix(in srgb, var(--danger, #b91c1c) 18%, var(--white));
 }
 .tip-card {
   background: var(--brand-soft);
@@ -523,7 +524,7 @@ function onExport() {
   margin-bottom: 16rpx;
   padding: 16rpx 20rpx;
   border-radius: var(--radius-control);
-  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, #fff);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--white));
   color: var(--color-danger);
   font-size: var(--font-size-caption);
   display: flex;
@@ -538,7 +539,7 @@ function onExport() {
   margin-bottom: 12rpx;
   padding: 12rpx 16rpx;
   border-radius: var(--radius-tag);
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
   color: var(--accent-orange, #c2410c);
   font-size: var(--font-size-sm);
 }

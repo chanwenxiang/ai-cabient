@@ -150,6 +150,8 @@
   /* A11：卡片头/身统一内边距 */
   --admin-card-pad-y: 14px;
   --admin-card-pad-x: 16px;
+  /* A05：表单 label 宽度；业务页统一用 label-width="auto" */
+  --admin-form-label-width: auto;
 }
 
 [data-font-size='sm'] {

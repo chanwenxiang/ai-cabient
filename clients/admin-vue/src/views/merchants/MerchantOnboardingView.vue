@@ -194,7 +194,7 @@
     :title="form.onboardingId ? '编辑进件' : '新建进件'"
     destroy-on-close
   >
-    <el-form label-width="110px">
+    <el-form label-width="auto">
       <el-form-item label="商户编号" required>
         <el-input v-model="form.merchantId" :disabled="!!form.onboardingId" />
       </el-form-item>

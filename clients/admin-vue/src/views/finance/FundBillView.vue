@@ -87,11 +87,9 @@
               /></template>
               <el-table-column type="selection" width="48" align="center" />
               <el-table-column prop="bizDate" label="账期" width="120" align="center" />
-              <el-table-column
-                prop="merchantId"
+              <el-table-column prop="merchantId"
                 label="商户编号"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
                 sortable="custom"
@@ -100,10 +98,8 @@
                   <span class="cell-id">{{ row.merchantId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="商户"
+              <el-table-column label="商户"
                 min-width="120"
-                align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
@@ -203,11 +199,9 @@
                   :description="ledgerEmptyDescription"
               /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column
-                prop="entryId"
+              <el-table-column prop="entryId"
                 label="分录号"
                 width="100"
-                align="center"
                 class-name="col-text"
                 sortable="custom"
               >

@@ -259,7 +259,7 @@ function onSubmit() {
   z-index: 2;
 }
 .app-btn-text {
-  color: #fff;
+  color: var(--white);
   font-size: var(--font-size-xl);
   font-weight: 600;
   pointer-events: none;

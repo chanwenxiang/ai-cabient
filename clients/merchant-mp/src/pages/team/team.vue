@@ -366,7 +366,7 @@ async function onEnable() {
 }
 .invite-btn {
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
   border: none;
   border-radius: var(--radius-pill);
   padding: 0 28rpx;
@@ -526,7 +526,7 @@ async function onEnable() {
 .btn {
   flex: 1;
   background: var(--brand);
-  color: #fff;
+  color: var(--white);
   border: none;
   border-radius: var(--radius-pill);
   font-size: var(--font-size-md);
