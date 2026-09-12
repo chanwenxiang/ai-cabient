@@ -111,7 +111,9 @@
               <span class="cell-id">{{ row.roleId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="角色" min-width="140" class-name="col-text">
+          <el-table-column
+            align="center" label="角色" min-width="140" class-name="col-status"
+            label-class-name="col-status">
             <template #default="{ row }">{{ row.roleName || row.roleKey || '无' }}</template>
           </el-table-column>
           <el-table-column label="权限字符" min-width="140" class-name="col-text">

@@ -182,10 +182,11 @@
             </template>
           </el-table-column>
           <el-table-column
+            align="center"
             label="录像"
             width="88"
-            class-name="col-text"
-            label-class-name="col-text"
+            class-name="col-status"
+            label-class-name="col-status"
           >
             <template #default="{ row }">
               <el-tag
@@ -249,7 +250,9 @@
               <span>{{ waitReason(row) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="滞留 / 时限" width="160" class-name="col-text">
+          <el-table-column
+            align="center" label="滞留 / 时限" width="160" class-name="col-status"
+            label-class-name="col-status">
             <template #default="{ row }">
               <div v-if="isActiveState(row.state)" class="sla-cell">
                 <template v-if="isStuck(row)">
@@ -280,7 +283,9 @@
           >
             <template #default="{ row }">{{ failReasonText(row) }}</template>
           </el-table-column>
-          <el-table-column label="更新时间" width="160" class-name="col-text">
+          <el-table-column
+            align="center" label="更新时间" width="160" class-name="col-status"
+            label-class-name="col-status">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>

@@ -97,10 +97,11 @@
             </template>
           </el-table-column>
           <el-table-column
+            align="center"
             label="映射/模型"
             min-width="140"
-            class-name="col-text"
-            label-class-name="col-text"
+            class-name="col-status"
+            label-class-name="col-status"
           >
             <template #default="{ row }">
               <div class="pipe-cell">

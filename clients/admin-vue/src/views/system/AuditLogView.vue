@@ -93,7 +93,13 @@
               <span class="cell-id">{{ row.logId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="时间" width="168" class-name="col-text">
+          <el-table-column
+            align="center"
+            label="时间"
+            width="168"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
@@ -109,7 +115,9 @@
           >
             <template #default="{ row }">{{ operatorLabel(row) }}</template>
           </el-table-column>
-          <el-table-column label="动作" min-width="160" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            align="center" label="动作" min-width="160" class-name="col-status"
+            label-class-name="col-status" show-overflow-tooltip>
             <template #default="{ row }">
               <el-tag size="small" effect="plain">{{ auditActionLabel(row.action) }}</el-tag>
             </template>

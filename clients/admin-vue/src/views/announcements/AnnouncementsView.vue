@@ -175,7 +175,9 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="发布时间" width="168" class-name="col-text">
+          <el-table-column
+            align="center" label="发布时间" width="168" class-name="col-status"
+            label-class-name="col-status">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatTime(row.publishAt) || '无' }}</span>
             </template>

@@ -506,8 +506,8 @@ select {
 .layout-main-scroll .el-table td.el-table__cell,
 .page-card .el-table th.el-table__cell,
 .page-card .el-table td.el-table__cell {
-  /* 默认左对齐；金额/操作列由 col-money / col-action 覆盖 */
-  text-align: left;
+  /* 全部列默认居中（含文本/金额/状态）；树表缩进列见 col-tree */
+  text-align: center;
   font-family: inherit;
   font-size: var(--admin-font-size-table);
   padding: 8px 0;
@@ -525,7 +525,7 @@ select {
 .layout-main-scroll .el-table td.el-table__cell > .cell,
 .page-card .el-table th.el-table__cell > .cell,
 .page-card .el-table td.el-table__cell > .cell {
-  text-align: inherit;
+  text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -533,6 +533,15 @@ select {
   line-height: 1.35;
   font-family: inherit;
   font-size: inherit;
+}
+
+/* 表头（含可排序列）内容水平居中，避免 caret 把文案顶到左侧 */
+.layout-main-scroll .el-table th.el-table__cell > .cell,
+.page-card .el-table th.el-table__cell > .cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 /* 操作列：不裁剪图标按钮（fixed 叠字靠实心底遮挡，勿 overflow:hidden 裁按钮） */
@@ -561,15 +570,14 @@ select {
 }
 
 /*
- * 语义列对齐：文本左、金额右、状态居中；操作列见上方 col-action。
- * 覆盖页面里遗留的 align="center"，避免 ID/名称/地址被强制居中。
- * 树表缩进列请用 col-tree（见 MenuManage）。
+ * 语义列 class 仍保留（门禁 / 可读性），但对齐统一居中。
+ * 树表缩进列请用 col-tree（见 MenuManage）保留左齐。
  */
 .layout-main-scroll .el-table th.col-text > .cell,
 .layout-main-scroll .el-table td.col-text > .cell,
 .page-card .el-table th.col-text > .cell,
 .page-card .el-table td.col-text > .cell {
-  text-align: left !important;
+  text-align: center !important;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -580,7 +588,7 @@ select {
 .layout-main-scroll .el-table td.col-money > .cell,
 .page-card .el-table th.col-money > .cell,
 .page-card .el-table td.col-money > .cell {
-  text-align: right !important;
+  text-align: center !important;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -625,19 +633,15 @@ select {
   font-variant-numeric: tabular-nums;
 }
 
-/* 尊重 Element Plus align；语义列 class 优先级更高 */
+/* Element Plus align 类：全表统一居中（覆盖 is-left / is-right） */
 .layout-main-scroll .el-table th.el-table__cell.is-left,
 .layout-main-scroll .el-table td.el-table__cell.is-left,
 .page-card .el-table th.el-table__cell.is-left,
-.page-card .el-table td.el-table__cell.is-left {
-  text-align: left;
-}
+.page-card .el-table td.el-table__cell.is-left,
 .layout-main-scroll .el-table th.el-table__cell.is-right,
 .layout-main-scroll .el-table td.el-table__cell.is-right,
 .page-card .el-table th.el-table__cell.is-right,
-.page-card .el-table td.el-table__cell.is-right {
-  text-align: right;
-}
+.page-card .el-table td.el-table__cell.is-right,
 .layout-main-scroll .el-table th.el-table__cell.is-center,
 .layout-main-scroll .el-table td.el-table__cell.is-center,
 .page-card .el-table th.el-table__cell.is-center,
@@ -645,7 +649,7 @@ select {
   text-align: center;
 }
 
-/* 多行单元格 / 链接：与文本列一致左对齐 */
+/* 多行单元格 / 链接：与全表一致居中 */
 .layout-main-scroll .el-table .name-cell,
 .layout-main-scroll .el-table .master-data-cell,
 .layout-main-scroll .el-table .line-cell,
@@ -660,13 +664,14 @@ select {
 .page-card .el-table .pipe-cell {
   width: 100%;
   box-sizing: border-box;
-  text-align: left;
-  justify-items: start;
-  align-items: start;
+  text-align: center;
+  justify-items: center;
+  align-items: center;
 }
 .layout-main-scroll .el-table .link-cell,
 .page-card .el-table .link-cell {
-  text-align: left;
+  text-align: center;
+  justify-content: center;
 }
 
 /* 树表名称列：保留左对齐与缩进 */

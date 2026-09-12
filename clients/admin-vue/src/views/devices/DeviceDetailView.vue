@@ -1054,10 +1054,11 @@
                   </template>
                 </el-table-column>
                 <el-table-column
+            align="center"
                   label="录像"
                   width="72"
-                  class-name="col-text"
-                  label-class-name="col-text"
+                  class-name="col-status"
+                  label-class-name="col-status"
                 >
                   <template #default="{ row }">
                     {{ row.videoUri || row.uploadStatus === 'UPLOADED' ? '有' : '无' }}
@@ -1083,7 +1084,13 @@
                     {{ row.failReason || row.failureReason || '暂无' }}
                   </template>
                 </el-table-column>
-                <el-table-column label="时间" width="168" class-name="col-text">
+                <el-table-column
+                  align="center"
+                  label="时间"
+                  width="168"
+                  class-name="col-status"
+                  label-class-name="col-status"
+                >
                   <template #default="{ row }">
                     <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                   </template>
@@ -1188,7 +1195,13 @@
                     <span v-else class="muted">暂无</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="时间" width="168" class-name="col-text">
+                <el-table-column
+                  align="center"
+                  label="时间"
+                  width="168"
+                  class-name="col-status"
+                  label-class-name="col-status"
+                >
                   <template #default="{ row }">
                     <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                   </template>

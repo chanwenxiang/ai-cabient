@@ -390,7 +390,9 @@ onMounted(load);
           >
             <template #default="{ row }">{{ row.failReason || '暂无' }}</template>
           </el-table-column>
-          <el-table-column label="申请时间" width="168" class-name="col-text">
+          <el-table-column
+            align="center" label="申请时间" width="168" class-name="col-status"
+            label-class-name="col-status">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>

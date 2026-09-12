@@ -173,42 +173,24 @@ const noHardcodedStatusLabel = {
 };
 
 /**
- * 禁止 <el-table-column align="center" class-name="col-text">：
- * 文本列由 main.css .col-text 左对齐，再设 align=center 会互相打架。
+ * 历史规则：曾禁止 col-text + align=center（当时文本列强制左齐）。
+ * 现产品要求全表居中，两者可并存；规则保留为 off/提示位，默认不再报错。
+ * 若需恢复冲突检测，将 eslint.config 中该规则改回 'error'。
  */
 const noColTextAlignCenter = {
   meta: {
-    type: 'problem',
+    type: 'suggestion',
     docs: {
-      description: 'disallow align=center together with class-name=col-text on el-table-column'
+      description:
+        'formerly disallow align=center with col-text; now noop (tables are all centered)'
     },
     schema: [],
     messages: {
-      conflict: '文本列（col-text）不要再写 align="center"，去掉 align 即可左齐'
+      conflict: '表格已统一居中，align="center" 与 col-text 可并存（本规则已放宽）'
     }
   },
-  create(context) {
-    return {
-      VElement(node) {
-        const name = node.rawName || node.name;
-        if (name !== 'el-table-column') return;
-        const attrs = node.startTag?.attributes || [];
-        let alignCenter = false;
-        let colText = false;
-        for (const attr of attrs) {
-          if (attr.type !== 'VAttribute' || attr.directive) continue;
-          const key = attr.key?.name;
-          const raw = attr.value?.value;
-          if (key === 'align' && raw === 'center') alignCenter = true;
-          if (key === 'class-name' && typeof raw === 'string' && raw.includes('col-text')) {
-            colText = true;
-          }
-        }
-        if (alignCenter && colText) {
-          context.report({ node: node.startTag || node, messageId: 'conflict' });
-        }
-      }
-    };
+  create() {
+    return {};
   }
 };
 

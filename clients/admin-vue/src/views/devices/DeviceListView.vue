@@ -241,10 +241,11 @@
             </template>
           </el-table-column>
           <el-table-column
+            align="center"
             label="锁机"
             width="100"
-            class-name="col-text"
-            label-class-name="col-text"
+            class-name="col-status"
+            label-class-name="col-status"
           >
             <template #default="{ row }">
               <el-tag :type="row.salesLocked ? 'danger' : 'success'" size="small">
@@ -253,10 +254,11 @@
             </template>
           </el-table-column>
           <el-table-column
+            align="center"
             label="能否购买"
             width="100"
-            class-name="col-text"
-            label-class-name="col-text"
+            class-name="col-status"
+            label-class-name="col-status"
           >
             <template #default="{ row }">
               <el-tag
@@ -274,20 +276,22 @@
             </template>
           </el-table-column>
           <el-table-column
+            align="center"
             label="生命周期"
             width="96"
-            class-name="col-text"
-            label-class-name="col-text"
+            class-name="col-status"
+            label-class-name="col-status"
           >
             <template #default="{ row }">
               <el-tag size="small" effect="plain">{{ lifecycleLabel(row.lifecycleStatus) }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column
+            align="center"
             label="柜内温度"
             width="90"
-            class-name="col-text"
-            label-class-name="col-text"
+            class-name="col-status"
+            label-class-name="col-status"
           >
             <template #default="{ row }">
               <span
@@ -313,7 +317,9 @@
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column label="固件" width="88" class-name="col-text">
+          <el-table-column
+            align="center" label="固件" width="88" class-name="col-status"
+            label-class-name="col-status">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="row.firmwareVersion || ''">{{
                 row.firmwareVersion || '暂无'
@@ -345,9 +351,11 @@
             <template #default="{ row }">{{ row.merchantName || row.merchantId || '无' }}</template>
           </el-table-column>
           <el-table-column
+            align="center"
             label="退款方式"
             min-width="168"
-            class-name="col-text"
+            class-name="col-status"
+            label-class-name="col-status"
             show-overflow-tooltip
           >
             <template #default="{ row }">
@@ -387,9 +395,11 @@
             </template>
           </el-table-column>
           <el-table-column
+            align="center"
             label="更新时间"
             min-width="168"
-            class-name="col-text"
+            class-name="col-status"
+            label-class-name="col-status"
             show-overflow-tooltip
           >
             <template #default="{ row }">
