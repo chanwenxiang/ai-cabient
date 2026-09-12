@@ -45,7 +45,7 @@
 
       <view v-if="loadError" class="banner-err">
         <text>{{ loadError }}</text>
-        <text class="banner-retry" @click="load">重试</text>
+        <text role="button" aria-label="重试" class="banner-retry" @click="load">重试</text>
       </view>
 
       <view class="summary-card">
@@ -85,8 +85,8 @@
           结算：当日支付流水通常次日完成入账。可提现余额请到「商户钱包」申请提现；线长佣金请走「线长钱包」。</text
         >
         <text v-if="profitNote" class="tip-meta">{{ profitNote }}</text>
-        <text v-if="canViewWallet" class="tip-link" @click="goWallet">去商户钱包提现 ›</text>
-        <text v-if="canViewSplits" class="tip-link" @click="goSplits">查看分账明细 ›</text>
+        <text v-if="canViewWallet" role="button" class="tip-link app-link-chevron" @click="goWallet">去商户钱包提现</text>
+        <text v-if="canViewSplits" role="button" class="tip-link app-link-chevron" @click="goSplits">查看分账明细</text>
       </view>
 
       <view class="section">
@@ -158,7 +158,7 @@
       </view>
 
       <view v-if="canExport" class="actions">
-        <button class="btn-outline" @click="onExport">导出对账单</button>
+        <app-button variant="outline" label="导出对账单" @click="onExport" />
       </view>
     </view>
   </view>
@@ -166,6 +166,10 @@
 
 <script setup lang="ts">
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
+import {
+  showError,
+  showSuccess
+} from '@/utils/notify';
 import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
 import { displayLabel } from '@aicabinet/shared-dict';
@@ -354,7 +358,7 @@ async function load() {
   }
   if (seq !== loadSeq) return;
   if (!canViewSettlements.value) {
-    uni.showToast({ title: '无结算权限', icon: 'none' });
+    showError('无结算权限');
     uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
     return;
   }
@@ -373,7 +377,7 @@ async function load() {
   } catch (e: unknown) {
     if (seq !== loadSeq) return;
     loadError.value = e instanceof Error ? e.message : '加载失败';
-    uni.showToast({ title: loadError.value, icon: 'none' });
+    showError(loadError.value);
   } finally {
     if (seq === loadSeq) loading.value = false;
   }
@@ -389,21 +393,21 @@ function goWallet() {
 
 function onExport() {
   if (!canExport.value) {
-    uni.showToast({ title: '无导出权限', icon: 'none' });
+    showError('无导出权限');
     return;
   }
   if (isSettlementRangeInvalid(startDate.value, endDate.value)) {
-    uni.showToast({ title: '开始日期不能晚于结束日期', icon: 'none' });
+    showError('开始日期不能晚于结束日期');
     return;
   }
   const url = merchantApi.exportSettlementsUrl(startDate.value, endDate.value);
   downloadAuthedFile(url)
     .then(async (tempFilePath) => {
       await openExportedFile(tempFilePath, `settlements-${startDate.value}-${endDate.value}.xlsx`);
-      uni.showToast({ title: '导出成功', icon: 'success' });
+      showSuccess('导出成功');
     })
     .catch((e) => {
-      uni.showToast({ title: e instanceof Error ? e.message : '导出失败', icon: 'none' });
+      showError(e instanceof Error ? e.message : '导出失败');
     });
 }
 </script>
@@ -411,7 +415,7 @@ function onExport() {
 <style scoped>
 .page-root {
   padding: 0;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   min-height: 100vh;
 }
 .date-bar {
@@ -419,8 +423,8 @@ function onExport() {
   align-items: center;
   justify-content: center;
   gap: 16rpx;
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-panel);
   padding: 16rpx 20rpx;
   margin-bottom: 20rpx;
   overflow: hidden;
@@ -429,8 +433,8 @@ function onExport() {
   z-index: 2;
 }
 .date-text {
-  font-size: 28rpx;
-  color: #0f766e;
+  font-size: var(--font-size-md);
+  color: var(--brand);
   font-weight: 500;
 }
 .date-input {
@@ -440,17 +444,17 @@ function onExport() {
   height: 56rpx;
   line-height: 56rpx;
   text-align: center;
-  font-size: 26rpx;
-  color: #0f766e;
+  font-size: var(--font-size-body);
+  color: var(--brand);
   font-weight: 500;
-  background: #f0fdfa;
-  border: 1rpx solid #ccfbf1;
-  border-radius: 12rpx;
+  background: var(--page-bg, #f0fdfa);
+  border: 1rpx solid var(--brand-mist);
+  border-radius: var(--radius-control);
   padding: 0 12rpx;
   box-sizing: border-box;
 }
 .date-sep {
-  color: #999;
+  color: var(--text-subtle, #999);
   flex-shrink: 0;
 }
 /* 兜底：若仍混入 uni picker 系统输入，禁止把年列表撑进文档流 */
@@ -460,8 +464,8 @@ function onExport() {
   overflow: hidden !important;
 }
 .summary-card {
-  background: linear-gradient(135deg, #0f766e, #134e4a);
-  border-radius: 16rpx;
+  background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+  border-radius: var(--radius-panel);
   padding: 30rpx;
   margin-bottom: 20rpx;
 }
@@ -477,75 +481,75 @@ function onExport() {
 }
 .summary-label {
   color: rgba(255, 255, 255, 0.8);
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
 }
 .summary-value {
   color: #fff;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 600;
 }
 .summary-value.minus {
   color: rgba(255, 255, 255, 0.7);
 }
 .summary-value.danger {
-  color: #fecaca;
+  color: color-mix(in srgb, var(--danger, #b91c1c) 18%, #fff);
 }
 .tip-card {
-  background: #ecfdf5;
-  border-radius: 12rpx;
+  background: var(--brand-soft);
+  border-radius: var(--radius-control);
   padding: 20rpx;
   margin-bottom: 20rpx;
 }
 .tip-text {
-  font-size: 24rpx;
-  color: #0f766e;
+  font-size: var(--font-size-caption);
+  color: var(--brand);
   display: block;
   line-height: 1.5;
 }
 .tip-meta {
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
   margin-top: 8rpx;
   display: block;
 }
 .tip-link {
   display: block;
   margin-top: 12rpx;
-  font-size: 24rpx;
-  color: #0f766e;
+  font-size: var(--font-size-caption);
+  color: var(--brand);
   font-weight: 650;
 }
 .banner-err {
   margin-bottom: 16rpx;
   padding: 16rpx 20rpx;
-  border-radius: 12rpx;
-  background: #fef2f2;
-  color: #b91c1c;
-  font-size: 24rpx;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, #fff);
+  color: var(--color-danger);
+  font-size: var(--font-size-caption);
   display: flex;
   justify-content: space-between;
   gap: 12rpx;
 }
 .banner-retry {
-  color: #0f766e;
+  color: var(--brand);
   font-weight: 600;
 }
 .section-warn {
   margin-bottom: 12rpx;
   padding: 12rpx 16rpx;
-  border-radius: 10rpx;
-  background: #fff7ed;
-  color: #c2410c;
-  font-size: 22rpx;
+  border-radius: var(--radius-tag);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
+  color: var(--accent-orange, #c2410c);
+  font-size: var(--font-size-sm);
 }
 .section {
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-panel);
   padding: 24rpx;
   margin-bottom: 20rpx;
 }
 .section-title {
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
   margin-bottom: 16rpx;
   display: block;
@@ -555,30 +559,30 @@ function onExport() {
   justify-content: space-between;
   align-items: center;
   padding: 14rpx 0;
-  border-bottom: 1rpx solid #f0fdfa;
+  border-bottom: 1rpx solid var(--page-bg, #f0fdfa);
 }
 .device-name {
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   display: block;
 }
 .device-orders {
-  font-size: 22rpx;
-  color: #999;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle, #999);
 }
 .device-fail {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #dc2626;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
   font-weight: 600;
 }
 .device-amount {
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 .loading-inline {
-  font-size: 24rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle);
   padding: 24rpx 0;
   text-align: center;
 }
@@ -593,11 +597,11 @@ function onExport() {
   min-height: 80rpx;
   height: 80rpx;
   line-height: 1.2;
-  border: 2rpx solid #0f766e;
-  color: #0f766e;
-  border-radius: 44rpx;
-  background: #fff;
-  font-size: 28rpx;
+  border: 2rpx solid var(--brand);
+  color: var(--brand);
+  border-radius: var(--radius-pill);
+  background: var(--card-bg, #fff);
+  font-size: var(--font-size-md);
   font-weight: 600;
   text-align: center;
   display: flex;

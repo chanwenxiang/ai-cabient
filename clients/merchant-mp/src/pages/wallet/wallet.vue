@@ -4,7 +4,7 @@
     <view class="page-body">
       <view v-if="loadError" class="banner-err">
         <text>{{ loadError }}</text>
-        <text class="banner-retry" @click="load">重试</text>
+        <text role="button" aria-label="重试" class="banner-retry" @click="load">重试</text>
       </view>
 
       <empty-state
@@ -44,9 +44,12 @@
           <text v-if="maxWithdrawYuan" class="withdraw-hint"
             >最多可提现 ¥{{ maxWithdrawYuan }}</text
           >
-          <button class="btn-primary btn-block" :disabled="submitting" @click="submitWithdraw">
-            申请提现
-          </button>
+          <app-button
+            :disabled="submitting"
+            :loading="submitting"
+            label="申请提现"
+            @click="submitWithdraw"
+          />
           <text class="tip">分账入账后可提现；大额需运营审核，到账以银行/微信回执为准。</text>
         </view>
 
@@ -118,13 +121,17 @@
         </view>
       </template>
 
-      <view v-if="loading" class="loading-inline">加载中…</view>
+      <view v-if="loading" class="loading-inline">{{ UI_COPY.loading }}</view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import {
+  showError,
+  showSuccess
+} from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, formatDateTimeShort, yuanToCents } from '@aicabinet/shared-uni/format';
@@ -136,6 +143,7 @@ import {
   type WalletOverview
 } from '@/utils/merchant-api';
 import { secureRandomToken } from '@/utils/secure-id';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -190,12 +198,12 @@ async function load() {
 async function submitWithdraw() {
   const amountCents = yuanToCents(amountYuan.value);
   if (amountCents == null || amountCents <= 0) {
-    uni.showToast({ title: '请输入金额', icon: 'none' });
+    showError('请输入金额');
     return;
   }
   const available = Number(overview.value?.availableCents ?? 0);
   if (amountCents > available) {
-    uni.showToast({ title: `超出可提现余额（最多 ¥${yuan(available)}）`, icon: 'none' });
+    showError(`超出可提现余额（最多 ¥${yuan(available)}）`);
     return;
   }
   submitting.value = true;
@@ -205,11 +213,11 @@ async function submitWithdraw() {
       // 客户端请求号：时间戳 + 随机段，降低同毫秒重复请求的幂等碰撞风险
       requestNo: 'MW-' + Date.now() + '-' + secureRandomToken(5)
     });
-    uni.showToast({ title: '已提交', icon: 'success' });
+    showSuccess('已提交');
     amountYuan.value = '';
     await load();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '提交失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '提交失败');
   } finally {
     submitting.value = false;
   }
@@ -222,14 +230,14 @@ onShow(load);
 .summary-card,
 .action-card,
 .section {
-  background: #fff;
+  background: var(--card-bg, #fff);
   border-radius: var(--card-radius, 22rpx);
   padding: 28rpx;
   margin-bottom: 20rpx;
-  border: 1rpx solid var(--card-border, #e2e8f0);
+  border: 1rpx solid var(--card-border, var(--color-border));
 }
 .role-tag {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: var(--brand, #0f766e);
   font-weight: 600;
 }
@@ -237,7 +245,7 @@ onShow(load);
   display: block;
   margin-top: 8rpx;
   color: var(--text-muted, #64748b);
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
 }
 .bal-row {
   display: flex;
@@ -249,16 +257,16 @@ onShow(load);
   color: var(--text-muted, #64748b);
 }
 .bal-value {
-  font-size: 48rpx;
+  font-size: var(--font-size-display);
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 .bal-sub {
   display: flex;
   gap: 24rpx;
   margin-top: 12rpx;
   color: var(--text-subtle, #94a3b8);
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
 }
 .amount-field {
   display: flex;
@@ -269,9 +277,9 @@ onShow(load);
   margin-bottom: 16rpx;
   padding: 0 28rpx;
   box-sizing: border-box;
-  background: #f8fafc;
-  border: 1rpx solid #e2e8f0;
-  border-radius: 16rpx;
+  background: var(--page-bg, #f8fafc);
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-panel);
 }
 .amount-input {
   flex: 1;
@@ -282,8 +290,8 @@ onShow(load);
   padding: 0;
   border: none;
   background: transparent;
-  font-size: 32rpx;
-  color: #0f172a;
+  font-size: var(--font-size-xl);
+  color: var(--text-primary, #0f172a);
   line-height: normal;
 }
 .amount-field :deep(uni-input),
@@ -294,24 +302,24 @@ onShow(load);
   height: 108rpx !important;
   min-height: 108rpx !important;
   line-height: normal !important;
-  font-size: 32rpx !important;
-  color: #0f172a !important;
+  font-size: var(--font-size-xl) !important;
+  color: var(--text-primary, #0f172a) !important;
 }
 .amount-ph {
-  color: #94a3b8;
-  font-size: 28rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-md);
   line-height: normal;
 }
 .withdraw-hint {
   display: block;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
   margin: -6rpx 0 12rpx;
 }
 .tip {
   display: block;
   margin-top: 12rpx;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: var(--text-subtle, #94a3b8);
   line-height: 1.45;
 }
@@ -322,42 +330,42 @@ onShow(load);
 }
 .row-item {
   padding: 16rpx 0;
-  border-bottom: 1rpx solid #f1f5f9;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
 }
 .row-main {
   display: flex;
   justify-content: space-between;
   gap: 16rpx;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
 }
 .row-sub {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: var(--text-subtle, #94a3b8);
   margin-top: 4rpx;
   display: block;
 }
 .row-sub.fail {
-  color: #b91c1c;
+  color: var(--color-danger);
 }
 .status {
   color: var(--brand, #0f766e);
   font-weight: 500;
 }
 .credit {
-  color: #059669;
+  color: var(--brand);
   font-weight: 600;
 }
 .debit {
-  color: #b91c1c;
+  color: var(--color-danger);
   font-weight: 600;
 }
 .banner-err {
-  background: #fef2f2;
-  color: #b91c1c;
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, #fff);
+  color: var(--color-danger);
   padding: 16rpx 20rpx;
-  border-radius: 12rpx;
+  border-radius: var(--radius-control);
   margin-bottom: 16rpx;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
 }
 .banner-retry {
   margin-left: 16rpx;

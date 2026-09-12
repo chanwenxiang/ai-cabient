@@ -19,7 +19,13 @@
     "./status-bar": "./src/status-bar.ts",
     "./announcements": "./src/announcements.ts",
     "./upload-limits": "./src/upload-limits.ts",
-    "./theme.css": "./src/theme.css"
+    "./theme.css": "./src/theme.css",
+    "./navigate-back": "./src/navigate-back.ts",
+    "./ui-copy": "./src/ui-copy.ts",
+    "./components/app-button.vue": "./src/components/app-button.vue",
+    "./components/app-nav-bar.vue": "./src/components/app-nav-bar.vue",
+    "./components/empty-state.vue": "./src/components/empty-state.vue",
+    "./components/error-state.vue": "./src/components/error-state.vue"
   },
   "dependencies": {
     "@aicabinet/shared-dict": "workspace:*"

@@ -177,7 +177,7 @@
       @size-change="onSizeChange"
     />
 
-    <el-dialog v-model="runDialog" title="执行对账" width="480px" destroy-on-close>
+    <el-dialog v-model="runDialog" title="执行对账" destroy-on-close>
       <p class="dialog-hint">按 T+1 节奏核对渠道流水与平台订单；请选择账期日期与渠道后执行。</p>
       <el-form label-position="top">
         <el-form-item label="日期" required>
@@ -568,11 +568,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {
@@ -616,7 +616,7 @@ onActivated(() => {
 .recon-diff-hint {
   margin-left: 6px;
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .recon-cell small {
   color: var(--el-text-color-secondary);

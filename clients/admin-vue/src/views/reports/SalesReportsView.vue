@@ -602,14 +602,14 @@ onMounted(async () => {
 }
 .kpi-value {
   margin-top: 4px;
-  font-size: 20px;
+  font-size: var(--admin-font-size-display);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--layout-text, #1e293b);
 }
 .kpi-hint {
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--layout-muted, #64748b);
 }
 @media (max-width: 1100px) {

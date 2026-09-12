@@ -2,20 +2,20 @@
   <view class="page-root">
     <app-nav-bar title="余额明细" />
     <view class="page-body">
-      <view class="summary" @click="goRecharge">
+      <view role="button" class="summary" @click="goRecharge">
         <view class="summary-main">
           <text class="summary-label">可用余额</text>
           <text class="summary-value">{{ balanceYuan }}</text>
           <text v-if="frozenYuan !== '¥0.00'" class="summary-sub">冻结 {{ frozenYuan }}</text>
         </view>
-        <text class="summary-link">去充值 ›</text>
+        <text class="summary-link app-link-chevron">去充值</text>
       </view>
 
       <view class="card">
         <view class="card-head">
           <text class="card-title">流水记录</text>
         </view>
-        <view v-if="loading && !transactions.length" class="empty">加载中…</view>
+        <view v-if="loading && !transactions.length" class="empty">{{ UI_COPY.loading }}</view>
         <view v-else-if="!transactions.length" class="empty">
           <text class="empty-title">暂无余额流水</text>
           <text class="empty-hint">购物扣款、退款与充值会出现在这里</text>
@@ -50,11 +50,15 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import {
+  showError
+} from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import type { AccountDto, BalanceTransactionDto } from '@aicabinet/shared-types';
 import { formatDateTimeShort, fmtMoney, shortBizNo } from '@aicabinet/shared-uni/format';
 import { consumerApi, ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
 import { availableCents } from '@/utils/account';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const PAGE_SIZE = 20;
 const loading = ref(false);
@@ -112,7 +116,7 @@ function loadTransactions(reset = true): Promise<void> {
         transactions.value.length < Math.max(total, transactions.value.length);
     })
     .catch((e) => {
-      uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
+      showError(e instanceof Error ? e.message : '加载失败');
     })
     .finally(() => {
       loading.value = false;
@@ -149,7 +153,7 @@ function goRecharge() {
 .page-root {
   min-height: 100%;
   padding: 0;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   box-sizing: border-box;
 }
 .page-body {
@@ -162,9 +166,9 @@ function goRecharge() {
   align-items: center;
   gap: 20rpx;
   padding: 32rpx;
-  border-radius: 24rpx;
-  background: linear-gradient(135deg, #ecfdf5, #fff);
-  border: 1rpx solid #d1fae5;
+  border-radius: var(--radius-card);
+  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  border: 1rpx solid var(--brand-soft, #d1fae5);
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -176,8 +180,8 @@ function goRecharge() {
 }
 .summary-label {
   display: block;
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
 }
 .summary-value {
   display: block;
@@ -185,25 +189,25 @@ function goRecharge() {
   font-size: 56rpx;
   font-weight: 800;
   line-height: 1;
-  color: #047857;
+  color: var(--brand);
 }
 .summary-sub {
   display: block;
   margin-top: 10rpx;
-  font-size: 22rpx;
-  color: #849087;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #849087);
 }
 .summary-link {
   flex-shrink: 0;
-  font-size: 26rpx;
-  color: #059669;
+  font-size: var(--font-size-body);
+  color: var(--brand);
   font-weight: 600;
 }
 .card {
   margin: 0;
   padding: 28rpx 24rpx;
-  border-radius: 24rpx;
-  background: #fff;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -213,33 +217,33 @@ function goRecharge() {
   margin-bottom: 8rpx;
 }
 .card-title {
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
-  color: #1b3027;
+  color: var(--text-primary, #1b3027);
 }
 .empty {
   padding: 48rpx 0 32rpx;
   text-align: center;
-  color: #8a968e;
-  font-size: 26rpx;
+  color: var(--text-muted, #8a968e);
+  font-size: var(--font-size-body);
 }
 .empty-title {
   display: block;
-  font-size: 26rpx;
-  color: #4b5563;
+  font-size: var(--font-size-body);
+  color: var(--text-muted, #4b5563);
 }
 .empty-hint {
   display: block;
   margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #9aa4a0;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle, #9aa4a0);
 }
 .log-row {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   padding: 22rpx 0;
-  border-bottom: 1rpx solid #f0f2f1;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f0f2f1);
 }
 .log-row:last-child {
   border-bottom: none;
@@ -251,28 +255,28 @@ function goRecharge() {
 }
 .log-title {
   display: block;
-  font-size: 28rpx;
-  color: #1f2a24;
+  font-size: var(--font-size-md);
+  color: var(--text-primary, #1f2a24);
 }
 .log-time,
 .log-meta {
   display: block;
   margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #9aa4a0;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle, #9aa4a0);
 }
 .log-amount {
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
-  color: #1f2a24;
+  color: var(--text-primary, #1f2a24);
 }
 .log-amount.income {
-  color: #059669;
+  color: var(--brand);
 }
 .more {
   padding: 24rpx 0 8rpx;
   text-align: center;
-  font-size: 24rpx;
-  color: #059669;
+  font-size: var(--font-size-caption);
+  color: var(--brand);
 }
 </style>

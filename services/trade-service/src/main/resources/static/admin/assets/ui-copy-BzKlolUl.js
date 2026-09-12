@@ -1,0 +1,1 @@
+const e={loading:"加载中…",loadMore:"加载更多",loadFailed:"加载失败",pleaseWait:"请稍候",emptyDefault:"暂无数据",retry:"重试",networkHint:"请检查网络后重试",online:"在线",offline:"离线",onlineReady:"在线 · 可开门",replenishing:"补货中",paused:"暂停营业",inUse:"使用中",doorOpenShopping:"门已开 · 购物中",opening:"正在开门",available:"可开门",busy:"忙碌/停售",salesLocked:"停售"};export{e as U};

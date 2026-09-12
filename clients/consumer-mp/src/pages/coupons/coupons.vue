@@ -4,7 +4,7 @@
     <view class="page-body">
       <view class="tabs-pill">
         <text
-          v-for="tab in tabs"
+          v-for="tab in tabs" role="button"
           :key="tab.key"
           class="filter-chip"
           :class="{ active: activeTab === tab.key }"
@@ -13,14 +13,14 @@
         >
       </view>
 
-      <view v-if="loading && !list.length" class="loading"><text>加载中…</text></view>
+      <view v-if="loading && !list.length" class="loading"><text>{{ UI_COPY.loading }}</text></view>
       <empty-state
         v-else-if="loadError && !list.length"
         icon="/static/menu/warning.png"
         title="优惠券加载失败"
         :hint="loadError"
       >
-        <button class="empty-btn primary btn-block" @click="load">重试</button>
+        <app-button label="重试" @click="load" />
       </empty-state>
       <empty-state
         v-else-if="!list.length"
@@ -28,8 +28,8 @@
         :title="emptyTitle"
         :hint="emptyHint"
       >
-        <button class="empty-btn primary btn-block" @click="goShop">扫码购物</button>
-        <button class="empty-btn ghost btn-block" @click="goMarketing">看热门活动</button>
+        <app-button label="扫码购物" @click="goShop" />
+        <app-button variant="ghost" label="看热门活动" @click="goMarketing" />
       </empty-state>
       <view v-else>
         <view
@@ -58,7 +58,7 @@
             <text class="coupon-scope">{{ deviceScopeText(c.deviceScope) }}</text>
             <text v-if="c.description" class="coupon-desc">{{ c.description }}</text>
             <text
-              v-if="c.status === 'UNUSED'"
+              v-if="c.status === 'UNUSED'" role="button"
               class="coupon-pick"
               :class="{ on: preferredId === c.couponId }"
               @click.stop="pickForNextOpen(c)"
@@ -73,10 +73,14 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import {
+  showError
+} from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi, ensureConsumerAuth, type CouponDto } from '@/utils/consumer-api';
 import { formatDateTimeMinute, fmtMoney } from '@aicabinet/shared-uni/format';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const tabs = [
   { key: '', label: '全部' },
@@ -126,7 +130,7 @@ async function load() {
     if (!list.value.length) {
       list.value = [];
       loadError.value = e instanceof Error ? e.message : '加载失败';
-      uni.showToast({ title: loadError.value, icon: 'none' });
+      showError(loadError.value);
     }
   } finally {
     loading.value = false;
@@ -168,19 +172,19 @@ function pickForNextOpen(c: CouponDto) {
   if (preferredId.value === c.couponId) {
     preferredId.value = null;
     uni.removeStorageSync('preferred_coupon_id');
-    uni.showToast({ title: '已取消指定券', icon: 'none' });
+    showError('已取消指定券');
     return;
   }
   preferredId.value = c.couponId;
   uni.setStorageSync('preferred_coupon_id', c.couponId);
-  uni.showToast({ title: '下次开门将优先用此券', icon: 'none' });
+  showError('下次开门将优先用此券');
 }
 </script>
 
 <style scoped>
 .page-root {
   padding: 0;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   min-height: 100%;
 }
 .page-body {
@@ -197,8 +201,8 @@ function pickForNextOpen(c: CouponDto) {
 }
 .coupon-card {
   display: flex;
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-panel);
   margin-bottom: 16rpx;
   overflow: hidden;
   box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
@@ -221,12 +225,12 @@ function pickForNextOpen(c: CouponDto) {
 }
 .coupon-amount {
   color: #fff;
-  font-size: 48rpx;
+  font-size: var(--font-size-display);
   font-weight: 700;
 }
 .coupon-type {
   color: rgba(255, 255, 255, 0.9);
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   margin-top: 4rpx;
 }
 .coupon-right {
@@ -242,7 +246,7 @@ function pickForNextOpen(c: CouponDto) {
 }
 .coupon-name {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
   line-height: 1.35;
   word-break: break-word;
@@ -250,13 +254,13 @@ function pickForNextOpen(c: CouponDto) {
   white-space: normal;
 }
 .coupon-limit {
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
   margin-top: 4rpx;
   display: block;
 }
 .coupon-expire {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: #ccc;
   margin-top: 8rpx;
   display: block;
@@ -265,40 +269,40 @@ function pickForNextOpen(c: CouponDto) {
 .coupon-desc {
   display: block;
   margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 .coupon-pick {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin-top: 12rpx;
-  font-size: 22rpx;
-  color: #064e3b;
+  font-size: var(--font-size-sm);
+  color: var(--brand-deep);
   padding: 8rpx 16rpx;
   min-height: 48rpx;
-  border-radius: 999rpx;
-  background: #ecfdf5;
-  border: 1rpx solid #a7f3d0;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  border: 1rpx solid var(--brand-mist, #a7f3d0);
 }
 .coupon-pick.on {
-  background: #064e3b;
+  background: var(--brand-deep);
   color: #fff;
-  border-color: #064e3b;
+  border-color: var(--brand-deep);
 }
 .coupon-status-badge {
-  font-size: 20rpx;
+  font-size: var(--font-size-xs);
   padding: 4rpx 12rpx;
-  border-radius: 8rpx;
+  border-radius: var(--radius-tag);
   white-space: nowrap;
   line-height: 1.4;
 }
 .coupon-status-badge.used {
-  background: #e8f5e9;
-  color: #065f46;
+  background: var(--brand-soft, #e8f5e9);
+  color: var(--brand-deep, #065f46);
 }
 .coupon-status-badge.expired {
   background: #f5f5f5;
-  color: #475569;
+  color: var(--text-muted, #475569);
 }
 </style>

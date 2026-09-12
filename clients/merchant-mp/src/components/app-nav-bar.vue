@@ -1,3 +1,7 @@
+<!--
+  Canonical: packages/shared-uni/src/components/app-nav-bar.vue
+  Keep in sync (uni easycom 需本地路径).
+-->
 <template>
   <view class="app-nav" :style="wrapStyle">
     <view class="app-nav-row" :style="rowStyle">
@@ -8,9 +12,7 @@
         aria-label="返回"
         @click="onBack"
       >
-        <text class="app-nav-chevron" :style="{ color: color, lineHeight: rowStyle.height }"
-          >‹</text
-        >
+        <view class="app-nav-arrow app-icon app-icon--back" aria-hidden="true" />
       </view>
       <text
         class="app-nav-title"
@@ -27,18 +29,19 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
-import { navigateBackOrHome } from '@/utils/navigate-back';
+import { navigateBackOrHome } from '@aicabinet/shared-uni/navigate-back';
 
 const props = withDefaults(
   defineProps<{
     title?: string;
     bg?: string;
     color?: string;
+    /** 无历史栈时回落的首页路径（各端默认不同，由本地副本覆写） */
     homeUrl?: string;
   }>(),
   {
     title: '',
-    bg: '#134e4a',
+    bg: 'var(--brand-deep, #134e4a)',
     color: '#ffffff',
     homeUrl: '/pages/home/home'
   }
@@ -129,9 +132,14 @@ export default { name: 'AppNavBar' };
 .app-nav-side {
   justify-content: flex-end;
 }
-.app-nav-chevron {
-  font-size: 36px;
-  font-weight: 300;
+/* 与共享 .app-icon--back 对齐，保留尺寸以贴近系统返回键 */
+.app-nav-arrow {
+  width: 11px;
+  height: 11px;
+  margin-left: 4px;
+  border-left-width: 2.5px;
+  border-bottom-width: 2.5px;
+  color: inherit;
 }
 .app-nav-back-hover {
   opacity: 0.6;

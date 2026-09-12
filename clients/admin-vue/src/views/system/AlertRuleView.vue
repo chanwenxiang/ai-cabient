@@ -110,7 +110,6 @@
     <el-dialog
       v-model="dialogVisible"
       :title="creating ? '新增告警规则' : '编辑告警规则'"
-      width="520px"
       destroy-on-close
     >
       <el-form label-width="88px">

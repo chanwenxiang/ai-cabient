@@ -1,15 +1,15 @@
 <template>
   <view class="page page-fill">
     <app-nav-bar title="我的订单" home-url="/pages/index/index" />
-    <view v-if="booting" class="state-wrap"><text class="meta">加载中…</text></view>
+    <view v-if="booting" class="state-wrap"><text class="meta">{{ UI_COPY.loading }}</text></view>
     <empty-state
       v-else-if="error && !orders.length"
       class="state-wrap"
-      title="加载失败"
+      :title="UI_COPY.loadFailed"
       :hint="error"
     >
-      <button class="empty-btn primary btn-block" hover-class="btn-hover" @click="load">重试</button>
-      <button class="empty-btn ghost btn-block" hover-class="btn-hover" @click="goShop">扫码购物</button>
+      <app-button :label="UI_COPY.retry" @click="load" />
+      <app-button variant="ghost" label="扫码购物" @click="goShop" />
     </empty-state>
     <empty-state
       v-else-if="!authed"
@@ -17,8 +17,8 @@
       title="登录后查看订单"
       hint="登录后可查看购物账单与审核进度"
     >
-      <button class="empty-btn primary btn-block" hover-class="btn-hover" @click="onAuth">去登录</button>
-      <button class="empty-btn ghost btn-block" hover-class="btn-hover" @click="goShop">扫码购物</button>
+      <app-button label="去登录" @click="onAuth" />
+      <app-button variant="ghost" label="扫码购物" @click="goShop" />
     </empty-state>
     <view v-else class="orders-main">
       <!-- 关注区 + 筛选 + 列表同一滚动，避免上半区固定挤占购买记录 -->
@@ -36,7 +36,7 @@
             }}</text
           >
           <view
-            v-for="d in reviewingDisputesPreview"
+            v-for="d in reviewingDisputesPreview" role="button"
             :key="d.ticketId"
             class="review-card"
             :class="'tone-' + reviewCopy(d).tone"
@@ -51,12 +51,12 @@
               <text class="review-detail">{{ reviewCopy(d).detail }}</text>
               <view class="review-foot">
                 <text class="review-time">{{ formatTime(d.createdAt) }}</text>
-                <text class="review-link">查看详情 ›</text>
+                <text class="review-link app-link-chevron">查看详情</text>
               </view>
             </view>
           </view>
           <view v-if="reviewingDisputesMore > 0" class="review-more" @click="filter = 'issue'">
-            <text>还有 {{ reviewingDisputesMore }} 条待确认，可在「有疑问」筛选查看 ›</text>
+            <text class="app-link-chevron">还有 {{ reviewingDisputesMore }} 条待确认，可在「有疑问」筛选查看</text>
           </view>
         </view>
 
@@ -64,7 +64,7 @@
           <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false" enable-flex>
             <view class="order-filters">
               <text
-                v-for="f in filters"
+                v-for="f in filters" role="button"
                 :key="f.value"
                 class="filter-chip"
                 :class="{ active: filter === f.value }"
@@ -75,14 +75,14 @@
           </scroll-view>
           <view class="order-filters time-row">
             <text
-              v-for="t in timeFilters"
+              v-for="t in timeFilters" role="button"
               :key="t.value"
               class="filter-chip time"
               :class="{ active: timeRange === t.value }"
               @click="timeRange = t.value"
               >{{ t.label }}</text
             >
-            <text
+            <text role="button"
               class="filter-chip time zero-toggle"
               :class="{ active: hideZeroOrders }"
               @click="toggleHideZeroOrders"
@@ -102,12 +102,10 @@
           title="暂无订单"
           hint="扫码开门购物后，账单会显示在这里"
         >
-          <button class="empty-btn primary btn-block" hover-class="btn-hover" @click="goShop">
-            扫码购物
-          </button>
+          <app-button label="扫码购物" @click="goShop" />
         </empty-state>
         <view v-else class="list-inner">
-          <view v-for="o in visibleOrders" :key="o.orderId" class="order-card" @click="goDetail(o)">
+          <view v-for="o in visibleOrders" role="button" :key="o.orderId" class="order-card" @click="goDetail(o)">
             <view class="order-top">
               <view class="order-meta">
                 <text class="order-device-name">{{ deviceDisplay(o) }}</text>
@@ -165,18 +163,18 @@
               </view>
               <text
                 v-if="o.status === 'REFUNDED' || o.status === 'PARTIAL_REFUNDED' || o.refundedAt"
-                class="order-hint refund"
+                class="order-hint refund app-link-chevron"
                 >{{
                   displayLabel(
                     'order_status',
                     o.status === 'PARTIAL_REFUNDED' ? 'PARTIAL_REFUNDED' : 'REFUNDED'
                   )
-                }}{{ o.refundedAt ? ` · ${formatTime(o.refundedAt)}` : '' }} ›</text
+                }}{{ o.refundedAt ? ` · ${formatTime(o.refundedAt)}` : '' }}</text
               >
-              <text v-else-if="o.status === 'DISPUTED'" class="order-hint"
-                >{{ displayLabel('order_status', 'DISPUTED') }} ›</text
+              <text v-else-if="o.status === 'DISPUTED'" class="order-hint app-link-chevron"
+                >{{ displayLabel('order_status', 'DISPUTED') }}</text
               >
-              <text v-else class="order-hint">查看详情 ›</text>
+              <text v-else class="order-hint app-link-chevron">查看详情</text>
             </view>
           </view>
           <empty-state
@@ -187,15 +185,15 @@
               hideZeroOrders ? '可关闭「隐藏零元单」或切换时间/状态再试' : '可切换时间或状态再试'
             "
           />
-          <view v-if="loadingMore" class="load-more">加载中…</view>
-          <view v-else-if="hasMore && orders.length" class="load-more hint" @click="loadMore"
+          <view v-if="loadingMore" class="load-more">{{ UI_COPY.loading }}</view>
+          <view v-else-if="hasMore && orders.length" role="button" class="load-more hint" @click="loadMore"
             >上拉加载更多</view
           >
           <view v-else-if="orders.length && !hasMore" class="load-more hint">没有更多了</view>
           <view class="list-foot">
             <view class="foot-actions">
-              <text class="foot-btn" @click="goReport">故障报修</text>
-              <text class="foot-btn primary" @click="goHelp">帮助与客服</text>
+              <text role="button" class="foot-btn" @click="goReport">故障报修</text>
+              <text role="button" class="foot-btn primary" @click="goHelp">帮助与客服</text>
             </view>
           </view>
         </view>
@@ -216,8 +214,12 @@ import {
   fmtMoney
 } from '@aicabinet/shared-uni/format';
 import { cleanLineSummary, skuImageFor } from '@aicabinet/shared-uni/product-image';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { showDisputeResolvedToast } from '@/utils/notify';
+import {
+  showDisputeResolvedToast,
+  showError
+} from '@/utils/notify';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import type { DisputeTicketDto, OrderSummary } from '@aicabinet/shared-types';
 
@@ -502,7 +504,7 @@ async function loadMore() {
     const total = Number(page.total ?? 0);
     hasMore.value = orders.value.length < total && items.length >= PAGE_SIZE;
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '加载失败');
   } finally {
     loadingMore.value = false;
   }
@@ -541,8 +543,8 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
 <style scoped>
 .discount {
-  font-size: 20rpx;
-  color: #c2410c;
+  font-size: var(--font-size-xs);
+  color: var(--accent-orange, #c2410c);
   font-weight: 600;
 }
 
@@ -553,7 +555,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   box-sizing: border-box;
 }
 .state-wrap {
@@ -577,7 +579,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   padding: 32rpx 24rpx;
 }
 .meta {
-  color: #849087;
+  color: var(--text-muted, #849087);
 }
 .btn-hover {
   opacity: 0.88;
@@ -602,7 +604,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .section-label {
   display: block;
   margin: 4rpx 4rpx 10rpx;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   font-weight: 650;
   color: #68766e;
   letter-spacing: 1rpx;
@@ -615,39 +617,39 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   gap: 14rpx;
   padding: 18rpx 20rpx;
   margin-bottom: 12rpx;
-  border-radius: 20rpx;
-  background: #fff;
-  border: 1rpx solid #edf1ef;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
+  border: 1rpx solid var(--color-border-subtle, #edf1ef);
   box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.04);
 }
 .review-card.tone-wait {
-  background: #fff;
-  border-color: #edf1ef;
+  background: var(--card-bg, #fff);
+  border-color: var(--color-border-subtle, #edf1ef);
 }
 .review-card.tone-warn {
-  background: #fff;
-  border-color: #edf1ef;
+  background: var(--card-bg, #fff);
+  border-color: var(--color-border-subtle, #edf1ef);
 }
 .review-card.tone-success {
-  background: #fff;
-  border-color: #edf1ef;
+  background: var(--card-bg, #fff);
+  border-color: var(--color-border-subtle, #edf1ef);
 }
 .review-icon {
   width: 56rpx;
   height: 56rpx;
-  border-radius: 16rpx;
+  border-radius: var(--radius-panel);
   background: var(--brand-soft, #ecfdf5);
-  color: var(--brand, #047857);
+  color: var(--brand, #0f766e);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
   flex-shrink: 0;
 }
 .tone-warn .review-icon {
-  background: #fff7ed;
-  color: #c2410c;
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
+  color: var(--accent-orange, #c2410c);
 }
 .review-body {
   flex: 1;
@@ -660,14 +662,14 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   gap: 12rpx;
 }
 .review-title {
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 700;
-  color: #223029;
+  color: var(--text-primary, #223029);
 }
 .review-detail {
   display: block;
   margin-top: 6rpx;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: #68766e;
   line-height: 1.45;
 }
@@ -678,21 +680,21 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   margin-top: 10rpx;
 }
 .review-time {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: #a1aaa5;
 }
 .review-link {
-  font-size: 24rpx;
-  color: var(--brand, #047857);
+  font-size: var(--font-size-caption);
+  color: var(--brand, #0f766e);
   font-weight: 600;
 }
 .review-more {
   margin-top: 8rpx;
   padding: 16rpx 20rpx;
-  border-radius: 16rpx;
+  border-radius: var(--radius-panel);
   background: rgba(4, 120, 87, 0.06);
-  color: var(--brand, #047857);
-  font-size: 24rpx;
+  color: var(--brand, #0f766e);
+  font-size: var(--font-size-caption);
   font-weight: 600;
   text-align: center;
 }
@@ -701,7 +703,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  background: #fff;
+  background: var(--card-bg, #fff);
   padding: 8rpx 0 4rpx;
 }
 .filter-scroll {
@@ -739,28 +741,28 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   flex-shrink: 0;
   white-space: nowrap;
   padding: 10rpx 20rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   border: 1rpx solid #e7eeea;
-  background: #fff;
+  background: var(--card-bg, #fff);
   color: #68766e;
-  font-size: 23rpx;
+  font-size: var(--font-size-sm);
   box-shadow: 0 5rpx 16rpx rgba(15, 23, 42, 0.04);
 }
 .filter-chip.time {
   padding: 8rpx 18rpx;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   background: #f7faf8;
   border-color: #dceee6;
 }
 .filter-chip.active {
-  border-color: var(--brand, #047857);
+  border-color: var(--brand, #0f766e);
   color: #fff;
-  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
+  background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
   box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.2);
 }
 .filter-chip.time.active {
-  background: var(--brand, #047857);
-  border-color: var(--brand, #047857);
+  background: var(--brand, #0f766e);
+  border-color: var(--brand, #0f766e);
   box-shadow: 0 6rpx 16rpx rgba(4, 120, 87, 0.18);
 }
 .filter-chip.zero-toggle {
@@ -775,9 +777,9 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   /* 水平 gutter 由列表容器 padding 承担，勿再叠 24rpx */
   margin: 0 0 16rpx;
   padding: 26rpx 28rpx;
-  border-radius: 22rpx;
-  background: #fff;
-  border: 1rpx solid #edf1ef;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
+  border: 1rpx solid var(--color-border-subtle, #edf1ef);
   box-shadow: 0 10rpx 28rpx rgba(15, 23, 42, 0.05);
 }
 .order-top {
@@ -791,46 +793,46 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .order-device-name {
   display: block;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
-  color: #223029;
+  color: var(--text-primary, #223029);
 }
 .order-id {
   display: block;
   margin-top: 6rpx;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: #a1aaa5;
 }
 .chip {
   flex-shrink: 0;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   padding: 6rpx 14rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   font-weight: 650;
 }
 .chip.paid {
-  background: #e8f8ef;
-  color: #065f46;
+  background: var(--brand-soft, #e8f8ef);
+  color: var(--brand-deep, #065f46);
 }
 .chip.pending {
   background: #fff8e6;
-  color: #b45309;
+  color: var(--warning, #b45309);
 }
 .chip.disputed {
   background: #ffecec;
-  color: #991b1b;
+  color: var(--danger, #991b1b);
 }
 .chip.refunded {
   background: #fff3e0;
-  color: #c2410c;
+  color: var(--accent-orange, #c2410c);
 }
 .chip.cancelled {
-  background: #f3f4f6;
-  color: #4b5563;
+  background: var(--color-border-subtle);
+  color: var(--text-muted, #4b5563);
 }
 .chip.default {
   background: #f0f0f0;
-  color: #475569;
+  color: var(--text-muted, #475569);
 }
 .order-mid {
   display: flex;
@@ -859,7 +861,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .order-summary {
   display: block;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   color: #53645b;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -872,11 +874,11 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   margin-top: 10rpx;
 }
 .order-tag {
-  font-size: 20rpx;
-  color: #576b95;
+  font-size: var(--font-size-xs);
+  color: var(--color-link-secondary);
   background: #f2f4f8;
   padding: 2rpx 10rpx;
-  border-radius: 6rpx;
+  border-radius: var(--radius-tag);
   max-width: 220rpx;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -884,15 +886,15 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .order-tag.mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: #64748b;
+  color: var(--text-muted);
 }
 .order-tag.slot {
-  color: #0f766e;
-  background: #ecfdf5;
+  color: var(--brand);
+  background: var(--brand-soft);
 }
 .order-tag.soft {
-  color: #b45309;
-  background: #fffbeb;
+  color: var(--warning, #b45309);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
 }
 .order-amt-block {
   flex-shrink: 0;
@@ -902,14 +904,14 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   gap: 4rpx;
 }
 .amt-origin {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: #a1aaa5;
   text-decoration: line-through;
 }
 .amt {
-  color: var(--brand, #047857);
+  color: var(--brand, #0f766e);
   font-weight: 800;
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
   letter-spacing: -1rpx;
   line-height: 1.1;
 }
@@ -928,38 +930,38 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   flex-wrap: wrap;
 }
 .order-time {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: #a1aaa5;
 }
 .order-refund-amt {
-  font-size: 22rpx;
-  color: #b45309;
+  font-size: var(--font-size-sm);
+  color: var(--warning, #b45309);
   font-weight: 600;
 }
 .order-hint {
-  font-size: 24rpx;
-  color: var(--brand, #047857);
+  font-size: var(--font-size-caption);
+  color: var(--brand, #0f766e);
   font-weight: 600;
 }
 .order-hint.refund {
-  color: #b45309;
+  color: var(--warning, #b45309);
 }
 .load-more {
   padding: 20rpx 0 8rpx;
   text-align: center;
-  font-size: 24rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle);
 }
 .load-more.hint {
-  color: #64748b;
+  color: var(--text-muted);
 }
 .list-foot {
   padding: 28rpx 24rpx calc(160rpx + env(safe-area-inset-bottom));
   text-align: center;
 }
 .foot-link {
-  font-size: 26rpx;
-  color: #576b95;
+  font-size: var(--font-size-body);
+  color: var(--color-link-secondary);
 }
 .foot-actions {
   display: flex;
@@ -969,13 +971,13 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .foot-btn {
   padding: 14rpx 28rpx;
-  border-radius: 999rpx;
-  font-size: 26rpx;
-  color: #576b95;
-  background: #f3f4f6;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-body);
+  color: var(--color-link-secondary);
+  background: var(--color-border-subtle);
 }
 .foot-btn.primary {
-  color: var(--brand, #047857);
+  color: var(--brand, #0f766e);
   background: var(--brand-soft, #ecfdf5);
   font-weight: 600;
 }

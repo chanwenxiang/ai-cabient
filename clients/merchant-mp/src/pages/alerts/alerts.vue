@@ -3,7 +3,12 @@
     <app-nav-bar title="待办" />
     <view v-if="preferredId" class="pref-bar">
       <text>常驻柜优先：{{ preferredId }}</text>
-      <text class="pref-toggle" @click="onlyPreferred = !onlyPreferred">
+      <text
+        role="button"
+        class="pref-toggle"
+        :aria-label="onlyPreferred ? '显示全部待办' : '仅看常驻柜待办'"
+        @click="onlyPreferred = !onlyPreferred"
+      >
         {{ onlyPreferred ? '显示全部' : '仅看常驻' }}
       </text>
     </view>
@@ -26,7 +31,7 @@
       >
     </view>
 
-    <view v-if="loading && !items.length" class="card">加载中…</view>
+    <view v-if="loading && !items.length" class="card">{{ UI_COPY.loading }}</view>
     <error-state v-else-if="error && !items.length" :title="error" @retry="load" />
     <view v-else>
       <view
@@ -45,7 +50,7 @@
           dueText(a.dueAt)
         }}</text>
         <text v-if="a.severity" class="meta sev">优先级 {{ severityText(a.severity) }}</text>
-        <text v-if="actionHint(a)" class="action">{{ actionHint(a) }}</text>
+        <text v-if="actionHint(a)" class="action app-link-chevron">{{ actionHint(a) }}</text>
         <button
           v-if="canResolveInventory && a.exceptionId && isInventoryException(a.type)"
           class="resolve-btn"
@@ -61,7 +66,7 @@
         title="暂无待办事项"
         hint="争议、离线、低库存与临期告警都会集中显示在这里"
       >
-        <button class="empty-btn primary" @click="goDevices">查看柜机</button>
+        <app-button label="查看柜机" @click="goDevices" />
       </empty-state>
 
       <view v-if="slotDiscrepancies.length" class="card section-card">
@@ -82,6 +87,10 @@
 
 <script setup lang="ts">
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
+import {
+  showError,
+  showSuccess
+} from '@/utils/notify';
 import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
@@ -92,6 +101,7 @@ import { promptText } from '@/utils/text-prompt';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
 import { mergeTodoItems } from '@/utils/todo-list';
 import type { MerchantMe } from '@aicabinet/shared-types';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canViewAlerts = computed(() => hasPerm(me.value, 'merchant:alerts:view'));
@@ -158,15 +168,15 @@ function tagClass(type: string) {
 
 function actionHint(item: { type: string; deviceId?: string; ticketId?: string }) {
   const type = String(item.type || '').toUpperCase();
-  if (type === 'DISPUTE') return item.ticketId ? '去处理争议 ›' : '查看争议 ›';
-  if (type.startsWith('RECOGNITION')) return item.deviceId ? '查看柜机 ›' : '查看争议 ›';
-  if (type === 'EXPIRY') return '去处理临期任务 ›';
-  if (type === 'LOW_STOCK') return '去发起要货 ›';
-  if (type === 'REPLENISHMENT' || type === 'REPLENISHMENT_REQUIRED') return '去补货任务 ›';
+  if (type === 'DISPUTE') return item.ticketId ? '去处理争议' : '查看争议';
+  if (type.startsWith('RECOGNITION')) return item.deviceId ? '查看柜机' : '查看争议';
+  if (type === 'EXPIRY') return '去处理临期任务';
+  if (type === 'LOW_STOCK') return '去发起要货';
+  if (type === 'REPLENISHMENT' || type === 'REPLENISHMENT_REQUIRED') return '去补货任务';
   if (type === 'DEVICE_OFFLINE' || type === 'DEVICE_FAULT' || type === 'SALES_LOCKED')
-    return '查看柜机 ›';
-  if (item.deviceId) return '查看柜机 ›';
-  return '查看详情 ›';
+    return '查看柜机';
+  if (item.deviceId) return '查看柜机';
+  return '查看详情';
 }
 
 async function load() {
@@ -186,7 +196,7 @@ async function load() {
     seedMerchantMeDisplayCache(me);
   }
   if (!canViewAlerts.value) {
-    uni.showToast({ title: '无待办权限', icon: 'none' });
+    showError('无待办权限');
     uni.switchTab({ url: '/pages/home/home' });
     return;
   }
@@ -304,7 +314,7 @@ function handleItem(item: {
     });
     return;
   }
-  uni.showToast({ title: '暂无跳转目标', icon: 'none' });
+  showError('暂无跳转目标');
 }
 
 function goDevices() {
@@ -320,7 +330,7 @@ function isInventoryException(type: string) {
 async function resolveInventory(item: { exceptionId?: string; deviceId?: string }) {
   if (!item.exceptionId) return;
   if (!canResolveInventory.value) {
-    uni.showToast({ title: '无库存处理权限', icon: 'none' });
+    showError('无库存处理权限');
     return;
   }
   const resolution = await promptText({
@@ -335,10 +345,10 @@ async function resolveInventory(item: { exceptionId?: string; deviceId?: string 
   if (resolution == null) return;
   try {
     await merchantApi.resolveInventoryException(item.exceptionId!, resolution);
-    uni.showToast({ title: '库存异常已处理', icon: 'success' });
+    showSuccess('库存异常已处理');
     await load();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '处理失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '处理失败');
   }
 }
 
@@ -358,7 +368,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .section-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: var(--brand-deep, #134e4a);
   margin-bottom: 12rpx;
@@ -369,7 +379,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   justify-content: space-between;
   gap: 16rpx;
   padding: 14rpx 0;
-  border-bottom: 1rpx solid #f1f5f9;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
 }
 .slot-row:last-child {
   border-bottom: none;
@@ -380,35 +390,35 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .slot-name {
   display: block;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 650;
 }
 .slot-sku {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }
 .slot-diff {
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   font-weight: 700;
-  color: #b45309;
+  color: var(--warning, #b45309);
 }
 
 .pref-bar {
   margin: 12rpx 20rpx 0;
   padding: 16rpx 20rpx;
-  border-radius: 16rpx;
-  background: #fff;
-  border: 1rpx solid #e2e8f0;
+  border-radius: var(--radius-panel);
+  background: var(--card-bg, #fff);
+  border: 1rpx solid var(--color-border);
   color: var(--brand, #0f766e);
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   display: flex;
   justify-content: space-between;
   gap: 12rpx;
 }
 .pref-toggle {
-  color: #64748b;
+  color: var(--text-muted);
   text-decoration: underline;
 }
 .kpi-grid {
@@ -418,36 +428,36 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   margin: 12rpx 20rpx 0;
 }
 .kpi-card {
-  border-radius: 16rpx;
+  border-radius: var(--radius-panel);
   padding: 22rpx 16rpx;
   text-align: center;
-  background: #fff;
-  border: 1rpx solid #e2e8f0;
+  background: var(--card-bg, #fff);
+  border: 1rpx solid var(--color-border);
   box-shadow: 0 4rpx 14rpx rgba(15, 118, 110, 0.04);
 }
 .kpi-card .n {
   color: var(--brand-deep, #134e4a);
 }
 .kpi-card.dispute .n {
-  color: #dc2626;
+  color: var(--color-danger);
 }
 .kpi-card.offline .n {
-  color: #475569;
+  color: var(--text-muted, #475569);
 }
 .kpi-card.stock .n {
-  color: #d97706;
+  color: var(--warning, #d97706);
 }
 .kpi-card.expiry .n {
   color: var(--brand, #0f766e);
 }
 .n {
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
   font-weight: 700;
   display: block;
 }
 .l {
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
   margin-top: 4rpx;
   display: block;
 }
@@ -457,35 +467,35 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   -webkit-tap-highlight-color: transparent;
 }
 .alert-card-hover {
-  background: #f8fafc !important;
+  background: var(--page-bg, #f8fafc) !important;
   opacity: 0.96;
 }
 .tag {
-  font-size: 20rpx;
+  font-size: var(--font-size-xs);
   padding: 4rpx 12rpx;
-  border-radius: 6rpx;
+  border-radius: var(--radius-tag);
   margin-right: 8rpx;
   pointer-events: none;
 }
 .tag.dispute {
-  background: #fecaca;
-  color: #dc2626;
+  background: color-mix(in srgb, var(--danger, #b91c1c) 18%, #fff);
+  color: var(--color-danger);
 }
 .tag.offline {
-  background: #e2e8f0;
-  color: #475569;
+  background: var(--color-border);
+  color: var(--text-muted, #475569);
 }
 .tag.stock {
   background: #fde68a;
-  color: #d97706;
+  color: var(--warning, #d97706);
 }
 .tag.expiry {
-  background: #a7f3d0;
+  background: var(--brand-mist, #a7f3d0);
   color: var(--brand, #0f766e);
 }
 .tag.default {
-  background: #e2e8f0;
-  color: #64748b;
+  background: var(--color-border);
+  color: var(--text-muted);
 }
 .title {
   font-weight: 600;
@@ -496,42 +506,30 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .meta {
   display: block;
   margin-top: 6rpx;
-  color: #64748b;
-  font-size: 24rpx;
+  color: var(--text-muted);
+  font-size: var(--font-size-caption);
   pointer-events: none;
 }
 .meta.due {
-  color: #0f766e;
+  color: var(--brand);
 }
 .meta.due.overdue {
-  color: #dc2626;
+  color: var(--color-danger);
   font-weight: 600;
 }
 .meta.sev {
-  color: #b45309;
+  color: var(--warning, #b45309);
 }
 .action {
   color: var(--brand, #0f766e);
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   display: block;
   margin-top: 12rpx;
   pointer-events: none;
 }
 .err {
-  color: #ef4444;
+  color: var(--color-danger);
   display: block;
-}
-.retry {
-  margin-top: 16rpx;
-  background: linear-gradient(135deg, var(--brand-deep, #134e4a), var(--brand, #0f766e));
-  color: #fff;
-  border-radius: 44rpx;
-  font-weight: 600;
-  border: none;
-  box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
-}
-.retry::after {
-  border: none;
 }
 .resolve-btn {
   margin-top: 14rpx;
@@ -543,11 +541,11 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   height: 72rpx;
   min-height: 72rpx;
   line-height: 1.2;
-  border-radius: 36rpx;
+  border-radius: var(--radius-card);
   background: var(--brand, #0f766e);
   color: #fff;
   border: 0;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -555,30 +553,6 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   box-sizing: border-box;
 }
 .resolve-btn::after {
-  border: none;
-}
-.empty-btn {
-  margin: 0;
-  padding: 0 28rpx;
-  min-height: 64rpx;
-  height: 64rpx;
-  line-height: 1.2;
-  border-radius: 999rpx;
-  font-size: 24rpx;
-  color: var(--brand, #0f766e);
-  background: #ecfdf5;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-}
-.empty-btn.primary {
-  color: #fff;
-  background: var(--brand, #0f766e);
-}
-.empty-btn::after {
   border: none;
 }
 </style>

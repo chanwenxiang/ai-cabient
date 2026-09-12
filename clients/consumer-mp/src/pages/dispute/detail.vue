@@ -1,10 +1,10 @@
 <template>
   <view class="page-root">
     <app-nav-bar title="账单审核" />
-    <view v-if="loading && !ticket" class="state"><text class="meta">加载中…</text></view>
+    <view v-if="loading && !ticket" class="state"><text class="meta">{{ UI_COPY.loading }}</text></view>
     <view v-else-if="error && !ticket" class="state">
       <text class="err">{{ error }}</text>
-      <button class="btn-primary" @click="bootstrap">重试</button>
+      <app-button label="重试" @click="bootstrap" />
     </view>
     <empty-state
       v-else-if="!ticket"
@@ -98,18 +98,14 @@
       </view>
 
       <view class="actions">
-        <button v-if="ticket.orderId" class="btn-primary" hover-class="btn-hover" @click="goOrder">
-          查看账单订单
-        </button>
-        <button
-          :class="ticket.orderId ? 'btn-ghost' : 'btn-primary'"
-          hover-class="btn-hover"
+        <app-button v-if="ticket.orderId" label="查看账单订单" @click="goOrder" />
+        <app-button
+          :variant="ticket.orderId ? 'ghost' : 'primary'"
+          label="返回订单列表"
           @click="goOrders"
-        >
-          返回订单列表
-        </button>
-        <text class="contact-link" @click="contactOps">联系客服 {{ servicePhone }}</text>
-        <text v-if="supportEmail" class="contact-link" @click="copySupportEmail"
+        />
+        <text role="button" class="contact-link" @click="contactOps">联系客服 {{ servicePhone }}</text>
+        <text v-if="supportEmail" role="button" class="contact-link" @click="copySupportEmail"
           >邮箱 {{ supportEmail }}</text
         >
       </view>
@@ -119,6 +115,9 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import {
+  showError
+} from '@/utils/notify';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { consumerApi, getConsumerToken, requireConsumerAuth } from '@/utils/consumer-api';
 import {
@@ -137,6 +136,7 @@ import {
 } from '@aicabinet/shared-uni/format';
 import { parseQuery } from '@aicabinet/shared-uni/query';
 import type { DisputeTicketDto, FileAttachmentDto, OrderLineDto } from '@aicabinet/shared-types';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const loading = ref(true);
 const error = ref('');
@@ -459,8 +459,8 @@ function copySupportEmail() {
   if (!email) return;
   uni.setClipboardData({
     data: email,
-    success: () => uni.showToast({ title: '邮箱已复制', icon: 'none' }),
-    fail: () => uni.showToast({ title: email, icon: 'none' })
+    success: () => showError('邮箱已复制'),
+    fail: () => showError(email)
   });
 }
 
@@ -475,7 +475,7 @@ function previewEvidence(img: FileAttachmentDto) {
 <style scoped>
 .page-root {
   min-height: 100vh;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   padding-bottom: 48rpx;
 }
 .state {
@@ -483,11 +483,11 @@ function previewEvidence(img: FileAttachmentDto) {
   text-align: center;
 }
 .meta {
-  color: #888;
+  color: var(--text-subtle, #888);
 }
 .err {
   display: block;
-  color: #fa5151;
+  color: var(--color-danger);
   margin-bottom: 24rpx;
 }
 .status-header {
@@ -496,34 +496,34 @@ function previewEvidence(img: FileAttachmentDto) {
   gap: 20rpx;
   margin: 24rpx 24rpx 0;
   padding: 30rpx;
-  border-radius: 20rpx;
-  background: linear-gradient(135deg, #e8f5e9, #fff);
+  border-radius: var(--radius-card);
+  background: linear-gradient(135deg, var(--brand-soft, #e8f5e9), #fff);
   box-sizing: border-box;
 }
 .status-header.tone-wait {
-  background: linear-gradient(135deg, #ecfdf5, #fff);
+  background: linear-gradient(135deg, var(--brand-soft), #fff);
 }
 .status-header.tone-warn {
-  background: linear-gradient(135deg, #fff7ed, #fff);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--warning, #b45309) 8%, #fff), #fff);
 }
 .status-header.tone-success {
-  background: linear-gradient(135deg, #e8f5e9, #fff);
+  background: linear-gradient(135deg, var(--brand-soft, #e8f5e9), #fff);
 }
 .status-icon {
   width: 64rpx;
   height: 64rpx;
-  border-radius: 32rpx;
-  background: linear-gradient(135deg, #047857, #059669);
+  border-radius: var(--radius-card);
+  background: linear-gradient(135deg, var(--brand), var(--brand));
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   flex-shrink: 0;
 }
 .status-header.tone-warn .status-icon {
-  background: linear-gradient(135deg, #b45309, #f59e0b);
+  background: linear-gradient(135deg, var(--warning, #b45309), var(--warning, #f59e0b));
 }
 .status-copy {
   flex: 1;
@@ -531,21 +531,21 @@ function previewEvidence(img: FileAttachmentDto) {
 }
 .status-title {
   display: block;
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 700;
-  color: #191919;
+  color: var(--color-text-primary);
 }
 .status-detail {
   display: block;
   margin-top: 4rpx;
-  font-size: 24rpx;
-  color: #666;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #666);
 }
 .card {
   margin: 20rpx 24rpx 0;
   padding: 28rpx;
-  background: #fff;
-  border-radius: 20rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card);
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
 }
 .tl-row {
@@ -558,14 +558,14 @@ function previewEvidence(img: FileAttachmentDto) {
   height: 16rpx;
   border-radius: 50%;
   margin-top: 10rpx;
-  background: #cbd5e1;
+  background: var(--text-subtle, #cbd5e1);
   flex-shrink: 0;
 }
 .tl-dot.done {
-  background: #059669;
+  background: var(--brand);
 }
 .tl-dot.current {
-  background: #0f766e;
+  background: var(--brand);
   box-shadow: 0 0 0 6rpx rgba(15, 118, 110, 0.15);
 }
 .tl-copy {
@@ -574,29 +574,29 @@ function previewEvidence(img: FileAttachmentDto) {
 }
 .tl-title {
   display: block;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 .tl-time,
 .tl-detail {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
   line-height: 1.4;
 }
 .section-title {
   display: block;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text-primary, #1e293b);
   margin-bottom: 12rpx;
 }
 .section-sub {
   display: block;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
   margin-bottom: 12rpx;
 }
 .evidence-row {
@@ -607,13 +607,13 @@ function previewEvidence(img: FileAttachmentDto) {
 .evidence-img {
   width: 160rpx;
   height: 160rpx;
-  border-radius: 12rpx;
-  background: #f1f5f9;
+  border-radius: var(--radius-control);
+  background: var(--color-border-subtle, #f1f5f9);
 }
 .reason {
   display: block;
-  font-size: 28rpx;
-  color: #334155;
+  font-size: var(--font-size-md);
+  color: var(--text-muted, #334155);
   line-height: 1.55;
   margin-bottom: 16rpx;
 }
@@ -623,36 +623,36 @@ function previewEvidence(img: FileAttachmentDto) {
   padding: 10rpx 0;
 }
 .info-label {
-  font-size: 24rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle);
 }
 .info-value {
-  font-size: 24rpx;
-  color: #475569;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #475569);
   max-width: 70%;
   text-align: right;
 }
 .info-value.mono {
   font-family: var(--app-font-mono);
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
 }
 .line {
   display: flex;
   justify-content: space-between;
   padding: 14rpx 0;
-  border-bottom: 1rpx solid #f1f5f9;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
 }
 .line-name {
-  color: #1e293b;
-  font-size: 28rpx;
+  color: var(--text-primary, #1e293b);
+  font-size: var(--font-size-md);
 }
 .line-amt {
-  color: #059669;
+  color: var(--brand);
   font-weight: 600;
 }
 .empty-lines {
-  font-size: 26rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-body);
+  color: var(--text-subtle);
   padding: 8rpx 0;
 }
 .bill-row {
@@ -661,23 +661,23 @@ function previewEvidence(img: FileAttachmentDto) {
   align-items: center;
   margin-top: 16rpx;
   padding-top: 16rpx;
-  border-top: 1rpx solid #e2e8f0;
+  border-top: 1rpx solid var(--color-border);
 }
 .bill-label {
-  font-size: 28rpx;
-  color: #64748b;
+  font-size: var(--font-size-md);
+  color: var(--text-muted);
 }
 .bill-amount {
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
   font-weight: 800;
-  color: #047857;
+  color: var(--brand);
 }
 .amount-diff {
   display: block;
   margin-top: 12rpx;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   line-height: 1.5;
-  color: #64748b;
+  color: var(--text-muted);
 }
 .actions {
   padding: 28rpx 24rpx 8rpx;
@@ -686,14 +686,14 @@ function previewEvidence(img: FileAttachmentDto) {
   align-items: stretch;
   gap: 16rpx;
 }
-.btn-primary,
+.app-btn,
 .btn-ghost {
   margin: 0;
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.2;
-  border-radius: 44rpx;
-  font-size: 30rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-lg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -701,20 +701,14 @@ function previewEvidence(img: FileAttachmentDto) {
   width: 100%;
   box-sizing: border-box;
 }
-.btn-primary {
-  background: linear-gradient(135deg, #047857, #059669);
-  color: #fff;
-  font-weight: 700;
-  border: none;
-}
-.btn-primary::after,
+.app-btn::after,
 .btn-ghost::after {
   border: none;
 }
 .btn-ghost {
-  background: #fff;
-  color: #334155;
-  border: 1rpx solid #e2e8f0;
+  background: var(--card-bg, #fff);
+  color: var(--text-muted, #334155);
+  border: 1rpx solid var(--color-border);
 }
 .btn-hover {
   opacity: 0.88;
@@ -723,7 +717,7 @@ function previewEvidence(img: FileAttachmentDto) {
   display: block;
   text-align: center;
   padding: 12rpx 0 8rpx;
-  font-size: 26rpx;
-  color: #64748b;
+  font-size: var(--font-size-body);
+  color: var(--text-muted);
 }
 </style>

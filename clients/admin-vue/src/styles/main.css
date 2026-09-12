@@ -26,7 +26,7 @@
   color: #fff;
   border-radius: 0 0 var(--radius-tag) 0;
   text-decoration: none;
-  font-size: 14px;
+  font-size: var(--admin-font-size-menu, var(--font-size-md, 14px));
 }
 .skip-link:focus,
 .skip-link:focus-visible {
@@ -40,9 +40,17 @@
   /* 覆盖 Element Plus 默认 Helvetica Neue 栈，与三端 --app-font 一致 */
   --el-font-family: var(--app-font);
   --app-primary: #0f766e;
+  --brand: var(--app-primary);
+  --color-primary: var(--app-primary);
+  --color-primary-deep: #134e4a;
+  --color-text-primary: var(--layout-text);
+  --color-text-secondary: var(--layout-muted);
+  --color-bg-page: var(--layout-bg);
+  --color-bg-card: var(--layout-card);
+  --color-border: var(--layout-border);
   --layout-bg: #f5f7fa;
-  --layout-topbar: #ffffff;
-  --layout-sidebar: #1e293b;
+  --layout-topbar: #f8fafc;
+  --layout-sidebar: #243044;
   --layout-border: #ebeef5;
   --layout-text: #1e293b;
   --layout-muted: #64748b;
@@ -99,10 +107,12 @@
   --el-fill-color-dark: #0f172a;
   --el-fill-color-darker: #0b1220;
   --el-text-color-primary: var(--layout-text);
-  /* regular 必须接近正文，勿绑 muted（否则整表/表单对比度崩） */
-  --el-text-color-regular: #d5dde8;
-  --el-text-color-secondary: #a8b4c4;
-  --el-text-color-placeholder: #8b9aab;
+  /* regular 与正文统一，避免同页多种「白」 */
+  --el-text-color-regular: var(--layout-text);
+  --el-text-color-secondary: var(--layout-muted);
+  --el-text-color-placeholder: color-mix(in srgb, var(--layout-muted) 85%, #64748b);
+  --color-text-primary: var(--layout-text);
+  --color-text-secondary: var(--layout-muted);
   --el-border-color: var(--layout-border);
   --el-border-color-light: #334155;
   --el-border-color-lighter: #3d4f63;
@@ -123,6 +133,23 @@
   --admin-font-size-title: 15px;
   --admin-font-size-hint: 12px;
   --admin-font-size-menu: 14px;
+  /* KPI / 登录 / 大屏展示档 */
+  --admin-font-size-display-sm: 18px;
+  --admin-font-size-display: 20px;
+  --admin-font-size-display-md: 22px;
+  --admin-font-size-display-lg: 24px;
+  --admin-font-size-display-xl: 26px;
+  --admin-font-size-hero: 28px;
+  --admin-font-size-hero-lg: 36px;
+  /* 弹窗两档（A09）：默认 / 宽工作台 */
+  --admin-dialog-width: 480px;
+  --admin-dialog-width-wide: 880px;
+  --admin-dialog-max: 720px;
+  --admin-dialog-max-wide: 960px;
+  --admin-drawer-workbench-width: min(880px, 100vw);
+  /* A11：卡片头/身统一内边距 */
+  --admin-card-pad-y: 14px;
+  --admin-card-pad-x: 16px;
 }
 
 [data-font-size='sm'] {
@@ -140,6 +167,13 @@
   --admin-font-size-title: 14px;
   --admin-font-size-hint: 11px;
   --admin-font-size-menu: 13px;
+  --admin-font-size-display-sm: 16px;
+  --admin-font-size-display: 18px;
+  --admin-font-size-display-md: 20px;
+  --admin-font-size-display-lg: 22px;
+  --admin-font-size-display-xl: 24px;
+  --admin-font-size-hero: 26px;
+  --admin-font-size-hero-lg: 32px;
 }
 
 [data-font-size='md'] {
@@ -157,6 +191,13 @@
   --admin-font-size-title: 15px;
   --admin-font-size-hint: 12px;
   --admin-font-size-menu: 14px;
+  --admin-font-size-display-sm: 18px;
+  --admin-font-size-display: 20px;
+  --admin-font-size-display-md: 22px;
+  --admin-font-size-display-lg: 24px;
+  --admin-font-size-display-xl: 26px;
+  --admin-font-size-hero: 28px;
+  --admin-font-size-hero-lg: 36px;
 }
 
 [data-font-size='lg'] {
@@ -174,17 +215,24 @@
   --admin-font-size-title: 17px;
   --admin-font-size-hint: 13px;
   --admin-font-size-menu: 15px;
+  --admin-font-size-display-sm: 20px;
+  --admin-font-size-display: 22px;
+  --admin-font-size-display-md: 24px;
+  --admin-font-size-display-lg: 26px;
+  --admin-font-size-display-xl: 28px;
+  --admin-font-size-hero: 30px;
+  --admin-font-size-hero-lg: 40px;
 }
 
 /* 外观菜单内字号选项预览（固定三档，不受当前选中值影响） */
 .el-dropdown-menu .font-opt--sm {
-  font-size: 13px !important;
+  font-size: var(--admin-font-size-sm, 13px) !important;
 }
 .el-dropdown-menu .font-opt--md {
-  font-size: 14px !important;
+  font-size: var(--admin-font-size-menu, 14px) !important;
 }
 .el-dropdown-menu .font-opt--lg {
-  font-size: 16px !important;
+  font-size: var(--font-size-lg, 16px) !important;
 }
 
 html,
@@ -337,14 +385,15 @@ select {
 }
 
 /*
- * 弹窗宽度：
- * - Element Plus Dialog 默认 --el-dialog-width:50%，宽屏会拉成「长条」
- * - MessageBox 默认 width:100%，若 max-width 被放大也会铺满
- * 统一收成可读宽度；页面用 width="xxxpx" 时仍可按需加宽（受 max-width 上限约束）
+ * 弹窗宽度（A09 两档）：
+ * - 默认表单：--admin-dialog-width（480）
+ * - 宽工作台：class="dialog-wide" → --admin-dialog-width-wide（880）
+ * 业务页勿再写零散 width="520px" 等；需要更宽时加 dialog-wide。
+ * 页面仍可用 width 覆盖，但受 max-width 上限约束。
  */
 .el-dialog {
-  --el-dialog-width: 480px;
-  max-width: min(720px, calc(100vw - 48px));
+  --el-dialog-width: var(--admin-dialog-width);
+  max-width: min(var(--admin-dialog-max), calc(100vw - 48px));
   margin-left: auto;
   margin-right: auto;
 }
@@ -355,10 +404,10 @@ select {
   margin-right: auto;
 }
 
-/* 超宽工作台弹窗可加 class="dialog-wide"（采购明细等） */
+/* 超宽工作台弹窗（采购明细、仓配表单等） */
 .el-dialog.dialog-wide {
-  --el-dialog-width: 880px;
-  max-width: min(960px, calc(100vw - 32px));
+  --el-dialog-width: var(--admin-dialog-width-wide);
+  max-width: min(var(--admin-dialog-max-wide), calc(100vw - 32px));
 }
 
 /*
@@ -401,6 +450,10 @@ select {
   }
 }
 
+.el-drawer.drawer-workbench {
+  width: var(--admin-drawer-workbench-width) !important;
+}
+
 :root {
   --sidebar-width: 220px;
   --header-height: 56px;
@@ -440,7 +493,8 @@ select {
 .layout-main-scroll .el-table td.el-table__cell,
 .page-card .el-table th.el-table__cell,
 .page-card .el-table td.el-table__cell {
-  text-align: center !important;
+  /* 默认左对齐；金额/操作列由 col-money / col-action 覆盖 */
+  text-align: left;
   font-family: inherit;
   font-size: var(--admin-font-size-table);
   padding: 8px 0;
@@ -458,7 +512,7 @@ select {
 .layout-main-scroll .el-table td.el-table__cell > .cell,
 .page-card .el-table th.el-table__cell > .cell,
 .page-card .el-table td.el-table__cell > .cell {
-  text-align: center !important;
+  text-align: inherit;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -494,23 +548,31 @@ select {
 }
 
 /*
- * 列表页统一居中：col-text / col-money 不再左/右对齐。
- * EP align="left|right" 产生的 is-left / is-right 一并压成居中。
+ * 语义列对齐：文本左、金额右；操作列见下方 col-action。
+ * 覆盖页面里遗留的 align="center"，避免 ID/名称/地址被强制居中。
  * 树表缩进列请用 col-tree（见 MenuManage）。
  */
 .layout-main-scroll .el-table th.col-text > .cell,
 .layout-main-scroll .el-table td.col-text > .cell,
 .page-card .el-table th.col-text > .cell,
-.page-card .el-table td.col-text > .cell,
-.layout-main-scroll .el-table th.col-money > .cell,
-.layout-main-scroll .el-table td.col-money > .cell,
-.page-card .el-table th.col-money > .cell,
-.page-card .el-table td.col-money > .cell {
-  text-align: center !important;
+.page-card .el-table td.col-text > .cell {
+  text-align: left !important;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.4;
+}
+
+.layout-main-scroll .el-table th.col-money > .cell,
+.layout-main-scroll .el-table td.col-money > .cell,
+.page-card .el-table th.col-money > .cell,
+.page-card .el-table td.col-money > .cell {
+  text-align: right !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 多行主数据单元格允许换行，避免商品名/SKU 被 nowrap 裁成一行 */
@@ -537,22 +599,27 @@ select {
   font-variant-numeric: tabular-nums;
 }
 
+/* 尊重 Element Plus align；语义列 class 优先级更高 */
 .layout-main-scroll .el-table th.el-table__cell.is-left,
 .layout-main-scroll .el-table td.el-table__cell.is-left,
+.page-card .el-table th.el-table__cell.is-left,
+.page-card .el-table td.el-table__cell.is-left {
+  text-align: left;
+}
 .layout-main-scroll .el-table th.el-table__cell.is-right,
 .layout-main-scroll .el-table td.el-table__cell.is-right,
+.page-card .el-table th.el-table__cell.is-right,
+.page-card .el-table td.el-table__cell.is-right {
+  text-align: right;
+}
 .layout-main-scroll .el-table th.el-table__cell.is-center,
 .layout-main-scroll .el-table td.el-table__cell.is-center,
-.page-card .el-table th.el-table__cell.is-left,
-.page-card .el-table td.el-table__cell.is-left,
-.page-card .el-table th.el-table__cell.is-right,
-.page-card .el-table td.el-table__cell.is-right,
 .page-card .el-table th.el-table__cell.is-center,
 .page-card .el-table td.el-table__cell.is-center {
-  text-align: center !important;
+  text-align: center;
 }
 
-/* 多行单元格 / 链接：grid 默认左贴边，统一居中 */
+/* 多行单元格 / 链接：与文本列一致左对齐 */
 .layout-main-scroll .el-table .name-cell,
 .layout-main-scroll .el-table .master-data-cell,
 .layout-main-scroll .el-table .line-cell,
@@ -567,13 +634,13 @@ select {
 .page-card .el-table .pipe-cell {
   width: 100%;
   box-sizing: border-box;
-  text-align: center;
-  justify-items: center;
-  align-items: center;
+  text-align: left;
+  justify-items: start;
+  align-items: start;
 }
 .layout-main-scroll .el-table .link-cell,
 .page-card .el-table .link-cell {
-  text-align: center;
+  text-align: left;
 }
 
 /* 树表名称列：保留左对齐与缩进 */
@@ -608,7 +675,8 @@ select {
 
 .page-card > .el-card__header {
   overflow: visible;
-  padding: 10px var(--admin-space-xl, 16px);
+  /* A11：与 body 同用 --admin-card-pad-* */
+  padding: var(--admin-card-pad-y, 14px) var(--admin-card-pad-x, 16px);
   border-bottom: 1px solid var(--layout-border);
 }
 
@@ -877,7 +945,7 @@ a:focus-visible {
 }
 
 .page-card > .el-card__body {
-  padding: var(--admin-space-lg, 14px) var(--admin-space-xl, 16px);
+  padding: var(--admin-card-pad-y, 14px) var(--admin-card-pad-x, 16px);
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -2105,7 +2173,7 @@ a:focus-visible {
 
 [data-theme='dark'] .el-dialog {
   --el-dialog-bg-color: var(--layout-card);
-  --el-dialog-title-font-size: 18px;
+  --el-dialog-title-font-size: var(--admin-font-size-display-sm);
 }
 
 [data-theme='dark'] .el-statistic__head {
@@ -2302,7 +2370,7 @@ button.stat-tile,
 }
 
 .el-dialog__title {
-  font-size: 16px;
+  font-size: var(--admin-font-size-title, var(--font-size-lg, 16px));
   font-weight: 600;
   color: var(--layout-text);
 }

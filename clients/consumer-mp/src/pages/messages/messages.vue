@@ -21,14 +21,14 @@
           <text class="todo-title">待办 · 待支付账单</text>
           <text class="todo-sub">有 {{ pendingCount }} 笔订单待补缴，公告请看「通知公告」</text>
         </view>
-        <text class="todo-go">去处理 ›</text>
+        <text class="todo-go app-link-chevron">去处理</text>
       </view>
 
       <view class="filter-row">
         <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false" enable-flex>
           <view class="filter-inner">
             <text
-              v-for="f in filters"
+              v-for="f in filters" role="button"
               :key="f.key"
               class="filter-chip"
               :class="{ active: filter === f.key }"
@@ -39,14 +39,14 @@
         </scroll-view>
       </view>
 
-      <view v-if="loading && !list.length" class="loading"><text>加载中…</text></view>
+      <view v-if="loading && !list.length" class="loading"><text>{{ UI_COPY.loading }}</text></view>
       <view v-else-if="!visibleList.length" class="empty">
         <text class="empty-title">{{ emptyTitle }}</text>
         <text class="empty-hint">订单支付、充值到账、优惠券提醒等会出现在这里</text>
       </view>
       <view v-else class="msg-list">
         <view
-          v-for="m in visibleList"
+          v-for="m in visibleList" role="button"
           :key="m.id"
           class="msg-card"
           :class="{ unread: !m.read }"
@@ -71,7 +71,7 @@
         <text class="card-hint">关闭后对应类别的消息不再推送与提醒</text>
         <view v-for="p in prefs" :key="p.category" class="pref-row">
           <text class="pref-label">{{ p.label }}</text>
-          <switch :checked="p.enabled" color="#059669" @change="onPrefChange(p, $event)" />
+          <switch :checked="p.enabled" color="var(--brand)" @change="onPrefChange(p, $event)" />
         </view>
       </view>
     </view>
@@ -80,6 +80,10 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import {
+  showError,
+  showSuccess
+} from '@/utils/notify';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import {
   consumerApi,
@@ -88,6 +92,7 @@ import {
   type NotifyPrefDto
 } from '@/utils/consumer-api';
 import {
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
   displayBizNo,
   formatDateTimeMinute,
   rewriteBizNosInText,
@@ -197,7 +202,7 @@ async function load() {
       (o: { status?: string }) => o.status === 'PENDING' || o.status === 'UNPAID'
     ).length;
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '加载失败');
   } finally {
     loading.value = false;
   }
@@ -215,13 +220,11 @@ function onSubscribe() {
     success: (res) => {
       const status = Reflect.get(res as object, subscribeTemplateId.value);
       const accept = status === 'accept';
-      uni.showToast({
-        title: accept ? '已开启，消息将及时送达' : '未开启，可在设置中打开',
-        icon: accept ? 'success' : 'none'
-      });
+      if (accept) showSuccess('已开启，消息将及时送达');
+        else showError('未开启，可在设置中打开');
     },
     fail: () => {
-      uni.showToast({ title: '当前环境不支持订阅授权', icon: 'none' });
+      showError('当前环境不支持订阅授权');
     },
     complete: () => {
       subscribing.value = false;
@@ -238,7 +241,7 @@ async function onPrefChange(p: NotifyPrefDto, ev: { detail?: { value?: boolean }
     await consumerApi.updateNotifyPref(p.category, enabled);
   } catch (e) {
     p.enabled = prev;
-    uni.showToast({ title: e instanceof Error ? e.message : '设置失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '设置失败');
   }
 }
 
@@ -337,9 +340,9 @@ async function markAllRead() {
     await consumerApi.markAllNotificationsRead();
     list.value.forEach((m) => (m.read = true));
     unread.value = 0;
-    uni.showToast({ title: '已全部标记为已读', icon: 'none' });
+    showError('已全部标记为已读');
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '操作失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '操作失败');
   }
 }
 
@@ -352,7 +355,7 @@ function formatTime(t: string) {
 .page-root {
   min-height: 100%;
   padding: 0;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   box-sizing: border-box;
 }
 .page-body {
@@ -360,7 +363,7 @@ function formatTime(t: string) {
   box-sizing: border-box;
 }
 .nav-read-all {
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   color: #ffffff;
   opacity: 0.92;
   white-space: nowrap;
@@ -382,20 +385,20 @@ function formatTime(t: string) {
   align-items: center;
   flex-shrink: 0;
   padding: 10rpx 22rpx;
-  border-radius: 999rpx;
-  background: #f1f5f9;
-  color: #475569;
-  font-size: 24rpx;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-subtle, #f1f5f9);
+  color: var(--text-muted, #475569);
+  font-size: var(--font-size-caption);
 }
 .filter-chip.active {
-  background: #ecfdf5;
-  color: #047857;
+  background: var(--brand-soft);
+  color: var(--brand);
   font-weight: 600;
 }
 .loading {
   padding: 120rpx 0;
   text-align: center;
-  color: #8a968e;
+  color: var(--text-muted, #8a968e);
 }
 .empty {
   padding: 120rpx 0;
@@ -403,24 +406,24 @@ function formatTime(t: string) {
 }
 .empty-title {
   display: block;
-  font-size: 28rpx;
-  color: #4b5563;
+  font-size: var(--font-size-md);
+  color: var(--text-muted, #4b5563);
 }
 .empty-hint {
   display: block;
   margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #9aa4a0;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle, #9aa4a0);
 }
 .msg-card {
   margin-top: 18rpx;
   padding: 26rpx 24rpx;
-  border-radius: 22rpx;
-  background: #fff;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
   box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
 }
 .msg-card.unread {
-  border-left: 6rpx solid #059669;
+  border-left: 6rpx solid var(--brand);
 }
 .msg-head {
   display: flex;
@@ -437,68 +440,68 @@ function formatTime(t: string) {
 }
 .biz-tag {
   flex-shrink: 0;
-  font-size: 20rpx;
-  color: #047857;
-  background: #ecfdf5;
+  font-size: var(--font-size-xs);
+  color: var(--brand);
+  background: var(--brand-soft);
   padding: 2rpx 10rpx;
-  border-radius: 8rpx;
+  border-radius: var(--radius-tag);
 }
 .msg-title {
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
-  color: #1f2a24;
+  color: var(--text-primary, #1f2a24);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .msg-time {
   flex-shrink: 0;
-  font-size: 20rpx;
-  color: #9aa4a0;
+  font-size: var(--font-size-xs);
+  color: var(--text-subtle, #9aa4a0);
 }
 .msg-body {
   display: block;
   margin-top: 10rpx;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   line-height: 1.55;
-  color: #4b5563;
+  color: var(--text-muted, #4b5563);
 }
 .msg-biz {
   margin-top: 10rpx;
-  font-size: 20rpx;
-  color: #8a968e;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted, #8a968e);
 }
 .card {
   margin-top: 24rpx;
   padding: 26rpx 24rpx;
-  border-radius: 22rpx;
-  background: #fff;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
 }
 .card-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
-  color: #1f2a24;
+  color: var(--text-primary, #1f2a24);
 }
 .card-hint {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #9aa4a0;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle, #9aa4a0);
 }
 .pref-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 18rpx 0 6rpx;
-  border-bottom: 1rpx solid #f0f2f1;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f0f2f1);
 }
 .pref-row:last-child {
   border-bottom: none;
 }
 .pref-label {
-  font-size: 26rpx;
-  color: #1f2a24;
+  font-size: var(--font-size-body);
+  color: var(--text-primary, #1f2a24);
 }
 .subscribe-banner {
   display: flex;
@@ -507,9 +510,9 @@ function formatTime(t: string) {
   gap: 16rpx;
   margin-bottom: 16rpx;
   padding: 24rpx;
-  border-radius: 22rpx;
-  background: linear-gradient(135deg, #ecfdf5, #fff);
-  border: 1rpx solid #d1fae5;
+  border-radius: var(--radius-card);
+  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  border: 1rpx solid var(--brand-soft, #d1fae5);
 }
 .todo-banner {
   display: flex;
@@ -517,8 +520,8 @@ function formatTime(t: string) {
   gap: 16rpx;
   margin-bottom: 16rpx;
   padding: 24rpx;
-  border-radius: 22rpx;
-  background: #fff7ed;
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
   border: 1rpx solid #fdba74;
 }
 .todo-copy {
@@ -527,19 +530,19 @@ function formatTime(t: string) {
 }
 .todo-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
-  color: #9a3412;
+  color: var(--accent-orange, #9a3412);
 }
 .todo-sub {
   display: block;
   margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #c2410c;
+  font-size: var(--font-size-sm);
+  color: var(--accent-orange, #c2410c);
 }
 .todo-go {
-  font-size: 26rpx;
-  color: #c2410c;
+  font-size: var(--font-size-body);
+  color: var(--accent-orange, #c2410c);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -549,15 +552,15 @@ function formatTime(t: string) {
 }
 .subscribe-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
-  color: #14201b;
+  color: var(--text-primary, #14201b);
 }
 .subscribe-sub {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }
 .subscribe-btn {
   margin: 0;
@@ -565,10 +568,10 @@ function formatTime(t: string) {
   min-height: 60rpx;
   height: 60rpx;
   line-height: 1.2;
-  border-radius: 999rpx;
-  font-size: 24rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-caption);
   color: #fff;
-  background: linear-gradient(135deg, #047857, #059669);
+  background: linear-gradient(135deg, var(--brand), var(--brand));
   display: flex;
   align-items: center;
   justify-content: center;

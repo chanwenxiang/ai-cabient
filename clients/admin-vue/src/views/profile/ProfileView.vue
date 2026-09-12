@@ -117,7 +117,7 @@
       </div>
     </div>
 
-    <el-dialog v-model="editVisible" title="编辑资料" width="440px" :close-on-click-modal="false">
+    <el-dialog v-model="editVisible" title="编辑资料" :close-on-click-modal="false">
       <el-form label-position="top" @submit.prevent="submitProfile">
         <el-form-item label="头像 / Logo">
           <div class="logo-edit">
@@ -163,7 +163,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="pwdVisible" title="修改密码" width="420px" :close-on-click-modal="false">
+    <el-dialog v-model="pwdVisible" title="修改密码" :close-on-click-modal="false">
       <el-form label-position="top" @submit.prevent="submitPassword">
         <el-form-item label="原密码">
           <el-input
@@ -502,11 +502,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {
@@ -523,7 +523,7 @@ onActivated(() => {
 .avatar {
   background: var(--app-primary);
   color: #fff;
-  font-size: 24px;
+  font-size: var(--admin-font-size-display-lg);
   flex-shrink: 0;
 }
 .name-cell {
@@ -532,12 +532,12 @@ onActivated(() => {
   line-height: 1.35;
 }
 .display-name {
-  font-size: 18px;
+  font-size: var(--admin-font-size-display-sm);
   font-weight: 650;
 }
 .name-cell small {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .cell-id {
   font-family: inherit;
@@ -557,12 +557,12 @@ onActivated(() => {
 }
 .perm-head h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--admin-font-size-menu);
 }
 .meta {
   color: var(--el-text-color-secondary);
   margin: 8px 0 0;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 
 .logo-edit {
@@ -572,6 +572,6 @@ onActivated(() => {
   flex-wrap: wrap;
 }
 .logo-edit .avatar {
-  font-size: 20px;
+  font-size: var(--admin-font-size-display);
 }
 </style>

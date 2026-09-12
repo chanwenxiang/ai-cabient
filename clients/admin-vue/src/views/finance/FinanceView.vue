@@ -251,6 +251,7 @@ import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { buildSeriesChart, formatYuan, shortDate, type ChartKind } from '@/utils/charts';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 interface FinanceStats {
   revenueTodayCents?: number;
@@ -356,7 +357,7 @@ const { onExport: onExportTopSkus } = useListCsv({
 });
 
 function kpiNavHint(ready: boolean, canNavigate: boolean, navigateLabel: string) {
-  if (!ready) return '加载中…';
+  if (!ready) return UI_COPY.loading;
   return canNavigate ? navigateLabel : '今日快照';
 }
 
@@ -380,7 +381,7 @@ function buildFinanceKpiTiles(
   marginRate: number,
   marginCents: number
 ): FinanceKpiTile[] {
-  const loadingHint = ready ? undefined : '加载中…';
+  const loadingHint = ready ? undefined : UI_COPY.loading;
   const revenueHint = kpiNavHint(ready, canAnalytics, '查看数据分析');
   const ordersHint = kpiNavHint(ready, canOrders, '查看订单');
   return [
@@ -529,17 +530,17 @@ onMounted(load);
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .header-hint {
   display: block;
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--layout-muted);
 }
 .trend-toolbar {
@@ -611,17 +612,17 @@ onMounted(load);
   outline: none;
 }
 .kpi-label {
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--layout-muted);
 }
 .kpi-value {
-  font-size: 20px;
+  font-size: var(--admin-font-size-display);
   font-weight: 700;
   margin-top: 4px;
   color: var(--layout-text);
 }
 .kpi-hint {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--layout-muted);
   margin-top: 6px;
 }

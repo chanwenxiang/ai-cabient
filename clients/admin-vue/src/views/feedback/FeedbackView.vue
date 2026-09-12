@@ -161,7 +161,7 @@
     />
   </el-card>
 
-  <el-dialog v-model="replyDialog" title="回复反馈" width="480px" destroy-on-close>
+  <el-dialog v-model="replyDialog" title="回复反馈" destroy-on-close>
     <p class="reply-content">{{ current?.content }}</p>
     <el-input
       v-model="replyText"
@@ -399,11 +399,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {
@@ -420,11 +420,11 @@ onActivated(() => {
 }
 .feedback-cell small {
   color: var(--el-text-color-secondary);
-  font-size: 11px;
+  font-size: var(--admin-font-size-xs);
 }
 .feedback-cell .content-line {
   color: var(--el-text-color-regular);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -445,7 +445,7 @@ onActivated(() => {
 }
 .muted {
   color: var(--layout-muted);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .reply-content {
   margin: 0 0 12px;

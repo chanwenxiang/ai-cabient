@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="page-root page-fill" :class="{ 'is-landing': showLanding }">
     <!-- 落地页：仅 Tab 进入时展示，柜码直达不经过此页 -->
     <view v-if="showLanding" class="landing">
@@ -23,24 +23,24 @@
               <text class="error-detail">{{ landingError }}</text>
               <view class="error-actions">
                 <text
-                  v-if="landingErrorKind === 'balance'"
+                  v-if="landingErrorKind === 'balance'" role="button"
                   class="error-action primary"
                   @click="goRechargeFromError"
                   >去充值</text
                 >
                 <text
-                  v-else-if="lastFailedDeviceId"
+                  v-else-if="lastFailedDeviceId" role="button"
                   class="error-action primary"
                   @click="retryLastOpen"
                   >重试开门</text
                 >
                 <text
-                  v-if="landingErrorKind === 'device_not_found'"
+                  v-if="landingErrorKind === 'device_not_found'" role="button"
                   class="error-action"
                   @click="onScan"
                   >重新扫码</text
                 >
-                <text
+                <text role="button"
                   class="error-action"
                   @click="
                     landingError = '';
@@ -79,11 +79,14 @@
             <text class="scan-circle-text">{{ opening ? '连接中…' : '扫码购物' }}</text>
           </button>
           <text class="scan-tip">对准柜门二维码，即可开门取货</text>
-          <view v-if="lastDeviceId" class="resume-card" @click="startShoppingFlow(lastDeviceId)">
+          <view v-if="lastDeviceId" role="button" class="resume-card" @click="startShoppingFlow(lastDeviceId)">
             <text class="resume-title">继续在本柜购物</text>
             <text class="resume-sub">{{ lastDeviceName || lastDeviceId }}</text>
           </view>
-          <text class="nearby-link" role="button" @click="goNearby">附近找柜</text>
+          <view class="nearby-link" role="button" @click="goNearby">
+            <text>附近找柜</text>
+            <view class="app-icon app-icon--chevron" aria-hidden="true" />
+          </view>
         </view>
 
         <view v-if="showManualEntry && !showManual" class="landing-foot">
@@ -98,19 +101,19 @@
         </view>
       </view>
 
-      <view v-if="authPromptVisible" class="landing-mask" @click="dismissAuthPrompt">
-        <view class="landing-sheet" @click.stop="noop">
+      <view v-if="authPromptVisible" role="button" aria-label="关闭" class="landing-mask" @click="dismissAuthPrompt">
+        <view role="button" class="landing-sheet" @click.stop="noop">
           <text class="landing-sheet-title">需要授权</text>
           <text class="landing-sheet-body">扫码开门需先完成微信授权</text>
           <view class="landing-sheet-actions">
-            <text class="landing-sheet-btn" @click="dismissAuthPrompt">取消</text>
-            <text class="landing-sheet-btn primary" @click="goLoginFromScan">去登录</text>
+            <text role="button" class="landing-sheet-btn" @click="dismissAuthPrompt">取消</text>
+            <text role="button" class="landing-sheet-btn primary" @click="goLoginFromScan">去登录</text>
           </view>
         </view>
       </view>
 
-      <view v-if="showManual" class="landing-mask" @click="showManual = false">
-        <view class="landing-sheet" @click.stop="noop">
+      <view v-if="showManual" role="button" aria-label="关闭" class="landing-mask" @click="showManual = false">
+        <view role="button" class="landing-sheet" @click.stop="noop">
           <text class="landing-sheet-title">手动输入柜机编号</text>
           <text class="landing-sheet-label">柜机编号</text>
           <input
@@ -122,18 +125,15 @@
             type="digit"
             placeholder-class="sheet-ph"
           />
-          <button
-            class="btn-primary btn-block"
-            hover-class="btn-hover"
+          <app-button
             data-testid="open-door-confirm"
             :loading="opening"
             :disabled="opening"
+            :label="opening ? '开门中…' : '确认并开门'"
             @click="confirmDevice"
-          >
-            {{ opening ? '开门中…' : '确认并开门' }}
-          </button>
+          />
           <view class="landing-sheet-cancel-wrap">
-            <text class="landing-sheet-cancel" @click="showManual = false">取消</text>
+            <text role="button" class="landing-sheet-cancel" @click="showManual = false">取消</text>
           </view>
         </view>
       </view>
@@ -144,13 +144,27 @@
       <view class="device-bar">
         <view class="device-info">
           <text class="device-name">{{ deviceName || deviceId }}</text>
-          <text class="device-status" :class="{ offline: deviceOffline }">{{
-            deviceStatusText
-          }}</text>
+          <text
+            class="device-status app-status"
+            :class="{
+              'is-offline': deviceOffline,
+              'is-warn':
+                !deviceOffline &&
+                [UI_COPY.replenishing, UI_COPY.paused, UI_COPY.inUse].includes(deviceStatusText),
+              'is-online':
+                !deviceOffline &&
+                ![UI_COPY.replenishing, UI_COPY.paused, UI_COPY.inUse].includes(deviceStatusText)
+            }"
+          >
+            <text class="app-status-dot" aria-hidden="true" />
+            {{ deviceStatusText }}
+          </text>
         </view>
         <view class="device-actions">
-          <text class="device-report" @click="goReport">报修</text>
-          <text class="device-change" @click="resetDevice">换一台</text>
+          <text class="device-report" role="button" aria-label="报修" @click="goReport">报修</text>
+          <text class="device-change" role="button" aria-label="换一台柜机" @click="resetDevice"
+            >换一台</text
+          >
         </view>
       </view>
 
@@ -166,9 +180,9 @@
           <text class="review-title">{{ reviewCopy.title }}</text>
           <text class="review-detail">{{ reviewCopy.detail }}</text>
           <view class="review-actions">
-            <text class="review-link primary" @click="goReviewDetail">查看详情</text>
-            <text class="review-link" @click="goOrders">我的订单</text>
-            <text class="review-link subtle" @click="dismissReview">知道了</text>
+            <text role="button" class="review-link primary" @click="goReviewDetail">查看详情</text>
+            <text role="button" class="review-link" @click="goOrders">我的订单</text>
+            <text role="button" class="review-link subtle" @click="dismissReview">知道了</text>
           </view>
         </view>
       </view>
@@ -191,14 +205,14 @@
               placeholder-class="search-placeholder"
               confirm-type="search"
             />
-            <text v-if="searchKeyword" class="search-clear" @click="clearSearchKeyword">×</text>
+            <text v-if="searchKeyword" role="button" class="search-clear" @click="clearSearchKeyword">×</text>
           </view>
           <scroll-view scroll-x class="category-row" :show-scrollbar="false">
-            <view class="category-chip" :class="{ active: !activeCategory }" @click="clearCategory"
+            <view role="button" class="category-chip" :class="{ active: !activeCategory }" @click="clearCategory"
               >全部</view
             >
             <view
-              v-for="cat in productCategories"
+              v-for="cat in productCategories" role="button"
               :key="cat"
               class="category-chip"
               :class="{ active: activeCategory === cat }"
@@ -215,15 +229,15 @@
           <text class="empty-title">本柜暂无上架商品</text>
           <text class="empty-hint">仍可开门购物；实付以关门识别为准。有疑问可故障报修或换一台</text>
           <view class="empty-actions">
-            <text class="empty-link" @click="goReport">故障报修</text>
-            <text class="empty-link" @click="resetDevice">换一台</text>
+            <text role="button" class="empty-link" @click="goReport">故障报修</text>
+            <text role="button" class="empty-link" @click="resetDevice">换一台</text>
           </view>
         </view>
         <view v-else-if="!filteredProducts.length" class="card loading-card catalog-empty">
           <text class="empty-title">未找到匹配商品</text>
           <text class="empty-hint">换个关键词或分类试试</text>
           <view class="empty-actions">
-            <text class="empty-link" @click="resetCatalogFilter">查看全部商品</text>
+            <text role="button" class="empty-link" @click="resetCatalogFilter">查看全部商品</text>
           </view>
         </view>
         <view v-else class="product-grid">
@@ -257,7 +271,7 @@
               <text class="product-price">{{ fmtMoney(p.priceCents) }}</text>
               <text v-if="p.category" class="product-cat">{{ p.category }}</text>
               <view
-                v-if="sessionActive && state === 'SHOPPING' && mockEnabled"
+                v-if="sessionActive && state === 'SHOPPING' && mockEnabled" role="button"
                 class="product-stepper"
                 @click.stop="noop"
               >
@@ -291,7 +305,7 @@
 
       <view class="cart-bar">
         <template v-if="sessionActive && state === 'SHOPPING'">
-          <view
+          <view role="button"
             class="cart-shop-main"
             data-testid="open-live-cart-sheet"
             @click="openCartSheet"
@@ -420,6 +434,7 @@ import {
   type OpenErrorKind
 } from '@aicabinet/shared-uni/format';
 import { parseQuery } from '@aicabinet/shared-uni/query';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import { resumePendingRechargeIfAny } from '@/utils/recharge';
 import { resolveMockEnabled } from '@/utils/runtime-flags';
 import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
@@ -430,7 +445,10 @@ import {
   requestDisputeSubscribe,
   requestOrderSubscribe,
   showBillToast,
-  showDisputeResolvedToast
+  showDisputeResolvedToast,
+  showError,
+  showSuccess,
+  showConfirm
 } from '@/utils/notify';
 import type {
   AccountDto,
@@ -829,12 +847,13 @@ function showThumb(p: DeviceProduct) {
   return productThumb(p) && !brokenThumbs.value[p.skuId];
 }
 
-function resetDevice() {
+async function resetDevice() {
   if (sessionActive.value) {
-    uni.showModal({
+    await showConfirm({
       title: '购物进行中',
       content: '请先关闭柜门完成结算，或等待当前购物流程结束',
-      showCancel: false
+      showCancel: false,
+      confirmText: '我知道了'
     });
     return;
   }
@@ -871,15 +890,15 @@ function applyDeviceAvailability(
   const reason = String(status.busyReason || '').toUpperCase();
   deviceOffline.value = !online;
   if (!online) {
-    deviceStatusText.value = '离线';
+    deviceStatusText.value = UI_COPY.offline;
   } else if (status.available === false && reason === 'LOCKED') {
-    deviceStatusText.value = '暂停营业';
+    deviceStatusText.value = UI_COPY.paused;
   } else if (status.available === false && reason === 'REPLENISHMENT') {
-    deviceStatusText.value = '补货中';
+    deviceStatusText.value = UI_COPY.replenishing;
   } else if (status.available === false || reason === 'SESSION') {
-    deviceStatusText.value = '使用中';
+    deviceStatusText.value = UI_COPY.inUse;
   } else {
-    deviceStatusText.value = '在线 · 可开门';
+    deviceStatusText.value = UI_COPY.onlineReady;
   }
   return { online, reason, blocked: !online || status.available === false };
 }
@@ -931,7 +950,7 @@ function rejectBlockedDevice(cabinetId: string, avail: DeviceAvailability): bool
   markOpenFailed(cabinetId);
   const err = blockedDeviceLandingError(avail.online, avail.reason);
   setLandingError(err.msg, err.kind);
-  uni.showToast({ title: err.toastTitle, icon: 'none' });
+  showError(err.toastTitle);
   return true;
 }
 
@@ -943,7 +962,7 @@ function applyProductsResult(result: PromiseSettledResult<DeviceProduct[]>) {
   }
   products.value = [];
   resetCatalogFilter();
-  uni.showToast({ title: formatError(result.reason), icon: 'none' });
+  showError(formatError(result.reason));
 }
 
 async function handleSessionOpenResult(
@@ -964,7 +983,7 @@ async function handleSessionOpenResult(
   const failReason = sessionResult.reason;
   const kind = classifyOpenError(failReason);
   setLandingError(formatError(failReason), kind);
-  uni.showToast({ title: landingError.value, icon: 'none' });
+  showError(landingError.value);
   return false;
 }
 
@@ -985,7 +1004,7 @@ function beginCabinetEntry(cabinetId: string, scanChannel?: string | null): bool
   if (isCabinetIdInvalid(cabinetId)) {
     setLandingError('柜机编号无效，请扫描柜门二维码或输入数字编号。', 'device_not_found');
     lastFailedDeviceId.value = '';
-    uni.showToast({ title: '柜机编号无效', icon: 'none' });
+    showError('柜机编号无效');
     return false;
   }
   const resolved = resolveEntryChannel(scanChannel) || entryChannel.value;
@@ -1046,7 +1065,7 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
   } catch (e) {
     resetDeviceOnOpenFailure(cabinetId);
     setLandingError(formatError(e), 'other');
-    uni.showToast({ title: formatError(e), icon: 'none' });
+    showError(formatError(e));
   } finally {
     productsLoading.value = false;
     opening.value = false;
@@ -1078,7 +1097,7 @@ async function adoptOrphanSession(cabinetId: string): Promise<boolean> {
       setActiveSession(s.sessionId);
       applySessionView(s);
       startPoll();
-      uni.showToast({ title: '已恢复开门会话', icon: 'none' });
+      showError('已恢复开门会话');
       return true;
     }
   } catch {
@@ -1139,8 +1158,8 @@ function goOrders() {
   uni.switchTab({ url: '/pages/orders/orders' });
 }
 
-function contactOps() {
-  uni.showModal({
+async function contactOps() {
+  await showConfirm({
     title: '联系运营',
     content: `请联系客服 ${servicePhone.value}，并提供审核编号：` + reviewSessionId.value,
     showCancel: false,
@@ -1219,7 +1238,7 @@ function ensureCanOpenDoor(): Promise<boolean> {
       });
     })
     .catch((e) => {
-      uni.showToast({ title: formatError(e) || '账户信息加载失败', icon: 'none' });
+      showError(formatError(e) || '账户信息加载失败');
       return false;
     });
 }
@@ -1244,19 +1263,19 @@ function onScan() {
     success(res) {
       const raw = String(res.result || res.path || '').trim();
       if (!raw) {
-        uni.showToast({ title: '未识别到有效内容，请对准柜门二维码', icon: 'none' });
+        showError('未识别到有效内容，请对准柜门二维码');
         return;
       }
       const parsed = parseCabinetScan(raw);
       if (parsed.alipayOnly) {
-        uni.showToast({ title: '请使用支付宝扫码', icon: 'none' });
+        showError('请使用支付宝扫码');
         return;
       }
       if (!parsed.deviceId) {
         landingError.value = '无法识别柜机二维码，请扫描柜门上的专用码。';
         landingErrorKind.value = 'device_not_found';
         if (showManualEntry.value) showManual.value = true;
-        uni.showToast({ title: '无法识别柜机二维码', icon: 'none' });
+        showError('无法识别柜机二维码');
         return;
       }
       startShoppingFlow(parsed.deviceId, parsed.channel);
@@ -1264,10 +1283,10 @@ function onScan() {
     fail() {
       if (isH5.value) {
         showManual.value = true;
-        uni.showToast({ title: '浏览器请手动输入柜机编号', icon: 'none' });
+        showError('浏览器请手动输入柜机编号');
         return;
       }
-      uni.showToast({ title: '扫码取消或失败', icon: 'none' });
+      showError('扫码取消或失败');
     }
   });
 }
@@ -1288,7 +1307,7 @@ function confirmDevice() {
   if (!id) {
     landingError.value = '请输入柜机编号。';
     landingErrorKind.value = 'device_not_found';
-    uni.showToast({ title: '请输入柜机编号', icon: 'none' });
+    showError('请输入柜机编号');
     return;
   }
   startShoppingFlow(id, parsed.channel);
@@ -1302,7 +1321,7 @@ async function loadDeviceAndProducts() {
     products.value = normalizeProducts(await consumerApi.deviceProducts(deviceId.value));
     clampSelectionToStock();
   } catch (e) {
-    uni.showToast({ title: formatError(e), icon: 'none' });
+    showError(formatError(e));
   } finally {
     productsLoading.value = false;
   }
@@ -1363,19 +1382,19 @@ async function refreshDeviceStatus() {
     // 仅真正离线视为 offline；暂停营业/占用走业务错误，避免误报「离线」
     deviceOffline.value = !online;
     if (!online) {
-      deviceStatusText.value = '离线';
+      deviceStatusText.value = UI_COPY.offline;
     } else if (state.value === 'SHOPPING' || remoteState === 'SHOPPING') {
-      deviceStatusText.value = '门已开 · 购物中';
+      deviceStatusText.value = UI_COPY.doorOpenShopping;
     } else if (state.value === 'CREATED' || state.value === 'OPENING') {
-      deviceStatusText.value = '正在开门';
+      deviceStatusText.value = UI_COPY.opening;
     } else if (unavailable && reason === 'LOCKED') {
-      deviceStatusText.value = '暂停营业';
+      deviceStatusText.value = UI_COPY.paused;
     } else if (unavailable && reason === 'REPLENISHMENT') {
-      deviceStatusText.value = '补货中';
+      deviceStatusText.value = UI_COPY.replenishing;
     } else if (unavailable || s.busy || reason === 'SESSION') {
-      deviceStatusText.value = '使用中';
+      deviceStatusText.value = UI_COPY.inUse;
     } else {
-      deviceStatusText.value = '在线 · 可开门';
+      deviceStatusText.value = UI_COPY.onlineReady;
     }
   } catch (e) {
     const kind = classifyOpenError(e);
@@ -1418,7 +1437,7 @@ async function showDeviceCatalog(id: string) {
     lastDeviceId.value = cabinetId;
     lastDeviceName.value = deviceName.value;
   } catch (e) {
-    uni.showToast({ title: formatError(e), icon: 'none' });
+    showError(formatError(e));
   } finally {
     productsLoading.value = false;
   }
@@ -1434,18 +1453,14 @@ async function cancelOpening() {
     deviceId.value = '';
     products.value = [];
     resetCatalogFilter();
-    uni.showToast({ title: '已取消开门', icon: 'none' });
+    showError('已取消开门');
     return;
   }
-  const confirmed = await new Promise<boolean>((resolve) => {
-    uni.showModal({
-      title: '取消开门',
-      content: '确定取消本次开门吗？已创建的会话将被关闭。',
-      confirmText: '取消开门',
-      cancelText: '继续等待',
-      success: (res) => resolve(!!res.confirm),
-      fail: () => resolve(false)
-    });
+  const confirmed = await showConfirm({
+    title: '取消开门',
+    content: '确定取消本次开门吗？已创建的会话将被关闭。',
+    confirmText: '取消开门',
+    cancelText: '继续等待'
   });
   if (!confirmed) return;
   cancelling.value = true;
@@ -1457,9 +1472,9 @@ async function cancelOpening() {
     clearOpenAttempt();
     clearSessionUi();
     scanned.value = false;
-    uni.showToast({ title: '已取消本次开门', icon: 'none' });
+    showError('已取消本次开门');
   } catch (e) {
-    uni.showToast({ title: formatError(e), icon: 'none' });
+    showError(formatError(e));
   } finally {
     cancelling.value = false;
   }
@@ -1544,11 +1559,11 @@ function addProduct(p: DeviceProduct) {
   const max = stockOf(p);
   const cur = selected.value[p.skuId] || 0;
   if (max <= 0) {
-    uni.showToast({ title: '暂无可选', icon: 'none' });
+    showError('暂无可选');
     return;
   }
   if (cur >= max) {
-    uni.showToast({ title: '无法再加', icon: 'none' });
+    showError('无法再加');
     return;
   }
   selected.value = { ...selected.value, [p.skuId]: cur + 1 };
@@ -1662,7 +1677,7 @@ async function closeDoorDemo() {
       const nextSel: Record<string, number> = {};
       for (const it of items) nextSel[it.skuId] = it.qty;
       selected.value = nextSel;
-      uni.showToast({ title: '已按库存调整数量', icon: 'none' });
+      showError('已按库存调整数量');
     }
     // 始终同步点选（含空列表），避免上次点选残留导致误扣/进审单
     await consumerApi.updateSessionCart(sid, { items });
@@ -1678,17 +1693,13 @@ async function closeDoorDemo() {
       clearActiveSession();
       clearOpenAttempt();
       clearSessionUi();
-      uni.showToast({
-        title: sessionStateHint(s.state) || '购物未完成',
-        icon: 'none',
-        duration: 2800
-      });
+      showError(sessionStateHint(s.state) || '购物未完成', 2800);
       return;
     }
     startPoll();
-    uni.showToast({ title: '已关门，结算中…', icon: 'none' });
+    showError('已关门，结算中…');
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '关门失败，请重试', icon: 'none' });
+    showError(e instanceof Error ? e.message : '关门失败，请重试');
   } finally {
     closingDoor.value = false;
   }
@@ -1712,7 +1723,7 @@ function stopRecognitionTimer() {
 
 function deferRecognitionWait() {
   recognitionDeferred.value = true;
-  uni.showToast({ title: '可稍后在订单页查看', icon: 'none' });
+  showError('可稍后在订单页查看');
 }
 
 async function finishSession(sessionState: string, sid: string) {
@@ -1758,7 +1769,7 @@ async function finishSession(sessionState: string, sid: string) {
       setReviewSession(sid);
       void refreshReviewState();
       void requestDisputeSubscribe();
-      uni.showToast({ title: '识别完成，账单待人工确认', icon: 'none' });
+      showError('识别完成，账单待人工确认');
       // 无订单时直接进审核详情，避免只停在首页提示卡
       setTimeout(() => {
         uni.navigateTo({
@@ -1796,7 +1807,7 @@ function applySessionView(s: SessionDto) {
   // 状态一变就立刻改顶栏文案；勿走 30s 节流，否则会卡在「正在开门」
   if (s.state === 'SHOPPING') {
     opening.value = false;
-    deviceStatusText.value = '门已开 · 购物中';
+    deviceStatusText.value = UI_COPY.doorOpenShopping;
     deviceOffline.value = false;
   } else if (s.deviceId && deviceId.value) {
     refreshDeviceStatusThrottled(s.deviceId);
@@ -1879,7 +1890,7 @@ async function refreshSessionNow() {
   try {
     await tickPoll();
     if (!pollError.value) {
-      uni.showToast({ title: '状态已更新', icon: 'none' });
+      showError('状态已更新');
     }
   } finally {
     pollRefreshing.value = false;
@@ -1917,7 +1928,7 @@ async function pollSessionOnce() {
       clearActiveSession();
       clearOpenAttempt();
       clearSessionUi();
-      uni.showToast({ title: hint, icon: 'none', duration: 2800 });
+      showError(hint, 2800);
     }
   } catch (e) {
     pollFailStreak += 1;
@@ -1966,11 +1977,11 @@ function stopDevicePoll() {
   flex-direction: column;
   box-sizing: border-box;
   overflow: hidden;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   position: relative;
 }
 .page-root.is-landing {
-  background: var(--brand-deep, #064e3b);
+  background: var(--brand-deep, #134e4a);
 }
 
 .landing {
@@ -1981,7 +1992,7 @@ function stopDevicePoll() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--brand-deep, #064e3b);
+  background: var(--brand-deep, #134e4a);
 }
 .landing-bg {
   position: absolute;
@@ -2035,58 +2046,60 @@ function stopDevicePoll() {
   width: 100%;
 }
 .brand {
-  font-size: 44rpx;
-  font-weight: 800;
+  font-size: var(--font-size-h2);
+  font-weight: 700;
   color: #ffffff;
   display: block;
-  letter-spacing: 2rpx;
+  letter-spacing: 1rpx;
+  line-height: 1.25;
 }
 .tagline {
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   color: rgba(255, 255, 255, 0.9);
-  margin-top: 8rpx;
+  margin-top: 14rpx;
   display: block;
+  line-height: 1.4;
 }
 .pay-badge {
   display: inline-flex;
   align-items: center;
   gap: 6rpx;
-  margin-top: 12rpx;
-  padding: 6rpx 16rpx;
-  border-radius: 999rpx;
-  background: rgba(6, 78, 59, 0.55);
+  margin-top: 20rpx;
+  padding: 8rpx 18rpx;
+  border-radius: var(--radius-pill);
+  background: rgba(15, 63, 60, 0.55);
   border: 1rpx solid rgba(255, 255, 255, 0.32);
 }
 .pay-badge-icon {
   color: #ffffff;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   font-weight: 700;
 }
 .pay-badge-text {
   color: #ffffff;
-  font-size: 20rpx;
+  font-size: var(--font-size-xs);
 }
 
 .resume-card {
   margin-top: 28rpx;
   width: 100%;
   max-width: 520rpx;
-  background: rgba(255, 255, 255, 0.14);
-  border-radius: 16rpx;
+  background: var(--brand-ink, #0f3f3c);
+  border-radius: var(--radius-card, 24rpx);
   padding: 16rpx 20rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.28);
+  border: 1rpx solid rgba(255, 255, 255, 0.22);
   box-sizing: border-box;
   text-align: center;
 }
 .resume-title {
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 600;
   color: #ffffff;
   display: block;
   text-align: center;
 }
 .resume-sub {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: rgba(255, 255, 255, 0.78);
   margin-top: 2rpx;
   display: block;
@@ -2124,7 +2137,7 @@ function stopDevicePoll() {
   height: 168rpx;
   border-radius: 50%;
   /* 与页面深绿统一，不再用白底 */
-  background: linear-gradient(145deg, var(--brand, #047857), var(--brand-deep, #064e3b));
+  background: linear-gradient(145deg, var(--brand, #0f766e), var(--brand-deep, #134e4a));
   border: 2rpx solid rgba(255, 255, 255, 0.22);
   display: flex;
   align-items: center;
@@ -2143,13 +2156,13 @@ function stopDevicePoll() {
 }
 .scan-circle-text {
   margin-top: 16rpx;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
   color: #ffffff;
 }
 .scan-tip {
   margin-top: 10rpx;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: rgba(255, 255, 255, 0.88);
 }
 
@@ -2165,42 +2178,30 @@ function stopDevicePoll() {
   display: inline-block;
   margin: 0 auto;
   text-align: center;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: #ffffff;
   padding: 8rpx 20rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   background: rgba(6, 78, 59, 0.55);
   border: 1rpx solid rgba(255, 255, 255, 0.32);
 }
 .nearby-link {
-  display: block;
-  margin: 20rpx auto 0;
-  text-align: center;
-  font-size: 26rpx;
-  color: rgba(255, 255, 255, 0.92);
-  text-decoration: underline;
-  text-underline-offset: 4rpx;
-}
-.btn-primary {
-  margin: 0;
-  width: 100%;
-  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
-  color: #fff;
-  border-radius: 44rpx;
-  font-size: 32rpx;
-  font-weight: 600;
-  line-height: 1.2;
-  min-height: 88rpx;
-  height: 88rpx;
-  box-shadow: 0 10rpx 28rpx rgba(5, 150, 105, 0.28);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 10rpx;
+  margin: 20rpx auto 0;
+  padding: 8rpx 4rpx;
   text-align: center;
-  box-sizing: border-box;
+  font-size: var(--font-size-body);
+  color: rgba(255, 255, 255, 0.92);
+  text-decoration: none;
 }
-.btn-primary::after {
-  border: none;
+.nearby-link .app-icon--chevron {
+  width: 0.45em;
+  height: 0.45em;
+  border-width: 2rpx;
+  opacity: 0.9;
 }
 .btn-hover {
   opacity: 0.85;
@@ -2240,7 +2241,7 @@ function stopDevicePoll() {
 .scan-line {
   width: 8rpx;
   height: 40rpx;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   border-radius: 4rpx;
 }
 
@@ -2254,29 +2255,27 @@ function stopDevicePoll() {
   flex-shrink: 0;
   margin: 18rpx 20rpx 0;
   padding: 25rpx;
-  background: #fff;
-  border: 1rpx solid #edf2ef;
-  border-radius: 22rpx;
+  background: var(--card-bg, #fff);
+  border: 1rpx solid var(--color-border-subtle, #edf2ef);
+  border-radius: var(--radius-card, 24rpx);
   box-shadow: 0 9rpx 28rpx rgba(15, 23, 42, 0.055);
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 .device-name {
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 600;
-  color: #191919;
+  color: var(--text-primary, #14201b);
   display: block;
 }
 .device-status {
-  font-size: 24rpx;
-  color: var(--brand-wx, #07c160);
-  display: block;
+  font-size: var(--font-size-caption);
+  display: inline-flex;
   margin-top: 7rpx;
-  font-weight: 600;
 }
-.device-status.offline {
-  color: #fa5151;
+.device-status:not(.is-offline):not(.is-warn):not(.is-online) {
+  color: var(--brand, #0f766e);
 }
 .device-actions {
   display: flex;
@@ -2285,41 +2284,41 @@ function stopDevicePoll() {
   flex-shrink: 0;
 }
 .device-change {
-  font-size: 26rpx;
-  color: #576b95;
+  font-size: var(--font-size-body);
+  color: var(--color-link, var(--brand, #0f766e));
   font-weight: 500;
 }
 .device-report {
-  font-size: 26rpx;
-  color: #576b95;
+  font-size: var(--font-size-body);
+  color: var(--color-link, var(--brand, #0f766e));
   font-weight: 500;
 }
 
 .shopping-banner {
   margin: 12rpx 24rpx 0;
   padding: 22rpx 24rpx;
-  border-radius: 16rpx;
+  border-radius: var(--radius-card, 24rpx);
   background: linear-gradient(135deg, var(--brand-soft, #ecfdf5), var(--brand-soft, #ecfdf5));
-  border: 1rpx solid #bbf7d0;
+  border: 1rpx solid var(--brand-mist, #ccfbf1);
 }
 .shopping-banner.wait {
-  background: linear-gradient(135deg, #fff7ed, #fffbeb);
-  border-color: #fde68a;
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
+  border-color: color-mix(in srgb, var(--warning, #b45309) 28%, #fff);
 }
 .shopping-banner-title {
   display: block;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
-  color: var(--brand-deep, #064e3b);
+  color: var(--brand-deep, #134e4a);
 }
 .shopping-banner.wait .shopping-banner-title {
-  color: #92400e;
+  color: var(--warning, #b45309);
 }
 .shopping-banner-sub {
   display: block;
   margin-top: 6rpx;
-  font-size: 24rpx;
-  color: var(--brand, #047857);
+  font-size: var(--font-size-caption);
+  color: var(--brand, #0f766e);
   line-height: 1.4;
 }
 .shopping-banner.wait .shopping-banner-sub {
@@ -2328,11 +2327,11 @@ function stopDevicePoll() {
 .catalog-notice {
   margin: 14rpx 20rpx 0;
   padding: 18rpx 20rpx;
-  background: #fffbeb;
-  border: 1rpx solid #fde7a9;
-  border-radius: 15rpx;
-  font-size: 24rpx;
-  color: #8c6d1f;
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
+  border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, #fff);
+  border-radius: var(--radius-control, 12rpx);
+  font-size: var(--font-size-caption);
+  color: var(--warning, #b45309);
   line-height: 1.4;
 }
 
@@ -2345,25 +2344,25 @@ function stopDevicePoll() {
   align-items: center;
   height: 72rpx;
   padding: 0 28rpx;
-  border-radius: 36rpx;
-  background: #fff;
-  border: 1rpx solid #e2e8f0;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
+  border: 1rpx solid var(--color-border);
   box-shadow: 0 4rpx 16rpx rgba(15, 118, 110, 0.06);
 }
 .search-input {
   flex: 1;
   min-width: 0;
   height: 100%;
-  font-size: 26rpx;
-  color: #0f172a;
+  font-size: var(--font-size-body);
+  color: var(--text-primary, #0f172a);
 }
 .search-placeholder {
-  color: #94a3b8;
+  color: var(--text-subtle);
 }
 .search-clear {
   padding: 6rpx 4rpx 6rpx 16rpx;
-  color: #94a3b8;
-  font-size: 34rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-h3);
   line-height: 1;
 }
 .category-row {
@@ -2381,15 +2380,15 @@ function stopDevicePoll() {
   height: 56rpx;
   padding: 0 26rpx;
   margin-right: 12rpx;
-  border-radius: 28rpx;
-  background: #f1f5f9;
-  color: #475569;
-  font-size: 24rpx;
+  border-radius: var(--radius-card);
+  background: var(--color-border-subtle, #f1f5f9);
+  color: var(--text-muted, #475569);
+  font-size: var(--font-size-caption);
   font-weight: 600;
   flex-shrink: 0;
 }
 .category-chip.active {
-  background: #0f766e;
+  background: var(--brand);
   color: #fff;
 }
 
@@ -2410,15 +2409,15 @@ function stopDevicePoll() {
 }
 .catalog-empty .empty-title {
   display: block;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
-  color: #223029;
+  color: var(--text-primary, #223029);
 }
 .catalog-empty .empty-hint {
   display: block;
   margin-top: 10rpx;
-  font-size: 24rpx;
-  color: #849087;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #849087);
   line-height: 1.5;
 }
 .catalog-empty .empty-actions {
@@ -2428,8 +2427,8 @@ function stopDevicePoll() {
   margin-top: 20rpx;
 }
 .catalog-empty .empty-link {
-  font-size: 26rpx;
-  color: var(--brand, #047857);
+  font-size: var(--font-size-body);
+  color: var(--brand, #0f766e);
   font-weight: 650;
 }
 
@@ -2457,8 +2456,8 @@ function stopDevicePoll() {
 .product-cell-inner {
   flex: 1;
   min-width: 0;
-  background: #fff;
-  border-radius: 14rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-control);
   padding: 12rpx;
   box-sizing: border-box;
   border: 2rpx solid #eef2f0;
@@ -2475,7 +2474,7 @@ function stopDevicePoll() {
   width: 100%;
   height: 148rpx;
   flex-shrink: 0;
-  border-radius: 12rpx;
+  border-radius: var(--radius-control);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2511,10 +2510,10 @@ function stopDevicePoll() {
 .product-mark {
   width: 64rpx;
   height: 64rpx;
-  border-radius: 16rpx;
+  border-radius: var(--radius-panel);
   background: rgba(255, 255, 255, 0.72);
-  color: var(--brand, #047857);
-  font-size: 28rpx;
+  color: var(--brand, #0f766e);
+  font-size: var(--font-size-md);
   font-weight: 800;
   line-height: 64rpx;
   text-align: center;
@@ -2526,17 +2525,17 @@ function stopDevicePoll() {
   min-width: 32rpx;
   height: 32rpx;
   padding: 0 8rpx;
-  border-radius: 16rpx;
+  border-radius: var(--radius-panel);
   background: var(--brand-wx, #048746);
   color: #fff;
-  font-size: 20rpx;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   line-height: 32rpx;
   text-align: center;
   box-shadow: 0 4rpx 12rpx rgba(7, 193, 96, 0.35);
 }
 .product-name {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: #26342d;
   line-height: 1.3;
   font-weight: 600;
@@ -2549,14 +2548,14 @@ function stopDevicePoll() {
 }
 
 .product-price {
-  font-size: 26rpx;
-  color: var(--brand, #047857);
+  font-size: var(--font-size-body);
+  color: var(--brand, #0f766e);
   font-weight: 700;
   margin-top: 4rpx;
 }
 .product-cat {
   font-size: 18rpx;
-  color: #94a3b8;
+  color: var(--text-subtle);
   margin-top: 2rpx;
   line-height: 1.2;
 }
@@ -2574,14 +2573,14 @@ function stopDevicePoll() {
   height: 72rpx;
   border-radius: 50%;
   background: #eef6f2;
-  color: var(--brand, #047857);
-  font-size: 32rpx;
+  color: var(--brand, #0f766e);
+  font-size: var(--font-size-xl);
   font-weight: 700;
   line-height: 72rpx;
   text-align: center;
 }
 .stepper-btn.plus {
-  background: var(--brand, #047857);
+  background: var(--brand, #0f766e);
   color: #fff;
 }
 .stepper-btn.plus.disabled {
@@ -2592,7 +2591,7 @@ function stopDevicePoll() {
   flex: 1;
   min-width: 0;
   text-align: center;
-  font-size: 20rpx;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   color: #26342d;
 }
@@ -2602,7 +2601,7 @@ function stopDevicePoll() {
   position: relative;
   z-index: 5;
   isolation: isolate;
-  background: #fff;
+  background: var(--card-bg, #fff);
   padding: 16rpx 24rpx;
   padding-bottom: calc(16rpx + constant(safe-area-inset-bottom));
   padding-bottom: calc(16rpx + env(safe-area-inset-bottom));
@@ -2619,14 +2618,14 @@ function stopDevicePoll() {
   padding-right: 8rpx;
 }
 .cart-hint {
-  font-size: 28rpx;
-  color: #1e293b;
+  font-size: var(--font-size-md);
+  color: var(--text-primary, #1e293b);
   font-weight: 600;
   display: block;
 }
 .cart-sub {
-  font-size: 22rpx;
-  color: #888;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle, #888);
   display: block;
   margin-top: 4rpx;
 }
@@ -2648,8 +2647,8 @@ function stopDevicePoll() {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 36rpx;
-  background: #ecfdf5;
+  border-radius: var(--radius-card);
+  background: var(--brand-soft);
 }
 .cart-icon {
   width: 40rpx;
@@ -2662,8 +2661,8 @@ function stopDevicePoll() {
   min-width: 32rpx;
   height: 32rpx;
   padding: 0 8rpx;
-  border-radius: 16rpx;
-  background: #047857;
+  border-radius: var(--radius-panel);
+  background: var(--brand);
   color: #fff;
   font-size: 18rpx;
   font-weight: 700;
@@ -2681,17 +2680,17 @@ function stopDevicePoll() {
   gap: 4rpx;
 }
 .cart-shop-label {
-  font-size: 26rpx;
-  color: #334155;
+  font-size: var(--font-size-body);
+  color: var(--text-muted, #334155);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .cart-shop-amt {
-  font-size: 34rpx;
+  font-size: var(--font-size-h3);
   font-weight: 800;
-  color: var(--brand, #047857);
+  color: var(--brand, #0f766e);
   line-height: 1.15;
 }
 .cart-cta {
@@ -2700,10 +2699,10 @@ function stopDevicePoll() {
   min-height: 80rpx;
   height: 80rpx;
   line-height: 1.2;
-  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
+  background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
   color: #fff;
-  border-radius: 40rpx;
-  font-size: 30rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-lg);
   font-weight: 500;
   display: flex;
   align-items: center;
@@ -2722,10 +2721,10 @@ function stopDevicePoll() {
   min-height: 80rpx;
   height: 80rpx;
   line-height: 1.2;
-  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
+  background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
   color: #fff;
-  border-radius: 40rpx;
-  font-size: 28rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-md);
   font-weight: 700;
   box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.25);
   display: flex;
@@ -2736,9 +2735,9 @@ function stopDevicePoll() {
   flex-shrink: 0;
 }
 .cart-status-chip.soft {
-  background: #ecfdf5;
-  color: #047857;
-  border: 1rpx solid #a7f3d0;
+  background: var(--brand-soft);
+  color: var(--brand);
+  border: 1rpx solid var(--brand-mist, #a7f3d0);
 }
 .cart-close-btn::after {
   border: none;
@@ -2748,9 +2747,9 @@ function stopDevicePoll() {
   gap: 18rpx;
   margin: 14rpx 20rpx 0;
   padding: 22rpx;
-  border: 1rpx solid #fed7aa;
-  border-radius: 20rpx;
-  background: linear-gradient(135deg, #fffaf0, #fff7ed);
+  border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, #fff);
+  border-radius: var(--radius-card);
+  background: linear-gradient(135deg, #fffaf0, color-mix(in srgb, var(--warning, #b45309) 8%, #fff));
   box-shadow: 0 9rpx 26rpx rgba(194, 65, 12, 0.08);
 }
 .settlement-review-card.tone-success {
@@ -2758,11 +2757,11 @@ function stopDevicePoll() {
   background: linear-gradient(135deg, var(--brand-soft, #ecfdf5), var(--brand-soft, #ecfdf5));
 }
 .settlement-review-card.tone-wait {
-  border-color: #fed7aa;
-  background: linear-gradient(135deg, #fffaf0, #fff7ed);
+  border-color: color-mix(in srgb, var(--warning, #b45309) 28%, #fff);
+  background: linear-gradient(135deg, #fffaf0, color-mix(in srgb, var(--warning, #b45309) 8%, #fff));
 }
 .settlement-review-card.tone-warn {
-  border-color: #fecaca;
+  border-color: color-mix(in srgb, var(--danger, #b91c1c) 18%, #fff);
   background: linear-gradient(135deg, #fff7f7, #fff1f2);
 }
 .review-icon {
@@ -2773,18 +2772,18 @@ function stopDevicePoll() {
   justify-content: center;
   border-radius: 50%;
   color: #fff;
-  background: #c2410c;
+  background: var(--accent-orange, #c2410c);
   font-weight: 800;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
 }
 .review-icon.tone-wait {
-  background: var(--brand, #047857);
+  background: var(--brand, #0f766e);
 }
 .review-icon.tone-success {
-  background: var(--brand, #047857);
+  background: var(--brand, #0f766e);
 }
 .review-icon.tone-warn {
-  background: #ef4444;
+  background: var(--color-danger);
 }
 .review-copy {
   min-width: 0;
@@ -2795,14 +2794,14 @@ function stopDevicePoll() {
   display: block;
 }
 .review-title {
-  color: #9a3412;
-  font-size: 26rpx;
+  color: var(--accent-orange, #9a3412);
+  font-size: var(--font-size-body);
   font-weight: 750;
 }
 .review-detail {
   margin-top: 7rpx;
   color: #9a5b39;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   line-height: 1.55;
 }
 .review-actions {
@@ -2813,13 +2812,13 @@ function stopDevicePoll() {
   margin-top: 15rpx;
 }
 .review-link {
-  color: #c2410c;
-  font-size: 24rpx;
+  color: var(--accent-orange, #c2410c);
+  font-size: var(--font-size-caption);
   font-weight: 600;
   line-height: 1.3;
 }
 .review-link.primary {
-  color: var(--brand, #047857);
+  color: var(--brand, #0f766e);
 }
 .review-link.subtle {
   color: #9ca3af;
@@ -2828,22 +2827,22 @@ function stopDevicePoll() {
   padding: 0 32rpx;
   height: 80rpx;
   line-height: 80rpx;
-  border-radius: 40rpx;
-  font-size: 28rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-md);
   font-weight: 600;
-  color: #047857;
-  background: #e8f8ef;
+  color: var(--brand);
+  background: var(--brand-soft, #e8f8ef);
 }
 .cart-status-chip.wait {
-  color: #b45309;
+  color: var(--warning, #b45309);
   background: #fff7e6;
 }
 .cart-status-chip.active {
-  color: #047857;
-  background: #e8f8ef;
+  color: var(--brand);
+  background: var(--brand-soft, #e8f8ef);
 }
 .cart-status-chip.error {
-  color: #991b1b;
+  color: var(--danger, #991b1b);
   background: #ffecec;
 }
 
@@ -2872,7 +2871,7 @@ function stopDevicePoll() {
   width: 132rpx;
   height: 132rpx;
   border-radius: 50%;
-  border: 10rpx solid #e8f8ef;
+  border: 10rpx solid var(--brand-soft, #e8f8ef);
   border-top-color: var(--brand-wx, #07c160);
   margin-bottom: 40rpx;
   box-shadow: 0 16rpx 44rpx rgba(5, 150, 105, 0.13);
@@ -2893,31 +2892,31 @@ function stopDevicePoll() {
   }
 }
 .flow-title {
-  font-size: 44rpx;
+  font-size: var(--font-size-h1);
   font-weight: 700;
   color: #173026;
   text-align: center;
 }
 .flow-hint {
-  font-size: 28rpx;
-  color: #888;
+  font-size: var(--font-size-md);
+  color: var(--text-subtle, #888);
   margin-top: 16rpx;
   text-align: center;
   line-height: 1.5;
   max-width: 560rpx;
 }
 .flow-device {
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   color: var(--brand-wx, #07c160);
   margin-top: 24rpx;
   padding: 10rpx 18rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   background: var(--brand-soft, #ecfdf5);
   font-weight: 600;
 }
 .flow-err {
-  font-size: 26rpx;
-  color: #fa5151;
+  font-size: var(--font-size-body);
+  color: var(--color-danger);
   margin-top: 16rpx;
   text-align: center;
 }
@@ -2927,10 +2926,10 @@ function stopDevicePoll() {
   min-height: 72rpx;
   height: 72rpx;
   line-height: 1.2;
-  border-radius: 36rpx;
+  border-radius: var(--radius-card);
   background: #f2f3f5;
-  color: #576b95;
-  font-size: 26rpx;
+  color: var(--color-link-secondary);
+  font-size: var(--font-size-body);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2943,8 +2942,8 @@ function stopDevicePoll() {
 .flow-slow-hint {
   margin-top: 16rpx;
   padding: 0 40rpx;
-  font-size: 24rpx;
-  color: #888;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle, #888);
   text-align: center;
   line-height: 1.5;
 }
@@ -2965,18 +2964,18 @@ function stopDevicePoll() {
   margin-left: auto;
   margin-right: auto;
   padding: 16rpx 20rpx;
-  border-radius: 16rpx;
-  background: var(--brand-deep, #064e3b);
+  border-radius: var(--radius-panel);
+  background: var(--brand-deep, #134e4a);
   border: 1rpx solid rgba(255, 255, 255, 0.16);
   box-sizing: border-box;
 }
 .landing-error.kind-balance,
 .landing-error.kind-device_not_found {
-  background: var(--brand-deep, #064e3b);
+  background: var(--brand-deep, #134e4a);
   border-color: rgba(255, 255, 255, 0.16);
 }
 .landing-error.kind-balance .error-icon {
-  background: #f59e0b;
+  background: var(--warning, #f59e0b);
 }
 .landing-error.kind-balance .error-title,
 .landing-error.kind-balance .error-detail,
@@ -2995,9 +2994,9 @@ function stopDevicePoll() {
   justify-content: center;
   border-radius: 50%;
   color: #fff;
-  background: #dc2626;
+  background: var(--color-danger);
   font-weight: 800;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
 }
 .error-copy {
   min-width: 0;
@@ -3009,13 +3008,13 @@ function stopDevicePoll() {
 }
 .error-title {
   color: #ffffff;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   font-weight: 700;
 }
 .error-detail {
   margin-top: 4rpx;
   color: rgba(255, 255, 255, 0.78);
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   line-height: 1.45;
 }
 .error-actions {
@@ -3026,10 +3025,10 @@ function stopDevicePoll() {
 }
 .error-action {
   padding: 6rpx 14rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   border: 1rpx solid rgba(255, 255, 255, 0.32);
   color: #ffffff;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   background: rgba(6, 78, 59, 0.55);
 }
 .error-action.primary {
@@ -3040,7 +3039,7 @@ function stopDevicePoll() {
 .error-close {
   padding: 0 4rpx;
   color: rgba(255, 255, 255, 0.7);
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   line-height: 1;
 }
 .landing-mask {
@@ -3060,8 +3059,8 @@ function stopDevicePoll() {
   margin-left: auto;
   margin-right: auto;
   padding: 28rpx 24rpx 24rpx;
-  border-radius: 20rpx;
-  background: var(--brand-deep, #064e3b);
+  border-radius: var(--radius-card);
+  background: var(--brand-deep, #134e4a);
   border: 1rpx solid rgba(255, 255, 255, 0.16);
   box-sizing: border-box;
   display: flex;
@@ -3070,7 +3069,7 @@ function stopDevicePoll() {
 }
 .landing-sheet-title {
   display: block;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
   color: #ffffff;
   text-align: center;
@@ -3078,7 +3077,7 @@ function stopDevicePoll() {
 .landing-sheet-body {
   display: block;
   margin-top: 8rpx;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   color: rgba(255, 255, 255, 0.78);
   line-height: 1.5;
   text-align: center;
@@ -3087,7 +3086,7 @@ function stopDevicePoll() {
   display: block;
   margin-top: 22rpx;
   margin-bottom: 8rpx;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   color: rgba(255, 255, 255, 0.78);
   text-align: center;
 }
@@ -3098,10 +3097,10 @@ function stopDevicePoll() {
   margin-bottom: 20rpx;
   padding: 0 24rpx;
   box-sizing: border-box;
-  border-radius: 12rpx;
+  border-radius: var(--radius-control);
   background: var(--brand-ink, #043f32);
   border: 1rpx solid rgba(255, 255, 255, 0.18);
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   color: #ffffff;
 }
 .sheet-ph {
@@ -3116,8 +3115,7 @@ function stopDevicePoll() {
   margin-top: 24rpx;
   box-sizing: border-box;
 }
-.landing-sheet .btn-primary,
-.landing-sheet uni-button.btn-primary {
+.landing-sheet .app-btn {
   width: 100% !important;
   max-width: none !important;
   min-width: 0 !important;
@@ -3129,10 +3127,10 @@ function stopDevicePoll() {
   flex: 1 1 0;
   min-width: 0;
   padding: 18rpx 16rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   border: 1rpx solid rgba(255, 255, 255, 0.28);
   color: #ffffff;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   line-height: 1.2;
   text-align: center;
   box-sizing: border-box;
@@ -3140,7 +3138,7 @@ function stopDevicePoll() {
 }
 .landing-sheet-btn.primary {
   border-color: transparent;
-  background: var(--brand, #047857);
+  background: var(--brand, #0f766e);
   font-weight: 600;
 }
 .landing-sheet-cancel-wrap {
@@ -3155,7 +3153,7 @@ function stopDevicePoll() {
   width: 100%;
   text-align: center;
   color: rgba(255, 255, 255, 0.78);
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   padding: 8rpx 0;
   box-sizing: border-box;
 }

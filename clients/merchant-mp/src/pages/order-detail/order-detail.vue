@@ -2,10 +2,10 @@
   <view class="page-root">
     <app-nav-bar title="订单详情" />
     <view class="page-body">
-      <view v-if="loading && !order" class="loading"><text>加载中…</text></view>
+      <view v-if="loading && !order" class="loading"><text>{{ UI_COPY.loading }}</text></view>
       <view v-else-if="error && !order" class="empty">
         <text class="err">{{ error }}</text>
-        <button class="retry" @click="load">重试</button>
+        <app-button label="重试" @click="load" />
       </view>
       <view v-else-if="order">
         <view class="status-bar" :class="'s-' + (order.status || '').toLowerCase()">
@@ -112,9 +112,9 @@
         </view>
 
         <view class="actions">
-          <button v-if="order.deviceId" class="btn-primary" @click="goDevice">查看柜机</button>
-          <button v-if="canShowVideo" class="btn-outline" @click="playVideo">查看购物视频</button>
-          <button class="btn-outline" @click="goDisputes">相关争议</button>
+          <app-button v-if="order.deviceId" label="查看柜机" @click="goDevice" />
+          <app-button v-if="canShowVideo" variant="outline" label="查看购物视频" @click="playVideo" />
+          <app-button variant="outline" label="相关争议" @click="goDisputes" />
         </view>
       </view>
     </view>
@@ -123,6 +123,9 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import {
+  showError
+} from '@/utils/notify';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { skuImageFor } from '@aicabinet/shared-uni/product-image';
@@ -136,6 +139,7 @@ import {
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type { MerchantMe } from '@aicabinet/shared-types';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 type OrderLine = {
   skuId?: string;
@@ -219,7 +223,7 @@ async function load() {
     seedMerchantMeDisplayCache(me);
   }
   if (!canList.value) {
-    uni.showToast({ title: '无订单权限', icon: 'none' });
+    showError('无订单权限');
     uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
     return;
   }
@@ -308,7 +312,7 @@ function playVideo() {
 <style scoped>
 .page-root {
   min-height: 100vh;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   padding: 0;
 
   box-sizing: border-box;
@@ -317,41 +321,25 @@ function playVideo() {
 .empty {
   text-align: center;
   padding: 80rpx 24rpx;
-  color: #64748b;
-  font-size: 28rpx;
+  color: var(--text-muted);
+  font-size: var(--font-size-md);
 }
 .err {
-  color: #b91c1c;
+  color: var(--color-danger);
   display: block;
   margin-bottom: 20rpx;
 }
-.retry {
-  display: inline-block;
-  margin-top: 12rpx;
-  padding: 0 36rpx;
-  min-height: 72rpx;
-  line-height: 72rpx;
-  border-radius: 999rpx;
-  background: linear-gradient(135deg, #134e4a, #0f766e);
-  color: #fff;
-  font-size: 26rpx;
-  font-weight: 600;
-  box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
-}
-.retry::after {
-  border: none;
-}
 .status-bar {
-  background: linear-gradient(135deg, #ecfdf5, #fff);
-  color: #14201b;
-  border-radius: 16rpx;
+  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  color: var(--text-primary, #14201b);
+  border-radius: var(--radius-panel);
   padding: 28rpx 24rpx;
   margin-bottom: 20rpx;
-  border: 1rpx solid #d1fae5;
+  border: 1rpx solid var(--brand-soft, #d1fae5);
 }
 .status-bar.s-disputed {
-  background: linear-gradient(135deg, #fff7ed, #fff);
-  border-color: #fed7aa;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--warning, #b45309) 8%, #fff), #fff);
+  border-color: color-mix(in srgb, var(--warning, #b45309) 28%, #fff);
 }
 .status-bar.s-refunded,
 .status-bar.s-partial_refunded {
@@ -365,29 +353,29 @@ function playVideo() {
 }
 .status-title {
   display: block;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 .status-amt {
   display: block;
   margin-top: 8rpx;
-  font-size: 44rpx;
+  font-size: var(--font-size-h1);
   font-weight: 700;
-  color: #0f766e;
+  color: var(--brand);
 }
 .section {
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-panel);
   padding: 24rpx;
   margin-bottom: 16rpx;
-  border: 1rpx solid #e2e8f0;
+  border: 1rpx solid var(--color-border);
 }
 .section-title {
   display: block;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   margin-bottom: 16rpx;
 }
 .line {
@@ -400,8 +388,8 @@ function playVideo() {
 .line-thumb {
   width: 80rpx;
   height: 80rpx;
-  border-radius: 14rpx;
-  background: #ecfdf5;
+  border-radius: var(--radius-control);
+  background: var(--brand-soft);
   flex-shrink: 0;
 }
 .line-info {
@@ -411,26 +399,26 @@ function playVideo() {
   min-width: 0;
 }
 .line-name {
-  font-size: 28rpx;
-  color: #0f172a;
+  font-size: var(--font-size-md);
+  color: var(--text-primary, #0f172a);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 360rpx;
 }
 .line-qty {
-  font-size: 24rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle);
 }
 .line-unit {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }
 .line-amt {
-  font-size: 28rpx;
-  color: #0f172a;
+  font-size: var(--font-size-md);
+  color: var(--text-primary, #0f172a);
   font-weight: 600;
 }
 .sum-row {
@@ -438,38 +426,38 @@ function playVideo() {
   justify-content: space-between;
   margin-top: 12rpx;
   padding-top: 12rpx;
-  border-top: 1rpx solid #f1f5f9;
-  font-size: 26rpx;
-  color: #64748b;
+  border-top: 1rpx solid var(--color-border-subtle, #f1f5f9);
+  font-size: var(--font-size-body);
+  color: var(--text-muted);
 }
 .sum-row.strong {
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   font-weight: 700;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
 }
 .info-row {
   display: flex;
   justify-content: space-between;
   gap: 16rpx;
   padding: 10rpx 0;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
 }
 .lbl {
-  color: #94a3b8;
+  color: var(--text-subtle);
   flex-shrink: 0;
 }
 .val {
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   text-align: right;
   word-break: break-all;
 }
 .mono {
   font-family: ui-monospace, monospace;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
 }
 .muted {
-  color: #94a3b8;
-  font-size: 26rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-body);
   padding: 12rpx 0;
 }
 .actions {
@@ -479,7 +467,7 @@ function playVideo() {
   gap: 16rpx;
   margin-top: 8rpx;
 }
-.btn-primary,
+.app-btn,
 .btn-outline {
   width: 100%;
   display: flex;
@@ -487,27 +475,21 @@ function playVideo() {
   justify-content: center;
   text-align: center;
   box-sizing: border-box;
-  border-radius: 44rpx;
-  font-size: 28rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-md);
   font-weight: 600;
   min-height: 88rpx;
   line-height: 1.2;
   padding: 0 32rpx;
   margin: 0;
 }
-.btn-primary {
-  background: linear-gradient(135deg, #134e4a, #0f766e);
-  color: #fff;
-  border: none;
-  box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.22);
-}
 .btn-outline {
-  background: #fff;
-  color: #0f766e;
-  border: 2rpx solid #0f766e;
+  background: var(--card-bg, #fff);
+  color: var(--brand);
+  border: 2rpx solid var(--brand);
   min-height: 80rpx;
 }
-.btn-primary::after,
+.app-btn::after,
 .btn-outline::after {
   border: none;
 }

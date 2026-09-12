@@ -234,8 +234,7 @@
 
     <el-dialog
       v-model="createVisible"
-      title="新建维修工单"
-      width="560px"
+      title="新建维修工单" class="dialog-wide"
       destroy-on-close
       append-to-body
     >
@@ -370,7 +369,6 @@
     <el-dialog
       v-model="assignVisible"
       title="批量指派"
-      width="420px"
       destroy-on-close
       append-to-body
       :close-on-click-modal="false"
@@ -776,10 +774,10 @@ watch(
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .event-title {

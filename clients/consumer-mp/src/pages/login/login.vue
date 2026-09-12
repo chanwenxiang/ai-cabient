@@ -138,7 +138,7 @@
                   placeholder-class="ph"
                   @input="code = eventInputValue($event)"
                 />
-                <view
+                <view role="button"
                   class="btn-code"
                   :class="{ disabled: !!codeCooldown || sendingCode }"
                   @click="onSendCode"
@@ -149,26 +149,26 @@
             </view>
           </template>
 
-          <view
-            class="btn-primary"
-            role="button"
+          <app-button
+            class="login-submit"
             data-testid="login-submit"
-            :class="{ disabled: loading }"
+            :block="false"
+            :loading="loading && !wxMode"
+            :disabled="loading"
+            :label="loading && !wxMode ? '验证中…' : '验证并继续'"
             @click="onLogin"
-          >
-            {{ loading && !wxMode ? '验证中…' : '验证并继续' }}
-          </view>
+          />
           <text v-if="isDev && demoHint" class="dev-hint">{{ demoHint }}</text>
         </view>
 
-        <view class="btn-ghost" @click="goBack">返回</view>
+        <app-button class="login-back" variant="ghost" :block="false" label="返回" @click="goBack" />
         <text v-if="err" class="err">{{ err }}</text>
         <view class="legal-row">
-          <text class="legal-link" @click="goPolicy('agreement')">用户协议</text>
+          <text role="button" class="legal-link" @click="goPolicy('agreement')">用户协议</text>
           <text class="legal-dot">·</text>
-          <text class="legal-link" @click="goPolicy('privacy')">隐私政策</text>
+          <text role="button" class="legal-link" @click="goPolicy('privacy')">隐私政策</text>
           <text class="legal-dot">·</text>
-          <text class="legal-link" @click="goPolicy('refund')">退款规则</text>
+          <text role="button" class="legal-link" @click="goPolicy('refund')">退款规则</text>
         </view>
       </view>
     </view>
@@ -177,6 +177,9 @@
 
 <script setup lang="ts">
 import { onLoad, onReady, onShow, onUnload } from '@dcloudio/uni-app';
+import {
+  showError
+} from '@/utils/notify';
 import { computed, ref, watch } from 'vue';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import {
@@ -409,7 +412,7 @@ async function onSendCode() {
       codeCooldown.value -= 1;
       if (codeCooldown.value <= 0) clearCodeTimer();
     }, 1000);
-    uni.showToast({ title: '验证码已发送', icon: 'none' });
+    showError('验证码已发送');
     void loadCaptcha();
   } catch (e) {
     err.value = e instanceof Error ? e.message : '发送失败';
@@ -513,10 +516,10 @@ async function onLogin() {
   padding-top: 0;
 }
 .login-wrap.phone-open .brand {
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
 }
 .login-wrap.phone-open .tagline {
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   margin-top: 4rpx;
 }
 .login-wrap.phone-open .badge {
@@ -676,11 +679,11 @@ async function onLogin() {
   font-size: 56rpx;
   font-weight: 800;
   display: block;
-  color: #f0fdfa;
+  color: var(--page-bg, #f0fdfa);
   letter-spacing: 2rpx;
 }
 .tagline {
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   color: #a5b4c8;
   display: block;
   margin-top: 10rpx;
@@ -691,17 +694,17 @@ async function onLogin() {
   gap: 8rpx;
   margin-top: 18rpx;
   padding: 10rpx 22rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   background: rgba(13, 148, 136, 0.18);
 }
 .badge-icon {
   color: #2dd4bf;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   font-weight: 700;
 }
 .badge-text {
-  color: #cbd5e1;
-  font-size: 22rpx;
+  color: var(--text-subtle, #cbd5e1);
+  font-size: var(--font-size-sm);
 }
 .form-card {
   /* 收起态：绝对贴底，避免垂直居中悬空 */
@@ -716,7 +719,7 @@ async function onLogin() {
   flex-direction: column;
   align-items: stretch;
   padding: 32rpx 28rpx 36rpx;
-  border-radius: 28rpx;
+  border-radius: var(--radius-card);
   background: rgba(8, 24, 30, 0.58);
   border: 2rpx solid rgba(148, 210, 198, 0.22);
   backdrop-filter: blur(52rpx);
@@ -749,10 +752,10 @@ async function onLogin() {
 }
 .phone-open .subtitle {
   margin-bottom: 12rpx;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
 }
 .phone-open .title {
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   margin-bottom: 4rpx;
 }
 .phone-open .divider {
@@ -761,7 +764,7 @@ async function onLogin() {
 .phone-open .btn-wx {
   height: 84rpx;
   line-height: 84rpx;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
 }
 .phone-open .tabs {
   margin-bottom: 28rpx;
@@ -771,15 +774,15 @@ async function onLogin() {
   padding: 10rpx 22rpx;
 }
 .title {
-  font-size: 36rpx;
+  font-size: var(--font-size-display-sm);
   font-weight: 700;
   display: block;
   margin-bottom: 8rpx;
-  color: #f0fdfa;
+  color: var(--page-bg, #f0fdfa);
   text-align: center;
 }
 .subtitle {
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   color: rgba(204, 251, 241, 0.74);
   display: block;
   margin-bottom: 28rpx;
@@ -787,13 +790,13 @@ async function onLogin() {
   line-height: 1.5;
 }
 .btn-wx {
-  background: linear-gradient(135deg, var(--brand-wx, #07c160), var(--brand, #047857));
+  background: linear-gradient(135deg, var(--brand-wx, #07c160), var(--brand, #0f766e));
   color: #fff;
-  border-radius: 44rpx;
+  border-radius: var(--radius-pill);
   height: 96rpx;
   line-height: 96rpx;
   text-align: center;
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   box-shadow: 0 10rpx 28rpx rgba(5, 150, 105, 0.28);
 }
@@ -822,14 +825,14 @@ async function onLogin() {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.08);
   border: 2rpx solid rgba(94, 234, 212, 0.24);
   box-sizing: border-box;
   cursor: pointer;
 }
 .divider-text {
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   color: #5eead4;
   font-weight: 600;
   line-height: 1.2;
@@ -840,16 +843,16 @@ async function onLogin() {
   gap: 8rpx;
   margin-bottom: 28rpx;
   padding: 6rpx;
-  border-radius: 16rpx;
+  border-radius: var(--radius-panel);
   background: rgba(255, 255, 255, 0.07);
 }
 .tab-item {
   flex: 1;
   padding: 16rpx 0;
   text-align: center;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   color: rgba(204, 251, 241, 0.62);
-  border-radius: 12rpx;
+  border-radius: var(--radius-control);
   transition:
     color 0.2s ease,
     background 0.2s ease,
@@ -859,7 +862,7 @@ async function onLogin() {
 .tab-item.on {
   color: #ffffff;
   font-weight: 600;
-  background: linear-gradient(135deg, var(--brand, #047857), var(--brand-2, #047857));
+  background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand-2, var(--brand)));
   box-shadow: 0 4rpx 12rpx rgba(5, 150, 105, 0.28);
 }
 .field {
@@ -867,8 +870,8 @@ async function onLogin() {
 }
 .field-label {
   display: block;
-  font-size: 26rpx;
-  color: #ccfbf1;
+  font-size: var(--font-size-body);
+  color: var(--brand-mist);
   font-weight: 500;
   margin-bottom: 10rpx;
 }
@@ -879,10 +882,10 @@ async function onLogin() {
   box-sizing: border-box;
   background: rgba(8, 24, 30, 0.42);
   border: 2rpx solid rgba(148, 210, 198, 0.3);
-  border-radius: 16rpx;
+  border-radius: var(--radius-panel);
   padding: 0 28rpx;
-  font-size: 28rpx;
-  color: #f0fdfa;
+  font-size: var(--font-size-md);
+  color: var(--page-bg, #f0fdfa);
   line-height: 88rpx;
   backdrop-filter: blur(16rpx);
 }
@@ -910,11 +913,11 @@ async function onLogin() {
   padding: 0 28rpx;
   min-width: 180rpx;
   height: 88rpx;
-  border-radius: 16rpx;
+  border-radius: var(--radius-panel);
   background: rgba(8, 24, 30, 0.42);
   border: 2rpx solid rgba(148, 210, 198, 0.3);
   color: #5eead4;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 600;
   white-space: nowrap;
   backdrop-filter: blur(16rpx);
@@ -926,7 +929,7 @@ async function onLogin() {
   justify-content: center;
   width: 220rpx;
   height: 88rpx;
-  border-radius: 16rpx;
+  border-radius: var(--radius-panel);
   overflow: hidden;
   background: rgba(245, 247, 250, 0.95);
   border: 2rpx solid rgba(148, 210, 198, 0.35);
@@ -936,25 +939,25 @@ async function onLogin() {
   height: 80rpx;
 }
 .captcha-placeholder {
-  font-size: 22rpx;
-  color: #0f766e;
+  font-size: var(--font-size-sm);
+  color: var(--brand);
   font-weight: 600;
 }
-.btn-primary {
+:deep(.login-submit.app-btn) {
   margin-top: 12rpx;
   align-self: center;
   width: 200px !important;
   max-width: 200px !important;
   min-width: 168px !important;
   padding: 0 !important;
-  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
+  background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
   color: #fff;
-  border-radius: 44rpx;
+  border-radius: var(--radius-pill);
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.2;
   text-align: center;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   box-shadow: 0 10rpx 28rpx rgba(5, 150, 105, 0.28);
   box-sizing: border-box;
@@ -962,26 +965,29 @@ async function onLogin() {
   align-items: center;
   justify-content: center;
 }
-.btn-primary.disabled,
 .btn-code.disabled {
   opacity: 0.55;
   pointer-events: none;
 }
-.btn-ghost {
+:deep(.login-back.app-btn) {
   margin-top: 20rpx;
   text-align: center;
-  color: #99f6e4;
-  font-size: 28rpx;
+  color: var(--brand-mist, #99f6e4);
+  font-size: var(--font-size-md);
   padding: 8rpx;
   background: transparent;
   border: none;
+  box-shadow: none;
+  align-self: center;
+  min-height: auto;
+  height: auto;
 }
 .err {
-  color: #ef4444;
+  color: var(--color-danger);
   display: block;
   margin-top: 16rpx;
   text-align: center;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
 }
 .legal-row {
   display: flex;
@@ -992,12 +998,12 @@ async function onLogin() {
   margin-top: 24rpx;
 }
 .legal-link {
-  font-size: 22rpx;
-  color: #99f6e4;
+  font-size: var(--font-size-sm);
+  color: var(--brand-mist, #99f6e4);
   opacity: 0.9;
 }
 .legal-dot {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: rgba(153, 246, 228, 0.5);
 }
 .dev-hint {
@@ -1005,7 +1011,7 @@ async function onLogin() {
   margin-top: 18rpx;
   text-align: center;
   color: rgba(204, 251, 241, 0.62);
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   line-height: 1.4;
   opacity: 0.85;
 }

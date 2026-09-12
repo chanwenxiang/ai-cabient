@@ -237,13 +237,13 @@ onMounted(load);
 
 .devops-header h2 {
   margin: 0 0 4px;
-  font-size: 20px;
+  font-size: var(--admin-font-size-display);
 }
 
 .hint {
   margin: 0;
   color: var(--el-text-color-secondary);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 
 .tool-grid {
@@ -269,7 +269,7 @@ onMounted(load);
 .tool-desc {
   margin: 0 0 12px;
   color: var(--el-text-color-secondary);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   min-height: 36px;
 }
 

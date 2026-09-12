@@ -583,7 +583,7 @@ onMounted(loadBills);
 }
 .range-hint {
   margin-left: 8px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .search-result-hint {

@@ -100,7 +100,6 @@
   <el-dialog
     v-model="metaDlg"
     :title="creating ? '新增审批流' : '编辑审批流'"
-    width="520px"
     destroy-on-close
   >
     <el-form label-width="88px">
@@ -152,11 +151,9 @@
   <el-dialog
     v-model="dlg"
     :title="`流程图 · ${bizLabel(editForm.bizType)}`"
-    width="720px"
     top="4vh"
     destroy-on-close
-    class="flow-dialog"
-  >
+   class="dialog-wide flow-dialog">
     <div class="flow-meta">
       <el-form inline label-width="56px" class="flow-meta__form">
         <el-form-item label="名称">
@@ -595,10 +592,10 @@ onMounted(load);
 <style scoped>
 .cell-hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .flow-inline {
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--el-text-color-regular);
 }
 .flow-preview {
@@ -619,7 +616,7 @@ onMounted(load);
   border-radius: 10px;
   border: 1px solid var(--el-border-color);
   background: var(--el-bg-color);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   white-space: nowrap;
 }
 .flow-chip--start,
@@ -636,11 +633,11 @@ onMounted(load);
   border-radius: 50%;
   background: var(--el-color-primary);
   color: #fff;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .flow-chip__meta {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .flow-arrow {
   width: 28px;
@@ -713,7 +710,7 @@ onMounted(load);
   margin-bottom: 8px;
 }
 .flow-node__badge {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .flow-node__actions {
@@ -722,11 +719,11 @@ onMounted(load);
 }
 .flow-node__title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .flow-node__sub {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .flow-node__name {
@@ -739,7 +736,7 @@ onMounted(load);
 }
 .flow-node__footer {
   margin-top: 10px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .flow-insert {
@@ -766,7 +763,7 @@ onMounted(load);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: var(--font-size-lg, 16px);
   line-height: 1;
   background: var(--el-bg-color);
 }

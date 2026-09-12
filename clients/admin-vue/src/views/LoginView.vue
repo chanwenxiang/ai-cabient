@@ -78,7 +78,7 @@
               @click="loadCaptcha"
             >
               <img v-if="captchaImage" :src="captchaImage" alt="验证码" width="120" height="40" />
-              <span v-else>{{ captchaLoading ? '加载中…' : '点击获取' }}</span>
+              <span v-else>{{ captchaLoading ? UI_COPY.loading : '点击获取' }}</span>
             </button>
           </div>
         </el-form-item>
@@ -149,7 +149,6 @@
     <el-dialog
       v-model="resetVisible"
       title="重置密码"
-      width="440px"
       class="login-reset-dialog"
       modal-class="login-reset-modal"
       append-to-body
@@ -191,7 +190,7 @@
                 width="120"
                 height="40"
               />
-              <span v-else>{{ resetCaptchaLoading ? '加载中…' : '点击获取' }}</span>
+              <span v-else>{{ resetCaptchaLoading ? UI_COPY.loading : '点击获取' }}</span>
             </button>
           </div>
         </el-form-item>
@@ -251,6 +250,7 @@ import { safeRedirectPath } from '@/utils/safe-redirect';
 import { resolveHomePath } from '@/composables/useNavAccess';
 import { findNavByPath } from '@/config/menu';
 import bgVendingNight from '@/assets/bg-vending-night.jpg';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const brandStore = useBrandStore();
 const { brand, markChar } = storeToRefs(brandStore);
@@ -774,7 +774,7 @@ async function onSubmitTwoFactor() {
   border-radius: 12px;
   display: grid;
   place-items: center;
-  font-size: 22px;
+  font-size: var(--admin-font-size-display-md);
   font-weight: 700;
   color: #ecfeff;
   background: linear-gradient(145deg, #14b8a6, var(--app-primary, #0f766e));
@@ -892,7 +892,7 @@ async function onSubmitTwoFactor() {
   cursor: pointer;
   overflow: hidden;
   color: rgba(207, 250, 254, 0.8);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   backdrop-filter: blur(8px);
 }
 .captcha-img-btn:disabled {
@@ -916,13 +916,13 @@ async function onSubmitTwoFactor() {
 }
 .twofa-title {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--admin-font-size-display-sm);
   font-weight: 700;
   color: #f8fafc;
 }
 .twofa-sub {
   margin: 6px 0 0;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: #cbd5e1;
   line-height: 1.5;
 }
@@ -949,7 +949,7 @@ async function onSubmitTwoFactor() {
 }
 .login-extras :deep(.el-checkbox__label) {
   color: rgba(204, 251, 241, 0.82);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .remember-group {
   display: flex;
@@ -961,7 +961,7 @@ async function onSubmitTwoFactor() {
   border: none;
   background: transparent;
   color: #5eead4;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   cursor: pointer;
   padding: 2px 4px;
 }

@@ -92,7 +92,7 @@
 
       <view class="filters tabs-pill">
         <text
-          v-for="item in statusOptions"
+          v-for="item in statusOptions" role="button"
           :key="item.value"
           class="filter-chip"
           :class="{ active: status === item.value }"
@@ -174,8 +174,8 @@
         </view>
       </view>
 
-      <view v-if="detailVisible" class="mask" @click.self="closeDetail" @touchmove.stop.prevent>
-        <view class="sheet" @click.stop>
+      <view v-if="detailVisible" role="button" aria-label="关闭" class="mask" @click.self="closeDetail" @touchmove.stop.prevent>
+        <view role="button" class="sheet" @click.stop>
           <view class="sheet-handle" />
           <view class="sheet-head">
             <view>
@@ -287,24 +287,20 @@
             }}
           </text>
 
-          <button
+          <app-button
             v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
-            class="primary-btn btn-block"
             data-testid="replenish-checkin"
             :disabled="submitting"
+            label="现场签到"
             @click="checkIn"
-          >
-            现场签到
-          </button>
-          <button
+          />
+          <app-button
             v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
-            class="primary-btn btn-block"
             data-testid="replenish-open-door"
             :disabled="submitting"
+            :label="doorOpened ? '再次开门' : detailIsPullOff ? '下架开门' : '补货开门'"
             @click="openDoor"
-          >
-            {{ doorOpened ? '再次开门' : detailIsPullOff ? '下架开门' : '补货开门' }}
-          </button>
+          />
           <text v-if="!canRequest && selected?.status !== 'COMPLETED'" class="door-tip">
             只读查看，需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
           </text>
@@ -508,7 +504,7 @@
               <text class="slot-pick-label">选择货道</text>
               <view v-if="slotOptionsFor(line).length" class="slot-chips">
                 <text
-                  v-for="opt in slotOptionsFor(line)"
+                  v-for="opt in slotOptionsFor(line)" role="button"
                   :key="opt.slotCode"
                   class="slot-chip"
                   :class="{ disabled: opt.room <= 0, active: line.slotId === opt.slotCode }"
@@ -533,23 +529,20 @@
             v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
             class="action-dock"
           >
-            <button
+            <app-button
               v-if="!linesConfirmed"
-              class="secondary-btn"
+              variant="outline"
               data-testid="replenish-confirm-lines"
               :disabled="submitting || !lines.length"
+              label="确认商品与数量"
               @click="confirmLines"
-            >
-              确认商品与数量
-            </button>
-            <button
-              class="primary-btn"
+            />
+            <app-button
               data-testid="replenish-complete"
               :disabled="submitting || !lines.length || !linesConfirmed"
+              :label="detailIsPullOff ? '确认全部下架' : '确认全部上架'"
               @click="completeTask"
-            >
-              {{ detailIsPullOff ? '确认全部下架' : '确认全部上架' }}
-            </button>
+            />
           </view>
           <view v-if="selected?.status === 'COMPLETED'" class="complete-banner">
             {{
@@ -572,7 +565,7 @@
         @click.self="resolveConfirm(false)"
         @touchmove.stop.prevent
       >
-        <view class="confirm-card" @click.stop>
+        <view role="button" class="confirm-card" @click.stop>
           <text class="confirm-title">{{ confirmDialog.title }}</text>
           <text class="confirm-body">{{ confirmDialog.content }}</text>
           <view
@@ -614,6 +607,10 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
+import {
+  showError,
+  showSuccess
+} from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, formatDateTimeShort } from '@aicabinet/shared-uni/format';
@@ -1016,14 +1013,14 @@ function copyDeviceId(id?: string) {
   if (!code) return;
   uni.setClipboardData({
     data: code,
-    success: () => uni.showToast({ title: '已复制柜机编号', icon: 'none' })
+    success: () => showError('已复制柜机编号')
   });
 }
 
 function navigateToDevice(id?: string) {
   const m = deviceMeta(id || selected.value?.deviceId);
   if (!m?.latitude || !m?.longitude) {
-    uni.showToast({ title: '暂无坐标，请按地址或编号找柜', icon: 'none' });
+    showError('暂无坐标，请按地址或编号找柜');
     return;
   }
   const name = encodeURIComponent(m.deviceName || m.deviceId || '柜机');
@@ -1060,11 +1057,7 @@ async function assertScannedDeviceAllowed(deviceId: string): Promise<boolean> {
     await merchantApi.assertReplenishmentDeviceAccess(id);
     return true;
   } catch (e) {
-    uni.showToast({
-      title: e instanceof Error ? e.message : '柜机不在您的管辖范围',
-      icon: 'none',
-      duration: 3200
-    });
+    showError(e instanceof Error ? e.message : '柜机不在您的管辖范围', 3200);
     return false;
   }
 }
@@ -1090,7 +1083,7 @@ async function verifyCabinetScan() {
       });
       return;
     }
-    uni.showToast({ title: '柜机核对一致', icon: 'success' });
+    showSuccess('柜机核对一致');
   } finally {
     scanning.value = false;
   }
@@ -1211,7 +1204,7 @@ async function handleDeepLinkAfterLoad(open: Task | undefined, wantedTaskId: num
   if (open) {
     await openTask(open);
   } else if (wantedTaskId) {
-    uni.showToast({ title: `任务 #${wantedTaskId} 不可用或已取消`, icon: 'none' });
+    showError(`任务 #${wantedTaskId} 不可用或已取消`);
   }
 }
 
@@ -1223,7 +1216,7 @@ async function load() {
   const seq = ++loadSeq;
   if (!(await ensureReplenishmentMe(seq))) return;
   if (!canReplenish.value) {
-    uni.showToast({ title: '无补货权限', icon: 'none' });
+    showError('无补货权限');
     uni.switchTab({ url: '/pages/home/home' });
     return;
   }
@@ -1243,7 +1236,7 @@ async function load() {
     await handleDeepLinkAfterLoad(open, wantedTaskId);
   } catch (error) {
     if (seq !== loadSeq) return;
-    uni.showToast({ title: error instanceof Error ? error.message : '加载失败', icon: 'none' });
+    showError(error instanceof Error ? error.message : '加载失败');
   } finally {
     if (seq === loadSeq) {
       loading.value = false;
@@ -1286,7 +1279,7 @@ async function onScan() {
     if (open) {
       await openTask(open);
     } else {
-      uni.showToast({ title: '该柜暂无任务，已筛选列表', icon: 'none' });
+      showError('该柜暂无任务，已筛选列表');
     }
   } finally {
     scanning.value = false;
@@ -1351,16 +1344,16 @@ async function scanProduct(line: Line) {
     if (!code) return;
     const sku = findSkuByBarcode(code);
     if (!sku?.skuId) {
-      uni.showToast({ title: '未匹配到商品条码', icon: 'none' });
+      showError('未匹配到商品条码');
       return;
     }
     const target = findMatchingTaskLine(sku.skuId);
     if (!target) {
-      uni.showToast({ title: '本次任务不含该商品', icon: 'none' });
+      showError('本次任务不含该商品');
       return;
     }
     adjustQty(target, 1);
-    uni.showToast({ title: `已扫 ${sku.skuName || target.skuId}`, icon: 'none' });
+    showError(`已扫 ${sku.skuName || target.skuId}`);
   } finally {
     scanning.value = false;
   }
@@ -1466,11 +1459,11 @@ function syncTaskInList(task: Task) {
 async function addEvidence() {
   if (!selected.value || !canRequest.value) return;
   if (!selected.value.checkInAt) {
-    uni.showToast({ title: '请先签到再拍照', icon: 'none' });
+    showError('请先签到再拍照');
     return;
   }
   if (evidenceItems.value.length >= 5) {
-    uni.showToast({ title: '最多 5 张', icon: 'none' });
+    showError('最多 5 张');
     return;
   }
   const paths = await new Promise<string[]>((resolve) => {
@@ -1498,10 +1491,7 @@ async function addEvidence() {
         };
       }
     } catch (e) {
-      uni.showToast({
-        title: e instanceof Error ? e.message : '上传失败',
-        icon: 'none'
-      });
+      showError(e instanceof Error ? e.message : '上传失败');
       break;
     }
   }
@@ -1593,7 +1583,7 @@ async function openTask(task: Task) {
     await refreshSelectedTask(task);
     await loadTaskDetailResources(task);
   } catch (error) {
-    uni.showToast({ title: error instanceof Error ? error.message : '明细加载失败', icon: 'none' });
+    showError(error instanceof Error ? error.message : '明细加载失败');
   } finally {
     detailLoading.value = false;
   }
@@ -1617,7 +1607,7 @@ function slotOptionsFor(line: Line) {
 function assignSlot(line: Line, opt: { slotCode: string; room: number }) {
   if (!opt.slotCode) return;
   if (opt.room <= 0) {
-    uni.showToast({ title: '该货道已满', icon: 'none' });
+    showError('该货道已满');
     return;
   }
   line.slotId = opt.slotCode;
@@ -1822,7 +1812,7 @@ async function obtainCheckInLocation(): Promise<{
         locationOk: true
       };
     } catch {
-      uni.showToast({ title: '仍无法定位，请到柜前开启 GPS 后重试', icon: 'none' });
+      showError('仍无法定位，请到柜前开启 GPS 后重试');
       return null;
     }
   }
@@ -1838,24 +1828,18 @@ async function submitCheckIn(body: Record<string, number>, locationOk: boolean) 
   const skipTitle = !requireReplenishmentCheckInLocation.value
     ? '已签到（未校验定位）'
     : '签到成功';
-  uni.showToast({
-    title: locationOk ? '签到成功' : skipTitle,
-    icon: locationOk ? 'success' : 'none'
-  });
+  if (locationOk) showSuccess('签到成功');
+  else showError(skipTitle);
 }
 
 async function handleCheckInDistanceFailure(msg: string) {
-  uni.showToast({
-    title: msg || '距离过远，请到柜前再签到',
-    icon: 'none',
-    duration: 3600
-  });
+  showError(msg || '距离过远，请到柜前再签到', 3600);
 }
 
 async function checkIn() {
   if (!selected.value || submitting.value) return;
   if (!canRequest.value) {
-    uni.showToast({ title: '无补货操作权限', icon: 'none' });
+    showError('无补货操作权限');
     return;
   }
   submitting.value = true;
@@ -1871,7 +1855,7 @@ async function checkIn() {
     if (location.locationOk && isDistanceCheckError(msg)) {
       await handleCheckInDistanceFailure(msg);
     } else {
-      uni.showToast({ title: msg, icon: 'none', duration: 3600 });
+      showError(msg, 3600);
     }
   } finally {
     submitting.value = false;
@@ -1893,7 +1877,7 @@ async function applyOpenDoorSession(session: { sessionId?: string }) {
     ...selected.value,
     status: selected.value.status === 'PENDING' ? 'IN_PROGRESS' : selected.value.status
   };
-  uni.showToast({ title: '开门指令已下发', icon: 'success' });
+  showSuccess('开门指令已下发');
   await load();
   const fresh = allTasks.value.find((t) => t.taskId === selected.value?.taskId);
   if (fresh) selected.value = { ...fresh };
@@ -1902,11 +1886,11 @@ async function applyOpenDoorSession(session: { sessionId?: string }) {
 async function openDoor() {
   if (!selected.value || submitting.value) return;
   if (!canRequest.value) {
-    uni.showToast({ title: '无补货操作权限', icon: 'none' });
+    showError('无补货操作权限');
     return;
   }
   if (!selected.value.checkInAt) {
-    uni.showToast({ title: '请先现场签到', icon: 'none' });
+    showError('请先现场签到');
     return;
   }
   const ok = await askConfirm({
@@ -1922,7 +1906,7 @@ async function openDoor() {
     await applyOpenDoorSession(session);
   } catch (error) {
     const msg = error instanceof Error ? error.message : '开门失败';
-    uni.showToast({ title: msg, icon: 'none', duration: 3200 });
+    showError(msg, 3200);
   } finally {
     submitting.value = false;
   }
@@ -1942,10 +1926,7 @@ function increaseLineQty(line: Line, delta: number) {
   }
   const room = slotHeadroom(line);
   if (cur >= room) {
-    uni.showToast({
-      title: room <= 0 ? '货道已满，无法再加' : `最多再补 ${room}`,
-      icon: 'none'
-    });
+    showError(room <= 0 ? '货道已满，无法再加' : `最多再补 ${room}`);
     return;
   }
   line.quantity = Math.min(room, cur + delta);
@@ -2008,14 +1989,14 @@ async function ensureLinesWithinCapacity(): Promise<boolean> {
 function validatePositiveLines(): Line[] | null {
   const positive = lines.value.filter((l) => (Number(l.quantity) || 0) > 0);
   if (!positive.length) {
-    uni.showToast({ title: '调低后无有效数量，请换货道或取消该行', icon: 'none' });
+    showError('调低后无有效数量，请换货道或取消该行');
     return null;
   }
   const unassigned = positive.filter(
     (l) => !isPullOffType(l.lineType) && !String(l.slotId || '').trim()
   );
   if (unassigned.length) {
-    uni.showToast({ title: '请先为待分配行选择货道', icon: 'none' });
+    showError('请先为待分配行选择货道');
     return null;
   }
   return positive;
@@ -2023,7 +2004,7 @@ function validatePositiveLines(): Line[] | null {
 
 async function handleConfirmLinesFailure(msg: string) {
   if (!msg.includes('容量不足')) {
-    uni.showToast({ title: msg, icon: 'none', duration: 3600 });
+    showError(msg, 3600);
     return;
   }
   const auto = await askConfirm({
@@ -2038,7 +2019,7 @@ async function handleConfirmLinesFailure(msg: string) {
 async function confirmLines() {
   if (!selected.value || submitting.value) return;
   if (!canRequest.value) {
-    uni.showToast({ title: '无补货操作权限', icon: 'none' });
+    showError('无补货操作权限');
     return;
   }
   if (!(await ensureLinesWithinCapacity())) return;
@@ -2055,7 +2036,7 @@ async function confirmLines() {
       ...lineSummaryMap.value,
       [selected.value.taskId]: formatLineSummary(lines.value)
     };
-    uni.showToast({ title: '清单已确认', icon: 'success' });
+    showSuccess('清单已确认');
   } catch (error) {
     const msg = error instanceof Error ? error.message : '确认失败';
     await handleConfirmLinesFailure(msg);
@@ -2097,7 +2078,7 @@ async function confirmEvidenceIfNeeded(): Promise<boolean> {
   });
   if (goPhoto) {
     if (selected.value?.checkInAt) void addEvidence();
-    else uni.showToast({ title: '请先签到再拍照', icon: 'none' });
+    else showError('请先签到再拍照');
   }
   return false;
 }
@@ -2124,10 +2105,7 @@ async function finalizeCompletedTask(taskId: number) {
   }
   doorOpened.value = false;
   openSessionId.value = '';
-  uni.showToast({
-    title: detailIsPullOff.value ? '下架完成' : '补货完成',
-    icon: 'success'
-  });
+  showSuccess(detailIsPullOff.value ? '下架完成' : '补货完成');
   await load();
   const fresh = allTasks.value.find((t) => t.taskId === taskId);
   if (fresh) selected.value = { ...fresh };
@@ -2136,11 +2114,11 @@ async function finalizeCompletedTask(taskId: number) {
 async function completeTask() {
   if (!selected.value || submitting.value) return;
   if (!canRequest.value) {
-    uni.showToast({ title: '无补货操作权限', icon: 'none' });
+    showError('无补货操作权限');
     return;
   }
   if (!linesConfirmed.value) {
-    uni.showToast({ title: '请先确认商品与数量', icon: 'none' });
+    showError('请先确认商品与数量');
     return;
   }
   if (!(await confirmDoorOpenedIfNeeded())) return;
@@ -2150,7 +2128,7 @@ async function completeTask() {
   try {
     await finalizeCompletedTask(selected.value.taskId);
   } catch (error) {
-    uni.showToast({ title: error instanceof Error ? error.message : '完成失败', icon: 'none' });
+    showError(error instanceof Error ? error.message : '完成失败');
   } finally {
     submitting.value = false;
   }
@@ -2167,7 +2145,7 @@ onPullDownRefresh(load);
 .page {
   min-height: 100%;
   padding: 0;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   box-sizing: border-box;
   overflow-x: hidden;
 }
@@ -2176,10 +2154,10 @@ onPullDownRefresh(load);
   overflow: hidden;
   margin: 20rpx 24rpx 0;
   padding: 36rpx 28rpx 32rpx;
-  border-radius: 24rpx;
-  color: #0f172a;
-  background: linear-gradient(135deg, #ecfdf5, #fff);
-  border: 1rpx solid #d1fae5;
+  border-radius: var(--radius-card);
+  color: var(--text-primary, #0f172a);
+  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  border: 1rpx solid var(--brand-soft, #d1fae5);
   box-shadow: none;
   text-align: center;
 }
@@ -2204,23 +2182,23 @@ onPullDownRefresh(load);
   text-align: center;
 }
 .eyebrow {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   letter-spacing: 4rpx;
   padding: 6rpx 16rpx;
-  border-radius: 999rpx;
-  background: #f0fdf4;
-  color: #0f766e;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft, #f0fdf4);
+  color: var(--brand);
 }
 .title {
   margin-top: 14rpx;
-  font-size: 42rpx;
+  font-size: var(--font-size-h2);
   font-weight: 800;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 .subtitle {
   margin-top: 10rpx;
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
   line-height: 1.55;
 }
 .stats {
@@ -2231,7 +2209,7 @@ onPullDownRefresh(load);
   gap: 12rpx;
   margin-top: 28rpx;
   padding-top: 22rpx;
-  border-top: 1rpx solid #d1fae5;
+  border-top: 1rpx solid var(--brand-soft, #d1fae5);
 }
 .stat {
   flex: 1;
@@ -2244,14 +2222,14 @@ onPullDownRefresh(load);
   text-align: center;
 }
 .stat-value {
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
   font-weight: 800;
-  color: #0f766e;
+  color: var(--brand);
 }
 .stat-label {
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }
 .hero-actions {
   position: relative;
@@ -2272,10 +2250,10 @@ onPullDownRefresh(load);
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.2;
-  border-radius: 44rpx;
-  background: linear-gradient(135deg, #134e4a, #0f766e);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, var(--brand-deep), var(--brand));
   color: #fff;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
   box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.22);
   text-align: center;
@@ -2296,13 +2274,13 @@ onPullDownRefresh(load);
   min-width: 0;
   min-height: 88rpx;
   padding: 0 28rpx;
-  border-radius: 44rpx;
-  background: #f0fdf4;
-  color: #0f766e;
-  font-size: 28rpx;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft, #f0fdf4);
+  color: var(--brand);
+  font-size: var(--font-size-md);
   font-weight: 600;
   box-sizing: border-box;
-  border: 2rpx solid #99f6e4;
+  border: 2rpx solid var(--brand-mist, #99f6e4);
 }
 .clear-pill-hover {
   opacity: 0.82;
@@ -2311,7 +2289,7 @@ onPullDownRefresh(load);
   position: relative;
   display: block;
   margin-top: 16rpx;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   opacity: 0.85;
   text-align: center;
 }
@@ -2321,24 +2299,24 @@ onPullDownRefresh(load);
 .idle-tip {
   margin: 18rpx 24rpx 0;
   padding: 28rpx 24rpx;
-  border-radius: 20rpx;
-  background: #fff;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
   border: 1rpx solid rgba(15, 118, 110, 0.1);
   box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.06);
   text-align: center;
 }
 .idle-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
-  color: #134e4a;
+  color: var(--brand-deep);
   text-align: center;
 }
 .idle-desc {
   display: block;
   margin-top: 8rpx;
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
   line-height: 1.5;
   text-align: center;
 }
@@ -2346,8 +2324,8 @@ onPullDownRefresh(load);
 .patrol-card {
   margin: 22rpx 24rpx 4rpx;
   padding: 24rpx;
-  border-radius: 24rpx;
-  background: #fff;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
   border: 1rpx solid #fcd34d;
   box-shadow: 0 8rpx 30rpx rgba(180, 83, 9, 0.08);
 }
@@ -2360,40 +2338,40 @@ onPullDownRefresh(load);
 }
 .patrol-title {
   display: block;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
   color: #78350f;
 }
 .patrol-sub {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #b45309;
+  font-size: var(--font-size-sm);
+  color: var(--warning, #b45309);
 }
 .patrol-count {
   padding: 6rpx 14rpx;
-  border-radius: 999rpx;
-  background: #fffbeb;
-  color: #b45309;
-  font-size: 22rpx;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
+  color: var(--warning, #b45309);
+  font-size: var(--font-size-sm);
   font-weight: 700;
 }
 .patrol-row {
   margin-top: 18rpx;
   padding: 18rpx 20rpx;
   border-radius: 18rpx;
-  background: #fffbeb;
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
   cursor: pointer;
 }
 .patrol-row-hover {
-  background: #fef3c7;
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
 }
 .patrol-name {
   flex: 1;
   min-width: 0;
 }
 .patrol-name .device-name {
-  font-size: 27rpx;
+  font-size: var(--font-size-md);
 }
 .patrol-meta {
   display: flex;
@@ -2404,16 +2382,16 @@ onPullDownRefresh(load);
 }
 .patrol-badge {
   padding: 6rpx 12rpx;
-  border-radius: 999rpx;
-  background: #fef3c7;
-  color: #b45309;
-  font-size: 20rpx;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  color: var(--warning, #b45309);
+  font-size: var(--font-size-xs);
   font-weight: 700;
 }
 .patrol-shortage {
   margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #b45309;
+  font-size: var(--font-size-sm);
+  color: var(--warning, #b45309);
   font-weight: 700;
 }
 
@@ -2433,17 +2411,17 @@ onPullDownRefresh(load);
 .task-card {
   position: relative;
   overflow: hidden;
-  margin: 0 24rpx 18rpx;
+  margin: 0 var(--page-gutter) 18rpx;
   padding: 26rpx;
-  border-radius: 24rpx;
-  background: #fff;
-  border: 1rpx solid #e2e8f0;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
+  border: 1rpx solid var(--color-border);
   box-shadow: 0 8rpx 30rpx rgba(15, 118, 110, 0.08);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 .task-card-hover {
-  background: #f8fafc !important;
+  background: var(--page-bg, #f8fafc) !important;
   opacity: 0.96;
 }
 .task-accent {
@@ -2467,15 +2445,15 @@ onPullDownRefresh(load);
 }
 .task-meta.soft {
   margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
   justify-content: flex-start;
   flex-wrap: wrap;
 }
 .task-lines {
   margin-top: 10rpx;
-  font-size: 22rpx;
-  color: #334155;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #334155);
   line-height: 1.45;
   pointer-events: none;
 }
@@ -2492,20 +2470,20 @@ onPullDownRefresh(load);
   display: block;
 }
 .device-name {
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 .device-code {
   margin-top: 4rpx;
-  color: #94a3b8;
-  font-size: 21rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-sm);
 }
 .task-addr {
   display: block;
   margin-top: 6rpx;
-  color: #64748b;
-  font-size: 21rpx;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
   line-height: 1.4;
   pointer-events: none;
 }
@@ -2513,13 +2491,13 @@ onPullDownRefresh(load);
   margin: 0 0 20rpx;
   padding: 20rpx 22rpx;
   border-radius: 18rpx;
-  background: #f0fdf4;
-  border: 1rpx solid #99f6e4;
+  background: var(--brand-soft, #f0fdf4);
+  border: 1rpx solid var(--brand-mist, #99f6e4);
 }
 .cabinet-addr {
   display: block;
-  color: #134e4a;
-  font-size: 24rpx;
+  color: var(--brand-deep);
+  font-size: var(--font-size-caption);
   line-height: 1.5;
 }
 .cabinet-actions {
@@ -2530,17 +2508,17 @@ onPullDownRefresh(load);
 }
 .cabinet-chip {
   padding: 10rpx 20rpx;
-  border-radius: 999rpx;
-  background: #fff;
-  border: 1rpx solid #cbd5e1;
-  color: #334155;
-  font-size: 22rpx;
+  border-radius: var(--radius-pill);
+  background: var(--card-bg, #fff);
+  border: 1rpx solid var(--text-subtle, #cbd5e1);
+  color: var(--text-muted, #334155);
+  font-size: var(--font-size-sm);
   font-weight: 600;
 }
 .cabinet-chip.primary {
-  background: #ecfdf5;
-  border-color: #0f766e;
-  color: #0f766e;
+  background: var(--brand-soft);
+  border-color: var(--brand);
+  color: var(--brand);
 }
 .skip-loc-row {
   display: flex;
@@ -2549,9 +2527,9 @@ onPullDownRefresh(load);
   gap: 16rpx;
   margin: 0 0 16rpx;
   padding: 18rpx 20rpx;
-  border-radius: 16rpx;
-  background: #f8fafc;
-  border: 1rpx solid #e2e8f0;
+  border-radius: var(--radius-panel);
+  background: var(--page-bg, #f8fafc);
+  border: 1rpx solid var(--color-border);
 }
 .skip-loc-copy {
   flex: 1;
@@ -2559,79 +2537,79 @@ onPullDownRefresh(load);
 }
 .skip-loc-label {
   display: block;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 .skip-loc-hint {
   display: block;
   margin-top: 4rpx;
-  font-size: 21rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }
 .skip-loc-switch {
   flex-shrink: 0;
   min-width: 56rpx;
   padding: 8rpx 16rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   text-align: center;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   font-weight: 700;
-  color: #64748b;
-  background: #e2e8f0;
+  color: var(--text-muted);
+  background: var(--color-border);
 }
 .skip-loc-switch.on {
   color: #fff;
-  background: #0f766e;
+  background: var(--brand);
 }
 .status {
   padding: 8rpx 16rpx;
-  border-radius: 999rpx;
-  color: #92400e;
-  background: #fef3c7;
-  font-size: 22rpx;
+  border-radius: var(--radius-pill);
+  color: var(--warning, #92400e);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  font-size: var(--font-size-sm);
   font-weight: 600;
 }
 .status.completed {
-  color: #166534;
-  background: #dcfce7;
+  color: var(--brand-deep, #166534);
+  background: var(--brand-soft, #dcfce7);
 }
 .task-meta,
 .line-meta {
   margin-top: 16rpx;
-  color: #64748b;
-  font-size: 22rpx;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
 }
 .line-type {
-  color: #0f766e;
-  background: #ecfdf5;
+  color: var(--brand);
+  background: var(--brand-soft);
   padding: 2rpx 10rpx;
-  border-radius: 999rpx;
-  font-size: 20rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs);
 }
 .line-cap {
   margin-top: 12rpx;
   padding: 10rpx 14rpx;
-  border-radius: 12rpx;
-  font-size: 22rpx;
-  color: #0f766e;
-  background: #ecfdf5;
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-sm);
+  color: var(--brand);
+  background: var(--brand-soft);
 }
 .line-cap.warn {
-  color: #b45309;
-  background: #fffbeb;
+  color: var(--warning, #b45309);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
 }
 .line-cap.full {
-  color: #b91c1c;
-  background: #fef2f2;
+  color: var(--color-danger);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, #fff);
 }
 .slot-pick {
   margin-top: 12rpx;
 }
 .slot-pick-label {
   display: block;
-  font-size: 22rpx;
-  color: #0f766e;
+  font-size: var(--font-size-sm);
+  color: var(--brand);
   margin-bottom: 8rpx;
   font-weight: 600;
 }
@@ -2642,41 +2620,42 @@ onPullDownRefresh(load);
 }
 .slot-chip {
   padding: 8rpx 16rpx;
-  border-radius: 999rpx;
-  background: #ecfdf5;
-  color: #0f766e;
-  font-size: 22rpx;
-  border: 1rpx solid #99f6e4;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: var(--font-size-sm);
+  border: 1rpx solid var(--brand-mist, #99f6e4);
 }
 .slot-chip.active {
-  background: #0f766e;
+  background: var(--brand);
   color: #fff;
-  border-color: #0f766e;
+  border-color: var(--brand);
 }
 .slot-chip.disabled {
-  background: #e2e8f0;
-  color: #475569;
-  border-color: #cbd5e1;
+  background: var(--color-border);
+  color: var(--text-muted, #475569);
+  border-color: var(--text-subtle, #cbd5e1);
 }
 .slot-empty {
-  font-size: 22rpx;
-  color: #b91c1c;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
 }
 .task-note {
   margin-top: 16rpx;
   padding: 16rpx;
-  border-radius: 14rpx;
-  color: #475569;
-  background: #f8fafc;
-  font-size: 22rpx;
+  border-radius: var(--radius-control);
+  color: var(--text-muted, #475569);
+  background: var(--page-bg, #f8fafc);
+  font-size: var(--font-size-sm);
 }
 .detail-btn,
-.primary-btn,
-.secondary-btn {
+.app-btn,
+.secondary-btn,
+.action-dock .app-btn {
   margin-top: 22rpx;
   border: 0;
   border-radius: 18rpx;
-  font-size: 27rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
   min-height: 88rpx;
   line-height: 1.2;
@@ -2693,16 +2672,16 @@ onPullDownRefresh(load);
   pointer-events: none;
 }
 .detail-btn,
-.primary-btn {
+.app-btn {
   color: #fff;
-  background: #0f766e;
+  background: var(--brand);
 }
 .secondary-btn {
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--brand);
+  background: var(--brand-mist);
 }
 .detail-btn::after,
-.primary-btn::after,
+.app-btn::after,
 .secondary-btn::after {
   border: none;
 }
@@ -2712,8 +2691,8 @@ onPullDownRefresh(load);
   margin-left: 24rpx;
   margin-right: 24rpx;
   text-align: center;
-  color: #94a3b8;
-  font-size: 28rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-md);
 }
 .empty.small {
   padding: 30rpx;
@@ -2732,14 +2711,14 @@ onPullDownRefresh(load);
   padding: 0 28rpx;
   height: 72rpx;
   line-height: 72rpx;
-  border-radius: 36rpx;
-  background: #0f766e;
+  border-radius: var(--radius-card);
+  background: var(--brand);
   color: #fff;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
 }
 .empty-scan.ghost {
-  color: #0f766e;
-  background: #ecfdf5;
+  color: var(--brand);
+  background: var(--brand-soft);
 }
 .empty-scan::after {
   border: none;
@@ -2760,8 +2739,8 @@ onPullDownRefresh(load);
   max-width: 520px;
   max-height: 88vh;
   padding: 30rpx 26rpx calc(30rpx + env(safe-area-inset-bottom));
-  border-radius: 32rpx 32rpx 0 0;
-  background: #fff;
+  border-radius: var(--radius-card) 32rpx 0 0;
+  background: var(--card-bg, #fff);
   overflow-y: auto;
   overscroll-behavior: contain;
   box-sizing: border-box;
@@ -2774,17 +2753,17 @@ onPullDownRefresh(load);
   height: 8rpx;
   margin: 0 auto 16rpx;
   border-radius: 4rpx;
-  background: #cbd5e1;
+  background: var(--text-subtle, #cbd5e1);
 }
 .sheet-title {
   display: block;
-  font-size: 34rpx;
+  font-size: var(--font-size-h3);
   font-weight: 800;
 }
 .close {
   padding: 10rpx;
-  color: #64748b;
-  font-size: 46rpx;
+  color: var(--text-muted);
+  font-size: var(--font-size-h1);
 }
 .step-row {
   display: grid;
@@ -2793,7 +2772,7 @@ onPullDownRefresh(load);
   margin: 26rpx 0;
   padding: 16rpx 8rpx;
   border-radius: 18rpx;
-  background: #f8fafc;
+  background: var(--page-bg, #f8fafc);
 }
 .step-row.four {
   grid-template-columns: repeat(4, 1fr);
@@ -2808,16 +2787,16 @@ onPullDownRefresh(load);
   display: block;
   margin-top: 12rpx;
   padding: 14rpx 16rpx;
-  border-radius: 12rpx;
-  background: #ecfdf5;
-  color: #047857;
-  font-size: 22rpx;
+  border-radius: var(--radius-control);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: var(--font-size-sm);
   line-height: 1.4;
 }
 .step {
   text-align: center;
-  color: #94a3b8;
-  font-size: 21rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-sm);
 }
 .step-num {
   display: flex;
@@ -2827,27 +2806,27 @@ onPullDownRefresh(load);
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  color: #475569;
-  background: #e2e8f0;
-  font-size: 24rpx;
+  color: var(--text-muted, #475569);
+  background: var(--color-border);
+  font-size: var(--font-size-caption);
 }
 .step-label {
   display: block;
 }
 .step.done {
-  color: #0f766e;
+  color: var(--brand);
 }
 .step.done .step-num {
   color: #fff;
-  background: #0f766e;
+  background: var(--brand);
 }
 .step.current {
-  color: #0f766e;
+  color: var(--brand);
   font-weight: 600;
 }
 .step.current .step-num {
   color: #fff;
-  background: #0f766e;
+  background: var(--brand);
   box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.2);
 }
 .lines-empty {
@@ -2857,11 +2836,11 @@ onPullDownRefresh(load);
 }
 .lines-empty-title {
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-muted);
 }
 .lines-empty-tip {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-subtle);
   line-height: 1.4;
 }
 .section-heading {
@@ -2872,32 +2851,32 @@ onPullDownRefresh(load);
 }
 .section-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
 }
 .section-subtitle {
   display: block;
   margin-top: 4rpx;
-  color: #94a3b8;
-  font-size: 22rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-sm);
 }
 .line-count {
   padding: 6rpx 12rpx;
-  border-radius: 999rpx;
-  color: #0f766e;
-  background: #ccfbf1;
-  font-size: 22rpx;
+  border-radius: var(--radius-pill);
+  color: var(--brand);
+  background: var(--brand-mist);
+  font-size: var(--font-size-sm);
   font-weight: 700;
 }
 .line-card {
   margin-bottom: 14rpx;
   padding: 20rpx;
-  border: 1rpx solid #e2e8f0;
+  border: 1rpx solid var(--color-border);
   border-radius: 18rpx;
 }
 .sku-name {
   display: block;
-  font-size: 27rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2905,8 +2884,8 @@ onPullDownRefresh(load);
   max-width: 360rpx;
 }
 .qty {
-  color: #0f766e;
-  font-size: 30rpx;
+  color: var(--brand);
+  font-size: var(--font-size-lg);
   font-weight: 800;
   min-width: 40rpx;
   text-align: center;
@@ -2916,8 +2895,8 @@ onPullDownRefresh(load);
   align-items: center;
   gap: 12rpx;
   padding: 4rpx 8rpx;
-  border-radius: 999rpx;
-  background: #ecfdf5;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
 }
 .qty-actions {
   display: flex;
@@ -2929,10 +2908,10 @@ onPullDownRefresh(load);
   padding: 0 20rpx;
   height: 52rpx;
   line-height: 52rpx;
-  border-radius: 999rpx;
-  background: #0f766e;
+  border-radius: var(--radius-pill);
+  background: var(--brand);
   color: #fff;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   font-weight: 600;
 }
 .scan-line[disabled] {
@@ -2944,9 +2923,9 @@ onPullDownRefresh(load);
   line-height: 88rpx;
   text-align: center;
   border-radius: 50%;
-  background: #fff;
-  color: #0f766e;
-  font-size: 32rpx;
+  background: var(--card-bg, #fff);
+  color: var(--brand);
+  font-size: var(--font-size-xl);
   font-weight: 700;
   box-shadow: 0 2rpx 8rpx rgba(15, 118, 110, 0.12);
 }
@@ -2957,21 +2936,21 @@ onPullDownRefresh(load);
   height: 72rpx;
   align-items: center;
   justify-content: center;
-  border-radius: 16rpx;
-  background: #ecfdf5;
-  font-size: 32rpx;
+  border-radius: var(--radius-panel);
+  background: var(--brand-soft);
+  font-size: var(--font-size-xl);
   margin-right: 16rpx;
 }
 .product-thumb-img {
   width: 100%;
   height: 100%;
-  border-radius: 16rpx;
-  background: #ecfdf5;
+  border-radius: var(--radius-panel);
+  background: var(--brand-soft);
 }
 .product-mark {
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
-  color: #0f766e;
+  color: var(--brand);
 }
 .product-copy {
   flex: 1;
@@ -2990,8 +2969,8 @@ onPullDownRefresh(load);
 .evidence-add {
   width: 140rpx;
   height: 140rpx;
-  border-radius: 16rpx;
-  background: #ecfdf5;
+  border-radius: var(--radius-panel);
+  background: var(--brand-soft);
 }
 .evidence-thumb {
   display: block;
@@ -2999,8 +2978,8 @@ onPullDownRefresh(load);
 .evidence-caption {
   display: block;
   margin-top: 6rpx;
-  font-size: 20rpx;
-  color: #64748b;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
   text-align: center;
 }
 .evidence-add {
@@ -3008,17 +2987,17 @@ onPullDownRefresh(load);
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border: 2rpx dashed #99f6e4;
-  color: #0f766e;
+  border: 2rpx dashed var(--brand-mist, #99f6e4);
+  color: var(--brand);
   gap: 4rpx;
 }
 .evidence-add-plus {
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
   font-weight: 600;
   line-height: 1;
 }
 .evidence-add-label {
-  font-size: 20rpx;
+  font-size: var(--font-size-xs);
 }
 .evidence-empty {
   width: 100%;
@@ -3026,53 +3005,53 @@ onPullDownRefresh(load);
   height: auto;
   padding: 24rpx 20rpx;
   box-sizing: border-box;
-  border: 2rpx dashed #cbd5e1;
-  background: #f8fafc;
-  border-radius: 16rpx;
+  border: 2rpx dashed var(--text-subtle, #cbd5e1);
+  background: var(--page-bg, #f8fafc);
+  border-radius: var(--radius-panel);
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 8rpx;
 }
 .evidence-empty-title {
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 650;
-  color: #334155;
+  color: var(--text-muted, #334155);
 }
 .evidence-empty-tip {
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 .evidence-hint {
   align-self: center;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 .evidence-badge {
-  color: #0f766e;
+  color: var(--brand);
   font-weight: 650;
 }
 .evidence-badge.muted {
-  color: #94a3b8;
+  color: var(--text-subtle);
   font-weight: 500;
 }
 .line-count.warn {
-  color: #b45309;
+  color: var(--warning, #b45309);
 }
 .line-stock {
   margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #0f766e;
-  background: #ecfdf5;
-  border-radius: 10rpx;
+  font-size: var(--font-size-sm);
+  color: var(--brand);
+  background: var(--brand-soft);
+  border-radius: var(--radius-tag);
   padding: 8rpx 12rpx;
 }
 .line-stock.muted {
-  color: #64748b;
-  background: #f8fafc;
+  color: var(--text-muted);
+  background: var(--page-bg, #f8fafc);
 }
 .line-meta.soft {
-  color: #64748b;
+  color: var(--text-muted);
 }
 /* 非 sticky：避免滚动选择货道时底栏遮挡操作区（P0-27） */
 .action-dock {
@@ -3080,17 +3059,23 @@ onPullDownRefresh(load);
   z-index: 1;
   margin-top: 22rpx;
   padding: 16rpx 0 calc(8rpx + env(safe-area-inset-bottom));
-  background: #fff;
-  border-top: 1rpx solid #e2e8f0;
+  background: var(--color-bg-card, #fff);
+  border-top: 1rpx solid var(--color-border, #e2e8f0);
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+.action-dock .app-btn {
+  margin-top: 0;
 }
 .complete-banner {
   margin-top: 22rpx;
   padding: 22rpx;
   border-radius: 18rpx;
-  color: #166534;
-  background: #dcfce7;
+  color: var(--brand-deep, #166534);
+  background: var(--brand-soft, #dcfce7);
   text-align: center;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
 }
 .confirm-mask {
   position: fixed;
@@ -3108,21 +3093,21 @@ onPullDownRefresh(load);
   width: 100%;
   max-width: 620rpx;
   padding: 36rpx 32rpx 28rpx;
-  border-radius: 24rpx;
-  background: #fff;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
   box-shadow: 0 24rpx 48rpx rgba(15, 23, 42, 0.18);
 }
 .confirm-title {
   display: block;
-  color: #0f172a;
-  font-size: 32rpx;
+  color: var(--text-primary, #0f172a);
+  font-size: var(--font-size-xl);
   font-weight: 700;
 }
 .confirm-body {
   display: block;
   margin-top: 16rpx;
-  color: #475569;
-  font-size: 26rpx;
+  color: var(--text-muted, #475569);
+  font-size: var(--font-size-body);
   line-height: 1.55;
   white-space: pre-wrap;
 }
@@ -3132,16 +3117,16 @@ onPullDownRefresh(load);
   gap: 12rpx;
   margin-top: 20rpx;
   padding: 16rpx 14rpx;
-  border-radius: 12rpx;
-  background: #f8fafc;
-  color: #334155;
-  font-size: 24rpx;
+  border-radius: var(--radius-control);
+  background: var(--page-bg, #f8fafc);
+  color: var(--text-muted, #334155);
+  font-size: var(--font-size-caption);
   line-height: 1.45;
 }
 .remember-box {
   flex-shrink: 0;
-  color: #0f766e;
-  font-size: 28rpx;
+  color: var(--brand);
+  font-size: var(--font-size-md);
 }
 .confirm-actions {
   display: flex;
@@ -3152,19 +3137,19 @@ onPullDownRefresh(load);
   flex: 1;
   margin: 0;
   border: none;
-  border-radius: 14rpx;
-  font-size: 28rpx;
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-md);
   font-weight: 600;
   line-height: 1.2;
   padding: 22rpx 12rpx;
 }
 .confirm-btn.cancel {
-  color: #334155;
-  background: #f1f5f9;
+  color: var(--text-muted, #334155);
+  background: var(--color-border-subtle, #f1f5f9);
 }
 .confirm-btn.ok {
   color: #fff;
-  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  background: linear-gradient(135deg, var(--brand), #14b8a6);
 }
 button[disabled] {
   opacity: 0.45;

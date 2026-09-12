@@ -1,3 +1,4 @@
+import { showError } from '@/utils/notify';
 /**
  * Cross-platform text prompt.
  * H5 uses a branded overlay (uni.showModal editable looks crude in browser).
@@ -45,7 +46,7 @@ function promptNative(opts: TextPromptOptions): Promise<string | null> {
         }
         const value = String(res.content || '').trim();
         if (opts.required && !value) {
-          uni.showToast({ title: opts.requiredMessage || '请填写内容', icon: 'none' });
+          showError(opts.requiredMessage || '请填写内容');
           resolve(null);
           return;
         }
@@ -176,7 +177,7 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
     const onConfirm = () => {
       const value = readValue();
       if (opts.required && !value) {
-        uni.showToast({ title: opts.requiredMessage || '请填写内容', icon: 'none' });
+        showError(opts.requiredMessage || '请填写内容');
         fieldEl()?.focus();
         return;
       }

@@ -107,7 +107,7 @@
       :title="
         listHydrated
           ? `本页 ${displayItems.length} 条超时未付（账龄 ≥ 30 分钟，按创建时间新→旧）`
-          : '超时未付 加载中…'
+          : `超时未付 ${UI_COPY.loading}`
       "
     />
 
@@ -580,7 +580,7 @@
       </div>
     </ResizableDrawer>
 
-    <el-dialog v-model="partialOpen" title="按行部分退款" width="640px" destroy-on-close>
+    <el-dialog v-model="partialOpen" title="按行部分退款" class="dialog-wide" destroy-on-close>
       <p class="partial-hint">
         指定要退的 SKU 数量；可按行选择是否回库（退货退款 / 仅退款不回库）。
       </p>
@@ -654,6 +654,7 @@ import type {
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
 import { orderAmountDiffNote } from '@/utils/dispute-amount-note';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 const UNPAID_OVERDUE_MS = 30 * 60 * 1000;
 
 type GoodsLine = { title: string; qty: string };
@@ -1537,11 +1538,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {
@@ -1594,10 +1595,10 @@ onActivated(() => {
   flex: 0 0 auto;
   font-variant-numeric: tabular-nums;
   color: var(--el-text-color-regular);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .goods-meta {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .muted {
@@ -1605,7 +1606,7 @@ onActivated(() => {
 }
 .amount-diff {
   color: var(--el-text-color-secondary);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   line-height: 1.5;
 }
 .chase-banner {
@@ -1621,7 +1622,7 @@ onActivated(() => {
   border-radius: 50%;
   border: 1px solid var(--el-border-color);
   color: var(--el-text-color-secondary);
-  font-size: 11px;
+  font-size: var(--admin-font-size-xs);
   line-height: 1;
   cursor: help;
   vertical-align: middle;
@@ -1646,7 +1647,7 @@ onActivated(() => {
 }
 .section-title {
   margin: 16px 0 8px;
-  font-size: 14px;
+  font-size: var(--admin-font-size-menu);
 }
 .drawer-actions {
   margin-top: 12px;
@@ -1656,7 +1657,7 @@ onActivated(() => {
 }
 .partial-hint {
   margin: 0 0 10px;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--el-text-color-secondary);
   line-height: 1.5;
 }

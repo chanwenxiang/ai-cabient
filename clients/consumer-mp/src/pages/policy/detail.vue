@@ -12,7 +12,7 @@
           <text class="related-title">相关条款</text>
           <view class="related-row">
             <text
-              v-for="link in relatedLinks"
+              v-for="link in relatedLinks" role="button"
               :key="link.type"
               class="related-link"
               :class="{ on: type === link.type }"
@@ -21,7 +21,7 @@
             >
           </view>
           <text class="related-hint">如有疑问可前往帮助中心联系客服</text>
-          <text class="related-link help" @click="goHelp">帮助中心 ›</text>
+          <text role="button" class="related-link help app-link-chevron" @click="goHelp">帮助中心</text>
         </view>
       </view>
     </view>
@@ -216,23 +216,23 @@ onLoad((query) => {
   min-height: 100%;
   padding: 0;
   box-sizing: border-box;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
 }
 .page-body {
   padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .policy-card {
-  background: #fff;
-  border-radius: 22rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card);
   padding: 32rpx 28rpx;
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
 }
 .policy-updated {
   display: block;
   text-align: right;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
   margin-bottom: 20rpx;
 }
 .section {
@@ -240,15 +240,15 @@ onLoad((query) => {
 }
 .section-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
-  color: #111827;
+  color: var(--color-text-primary);
   margin-bottom: 12rpx;
 }
 .section-p {
   display: block;
-  font-size: 25rpx;
-  color: #4b5563;
+  font-size: var(--font-size-body);
+  color: var(--text-muted, #4b5563);
   line-height: 1.7;
   margin-bottom: 10rpx;
 }
@@ -259,9 +259,9 @@ onLoad((query) => {
 }
 .related-title {
   display: block;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 650;
-  color: #1f2937;
+  color: var(--color-text-primary);
   margin-bottom: 12rpx;
 }
 .related-row {
@@ -270,14 +270,14 @@ onLoad((query) => {
   gap: 12rpx;
 }
 .related-link {
-  font-size: 24rpx;
-  color: #047857;
+  font-size: var(--font-size-caption);
+  color: var(--brand);
   padding: 8rpx 16rpx;
-  border-radius: 999rpx;
-  background: #ecfdf5;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
 }
 .related-link.on {
-  background: #047857;
+  background: var(--brand);
   color: #fff;
   font-weight: 650;
 }
@@ -290,7 +290,7 @@ onLoad((query) => {
 .related-hint {
   display: block;
   margin-top: 16rpx;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 </style>

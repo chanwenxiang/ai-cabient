@@ -3,15 +3,13 @@
     <app-nav-bar title="购物视频" bg="#000000" color="#ffffff" />
     <view class="page-body">
       <view v-if="loading" class="state">
-        <text class="state-title">加载中…</text>
+        <text class="state-title">{{ UI_COPY.loading }}</text>
         <text class="state-desc">正在获取购物录像</text>
       </view>
       <view v-else-if="!src && error" class="state">
         <text class="state-title">视频加载失败</text>
         <text class="state-desc">{{ error }}</text>
-        <button v-if="copyTarget" type="button" class="btn-primary" @click="copyUrl">
-          复制链接
-        </button>
+        <app-button v-if="copyTarget" label="复制链接" @click="copyUrl" />
       </view>
       <view v-else-if="!src" class="state">
         <text class="state-title">缺少视频地址</text>
@@ -33,7 +31,7 @@
         <view v-if="error" class="error-banner" role="alert">
           <text class="state-title">视频加载失败</text>
           <text class="state-desc">{{ error }}</text>
-          <button type="button" class="btn-primary" @click="copyUrl">复制链接</button>
+          <app-button label="复制链接" @click="copyUrl" />
         </view>
         <view v-else class="tips">
           <text v-if="metaLine" class="meta">{{ metaLine }}</text>
@@ -42,7 +40,7 @@
         </view>
       </template>
       <view v-if="orderId" class="back-row">
-        <text class="back-link" @click="goOrder">返回订单详情 ›</text>
+        <text role="button" class="back-link app-link-chevron" @click="goOrder">返回订单详情</text>
       </view>
     </view>
   </view>
@@ -50,9 +48,13 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import {
+  showError
+} from '@/utils/notify';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { API_BASE_URL } from '@/config/api';
 import { downloadAuthedFile, getToken } from '@/utils/merchant-api';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const src = ref('');
 const error = ref('');
@@ -137,7 +139,7 @@ function copyUrl() {
   if (!data) return;
   uni.setClipboardData({
     data,
-    success: () => uni.showToast({ title: '视频链接已复制', icon: 'none' })
+    success: () => showError('视频链接已复制')
   });
 }
 
@@ -176,22 +178,23 @@ function goOrder() {
 .state {
   margin-top: 30vh;
   text-align: center;
-  color: #94a3b8;
+  color: var(--text-subtle);
 }
 .state-title {
   display: block;
   font-size: 16px;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--color-border);
 }
 .state-desc {
   display: block;
   margin-top: 6px;
   font-size: 13px;
 }
-.state .btn-primary {
+.state .app-btn,
+.state .app-btn {
   margin-top: 20px;
-  background: linear-gradient(135deg, #134e4a, #0f766e);
+  background: linear-gradient(135deg, var(--brand-deep), var(--brand));
   color: #fff;
   border-radius: 999px;
   font-size: 14px;
@@ -199,12 +202,13 @@ function goOrder() {
 .error-banner {
   margin-top: 12px;
   text-align: center;
-  color: #94a3b8;
+  color: var(--text-subtle);
   max-width: 92%;
 }
-.error-banner .btn-primary {
+.error-banner .app-btn,
+.error-banner .app-btn {
   margin-top: 12px;
-  background: linear-gradient(135deg, #134e4a, #0f766e);
+  background: linear-gradient(135deg, var(--brand-deep), var(--brand));
   color: #fff;
   border-radius: 999px;
 }
@@ -216,16 +220,16 @@ function goOrder() {
   gap: 6px;
 }
 .meta {
-  color: #cbd5e1;
+  color: var(--text-subtle, #cbd5e1);
   font-size: 11px;
 }
 .tip {
-  color: #94a3b8;
+  color: var(--text-subtle);
   font-size: 12px;
 }
 .copy-btn {
   background: rgba(15, 23, 42, 0.45);
-  color: #f8fafc;
+  color: var(--page-bg, #f8fafc);
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 999px;
   font-size: 12px;

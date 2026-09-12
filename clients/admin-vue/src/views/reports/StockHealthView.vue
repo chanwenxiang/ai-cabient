@@ -95,38 +95,38 @@
       <button
         type="button"
         class="kpi-tile warn"
-        :aria-label="listHydrated ? `断货行 ${countBy('STOCKOUT')}` : '断货行 加载中…'"
+        :aria-label="listHydrated ? `断货行 ${countBy('STOCKOUT')}` : `断货行 ${UI_COPY.loading}`"
       >
         <div class="kpi-label">断货行</div>
         <div class="kpi-value">{{ listHydrated ? countBy('STOCKOUT') : '…' }}</div>
-        <div v-if="!listHydrated" class="kpi-hint">加载中…</div>
+        <div v-if="!listHydrated" class="kpi-hint">{{ UI_COPY.loading }}</div>
       </button>
       <button
         type="button"
         class="kpi-tile"
-        :aria-label="listHydrated ? `低库存行 ${countBy('LOW')}` : '低库存行 加载中…'"
+        :aria-label="listHydrated ? `低库存行 ${countBy('LOW')}` : `低库存行 ${UI_COPY.loading}`"
       >
         <div class="kpi-label">低库存行</div>
         <div class="kpi-value">{{ listHydrated ? countBy('LOW') : '…' }}</div>
-        <div v-if="!listHydrated" class="kpi-hint">加载中…</div>
+        <div v-if="!listHydrated" class="kpi-hint">{{ UI_COPY.loading }}</div>
       </button>
       <button
         type="button"
         class="kpi-tile warn"
-        :aria-label="listHydrated ? `临期行 ${countBy('NEAR_EXPIRY')}` : '临期行 加载中…'"
+        :aria-label="listHydrated ? `临期行 ${countBy('NEAR_EXPIRY')}` : `临期行 ${UI_COPY.loading}`"
       >
         <div class="kpi-label">临期行</div>
         <div class="kpi-value">{{ listHydrated ? countBy('NEAR_EXPIRY') : '…' }}</div>
-        <div v-if="!listHydrated" class="kpi-hint">加载中…</div>
+        <div v-if="!listHydrated" class="kpi-hint">{{ UI_COPY.loading }}</div>
       </button>
       <button
         type="button"
         class="kpi-tile"
-        :aria-label="listHydrated ? `涉及柜机 ${deviceCount}` : '涉及柜机 加载中…'"
+        :aria-label="listHydrated ? `涉及柜机 ${deviceCount}` : `涉及柜机 ${UI_COPY.loading}`"
       >
         <div class="kpi-label">涉及柜机</div>
         <div class="kpi-value">{{ listHydrated ? deviceCount : '…' }}</div>
-        <div v-if="!listHydrated" class="kpi-hint">加载中…</div>
+        <div v-if="!listHydrated" class="kpi-hint">{{ UI_COPY.loading }}</div>
       </button>
     </div>
 
@@ -277,6 +277,7 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 interface StockHealthRow {
   rowKey?: string;
@@ -655,10 +656,10 @@ watch(
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .kpi-row {
@@ -688,18 +689,18 @@ watch(
   background: color-mix(in srgb, var(--el-color-warning) 12%, var(--layout-card, #fff));
 }
 .kpi-label {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .kpi-value {
   margin-top: 4px;
-  font-size: 20px;
+  font-size: var(--admin-font-size-display);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 .kpi-hint {
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .muted {

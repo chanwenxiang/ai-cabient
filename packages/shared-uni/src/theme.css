@@ -6,6 +6,10 @@
  * - 正文：var(--app-font)
  * - 等宽（单号/代码）：var(--app-font-mono)
  * - Element Plus：--el-font-family 与 --app-font 对齐（运营后台 main.css 再声明一次以防被覆盖）
+ *
+ * 命名约定（G02）：
+ * - 业务短名（--brand / --page-bg）继续可用
+ * - 规范长名（--color-primary / --color-bg-page）为别名，新代码优先用长名
  */
 :root {
   --app-font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei",
@@ -16,8 +20,14 @@
   /* H5 根字号（px）：对齐 page 的 28rpx @ 375 设计宽 */
   --app-font-size-root: 14px;
 
-  /* —— 色板（design-tokens 波次 3）—— */
+  /* —— 色板 —— */
   --brand: #0f766e;
+  --brand-2: #0f766e;
+  --brand-deep: #134e4a;
+  --brand-soft: #ecfdf5;
+  --brand-mist: #ccfbf1;
+  --brand-wx: #07c160;
+  --brand-alipay: #1677ff;
   --success: #16a34a;
   --danger: #b91c1c;
   --warning: #b45309;
@@ -26,18 +36,61 @@
   /* —— 圆角 4 档（Web 用 px；小程序在 page 上覆写为 rpx）—— */
   --radius-pill: 999px;
   --radius-card: 24px;
+  --radius-panel: 16px;
   --radius-control: 12px;
   --radius-tag: 8px;
 
   --text-primary: #0f172a;
   --text-muted: #64748b;
-  --text-subtle: #64748b;
+  --text-subtle: #94a3b8;
   --page-bg: #f0fdfa;
   --card-bg: #ffffff;
   --card-radius: var(--radius-card);
   --card-border: #e2e8f0;
   --section-gap: 20rpx;
   --mask-bg: rgba(15, 23, 42, 0.62);
+  --shadow-card: 0 8px 28px rgba(15, 118, 110, 0.08);
+  --page-gutter: 24px;
+  --spacing-sm: 12px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+
+  /* —— 字号 scale（G04；Web px；小程序 page 可覆写 rpx）—— */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-caption: 12px;
+  --font-size-body: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-h3: 20px;
+  --font-size-h2: 24px;
+  --font-size-h1: 28px;
+  --font-size-display-sm: 22px;
+  --font-size-display: 30px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.25;
+  --line-height-body: 1.5;
+
+  /* —— 规范别名（与短名双向兼容）—— */
+  --color-primary: var(--brand);
+  --color-primary-deep: var(--brand-deep);
+  --color-primary-soft: var(--brand-soft);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-link: var(--brand);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-muted);
+  --color-text-muted: var(--text-subtle);
+  --color-bg-page: var(--page-bg);
+  --color-bg-card: var(--card-bg);
+  --color-border: var(--card-border);
+  --color-border-subtle: #f3f4f6;
+  --color-link-secondary: #576b95;
 }
 
 /*
@@ -58,6 +111,109 @@ uni-button {
 .app-mono {
   font-family: var(--app-font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 轻量图标工具类（G08 起步）：不引入图标字体依赖，用 CSS 画关键符号。
+ * 用法：<view class="app-icon app-icon--chevron" aria-hidden="true" />
+ */
+.app-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  color: currentColor;
+}
+.app-icon--sm {
+  width: 1em;
+  height: 1em;
+  font-size: 20px;
+}
+.app-icon--md {
+  width: 1.25em;
+  height: 1.25em;
+  font-size: 24px;
+}
+.app-icon--circle {
+  width: 2.5em;
+  height: 2.5em;
+  border-radius: 50%;
+  background: var(--color-primary-soft, var(--brand-soft, #ecfdf5));
+  color: var(--color-primary, var(--brand, #0f766e));
+}
+.app-icon--chevron {
+  width: 0.55em;
+  height: 0.55em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transform-origin: center;
+}
+.app-icon--chevron.is-down {
+  transform: rotate(45deg);
+}
+.app-icon--chevron.is-up {
+  transform: rotate(225deg);
+}
+.app-icon--back {
+  width: 0.55em;
+  height: 0.55em;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transform-origin: center;
+}
+
+/*
+ * 文字链尾箭头（G08）：去掉字面量 ›，用伪元素画 chevron。
+ * 用法：class 增加 app-link-chevron；文案不再含 ›
+ */
+.app-link-chevron {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+.app-link-chevron::after {
+  content: '';
+  width: 0.45em;
+  height: 0.45em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  flex-shrink: 0;
+  opacity: 0.88;
+}
+
+/*
+ * 状态胶囊（X03）：颜色 + 圆点 + 文字，禁止仅靠色块区分在线/离线。
+ * 用法：.app-status.is-online | .is-offline | .is-warn | .is-muted
+ */
+.app-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.app-status-dot {
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: currentColor;
+}
+.app-status.is-online {
+  color: var(--color-success, var(--success, #16a34a));
+}
+.app-status.is-offline {
+  color: var(--color-danger, var(--danger, #b91c1c));
+}
+.app-status.is-warn {
+  color: var(--color-warning, var(--warning, #b45309));
+}
+.app-status.is-muted {
+  color: var(--color-text-secondary, var(--text-muted, #64748b));
 }
 
 /*

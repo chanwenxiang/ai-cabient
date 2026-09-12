@@ -3,10 +3,10 @@
     <app-nav-bar title="要货申请" />
     <view class="page-body">
       <view class="tabs">
-        <view class="tab" :class="{ active: mode === 'create' }" @click="mode = 'create'"
+        <view role="button" class="tab" :class="{ active: mode === 'create' }" @click="mode = 'create'"
           >发起要货</view
         >
-        <view class="tab" :class="{ active: mode === 'list' }" @click="switchToList">我的申请</view>
+        <view role="button" class="tab" :class="{ active: mode === 'list' }" @click="switchToList">我的申请</view>
       </view>
 
       <view v-if="mode === 'create'" class="panel">
@@ -23,14 +23,14 @@
         <view class="card">
           <view class="row-between">
             <text class="label">要货明细</text>
-            <text class="hint" @click="loadDraft">刷新建议</text>
+            <text role="button" class="hint" @click="loadDraft">刷新建议</text>
           </view>
           <view v-if="draftLoading" class="empty-inline">加载建议中…</view>
           <view v-else-if="!draftLines.length" class="empty-inline">
             该柜机暂无可要货商品（无绑定货道 SKU）
           </view>
           <view
-            v-for="line in draftLines"
+            v-for="line in draftLines" role="button"
             :key="line.skuId"
             class="line-row"
             @click="toggleLine(line)"
@@ -47,10 +47,10 @@
                 suggestReasonLabel(line.suggestReason)
               }}</text>
             </view>
-            <view class="qty-box" @click.stop>
-              <text class="qty-btn" @click="adjustQty(line, -1)">−</text>
+            <view role="button" class="qty-box" @click.stop>
+              <text role="button" class="qty-btn" @click="adjustQty(line, -1)">−</text>
               <text class="qty-val">{{ line.qty }}</text>
-              <text class="qty-btn" @click="adjustQty(line, 1)">+</text>
+              <text role="button" class="qty-btn" @click="adjustQty(line, 1)">+</text>
             </view>
           </view>
         </view>
@@ -73,7 +73,7 @@
           <text class="hint block-hint">缺货柜况、陈列等，便于运营审核</text>
           <view class="evidence-row">
             <view
-              v-for="(item, idx) in evidenceItems"
+              v-for="(item, idx) in evidenceItems" role="button"
               :key="item.fileId || item.localPath"
               class="evidence-thumb-wrap"
               @click="previewEvidence(idx)"
@@ -86,7 +86,7 @@
               />
             </view>
             <view
-              v-if="evidenceItems.length < 5"
+              v-if="evidenceItems.length < 5" role="button"
               class="evidence-add"
               aria-label="添加现场照片"
               @click="addEvidence"
@@ -97,22 +97,19 @@
           </view>
         </view>
 
-        <view
-          class="btn-primary btn-block"
-          :class="{ disabled: submitting || !canSubmit }"
+        <app-button
+          :disabled="submitting || !canSubmit"
+          :loading="submitting"
+          :label="submitting ? '提交中…' : `提交要货（${selectedCount} 种）`"
           @click="submit"
-        >
-          <text class="btn-label">{{
-            submitting ? '提交中…' : `提交要货（${selectedCount} 种）`
-          }}</text>
-        </view>
+        />
         <text v-if="!canRequest" class="err">当前账号无要货权限</text>
       </view>
 
       <view v-else class="panel">
         <view class="filters">
           <view
-            v-for="t in statusTabs"
+            v-for="t in statusTabs" role="button"
             :key="t.value"
             class="filter"
             :class="{ active: listStatus === t.value }"
@@ -120,11 +117,11 @@
             >{{ t.label }}</view
           >
         </view>
-        <view v-if="listLoading" class="empty-inline">加载中…</view>
+        <view v-if="listLoading" class="empty-inline">{{ UI_COPY.loading }}</view>
         <view v-else-if="listError" class="empty-inline err">{{ listError }}</view>
         <view v-else-if="!requests.length" class="empty-inline">暂无要货申请</view>
         <view
-          v-for="req in requests"
+          v-for="req in requests" role="button"
           :key="req.requestId"
           class="card req-card"
           :class="{ clickable: canGoReplenish(req) }"
@@ -148,8 +145,8 @@
           <text v-if="req.rejectReason" class="reject">驳回：{{ req.rejectReason }}</text>
           <text v-if="req.notes" class="notes">备注：{{ req.notes }}</text>
           <text v-if="req.evidenceCount" class="notes">附图 {{ req.evidenceCount }} 张</text>
-          <view v-if="req.status === 'ACCEPTED' && req.replenishmentTaskId" class="detail-btn"
-            >去补货 ›</view
+          <view v-if="req.status === 'ACCEPTED' && req.replenishmentTaskId" class="detail-btn app-link-chevron"
+            >去补货</view
           >
         </view>
         <text v-if="requests.length >= 100" class="trunc-hint"
@@ -162,6 +159,10 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import {
+  showError,
+  showSuccess
+} from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
@@ -175,6 +176,7 @@ import {
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import type { DeviceInfo, DeviceSlot, MerchantMe } from '@aicabinet/shared-types';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 type DraftLine = {
   skuId: string;
@@ -274,14 +276,14 @@ async function bootstrap(preferDeviceId?: string) {
     seedMerchantMeDisplayCache(me);
   }
   if (!canView.value) {
-    uni.showToast({ title: '无补货查看权限', icon: 'none' });
+    showError('无补货查看权限');
     uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
     return;
   }
   try {
     devices.value = (await merchantApi.devices()) || [];
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '柜机加载失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '柜机加载失败');
     devices.value = [];
   }
   const prefer = preferDeviceId || preferredId.value;
@@ -418,7 +420,7 @@ async function loadDraft() {
   } catch (e) {
     if (seq !== draftSeq) return;
     draftLines.value = [];
-    uni.showToast({ title: e instanceof Error ? e.message : '建议加载失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '建议加载失败');
   } finally {
     if (seq === draftSeq) draftLoading.value = false;
   }
@@ -429,7 +431,7 @@ function toggleLine(line: DraftLine) {
   if (line.selected && line.qty <= 0) {
     line.qty = line.suggestQty > 0 ? line.suggestQty : 0;
     if (line.qty <= 0) {
-      uni.showToast({ title: '请填写要货数量', icon: 'none' });
+      showError('请填写要货数量');
     }
   }
 }
@@ -448,7 +450,7 @@ async function submit() {
     .filter((l) => l.selected && l.qty > 0)
     .map((l) => ({ skuId: l.skuId, requestedQty: l.qty }));
   if (!lines.length) {
-    uni.showToast({ title: '请选择要货商品', icon: 'none' });
+    showError('请选择要货商品');
     return;
   }
   submitting.value = true;
@@ -462,14 +464,14 @@ async function submit() {
       lines,
       evidenceFileIds: evidenceFileIds.length ? evidenceFileIds : undefined
     });
-    uni.showToast({ title: `已提交 #${created.requestId}`, icon: 'success' });
+    showSuccess(`已提交 #${created.requestId}`);
     notes.value = '';
     evidenceItems.value = [];
     mode.value = 'list';
     listStatus.value = 'SUBMITTED';
     await loadRequests();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '提交失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '提交失败');
   } finally {
     submitting.value = false;
   }
@@ -478,7 +480,7 @@ async function submit() {
 async function addEvidence() {
   if (!canRequest.value) return;
   if (evidenceItems.value.length >= 5) {
-    uni.showToast({ title: '最多 5 张', icon: 'none' });
+    showError('最多 5 张');
     return;
   }
   const paths = await new Promise<string[]>((resolve) => {
@@ -499,10 +501,7 @@ async function addEvidence() {
       const uploaded = await merchantApi.uploadReplenishmentRequestEvidence(path);
       evidenceItems.value.push({ localPath: path, fileId: uploaded.fileId });
     } catch (e) {
-      uni.showToast({
-        title: e instanceof Error ? e.message : '上传失败',
-        icon: 'none'
-      });
+      showError(e instanceof Error ? e.message : '上传失败');
       break;
     }
   }
@@ -557,7 +556,7 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 .page {
   min-height: 100vh;
   padding: 0;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
 }
 .tabs {
   display: flex;
@@ -568,16 +567,16 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   flex: 1;
   text-align: center;
   padding: 18rpx 0;
-  border-radius: 999rpx;
-  background: #fff;
-  color: #64748b;
-  font-size: 26rpx;
-  border: 1rpx solid #e2e8f0;
+  border-radius: var(--radius-pill);
+  background: var(--card-bg, #fff);
+  color: var(--text-muted);
+  font-size: var(--font-size-body);
+  border: 1rpx solid var(--color-border);
 }
 .tab.active {
-  background: #134e4a;
+  background: var(--brand-deep);
   color: #fff;
-  border-color: #134e4a;
+  border-color: var(--brand-deep);
   font-weight: 600;
 }
 .panel {
@@ -586,30 +585,30 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   gap: 16rpx;
 }
 .card {
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-panel);
   padding: 22rpx;
-  border: 1rpx solid #e2e8f0;
+  border: 1rpx solid var(--color-border);
 }
 .label {
   display: block;
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
   margin-bottom: 12rpx;
 }
 .picker {
   padding: 18rpx 20rpx;
-  border-radius: 12rpx;
-  background: #f8fafc;
-  border: 1rpx solid #e2e8f0;
-  font-size: 28rpx;
-  color: #0f172a;
+  border-radius: var(--radius-control);
+  background: var(--page-bg, #f8fafc);
+  border: 1rpx solid var(--color-border);
+  font-size: var(--font-size-md);
+  color: var(--text-primary, #0f172a);
   overflow: hidden;
   max-height: 88rpx;
 }
 .hint {
-  font-size: 22rpx;
-  color: #0f766e;
+  font-size: var(--font-size-sm);
+  color: var(--brand);
   margin-top: 10rpx;
 }
 .row-between {
@@ -620,14 +619,14 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 .empty-inline {
   padding: 24rpx 0;
   text-align: center;
-  color: #94a3b8;
-  font-size: 24rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-caption);
 }
 .trunc-hint {
   display: block;
   text-align: center;
-  color: #94a3b8;
-  font-size: 22rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-sm);
   padding: 8rpx 0 16rpx;
 }
 .line-row {
@@ -635,7 +634,7 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   align-items: center;
   gap: 14rpx;
   padding: 16rpx 0;
-  border-top: 1rpx solid #f1f5f9;
+  border-top: 1rpx solid var(--color-border-subtle, #f1f5f9);
 }
 .line-row:first-of-type {
   border-top: none;
@@ -643,18 +642,18 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 .check {
   width: 36rpx;
   height: 36rpx;
-  border-radius: 8rpx;
-  border: 2rpx solid #cbd5e1;
+  border-radius: var(--radius-tag);
+  border: 2rpx solid var(--text-subtle, #cbd5e1);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: #fff;
   flex-shrink: 0;
 }
 .check.on {
-  background: #0f766e;
-  border-color: #0f766e;
+  background: var(--brand);
+  border-color: var(--brand);
 }
 .line-copy {
   flex: 1;
@@ -662,21 +661,21 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 }
 .sku-name {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 .sku-meta {
   display: block;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
   margin-top: 4rpx;
 }
 .sku-reason {
   display: block;
   margin-top: 4rpx;
-  color: #0f766e;
-  font-size: 20rpx;
+  color: var(--brand);
+  font-size: var(--font-size-xs);
 }
 .qty-box {
   display: flex;
@@ -686,18 +685,18 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 .qty-btn {
   width: 48rpx;
   height: 48rpx;
-  border-radius: 12rpx;
-  background: #ecfdf5;
-  color: #0f766e;
+  border-radius: var(--radius-control);
+  background: var(--brand-soft);
+  color: var(--brand);
   text-align: center;
   line-height: 48rpx;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 600;
 }
 .qty-val {
   min-width: 40rpx;
   text-align: center;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 .input {
@@ -707,48 +706,28 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   min-height: 80rpx;
   line-height: 80rpx;
   padding: 0 18rpx;
-  border-radius: 12rpx;
-  background: #f8fafc;
-  border: 1rpx solid #e2e8f0;
-  font-size: 26rpx;
+  border-radius: var(--radius-control);
+  background: var(--page-bg, #f8fafc);
+  border: 1rpx solid var(--color-border);
+  font-size: var(--font-size-body);
   box-sizing: border-box;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
-.btn-primary {
-  margin-top: 16rpx;
-  background: linear-gradient(135deg, #134e4a, #0f766e);
-  color: #fff;
-  border-radius: 44rpx;
-  padding: 0 40rpx;
-  min-height: 88rpx;
-  line-height: 1.2;
-  text-align: center;
-  font-weight: 600;
-  font-size: 30rpx;
-  box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.22);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-}
-.btn-primary .btn-label {
+.app-btn .btn-label {
   display: block;
   width: 100%;
   text-align: center;
   color: #fff;
   font-weight: 600;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   line-height: 1.2;
 }
-.btn-primary::after {
-  border: none;
-}
-.btn-primary.disabled {
+.app-btn.is-disabled {
   opacity: 0.45;
 }
 .err {
-  color: #b91c1c;
-  font-size: 24rpx;
+  color: var(--color-danger);
+  font-size: var(--font-size-caption);
   text-align: center;
 }
 .filters {
@@ -759,16 +738,16 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 }
 .filter {
   padding: 10rpx 20rpx;
-  border-radius: 999rpx;
-  background: #fff;
-  color: #64748b;
-  font-size: 22rpx;
-  border: 1rpx solid #e2e8f0;
+  border-radius: var(--radius-pill);
+  background: var(--card-bg, #fff);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  border: 1rpx solid var(--color-border);
 }
 .filter.active {
-  background: #ccfbf1;
-  color: #0f766e;
-  border-color: #99f6e4;
+  background: var(--brand-mist);
+  color: var(--brand);
+  border-color: var(--brand-mist, #99f6e4);
   font-weight: 600;
 }
 .req-card {
@@ -781,26 +760,26 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   -webkit-tap-highlight-color: transparent;
 }
 .req-card-hover {
-  background: #f8fafc !important;
+  background: var(--page-bg, #f8fafc) !important;
 }
 .req-id {
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 .status {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   padding: 4rpx 12rpx;
-  border-radius: 999rpx;
-  background: #fef3c7;
-  color: #92400e;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  color: var(--warning, #92400e);
 }
 .status.accepted {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--brand-soft, #dcfce7);
+  color: var(--brand-deep, #166534);
 }
 .status.rejected {
-  background: #fee2e2;
-  color: #991b1b;
+  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, #fff);
+  color: var(--danger, #991b1b);
 }
 .status.completed {
   background: #e0e7ff;
@@ -813,19 +792,19 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   margin-top: 8rpx;
 }
 .line-chip {
-  font-size: 22rpx;
-  background: #f0fdfa;
-  color: #0f766e;
+  font-size: var(--font-size-sm);
+  background: var(--page-bg, #f0fdfa);
+  color: var(--brand);
   padding: 6rpx 12rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
 }
 .reject {
-  font-size: 22rpx;
-  color: #b91c1c;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
 }
 .notes {
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }
 .block-hint {
   display: block;
@@ -840,7 +819,7 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 .evidence-add {
   width: 128rpx;
   height: 128rpx;
-  border-radius: 12rpx;
+  border-radius: var(--radius-control);
   overflow: hidden;
 }
 .evidence-thumb {
@@ -852,17 +831,17 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border: 1rpx dashed #cbd5e1;
-  background: #f8fafc;
+  border: 1rpx dashed var(--text-subtle, #cbd5e1);
+  background: var(--page-bg, #f8fafc);
 }
 .evidence-add-plus {
-  font-size: 40rpx;
-  color: #64748b;
+  font-size: var(--font-size-h2);
+  color: var(--text-muted);
   line-height: 1;
 }
 .evidence-add-label {
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
   margin-top: 4rpx;
 }
 .req-card.clickable .req-id,
@@ -879,10 +858,10 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   margin-top: 12rpx;
   align-self: flex-start;
   padding: 12rpx 28rpx;
-  border-radius: 999rpx;
-  background: #0f766e;
+  border-radius: var(--radius-pill);
+  background: var(--brand);
   color: #fff;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   font-weight: 600;
 }
 .page-body {

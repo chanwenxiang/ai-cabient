@@ -4,7 +4,7 @@
     <view class="page-body">
       <view class="periods">
         <text
-          v-for="d in periods"
+          v-for="d in periods" role="button"
           :key="d"
           class="period"
           :class="{ active: days === d }"
@@ -13,10 +13,10 @@
         >
       </view>
       <view v-if="loading && !analytics.topSkus?.length" class="state">正在汇总经营数据…</view>
-      <view v-else-if="error && !analytics.topSkus?.length" class="state"
-        ><text class="error">{{ error }}</text
-        ><button class="retry" @click="() => load()">重试</button></view
-      >
+      <view v-else-if="error && !analytics.topSkus?.length" class="state">
+        <text class="error">{{ error }}</text>
+        <app-button label="重试" @click="() => load()" />
+      </view>
       <template v-else>
         <view class="hero">
           <text class="hero-label">经营毛利</text
@@ -100,7 +100,7 @@
           >
           <view class="report-dims">
             <text
-              v-for="d in reportDims"
+              v-for="d in reportDims" role="button"
               :key="d.value"
               class="report-dim"
               :class="{ active: reportDim === d.value }"
@@ -225,12 +225,12 @@
             </view>
           </view>
         </view>
-        <view v-if="settlement.failedSplitCount" class="risk-card" @click="goFailedSplits">
+        <view v-if="settlement.failedSplitCount" role="button" class="risk-card" @click="goFailedSplits">
           <text class="risk-title">有 {{ settlement.failedSplitCount }} 笔分账异常</text>
-          <text class="risk-desc">点此查看失败原因与订单明细 ›</text>
+          <text class="risk-desc app-link-chevron">点此查看失败原因与订单明细</text>
         </view>
         <view v-if="canExport" class="actions">
-          <button class="btn-outline" @click="onExport">导出柜机报表</button>
+          <app-button variant="outline" label="导出柜机报表" @click="onExport" />
         </view>
       </template>
     </view>
@@ -239,6 +239,10 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import {
+  showError,
+  showSuccess
+} from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import {
   getToken,
@@ -293,11 +297,11 @@ async function saveTax() {
   const mid = taxMerchantId.value;
   if (!mid) return;
   if (!canEditProfile.value) {
-    uni.showToast({ title: '无资料编辑权限', icon: 'none' });
+    showError('无资料编辑权限');
     return;
   }
   if (!taxForm.value.companyName.trim() || !taxForm.value.taxNo.trim()) {
-    uni.showToast({ title: '请填写公司名与税号', icon: 'none' });
+    showError('请填写公司名与税号');
     return;
   }
   taxSaving.value = true;
@@ -309,9 +313,9 @@ async function saveTax() {
       address: taxForm.value.address.trim() || undefined,
       phone: taxForm.value.phone.trim() || undefined
     });
-    uni.showToast({ title: '已保存', icon: 'success' });
+    showSuccess('已保存');
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '保存失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '保存失败');
   } finally {
     taxSaving.value = false;
   }
@@ -414,7 +418,7 @@ async function ensureAccess() {
   }
   if (!canViewBusiness.value) {
     loading.value = false;
-    uni.showToast({ title: '无经营分析权限', icon: 'none' });
+    showError('无经营分析权限');
     uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
     return false;
   }
@@ -492,7 +496,7 @@ function changeDays(value: number) {
 
 function goFailedSplits() {
   if (!hasPerm(me.value, 'merchant:splits:list')) {
-    uni.showToast({ title: '无分账明细权限', icon: 'none' });
+    showError('无分账明细权限');
     return;
   }
   uni.navigateTo({ url: '/pages/splits/splits?status=FAILED' });
@@ -500,17 +504,17 @@ function goFailedSplits() {
 
 function onExport() {
   if (!canExport.value) {
-    uni.showToast({ title: '无导出权限', icon: 'none' });
+    showError('无导出权限');
     return;
   }
   const url = merchantApi.exportDeviceReportsUrl();
   downloadAuthedFile(url)
     .then(async (tempFilePath) => {
       await openExportedFile(tempFilePath, `device-reports-${days.value}d.xlsx`);
-      uni.showToast({ title: '导出成功', icon: 'success' });
+      showSuccess('导出成功');
     })
     .catch((e) => {
-      uni.showToast({ title: e instanceof Error ? e.message : '导出失败', icon: 'none' });
+      showError(e instanceof Error ? e.message : '导出失败');
     });
 }
 
@@ -526,9 +530,9 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 .insight-text {
   display: block;
   margin-top: 8rpx;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   line-height: 1.6;
-  color: #334155;
+  color: var(--text-muted, #334155);
 }
 .insight-sku {
   display: flex;
@@ -537,7 +541,7 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   gap: 12rpx;
   margin-top: 12rpx;
   padding: 12rpx 0;
-  border-bottom: 1rpx solid #f1f5f9;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
 }
 .insight-sku:last-child {
   border-bottom: none;
@@ -550,22 +554,22 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 .expiry-cell {
   flex: 1;
   padding: 14rpx;
-  border-radius: 14rpx;
-  background: #fffbeb;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
 }
 .expiry-n,
 .expiry-l {
   display: block;
 }
 .expiry-n {
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 800;
-  color: #b45309;
+  color: var(--warning, #b45309);
 }
 .expiry-l {
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #92400e;
+  font-size: var(--font-size-sm);
+  color: var(--warning, #92400e);
 }
 .report-row {
   display: flex;
@@ -573,7 +577,7 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   justify-content: space-between;
   gap: 16rpx;
   padding: 16rpx 0;
-  border-bottom: 1rpx solid #f1f5f9;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
 }
 .report-row:last-child {
   border-bottom: none;
@@ -587,8 +591,8 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   flex-direction: column;
   align-items: flex-end;
   gap: 4rpx;
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }
 
 .page {
@@ -602,13 +606,13 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 }
 .period {
   padding: 12rpx 24rpx;
-  border-radius: 28rpx;
-  background: #fff;
-  color: #64748b;
-  font-size: 24rpx;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
+  color: var(--text-muted);
+  font-size: var(--font-size-caption);
 }
 .period.active {
-  background: #0f766e;
+  background: var(--brand);
   color: #fff;
 }
 .report-dims {
@@ -618,35 +622,35 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 }
 .report-dim {
   padding: 8rpx 20rpx;
-  border-radius: 24rpx;
-  background: #f1f5f9;
-  color: #475569;
-  font-size: 22rpx;
+  border-radius: var(--radius-card);
+  background: var(--color-border-subtle, #f1f5f9);
+  color: var(--text-muted, #475569);
+  font-size: var(--font-size-sm);
 }
 .report-dim.active {
-  background: #0f766e;
+  background: var(--brand);
   color: #fff;
 }
 .state {
   margin: 24rpx;
   padding: 80rpx 24rpx;
   text-align: center;
-  background: #fff;
-  border-radius: 20rpx;
-  color: #64748b;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card);
+  color: var(--text-muted);
 }
 .error {
   display: block;
-  color: #dc2626;
+  color: var(--color-danger);
 }
 .retry {
   margin-top: 24rpx;
   width: 220rpx;
   height: 72rpx;
   line-height: 72rpx;
-  background: linear-gradient(135deg, #134e4a, #0f766e);
+  background: linear-gradient(135deg, var(--brand-deep), var(--brand));
   color: #fff;
-  border-radius: 44rpx;
+  border-radius: var(--radius-pill);
   font-weight: 600;
   box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
   border: none;
@@ -657,45 +661,45 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 .hero {
   margin: 12rpx 24rpx;
   padding: 32rpx;
-  border-radius: 24rpx;
-  color: #0f172a;
-  background: linear-gradient(135deg, #ecfdf5, #fff);
-  border: 1rpx solid #d1fae5;
+  border-radius: var(--radius-card);
+  color: var(--text-primary, #0f172a);
+  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  border: 1rpx solid var(--brand-soft, #d1fae5);
 }
 .hero-label {
   display: block;
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
 }
 .hero-value {
   display: block;
   font-size: 56rpx;
   font-weight: 800;
   margin-top: 8rpx;
-  color: #0f766e;
+  color: var(--brand);
 }
 .hero-row {
   display: flex;
   justify-content: space-between;
   margin-top: 22rpx;
-  font-size: 23rpx;
-  color: #475569;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #475569);
 }
 .hero-row.muted {
   margin-top: 10rpx;
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }
 .hero-row .up {
-  color: #059669;
+  color: var(--brand);
   font-weight: 600;
 }
 .hero-row .down {
-  color: #dc2626;
+  color: var(--color-danger);
   font-weight: 600;
 }
 .hero-row .loss {
-  color: #b45309;
+  color: var(--warning, #b45309);
   font-weight: 600;
 }
 .metric-grid {
@@ -705,28 +709,28 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   margin: 12rpx 24rpx;
 }
 .metric {
-  background: #fff;
+  background: var(--card-bg, #fff);
   border-radius: 18rpx;
   padding: 24rpx;
   text-align: center;
 }
 .metric-value {
   display: block;
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   text-align: center;
 }
 .metric-value.warn {
-  color: #d97706;
+  color: var(--warning, #d97706);
 }
 .metric-value.danger {
-  color: #dc2626;
+  color: var(--color-danger);
 }
 .metric-label {
   display: block;
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
   margin-top: 6rpx;
   text-align: center;
 }
@@ -737,12 +741,12 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   margin-bottom: 10rpx;
 }
 .section-title {
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
 }
 .section-sub {
-  font-size: 21rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 .tax-form {
   display: flex;
@@ -750,18 +754,18 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   gap: 12rpx;
 }
 .tax-input {
-  background: #f8fafc;
-  border: 1rpx solid #e2e8f0;
-  border-radius: 12rpx;
+  background: var(--page-bg, #f8fafc);
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-control);
   padding: 16rpx 20rpx;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
 }
 .tax-save {
   margin-top: 8rpx;
-  background: #0f766e;
+  background: var(--brand);
   color: #fff;
-  border-radius: 12rpx;
-  font-size: 26rpx;
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-body);
 }
 .tax-save::after {
   border: none;
@@ -771,7 +775,7 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   justify-content: space-between;
   gap: 20rpx;
   padding: 22rpx 0;
-  border-top: 1rpx solid #f1f5f9;
+  border-top: 1rpx solid var(--color-border-subtle, #f1f5f9);
 }
 .sku-main {
   min-width: 0;
@@ -779,48 +783,48 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 }
 .sku-name {
   display: block;
-  font-size: 27rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 .sku-rec {
   display: block;
-  font-size: 22rpx;
-  color: #0f766e;
+  font-size: var(--font-size-sm);
+  color: var(--brand);
   margin-top: 5rpx;
 }
 .sku-data {
   text-align: right;
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }
 .sku-money {
   display: block;
-  color: #0f172a;
-  font-size: 26rpx;
+  color: var(--text-primary, #0f172a);
+  font-size: var(--font-size-body);
   font-weight: 600;
   margin-top: 5rpx;
 }
 .empty {
   text-align: center;
   padding: 40rpx;
-  color: #94a3b8;
+  color: var(--text-subtle);
 }
 .risk-card {
   margin: 12rpx 24rpx;
   padding: 24rpx;
   border-radius: 18rpx;
-  background: #fff7ed;
-  border: 1rpx solid #fed7aa;
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
+  border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, #fff);
 }
 .risk-title {
   display: block;
-  color: #c2410c;
+  color: var(--accent-orange, #c2410c);
   font-weight: 700;
 }
 .risk-desc {
   display: block;
-  color: #9a3412;
-  font-size: 23rpx;
+  color: var(--accent-orange, #9a3412);
+  font-size: var(--font-size-sm);
   margin-top: 6rpx;
 }
 .actions {
@@ -834,11 +838,11 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   min-height: 80rpx;
   height: 80rpx;
   line-height: 1.2;
-  border: 2rpx solid #0f766e;
-  color: #0f766e;
-  border-radius: 44rpx;
-  background: #fff;
-  font-size: 28rpx;
+  border: 2rpx solid var(--brand);
+  color: var(--brand);
+  border-radius: var(--radius-pill);
+  background: var(--card-bg, #fff);
+  font-size: var(--font-size-md);
   font-weight: 600;
   text-align: center;
   display: flex;
@@ -853,7 +857,7 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 .card {
   margin: 12rpx 24rpx;
   padding: 24rpx;
-  background: #fff;
+  background: var(--card-bg, #fff);
   border-radius: 18rpx;
 }
 .page-body {

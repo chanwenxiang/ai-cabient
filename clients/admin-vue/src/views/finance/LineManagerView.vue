@@ -368,7 +368,7 @@
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="createVisible" title="新建线长" width="520px" destroy-on-close>
+    <el-dialog v-model="createVisible" title="新建线长" destroy-on-close>
       <el-form label-width="110px">
         <el-form-item label="姓名" required><el-input v-model="form.managerName" /></el-form-item>
         <el-form-item label="手机" required><el-input v-model="form.phone" /></el-form-item>
@@ -392,7 +392,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="bindVisible" title="绑柜" width="480px" destroy-on-close>
+    <el-dialog v-model="bindVisible" title="绑柜" destroy-on-close>
       <el-form label-width="90px">
         <el-form-item label="线长"
           >{{ bindTarget?.managerName }} · {{ bindTarget?.phone }}</el-form-item
@@ -504,7 +504,7 @@
       </div>
     </ResizableDrawer>
 
-    <el-dialog v-model="promoVisible" title="新建地推任务" width="480px" destroy-on-close>
+    <el-dialog v-model="promoVisible" title="新建地推任务" destroy-on-close>
       <el-form label-width="100px">
         <el-form-item label="线长ID" required>
           <el-input-number v-model="promoForm.managerId" :min="1" style="width: 100%" />
@@ -1132,10 +1132,10 @@ onMounted(async () => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .line-tabs {
@@ -1145,7 +1145,7 @@ onMounted(async () => {
 }
 .field-hint {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
   line-height: 1.4;
 }

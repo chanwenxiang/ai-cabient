@@ -1,4 +1,7 @@
 import { API_BASE_URL } from '@/config/api';
+import {
+  showError
+} from '@/utils/notify';
 import { clearDictOverrides, displayLabel } from '@aicabinet/shared-dict';
 import { matchPermission } from '@aicabinet/shared-rbac';
 import { loadRuntimeDict as sharedLoadRuntimeDict } from '@aicabinet/shared-uni/dict-runtime';
@@ -192,7 +195,7 @@ export function openExportedFile(tempFilePath: string, fileName = 'export.xlsx')
           resolve();
           return;
         }
-        uni.showToast({ title: '文件已下载，请从文件管理打开', icon: 'none' });
+        showError('文件已下载，请从文件管理打开');
         resolve();
       }
     });

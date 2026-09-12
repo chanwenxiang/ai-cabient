@@ -808,7 +808,7 @@ onUnmounted(() => {
   padding: 14px 0;
 }
 .brand-toggle {
-  font-size: 18px;
+  font-size: var(--admin-font-size-display-sm);
   color: #94a3b8;
   flex-shrink: 0;
 }

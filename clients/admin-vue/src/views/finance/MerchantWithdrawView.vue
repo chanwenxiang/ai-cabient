@@ -332,7 +332,6 @@
     <el-dialog
       v-model="adjustVisible"
       title="商户调账"
-      width="460px"
       append-to-body
       destroy-on-close
       :close-on-click-modal="false"
@@ -376,7 +375,6 @@
     <el-dialog
       v-model="withdrawVisible"
       title="代商户提现"
-      width="460px"
       append-to-body
       destroy-on-close
       :close-on-click-modal="false"
@@ -859,18 +857,18 @@ onMounted(reload);
 }
 .dialog-merchant__name {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .dialog-merchant__id {
   color: var(--layout-muted);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   margin-top: 2px;
 }
 .dialog-balance {
   display: flex;
   gap: 20px;
   margin-top: 10px;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--layout-muted);
 }
 .dialog-balance b {

@@ -4,7 +4,7 @@
       <div class="skel-bar" />
       <div class="skel-bar short" />
       <div class="skel-bar mid" />
-      <output class="chart-state-text">图表加载中…</output>
+      <output class="chart-state-text">图表{{ UI_COPY.loading }}</output>
     </div>
     <div v-else-if="error" class="chart-state chart-error" role="alert">
       <span class="chart-state-text">{{ error }}</span>
@@ -35,6 +35,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { sanitizeChartSvg } from '@/utils/charts';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const props = withDefaults(
   defineProps<{

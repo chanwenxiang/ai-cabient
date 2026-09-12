@@ -51,10 +51,10 @@
       <button
         type="button"
         class="map-count-btn"
-        :aria-label="listHydrated ? `共 ${filteredPoints.length} 个柜机落点` : '柜机落点 加载中…'"
+        :aria-label="listHydrated ? `共 ${filteredPoints.length} 个柜机落点` : `柜机落点 ${UI_COPY.loading}`"
         tabindex="-1"
       >
-        {{ listHydrated ? `共 ${filteredPoints.length} 个柜机落点` : '落点加载中…' }}
+        {{ listHydrated ? `共 ${filteredPoints.length} 个柜机落点` : `落点${UI_COPY.loading}` }}
       </button>
       <span v-if="tileHint" class="tile-hint">{{ tileHint }}</span>
     </div>
@@ -114,6 +114,7 @@ import { api } from '@/api/client';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { useSettingsStore } from '@/stores/settings';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 interface MapPoint {
   deviceId: string;
@@ -462,7 +463,7 @@ onBeforeUnmount(() => {
   left: 54px;
   bottom: 14px;
   z-index: 500;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--layout-text);
   background: color-mix(in srgb, var(--layout-card) 92%, transparent);
   padding: 4px 10px;
@@ -502,7 +503,7 @@ onBeforeUnmount(() => {
 .map-side__title {
   font-weight: 600;
   margin-bottom: 8px;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .map-side__item {
   padding: 10px 8px;
@@ -523,7 +524,7 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 .row-sub {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
   margin-top: 2px;
 }
@@ -586,7 +587,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   border: 2px solid rgba(255, 255, 255, 0.85);
 }

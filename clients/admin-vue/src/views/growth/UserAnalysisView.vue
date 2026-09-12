@@ -119,7 +119,7 @@
       </el-card>
     </div>
 
-    <el-dialog v-model="recallVisible" title="沉睡用户召回" width="460px" destroy-on-close>
+    <el-dialog v-model="recallVisible" title="沉睡用户召回" destroy-on-close>
       <el-form label-width="100px">
         <el-form-item label="召回优惠券" required>
           <el-select
@@ -330,13 +330,13 @@ function lastTime(value?: string | number | null) {
 }
 .kpi-label {
   display: block;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: #6b7280;
 }
 .kpi-value {
   display: block;
   margin-top: 6px;
-  font-size: 26px;
+  font-size: var(--admin-font-size-display-xl);
   font-weight: 700;
   color: #065f46;
 }
@@ -346,7 +346,7 @@ function lastTime(value?: string | number | null) {
 .kpi-sub {
   display: block;
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: #9aa4a0;
 }
 .split-grid {

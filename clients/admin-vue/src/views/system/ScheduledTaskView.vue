@@ -171,7 +171,6 @@
     <el-dialog
       v-model="editVisible"
       :title="creating ? '新增定时任务' : '编辑定时任务'"
-      width="520px"
       destroy-on-close
     >
       <el-form label-width="88px">

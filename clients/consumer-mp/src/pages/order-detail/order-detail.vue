@@ -2,10 +2,10 @@
   <view class="page-root">
     <app-nav-bar title="订单详情" />
     <view class="page-body">
-      <view v-if="loading && !order" class="loading"><text>加载中…</text></view>
+      <view v-if="loading && !order" class="loading"><text>{{ UI_COPY.loading }}</text></view>
       <view v-else-if="error && !order" class="error">
         <text>{{ error }}</text>
-        <button class="btn-outline" style="margin-top: 24rpx" @click="reload">重试</button>
+        <app-button variant="outline" style="margin-top: 24rpx" label="重试" @click="reload" />
       </view>
       <view v-else-if="order">
         <view class="status-bar" :class="'status-' + (order?.status || '').toLowerCase()">
@@ -123,56 +123,55 @@
         </view>
 
         <view class="actions">
-          <button v-if="order?.deviceId" class="btn-primary" @click="reopenCabinet">
-            再去本柜购物
-          </button>
-          <button
+          <app-button v-if="order?.deviceId" label="再去本柜购物" @click="reopenCabinet" />
+          <app-button
             v-if="order?.status === 'UNPAID'"
-            class="btn-primary"
             :disabled="paying"
+            :loading="paying"
+            :label="paying ? '支付中…' : '去支付'"
             @click="payNow"
-          >
-            {{ paying ? '支付中…' : '去支付' }}
-          </button>
-          <button v-if="canShowVideo" class="btn-outline" @click="playVideo">查看购物视频</button>
-          <button
+          />
+          <app-button
+            v-if="canShowVideo"
+            variant="outline"
+            label="查看购物视频"
+            @click="playVideo"
+          />
+          <app-button
             v-if="canRefund"
-            class="btn-refund"
+            variant="danger"
             :disabled="refundLoading || disputeLoading"
+            :label="refundDone ? displayLabel('order_status', 'REFUNDED') : '立即退款'"
             @click="openRefund"
-          >
-            {{ refundDone ? displayLabel('order_status', 'REFUNDED') : '立即退款' }}
-          </button>
-          <button
+          />
+          <app-button
             v-if="canDispute"
-            class="btn-outline danger"
+            variant="outline"
             :disabled="disputeLoading || refundLoading"
-            @click="openDispute"
-          >
-            {{
+            :label="
               disputeFiled
                 ? '申诉已提交'
                 : autoRefundEnabled
                   ? '提交账单申诉'
                   : '申请退款 / 账单申诉'
-            }}
-          </button>
-          <button
+            "
+            @click="openDispute"
+          />
+          <app-button
             v-if="canInvoice"
-            class="btn-outline"
+            variant="outline"
             :disabled="invoiceLoading || invoiceDone"
+            :label="invoiceDone ? '已申请开票' : '申请开票'"
             @click="openInvoice"
-          >
-            {{ invoiceDone ? '已申请开票' : '申请开票' }}
-          </button>
-          <button class="btn-outline" @click="goHelp">帮助与客服</button>
+          />
+          <app-button variant="outline" label="帮助与客服" @click="goHelp" />
         </view>
 
-        <view class="support" @click="callSupport">客服电话: {{ supportPhoneDisplay }} ›</view>
+        <view role="button" class="support app-link-chevron" @click="callSupport">客服电话: {{ supportPhoneDisplay }}</view>
       </view>
 
-      <view v-if="showInvoice" class="dispute-mask" @click="closeInvoice">
-        <view class="dispute-panel" @click.stop>
+      <view v-if="showInvoice" role="button" aria-label="关闭" class="dispute-mask" @click="closeInvoice">
+        <view role="button" class="dispute-panel" @click.stop>
           <text class="dispute-title">申请开票</text>
           <text class="dispute-sub">提交后由运营开具电子发票，并发送至您填写的邮箱</text>
           <text class="field-label">发票抬头</text>
@@ -197,16 +196,19 @@
             placeholder="发票发送邮箱"
           />
           <view class="dispute-actions">
-            <button class="btn-outline" @click="closeInvoice">取消</button>
-            <button class="btn-primary" :loading="invoiceLoading" @click="submitInvoice">
-              {{ invoiceLoading ? '提交中…' : '提交申请' }}
-            </button>
+            <app-button variant="outline" :block="false" label="取消" @click="closeInvoice" />
+            <app-button
+              :block="false"
+              :loading="invoiceLoading"
+              :label="invoiceLoading ? '提交中…' : '提交申请'"
+              @click="submitInvoice"
+            />
           </view>
         </view>
       </view>
 
-      <view v-if="showDispute" class="dispute-mask" @click="closeDispute">
-        <view class="dispute-panel" @click.stop>
+      <view v-if="showDispute" role="button" aria-label="关闭" class="dispute-mask" @click="closeDispute">
+        <view role="button" class="dispute-panel" @click.stop>
           <text class="dispute-title">{{ refundMode ? '立即退款' : '申请退款 / 账单申诉' }}</text>
           <text class="dispute-sub">
             {{
@@ -217,7 +219,7 @@
           </text>
           <view class="chip-row">
             <text
-              v-for="chip in reasonChips"
+              v-for="chip in reasonChips" role="button"
               :key="chip.label"
               class="reason-chip"
               :class="{ on: selectedCategory === chip.category }"
@@ -275,13 +277,10 @@
               >
             </view>
           </view>
-          <button
-            class="btn-submit"
+          <app-button
             :loading="disputeLoading || refundLoading"
             :disabled="disputeLoading || refundLoading"
-            @click="submitAction"
-          >
-            {{
+            :label="
               refundMode
                 ? refundLoading
                   ? '退款中…'
@@ -289,9 +288,10 @@
                 : disputeLoading
                   ? '提交中…'
                   : '提交申诉'
-            }}
-          </button>
-          <text class="dispute-cancel" @click="closeDispute">取消</text>
+            "
+            @click="submitAction"
+          />
+          <text role="button" class="dispute-cancel" aria-label="取消申诉" @click="closeDispute">取消</text>
         </view>
       </view>
     </view>
@@ -300,6 +300,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import {
+  showError,
+  showSuccess,
+  showConfirm
+} from '@/utils/notify';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
@@ -321,6 +326,7 @@ import {
 } from '@/utils/dispute-form';
 import { consumerAppealErrorMessage } from '@/utils/dispute-copy';
 import {
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
   pickAndUploadEvidence,
   evidenceFileIds,
   previewEvidenceSrc,
@@ -560,7 +566,7 @@ async function submitInvoice() {
   if (!oid) return;
   const title = invoiceTitle.value.trim();
   if (!title) {
-    uni.showToast({ title: '请填写发票抬头', icon: 'none' });
+    showError('请填写发票抬头');
     return;
   }
   invoiceLoading.value = true;
@@ -572,12 +578,9 @@ async function submitInvoice() {
     });
     invoiceDone.value = true;
     showInvoice.value = false;
-    uni.showToast({ title: '开票申请已提交', icon: 'success' });
+    showSuccess('开票申请已提交');
   } catch (e: unknown) {
-    uni.showToast({
-      title: e instanceof Error ? e.message : '提交失败',
-      icon: 'none'
-    });
+    showError(e instanceof Error ? e.message : '提交失败');
   } finally {
     invoiceLoading.value = false;
   }
@@ -610,7 +613,7 @@ function onPartialQty(
     return;
   }
   if (!/^\d+$/.test(raw)) {
-    uni.showToast({ title: '请输入有效退款件数', icon: 'none' });
+    showError('请输入有效退款件数');
     row.qty = 0;
     return;
   }
@@ -676,10 +679,10 @@ async function payNow() {
   paying.value = true;
   try {
     await consumerApi.payOrder(order.value.orderId);
-    uni.showToast({ title: '支付成功', icon: 'success' });
+    showSuccess('支付成功');
     await reload();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '支付失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '支付失败');
   } finally {
     paying.value = false;
   }
@@ -702,15 +705,11 @@ async function onAddEvidence() {
 }
 
 async function removeEvidence(idx: number) {
-  const confirmed = await new Promise<boolean>((resolve) => {
-    uni.showModal({
-      title: '删除图片',
-      content: '确定删除这张申诉附图吗？',
-      confirmText: '删除',
-      cancelText: '保留',
-      success: (res) => resolve(!!res.confirm),
-      fail: () => resolve(false)
-    });
+  const confirmed = await showConfirm({
+    title: '删除图片',
+    content: '确定删除这张申诉附图吗？',
+    confirmText: '删除',
+    cancelText: '保留'
   });
   if (!confirmed) return;
   evidence.value = removeEvidenceAt(evidence.value, idx);
@@ -725,15 +724,15 @@ async function submitDispute() {
   const sessionId = order.value?.sessionId;
   const reason = disputeReason.value.trim();
   if (!sessionId) {
-    uni.showToast({ title: '缺少订单信息', icon: 'none' });
+    showError('缺少订单信息');
     return;
   }
   if (reason.length < 4) {
-    uni.showToast({ title: '请至少填写 4 个字', icon: 'none' });
+    showError('请至少填写 4 个字');
     return;
   }
   if (evidence.value.some((e) => e.uploading)) {
-    uni.showToast({ title: '图片仍在上传', icon: 'none' });
+    showError('图片仍在上传');
     return;
   }
   disputeLoading.value = true;
@@ -747,10 +746,10 @@ async function submitDispute() {
     });
     disputeFiled.value = true;
     showDispute.value = false;
-    uni.showToast({ title: '申诉已提交', icon: 'success' });
+    showSuccess('申诉已提交');
     await reload();
   } catch (e) {
-    uni.showToast({ title: consumerAppealErrorMessage(e, '提交失败'), icon: 'none' });
+    showError(consumerAppealErrorMessage(e, '提交失败'));
   } finally {
     disputeLoading.value = false;
   }
@@ -782,15 +781,15 @@ async function submitRefund() {
   const oid = order.value?.orderId;
   const reason = disputeReason.value.trim();
   if (!oid) {
-    uni.showToast({ title: '缺少订单编号', icon: 'none' });
+    showError('缺少订单编号');
     return;
   }
   if (reason.length < 4) {
-    uni.showToast({ title: '请至少填写 4 字退款原因', icon: 'none' });
+    showError('请至少填写 4 字退款原因');
     return;
   }
   if (evidence.value.some((e) => e.uploading)) {
-    uni.showToast({ title: '图片仍在上传', icon: 'none' });
+    showError('图片仍在上传');
     return;
   }
   const restoreInventory = inferRestoreInventory(reason, selectedChip.value);
@@ -802,15 +801,11 @@ async function submitRefund() {
       ...(restoreInventory != null ? { restoreInventory } : {})
     }));
   const isPartial = lines.length > 0;
-  const confirmed = await new Promise<boolean>((resolve) =>
-    uni.showModal({
-      title: isPartial ? '确认按行退款' : '确认退款',
-      content: refundConfirmContent(isPartial, restoreInventory, lines.length),
-      confirmText: '确认退款',
-      success: (r) => resolve(!!r.confirm),
-      fail: () => resolve(false)
-    })
-  );
+  const confirmed = await showConfirm({
+    title: isPartial ? '确认按行退款' : '确认退款',
+    content: refundConfirmContent(isPartial, restoreInventory, lines.length),
+    confirmText: '确认退款'
+  });
   if (!confirmed) return;
   refundLoading.value = true;
   try {
@@ -823,10 +818,10 @@ async function submitRefund() {
     refundDone.value = true;
     disputeFiled.value = true;
     showDispute.value = false;
-    uni.showToast({ title: result.message || '退款成功', icon: 'success' });
+    showSuccess(result.message || '退款成功');
     await reload();
   } catch (e) {
-    uni.showToast({ title: consumerAppealErrorMessage(e, '退款失败'), icon: 'none' });
+    showError(consumerAppealErrorMessage(e, '退款失败'));
   } finally {
     refundLoading.value = false;
   }
@@ -835,7 +830,7 @@ async function submitRefund() {
 function reopenCabinet() {
   const id = order.value?.deviceId;
   if (!id) {
-    uni.showToast({ title: '缺少柜机编号', icon: 'none' });
+    showError('缺少柜机编号');
     return;
   }
   uni.setStorageSync('reopen_device_id', id);
@@ -849,7 +844,7 @@ function goHelp() {
 function callSupport() {
   uni.makePhoneCall({
     phoneNumber: supportPhoneDial.value,
-    fail: () => uni.showToast({ title: `请拨打 ${supportPhoneDisplay.value}`, icon: 'none' })
+    fail: () => showError(`请拨打 ${supportPhoneDisplay.value}`)
   });
 }
 </script>
@@ -857,7 +852,7 @@ function callSupport() {
 <style scoped>
 .page-root {
   padding: 0;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   /* 用 100% 贴齐 page 高度；100vh 在桌面手机框内会撑出多余内滚动条 */
   min-height: 100%;
   box-sizing: border-box;
@@ -870,25 +865,25 @@ function callSupport() {
 .error {
   text-align: center;
   padding: 80rpx 0;
-  color: #999;
-  font-size: 28rpx;
+  color: var(--text-subtle, #999);
+  font-size: var(--font-size-md);
 }
 .empty-lines {
-  font-size: 26rpx;
-  color: #999;
+  font-size: var(--font-size-body);
+  color: var(--text-subtle, #999);
   padding: 12rpx 0;
 }
 .status-bar {
   display: flex;
   align-items: center;
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-panel);
   padding: 30rpx;
   margin-bottom: 20rpx;
 }
 .status-bar.status-paid,
 .status-bar.status-completed {
-  background: linear-gradient(135deg, #e8f5e9, #fff);
+  background: linear-gradient(135deg, var(--brand-soft, #e8f5e9), #fff);
 }
 .status-bar.status-refunded {
   background: linear-gradient(135deg, #fff3e0, #fff);
@@ -896,14 +891,14 @@ function callSupport() {
 .status-icon {
   width: 60rpx;
   height: 60rpx;
-  border-radius: 30rpx;
+  border-radius: var(--radius-card);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   margin-right: 20rpx;
-  background: linear-gradient(135deg, #047857, #059669);
+  background: linear-gradient(135deg, var(--brand), var(--brand));
   color: #fff;
   flex-shrink: 0;
 }
@@ -911,24 +906,24 @@ function callSupport() {
   background: #ff9500;
 }
 .status-title {
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 600;
   display: block;
 }
 .status-detail {
-  font-size: 24rpx;
-  color: #666;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #666);
   margin-top: 4rpx;
   display: block;
 }
 .section {
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-panel);
   padding: 24rpx;
   margin-bottom: 20rpx;
 }
 .section-title {
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
   margin-bottom: 16rpx;
   display: block;
@@ -945,8 +940,8 @@ function callSupport() {
 .item-thumb {
   width: 80rpx;
   height: 80rpx;
-  border-radius: 14rpx;
-  background: #f0fdf4;
+  border-radius: var(--radius-control);
+  background: var(--brand-soft, #f0fdf4);
   flex-shrink: 0;
 }
 .item-info {
@@ -954,22 +949,22 @@ function callSupport() {
   min-width: 0;
 }
 .item-name {
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   display: block;
 }
 .item-qty {
-  font-size: 24rpx;
-  color: #999;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle, #999);
   margin-left: 12rpx;
 }
 .item-unit {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 .item-price {
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 500;
 }
 .total-row {
@@ -983,15 +978,15 @@ function callSupport() {
   margin-top: 8rpx;
 }
 .total-row.pay .total-amount {
-  color: #059669;
-  font-size: 34rpx;
+  color: var(--brand);
+  font-size: var(--font-size-h3);
 }
 .total-label {
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 .total-amount {
-  font-size: 36rpx;
+  font-size: var(--font-size-display-sm);
   font-weight: 700;
   color: #ff3b30;
 }
@@ -1001,12 +996,12 @@ function callSupport() {
   padding: 8rpx 0;
 }
 .discount-label {
-  font-size: 24rpx;
-  color: #059669;
+  font-size: var(--font-size-caption);
+  color: var(--brand);
 }
 .discount-amount {
-  font-size: 24rpx;
-  color: #059669;
+  font-size: var(--font-size-caption);
+  color: var(--brand);
 }
 .info-row {
   display: flex;
@@ -1014,16 +1009,16 @@ function callSupport() {
   padding: 12rpx 0;
 }
 .info-label {
-  font-size: 26rpx;
-  color: #666;
+  font-size: var(--font-size-body);
+  color: var(--text-muted, #666);
 }
 .info-value {
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   color: #333;
 }
 .mono {
   font-family: var(--app-font-mono);
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
 }
 .actions {
   display: flex;
@@ -1033,9 +1028,10 @@ function callSupport() {
   padding: 10rpx 0;
 }
 /* 纵向操作区：通栏等宽，避免「立即退款」等比「再去本柜购物」短一截 */
-.actions .btn-primary,
+.actions .app-btn,
 .actions .btn-outline,
-.actions .btn-refund {
+.actions .btn-refund,
+.actions .app-btn {
   width: 100% !important;
   max-width: none !important;
   min-width: 0 !important;
@@ -1046,23 +1042,6 @@ function callSupport() {
   padding-left: 36rpx;
   padding-right: 36rpx;
 }
-.btn-primary {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-  height: 88rpx;
-  line-height: 1.2;
-  border: none;
-  color: #fff;
-  border-radius: 44rpx;
-  background: linear-gradient(135deg, #047857, #059669);
-  font-size: 28rpx;
-  font-weight: 600;
-  box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
-}
 .btn-outline {
   width: 100%;
   display: flex;
@@ -1072,16 +1051,16 @@ function callSupport() {
   box-sizing: border-box;
   height: 80rpx;
   line-height: 1.2;
-  border: 2rpx solid #047857;
-  color: #047857;
-  border-radius: 44rpx;
-  background: #fff;
-  font-size: 28rpx;
+  border: 2rpx solid var(--brand);
+  color: var(--brand);
+  border-radius: var(--radius-pill);
+  background: var(--card-bg, #fff);
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 .btn-outline.danger {
-  border-color: #ef4444;
-  color: #b91c1c;
+  border-color: var(--color-danger);
+  color: var(--color-danger);
 }
 .btn-refund {
   width: 100%;
@@ -1094,13 +1073,13 @@ function callSupport() {
   line-height: 1.2;
   border: none;
   color: #fff;
-  border-radius: 44rpx;
-  background: linear-gradient(135deg, #dc2626, #ef4444);
-  font-size: 28rpx;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, var(--color-danger), var(--color-danger));
+  font-size: var(--font-size-md);
   font-weight: 600;
   box-shadow: 0 8rpx 24rpx rgba(239, 68, 68, 0.22);
 }
-.btn-primary::after,
+.app-btn::after,
 .btn-outline::after,
 .btn-refund::after,
 .btn-submit::after {
@@ -1109,8 +1088,8 @@ function callSupport() {
 .support {
   text-align: center;
   padding: 30rpx;
-  color: #059669;
-  font-size: 24rpx;
+  color: var(--brand);
+  font-size: var(--font-size-caption);
 }
 .dispute-mask {
   position: fixed;
@@ -1125,19 +1104,19 @@ function callSupport() {
   max-height: 90vh;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: #fff;
-  border-radius: 24rpx 24rpx 0 0;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card) 24rpx 0 0;
   padding: 32rpx 28rpx calc(32rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .dispute-title {
-  font-size: 34rpx;
+  font-size: var(--font-size-h3);
   font-weight: 700;
   display: block;
 }
 .dispute-sub {
-  font-size: 24rpx;
-  color: #888;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle, #888);
   display: block;
   margin: 12rpx 0 20rpx;
   line-height: 1.5;
@@ -1150,25 +1129,25 @@ function callSupport() {
 }
 .reason-chip {
   padding: 10rpx 18rpx;
-  border-radius: 999rpx;
-  background: #f3f4f6;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-subtle);
   color: #374151;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   border: 1rpx solid transparent;
 }
 .reason-chip.on {
-  background: #fef2f2;
-  color: #b91c1c;
-  border-color: #fecaca;
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, #fff);
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--danger, #b91c1c) 18%, #fff);
 }
 .dispute-input {
   width: 100%;
   min-height: 140rpx;
-  background: #f5f7f8;
-  border-radius: 12rpx;
+  background: var(--page-bg, #f5f7f8);
+  border-radius: var(--radius-control);
   padding: 20rpx;
   box-sizing: border-box;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   margin-bottom: 16rpx;
 }
 .evidence-block {
@@ -1176,7 +1155,7 @@ function callSupport() {
 }
 .evidence-label {
   display: block;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   color: #6b7280;
   margin-bottom: 12rpx;
 }
@@ -1193,8 +1172,8 @@ function callSupport() {
 .evidence-img {
   width: 140rpx;
   height: 140rpx;
-  border-radius: 12rpx;
-  background: #f3f4f6;
+  border-radius: var(--radius-control);
+  background: var(--color-border-subtle);
 }
 .evidence-del {
   position: absolute;
@@ -1207,7 +1186,7 @@ function callSupport() {
   color: #fff;
   text-align: center;
   line-height: 36rpx;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
 }
 .evidence-uploading {
   position: absolute;
@@ -1217,16 +1196,16 @@ function callSupport() {
   justify-content: center;
   background: rgba(0, 0, 0, 0.45);
   color: #fff;
-  font-size: 22rpx;
-  border-radius: 12rpx;
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-control);
 }
 .evidence-add {
   width: 140rpx;
   height: 140rpx;
-  border-radius: 12rpx;
+  border-radius: var(--radius-control);
   border: 2rpx dashed #d1d5db;
   color: #9ca3af;
-  font-size: 48rpx;
+  font-size: var(--font-size-display);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1236,10 +1215,10 @@ function callSupport() {
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.2;
-  background: #dc2626;
+  background: var(--color-danger);
   color: #fff;
-  border-radius: 44rpx;
-  font-size: 30rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-lg);
   border: none;
   display: flex;
   align-items: center;
@@ -1256,11 +1235,12 @@ function callSupport() {
   box-sizing: border-box;
 }
 .dispute-actions .btn-outline,
-.dispute-actions .btn-primary,
+.dispute-actions .app-btn,
 .dispute-actions uni-button.btn-outline,
-.dispute-actions uni-button.btn-primary,
+.dispute-actions uni-button.app-btn,
 .dispute-actions button.btn-outline,
-.dispute-actions button.btn-primary {
+.dispute-actions button.app-btn,
+.dispute-actions .app-btn {
   flex: 1 1 0;
   width: auto !important;
   max-width: none !important;
@@ -1276,9 +1256,9 @@ function callSupport() {
 .dispute-cancel {
   display: block;
   text-align: center;
-  color: #888;
+  color: var(--text-subtle, #888);
   margin-top: 20rpx;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   padding: 8rpx;
 }
 .partial-block {
@@ -1292,20 +1272,20 @@ function callSupport() {
 }
 .partial-name {
   flex: 1;
-  font-size: 26rpx;
-  color: #1e293b;
+  font-size: var(--font-size-body);
+  color: var(--text-primary, #1e293b);
 }
 .partial-meta {
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 .partial-qty {
   width: 100rpx;
   height: 56rpx;
-  border: 1rpx solid #e2e8f0;
-  border-radius: 8rpx;
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-tag);
   text-align: center;
-  font-size: 26rpx;
-  background: #fff;
+  font-size: var(--font-size-body);
+  background: var(--card-bg, #fff);
 }
 </style>

@@ -1,70 +1,131 @@
-﻿<template>
+<template>
   <view class="page">
     <app-nav-bar title="帮助中心" />
     <view class="hero">
-      <text class="hero-title">帮助中心</text>
       <text class="hero-sub">常见问题与客服入口，快速解决购物疑问</text>
     </view>
 
     <view class="card">
       <text class="card-title">联系客服</text>
-      <view class="support-row" @click="callSupport">
+      <view
+        class="support-row"
+        role="button"
+        aria-label="拨打客服热线"
+        hover-class="support-row-hover"
+        @click="callSupport"
+      >
+        <view class="support-icon" aria-hidden="true">电</view>
         <view class="support-main">
           <text class="support-label">客服热线</text>
           <text class="support-value">{{ supportPhoneDisplay }}</text>
         </view>
-        <text class="support-action">拨打</text>
+        <view class="support-action">拨打</view>
       </view>
-      <view v-if="supportEmail" class="support-row" @click="copySupportEmail">
+      <view
+        v-if="supportEmail"
+        class="support-row"
+        role="button"
+        aria-label="复制客服邮箱"
+        hover-class="support-row-hover"
+        @click="copySupportEmail"
+      >
+        <view class="support-icon" aria-hidden="true">邮</view>
         <view class="support-main">
           <text class="support-label">客服邮箱</text>
           <text class="support-value">{{ supportEmail }}</text>
         </view>
-        <text class="support-action">复制</text>
+        <view class="support-action">复制</view>
       </view>
-      <view class="support-row" @click="goAnnouncements">
+      <view
+        class="support-row"
+        role="button"
+        aria-label="查看平台公告"
+        hover-class="support-row-hover"
+        @click="goAnnouncements"
+      >
+        <view class="support-icon" aria-hidden="true">告</view>
         <view class="support-main">
           <text class="support-label">平台公告</text>
           <text class="support-value">维护通知、活动与规则变更</text>
         </view>
-        <text class="support-action">去查看</text>
+        <view class="support-action">去查看</view>
       </view>
-      <view class="support-row" @click="goFeedback">
+      <view
+        class="support-row"
+        role="button"
+        aria-label="在线留言反馈"
+        hover-class="support-row-hover"
+        @click="goFeedback"
+      >
+        <view class="support-icon" aria-hidden="true">言</view>
         <view class="support-main">
           <text class="support-label">在线留言</text>
           <text class="support-value">意见反馈，运营将跟进回复</text>
         </view>
-        <text class="support-action">去反馈</text>
+        <view class="support-action">去反馈</view>
       </view>
-      <view class="support-row" @click="goReport">
+      <view
+        class="support-row"
+        role="button"
+        aria-label="报修柜机故障"
+        hover-class="support-row-hover"
+        @click="goReport"
+      >
+        <view class="support-icon" aria-hidden="true">修</view>
         <view class="support-main">
           <text class="support-label">柜机故障</text>
           <text class="support-value">打不开门、关不上门等</text>
         </view>
-        <text class="support-action">去报修</text>
+        <view class="support-action">去报修</view>
       </view>
-      <view class="support-row" @click="goMessages">
+      <view
+        class="support-row"
+        role="button"
+        aria-label="打开消息中心"
+        hover-class="support-row-hover"
+        @click="goMessages"
+      >
+        <view class="support-icon" aria-hidden="true">信</view>
         <view class="support-main">
           <text class="support-label">消息中心</text>
           <text class="support-value">订单、售后与优惠提醒</text>
         </view>
-        <text class="support-action">去查看</text>
+        <view class="support-action">去查看</view>
       </view>
-      <view class="support-row" @click="goNearby">
+      <view
+        class="support-row"
+        role="button"
+        aria-label="查找附近柜机"
+        hover-class="support-row-hover"
+        @click="goNearby"
+      >
+        <view class="support-icon" aria-hidden="true">柜</view>
         <view class="support-main">
           <text class="support-label">附近柜机</text>
           <text class="support-value">按距离找可开门的柜</text>
         </view>
-        <text class="support-action">去找柜</text>
+        <view class="support-action">去找柜</view>
       </view>
     </view>
 
     <view class="card">
       <text class="card-title">常见问题</text>
-      <view v-for="(item, idx) in faqs" :key="item.q" class="faq-item" @click="toggle(idx)">
+      <view
+        v-for="(item, idx) in faqs"
+        :key="item.q"
+        class="faq-item"
+        role="button"
+        :aria-expanded="openIdx === idx ? 'true' : 'false'"
+        :aria-label="item.q"
+        @click="toggle(idx)"
+      >
         <view class="faq-head">
           <text class="faq-q">{{ item.q }}</text>
-          <text class="faq-toggle">{{ openIdx === idx ? '−' : '+' }}</text>
+          <view
+            class="faq-toggle app-icon app-icon--chevron"
+            :class="{ 'is-down': openIdx === idx }"
+            aria-hidden="true"
+          />
         </view>
         <text v-if="openIdx === idx" class="faq-a">{{ item.a }}</text>
       </view>
@@ -76,7 +137,7 @@
         >可在「订单详情」或购物结果页提交申诉。审核通过后会退回余额或原支付渠道，通常 24
         小时内处理。</text
       >
-      <button class="tip-btn" hover-class="btn-hover" @click="goOrders">查看我的订单</button>
+      <app-button label="查看我的订单" aria-label="查看我的订单" @click="goOrders" />
     </view>
   </view>
 </template>
@@ -85,6 +146,7 @@
 import { onShow } from '@dcloudio/uni-app';
 import { ref } from 'vue';
 import { consumerApi } from '@/utils/consumer-api';
+import { showError, showSuccess } from '@/utils/notify';
 
 const supportPhoneDisplay = ref('400-888-0018');
 const supportPhoneDial = ref('4008880018');
@@ -148,7 +210,7 @@ function toggle(idx: number) {
 function callSupport() {
   uni.makePhoneCall({
     phoneNumber: supportPhoneDial.value,
-    fail: () => uni.showToast({ title: `请拨打 ${supportPhoneDisplay.value}`, icon: 'none' })
+    fail: () => showError(`请拨打 ${supportPhoneDisplay.value}`)
   });
 }
 
@@ -157,8 +219,8 @@ function copySupportEmail() {
   if (!email) return;
   uni.setClipboardData({
     data: email,
-    success: () => uni.showToast({ title: '邮箱已复制', icon: 'none' }),
-    fail: () => uni.showToast({ title: email, icon: 'none' })
+    success: () => showSuccess('邮箱已复制'),
+    fail: () => showError(email)
   });
 }
 
@@ -190,88 +252,101 @@ function goOrders() {
 <style scoped>
 .page {
   min-height: 100%;
-  padding: 0 0 48rpx;
+  padding: 0 var(--page-gutter) calc(var(--spacing-lg) * 2);
   box-sizing: border-box;
-  background: #ffffff;
+  background: var(--color-bg-card, #ffffff);
 }
 .hero {
-  padding: 16rpx 32rpx 20rpx;
-}
-.hero-title {
-  display: block;
-  font-size: 40rpx;
-  font-weight: 700;
-  color: #191919;
+  padding: 16rpx 8rpx 20rpx;
 }
 .hero-sub {
   display: block;
-  margin-top: 8rpx;
-  font-size: 26rpx;
-  color: #6b7280;
+  font-size: var(--font-size-body);
+  color: var(--text-muted, #64748b);
   line-height: 1.5;
 }
 .card {
-  background: #fff;
-  border-radius: 20rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card, 24rpx);
   padding: 24rpx;
-  margin: 0 24rpx 20rpx;
+  margin: 0 0 16rpx;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
 }
 .card-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
-  color: #111827;
+  color: var(--text-primary, #14201b);
   margin-bottom: 8rpx;
 }
 .support-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 16rpx;
   padding: 22rpx 0;
-  border-bottom: 1rpx solid #f3f4f6;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f3f4f6);
   box-sizing: border-box;
   width: 100%;
 }
 .support-row:last-child {
   border-bottom: none;
 }
+.support-row-hover {
+  opacity: 0.85;
+}
+.support-icon {
+  flex: 0 0 64rpx;
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  background: var(--brand-soft, #ecfdf5);
+  color: var(--brand, #0f766e);
+  font-size: var(--font-size-caption);
+  font-weight: 700;
+  line-height: 64rpx;
+  text-align: center;
+}
 .support-main {
-  flex: 1 1 0;
+  /* 0 基准 + 可伸缩：避免 H5/小程序里内容宽度把中间列压成「客…」 */
+  flex: 1 1 0%;
   min-width: 0;
+  max-width: 100%;
 }
 .support-label {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary, #14201b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .support-value {
   display: block;
   margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #6b7280;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #64748b);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 固定右栏宽度 + 右对齐，避免「拨打」与「去查看」字数不同导致右缘参差 */
 .support-action {
-  flex: 0 0 108rpx;
-  width: 108rpx;
-  max-width: 108rpx;
-  margin-left: 0;
-  color: #059669;
-  font-size: 26rpx;
+  flex: 0 0 auto;
+  color: var(--color-link, var(--brand, #0f766e));
+  font-size: var(--font-size-body);
   font-weight: 600;
   text-align: right;
   white-space: nowrap;
-  box-sizing: border-box;
+}
+.support-row:active .support-action {
+  opacity: 0.72;
 }
 .faq-item {
   padding: 20rpx 0;
-  border-bottom: 1rpx solid #f3f4f6;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f3f4f6);
 }
 .faq-item:last-child {
   border-bottom: none;
@@ -287,66 +362,51 @@ function goOrders() {
 .faq-q {
   flex: 1 1 0;
   min-width: 0;
-  font-size: 28rpx;
-  color: #111827;
+  font-size: var(--font-size-md);
+  color: var(--text-primary, #14201b);
   font-weight: 600;
   line-height: 1.4;
 }
 .faq-toggle {
-  flex: 0 0 108rpx;
-  width: 108rpx;
-  color: #059669;
-  font-size: 32rpx;
-  line-height: 1.2;
-  text-align: right;
+  flex: 0 0 48rpx;
+  width: 48rpx;
+  height: 48rpx;
+  color: var(--color-link, var(--brand, #0f766e));
+  font-size: var(--font-size-md);
+}
+.faq-toggle.app-icon--chevron {
+  transform: rotate(-45deg);
+  transition: transform 0.18s ease;
+}
+.faq-toggle.app-icon--chevron.is-down {
+  transform: rotate(45deg);
 }
 .faq-a {
   display: block;
   margin-top: 14rpx;
-  font-size: 24rpx;
-  color: #4b5563;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #64748b);
   line-height: 1.6;
 }
 .tip-card {
-  background: linear-gradient(135deg, #fff7ed, #fff);
-  border: 1rpx solid #fed7aa;
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
+  border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, #fff);
 }
 .tip-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
-  color: #9a3412;
+  color: var(--warning, #b45309);
 }
 .tip-body {
   display: block;
   margin-top: 10rpx;
-  font-size: 24rpx;
-  color: #9a3412;
+  font-size: var(--font-size-caption);
+  color: var(--warning, #b45309);
   line-height: 1.55;
   opacity: 0.9;
 }
-.tip-btn {
+.tip-card :deep(.app-btn) {
   margin-top: 20rpx;
-  min-height: 80rpx;
-  height: 80rpx;
-  line-height: 1.2;
-  border-radius: 44rpx;
-  background: linear-gradient(135deg, #047857, #059669);
-  color: #fff;
-  font-size: 28rpx;
-  font-weight: 600;
-  border: none;
-  box-shadow: 0 8rpx 20rpx rgba(5, 150, 105, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-}
-.tip-btn::after {
-  border: none;
-}
-.btn-hover {
-  opacity: 0.88;
 }
 </style>

@@ -163,7 +163,6 @@
   <el-dialog
     v-model="adjustVisible"
     title="调整用户余额"
-    width="460px"
     append-to-body
     destroy-on-close
     :close-on-click-modal="false"
@@ -508,11 +507,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {
@@ -543,16 +542,16 @@ onActivated(() => {
 }
 .adjust-user__name {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .adjust-user__id {
   color: var(--layout-muted);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   margin-top: 2px;
 }
 .adjust-user__balance {
   margin-top: 10px;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--layout-muted);
 }
 .adjust-user__balance b {

@@ -109,7 +109,6 @@
     <el-dialog
       v-model="dialogVisible"
       :title="editing ? '编辑等级' : '新建等级'"
-      width="520px"
       destroy-on-close
     >
       <el-form :model="form" label-width="130px">
@@ -372,7 +371,7 @@ function yuan(v?: number) {
 <style scoped>
 .form-hint {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 </style>

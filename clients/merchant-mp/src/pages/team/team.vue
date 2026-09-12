@@ -14,10 +14,10 @@
         </button>
       </view>
 
-      <view v-if="loading && !list.length" class="card state">加载中…</view>
+      <view v-if="loading && !list.length" class="card state">{{ UI_COPY.loading }}</view>
       <view v-else-if="error && !list.length" class="card state">
         <text class="err">{{ error }}</text>
-        <button class="retry" size="mini" @click="load">重试</button>
+        <app-button compact variant="ghost" label="重试" @click="load" />
       </view>
       <empty-state
         v-else-if="!list.length"
@@ -25,10 +25,10 @@
         title="暂无团队成员"
         hint="可邀请同事登录商户端协同补货与经营"
       >
-        <button v-if="canInvite" class="empty-btn" @click="openInvite">邀请成员</button>
+        <app-button v-if="canInvite" label="邀请成员" @click="openInvite" />
       </empty-state>
       <view v-else>
-        <view v-for="u in list" :key="u.userId" class="card row" @click="openManage(u)">
+        <view v-for="u in list" role="button" :key="u.userId" class="card row" @click="openManage(u)">
           <view class="avatar">{{ (u.displayName || u.phoneNumber || '员').slice(0, 1) }}</view>
           <view class="meta">
             <text class="name">{{ u.displayName || u.phoneNumber || '用户 ' + u.userId }}</text>
@@ -46,8 +46,8 @@
         </view>
       </view>
 
-      <view v-if="inviteVisible" class="mask" @click="inviteVisible = false">
-        <view class="dialog" @click.stop>
+      <view v-if="inviteVisible" role="button" aria-label="关闭" class="mask" @click="inviteVisible = false">
+        <view role="button" class="dialog" @click.stop>
           <text class="dialog-title">邀请成员</text>
           <input
             class="input"
@@ -72,7 +72,7 @@
           />
           <view class="role-row wrap">
             <text
-              v-for="r in roles"
+              v-for="r in roles" role="button"
               :key="r.roleKey"
               class="role-chip"
               :class="{ active: form.roleKey === r.roleKey }"
@@ -87,8 +87,8 @@
         </view>
       </view>
 
-      <view v-if="manageVisible && manageUser" class="mask" @click="manageVisible = false">
-        <view class="dialog" @click.stop>
+      <view v-if="manageVisible && manageUser" role="button" aria-label="关闭" class="mask" @click="manageVisible = false">
+        <view role="button" class="dialog" @click.stop>
           <text class="dialog-title">{{ manageUser.displayName || manageUser.phoneNumber }}</text>
           <text class="hint"
             >{{ manageUser.phoneNumber }} ·
@@ -99,7 +99,7 @@
             <text class="section-title">角色</text>
             <view class="role-row wrap">
               <text
-                v-for="r in roles"
+                v-for="r in roles" role="button"
                 :key="'m-' + r.roleKey"
                 class="role-chip"
                 :class="{ active: manageRoleKey === r.roleKey }"
@@ -143,10 +143,15 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
+import {
+  showError,
+  showSuccess
+} from '@/utils/notify';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type { MerchantMe, MerchantTeamRoleDto, MerchantUserDto } from '@aicabinet/shared-types';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canInvite = computed(() => hasPerm(me.value, 'merchant:users:invite'));
@@ -258,11 +263,11 @@ async function onInvite() {
   const phone = form.phoneNumber.trim();
   const password = form.password.trim();
   if (!/^1\d{10}$/.test(phone)) {
-    uni.showToast({ title: '请输入正确手机号', icon: 'none' });
+    showError('请输入正确手机号');
     return;
   }
   if (password.length < 6) {
-    uni.showToast({ title: '密码至少 6 位', icon: 'none' });
+    showError('密码至少 6 位');
     return;
   }
   saving.value = true;
@@ -273,11 +278,11 @@ async function onInvite() {
       displayName: form.displayName.trim() || undefined,
       roleKey: form.roleKey
     });
-    uni.showToast({ title: '已邀请', icon: 'success' });
+    showSuccess('已邀请');
     inviteVisible.value = false;
     await load();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '邀请失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '邀请失败');
   } finally {
     saving.value = false;
   }
@@ -288,11 +293,11 @@ async function onSaveRole() {
   saving.value = true;
   try {
     await merchantApi.updateTeamUser(manageUser.value.userId, { roleKey: manageRoleKey.value });
-    uni.showToast({ title: '已更新角色', icon: 'success' });
+    showSuccess('已更新角色');
     manageVisible.value = false;
     await load();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '更新失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '更新失败');
   } finally {
     saving.value = false;
   }
@@ -302,16 +307,16 @@ async function onResetPassword() {
   if (!manageUser.value) return;
   const pwd = resetPassword.value.trim();
   if (pwd.length < 6) {
-    uni.showToast({ title: '密码至少 6 位', icon: 'none' });
+    showError('密码至少 6 位');
     return;
   }
   saving.value = true;
   try {
     await merchantApi.resetTeamUserPassword(manageUser.value.userId, pwd);
-    uni.showToast({ title: '密码已重置', icon: 'success' });
+    showSuccess('密码已重置');
     resetPassword.value = '';
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '重置失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '重置失败');
   } finally {
     saving.value = false;
   }
@@ -322,11 +327,11 @@ async function onDisable() {
   saving.value = true;
   try {
     await merchantApi.disableTeamUser(manageUser.value.userId);
-    uni.showToast({ title: '已停用', icon: 'success' });
+    showSuccess('已停用');
     manageVisible.value = false;
     await load();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '停用失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '停用失败');
   } finally {
     saving.value = false;
   }
@@ -337,11 +342,11 @@ async function onEnable() {
   saving.value = true;
   try {
     await merchantApi.enableTeamUser(manageUser.value.userId);
-    uni.showToast({ title: '已启用', icon: 'success' });
+    showSuccess('已启用');
     manageVisible.value = false;
     await load();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '启用失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '启用失败');
   } finally {
     saving.value = false;
   }
@@ -360,15 +365,15 @@ async function onEnable() {
   margin-bottom: 12rpx;
 }
 .invite-btn {
-  background: #0f766e;
+  background: var(--brand);
   color: #fff;
   border: none;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   padding: 0 28rpx;
 }
 .card {
-  background: #fff;
-  border-radius: 20rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card);
   padding: 28rpx;
   margin-bottom: 16rpx;
   box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.06);
@@ -378,15 +383,10 @@ async function onEnable() {
   flex-direction: column;
   align-items: center;
   gap: 16rpx;
-  color: #64748b;
+  color: var(--text-muted);
 }
 .err {
-  color: #b91c1c;
-}
-.retry {
-  background: #0f766e;
-  color: #fff;
-  border: none;
+  color: var(--color-danger);
 }
 .row {
   display: flex;
@@ -397,8 +397,8 @@ async function onEnable() {
   width: 72rpx;
   height: 72rpx;
   border-radius: 50%;
-  background: #ccfbf1;
-  color: #0f766e;
+  background: var(--brand-mist);
+  color: var(--brand);
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -410,47 +410,40 @@ async function onEnable() {
 }
 .name {
   display: block;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 650;
-  color: #134e4a;
+  color: var(--brand-deep);
 }
 .sub {
   display: block;
   margin-top: 6rpx;
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
 }
 .status-line {
-  color: #94a3b8;
+  color: var(--text-subtle);
 }
 .inactive {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #b91c1c;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
 }
 .self-tag,
 .more {
-  font-size: 22rpx;
-  color: #0f766e;
-  background: #ecfdf5;
+  font-size: var(--font-size-sm);
+  color: var(--brand);
+  background: var(--brand-soft);
   padding: 6rpx 12rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   font-weight: 600;
 }
 .more {
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--color-border-subtle, #f1f5f9);
+  color: var(--text-muted);
   min-width: 88rpx;
   text-align: center;
   box-sizing: border-box;
-}
-.empty-btn {
-  margin-top: 16rpx;
-  background: #0f766e;
-  color: #fff;
-  border: none;
-  border-radius: 999rpx;
 }
 .mask {
   position: fixed;
@@ -462,23 +455,23 @@ async function onEnable() {
 }
 .dialog {
   width: 100%;
-  background: #fff;
-  border-radius: 28rpx 28rpx 0 0;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card) 28rpx 0 0;
   padding: 32rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
   max-height: 85vh;
   overflow-y: auto;
 }
 .dialog-title {
   display: block;
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 700;
-  color: #134e4a;
+  color: var(--brand-deep);
   margin-bottom: 8rpx;
 }
 .hint {
   display: block;
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
   margin-bottom: 20rpx;
 }
 .input {
@@ -488,13 +481,13 @@ async function onEnable() {
   min-height: 80rpx;
   line-height: 80rpx;
   box-sizing: border-box;
-  background: #f8fafc;
-  border: 1rpx solid #e2e8f0;
-  border-radius: 14rpx;
+  background: var(--page-bg, #f8fafc);
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-control);
   padding: 0 20rpx;
   margin-bottom: 16rpx;
-  font-size: 28rpx;
-  color: #0f172a;
+  font-size: var(--font-size-md);
+  color: var(--text-primary, #0f172a);
 }
 .role-row {
   display: flex;
@@ -506,14 +499,14 @@ async function onEnable() {
 }
 .role-chip {
   padding: 12rpx 24rpx;
-  border-radius: 999rpx;
-  background: #f1f5f9;
-  color: #64748b;
-  font-size: 26rpx;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-subtle, #f1f5f9);
+  color: var(--text-muted);
+  font-size: var(--font-size-body);
 }
 .role-chip.active {
-  background: #ccfbf1;
-  color: #0f766e;
+  background: var(--brand-mist);
+  color: var(--brand);
   font-weight: 650;
 }
 .dialog-actions {
@@ -525,18 +518,18 @@ async function onEnable() {
 }
 .section-title {
   display: block;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 650;
-  color: #334155;
+  color: var(--text-muted, #334155);
   margin-bottom: 12rpx;
 }
 .btn {
   flex: 1;
-  background: #0f766e;
+  background: var(--brand);
   color: #fff;
   border: none;
-  border-radius: 999rpx;
-  font-size: 28rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-md);
   min-height: 80rpx;
   line-height: 1.2;
   display: flex;
@@ -551,11 +544,11 @@ async function onEnable() {
   flex: none;
 }
 .btn.ghost {
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--color-border-subtle, #f1f5f9);
+  color: var(--text-muted, #475569);
 }
 .btn.danger {
-  background: #b91c1c;
+  background: var(--color-danger);
 }
 .page-body {
   padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom));

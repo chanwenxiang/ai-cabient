@@ -30,7 +30,7 @@
               {{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '…' }}
             </div>
             <div class="stat-hint">
-              <template v-if="!listHydrated">加载中…</template>
+              <template v-if="!listHydrated">{{ UI_COPY.loading }}</template>
               <template v-else>{{
                 canAccessPath('/finance') ? '查看财务毛利' : '今日快照'
               }}</template>
@@ -49,7 +49,7 @@
             <div class="stat-label">今日订单</div>
             <div class="stat-value">{{ listHydrated ? stats.orderToday || 0 : '…' }}</div>
             <div class="stat-hint">
-              <template v-if="!listHydrated">加载中…</template>
+              <template v-if="!listHydrated">{{ UI_COPY.loading }}</template>
               <template v-else>{{
                 canAccessPath('/orders') ? '查看订单列表' : '今日快照'
               }}</template>
@@ -70,7 +70,7 @@
               {{ listHydrated ? `${((stats.doorSuccessRate24h || 0) * 100).toFixed(1)}%` : '…' }}
             </div>
             <div class="stat-hint">
-              <template v-if="!listHydrated">加载中…</template>
+              <template v-if="!listHydrated">{{ UI_COPY.loading }}</template>
               <template v-else>{{
                 canAccessPath('/sessions') ? '查看开门记录' : '近 24 小时'
               }}</template>
@@ -93,7 +93,7 @@
               }}
             </div>
             <div class="stat-hint">
-              <template v-if="!listHydrated">加载中…</template>
+              <template v-if="!listHydrated">{{ UI_COPY.loading }}</template>
               <template v-else>{{
                 canAccessPath('/disputes') ? '查看争议审核' : '近 24 小时'
               }}</template>
@@ -366,6 +366,7 @@ import {
   shortDate,
   type ChartKind
 } from '@/utils/charts';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 interface AdminStats {
   revenueTodayCents?: number;
@@ -620,17 +621,17 @@ onMounted(load);
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .header-hint {
   display: block;
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--layout-muted);
 }
 .trend-toolbar {
@@ -696,23 +697,23 @@ onMounted(load);
   background: #fbbf24;
 }
 .stat-label {
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--layout-muted);
 }
 .stat-value {
-  font-size: 24px;
+  font-size: var(--admin-font-size-display-lg);
   font-weight: 700;
   margin-top: 6px;
   color: var(--layout-text);
 }
 .stat-hint {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--layout-muted);
   margin-top: 8px;
 }
 .muted {
   color: var(--layout-muted);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .donut-legend-list .muted {
   margin-left: 4px;

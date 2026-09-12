@@ -3,16 +3,16 @@
     <app-nav-bar title="分账明细" />
     <view class="page-body">
       <view class="tabs">
-        <text class="tab" :class="{ active: tab === 'FAILED' }" @click="switchTab('FAILED')"
+        <text role="button" class="tab" :class="{ active: tab === 'FAILED' }" @click="switchTab('FAILED')"
           >失败</text
         >
-        <text class="tab" :class="{ active: tab === 'ALL' }" @click="switchTab('ALL')">全部</text>
+        <text role="button" class="tab" :class="{ active: tab === 'ALL' }" @click="switchTab('ALL')">全部</text>
       </view>
 
-      <view v-if="loading && !list.length" class="card state">加载中…</view>
+      <view v-if="loading && !list.length" class="card state">{{ UI_COPY.loading }}</view>
       <view v-else-if="error && !list.length" class="card state">
         <text class="err">{{ error }}</text>
-        <button class="retry" @click="load">重试</button>
+        <app-button label="重试" @click="load" />
       </view>
       <empty-state
         v-else-if="!list.length"
@@ -51,6 +51,7 @@ import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerc
 import { displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, displayBizNo, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 import type { MerchantMe, RevenueSplit } from '@aicabinet/shared-types';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const loading = ref(true);
@@ -158,21 +159,21 @@ async function load() {
 }
 .tab {
   padding: 12rpx 28rpx;
-  border-radius: 999rpx;
-  background: #fff;
-  color: #64748b;
-  font-size: 26rpx;
-  border: 1rpx solid #e2e8f0;
+  border-radius: var(--radius-pill);
+  background: var(--card-bg, #fff);
+  color: var(--text-muted);
+  font-size: var(--font-size-body);
+  border: 1rpx solid var(--color-border);
 }
 .tab.active {
-  background: #0f766e;
+  background: var(--brand);
   color: #fff;
-  border-color: #0f766e;
+  border-color: var(--brand);
   font-weight: 650;
 }
 .card {
-  background: #fff;
-  border-radius: 20rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card);
   padding: 28rpx;
   margin-bottom: 16rpx;
   box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.06);
@@ -182,13 +183,13 @@ async function load() {
   flex-direction: column;
   align-items: center;
   gap: 16rpx;
-  color: #64748b;
+  color: var(--text-muted);
 }
 .err {
-  color: #b91c1c;
+  color: var(--color-danger);
 }
 .retry {
-  background: #0f766e;
+  background: var(--brand);
   color: #fff;
   border: none;
 }
@@ -199,46 +200,46 @@ async function load() {
   margin-bottom: 10rpx;
 }
 .tag {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   line-height: 1;
   padding: 8rpx 12rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   font-weight: 600;
 }
 .tag.fail {
-  color: #b91c1c;
-  background: #fee2e2;
+  color: var(--color-danger);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, #fff);
 }
 .tag.ok {
-  color: #047857;
-  background: #d1fae5;
+  color: var(--brand);
+  background: var(--brand-soft, #d1fae5);
 }
 .tag.warn {
-  color: #b45309;
-  background: #fef3c7;
+  color: var(--warning, #b45309);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
 }
 .time {
   margin-left: auto;
-  color: #94a3b8;
-  font-size: 22rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-sm);
 }
 .title {
   display: block;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 650;
-  color: #134e4a;
+  color: var(--brand-deep);
 }
 .meta {
   display: block;
   margin-top: 8rpx;
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
 }
 .fail {
   display: block;
   margin-top: 12rpx;
-  font-size: 24rpx;
-  color: #b91c1c;
+  font-size: var(--font-size-caption);
+  color: var(--color-danger);
   line-height: 1.5;
 }
 .page-body {

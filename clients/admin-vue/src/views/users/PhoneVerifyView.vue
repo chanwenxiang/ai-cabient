@@ -110,7 +110,6 @@
     <el-dialog
       v-model="dlg"
       :title="editingId ? '编辑手机验证' : '登记手机验证'"
-      width="420px"
       destroy-on-close
     >
       <el-form label-width="88px">

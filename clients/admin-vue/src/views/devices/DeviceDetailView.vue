@@ -51,8 +51,16 @@
         <div v-if="qrPreviewUrl" class="qr-preview">
           <img :src="qrPreviewUrl" alt="柜机二维码" />
         </div>
-        <div v-else class="qr-empty">
-          {{ qrHydrated ? (qrLoading ? '加载中…' : '暂无二维码') : '加载中…' }}
+        <div v-else class="qr-empty" :class="{ 'is-loading': !qrHydrated || qrLoading }">
+          <template v-if="!qrHydrated || qrLoading">
+            <div class="qr-skeleton" aria-hidden="true" />
+            <span class="qr-empty-text">二维码{{ UI_COPY.loading }}</span>
+          </template>
+          <template v-else>
+            <div class="qr-empty-icon" aria-hidden="true">▦</div>
+            <span class="qr-empty-text">暂无二维码</span>
+            <span class="qr-empty-hint">生成或刷新后可在此预览并下载</span>
+          </template>
         </div>
         <div class="qr-tips">
           <p>消费者微信扫码即可开门购物；打印后贴于柜门显眼位置。</p>
@@ -63,74 +71,74 @@
 
     <el-row :gutter="12" class="stat-row">
       <el-col :xs="12" :sm="6" :md="4">
-        <button
-          type="button"
+        <div
           class="stat-tile"
-          :aria-label="metricsHydrated ? `填充率 ${metrics?.fillRatePct ?? 0}%` : '填充率 加载中…'"
+          role="group"
+          :aria-label="metricsHydrated ? `填充率 ${metrics?.fillRatePct ?? 0}%` : `填充率 ${UI_COPY.loading}`"
         >
           <div class="stat-label">填充率</div>
           <div class="stat-value">
             {{ metricsHydrated ? `${metrics?.fillRatePct ?? 0}%` : '暂无' }}
           </div>
-          <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
-        </button>
+          <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
+        </div>
       </el-col>
       <el-col :xs="12" :sm="6" :md="4">
-        <button
-          type="button"
+        <div
           class="stat-tile"
+          role="group"
           :class="{ warn: metricsHydrated && (metrics?.oosSlotCount || 0) > 0 }"
           :aria-label="
-            metricsHydrated ? `缺货货道 ${metrics?.oosSlotCount ?? 0}` : '缺货货道 加载中…'
+            metricsHydrated ? `缺货货道 ${metrics?.oosSlotCount ?? 0}` : `缺货货道 ${UI_COPY.loading}`
           "
         >
           <div class="stat-label">缺货货道</div>
           <div class="stat-value">
             {{ metricsHydrated ? (metrics?.oosSlotCount ?? 0) : '暂无' }}
           </div>
-          <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
-        </button>
+          <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
+        </div>
       </el-col>
       <el-col :xs="12" :sm="6" :md="4">
-        <button
-          type="button"
+        <div
           class="stat-tile"
+          role="group"
           :class="{ warn: metricsHydrated && (metrics?.lowStockSlotCount || 0) > 0 }"
           :aria-label="
-            metricsHydrated ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}` : '低库存货道 加载中…'
+            metricsHydrated ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}` : `低库存货道 ${UI_COPY.loading}`
           "
         >
           <div class="stat-label">低库存货道</div>
           <div class="stat-value">
             {{ metricsHydrated ? (metrics?.lowStockSlotCount ?? 0) : '暂无' }}
           </div>
-          <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
-        </button>
+          <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
+        </div>
       </el-col>
       <el-col :xs="12" :sm="6" :md="4">
-        <button
-          type="button"
+        <div
           class="stat-tile"
+          role="group"
           :class="{ warn: metricsHydrated && (metrics?.nearExpiryLotCount || 0) > 0 }"
           :aria-label="
-            metricsHydrated ? `临期批次 ${metrics?.nearExpiryLotCount ?? 0}` : '临期批次 加载中…'
+            metricsHydrated ? `临期批次 ${metrics?.nearExpiryLotCount ?? 0}` : `临期批次 ${UI_COPY.loading}`
           "
         >
           <div class="stat-label">临期批次</div>
           <div class="stat-value">
             {{ metricsHydrated ? (metrics?.nearExpiryLotCount ?? 0) : '暂无' }}
           </div>
-          <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
-        </button>
+          <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
+        </div>
       </el-col>
       <el-col :xs="12" :sm="6" :md="4">
-        <button
-          type="button"
+        <div
           class="stat-tile"
+          role="group"
           :aria-label="
             metricsHydrated
               ? `柜内温度 ${metrics?.currentTempC != null ? metrics.currentTempC + '°C' : '无'}`
-              : '柜内温度 加载中…'
+              : `柜内温度 ${UI_COPY.loading}`
           "
         >
           <div class="stat-label">柜内温度</div>
@@ -143,8 +151,8 @@
                 : '暂无'
             }}
           </div>
-          <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
-        </button>
+          <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
+        </div>
       </el-col>
     </el-row>
 
@@ -184,15 +192,19 @@
           >
         </div>
       </template>
-      <el-form label-width="100px" class="asset-form" @submit.prevent>
+      <el-form label-width="auto" class="asset-form" @submit.prevent>
         <el-row :gutter="12">
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="IMEI">
-              <el-input
-                :model-value="asset.imei || '未绑定'"
-                disabled
-                placeholder="柜机心跳自动绑定"
-              />
+              <div class="imei-field">
+                <el-tag v-if="!asset.imei" type="info" effect="plain">未绑定</el-tag>
+                <el-input
+                  v-else
+                  :model-value="asset.imei"
+                  disabled
+                  placeholder="柜机心跳自动绑定"
+                />
+              </div>
               <p v-if="canEditDevice" class="form-hint muted">
                 仅柜机联网上报或「解绑硬件」后重新绑定
               </p>
@@ -471,7 +483,7 @@
         </el-tooltip>
       </div>
 
-      <el-dialog v-model="bindDialogVisible" title="绑定商户" width="480px" destroy-on-close>
+      <el-dialog v-model="bindDialogVisible" title="绑定商户" destroy-on-close>
         <p class="dialog-hint">选择要绑定的商户。绑定成功后柜机将进入投放状态。</p>
         <el-select
           v-model="bindMerchantId"
@@ -716,7 +728,7 @@
           }}</template>
         </el-table-column>
       </el-table>
-      <div v-else class="muted">{{ repairHydrated ? '暂无最近工单' : '加载中…' }}</div>
+      <div v-else class="muted">{{ repairHydrated ? '暂无最近工单' : UI_COPY.loading }}</div>
     </el-card>
 
     <el-card class="page-card report-page" shadow="never">
@@ -923,7 +935,7 @@
             @edit="openEditor"
           />
           <el-empty v-else-if="slotsHydrated" description="暂无货道配置" :image-size="64" />
-          <div v-else class="muted">货道加载中…</div>
+          <div v-else class="muted">货道{{ UI_COPY.loading }}</div>
         </el-tab-pane>
 
         <el-tab-pane label="投放流水" name="lifecycle">
@@ -1146,7 +1158,7 @@
       </el-tabs>
     </el-card>
 
-    <el-dialog v-model="editorVisible" :title="`编辑货道 ${editForm.slotCode}`" width="520px">
+    <el-dialog v-model="editorVisible" :title="`编辑货道 ${editForm.slotCode}`">
       <el-form label-width="110px">
         <el-form-item label="SKU">
           <el-select
@@ -1239,6 +1251,7 @@ import type {
   UpsertDeviceSlotRequest
 } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 interface DeviceRow {
   deviceId: string;
@@ -2326,7 +2339,7 @@ onActivated(() => {
 }
 .pane-head h4 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .temp-plan-row {
   display: flex;
@@ -2341,13 +2354,27 @@ onActivated(() => {
 }
 .muted {
   color: var(--el-text-color-placeholder);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 
 .device-ops {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+.device-ops > .el-page-header {
+  margin-bottom: 4px;
+}
+.report-page :deep(.el-tabs__header) {
+  margin: 0 0 16px;
+}
+.report-page :deep(.el-tabs__item.is-active) {
+  font-weight: 600;
+  color: var(--app-primary, #0f766e);
+}
+.report-page :deep(.el-tabs__active-bar) {
+  height: 3px;
+  border-radius: 2px;
 }
 .page-head-meta {
   display: flex;
@@ -2362,10 +2389,10 @@ onActivated(() => {
 }
 .page-title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .page-hint {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
   line-height: 1.4;
 }
@@ -2403,17 +2430,67 @@ onActivated(() => {
   width: 200px;
   height: 200px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   color: var(--el-text-color-secondary);
   border: 1px dashed var(--el-border-color);
   border-radius: 8px;
+  background: var(--el-fill-color-lighter);
+  box-sizing: border-box;
+  padding: 16px;
+}
+.qr-empty.is-loading {
+  border-style: solid;
+  border-color: var(--el-border-color-lighter);
+}
+.qr-skeleton {
+  width: 120px;
+  height: 120px;
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    var(--el-fill-color) 25%,
+    var(--el-fill-color-dark) 37%,
+    var(--el-fill-color) 63%
+  );
+  background-size: 400% 100%;
+  animation: qr-shimmer 1.2s ease infinite;
+}
+@keyframes qr-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+.qr-empty-icon {
+  font-size: var(--admin-font-size-hero-lg);
+  line-height: 1;
+  opacity: 0.45;
+}
+.qr-empty-text {
+  font-size: var(--admin-font-size-table);
+  color: var(--el-text-color-regular);
+}
+.qr-empty-hint {
+  font-size: var(--admin-font-size-sm);
+  color: var(--el-text-color-secondary);
+  text-align: center;
+  line-height: 1.4;
+}
+.imei-field {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
 }
 .qr-tips {
   max-width: 420px;
   margin: 0;
   color: var(--el-text-color-secondary);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   line-height: 1.6;
 }
 .qr-tips p {
@@ -2439,24 +2516,24 @@ onActivated(() => {
   background: color-mix(in srgb, var(--el-color-warning) 12%, var(--layout-card, #fff));
 }
 .stat-label {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .stat-value {
-  font-size: 22px;
+  font-size: var(--admin-font-size-display-md);
   font-weight: 600;
   margin-top: 4px;
   font-variant-numeric: tabular-nums;
 }
 .stat-hint {
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .slot-diff.warn {
   color: #c2410c;
   margin-left: 6px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .page-card-head {
   display: flex;
@@ -2471,10 +2548,10 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
   line-height: 1.4;
 }
@@ -2483,7 +2560,7 @@ onActivated(() => {
 }
 .cmd-section-label {
   margin: 4px 0 8px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   font-weight: 600;
   color: var(--el-text-color-secondary);
 }
@@ -2499,7 +2576,7 @@ onActivated(() => {
 }
 .dialog-hint {
   margin: 0 0 12px;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--el-text-color-secondary);
   line-height: 1.5;
 }
@@ -2511,11 +2588,11 @@ onActivated(() => {
 }
 .inherit-hint {
   margin-left: 8px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .field-hint {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
   line-height: 1.4;
   margin-top: 4px;
@@ -2550,7 +2627,7 @@ onActivated(() => {
   gap: 2px;
 }
 .life-remark {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-regular);
 }
 .lifecycle-pane {
@@ -2563,7 +2640,7 @@ onActivated(() => {
 }
 .section-title {
   margin: 16px 0 8px;
-  font-size: 14px;
+  font-size: var(--admin-font-size-menu);
   font-weight: 600;
 }
 .name-cell {

@@ -10,20 +10,20 @@
           <picker :range="deviceOptions" range-key="label" @change="onDevicePick">
             <view class="picker">柜机：{{ selectedLabel }}</view>
           </picker>
-          <view class="history-btn" @click="openHistory">调价历史</view>
+          <view role="button" class="history-btn" @click="openHistory">调价历史</view>
           <text v-if="!canEdit" class="meta warn"
             >定价只读，需平台开启「允许商户改价」且具备改价权限</text
           >
         </view>
 
-        <view v-if="loading && !rows.length" class="card">加载中…</view>
+        <view v-if="loading && !rows.length" class="card">{{ UI_COPY.loading }}</view>
         <view v-else-if="error && !rows.length" class="card"
           ><text class="err">{{ error }}</text></view
         >
         <view v-else>
           <view v-if="error" class="banner-err">
             <text>{{ error }}</text>
-            <text class="banner-retry" @click="load(false)">重试</text>
+            <text role="button" aria-label="重试" class="banner-retry" @click="load(false)">重试</text>
           </view>
           <view v-for="p in rows" :key="draftKey(p)" class="card row">
             <view class="row-main">
@@ -69,13 +69,13 @@
           />
         </view>
 
-        <view v-if="historyVisible" class="mask" @click="historyVisible = false">
-          <view class="dialog" @click.stop>
+        <view v-if="historyVisible" role="button" aria-label="关闭" class="mask" @click="historyVisible = false">
+          <view role="button" class="dialog" @click.stop>
             <view class="dialog-head">
               <text class="dialog-title">调价历史</text>
-              <text class="dialog-close" role="button" @click="historyVisible = false">×</text>
+              <text class="dialog-close" role="button" aria-label="关闭" @click="historyVisible = false">×</text>
             </view>
-            <view v-if="historyLoading" class="meta center">加载中…</view>
+            <view v-if="historyLoading" class="meta center">{{ UI_COPY.loading }}</view>
             <view v-else-if="!history.length" class="meta center">暂无调价记录</view>
             <view v-for="(h, i) in history" :key="i" class="history-row">
               <view class="history-main">
@@ -93,6 +93,10 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import {
+  showError,
+  showSuccess
+} from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import EmptyState from '@/components/empty-state.vue';
 import { yuanToCents } from '@aicabinet/shared-uni/format';
@@ -103,6 +107,7 @@ import {
   seedMerchantMeDisplayCache
 } from '@/composables/useMerchantMe';
 import type {
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
   MerchantMe,
   MerchantSkuPriceChange,
   MerchantSkuPricing
@@ -162,7 +167,7 @@ async function openHistory() {
     history.value = (await merchantApi.pricingHistory(selectedDeviceId.value || undefined)) || [];
   } catch (e) {
     history.value = [];
-    uni.showToast({ title: e instanceof Error ? e.message : '加载历史失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '加载历史失败');
   } finally {
     historyLoading.value = false;
   }
@@ -180,7 +185,7 @@ function denyPricingAccess() {
   loading.value = false;
   if (!gated.value) {
     gated.value = true;
-    uni.showToast({ title: '无定价查看权限', icon: 'none' });
+    showError('无定价查看权限');
     uni.switchTab({ url: '/pages/home/home' });
   }
 }
@@ -274,21 +279,15 @@ async function savePrice(p: MerchantSkuPricing) {
   const raw = (draft.value[key] || '').trim();
   const priceCents = raw === '' ? null : yuanToCents(raw);
   if (raw !== '' && (priceCents == null || priceCents < 0)) {
-    uni.showToast({ title: '价格无效', icon: 'none' });
+    showError('价格无效');
     return;
   }
   if (p.minPriceCents != null && priceCents != null && priceCents < p.minPriceCents) {
-    uni.showToast({
-      title: `不低于 ¥${(p.minPriceCents / 100).toFixed(2)}`,
-      icon: 'none'
-    });
+    showError(`不低于 ¥${(p.minPriceCents / 100).toFixed(2)}`);
     return;
   }
   if (p.maxPriceCents != null && priceCents != null && priceCents > p.maxPriceCents) {
-    uni.showToast({
-      title: `不高于 ¥${(p.maxPriceCents / 100).toFixed(2)}`,
-      icon: 'none'
-    });
+    showError(`不高于 ¥${(p.maxPriceCents / 100).toFixed(2)}`);
     return;
   }
   const prev = draftValueFor(p);
@@ -305,10 +304,10 @@ async function savePrice(p: MerchantSkuPricing) {
       rows.value[idx] = { ...rows.value[idx], ...updated };
       draft.value[key] = draftValueFor(rows.value[idx]);
     }
-    uni.showToast({ title: '已更新', icon: 'success' });
+    showSuccess('已更新');
   } catch (e) {
     draft.value[key] = prev;
-    uni.showToast({ title: e instanceof Error ? e.message : '保存失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '保存失败');
   } finally {
     savingKey.value = '';
   }
@@ -320,10 +319,10 @@ async function savePrice(p: MerchantSkuPricing) {
   display: inline-block;
   margin: 12rpx 0 4rpx;
   padding: 10rpx 24rpx;
-  border-radius: 999rpx;
-  background: #ecfdf5;
-  color: #0f766e;
-  font-size: 24rpx;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: var(--font-size-caption);
   font-weight: 600;
 }
 
@@ -339,8 +338,8 @@ async function savePrice(p: MerchantSkuPricing) {
   width: 100%;
   max-height: 75vh;
   overflow-y: auto;
-  background: #fff;
-  border-radius: 28rpx 28rpx 0 0;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card) 28rpx 0 0;
   padding: 30rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
@@ -351,14 +350,14 @@ async function savePrice(p: MerchantSkuPricing) {
   margin-bottom: 18rpx;
 }
 .dialog-title {
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 700;
-  color: #134e4a;
+  color: var(--brand-deep);
 }
 .dialog-close {
   padding: 4rpx 10rpx;
-  color: #64748b;
-  font-size: 40rpx;
+  color: var(--text-muted);
+  font-size: var(--font-size-h2);
 }
 .history-row {
   display: flex;
@@ -366,7 +365,7 @@ async function savePrice(p: MerchantSkuPricing) {
   justify-content: space-between;
   gap: 16rpx;
   padding: 16rpx 0;
-  border-bottom: 1rpx solid #f1f5f9;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
 }
 .history-row:last-child {
   border-bottom: none;
@@ -377,15 +376,15 @@ async function savePrice(p: MerchantSkuPricing) {
 }
 .history-sku {
   display: block;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 650;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 .history-detail {
   display: block;
   margin-top: 4rpx;
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
 }
 .center {
   text-align: center;
@@ -399,7 +398,7 @@ async function savePrice(p: MerchantSkuPricing) {
   max-height: 48px;
 }
 .warn {
-  color: #d97706;
+  color: var(--warning, #d97706);
   display: block;
   margin-top: 8rpx;
 }
@@ -418,28 +417,28 @@ async function savePrice(p: MerchantSkuPricing) {
   display: block;
 }
 .meta {
-  color: #64748b;
-  font-size: 22rpx;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
   display: block;
   margin-top: 4rpx;
 }
 .meta.range {
-  color: #94a3b8;
+  color: var(--text-subtle);
 }
 .effective {
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 700;
-  color: #0f766e;
+  color: var(--brand);
   display: block;
 }
 .override-tag {
   display: inline-block;
   margin-top: 6rpx;
-  font-size: 20rpx;
-  color: #b45309;
-  background: #fef3c7;
+  font-size: var(--font-size-xs);
+  color: var(--warning, #b45309);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
   padding: 2rpx 10rpx;
-  border-radius: 8rpx;
+  border-radius: var(--radius-tag);
 }
 .price-col {
   text-align: right;
@@ -453,36 +452,36 @@ async function savePrice(p: MerchantSkuPricing) {
   line-height: 64rpx;
   box-sizing: border-box;
   text-align: right;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 0 10px;
   margin-top: 6rpx;
-  font-size: 24rpx;
-  color: #0f172a;
+  font-size: var(--font-size-caption);
+  color: var(--text-primary, #0f172a);
 }
 .saving {
   display: block;
   margin-top: 6rpx;
-  font-size: 20rpx;
-  color: #0f766e;
+  font-size: var(--font-size-xs);
+  color: var(--brand);
 }
 .banner-err {
   margin: 0 0 12rpx;
   padding: 16rpx 20rpx;
-  border-radius: 12rpx;
-  background: #fef2f2;
-  color: #b91c1c;
-  font-size: 24rpx;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, #fff);
+  color: var(--color-danger);
+  font-size: var(--font-size-caption);
   display: flex;
   justify-content: space-between;
   gap: 12rpx;
 }
 .banner-retry {
-  color: #0f766e;
+  color: var(--brand);
   font-weight: 600;
 }
 .err {
-  color: #ef4444;
+  color: var(--color-danger);
 }
 .page-body {
   padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));

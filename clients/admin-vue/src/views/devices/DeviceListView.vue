@@ -80,7 +80,7 @@
         <span class="ops-board__label">{{ tile.label }}</span>
         <span class="ops-board__value">{{ formatBoardCount(tile.key) }}</span>
         <span v-if="tile.hint" class="ops-board__hint">{{
-          boardHydrated ? tile.hint : '加载中…'
+          boardHydrated ? tile.hint : UI_COPY.loading
         }}</span>
       </button>
     </fieldset>
@@ -421,7 +421,6 @@
     <el-dialog
       v-model="createVisible"
       title="新建设备"
-      width="480px"
       destroy-on-close
       append-to-body
       align-center
@@ -477,7 +476,6 @@
     <el-dialog
       v-model="policyVisible"
       title="设置退款方式"
-      width="440px"
       destroy-on-close
       append-to-body
       align-center
@@ -533,6 +531,7 @@ import type {
 } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 type BoardTab = 'ALL' | 'ONLINE' | 'OFFLINE' | 'CAN_BUY' | 'ON_SALE' | 'LOCKED';
 
@@ -1200,11 +1199,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {
@@ -1258,17 +1257,17 @@ onActivated(() => {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--el-color-warning) 40%, var(--layout-border));
 }
 .ops-board__label {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .ops-board__value {
-  font-size: 22px;
+  font-size: var(--admin-font-size-display-md);
   font-weight: 700;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
 }
 .ops-board__hint {
-  font-size: 11px;
+  font-size: var(--admin-font-size-xs);
   color: var(--el-text-color-placeholder);
 }
 .ops-banner {
@@ -1305,17 +1304,17 @@ onActivated(() => {
 .inherit-hint {
   margin-left: 6px;
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .policy-hint {
   margin: 8px 0 0;
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.5;
 }
 .form-hint {
   margin: 6px 0 0;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.5;
 }
 .mono {

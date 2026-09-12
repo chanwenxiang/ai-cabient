@@ -248,11 +248,11 @@ onBeforeUnmount(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {
@@ -312,7 +312,7 @@ onBeforeUnmount(() => {
 
 .drop-placeholder p {
   margin: 12px 0 4px;
-  font-size: 16px;
+  font-size: var(--font-size-lg, 16px);
   color: var(--el-text-color-primary);
 }
 
@@ -367,7 +367,7 @@ onBeforeUnmount(() => {
 }
 .name-cell strong {
   font-weight: 650;
-  font-size: 16px;
+  font-size: var(--font-size-lg, 16px);
 }
 .name-cell small {
   color: var(--el-text-color-secondary);
@@ -380,7 +380,7 @@ onBeforeUnmount(() => {
 }
 
 .item-price .unit {
-  font-size: 18px;
+  font-size: var(--admin-font-size-display-sm);
   font-weight: 700;
   color: var(--el-color-danger);
   font-variant-numeric: tabular-nums;
@@ -388,13 +388,13 @@ onBeforeUnmount(() => {
 
 .item-price .line {
   margin-top: 4px;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   font-variant-numeric: tabular-nums;
 }
 
 .item-price .confidence {
   margin-top: 6px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 
@@ -405,7 +405,7 @@ onBeforeUnmount(() => {
   padding: 12px 16px;
   margin-top: 4px;
   border-top: 1px dashed var(--el-border-color);
-  font-size: 16px;
+  font-size: var(--font-size-lg, 16px);
 }
 
 .meta-block {

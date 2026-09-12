@@ -142,7 +142,6 @@
     <el-dialog
       v-model="dlg"
       :title="form.permissionId ? '编辑菜单' : '新增菜单'"
-      width="520px"
       destroy-on-close
     >
       <el-form label-width="88px">
@@ -651,11 +650,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.45;
   max-width: 52rem;
 }

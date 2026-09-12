@@ -49,15 +49,44 @@ page,
 uni-page-body {
   --brand: #0f766e;
   --brand-deep: #134e4a;
-  --brand-soft: #99f6e4;
+  --brand-soft: #ecfdf5;
   --brand-tint: #ccfbf1;
+  --brand-mist: #ccfbf1;
+  --color-primary: var(--brand);
+  --color-primary-deep: var(--brand-deep);
+  --color-primary-soft: var(--brand-soft);
+  --color-link: var(--brand);
+  --color-danger: var(--danger, #b91c1c);
+  --color-link-secondary: #576b95;
+  --color-text-primary: var(--text-primary, #0f172a);
+  --color-text-secondary: var(--text-muted, #64748b);
+  --color-text-muted: var(--text-subtle, #94a3b8);
+  --color-bg-page: var(--page-bg);
   --page-tint: #f0fdfa;
   --page-bg: #ffffff;
+  --page-gutter: 24rpx;
+  --spacing-sm: 12rpx;
+  --spacing-md: 16rpx;
+  --spacing-lg: 24rpx;
+  --shadow-card: 0 8rpx 28rpx rgba(15, 118, 110, 0.08);
+  --font-size-xs: 20rpx;
+  --font-size-sm: 22rpx;
+  --font-size-caption: 24rpx;
+  --font-size-body: 26rpx;
+  --font-size-md: 28rpx;
+  --font-size-lg: 30rpx;
+  --font-size-xl: 32rpx;
+  --font-size-h3: 34rpx;
+  --font-size-h2: 40rpx;
+  --font-size-h1: 44rpx;
+  --font-size-display-sm: 36rpx;
+  --font-size-display: 48rpx;
   --text-muted: #64748b;
   --text-subtle: #94a3b8;
   /* 小程序圆角用 rpx，对齐共享 4 档 token */
   --radius-pill: 999rpx;
   --radius-card: 24rpx;
+  --radius-panel: 16rpx;
   --radius-control: 12rpx;
   --radius-tag: 8rpx;
   --card-radius: var(--radius-card);
@@ -99,9 +128,9 @@ uni-page-body {
   align-items: center;
   padding: 10rpx 22rpx;
   border-radius: var(--radius-pill);
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   color: var(--text-muted);
-  background: #fff;
+  background: var(--card-bg, #fff);
   border: 1rpx solid var(--card-border, #e2e8f0);
   white-space: nowrap;
 }
@@ -168,22 +197,19 @@ input {
 }
 
 .card {
-  background: #fff;
-  border-radius: 24rpx;
+  background: var(--color-bg-card, #fff);
+  border-radius: var(--radius-card, 24rpx);
   padding: 28rpx;
-  margin: 20rpx;
-  box-shadow: 0 8rpx 28rpx rgba(15, 118, 110, 0.08);
-  border: 1rpx solid rgba(15, 118, 110, 0.06);
+  margin: var(--page-gutter, 24rpx);
+  box-shadow: var(--shadow-card);
+  border: 1rpx solid color-mix(in srgb, var(--brand) 6%, transparent);
 }
 
-.btn-primary,
-.retry,
-.empty-btn.primary,
-.primary-btn {
+.app-btn--primary {
   background: linear-gradient(135deg, var(--brand-deep), var(--brand));
   color: #fff;
   border: none;
-  border-radius: 44rpx;
+  border-radius: var(--radius-pill, 44rpx);
   padding: 0 32rpx;
   display: flex;
   align-items: center;
@@ -196,117 +222,23 @@ input {
   box-sizing: border-box;
 }
 
-/* 单独出现收窄居中；通栏交给 .btn-block / .card / .action-card / empty-state
- * 避免 width:fit-content（旧版微信基础库不稳） */
-.btn-primary,
-.retry,
-.btn-outline,
-.primary-btn,
-.action-btn,
-uni-button.btn-primary,
-uni-button.btn-outline,
-uni-button.primary-btn {
-  width: 60%;
-  min-width: 240rpx;
-  max-width: 100%;
-  padding-left: 36rpx;
-  padding-right: 36rpx;
-  margin-left: auto;
-  margin-right: auto;
-  align-self: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-  line-height: 1.2;
-  min-height: 88rpx;
-  height: 88rpx;
-}
-
-/* 卡片 / 提现区 / 抽屉内按钮通栏，避免 60% 悬空 */
-.card .btn-primary,
-.card .btn-outline,
-.card .primary-btn,
-.card .action-btn,
-.card .retry,
-.card uni-button.btn-primary,
-.card uni-button.btn-outline,
-.card uni-button.primary-btn,
-.card button.btn-primary,
-.card button.btn-outline,
-.action-card .btn-primary,
-.action-card .btn-outline,
-.action-card .primary-btn,
-.action-card uni-button.btn-primary,
-.action-card button.btn-primary,
-.sheet .primary-btn,
-.sheet .btn-primary,
-.sheet .btn-outline,
-.detail-panel .primary-btn,
-.detail-panel .btn-primary,
-.detail-panel .btn-outline,
-.detail-actions .primary-btn,
-.detail-actions .btn-primary,
-.detail-actions .btn-outline {
-  width: 100% !important;
-  max-width: none !important;
-  min-width: 0 !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  align-self: stretch !important;
-}
-
-/* 空态按钮默认通栏，与列表卡片左右对齐 */
-.empty-btn.primary,
-.empty-btn.ghost,
-.empty-btn,
-uni-button.empty-btn {
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: none !important;
-  padding-left: 36rpx;
-  padding-right: 36rpx;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  align-self: stretch !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-  line-height: 1.2;
-  min-height: 88rpx;
-  height: 88rpx;
-}
-
 .btn-block,
-uni-button.btn-block {
+.app-btn--block {
   width: 100% !important;
   max-width: none !important;
   min-width: 0 !important;
   align-self: stretch !important;
 }
 
-/* 纵向操作区：通栏等宽 + 文字居中 */
-.actions,
-.btn-stack,
-.detail-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.actions > .btn-primary,
-.actions > .btn-outline,
-.actions > .primary-btn,
-.actions > .retry,
-.btn-stack > .btn-primary,
-.btn-stack > .btn-outline,
-.btn-stack > .primary-btn,
-.detail-actions > .btn-primary,
-.detail-actions > .btn-outline,
-.detail-actions > .primary-btn,
+.card .app-btn,
+.action-card .app-btn,
+.sheet .app-btn,
+.detail-panel .app-btn,
+.detail-actions .app-btn,
+.actions > .app-btn,
+.btn-stack > .app-btn,
+.empty-actions > .app-btn,
+.empty-actions-row > .app-btn,
 .actions > uni-button,
 .btn-stack > uni-button,
 .detail-actions > uni-button {
@@ -323,9 +255,16 @@ uni-button.btn-block {
   box-sizing: border-box !important;
 }
 
-.action-row > .btn-primary,
-.action-row > .btn-outline,
-.action-row > .primary-btn,
+.actions,
+.btn-stack,
+.detail-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.action-row > .app-btn,
+.action-row > .action-btn,
 .btn-inline {
   flex: 1 1 0;
   width: 0;
@@ -337,67 +276,20 @@ uni-button.btn-block {
   padding-right: 16rpx;
 }
 
-.empty-actions > .empty-btn,
-.empty-actions > .btn-primary,
-.empty-actions > .btn-outline,
-.empty-actions-row > .empty-btn,
-.empty-actions-row > .btn-primary,
-.empty-btns > .empty-btn {
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: none !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  margin-bottom: 0;
-  flex: none;
-  align-self: stretch !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  line-height: 1.2;
-}
-.empty-actions > .empty-btn + .empty-btn,
+.empty-actions > .app-btn + .app-btn,
 .empty-actions > uni-button + uni-button,
 .empty-actions > button + button {
   margin-top: 24rpx !important;
 }
 
-/* uni 插槽扁平时：empty-state 根下直接相邻的空态按钮 */
-empty-state .empty-btn + .empty-btn,
-.empty-state .empty-btn + .empty-btn,
-uni-button.empty-btn + uni-button.empty-btn,
-button.empty-btn + button.empty-btn {
-  margin-top: 24rpx !important;
-}
-
-.btn-outline,
-.empty-btn.ghost {
-  background: #fff;
-  color: var(--brand);
-  border: 2rpx solid var(--brand);
-  border-radius: 44rpx;
-  padding: 0 32rpx;
-  align-items: center;
-  justify-content: center;
-  min-height: 80rpx;
-  text-align: center;
-  font-weight: 600;
-  font-size: 28rpx;
-  box-shadow: none;
-  box-sizing: border-box;
-}
-
-.btn-primary:active,
-.retry:active,
-.btn-outline:active {
+.app-btn:active {
   opacity: 0.9;
   transform: scale(0.985);
 }
 
 .meta {
-  color: #64748b;
-  font-size: 24rpx;
+  color: var(--text-muted, #64748b);
+  font-size: var(--font-size-caption);
 }
 .slot-grid {
   display: grid;
@@ -431,6 +323,16 @@ button.empty-btn + button.empty-btn {
 /* 桌面手机框：居中真机比例；消掉导航双占位；底栏贴框底（仅 H5；WXSS 不支持 ~ 等选择器） */
 /* #ifdef H5 */
 @media (min-width: 600px) {
+  html {
+    font-size: calc(clamp(360px, 100vw - 48px, 430px) * 32 / 750) !important;
+  }
+}
+@media (min-width: 1100px) {
+  html {
+    font-size: calc(clamp(390px, 100vw - 80px, 480px) * 32 / 750) !important;
+  }
+}
+@media (min-width: 600px) {
   html,
   body,
   #app,
@@ -441,8 +343,8 @@ button.empty-btn + button.empty-btn {
   }
   uni-app {
     position: relative;
-    --phone-w: 390px;
-    --phone-h: min(720px, calc(100vh - 48px));
+    --phone-w: clamp(360px, calc(100vw - 48px), 430px);
+    --phone-h: min(780px, calc(100vh - 48px));
     --phone-inset: max(0px, calc((100vh - var(--phone-h)) / 2));
   }
   uni-page {
@@ -654,6 +556,11 @@ button.empty-btn + button.empty-btn {
     margin-right: auto !important;
     bottom: var(--phone-inset) !important;
     border-radius: 0 !important;
+  }
+}
+@media (min-width: 1100px) {
+  uni-app {
+    --phone-w: clamp(390px, calc(100vw - 80px), 480px);
   }
 }
 /* #endif */

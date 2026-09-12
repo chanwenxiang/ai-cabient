@@ -6,7 +6,7 @@
         <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false" enable-flex>
           <view class="filter-inner">
             <text
-              v-for="f in filters"
+              v-for="f in filters" role="button"
               :key="f.key"
               class="filter-chip"
               :class="{ active: filter === f.key }"
@@ -16,7 +16,7 @@
           </view>
         </scroll-view>
       </view>
-      <view v-if="loading && !list.length" class="loading"><text>加载中…</text></view>
+      <view v-if="loading && !list.length" class="loading"><text>{{ UI_COPY.loading }}</text></view>
       <view v-else-if="!visibleList.length" class="empty">
         <text class="empty-title">{{ emptyTitle }}</text>
         <text class="empty-hint"
@@ -25,7 +25,7 @@
       </view>
       <view v-else class="msg-list">
         <view
-          v-for="m in visibleList"
+          v-for="m in visibleList" role="button"
           :key="m.id"
           class="msg-card"
           :class="{ unread: !m.read }"
@@ -50,9 +50,13 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import {
+  showError
+} from '@/utils/notify';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { merchantApi, type MerchantNotificationDto } from '@/utils/merchant-api';
 import {
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
   displayBizNo,
   formatDateTimeMinute,
   rewriteBizNosInText,
@@ -148,7 +152,7 @@ async function load() {
   try {
     list.value = await merchantApi.notifications(100);
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '加载失败');
   } finally {
     loading.value = false;
   }
@@ -248,7 +252,7 @@ function formatTime(t: string) {
 .page-root {
   min-height: 100%;
   padding: 0;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   box-sizing: border-box;
 }
 .filter-row {
@@ -265,21 +269,21 @@ function formatTime(t: string) {
 }
 .filter-chip {
   padding: 10rpx 22rpx;
-  border-radius: 999rpx;
-  background: #f1f5f9;
-  color: #475569;
-  font-size: 24rpx;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-subtle, #f1f5f9);
+  color: var(--text-muted, #475569);
+  font-size: var(--font-size-caption);
   flex-shrink: 0;
 }
 .filter-chip.active {
-  background: #ecfdf5;
-  color: #0f766e;
+  background: var(--brand-soft);
+  color: var(--brand);
   font-weight: 600;
 }
 .loading {
   padding: 120rpx 0;
   text-align: center;
-  color: #8a968e;
+  color: var(--text-muted, #8a968e);
 }
 .empty {
   padding: 120rpx 0;
@@ -287,24 +291,24 @@ function formatTime(t: string) {
 }
 .empty-title {
   display: block;
-  font-size: 28rpx;
-  color: #4b5563;
+  font-size: var(--font-size-md);
+  color: var(--text-muted, #4b5563);
 }
 .empty-hint {
   display: block;
   margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #9aa4a0;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle, #9aa4a0);
 }
 .msg-card {
   margin-top: 18rpx;
   padding: 26rpx 24rpx;
-  border-radius: 22rpx;
-  background: #fff;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
   box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
 }
 .msg-card.unread {
-  border-left: 6rpx solid #059669;
+  border-left: 6rpx solid var(--brand);
 }
 .msg-head {
   display: flex;
@@ -321,35 +325,35 @@ function formatTime(t: string) {
 }
 .biz-tag {
   flex-shrink: 0;
-  font-size: 20rpx;
-  color: #0f766e;
-  background: #ecfdf5;
+  font-size: var(--font-size-xs);
+  color: var(--brand);
+  background: var(--brand-soft);
   padding: 2rpx 10rpx;
-  border-radius: 8rpx;
+  border-radius: var(--radius-tag);
 }
 .msg-title {
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .msg-time {
   flex-shrink: 0;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 .msg-body {
   display: block;
   margin-top: 10rpx;
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
   line-height: 1.5;
 }
 .msg-biz {
   margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 </style>

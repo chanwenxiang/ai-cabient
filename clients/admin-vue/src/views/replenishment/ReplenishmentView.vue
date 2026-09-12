@@ -13,7 +13,7 @@
             <button
               type="button"
               class="kpi-tag-btn"
-              :aria-label="listHydrated ? `待执行 ${plannedCount}` : '待执行 加载中…'"
+              :aria-label="listHydrated ? `待执行 ${plannedCount}` : `待执行 ${UI_COPY.loading}`"
             >
               <el-tag size="small" type="info"
                 >待执行 {{ listHydrated ? plannedCount : '…' }}</el-tag
@@ -22,7 +22,7 @@
             <button
               type="button"
               class="kpi-tag-btn"
-              :aria-label="listHydrated ? `待处理设备 ${pendingTaskCount}` : '待处理设备 加载中…'"
+              :aria-label="listHydrated ? `待处理设备 ${pendingTaskCount}` : `待处理设备 ${UI_COPY.loading}`"
             >
               <el-tag size="small" type="warning"
                 >待处理设备 {{ listHydrated ? pendingTaskCount : '…' }}</el-tag
@@ -31,7 +31,7 @@
             <button
               type="button"
               class="kpi-tag-btn"
-              :aria-label="listHydrated ? `已履约 ${fulfilledCount}` : '已履约 加载中…'"
+              :aria-label="listHydrated ? `已履约 ${fulfilledCount}` : `已履约 ${UI_COPY.loading}`"
             >
               <el-tag size="small" type="success"
                 >已履约 {{ listHydrated ? fulfilledCount : '…' }}</el-tag
@@ -40,7 +40,7 @@
             <button
               type="button"
               class="kpi-tag-btn"
-              :aria-label="listHydrated ? `要货待审 ${pendingRequestCount}` : '要货待审 加载中…'"
+              :aria-label="listHydrated ? `要货待审 ${pendingRequestCount}` : `要货待审 ${UI_COPY.loading}`"
             >
               <el-tag size="small">要货待审 {{ listHydrated ? pendingRequestCount : '…' }}</el-tag>
             </button>
@@ -48,7 +48,7 @@
               type="button"
               class="kpi-tag-btn"
               :aria-label="
-                listHydrated && !expiryLoading ? `临期 ${expiryAlerts.length}` : '临期 加载中…'
+                listHydrated && !expiryLoading ? `临期 ${expiryAlerts.length}` : `临期 ${UI_COPY.loading}`
               "
             >
               <el-tag size="small" type="danger"
@@ -1207,8 +1207,7 @@
 
     <el-dialog
       v-model="planDialog"
-      title="规划补货路线"
-      width="620px"
+      title="规划补货路线" class="dialog-wide"
       append-to-body
       destroy-on-close
       data-testid="plan-route-dialog"
@@ -1322,6 +1321,7 @@ import { dictLabel, dictOptions, dictTagType, displayLabel } from '@aicabinet/sh
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 type Row = Record<string, any>;
 
@@ -3051,11 +3051,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .kpi-tags {
@@ -3094,7 +3094,7 @@ onActivated(() => {
   flex-wrap: wrap;
   margin-bottom: 12px;
   color: var(--layout-muted);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .route-task-scroll {
   /* 嵌套子任务表：底部可右拉的横滚条 */
@@ -3128,7 +3128,7 @@ onActivated(() => {
 }
 .muted {
   color: var(--layout-muted);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .check-in-cell {
   display: grid;
@@ -3138,13 +3138,13 @@ onActivated(() => {
 }
 .gps-text {
   color: var(--layout-muted);
-  font-size: 11px;
+  font-size: var(--admin-font-size-xs);
   font-family: var(--app-font-mono);
 }
 .gps-inline {
   color: var(--layout-muted);
   font-family: var(--app-font-mono);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .gps-missing {
   color: var(--el-color-warning);
@@ -3175,7 +3175,7 @@ onActivated(() => {
   gap: 10px;
   min-height: 24px;
   color: var(--layout-muted);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .lines-meta {
   margin-bottom: 0;
@@ -3196,7 +3196,7 @@ onActivated(() => {
   padding: 8px;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   background: var(--el-fill-color-blank);
 }
 .evidence-thumb {
@@ -3222,11 +3222,11 @@ onActivated(() => {
 }
 .evidence-item .meta {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .reject-reason {
   color: var(--el-color-danger);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .unassigned-badge {
   margin-left: 2px;
@@ -3238,7 +3238,7 @@ onActivated(() => {
   margin-top: 14px;
 }
 .lines-action-hint {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-color-warning);
 }
 .request-flow {
@@ -3291,7 +3291,7 @@ onActivated(() => {
 }
 .plan-hint {
   margin-top: 6px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-color-warning);
   line-height: 1.4;
 }

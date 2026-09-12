@@ -2,7 +2,7 @@
   <view class="page-root">
     <app-nav-bar title="积分明细" />
     <view class="page-body">
-      <view v-if="loading && !summary" class="loading"><text>加载中…</text></view>
+      <view v-if="loading && !summary" class="loading"><text>{{ UI_COPY.loading }}</text></view>
       <template v-else>
         <view class="summary">
           <view class="summary-main">
@@ -44,7 +44,7 @@
         <view class="card">
           <view class="card-head">
             <text class="card-title">积分明细</text>
-            <text class="card-link" @click="goRedeem">去兑换 ›</text>
+            <text role="button" class="card-link app-link-chevron" @click="goRedeem">去兑换</text>
           </view>
           <view v-if="!logs.length" class="empty">
             <text class="empty-title">暂无积分记录</text>
@@ -72,6 +72,9 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import {
+  showError
+} from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import {
   consumerApi,
@@ -80,6 +83,7 @@ import {
   type MemberPointsSummaryDto
 } from '@/utils/consumer-api';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const loading = ref(false);
 const summary = ref<MemberPointsSummaryDto | null>(null);
@@ -105,7 +109,7 @@ async function load() {
     summary.value = s;
     logs.value = list;
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '加载失败');
   } finally {
     loading.value = false;
   }
@@ -131,7 +135,7 @@ function goRedeem() {
 .page-root {
   min-height: 100%;
   padding: 0;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   box-sizing: border-box;
 }
 .page-body {
@@ -141,17 +145,17 @@ function goRedeem() {
 .loading {
   padding: 120rpx 0;
   text-align: center;
-  color: #8a968e;
+  color: var(--text-muted, #8a968e);
 }
 .summary {
   display: flex;
   justify-content: space-between;
   gap: 20rpx;
   padding: 32rpx;
-  border-radius: 24rpx;
-  color: #14201b;
-  background: linear-gradient(135deg, #ecfdf5, #fff);
-  border: 1rpx solid #d1fae5;
+  border-radius: var(--radius-card);
+  color: var(--text-primary, #14201b);
+  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  border: 1rpx solid var(--brand-soft, #d1fae5);
   box-shadow: none;
   width: 100%;
   max-width: 100%;
@@ -165,8 +169,8 @@ function goRedeem() {
 }
 .summary-label {
   display: block;
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
   text-align: center;
 }
 .summary-value {
@@ -175,39 +179,39 @@ function goRedeem() {
   font-size: 64rpx;
   font-weight: 800;
   line-height: 1;
-  color: #047857;
+  color: var(--brand);
   text-align: center;
 }
 .summary-sub {
   display: block;
   margin-top: 12rpx;
-  font-size: 22rpx;
-  color: #849087;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #849087);
   text-align: center;
 }
 .summary-meta {
   min-width: 210rpx;
   padding: 18rpx 20rpx;
   border-radius: 18rpx;
-  background: #f0fdf4;
+  background: var(--brand-soft, #f0fdf4);
 }
 .meta-row {
   display: flex;
   justify-content: space-between;
   gap: 12rpx;
   padding: 6rpx 0;
-  font-size: 22rpx;
-  color: #334155;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #334155);
 }
 .meta-label {
-  color: #849087;
+  color: var(--text-muted, #849087);
 }
 .meta-value.warn {
-  color: #b45309;
+  color: var(--warning, #b45309);
 }
 .meta-row.tip .meta-value.tip {
-  color: #849087;
-  font-size: 20rpx;
+  color: var(--text-muted, #849087);
+  font-size: var(--font-size-xs);
   text-align: right;
   max-width: 140rpx;
   line-height: 1.35;
@@ -215,8 +219,8 @@ function goRedeem() {
 .card {
   margin: 24rpx 0 0;
   padding: 28rpx 24rpx;
-  border-radius: 24rpx;
-  background: #fff;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -228,13 +232,13 @@ function goRedeem() {
   margin-bottom: 16rpx;
 }
 .card-title {
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
-  color: #1b3027;
+  color: var(--text-primary, #1b3027);
 }
 .card-link {
-  font-size: 24rpx;
-  color: #059669;
+  font-size: var(--font-size-caption);
+  color: var(--brand);
 }
 .empty {
   padding: 48rpx 0 32rpx;
@@ -242,50 +246,50 @@ function goRedeem() {
 }
 .empty-title {
   display: block;
-  font-size: 26rpx;
-  color: #4b5563;
+  font-size: var(--font-size-body);
+  color: var(--text-muted, #4b5563);
 }
 .empty-hint {
   display: block;
   margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #9aa4a0;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle, #9aa4a0);
 }
 .log-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 20rpx 0;
-  border-bottom: 1rpx solid #f0f2f1;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f0f2f1);
 }
 .log-row:last-child {
   border-bottom: none;
 }
 .log-title {
   display: block;
-  font-size: 26rpx;
-  color: #1f2a24;
+  font-size: var(--font-size-body);
+  color: var(--text-primary, #1f2a24);
 }
 .log-time {
   display: block;
   margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #9aa4a0;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle, #9aa4a0);
 }
 .log-expire {
   display: block;
   margin-top: 4rpx;
-  font-size: 20rpx;
-  color: #b45309;
+  font-size: var(--font-size-xs);
+  color: var(--warning, #b45309);
 }
 .log-points {
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
 }
 .log-points.income {
-  color: #059669;
+  color: var(--brand);
 }
 .log-points.outcome {
-  color: #dc2626;
+  color: var(--color-danger);
 }
 </style>

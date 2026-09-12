@@ -624,11 +624,11 @@ onBeforeUnmount(() => {
   color: var(--app-primary, #0f766e);
 }
 .bs-sub {
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--layout-muted);
 }
 .bs-demo-tag {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   font-weight: 600;
   color: #92400e;
   background: #fef3c7;
@@ -642,7 +642,7 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 .bs-clock {
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
   color: var(--layout-muted);
   margin-right: 8px;
 }
@@ -660,7 +660,7 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 .bs-kpi-label {
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--layout-muted);
 }
 .bs-kpi-value {
@@ -676,7 +676,7 @@ onBeforeUnmount(() => {
   color: var(--el-color-danger, #ef4444);
 }
 .bs-kpi-hint {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--layout-muted);
 }
 .bs-panels {
@@ -704,7 +704,7 @@ onBeforeUnmount(() => {
   grid-column: 1 / -1;
 }
 .bs-panel-title {
-  font-size: 14px;
+  font-size: var(--admin-font-size-menu);
   font-weight: 600;
   margin-bottom: 10px;
   color: var(--layout-muted);
@@ -717,7 +717,7 @@ onBeforeUnmount(() => {
 .bs-row {
   display: flex;
   justify-content: space-between;
-  font-size: 14px;
+  font-size: var(--admin-font-size-menu);
 }
 .bs-row span {
   color: var(--layout-muted);
@@ -740,14 +740,14 @@ onBeforeUnmount(() => {
 .bs-line-labels {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--layout-muted);
 }
 .bs-rank {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   min-width: 0;
 }
 .bs-rank-idx {
@@ -760,7 +760,7 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .bs-rank-name {
   flex: 1;
@@ -779,7 +779,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .bs-action-dot {
   width: 8px;
@@ -808,7 +808,7 @@ onBeforeUnmount(() => {
 }
 .bs-action-sub {
   color: var(--layout-muted);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -823,7 +823,7 @@ onBeforeUnmount(() => {
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .bs-channel-label {
   color: var(--layout-text);
@@ -852,7 +852,7 @@ onBeforeUnmount(() => {
 }
 .bs-empty {
   color: var(--layout-muted);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .bs-risk-grid {
   display: grid;
@@ -873,7 +873,7 @@ onBeforeUnmount(() => {
   border-color: color-mix(in srgb, var(--el-color-danger, #ef4444) 28%, transparent);
 }
 .bs-risk-tile__label {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--layout-muted);
 }
 .bs-risk-tile__value {

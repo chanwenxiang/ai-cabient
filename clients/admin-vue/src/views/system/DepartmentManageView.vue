@@ -96,7 +96,6 @@
   <el-dialog
     v-model="deptDlg"
     :title="deptForm.deptId ? '编辑部门' : '新增部门'"
-    width="480px"
     destroy-on-close
   >
     <el-form label-width="90px">
@@ -146,8 +145,7 @@
 
   <el-dialog
     v-model="memberDlg"
-    :title="`部门成员 · ${memberDept?.deptName || ''}`"
-    width="720px"
+    :title="`部门成员 · ${memberDept?.deptName || ''}`" class="dialog-wide"
     destroy-on-close
   >
     <div class="cell-hint" style="margin-bottom: 12px">
@@ -407,7 +405,7 @@ onMounted(load);
 <style scoped>
 .cell-hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .member-transfer-wrap {
   display: flex;
