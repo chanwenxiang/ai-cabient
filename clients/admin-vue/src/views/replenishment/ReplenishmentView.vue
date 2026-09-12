@@ -352,10 +352,12 @@
                 <template #default="{ row }">{{ row.tasks?.length || 0 }}</template>
               </el-table-column>
               <el-table-column
+            align="center"
                 prop="plannedDate"
                 label="计划日期"
                 width="120"
-                class-name="col-text"
+                class-name="col-status"
+            label-class-name="col-status"
               />
               <el-table-column
                 label="状态"
@@ -561,7 +563,9 @@
               >
                 <template #default="{ row }">{{ formatTaskDuration(row) }}</template>
               </el-table-column>
-              <el-table-column label="完成时间" width="168" class-name="col-text">
+              <el-table-column
+            align="center" label="完成时间" width="168" class-name="col-status"
+            label-class-name="col-status">
                 <template #default="{ row }">
                   <span class="cell-datetime">{{
                     row.completedAt ? formatDateTime(row.completedAt) : '无'
@@ -735,7 +739,9 @@
                   <span v-else class="muted">待审核</span>
                 </template>
               </el-table-column>
-              <el-table-column label="审核时间" width="168" class-name="col-text">
+              <el-table-column
+            align="center" label="审核时间" width="168" class-name="col-status"
+            label-class-name="col-status">
                 <template #default="{ row }">
                   <span v-if="row.reviewedAt" class="cell-datetime">{{
                     formatDateTime(row.reviewedAt)
@@ -766,7 +772,9 @@
                   <span v-else class="muted">无</span>
                 </template>
               </el-table-column>
-              <el-table-column label="提交时间" width="168" class-name="col-text">
+              <el-table-column
+            align="center" label="提交时间" width="168" class-name="col-status"
+            label-class-name="col-status">
                 <template #default="{ row }">
                   <span class="cell-datetime">{{
                     formatDateTime(row.submittedAt || row.createdAt)
@@ -1034,7 +1042,9 @@
                   }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="创建时间" width="168" class-name="col-text">
+              <el-table-column
+            align="center" label="创建时间" width="168" class-name="col-status"
+            label-class-name="col-status">
                 <template #default="{ row }">
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>

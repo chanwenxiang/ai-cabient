@@ -132,7 +132,9 @@
               >
                 <template #default="{ row }">{{ row.dispositionNote || '暂无' }}</template>
               </el-table-column>
-              <el-table-column label="处置时间" width="150" class-name="col-text">
+              <el-table-column
+            align="center" label="处置时间" width="150" class-name="col-status"
+            label-class-name="col-status">
                 <template #default="{ row }">
                   <span v-if="row.dispositionAt" class="cell-datetime">{{
                     formatDateTime(row.dispositionAt)
@@ -140,7 +142,13 @@
                   <span v-else class="muted">暂无</span>
                 </template>
               </el-table-column>
-              <el-table-column label="时间" width="168" class-name="col-text">
+              <el-table-column
+                align="center"
+                label="时间"
+                width="168"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>
@@ -220,7 +228,9 @@
                   <span v-else class="muted">永久</span>
                 </template>
               </el-table-column>
-              <el-table-column label="加入时间" width="168" class-name="col-text">
+              <el-table-column
+            align="center" label="加入时间" width="168" class-name="col-status"
+            label-class-name="col-status">
                 <template #default="{ row }">
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>

@@ -23,16 +23,19 @@ alwaysApply: false
 
 ## 3. 新表格列必须挂语义 class
 
-admin `el-table-column` 按语义挂 `class-name`（必要时同步 `label-class-name`）：
+admin `el-table-column` 按语义挂 `class-name`（必要时同步 `label-class-name`）。
+
+**对齐约定（产品）：表头与单元格一律居中**（`main.css` 全局生效）。语义 class 仍必须挂，用于门禁与可读性，不再区分左/右：
 
 | class | 用途 | 对齐 |
 |-------|------|------|
-| `col-text` | 名称、备注、地址等文本 | 左；**勿**再写 `align="center"` |
-| `col-money` | 金额、单价、营收等 | 右 |
+| `col-text` | 名称、备注、地址等文本 | 中 |
+| `col-money` | 金额、单价、营收等 | 中（`tabular-nums`） |
 | `col-status` | 状态、类型、数量、时间、开关等 | 中 |
 | `col-action` | 操作列 | 中 |
+| `col-tree` | 树表缩进名称列 | 左（唯一例外，便于层级缩进） |
 
-门禁：`pnpm check:admin-table-align`（`STRICT` 默认开；`local/no-col-text-align-center` 经 `pnpm lint`）。
+门禁：`pnpm check:admin-table-align`（`STRICT` 默认开）。`align="center"` 与 `col-text` 可并存（已统一居中）。
 
 ## CI
 

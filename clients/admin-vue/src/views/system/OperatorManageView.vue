@@ -118,7 +118,9 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="角色" min-width="160" class-name="col-text">
+          <el-table-column
+            align="center" label="角色" min-width="160" class-name="col-status"
+            label-class-name="col-status">
             <template #default="{ row }">
               <el-tooltip
                 v-if="(row.roleNames || []).length"
@@ -177,7 +179,9 @@
               <span v-else class="muted">未归属</span>
             </template>
           </el-table-column>
-          <el-table-column label="数据范围" min-width="180" class-name="col-text">
+          <el-table-column
+            align="center" label="数据范围" min-width="180" class-name="col-status"
+            label-class-name="col-status">
             <template #default="{ row }">
               <el-tooltip
                 v-if="(row.merchantNames || row.merchantIds || []).length"

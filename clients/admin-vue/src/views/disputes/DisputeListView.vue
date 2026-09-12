@@ -276,12 +276,16 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="创建时间" width="168" class-name="col-text">
+          <el-table-column
+            align="center" label="创建时间" width="168" class-name="col-status"
+            label-class-name="col-status">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="结案时间" width="168" class-name="col-text">
+          <el-table-column
+            align="center" label="结案时间" width="168" class-name="col-status"
+            label-class-name="col-status">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.resolvedAt) || '无' }}</span>
             </template>

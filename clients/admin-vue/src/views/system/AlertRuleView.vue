@@ -90,7 +90,9 @@
           >
             <template #default="{ row }">{{ ruleUnitHint(row.configKey) }}</template>
           </el-table-column>
-          <el-table-column label="当前值" min-width="160" class-name="col-text">
+          <el-table-column
+            align="center" label="当前值" min-width="160" class-name="col-status"
+            label-class-name="col-status">
             <template #default="{ row }">
               <template v-if="row.configKey.endsWith('_enabled')">
                 <el-tag :type="row.configValue === 'true' ? 'success' : 'info'" size="small">

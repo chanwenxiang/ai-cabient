@@ -231,10 +231,11 @@
               </template>
             </el-table-column>
             <el-table-column
+            align="center"
               label="处理时限"
               min-width="168"
-              class-name="col-text"
-              label-class-name="col-text"
+              class-name="col-status"
+              label-class-name="col-status"
             >
               <template #default="{ row }">
                 <div class="sla-cell">

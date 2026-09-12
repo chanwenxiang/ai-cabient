@@ -1,6 +1,6 @@
 # AI Cabinet 文档索引
 
-> **现行真源**：日常开发/测试先读 [CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md) + [STARTUP_REFERENCE.md](STARTUP_REFERENCE.md)。  
+> **现行真源**：日常开发/测试先读 [MASTER_TEST_PLAN.md](MASTER_TEST_PLAN.md)（测试总真源）+ [CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md)（全仓底稿）+ [STARTUP_REFERENCE.md](STARTUP_REFERENCE.md)（端口/账号速查）。  
 > 本文原为 2026-07 上线执行索引，已于 2026-09 收敛；历史分析见 `archive/`。
 
 ---
@@ -9,6 +9,7 @@
 
 | 文档 | 说明 |
 |------|------|
+| [MASTER_TEST_PLAN.md](MASTER_TEST_PLAN.md) | **测试总真源 v2.1**：业务/UI/资金/权限/一致性/安全/性能/回归自动化/上线门槛；页面基线、**§2.7 UI/UX PR 最短验收**、改动→必跑映射（§7.0）、Playwright 纪律（§7.3）、CI 对照（§2.3）。**与其他测试文档冲突时以本文为准** |
 | [CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md) | **全仓底稿**：架构、关键链路、测试资产、优化热点、验证矩阵 |
 | [CODEBASE_INVENTORY.md](CODEBASE_INVENTORY.md) | **文件级清单**：Controller/端点/God 类/页面/测试包（精确测试点名） |
 | [pass-notes/PASS_3A_MONEY.md](pass-notes/PASS_3A_MONEY.md) | **Pass 3A**：金钱链路分支表与补测清单 |
@@ -54,7 +55,7 @@
 
 | 角色 | 推荐阅读 |
 |------|----------|
-| 开发 / 测试 | CODEBASE_FOUNDATION → STARTUP_REFERENCE → BUSINESS_FULL_TEST_MATRIX → BROWSER_MIN_UAT |
+| 开发 / 测试 | **MASTER_TEST_PLAN（测试总入口）** → CODEBASE_FOUNDATION → STARTUP_REFERENCE → BUSINESS_FULL_TEST_MATRIX（明细分册）→ BROWSER_MIN_UAT |
 | 后端 | CODEBASE_FOUNDATION §3–§5 → ARCHITECTURE → VISION_QUECTEL |
 | 前端 | CODEBASE_FOUNDATION §6 → BUSINESS_FULL_TEST_MATRIX → BROWSER_* → MODULES |
 | 运维 | PRODUCTION → DEVOPS → production-launch-checklist |
@@ -76,4 +77,4 @@
 
 ---
 
-**索引更新日期**: 2026-09-08
+**索引更新日期**: 2026-09-12

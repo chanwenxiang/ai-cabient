@@ -1895,7 +1895,9 @@
                     }}</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="在途 / 时限" min-width="160" class-name="col-text">
+                <el-table-column
+            align="center" label="在途 / 时限" min-width="160" class-name="col-status"
+            label-class-name="col-status">
                   <template #default="{ row }">
                     <div class="sla-cell">
                       <template v-if="isTransitOverdue(row)">
