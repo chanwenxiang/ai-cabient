@@ -44,29 +44,65 @@
           @selection-change="onSelectionChange"
         >
           <template #empty><el-empty v-if="!loading" description="暂无等级规则" /></template>
-          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
           <el-table-column label="等级编码" width="120" class-name="col-text">
             <template #default="{ row }">
               {{ levelCodeLabel(row.levelCode, row.levelName) }}
             </template>
           </el-table-column>
-          <el-table-column prop="levelName" label="等级名称" min-width="120" align="center" />
-          <el-table-column label="累计消费区间(元)" width="180" align="center">
+          <el-table-column
+            prop="levelName"
+            label="等级名称"
+            min-width="120"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
+          <el-table-column
+            label="累计消费区间(元)"
+            width="180"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }"
               >{{ yuan(row.minSpent) }} ~
               {{ row.maxSpent != null ? yuan(row.maxSpent) : '+' }}</template
             >
           </el-table-column>
-          <el-table-column label="累计积分区间" width="150" align="center">
+          <el-table-column
+            label="累计积分区间"
+            width="150"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }"
               >{{ row.minPoints ?? 0 }} ~
               {{ row.maxPoints != null ? row.maxPoints : '+' }}</template
             >
           </el-table-column>
-          <el-table-column label="积分倍率" width="100" align="center">
+          <el-table-column
+            label="积分倍率"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.pointsRate ?? 1 }}</template>
           </el-table-column>
-          <el-table-column label="会员折扣" width="100" align="center">
+          <el-table-column
+            label="会员折扣"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span v-if="row.priceDiscountPct != null && Number(row.priceDiscountPct) > 0">
                 {{ row.priceDiscountPct }}%
@@ -74,8 +110,21 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column prop="sortOrder" label="排序" width="70" align="center" />
-          <el-table-column label="状态" width="90" align="center">
+          <el-table-column
+            prop="sortOrder"
+            label="排序"
+            width="70"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            label="状态"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{
                 displayLabel('enable_status', row.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE')
@@ -106,11 +155,7 @@
       </div>
     </div>
 
-    <el-dialog
-      v-model="dialogVisible"
-      :title="editing ? '编辑等级' : '新建等级'"
-      destroy-on-close
-    >
+    <el-dialog v-model="dialogVisible" :title="editing ? '编辑等级' : '新建等级'" destroy-on-close>
       <el-form :model="form" label-width="auto">
         <el-form-item label="等级编码" required>
           <el-input

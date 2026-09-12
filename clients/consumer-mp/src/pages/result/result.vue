@@ -1,7 +1,9 @@
 <template>
   <view class="page-root">
     <app-nav-bar title="账单结果" />
-    <view v-if="loading" class="card"><text class="meta">{{ UI_COPY.loading }}</text></view>
+    <view v-if="loading" class="card"
+      ><text class="meta">{{ UI_COPY.loading }}</text></view
+    >
     <view v-else-if="error" class="card error-card">
       <text class="err">{{ error }}</text>
       <app-button label="回首页" @click="goHome" />
@@ -135,7 +137,13 @@
       <app-button variant="ghost" label="查看订单" @click="goOrders" />
     </view>
 
-    <view v-if="showDispute" role="button" aria-label="关闭" class="dispute-mask" @click="closeDispute">
+    <view
+      v-if="showDispute"
+      role="button"
+      aria-label="关闭"
+      class="dispute-mask"
+      @click="closeDispute"
+    >
       <view role="button" class="dispute-panel" @click.stop>
         <text class="dispute-title">{{ refundMode ? '立即退款' : '账单申诉' }}</text>
         <text class="dispute-sub">
@@ -147,7 +155,8 @@
         </text>
         <view class="chip-row">
           <text
-            v-for="chip in reasonChips" role="button"
+            v-for="chip in reasonChips"
+            role="button"
             :key="chip.label"
             class="reason-chip"
             :class="{ on: selectedCategory === chip.category }"
@@ -206,7 +215,9 @@
           "
           @click="submitAction"
         />
-        <text role="button" class="dispute-cancel" aria-label="取消申诉" @click="closeDispute">取消</text>
+        <text role="button" class="dispute-cancel" aria-label="取消申诉" @click="closeDispute"
+          >取消</text
+        >
       </view>
     </view>
   </view>
@@ -214,11 +225,7 @@
 
 <script setup lang="ts">
 import { onLoad, onShow } from '@dcloudio/uni-app';
-import {
-  showError,
-  showSuccess,
-  showConfirm
-} from '@/utils/notify';
+import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
@@ -232,8 +239,8 @@ import {
   type DisputeReasonChip
 } from '@/utils/dispute-form';
 import { consumerAppealErrorMessage } from '@/utils/dispute-copy';
-import {
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+import {
   pickAndUploadEvidence,
   evidenceFileIds,
   previewEvidenceSrc,
@@ -608,7 +615,11 @@ function goHelp() {
   box-sizing: border-box;
 }
 .status-header.tone-warn {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)), var(--white));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)),
+    var(--white)
+  );
 }
 .status-header.tone-refund {
   background: linear-gradient(135deg, var(--info-soft), var(--white));

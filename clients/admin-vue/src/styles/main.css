@@ -20,7 +20,7 @@
   position: absolute;
   left: -9999px;
   top: 0;
-  z-index: 10000;
+  z-index: var(--z-skip-link, 10000);
   padding: 8px 12px;
   background: var(--app-primary, #0f766e);
   color: #fff;
@@ -65,6 +65,17 @@
   --admin-space-md: 10px;
   --admin-space-lg: 14px;
   --admin-space-xl: 16px;
+  /*
+   * R3-A03：z-index 分层 token（数值与存量一致，禁止新代码再写裸高位数字）
+   * EP 弹层默认从 2000 起递增；fixed-tip / context-menu 刻意夹在 EP 区间内需知悉叠加风险
+   */
+  --z-sticky: 10;
+  --z-map-control: 500;
+  --z-dropdown: 1000;
+  --z-fixed-tip: 4000;
+  --z-context-menu: 5000;
+  --z-fullscreen: 9999; /* 存量 BigScreen；语义层 ≥9000 */
+  --z-skip-link: 10000;
   /* 圆角对齐共享 token：标签档 / 控件档 */
   --admin-radius: var(--radius-tag);
   --admin-radius-lg: var(--radius-control);
@@ -550,7 +561,7 @@ select {
 }
 
 /*
- * 语义列对齐：文本左、金额右；操作列见下方 col-action。
+ * 语义列对齐：文本左、金额右、状态居中；操作列见上方 col-action。
  * 覆盖页面里遗留的 align="center"，避免 ID/名称/地址被强制居中。
  * 树表缩进列请用 col-tree（见 MenuManage）。
  */
@@ -570,6 +581,19 @@ select {
 .page-card .el-table th.col-money > .cell,
 .page-card .el-table td.col-money > .cell {
   text-align: right !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 状态/短枚举/数量列：允许居中；与 align=center 并存，门禁豁免 */
+.layout-main-scroll .el-table th.col-status > .cell,
+.layout-main-scroll .el-table td.col-status > .cell,
+.page-card .el-table th.col-status > .cell,
+.page-card .el-table td.col-status > .cell {
+  text-align: center !important;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

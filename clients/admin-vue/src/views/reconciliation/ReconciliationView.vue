@@ -102,7 +102,13 @@
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无对账记录"
           /></template>
-          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
           <el-table-column label="对账ID" width="88" class-name="col-text">
             <template #default="{ row }">
               <span class="mono">{{ row.reconId }}</span>
@@ -115,14 +121,26 @@
               </button>
             </template>
           </el-table-column>
-          <el-table-column label="渠道" width="100" align="center">
+          <el-table-column
+            label="渠道"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" effect="plain">{{
                 dictLabel('pay_channel', row.channel)
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="110" align="center">
+          <el-table-column
+            label="状态"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="dictTagType(row.status)" size="small">
                 {{ dictLabel('reconciliation_status', row.status) }}
@@ -136,7 +154,12 @@
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="未匹配笔数" width="110" align="center">
+          <el-table-column
+            label="未匹配笔数"
+            width="110"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">
               <span :class="{ 'is-mismatch': (row.unmatchedCount ?? 0) > 0 }">
                 {{ row.unmatchedCount ?? 0 }}
@@ -267,24 +290,38 @@
             size="small"
             empty-text=" "
           >
-            <el-table-column prop="platformTradeNo"
+            <el-table-column
+              prop="platformTradeNo"
               label="平台流水"
               min-width="140"
               class-name="col-text"
               show-overflow-tooltip
             />
-            <el-table-column prop="merchantOrderNo"
+            <el-table-column
+              prop="merchantOrderNo"
               label="商户单号"
               min-width="120"
               class-name="col-text"
               show-overflow-tooltip
             />
-            <el-table-column label="金额" width="100" align="center">
+            <el-table-column
+              label="金额"
+              width="100"
+              align="center"
+              class-name="col-money"
+              label-class-name="col-money"
+            >
               <template #default="{ row }"
                 >¥{{ ((row.amountCents || 0) / 100).toFixed(2) }}</template
               >
             </el-table-column>
-            <el-table-column label="交易类型" width="100" align="center">
+            <el-table-column
+              label="交易类型"
+              width="100"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">{{
                 row.tradeType ? dictLabel('platform_bill_trade_type', row.tradeType) : '暂无'
               }}</template>
@@ -296,7 +333,13 @@
                 }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="匹配" width="80" align="center">
+            <el-table-column
+              label="匹配"
+              width="80"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">
                 <el-tag size="small" :type="row.matched ? 'success' : 'danger'">
                   {{ row.matched ? '是' : '否' }}

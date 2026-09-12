@@ -15,6 +15,8 @@
           mode="aspectFill"
           :src="mediaSrc(item)"
           :alt="item.title || '广告'"
+          role="button"
+          :aria-label="item.title || '查看广告'"
           @click="onClick(item)"
         />
         <video

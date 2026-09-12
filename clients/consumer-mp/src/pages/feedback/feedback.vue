@@ -3,10 +3,16 @@
     <app-nav-bar title="意见反馈" />
     <view class="page-body">
       <view class="tabs">
-        <text role="button" class="tab" :class="{ active: tab === 'submit' }" @click="tab = 'submit'"
+        <text
+          role="button"
+          class="tab"
+          :class="{ active: tab === 'submit' }"
+          @click="tab = 'submit'"
           >提交反馈</text
         >
-        <text role="button" class="tab" :class="{ active: tab === 'mine' }" @click="onMineTab">我的反馈</text>
+        <text role="button" class="tab" :class="{ active: tab === 'mine' }" @click="onMineTab"
+          >我的反馈</text
+        >
       </view>
 
       <view v-if="tab === 'submit'">
@@ -19,7 +25,8 @@
           <text class="field-label">反馈类型</text>
           <view class="issue-grid">
             <view
-              v-for="item in typeOptions" role="button"
+              v-for="item in typeOptions"
+              role="button"
               :key="item.value"
               class="issue-chip"
               :class="{ active: feedbackType === item.value }"
@@ -103,9 +110,7 @@
 
 <script setup lang="ts">
 import { onLoad, onShow } from '@dcloudio/uni-app';
-import {
-  showSuccess
-} from '@/utils/notify';
+import { showSuccess } from '@/utils/notify';
 import { ref } from 'vue';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';

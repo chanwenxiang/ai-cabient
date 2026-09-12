@@ -93,8 +93,15 @@
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无角色"
           /></template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="roleId"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="roleId"
             label="角色编号"
             width="80"
             class-name="col-text"
@@ -112,17 +119,30 @@
               ><span class="cell-id">{{ row.roleKey }}</span></template
             >
           </el-table-column>
-          <el-table-column label="状态" width="88" align="center">
+          <el-table-column
+            label="状态"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
                 {{ displayLabel('merchant_status', row.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="权限数" width="96" align="center">
+          <el-table-column
+            label="权限数"
+            width="96"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ permissionCountLabel(row) }}</template>
           </el-table-column>
-          <el-table-column prop="remark"
+          <el-table-column
+            prop="remark"
             label="备注"
             min-width="160"
             class-name="col-text"
@@ -145,11 +165,7 @@
       </div>
     </div>
 
-    <el-dialog
-      v-model="formDlg"
-      :title="form.roleId ? '编辑角色' : '新增角色'"
-      destroy-on-close
-    >
+    <el-dialog v-model="formDlg" :title="form.roleId ? '编辑角色' : '新增角色'" destroy-on-close>
       <el-form label-width="auto">
         <el-form-item label="权限字符" required>
           <el-input

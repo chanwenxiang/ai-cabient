@@ -23,7 +23,9 @@
         <view v-else>
           <view v-if="error" class="banner-err">
             <text>{{ error }}</text>
-            <text role="button" aria-label="重试" class="banner-retry" @click="load(false)">重试</text>
+            <text role="button" aria-label="重试" class="banner-retry" @click="load(false)"
+              >重试</text
+            >
           </view>
           <view v-for="p in rows" :key="draftKey(p)" class="card row">
             <view class="row-main">
@@ -69,11 +71,23 @@
           />
         </view>
 
-        <view v-if="historyVisible" role="button" aria-label="关闭" class="mask" @click="historyVisible = false">
+        <view
+          v-if="historyVisible"
+          role="button"
+          aria-label="关闭"
+          class="mask"
+          @click="historyVisible = false"
+        >
           <view role="button" class="dialog" @click.stop>
             <view class="dialog-head">
               <text class="dialog-title">调价历史</text>
-              <text class="dialog-close" role="button" aria-label="关闭" @click="historyVisible = false">×</text>
+              <text
+                class="dialog-close"
+                role="button"
+                aria-label="关闭"
+                @click="historyVisible = false"
+                >×</text
+              >
             </view>
             <view v-if="historyLoading" class="meta center">{{ UI_COPY.loading }}</view>
             <view v-else-if="!history.length" class="meta center">暂无调价记录</view>
@@ -93,10 +107,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import {
-  showError,
-  showSuccess
-} from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import EmptyState from '@/components/empty-state.vue';
 import { yuanToCents } from '@aicabinet/shared-uni/format';
@@ -106,8 +117,8 @@ import {
   canEditPricingWithPerm,
   seedMerchantMeDisplayCache
 } from '@/composables/useMerchantMe';
-import type {
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+import type {
   MerchantMe,
   MerchantSkuPriceChange,
   MerchantSkuPricing

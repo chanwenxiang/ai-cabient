@@ -40,34 +40,110 @@
       @selection-change="onSelectionChange"
     >
       <template #empty><el-empty v-if="!loading" description="暂无活动数据" /></template>
-      <el-table-column type="selection" width="48" align="center" />
-      <el-table-column prop="activityName" label="活动" min-width="170" align="center" />
-      <el-table-column label="类型" width="90" align="center">
+      <el-table-column
+        type="selection"
+        width="48"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      />
+      <el-table-column
+        prop="activityName"
+        label="活动"
+        min-width="170"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      />
+      <el-table-column
+        label="类型"
+        width="90"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      >
         <template #default="{ row }">{{ typeLabel(row.activityType) }}</template>
       </el-table-column>
-      <el-table-column label="状态" width="80" align="center">
+      <el-table-column
+        label="状态"
+        width="80"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      >
         <template #default="{ row }">
           <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{
             displayLabel('enable_status', row.status, '未知')
           }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="预算(元)" width="100" align="center">
+      <el-table-column
+        label="预算(元)"
+        width="100"
+        align="center"
+        class-name="col-money"
+        label-class-name="col-money"
+      >
         <template #default="{ row }">{{ yuan(row.budgetCents) }}</template>
       </el-table-column>
-      <el-table-column label="预算已用(元)" width="110" align="center">
+      <el-table-column
+        label="预算已用(元)"
+        width="110"
+        align="center"
+        class-name="col-money"
+        label-class-name="col-money"
+      >
         <template #default="{ row }">{{ yuan(row.usedCents) }}</template>
       </el-table-column>
-      <el-table-column prop="claimedCount" label="发券数" width="90" align="center" />
-      <el-table-column prop="usedCount" label="核销数" width="90" align="center" />
-      <el-table-column label="核销率" width="90" align="center">
+      <el-table-column
+        prop="claimedCount"
+        label="发券数"
+        width="90"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      />
+      <el-table-column
+        prop="usedCount"
+        label="核销数"
+        width="90"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      />
+      <el-table-column
+        label="核销率"
+        width="90"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      >
         <template #default="{ row }">{{ pct(row.redeemRate) }}</template>
       </el-table-column>
-      <el-table-column label="订单优惠(元)" width="110" align="center">
+      <el-table-column
+        label="订单优惠(元)"
+        width="110"
+        align="center"
+        class-name="col-money"
+        label-class-name="col-money"
+      >
         <template #default="{ row }">{{ yuan(row.discountCents) }}</template>
       </el-table-column>
-      <el-table-column prop="orderCount" label="带动订单" width="90" align="center" />
-      <el-table-column label="带动营收(元)" width="120" align="center">
+      <el-table-column
+        prop="orderCount"
+        label="带动订单"
+        width="90"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      />
+      <el-table-column
+        label="带动营收(元)"
+        width="120"
+        align="center"
+        class-name="col-money"
+        label-class-name="col-money"
+      >
         <template #default="{ row }">
           <span class="cell-revenue">{{ yuan(row.orderRevenueCents) }}</span>
         </template>

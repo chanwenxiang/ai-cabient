@@ -3,10 +3,16 @@
     <app-nav-bar title="要货申请" />
     <view class="page-body">
       <view class="tabs">
-        <view role="button" class="tab" :class="{ active: mode === 'create' }" @click="mode = 'create'"
+        <view
+          role="button"
+          class="tab"
+          :class="{ active: mode === 'create' }"
+          @click="mode = 'create'"
           >发起要货</view
         >
-        <view role="button" class="tab" :class="{ active: mode === 'list' }" @click="switchToList">我的申请</view>
+        <view role="button" class="tab" :class="{ active: mode === 'list' }" @click="switchToList"
+          >我的申请</view
+        >
       </view>
 
       <view v-if="mode === 'create'" class="panel">
@@ -30,7 +36,8 @@
             该柜机暂无可要货商品（无绑定货道 SKU）
           </view>
           <view
-            v-for="line in draftLines" role="button"
+            v-for="line in draftLines"
+            role="button"
             :key="line.skuId"
             class="line-row"
             @click="toggleLine(line)"
@@ -73,7 +80,8 @@
           <text class="hint block-hint">缺货柜况、陈列等，便于运营审核</text>
           <view class="evidence-row">
             <view
-              v-for="(item, idx) in evidenceItems" role="button"
+              v-for="(item, idx) in evidenceItems"
+              role="button"
               :key="item.fileId || item.localPath"
               class="evidence-thumb-wrap"
               @click="previewEvidence(idx)"
@@ -86,7 +94,8 @@
               />
             </view>
             <view
-              v-if="evidenceItems.length < 5" role="button"
+              v-if="evidenceItems.length < 5"
+              role="button"
               class="evidence-add"
               aria-label="添加现场照片"
               @click="addEvidence"
@@ -109,7 +118,8 @@
       <view v-else class="panel">
         <view class="filters">
           <view
-            v-for="t in statusTabs" role="button"
+            v-for="t in statusTabs"
+            role="button"
             :key="t.value"
             class="filter"
             :class="{ active: listStatus === t.value }"
@@ -121,7 +131,8 @@
         <view v-else-if="listError" class="empty-inline err">{{ listError }}</view>
         <view v-else-if="!requests.length" class="empty-inline">暂无要货申请</view>
         <view
-          v-for="req in requests" role="button"
+          v-for="req in requests"
+          role="button"
           :key="req.requestId"
           class="card req-card"
           :class="{ clickable: canGoReplenish(req) }"
@@ -145,7 +156,9 @@
           <text v-if="req.rejectReason" class="reject">驳回：{{ req.rejectReason }}</text>
           <text v-if="req.notes" class="notes">备注：{{ req.notes }}</text>
           <text v-if="req.evidenceCount" class="notes">附图 {{ req.evidenceCount }} 张</text>
-          <view v-if="req.status === 'ACCEPTED' && req.replenishmentTaskId" class="detail-btn app-link-chevron"
+          <view
+            v-if="req.status === 'ACCEPTED' && req.replenishmentTaskId"
+            class="detail-btn app-link-chevron"
             >去补货</view
           >
         </view>
@@ -159,10 +172,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import {
-  showError,
-  showSuccess
-} from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTimeShort } from '@aicabinet/shared-uni/format';

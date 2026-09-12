@@ -1,8 +1,5 @@
 import { consumerApi } from '@/utils/consumer-api';
-import {
-  showError,
-  showSuccess
-} from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 
 const PENDING_RECHARGE_KEY = 'pending_recharge_order_id';
 const ALIPAY_RETURN_PAGE_KEY = 'alipay_return_page';

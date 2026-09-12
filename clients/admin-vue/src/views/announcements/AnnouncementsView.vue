@@ -118,8 +118,15 @@
           <template #empty>
             <el-empty v-if="listHydrated && !loading" description="暂无公告" />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="announceId"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="announceId"
             label="公告编号"
             width="100"
             class-name="col-text"
@@ -132,19 +139,36 @@
           <el-table-column label="公告" min-width="200" class-name="col-text">
             <template #default="{ row }">{{ row.title || '无' }}</template>
           </el-table-column>
-          <el-table-column label="优先级" width="88" align="center">
+          <el-table-column
+            label="优先级"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="priorityType(row.priority) || 'info'" size="small">
                 {{ priorityMap[row.priority] || '普通' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="目标" width="100" align="center">
+          <el-table-column
+            label="目标"
+            width="100"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">{{
               displayLabel('announcement_audience', row.targetScope)
             }}</template>
           </el-table-column>
-          <el-table-column label="状态" width="88" align="center">
+          <el-table-column
+            label="状态"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="statusType(row.status)" size="small">
                 {{ displayLabel('announcement_status', row.status) }}
@@ -187,11 +211,7 @@
       @size-change="onSizeChange"
     />
 
-    <el-dialog
-      v-model="showForm"
-      :title="editingId ? '编辑公告' : '发布公告'"
-      destroy-on-close
-    >
+    <el-dialog v-model="showForm" :title="editingId ? '编辑公告' : '发布公告'" destroy-on-close>
       <el-form :model="form" label-width="auto">
         <el-form-item label="标题" required>
           <el-input v-model="form.title" maxlength="100" show-word-limit />

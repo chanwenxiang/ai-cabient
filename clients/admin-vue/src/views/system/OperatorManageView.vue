@@ -81,8 +81,15 @@
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无运营账号"
           /></template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="userId"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="userId"
             label="用户编号"
             width="100"
             class-name="col-text"
@@ -98,7 +105,13 @@
           <el-table-column label="手机号" width="140" class-name="col-text">
             <template #default="{ row }">{{ row.phoneNumber || '无' }}</template>
           </el-table-column>
-          <el-table-column label="状态" width="90" align="center">
+          <el-table-column
+            label="状态"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
                 {{ displayLabel('merchant_status', row.status) }}
@@ -219,11 +232,7 @@
       @size-change="onSizeChange"
     />
 
-    <el-dialog
-      v-model="formDlg"
-      :title="form.userId ? '编辑账号' : '新增账号'"
-      destroy-on-close
-    >
+    <el-dialog v-model="formDlg" :title="form.userId ? '编辑账号' : '新增账号'" destroy-on-close>
       <el-form label-width="auto">
         <el-form-item label="姓名" required>
           <el-input v-model="form.name" maxlength="64" />
@@ -376,7 +385,8 @@
 
     <el-dialog
       v-model="merchantDlg"
-      title="商户范围（设备数据范围）" class="dialog-wide"
+      title="商户范围（设备数据范围）"
+      class="dialog-wide"
       destroy-on-close
     >
       <div v-loading="merchantScopeLoading" class="scope-dlg-body">

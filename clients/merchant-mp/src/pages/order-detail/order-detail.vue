@@ -2,7 +2,9 @@
   <view class="page-root">
     <app-nav-bar title="订单详情" />
     <view class="page-body">
-      <view v-if="loading && !order" class="loading"><text>{{ UI_COPY.loading }}</text></view>
+      <view v-if="loading && !order" class="loading"
+        ><text>{{ UI_COPY.loading }}</text></view
+      >
       <view v-else-if="error && !order" class="empty">
         <text class="err">{{ error }}</text>
         <app-button label="重试" @click="load" />
@@ -113,7 +115,12 @@
 
         <view class="actions">
           <app-button v-if="order.deviceId" label="查看柜机" @click="goDevice" />
-          <app-button v-if="canShowVideo" variant="outline" label="查看购物视频" @click="playVideo" />
+          <app-button
+            v-if="canShowVideo"
+            variant="outline"
+            label="查看购物视频"
+            @click="playVideo"
+          />
           <app-button variant="outline" label="相关争议" @click="goDisputes" />
         </view>
       </view>
@@ -123,9 +130,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import {
-  showError
-} from '@/utils/notify';
+import { showError } from '@/utils/notify';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { skuImageFor } from '@aicabinet/shared-uni/product-image';
@@ -338,7 +343,11 @@ function playVideo() {
   border: 1rpx solid var(--brand-soft, #d1fae5);
 }
 .status-bar.s-disputed {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)), var(--white));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)),
+    var(--white)
+  );
   border-color: color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
 }
 .status-bar.s-refunded,

@@ -9,6 +9,7 @@
       class="empty-icon app-icon app-icon--circle"
       :src="resolvedIcon"
       mode="aspectFit"
+      aria-hidden="true"
     />
     <view
       v-else-if="useGlyph"
@@ -74,7 +75,9 @@ const resolvedIcon = computed(() =>
 const useGlyph = computed(
   () => !resolvedIcon.value || resolvedIcon.value === '∅' || resolvedIcon.value === 'glyph'
 );
-const kindClass = computed(() => (props.kind && props.kind !== 'default' ? `kind-${props.kind}` : ''));
+const kindClass = computed(() =>
+  props.kind && props.kind !== 'default' ? `kind-${props.kind}` : ''
+);
 </script>
 
 <script lang="ts">

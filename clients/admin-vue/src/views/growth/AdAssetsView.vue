@@ -99,13 +99,40 @@
           @sort-change="onIdSortChange"
           @selection-change="onSelectionChange"
         >
-          <el-table-column type="selection" width="48" align="center" reserve-selection />
-          <el-table-column prop="assetId" label="ID" width="80" align="center" sortable="custom" />
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            reserve-selection
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="assetId"
+            label="ID"
+            width="80"
+            align="center"
+            sortable="custom"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
           <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
-          <el-table-column label="类型" width="90" align="center">
+          <el-table-column
+            label="类型"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ typeLabel(row.assetType) }}</template>
           </el-table-column>
-          <el-table-column label="预览" width="120" align="center">
+          <el-table-column
+            label="预览"
+            width="120"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-image
                 v-if="row.assetType === 'IMAGE' && row.previewUrl"
@@ -119,15 +146,33 @@
               <span v-else>暂无</span>
             </template>
           </el-table-column>
-          <el-table-column label="时长(秒)" prop="durationSeconds" width="90" align="center" />
-          <el-table-column label="状态" width="90" align="center">
+          <el-table-column
+            label="时长(秒)"
+            prop="durationSeconds"
+            width="90"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
+          <el-table-column
+            label="状态"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
                 {{ row.status === 'ACTIVE' ? '在用' : displayLabel('enable_status', 'INACTIVE') }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="上传时间" width="170" align="center">
+          <el-table-column
+            label="上传时间"
+            width="170"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
           <el-table-column

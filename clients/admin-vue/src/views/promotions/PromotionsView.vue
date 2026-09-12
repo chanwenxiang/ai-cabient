@@ -92,8 +92,15 @@
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无活动"
           /></template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="activityId"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="activityId"
             label="活动编号"
             width="80"
             class-name="col-text"
@@ -106,7 +113,13 @@
           <el-table-column label="活动" min-width="160" class-name="col-text">
             <template #default="{ row }">{{ row.activityName || '无' }}</template>
           </el-table-column>
-          <el-table-column label="类型" width="120" align="center">
+          <el-table-column
+            label="类型"
+            width="120"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" effect="plain">{{
                 displayLabel('promotion_type', row.activityType, '未知类型')
@@ -145,7 +158,13 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="每人限次" width="90" align="center">
+          <el-table-column
+            label="每人限次"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.userLimit || '不限' }}</template>
           </el-table-column>
           <el-table-column label="适用柜" min-width="120" class-name="col-text">
@@ -155,7 +174,13 @@
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="88" align="center">
+          <el-table-column
+            label="状态"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="isEnabled(row.status) ? 'success' : 'info'" size="small">
                 {{ statusLabel(row.status) }}
@@ -200,7 +225,8 @@
       append-to-body
       align-center
       :close-on-click-modal="false"
-     class="dialog-wide promo-dialog">
+      class="dialog-wide promo-dialog"
+    >
       <el-form :model="form" label-width="auto">
         <el-form-item label="活动名称" required
           ><el-input v-model="form.activityName" maxlength="80"

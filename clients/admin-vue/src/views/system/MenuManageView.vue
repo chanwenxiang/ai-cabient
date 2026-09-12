@@ -82,7 +82,13 @@
           <template #empty>
             <el-empty v-if="listHydrated && !loading" description="暂无菜单" />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
           <el-table-column
             label="名称"
             min-width="200"
@@ -95,7 +101,13 @@
               <strong class="name-only">{{ row.permName }}</strong>
             </template>
           </el-table-column>
-          <el-table-column label="类型" width="88" align="center">
+          <el-table-column
+            label="类型"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="typeTag(row.permType)" size="small">{{
                 typeText(row.permType)
@@ -107,15 +119,24 @@
               ><span class="cell-id">{{ row.permCode }}</span></template
             >
           </el-table-column>
-          <el-table-column label="路由"
-            min-width="140"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="路由" min-width="140" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ row.path || '无' }}</template>
           </el-table-column>
-          <el-table-column prop="sortOrder" label="排序" width="72" align="center" />
-          <el-table-column label="状态" width="80" align="center">
+          <el-table-column
+            prop="sortOrder"
+            label="排序"
+            width="72"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            label="状态"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
                 {{ displayLabel('merchant_status', row.status) }}
@@ -137,11 +158,7 @@
       </div>
     </div>
 
-    <el-dialog
-      v-model="dlg"
-      :title="form.permissionId ? '编辑菜单' : '新增菜单'"
-      destroy-on-close
-    >
+    <el-dialog v-model="dlg" :title="form.permissionId ? '编辑菜单' : '新增菜单'" destroy-on-close>
       <el-form label-width="auto">
         <el-form-item label="上级">
           <el-select

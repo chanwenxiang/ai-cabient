@@ -12,7 +12,8 @@
           <text class="related-title">相关条款</text>
           <view class="related-row">
             <text
-              v-for="link in relatedLinks" role="button"
+              v-for="link in relatedLinks"
+              role="button"
               :key="link.type"
               class="related-link"
               :class="{ on: type === link.type }"
@@ -21,7 +22,9 @@
             >
           </view>
           <text class="related-hint">如有疑问可前往帮助中心联系客服</text>
-          <text role="button" class="related-link help app-link-chevron" @click="goHelp">帮助中心</text>
+          <text role="button" class="related-link help app-link-chevron" @click="goHelp"
+            >帮助中心</text
+          >
         </view>
       </view>
     </view>

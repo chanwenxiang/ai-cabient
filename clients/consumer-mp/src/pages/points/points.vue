@@ -2,7 +2,9 @@
   <view class="page-root">
     <app-nav-bar title="积分明细" />
     <view class="page-body">
-      <view v-if="loading && !summary" class="loading"><text>{{ UI_COPY.loading }}</text></view>
+      <view v-if="loading && !summary" class="loading"
+        ><text>{{ UI_COPY.loading }}</text></view
+      >
       <template v-else>
         <view class="summary">
           <view class="summary-main">
@@ -72,9 +74,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import {
-  showError
-} from '@/utils/notify';
+import { showError } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import {
   consumerApi,

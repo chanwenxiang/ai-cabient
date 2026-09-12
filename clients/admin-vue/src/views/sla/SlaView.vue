@@ -21,7 +21,9 @@
           <button
             type="button"
             class="stat-tile"
-            :aria-label="listHydrated ? `${tile.label} ${tile.value}` : `${tile.label} ${UI_COPY.loading}`"
+            :aria-label="
+              listHydrated ? `${tile.label} ${tile.value}` : `${tile.label} ${UI_COPY.loading}`
+            "
             tabindex="-1"
           >
             <div class="stat-label">{{ tile.label }}</div>

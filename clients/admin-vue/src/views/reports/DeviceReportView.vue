@@ -96,8 +96,15 @@
           @selection-change="onSelectionChange"
           empty-text=" "
         >
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="deviceId"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="deviceId"
             label="设备编号"
             min-width="140"
             class-name="col-text"
@@ -108,11 +115,7 @@
               <span class="cell-id">{{ row.deviceId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="设备"
-            min-width="140"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="设备" min-width="140" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <button
                 v-if="canAccessPath('/devices')"
@@ -125,17 +128,36 @@
               <span v-else>{{ row.deviceName || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="88" align="center">
+          <el-table-column
+            label="状态"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="row.onlineStatus === 'ONLINE' ? 'success' : 'info'" size="small">
                 {{ dictLabel('online_status', row.onlineStatus) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="商户" min-width="120" align="center" show-overflow-tooltip>
+          <el-table-column
+            label="商户"
+            min-width="120"
+            show-overflow-tooltip
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">{{ row.merchantName || '—' }}</template>
           </el-table-column>
-          <el-table-column label="线路" width="100" align="center" show-overflow-tooltip>
+          <el-table-column
+            label="线路"
+            width="100"
+            align="center"
+            show-overflow-tooltip
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.routeCode || '—' }}</template>
           </el-table-column>
           <el-table-column label="地址" min-width="140" class-name="col-text">
@@ -143,41 +165,112 @@
               <span class="cell-ellipsis" :title="row.address || ''">{{ row.address || '—' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="停售" width="88" align="center">
+          <el-table-column
+            label="停售"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag v-if="row.salesLocked" type="danger" size="small" effect="plain">停售</el-tag>
               <span v-else class="muted">否</span>
             </template>
           </el-table-column>
-          <el-table-column label="温度" width="80" align="center">
+          <el-table-column
+            label="温度"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span v-if="row.currentTempC != null">{{ row.currentTempC }}°C</span>
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column label="固件" width="88" align="center" show-overflow-tooltip>
+          <el-table-column
+            label="固件"
+            width="88"
+            align="center"
+            show-overflow-tooltip
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.firmwareVersion || '—' }}</template>
           </el-table-column>
-          <el-table-column prop="orderTotal" label="累计订单" min-width="96" align="center" />
-          <el-table-column label="累计营收" min-width="108" align="center">
+          <el-table-column
+            prop="orderTotal"
+            label="累计订单"
+            min-width="96"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            label="累计营收"
+            min-width="108"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">¥{{ (row.revenueTotalCents / 100).toFixed(2) }}</template>
           </el-table-column>
-          <el-table-column label="累计客单" min-width="96" align="center">
+          <el-table-column
+            label="累计客单"
+            min-width="96"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }"
               >¥{{ ((row.avgOrderValueTotalCents || 0) / 100).toFixed(2) }}</template
             >
           </el-table-column>
-          <el-table-column prop="orderToday" label="今日订单" min-width="96" align="center" />
-          <el-table-column label="今日营收" min-width="108" align="center">
+          <el-table-column
+            prop="orderToday"
+            label="今日订单"
+            min-width="96"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            label="今日营收"
+            min-width="108"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">¥{{ (row.revenueTodayCents / 100).toFixed(2) }}</template>
           </el-table-column>
-          <el-table-column label="今日客单" min-width="96" align="center">
+          <el-table-column
+            label="今日客单"
+            min-width="96"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }"
               >¥{{ ((row.avgOrderValueTodayCents || 0) / 100).toFixed(2) }}</template
             >
           </el-table-column>
-          <el-table-column prop="sessionTotal" label="累计会话" min-width="96" align="center" />
-          <el-table-column prop="sessionActive" label="进行中" min-width="88" align="center" />
+          <el-table-column
+            prop="sessionTotal"
+            label="累计会话"
+            min-width="96"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="sessionActive"
+            label="进行中"
+            min-width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
           <el-table-column
             v-if="canAccessPath('/devices')"
             label="操作"

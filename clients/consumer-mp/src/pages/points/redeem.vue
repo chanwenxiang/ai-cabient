@@ -8,7 +8,9 @@
         <text class="balance-action app-link-chevron">明细</text>
       </view>
 
-      <view v-if="loading && !items.length" class="loading"><text>{{ UI_COPY.loading }}</text></view>
+      <view v-if="loading && !items.length" class="loading"
+        ><text>{{ UI_COPY.loading }}</text></view
+      >
       <view v-else-if="!items.length" class="empty">
         <text class="empty-title">暂无兑换商品</text>
         <text class="empty-hint">运营上架积分兑换后即可兑换优惠券</text>
@@ -60,15 +62,11 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import {
-  showError,
-  showSuccess,
-  showConfirm
-} from '@/utils/notify';
+import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
-import {
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+import {
   consumerApi,
   ensureConsumerAuth,
   type MemberPointsSummaryDto,

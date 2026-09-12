@@ -85,9 +85,23 @@
               <template #empty
                 ><el-empty v-if="listHydrated && !loading" :description="billEmptyDescription"
               /></template>
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column prop="bizDate" label="账期" width="120" align="center" />
-              <el-table-column prop="merchantId"
+              <el-table-column
+                type="selection"
+                width="48"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column
+                prop="bizDate"
+                label="账期"
+                width="120"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column
+                prop="merchantId"
                 label="商户编号"
                 min-width="120"
                 class-name="col-text"
@@ -98,30 +112,74 @@
                   <span class="cell-id">{{ row.merchantId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="商户"
+              <el-table-column
+                label="商户"
                 min-width="120"
                 class-name="col-text"
                 show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.merchantName || '无' }}</template>
               </el-table-column>
-              <el-table-column label="订单实付" width="110" align="center">
+              <el-table-column
+                label="订单实付"
+                width="110"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">¥{{ yuan(row.orderPaidCents) }}</template>
               </el-table-column>
-              <el-table-column label="平台抽成" width="100" align="center">
+              <el-table-column
+                label="平台抽成"
+                width="100"
+                align="center"
+                class-name="col-money"
+                label-class-name="col-money"
+              >
                 <template #default="{ row }">¥{{ yuan(row.platformFeeCents) }}</template>
               </el-table-column>
-              <el-table-column label="通道费(估)" width="100" align="center">
+              <el-table-column
+                label="通道费(估)"
+                width="100"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">¥{{ yuan(row.channelFeeCents) }}</template>
               </el-table-column>
-              <el-table-column label="已入账" width="100" align="center">
+              <el-table-column
+                label="已入账"
+                width="100"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">¥{{ yuan(row.creditedCents) }}</template>
               </el-table-column>
-              <el-table-column label="待入账" width="100" align="center">
+              <el-table-column
+                label="待入账"
+                width="100"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">¥{{ yuan(row.pendingCents) }}</template>
               </el-table-column>
-              <el-table-column prop="orderCount" label="笔数" width="80" align="center" />
-              <el-table-column label="固化" width="80" align="center">
+              <el-table-column
+                prop="orderCount"
+                label="笔数"
+                width="80"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column
+                label="固化"
+                width="80"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-tag :type="row.solidified ? 'success' : 'info'" size="small">
                     {{ row.solidified ? '已固化' : '实时' }}
@@ -198,8 +256,15 @@
                   v-if="ledgerHydrated && !ledgerLoading"
                   :description="ledgerEmptyDescription"
               /></template>
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column prop="entryId"
+              <el-table-column
+                type="selection"
+                width="48"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column
+                prop="entryId"
                 label="分录号"
                 width="100"
                 class-name="col-text"
@@ -209,19 +274,37 @@
                   <span class="cell-id">{{ displayBizNo(row.entryId) }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="财务类型" width="140" align="center">
+              <el-table-column
+                label="财务类型"
+                width="140"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">{{
                   dictLabel('fund_ledger_type', row.financialType)
                 }}</template>
               </el-table-column>
-              <el-table-column label="收支" width="80" align="center">
+              <el-table-column
+                label="收支"
+                width="80"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-tag :type="row.direction === 'IN' ? 'success' : 'danger'" size="small">
                     {{ dictLabel('fund_direction', row.direction) }}
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="金额" width="110" align="center">
+              <el-table-column
+                label="金额"
+                width="110"
+                align="center"
+                class-name="col-money"
+                label-class-name="col-money"
+              >
                 <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
               </el-table-column>
               <el-table-column
@@ -229,17 +312,32 @@
                 label="订单"
                 min-width="160"
                 show-overflow-tooltip
-                align="center"
+                class-name="col-text"
+                label-class-name="col-text"
               />
-              <el-table-column prop="deviceId" label="货柜" width="120" align="center" />
+              <el-table-column
+                prop="deviceId"
+                label="货柜"
+                width="120"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
               <el-table-column
                 prop="merchantName"
                 label="商户"
                 min-width="140"
                 show-overflow-tooltip
-                align="center"
+                class-name="col-text"
+                label-class-name="col-text"
               />
-              <el-table-column label="时间" width="170" align="center">
+              <el-table-column
+                label="时间"
+                width="170"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
               </el-table-column>
             </el-table>

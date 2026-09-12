@@ -3,10 +3,16 @@
     <app-nav-bar title="分账明细" />
     <view class="page-body">
       <view class="tabs">
-        <text role="button" class="tab" :class="{ active: tab === 'FAILED' }" @click="switchTab('FAILED')"
+        <text
+          role="button"
+          class="tab"
+          :class="{ active: tab === 'FAILED' }"
+          @click="switchTab('FAILED')"
           >失败</text
         >
-        <text role="button" class="tab" :class="{ active: tab === 'ALL' }" @click="switchTab('ALL')">全部</text>
+        <text role="button" class="tab" :class="{ active: tab === 'ALL' }" @click="switchTab('ALL')"
+          >全部</text
+        >
       </view>
 
       <view v-if="loading && !list.length" class="card state">{{ UI_COPY.loading }}</view>

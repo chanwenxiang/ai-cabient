@@ -48,17 +48,30 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="业务" min-width="160" align="center">
+          <el-table-column
+            label="业务"
+            min-width="160"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <div>{{ bizLabel(row.bizType) }}</div>
               <div class="cell-hint">{{ row.bizType }}</div>
             </template>
           </el-table-column>
-          <el-table-column prop="defName" label="名称" min-width="140" align="center" />
+          <el-table-column
+            prop="defName"
+            label="名称"
+            min-width="140"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
           <el-table-column
             :label="displayLabel('enable_status', 'ACTIVE')"
             width="90"
-            align="center"
+            class-name="col-text"
+            label-class-name="col-text"
           >
             <template #default="{ row }">
               <el-tag :type="row.enabled ? 'success' : 'info'" size="small">
@@ -66,7 +79,13 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="流程预览" min-width="280" align="center">
+          <el-table-column
+            label="流程预览"
+            min-width="280"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span class="flow-inline">
                 {{ ['提交', ...sortedNodes(row.nodes).map((n) => n.nodeName), '结束'].join(' → ') }}
@@ -78,7 +97,8 @@
             label="备注"
             min-width="160"
             show-overflow-tooltip
-            align="center"
+            class-name="col-text"
+            label-class-name="col-text"
           />
           <el-table-column
             v-if="canEdit"
@@ -97,11 +117,7 @@
     </div>
   </el-card>
 
-  <el-dialog
-    v-model="metaDlg"
-    :title="creating ? '新增审批流' : '编辑审批流'"
-    destroy-on-close
-  >
+  <el-dialog v-model="metaDlg" :title="creating ? '新增审批流' : '编辑审批流'" destroy-on-close>
     <el-form label-width="auto">
       <el-form-item label="业务类型" required>
         <el-select
@@ -153,7 +169,8 @@
     :title="`流程图 · ${bizLabel(editForm.bizType)}`"
     top="4vh"
     destroy-on-close
-   class="dialog-wide flow-dialog">
+    class="dialog-wide flow-dialog"
+  >
     <div class="flow-meta">
       <el-form inline label-width="auto" class="flow-meta__form">
         <el-form-item label="名称">

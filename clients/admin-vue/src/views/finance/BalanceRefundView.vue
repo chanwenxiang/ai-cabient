@@ -319,8 +319,15 @@ onMounted(load);
           <template #empty>
             <el-empty v-if="listHydrated && !loading" description="暂无申请" />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="requestNo"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="requestNo"
             label="申请号"
             min-width="160"
             class-name="col-text"
@@ -346,28 +353,37 @@ onMounted(load);
           <el-table-column label="金额" width="110" align="center" class-name="col-money">
             <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
           </el-table-column>
-          <el-table-column label="状态" width="100" align="center">
+          <el-table-column
+            label="状态"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="statusTagType(row.status)" size="small">
                 {{ statusLabel(row.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="申请原因"
+          <el-table-column
+            label="申请原因"
             min-width="140"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.reason || '暂无' }}</template>
           </el-table-column>
-          <el-table-column label="审核备注"
+          <el-table-column
+            label="审核备注"
             min-width="120"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.reviewRemark || '暂无' }}</template>
           </el-table-column>
-          <el-table-column label="失败原因"
+          <el-table-column
+            label="失败原因"
             min-width="140"
             class-name="col-text"
             show-overflow-tooltip

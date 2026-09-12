@@ -57,7 +57,8 @@
 
       <view class="amount-grid">
         <view
-          v-for="item in amounts" role="button"
+          v-for="item in amounts"
+          role="button"
           :key="item.value"
           class="amount-card"
           :class="{ selected: selectedAmount === item.value }"
@@ -169,7 +170,12 @@
           </view>
           <view class="record-right">
             <text class="record-status" :class="r.status">{{ statusText(r.status) }}</text>
-            <text v-if="r.status === 'PENDING'" role="button" aria-label="取消" class="cancel-link" @click="cancelOne(r.orderId)"
+            <text
+              v-if="r.status === 'PENDING'"
+              role="button"
+              aria-label="取消"
+              class="cancel-link"
+              @click="cancelOne(r.orderId)"
               >取消</text
             >
           </view>
@@ -183,11 +189,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import {
-  showError,
-  showSuccess,
-  showConfirm
-} from '@/utils/notify';
+import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth, get } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
@@ -204,8 +206,8 @@ import type {
   RechargeOrderDto,
   BalanceRefundRequestDto
 } from '@aicabinet/shared-types';
-import {
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+import {
   resolveMockEnabled,
   resolveSandboxRecharge,
   resolveWechatRechargeVisible,

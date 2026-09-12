@@ -93,8 +93,15 @@
           <template #empty>
             <el-empty v-if="listHydrated && !loading" :description="emptyHint" />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="ticketId"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="ticketId"
             label="工单号"
             min-width="140"
             class-name="col-text"
@@ -105,18 +112,20 @@
               <span class="cell-id">{{ row.ticketId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="工单"
-            min-width="160"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="工单" min-width="160" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="openDetail(row)">
                 {{ row.reason || '无' }}
               </button>
             </template>
           </el-table-column>
-          <el-table-column label="置信度" width="100" align="center">
+          <el-table-column
+            label="置信度"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag
                 v-if="confidenceHint(row)"
@@ -128,11 +137,7 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="设备"
-            min-width="110"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="设备" min-width="110" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <button
                 v-if="row.deviceId"
@@ -145,11 +150,7 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="会话"
-            min-width="130"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="会话" min-width="130" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <button
                 v-if="row.sessionId"
@@ -162,7 +163,8 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="关联订单"
+          <el-table-column
+            label="关联订单"
             min-width="130"
             class-name="col-text"
             show-overflow-tooltip
@@ -179,33 +181,37 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="96" align="center">
+          <el-table-column
+            label="状态"
+            width="96"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" :type="disputeStatusType(row.status)">
                 {{ displayLabel('dispute_status', row.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="处理人"
-            width="110"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="处理人" width="110" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <span v-if="row.assignee">{{ row.assignee }}</span>
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column label="分类"
-            width="100"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="分类" width="100" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               {{ displayLabel('dispute_category', row.category, '未知') }}
             </template>
           </el-table-column>
-          <el-table-column label="优先级" width="88" align="center">
+          <el-table-column
+            label="优先级"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag
                 v-if="row.priority"
@@ -236,7 +242,13 @@
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column label="SLA" width="110" align="center">
+          <el-table-column
+            label="SLA"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag v-if="row.slaOverdue" type="danger" size="small" effect="plain"
                 >已超时</el-tag
@@ -248,7 +260,12 @@
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column label="证据" width="88" align="center">
+          <el-table-column
+            label="证据"
+            width="88"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">
               <el-tag
                 size="small"
@@ -520,25 +537,47 @@
           <div v-if="selected.suggestedItems?.length" class="items-block">
             <div class="items-title">识别建议（只读）</div>
             <el-table :data="selected.suggestedItems" size="small" stripe border>
-              <el-table-column prop="skuName"
-                label="商品"
-                min-width="120"
-                class-name="col-text"
-              />
-              <el-table-column prop="skuId"
+              <el-table-column prop="skuName" label="商品" min-width="120" class-name="col-text" />
+              <el-table-column
+                prop="skuId"
                 label="SKU"
                 min-width="100"
                 class-name="col-text"
                 show-overflow-tooltip
               />
-              <el-table-column prop="quantity" label="数量" width="72" align="center" />
-              <el-table-column label="单价" width="88" align="center">
+              <el-table-column
+                prop="quantity"
+                label="数量"
+                width="72"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column
+                label="单价"
+                width="88"
+                align="center"
+                class-name="col-money"
+                label-class-name="col-money"
+              >
                 <template #default="{ row }">¥{{ money(row.unitPriceCents) }}</template>
               </el-table-column>
-              <el-table-column label="小计" width="88" align="center">
+              <el-table-column
+                label="小计"
+                width="88"
+                align="center"
+                class-name="col-money"
+                label-class-name="col-money"
+              >
                 <template #default="{ row }">¥{{ money(row.lineAmountCents) }}</template>
               </el-table-column>
-              <el-table-column prop="slotId" label="货道" width="72" align="center">
+              <el-table-column
+                prop="slotId"
+                label="货道"
+                width="72"
+                class-name="col-text"
+                label-class-name="col-text"
+              >
                 <template #default="{ row }">{{ row.slotId || '暂无' }}</template>
               </el-table-column>
             </el-table>

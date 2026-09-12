@@ -71,29 +71,76 @@
           <template #empty>
             <el-empty v-if="!loading" description="暂无诊断数据，点击「运行诊断」生成" />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="skuId"
-            label="SKU"
-            width="110"
-            class-name="col-text"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
           />
-          <el-table-column prop="skuName" label="商品" min-width="140" align="center" />
-          <el-table-column prop="category" label="分类" width="100" align="center" />
-          <el-table-column label="动销表现" width="110" align="center">
+          <el-table-column prop="skuId" label="SKU" width="110" class-name="col-text" />
+          <el-table-column
+            prop="skuName"
+            label="商品"
+            min-width="140"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
+          <el-table-column
+            prop="category"
+            label="分类"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            label="动销表现"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="perfTag(row.performanceLevel)">{{
                 perfLabel(row.performanceLevel)
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="salesQty" label="销量" width="80" align="center" />
-          <el-table-column label="营收(元)" width="110" align="center">
+          <el-table-column
+            prop="salesQty"
+            label="销量"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            label="营收(元)"
+            width="110"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">{{ (row.revenueCents / 100).toFixed(2) }}</template>
           </el-table-column>
-          <el-table-column prop="stockDays" label="库存天数" width="100" align="center">
+          <el-table-column
+            prop="stockDays"
+            label="库存天数"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.stockDays ?? '暂无' }}</template>
           </el-table-column>
-          <el-table-column label="评审状态" width="130" align="center">
+          <el-table-column
+            label="评审状态"
+            width="130"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="reviewTag(row.reviewStatus)">{{
                 reviewLabel(row.reviewStatus)

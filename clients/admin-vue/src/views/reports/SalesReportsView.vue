@@ -98,8 +98,20 @@
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无数据"
           /></template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="dimKey" label="编码" min-width="140" align="center">
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="dimKey"
+            label="编码"
+            min-width="140"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">
               <button
                 v-if="canNavigateRow(row)"
@@ -112,7 +124,13 @@
               <span v-else>{{ row.dimKey || '—' }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="dimLabel" label="名称" min-width="160" align="center">
+          <el-table-column
+            prop="dimLabel"
+            label="名称"
+            min-width="160"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">
               <button
                 v-if="canNavigateRow(row)"
@@ -125,14 +143,30 @@
               <span v-else>{{ row.dimLabel || '—' }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="orderCount" label="订单数" width="90" align="center" />
-          <el-table-column prop="qty" label="销量" width="80" align="center" />
+          <el-table-column
+            prop="orderCount"
+            label="订单数"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="qty"
+            label="销量"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
           <el-table-column
             prop="revenueCents"
             label="营收"
             width="110"
             align="center"
             sortable="custom"
+            class-name="col-money"
+            label-class-name="col-money"
           >
             <template #default="{ row }">{{ yuan(row.revenueCents) }}</template>
           </el-table-column>
@@ -142,6 +176,8 @@
             width="110"
             align="center"
             sortable="custom"
+            class-name="col-money"
+            label-class-name="col-money"
           >
             <template #default="{ row }">
               <span :class="{ 'is-refund': Number(row.refundedCents || 0) > 0 }">{{
@@ -149,16 +185,40 @@
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="退款单" width="80" align="center">
+          <el-table-column
+            label="退款单"
+            width="80"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">{{ Number(row.refundOrderCount || 0) }}</template>
           </el-table-column>
-          <el-table-column label="退款率" width="88" align="center">
+          <el-table-column
+            label="退款率"
+            width="88"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">{{ refundRateText(row) }}</template>
           </el-table-column>
-          <el-table-column label="净营收" width="110" align="center">
+          <el-table-column
+            label="净营收"
+            width="110"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">{{ yuan(netRevenue(row)) }}</template>
           </el-table-column>
-          <el-table-column label="成本" width="110" align="center">
+          <el-table-column
+            label="成本"
+            width="110"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">{{ yuan(row.cogsCents) }}</template>
           </el-table-column>
           <el-table-column
@@ -167,10 +227,18 @@
             width="110"
             align="center"
             sortable="custom"
+            class-name="col-money"
+            label-class-name="col-money"
           >
             <template #default="{ row }">{{ yuan(row.marginCents) }}</template>
           </el-table-column>
-          <el-table-column label="毛利率" width="90" align="center">
+          <el-table-column
+            label="毛利率"
+            width="90"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">
               {{
                 Number(row.revenueCents) > 0
@@ -179,7 +247,13 @@
               }}
             </template>
           </el-table-column>
-          <el-table-column label="客单价" width="100" align="center">
+          <el-table-column
+            label="客单价"
+            width="100"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">
               {{
                 Number(row.orderCount) > 0
@@ -188,7 +262,13 @@
               }}
             </template>
           </el-table-column>
-          <el-table-column label="件均价" width="100" align="center">
+          <el-table-column
+            label="件均价"
+            width="100"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">
               {{
                 Number(row.qty) > 0 ? yuan(Number(row.revenueCents || 0) / Number(row.qty)) : '暂无'

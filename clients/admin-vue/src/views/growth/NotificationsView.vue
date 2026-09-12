@@ -46,24 +46,49 @@
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无消息记录"
           /></template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="id"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="id"
             label="ID"
             width="80"
             class-name="col-text"
             sortable="custom"
           />
-          <el-table-column label="时间" width="150" align="center">
+          <el-table-column
+            label="时间"
+            width="150"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
           </el-table-column>
-          <el-table-column label="受众" width="90" align="center">
+          <el-table-column
+            label="受众"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="row.audience === 'CONSUMER' ? 'primary' : 'warning'">{{
                 audienceLabel(row.audience)
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="title" label="标题" min-width="150" align="center" />
+          <el-table-column
+            prop="title"
+            label="标题"
+            min-width="150"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
           <el-table-column label="内容" min-width="240" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="rewriteBizNosInText(row.body) || ''">{{

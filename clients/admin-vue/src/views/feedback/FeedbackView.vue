@@ -57,8 +57,15 @@
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无反馈"
           /></template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="feedbackId"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="feedbackId"
             label="反馈编号"
             width="100"
             class-name="col-text"
@@ -68,7 +75,13 @@
               <span class="cell-id">{{ row.feedbackId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="类型" width="110" align="center">
+          <el-table-column
+            label="类型"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               {{ dictLabel('feedback_type', row.feedbackType) || '反馈' }}
             </template>
@@ -93,11 +106,7 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="设备"
-            min-width="120"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="设备" min-width="120" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <button
                 v-if="row.deviceId"
@@ -110,10 +119,22 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="评分" width="72" align="center">
+          <el-table-column
+            label="评分"
+            width="72"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.rating ?? '无' }}</template>
           </el-table-column>
-          <el-table-column label="状态" width="100" align="center">
+          <el-table-column
+            label="状态"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="dictTagType(row.status)" size="small">
                 {{ dictLabel('feedback_status', row.status) }}

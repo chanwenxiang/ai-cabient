@@ -6,7 +6,8 @@
         <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false" enable-flex>
           <view class="filter-inner">
             <text
-              v-for="f in filters" role="button"
+              v-for="f in filters"
+              role="button"
               :key="f.key"
               class="filter-chip"
               :class="{ active: filter === f.key }"
@@ -16,7 +17,9 @@
           </view>
         </scroll-view>
       </view>
-      <view v-if="loading && !list.length" class="loading"><text>{{ UI_COPY.loading }}</text></view>
+      <view v-if="loading && !list.length" class="loading"
+        ><text>{{ UI_COPY.loading }}</text></view
+      >
       <view v-else-if="!visibleList.length" class="empty">
         <text class="empty-title">{{ emptyTitle }}</text>
         <text class="empty-hint"
@@ -25,7 +28,8 @@
       </view>
       <view v-else class="msg-list">
         <view
-          v-for="m in visibleList" role="button"
+          v-for="m in visibleList"
+          role="button"
           :key="m.id"
           class="msg-card"
           :class="{ unread: !m.read }"
@@ -50,13 +54,11 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import {
-  showError
-} from '@/utils/notify';
+import { showError } from '@/utils/notify';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { merchantApi, type MerchantNotificationDto } from '@/utils/merchant-api';
-import {
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+import {
   displayBizNo,
   formatDateTimeMinute,
   rewriteBizNosInText,

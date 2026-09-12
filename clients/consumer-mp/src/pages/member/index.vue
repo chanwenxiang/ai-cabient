@@ -117,9 +117,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import {
-  showError
-} from '@/utils/notify';
+import { showError } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth, type MemberProfileDto } from '@/utils/consumer-api';
 import { menuIcon } from '@/utils/menu-icon';
@@ -260,7 +258,11 @@ function goMessages() {
   border-color: var(--color-border);
 }
 .hero.lv-gold {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)), var(--white));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)),
+    var(--white)
+  );
   border-color: var(--warning-soft);
 }
 .hero.lv-platinum {

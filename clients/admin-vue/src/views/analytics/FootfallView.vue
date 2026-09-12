@@ -72,12 +72,36 @@
           empty-text="暂无柜机数据"
         >
           <el-table-column prop="deviceName" label="柜机" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="opens" label="开门" width="96" align="center" />
-          <el-table-column prop="orders" label="订单" width="96" align="center" />
-          <el-table-column label="转化率" width="110" align="center">
+          <el-table-column
+            prop="opens"
+            label="开门"
+            width="96"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
+          <el-table-column
+            prop="orders"
+            label="订单"
+            width="96"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
+          <el-table-column
+            label="转化率"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ (row.conversionRate ?? 0).toFixed(1) }}%</template>
           </el-table-column>
-          <el-table-column label="营收" width="120" align="center">
+          <el-table-column
+            label="营收"
+            width="120"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }"
               >¥{{ ((row.revenueCents ?? 0) / 100).toFixed(2) }}</template
             >
@@ -98,13 +122,32 @@
         >
           <el-table-column prop="skuName" label="商品" min-width="140" show-overflow-tooltip />
           <el-table-column prop="skuId" label="SKU" min-width="120" show-overflow-tooltip />
-          <el-table-column prop="qtySold" label="销量" width="88" align="center" />
-          <el-table-column label="营收" width="110" align="center">
+          <el-table-column
+            prop="qtySold"
+            label="销量"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            label="营收"
+            width="110"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }"
               >¥{{ ((row.revenueCents ?? 0) / 100).toFixed(2) }}</template
             >
           </el-table-column>
-          <el-table-column label="件均价" width="100" align="center">
+          <el-table-column
+            label="件均价"
+            width="100"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">
               {{
                 (row.qtySold ?? 0) > 0
@@ -113,7 +156,13 @@
               }}
             </template>
           </el-table-column>
-          <el-table-column label="营收占比" width="100" align="center">
+          <el-table-column
+            label="营收占比"
+            width="100"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">
               {{
                 topSkuRevenueTotal > 0

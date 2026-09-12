@@ -15,7 +15,8 @@
       />
       <view v-else class="list">
         <view
-          v-for="item in list" role="button"
+          v-for="item in list"
+          role="button"
           :key="item.announceId"
           class="card"
           hover-class="card-hover"

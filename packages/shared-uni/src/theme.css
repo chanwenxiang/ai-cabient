@@ -12,9 +12,11 @@
  * - 规范长名（--color-primary / --color-bg-page）为别名，新代码优先用长名
  */
 :root {
-  --app-font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei",
-    "Noto Sans SC", "Source Han Sans SC", sans-serif;
-  --app-font-mono: "SF Mono", "Cascadia Mono", "Consolas", "Sarasa Mono SC", ui-monospace, monospace;
+  --app-font:
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans SC',
+    'Source Han Sans SC', sans-serif;
+  --app-font-mono:
+    'SF Mono', 'Cascadia Mono', 'Consolas', 'Sarasa Mono SC', ui-monospace, monospace;
   /* 与正文栈对齐，避免 Element 默认 Helvetica Neue 抢先 */
   --el-font-family: var(--app-font);
   /* H5 根字号（px）：对齐 page 的 28rpx @ 375 设计宽 */
@@ -75,6 +77,9 @@
   /*
    * 深底上的白色透明度档（落地页 / 登录深顶栏）。
    * 用法：rgba(255, 255, 255, var(--on-deep-opacity-78))
+   * 适用范围：文字色（color）优先挂 token。
+   * 豁免：border / box-shadow / 渐变端点可继续裸写 rgba(255,255,255,0.x)，
+   *       opacity token 语义是「文字档」，硬套边框/阴影会失真（R3-C02）。
    */
   --on-deep-opacity-50: 0.5;
   --on-deep-opacity-78: 0.78;

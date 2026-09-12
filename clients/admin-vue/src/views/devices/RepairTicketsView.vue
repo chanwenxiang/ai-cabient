@@ -112,15 +112,28 @@
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无维修工单"
           /></template>
-          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
           <el-table-column
             prop="ticketId"
             label="工单号"
             width="88"
-            align="center"
             sortable="custom"
+            class-name="col-text"
+            label-class-name="col-text"
           />
-          <el-table-column prop="deviceId" label="设备" min-width="120" align="center">
+          <el-table-column
+            prop="deviceId"
+            label="设备"
+            min-width="120"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">
               <el-button
                 v-if="canAccessPath('/devices')"
@@ -138,7 +151,8 @@
             label="商户"
             min-width="100"
             show-overflow-tooltip
-            align="center"
+            class-name="col-text"
+            label-class-name="col-text"
           >
             <template #default="{ row }">{{ row.merchantName || row.merchantId || '无' }}</template>
           </el-table-column>
@@ -147,15 +161,37 @@
             label="标题"
             min-width="110"
             show-overflow-tooltip
-            align="center"
+            class-name="col-text"
+            label-class-name="col-text"
           />
-          <el-table-column prop="faultType" label="故障类型" width="80" align="center">
+          <el-table-column
+            prop="faultType"
+            label="故障类型"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ faultLabel(row.faultType) }}</template>
           </el-table-column>
-          <el-table-column prop="priority" label="优先级" width="64" align="center">
+          <el-table-column
+            prop="priority"
+            label="优先级"
+            width="64"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ priorityLabel(row.priority) }}</template>
           </el-table-column>
-          <el-table-column prop="status" label="状态" width="72" align="center">
+          <el-table-column
+            prop="status"
+            label="状态"
+            width="72"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="statusType(row.status)" size="small">{{
                 statusLabel(row.status)
@@ -174,10 +210,22 @@
               <span class="cell-ellipsis" :title="row.remark || ''">{{ row.remark || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="创建时间" width="124" align="center">
+          <el-table-column
+            label="创建时间"
+            width="124"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ formatDateTime(row.createdAt) || '无' }}</template>
           </el-table-column>
-          <el-table-column label="关闭时间" width="104" align="center">
+          <el-table-column
+            label="关闭时间"
+            width="104"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ formatDateTime(row.closedAt) || '无' }}</template>
           </el-table-column>
           <el-table-column
@@ -234,7 +282,8 @@
 
     <el-dialog
       v-model="createVisible"
-      title="新建维修工单" class="dialog-wide"
+      title="新建维修工单"
+      class="dialog-wide"
       destroy-on-close
       append-to-body
     >

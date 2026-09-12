@@ -87,10 +87,7 @@
 
 <script setup lang="ts">
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
-import {
-  showError,
-  showSuccess
-} from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';

@@ -42,7 +42,13 @@
               <template #empty
                 ><el-empty v-if="eventsHydrated && !eventsLoading" description="暂无风险事件"
               /></template>
-              <el-table-column type="selection" width="48" align="center" />
+              <el-table-column
+                type="selection"
+                width="48"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
               <el-table-column label="事件" min-width="140" class-name="col-text">
                 <template #default="{ row }">
                   <div class="id-cell">
@@ -64,7 +70,13 @@
                   <span v-else class="muted">无</span>
                 </template>
               </el-table-column>
-              <el-table-column label="设备" min-width="110" align="center" show-overflow-tooltip>
+              <el-table-column
+                label="设备"
+                min-width="110"
+                show-overflow-tooltip
+                class-name="col-text"
+                label-class-name="col-text"
+              >
                 <template #default="{ row }">
                   <button
                     v-if="row.deviceId"
@@ -77,21 +89,34 @@
                   <span v-else class="muted">无</span>
                 </template>
               </el-table-column>
-              <el-table-column label="详情"
+              <el-table-column
+                label="详情"
                 min-width="160"
                 class-name="col-text"
                 show-overflow-tooltip
               >
                 <template #default="{ row }">{{ formatRiskEventDetail(row.detail) }}</template>
               </el-table-column>
-              <el-table-column label="级别" width="100" align="center">
+              <el-table-column
+                label="级别"
+                width="100"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-tag :type="dictTagType(row.severity)" size="small">
                     {{ dictLabel('risk_severity', row.severity) }}
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="处置" width="120" align="center">
+              <el-table-column
+                label="处置"
+                width="120"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-tag size="small" :type="dispositionTag(row.dispositionStatus)">
                     {{ dispositionLabel(row.dispositionStatus) }}
@@ -101,8 +126,9 @@
               <el-table-column
                 label="处置备注"
                 min-width="120"
-                align="center"
                 show-overflow-tooltip
+                class-name="col-text"
+                label-class-name="col-text"
               >
                 <template #default="{ row }">{{ row.dispositionNote || '暂无' }}</template>
               </el-table-column>
@@ -151,7 +177,13 @@
               <template #empty
                 ><el-empty v-if="blacklistHydrated && !blacklistLoading" description="暂无黑名单"
               /></template>
-              <el-table-column type="selection" width="48" align="center" />
+              <el-table-column
+                type="selection"
+                width="48"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
               <el-table-column label="用户" width="120" class-name="col-text">
                 <template #default="{ row }">
                   <button
@@ -163,14 +195,21 @@
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column label="原因"
+              <el-table-column
+                label="原因"
                 min-width="180"
                 class-name="col-text"
                 show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.reason || '无' }}</template>
               </el-table-column>
-              <el-table-column label="来源" width="100" align="center">
+              <el-table-column
+                label="来源"
+                width="100"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">{{ row.source || '暂无' }}</template>
               </el-table-column>
               <el-table-column label="到期" width="150" class-name="col-text">

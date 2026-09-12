@@ -85,13 +85,19 @@
           结算：当日支付流水通常次日完成入账。可提现余额请到「商户钱包」申请提现；线长佣金请走「线长钱包」。</text
         >
         <text v-if="profitNote" class="tip-meta">{{ profitNote }}</text>
-        <text v-if="canViewWallet" role="button" class="tip-link app-link-chevron" @click="goWallet">去商户钱包提现</text>
-        <text v-if="canViewSplits" role="button" class="tip-link app-link-chevron" @click="goSplits">查看分账明细</text>
+        <text v-if="canViewWallet" role="button" class="tip-link app-link-chevron" @click="goWallet"
+          >去商户钱包提现</text
+        >
+        <text v-if="canViewSplits" role="button" class="tip-link app-link-chevron" @click="goSplits"
+          >查看分账明细</text
+        >
       </view>
 
       <view class="section">
         <text class="section-title">按日汇总</text>
-        <view v-if="loading && !daily.length" class="loading-inline">{{ loadingLabel('结算数据') }}</view>
+        <view v-if="loading && !daily.length" class="loading-inline">{{
+          loadingLabel('结算数据')
+        }}</view>
         <template v-else>
           <view v-for="d in daily" :key="d.date" class="device-row">
             <view class="device-info">
@@ -125,9 +131,9 @@
       <view class="section">
         <text class="section-title">结算批次</text>
         <view v-if="batchWarn" class="section-warn">{{ batchWarn }}</view>
-        <view v-if="loading && !batches.length && !daily.length" class="loading-inline"
-          >{{ loadingLabel('批次') }}</view
-        >
+        <view v-if="loading && !batches.length && !daily.length" class="loading-inline">{{
+          loadingLabel('批次')
+        }}</view>
         <template v-else>
           <view v-for="b in batches" :key="b.batchNo" class="device-row">
             <view class="device-info">
@@ -166,10 +172,7 @@
 
 <script setup lang="ts">
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
-import {
-  showError,
-  showSuccess
-} from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
 import { displayLabel } from '@aicabinet/shared-dict';

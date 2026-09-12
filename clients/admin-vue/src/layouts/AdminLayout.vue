@@ -1060,8 +1060,7 @@ onUnmounted(() => {
   /* 覆盖 EP .el-main 默认 padding，避免双 padding 叠高导致亚像素溢出 */
   --el-main-padding: 0;
   /* 左右对称留白；侧栏竖条已用隐藏原生滚动条解决，勿再清零左侧 padding */
-  padding: var(--admin-space-md, 12px) var(--admin-space-lg, 16px) 24px
-    var(--admin-space-lg, 16px);
+  padding: var(--admin-space-md, 12px) var(--admin-space-lg, 16px) 24px var(--admin-space-lg, 16px);
   box-sizing: border-box;
   /* 页面级滚动：内容超宽时由页面横向滚动，而非表格内部滚动 */
   overflow-x: auto;
@@ -1156,7 +1155,7 @@ onUnmounted(() => {
 }
 .tag-context-menu {
   position: fixed;
-  z-index: 5000;
+  z-index: var(--z-context-menu, 5000);
   margin: 0;
   padding: 6px 0;
   list-style: none;

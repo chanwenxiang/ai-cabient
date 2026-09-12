@@ -149,6 +149,7 @@ export default { name: 'AppNavBar' };
   left: 0;
   right: 0;
   text-align: center;
+  /* R3-C01 豁免：17px 对齐微信胶囊按钮字号，不用 rpx/token */
   font-size: 17px;
   font-weight: 600;
   overflow: hidden;

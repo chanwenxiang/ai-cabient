@@ -96,7 +96,8 @@
             <template #empty
               ><el-empty v-if="managersHydrated && !managersLoading" description="暂无线长"
             /></template>
-            <el-table-column prop="managerId"
+            <el-table-column
+              prop="managerId"
               label="经理编号"
               width="100"
               class-name="col-text"
@@ -109,32 +110,73 @@
             <el-table-column label="姓名" width="110" class-name="col-text">
               <template #default="{ row }">{{ row.managerName || '无' }}</template>
             </el-table-column>
-            <el-table-column prop="phone" label="手机" width="120" align="center" />
+            <el-table-column
+              prop="phone"
+              label="手机"
+              width="120"
+              class-name="col-text"
+              label-class-name="col-text"
+            />
             <el-table-column
               prop="orgName"
               label="组织"
               min-width="110"
               show-overflow-tooltip
               align="center"
+              class-name="col-status"
+              label-class-name="col-status"
             />
-            <el-table-column prop="userId" label="绑定用户" width="110" align="center" />
+            <el-table-column
+              prop="userId"
+              label="绑定用户"
+              width="110"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            />
             <el-table-column
               prop="wxOpenid"
               label="微信 OpenID"
               min-width="140"
               show-overflow-tooltip
-              align="center"
+              class-name="col-text"
+              label-class-name="col-text"
             />
-            <el-table-column label="余额(元)" width="100" align="center">
+            <el-table-column
+              label="余额(元)"
+              width="100"
+              align="center"
+              class-name="col-money"
+              label-class-name="col-money"
+            >
               <template #default="{ row }">{{ yuan(row.balanceCents) }}</template>
             </el-table-column>
-            <el-table-column label="冻结(元)" width="100" align="center">
+            <el-table-column
+              label="冻结(元)"
+              width="100"
+              align="center"
+              class-name="col-money"
+              label-class-name="col-money"
+            >
               <template #default="{ row }">{{ yuan(row.frozenCents) }}</template>
             </el-table-column>
-            <el-table-column label="绑柜" min-width="160" show-overflow-tooltip align="center">
+            <el-table-column
+              label="绑柜"
+              min-width="160"
+              show-overflow-tooltip
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">{{ (row.deviceIds || []).join(', ') || '无' }}</template>
             </el-table-column>
-            <el-table-column label="佣金比例" width="100" align="center">
+            <el-table-column
+              label="佣金比例"
+              width="100"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">
                 {{ ((Number(row.commissionRateBps) || 0) / 100).toFixed(2) }}%
               </template>
@@ -143,16 +185,30 @@
               prop="commissionFixedCents"
               label="固定分/单"
               width="100"
-              align="center"
+              class-name="col-text"
+              label-class-name="col-text"
             />
-            <el-table-column prop="status" label="状态" width="90" align="center">
+            <el-table-column
+              prop="status"
+              label="状态"
+              width="90"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">
                 <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
                   {{ displayLabel('line_manager_status', row.status, '未知状态') }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="创建时间" width="170" align="center">
+            <el-table-column
+              label="创建时间"
+              width="170"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
             </el-table-column>
             <el-table-column
@@ -239,27 +295,78 @@
             <template #empty
               ><el-empty v-if="withdrawsHydrated && !withdrawsLoading" description="暂无提现申请"
             /></template>
-            <el-table-column type="selection" width="48" align="center" />
-            <el-table-column prop="requestId" label="单号" width="80" align="center" />
+            <el-table-column
+              type="selection"
+              width="48"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            />
+            <el-table-column
+              prop="requestId"
+              label="单号"
+              width="80"
+              class-name="col-text"
+              label-class-name="col-text"
+            />
             <el-table-column
               prop="requestNo"
               label="业务单号"
               min-width="160"
               show-overflow-tooltip
-              align="center"
+              class-name="col-text"
+              label-class-name="col-text"
             />
-            <el-table-column prop="managerName" label="线长" width="100" align="center" />
-            <el-table-column prop="phone" label="手机" width="120" align="center" />
-            <el-table-column label="金额(元)" width="100" align="center">
+            <el-table-column
+              prop="managerName"
+              label="线长"
+              width="100"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            />
+            <el-table-column
+              prop="phone"
+              label="手机"
+              width="120"
+              class-name="col-text"
+              label-class-name="col-text"
+            />
+            <el-table-column
+              label="金额(元)"
+              width="100"
+              align="center"
+              class-name="col-money"
+              label-class-name="col-money"
+            >
               <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
             </el-table-column>
-            <el-table-column label="手续费" width="90" align="center">
+            <el-table-column
+              label="手续费"
+              width="90"
+              align="center"
+              class-name="col-money"
+              label-class-name="col-money"
+            >
               <template #default="{ row }">{{ yuan(row.feeCents || 0) }}</template>
             </el-table-column>
-            <el-table-column prop="status" label="状态" width="120" align="center">
+            <el-table-column
+              prop="status"
+              label="状态"
+              width="120"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">{{ withdrawStatusLabel(row.status) }}</template>
             </el-table-column>
-            <el-table-column label="通道" width="120" align="center">
+            <el-table-column
+              label="通道"
+              width="120"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">{{
                 displayLabel('pay_channel', row.payChannel, '未知')
               }}</template>
@@ -270,25 +377,41 @@
               min-width="140"
               show-overflow-tooltip
               align="center"
+              class-name="col-status"
+              label-class-name="col-status"
             />
             <el-table-column
               prop="payoutMessage"
               label="打款说明"
               min-width="140"
               show-overflow-tooltip
-              align="center"
+              class-name="col-text"
+              label-class-name="col-text"
             />
             <el-table-column
               prop="reviewRemark"
               label="审核备注"
               min-width="120"
               show-overflow-tooltip
-              align="center"
+              class-name="col-text"
+              label-class-name="col-text"
             />
-            <el-table-column label="申请时间" width="170" align="center">
+            <el-table-column
+              label="申请时间"
+              width="170"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
             </el-table-column>
-            <el-table-column label="打款时间" width="170" align="center">
+            <el-table-column
+              label="打款时间"
+              width="170"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">{{ formatDateTime(row.paidAt) }}</template>
             </el-table-column>
             <el-table-column
@@ -353,7 +476,12 @@
           <el-table-column label="进度" width="110">
             <template #default="{ row }">{{ row.doneQty }}/{{ row.targetQty }}</template>
           </el-table-column>
-          <el-table-column label="奖金(元)" width="100">
+          <el-table-column
+            label="奖金(元)"
+            width="100"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">{{ yuan(row.bountyCents) }}</template>
           </el-table-column>
           <el-table-column label="状态" width="90">
@@ -429,21 +557,51 @@
         <template #empty>
           <el-empty v-if="ledgerHydrated" description="暂无流水" :image-size="64" />
         </template>
-        <el-table-column label="类型" width="130" align="center">
+        <el-table-column
+          label="类型"
+          width="130"
+          align="center"
+          class-name="col-status"
+          label-class-name="col-status"
+        >
           <template #default="{ row }">{{
             displayLabel('wallet_entry_type', row.entryType, '未知')
           }}</template>
         </el-table-column>
-        <el-table-column label="变动(元)" width="100" align="center">
+        <el-table-column
+          label="变动(元)"
+          width="100"
+          align="center"
+          class-name="col-money"
+          label-class-name="col-money"
+        >
           <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
         </el-table-column>
-        <el-table-column label="余额后" width="100" align="center">
+        <el-table-column
+          label="余额后"
+          width="100"
+          align="center"
+          class-name="col-money"
+          label-class-name="col-money"
+        >
           <template #default="{ row }">{{ yuan(row.balanceAfter) }}</template>
         </el-table-column>
-        <el-table-column label="冻结后" width="100" align="center">
+        <el-table-column
+          label="冻结后"
+          width="100"
+          align="center"
+          class-name="col-money"
+          label-class-name="col-money"
+        >
           <template #default="{ row }">{{ yuan(row.frozenAfter) }}</template>
         </el-table-column>
-        <el-table-column label="关联" width="110" align="center">
+        <el-table-column
+          label="关联"
+          width="110"
+          align="center"
+          class-name="col-status"
+          label-class-name="col-status"
+        >
           <template #default="{ row }">{{
             displayLabel('wallet_ref_type', row.refType, '未知')
           }}</template>
@@ -453,9 +611,16 @@
           label="备注"
           min-width="140"
           show-overflow-tooltip
-          align="center"
+          class-name="col-text"
+          label-class-name="col-text"
         />
-        <el-table-column label="时间" width="160" align="center">
+        <el-table-column
+          label="时间"
+          width="160"
+          align="center"
+          class-name="col-status"
+          label-class-name="col-status"
+        >
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
       </el-table>
@@ -480,7 +645,12 @@
             <template #default="{ row }">{{ yuan(row.commissionCents) }}</template>
           </el-table-column>
           <el-table-column prop="orderCount" label="单量" width="80" />
-          <el-table-column label="客单价" width="100">
+          <el-table-column
+            label="客单价"
+            width="100"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">
               {{
                 row.orderCount > 0

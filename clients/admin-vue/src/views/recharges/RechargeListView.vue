@@ -66,8 +66,15 @@
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无充值记录"
           /></template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="orderId"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="orderId"
             label="充值单"
             min-width="168"
             class-name="col-text"
@@ -83,14 +90,21 @@
           <el-table-column label="金额" width="120" align="center" class-name="col-money">
             <template #default="{ row }">¥{{ money(row.amountCents) }}</template>
           </el-table-column>
-          <el-table-column label="渠道" width="100" align="center">
+          <el-table-column
+            label="渠道"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" effect="plain">
                 {{ displayLabel('pay_channel', String(row.channel || ''), '未知') }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="外部单号"
+          <el-table-column
+            label="外部单号"
             min-width="140"
             class-name="col-text"
             show-overflow-tooltip
@@ -101,7 +115,13 @@
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="110" align="center">
+          <el-table-column
+            label="状态"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="dictTagType(String(row.status || ''))" size="small">
                 {{ displayLabel('recharge_status', String(row.status || ''), '未知状态') }}

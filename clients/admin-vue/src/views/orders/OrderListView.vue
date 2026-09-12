@@ -130,15 +130,29 @@
               :description="statusTab === 'PENDING' && overdueOnly ? '无超时未付订单' : '暂无订单'"
             />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="orderId" label="订单号" min-width="140" align="center">
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="orderId"
+            label="订单号"
+            min-width="140"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="openDetail(row)">
                 <span class="cell-id">{{ displayBizNo(row.orderId) }}</span>
               </button>
             </template>
           </el-table-column>
-          <el-table-column label="流水号"
+          <el-table-column
+            label="流水号"
             min-width="110"
             class-name="col-text"
             show-overflow-tooltip
@@ -152,9 +166,8 @@
           <el-table-column
             label="商品"
             min-width="140"
-            align="center"
-            class-name="col-goods"
-            label-class-name="col-goods"
+            class-name="col-goods col-text"
+            label-class-name="col-goods col-text"
           >
             <template #default="{ row }">
               <div
@@ -178,7 +191,13 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="金额" width="110" align="center">
+          <el-table-column
+            label="金额"
+            width="110"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">
               <div class="amount-cell">
                 <span>¥{{ money(row.totalAmountCents) }}</span>
@@ -193,7 +212,13 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="优惠" width="110" align="center">
+          <el-table-column
+            label="优惠"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <template v-if="orderDiscountCents(row) > 0">
                 <span class="discount">-¥{{ money(orderDiscountCents(row)) }}</span>
@@ -202,7 +227,14 @@
               <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
-          <el-table-column label="会话" min-width="110" align="center" show-overflow-tooltip>
+          <el-table-column
+            label="会话"
+            min-width="110"
+            align="center"
+            show-overflow-tooltip
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <button
                 v-if="row.sessionId"
@@ -215,10 +247,21 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="用户" width="96" align="center">
+          <el-table-column
+            label="用户"
+            width="96"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">{{ row.userId ?? '无' }}</template>
           </el-table-column>
-          <el-table-column label="设备" min-width="120" align="center" show-overflow-tooltip>
+          <el-table-column
+            label="设备"
+            min-width="120"
+            show-overflow-tooltip
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">
               <button
                 v-if="row.deviceId"
@@ -231,40 +274,76 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="商户" min-width="120" align="center" show-overflow-tooltip>
+          <el-table-column
+            label="商户"
+            min-width="120"
+            show-overflow-tooltip
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">
               <span>{{ row.merchantName || row.merchantId || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="订单状态" width="90" align="center">
+          <el-table-column
+            label="订单状态"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" :type="orderStatusType(row.status)">
                 {{ displayLabel('order_status', row.status, '未知状态') }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="支付状态" width="84" align="center">
+          <el-table-column
+            label="支付状态"
+            width="84"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" :type="paymentStatusType(row.status)" effect="plain">
                 {{ paymentStatusLabel(row.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="退款状态" width="84" align="center">
+          <el-table-column
+            label="退款状态"
+            width="84"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">
               <el-tag size="small" :type="refundTagType(row.status)" effect="plain">
                 {{ refundColumnLabel(row.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="支付渠道" width="84" align="center">
+          <el-table-column
+            label="支付渠道"
+            width="84"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" effect="plain">
                 {{ displayLabel('pay_channel', row.payChannel, '未知渠道') }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="分账" width="88" align="center">
+          <el-table-column
+            label="分账"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag
                 v-if="row.splitStatus"
@@ -277,7 +356,13 @@
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column label="扣库存" width="88" align="center">
+          <el-table-column
+            label="扣库存"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag
                 size="small"
@@ -288,12 +373,25 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="退款策略" width="100" align="center">
+          <el-table-column
+            label="退款策略"
+            width="100"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">
               <el-tag size="small" effect="plain">{{ refundPolicyLabel(row.refundPolicy) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="退款时间" width="140" align="center" show-overflow-tooltip>
+          <el-table-column
+            label="退款时间"
+            width="140"
+            align="center"
+            show-overflow-tooltip
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">
               <span v-if="row.refundedAt" class="cell-datetime">{{
                 formatDateTime(row.refundedAt)
@@ -306,14 +404,28 @@
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column v-if="statusTab === 'PENDING'" label="账龄" width="110" align="center">
+          <el-table-column
+            v-if="statusTab === 'PENDING'"
+            label="账龄"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span :class="{ 'is-overdue-age': isUnpaidOverdue(row) }">{{
                 formatOrderAge(row.createdAt)
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="创建时间" width="140" align="center" show-overflow-tooltip>
+          <el-table-column
+            label="创建时间"
+            width="140"
+            align="center"
+            show-overflow-tooltip
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
@@ -513,35 +625,59 @@
             <template #empty>
               <el-empty v-if="!detailLoading" description="无商品行" :image-size="48" />
             </template>
-            <el-table-column prop="skuName"
-              label="商品"
-              min-width="120"
-              class-name="col-text"
-            />
+            <el-table-column prop="skuName" label="商品" min-width="120" class-name="col-text" />
             <el-table-column
               prop="skuId"
               label="SKU"
               min-width="100"
               align="center"
               show-overflow-tooltip
+              class-name="col-status"
+              label-class-name="col-status"
             />
-            <el-table-column prop="slotId" label="货道" width="80" align="center">
+            <el-table-column
+              prop="slotId"
+              label="货道"
+              width="80"
+              class-name="col-text"
+              label-class-name="col-text"
+            >
               <template #default="{ row }">{{ row.slotId || '暂无' }}</template>
             </el-table-column>
             <el-table-column
               prop="batchNo"
               label="批次"
               width="100"
-              align="center"
               show-overflow-tooltip
+              class-name="col-text"
+              label-class-name="col-text"
             >
               <template #default="{ row }">{{ row.batchNo || '暂无' }}</template>
             </el-table-column>
-            <el-table-column prop="quantity" label="数量" width="70" align="center" />
-            <el-table-column label="单价" width="90" align="center">
+            <el-table-column
+              prop="quantity"
+              label="数量"
+              width="70"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            />
+            <el-table-column
+              label="单价"
+              width="90"
+              align="center"
+              class-name="col-money"
+              label-class-name="col-money"
+            >
               <template #default="{ row }"> ¥{{ money(row.unitPriceCents || 0) }} </template>
             </el-table-column>
-            <el-table-column label="小计" width="90" align="center">
+            <el-table-column
+              label="小计"
+              width="90"
+              align="center"
+              class-name="col-money"
+              label-class-name="col-money"
+            >
               <template #default="{ row }">
                 ¥{{ money(row.lineAmountCents || row.amountCents || 0) }}
               </template>
@@ -592,13 +728,32 @@
       <el-table :data="partialRows" size="small" border empty-text="无商品行">
         <el-table-column prop="skuName" label="商品" min-width="120" />
         <el-table-column prop="skuId" label="SKU" width="120" />
-        <el-table-column prop="maxQty" label="可退" width="64" align="center" />
-        <el-table-column label="退款数量" width="110" align="center">
+        <el-table-column
+          prop="maxQty"
+          label="可退"
+          width="64"
+          align="center"
+          class-name="col-status"
+          label-class-name="col-status"
+        />
+        <el-table-column
+          label="退款数量"
+          width="110"
+          align="center"
+          class-name="col-money"
+          label-class-name="col-money"
+        >
           <template #default="{ row }">
             <el-input-number v-model="row.qty" :min="0" :max="row.maxQty" size="small" />
           </template>
         </el-table-column>
-        <el-table-column label="回库" width="88" align="center">
+        <el-table-column
+          label="回库"
+          width="88"
+          align="center"
+          class-name="col-status"
+          label-class-name="col-status"
+        >
           <template #default="{ row }">
             <el-switch v-model="row.restore" inline-prompt active-text="回" inactive-text="否" />
           </template>

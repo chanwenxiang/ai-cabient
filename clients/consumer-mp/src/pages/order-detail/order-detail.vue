@@ -2,7 +2,9 @@
   <view class="page-root">
     <app-nav-bar title="订单详情" />
     <view class="page-body">
-      <view v-if="loading && !order" class="loading"><text>{{ UI_COPY.loading }}</text></view>
+      <view v-if="loading && !order" class="loading"
+        ><text>{{ UI_COPY.loading }}</text></view
+      >
       <view v-else-if="error && !order" class="error">
         <text>{{ error }}</text>
         <app-button variant="outline" style="margin-top: 24rpx" label="重试" @click="reload" />
@@ -167,10 +169,18 @@
           <app-button variant="outline" label="帮助与客服" @click="goHelp" />
         </view>
 
-        <view role="button" class="support app-link-chevron" @click="callSupport">客服电话: {{ supportPhoneDisplay }}</view>
+        <view role="button" class="support app-link-chevron" @click="callSupport"
+          >客服电话: {{ supportPhoneDisplay }}</view
+        >
       </view>
 
-      <view v-if="showInvoice" role="button" aria-label="关闭" class="dispute-mask" @click="closeInvoice">
+      <view
+        v-if="showInvoice"
+        role="button"
+        aria-label="关闭"
+        class="dispute-mask"
+        @click="closeInvoice"
+      >
         <view role="button" class="dispute-panel" @click.stop>
           <text class="dispute-title">申请开票</text>
           <text class="dispute-sub">提交后由运营开具电子发票，并发送至您填写的邮箱</text>
@@ -207,7 +217,13 @@
         </view>
       </view>
 
-      <view v-if="showDispute" role="button" aria-label="关闭" class="dispute-mask" @click="closeDispute">
+      <view
+        v-if="showDispute"
+        role="button"
+        aria-label="关闭"
+        class="dispute-mask"
+        @click="closeDispute"
+      >
         <view role="button" class="dispute-panel" @click.stop>
           <text class="dispute-title">{{ refundMode ? '立即退款' : '申请退款 / 账单申诉' }}</text>
           <text class="dispute-sub">
@@ -219,7 +235,8 @@
           </text>
           <view class="chip-row">
             <text
-              v-for="chip in reasonChips" role="button"
+              v-for="chip in reasonChips"
+              role="button"
               :key="chip.label"
               class="reason-chip"
               :class="{ on: selectedCategory === chip.category }"
@@ -291,7 +308,9 @@
             "
             @click="submitAction"
           />
-          <text role="button" class="dispute-cancel" aria-label="取消申诉" @click="closeDispute">取消</text>
+          <text role="button" class="dispute-cancel" aria-label="取消申诉" @click="closeDispute"
+            >取消</text
+          >
         </view>
       </view>
     </view>
@@ -300,11 +319,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import {
-  showError,
-  showSuccess,
-  showConfirm
-} from '@/utils/notify';
+import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
@@ -325,8 +340,8 @@ import {
   type DisputeReasonChip
 } from '@/utils/dispute-form';
 import { consumerAppealErrorMessage } from '@/utils/dispute-copy';
-import {
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+import {
   pickAndUploadEvidence,
   evidenceFileIds,
   previewEvidenceSrc,

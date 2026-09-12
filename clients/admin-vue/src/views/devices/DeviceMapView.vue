@@ -51,7 +51,9 @@
       <button
         type="button"
         class="map-count-btn"
-        :aria-label="listHydrated ? `共 ${filteredPoints.length} 个柜机落点` : `柜机落点 ${UI_COPY.loading}`"
+        :aria-label="
+          listHydrated ? `共 ${filteredPoints.length} 个柜机落点` : `柜机落点 ${UI_COPY.loading}`
+        "
         tabindex="-1"
       >
         {{ listHydrated ? `共 ${filteredPoints.length} 个柜机落点` : `落点${UI_COPY.loading}` }}
@@ -444,7 +446,7 @@ onBeforeUnmount(() => {
   top: 14px;
   left: 54px;
   right: 300px;
-  z-index: 500;
+  z-index: var(--z-map-control, 500);
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -462,7 +464,7 @@ onBeforeUnmount(() => {
   position: absolute;
   left: 54px;
   bottom: 14px;
-  z-index: 500;
+  z-index: var(--z-map-control, 500);
   font-size: var(--admin-font-size-sm);
   color: var(--layout-text);
   background: color-mix(in srgb, var(--layout-card) 92%, transparent);
@@ -492,7 +494,7 @@ onBeforeUnmount(() => {
   right: 14px;
   bottom: 14px;
   width: 280px;
-  z-index: 500;
+  z-index: var(--z-map-control, 500);
   border-radius: 10px;
   padding: 12px;
   background: color-mix(in srgb, var(--layout-card) 96%, transparent);

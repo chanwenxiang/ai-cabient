@@ -58,37 +58,82 @@
           @sort-change="onIdSortChange"
           @selection-change="onSelectionChange"
         >
-          <el-table-column type="selection" width="48" align="center" reserve-selection />
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            reserve-selection
+            class-name="col-status"
+            label-class-name="col-status"
+          />
           <el-table-column
             prop="campaignId"
             label="ID"
             width="80"
             align="center"
             sortable="custom"
+            class-name="col-status"
+            label-class-name="col-status"
           />
           <el-table-column prop="name" label="名称" min-width="160" show-overflow-tooltip />
-          <el-table-column label="状态" width="100" align="center">
+          <el-table-column
+            label="状态"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" :type="statusType(row.status)">{{
                 statusLabel(row.status)
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="范围" width="120" align="center">
+          <el-table-column
+            label="范围"
+            width="120"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               {{ row.deviceScope === 'SPECIFIC' ? `${row.deviceIds.length} 台定向` : '全部设备' }}
             </template>
           </el-table-column>
-          <el-table-column label="素材" width="90" align="center">
+          <el-table-column
+            label="素材"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.assetIds.length }} 个</template>
           </el-table-column>
-          <el-table-column label="曝光" width="80" align="center">
+          <el-table-column
+            label="曝光"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.impressionCount ?? 0 }}</template>
           </el-table-column>
-          <el-table-column label="完播" width="80" align="center">
+          <el-table-column
+            label="完播"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.completeCount ?? 0 }}</template>
           </el-table-column>
-          <el-table-column label="完播率" width="90" align="center">
+          <el-table-column
+            label="完播率"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               {{
                 Number(row.impressionCount) > 0
@@ -97,12 +142,25 @@
               }}
             </template>
           </el-table-column>
-          <el-table-column label="柜机数" width="80" align="center">
+          <el-table-column
+            label="柜机数"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{
               Array.isArray(row.deviceIds) ? row.deviceIds.length : '暂无'
             }}</template>
           </el-table-column>
-          <el-table-column label="时间窗" min-width="220" align="center" show-overflow-tooltip>
+          <el-table-column
+            label="时间窗"
+            min-width="220"
+            align="center"
+            show-overflow-tooltip
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               {{ formatRange(row) }}
             </template>
@@ -137,7 +195,11 @@
       @size-change="onSizeChange"
     />
 
-    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑投放' : '新建投放'" class="dialog-wide">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="editingId ? '编辑投放' : '新建投放'"
+      class="dialog-wide"
+    >
       <el-form label-position="top">
         <el-form-item label="名称">
           <el-input v-model="form.name" placeholder="如：暑期饮料促销" />

@@ -1,16 +1,16 @@
 /**
  * T-D2：小程序源码 a11y 抽检（静态）。
- * - 统计含 @click 的元素是否带 role="button" 或为 button/app-button
+ * - 统计含 @click 的元素是否带 role / aria-label，或为 button/app-button/navigator
  * - 统计功能性图标是否带 aria-label / aria-hidden
  *
  * 用法：node scripts/check-mp-a11y-coverage.mjs
- * 环境变量 MIN_ROLE_PCT=70（默认 70，不设硬失败到 95）
+ * 环境变量 MIN_ROLE_PCT=90（默认 90；R3-X01 从 70 收紧）
  */
 import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOTS = ['clients/consumer-mp/src', 'clients/merchant-mp/src'];
-const MIN_ROLE_PCT = Number(process.env.MIN_ROLE_PCT || 70);
+const MIN_ROLE_PCT = Number(process.env.MIN_ROLE_PCT || 90);
 
 function walk(dir, files = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -46,10 +46,13 @@ for (const root of ROOTS) {
         continue;
       }
       clickables += 1;
-      if (/role\s*=\s*["']button["']/.test(attrs) || /\baria-label\s*=/.test(attrs)) {
+      // 接受任意 ARIA role（tab/switch/checkbox/dialog/button…）或 aria-label
+      if (/\brole\s*=/.test(attrs) || /\baria-label\s*=/.test(attrs)) {
         withRole += 1;
       } else if (samples.length < 12) {
-        samples.push(`${path.relative(process.cwd(), file)}: <${tag} @click> missing role/aria-label`);
+        samples.push(
+          `${path.relative(process.cwd(), file)}: <${tag} @click> missing role/aria-label`
+        );
       }
     }
     // icons
