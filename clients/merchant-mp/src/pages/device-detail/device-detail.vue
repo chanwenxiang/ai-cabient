@@ -70,7 +70,7 @@
             <text class="field-label">备注</text>
             <input v-model="formRemark" class="input" placeholder="选填运维备注" />
           </view>
-          <view class="btn-primary" @click="saveSettings">{{
+          <view class="btn-primary btn-block" @click="saveSettings">{{
             saving ? '保存中…' : '保存设置'
           }}</view>
         </view>
@@ -78,7 +78,7 @@
         <view class="card">
           <view class="row">
             <text class="section">货道</text>
-            <text v-if="!canEditSlots" class="meta">只读（平台未开启或未授权）</text>
+            <text v-if="!canEditSlots" class="meta">暂无货道编辑权限</text>
           </view>
           <view class="slot-grid">
             <view v-for="s in slots" :key="s.slotCode" class="slot-cell">
@@ -96,7 +96,12 @@
               />
             </view>
           </view>
-          <view v-if="canEditSlots" class="btn-primary" style="margin-top: 12px" @click="saveSlots">
+          <view
+            v-if="canEditSlots"
+            class="btn-primary btn-block"
+            style="margin-top: 12px"
+            @click="saveSlots"
+          >
             {{ savingSlots ? '保存中…' : '保存货道' }}
           </view>
         </view>

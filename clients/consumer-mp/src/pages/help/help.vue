@@ -9,49 +9,49 @@
     <view class="card">
       <text class="card-title">联系客服</text>
       <view class="support-row" @click="callSupport">
-        <view>
+        <view class="support-main">
           <text class="support-label">客服热线</text>
           <text class="support-value">{{ supportPhoneDisplay }}</text>
         </view>
         <text class="support-action">拨打</text>
       </view>
       <view v-if="supportEmail" class="support-row" @click="copySupportEmail">
-        <view>
+        <view class="support-main">
           <text class="support-label">客服邮箱</text>
           <text class="support-value">{{ supportEmail }}</text>
         </view>
         <text class="support-action">复制</text>
       </view>
       <view class="support-row" @click="goAnnouncements">
-        <view>
+        <view class="support-main">
           <text class="support-label">平台公告</text>
           <text class="support-value">维护通知、活动与规则变更</text>
         </view>
         <text class="support-action">去查看</text>
       </view>
       <view class="support-row" @click="goFeedback">
-        <view>
+        <view class="support-main">
           <text class="support-label">在线留言</text>
           <text class="support-value">意见反馈，运营将跟进回复</text>
         </view>
         <text class="support-action">去反馈</text>
       </view>
       <view class="support-row" @click="goReport">
-        <view>
+        <view class="support-main">
           <text class="support-label">柜机故障</text>
           <text class="support-value">打不开门、关不上门等</text>
         </view>
         <text class="support-action">去报修</text>
       </view>
       <view class="support-row" @click="goMessages">
-        <view>
+        <view class="support-main">
           <text class="support-label">消息中心</text>
           <text class="support-value">订单、售后与优惠提醒</text>
         </view>
         <text class="support-action">去查看</text>
       </view>
       <view class="support-row" @click="goNearby">
-        <view>
+        <view class="support-main">
           <text class="support-label">附近柜机</text>
           <text class="support-value">按距离找可开门的柜</text>
         </view>
@@ -94,7 +94,7 @@ const openIdx = ref<number | null>(0);
 const faqs = [
   {
     q: '怎么开门购物？',
-    a: '扫描柜门二维码（或手动输入柜机编号），完成实名与免密/余额准备后即可开门。取完商品关上门，系统自动识别并扣款。'
+    a: '扫描柜门二维码，完成实名与免密/余额准备后即可开门。取完商品关上门，系统自动识别并扣款。'
   },
   {
     q: '如何扣款？会不会多扣？',
@@ -106,7 +106,7 @@ const faqs = [
   },
   {
     q: '余额怎么充值？',
-    a: '在「我的」或「账户充值」页选择微信/支付宝充值。正式环境仅展示真实支付；开发构建才可能出现模拟充值。'
+    a: '在「我的」或「账户充值」选择微信/支付宝充值即可。'
   },
   {
     q: '柜机打不开或关不上怎么办？',
@@ -228,11 +228,18 @@ function goOrders() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16rpx;
   padding: 22rpx 0;
   border-bottom: 1rpx solid #f3f4f6;
+  box-sizing: border-box;
+  width: 100%;
 }
 .support-row:last-child {
   border-bottom: none;
+}
+.support-main {
+  flex: 1 1 0;
+  min-width: 0;
 }
 .support-label {
   display: block;
@@ -245,14 +252,22 @@ function goOrders() {
   margin-top: 6rpx;
   font-size: 22rpx;
   color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+/* 固定右栏宽度 + 右对齐，避免「拨打」与「去查看」字数不同导致右缘参差 */
 .support-action {
-  flex-shrink: 0;
-  margin-left: 16rpx;
+  flex: 0 0 108rpx;
+  width: 108rpx;
+  max-width: 108rpx;
+  margin-left: 0;
   color: #059669;
   font-size: 26rpx;
   font-weight: 600;
+  text-align: right;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 .faq-item {
   padding: 20rpx 0;
@@ -266,18 +281,24 @@ function goOrders() {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16rpx;
+  width: 100%;
+  box-sizing: border-box;
 }
 .faq-q {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   font-size: 28rpx;
   color: #111827;
   font-weight: 600;
   line-height: 1.4;
 }
 .faq-toggle {
+  flex: 0 0 108rpx;
+  width: 108rpx;
   color: #059669;
   font-size: 32rpx;
-  line-height: 1;
+  line-height: 1.2;
+  text-align: right;
 }
 .faq-a {
   display: block;

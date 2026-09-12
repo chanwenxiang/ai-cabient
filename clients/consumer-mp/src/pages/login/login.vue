@@ -41,12 +41,12 @@
             class="divider-toggle"
             role="button"
             :aria-expanded="showPhoneForm ? 'true' : 'false'"
-            :aria-label="showPhoneForm ? '收起手机号登录' : '其他方式登录'"
+            :aria-label="showPhoneForm ? '收起' : '其他方式登录'"
             data-testid="login-other-method"
             @click="showPhoneForm = !showPhoneForm"
           >
             <text class="divider-text">
-              {{ showPhoneForm ? '收起手机号登录' : '其他方式' }}
+              {{ showPhoneForm ? '收起' : '其他方式' }}
             </text>
           </view>
           <view class="divider-line" />
@@ -206,10 +206,10 @@ const mode = ref<'password' | 'sms'>('sms');
 const demoHint = computed(() => {
   if (!isDev) return '';
   if (mode.value === 'password' && demoPhone && demoPassword) {
-    return `开发联调：${demoPhone} / 密码 ${demoPassword}`;
+    return `体验账号：${demoPhone} / ${demoPassword}`;
   }
   if (mode.value === 'sms' && demoPassword) {
-    return `开发联调：先点「获取验证码」；mock 开时可用 ${demoPassword}`;
+    return `体验验证码：先点「获取验证码」，可用 ${demoPassword}`;
   }
   return '';
 });

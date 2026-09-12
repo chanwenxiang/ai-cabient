@@ -5,9 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">线长钱包</span>
-            <span class="hint"
-              >与商户平台分账解耦 · 默认 Mock 打款（非真实微信转账到零钱） · 地推完成入账赏金</span
-            >
+            <span class="hint">与商户分账解耦 · 地推完成入账赏金 · 测试环境可能为记账打款</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -138,7 +136,11 @@
             <el-table-column label="绑柜" min-width="160" show-overflow-tooltip align="center">
               <template #default="{ row }">{{ (row.deviceIds || []).join(', ') || '无' }}</template>
             </el-table-column>
-            <el-table-column prop="commissionRateBps" label="佣金比例" width="90" align="center" />
+            <el-table-column label="佣金比例" width="100" align="center">
+              <template #default="{ row }">
+                {{ ((Number(row.commissionRateBps) || 0) / 100).toFixed(2) }}%
+              </template>
+            </el-table-column>
             <el-table-column
               prop="commissionFixedCents"
               label="固定分/单"
@@ -163,25 +165,27 @@
               fixed="right"
             >
               <template #default="{ row }">
-                <el-button
-                  v-hasPermi="['ops:line-manager:edit']"
-                  link
-                  type="primary"
-                  @click="openBind(row)"
-                  >绑柜</el-button
-                >
-                <el-button v-hasPermi="['ops:line-manager:edit']" link @click="adjust(row)"
-                  >调账</el-button
-                >
-                <el-button link @click="showLedgers(row)">流水</el-button>
-                <el-button link @click="showKpi(row)">业绩</el-button>
-                <el-button
-                  v-hasPermi="['ops:line-manager:edit']"
-                  link
-                  type="warning"
-                  @click="proxyWithdraw(row)"
-                  >代提现</el-button
-                >
+                <div class="table-row-actions">
+                  <el-button
+                    v-hasPermi="['ops:line-manager:edit']"
+                    link
+                    type="primary"
+                    @click="openBind(row)"
+                    >绑柜</el-button
+                  >
+                  <el-button v-hasPermi="['ops:line-manager:edit']" link @click="adjust(row)"
+                    >调账</el-button
+                  >
+                  <el-button link @click="showLedgers(row)">流水</el-button>
+                  <el-button link @click="showKpi(row)">业绩</el-button>
+                  <el-button
+                    v-hasPermi="['ops:line-manager:edit']"
+                    link
+                    type="warning"
+                    @click="proxyWithdraw(row)"
+                    >代提现</el-button
+                  >
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -241,7 +245,7 @@
             <el-table-column prop="requestId" label="单号" width="80" align="center" />
             <el-table-column
               prop="requestNo"
-              label="幂等号"
+              label="业务单号"
               min-width="160"
               show-overflow-tooltip
               align="center"
@@ -804,7 +808,7 @@ async function loadPayoutMode() {
     if (!loadSeq.isCurrent(seq, 'loadPayoutMode')) return;
     payoutMode.value = {
       mockEnabled: true,
-      note: '无法读取打款模式；演示环境通常为 Mock（非真实转账到零钱）'
+      note: '无法读取打款模式；当前可能为记账打款（非真实转账到零钱）'
     };
   }
 }

@@ -8,8 +8,8 @@
       title="加载失败"
       :hint="error"
     >
-      <button class="empty-btn primary" hover-class="btn-hover" @click="load">重试</button>
-      <button class="empty-btn ghost" hover-class="btn-hover" @click="goShop">扫码购物</button>
+      <button class="empty-btn primary btn-block" hover-class="btn-hover" @click="load">重试</button>
+      <button class="empty-btn ghost btn-block" hover-class="btn-hover" @click="goShop">扫码购物</button>
     </empty-state>
     <empty-state
       v-else-if="!authed"
@@ -17,8 +17,8 @@
       title="登录后查看订单"
       hint="登录后可查看购物账单与审核进度"
     >
-      <button class="empty-btn primary" hover-class="btn-hover" @click="onAuth">去登录</button>
-      <button class="empty-btn ghost" hover-class="btn-hover" @click="goShop">扫码购物</button>
+      <button class="empty-btn primary btn-block" hover-class="btn-hover" @click="onAuth">去登录</button>
+      <button class="empty-btn ghost btn-block" hover-class="btn-hover" @click="goShop">扫码购物</button>
     </empty-state>
     <view v-else class="orders-main">
       <!-- 关注区 + 筛选 + 列表同一滚动，避免上半区固定挤占购买记录 -->
@@ -102,7 +102,7 @@
           title="暂无订单"
           hint="扫码开门购物后，账单会显示在这里"
         >
-          <button class="empty-btn primary" hover-class="btn-hover" @click="goShop">
+          <button class="empty-btn primary btn-block" hover-class="btn-hover" @click="goShop">
             扫码购物
           </button>
         </empty-state>
@@ -532,7 +532,10 @@ function goHelp() {
   uni.navigateTo({ url: '/pages/help/help' });
 }
 
-onShow(load);
+onShow(() => {
+  uni.showTabBar({ animation: false });
+  load();
+});
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 </script>
 
@@ -555,17 +558,20 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .state-wrap {
   flex: 1;
-  padding: 48rpx 40rpx 32rpx;
+  /* 与订单卡片 margin 左右 24rpx 对齐，避免空态按钮比列表更窄 */
+  padding: 48rpx 24rpx 32rpx;
   text-align: center;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   justify-content: flex-start;
   min-height: 40vh;
+  box-sizing: border-box;
+  width: 100%;
 }
 .state-wrap.inline {
   flex: 0;
-  padding: 24rpx 40rpx;
+  padding: 24rpx;
 }
 .state-wrap.compact {
   padding: 32rpx 24rpx;
@@ -766,7 +772,8 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   box-sizing: border-box;
 }
 .order-card {
-  margin: 0 24rpx 16rpx;
+  /* 水平 gutter 由列表容器 padding 承担，勿再叠 24rpx */
+  margin: 0 0 16rpx;
   padding: 26rpx 28rpx;
   border-radius: 22rpx;
   background: #fff;

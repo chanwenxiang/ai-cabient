@@ -69,7 +69,7 @@ export function formatMpRequestError(
 ): string {
   const raw = errMsg || '网络错误';
   const verbose = isDevBuild || isLocalDebugApi(baseUrl);
-  const apiHint = baseUrl ? `（当前 API：${baseUrl}）` : '';
+  const apiHint = verbose && baseUrl ? `（当前 API：${baseUrl}）` : '';
   if (raw === 'request:fail' || raw.includes('request:fail')) {
     const pointsToLoopback = /localhost|127\.0\.0\.1/i.test(baseUrl);
     if (!isH5Runtime() && pointsToLoopback) {
@@ -93,7 +93,7 @@ export function formatMpRequestError(
         apiHint
       );
     }
-    return '网络不太稳定，请稍后再试' + apiHint;
+    return '网络不太稳定，请稍后再试';
   }
   if (raw.includes('timeout')) {
     return '请求超时，请稍后重试' + apiHint;

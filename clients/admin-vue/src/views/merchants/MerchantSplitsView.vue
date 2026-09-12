@@ -32,7 +32,7 @@
           type="info"
           :closable="false"
           show-icon
-          title="上级商户可见全部下级货柜。组织树展示各级平台抽成；子商户结算按自身 platformRateBps，上级通过组织归属汇总经营数据（非自动再抽成）。"
+          title="上级商户可见全部下级货柜。组织树展示各级平台抽成；子商户按自身抽成比例结算，上级通过组织归属汇总经营数据（非自动再抽成）。"
           class="status-banner"
         />
         <div class="org-toolbar">
@@ -379,10 +379,10 @@
           <template #title>
             {{ psStatus.note }}
             <span class="status-meta">
-              启用={{ psStatus.enabled ? '是' : '否' }} · API={{
+              启用={{ psStatus.enabled ? '是' : '否' }} · 分账接口={{
                 psStatus.apiReady ? '就绪' : '未就绪'
               }}
-              · 微信={{ psStatus.wechatPayConfigured }}
+              · 微信商户={{ psStatus.wechatPayConfigured }}
             </span>
           </template>
         </el-alert>
@@ -392,7 +392,7 @@
           show-icon
           class="status-banner"
           title="仅记账 / 记账模式"
-          description="余额扣款订单通常为「仅记账」(LEDGER_ONLY)：商户份额已入钱包，不调用微信分账。可用「确认完结」移出待跟进；配置接收方并绑定微信交易号后再点「提交」走真分账或 Mock。"
+          description="余额扣款订单通常为「仅记账」：商户份额已入钱包，不调用微信分账。可用「确认完结」移出待跟进；配置接收方并绑定微信交易号后再点「提交」走真实分账。"
         />
 
         <el-form
@@ -605,8 +605,7 @@
       destroy-on-close
     >
       <p class="dialog-hint">
-        上级商户可见全部下级货柜。抽成单位为 bps：1000 = 10%。非 ACTIVE
-        状态会拦截消费者开门购物（运维/补货开门不受影响）。
+        上级商户可见全部下级货柜。平台抽成按百分比填写（如 10 表示 10%）。非营业状态会拦截消费者开门购物（运维/补货开门不受影响）。
       </p>
       <el-form label-position="top">
         <el-form-item label="商户编号" required>
@@ -649,8 +648,19 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="抽成（bps，1000=10%）">
-          <el-input-number v-model="orgForm.platformRateBps" :min="0" :max="10000" :step="100" />
+        <el-form-item label="平台抽成（%）">
+          <el-input-number
+            :model-value="(orgForm.platformRateBps || 0) / 100"
+            :min="0"
+            :max="100"
+            :step="0.5"
+            :precision="1"
+            style="width: 100%"
+            @update:model-value="
+              (v: number | undefined) =>
+                (orgForm.platformRateBps = Math.round((Number(v) || 0) * 100))
+            "
+          />
         </el-form-item>
       </el-form>
       <template #footer>

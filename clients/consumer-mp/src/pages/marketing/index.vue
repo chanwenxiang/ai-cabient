@@ -33,15 +33,23 @@
 
         <view class="section-title">进行中</view>
         <view v-if="loading && !campaigns.length" class="empty">加载中…</view>
-        <empty-state
-          v-else-if="!campaigns.length"
-          icon="/static/menu/hot.png"
-          title="暂无进行中活动"
-          hint="可先领券，或扫码开门购物"
-        >
-          <button class="empty-btn primary" @click="goShop">扫码购物</button>
-          <button class="empty-btn ghost" @click="goCoupons">去领券</button>
-        </empty-state>
+        <view v-else-if="!campaigns.length" class="market-empty">
+          <empty-state
+            icon="/static/menu/hot.png"
+            title="暂无进行中活动"
+            hint="可先领券，或扫码开门购物"
+          />
+          <!-- 按钮放在页面层，与 banner/entry 同一包含块，避免自定义组件内 width:100% 撑出 page-body -->
+          <view class="market-actions">
+            <!-- 用 view 而非原生 button：微信里 button 的 width:100% 常按页面宽度算，会比上方卡片更宽 -->
+            <view class="empty-btn primary btn-block" hover-class="btn-hover" @click="goShop"
+              >扫码购物</view
+            >
+            <view class="empty-btn ghost btn-block" hover-class="btn-hover" @click="goCoupons"
+              >去领券</view
+            >
+          </view>
+        </view>
         <view v-else>
           <view v-for="c in campaigns" :key="c.id" class="campaign" @click="onCampaignClick(c)">
             <view class="campaign-badge" :class="'tone-' + c.coverColor">{{ c.typeLabel }}</view>
@@ -261,23 +269,30 @@ function remainText(end?: string) {
   display: none;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  /* 唯一水平边距：banner / 入口卡 / 底部操作同宽（勿用 CSS 变量，旧基础库可能整段 padding 失效） */
+  padding: 20rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
+  width: 100%;
 }
 .banner {
   height: 280rpx;
-  margin-bottom: 20rpx;
+  margin: 0 0 20rpx;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 .banner-card {
-  height: 260rpx;
-  margin: 0 4rpx;
-  padding: 36rpx 32rpx;
-  border-radius: 28rpx;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 36rpx 28rpx;
+  border-radius: 24rpx;
   display: flex;
   justify-content: space-between;
   align-items: center;
   color: #fff;
   background: linear-gradient(135deg, #064e3b, #059669);
+  box-sizing: border-box;
 }
 .banner-card.tone-amber {
   background: linear-gradient(135deg, #92400e, #f59e0b);
@@ -333,10 +348,13 @@ function remainText(end?: string) {
   justify-content: space-between;
   align-items: center;
   padding: 28rpx 24rpx;
-  margin-bottom: 16rpx;
-  border-radius: 22rpx;
+  margin: 0 0 16rpx;
+  border-radius: 24rpx;
   background: #fff;
   box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
 }
 .entry.mint {
   background: linear-gradient(90deg, #fff, #ecfdf5);
@@ -443,8 +461,34 @@ function remainText(end?: string) {
   padding: 60rpx 0;
   color: #999;
 }
-/* 高度/通栏由 App.vue + empty-actions 统一（微信 88rpx 触控） */
+.market-empty {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.market-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-top: 8rpx;
+}
+.market-actions .empty-btn + .empty-btn {
+  margin-top: 24rpx !important;
+}
+/* 高度/通栏由 App.vue 统一（微信 88rpx 触控） */
 .empty-btn::after {
   border: none;
+}
+.market-actions .empty-btn {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  align-self: stretch !important;
+  box-sizing: border-box !important;
 }
 </style>

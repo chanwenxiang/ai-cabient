@@ -30,17 +30,22 @@ withDefaults(
 .empty-state {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  /* stretch：避免 center 导致小程序里百分比宽度参照错误、按钮比上方卡片更宽 */
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   text-align: center;
-  padding: 80rpx 40rpx;
+  /* 水平 padding 交给外层 page-body，与卡片同宽 */
+  padding: 64rpx 0 24rpx;
 }
 .empty-state.compact {
-  padding: 48rpx 24rpx;
+  padding: 40rpx 0 16rpx;
 }
 .empty-icon {
   width: 88rpx;
   height: 88rpx;
-  margin-bottom: 16rpx;
+  margin: 0 auto 16rpx;
   border-radius: 24rpx;
   background: var(--brand-soft, #ecfdf5);
   color: var(--brand, #047857);
@@ -48,12 +53,14 @@ withDefaults(
   font-weight: 700;
   line-height: 88rpx;
   text-align: center;
+  align-self: center;
 }
 .empty-title {
   font-size: 30rpx;
   font-weight: 700;
   color: #223029;
   text-align: center;
+  align-self: center;
 }
 .empty-hint {
   margin-top: 10rpx;
@@ -61,19 +68,18 @@ withDefaults(
   color: #849087;
   line-height: 1.5;
   text-align: center;
+  align-self: center;
 }
 .empty-actions {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  /* 微信小程序对 flex gap 支持不稳，用相邻 margin 保证间距 */
+  /* 勿用 > *：scoped 会编译成 >*.data-v-xxx，WXSS 不支持通配符 * */
   gap: 16rpx;
   margin-top: 28rpx;
   width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
-}
-.empty-actions > *:not(:first-child) {
-  margin-top: 16rpx;
 }
 /* uni 插槽按钮可能落在组件根下：保证空态竖排间距与通栏 */
 :deep(.empty-btn + .empty-btn),

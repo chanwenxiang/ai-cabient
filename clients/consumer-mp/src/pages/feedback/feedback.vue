@@ -51,12 +51,13 @@
           <input
             class="input"
             :value="deviceId"
-            placeholder="例如 CAB-001"
+            placeholder="请输入柜机编号（选填）"
+            type="digit"
             @input="deviceId = eventInputValue($event)"
           />
 
           <button
-            class="btn-primary"
+            class="btn-primary btn-block"
             hover-class="btn-hover"
             :loading="submitting"
             :disabled="submitting"
@@ -266,6 +267,10 @@ async function onSubmit() {
   background: #fff;
   border-radius: 24rpx;
   padding: 32rpx;
+  margin: 0 0 16rpx;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 .field-label {
   font-size: 26rpx;
@@ -318,6 +323,8 @@ async function onSubmit() {
 }
 .btn-primary {
   margin: 16rpx 0 0;
+  width: 100% !important;
+  max-width: none !important;
   background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;

@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">素材库</span>
-            <span class="hint">预览/演示素材管理；柜机端实际播放与曝光回写尚未接入</span>
+            <span class="hint">素材库；柜机播放与曝光统计接入前仅支持后台预览</span>
           </div>
         </div>
         <div class="page-card-head__actions">

@@ -6,7 +6,7 @@
           <div class="page-card-head__title">
             <span class="title">设备管理</span>
             <span class="hint"
-              >运营状态看板：在线 / 离线 / 在售 / 停售一键筛选；可批量锁机停售或解锁营业</span
+              >「可购买」= 在线且未锁机；「未锁机」只表示没锁营业，离线仍买不了。可批量锁机或解锁</span
             >
           </div>
         </div>
@@ -18,7 +18,7 @@
             :disabled="!selectedKeys.length"
             :loading="batchCmdLoading === 'LOCK'"
             @click="batchCommand('LOCK')"
-            >批量停售</el-button
+            >批量锁机</el-button
           >
           <el-button
             v-hasPermi="['ops:device:edit']"
@@ -27,7 +27,7 @@
             :disabled="!selectedKeys.length"
             :loading="batchCmdLoading === 'UNLOCK'"
             @click="batchCommand('UNLOCK')"
-            >批量恢复</el-button
+            >批量解锁</el-button
           >
           <el-button
             v-hasPermi="['ops:device:edit']"
@@ -91,7 +91,7 @@
       :closable="false"
       show-icon
       class="ops-banner"
-      :title="`需关注 ${attentionCount} 台：离线 ${boardCounts.OFFLINE} · 停售 ${boardCounts.LOCKED}（点击看板筛选）`"
+      :title="`需关注 ${attentionCount} 台：离线 ${boardCounts.OFFLINE} · 已锁机 ${boardCounts.LOCKED}（点击看板筛选）`"
     />
 
     <el-tabs v-model="boardTab" class="status-tabs" @tab-change="onBoardTab">
@@ -104,8 +104,9 @@
         :label="boardTabLabel('OFFLINE', displayLabel('online_status', 'OFFLINE'))"
         name="OFFLINE"
       />
-      <el-tab-pane :label="boardTabLabel('ON_SALE', '在售')" name="ON_SALE" />
-      <el-tab-pane :label="boardTabLabel('LOCKED', '停售')" name="LOCKED" />
+      <el-tab-pane :label="boardTabLabel('CAN_BUY', '可购买')" name="CAN_BUY" />
+      <el-tab-pane :label="boardTabLabel('ON_SALE', '未锁机')" name="ON_SALE" />
+      <el-tab-pane :label="boardTabLabel('LOCKED', '已锁机')" name="LOCKED" />
     </el-tabs>
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
@@ -233,10 +234,28 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="运营态" width="88" align="center">
+          <el-table-column label="锁机" width="100" align="center">
             <template #default="{ row }">
               <el-tag :type="row.salesLocked ? 'danger' : 'success'" size="small">
-                {{ row.salesLocked ? '停售' : '在售' }}
+                {{ row.salesLocked ? '已锁机' : '未锁机' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="能否购买" width="100" align="center">
+            <template #default="{ row }">
+              <el-tag
+                :type="
+                  !row.salesLocked && row.onlineStatus === 'ONLINE' ? 'success' : 'info'
+                "
+                size="small"
+              >
+                {{
+                  row.salesLocked
+                    ? '不可买'
+                    : row.onlineStatus === 'ONLINE'
+                      ? '可购买'
+                      : '离线不可买'
+                }}
               </el-tag>
             </template>
           </el-table-column>
@@ -259,7 +278,7 @@
               >
             </template>
           </el-table-column>
-          <el-table-column label="停售原因" min-width="140" align="center" class-name="col-text">
+          <el-table-column label="锁机原因" min-width="140" align="center" class-name="col-text">
             <template #default="{ row }">
               <span
                 v-if="row.salesLocked && row.salesLockReason"
@@ -515,7 +534,7 @@ import type {
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
-type BoardTab = 'ALL' | 'ONLINE' | 'OFFLINE' | 'ON_SALE' | 'LOCKED';
+type BoardTab = 'ALL' | 'ONLINE' | 'OFFLINE' | 'CAN_BUY' | 'ON_SALE' | 'LOCKED';
 
 interface MerchantOption {
   merchantId: string;
@@ -557,10 +576,11 @@ const boardCounts = reactive({
   ALL: 0,
   ONLINE: 0,
   OFFLINE: 0,
+  CAN_BUY: 0,
   ON_SALE: 0,
   LOCKED: 0
 });
-/** 离线且停售的交集，用于「需关注」去重：|离线 ∪ 停售| = 离线 + 停售 − 交集 */
+/** 离线且已锁机的交集，用于「需关注」去重：|离线 ∪ 已锁机| = 离线 + 已锁机 − 交集 */
 const attentionOverlap = ref(0);
 /** 避免首屏看板/Tab 在请求完成前误显「0」 */
 const boardHydrated = ref(false);
@@ -568,8 +588,9 @@ const boardTiles: { key: BoardTab; label: string; hint?: string; warn?: boolean 
   { key: 'ALL', label: '全部设备' },
   { key: 'ONLINE', label: displayLabel('online_status', 'ONLINE'), hint: '心跳正常' },
   { key: 'OFFLINE', label: displayLabel('online_status', 'OFFLINE'), hint: '需巡检', warn: true },
-  { key: 'ON_SALE', label: '在售', hint: '可营业' },
-  { key: 'LOCKED', label: '停售', hint: '已锁机', warn: true }
+  { key: 'CAN_BUY', label: '可购买', hint: '在线且未锁' },
+  { key: 'ON_SALE', label: '未锁机', hint: '含离线柜' },
+  { key: 'LOCKED', label: '已锁机', hint: '禁止开门', warn: true }
 ];
 const policyForm = reactive({
   deviceId: '',
@@ -595,6 +616,8 @@ function boardQuery(tab: BoardTab): { online?: string; salesLocked?: string } {
       return { online: 'ONLINE' };
     case 'OFFLINE':
       return { online: 'OFFLINE' };
+    case 'CAN_BUY':
+      return { online: 'ONLINE', salesLocked: 'false' };
     case 'ON_SALE':
       return { salesLocked: 'false' };
     case 'LOCKED':
@@ -605,19 +628,20 @@ function boardQuery(tab: BoardTab): { online?: string; salesLocked?: string } {
 }
 
 function tabFromRouteQuery(): BoardTab {
-  if (typeof route.query.online === 'string') {
-    const online = route.query.online.toUpperCase();
-    if (online === 'ONLINE' || online === 'OFFLINE') return online;
-  }
-  if (typeof route.query.salesLocked === 'string') {
-    if (route.query.salesLocked === 'true') return 'LOCKED';
-    if (route.query.salesLocked === 'false') return 'ON_SALE';
-  }
+  const online =
+    typeof route.query.online === 'string' ? route.query.online.toUpperCase() : '';
+  const salesLocked =
+    typeof route.query.salesLocked === 'string' ? route.query.salesLocked : '';
+  if (online === 'ONLINE' && salesLocked === 'false') return 'CAN_BUY';
+  if (online === 'ONLINE' || online === 'OFFLINE') return online;
+  if (salesLocked === 'true') return 'LOCKED';
+  if (salesLocked === 'false') return 'ON_SALE';
   if (typeof route.query.tab === 'string') {
     const tab = route.query.tab.toUpperCase();
     if (
       tab === 'ONLINE' ||
       tab === 'OFFLINE' ||
+      tab === 'CAN_BUY' ||
       tab === 'ON_SALE' ||
       tab === 'LOCKED' ||
       tab === 'ALL'
@@ -662,8 +686,9 @@ const { onExport } = useListCsv({
     '名称',
     '类型',
     displayLabel('online_status', 'ONLINE'),
-    '运营态',
-    '停售原因',
+    '锁机',
+    '能否购买',
+    '锁机原因',
     '柜内温度',
     '固件',
     '生命周期',
@@ -683,7 +708,12 @@ const { onExport } = useListCsv({
       row.deviceName,
       dictLabel('device_type', row.deviceType),
       dictLabel('online_status', row.onlineStatus),
-      row.salesLocked ? '停售' : '在售',
+      row.salesLocked ? '已锁机' : '未锁机',
+      row.salesLocked
+        ? '不可买'
+        : row.onlineStatus === 'ONLINE'
+          ? '可购买'
+          : '离线不可买',
       row.salesLocked ? row.salesLockReason || '' : '',
       row.currentTempC != null ? `${row.currentTempC}` : '',
       row.firmwareVersion || '',
@@ -812,7 +842,7 @@ async function batchCommand(command: 'LOCK' | 'UNLOCK') {
     ElMessage.warning('请先勾选设备');
     return;
   }
-  const label = command === 'LOCK' ? '锁机停售' : '解锁营业';
+  const label = command === 'LOCK' ? '锁机' : '解锁';
   try {
     await ElMessageBox.confirm(`将对 ${targets.length} 台设备执行「${label}」，确认继续？`, label, {
       type: 'warning',
@@ -940,6 +970,7 @@ async function refreshBoardCounts() {
     { key: 'ALL' },
     { key: 'ONLINE', online: 'ONLINE' },
     { key: 'OFFLINE', online: 'OFFLINE' },
+    { key: 'CAN_BUY', online: 'ONLINE', salesLocked: 'false' },
     { key: 'ON_SALE', salesLocked: 'false' },
     { key: 'LOCKED', salesLocked: 'true' }
   ];
@@ -1182,7 +1213,7 @@ onActivated(() => {
 }
 .ops-board {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
   margin: 0 0 12px;
   padding: 0;

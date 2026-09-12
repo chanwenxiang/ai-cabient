@@ -119,7 +119,7 @@ const isDev = showDevTools();
 const demoPhone = String(import.meta.env.VITE_DEMO_PHONE || '').trim();
 const demoPassword = String(import.meta.env.VITE_DEMO_PASSWORD || '').trim();
 const demoHint =
-  isDev && demoPhone && demoPassword ? `开发演示：${demoPhone} / ${demoPassword}` : '';
+  isDev && demoPhone && demoPassword ? `体验账号：${demoPhone} / ${demoPassword}` : '';
 
 const rememberCredentials = ref(readStorage(REMEMBER_KEY) !== '0');
 const savedPhone = rememberCredentials.value ? readStorage(PHONE_KEY) : '';

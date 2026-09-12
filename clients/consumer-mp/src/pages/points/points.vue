@@ -153,6 +153,10 @@ function goRedeem() {
   background: linear-gradient(135deg, #ecfdf5, #fff);
   border: 1rpx solid #d1fae5;
   box-shadow: none;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0;
 }
 .summary-main {
   flex: 1;
@@ -209,10 +213,13 @@ function goRedeem() {
   line-height: 1.35;
 }
 .card {
-  margin-top: 24rpx;
+  margin: 24rpx 0 0;
   padding: 28rpx 24rpx;
   border-radius: 24rpx;
   background: #fff;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 .card-head {
   display: flex;

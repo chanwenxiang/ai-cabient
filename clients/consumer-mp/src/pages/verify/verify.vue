@@ -47,7 +47,7 @@
         >
           {{ verifying ? '提交中…' : '下一步' }}
         </button>
-        <text v-if="devTools" class="hint">开发环境仅做格式校验，上线需对接实名核验。</text>
+        <text v-if="devTools" class="hint">当前仅校验格式，正式环境将对接实名核验。</text>
         <text v-if="err" class="err">{{ err }}</text>
       </view>
 
@@ -104,9 +104,7 @@
           {{ signingAlipay ? '开通中…' : '开通支付宝免密' }}
         </button>
         <view class="link" @click="goRecharge">余额不足？去充值 ›</view>
-        <text v-if="devTools" class="hint"
-          >开发环境为模拟开通；正式环境将跳转微信/支付宝签约页。</text
-        >
+        <text v-if="devTools" class="hint">当前为体验开通流程；正式环境将跳转微信/支付宝签约。</text>
         <text v-if="err" class="err">{{ err }}</text>
       </view>
 

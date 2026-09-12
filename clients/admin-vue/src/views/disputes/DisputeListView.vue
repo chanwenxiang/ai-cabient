@@ -6,7 +6,7 @@
           <div class="page-card-head__title">
             <span class="title">争议审核</span>
             <span class="hint"
-              >识别争议可按低置信 / 模拟识别 / 重力错配分拣；同屏对照录像改 SKU
+              >识别争议可按低置信 / 兜底识别 / 重力错配分拣；同屏对照录像改 SKU
               后一键落账或免单</span
             >
           </div>
@@ -34,7 +34,7 @@
     >
       <el-radio-button value="ALL">全部识别</el-radio-button>
       <el-radio-button value="LOW_CONF">低置信</el-radio-button>
-      <el-radio-button value="MOCK">模拟识别</el-radio-button>
+      <el-radio-button value="MOCK">兜底识别</el-radio-button>
       <el-radio-button value="GRAVITY_MISMATCH">重力错配</el-radio-button>
       <el-radio-button value="GRAVITY_FILL">重力回填</el-radio-button>
       <el-radio-button value="UNMAPPED">未映射</el-radio-button>
@@ -420,7 +420,7 @@
             type="warning"
             :closable="false"
             show-icon
-            title="当前为模拟/兜底识别，不是生产级视觉精度；请对照录像人工确认后再落账。"
+            title="当前为兜底识别，精度有限；请对照录像人工确认后再落账。"
             class="suggest-alert"
           />
           <el-descriptions :column="1" border size="small">
@@ -894,7 +894,7 @@ function disputeStatusType(s?: string) {
 
 const REVIEW_CODE_HINTS: Record<string, string> = {
   LOW_CONF: '低置信',
-  MOCK: '模拟识别',
+  MOCK: '兜底识别',
   GRAVITY_MISMATCH: '重力错配',
   GRAVITY_FILL: '重力回填',
   UNMAPPED: '未映射',
@@ -911,7 +911,7 @@ const RECOGNITION_HINT_RULES: Array<{
   test: (text: string, row: { category?: string }) => boolean;
   hint: string;
 }> = [
-  { test: (text) => /模拟|非生产精度|mock/i.test(text), hint: '模拟识别' },
+  { test: (text) => /模拟|非生产精度|mock|兜底/i.test(text), hint: '兜底识别' },
   { test: (text) => /视觉与重力|重力.*不一致|错配/.test(text), hint: '重力错配' },
   { test: (text) => /仅有重力|重力信号/.test(text), hint: '重力回填' },
   { test: (text) => /低置信|置信度|阈值/.test(text), hint: '低置信' },

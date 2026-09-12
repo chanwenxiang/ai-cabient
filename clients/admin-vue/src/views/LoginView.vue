@@ -29,7 +29,7 @@
             name="phone"
             maxlength="11"
             inputmode="numeric"
-            autocomplete="tel"
+            autocomplete="username"
             spellcheck="false"
             placeholder="请输入11位手机号…"
             size="large"
@@ -44,11 +44,13 @@
             v-model="password"
             type="password"
             show-password
+            name="password"
             autocomplete="current-password"
             placeholder="请输入登录密码…"
             size="large"
             :disabled="loading"
-            @input="err = ''"
+            @focus="onPasswordFocus"
+            @input="onPasswordInput"
             @keyup.enter="focusCaptcha"
           />
         </el-form-item>
@@ -138,7 +140,7 @@
         </div>
       </el-form>
       <p v-if="ENABLE_TEST_TOOLS" class="hint">
-        演示账号（密码均为 123456）：<br />
+        内部测试账号（密码均为 123456）：<br />
         超管 13900000001 · 财务 13900000002 · 运营 13900000003<br />
         补货 13900000004 · 只读 13900000005
       </p>
@@ -240,7 +242,7 @@
 import { nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRouter, useRoute } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { ElMessage, type InputInstance } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
 import { useBrandStore } from '@/stores/brand';
 import { api } from '@/api/client';
@@ -273,7 +275,7 @@ const particles = Array.from({ length: 16 }, (_, i) => {
 
 const phone = ref(localStorage.getItem('admin_phone') || (ENABLE_TEST_TOOLS ? '13900000001' : ''));
 
-/** 只记住手机号；密码禁止写入 localStorage（旧版 base64「混淆」已清除）。 */
+/** 只记住手机号；密码不写 localStorage（安全）。演示号可预填，其余靠浏览器密码管理器。 */
 const PW_STORE_KEY = 'admin_password';
 const PW_FLAG_KEY = 'admin_remember_password';
 try {
@@ -283,8 +285,15 @@ try {
   /* ignore quota / private mode */
 }
 
+const DEMO_LOGIN_PASSWORD = '123456';
+function isDemoPhone(p: string) {
+  return /^1390000000[1-5]$/.test(p.trim());
+}
+
 const rememberPhone = ref(localStorage.getItem('admin_remember_phone') !== '0');
-const password = ref(ENABLE_TEST_TOOLS ? '123456' : '');
+const password = ref(
+  ENABLE_TEST_TOOLS || isDemoPhone(phone.value) ? DEMO_LOGIN_PASSWORD : ''
+);
 const captchaCode = ref('');
 const captchaId = ref('');
 const captchaImage = ref('');
@@ -303,19 +312,76 @@ const resetCaptchaLoading = ref(false);
 const smsCooldown = ref(0);
 const smsTimer = ref<ReturnType<typeof setInterval> | null>(null);
 const resetForm = ref({ phoneNumber: '', smsCode: '', newPassword: '', confirmPassword: '' });
-const phoneInput = ref<{ focus?: () => void } | null>(null);
-const passwordInput = ref<{ focus?: () => void } | null>(null);
-const captchaInput = ref<{ focus?: () => void } | null>(null);
+const phoneInput = ref<InputInstance | null>(null);
+const passwordInput = ref<InputInstance | null>(null);
+const captchaInput = ref<InputInstance | null>(null);
 const auth = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
+let caretFixTimers: number[] = [];
+
 onUnmounted(() => {
   if (smsTimer.value) clearInterval(smsTimer.value);
+  for (const id of caretFixTimers) window.clearTimeout(id);
+  caretFixTimers = [];
 });
 
+function nativeOf(input: InputInstance | null | undefined): HTMLInputElement | null {
+  const el = input?.input;
+  return el instanceof HTMLInputElement ? el : null;
+}
+
+/**
+ * 保留 type=password 以便浏览器自动填充密码。
+ * 填充后可视光标常停在开头：清空再写回 + setSelectionRange 推到末尾。
+ */
+function placePasswordCaretAtEnd() {
+  const el = nativeOf(passwordInput.value);
+  if (!el?.value) return;
+  const apply = () => {
+    if (!el.isConnected || !el.value) return;
+    if (password.value !== el.value) password.value = el.value;
+    const v = el.value;
+    try {
+      el.value = '';
+      el.value = v;
+      if (document.activeElement === el) el.focus({ preventScroll: true });
+      el.setSelectionRange(v.length, v.length);
+    } catch {
+      try {
+        el.selectionStart = v.length;
+        el.selectionEnd = v.length;
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+  apply();
+  for (const ms of [0, 16, 50, 100, 200, 400]) {
+    caretFixTimers.push(window.setTimeout(apply, ms));
+  }
+}
+
+function focusField(input: InputInstance | null | undefined) {
+  input?.focus?.();
+}
+
 function focusPassword() {
-  passwordInput.value?.focus?.();
+  focusField(passwordInput.value);
+  void nextTick(() => placePasswordCaretAtEnd());
+}
+
+function onPasswordFocus() {
+  if (nativeOf(passwordInput.value)?.value) placePasswordCaretAtEnd();
+}
+
+function onPasswordInput() {
+  err.value = '';
+  const el = nativeOf(passwordInput.value);
+  if (el && el.value.length >= 4 && el.selectionStart === 0 && el.selectionEnd === 0) {
+    placePasswordCaretAtEnd();
+  }
 }
 
 function onPhoneInput() {
@@ -325,6 +391,14 @@ function onPhoneInput() {
 
 function focusCaptcha() {
   captchaInput.value?.focus?.();
+}
+
+function applyLoginAutofocus() {
+  if (!phone.value) {
+    focusField(phoneInput.value);
+    return;
+  }
+  focusPassword();
 }
 
 async function loadCaptcha() {
@@ -447,11 +521,15 @@ onMounted(async () => {
   void brandStore.load();
   await loadCaptcha();
   await nextTick();
-  if (phone.value) {
-    if (password.value) captchaInput.value?.focus?.();
-    else passwordInput.value?.focus?.();
-  } else {
-    phoneInput.value?.focus?.();
+  applyLoginAutofocus();
+  // 自动填充可能晚于挂载：轮询一小会儿，有值就把光标推到末尾
+  for (const ms of [50, 100, 200, 400, 800, 1200]) {
+    caretFixTimers.push(
+      window.setTimeout(() => {
+        const el = nativeOf(passwordInput.value);
+        if (el?.value) placePasswordCaretAtEnd();
+      }, ms)
+    );
   }
 });
 
@@ -762,6 +840,17 @@ async function onSubmitTwoFactor() {
   /* 用极大 inset shadow 盖住浏览器默认 autofill 底色 */
   box-shadow: 0 0 0 1000px rgba(8, 24, 30, 0.42) inset !important;
   transition: background-color 99999s ease-out;
+  /* 触发 animationstart，便于 JS 在自动填充后把光标挪到末尾 */
+  animation-name: onAutoFillStart;
+  animation-duration: 0.001s;
+}
+@keyframes onAutoFillStart {
+  from {
+    opacity: 0.99;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .login-card :deep(.el-input__inner::placeholder) {
   color: rgba(148, 210, 198, 0.55);

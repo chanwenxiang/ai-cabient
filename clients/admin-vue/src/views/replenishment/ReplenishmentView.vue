@@ -2558,7 +2558,7 @@ async function checkInRestockTask(task: Row) {
   }
   try {
     await ElMessageBox.confirm(
-      `确认对 ${deviceName(task.deviceId, task.deviceName)}（任务 ${task.taskId}）做运营代签到？\n现场补货员应在商户小程序带 GPS 签到；后台代签到用于联调/应急，不强制 GPS。`,
+      `确认对 ${deviceName(task.deviceId, task.deviceName)}（任务 ${task.taskId}）做运营代签到？\n现场补货员应在商户小程序带 GPS 签到；后台代签到用于应急，不校验 GPS。`,
       '补货签到',
       { type: 'warning', confirmButtonText: '确认签到' }
     );

@@ -474,7 +474,7 @@ const BASE_NAV: NavItem[] = [
 
 const DEMO_NAV: NavItem = {
   path: '/recognition-demo',
-  title: '识别演示',
+  title: '识别预览',
   group: '设备商品',
   perm: 'ops:recognition-demo:view',
   keywords: ['识别', 'demo', '上传', 'yolo', '测试']

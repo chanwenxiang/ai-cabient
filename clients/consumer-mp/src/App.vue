@@ -47,6 +47,7 @@ uni-page-body {
   --card-radius: var(--radius-card);
   --text-primary: #14201b;
   height: 100%;
+  /* 默认白底；首页沉浸绿由 pages.json backgroundColor + 页内样式覆盖 */
   background-color: var(--page-bg);
   font-family: var(--app-font);
   font-size: 28rpx;
@@ -166,7 +167,11 @@ input {
   background: #fff;
   border-radius: var(--radius-card);
   padding: 24rpx;
-  margin: 0 24rpx 16rpx;
+  /* 水平边距只由 .page-body（或页面自管 gutter）承担；此处再加 24rpx 会让卡片比通栏按钮更窄 */
+  margin: 0 0 16rpx;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   border: 1rpx solid rgba(15, 118, 110, 0.06);
   box-shadow: 0 10rpx 32rpx rgba(15, 23, 42, 0.055);
 }
@@ -208,7 +213,7 @@ uni-button.empty-btn {
   box-sizing: border-box;
 }
 
-/* 主按钮：单独出现时收窄居中；通栏用 .btn-block / .empty-actions；横向行内均分
+/* 主按钮：单独出现时收窄居中；通栏用 .btn-block / .empty-actions / empty-state；横向行内均分
  * 不用 width:fit-content（旧版微信基础库支持不稳），用固定/百分比宽度 */
 .btn-primary,
 .btn-outline,
@@ -216,16 +221,12 @@ uni-button.empty-btn {
 .btn-ghost,
 .action-btn,
 .ghost-btn,
-.empty-btn.primary,
-.empty-btn.ghost,
-.empty-btn,
 uni-button.btn-primary,
 uni-button.btn-outline,
 uni-button.btn-refund,
 uni-button.btn-ghost,
 uni-button.action-btn,
-uni-button.ghost-btn,
-uni-button.empty-btn {
+uni-button.ghost-btn {
   width: 60%;
   min-width: 240rpx;
   max-width: 100%;
@@ -240,12 +241,52 @@ uni-button.empty-btn {
   text-align: center;
   box-sizing: border-box;
 }
+/* 空态按钮默认通栏（与 page-body / 卡片同宽）；勿用 60% 居中 */
+.empty-btn.primary,
+.empty-btn.ghost,
+.empty-btn,
+uni-button.empty-btn {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  padding-left: 36rpx;
+  padding-right: 36rpx;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  align-self: stretch !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+}
 
 .btn-block,
 uni-button.btn-block {
   width: 100% !important;
   max-width: none !important;
   min-width: 0 !important;
+  align-self: stretch !important;
+}
+
+/* 卡片内主按钮与输入框同宽，避免全局 60% 在表单页缩进去 */
+.card .btn-primary,
+.card .btn-outline,
+.card .btn-refund,
+.card .btn-ghost,
+.card .action-btn,
+.card .ghost-btn,
+.card uni-button.btn-primary,
+.card uni-button.btn-outline,
+.card uni-button.action-btn,
+.card uni-button.ghost-btn,
+.card button.btn-primary,
+.card button.btn-outline {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
   align-self: stretch !important;
 }
 

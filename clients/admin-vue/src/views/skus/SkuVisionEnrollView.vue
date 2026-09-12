@@ -415,7 +415,7 @@
             v-model="enrollForm.referenceImageUrls"
             type="textarea"
             :rows="2"
-            placeholder="可选，逗号或换行分隔；用于采集闭环留档（训练管线 stub）"
+            placeholder="可选，逗号或换行分隔；用于采集闭环留档"
           />
         </el-form-item>
         <el-form-item label="检测阈值">
@@ -440,7 +440,7 @@
         show-icon
         class="risk-alert"
         title="抽检说明"
-        description="预览可用联调/演示数据。转生产只进入结算白名单；端侧若回传 mock、fallback 或低于扣款阈值，仍会进争议，不会静默扣款。"
+        description="预览可用测试数据。转生产只进入结算白名单；端侧若回传兜底结果或低于扣款阈值，仍会进争议，不会静默扣款。"
       />
       <el-form label-width="96px">
         <el-form-item label="设备 ID">
@@ -551,7 +551,7 @@ const total = ref(0);
 const catalogOptions = ref<SkuCatalog[]>([]);
 const rowBySku = ref<Record<string, SkuVisionEnrollmentRow>>({});
 const pipelineHint = ref(
-  '流程：草稿/映射中 → 识别测试 → 转生产。转生产只表示进入结算白名单；可对接任意端侧识别算法。端侧若回传 mock/fallback 或低于扣款阈值，仍会进争议审单，不会静默扣款。'
+  '流程：草稿/映射中 → 识别测试 → 转生产。转生产只表示进入结算白名单。端侧若回传兜底结果或低于扣款阈值，仍会进争议审单，不会静默扣款。'
 );
 const enrollmentStepDesc: Record<string, string> = {
   DRAFT: '录入商品基本信息',
@@ -1184,7 +1184,7 @@ async function advanceRow(row: SkuCatalog) {
   try {
     if (next === 'PRODUCTION') {
       await ElMessageBox.confirm(
-        '转生产表示进入结算白名单。端侧可换任意识别算法；mock/fallback/低置信仍进争议，不会静默扣款。确认继续？',
+        '转生产表示进入结算白名单。端侧可换任意识别算法；兜底结果/低置信仍进争议，不会静默扣款。确认继续？',
         '转生产确认',
         { type: 'warning', confirmButtonText: '确认转生产' }
       );
@@ -1197,7 +1197,7 @@ async function advanceRow(row: SkuCatalog) {
     await applyRowUpdate(updated);
     ElMessage.success(
       next === 'PRODUCTION'
-        ? `${row.skuName} 已进入结算白名单（端侧 mock/低置信仍进争议）`
+        ? `${row.skuName} 已进入结算白名单（兜底/低置信仍进争议）`
         : `${row.skuName} 已推进到「${enrollmentLabel(updated.sku.visionEnrollmentStatus)}」`
     );
   } catch (e) {
@@ -1211,7 +1211,7 @@ async function advanceRow(row: SkuCatalog) {
 async function markProduction(row: SkuCatalog) {
   try {
     await ElMessageBox.confirm(
-      '转生产表示进入结算白名单。端侧可换任意识别算法；mock/fallback/低置信仍进争议，不会静默扣款。确认继续？',
+      '转生产表示进入结算白名单。端侧可换任意识别算法；兜底结果/低置信仍进争议，不会静默扣款。确认继续？',
       '转生产确认',
       { type: 'warning', confirmButtonText: '确认转生产' }
     );

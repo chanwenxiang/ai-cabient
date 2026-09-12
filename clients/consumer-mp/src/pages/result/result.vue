@@ -35,7 +35,7 @@
           ><text class="balance-caption">扣款后余额</text
           ><text class="balance-number strong">{{ fmtMoney(order.balanceAfterCents) }}</text></view
         >
-        <text class="trial-note">本页余额为账户余额展示；免密渠道扣款以微信/支付宝为准</text>
+        <text class="trial-note">账户余额仅供参考；免密支付以微信/支付宝账单为准</text>
       </view>
 
       <view class="card">

@@ -105,7 +105,7 @@
           loading
             ? '充值中…'
             : selectedAmount
-              ? `模拟到账 ${fmtMoney(selectedAmount)}`
+              ? `确认充值 ${fmtMoney(selectedAmount)}`
               : '请选择金额'
         }}
       </button>
@@ -120,10 +120,8 @@
           loading
             ? '处理中…'
             : selectedAmount
-              ? `${alipayPayLive ? '支付宝沙箱' : '支付宝模拟充值'} ${fmtMoney(selectedAmount)}`
-              : alipayPayLive
-                ? '支付宝沙箱'
-                : '支付宝模拟充值'
+              ? `支付宝充值 ${fmtMoney(selectedAmount)}`
+              : '支付宝充值'
         }}
       </button>
 
@@ -135,13 +133,10 @@
       </view>
       <view v-else-if="devTools" class="channel-hint">
         <text v-if="paymentModeHint">{{ paymentModeHint }}</text>
-        <text v-else-if="wechatPayLive">已配置真实微信商户。</text>
-        <text v-else-if="wechatRechargeEnabled">开发：微信通道为 mock 即时到账。</text>
-        <text v-if="mockEnabled"> 模拟到账仅本地联调。</text>
-        <text v-if="alipayRechargeEnabled && alipayPayLive"> 支付宝沙箱可跳转收银台。</text>
-        <text v-else-if="alipayRechargeEnabled">
-          支付宝 mock 与微信一致，一键到账（无需进件）。</text
-        >
+        <text v-else-if="wechatPayLive">已配置微信支付商户。</text>
+        <text v-else-if="wechatRechargeEnabled">微信通道为体验到账。</text>
+        <text v-if="mockEnabled"> 体验充值仅用于联调验证。</text>
+        <text v-if="alipayRechargeEnabled"> 支付宝可跳转收银台或体验到账。</text>
       </view>
       <view v-else class="channel-hint">
         <text>余额可用于未开通免密时的开门兜底；推荐优先开通微信支付分。</text>
@@ -184,7 +179,7 @@
         </view>
       </view>
 
-      <view v-if="devTools" class="note">开发提示：模拟到账 / 沙箱不会产生生产扣款。</view>
+      <view v-if="devTools" class="note">体验充值不会产生真实扣款。</view>
     </view>
   </view>
 </template>
@@ -534,7 +529,7 @@ async function onWeChatRecharge() {
     const key = `wechat-recharge-${Date.now()}-${secureRandomToken(6)}`;
     const { mode } = await runWeChatRecharge(selectedAmount.value, key);
     uni.showToast({
-      title: mode === 'live' ? '充值已到账' : '微信模拟充值成功',
+      title: mode === 'live' ? '充值已到账' : '充值成功',
       icon: 'success'
     });
     await loadBalance();

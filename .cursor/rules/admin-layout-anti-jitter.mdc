@@ -19,7 +19,11 @@ alwaysApply: false
    桌面端鼠标移到上下边缘时 vv 会误触发 → 测宽/写浮动横滑条 → 主区抖。
 5. **主区勿用 `transform: translateZ(0)` / 强开合成层**；偶发亚像素错位，刷新才消，像「随机跳动」。
 6. 主滚动容器保持：`overflow-y: scroll` + `scrollbar-gutter: stable` + `overflow-anchor: none`。
-7. **浮动横滑条几何必须取整**，且值未变不要写 `style`（`bottom: 0.11px` 这类亚像素会看起来像整页微抖）。
+7. **浮动横滑条几何必须取整 + ≥2px 回滞**，滚动期合并更新（约 100ms）；值未变不要写 `style`。
+8. **`.table-scroll` 内 EP 左右 sticky 固定列一律 `position: static`**。  
+   右侧 sticky 操作列在缩放 / 非 1× DPR 下会亚像素错位并整页微抖；横滑用外壳即可。
+9. 壳层高度用整数 `--layout-vh-px`（`Math.round(innerHeight)`）覆盖 `svh`，避免 `882.767px` 这类亚像素高度。
+10. **侧栏与主区交界勿留浅色竖条**：侧栏原生滚动条必须 `scrollbar-width: none`（全局细条样式勿盖掉侧栏隐藏）。主区保持左右对称 padding，勿为消竖条清零 `padding-left`。
 
 ## 关键文件
 
@@ -29,9 +33,9 @@ alwaysApply: false
 
 ## 改完自检
 
-- 源码与构建产物中：**有 `100svh`、无 `100dvh`**；**无** `visualViewport` 监听；**无** `translateZ(0)` 挂在 `.layout-main-scroll`。
+- 源码与构建产物中：**有 `100svh` / `--layout-vh-px`、无 `100dvh`**；**无** `visualViewport` 监听；**无** `translateZ(0)`；**无** `.table-scroll` 内右侧 `sticky`。
 - 设备/订单等列表页：上下移鼠标时主区 `scrollTop` / `getBoundingClientRect().top` 不应跳变。
 
 ## 禁止借口
 
-「浮动横滑条 / 缩放适配需要听 visualViewport」「dvh 更跟手」「translateZ 能减轻重绘」——均已验证会抖或偶发坏状态；窗口尺寸变化只听 `window.resize`。
+「浮动横滑条 / 缩放适配需要听 visualViewport」「dvh 更跟手」「translateZ 能减轻重绘」「右侧操作列必须 sticky」——均已验证会抖或偶发坏状态；窗口尺寸只听 `window.resize`；操作列跟表一起横滑。

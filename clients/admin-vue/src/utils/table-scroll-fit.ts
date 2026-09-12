@@ -18,6 +18,7 @@
  */
 let rafId = 0;
 let dockRafId = 0;
+let dockDebounceTimer: ReturnType<typeof globalThis.setTimeout> | 0 = 0;
 let debounceTimer: ReturnType<typeof globalThis.setTimeout> | 0 = 0;
 let observer: MutationObserver | null = null;
 let observedRoot: HTMLElement | null = null;
@@ -33,10 +34,12 @@ let lastDockGeom = { left: -1, width: -1, bottom: -1, scrollWidth: -1 };
 const tableScrollBound = new WeakSet<HTMLElement>();
 
 function setDockGeom(dock: HTMLElement, spacer: HTMLElement, next: typeof lastDockGeom): void {
+  // 2px 回滞：高 DPR / 缩放下 getBoundingClientRect 会在相邻整数间抖
   if (
-    lastDockGeom.left === next.left &&
-    lastDockGeom.width === next.width &&
-    lastDockGeom.bottom === next.bottom &&
+    lastDockGeom.left >= 0 &&
+    Math.abs(lastDockGeom.left - next.left) < 2 &&
+    Math.abs(lastDockGeom.width - next.width) < 2 &&
+    Math.abs(lastDockGeom.bottom - next.bottom) < 2 &&
     lastDockGeom.scrollWidth === next.scrollWidth
   ) {
     return;
@@ -242,11 +245,16 @@ function updateFloatingHScrollDock(): void {
 }
 
 function scheduleDockUpdate(): void {
-  if (dockRafId) return;
-  dockRafId = requestAnimationFrame(() => {
-    dockRafId = 0;
-    updateFloatingHScrollDock();
-  });
+  // 滚动期合并：避免每帧写 dock style（高 DPR 下像整页微抖）
+  if (dockDebounceTimer) globalThis.clearTimeout(dockDebounceTimer);
+  dockDebounceTimer = globalThis.setTimeout(() => {
+    dockDebounceTimer = 0;
+    if (dockRafId) return;
+    dockRafId = requestAnimationFrame(() => {
+      dockRafId = 0;
+      updateFloatingHScrollDock();
+    });
+  }, 100);
 }
 
 export function syncTableScrollFit(): void {
@@ -309,6 +317,8 @@ export function stopTableScrollFit(): void {
   window.removeEventListener('resize', scheduleSync);
   if (debounceTimer) globalThis.clearTimeout(debounceTimer);
   debounceTimer = 0;
+  if (dockDebounceTimer) globalThis.clearTimeout(dockDebounceTimer);
+  dockDebounceTimer = 0;
   if (rafId) cancelAnimationFrame(rafId);
   rafId = 0;
   if (dockRafId) cancelAnimationFrame(dockRafId);

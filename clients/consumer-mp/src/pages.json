@@ -9,7 +9,9 @@
         "navigationBarTextStyle": "white",
         "backgroundColor": "#064e3b",
         "backgroundTextStyle": "light",
-        "disableScroll": true
+        "disableScroll": true,
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -21,7 +23,9 @@
         "navigationBarTextStyle": "white",
         "backgroundColor": "#ffffff",
         "backgroundTextStyle": "dark",
-        "enablePullDownRefresh": true
+        "enablePullDownRefresh": true,
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -31,7 +35,9 @@
         "navigationStyle": "custom",
         "navigationBarBackgroundColor": "#064e3b",
         "navigationBarTextStyle": "white",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#ffffff",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -41,7 +47,9 @@
         "navigationBarBackgroundColor": "#064e3b",
         "navigationBarTextStyle": "white",
         "backgroundColor": "#ffffff",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -49,7 +57,9 @@
       "style": {
         "navigationBarTitleText": "登录",
         "navigationStyle": "custom",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#ffffff",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -60,7 +70,9 @@
         "navigationBarTextStyle": "white",
         "backgroundColor": "#ffffff",
         "enablePullDownRefresh": false,
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -70,7 +82,9 @@
         "navigationBarBackgroundColor": "#064e3b",
         "navigationBarTextStyle": "white",
         "backgroundColor": "#ffffff",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -80,7 +94,9 @@
         "navigationBarBackgroundColor": "#064e3b",
         "navigationBarTextStyle": "white",
         "backgroundColor": "#ffffff",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -89,9 +105,23 @@
         "navigationBarBackgroundColor": "#064e3b",
         "backgroundColor": "#ffffff",
         "navigationBarTextStyle": "white",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       },
       "path": "pages/recharge/recharge"
+    },
+    {
+      "path": "pages/balance/balance",
+      "style": {
+        "navigationBarTitleText": "余额明细",
+        "navigationBarBackgroundColor": "#064e3b",
+        "backgroundColor": "#ffffff",
+        "navigationBarTextStyle": "white",
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
+      }
     },
     {
       "style": {
@@ -99,7 +129,9 @@
         "navigationBarBackgroundColor": "#064e3b",
         "backgroundColor": "#ffffff",
         "navigationBarTextStyle": "white",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       },
       "path": "pages/order-detail/order-detail"
     },
@@ -110,7 +142,9 @@
         "navigationBarBackgroundColor": "#000000",
         "navigationBarTextStyle": "white",
         "backgroundColor": "#000000",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#000000"
       }
     },
     {
@@ -120,7 +154,9 @@
         "navigationBarBackgroundColor": "#064e3b",
         "backgroundColor": "#ffffff",
         "navigationBarTextStyle": "white",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -130,7 +166,9 @@
         "navigationBarBackgroundColor": "#064e3b",
         "navigationBarTextStyle": "white",
         "backgroundColor": "#f5f7f6",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -140,7 +178,9 @@
         "navigationBarBackgroundColor": "#064e3b",
         "backgroundColor": "#ffffff",
         "navigationBarTextStyle": "white",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -150,7 +190,9 @@
         "navigationBarBackgroundColor": "#064e3b",
         "navigationBarTextStyle": "white",
         "backgroundColor": "#ffffff",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -160,7 +202,9 @@
         "navigationBarBackgroundColor": "#064e3b",
         "navigationBarTextStyle": "white",
         "backgroundColor": "#ffffff",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -171,7 +215,9 @@
         "navigationBarTextStyle": "white",
         "backgroundColor": "#ffffff",
         "enablePullDownRefresh": true,
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -181,7 +227,9 @@
         "navigationBarBackgroundColor": "#064e3b",
         "backgroundColor": "#ffffff",
         "navigationBarTextStyle": "white",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -191,7 +239,9 @@
         "navigationBarBackgroundColor": "#064e3b",
         "backgroundColor": "#ffffff",
         "navigationBarTextStyle": "white",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -201,7 +251,9 @@
         "navigationBarBackgroundColor": "#064e3b",
         "backgroundColor": "#ffffff",
         "navigationBarTextStyle": "white",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -211,7 +263,9 @@
         "navigationBarBackgroundColor": "#064e3b",
         "backgroundColor": "#ffffff",
         "navigationBarTextStyle": "white",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -221,7 +275,9 @@
         "navigationBarBackgroundColor": "#064e3b",
         "backgroundColor": "#ffffff",
         "navigationBarTextStyle": "white",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     },
     {
@@ -231,14 +287,16 @@
         "navigationBarBackgroundColor": "#064e3b",
         "backgroundColor": "#ffffff",
         "navigationBarTextStyle": "white",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "backgroundColorBottom": "#ffffff",
+        "backgroundColorTop": "#064e3b"
       }
     }
   ],
   "tabBar": {
     "color": "#86a89a",
-    "selectedColor": "#ffffff",
-    "backgroundColor": "#064e3b",
+    "selectedColor": "#047857",
+    "backgroundColor": "#ffffff",
     "borderStyle": "black",
     "list": [
       {
@@ -265,12 +323,15 @@
     "navigationBarTextStyle": "white",
     "navigationBarBackgroundColor": "#064e3b",
     "backgroundColor": "#ffffff",
+    "backgroundColorTop": "#064e3b",
+    "backgroundColorBottom": "#ffffff",
     "backgroundTextStyle": "dark"
   },
   "easycom": {
     "autoscan": true,
     "custom": {
-      "^app-nav-bar$": "@/components/app-nav-bar.vue"
+      "^app-nav-bar$": "@/components/app-nav-bar.vue",
+      "^empty-state$": "@/components/empty-state.vue"
     }
   }
 }

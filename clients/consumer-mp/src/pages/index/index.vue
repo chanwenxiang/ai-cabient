@@ -44,7 +44,7 @@
                   class="error-action"
                   @click="
                     landingError = '';
-                    showManual = true;
+                    goNearby();
                   "
                   >换一台</text
                 >
@@ -93,7 +93,7 @@
             data-testid="manual-device-toggle"
             @click="showManual = true"
           >
-            {{ manualEntryLabel }}
+            手动输入柜机编号
           </text>
         </view>
       </view>
@@ -111,14 +111,15 @@
 
       <view v-if="showManual" class="landing-mask" @click="showManual = false">
         <view class="landing-sheet" @click.stop="noop">
-          <text class="landing-sheet-title">{{ manualEntryLabel }}</text>
+          <text class="landing-sheet-title">手动输入柜机编号</text>
           <text class="landing-sheet-label">柜机编号</text>
           <input
             v-model="deviceInput"
             class="sheet-input"
             data-testid="device-code-input"
             aria-label="柜机编号"
-            placeholder="例如 CAB-001…"
+            placeholder="请输入柜机编号"
+            type="digit"
             placeholder-class="sheet-ph"
           />
           <button
@@ -165,9 +166,8 @@
           <text class="review-title">{{ reviewCopy.title }}</text>
           <text class="review-detail">{{ reviewCopy.detail }}</text>
           <view class="review-actions">
-            <text class="review-link primary" @click="goReviewDetail">查看审核详情</text>
-            <text class="review-link" @click="goOrders">稍后查看订单</text>
-            <text class="review-link" @click="contactOps">联系运营</text>
+            <text class="review-link primary" @click="goReviewDetail">查看详情</text>
+            <text class="review-link" @click="goOrders">我的订单</text>
             <text class="review-link subtle" @click="dismissReview">知道了</text>
           </view>
         </view>
@@ -290,31 +290,20 @@
       </scroll-view>
 
       <view class="cart-bar">
-        <view
-          class="cart-info"
-          :class="{ tappable: sessionActive && state === 'SHOPPING' }"
-          @click="onCartBarInfoTap"
-        >
-          <text class="cart-hint">{{ cartBarHint }}</text>
-          <text v-if="sessionActive && state === 'SHOPPING'" class="cart-sub">{{
-            cartBarSub
-          }}</text>
-        </view>
-        <view
-          v-if="sessionActive && state === 'SHOPPING'"
-          class="cart-demo"
-          :class="{ live: !mockEnabled }"
-        >
+        <template v-if="sessionActive && state === 'SHOPPING'">
           <view
-            class="cart-demo-info tappable"
+            class="cart-shop-main"
             data-testid="open-live-cart-sheet"
             @click="openCartSheet"
           >
-            <view class="cart-badge-row">
-              <text class="cart-badge">{{ shoppingCartQty }}</text>
-              <text class="cart-demo-label">{{ shoppingCartLabel }}</text>
+            <view class="cart-icon-wrap">
+              <image class="cart-icon" src="/static/icon-cart.svg" mode="aspectFit" />
+              <text class="cart-badge">{{ cartBadgeText }}</text>
             </view>
-            <text class="cart-demo-amt">{{ shoppingCartAmount }}</text>
+            <view class="cart-shop-text">
+              <text class="cart-shop-label">{{ shoppingCartLabel }}</text>
+              <text class="cart-shop-amt">{{ shoppingCartAmount }}</text>
+            </view>
           </view>
           <button
             v-if="mockEnabled"
@@ -327,21 +316,27 @@
             关门结算
           </button>
           <view v-else class="cart-status-chip soft">请关门</view>
-        </view>
-        <view v-else-if="sessionActive" class="cart-status-chip" :class="stateTone">
-          {{ cartBarAction }}
-        </view>
-        <button
-          v-else-if="canReopen"
-          class="cart-cta"
-          hover-class="btn-hover"
-          data-testid="open-door-again"
-          :loading="opening"
-          :disabled="opening"
-          @click="reopenShop"
-        >
-          {{ opening ? '开门中…' : '再次开门' }}
-        </button>
+        </template>
+        <template v-else>
+          <view class="cart-info">
+            <text class="cart-hint">{{ cartBarHint }}</text>
+            <text v-if="cartBarSub" class="cart-sub">{{ cartBarSub }}</text>
+          </view>
+          <view v-if="sessionActive" class="cart-status-chip" :class="stateTone">
+            {{ cartBarAction }}
+          </view>
+          <button
+            v-else-if="canReopen"
+            class="cart-cta"
+            hover-class="btn-hover"
+            data-testid="open-door-again"
+            :loading="opening"
+            :disabled="opening"
+            @click="reopenShop"
+          >
+            {{ opening ? '开门中…' : '再次开门' }}
+          </button>
+        </template>
       </view>
     </view>
 
@@ -400,7 +395,7 @@
 
 <script setup lang="ts">
 import { onHide, onLoad, onReady, onShow, onUnload } from '@dcloudio/uni-app';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import OpenPrepDrawer from '@/components/open-prep-drawer.vue';
 import DeviceAdBanner from '@/components/device-ad-banner.vue';
 import LiveCartSheet, { type LiveCartSheetLine } from '@/components/live-cart-sheet.vue';
@@ -426,6 +421,7 @@ import {
 } from '@aicabinet/shared-uni/format';
 import { parseQuery } from '@aicabinet/shared-uni/query';
 import { resumePendingRechargeIfAny } from '@/utils/recharge';
+import { resolveMockEnabled } from '@/utils/runtime-flags';
 import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
 import { productGlyph, productThumb } from '@/utils/product-thumb';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
@@ -436,7 +432,6 @@ import {
   showBillToast,
   showDisputeResolvedToast
 } from '@/utils/notify';
-import { showDevTools } from '@/utils/runtime-flags';
 import type {
   AccountDto,
   DeviceProduct,
@@ -444,7 +439,6 @@ import type {
   SessionDto
 } from '@aicabinet/shared-types';
 
-const devTools = showDevTools();
 /** 真机：标题从微信胶囊下方起排，避免顶穿状态栏 */
 const landingHeadStyle = ref({
   paddingTop: getBelowCapsulePadPx(10) + 'px'
@@ -454,15 +448,12 @@ function refreshLandingPad() {
     paddingTop: getBelowCapsulePadPx(10) + 'px'
   };
 }
-/** H5 无可靠扫码时始终提供手输；微信小程序仅开发构建显示 */
+/** H5 无可靠扫码时提供手输；微信小程序主路径仅扫码（对齐竞品，不展示开发入口） */
 const isH5 = ref(false);
 // #ifdef H5
 isH5.value = true;
 // #endif
-const showManualEntry = computed(() => devTools || isH5.value);
-const manualEntryLabel = computed(() =>
-  isH5.value ? '手动输入柜机编号' : '开发：手动输入柜机编号'
-);
+const showManualEntry = computed(() => isH5.value);
 
 const deviceInput = ref('');
 const deviceId = ref('');
@@ -602,6 +593,17 @@ function resetCatalogFilter() {
 
 const showLanding = computed(() => !scanned.value && !enteringFlow.value);
 
+/** 对齐扫码开门竞品：落地页全屏沉浸隐藏底栏；进入柜机流程后再显示 */
+function syncLandingTabBar() {
+  if (showLanding.value) {
+    uni.hideTabBar({ animation: false });
+  } else {
+    uni.showTabBar({ animation: false });
+  }
+}
+
+watch(showLanding, () => syncLandingTabBar(), { immediate: true });
+
 const landingErrorTitle = computed(() => {
   switch (landingErrorKind.value) {
     case 'balance':
@@ -670,9 +672,7 @@ const flowOverlayHint = computed(() => {
 });
 
 const shoppingBannerTitle = computed(() => {
-  if (state.value === 'SHOPPING') {
-    return mockEnabled.value ? '柜门已开（演示·模拟取货）' : '柜门已开，请自由取货';
-  }
+  if (state.value === 'SHOPPING') return '柜门已开，请取货';
   if (state.value === 'OPENING' || state.value === 'CREATED') return '正在开门，请稍候';
   if (['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value)) return '正在识别结算';
   if (canReopen.value) return '本柜价目（浏览）';
@@ -681,40 +681,33 @@ const shoppingBannerTitle = computed(() => {
 
 const shoppingBannerSub = computed(() => {
   if (state.value === 'SHOPPING') {
-    return mockEnabled.value
-      ? '演示：点选模拟取货，底栏可看清单；关门后按清单结算'
-      : '无需在手机上点选，柜内取货后关门自动结算';
+    return mockEnabled.value ? '点选商品后可关门结算' : '取货后关门自动结算';
   }
   if (['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value)) {
     return '可先离开，账单会在「订单」中展示';
   }
-  if (canReopen.value) return '上一单已结束。可先浏览价目，再买需再次开门';
-  return '实际扣款以视觉识别结果为准';
+  if (canReopen.value) return '上一单已结束，再买请再次开门';
+  return '实际扣款以识别结果为准';
 });
 
 const catalogNotice = computed(() => {
   if (mockEnabled.value && state.value === 'SHOPPING') {
-    return '演示·模拟取货：点选后底栏查看清单，再点关门结算';
+    return '点选数量加入清单，关门后结算';
   }
   if (canReopen.value) {
-    return '本柜价目可先浏览；再买需要重新开门，因为上一单关门后柜门已锁';
+    return '上一单已结束，再买请再次开门';
   }
-  return '本柜价目仅供参考，请直接取货；实付以关门识别为准';
+  return '本柜价目仅供参考，实付以关门识别为准';
 });
 
 const cartBarHint = computed(() => {
-  if (state.value === 'SHOPPING') {
-    return mockEnabled.value ? '模拟取货中 · 点右侧看清单' : '拿了就走 · 点右侧看识别清单';
-  }
   if (!sessionActive.value) return '浏览价目无需开门';
   return '关门后自动识别并扣款';
 });
 
 const cartBarSub = computed(() => {
-  if (!sessionActive.value || state.value !== 'SHOPPING') return '';
-  if (mockEnabled.value) return '步进器仅演示；正式环境靠视觉识别';
-  if (liveCartQty.value > 0) return '识别中实时更新，拿错可放回';
-  return '取货后识别会出现在底栏，关门结算';
+  if (!sessionActive.value) return '可先看看本柜有什么';
+  return '';
 });
 
 const cartBarAction = computed(() => {
@@ -752,8 +745,8 @@ onLoad(async (opts) => {
     entryChannel.value = resolveEntryChannel(launch.channel);
   }
   if (launch.deviceId) {
-    if (launch.autoOpen) {
-      // 柜门深链 / autoOpen=1 才自动进购物流（B-23）
+    if (launch.autoOpen || !isH5.value) {
+      // 微信主路径：柜号深链直接进购物流；H5 无 autoOpen 时仍可手输确认
       await startShoppingFlow(launch.deviceId, launch.channel);
     } else {
       deviceInput.value = launch.deviceId;
@@ -794,6 +787,7 @@ async function onAuthenticatedShow() {
 }
 
 onShow(async () => {
+  syncLandingTabBar();
   refreshLandingPad();
   lastDeviceId.value = uni.getStorageSync('last_device_id') || '';
   lastDeviceName.value = uni.getStorageSync('last_device_name') || '';
@@ -805,12 +799,17 @@ onShow(async () => {
   startDevicePoll();
 });
 
-onHide(() => stopDevicePoll());
+onHide(() => {
+  stopDevicePoll();
+  // 切到订单/我的时务必显示底栏（hideTabBar 是全局的）
+  uni.showTabBar({ animation: false });
+});
 onUnload(() => {
   stopPoll();
   stopDevicePoll();
   stopOpeningCountdown();
   stopRecognitionTimer();
+  uni.showTabBar({ animation: false });
 });
 
 function thumbTone(p: DeviceProduct) {
@@ -984,7 +983,7 @@ function resetDeviceOnOpenFailure(cabinetId: string) {
 function beginCabinetEntry(cabinetId: string, scanChannel?: string | null): boolean {
   if (!cabinetId || opening.value || enteringFlow.value) return false;
   if (isCabinetIdInvalid(cabinetId)) {
-    setLandingError('柜机编号无效，请扫描柜门二维码或输入如 CAB-001。', 'device_not_found');
+    setLandingError('柜机编号无效，请扫描柜门二维码或输入数字编号。', 'device_not_found');
     lastFailedDeviceId.value = '';
     uni.showToast({ title: '柜机编号无效', icon: 'none' });
     return false;
@@ -1154,7 +1153,7 @@ async function loadConsumerConfig() {
     const cfg = await consumerApi.consumerPublicConfig();
     const phone = cfg?.servicePhone || cfg?.['consumer.service_phone'];
     if (phone) servicePhone.value = phone;
-    mockEnabled.value = String(cfg?.mockEnabled) === 'true';
+    mockEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
   } catch {
     /* 使用默认客服电话 */
   }
@@ -1254,7 +1253,7 @@ function onScan() {
         return;
       }
       if (!parsed.deviceId) {
-        landingError.value = '无法识别柜机二维码，请扫描柜门上的专用码，或手动输入柜机编号。';
+        landingError.value = '无法识别柜机二维码，请扫描柜门上的专用码。';
         landingErrorKind.value = 'device_not_found';
         if (showManualEntry.value) showManual.value = true;
         uni.showToast({ title: '无法识别柜机二维码', icon: 'none' });
@@ -1287,7 +1286,7 @@ function confirmDevice() {
   const parsed = parseCabinetScan(raw);
   const id = parsed.deviceId || raw.trim().toUpperCase();
   if (!id) {
-    landingError.value = '请输入柜机编号，例如 CAB-001。';
+    landingError.value = '请输入柜机编号。';
     landingErrorKind.value = 'device_not_found';
     uni.showToast({ title: '请输入柜机编号', icon: 'none' });
     return;
@@ -1605,20 +1604,18 @@ const shoppingCartAmount = computed(() => fmtMoney(shoppingCartAmountCents.value
 const shoppingCartLines = computed(() =>
   mockEnabled.value ? selectedLines.value : liveCartItems.value
 );
-const shoppingCartLabel = computed(() => {
-  if (mockEnabled.value) {
-    return shoppingCartQty.value > 0 ? `模拟 ${shoppingCartQty.value} 件 · 明细` : '点看模拟清单';
-  }
-  return shoppingCartQty.value > 0 ? `识别中 ${shoppingCartQty.value} 件 · 明细` : '点看识别清单';
+const cartBadgeText = computed(() => {
+  const qty = shoppingCartQty.value;
+  if (qty > 99) return '99+';
+  return String(qty);
 });
+const shoppingCartLabel = computed(() =>
+  shoppingCartQty.value > 0 ? `已选 ${shoppingCartQty.value} 件` : '查看清单'
+);
 
 function openCartSheet() {
   if (state.value !== 'SHOPPING') return;
   cartSheetVisible.value = true;
-}
-
-function onCartBarInfoTap() {
-  if (sessionActive.value && state.value === 'SHOPPING') openCartSheet();
 }
 
 async function refreshLiveCart() {
@@ -2290,10 +2287,12 @@ function stopDevicePoll() {
 .device-change {
   font-size: 26rpx;
   color: #576b95;
+  font-weight: 500;
 }
 .device-report {
-  font-size: 24rpx;
-  color: #888;
+  font-size: 26rpx;
+  color: #576b95;
+  font-weight: 500;
 }
 
 .shopping-banner {
@@ -2604,22 +2603,20 @@ function stopDevicePoll() {
   z-index: 5;
   isolation: isolate;
   background: #fff;
-  padding: 18rpx 24rpx;
+  padding: 16rpx 24rpx;
   padding-bottom: calc(16rpx + constant(safe-area-inset-bottom));
   padding-bottom: calc(16rpx + env(safe-area-inset-bottom));
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 20rpx;
   border-top: 0;
   box-shadow: 0 -10rpx 32rpx rgba(15, 23, 42, 0.08);
 }
 .cart-info {
   flex: 1;
   min-width: 0;
-  padding-right: 16rpx;
-}
-.cart-info.tappable:active {
-  opacity: 0.85;
+  padding-right: 8rpx;
 }
 .cart-hint {
   font-size: 28rpx;
@@ -2632,6 +2629,70 @@ function stopDevicePoll() {
   color: #888;
   display: block;
   margin-top: 4rpx;
+}
+.cart-shop-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+}
+.cart-shop-main:active {
+  opacity: 0.85;
+}
+.cart-icon-wrap {
+  position: relative;
+  width: 72rpx;
+  height: 72rpx;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 36rpx;
+  background: #ecfdf5;
+}
+.cart-icon {
+  width: 40rpx;
+  height: 40rpx;
+}
+.cart-badge {
+  position: absolute;
+  top: -4rpx;
+  right: -8rpx;
+  min-width: 32rpx;
+  height: 32rpx;
+  padding: 0 8rpx;
+  border-radius: 16rpx;
+  background: #047857;
+  color: #fff;
+  font-size: 18rpx;
+  font-weight: 700;
+  line-height: 32rpx;
+  text-align: center;
+  box-sizing: border-box;
+  border: 2rpx solid #fff;
+}
+.cart-shop-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4rpx;
+}
+.cart-shop-label {
+  font-size: 26rpx;
+  color: #334155;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cart-shop-amt {
+  font-size: 34rpx;
+  font-weight: 800;
+  color: var(--brand, #047857);
+  line-height: 1.15;
 }
 .cart-cta {
   margin: 0;
@@ -2650,51 +2711,10 @@ function stopDevicePoll() {
   text-align: center;
   box-sizing: border-box;
   box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.22);
+  flex-shrink: 0;
 }
 .cart-cta::after {
   border: none;
-}
-.cart-demo {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-  flex-shrink: 0;
-}
-.cart-demo-info {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-.cart-demo-info.tappable:active {
-  opacity: 0.85;
-}
-.cart-badge-row {
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
-}
-.cart-badge {
-  min-width: 36rpx;
-  height: 36rpx;
-  padding: 0 8rpx;
-  border-radius: 18rpx;
-  background: #047857;
-  color: #fff;
-  font-size: 20rpx;
-  font-weight: 700;
-  line-height: 36rpx;
-  text-align: center;
-  box-sizing: border-box;
-}
-.cart-demo-label {
-  font-size: 22rpx;
-  color: #64748b;
-}
-.cart-demo-amt {
-  font-size: 30rpx;
-  font-weight: 800;
-  color: var(--brand-wx, #07c160);
-  margin-top: 4rpx;
 }
 .cart-close-btn {
   margin: 0;
@@ -2713,6 +2733,7 @@ function stopDevicePoll() {
   justify-content: center;
   text-align: center;
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 .cart-status-chip.soft {
   background: #ecfdf5;
@@ -2786,14 +2807,16 @@ function stopDevicePoll() {
 }
 .review-actions {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 22rpx;
+  gap: 12rpx 28rpx;
   margin-top: 15rpx;
 }
 .review-link {
   color: #c2410c;
-  font-size: 23rpx;
+  font-size: 24rpx;
   font-weight: 600;
+  line-height: 1.3;
 }
 .review-link.primary {
   color: var(--brand, #047857);
@@ -3058,6 +3081,7 @@ function stopDevicePoll() {
   font-size: 24rpx;
   color: rgba(255, 255, 255, 0.78);
   line-height: 1.5;
+  text-align: center;
 }
 .landing-sheet-label {
   display: block;
@@ -3085,9 +3109,12 @@ function stopDevicePoll() {
 }
 .landing-sheet-actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: stretch;
+  justify-content: space-between;
   gap: 16rpx;
+  width: 100%;
   margin-top: 24rpx;
+  box-sizing: border-box;
 }
 .landing-sheet .btn-primary,
 .landing-sheet uni-button.btn-primary {
@@ -3099,11 +3126,16 @@ function stopDevicePoll() {
   margin-right: 0 !important;
 }
 .landing-sheet-btn {
-  padding: 10rpx 22rpx;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 18rpx 16rpx;
   border-radius: 999rpx;
   border: 1rpx solid rgba(255, 255, 255, 0.28);
   color: #ffffff;
   font-size: 26rpx;
+  line-height: 1.2;
+  text-align: center;
+  box-sizing: border-box;
   background: var(--brand-ink, #043f32);
 }
 .landing-sheet-btn.primary {

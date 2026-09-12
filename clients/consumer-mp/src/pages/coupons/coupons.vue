@@ -20,7 +20,7 @@
         title="优惠券加载失败"
         :hint="loadError"
       >
-        <button class="empty-btn primary" @click="load">重试</button>
+        <button class="empty-btn primary btn-block" @click="load">重试</button>
       </empty-state>
       <empty-state
         v-else-if="!list.length"
@@ -28,8 +28,8 @@
         :title="emptyTitle"
         :hint="emptyHint"
       >
-        <button class="empty-btn primary" @click="goShop">扫码购物</button>
-        <button class="empty-btn ghost" @click="goMarketing">看热门活动</button>
+        <button class="empty-btn primary btn-block" @click="goShop">扫码购物</button>
+        <button class="empty-btn ghost btn-block" @click="goMarketing">看热门活动</button>
       </empty-state>
       <view v-else>
         <view
@@ -62,7 +62,7 @@
               class="coupon-pick"
               :class="{ on: preferredId === c.couponId }"
               @click.stop="pickForNextOpen(c)"
-              >{{ preferredId === c.couponId ? '已选·下次开门优先用' : '选作下次开门用' }}</text
+              >{{ preferredId === c.couponId ? '已设为优先使用' : '设为优先使用' }}</text
             >
           </view>
         </view>

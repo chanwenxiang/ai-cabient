@@ -10,7 +10,7 @@
         <image class="video-player still-frame" :src="imageSrc" mode="aspectFit" />
         <view class="tips">
           <text v-if="metaLine" class="meta">{{ metaLine }}</text>
-          <text class="tip">当前为现场截图（非视频），联调模拟器常见</text>
+          <text class="tip">当前为现场截图，暂无完整录像</text>
           <button type="button" class="copy-btn" size="mini" @click="copyUrl">复制链接</button>
         </view>
       </template>

@@ -49,7 +49,6 @@
         <button
           v-if="canResolveInventory && a.exceptionId && isInventoryException(a.type)"
           class="resolve-btn"
-          size="mini"
           @click.stop="resolveInventory(a)"
         >
           完成库存核对
@@ -536,9 +535,27 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .resolve-btn {
   margin-top: 14rpx;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  height: 72rpx;
+  min-height: 72rpx;
+  line-height: 1.2;
+  border-radius: 36rpx;
   background: var(--brand, #0f766e);
   color: #fff;
   border: 0;
+  font-size: 26rpx;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+.resolve-btn::after {
+  border: none;
 }
 .empty-btn {
   margin: 0;

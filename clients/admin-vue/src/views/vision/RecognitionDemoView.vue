@@ -4,7 +4,7 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">识别演示</span>
+            <span class="title">识别预览</span>
             <span class="hint">上传商品图，识别后匹配商品名称与价格</span>
           </div>
         </div>

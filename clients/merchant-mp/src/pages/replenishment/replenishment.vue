@@ -267,7 +267,7 @@
           >
             <view class="skip-loc-copy">
               <text class="skip-loc-label">跳过定位验证</text>
-              <text class="skip-loc-hint">仅开发调试；当前策略要求定位时服务端仍会校验</text>
+              <text class="skip-loc-hint">室内定位不准时可暂关；仍可能要求在柜前签到</text>
             </view>
             <text class="skip-loc-switch" :class="{ on: skipLocationCheck }">{{
               skipLocationCheck ? '开' : '关'
@@ -282,14 +282,14 @@
             "
             class="door-tip"
           >
-            当前策略未强制定位签到{{
+            本柜可不校验定位签到{{
               checkInMaxDistanceM > 0 ? `（若上报坐标，须在柜前 ${checkInMaxDistanceM} 米内）` : ''
             }}
           </text>
 
           <button
             v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
-            class="primary-btn"
+            class="primary-btn btn-block"
             data-testid="replenish-checkin"
             :disabled="submitting"
             @click="checkIn"
@@ -298,7 +298,7 @@
           </button>
           <button
             v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
-            class="primary-btn"
+            class="primary-btn btn-block"
             data-testid="replenish-open-door"
             :disabled="submitting"
             @click="openDoor"
@@ -309,7 +309,7 @@
             只读查看，需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
           </text>
           <text v-if="doorOpened && openSessionId" class="door-tip">
-            已开门 · 会话 {{ emptyDisplay(openSessionId, 'session') }} · 关门后继续核对{{
+            已开门，关门后继续核对{{
               detailIsPullOff ? '下架' : '上架'
             }}
           </text>
@@ -1810,7 +1810,7 @@ async function obtainCheckInLocation(): Promise<{
       content:
         checkInMaxDistanceM.value > 0
           ? `无法获取当前位置。请开启定位权限后重试；柜机已配置坐标时须在约 ${checkInMaxDistanceM.value} 米内签到。`
-          : '无法获取当前位置。请开启定位权限后重试；当前策略要求带定位签到。',
+          : '无法获取当前位置。请开启定位权限后重试；本柜签到需带定位。',
       confirmText: '重试',
       cancelText: '取消'
     });
@@ -1836,8 +1836,8 @@ async function submitCheckIn(body: Record<string, number>, locationOk: boolean) 
   )) as Task;
   syncTaskInList(selected.value);
   const skipTitle = !requireReplenishmentCheckInLocation.value
-    ? '已签到（未强制定位）'
-    : '已签到（开发跳过定位）';
+    ? '已签到（未校验定位）'
+    : '签到成功';
   uni.showToast({
     title: locationOk ? '签到成功' : skipTitle,
     icon: locationOk ? 'success' : 'none'
@@ -2089,8 +2089,8 @@ async function confirmEvidenceIfNeeded(): Promise<boolean> {
   const goPhoto = await askConfirm({
     title: '缺少现场凭证',
     content: pullOffCopy(
-      '当前策略要求至少上传 1 张补货现场照片，便于后台抽检。',
-      '当前策略要求至少上传 1 张下架现场照片，便于后台抽检。'
+      '请至少上传 1 张补货现场照片，便于后台抽检。',
+      '请至少上传 1 张下架现场照片，便于后台抽检。'
     ),
     confirmText: '去拍照',
     cancelText: '关闭'
