@@ -135,7 +135,14 @@
               row-key="contractId"
               @selection-change="onContractSelectionChange"
             >
-              <el-table-column type="selection" width="48" align="center" reserve-selection />
+              <el-table-column
+                type="selection"
+                width="48"
+                align="center"
+                reserve-selection
+                class-name="col-status"
+                label-class-name="col-status"
+              />
               <el-table-column
                 prop="deviceName"
                 label="柜机"
@@ -159,21 +166,50 @@
                 </template>
               </el-table-column>
               <el-table-column prop="landlordName" label="场地主" width="100" />
-              <el-table-column label="联系电话" width="120" align="center">
+              <el-table-column
+                label="联系电话"
+                width="120"
+                class-name="col-text"
+                label-class-name="col-text"
+              >
                 <template #default="{ row }">{{ row.landlordPhone || '暂无' }}</template>
               </el-table-column>
-              <el-table-column label="月费" width="110" align="center">
+              <el-table-column
+                label="月费"
+                width="110"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }"
                   >¥{{ (row.monthlyFeeCents / 100).toFixed(2) }}</template
                 >
               </el-table-column>
-              <el-table-column label="起租" width="110" align="center">
+              <el-table-column
+                label="起租"
+                width="110"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">{{ row.startDate || '暂无' }}</template>
               </el-table-column>
-              <el-table-column label="到期" width="110" align="center">
+              <el-table-column
+                label="到期"
+                width="110"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">{{ row.endDate || '不限' }}</template>
               </el-table-column>
-              <el-table-column label="状态" width="90" align="center">
+              <el-table-column
+                label="状态"
+                width="90"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-tag size="small" :type="contractStatusType(row.status)">
                     {{ contractStatusLabel(row.status) }}
@@ -187,7 +223,14 @@
                   }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="300" align="center" fixed="right">
+              <el-table-column
+                label="操作"
+                width="300"
+                align="center"
+                fixed="right"
+                class-name="col-action"
+                label-class-name="col-action"
+              >
                 <template #default="{ row }">
                   <el-button v-hasPermi="['ops:org:edit']" size="small" @click="openContract(row)">
                     编辑
@@ -279,7 +322,14 @@
               stripe
               border
             >
-              <el-table-column prop="billMonth" label="账期" width="90" align="center" />
+              <el-table-column
+                prop="billMonth"
+                label="账期"
+                width="90"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
               <el-table-column label="场地" min-width="120" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-ellipsis" :title="row.siteName || ''">{{ row.siteName }}</span>
@@ -291,22 +341,52 @@
                 min-width="100"
                 show-overflow-tooltip
               />
-              <el-table-column label="收款方" width="100" align="center">
+              <el-table-column
+                label="收款方"
+                width="100"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">{{ rentPartyLabel(row.partyType) }}</template>
               </el-table-column>
               <el-table-column label="对方ID" width="100" show-overflow-tooltip>
                 <template #default="{ row }">{{ row.partyId || '—' }}</template>
               </el-table-column>
-              <el-table-column label="份额" width="80" align="center">
+              <el-table-column
+                label="份额"
+                width="80"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">{{ (row.shareBps / 100).toFixed(2) }}%</template>
               </el-table-column>
-              <el-table-column label="月费基数" width="100" align="center">
+              <el-table-column
+                label="月费基数"
+                width="100"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">¥{{ (row.baseFeeCents / 100).toFixed(2) }}</template>
               </el-table-column>
-              <el-table-column label="应付" width="100" align="center">
+              <el-table-column
+                label="应付"
+                width="100"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">¥{{ (row.amountCents / 100).toFixed(2) }}</template>
               </el-table-column>
-              <el-table-column label="状态" width="90" align="center">
+              <el-table-column
+                label="状态"
+                width="90"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-tag size="small" :type="billStatusType(row.status)">
                     {{ billStatusLabel(row.status) }}
@@ -319,6 +399,8 @@
                 width="160"
                 align="center"
                 fixed="right"
+                class-name="col-action"
+                label-class-name="col-action"
               >
                 <template #default="{ row }">
                   <el-button
@@ -344,7 +426,14 @@
               </el-table-column>
             </el-table>
             <el-table v-else v-loading="loading" :data="dataFeeBills" stripe border>
-              <el-table-column prop="billMonth" label="账期" width="90" align="center" />
+              <el-table-column
+                prop="billMonth"
+                label="账期"
+                width="90"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
               <el-table-column
                 prop="deviceName"
                 label="柜机"
@@ -360,10 +449,22 @@
               <el-table-column label="商户" width="120" show-overflow-tooltip>
                 <template #default="{ row }">{{ row.merchantId || '—' }}</template>
               </el-table-column>
-              <el-table-column label="应付" width="110" align="center">
+              <el-table-column
+                label="应付"
+                width="110"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">¥{{ (row.amountCents / 100).toFixed(2) }}</template>
               </el-table-column>
-              <el-table-column label="状态" width="90" align="center">
+              <el-table-column
+                label="状态"
+                width="90"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-tag size="small" :type="billStatusType(row.status)">
                     {{ dataFeeBillStatusLabel(row.status) }}
@@ -376,6 +477,8 @@
                 width="160"
                 align="center"
                 fixed="right"
+                class-name="col-action"
+                label-class-name="col-action"
               >
                 <template #default="{ row }">
                   <el-button
@@ -416,10 +519,7 @@
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog
-      v-model="nodeVisible"
-      :title="nodeForm.nodeId ? '编辑组织' : '新增组织'"
-    >
+    <el-dialog v-model="nodeVisible" :title="nodeForm.nodeId ? '编辑组织' : '新增组织'">
       <el-form label-position="top">
         <el-form-item label="组织名称">
           <el-input v-model="nodeForm.name" placeholder="如：华南区 / 深圳分公司" />
@@ -438,10 +538,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog
-      v-model="assignVisible"
-      :title="`分配设备到 ${assignNode?.name || ''}`"
-    >
+    <el-dialog v-model="assignVisible" :title="`分配设备到 ${assignNode?.name || ''}`">
       <el-select
         v-model="assignDeviceIds"
         multiple
@@ -462,10 +559,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog
-      v-model="contractVisible"
-      :title="contractForm.contractId ? '编辑合同' : '新增合同'"
-    >
+    <el-dialog v-model="contractVisible" :title="contractForm.contractId ? '编辑合同' : '新增合同'">
       <el-form label-position="top">
         <el-form-item label="柜机">
           <el-select
@@ -538,7 +632,8 @@
       v-model="rentSplitVisible"
       :title="`租金分账 · ${rentSplitSiteName}`"
       destroy-on-close
-     class="dialog-wide rent-split-dialog">
+      class="dialog-wide rent-split-dialog"
+    >
       <el-alert
         type="info"
         :closable="false"

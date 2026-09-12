@@ -91,16 +91,43 @@
         <template #empty
           ><el-empty v-if="listHydrated && !loading" description="暂无运维事件"
         /></template>
-        <el-table-column type="selection" width="48" align="center" />
-        <el-table-column prop="eventId" label="事件ID" width="110" align="center" sortable="custom">
+        <el-table-column
+          type="selection"
+          width="48"
+          align="center"
+          class-name="col-status"
+          label-class-name="col-status"
+        />
+        <el-table-column
+          prop="eventId"
+          label="事件ID"
+          width="110"
+          align="center"
+          sortable="custom"
+          class-name="col-status"
+          label-class-name="col-status"
+        >
           <template #default="{ row }">
             <span class="cell-id">{{ row.eventId }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="eventType" label="类型" width="120" align="center">
+        <el-table-column
+          prop="eventType"
+          label="类型"
+          width="120"
+          align="center"
+          class-name="col-status"
+          label-class-name="col-status"
+        >
           <template #default="{ row }">{{ eventTypeLabel(row.eventType) }}</template>
         </el-table-column>
-        <el-table-column label="级别" width="100" align="center">
+        <el-table-column
+          label="级别"
+          width="100"
+          align="center"
+          class-name="col-status"
+          label-class-name="col-status"
+        >
           <template #default="{ row }">
             <el-tag
               :type="
@@ -116,7 +143,13 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="设备名称" min-width="140" show-overflow-tooltip align="center">
+        <el-table-column
+          label="设备名称"
+          min-width="140"
+          show-overflow-tooltip
+          class-name="col-text"
+          label-class-name="col-text"
+        >
           <template #default="{ row }">{{ row.deviceName || '无' }}</template>
         </el-table-column>
         <el-table-column
@@ -125,27 +158,43 @@
           min-width="120"
           show-overflow-tooltip
           align="center"
+          class-name="col-status"
+          label-class-name="col-status"
         />
         <el-table-column
           prop="title"
           label="标题"
           min-width="140"
           show-overflow-tooltip
-          align="center"
+          class-name="col-text"
+          label-class-name="col-text"
         />
         <el-table-column
           prop="detail"
           label="详情"
           min-width="200"
           show-overflow-tooltip
-          align="center"
+          class-name="col-text"
+          label-class-name="col-text"
         >
           <template #default="{ row }">{{ formatEventDetail(row.detail) }}</template>
         </el-table-column>
-        <el-table-column label="账龄" width="100" align="center">
+        <el-table-column
+          label="账龄"
+          width="100"
+          align="center"
+          class-name="col-status"
+          label-class-name="col-status"
+        >
           <template #default="{ row }">{{ eventAge(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="时间" width="170" align="center">
+        <el-table-column
+          label="时间"
+          width="170"
+          align="center"
+          class-name="col-status"
+          label-class-name="col-status"
+        >
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
       </el-table>

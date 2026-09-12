@@ -173,10 +173,7 @@
 
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app';
-import {
-  showError,
-  showSuccess
-} from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { merchantApi, hasPerm } from '@/utils/merchant-api';
@@ -191,8 +188,8 @@ import {
   setPreferredDeviceId
 } from '@/utils/preferred-device';
 import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
-import type {
 import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
+import type {
   DeviceSlot,
   DeviceTemperatureReading,
   MerchantMe,

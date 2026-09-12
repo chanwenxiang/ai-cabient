@@ -12,7 +12,12 @@
           indicator-active-color="var(--brand)"
         >
           <swiper-item v-for="b in banners" :key="b.id">
-            <view role="button" class="banner-card" :class="'tone-' + b.tone" @click="openPath(b.ctaPath)">
+            <view
+              role="button"
+              class="banner-card"
+              :class="'tone-' + b.tone"
+              @click="openPath(b.ctaPath)"
+            >
               <view class="banner-copy">
                 <text class="banner-title">{{ b.title }}</text>
                 <text class="banner-sub">{{ b.subtitle }}</text>
@@ -46,7 +51,13 @@
           </view>
         </view>
         <view v-else>
-          <view v-for="c in campaigns" role="button" :key="c.id" class="campaign" @click="onCampaignClick(c)">
+          <view
+            v-for="c in campaigns"
+            role="button"
+            :key="c.id"
+            class="campaign"
+            @click="onCampaignClick(c)"
+          >
             <view class="campaign-badge" :class="'tone-' + c.coverColor">{{ c.typeLabel }}</view>
             <text class="campaign-title">{{ c.title }}</text>
             <text class="campaign-desc">{{ c.description }}</text>
@@ -73,10 +84,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import {
-  showError,
-  showSuccess
-} from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import {
   consumerApi,

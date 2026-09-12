@@ -22,7 +22,9 @@
             <button
               type="button"
               class="kpi-tag-btn"
-              :aria-label="listHydrated ? `待处理设备 ${pendingTaskCount}` : `待处理设备 ${UI_COPY.loading}`"
+              :aria-label="
+                listHydrated ? `待处理设备 ${pendingTaskCount}` : `待处理设备 ${UI_COPY.loading}`
+              "
             >
               <el-tag size="small" type="warning"
                 >待处理设备 {{ listHydrated ? pendingTaskCount : '…' }}</el-tag
@@ -40,7 +42,9 @@
             <button
               type="button"
               class="kpi-tag-btn"
-              :aria-label="listHydrated ? `要货待审 ${pendingRequestCount}` : `要货待审 ${UI_COPY.loading}`"
+              :aria-label="
+                listHydrated ? `要货待审 ${pendingRequestCount}` : `要货待审 ${UI_COPY.loading}`
+              "
             >
               <el-tag size="small">要货待审 {{ listHydrated ? pendingRequestCount : '…' }}</el-tag>
             </button>
@@ -48,7 +52,9 @@
               type="button"
               class="kpi-tag-btn"
               :aria-label="
-                listHydrated && !expiryLoading ? `临期 ${expiryAlerts.length}` : `临期 ${UI_COPY.loading}`
+                listHydrated && !expiryLoading
+                  ? `临期 ${expiryAlerts.length}`
+                  : `临期 ${UI_COPY.loading}`
               "
             >
               <el-tag size="small" type="danger"
@@ -98,8 +104,19 @@
                   v-if="listHydrated && !isTabLoading('routes')"
                   :description="routesEmptyText"
               /></template>
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column type="expand" align="center">
+              <el-table-column
+                type="selection"
+                width="48"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column
+                type="expand"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <div class="route-detail">
                     <div class="route-meta">
@@ -119,15 +136,17 @@
                           class="line-table"
                           empty-text=" "
                         >
-                          <el-table-column label="任务"
-                            width="70"
-                            class-name="col-text"
-                          >
+                          <el-table-column label="任务" width="70" class-name="col-text">
                             <template #default="scope">
                               <span class="cell-id">{{ scope.row.taskId }}</span>
                             </template>
                           </el-table-column>
-                          <el-table-column label="设备" min-width="110" align="center">
+                          <el-table-column
+                            label="设备"
+                            min-width="110"
+                            class-name="col-text"
+                            label-class-name="col-text"
+                          >
                             <template #default="scope">
                               {{ deviceName(scope.row.deviceId, scope.row.deviceName) }}
                               <el-tag
@@ -143,26 +162,50 @@
                               >
                             </template>
                           </el-table-column>
-                          <el-table-column label="设备ID" min-width="100" align="center">
+                          <el-table-column
+                            label="设备ID"
+                            min-width="100"
+                            align="center"
+                            class-name="col-status"
+                            label-class-name="col-status"
+                          >
                             <template #default="scope">
                               <span class="mono">{{ scope.row.deviceId }}</span>
                             </template>
                           </el-table-column>
-                          <el-table-column label="任务状态" width="92" align="center">
+                          <el-table-column
+                            label="任务状态"
+                            width="92"
+                            align="center"
+                            class-name="col-status"
+                            label-class-name="col-status"
+                          >
                             <template #default="scope">
                               <el-tag :type="dictTagType(scope.row.status)" size="small">
                                 {{ dictLabel('replenishment_task_status', scope.row.status) }}
                               </el-tag>
                             </template>
                           </el-table-column>
-                          <el-table-column label="人员" min-width="120" align="center">
+                          <el-table-column
+                            label="人员"
+                            min-width="120"
+                            align="center"
+                            class-name="col-status"
+                            label-class-name="col-status"
+                          >
                             <template #default="scope">
                               <span>{{
                                 assigneeLabel(scope.row.assigneeUserId || row.assigneeUserId, '无')
                               }}</span>
                             </template>
                           </el-table-column>
-                          <el-table-column label="签到" min-width="124" align="center">
+                          <el-table-column
+                            label="签到"
+                            min-width="124"
+                            align="center"
+                            class-name="col-status"
+                            label-class-name="col-status"
+                          >
                             <template #default="scope">
                               <div class="check-in-cell">
                                 <el-tag
@@ -187,22 +230,30 @@
                               </div>
                             </template>
                           </el-table-column>
-                          <el-table-column label="用时" width="70" align="center">
+                          <el-table-column
+                            label="用时"
+                            width="70"
+                            align="center"
+                            class-name="col-status"
+                            label-class-name="col-status"
+                          >
                             <template #default="scope">{{
                               formatTaskDuration(scope.row)
                             }}</template>
                           </el-table-column>
-                          <el-table-column label="完成"
-                            width="122"
-                            class-name="col-text"
-                          >
+                          <el-table-column label="完成" width="122" class-name="col-text">
                             <template #default="scope">
                               <span class="cell-datetime">{{
                                 scope.row.completedAt ? formatDateTime(scope.row.completedAt) : '无'
                               }}</span>
                             </template>
                           </el-table-column>
-                          <el-table-column label="出库单" width="70" align="center">
+                          <el-table-column
+                            label="出库单"
+                            width="70"
+                            class-name="col-text"
+                            label-class-name="col-text"
+                          >
                             <template #default="scope">
                               <el-tag v-if="scope.row.outboundId" size="small" type="warning">{{
                                 scope.row.outboundId
@@ -271,14 +322,16 @@
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column label="路线"
+              <el-table-column
+                label="路线"
                 min-width="140"
                 class-name="col-text"
                 show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.routeName || '无' }}</template>
               </el-table-column>
-              <el-table-column prop="routeId"
+              <el-table-column
+                prop="routeId"
                 label="路线ID"
                 min-width="120"
                 class-name="col-text"
@@ -289,15 +342,28 @@
                   <span class="mono">{{ row.routeId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="设备数" width="88" align="center">
+              <el-table-column
+                label="设备数"
+                width="88"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">{{ row.tasks?.length || 0 }}</template>
               </el-table-column>
-              <el-table-column prop="plannedDate"
+              <el-table-column
+                prop="plannedDate"
                 label="计划日期"
                 width="120"
                 class-name="col-text"
               />
-              <el-table-column label="状态" width="110" align="center">
+              <el-table-column
+                label="状态"
+                width="110"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-tag :type="dictTagType(row.status)" size="small">
                     {{ dictLabel('replenishment_route_status', row.status) }}
@@ -381,8 +447,15 @@
                   v-if="listHydrated && !isTabLoading('fulfillment')"
                   :description="fulfillmentEmptyText"
               /></template>
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column prop="taskId"
+              <el-table-column
+                type="selection"
+                width="48"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column
+                prop="taskId"
                 label="任务"
                 width="88"
                 class-name="col-text"
@@ -392,7 +465,8 @@
                   <span class="cell-id">{{ row.taskId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="设备"
+              <el-table-column
+                label="设备"
                 min-width="120"
                 class-name="col-text"
                 show-overflow-tooltip
@@ -403,7 +477,8 @@
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column label="设备ID"
+              <el-table-column
+                label="设备ID"
                 min-width="120"
                 class-name="col-text"
                 show-overflow-tooltip
@@ -412,14 +487,21 @@
                   <span class="cell-id">{{ row.deviceId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="路线"
+              <el-table-column
+                label="路线"
                 min-width="140"
                 class-name="col-text"
                 show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.routeName || row.routeId || '无' }}</template>
               </el-table-column>
-              <el-table-column label="状态" width="148" align="center">
+              <el-table-column
+                label="状态"
+                width="148"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <div class="status-stack">
                     <el-tag :type="dictTagType(row.status)" size="small">
@@ -436,12 +518,23 @@
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column label="人员" min-width="120" align="center">
+              <el-table-column
+                label="人员"
+                min-width="120"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <span>{{ assigneeLabel(row.assigneeUserId, '无') }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="签到 / GPS" min-width="160" align="center">
+              <el-table-column
+                label="签到 / GPS"
+                min-width="160"
+                class-name="col-text"
+                label-class-name="col-text"
+              >
                 <template #default="{ row }">
                   <div class="check-in-cell">
                     <span class="cell-datetime">{{
@@ -459,7 +552,13 @@
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column label="用时" width="88" align="center">
+              <el-table-column
+                label="用时"
+                width="88"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">{{ formatTaskDuration(row) }}</template>
               </el-table-column>
               <el-table-column label="完成时间" width="168" class-name="col-text">
@@ -469,13 +568,24 @@
                   }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="要货单" width="90" align="center">
+              <el-table-column
+                label="要货单"
+                width="90"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <span v-if="row.requestId" class="cell-id">{{ row.requestId }}</span>
                   <span v-else class="muted">暂无</span>
                 </template>
               </el-table-column>
-              <el-table-column label="出库单" width="90" align="center">
+              <el-table-column
+                label="出库单"
+                width="90"
+                class-name="col-text"
+                label-class-name="col-text"
+              >
                 <template #default="{ row }">
                   <span v-if="row.outboundId" class="cell-id">{{ row.outboundId }}</span>
                   <span v-else class="muted">暂无</span>
@@ -542,8 +652,15 @@
               @sort-change="onRequestIdSortChange"
               @selection-change="onRequestsSelectionChange"
             >
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column prop="requestId"
+              <el-table-column
+                type="selection"
+                width="48"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column
+                prop="requestId"
                 label="要货单"
                 min-width="120"
                 class-name="col-text"
@@ -553,13 +670,15 @@
                   ><span class="cell-id">{{ row.requestId }}</span></template
                 >
               </el-table-column>
-              <el-table-column prop="merchantName"
+              <el-table-column
+                prop="merchantName"
                 label="商户"
                 min-width="160"
                 class-name="col-text"
                 show-overflow-tooltip
               />
-              <el-table-column label="目标设备"
+              <el-table-column
+                label="目标设备"
                 min-width="120"
                 class-name="col-text"
                 show-overflow-tooltip
@@ -570,7 +689,8 @@
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column label="设备ID"
+              <el-table-column
+                label="设备ID"
                 min-width="120"
                 class-name="col-text"
                 show-overflow-tooltip
@@ -579,7 +699,8 @@
                   <span class="cell-id">{{ row.deviceId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="明细"
+              <el-table-column
+                label="明细"
                 min-width="220"
                 class-name="col-text"
                 show-overflow-tooltip
@@ -588,14 +709,21 @@
                   <span>{{ formatRequestLines(row) }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="状态" width="110" align="center">
+              <el-table-column
+                label="状态"
+                width="110"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-tag :type="dictTagType(row.status)" size="small">
                     {{ dictLabel('replenishment_request_status', row.status) }}
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="审核人"
+              <el-table-column
+                label="审核人"
                 min-width="120"
                 class-name="col-text"
                 show-overflow-tooltip
@@ -615,7 +743,8 @@
                   <span v-else class="muted">—</span>
                 </template>
               </el-table-column>
-              <el-table-column label="驳回原因"
+              <el-table-column
+                label="驳回原因"
                 min-width="160"
                 class-name="col-text"
                 show-overflow-tooltip
@@ -699,8 +828,15 @@
                   v-if="listHydrated && !isTabLoading('shortage')"
                   description="当前无缺货/低库存货道"
               /></template>
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column label="设备"
+              <el-table-column
+                type="selection"
+                width="48"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column
+                label="设备"
                 min-width="120"
                 class-name="col-text"
                 show-overflow-tooltip
@@ -711,7 +847,8 @@
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column label="设备ID"
+              <el-table-column
+                label="设备ID"
                 min-width="120"
                 class-name="col-text"
                 show-overflow-tooltip
@@ -720,17 +857,50 @@
                   <span class="cell-id">{{ row.deviceId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="slotCode" label="货道" width="90" align="center" />
-              <el-table-column prop="assignedSkuName"
+              <el-table-column
+                prop="slotCode"
+                label="货道"
+                width="90"
+                class-name="col-text"
+                label-class-name="col-text"
+              />
+              <el-table-column
+                prop="assignedSkuName"
                 label="商品"
                 min-width="140"
                 class-name="col-text"
                 show-overflow-tooltip
               />
-              <el-table-column prop="bookQty" label="账面" width="80" align="center" />
-              <el-table-column prop="minLevel" label="最低" width="80" align="center" />
-              <el-table-column prop="parLevel" label="目标" width="80" align="center" />
-              <el-table-column label="状态" width="100" align="center">
+              <el-table-column
+                prop="bookQty"
+                label="账面"
+                width="80"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column
+                prop="minLevel"
+                label="最低"
+                width="80"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column
+                prop="parLevel"
+                label="目标"
+                width="80"
+                class-name="col-text"
+                label-class-name="col-text"
+              />
+              <el-table-column
+                label="状态"
+                width="100"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-tag :type="stockTagType(row)" size="small">{{ stockLabel(row) }}</el-tag>
                 </template>
@@ -783,8 +953,15 @@
                   v-if="listHydrated && !isTabLoading('expiry') && !expiryLoading"
                   description="当前无临期下架任务"
               /></template>
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column label="设备"
+              <el-table-column
+                type="selection"
+                width="48"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column
+                label="设备"
                 min-width="120"
                 class-name="col-text"
                 show-overflow-tooltip
@@ -795,7 +972,8 @@
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column label="设备ID"
+              <el-table-column
+                label="设备ID"
                 min-width="120"
                 class-name="col-text"
                 show-overflow-tooltip
@@ -804,26 +982,37 @@
                   <span class="cell-id">{{ row.deviceId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="skuId"
+              <el-table-column
+                prop="skuId"
                 label="商品 SKU"
                 min-width="140"
                 class-name="col-text"
                 show-overflow-tooltip
               />
-              <el-table-column prop="batchNo"
+              <el-table-column
+                prop="batchNo"
                 label="批次"
                 min-width="120"
                 class-name="col-text"
                 show-overflow-tooltip
               />
-              <el-table-column prop="lotId"
+              <el-table-column
+                prop="lotId"
                 label="批次 ID"
                 min-width="120"
                 class-name="col-text"
                 show-overflow-tooltip
               />
-              <el-table-column prop="quantity" label="数量" width="80" align="center" />
-              <el-table-column label="原因"
+              <el-table-column
+                prop="quantity"
+                label="数量"
+                width="80"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column
+                label="原因"
                 min-width="160"
                 class-name="col-text"
                 show-overflow-tooltip
@@ -832,7 +1021,13 @@
                   displayLabel('pull_off_reason', row.reason, '临期')
                 }}</template>
               </el-table-column>
-              <el-table-column label="状态" width="100" align="center">
+              <el-table-column
+                label="状态"
+                width="100"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-tag size="small" type="warning">{{
                     displayLabel('exception_status', row.status, '待处理')
@@ -996,17 +1191,41 @@
                 :image-size="48"
               />
             </template>
-            <el-table-column label="类型" width="72" align="center">
+            <el-table-column
+              label="类型"
+              width="72"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">{{ lineTypeLabel(row.lineType) }}</template>
             </el-table-column>
-            <el-table-column label="商品" min-width="120" show-overflow-tooltip align="center">
+            <el-table-column
+              label="商品"
+              min-width="120"
+              show-overflow-tooltip
+              class-name="col-text"
+              label-class-name="col-text"
+            >
               <template #default="{ row }">
                 <div>{{ row.skuName || row.skuId || '无' }}</div>
                 <small v-if="row.skuName && row.skuId" class="muted mono">{{ row.skuId }}</small>
               </template>
             </el-table-column>
-            <el-table-column prop="quantity" label="数量" width="64" align="center" />
-            <el-table-column label="货道" min-width="120" align="center">
+            <el-table-column
+              prop="quantity"
+              label="数量"
+              width="64"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            />
+            <el-table-column
+              label="货道"
+              min-width="120"
+              class-name="col-text"
+              label-class-name="col-text"
+            >
               <template #default="{ row }">
                 <el-select
                   v-if="canAssignSlot(row)"
@@ -1034,13 +1253,31 @@
                 </template>
               </template>
             </el-table-column>
-            <el-table-column label="批次" min-width="90" show-overflow-tooltip align="center">
+            <el-table-column
+              label="批次"
+              min-width="90"
+              show-overflow-tooltip
+              class-name="col-text"
+              label-class-name="col-text"
+            >
               <template #default="{ row }">{{ row.batchNo || '无' }}</template>
             </el-table-column>
-            <el-table-column label="效期" width="100" align="center">
+            <el-table-column
+              label="效期"
+              width="100"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">{{ row.expiryDate || '无' }}</template>
             </el-table-column>
-            <el-table-column label="已入账" width="72" align="center">
+            <el-table-column
+              label="已入账"
+              width="72"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">
                 <el-tag :type="row.applied ? 'success' : 'info'" size="small">
                   {{ row.applied ? '是' : '否' }}
@@ -1157,7 +1394,8 @@
 
     <el-dialog
       v-model="planDialog"
-      title="规划补货路线" class="dialog-wide"
+      title="规划补货路线"
+      class="dialog-wide"
       append-to-body
       destroy-on-close
       data-testid="plan-route-dialog"

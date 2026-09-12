@@ -165,8 +165,15 @@
           <template #empty>
             <el-empty v-if="listHydrated && !loading" :description="skuEmptyText" />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="skuCode"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="skuCode"
             label="编号"
             width="100"
             class-name="col-text"
@@ -176,7 +183,13 @@
               <span class="cell-id">{{ row.skuCode ?? '暂无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="主图" width="72" align="center">
+          <el-table-column
+            label="主图"
+            width="72"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <img
                 v-if="row.imageUrl"
@@ -213,7 +226,8 @@
               }}
             </template>
           </el-table-column>
-          <el-table-column prop="category"
+          <el-table-column
+            prop="category"
             label="类目"
             min-width="100"
             class-name="col-text"
@@ -221,7 +235,8 @@
           >
             <template #default="{ row }">{{ categoryLabel(row.category) }}</template>
           </el-table-column>
-          <el-table-column label="端侧类名"
+          <el-table-column
+            label="端侧类名"
             min-width="130"
             class-name="col-text"
             show-overflow-tooltip
@@ -231,14 +246,25 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="识别状态" width="100" align="center">
+          <el-table-column
+            label="识别状态"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" :type="enrollmentTagType(row.visionEnrollmentStatus)">
                 {{ enrollmentLabel(row.visionEnrollmentStatus) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="映射/模型" min-width="150" align="center">
+          <el-table-column
+            label="映射/模型"
+            min-width="150"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">
               <div class="pipe-cell">
                 <el-tag size="small" :type="rowMeta(row)?.mappingEffective ? 'success' : 'info'">
@@ -248,17 +274,35 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="商品状态" width="96" align="center">
+          <el-table-column
+            label="商品状态"
+            width="96"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
                 {{ skuStatusLabel(row.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="扣款阈值" width="96" align="center">
+          <el-table-column
+            label="扣款阈值"
+            width="96"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ formatConfidence(row.minChargeConfidence) }}</template>
           </el-table-column>
-          <el-table-column label="检测阈值" width="96" align="center">
+          <el-table-column
+            label="检测阈值"
+            width="96"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{
               formatConfidence(row.detectionMinConfidence ?? 0.5)
             }}</template>
@@ -295,7 +339,8 @@
 
     <el-dialog
       v-model="enrollDialog"
-      :title="enrollForm.existing ? '编辑识别入驻' : '识别入驻配置'" class="dialog-wide"
+      :title="enrollForm.existing ? '编辑识别入驻' : '识别入驻配置'"
+      class="dialog-wide"
     >
       <el-form label-width="auto">
         <el-form-item v-if="!enrollForm.existing" label="关联商品" required>
@@ -456,9 +501,27 @@
         stripe
         class="test-table"
       >
-        <el-table-column prop="skuName" label="商品" align="center" />
-        <el-table-column prop="quantity" label="数量" width="72" align="center" />
-        <el-table-column label="置信度" width="88" align="center">
+        <el-table-column
+          prop="skuName"
+          label="商品"
+          class-name="col-text"
+          label-class-name="col-text"
+        />
+        <el-table-column
+          prop="quantity"
+          label="数量"
+          width="72"
+          align="center"
+          class-name="col-status"
+          label-class-name="col-status"
+        />
+        <el-table-column
+          label="置信度"
+          width="88"
+          align="center"
+          class-name="col-status"
+          label-class-name="col-status"
+        >
           <template #default="{ row }">{{ Math.round((row.confidence || 0) * 100) }}%</template>
         </el-table-column>
       </el-table>

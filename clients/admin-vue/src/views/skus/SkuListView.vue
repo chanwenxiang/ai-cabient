@@ -120,8 +120,15 @@
           <template #empty>
             <el-empty v-if="listHydrated && !loading" :description="skuEmptyText" />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="skuCode"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="skuCode"
             label="编号"
             width="84"
             class-name="col-text"
@@ -131,7 +138,13 @@
               <span class="cell-id">{{ row.skuCode ?? '暂无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="主图" width="60" align="center">
+          <el-table-column
+            label="主图"
+            width="60"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <img
                 v-if="row.imageUrl"
@@ -145,7 +158,8 @@
               <div v-else class="sku-thumb sku-thumb--empty">无图</div>
             </template>
           </el-table-column>
-          <el-table-column prop="barcode"
+          <el-table-column
+            prop="barcode"
             label="条码"
             min-width="80"
             class-name="col-text"
@@ -153,11 +167,7 @@
           >
             <template #default="{ row }">{{ row.barcode || '无' }}</template>
           </el-table-column>
-          <el-table-column label="名称"
-            min-width="96"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="名称" min-width="96" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <button
                 type="button"
@@ -168,7 +178,8 @@
               </button>
             </template>
           </el-table-column>
-          <el-table-column prop="brand"
+          <el-table-column
+            prop="brand"
             label="品牌"
             min-width="72"
             class-name="col-text"
@@ -176,7 +187,8 @@
           >
             <template #default="{ row }">{{ row.brand || '无' }}</template>
           </el-table-column>
-          <el-table-column prop="spec"
+          <el-table-column
+            prop="spec"
             label="规格"
             min-width="72"
             class-name="col-text"
@@ -184,7 +196,14 @@
           >
             <template #default="{ row }">{{ row.spec || '无' }}</template>
           </el-table-column>
-          <el-table-column prop="unit" label="单位" width="64" align="center">
+          <el-table-column
+            prop="unit"
+            label="单位"
+            width="64"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.unit || '件' }}</template>
           </el-table-column>
           <el-table-column label="售价" width="84" align="center" class-name="col-money">
@@ -199,7 +218,8 @@
               }}
             </template>
           </el-table-column>
-          <el-table-column prop="category"
+          <el-table-column
+            prop="category"
             label="类目"
             min-width="88"
             class-name="col-text"
@@ -207,7 +227,13 @@
           >
             <template #default="{ row }">{{ categoryLabel(row.category) }}</template>
           </el-table-column>
-          <el-table-column label="状态" width="80" align="center">
+          <el-table-column
+            label="状态"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
                 {{ skuStatusLabel(row.status) }}
@@ -249,7 +275,11 @@
       @size-change="onSizeChange"
     />
 
-    <el-dialog v-model="editDialog" :title="form.existing ? '编辑商品' : '新建商品'" class="dialog-wide">
+    <el-dialog
+      v-model="editDialog"
+      :title="form.existing ? '编辑商品' : '新建商品'"
+      class="dialog-wide"
+    >
       <el-form label-width="auto">
         <el-form-item label="数字编号">
           <el-input

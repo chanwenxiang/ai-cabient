@@ -95,8 +95,12 @@
           :label="signingAlipay ? '开通中…' : '开通支付宝免密'"
           @click="onSignAlipay"
         />
-        <view role="button" class="link app-link-chevron" @click="goRecharge">余额不足？去充值</view>
-        <text v-if="devTools" class="hint">当前为体验开通流程；正式环境将跳转微信/支付宝签约。</text>
+        <view role="button" class="link app-link-chevron" @click="goRecharge"
+          >余额不足？去充值</view
+        >
+        <text v-if="devTools" class="hint"
+          >当前为体验开通流程；正式环境将跳转微信/支付宝签约。</text
+        >
         <text v-if="err" class="err">{{ err }}</text>
       </view>
 
@@ -117,10 +121,7 @@
 
 <script setup lang="ts">
 import { onLoad, onShow } from '@dcloudio/uni-app';
-import {
-  showSuccess,
-  showConfirm
-} from '@/utils/notify';
+import { showSuccess, showConfirm } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import type { AccountDto } from '@aicabinet/shared-types';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';

@@ -2,7 +2,9 @@
   <view class="page-root">
     <app-nav-bar title="柜机订单" />
     <view class="page-body">
-      <view v-if="booting" class="loading"><text>{{ UI_COPY.loading }}</text></view>
+      <view v-if="booting" class="loading"
+        ><text>{{ UI_COPY.loading }}</text></view
+      >
       <error-state
         v-else-if="error && !list.length && !filtersActive"
         :title="error"
@@ -23,7 +25,8 @@
           </button>
           <view class="filter-row">
             <text
-              v-for="s in statusOptions" role="button"
+              v-for="s in statusOptions"
+              role="button"
               :key="s.value"
               class="filter-chip"
               :class="{ active: status === s.value }"
@@ -41,14 +44,17 @@
               <view class="filter-picker">{{ deviceLabel }}</view>
             </picker>
             <text
-              v-for="t in timeOptions" role="button"
+              v-for="t in timeOptions"
+              role="button"
               :key="t.value"
               class="filter-chip"
               :class="{ active: timeRange === t.value }"
               @click="setTime(t.value)"
               >{{ t.label }}</text
             >
-            <text role="button" class="filter-reset" aria-label="重置筛选" @click="resetFilters">重置</text>
+            <text role="button" class="filter-reset" aria-label="重置筛选" @click="resetFilters"
+              >重置</text
+            >
           </view>
         </view>
 
@@ -151,9 +157,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import {
-  showError
-} from '@/utils/notify';
+import { showError } from '@/utils/notify';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import {
   emptyDisplay,

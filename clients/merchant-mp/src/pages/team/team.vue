@@ -28,7 +28,13 @@
         <app-button v-if="canInvite" label="邀请成员" @click="openInvite" />
       </empty-state>
       <view v-else>
-        <view v-for="u in list" role="button" :key="u.userId" class="card row" @click="openManage(u)">
+        <view
+          v-for="u in list"
+          role="button"
+          :key="u.userId"
+          class="card row"
+          @click="openManage(u)"
+        >
           <view class="avatar">{{ (u.displayName || u.phoneNumber || '员').slice(0, 1) }}</view>
           <view class="meta">
             <text class="name">{{ u.displayName || u.phoneNumber || '用户 ' + u.userId }}</text>
@@ -46,7 +52,13 @@
         </view>
       </view>
 
-      <view v-if="inviteVisible" role="button" aria-label="关闭" class="mask" @click="inviteVisible = false">
+      <view
+        v-if="inviteVisible"
+        role="button"
+        aria-label="关闭"
+        class="mask"
+        @click="inviteVisible = false"
+      >
         <view role="button" class="dialog" @click.stop>
           <text class="dialog-title">邀请成员</text>
           <input
@@ -72,7 +84,8 @@
           />
           <view class="role-row wrap">
             <text
-              v-for="r in roles" role="button"
+              v-for="r in roles"
+              role="button"
               :key="r.roleKey"
               class="role-chip"
               :class="{ active: form.roleKey === r.roleKey }"
@@ -87,7 +100,13 @@
         </view>
       </view>
 
-      <view v-if="manageVisible && manageUser" role="button" aria-label="关闭" class="mask" @click="manageVisible = false">
+      <view
+        v-if="manageVisible && manageUser"
+        role="button"
+        aria-label="关闭"
+        class="mask"
+        @click="manageVisible = false"
+      >
         <view role="button" class="dialog" @click.stop>
           <text class="dialog-title">{{ manageUser.displayName || manageUser.phoneNumber }}</text>
           <text class="hint"
@@ -99,7 +118,8 @@
             <text class="section-title">角色</text>
             <view class="role-row wrap">
               <text
-                v-for="r in roles" role="button"
+                v-for="r in roles"
+                role="button"
                 :key="'m-' + r.roleKey"
                 class="role-chip"
                 :class="{ active: manageRoleKey === r.roleKey }"
@@ -143,10 +163,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
-import {
-  showError,
-  showSuccess
-} from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';

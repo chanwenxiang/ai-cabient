@@ -324,7 +324,7 @@ onBeforeUnmount(hide);
 <style>
 .chart-float-tip {
   position: fixed;
-  z-index: 4000;
+  z-index: var(--z-fixed-tip, 4000);
   min-width: 132px;
   max-width: 240px;
   padding: 10px 12px;

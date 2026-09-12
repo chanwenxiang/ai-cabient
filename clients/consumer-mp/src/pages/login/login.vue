@@ -138,7 +138,8 @@
                   placeholder-class="ph"
                   @input="code = eventInputValue($event)"
                 />
-                <view role="button"
+                <view
+                  role="button"
                   class="btn-code"
                   :class="{ disabled: !!codeCooldown || sendingCode }"
                   @click="onSendCode"
@@ -161,7 +162,13 @@
           <text v-if="isDev && demoHint" class="dev-hint">{{ demoHint }}</text>
         </view>
 
-        <app-button class="login-back" variant="ghost" :block="false" label="返回" @click="goBack" />
+        <app-button
+          class="login-back"
+          variant="ghost"
+          :block="false"
+          label="返回"
+          @click="goBack"
+        />
         <text v-if="err" class="err">{{ err }}</text>
         <view class="legal-row">
           <text role="button" class="legal-link" @click="goPolicy('agreement')">用户协议</text>
@@ -177,9 +184,7 @@
 
 <script setup lang="ts">
 import { onLoad, onReady, onShow, onUnload } from '@dcloudio/uni-app';
-import {
-  showError
-} from '@/utils/notify';
+import { showError } from '@/utils/notify';
 import { computed, ref, watch } from 'vue';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';

@@ -5,9 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">固件版本</span>
-            <span class="hint"
-              >支持发布与灰度；柜机需自行安装，后台不下发自动安装</span
-            >
+            <span class="hint">支持发布与灰度；柜机需自行安装，后台不下发自动安装</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -46,29 +44,52 @@
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无固件版本"
           /></template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="appVersion"
-            label="版本"
-            min-width="120"
-            class-name="col-text"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
           />
-          <el-table-column prop="channel"
-            label="渠道"
-            width="100"
-            class-name="col-text"
-          >
+          <el-table-column prop="appVersion" label="版本" min-width="120" class-name="col-text" />
+          <el-table-column prop="channel" label="渠道" width="100" class-name="col-text">
             <template #default="{ row }">{{ channelLabel(row.channel) }}</template>
           </el-table-column>
-          <el-table-column prop="status" label="状态" width="100" align="center">
+          <el-table-column
+            prop="status"
+            label="状态"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ statusLabel(row.status) }}</template>
           </el-table-column>
-          <el-table-column label="强制" width="80" align="center">
+          <el-table-column
+            label="强制"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.mandatory ? '是' : '否' }}</template>
           </el-table-column>
-          <el-table-column label="灰度%" width="80" align="center">
+          <el-table-column
+            label="灰度%"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.grayPercent ?? 100 }}</template>
           </el-table-column>
-          <el-table-column label="定向设备" width="110" align="center">
+          <el-table-column
+            label="定向设备"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag v-if="row.deviceAllowlist?.length" size="small" type="warning" effect="plain">
                 {{ row.deviceAllowlist.length }} 台
@@ -76,11 +97,7 @@
               <span v-else>全量</span>
             </template>
           </el-table-column>
-          <el-table-column prop="minVersion"
-            label="最低版本"
-            width="110"
-            class-name="col-text"
-          />
+          <el-table-column prop="minVersion" label="最低版本" width="110" class-name="col-text" />
           <el-table-column label="发布时间" width="168" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.publishedAt) }}</span>
@@ -91,7 +108,8 @@
             label="说明"
             min-width="180"
             show-overflow-tooltip
-            align="center"
+            class-name="col-text"
+            label-class-name="col-text"
           />
           <el-table-column
             v-if="showActionColumn"

@@ -105,8 +105,15 @@
               "
             />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="sessionId"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="sessionId"
             label="会话编号"
             min-width="160"
             class-name="col-text"
@@ -118,14 +125,26 @@
               </button>
             </template>
           </el-table-column>
-          <el-table-column label="类型" width="88" align="center">
+          <el-table-column
+            label="类型"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" :type="sessionKindType(row.sessionKind)" effect="plain">
                 {{ sessionKindLabel(row.sessionKind) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="入口渠道" width="96" align="center">
+          <el-table-column
+            label="入口渠道"
+            width="96"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag v-if="row.entryChannel || row.payChannel" size="small" effect="plain">
                 {{ displayLabel('pay_channel', row.entryChannel || row.payChannel, '未知渠道') }}
@@ -133,7 +152,13 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="预授权" width="110" align="center">
+          <el-table-column
+            label="预授权"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span v-if="row.preauthCents"
                 >¥{{ (Number(row.preauthCents) / 100).toFixed(2) }}</span
@@ -143,7 +168,12 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="购物/识别" width="120" align="center">
+          <el-table-column
+            label="购物/识别"
+            width="120"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">
               <div>{{ formatDurationMs(row.shoppingDurationMs) }}</div>
               <div v-if="formatDurationMs(row.recognitionDurationMs)" class="muted tiny">
@@ -151,7 +181,12 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="录像" width="88" align="center">
+          <el-table-column
+            label="录像"
+            width="88"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">
               <el-tag
                 size="small"
@@ -178,11 +213,7 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="订单"
-            min-width="130"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="订单" min-width="130" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <button
                 v-if="row.orderId"
@@ -195,14 +226,21 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="110" align="center">
+          <el-table-column
+            label="状态"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" :type="sessionStateType(row.state)">
                 {{ displayLabel('session_state', row.state, '未知状态') }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="等待原因"
+          <el-table-column
+            label="等待原因"
             min-width="160"
             class-name="col-text"
             show-overflow-tooltip
@@ -234,7 +272,8 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="失败原因"
+          <el-table-column
+            label="失败原因"
             min-width="140"
             class-name="col-text"
             show-overflow-tooltip
@@ -246,7 +285,13 @@
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="时长" width="110" align="center">
+          <el-table-column
+            label="时长"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ formatDuration(row) }}</template>
           </el-table-column>
           <el-table-column

@@ -29,20 +29,27 @@
       />
       <view class="chips">
         <text
-          v-for="f in filters" role="button"
+          v-for="f in filters"
+          role="button"
           :key="f.value"
           class="chip"
           :class="{ active: filter === f.value }"
           @click="filter = f.value"
           >{{ f.label }} {{ countFor(f.value) }}</text
         >
-        <text role="button" class="chip" :class="{ active: onlyPreferred }" @click="toggleOnlyPreferred"
+        <text
+          role="button"
+          class="chip"
+          :class="{ active: onlyPreferred }"
+          @click="toggleOnlyPreferred"
           >常驻柜 {{ preferredId ? '1' : '0' }}</text
         >
       </view>
       <view v-if="preferredId" class="pref-hint">
         <text>常驻：{{ preferredLabel }}</text>
-        <text role="button" aria-label="清除常驻柜" class="pref-clear" @click="clearPreferred">清除</text>
+        <text role="button" aria-label="清除常驻柜" class="pref-clear" @click="clearPreferred"
+          >清除</text
+        >
       </view>
     </view>
     <view v-if="loading && !devices.length" class="card">{{ UI_COPY.loading }}</view>
@@ -139,10 +146,7 @@
 
 <script setup lang="ts">
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
-import {
-  showError,
-  showSuccess
-} from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';

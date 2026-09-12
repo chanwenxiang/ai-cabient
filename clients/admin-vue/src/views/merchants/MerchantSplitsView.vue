@@ -124,8 +124,15 @@
               <template #empty
                 ><el-empty v-if="merchantsHydrated && !loadingMerchants" description="暂无商户"
               /></template>
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column prop="merchantId"
+              <el-table-column
+                type="selection"
+                width="48"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column
+                prop="merchantId"
                 label="商户编号"
                 min-width="120"
                 class-name="col-text"
@@ -136,19 +143,32 @@
                   <span class="cell-id">{{ row.merchantId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="商户"
+              <el-table-column
+                label="商户"
                 min-width="140"
                 class-name="col-text"
                 show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.merchantName || '无' }}</template>
               </el-table-column>
-              <el-table-column label="抽成" width="96" align="center">
+              <el-table-column
+                label="抽成"
+                width="96"
+                align="center"
+                class-name="col-money"
+                label-class-name="col-money"
+              >
                 <template #default="{ row }"
                   >{{ (row.platformRateBps / 100).toFixed(1) }}%</template
                 >
               </el-table-column>
-              <el-table-column label="现场作业" width="100" align="center">
+              <el-table-column
+                label="现场作业"
+                width="100"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-switch
                     :model-value="row.packFieldEnabled !== false"
@@ -159,7 +179,13 @@
                   />
                 </template>
               </el-table-column>
-              <el-table-column label="经营工具" width="100" align="center">
+              <el-table-column
+                label="经营工具"
+                width="100"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-switch
                     :model-value="row.packBizEnabled !== false"
@@ -170,7 +196,13 @@
                   />
                 </template>
               </el-table-column>
-              <el-table-column label="团队设置" width="100" align="center">
+              <el-table-column
+                label="团队设置"
+                width="100"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-switch
                     :model-value="row.packTeamEnabled !== false"
@@ -181,7 +213,12 @@
                   />
                 </template>
               </el-table-column>
-              <el-table-column label="商户改货道" width="110" align="center">
+              <el-table-column
+                label="商户改货道"
+                width="110"
+                class-name="col-text"
+                label-class-name="col-text"
+              >
                 <template #default="{ row }">
                   <el-switch
                     :model-value="row.allowMerchantPlanogramEdit"
@@ -192,7 +229,13 @@
                   />
                 </template>
               </el-table-column>
-              <el-table-column label="商户改价" width="100" align="center">
+              <el-table-column
+                label="商户改价"
+                width="100"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-switch
                     :model-value="row.allowMerchantPricingEdit"
@@ -203,8 +246,21 @@
                   />
                 </template>
               </el-table-column>
-              <el-table-column prop="deviceCount" label="设备数" width="90" align="center" />
-              <el-table-column label="商户状态" width="100" align="center">
+              <el-table-column
+                prop="deviceCount"
+                label="设备数"
+                width="90"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column
+                label="商户状态"
+                width="100"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-tag size="small" effect="plain">{{
                     displayLabel('merchant_status', row.status, '未知')
@@ -220,7 +276,13 @@
                   >
                 </template>
               </el-table-column>
-              <el-table-column label="电话" width="120" align="center">
+              <el-table-column
+                label="电话"
+                width="120"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">{{
                   row.contactPhone || row.alertContactPhone || '暂无'
                 }}</template>
@@ -340,19 +402,46 @@
         </div>
         <el-divider content-position="left">商户侧推荐岗位</el-divider>
         <el-table :data="roleTemplates" stripe border>
-          <el-table-column prop="templateName" label="岗位" width="120" align="center" />
-          <el-table-column prop="templateCode" label="编码" width="120" align="center">
+          <el-table-column
+            prop="templateName"
+            label="岗位"
+            width="120"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="templateCode"
+            label="编码"
+            width="120"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">{{ row.templateCode || row.code || '暂无' }}</template>
           </el-table-column>
-          <el-table-column prop="description" label="说明" min-width="200" align="center" />
+          <el-table-column
+            prop="description"
+            label="说明"
+            min-width="200"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
           <el-table-column
             prop="permissionHint"
             label="权限提示"
             min-width="200"
             show-overflow-tooltip
             align="center"
+            class-name="col-status"
+            label-class-name="col-status"
           />
-          <el-table-column label="权限数" width="90" align="center">
+          <el-table-column
+            label="权限数"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               {{
                 Array.isArray(row.permissions)
@@ -450,16 +539,20 @@
               <template #empty
                 ><el-empty v-if="splitsLoaded && !loading" description="暂无分账明细"
               /></template>
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column label="分账编号"
-                min-width="150"
-                class-name="col-text"
-              >
+              <el-table-column
+                type="selection"
+                width="48"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column label="分账编号" min-width="150" class-name="col-text">
                 <template #default="{ row }"
                   ><span class="cell-id">{{ displayBizNo(row.splitId) }}</span></template
                 >
               </el-table-column>
-              <el-table-column label="订单"
+              <el-table-column
+                label="订单"
                 min-width="130"
                 class-name="col-text"
                 show-overflow-tooltip
@@ -476,7 +569,8 @@
                   <span v-else class="muted">无</span>
                 </template>
               </el-table-column>
-              <el-table-column label="商户"
+              <el-table-column
+                label="商户"
                 min-width="120"
                 class-name="col-text"
                 show-overflow-tooltip
@@ -494,7 +588,13 @@
               <el-table-column label="订单总额" width="110" align="center" class-name="col-money">
                 <template #default="{ row }">¥{{ money(row.grossCents) }}</template>
               </el-table-column>
-              <el-table-column label="设备" min-width="100" align="center" show-overflow-tooltip>
+              <el-table-column
+                label="设备"
+                min-width="100"
+                show-overflow-tooltip
+                class-name="col-text"
+                label-class-name="col-text"
+              >
                 <template #default="{ row }">{{ row.deviceId || '暂无' }}</template>
               </el-table-column>
               <el-table-column
@@ -502,17 +602,26 @@
                 min-width="110"
                 align="center"
                 show-overflow-tooltip
+                class-name="col-status"
+                label-class-name="col-status"
               >
                 <template #default="{ row }">{{ row.settlementBatchNo || '暂无' }}</template>
               </el-table-column>
-              <el-table-column label="状态" width="120" align="center">
+              <el-table-column
+                label="状态"
+                width="120"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              >
                 <template #default="{ row }">
                   <el-tag size="small" :type="splitTagType(row.status)">
                     {{ dictLabel('split_status', row.status) }}
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="失败原因"
+              <el-table-column
+                label="失败原因"
                 min-width="140"
                 class-name="col-text"
                 show-overflow-tooltip
@@ -592,7 +701,8 @@
       destroy-on-close
     >
       <p class="dialog-hint">
-        上级商户可见全部下级货柜。平台抽成按百分比填写（如 10 表示 10%）。非营业状态会拦截消费者开门购物（运维/补货开门不受影响）。
+        上级商户可见全部下级货柜。平台抽成按百分比填写（如 10 表示
+        10%）。非营业状态会拦截消费者开门购物（运维/补货开门不受影响）。
       </p>
       <el-form label-position="top">
         <el-form-item label="商户编号" required>

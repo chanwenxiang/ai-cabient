@@ -9,12 +9,19 @@
 
       <view class="card">
         <text class="field-label">柜机编号</text>
-        <input class="input" :value="deviceId" placeholder="请输入柜机编号" type="digit" @input="onDeviceInput" />
+        <input
+          class="input"
+          :value="deviceId"
+          placeholder="请输入柜机编号"
+          type="digit"
+          @input="onDeviceInput"
+        />
 
         <text class="field-label">问题类型</text>
         <view class="issue-grid">
           <view
-            v-for="item in issueOptions" role="button"
+            v-for="item in issueOptions"
+            role="button"
             :key="item.value"
             class="issue-chip"
             :class="{ active: issueType === item.value }"
@@ -68,9 +75,7 @@
 
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app';
-import {
-  showSuccess
-} from '@/utils/notify';
+import { showSuccess } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import { dictOptions } from '@aicabinet/shared-dict';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';

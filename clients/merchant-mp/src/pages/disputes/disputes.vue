@@ -4,7 +4,8 @@
     <view class="page-body">
       <view class="tabs-pill">
         <text
-          v-for="t in tabs" role="button"
+          v-for="t in tabs"
+          role="button"
           :key="t.key"
           class="filter-chip"
           :class="{ active: activeTab === t.key }"
@@ -13,7 +14,9 @@
         >
       </view>
 
-      <view v-if="loading && !list.length" class="loading"><text>{{ UI_COPY.loading }}</text></view>
+      <view v-if="loading && !list.length" class="loading"
+        ><text>{{ UI_COPY.loading }}</text></view
+      >
       <error-state v-else-if="error && !list.length" :title="error" @retry="load" />
       <empty-state
         v-else-if="!list.length"
@@ -78,7 +81,11 @@
             ><text>{{ item.lastMessage }}</text></view
           >
           <view class="card-action">
-            <text v-if="canReplyTicket(item)" role="button" class="reply-hint app-link-chevron" @click.stop="onReply(item)"
+            <text
+              v-if="canReplyTicket(item)"
+              role="button"
+              class="reply-hint app-link-chevron"
+              @click.stop="onReply(item)"
               >回复</text
             >
             <text v-else class="reply-hint app-link-chevron">查看详情</text>
@@ -92,12 +99,14 @@
 
       <!-- 争议详情底部抽屉：替代 uni.showModal 长文本，小屏可滚动 -->
       <view
-        v-if="detailVisible" role="button" aria-label="关闭"
+        v-if="detailVisible"
+        role="button"
+        aria-label="关闭"
         class="detail-mask"
         @click.self="detailVisible = false"
         @touchmove.stop.prevent
       >
-        <view class="detail-panel" @click.stop>
+        <view class="detail-panel" role="dialog" aria-label="争议详情" @click.stop>
           <view class="detail-handle" />
           <text class="detail-title">{{ statusText(detail?.status) }}</text>
           <text class="detail-reason">{{
@@ -244,11 +253,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import {
-  showError,
-  showSuccess,
-  showConfirm
-} from '@/utils/notify';
+import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';

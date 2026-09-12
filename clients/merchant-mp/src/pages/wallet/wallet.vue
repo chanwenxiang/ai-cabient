@@ -128,10 +128,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import {
-  showError,
-  showSuccess
-} from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, formatDateTimeShort, yuanToCents } from '@aicabinet/shared-uni/format';

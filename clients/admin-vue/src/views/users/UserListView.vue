@@ -51,8 +51,15 @@
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无用户"
           /></template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="userId"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="userId"
             label="用户编号"
             width="100"
             class-name="col-text"
@@ -62,7 +69,8 @@
               <span class="cell-id">{{ row.userId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="姓名"
+          <el-table-column
+            label="姓名"
             min-width="120"
             class-name="col-text"
             label-class-name="col-text"
@@ -70,7 +78,8 @@
           >
             <template #default="{ row }">{{ userNameText(row) }}</template>
           </el-table-column>
-          <el-table-column label="手机号"
+          <el-table-column
+            label="手机号"
             width="140"
             class-name="col-text"
             label-class-name="col-text"
@@ -78,7 +87,13 @@
           >
             <template #default="{ row }">{{ textOrNone(row.phoneNumber) }}</template>
           </el-table-column>
-          <el-table-column label="角色" width="110" align="center">
+          <el-table-column
+            label="角色"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag v-if="row.role" size="small" effect="plain">{{ roleLabel(row.role) }}</el-tag>
               <span v-else class="muted">暂无</span>
@@ -96,20 +111,44 @@
               >¥{{ ((row.balanceCents || 0) / 100).toFixed(2) }}</template
             >
           </el-table-column>
-          <el-table-column label="实名" width="96" align="center">
+          <el-table-column
+            label="实名"
+            width="96"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="row.verified ? 'success' : 'warning'" size="small">
                 {{ row.verified ? '已实名' : '未实名' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="会员等级" width="100" align="center">
+          <el-table-column
+            label="会员等级"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ memberLevelLabel(row.memberLevel) }}</template>
           </el-table-column>
-          <el-table-column label="积分" width="80" align="center">
+          <el-table-column
+            label="积分"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.availablePoints ?? 0 }}</template>
           </el-table-column>
-          <el-table-column label="黑名单" width="96" align="center">
+          <el-table-column
+            label="黑名单"
+            width="96"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag v-if="row.blacklisted" size="small" type="danger">已拉黑</el-tag>
               <span v-else class="muted">暂无</span>

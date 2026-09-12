@@ -104,8 +104,15 @@
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无优惠券"
           /></template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="couponDefId"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="couponDefId"
             label="券定义编号"
             width="100"
             class-name="col-text"
@@ -118,7 +125,13 @@
           <el-table-column label="优惠券" min-width="150" class-name="col-text">
             <template #default="{ row }">{{ row.couponName || '无' }}</template>
           </el-table-column>
-          <el-table-column label="类型" width="100" align="center">
+          <el-table-column
+            label="类型"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" effect="plain">{{
                 displayLabel('coupon_type', row.couponType, '未知类型')
@@ -136,7 +149,13 @@
           <el-table-column label="最低消费" width="100" align="center" class-name="col-money">
             <template #default="{ row }">¥{{ yuan(row.minSpendCents) }}</template>
           </el-table-column>
-          <el-table-column label="有效期" width="88" align="center">
+          <el-table-column
+            label="有效期"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.validityDays }}天</template>
           </el-table-column>
           <el-table-column label="绑定活动" width="100" class-name="col-text">
@@ -145,12 +164,23 @@
               <span v-else>未绑定</span>
             </template>
           </el-table-column>
-          <el-table-column label="发行/总量" width="110" align="center">
+          <el-table-column
+            label="发行/总量"
+            width="110"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }"
               >{{ row.issuedCount }}/{{ row.maxIssueCount || '不限' }}</template
             >
           </el-table-column>
-          <el-table-column label="剩余" width="88" align="center">
+          <el-table-column
+            label="剩余"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span v-if="!row.maxIssueCount">不限</span>
               <span v-else>{{
@@ -165,7 +195,13 @@
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="88" align="center">
+          <el-table-column
+            label="状态"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
                 {{ displayLabel('enable_status', row.status, '未知状态') }}

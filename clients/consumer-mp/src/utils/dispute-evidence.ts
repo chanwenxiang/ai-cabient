@@ -1,7 +1,5 @@
 import { consumerApi, getConsumerToken } from '@/utils/consumer-api';
-import {
-  showError
-} from '@/utils/notify';
+import { showError } from '@/utils/notify';
 import { API_BASE_URL } from '@/config/api';
 import type { FileAttachmentDto } from '@aicabinet/shared-types';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';

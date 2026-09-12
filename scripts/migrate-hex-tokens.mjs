@@ -191,10 +191,7 @@ function replaceHex(cssLike) {
   let text = out.replace(/#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/g, (hex, offset) => {
     if (isTokenDefinitionLine(out, offset)) return hex;
     const key = hex.toLowerCase();
-    const full =
-      key.length === 4
-        ? `#${key[1]}${key[1]}${key[2]}${key[2]}${key[3]}${key[3]}`
-        : key;
+    const full = key.length === 4 ? `#${key[1]}${key[1]}${key[2]}${key[2]}${key[3]}${key[3]}` : key;
     if (full === '#000000' || full === '#000') return hex;
     if (WHITE_ONLY && full !== '#ffffff') return hex;
     const token = HEX_TO_TOKEN[full] || HEX_TO_TOKEN[key];

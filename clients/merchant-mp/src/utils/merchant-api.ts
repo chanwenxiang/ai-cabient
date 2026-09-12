@@ -1,7 +1,5 @@
 import { API_BASE_URL } from '@/config/api';
-import {
-  showError
-} from '@/utils/notify';
+import { showError } from '@/utils/notify';
 import { clearDictOverrides, displayLabel } from '@aicabinet/shared-dict';
 import { matchPermission } from '@aicabinet/shared-rbac';
 import { loadRuntimeDict as sharedLoadRuntimeDict } from '@aicabinet/shared-uni/dict-runtime';

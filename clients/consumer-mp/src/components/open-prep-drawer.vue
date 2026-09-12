@@ -1,6 +1,6 @@
 <template>
   <view role="button" aria-label="关闭" class="drawer-mask" @click="onCancel">
-    <view class="drawer-panel" @click.stop>
+    <view class="drawer-panel" role="dialog" aria-label="开通引导" @click.stop>
       <view class="drawer-handle" />
       <text class="drawer-title">开通后即可开门</text>
       <text class="drawer-sub">首次使用需完成实名与免密支付</text>
@@ -31,13 +31,15 @@
         <view v-if="!entryChannel" class="channel-pick">
           <text class="field-label">本次扫码渠道</text>
           <view class="channel-chips">
-            <text role="button"
+            <text
+              role="button"
               class="channel-chip"
               :class="{ on: pickedChannel === 'WECHAT' }"
               @click="pickedChannel = 'WECHAT'"
               >微信</text
             >
-            <text role="button"
+            <text
+              role="button"
               class="channel-chip"
               :class="{ on: pickedChannel === 'ALIPAY' }"
               @click="pickedChannel = 'ALIPAY'"
@@ -97,7 +99,9 @@
             :label="busy ? '处理中…' : '支付宝充值 ¥20'"
             @click="onAlipayRecharge"
           />
-          <view role="button" class="support-link app-link-chevron" @click="goRechargePage">去充值页选择金额</view>
+          <view role="button" class="support-link app-link-chevron" @click="goRechargePage"
+            >去充值页选择金额</view
+          >
         </view>
         <view role="button" class="support-link muted" @click="contactOps">联系现场运营</view>
       </view>
@@ -110,11 +114,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import {
-  showError,
-  showSuccess,
-  showConfirm
-} from '@/utils/notify';
+import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import type { AccountDto } from '@aicabinet/shared-types';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { consumerApi } from '@/utils/consumer-api';

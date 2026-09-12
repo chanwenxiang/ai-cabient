@@ -291,9 +291,7 @@ function isDemoPhone(p: string) {
 }
 
 const rememberPhone = ref(localStorage.getItem('admin_remember_phone') !== '0');
-const password = ref(
-  ENABLE_TEST_TOOLS || isDemoPhone(phone.value) ? DEMO_LOGIN_PASSWORD : ''
-);
+const password = ref(ENABLE_TEST_TOOLS || isDemoPhone(phone.value) ? DEMO_LOGIN_PASSWORD : '');
 const captchaCode = ref('');
 const captchaId = ref('');
 const captchaImage = ref('');
@@ -750,8 +748,9 @@ async function onSubmitTwoFactor() {
   padding: 36px 32px 28px;
   border-radius: 16px;
   border: 1px solid rgba(148, 210, 198, 0.22);
-  background: rgba(8, 24, 30, 0.58);
-  backdrop-filter: blur(26px);
+  /* 扁平实心卡：去掉玻璃模糊，与两端小程序登录一致（R3-A01） */
+  background: rgba(8, 24, 30, 0.82);
+  backdrop-filter: none;
   box-shadow:
     0 24px 64px rgba(2, 10, 14, 0.38),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -820,11 +819,11 @@ async function onSubmitTwoFactor() {
   background: rgba(8, 24, 30, 0.42);
   box-shadow: 0 0 0 1px rgba(148, 210, 198, 0.26) inset;
   padding: 4px 12px;
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
 }
 .login-card :deep(.el-input__inner) {
   color: #f0fdfa;
-  /* 覆盖 Chrome 自动填充浅色底，否则会露出浅蓝块盖住玻璃态 wrapper */
+  /* 覆盖 Chrome 自动填充浅色底，否则会露出浅蓝块盖住输入 wrapper */
   background-color: transparent !important;
   box-shadow: none !important;
   -webkit-text-fill-color: #f0fdfa;
@@ -893,7 +892,7 @@ async function onSubmitTwoFactor() {
   overflow: hidden;
   color: rgba(207, 250, 254, 0.8);
   font-size: var(--admin-font-size-sm);
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
 }
 .captcha-img-btn:disabled {
   opacity: 0.7;
@@ -994,8 +993,8 @@ async function onSubmitTwoFactor() {
 <!-- append-to-body：需非 scoped 才能命中弹层；透明度对齐 .login-card -->
 <style>
 .login-reset-modal {
-  background: rgba(4, 22, 28, 0.28) !important;
-  backdrop-filter: blur(6px);
+  background: rgba(4, 22, 28, 0.48) !important;
+  backdrop-filter: none;
 }
 .login-reset-dialog.el-dialog {
   --el-dialog-bg-color: transparent;
@@ -1004,8 +1003,9 @@ async function onSubmitTwoFactor() {
   --el-border-color-light: transparent;
   border-radius: 16px;
   border: 1px solid rgba(148, 210, 198, 0.22);
-  background: rgba(8, 24, 30, 0.58) !important;
-  backdrop-filter: blur(26px);
+  /* 与 .login-card 同批去玻璃态（R3-A01） */
+  background: rgba(8, 24, 30, 0.82) !important;
+  backdrop-filter: none;
   box-shadow: 0 24px 64px rgba(2, 10, 14, 0.38);
 }
 .login-reset-dialog .el-dialog__header {
@@ -1041,7 +1041,7 @@ async function onSubmitTwoFactor() {
   border-radius: 10px;
   background: rgba(8, 24, 30, 0.42) !important;
   box-shadow: 0 0 0 1px rgba(148, 210, 198, 0.26) inset !important;
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
 }
 .login-reset-dialog .el-input__inner {
   color: #f0fdfa !important;
@@ -1063,7 +1063,7 @@ async function onSubmitTwoFactor() {
   border-radius: 10px;
   background: rgba(8, 24, 30, 0.42);
   color: rgba(207, 250, 254, 0.8);
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
 }
 .login-reset-dialog .sms-row .el-button {
   --el-button-bg-color: rgba(8, 24, 30, 0.42);

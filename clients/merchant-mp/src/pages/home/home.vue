@@ -1,6 +1,8 @@
 <template>
   <view class="page">
-    <view v-if="loading && !meName" class="card"><text>{{ UI_COPY.loading }}</text></view>
+    <view v-if="loading && !meName" class="card"
+      ><text>{{ UI_COPY.loading }}</text></view
+    >
     <view v-else-if="error && !meName" class="card"
       ><text class="err">{{ error }}</text></view
     >
@@ -109,7 +111,13 @@
       <view v-if="canReplenishment" class="card section-card">
         <view class="section-head">
           <text class="section">今日补货</text>
-          <text role="button" aria-label="查看更多" class="section-more app-link-chevron" @click="goReplenishment()">全部</text>
+          <text
+            role="button"
+            aria-label="查看更多"
+            class="section-more app-link-chevron"
+            @click="goReplenishment()"
+            >全部</text
+          >
         </view>
         <text v-if="preferredId" class="pref-tip">常驻柜 {{ preferredId }} 优先置顶</text>
         <!-- 仅首次进入显示加载；之后切回工作台保留上次列表/空态，避免「任务加载中」闪一下 -->
@@ -157,7 +165,8 @@
       </view>
 
       <view
-        v-if="canAlerts && actionItems.length" role="button"
+        v-if="canAlerts && actionItems.length"
+        role="button"
         class="card section-card"
         @click="goTab('/pages/alerts/alerts')"
       >
@@ -166,7 +175,8 @@
           <text class="section-more app-link-chevron">查看全部</text>
         </view>
         <view
-          v-for="item in actionItems" role="button"
+          v-for="item in actionItems"
+          role="button"
           :key="item.type + item.title"
           class="todo-row"
           hover-class="todo-row-hover"
@@ -239,9 +249,7 @@
 
 <script setup lang="ts">
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
-import {
-  showError
-} from '@/utils/notify';
+import { showError } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import {

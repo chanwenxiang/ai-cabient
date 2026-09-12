@@ -84,7 +84,13 @@
           <template #empty>
             <el-empty v-if="listHydrated && !loading" :description="emptyText" />
           </template>
-          <el-table-column label="类型" width="160" align="center">
+          <el-table-column
+            label="类型"
+            width="160"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" :type="typeTag(row.checkType)">{{
                 typeLabel(row.checkType)
@@ -106,18 +112,20 @@
               <code v-else class="mono" :title="row.checkKey">{{ row.checkKey }}</code>
             </template>
           </el-table-column>
-          <el-table-column prop="tableName"
-            label="表"
-            width="140"
-            class-name="col-text"
-          >
+          <el-table-column prop="tableName" label="表" width="140" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="row.tableName || ''">{{
                 row.tableName || '暂无'
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="级别" width="90" align="center">
+          <el-table-column
+            label="级别"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" :type="severityTag(row)">{{ severityLabel(row) }}</el-tag>
             </template>
@@ -141,17 +149,36 @@
               <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="90" align="center">
+          <el-table-column
+            label="状态"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" type="danger">{{ statusLabel(row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="检出时间" width="170" align="center">
+          <el-table-column
+            label="检出时间"
+            width="170"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.checkedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120" align="center" fixed="right">
+          <el-table-column
+            label="操作"
+            width="120"
+            align="center"
+            fixed="right"
+            class-name="col-action"
+            label-class-name="col-action"
+          >
             <template #default="{ row }">
               <el-button
                 v-if="canFix && isFixable(row.checkType)"

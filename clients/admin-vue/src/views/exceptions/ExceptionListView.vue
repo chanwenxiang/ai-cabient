@@ -91,8 +91,15 @@
             <template #empty>
               <el-empty v-if="listHydrated && !loading" :description="emptyHint" />
             </template>
-            <el-table-column type="selection" width="48" align="center" />
-            <el-table-column prop="exceptionId"
+            <el-table-column
+              type="selection"
+              width="48"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            />
+            <el-table-column
+              prop="exceptionId"
               label="异常编号"
               min-width="140"
               class-name="col-text"
@@ -103,7 +110,8 @@
                 <span class="cell-id">{{ displayBizNo(row.exceptionId) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="异常"
+            <el-table-column
+              label="异常"
               min-width="160"
               class-name="col-text"
               show-overflow-tooltip
@@ -114,14 +122,21 @@
                 </button>
               </template>
             </el-table-column>
-            <el-table-column label="级别" width="80" align="center">
+            <el-table-column
+              label="级别"
+              width="80"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">
                 <el-tag :type="dictTagType(row.severity)" size="small">
                   {{ dictLabel('exception_severity', row.severity) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="类型"
+            <el-table-column
+              label="类型"
               min-width="120"
               class-name="col-text"
               show-overflow-tooltip
@@ -130,7 +145,8 @@
                 dictLabel('exception_type', row.exceptionType)
               }}</template>
             </el-table-column>
-            <el-table-column label="设备"
+            <el-table-column
+              label="设备"
               min-width="110"
               class-name="col-text"
               show-overflow-tooltip
@@ -147,7 +163,8 @@
                 <span v-else class="muted">无</span>
               </template>
             </el-table-column>
-            <el-table-column label="会话"
+            <el-table-column
+              label="会话"
               min-width="130"
               class-name="col-text"
               show-overflow-tooltip
@@ -166,7 +183,8 @@
                 }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="订单"
+            <el-table-column
+              label="订单"
               min-width="120"
               class-name="col-text"
               show-overflow-tooltip
@@ -185,7 +203,12 @@
                 }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="用户" width="88" align="center">
+            <el-table-column
+              label="用户"
+              width="88"
+              class-name="col-text"
+              label-class-name="col-text"
+            >
               <template #default="{ row }">
                 <span v-if="row.userId">{{ row.userId }}</span>
                 <span v-else class="muted" :title="emptyRefHint(row)">{{
@@ -193,7 +216,13 @@
                 }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="92" align="center">
+            <el-table-column
+              label="状态"
+              width="92"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">
                 <el-tag v-if="row.archived" type="info" size="small">已归档</el-tag>
                 <el-tag v-else :type="dictTagType(row.status)" size="small">
@@ -201,7 +230,12 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="处理时限" min-width="168" align="center">
+            <el-table-column
+              label="处理时限"
+              min-width="168"
+              class-name="col-text"
+              label-class-name="col-text"
+            >
               <template #default="{ row }">
                 <div class="sla-cell">
                   <template v-if="row.slaOverdue">
@@ -228,10 +262,21 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="负责人" width="88" align="center">
+            <el-table-column
+              label="负责人"
+              width="88"
+              class-name="col-text"
+              label-class-name="col-text"
+            >
               <template #default="{ row }">{{ row.assigneeUserId || '未领取' }}</template>
             </el-table-column>
-            <el-table-column label="创建时间" width="160" align="center">
+            <el-table-column
+              label="创建时间"
+              width="160"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">
                 <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
               </template>

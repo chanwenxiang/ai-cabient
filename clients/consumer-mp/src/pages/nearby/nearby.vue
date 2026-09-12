@@ -24,14 +24,14 @@
       </view>
     </view>
 
-    <view v-if="loading" class="state">定位并加载附近柜机�?/view>
+    <view v-if="loading" class="state">定位并加载附近柜机…</view>
     <view v-else-if="error" class="state error">
       <text>{{ error }}</text>
       <app-button variant="ghost" label="重试" @click="reload" />
     </view>
     <view v-else-if="!list.length" class="state">
       <text>附近 {{ radiusKm }}km 暂无柜机</text>
-      <text class="sub">可扩大范围，或扫柜门二维码开�?/text>
+      <text class="sub">可扩大范围，或扫柜门二维码开门</text>
     </view>
     <scroll-view v-else class="list" scroll-y>
       <view v-for="d in list" role="button" :key="d.deviceId" class="card" @click="openDevice(d)">
@@ -42,7 +42,7 @@
           </view>
           <text class="dist">{{ formatDist(d.distanceMeters) }}</text>
         </view>
-        <text class="addr">{{ d.address || '地址待完�? }}</text>
+        <text class="addr">{{ d.address || '地址待完善' }}</text>
         <view class="meta">
           <text class="chip" :class="d.available ? 'ok' : 'busy'">{{
             d.available ? UI_COPY.available : UI_COPY.busy
@@ -57,7 +57,7 @@
             {{ onlineLabel(String(d.onlineStatus || '').toUpperCase() === 'ONLINE') }}
           </text>
           <text class="chip muted"
-            >在售 {{ d.sellableSkuCount }} �?· {{ d.sellableItemCount }} �?/text
+            >在售 {{ d.sellableSkuCount }} 种 · {{ d.sellableItemCount }} 件</text
           >
         </view>
         <view v-if="d.previewSkus?.length" class="preview">
@@ -67,10 +67,11 @@
           >
         </view>
         <view class="card-actions">
-          <!-- 不用 size=mini：微信原�?mini 热区过小，自定义 72rpx 行内双按�?-->
+          <!-- 不用 size=mini：微信原生 mini 热区过小，自定义 72rpx 行内双按钮 -->
           <button class="btn ghost" @click.stop="openNav(d)">导航</button>
           <button class="btn primary" :disabled="!d.available" @click.stop="openDevice(d)">
-            去开�?          </button>
+            去开门
+          </button>
         </view>
       </view>
       <view class="list-pad" />
@@ -80,9 +81,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import {
-  showError
-} from '@/utils/notify';
+import { showError } from '@/utils/notify';
 import { consumerApi } from '@/utils/consumer-api';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
@@ -100,8 +99,8 @@ const lat = ref(31.2304);
 const lng = ref(121.4737);
 const locHint = computed(() =>
   usingFallbackLoc.value
-    ? '未获取定位，已按默认城区展示；可点刷新重�?
-    : `已定�?· 半径 ${radiusKm.value}km`
+    ? '未获取定位，已按默认城区展示；可点刷新重试'
+    : `已定位 · 半径 ${radiusKm.value}km`
 );
 const usingFallbackLoc = ref(false);
 
@@ -207,7 +206,7 @@ onMounted(() => {
   align-items: center;
   padding: 8px 12px 12px;
   background: var(--brand-deep);
-  color: var(--white);
+  color: #fff;
 }
 .nav-back {
   width: 36px;
@@ -215,7 +214,7 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--white);
+  color: #fff;
 }
 .nav-back .app-icon--back {
   width: 10px;
@@ -225,13 +224,13 @@ onMounted(() => {
 .nav-title {
   flex: 1;
   text-align: center;
-  font-size: var(--font-size-lg);
+  font-size: 17px;
   font-weight: 600;
 }
 .nav-action {
   width: 48px;
   text-align: right;
-  font-size: var(--font-size-body);
+  font-size: 13px;
   opacity: 0.9;
 }
 .toolbar {
@@ -240,7 +239,7 @@ onMounted(() => {
   border-bottom: 1px solid var(--card-border, #e8eeeb);
 }
 .loc-hint {
-  font-size: var(--font-size-caption);
+  font-size: 12px;
   color: var(--text-muted);
 }
 .radius-row {
@@ -253,17 +252,17 @@ onMounted(() => {
   border-radius: 999px;
   background: #f1f5f4;
   color: var(--text-muted, #334155);
-  font-size: var(--font-size-caption);
+  font-size: 12px;
 }
 .radius-chip.on {
   background: var(--brand-deep);
-  color: var(--white);
+  color: #fff;
 }
 .state {
   padding: 48px 24px;
   text-align: center;
   color: var(--text-muted);
-  font-size: var(--font-size-md);
+  font-size: 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -273,14 +272,14 @@ onMounted(() => {
   color: var(--color-danger);
 }
 .state .sub {
-  font-size: var(--font-size-caption);
+  font-size: 12px;
   color: var(--text-subtle);
 }
 .retry {
   margin-top: 8px;
   background: var(--brand-deep);
-  color: var(--white);
-  font-size: var(--font-size-body);
+  color: #fff;
+  font-size: 13px;
   border-radius: 20px;
   padding: 0 20px;
 }
@@ -303,18 +302,18 @@ onMounted(() => {
   gap: 8px;
 }
 .card-name {
-  font-size: var(--font-size-lg);
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-primary, #0f172a);
 }
 .card-id {
   display: block;
-  font-size: var(--font-size-xs);
+  font-size: 11px;
   color: var(--text-subtle);
   margin-top: 2px;
 }
 .dist {
-  font-size: var(--font-size-md);
+  font-size: 14px;
   font-weight: 600;
   color: var(--brand-deep);
   white-space: nowrap;
@@ -322,7 +321,7 @@ onMounted(() => {
 .addr {
   display: block;
   margin-top: 8px;
-  font-size: var(--font-size-caption);
+  font-size: 12px;
   color: var(--text-muted);
 }
 .meta {
@@ -332,7 +331,7 @@ onMounted(() => {
   margin-top: 10px;
 }
 .chip {
-  font-size: var(--font-size-xs);
+  font-size: 11px;
   padding: 2px 8px;
   border-radius: 999px;
   background: var(--color-border);
@@ -343,7 +342,7 @@ onMounted(() => {
   color: var(--brand-deep, #065f46);
 }
 .chip.busy {
-  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, var(--white));
+  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, #fff);
   color: var(--danger, #991b1b);
 }
 .chip.muted {
@@ -354,7 +353,7 @@ onMounted(() => {
   color: var(--color-success, #16a34a);
 }
 .chip.app-status.is-offline {
-  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, var(--white));
+  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, #fff);
   color: var(--color-danger, #b91c1c);
 }
 .preview {
@@ -364,7 +363,7 @@ onMounted(() => {
   margin-top: 10px;
 }
 .preview-item {
-  font-size: var(--font-size-xs);
+  font-size: 11px;
   color: var(--text-muted, #475569);
   background: var(--page-bg, #f8fafc);
   padding: 2px 8px;
@@ -403,7 +402,7 @@ onMounted(() => {
 }
 .btn.primary {
   background: var(--brand);
-  color: var(--white);
+  color: #fff;
   border: none;
 }
 .btn[disabled] {

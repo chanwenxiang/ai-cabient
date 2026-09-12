@@ -357,14 +357,31 @@ onMounted(load);
           <template #empty>
             <el-empty v-if="hydrated && !loading" :description="emptyHint()" />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="申请号" width="100" align="center">
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            label="申请号"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.invoiceId }}</template>
           </el-table-column>
           <el-table-column label="订单" min-width="140">
             <template #default="{ row }">{{ displayBizNo(row.orderId) }}</template>
           </el-table-column>
-          <el-table-column label="用户" width="90" align="center">
+          <el-table-column
+            label="用户"
+            width="90"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">{{ row.userId ?? '' }}</template>
           </el-table-column>
           <el-table-column label="抬头" min-width="140" class-name="col-text">
@@ -380,10 +397,22 @@ onMounted(load);
               <span class="cell-ellipsis" :title="row.email || ''">{{ row.email || '' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="金额" width="100" align="right">
+          <el-table-column
+            label="金额"
+            width="100"
+            align="right"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
           </el-table-column>
-          <el-table-column label="状态" width="100" align="center">
+          <el-table-column
+            label="状态"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="statusTag(row.status)" size="small">{{
                 statusLabel(row.status)

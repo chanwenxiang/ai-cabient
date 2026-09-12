@@ -58,8 +58,20 @@
           <template #empty>
             <el-empty description="暂无告警规则" />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="分组" width="140" align="center">
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            label="分组"
+            width="140"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.group }}</template>
           </el-table-column>
           <el-table-column label="规则说明" min-width="220" class-name="col-text">
@@ -70,7 +82,12 @@
               <span class="cell-id">{{ row.configKey }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="单位/提示" width="110" align="center">
+          <el-table-column
+            label="单位/提示"
+            width="110"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">{{ ruleUnitHint(row.configKey) }}</template>
           </el-table-column>
           <el-table-column label="当前值" min-width="160" class-name="col-text">
@@ -83,7 +100,13 @@
               <span v-else>{{ displayValue(row) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="更新时间" width="150" align="center">
+          <el-table-column
+            label="更新时间"
+            width="150"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{
               row.updatedAt ? formatDateTime(row.updatedAt) : '暂无'
             }}</template>

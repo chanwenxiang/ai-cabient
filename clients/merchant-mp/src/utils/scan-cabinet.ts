@@ -1,7 +1,5 @@
 import { normalizeDeviceId, parseCabinetScan } from '@aicabinet/shared-uni/qrcode';
-import {
-  showError
-} from '@/utils/notify';
+import { showError } from '@/utils/notify';
 import { promptText } from '@/utils/text-prompt';
 
 function isBrowserH5(): boolean {

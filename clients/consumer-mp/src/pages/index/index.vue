@@ -23,24 +23,28 @@
               <text class="error-detail">{{ landingError }}</text>
               <view class="error-actions">
                 <text
-                  v-if="landingErrorKind === 'balance'" role="button"
+                  v-if="landingErrorKind === 'balance'"
+                  role="button"
                   class="error-action primary"
                   @click="goRechargeFromError"
                   >去充值</text
                 >
                 <text
-                  v-else-if="lastFailedDeviceId" role="button"
+                  v-else-if="lastFailedDeviceId"
+                  role="button"
                   class="error-action primary"
                   @click="retryLastOpen"
                   >重试开门</text
                 >
                 <text
-                  v-if="landingErrorKind === 'device_not_found'" role="button"
+                  v-if="landingErrorKind === 'device_not_found'"
+                  role="button"
                   class="error-action"
                   @click="onScan"
                   >重新扫码</text
                 >
-                <text role="button"
+                <text
+                  role="button"
                   class="error-action"
                   @click="
                     landingError = '';
@@ -79,7 +83,12 @@
             <text class="scan-circle-text">{{ opening ? '连接中…' : '扫码购物' }}</text>
           </button>
           <text class="scan-tip">对准柜门二维码，即可开门取货</text>
-          <view v-if="lastDeviceId" role="button" class="resume-card" @click="startShoppingFlow(lastDeviceId)">
+          <view
+            v-if="lastDeviceId"
+            role="button"
+            class="resume-card"
+            @click="startShoppingFlow(lastDeviceId)"
+          >
             <text class="resume-title">继续在本柜购物</text>
             <text class="resume-sub">{{ lastDeviceName || lastDeviceId }}</text>
           </view>
@@ -101,18 +110,32 @@
         </view>
       </view>
 
-      <view v-if="authPromptVisible" role="button" aria-label="关闭" class="landing-mask" @click="dismissAuthPrompt">
+      <view
+        v-if="authPromptVisible"
+        role="button"
+        aria-label="关闭"
+        class="landing-mask"
+        @click="dismissAuthPrompt"
+      >
         <view role="button" class="landing-sheet" @click.stop="noop">
           <text class="landing-sheet-title">需要授权</text>
           <text class="landing-sheet-body">扫码开门需先完成微信授权</text>
           <view class="landing-sheet-actions">
             <text role="button" class="landing-sheet-btn" @click="dismissAuthPrompt">取消</text>
-            <text role="button" class="landing-sheet-btn primary" @click="goLoginFromScan">去登录</text>
+            <text role="button" class="landing-sheet-btn primary" @click="goLoginFromScan"
+              >去登录</text
+            >
           </view>
         </view>
       </view>
 
-      <view v-if="showManual" role="button" aria-label="关闭" class="landing-mask" @click="showManual = false">
+      <view
+        v-if="showManual"
+        role="button"
+        aria-label="关闭"
+        class="landing-mask"
+        @click="showManual = false"
+      >
         <view role="button" class="landing-sheet" @click.stop="noop">
           <text class="landing-sheet-title">手动输入柜机编号</text>
           <text class="landing-sheet-label">柜机编号</text>
@@ -205,14 +228,25 @@
               placeholder-class="search-placeholder"
               confirm-type="search"
             />
-            <text v-if="searchKeyword" role="button" class="search-clear" @click="clearSearchKeyword">×</text>
+            <text
+              v-if="searchKeyword"
+              role="button"
+              class="search-clear"
+              @click="clearSearchKeyword"
+              >×</text
+            >
           </view>
           <scroll-view scroll-x class="category-row" :show-scrollbar="false">
-            <view role="button" class="category-chip" :class="{ active: !activeCategory }" @click="clearCategory"
+            <view
+              role="button"
+              class="category-chip"
+              :class="{ active: !activeCategory }"
+              @click="clearCategory"
               >全部</view
             >
             <view
-              v-for="cat in productCategories" role="button"
+              v-for="cat in productCategories"
+              role="button"
               :key="cat"
               class="category-chip"
               :class="{ active: activeCategory === cat }"
@@ -271,7 +305,8 @@
               <text class="product-price">{{ fmtMoney(p.priceCents) }}</text>
               <text v-if="p.category" class="product-cat">{{ p.category }}</text>
               <view
-                v-if="sessionActive && state === 'SHOPPING' && mockEnabled" role="button"
+                v-if="sessionActive && state === 'SHOPPING' && mockEnabled"
+                role="button"
                 class="product-stepper"
                 @click.stop="noop"
               >
@@ -305,7 +340,8 @@
 
       <view class="cart-bar">
         <template v-if="sessionActive && state === 'SHOPPING'">
-          <view role="button"
+          <view
+            role="button"
             class="cart-shop-main"
             data-testid="open-live-cart-sheet"
             @click="openCartSheet"
@@ -2749,7 +2785,11 @@ function stopDevicePoll() {
   padding: 22rpx;
   border: 1rpx solid color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
   border-radius: var(--radius-card);
-  background: linear-gradient(135deg, var(--warning-soft), color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)));
+  background: linear-gradient(
+    135deg,
+    var(--warning-soft),
+    color-mix(in srgb, var(--warning, #b45309) 8%, var(--white))
+  );
   box-shadow: 0 9rpx 26rpx rgba(194, 65, 12, 0.08);
 }
 .settlement-review-card.tone-success {
@@ -2758,7 +2798,11 @@ function stopDevicePoll() {
 }
 .settlement-review-card.tone-wait {
   border-color: color-mix(in srgb, var(--warning, #b45309) 28%, var(--white));
-  background: linear-gradient(135deg, var(--warning-soft), color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)));
+  background: linear-gradient(
+    135deg,
+    var(--warning-soft),
+    color-mix(in srgb, var(--warning, #b45309) 8%, var(--white))
+  );
 }
 .settlement-review-card.tone-warn {
   border-color: color-mix(in srgb, var(--danger, #b91c1c) 18%, var(--white));
@@ -3038,7 +3082,7 @@ function stopDevicePoll() {
 }
 .error-close {
   padding: 0 4rpx;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, var(--on-deep-opacity-78));
   font-size: var(--font-size-lg);
   line-height: 1;
 }
@@ -3104,7 +3148,7 @@ function stopDevicePoll() {
   color: var(--white);
 }
 .sheet-ph {
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, var(--on-deep-opacity-50));
 }
 .landing-sheet-actions {
   display: flex;

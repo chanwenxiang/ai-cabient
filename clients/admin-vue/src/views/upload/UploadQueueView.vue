@@ -103,8 +103,15 @@
           <template #empty>
             <el-empty v-if="listHydrated && !loading" :description="emptyHint" :image-size="88" />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="sessionId"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="sessionId"
             label="会话编号"
             min-width="168"
             class-name="col-text"
@@ -132,7 +139,8 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="对象路径"
+          <el-table-column
+            label="对象路径"
             min-width="180"
             class-name="col-text"
             show-overflow-tooltip
@@ -144,14 +152,21 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="上传状态" width="110" align="center">
+          <el-table-column
+            label="上传状态"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" :type="dictTagType(String(row.uploadStatus || ''))">
                 {{ displayLabel('upload_status', row.uploadStatus, '未知状态') }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="等待原因"
+          <el-table-column
+            label="等待原因"
             min-width="200"
             class-name="col-text"
             show-overflow-tooltip
@@ -180,7 +195,13 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="预览" width="80" align="center">
+          <el-table-column
+            label="预览"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-link v-if="row.videoUri" type="primary" @click.prevent="playVideo(row.sessionId)"
                 >播放</el-link

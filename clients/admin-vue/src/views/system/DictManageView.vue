@@ -50,14 +50,22 @@
                     :image-size="64"
                   />
                 </template>
-                <el-table-column label="类型"
+                <el-table-column
+                  label="类型"
                   min-width="120"
                   class-name="col-text"
                   show-overflow-tooltip
                 >
                   <template #default="{ row }">{{ row.dictName || '无' }}</template>
                 </el-table-column>
-                <el-table-column prop="itemCount" label="项数" width="56" align="center" />
+                <el-table-column
+                  prop="itemCount"
+                  label="项数"
+                  width="56"
+                  align="center"
+                  class-name="col-status"
+                  label-class-name="col-status"
+                />
                 <el-table-column
                   v-if="canEdit"
                   label="操作"
@@ -161,8 +169,15 @@
                     :image-size="64"
                   />
                 </template>
-                <el-table-column type="selection" width="48" align="center" />
-                <el-table-column prop="dictDataId"
+                <el-table-column
+                  type="selection"
+                  width="48"
+                  align="center"
+                  class-name="col-status"
+                  label-class-name="col-status"
+                />
+                <el-table-column
+                  prop="dictDataId"
                   label="数据编号"
                   width="80"
                   class-name="col-text"
@@ -172,14 +187,16 @@
                     <span class="cell-id">{{ row.dictDataId }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="字典项"
+                <el-table-column
+                  label="字典项"
                   min-width="120"
                   class-name="col-text"
                   show-overflow-tooltip
                 >
                   <template #default="{ row }">{{ row.dictLabel || '无' }}</template>
                 </el-table-column>
-                <el-table-column label="值"
+                <el-table-column
+                  label="值"
                   min-width="100"
                   class-name="col-text"
                   show-overflow-tooltip
@@ -188,8 +205,21 @@
                     <span class="cell-id">{{ row.dictValue }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column prop="sortOrder" label="排序" width="72" align="center" />
-                <el-table-column label="状态" width="88" align="center">
+                <el-table-column
+                  prop="sortOrder"
+                  label="排序"
+                  width="72"
+                  align="center"
+                  class-name="col-status"
+                  label-class-name="col-status"
+                />
+                <el-table-column
+                  label="状态"
+                  width="88"
+                  align="center"
+                  class-name="col-status"
+                  label-class-name="col-status"
+                >
                   <template #default="{ row }">
                     <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
                       {{ displayLabel('enable_status', row.status) }}
@@ -256,10 +286,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog
-      v-model="itemDlg"
-      :title="itemForm.dictDataId ? '编辑字典项' : '新增字典项'"
-    >
+    <el-dialog v-model="itemDlg" :title="itemForm.dictDataId ? '编辑字典项' : '新增字典项'">
       <el-form label-width="auto">
         <el-form-item label="字典值"
           ><el-input

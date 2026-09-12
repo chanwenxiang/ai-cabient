@@ -4,7 +4,8 @@
     <view class="page-body">
       <view class="tabs-pill">
         <text
-          v-for="tab in tabs" role="button"
+          v-for="tab in tabs"
+          role="button"
           :key="tab.key"
           class="filter-chip"
           :class="{ active: activeTab === tab.key }"
@@ -13,7 +14,9 @@
         >
       </view>
 
-      <view v-if="loading && !list.length" class="loading"><text>{{ UI_COPY.loading }}</text></view>
+      <view v-if="loading && !list.length" class="loading"
+        ><text>{{ UI_COPY.loading }}</text></view
+      >
       <empty-state
         v-else-if="loadError && !list.length"
         icon="/static/menu/warning.png"
@@ -58,7 +61,8 @@
             <text class="coupon-scope">{{ deviceScopeText(c.deviceScope) }}</text>
             <text v-if="c.description" class="coupon-desc">{{ c.description }}</text>
             <text
-              v-if="c.status === 'UNUSED'" role="button"
+              v-if="c.status === 'UNUSED'"
+              role="button"
               class="coupon-pick"
               :class="{ on: preferredId === c.couponId }"
               @click.stop="pickForNextOpen(c)"
@@ -73,9 +77,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import {
-  showError
-} from '@/utils/notify';
+import { showError } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi, ensureConsumerAuth, type CouponDto } from '@/utils/consumer-api';
@@ -229,7 +231,7 @@ function pickForNextOpen(c: CouponDto) {
   font-weight: 700;
 }
 .coupon-type {
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, var(--on-deep-opacity-92));
   font-size: var(--font-size-sm);
   margin-top: 4rpx;
 }

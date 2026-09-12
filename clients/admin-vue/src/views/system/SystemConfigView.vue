@@ -124,7 +124,13 @@
           <template #empty>
             <el-empty v-if="listHydrated && !loading" description="暂无参数" />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
           <el-table-column label="配置键" min-width="180" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.configKey }}</span>
@@ -133,7 +139,8 @@
           <el-table-column label="说明" min-width="160" class-name="col-text">
             <template #default="{ row }">{{ row.description || '无说明' }}</template>
           </el-table-column>
-          <el-table-column label="配置值"
+          <el-table-column
+            label="配置值"
             min-width="200"
             class-name="col-text"
             show-overflow-tooltip
@@ -174,11 +181,7 @@
       background
     />
 
-    <el-dialog
-      v-model="dialogVisible"
-      :title="creating ? '新增参数' : '编辑参数'"
-      destroy-on-close
-    >
+    <el-dialog v-model="dialogVisible" :title="creating ? '新增参数' : '编辑参数'" destroy-on-close>
       <el-form label-width="auto">
         <el-form-item label="配置键" required>
           <el-input

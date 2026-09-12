@@ -76,7 +76,13 @@
           <template #empty>
             <el-empty v-if="listHydrated && !loading" description="暂无定时任务" />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
           <el-table-column label="任务名称" min-width="170" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.taskName }}</span>
@@ -85,15 +91,32 @@
           <el-table-column label="任务标识" min-width="200" class-name="col-text">
             <template #default="{ row }">{{ row.taskKey }}</template>
           </el-table-column>
-          <el-table-column label="分组" width="110" align="center">
+          <el-table-column
+            label="分组"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{
               dictLabel('scheduled_task_group', row.taskGroup)
             }}</template>
           </el-table-column>
-          <el-table-column label="调度说明" width="130" align="center">
+          <el-table-column
+            label="调度说明"
+            width="130"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">{{ row.scheduleDesc || '暂无' }}</template>
           </el-table-column>
-          <el-table-column label="状态" width="110" align="center">
+          <el-table-column
+            label="状态"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-switch
                 v-if="canEdit"
@@ -106,7 +129,13 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="最近执行" min-width="200" align="center">
+          <el-table-column
+            label="最近执行"
+            min-width="200"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <template v-if="row.lastRunAt">
                 <div>{{ formatDateTime(row.lastRunAt) }}</div>
@@ -120,10 +149,7 @@
               <span v-else class="cell-hint">尚未执行</span>
             </template>
           </el-table-column>
-          <el-table-column label="最近结果说明"
-            min-width="200"
-            class-name="col-text"
-          >
+          <el-table-column label="最近结果说明" min-width="200" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="row.lastMessage || ''">{{
                 row.lastMessage || '暂无'

@@ -69,9 +69,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import {
-  showError
-} from '@/utils/notify';
+import { showError } from '@/utils/notify';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { API_BASE_URL } from '@/config/api';
 import { downloadAuthedFile, getConsumerToken } from '@/utils/consumer-api';
@@ -271,14 +269,14 @@ function goOrder() {
 }
 .state-title {
   display: block;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   color: var(--color-border);
 }
 .state-desc {
   display: block;
   margin-top: 6px;
-  font-size: 13px;
+  font-size: var(--font-size-body);
 }
 .state .app-btn,
 .state .app-btn {
@@ -303,18 +301,18 @@ function goOrder() {
 }
 .meta {
   color: var(--text-subtle, #cbd5e1);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 .tip {
   color: var(--text-subtle);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 .copy-btn {
   background: rgba(15, 23, 42, 0.45);
   color: var(--page-bg, #f8fafc);
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   min-height: 36px;
   height: 36px;
   line-height: 36px;
@@ -328,6 +326,6 @@ function goOrder() {
 }
 .back-link {
   color: var(--success);
-  font-size: 13px;
+  font-size: var(--font-size-body);
 }
 </style>

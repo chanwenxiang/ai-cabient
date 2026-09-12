@@ -92,7 +92,8 @@
 
       <view class="filters tabs-pill">
         <text
-          v-for="item in statusOptions" role="button"
+          v-for="item in statusOptions"
+          role="button"
           :key="item.value"
           class="filter-chip"
           :class="{ active: status === item.value }"
@@ -174,7 +175,14 @@
         </view>
       </view>
 
-      <view v-if="detailVisible" role="button" aria-label="关闭" class="mask" @click.self="closeDetail" @touchmove.stop.prevent>
+      <view
+        v-if="detailVisible"
+        role="button"
+        aria-label="关闭"
+        class="mask"
+        @click.self="closeDetail"
+        @touchmove.stop.prevent
+      >
         <view role="button" class="sheet" @click.stop>
           <view class="sheet-handle" />
           <view class="sheet-head">
@@ -305,9 +313,7 @@
             只读查看，需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
           </text>
           <text v-if="doorOpened && openSessionId" class="door-tip">
-            已开门，关门后继续核对{{
-              detailIsPullOff ? '下架' : '上架'
-            }}
+            已开门，关门后继续核对{{ detailIsPullOff ? '下架' : '上架' }}
           </text>
 
           <view class="section-heading">
@@ -504,7 +510,8 @@
               <text class="slot-pick-label">选择货道</text>
               <view v-if="slotOptionsFor(line).length" class="slot-chips">
                 <text
-                  v-for="opt in slotOptionsFor(line)" role="button"
+                  v-for="opt in slotOptionsFor(line)"
+                  role="button"
                   :key="opt.slotCode"
                   class="slot-chip"
                   :class="{ disabled: opt.room <= 0, active: line.slotId === opt.slotCode }"
@@ -607,10 +614,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
-import {
-  showError,
-  showSuccess
-} from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, formatDateTimeShort } from '@aicabinet/shared-uni/format';
@@ -2566,14 +2570,27 @@ onPullDownRefresh(load);
 .status {
   padding: 8rpx 16rpx;
   border-radius: var(--radius-pill);
+  /* 默认=待处理：警告橙仅给 PENDING，避免 CANCELLED 误用警告色（R3-M01） */
   color: var(--warning, #92400e);
   background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
   font-size: var(--font-size-sm);
   font-weight: 600;
 }
+.status.pending {
+  color: var(--warning, #92400e);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, var(--white));
+}
+.status.in_progress {
+  color: var(--brand-deep, #134e4a);
+  background: color-mix(in srgb, var(--brand, #0f766e) 14%, var(--white));
+}
 .status.completed {
   color: var(--brand-deep, #166534);
   background: var(--brand-soft, #dcfce7);
+}
+.status.cancelled {
+  color: var(--text-muted, #64748b);
+  background: color-mix(in srgb, var(--text-muted, #64748b) 12%, var(--white));
 }
 .task-meta,
 .line-meta {

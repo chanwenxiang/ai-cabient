@@ -45,15 +45,59 @@
           <template #empty>
             <el-empty v-if="hydrated && !loading" description="暂无部门" />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="deptKey" label="编码" width="120" align="center" />
-          <el-table-column prop="deptName" label="名称" min-width="120" align="center" />
-          <el-table-column label="上级" min-width="120" align="center">
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="deptKey"
+            label="编码"
+            width="120"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
+          <el-table-column
+            prop="deptName"
+            label="名称"
+            min-width="120"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
+          <el-table-column
+            label="上级"
+            min-width="120"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ parentName(row.parentId) }}</template>
           </el-table-column>
-          <el-table-column prop="memberCount" label="成员数" width="90" align="center" />
-          <el-table-column prop="sortOrder" label="排序" width="80" align="center" />
-          <el-table-column label="状态" width="100" align="center">
+          <el-table-column
+            prop="memberCount"
+            label="成员数"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="sortOrder"
+            label="排序"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            label="状态"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
                 {{ displayLabel('enable_status', row.status) }}
@@ -65,7 +109,8 @@
             label="备注"
             min-width="160"
             show-overflow-tooltip
-            align="center"
+            class-name="col-text"
+            label-class-name="col-text"
           />
           <el-table-column
             label="操作"
@@ -93,11 +138,7 @@
     </div>
   </el-card>
 
-  <el-dialog
-    v-model="deptDlg"
-    :title="deptForm.deptId ? '编辑部门' : '新增部门'"
-    destroy-on-close
-  >
+  <el-dialog v-model="deptDlg" :title="deptForm.deptId ? '编辑部门' : '新增部门'" destroy-on-close>
     <el-form label-width="auto">
       <el-form-item label="编码" required>
         <el-input
@@ -145,7 +186,8 @@
 
   <el-dialog
     v-model="memberDlg"
-    :title="`部门成员 · ${memberDept?.deptName || ''}`" class="dialog-wide"
+    :title="`部门成员 · ${memberDept?.deptName || ''}`"
+    class="dialog-wide"
     destroy-on-close
   >
     <div class="cell-hint" style="margin-bottom: 12px">

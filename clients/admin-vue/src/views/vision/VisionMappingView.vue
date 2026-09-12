@@ -61,8 +61,15 @@
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无识别类名映射"
           /></template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="className"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="className"
             label="类名"
             min-width="140"
             class-name="col-text"
@@ -73,21 +80,28 @@
               <span class="cell-id">{{ row.className || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="商品"
-            min-width="160"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="商品" min-width="160" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ row.skuName || row.skuId || '无' }}</template>
           </el-table-column>
-          <el-table-column label="入驻状态" width="110" align="center">
+          <el-table-column
+            label="入驻状态"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" :type="enrollmentTagType(row.visionEnrollmentStatus)">
                 {{ enrollmentLabel(row.visionEnrollmentStatus) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="映射/模型" min-width="140" align="center">
+          <el-table-column
+            label="映射/模型"
+            min-width="140"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">
               <div class="pipe-cell">
                 <el-tag size="small" :type="row.mappingEffective ? 'success' : 'info'">
@@ -97,7 +111,13 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="最低置信度" width="120" align="center">
+          <el-table-column
+            label="最低置信度"
+            width="120"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ formatConfidence(row.minConfidence) }}</template>
           </el-table-column>
           <el-table-column
@@ -154,10 +174,23 @@
         <el-table-column prop="categoryId" label="类目ID" width="150" class-name="col-text" />
         <el-table-column prop="categoryName" label="类目名" min-width="150" show-overflow-tooltip />
         <el-table-column prop="skuId" label="SKU" width="130" class-name="col-text" />
-        <el-table-column label="最低置信度" width="110" align="center">
+        <el-table-column
+          label="最低置信度"
+          width="110"
+          align="center"
+          class-name="col-status"
+          label-class-name="col-status"
+        >
           <template #default="{ row }">{{ row.minConfidence }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="150" align="center" fixed="right">
+        <el-table-column
+          label="操作"
+          width="150"
+          align="center"
+          fixed="right"
+          class-name="col-action"
+          label-class-name="col-action"
+        >
           <template #default="{ row }">
             <el-button v-hasPermi="['ops:vision:edit']" size="small" @click="openAliyunEdit(row)"
               >编辑</el-button

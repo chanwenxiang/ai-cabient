@@ -6,7 +6,8 @@
           <div class="page-card-head__title">
             <span class="title">设备管理</span>
             <span class="hint"
-              >「可购买」= 在线且未锁机；「未锁机」只表示没锁营业，离线仍买不了。可批量锁机或解锁</span
+              >「可购买」=
+              在线且未锁机；「未锁机」只表示没锁营业，离线仍买不了。可批量锁机或解锁</span
             >
           </div>
         </div>
@@ -191,8 +192,15 @@
           <template #empty>
             <el-empty v-if="listHydrated && !loading" description="暂无设备" />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="deviceId"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="deviceId"
             label="设备编号"
             min-width="140"
             class-name="col-text"
@@ -216,33 +224,43 @@
               </button>
             </template>
           </el-table-column>
-          <el-table-column label="类型"
-            min-width="100"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="类型" min-width="100" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ dictLabel('device_type', row.deviceType) }}</template>
           </el-table-column>
-          <el-table-column label="状态" width="88" align="center">
+          <el-table-column
+            label="状态"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="row.onlineStatus === 'ONLINE' ? 'success' : 'info'" size="small">
                 {{ dictLabel('online_status', row.onlineStatus) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="锁机" width="100" align="center">
+          <el-table-column
+            label="锁机"
+            width="100"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">
               <el-tag :type="row.salesLocked ? 'danger' : 'success'" size="small">
                 {{ row.salesLocked ? '已锁机' : '未锁机' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="能否购买" width="100" align="center">
+          <el-table-column
+            label="能否购买"
+            width="100"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">
               <el-tag
-                :type="
-                  !row.salesLocked && row.onlineStatus === 'ONLINE' ? 'success' : 'info'
-                "
+                :type="!row.salesLocked && row.onlineStatus === 'ONLINE' ? 'success' : 'info'"
                 size="small"
               >
                 {{
@@ -255,12 +273,22 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="生命周期" width="96" align="center">
+          <el-table-column
+            label="生命周期"
+            width="96"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">
               <el-tag size="small" effect="plain">{{ lifecycleLabel(row.lifecycleStatus) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="柜内温度" width="90" align="center">
+          <el-table-column
+            label="柜内温度"
+            width="90"
+            class-name="col-text"
+            label-class-name="col-text"
+          >
             <template #default="{ row }">
               <span
                 :class="
@@ -299,35 +327,25 @@
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="IMEI"
-            min-width="120"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="IMEI" min-width="120" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ row.imei || '无' }}</template>
           </el-table-column>
-          <el-table-column label="资产方"
+          <el-table-column
+            label="资产方"
             min-width="100"
             class-name="col-text"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.assetOwner || '无' }}</template>
           </el-table-column>
-          <el-table-column label="路线"
-            width="90"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="路线" width="90" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ row.routeCode || '无' }}</template>
           </el-table-column>
-          <el-table-column label="商户"
-            min-width="120"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="商户" min-width="120" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ row.merchantName || row.merchantId || '无' }}</template>
           </el-table-column>
-          <el-table-column label="退款方式"
+          <el-table-column
+            label="退款方式"
             min-width="168"
             class-name="col-text"
             show-overflow-tooltip
@@ -342,7 +360,8 @@
               <span v-if="!row.refundPolicy" class="inherit-hint">全局默认</span>
             </template>
           </el-table-column>
-          <el-table-column label="最近会话"
+          <el-table-column
+            label="最近会话"
             min-width="140"
             class-name="col-text"
             show-overflow-tooltip
@@ -354,14 +373,21 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="会话状态" min-width="100" align="center">
+          <el-table-column
+            label="会话状态"
+            min-width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               {{
                 row.activeSessionState ? dictLabel('session_state', row.activeSessionState) : '无'
               }}
             </template>
           </el-table-column>
-          <el-table-column label="更新时间"
+          <el-table-column
+            label="更新时间"
             min-width="168"
             class-name="col-text"
             show-overflow-tooltip
@@ -609,10 +635,8 @@ function boardQuery(tab: BoardTab): { online?: string; salesLocked?: string } {
 }
 
 function tabFromRouteQuery(): BoardTab {
-  const online =
-    typeof route.query.online === 'string' ? route.query.online.toUpperCase() : '';
-  const salesLocked =
-    typeof route.query.salesLocked === 'string' ? route.query.salesLocked : '';
+  const online = typeof route.query.online === 'string' ? route.query.online.toUpperCase() : '';
+  const salesLocked = typeof route.query.salesLocked === 'string' ? route.query.salesLocked : '';
   if (online === 'ONLINE' && salesLocked === 'false') return 'CAN_BUY';
   if (online === 'ONLINE' || online === 'OFFLINE') return online;
   if (salesLocked === 'true') return 'LOCKED';
@@ -690,11 +714,7 @@ const { onExport } = useListCsv({
       dictLabel('device_type', row.deviceType),
       dictLabel('online_status', row.onlineStatus),
       row.salesLocked ? '已锁机' : '未锁机',
-      row.salesLocked
-        ? '不可买'
-        : row.onlineStatus === 'ONLINE'
-          ? '可购买'
-          : '离线不可买',
+      row.salesLocked ? '不可买' : row.onlineStatus === 'ONLINE' ? '可购买' : '离线不可买',
       row.salesLocked ? row.salesLockReason || '' : '',
       row.currentTempC != null ? `${row.currentTempC}` : '',
       row.firmwareVersion || '',

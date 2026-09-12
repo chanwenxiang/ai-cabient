@@ -38,39 +38,85 @@
       @selection-change="onSelectionChange"
     >
       <template #empty><el-empty v-if="!loading" description="暂无补货任务数据" /></template>
-      <el-table-column type="selection" width="48" align="center" />
-      <el-table-column prop="userId"
-        label="工号"
-        width="110"
-        class-name="col-text"
+      <el-table-column
+        type="selection"
+        width="48"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
       />
-      <el-table-column label="姓名" min-width="110" align="center">
+      <el-table-column prop="userId" label="工号" width="110" class-name="col-text" />
+      <el-table-column
+        label="姓名"
+        min-width="110"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      >
         <template #default="{ row }">{{ row.name || '暂无' }}</template>
       </el-table-column>
-      <el-table-column label="手机" min-width="130" align="center">
+      <el-table-column
+        label="手机"
+        min-width="130"
+        class-name="col-text"
+        label-class-name="col-text"
+      >
         <template #default="{ row }">{{ row.phone || '暂无' }}</template>
       </el-table-column>
-      <el-table-column prop="totalTasks" label="任务数" width="90" align="center" />
+      <el-table-column
+        prop="totalTasks"
+        label="任务数"
+        width="90"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      />
       <el-table-column
         prop="completedTasks"
         :label="displayLabel('order_status', 'COMPLETED')"
         width="90"
-        align="center"
+        class-name="col-text"
+        label-class-name="col-text"
       />
-      <el-table-column label="完成率" width="90" align="center">
+      <el-table-column
+        label="完成率"
+        width="90"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      >
         <template #default="{ row }">{{ pct(row.completionRate) }}</template>
       </el-table-column>
-      <el-table-column label="平均耗时(分)" width="120" align="center">
+      <el-table-column
+        label="平均耗时(分)"
+        width="120"
+        class-name="col-text"
+        label-class-name="col-text"
+      >
         <template #default="{ row }">{{
           row.avgDurationMinutes != null ? row.avgDurationMinutes.toFixed(0) : '暂无'
         }}</template>
       </el-table-column>
-      <el-table-column prop="openTasks" label="待办" width="80" align="center">
+      <el-table-column
+        prop="openTasks"
+        label="待办"
+        width="80"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      >
         <template #default="{ row }">
           <span :class="{ 'cell-warn': row.openTasks > 0 }">{{ row.openTasks }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="avgDailyTasks" label="日均任务" width="100" align="center" />
+      <el-table-column
+        prop="avgDailyTasks"
+        label="日均任务"
+        width="100"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      />
     </el-table>
   </el-card>
 </template>

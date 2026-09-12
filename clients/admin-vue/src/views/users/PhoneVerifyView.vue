@@ -54,29 +54,64 @@
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无验证记录"
           /></template>
-          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
           <el-table-column
             prop="logId"
             label="记录ID"
             width="100"
             align="center"
             sortable="custom"
+            class-name="col-status"
+            label-class-name="col-status"
           />
-          <el-table-column prop="phone" label="手机号" width="140" align="center" />
-          <el-table-column prop="userId" label="用户ID" width="120" align="center" />
-          <el-table-column prop="channel" label="渠道" width="120" align="center">
+          <el-table-column
+            prop="phone"
+            label="手机号"
+            width="140"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="userId"
+            label="用户ID"
+            width="120"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
+          <el-table-column
+            prop="channel"
+            label="渠道"
+            width="120"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ dictLabel('verify_channel', row.channel) }}</template>
           </el-table-column>
           <el-table-column
             prop="merchantId"
             label="商户"
             min-width="160"
-            align="center"
             show-overflow-tooltip
+            class-name="col-text"
+            label-class-name="col-text"
           >
             <template #default="{ row }">{{ merchantCell(row) }}</template>
           </el-table-column>
-          <el-table-column label="验证时间" width="170" align="center">
+          <el-table-column
+            label="验证时间"
+            width="170"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ formatVerifiedAt(row.verifiedAt) }}</template>
           </el-table-column>
           <el-table-column
@@ -107,11 +142,7 @@
       @size-change="onSizeChange"
     />
 
-    <el-dialog
-      v-model="dlg"
-      :title="editingId ? '编辑手机验证' : '登记手机验证'"
-      destroy-on-close
-    >
+    <el-dialog v-model="dlg" :title="editingId ? '编辑手机验证' : '登记手机验证'" destroy-on-close>
       <el-form label-width="auto">
         <el-form-item label="手机号" required>
           <el-input v-model="form.phone" />

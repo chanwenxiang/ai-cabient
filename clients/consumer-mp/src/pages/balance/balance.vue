@@ -25,7 +25,9 @@
             <view class="log-main">
               <text class="log-title">{{ transactionLabel(item.businessType) }}</text>
               <text class="log-time">{{ formatTransactionTime(item.createdAt) }}</text>
-              <text v-if="item.businessId" class="log-meta">单号 {{ shortBizNo(item.businessId) }}</text>
+              <text v-if="item.businessId" class="log-meta"
+                >单号 {{ shortBizNo(item.businessId) }}</text
+              >
               <text v-if="item.balanceAfterCents != null" class="log-meta"
                 >余额 {{ fmtMoney(item.balanceAfterCents) }}</text
               >
@@ -34,12 +36,7 @@
               formatTransactionAmount(item.amountCents)
             }}</text>
           </view>
-          <view
-            v-if="hasMore"
-            class="more"
-            role="button"
-            @click="loadTransactions(false)"
-          >
+          <view v-if="hasMore" class="more" role="button" @click="loadTransactions(false)">
             {{ loading ? UI_COPY.loading : `加载更多（已显示 ${transactions.length} 条）` }}
           </view>
         </view>
@@ -50,9 +47,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import {
-  showError
-} from '@/utils/notify';
+import { showError } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import type { AccountDto, BalanceTransactionDto } from '@aicabinet/shared-types';
 import { formatDateTimeShort, fmtMoney, shortBizNo } from '@aicabinet/shared-uni/format';

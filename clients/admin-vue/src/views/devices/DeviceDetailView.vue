@@ -74,7 +74,9 @@
         <div
           class="stat-tile"
           role="group"
-          :aria-label="metricsHydrated ? `填充率 ${metrics?.fillRatePct ?? 0}%` : `填充率 ${UI_COPY.loading}`"
+          :aria-label="
+            metricsHydrated ? `填充率 ${metrics?.fillRatePct ?? 0}%` : `填充率 ${UI_COPY.loading}`
+          "
         >
           <div class="stat-label">填充率</div>
           <div class="stat-value">
@@ -89,7 +91,9 @@
           role="group"
           :class="{ warn: metricsHydrated && (metrics?.oosSlotCount || 0) > 0 }"
           :aria-label="
-            metricsHydrated ? `缺货货道 ${metrics?.oosSlotCount ?? 0}` : `缺货货道 ${UI_COPY.loading}`
+            metricsHydrated
+              ? `缺货货道 ${metrics?.oosSlotCount ?? 0}`
+              : `缺货货道 ${UI_COPY.loading}`
           "
         >
           <div class="stat-label">缺货货道</div>
@@ -105,7 +109,9 @@
           role="group"
           :class="{ warn: metricsHydrated && (metrics?.lowStockSlotCount || 0) > 0 }"
           :aria-label="
-            metricsHydrated ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}` : `低库存货道 ${UI_COPY.loading}`
+            metricsHydrated
+              ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}`
+              : `低库存货道 ${UI_COPY.loading}`
           "
         >
           <div class="stat-label">低库存货道</div>
@@ -121,7 +127,9 @@
           role="group"
           :class="{ warn: metricsHydrated && (metrics?.nearExpiryLotCount || 0) > 0 }"
           :aria-label="
-            metricsHydrated ? `临期批次 ${metrics?.nearExpiryLotCount ?? 0}` : `临期批次 ${UI_COPY.loading}`
+            metricsHydrated
+              ? `临期批次 ${metrics?.nearExpiryLotCount ?? 0}`
+              : `临期批次 ${UI_COPY.loading}`
           "
         >
           <div class="stat-label">临期批次</div>
@@ -719,10 +727,23 @@
           show-overflow-tooltip
           class-name="col-text"
         />
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column
+          prop="status"
+          label="状态"
+          width="100"
+          align="center"
+          class-name="col-status"
+          label-class-name="col-status"
+        >
           <template #default="{ row }">{{ repairStatusLabel(row.status) }}</template>
         </el-table-column>
-        <el-table-column label="优先级" width="88" align="center">
+        <el-table-column
+          label="优先级"
+          width="88"
+          align="center"
+          class-name="col-status"
+          label-class-name="col-status"
+        >
           <template #default="{ row }">{{ priorityLabel(row.priority) }}</template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建" width="150" class-name="col-text">
@@ -992,14 +1013,26 @@
                     <span class="cell-id">{{ displayBizNo(row.sessionId) }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="状态" width="100" align="center">
+                <el-table-column
+                  label="状态"
+                  width="100"
+                  align="center"
+                  class-name="col-status"
+                  label-class-name="col-status"
+                >
                   <template #default="{ row }">
                     <el-tag size="small" effect="plain">{{
                       dictLabel('session_state', row.state)
                     }}</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="类型" width="88" align="center">
+                <el-table-column
+                  label="类型"
+                  width="88"
+                  align="center"
+                  class-name="col-status"
+                  label-class-name="col-status"
+                >
                   <template #default="{ row }">
                     {{
                       row.sessionKind === 'RESTOCK'
@@ -1010,12 +1043,22 @@
                     }}
                   </template>
                 </el-table-column>
-                <el-table-column label="入口" width="88" align="center">
+                <el-table-column
+                  label="入口"
+                  width="88"
+                  class-name="col-text"
+                  label-class-name="col-text"
+                >
                   <template #default="{ row }">
                     {{ displayLabel('pay_channel', row.entryChannel || row.payChannel, '暂无') }}
                   </template>
                 </el-table-column>
-                <el-table-column label="录像" width="72" align="center">
+                <el-table-column
+                  label="录像"
+                  width="72"
+                  class-name="col-text"
+                  label-class-name="col-text"
+                >
                   <template #default="{ row }">
                     {{ row.videoUri || row.uploadStatus === 'UPLOADED' ? '有' : '无' }}
                   </template>
@@ -1096,14 +1139,26 @@
                     <span class="cell-id">{{ displayBizNo(row.orderId) }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="状态" width="100" align="center">
+                <el-table-column
+                  label="状态"
+                  width="100"
+                  align="center"
+                  class-name="col-status"
+                  label-class-name="col-status"
+                >
                   <template #default="{ row }">
                     <el-tag size="small" effect="plain">{{
                       dictLabel('order_status', row.status)
                     }}</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="渠道" width="88" align="center">
+                <el-table-column
+                  label="渠道"
+                  width="88"
+                  align="center"
+                  class-name="col-status"
+                  label-class-name="col-status"
+                >
                   <template #default="{ row }">
                     {{ displayLabel('pay_channel', row.payChannel, '暂无') }}
                   </template>

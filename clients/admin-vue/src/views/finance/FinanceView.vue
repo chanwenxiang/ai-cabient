@@ -163,8 +163,15 @@
               <template #empty
                 ><el-empty v-if="listHydrated && !loading" description="暂无商品毛利数据"
               /></template>
-              <el-table-column type="selection" width="48" align="center" />
-              <el-table-column prop="skuId"
+              <el-table-column
+                type="selection"
+                width="48"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
+              <el-table-column
+                prop="skuId"
                 label="商品编号"
                 min-width="120"
                 class-name="col-text"
@@ -175,14 +182,22 @@
                   <span class="cell-id">{{ row.skuId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="商品"
+              <el-table-column
+                label="商品"
                 min-width="140"
                 class-name="col-text"
                 show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.skuName || '无' }}</template>
               </el-table-column>
-              <el-table-column prop="qtySold" label="销量" min-width="88" align="center" />
+              <el-table-column
+                prop="qtySold"
+                label="销量"
+                min-width="88"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
+              />
               <el-table-column label="营收" min-width="110" align="center" class-name="col-money">
                 <template #default="{ row }">¥{{ (row.revenueCents / 100).toFixed(2) }}</template>
               </el-table-column>
@@ -196,7 +211,13 @@
                   >
                 </template>
               </el-table-column>
-              <el-table-column label="毛利率" min-width="96" align="center">
+              <el-table-column
+                label="毛利率"
+                min-width="96"
+                align="center"
+                class-name="col-money"
+                label-class-name="col-money"
+              >
                 <template #default="{ row }">
                   <span
                     :class="{
@@ -208,7 +229,13 @@
                   >
                 </template>
               </el-table-column>
-              <el-table-column label="件均价" min-width="100" align="center">
+              <el-table-column
+                label="件均价"
+                min-width="100"
+                align="center"
+                class-name="col-money"
+                label-class-name="col-money"
+              >
                 <template #default="{ row }">
                   {{
                     Number(row.qtySold) > 0
@@ -217,7 +244,13 @@
                   }}
                 </template>
               </el-table-column>
-              <el-table-column label="件均成本" min-width="100" align="center">
+              <el-table-column
+                label="件均成本"
+                min-width="100"
+                align="center"
+                class-name="col-money"
+                label-class-name="col-money"
+              >
                 <template #default="{ row }">
                   {{
                     Number(row.qtySold) > 0

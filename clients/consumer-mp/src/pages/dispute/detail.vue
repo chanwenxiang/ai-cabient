@@ -1,7 +1,9 @@
 <template>
   <view class="page-root">
     <app-nav-bar title="账单审核" />
-    <view v-if="loading && !ticket" class="state"><text class="meta">{{ UI_COPY.loading }}</text></view>
+    <view v-if="loading && !ticket" class="state"
+      ><text class="meta">{{ UI_COPY.loading }}</text></view
+    >
     <view v-else-if="error && !ticket" class="state">
       <text class="err">{{ error }}</text>
       <app-button label="重试" @click="bootstrap" />
@@ -67,6 +69,8 @@
             class="evidence-img"
             :src="evidenceSrc(img)"
             mode="aspectFill"
+            role="button"
+            aria-label="预览申诉附图"
             @click="previewEvidence(img)"
           />
         </view>
@@ -104,7 +108,9 @@
           label="返回订单列表"
           @click="goOrders"
         />
-        <text role="button" class="contact-link" @click="contactOps">联系客服 {{ servicePhone }}</text>
+        <text role="button" class="contact-link" @click="contactOps"
+          >联系客服 {{ servicePhone }}</text
+        >
         <text v-if="supportEmail" role="button" class="contact-link" @click="copySupportEmail"
           >邮箱 {{ supportEmail }}</text
         >
@@ -115,9 +121,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import {
-  showError
-} from '@/utils/notify';
+import { showError } from '@/utils/notify';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { consumerApi, getConsumerToken, requireConsumerAuth } from '@/utils/consumer-api';
 import {
@@ -504,7 +508,11 @@ function previewEvidence(img: FileAttachmentDto) {
   background: linear-gradient(135deg, var(--brand-soft), var(--white));
 }
 .status-header.tone-warn {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)), var(--white));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--warning, #b45309) 8%, var(--white)),
+    var(--white)
+  );
 }
 .status-header.tone-success {
   background: linear-gradient(135deg, var(--brand-soft, #e8f5e9), var(--white));

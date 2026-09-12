@@ -21,14 +21,7 @@
 
 <script setup lang="ts">
 export type AppButtonVariant =
-  | 'primary'
-  | 'ghost'
-  | 'outline'
-  | 'danger'
-  | 'text'
-  | 'alipay'
-  | 'wechat'
-  | 'soft';
+  'primary' | 'ghost' | 'outline' | 'danger' | 'text' | 'alipay' | 'wechat' | 'soft';
 
 const props = withDefaults(
   defineProps<{

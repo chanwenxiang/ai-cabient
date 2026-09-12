@@ -63,12 +63,31 @@
       <el-card shadow="never" class="inner-card">
         <template #header><span class="inner-title">复购用户 TOP10（按累计消费）</span></template>
         <el-table :data="s?.topRepeatBuyers || []" size="small" empty-text="暂无数据">
-          <el-table-column prop="userId" label="用户ID" width="100" align="center" />
+          <el-table-column
+            prop="userId"
+            label="用户ID"
+            width="100"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
           <el-table-column label="姓名/手机" min-width="120">
             <template #default="{ row }">{{ row.name || row.phone || '暂无' }}</template>
           </el-table-column>
-          <el-table-column prop="orderCount" label="订单数" width="80" align="center" />
-          <el-table-column label="累计消费" width="110" align="center">
+          <el-table-column
+            prop="orderCount"
+            label="订单数"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            label="累计消费"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{
               yuan(
                 row.totalSpentCents != null
@@ -77,7 +96,13 @@
               )
             }}</template>
           </el-table-column>
-          <el-table-column label="客单价" width="100" align="center">
+          <el-table-column
+            label="客单价"
+            width="100"
+            align="center"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">{{ avgTicket(row) }}</template>
           </el-table-column>
         </el-table>
@@ -98,15 +123,40 @@
           </div>
         </template>
         <el-table :data="s?.dormantUsers || []" size="small" empty-text="暂无数据">
-          <el-table-column prop="userId" label="用户ID" width="100" align="center" />
+          <el-table-column
+            prop="userId"
+            label="用户ID"
+            width="100"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
           <el-table-column label="姓名/手机" min-width="120">
             <template #default="{ row }">{{ row.name || row.phone || '暂无' }}</template>
           </el-table-column>
-          <el-table-column prop="orderCount" label="累计订单" width="90" align="center" />
-          <el-table-column label="上次消费" width="140" align="center">
+          <el-table-column
+            prop="orderCount"
+            label="累计订单"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            label="上次消费"
+            width="140"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ lastTime(row.lastOrderAt) }}</template>
           </el-table-column>
-          <el-table-column label="累计消费" width="110" align="center">
+          <el-table-column
+            label="累计消费"
+            width="110"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{
               yuan(
                 row.totalSpentCents != null

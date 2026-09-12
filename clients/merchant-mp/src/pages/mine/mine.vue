@@ -8,11 +8,19 @@
           <text class="sub">{{ merchantNames }}</text>
           <text v-if="phone" class="phone">{{ phone }}</text>
         </view>
-        <text v-if="canEditProfile" role="button" class="edit-btn" @click="openProfileEdit">编辑资料</text>
+        <text v-if="canEditProfile" role="button" class="edit-btn" @click="openProfileEdit"
+          >编辑资料</text
+        >
       </view>
     </view>
 
-    <view v-if="profileEditVisible" role="button" aria-label="关闭" class="mask" @click="profileEditVisible = false">
+    <view
+      v-if="profileEditVisible"
+      role="button"
+      aria-label="关闭"
+      class="mask"
+      @click="profileEditVisible = false"
+    >
       <view role="button" class="dialog" @click.stop>
         <text class="dialog-title">编辑资料</text>
         <text class="hint">维护联系电话与告警联系人，用于异常通知与现场联系</text>
@@ -48,7 +56,8 @@
     <view v-if="fieldNav.length" class="section-label">现场作业</view>
     <view v-if="fieldNav.length" class="menu-list">
       <view
-        v-for="item in fieldNav" role="button"
+        v-for="item in fieldNav"
+        role="button"
         :key="item.key"
         class="menu-cell"
         :class="{ highlight: item.key === 'replenishment' }"
@@ -65,7 +74,13 @@
 
     <view v-if="teamNav.length" class="section-label">团队与设置</view>
     <view v-if="teamNav.length" class="menu-list">
-      <view v-for="item in teamNav" role="button" :key="item.key" class="menu-cell" @click="goNav(item)">
+      <view
+        v-for="item in teamNav"
+        role="button"
+        :key="item.key"
+        class="menu-cell"
+        @click="goNav(item)"
+      >
         <image class="menu-icon" :src="menuIcon(item.icon)" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">{{ item.title }}</text>
@@ -122,7 +137,13 @@
 
     <view v-if="bizNav.length" class="section-label">经营工具</view>
     <view v-if="bizNav.length" class="menu-list">
-      <view v-for="item in bizNav" role="button" :key="item.key" class="menu-cell" @click="goNav(item)">
+      <view
+        v-for="item in bizNav"
+        role="button"
+        :key="item.key"
+        class="menu-cell"
+        @click="goNav(item)"
+      >
         <image class="menu-icon" :src="menuIcon(item.icon)" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">{{ item.title }}</text>

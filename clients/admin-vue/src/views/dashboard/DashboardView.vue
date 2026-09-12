@@ -248,30 +248,45 @@
                 :image-size="72"
               />
             </template>
-            <el-table-column label="优先级" width="92" align="center">
+            <el-table-column
+              label="优先级"
+              width="92"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">
                 <el-tag :type="priority(row.severity).tag" effect="light" size="small">
                   {{ priority(row.severity).label }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="类型" width="110" align="center">
+            <el-table-column
+              label="类型"
+              width="110"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">{{ typeLabel(row.type) }}</template>
             </el-table-column>
-            <el-table-column prop="title"
+            <el-table-column
+              prop="title"
               label="标题"
               min-width="140"
               show-overflow-tooltip
               class-name="col-text"
             />
-            <el-table-column label="关联"
+            <el-table-column
+              label="关联"
               min-width="160"
               show-overflow-tooltip
               class-name="col-text"
             >
               <template #default="{ row }">{{ contextLabel(row) }}</template>
             </el-table-column>
-            <el-table-column prop="detail"
+            <el-table-column
+              prop="detail"
               label="详情"
               min-width="220"
               show-overflow-tooltip

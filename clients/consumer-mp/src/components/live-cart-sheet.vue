@@ -1,6 +1,6 @@
 <template>
   <view v-if="visible" role="button" aria-label="关闭" class="sheet-mask" @click="emit('close')">
-    <view class="sheet-panel" @click.stop>
+    <view class="sheet-panel" role="dialog" aria-label="购物车明细" @click.stop>
       <view role="button" aria-label="关闭" class="sheet-handle-hit" @click="emit('close')">
         <view class="sheet-handle" />
       </view>

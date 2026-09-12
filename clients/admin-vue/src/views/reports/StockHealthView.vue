@@ -113,7 +113,9 @@
       <button
         type="button"
         class="kpi-tile warn"
-        :aria-label="listHydrated ? `临期行 ${countBy('NEAR_EXPIRY')}` : `临期行 ${UI_COPY.loading}`"
+        :aria-label="
+          listHydrated ? `临期行 ${countBy('NEAR_EXPIRY')}` : `临期行 ${UI_COPY.loading}`
+        "
       >
         <div class="kpi-label">临期行</div>
         <div class="kpi-value">{{ listHydrated ? countBy('NEAR_EXPIRY') : '…' }}</div>
@@ -146,22 +148,31 @@
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无异常库存"
           /></template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="维度" width="96" align="center">
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            label="维度"
+            width="96"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="dimTag(row.dimension)" size="small">{{
                 dimLabel(row.dimension)
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="设备"
-            min-width="120"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="设备" min-width="120" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ row.deviceName || row.deviceId || '无' }}</template>
           </el-table-column>
-          <el-table-column label="设备ID"
+          <el-table-column
+            label="设备ID"
             min-width="120"
             class-name="col-text"
             show-overflow-tooltip
@@ -170,28 +181,17 @@
               <span class="cell-id">{{ row.deviceId || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="商户"
-            min-width="110"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="商户" min-width="110" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ row.merchantId || '无' }}</template>
           </el-table-column>
-          <el-table-column label="路线"
-            width="90"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="路线" width="90" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ row.routeCode || '无' }}</template>
           </el-table-column>
-          <el-table-column label="SKU"
-            min-width="120"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="SKU" min-width="120" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ row.skuName || row.skuId || '无' }}</template>
           </el-table-column>
-          <el-table-column label="SKU ID"
+          <el-table-column
+            label="SKU ID"
             min-width="120"
             class-name="col-text"
             show-overflow-tooltip
@@ -200,21 +200,51 @@
               <span class="cell-id">{{ row.skuId || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="库存" width="80" align="center">
+          <el-table-column
+            label="库存"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.quantity }}</template>
           </el-table-column>
-          <el-table-column label="容量" width="80" align="center">
+          <el-table-column
+            label="容量"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.capacity }}</template>
           </el-table-column>
-          <el-table-column label="阈值" width="72" align="center">
+          <el-table-column
+            label="阈值"
+            width="72"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.lowThreshold ?? '无' }}</template>
           </el-table-column>
-          <el-table-column label="缺货率" width="88" align="center">
+          <el-table-column
+            label="缺货率"
+            width="88"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }"
               >{{ Number(row.stockoutRatePct || 0).toFixed(1) }}%</template
             >
           </el-table-column>
-          <el-table-column label="断货天" width="80" align="center">
+          <el-table-column
+            label="断货天"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.daysOutOfStock ?? '无' }}</template>
           </el-table-column>
           <el-table-column label="到期日" width="120" class-name="col-text">

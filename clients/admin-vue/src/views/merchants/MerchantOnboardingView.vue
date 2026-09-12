@@ -92,7 +92,13 @@
           <template #empty>
             <el-empty v-if="hydrated && !loading" description="暂无进件记录" />
           </template>
-          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
           <el-table-column prop="merchantId" label="商户" min-width="140">
             <template #default="{ row }">
               <div>{{ row.merchantName || row.merchantId }}</div>
@@ -189,11 +195,7 @@
     />
   </el-card>
 
-  <el-dialog
-    v-model="dlg"
-    :title="form.onboardingId ? '编辑进件' : '新建进件'"
-    destroy-on-close
-  >
+  <el-dialog v-model="dlg" :title="form.onboardingId ? '编辑进件' : '新建进件'" destroy-on-close>
     <el-form label-width="auto">
       <el-form-item label="商户编号" required>
         <el-input v-model="form.merchantId" :disabled="!!form.onboardingId" />

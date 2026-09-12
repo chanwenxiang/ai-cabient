@@ -4,7 +4,8 @@
     <view class="page-body">
       <view class="periods">
         <text
-          v-for="d in periods" role="button"
+          v-for="d in periods"
+          role="button"
           :key="d"
           class="period"
           :class="{ active: days === d }"
@@ -100,7 +101,8 @@
           >
           <view class="report-dims">
             <text
-              v-for="d in reportDims" role="button"
+              v-for="d in reportDims"
+              role="button"
               :key="d.value"
               class="report-dim"
               :class="{ active: reportDim === d.value }"
@@ -232,7 +234,12 @@
             </view>
           </view>
         </view>
-        <view v-if="settlement.failedSplitCount" role="button" class="risk-card" @click="goFailedSplits">
+        <view
+          v-if="settlement.failedSplitCount"
+          role="button"
+          class="risk-card"
+          @click="goFailedSplits"
+        >
           <text class="risk-title">有 {{ settlement.failedSplitCount }} 笔分账异常</text>
           <text class="risk-desc app-link-chevron">点此查看失败原因与订单明细</text>
         </view>
@@ -247,10 +254,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { UI_COPY, onlineLabel, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
-import {
-  showError,
-  showSuccess
-} from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import {
   getToken,

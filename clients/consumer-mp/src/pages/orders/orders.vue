@@ -1,7 +1,9 @@
 <template>
   <view class="page page-fill">
     <app-nav-bar title="我的订单" home-url="/pages/index/index" />
-    <view v-if="booting" class="state-wrap"><text class="meta">{{ UI_COPY.loading }}</text></view>
+    <view v-if="booting" class="state-wrap"
+      ><text class="meta">{{ UI_COPY.loading }}</text></view
+    >
     <empty-state
       v-else-if="error && !orders.length"
       class="state-wrap"
@@ -36,7 +38,8 @@
             }}</text
           >
           <view
-            v-for="d in reviewingDisputesPreview" role="button"
+            v-for="d in reviewingDisputesPreview"
+            role="button"
             :key="d.ticketId"
             class="review-card"
             :class="'tone-' + reviewCopy(d).tone"
@@ -56,7 +59,9 @@
             </view>
           </view>
           <view v-if="reviewingDisputesMore > 0" class="review-more" @click="filter = 'issue'">
-            <text class="app-link-chevron">还有 {{ reviewingDisputesMore }} 条待确认，可在「有疑问」筛选查看</text>
+            <text class="app-link-chevron"
+              >还有 {{ reviewingDisputesMore }} 条待确认，可在「有疑问」筛选查看</text
+            >
           </view>
         </view>
 
@@ -64,7 +69,8 @@
           <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false" enable-flex>
             <view class="order-filters">
               <text
-                v-for="f in filters" role="button"
+                v-for="f in filters"
+                role="button"
                 :key="f.value"
                 class="filter-chip"
                 :class="{ active: filter === f.value }"
@@ -75,14 +81,16 @@
           </scroll-view>
           <view class="order-filters time-row">
             <text
-              v-for="t in timeFilters" role="button"
+              v-for="t in timeFilters"
+              role="button"
               :key="t.value"
               class="filter-chip time"
               :class="{ active: timeRange === t.value }"
               @click="timeRange = t.value"
               >{{ t.label }}</text
             >
-            <text role="button"
+            <text
+              role="button"
               class="filter-chip time zero-toggle"
               :class="{ active: hideZeroOrders }"
               @click="toggleHideZeroOrders"
@@ -105,7 +113,13 @@
           <app-button label="扫码购物" @click="goShop" />
         </empty-state>
         <view v-else class="list-inner">
-          <view v-for="o in visibleOrders" role="button" :key="o.orderId" class="order-card" @click="goDetail(o)">
+          <view
+            v-for="o in visibleOrders"
+            role="button"
+            :key="o.orderId"
+            class="order-card"
+            @click="goDetail(o)"
+          >
             <view class="order-top">
               <view class="order-meta">
                 <text class="order-device-name">{{ deviceDisplay(o) }}</text>
@@ -171,9 +185,9 @@
                   )
                 }}{{ o.refundedAt ? ` · ${formatTime(o.refundedAt)}` : '' }}</text
               >
-              <text v-else-if="o.status === 'DISPUTED'" class="order-hint app-link-chevron"
-                >{{ displayLabel('order_status', 'DISPUTED') }}</text
-              >
+              <text v-else-if="o.status === 'DISPUTED'" class="order-hint app-link-chevron">{{
+                displayLabel('order_status', 'DISPUTED')
+              }}</text>
               <text v-else class="order-hint app-link-chevron">查看详情</text>
             </view>
           </view>
@@ -186,7 +200,11 @@
             "
           />
           <view v-if="loadingMore" class="load-more">{{ UI_COPY.loading }}</view>
-          <view v-else-if="hasMore && orders.length" role="button" class="load-more hint" @click="loadMore"
+          <view
+            v-else-if="hasMore && orders.length"
+            role="button"
+            class="load-more hint"
+            @click="loadMore"
             >上拉加载更多</view
           >
           <view v-else-if="orders.length && !hasMore" class="load-more hint">没有更多了</view>
@@ -216,10 +234,7 @@ import {
 import { cleanLineSummary, skuImageFor } from '@aicabinet/shared-uni/product-image';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import { displayLabel } from '@aicabinet/shared-dict';
-import {
-  showDisputeResolvedToast,
-  showError
-} from '@/utils/notify';
+import { showDisputeResolvedToast, showError } from '@/utils/notify';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import type { DisputeTicketDto, OrderSummary } from '@aicabinet/shared-types';
 

@@ -67,46 +67,104 @@
           @selection-change="onSelectionChange"
         >
           <template #empty><el-empty v-if="!loading" description="暂无兑换项" /></template>
-          <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="itemId"
-            label="ID"
-            width="80"
-            class-name="col-text"
+          <el-table-column
+            type="selection"
+            width="48"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
           />
-          <el-table-column label="兑换项" min-width="170" align="center">
+          <el-table-column prop="itemId" label="ID" width="80" class-name="col-text" />
+          <el-table-column
+            label="兑换项"
+            min-width="170"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span class="cell-emoji">{{ row.coverEmoji || '🎁' }}</span>
               <span class="cell-name">{{ row.title }}</span>
               <span v-if="row.subtitle" class="cell-sub">{{ row.subtitle }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="pointsCost" label="所需积分" width="100" align="center" />
-          <el-table-column prop="couponName" label="兑换优惠券" min-width="130" align="center" />
-          <el-table-column label="券定义" width="90" align="center">
+          <el-table-column
+            prop="pointsCost"
+            label="所需积分"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            prop="couponName"
+            label="兑换优惠券"
+            min-width="130"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
+          <el-table-column
+            label="券定义"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span v-if="row.couponDefId" class="cell-id">{{ row.couponDefId }}</span>
               <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
-          <el-table-column label="库存 / 已兑" width="120" align="center">
+          <el-table-column
+            label="库存 / 已兑"
+            width="120"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.stockTotal }} / {{ row.redeemedCount }}</template>
           </el-table-column>
-          <el-table-column label="可兑" width="80" align="center">
+          <el-table-column
+            label="可兑"
+            width="80"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{
               row.availableStock != null
                 ? row.availableStock
                 : Math.max(0, Number(row.stockTotal || 0) - Number(row.redeemedCount || 0))
             }}</template>
           </el-table-column>
-          <el-table-column prop="sortOrder" label="排序" width="70" align="center" />
-          <el-table-column label="状态" width="90" align="center">
+          <el-table-column
+            prop="sortOrder"
+            label="排序"
+            width="70"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          />
+          <el-table-column
+            label="状态"
+            width="90"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{
                 displayLabel('enable_status', row.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE')
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="创建时间" width="150" align="center">
+          <el-table-column
+            label="创建时间"
+            width="150"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{
               row.createdAt ? formatDateTime(row.createdAt) : '暂无'
             }}</template>

@@ -50,13 +50,15 @@
       <text class="pay-pref-title">优先支付方式</text>
       <text class="pay-pref-hint">关门结算时优先使用；选余额可先花掉账户余额</text>
       <view class="pay-pref-chips">
-        <text role="button"
+        <text
+          role="button"
           class="pay-pref-chip"
           :class="{ on: payPreferred === 'BALANCE', busy: payPrefBusy }"
           @click="onSetPayPreferred('BALANCE')"
           >余额</text
         >
-        <text role="button"
+        <text
+          role="button"
           class="pay-pref-chip"
           :class="{
             on: payPreferred === 'WECHAT',
@@ -66,7 +68,8 @@
           @click="onSetPayPreferred('WECHAT')"
           >微信免密</text
         >
-        <text role="button"
+        <text
+          role="button"
           class="pay-pref-chip"
           :class="{
             on: payPreferred === 'ALIPAY',
@@ -209,7 +212,8 @@
     <view v-if="devTools && authed" class="dev-section">
       <text class="dev-label">体验充值</text>
       <view
-        v-if="wechatRechargeEnabled" role="button"
+        v-if="wechatRechargeEnabled"
+        role="button"
         class="menu-cell highlight"
         :class="{ disabled: rechargeLoading }"
         @click="onWeChatRecharge"
@@ -217,14 +221,13 @@
         <image class="menu-icon" :src="menuIcon('wechat')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">{{ wechatPayLive ? '微信支付充值' : '微信充值' }}</text>
-          <text class="menu-desc">{{
-            wechatPayLive ? '调起微信支付' : '体验到账 ¥20'
-          }}</text>
+          <text class="menu-desc">{{ wechatPayLive ? '调起微信支付' : '体验到账 ¥20' }}</text>
         </view>
         <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
       </view>
       <view
-        v-if="alipayRechargeEnabled" role="button"
+        v-if="alipayRechargeEnabled"
+        role="button"
         class="menu-cell highlight"
         :class="{ disabled: rechargeLoading }"
         @click="onAlipayRecharge"
@@ -239,7 +242,8 @@
         <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
       </view>
       <view
-        v-if="mockRechargeEnabled" role="button"
+        v-if="mockRechargeEnabled"
+        role="button"
         class="menu-cell highlight"
         :class="{ disabled: rechargeLoading }"
         @click="onMockRecharge"
@@ -275,11 +279,7 @@
 
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app';
-import {
-  showError,
-  showSuccess,
-  showConfirm
-} from '@/utils/notify';
+import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import type { AccountDto } from '@aicabinet/shared-types';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
@@ -771,7 +771,7 @@ async function onLogout() {
 }
 .setup-desc {
   font-size: var(--font-size-sm);
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(255, 255, 255, var(--on-deep-opacity-78));
   display: block;
   margin-top: 2rpx;
 }
