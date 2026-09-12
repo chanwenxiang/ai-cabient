@@ -334,7 +334,6 @@ onBeforeUnmount(hide);
   background: rgba(15, 23, 42, 0.94);
   border: 1px solid #475569;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(8px);
   font-size: 12px;
   line-height: 1.4;
 }

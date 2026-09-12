@@ -484,7 +484,7 @@ function onExport() {
   padding-top: 20rpx;
 }
 .summary-label {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, var(--on-deep-opacity-78));
   font-size: var(--font-size-body);
 }
 .summary-value {
@@ -493,7 +493,7 @@ function onExport() {
   font-weight: 600;
 }
 .summary-value.minus {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, var(--on-deep-opacity-78));
 }
 .summary-value.danger {
   color: color-mix(in srgb, var(--danger, #b91c1c) 18%, var(--white));

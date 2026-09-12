@@ -1,0 +1,39 @@
+---
+description: 前端日常三约定：禁裸业务 hex、z-index 用 --z-*、表格列挂语义 class；CI 靠 pnpm check
+globs: clients/**/*.{vue,css,scss,ts,js},packages/shared-uni/**/*.{css,ts,js}
+alwaysApply: false
+---
+
+# UI Token 日常三约定
+
+写 / 改前端样式与表格时只守这三条；存量债务分期清，**新代码不得新增**。
+
+## 1. 禁止裸业务 hex
+
+- 业务色（主色、成功/警告/危险、文字/边框/背景）用 CSS 变量 / theme token（如 `var(--el-color-primary)`、`var(--layout-*)`、shared-uni theme）。
+- **允许**：token 定义处的 `#hex`；`#fff` / `#ffffff` → 优先 `var(--white)`；纯装饰 fallback 需有注释。
+- **禁止**：在 Vue/CSS 业务样式里新写 `#1a2b3c`、`#f56c6c` 等硬编码色。
+- 批量迁移可参考：`pnpm migrate:hex-tokens`。
+
+## 2. z-index 一律走 `--z-*`
+
+- admin 分层定义在 `clients/admin-vue/src/styles/main.css`（如 `--z-sticky`、`--z-dropdown`、`--z-fixed-tip`、`--z-context-menu`、`--z-fullscreen`、`--z-skip-link`）。
+- 新代码：`z-index: var(--z-xxx)`；缺层先加 token 再引用。
+- **例外**：页面内局部叠层（约 `0–40`）可继续裸数字；勿再写裸高位（`500+` / `9999` 等）。
+
+## 3. 新表格列必须挂语义 class
+
+admin `el-table-column` 按语义挂 `class-name`（必要时同步 `label-class-name`）：
+
+| class | 用途 | 对齐 |
+|-------|------|------|
+| `col-text` | 名称、备注、地址等文本 | 左；**勿**再写 `align="center"` |
+| `col-money` | 金额、单价、营收等 | 右 |
+| `col-status` | 状态、类型、数量、时间、开关等 | 中 |
+| `col-action` | 操作列 | 中 |
+
+门禁：`pnpm check:admin-table-align`（`STRICT` 默认开；`local/no-col-text-align-center` 经 `pnpm lint`）。
+
+## CI
+
+日常合入靠根目录 **`pnpm check`**（含 lint / format / shared）守住成果；表格对齐专项用 `pnpm check:admin-table-align`。
