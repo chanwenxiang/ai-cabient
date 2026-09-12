@@ -20,37 +20,43 @@
           <text class="balance-label">可用余额</text>
           <text class="balance-number">{{ balanceYuan }}</text>
           <text v-if="frozenYuan !== '¥0.00'" class="balance-meta">冻结 {{ frozenYuan }}</text>
-          <text class="balance-action" @click="goRecharge">充值</text>
+          <text role="button" class="balance-action" @click="goRecharge">充值</text>
         </view>
       </view>
     </view>
 
-    <view v-if="!authed" class="setup-banner" @click="goLogin">
+    <view v-if="!authed" role="button" class="setup-banner" @click="goLogin">
       <view class="setup-text">
         <text class="setup-title">微信授权登录</text>
         <text class="setup-desc">扫码开门前需完成授权</text>
       </view>
-      <text class="setup-arrow">去登录 ›</text>
+      <view class="setup-arrow">
+        <text>去登录</text>
+        <view class="app-icon app-icon--chevron" aria-hidden="true" />
+      </view>
     </view>
-    <view v-else-if="needsSetup" class="setup-banner" @click="goVerify">
+    <view v-else-if="needsSetup" role="button" class="setup-banner" @click="goVerify">
       <view class="setup-text">
         <text class="setup-title">完成开门准备</text>
         <text class="setup-desc">{{ setupHint }}</text>
       </view>
-      <text class="setup-arrow">去设置 ›</text>
+      <view class="setup-arrow">
+        <text>去设置</text>
+        <view class="app-icon app-icon--chevron" aria-hidden="true" />
+      </view>
     </view>
 
     <view v-if="authed" class="pay-pref-card">
       <text class="pay-pref-title">优先支付方式</text>
       <text class="pay-pref-hint">关门结算时优先使用；选余额可先花掉账户余额</text>
       <view class="pay-pref-chips">
-        <text
+        <text role="button"
           class="pay-pref-chip"
           :class="{ on: payPreferred === 'BALANCE', busy: payPrefBusy }"
           @click="onSetPayPreferred('BALANCE')"
           >余额</text
         >
-        <text
+        <text role="button"
           class="pay-pref-chip"
           :class="{
             on: payPreferred === 'WECHAT',
@@ -60,7 +66,7 @@
           @click="onSetPayPreferred('WECHAT')"
           >微信免密</text
         >
-        <text
+        <text role="button"
           class="pay-pref-chip"
           :class="{
             on: payPreferred === 'ALIPAY',
@@ -74,128 +80,128 @@
     </view>
 
     <view class="quick-grid">
-      <view class="quick-item" @click="goOrders">
-        <image class="quick-icon" :src="menuIcon('orders')" mode="aspectFit" />
+      <view role="button" class="quick-item" aria-label="订单" @click="goOrders">
+        <image class="quick-icon" :src="menuIcon('orders')" mode="aspectFit" aria-hidden="true" />
         <text class="quick-label">订单</text>
       </view>
-      <view class="quick-item" @click="goCoupons">
-        <image class="quick-icon" :src="menuIcon('coupons')" mode="aspectFit" />
+      <view role="button" class="quick-item" aria-label="优惠券" @click="goCoupons">
+        <image class="quick-icon" :src="menuIcon('coupons')" mode="aspectFit" aria-hidden="true" />
         <text class="quick-label">优惠券</text>
       </view>
-      <view class="quick-item" @click="goMember">
-        <image class="quick-icon" :src="menuIcon('member')" mode="aspectFit" />
+      <view role="button" class="quick-item" aria-label="会员" @click="goMember">
+        <image class="quick-icon" :src="menuIcon('member')" mode="aspectFit" aria-hidden="true" />
         <text class="quick-label">会员</text>
       </view>
-      <view class="quick-item" @click="goRecharge">
-        <image class="quick-icon" :src="menuIcon('recharge')" mode="aspectFit" />
+      <view role="button" class="quick-item" aria-label="充值" @click="goRecharge">
+        <image class="quick-icon" :src="menuIcon('recharge')" mode="aspectFit" aria-hidden="true" />
         <text class="quick-label">充值</text>
       </view>
     </view>
 
     <view class="menu-list">
-      <view class="menu-cell" @click="goIndex">
+      <view role="button" class="menu-cell" @click="goIndex">
         <image class="menu-icon" :src="menuIcon('shopping')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">开门购物</text>
           <text class="menu-desc">扫码开门，取货即走</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
-      <view class="menu-cell" @click="goMarketing">
+      <view role="button" class="menu-cell" @click="goMarketing">
         <image class="menu-icon" :src="menuIcon('hot')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">热门活动</text>
           <text class="menu-desc">满减 · 新客礼 · 限时活动</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
-      <view class="menu-cell" @click="goPoints">
+      <view role="button" class="menu-cell" @click="goPoints">
         <image class="menu-icon" :src="menuIcon('member')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">积分中心</text>
           <text class="menu-desc">消费返积分 · 积分兑优惠券</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
-      <view class="menu-cell" @click="goMessages">
+      <view role="button" class="menu-cell" @click="goMessages">
         <image class="menu-icon" :src="menuIcon('notice')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">消息中心</text>
           <text class="menu-desc">订单支付 · 充值到账 · 售后提醒</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
-      <view v-if="authed" class="menu-cell" @click="goBalance">
+      <view v-if="authed" role="button" class="menu-cell" @click="goBalance">
         <image class="menu-icon" :src="menuIcon('balance')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">余额明细</text>
           <text class="menu-desc">购物扣款、退款与充值记录</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
-      <view class="menu-cell" @click="goAnnouncements">
+      <view role="button" class="menu-cell" @click="goAnnouncements">
         <image class="menu-icon" :src="menuIcon('billing')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">通知公告</text>
           <text class="menu-desc">平台维护、活动与规则变更</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
-      <view class="menu-cell" @click="goHelp">
+      <view role="button" class="menu-cell" @click="goHelp">
         <image class="menu-icon" :src="menuIcon('help')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">帮助与客服</text>
           <text class="menu-desc">常见问题、热线与账单申诉说明</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
-      <view class="menu-cell" @click="goReport">
+      <view role="button" class="menu-cell" @click="goReport">
         <image class="menu-icon" :src="menuIcon('repair')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">故障报修</text>
           <text class="menu-desc">打不开门、关不上门等</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
-      <view class="menu-cell" @click="goFeedback">
+      <view role="button" class="menu-cell" @click="goFeedback">
         <image class="menu-icon" :src="menuIcon('feedback')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">意见反馈</text>
           <text class="menu-desc">投诉、建议或表扬</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
-      <view class="menu-cell" @click="goPolicy('agreement')">
+      <view role="button" class="menu-cell" @click="goPolicy('agreement')">
         <image class="menu-icon" :src="menuIcon('agreement')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">用户协议</text>
           <text class="menu-desc">服务条款与使用规则</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
-      <view class="menu-cell" @click="goPolicy('privacy')">
+      <view role="button" class="menu-cell" @click="goPolicy('privacy')">
         <image class="menu-icon" :src="menuIcon('privacy')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">隐私政策</text>
           <text class="menu-desc">信息收集、使用与保护</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
-      <view class="menu-cell" @click="goPolicy('refund')">
+      <view role="button" class="menu-cell" @click="goPolicy('refund')">
         <image class="menu-icon" :src="menuIcon('refund')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">退款规则</text>
           <text class="menu-desc">自助退款与人工申诉</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
-      <view class="menu-cell" @click="goPolicy('billing')">
+      <view role="button" class="menu-cell" @click="goPolicy('billing')">
         <image class="menu-icon" :src="menuIcon('billing')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">账单说明</text>
           <text class="menu-desc">订单构成与余额明细</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
     </view>
 
@@ -203,7 +209,7 @@
     <view v-if="devTools && authed" class="dev-section">
       <text class="dev-label">体验充值</text>
       <view
-        v-if="wechatRechargeEnabled"
+        v-if="wechatRechargeEnabled" role="button"
         class="menu-cell highlight"
         :class="{ disabled: rechargeLoading }"
         @click="onWeChatRecharge"
@@ -218,7 +224,7 @@
         <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
       </view>
       <view
-        v-if="alipayRechargeEnabled"
+        v-if="alipayRechargeEnabled" role="button"
         class="menu-cell highlight"
         :class="{ disabled: rechargeLoading }"
         @click="onAlipayRecharge"
@@ -233,7 +239,7 @@
         <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
       </view>
       <view
-        v-if="mockRechargeEnabled"
+        v-if="mockRechargeEnabled" role="button"
         class="menu-cell highlight"
         :class="{ disabled: rechargeLoading }"
         @click="onMockRecharge"
@@ -245,23 +251,23 @@
         </view>
         <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
       </view>
-      <view class="menu-cell" @click="goLogin">
+      <view role="button" class="menu-cell" @click="goLogin">
         <image class="menu-icon" :src="menuIcon('phone')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">手机号验证（兜底）</text>
           <text class="menu-desc">短信 / 密码登录</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
     </view>
 
     <view v-if="authed" class="menu-list logout-wrap">
-      <view class="menu-cell danger-cell" @click="onLogout">
+      <view role="button" class="menu-cell danger-cell" @click="onLogout">
         <image class="menu-icon" :src="menuIcon('logout')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title danger">退出登录</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
     </view>
   </view>
@@ -269,6 +275,11 @@
 
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app';
+import {
+  showError,
+  showSuccess,
+  showConfirm
+} from '@/utils/notify';
 import { computed, ref } from 'vue';
 import type { AccountDto } from '@aicabinet/shared-types';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
@@ -335,11 +346,11 @@ async function onSetPayPreferred(channel: 'BALANCE' | 'WECHAT' | 'ALIPAY') {
   if (!authed.value || payPrefBusy.value) return;
   if (channel === payPreferred.value) return;
   if (channel === 'WECHAT' && !account.value?.payscoreEnabled) {
-    uni.showToast({ title: '请先开通微信支付分', icon: 'none' });
+    showError('请先开通微信支付分');
     return;
   }
   if (channel === 'ALIPAY' && !account.value?.alipayAgreementEnabled) {
-    uni.showToast({ title: '请先开通支付宝免密', icon: 'none' });
+    showError('请先开通支付宝免密');
     return;
   }
   payPrefBusy.value = true;
@@ -351,12 +362,9 @@ async function onSetPayPreferred(channel: 'BALANCE' | 'WECHAT' | 'ALIPAY') {
       WECHAT: '微信免密'
     };
     const label = payLabels[channel] ?? '支付宝免密';
-    uni.showToast({ title: `已优先${label}`, icon: 'success' });
+    showSuccess(`已优先${label}`);
   } catch (e) {
-    uni.showToast({
-      title: e instanceof Error ? e.message : '设置失败',
-      icon: 'none'
-    });
+    showError(e instanceof Error ? e.message : '设置失败');
   } finally {
     payPrefBusy.value = false;
   }
@@ -404,10 +412,10 @@ onShow(async () => {
     account.value = null;
     authed.value = !!getConsumerToken();
     if (!authed.value) {
-      uni.showToast({ title: '登录已失效，请重新登录', icon: 'none' });
+      showError('登录已失效，请重新登录');
       return;
     }
-    uni.showToast({ title: e instanceof Error ? e.message : '账户加载失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '账户加载失败');
   }
   const resumed = await resumePendingRechargeIfAny();
   if (resumed) {
@@ -428,26 +436,22 @@ async function refreshAccount() {
 
 async function onWeChatRecharge() {
   if (rechargeLoading.value) return;
-  const confirmed = await new Promise<boolean>((resolve) =>
-    uni.showModal({
-      title: wechatPayLive.value ? '微信支付充值' : '微信充值',
-      content: wechatPayLive.value
-        ? '将调起微信支付充值 ¥20.00。'
-        : '将充值 ¥20.00 到余额（体验到账，不会真实扣款）。',
-      confirmText: '确认',
-      success: (res) => resolve(!!res.confirm),
-      fail: () => resolve(false)
-    })
-  );
+  const confirmed = await showConfirm({
+    title: wechatPayLive.value ? '微信支付充值' : '微信充值',
+    content: wechatPayLive.value
+      ? '将调起微信支付充值 ¥20.00。'
+      : '将充值 ¥20.00 到余额（体验到账，不会真实扣款）。',
+    confirmText: '确认'
+  });
   if (!confirmed) return;
   rechargeLoading.value = true;
   try {
     const key = `mine-wechat-${Date.now()}-${secureRandomToken(6)}`;
     await runWeChatRecharge(2000, key);
     await refreshAccount();
-    uni.showToast({ title: '充值成功', icon: 'success' });
+    showSuccess('充值成功');
   } catch (error) {
-    uni.showToast({ title: error instanceof Error ? error.message : '充值失败', icon: 'none' });
+    showError(error instanceof Error ? error.message : '充值失败');
   } finally {
     rechargeLoading.value = false;
   }
@@ -456,30 +460,26 @@ async function onWeChatRecharge() {
 async function onAlipayRecharge() {
   if (rechargeLoading.value) return;
   const isMock = mockRechargeEnabled.value;
-  const confirmed = await new Promise<boolean>((resolve) =>
-    uni.showModal({
-      title: '支付宝充值',
-      content: isMock
-        ? '将充值 ¥20.00 到余额（体验到账，不会真实扣款）。'
-        : '将跳转支付宝支付页充值 ¥20.00。',
-      confirmText: isMock ? '确认到账' : '去支付',
-      success: (res) => resolve(!!res.confirm),
-      fail: () => resolve(false)
-    })
-  );
+  const confirmed = await showConfirm({
+    title: '支付宝充值',
+    content: isMock
+      ? '将充值 ¥20.00 到余额（体验到账，不会真实扣款）。'
+      : '将跳转支付宝支付页充值 ¥20.00。',
+    confirmText: isMock ? '确认到账' : '去支付'
+  });
   if (!confirmed) return;
   rechargeLoading.value = true;
   try {
     const key = `alipay-recharge-${Date.now()}-${secureRandomToken(6)}`;
     const { mode } = await runAlipayRecharge(2000, key);
     if (mode === 'live') {
-      uni.showToast({ title: '请在支付宝完成支付', icon: 'none' });
+      showError('请在支付宝完成支付');
       return;
     }
     await refreshAccount();
-    uni.showToast({ title: '充值成功', icon: 'success' });
+    showSuccess('充值成功');
   } catch (error) {
-    uni.showToast({ title: error instanceof Error ? error.message : '充值失败', icon: 'none' });
+    showError(error instanceof Error ? error.message : '充值失败');
   } finally {
     rechargeLoading.value = false;
   }
@@ -487,15 +487,11 @@ async function onAlipayRecharge() {
 
 async function onMockRecharge() {
   if (rechargeLoading.value) return;
-  const confirmed = await new Promise<boolean>((resolve) =>
-    uni.showModal({
-      title: '确认充值',
-      content: '将向当前账户发放 ¥20.00 余额（体验到账，不会真实扣款）。',
-      confirmText: '确认发放',
-      success: (res) => resolve(!!res.confirm),
-      fail: () => resolve(false)
-    })
-  );
+  const confirmed = await showConfirm({
+    title: '确认充值',
+    content: '将向当前账户发放 ¥20.00 余额（体验到账，不会真实扣款）。',
+    confirmText: '确认发放'
+  });
   if (!confirmed) return;
   rechargeLoading.value = true;
   try {
@@ -503,9 +499,9 @@ async function onMockRecharge() {
     const prepay = await consumerApi.createMockRecharge(2000, key);
     await consumerApi.confirmMockRecharge(prepay.orderId);
     await refreshAccount();
-    uni.showToast({ title: '余额已到账', icon: 'success' });
+    showSuccess('余额已到账');
   } catch (error) {
-    uni.showToast({ title: error instanceof Error ? error.message : '充值失败', icon: 'none' });
+    showError(error instanceof Error ? error.message : '充值失败');
   } finally {
     rechargeLoading.value = false;
   }
@@ -583,20 +579,18 @@ function goPolicy(type: 'agreement' | 'privacy' | 'refund' | 'billing') {
   uni.navigateTo({ url: `/pages/policy/detail?type=${type}` });
 }
 
-function onLogout() {
-  uni.showModal({
+async function onLogout() {
+  const confirmed = await showConfirm({
     title: '退出登录',
     content: '确定退出当前账户吗？',
-    confirmText: '退出',
-    async success(res) {
-      if (!res.confirm) return;
-      await logoutConsumerSession();
-      authed.value = false;
-      account.value = null;
-      balanceYuan.value = '--';
-      uni.showToast({ title: '已退出', icon: 'none' });
-    }
+    confirmText: '退出'
   });
+  if (!confirmed) return;
+  await logoutConsumerSession();
+  authed.value = false;
+  account.value = null;
+  balanceYuan.value = '--';
+  showError('已退出');
 }
 </script>
 
@@ -606,7 +600,7 @@ function onLogout() {
   box-sizing: border-box;
   /* 原生 tabBar 已在页面外占位，只需少量底距 */
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
 }
 .profile-header {
   position: relative;
@@ -619,7 +613,7 @@ function onLogout() {
   align-items: stretch;
   width: 100%;
   box-sizing: border-box;
-  background: linear-gradient(145deg, var(--brand-deep, #064e3b) 0%, var(--brand, #047857) 100%);
+  background: linear-gradient(145deg, var(--brand-deep, #134e4a) 0%, var(--brand, #0f766e) 100%);
   box-shadow: none;
   color: #fff;
 }
@@ -664,7 +658,7 @@ function onLogout() {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 48rpx;
+  font-size: var(--font-size-display);
   font-weight: 700;
   flex-shrink: 0;
   z-index: 1;
@@ -678,7 +672,7 @@ function onLogout() {
 }
 .hello {
   display: block;
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   line-height: 1.25;
   overflow: hidden;
@@ -688,7 +682,7 @@ function onLogout() {
 .guest-hint {
   display: block;
   margin-top: 10rpx;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   opacity: 0.82;
   line-height: 1.35;
 }
@@ -704,14 +698,14 @@ function onLogout() {
   min-width: 180rpx;
 }
 .balance-label {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   opacity: 0.72;
   letter-spacing: 0.5rpx;
   text-align: right;
 }
 .balance-number {
   margin-top: 4rpx;
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
   font-weight: 800;
   letter-spacing: -1rpx;
   line-height: 1.15;
@@ -721,17 +715,17 @@ function onLogout() {
 }
 .balance-meta {
   margin-top: 4rpx;
-  font-size: 20rpx;
+  font-size: var(--font-size-xs);
   opacity: 0.72;
   text-align: right;
 }
 .balance-action {
   margin-top: 12rpx;
   padding: 8rpx 22rpx;
-  border-radius: 999rpx;
-  font-size: 22rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
   font-weight: 600;
-  color: var(--brand-deep, #064e3b);
+  color: var(--brand-deep, #134e4a);
   background: rgba(255, 255, 255, 0.92);
   text-align: center;
 }
@@ -744,9 +738,9 @@ function onLogout() {
 }
 .tag {
   flex-shrink: 0;
-  font-size: 20rpx;
+  font-size: var(--font-size-xs);
   padding: 4rpx 12rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.2);
   white-space: nowrap;
 }
@@ -755,13 +749,13 @@ function onLogout() {
 }
 .tag.warn {
   background: var(--brand-soft, #ecfdf5);
-  color: #0f766e;
+  color: var(--brand);
 }
 .setup-banner {
   margin: 12rpx 24rpx 0;
   padding: 14rpx 18rpx;
-  border-radius: 14rpx;
-  background: var(--brand-deep, #064e3b);
+  border-radius: var(--radius-control);
+  background: var(--brand-deep, #134e4a);
   border: 1rpx solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 6rpx 16rpx rgba(6, 78, 59, 0.16);
   display: flex;
@@ -770,43 +764,51 @@ function onLogout() {
   color: #fff;
 }
 .setup-title {
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
   color: #ffffff;
   display: block;
 }
 .setup-desc {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: rgba(255, 255, 255, 0.82);
   display: block;
   margin-top: 2rpx;
 }
 .setup-arrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
   color: #ffffff;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 500;
   white-space: nowrap;
   margin-left: 12rpx;
+}
+.setup-arrow .app-icon--chevron {
+  width: 0.45em;
+  height: 0.45em;
+  border-width: 2rpx;
 }
 
 .pay-pref-card {
   margin: 12rpx 24rpx 0;
   padding: 22rpx 24rpx 20rpx;
-  background: #fff;
-  border-radius: 14rpx;
-  border: 1rpx solid #edf1ef;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-control);
+  border: 1rpx solid var(--color-border-subtle, #edf1ef);
 }
 .pay-pref-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
-  color: #223029;
+  color: var(--text-primary, #223029);
 }
 .pay-pref-hint {
   display: block;
   margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #849087;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #849087);
   line-height: 1.45;
 }
 .pay-pref-chips {
@@ -818,10 +820,10 @@ function onLogout() {
   text-align: center;
   padding: 16rpx 8rpx;
   margin-right: 12rpx;
-  border-radius: 12rpx;
+  border-radius: var(--radius-control);
   background: #f4f7f5;
   color: #53645b;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   border: 2rpx solid transparent;
   box-sizing: border-box;
 }
@@ -829,8 +831,8 @@ function onLogout() {
   margin-right: 0;
 }
 .pay-pref-chip.on {
-  background: #ecfdf5;
-  color: #047857;
+  background: var(--brand-soft);
+  color: var(--brand);
   border-color: #34d399;
   font-weight: 700;
 }
@@ -844,8 +846,8 @@ function onLogout() {
 .quick-grid {
   margin: 12rpx 24rpx 0;
   padding: 18rpx 4rpx;
-  background: #fff;
-  border-radius: 14rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-control);
   display: flex;
 }
 .quick-item {
@@ -860,15 +862,15 @@ function onLogout() {
   height: 48rpx;
 }
 .quick-label {
-  font-size: 22rpx;
-  color: #334155;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #334155);
   font-weight: 500;
 }
 
 .menu-list {
   margin: 12rpx 24rpx 0;
-  background: #fff;
-  border-radius: 14rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-control);
   overflow: hidden;
 }
 .logout-wrap {
@@ -880,7 +882,7 @@ function onLogout() {
   margin-bottom: 0;
   padding: 22rpx 24rpx;
   border: none;
-  border-bottom: 1rpx solid #f1f5f9;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
   border-radius: 0;
   box-shadow: none;
   display: flex;
@@ -894,7 +896,7 @@ function onLogout() {
 }
 .menu-cell.highlight {
   border: none;
-  border-bottom: 1rpx solid #f1f5f9;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
   background: #f8fffb;
 }
 .menu-cell.disabled {
@@ -914,41 +916,43 @@ function onLogout() {
   min-width: 0;
 }
 .menu-title {
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 500;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   display: block;
   line-height: 1.3;
 }
 .menu-desc {
   margin-top: 2rpx;
-  color: #94a3b8;
-  font-size: 22rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-sm);
   display: block;
   line-height: 1.3;
 }
 .menu-arrow {
-  color: #cbd5e1;
-  font-size: 28rpx;
-  line-height: 1;
+  color: var(--text-subtle, #cbd5e1);
   flex-shrink: 0;
+  width: 0.55em;
+  height: 0.55em;
+  font-size: var(--font-size-md);
+  margin-left: 8rpx;
 }
 .menu-badge {
-  font-size: 22rpx;
-  color: #991b1b;
-  background: #fff1f0;
+  font-size: var(--font-size-sm);
+  color: var(--danger, #991b1b);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, #fff);
   padding: 4rpx 12rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
 }
 .danger {
-  color: #fa5151;
+  color: var(--color-danger);
 }
 .danger-cell {
   background: #fffafa;
 }
 .danger-cell .menu-icon {
   background: transparent;
-  color: #ef4444;
+  color: var(--color-danger);
 }
 
 .dev-section {
@@ -958,8 +962,8 @@ function onLogout() {
 .dev-label {
   display: block;
   margin: 0 8rpx 12rpx;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
   letter-spacing: 1rpx;
 }
 </style>

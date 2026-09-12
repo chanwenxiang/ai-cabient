@@ -137,7 +137,7 @@
       @size-change="onSizeChange"
     />
 
-    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑投放' : '新建投放'" width="560px">
+    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑投放' : '新建投放'" class="dialog-wide">
       <el-form label-position="top">
         <el-form-item label="名称">
           <el-input v-model="form.name" placeholder="如：暑期饮料促销" />

@@ -3,7 +3,7 @@
     <app-nav-bar title="柜机详情" />
     <view class="page-body">
       <view v-if="!canView" class="card"><text class="err">当前账号无柜机详情权限</text></view>
-      <view v-else-if="loading && !deviceName" class="card">加载中…</view>
+      <view v-else-if="loading && !deviceName" class="card">{{ UI_COPY.loading }}</view>
       <view v-else-if="error && !deviceName" class="card"
         ><text class="err">{{ error }}</text></view
       >
@@ -36,23 +36,40 @@
               salesLockReason ? `（${salesLockReason}）` : ''
             }}</text
           >
-          <view class="pref-row" @click="togglePreferred">
+          <view
+            role="button"
+            class="pref-row"
+            :aria-label="isPreferred ? '取消常驻柜' : '设为常驻柜'"
+            @click="togglePreferred"
+          >
             <text class="pref-star" :class="{ on: isPreferred }">★</text>
             <text>{{ isPreferred ? '常驻柜（点击取消）' : '设为常驻柜' }}</text>
           </view>
           <view class="action-row">
-            <view
+            <app-button
               v-if="latitude != null && longitude != null"
-              class="btn-primary action-btn"
+              class="action-btn"
+              :block="false"
+              compact
+              label="导航到柜"
               @click="openNav"
-              >导航到柜</view
-            >
-            <view v-if="canReplenishView" class="btn-primary action-btn" @click="goReplenishment"
-              >补货任务</view
-            >
-            <view v-if="canRequest" class="btn-primary action-btn" @click="goRequest"
-              >发起要货</view
-            >
+            />
+            <app-button
+              v-if="canReplenishView"
+              class="action-btn"
+              :block="false"
+              compact
+              label="补货任务"
+              @click="goReplenishment"
+            />
+            <app-button
+              v-if="canRequest"
+              class="action-btn"
+              :block="false"
+              compact
+              label="发起要货"
+              @click="goRequest"
+            />
           </view>
         </view>
 
@@ -70,9 +87,11 @@
             <text class="field-label">备注</text>
             <input v-model="formRemark" class="input" placeholder="选填运维备注" />
           </view>
-          <view class="btn-primary btn-block" @click="saveSettings">{{
-            saving ? '保存中…' : '保存设置'
-          }}</view>
+          <app-button
+            :loading="saving"
+            :label="saving ? '保存中…' : '保存设置'"
+            @click="saveSettings"
+          />
         </view>
 
         <view class="card">
@@ -96,14 +115,13 @@
               />
             </view>
           </view>
-          <view
+          <app-button
             v-if="canEditSlots"
-            class="btn-primary btn-block"
             style="margin-top: 12px"
+            :loading="savingSlots"
+            :label="savingSlots ? '保存中…' : '保存货道'"
             @click="saveSlots"
-          >
-            {{ savingSlots ? '保存中…' : '保存货道' }}
-          </view>
+          />
         </view>
 
         <view v-if="tempHistory.length" class="card">
@@ -151,6 +169,10 @@
 
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app';
+import {
+  showError,
+  showSuccess
+} from '@/utils/notify';
 import { computed, ref } from 'vue';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { merchantApi, hasPerm } from '@/utils/merchant-api';
@@ -166,6 +188,7 @@ import {
 } from '@/utils/preferred-device';
 import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
 import type {
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
   DeviceSlot,
   DeviceTemperatureReading,
   MerchantMe,
@@ -359,7 +382,7 @@ async function refreshDeviceDetailMe(seq: number): Promise<boolean> {
 
 function denyDeviceDetailAccess() {
   loading.value = false;
-  uni.showToast({ title: '无柜机详情权限', icon: 'none' });
+  showError('无柜机详情权限');
   uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
 }
 
@@ -390,12 +413,12 @@ function togglePreferred() {
   if (isPreferred.value) {
     clearPreferredDeviceId();
     isPreferred.value = false;
-    uni.showToast({ title: '已取消常驻', icon: 'none' });
+    showError('已取消常驻');
     return;
   }
   setPreferredDeviceId(deviceId.value);
   isPreferred.value = true;
-  uni.showToast({ title: '已设为常驻柜', icon: 'success' });
+  showSuccess('已设为常驻柜');
 }
 
 function openNav() {
@@ -430,7 +453,7 @@ async function saveSettings() {
     const temp = Number(formTargetTemp.value);
     // 用 Number + Number.isInteger 替代 parseInt，避免 "25.5" 被静默截断为 25
     if (!Number.isInteger(temp)) {
-      uni.showToast({ title: '目标温度须为整数', icon: 'none' });
+      showError('目标温度须为整数');
       return;
     }
     body.targetTempC = temp;
@@ -438,10 +461,10 @@ async function saveSettings() {
   saving.value = true;
   try {
     await merchantApi.updateDeviceSettings(deviceId.value, body);
-    uni.showToast({ title: '已保存', icon: 'success' });
+    showSuccess('已保存');
     await loadDetail();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '保存失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '保存失败');
   } finally {
     saving.value = false;
   }
@@ -463,7 +486,7 @@ async function saveSlots() {
   for (const s of slots.value) {
     const par = Number(slotPar.value[s.slotCode] || s.parLevel);
     if (!Number.isInteger(par) || par < 0) {
-      uni.showToast({ title: `货道 ${s.slotCode} 容量无效`, icon: 'none' });
+      showError(`货道 ${s.slotCode} 容量无效`);
       return;
     }
     body.push({
@@ -481,10 +504,10 @@ async function saveSlots() {
   savingSlots.value = true;
   try {
     await merchantApi.upsertSlots(deviceId.value, body);
-    uni.showToast({ title: '货道已保存', icon: 'success' });
+    showSuccess('货道已保存');
     await loadDetail();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '保存失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '保存失败');
   } finally {
     savingSlots.value = false;
   }
@@ -498,18 +521,18 @@ async function saveSlots() {
   justify-content: space-between;
   gap: 16rpx;
   padding: 12rpx 0;
-  border-bottom: 1rpx solid #f1f5f9;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
 }
 .temp-row:last-child {
   border-bottom: none;
 }
 .temp-val {
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 700;
-  color: #0f766e;
+  color: var(--brand);
 }
 .temp-val.warn {
-  color: #b45309;
+  color: var(--warning, #b45309);
 }
 
 .velocity-row {
@@ -518,7 +541,7 @@ async function saveSlots() {
   justify-content: space-between;
   gap: 16rpx;
   padding: 16rpx 0;
-  border-bottom: 1rpx solid #f1f5f9;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
 }
 .velocity-row:last-child {
   border-bottom: none;
@@ -529,7 +552,7 @@ async function saveSlots() {
 }
 .velocity-main .sku-name {
   display: block;
-  font-size: 27rpx;
+  font-size: var(--font-size-md);
   font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -540,27 +563,27 @@ async function saveSlots() {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8rpx 16rpx;
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }
 .velocity-data .rop {
-  color: #b45309;
+  color: var(--warning, #b45309);
   font-weight: 700;
-  background: #fffbeb;
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
   padding: 2rpx 10rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
 }
 
 .device-hero {
   width: 100%;
   height: 260rpx;
   border-radius: 18rpx;
-  background: #ecfdf5;
+  background: var(--brand-soft);
   margin-bottom: 16rpx;
   display: block;
 }
 .title {
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 600;
   display: block;
 }
@@ -573,8 +596,8 @@ async function saveSlots() {
 }
 .meta-line {
   display: block;
-  color: #64748b;
-  font-size: 24rpx;
+  color: var(--text-muted);
+  font-size: var(--font-size-caption);
   line-height: 1.45;
   margin-top: 0;
 }
@@ -585,15 +608,15 @@ async function saveSlots() {
   display: block;
   margin-top: 12rpx;
   padding: 12rpx 16rpx;
-  border-radius: 12rpx;
-  background: #fef3c7;
-  color: #92400e;
-  font-size: 24rpx;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  color: var(--warning, #92400e);
+  font-size: var(--font-size-caption);
   line-height: 1.4;
 }
 .meta-line.stock-warn,
 .meta.stock-warn {
-  color: #b45309;
+  color: var(--warning, #b45309);
   font-weight: 600;
 }
 .section {
@@ -606,8 +629,8 @@ async function saveSlots() {
 }
 .field-label {
   display: block;
-  font-size: 24rpx;
-  color: #475569;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #475569);
   margin-bottom: 6rpx;
   font-weight: 550;
 }
@@ -622,15 +645,15 @@ async function saveSlots() {
   display: flex;
   align-items: center;
   gap: 8rpx;
-  font-size: 26rpx;
-  color: #0f766e;
+  font-size: var(--font-size-body);
+  color: var(--brand);
 }
 .pref-star {
-  color: #cbd5e1;
-  font-size: 32rpx;
+  color: var(--text-subtle, #cbd5e1);
+  font-size: var(--font-size-xl);
 }
 .pref-star.on {
-  color: #f59e0b;
+  color: var(--warning, #f59e0b);
 }
 .input {
   display: block;
@@ -639,13 +662,13 @@ async function saveSlots() {
   min-height: 80rpx;
   line-height: 80rpx;
   box-sizing: border-box;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--page-bg, #f8fafc);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 0 12px;
   margin: 0;
-  font-size: 28rpx;
-  color: #0f172a;
+  font-size: var(--font-size-md);
+  color: var(--text-primary, #0f172a);
 }
 .input-sm {
   display: block;
@@ -654,22 +677,22 @@ async function saveSlots() {
   min-height: 64rpx;
   line-height: 64rpx;
   box-sizing: border-box;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   margin-top: 6rpx;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 4px;
   padding: 0 6px;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 .slot-code {
   font-weight: 600;
   display: block;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
 }
 .slot-sku {
   display: block;
-  font-size: 20rpx;
-  color: #0f172a;
+  font-size: var(--font-size-xs);
+  color: var(--text-primary, #0f172a);
   line-height: 1.3;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -686,7 +709,8 @@ async function saveSlots() {
   width: 100%;
   box-sizing: border-box;
 }
-.action-btn {
+.action-btn,
+:deep(.action-btn) {
   flex: 1 1 0;
   width: 0 !important;
   min-width: 0 !important;
@@ -695,11 +719,11 @@ async function saveSlots() {
   align-self: stretch !important;
   padding-left: 16rpx !important;
   padding-right: 16rpx !important;
-  font-size: 28rpx !important;
+  font-size: var(--font-size-md) !important;
   box-sizing: border-box !important;
 }
 .err {
-  color: #ef4444;
+  color: var(--color-danger);
 }
 .page-body {
   padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));

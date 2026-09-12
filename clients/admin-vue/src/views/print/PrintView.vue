@@ -8,7 +8,7 @@
       </span>
     </div>
 
-    <div v-if="loading" class="no-print loading">单据加载中…</div>
+    <div v-if="loading" class="no-print loading">单据{{ UI_COPY.loading }}</div>
 
     <div v-else class="print-sheet">
       <!-- 拣货单 -->
@@ -129,6 +129,7 @@ import { computed, nextTick, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 type Row = Record<string, any>;
 
@@ -270,7 +271,7 @@ onMounted(load);
   border-bottom: 1px solid #e4e7ed;
 }
 .toolbar-title {
-  font-size: 16px;
+  font-size: var(--font-size-lg, 16px);
   font-weight: 600;
 }
 .toolbar-actions {
@@ -283,7 +284,7 @@ onMounted(load);
   border-radius: 6px;
   background: #fff;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--admin-font-size-menu);
 }
 .toolbar-btn.primary {
   background: #2563eb;
@@ -313,12 +314,12 @@ onMounted(load);
 }
 .sheet-head h1 {
   margin: 0 0 6px;
-  font-size: 22px;
+  font-size: var(--admin-font-size-display-md);
 }
 .sheet-head p {
   margin: 2px 0;
   color: #606266;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .sheet-meta {
   text-align: right;
@@ -326,7 +327,7 @@ onMounted(load);
 .print-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .print-table th,
 .print-table td {
@@ -344,7 +345,7 @@ onMounted(load);
 .sheet-foot {
   margin-top: 16px;
   color: #909399;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .label-grid {
   display: grid;
@@ -358,14 +359,14 @@ onMounted(load);
   page-break-inside: avoid;
 }
 .label-name {
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
   font-weight: 700;
   margin-bottom: 6px;
 }
 .label-row {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: #606266;
 }
 .label-barcode {
@@ -374,7 +375,7 @@ onMounted(load);
   border: 1px solid #dcdfe6;
   border-radius: 4px;
   font-family: var(--app-font-mono);
-  font-size: 16px;
+  font-size: var(--font-size-lg, 16px);
   letter-spacing: 2px;
   text-align: center;
 }

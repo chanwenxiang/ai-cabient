@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="page-root">
     <app-nav-bar title="开通支付" />
     <view class="page-body">
@@ -39,14 +39,11 @@
           aria-label="身份证后四位"
           placeholder="后四位…"
         />
-        <button
-          class="btn-primary btn-block"
-          hover-class="btn-hover"
+        <app-button
           :loading="verifying"
+          :label="verifying ? '提交中…' : '下一步'"
           @click="onVerify"
-        >
-          {{ verifying ? '提交中…' : '下一步' }}
-        </button>
+        />
         <text v-if="devTools" class="hint">当前仅校验格式，正式环境将对接实名核验。</text>
         <text v-if="err" class="err">{{ err }}</text>
       </view>
@@ -87,23 +84,18 @@
           <text class="status-label">支付宝免密</text>
           <text class="status-val">{{ alipayReady ? '已开通' : '未开通' }}</text>
         </view>
-        <button
-          class="btn-primary btn-block"
-          hover-class="btn-hover"
+        <app-button
           :loading="signing"
+          :label="signing ? '开通中…' : '开通微信支付分'"
           @click="onSignPayScore"
-        >
-          {{ signing ? '开通中…' : '开通微信支付分' }}
-        </button>
-        <button
-          class="btn-alipay btn-block"
-          hover-class="btn-hover"
+        />
+        <app-button
+          variant="alipay"
           :loading="signingAlipay"
+          :label="signingAlipay ? '开通中…' : '开通支付宝免密'"
           @click="onSignAlipay"
-        >
-          {{ signingAlipay ? '开通中…' : '开通支付宝免密' }}
-        </button>
-        <view class="link" @click="goRecharge">余额不足？去充值 ›</view>
+        />
+        <view role="button" class="link app-link-chevron" @click="goRecharge">余额不足？去充值</view>
         <text v-if="devTools" class="hint">当前为体验开通流程；正式环境将跳转微信/支付宝签约。</text>
         <text v-if="err" class="err">{{ err }}</text>
       </view>
@@ -117,9 +109,7 @@
           <text v-if="maskedName">实名：{{ maskedName }}</text>
           <text>可用余额 {{ balanceYuan }}</text>
         </view>
-        <button class="btn-primary btn-block" hover-class="btn-hover" @click="goShop">
-          去扫码开门
-        </button>
+        <app-button label="去扫码开门" @click="goShop" />
       </view>
     </view>
   </view>
@@ -127,6 +117,10 @@
 
 <script setup lang="ts">
 import { onLoad, onShow } from '@dcloudio/uni-app';
+import {
+  showSuccess,
+  showConfirm
+} from '@/utils/notify';
 import { computed, ref } from 'vue';
 import type { AccountDto } from '@aicabinet/shared-types';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
@@ -225,7 +219,7 @@ async function onVerify() {
   err.value = '';
   try {
     account.value = await consumerApi.verifyIdentity({ realName: name, idCardLast4: last4 });
-    uni.showToast({ title: '实名成功', icon: 'success' });
+    showSuccess('实名成功');
     if (payReady.value && fromOpen.value) {
       setTimeout(goShop, 600);
     }
@@ -242,7 +236,7 @@ async function onSignPayScore() {
   try {
     const res = await consumerApi.signPayScore();
     account.value = await consumerApi.account();
-    uni.showToast({ title: res.message || '开通成功', icon: 'success' });
+    showSuccess(res.message || '开通成功');
     if (fromOpen.value) {
       setTimeout(goShop, 600);
     }
@@ -269,7 +263,7 @@ async function onSignAlipay() {
         globalThis.location.href = url;
         return;
       }
-      uni.showModal({
+      await showConfirm({
         title: '请在支付宝内开通',
         content:
           '支付宝免密需在支付宝扫柜码进入后开通（不做支付宝小程序）。当前环境无法跳转签约页。',
@@ -279,7 +273,7 @@ async function onSignAlipay() {
       return;
     }
     account.value = await consumerApi.account();
-    uni.showToast({ title: res.message || '开通成功', icon: 'success' });
+    showSuccess(res.message || '开通成功');
     if (fromOpen.value) {
       setTimeout(goShop, 600);
     }
@@ -302,7 +296,7 @@ function goShop() {
 <style scoped>
 .page-root {
   min-height: 100%;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   padding: 0;
   box-sizing: border-box;
 }
@@ -314,14 +308,14 @@ function goShop() {
   padding: 16rpx 8rpx 24rpx;
 }
 .hero-title {
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
   font-weight: 700;
-  color: #191919;
+  color: var(--color-text-primary);
   display: block;
 }
 .hero-sub {
-  font-size: 26rpx;
-  color: #888;
+  font-size: var(--font-size-body);
+  color: var(--text-subtle, #888);
   margin-top: 8rpx;
   display: block;
 }
@@ -331,9 +325,9 @@ function goShop() {
   justify-content: center;
   margin: 0 0 20rpx;
   padding: 24rpx 22rpx;
-  border-radius: 24rpx;
-  background: #f8faf9;
-  border: 1rpx solid #edf1ef;
+  border-radius: var(--radius-card);
+  background: var(--page-bg, #f8faf9);
+  border: 1rpx solid var(--color-border-subtle, #edf1ef);
 }
 .step {
   display: flex;
@@ -346,8 +340,8 @@ function goShop() {
   height: 56rpx;
   border-radius: 50%;
   background: #d4d4d4;
-  color: #334155;
-  font-size: 28rpx;
+  color: var(--text-muted, #334155);
+  font-size: var(--font-size-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -355,16 +349,16 @@ function goShop() {
 }
 .step.active .step-dot,
 .step.done .step-dot {
-  background: linear-gradient(135deg, #047857, #059669);
+  background: linear-gradient(135deg, var(--brand), var(--brand));
   color: #fff;
 }
 .step-label {
-  font-size: 24rpx;
-  color: #888;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle, #888);
 }
 .step.active .step-label,
 .step.done .step-label {
-  color: #047857;
+  color: var(--brand);
   font-weight: 600;
 }
 .step-line {
@@ -374,33 +368,33 @@ function goShop() {
   margin: 0 16rpx 28rpx;
 }
 .step-line.done {
-  background: #059669;
+  background: var(--brand);
 }
 .card {
-  background: #fff;
-  border-radius: 24rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card);
   padding: 32rpx;
   margin: 0;
   border: none;
   box-shadow: none;
 }
 .card-title {
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 600;
-  color: #191919;
+  color: var(--color-text-primary);
   display: block;
 }
 .card-desc {
-  font-size: 26rpx;
-  color: #888;
+  font-size: var(--font-size-body);
+  color: var(--text-subtle, #888);
   margin: 12rpx 0 28rpx;
   display: block;
   line-height: 1.5;
 }
 .field-label {
   display: block;
-  font-size: 26rpx;
-  color: #666;
+  font-size: var(--font-size-body);
+  color: var(--text-muted, #666);
   margin-bottom: 12rpx;
   margin-top: 8rpx;
 }
@@ -409,60 +403,24 @@ function goShop() {
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.4;
-  background: #f5f7f8;
-  border: 1rpx solid #e8eeeb;
-  border-radius: 16rpx;
+  background: var(--page-bg, #f5f7f8);
+  border: 1rpx solid var(--card-border, #e8eeeb);
+  border-radius: var(--radius-panel);
   padding: 0 24rpx;
   margin-bottom: 16rpx;
-  font-size: 30rpx;
-  color: #191919;
+  font-size: var(--font-size-lg);
+  color: var(--color-text-primary);
   box-sizing: border-box;
 }
-.btn-primary {
-  margin: 16rpx 0 0;
-  background: linear-gradient(135deg, #047857, #059669);
-  color: #fff;
-  border-radius: 44rpx;
-  font-size: 32rpx;
-  font-weight: 600;
-  border: none;
-  min-height: 88rpx;
-  height: 88rpx;
-  line-height: 1.2;
-  box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-}
-.btn-alipay {
-  margin: 16rpx 0 0;
-  background: #0958d9;
-  color: #fff;
-  border-radius: 44rpx;
-  font-size: 30rpx;
-  font-weight: 600;
-  border: none;
-  min-height: 88rpx;
-  height: 88rpx;
-  line-height: 1.2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-}
-.btn-primary::after,
-.btn-alipay::after {
-  border: none;
+.btn-stack > .app-btn + .app-btn {
+  margin-top: 16rpx;
 }
 .btn-hover {
   opacity: 0.85;
 }
 .err {
-  color: #fa5151;
-  font-size: 26rpx;
+  color: var(--color-danger);
+  font-size: var(--font-size-body);
   margin-top: 16rpx;
   display: block;
 }
@@ -473,23 +431,23 @@ function goShop() {
   border-bottom: 1rpx solid #f0f0f0;
 }
 .status-label {
-  font-size: 28rpx;
-  color: #888;
+  font-size: var(--font-size-md);
+  color: var(--text-subtle, #888);
 }
 .status-val {
-  font-size: 28rpx;
-  color: #191919;
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
 }
 .hint {
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   color: #b2b2b2;
   margin-top: 24rpx;
   display: block;
   line-height: 1.5;
 }
 .link {
-  color: #576b95;
-  font-size: 28rpx;
+  color: var(--color-link-secondary);
+  font-size: var(--font-size-md);
   margin-top: 20rpx;
 }
 .done-card {
@@ -500,17 +458,17 @@ function goShop() {
   font-size: 88rpx;
   display: block;
   margin-bottom: 16rpx;
-  color: #059669;
+  color: var(--brand);
 }
 .done-title {
-  font-size: 34rpx;
+  font-size: var(--font-size-h3);
   font-weight: 600;
-  color: #191919;
+  color: var(--color-text-primary);
   display: block;
 }
 .done-desc {
-  font-size: 26rpx;
-  color: #888;
+  font-size: var(--font-size-body);
+  color: var(--text-subtle, #888);
   margin: 12rpx 0 16rpx;
   display: block;
 }
@@ -519,7 +477,7 @@ function goShop() {
   flex-direction: column;
   gap: 8rpx;
   margin-bottom: 28rpx;
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
 }
 </style>

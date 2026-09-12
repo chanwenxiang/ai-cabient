@@ -80,7 +80,7 @@
           description="暂无商户组织"
           :image-size="64"
         />
-        <div v-else class="muted">组织树加载中…</div>
+        <div v-else class="muted">组织树{{ UI_COPY.loading }}</div>
       </el-tab-pane>
 
       <el-tab-pane label="商户列表" name="merchants">
@@ -578,7 +578,7 @@
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="submitDialog" title="提交微信分账" width="480px" destroy-on-close>
+    <el-dialog v-model="submitDialog" title="提交微信分账" destroy-on-close>
       <p class="dialog-hint">
         分账 <code>{{ current?.splitId }}</code> · 订单 {{ current?.orderId }}。<br />
         余额支付须填微信交易号；微信支付可留空，由系统关联原支付单。
@@ -601,7 +601,6 @@
     <el-dialog
       v-model="orgDialog"
       :title="orgForm.editing ? '编辑商户组织' : '新建商户'"
-      width="520px"
       destroy-on-close
     >
       <p class="dialog-hint">
@@ -669,7 +668,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="assignDialog" title="挂载货柜到商户" width="560px" destroy-on-close>
+    <el-dialog v-model="assignDialog" title="挂载货柜到商户" class="dialog-wide" destroy-on-close>
       <div v-loading="assignDevicesLoading">
         <p class="dialog-hint">
           将设备归属到 <strong>{{ assignTarget?.merchantName || assignTarget?.merchantId }}</strong
@@ -738,6 +737,7 @@ import type {
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const route = useRoute();
 const { router, goPath } = useNavAccess();
@@ -1633,11 +1633,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {
@@ -1669,11 +1669,11 @@ onActivated(() => {
   margin-left: 8px;
   font-weight: 400;
   opacity: 0.85;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .muted {
   color: var(--layout-muted);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .dialog-hint {
   margin: 0 0 12px;
@@ -1681,7 +1681,7 @@ onActivated(() => {
   line-height: 1.5;
 }
 .dialog-hint code {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .org-toolbar {
   display: flex;
@@ -1735,7 +1735,7 @@ onActivated(() => {
 }
 .org-node__meta small {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.3;
 }
 .org-node__meta .org-cascade {

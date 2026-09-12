@@ -1,4 +1,7 @@
 import { normalizeDeviceId, parseCabinetScan } from '@aicabinet/shared-uni/qrcode';
+import {
+  showError
+} from '@/utils/notify';
 import { promptText } from '@/utils/text-prompt';
 
 function isBrowserH5(): boolean {
@@ -28,7 +31,7 @@ async function promptManualDeviceId(hint?: string): Promise<string> {
   if (value == null) return '';
   const id = resolveDeviceId(value);
   if (!id) {
-    uni.showToast({ title: '柜机编号无效', icon: 'none' });
+    showError('柜机编号无效');
     return '';
   }
   return id;
@@ -48,7 +51,7 @@ export function scanCabinetDeviceId(): Promise<string> {
             void promptManualDeviceId().then(resolve);
             return;
           }
-          uni.showToast({ title: '未识别到柜机编号', icon: 'none' });
+          showError('未识别到柜机编号');
           resolve('');
           return;
         }
@@ -64,7 +67,7 @@ export function scanCabinetDeviceId(): Promise<string> {
           void promptManualDeviceId().then(resolve);
           return;
         }
-        uni.showToast({ title: '扫码失败，请重试', icon: 'none' });
+        showError('扫码失败，请重试');
         resolve('');
       }
     });

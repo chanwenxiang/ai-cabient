@@ -2,7 +2,7 @@
   <view class="page-root">
     <app-nav-bar title="柜机订单" />
     <view class="page-body">
-      <view v-if="booting" class="loading"><text>加载中…</text></view>
+      <view v-if="booting" class="loading"><text>{{ UI_COPY.loading }}</text></view>
       <error-state
         v-else-if="error && !list.length && !filtersActive"
         :title="error"
@@ -23,7 +23,7 @@
           </button>
           <view class="filter-row">
             <text
-              v-for="s in statusOptions"
+              v-for="s in statusOptions" role="button"
               :key="s.value"
               class="filter-chip"
               :class="{ active: status === s.value }"
@@ -41,14 +41,14 @@
               <view class="filter-picker">{{ deviceLabel }}</view>
             </picker>
             <text
-              v-for="t in timeOptions"
+              v-for="t in timeOptions" role="button"
               :key="t.value"
               class="filter-chip"
               :class="{ active: timeRange === t.value }"
               @click="setTime(t.value)"
               >{{ t.label }}</text
             >
-            <text class="filter-reset" @click="resetFilters">重置</text>
+            <text role="button" class="filter-reset" aria-label="重置筛选" @click="resetFilters">重置</text>
           </view>
         </view>
 
@@ -151,6 +151,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import {
+  showError
+} from '@/utils/notify';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import {
   emptyDisplay,
@@ -165,6 +168,7 @@ import { hasPerm, merchantApi, downloadAuthedFile, openExportedFile } from '@/ut
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type { MerchantMe, OpenApiOrderReadModelMerchant } from '@aicabinet/shared-types';
 import { cleanLineSummary, skuImageFor } from '@aicabinet/shared-uni/product-image';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canList = computed(() => hasPerm(me.value, 'merchant:orders:list'));
@@ -184,7 +188,7 @@ async function exportOrders() {
       `merchant-orders-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.csv`
     );
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '导出失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '导出失败');
   } finally {
     exporting.value = false;
   }
@@ -343,7 +347,7 @@ function applyOrdersResponse(
 function denyOrdersAccess() {
   booting.value = false;
   loading.value = false;
-  uni.showToast({ title: '无订单权限', icon: 'none' });
+  showError('无订单权限');
   uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
 }
 
@@ -404,7 +408,7 @@ async function loadMore() {
     hasMore.value = list.value.length < total && items.length >= PAGE_SIZE;
   } catch (e) {
     if (seq !== loadSeq) return;
-    uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '加载失败');
   } finally {
     if (seq === loadSeq) loadingMore.value = false;
   }
@@ -477,15 +481,15 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
 .card-discount {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #b91c1c;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
   font-weight: 600;
 }
 .card-refund {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #b45309;
+  font-size: var(--font-size-sm);
+  color: var(--warning, #b45309);
 }
 .card-amount-col {
   display: flex;
@@ -498,8 +502,8 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   box-sizing: border-box;
 }
 .card-origin {
-  font-size: 20rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-xs);
+  color: var(--text-subtle);
   text-decoration: line-through;
 }
 
@@ -511,7 +515,7 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   text-align: center;
   padding: 80rpx 24rpx;
   color: var(--text-muted, #64748b);
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
 }
 .loading.inline {
   padding: 40rpx 24rpx;
@@ -520,25 +524,25 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   padding: 40rpx 24rpx;
 }
 .err {
-  color: var(--danger, #b91c1c);
+  color: var(--danger, var(--color-danger));
   display: block;
   margin-bottom: 20rpx;
 }
 .filter-panel {
-  background: #fff;
-  border-radius: 20rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card);
   padding: 20rpx 20rpx 14rpx;
   margin: 0 0 16rpx;
-  border: 1rpx solid var(--card-border, #e2e8f0);
+  border: 1rpx solid var(--card-border, var(--color-border));
 }
 .search-input {
   height: 72rpx;
   box-sizing: border-box;
-  background: #f8fafc;
-  border: 1rpx solid #e2e8f0;
-  border-radius: 36rpx;
+  background: var(--page-bg, #f8fafc);
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-card);
   padding: 0 26rpx;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
 }
 .filter-row {
   display: flex;
@@ -552,42 +556,42 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
 }
 .filter-chip {
   padding: 8rpx 20rpx;
-  border-radius: 999rpx;
-  font-size: 23rpx;
-  color: #475569;
-  background: #f1f5f9;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #475569);
+  background: var(--color-border-subtle, #f1f5f9);
   flex-shrink: 0;
 }
 .filter-chip.active {
   color: #fff;
-  background: #0f766e;
+  background: var(--brand);
   font-weight: 600;
 }
 .filter-picker {
   padding: 8rpx 20rpx;
-  border-radius: 999rpx;
-  font-size: 23rpx;
-  color: #334155;
-  background: #ecfdf5;
-  border: 1rpx solid #99f6e4;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #334155);
+  background: var(--brand-soft);
+  border: 1rpx solid var(--brand-mist, #99f6e4);
   flex-shrink: 0;
 }
 .filter-reset {
   margin-left: auto;
   padding: 8rpx 12rpx;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
   flex-shrink: 0;
 }
 .card {
-  background: #fff;
+  background: var(--card-bg, #fff);
   border-radius: var(--card-radius, 22rpx);
   padding: 24rpx;
   margin: 0 0 16rpx;
-  border: 1rpx solid var(--card-border, #e2e8f0);
+  border: 1rpx solid var(--card-border, var(--color-border));
 }
 .card-hover {
-  background: #f8fafc !important;
+  background: var(--page-bg, #f8fafc) !important;
 }
 .card-header {
   display: flex;
@@ -595,23 +599,23 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   margin-bottom: 10rpx;
 }
 .card-id {
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 .card-status {
   min-width: 108rpx;
   text-align: center;
-  font-size: 22rpx;
-  color: #92400e;
-  background: #fef3c7;
+  font-size: var(--font-size-sm);
+  color: var(--warning, #92400e);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
   padding: 4rpx 12rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   box-sizing: border-box;
 }
 .card-status.PAID,
 .card-status.COMPLETED {
-  color: #166534;
-  background: #dcfce7;
+  color: var(--brand-deep, #166534);
+  background: var(--brand-soft, #dcfce7);
 }
 .card-status.REFUNDED,
 .card-status.PARTIAL_REFUNDED {
@@ -619,13 +623,13 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   background: #dbeafe;
 }
 .card-status.DISPUTED {
-  color: #9a3412;
+  color: var(--accent-orange, #9a3412);
   background: #ffedd5;
 }
 .card-status.CANCELLED,
 .card-status.FAILED {
-  color: #475569;
-  background: #e2e8f0;
+  color: var(--text-muted, #475569);
+  background: var(--color-border);
 }
 .card-main {
   display: flex;
@@ -637,7 +641,7 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   width: 96rpx;
   height: 96rpx;
   border-radius: 18rpx;
-  background: #ecfdf5;
+  background: var(--brand-soft);
   flex-shrink: 0;
 }
 .card-copy {
@@ -646,43 +650,43 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
 }
 .card-goods {
   display: block;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .card-amount {
-  font-size: 36rpx;
+  font-size: var(--font-size-display-sm);
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   flex-shrink: 0;
 }
 .card-meta {
   display: block;
   margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 .card-time {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 .trunc-hint {
   display: block;
   text-align: center;
-  color: #94a3b8;
-  font-size: 22rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-sm);
   margin-top: 8rpx;
 }
 .load-more {
   display: block;
   text-align: center;
   color: var(--brand, #0f766e);
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   font-weight: 600;
   padding: 20rpx 0 8rpx;
 }

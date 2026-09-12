@@ -1540,7 +1540,6 @@
       <el-dialog
         v-model="warehouseDialog"
         :title="warehouseForm.editing ? '编辑仓库' : '新增仓库'"
-        width="480px"
         destroy-on-close
       >
         <el-form label-width="88px">
@@ -1573,7 +1572,6 @@
       <el-dialog
         v-model="supplierDialog"
         :title="supplierForm.editing ? '编辑供应商' : '新增供应商'"
-        width="520px"
         destroy-on-close
       >
         <el-form label-width="92px">
@@ -1621,7 +1619,7 @@
         </template>
       </el-dialog>
 
-      <el-dialog v-model="paymentDialog" title="登记付款" width="480px" destroy-on-close>
+      <el-dialog v-model="paymentDialog" title="登记付款" destroy-on-close>
         <el-form label-width="92px">
           <el-form-item label="供应商">{{ payTarget.supplierName }}</el-form-item>
           <el-form-item label="关联采购单">
@@ -1649,7 +1647,7 @@
         </template>
       </el-dialog>
 
-      <el-dialog v-model="stocktakeDialog" title="新建盘点" width="480px" destroy-on-close>
+      <el-dialog v-model="stocktakeDialog" title="新建盘点" destroy-on-close>
         <el-form label-width="92px">
           <el-form-item label="仓库" required>
             <el-select v-model="stocktakeForm.warehouseId" filterable style="width: 100%">
@@ -1680,7 +1678,6 @@
       <el-dialog
         v-model="stocktakeDetailDialog"
         :title="`盘点单 ${stocktakeDetail.stocktakeNo || ''}`"
-        width="980px"
         class="dialog-wide"
         destroy-on-close
       >
@@ -1781,7 +1778,6 @@
       <el-dialog
         v-model="binDialog"
         :title="binForm.editing ? '编辑货位' : '新增货位'"
-        width="480px"
         destroy-on-close
       >
         <el-form label-width="92px">
@@ -1823,7 +1819,7 @@
         </template>
       </el-dialog>
 
-      <el-dialog v-model="binInboundDialog" title="入库到货位" width="560px" destroy-on-close>
+      <el-dialog v-model="binInboundDialog" title="入库到货位" class="dialog-wide" destroy-on-close>
         <el-form label-width="92px">
           <el-form-item label="仓库" required>
             <el-select
@@ -1884,7 +1880,7 @@
         </template>
       </el-dialog>
 
-      <el-dialog v-model="binMoveDialog" title="货位移库" width="560px" destroy-on-close>
+      <el-dialog v-model="binMoveDialog" title="货位移库" class="dialog-wide" destroy-on-close>
         <el-form label-width="92px">
           <el-form-item label="源货位" required>
             <el-select
@@ -1943,7 +1939,6 @@
       <el-dialog
         v-model="purchaseDialog"
         title="新建采购单"
-        width="760px"
         class="dialog-wide"
         destroy-on-close
       >
@@ -2077,7 +2072,6 @@
       <el-dialog
         v-model="receiveDialog"
         title="采购收货"
-        width="700px"
         class="dialog-wide"
         destroy-on-close
       >
@@ -2135,7 +2129,7 @@
         </template>
       </el-dialog>
 
-      <el-dialog v-model="transferDialog" title="新建仓间调拨" width="520px" destroy-on-close>
+      <el-dialog v-model="transferDialog" title="新建仓间调拨" destroy-on-close>
         <el-form label-width="100px">
           <el-form-item label="调出仓" required>
             <el-select v-model="transferForm.fromWarehouseId" filterable style="width: 100%">
@@ -2179,7 +2173,6 @@
       <el-dialog
         v-model="returnDialog"
         title="采购退货"
-        width="760px"
         class="dialog-wide"
         destroy-on-close
       >
@@ -2250,7 +2243,6 @@
       <el-dialog
         v-model="inboundDialog"
         title="其他入库"
-        width="720px"
         class="dialog-wide"
         destroy-on-close
       >
@@ -2330,7 +2322,6 @@
       <el-dialog
         v-model="outboundConfirm.visible"
         :title="outboundConfirm.title"
-        width="420px"
         append-to-body
         destroy-on-close
         :close-on-click-modal="false"
@@ -4875,11 +4866,11 @@ watch(
 }
 .tab-group-count {
   margin-left: 4px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   opacity: 0.72;
 }
 .tab-group-hint {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
   line-height: 1.4;
 }
@@ -4917,11 +4908,11 @@ watch(
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 
@@ -4951,13 +4942,13 @@ watch(
   margin: 0;
   color: var(--layout-text);
   line-height: 1.6;
-  font-size: 14px;
+  font-size: var(--admin-font-size-menu);
 }
 .outbound-confirm-id {
   display: inline-block;
   margin-bottom: 6px;
   font-weight: 700;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
   color: var(--app-primary, #0f766e);
 }
 :deep(.outbound-row--actionable) > td {
@@ -4990,7 +4981,7 @@ watch(
 }
 .sla-meta {
   color: var(--el-text-color-secondary);
-  font-size: 11px;
+  font-size: var(--admin-font-size-xs);
 }
 .sla-meta.danger {
   color: var(--el-color-danger);
@@ -5001,7 +4992,7 @@ watch(
 .muted,
 .tip {
   color: var(--layout-muted);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .tip {
   margin: 0 0 8px;
@@ -5047,7 +5038,7 @@ watch(
 .line-field {
   display: grid;
   gap: 6px;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--layout-muted);
 }
 .line-field :deep(.el-select),

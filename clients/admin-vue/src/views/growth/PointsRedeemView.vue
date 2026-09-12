@@ -134,7 +134,6 @@
     <el-dialog
       v-model="dialogVisible"
       :title="editing ? '编辑兑换项' : '新建兑换项'"
-      width="520px"
       destroy-on-close
     >
       <el-form :model="form" label-width="110px">
@@ -441,7 +440,7 @@ async function batchToggle(status: 'ACTIVE' | 'INACTIVE') {
 <style scoped>
 .cell-emoji {
   margin-right: 6px;
-  font-size: 18px;
+  font-size: var(--admin-font-size-display-sm);
 }
 .cell-name {
   font-weight: 600;
@@ -449,7 +448,7 @@ async function batchToggle(status: 'ACTIVE' | 'INACTIVE') {
 .cell-sub {
   display: block;
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: #8a968e;
 }
 </style>

@@ -1,11 +1,12 @@
 <template>
   <div class="page-pager">
     <el-pagination v-if="hydrated" v-bind="$attrs" />
-    <span v-else class="page-pager__hint" aria-live="polite">加载中…</span>
+    <span v-else class="page-pager__hint" aria-live="polite">{{ UI_COPY.loading }}</span>
   </div>
 </template>
 
 <script setup lang="ts">
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 defineOptions({ inheritAttrs: false });
 
 withDefaults(

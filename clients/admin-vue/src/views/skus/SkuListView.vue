@@ -261,7 +261,7 @@
       @size-change="onSizeChange"
     />
 
-    <el-dialog v-model="editDialog" :title="form.existing ? '编辑商品' : '新建商品'" width="640px">
+    <el-dialog v-model="editDialog" :title="form.existing ? '编辑商品' : '新建商品'" class="dialog-wide">
       <el-form label-width="108px">
         <el-form-item label="数字编号">
           <el-input
@@ -1014,11 +1014,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {
@@ -1041,7 +1041,7 @@ onActivated(() => {
   align-items: center;
   justify-content: center;
   color: var(--el-text-color-placeholder);
-  font-size: 11px;
+  font-size: var(--admin-font-size-xs);
   border-style: dashed;
   object-fit: unset;
 }
@@ -1057,7 +1057,7 @@ onActivated(() => {
 }
 .field-hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .sku-preview {
@@ -1085,7 +1085,7 @@ onActivated(() => {
   text-decoration: underline;
 }
 .sku-table {
-  font-size: 14px;
+  font-size: var(--admin-font-size-menu);
 }
 .hidden-input {
   display: none;

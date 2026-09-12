@@ -198,13 +198,11 @@
     <el-dialog
       v-model="showDialog"
       :title="editingId ? '编辑活动' : '新建活动'"
-      width="560px"
       destroy-on-close
       append-to-body
       align-center
       :close-on-click-modal="false"
-      class="promo-dialog"
-    >
+     class="dialog-wide promo-dialog">
       <el-form :model="form" label-width="96px">
         <el-form-item label="活动名称" required
           ><el-input v-model="form.activityName" maxlength="80"
@@ -803,11 +801,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {
@@ -817,7 +815,7 @@ onActivated(() => {
 }
 .muted {
   color: var(--layout-muted);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .budget-remain {
   display: inline-flex;

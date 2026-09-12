@@ -28,7 +28,7 @@
           object-fit="cover"
           @click="onClick(item)"
         />
-        <view v-else class="ad-fallback" @click="onClick(item)">
+        <view v-else role="button" aria-label="查看广告" class="ad-fallback" @click="onClick(item)">
           <text class="ad-fallback-title">{{ item.title || '推广内容' }}</text>
         </view>
       </swiper-item>
@@ -182,9 +182,9 @@ onBeforeUnmount(() => {
 <style scoped>
 .ad-banner {
   margin: 12rpx 24rpx 0;
-  border-radius: 16rpx;
+  border-radius: var(--radius-panel);
   overflow: hidden;
-  background: #f3f4f6;
+  background: var(--color-border-subtle);
 }
 .ad-swiper {
   height: 220rpx;
@@ -203,13 +203,13 @@ onBeforeUnmount(() => {
   background: linear-gradient(135deg, #e8eef5, #f5f7fa);
 }
 .ad-fallback-title {
-  font-size: 28rpx;
-  color: #4b5563;
+  font-size: var(--font-size-md);
+  color: var(--text-muted, #4b5563);
 }
 .ad-caption {
   display: block;
   padding: 8rpx 16rpx 12rpx;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: #6b7280;
 }
 </style>

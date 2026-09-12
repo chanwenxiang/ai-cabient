@@ -1,5 +1,5 @@
-﻿<template>
-  <view class="drawer-mask" @click="onCancel">
+<template>
+  <view role="button" aria-label="关闭" class="drawer-mask" @click="onCancel">
     <view class="drawer-panel" @click.stop>
       <view class="drawer-handle" />
       <text class="drawer-title">开通后即可开门</text>
@@ -23,14 +23,7 @@
         <input v-model="realName" class="input" placeholder="与身份证一致" maxlength="32" />
         <text class="field-label">身份证后四位</text>
         <input v-model="idCardLast4" class="input" type="number" maxlength="4" placeholder="0000" />
-        <button
-          class="btn-primary btn-block"
-          hover-class="btn-hover"
-          :loading="busy"
-          @click="onVerify"
-        >
-          {{ busy ? '提交中…' : '下一步' }}
-        </button>
+        <app-button :loading="busy" :label="busy ? '提交中…' : '下一步'" @click="onVerify" />
       </view>
 
       <view v-else-if="!payReady" class="drawer-body">
@@ -38,13 +31,13 @@
         <view v-if="!entryChannel" class="channel-pick">
           <text class="field-label">本次扫码渠道</text>
           <view class="channel-chips">
-            <text
+            <text role="button"
               class="channel-chip"
               :class="{ on: pickedChannel === 'WECHAT' }"
               @click="pickedChannel = 'WECHAT'"
               >微信</text
             >
-            <text
+            <text role="button"
               class="channel-chip"
               :class="{ on: pickedChannel === 'ALIPAY' }"
               @click="pickedChannel = 'ALIPAY'"
@@ -52,26 +45,21 @@
             >
           </view>
         </view>
-        <button
+        <app-button
           v-if="showWechatSign"
-          class="btn-primary btn-block"
-          hover-class="btn-hover"
           :loading="busy"
           :disabled="busy"
+          :label="busy ? '开通中…' : '开通微信支付分'"
           @click="onSignPayScore"
-        >
-          {{ busy ? '开通中…' : '开通微信支付分' }}
-        </button>
-        <button
+        />
+        <app-button
           v-if="showAlipaySign"
-          class="btn-alipay btn-block"
-          hover-class="btn-hover"
+          variant="alipay"
           :loading="busy"
           :disabled="busy"
+          :label="busy ? '开通中…' : '开通支付宝免密'"
           @click="onSignAlipay"
-        >
-          {{ busy ? '开通中…' : '开通支付宝免密' }}
-        </button>
+        />
         <view class="fallback-block">
           <text class="fallback-title">或使用余额开门</text>
           <view class="balance-row">
@@ -85,49 +73,48 @@
           <text v-if="balanceInsufficient" class="balance-warning">
             可用余额不足预授权 ¥{{ needYuan }}，请先充值或开通免密后再开门
           </text>
-          <button
+          <app-button
             v-if="wechatPayLive || (devTools && wechatRechargeEnabled)"
-            class="btn-wechat btn-block"
-            hover-class="btn-hover"
+            variant="wechat"
             :loading="busy"
             :disabled="busy"
+            :label="busy ? '处理中…' : wechatPayLive ? '微信支付充值 ¥20' : '微信充值 ¥20'"
             @click="onWeChatRecharge"
-          >
-            {{ busy ? '处理中…' : wechatPayLive ? '微信支付充值 ¥20' : '微信充值 ¥20' }}
-          </button>
-          <button
+          />
+          <app-button
             v-if="devTools && mockRechargeEnabled"
-            class="btn-ghost-fill btn-block"
-            hover-class="btn-hover"
+            variant="soft"
             :loading="busy"
             :disabled="busy"
+            :label="busy ? '发放中…' : '余额充值 ¥20'"
             @click="onMockRecharge"
-          >
-            {{ busy ? '发放中…' : '余额充值 ¥20' }}
-          </button>
-          <button
+          />
+          <app-button
             v-if="devTools && alipayRechargeEnabled"
-            class="btn-alipay btn-block"
-            hover-class="btn-hover"
+            variant="alipay"
             :loading="busy"
             :disabled="busy"
+            :label="busy ? '处理中…' : '支付宝充值 ¥20'"
             @click="onAlipayRecharge"
-          >
-            {{ busy ? '处理中…' : '支付宝充值 ¥20' }}
-          </button>
-          <view class="support-link" @click="goRechargePage">去充值页选择金额 ›</view>
+          />
+          <view role="button" class="support-link app-link-chevron" @click="goRechargePage">去充值页选择金额</view>
         </view>
-        <view class="support-link muted" @click="contactOps">联系现场运营</view>
+        <view role="button" class="support-link muted" @click="contactOps">联系现场运营</view>
       </view>
 
       <text v-if="err" class="err">{{ err }}</text>
-      <text class="cancel-link" @click="onCancel">稍后再说</text>
+      <text role="button" aria-label="取消" class="cancel-link" @click="onCancel">稍后再说</text>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import {
+  showError,
+  showSuccess,
+  showConfirm
+} from '@/utils/notify';
 import type { AccountDto } from '@aicabinet/shared-types';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { consumerApi } from '@/utils/consumer-api';
@@ -290,7 +277,7 @@ async function onSignPayScore() {
   try {
     await consumerApi.signPayScore();
     account.value = await consumerApi.account();
-    uni.showToast({ title: '支付分已开通', icon: 'success' });
+    showSuccess('支付分已开通');
     if (payReady.value) emit('done', entryChannel.value || 'WECHAT');
   } catch (e) {
     err.value = e instanceof Error ? e.message : '开通失败';
@@ -307,7 +294,7 @@ async function onSignAlipay() {
   try {
     await consumerApi.signAlipayAgreement();
     account.value = await consumerApi.account();
-    uni.showToast({ title: '支付宝免密已开通', icon: 'success' });
+    showSuccess('支付宝免密已开通');
     if (payReady.value) emit('done', entryChannel.value || 'ALIPAY');
   } catch (e) {
     err.value = e instanceof Error ? e.message : '开通失败';
@@ -324,7 +311,7 @@ async function onWeChatRecharge() {
     const key = `prep-wechat-${Date.now()}-${secureRandomToken(6)}`;
     await runWeChatRecharge(2000, key);
     account.value = await consumerApi.account();
-    uni.showToast({ title: '充值成功', icon: 'success' });
+    showSuccess('充值成功');
   } catch (error) {
     err.value = error instanceof Error ? error.message : '充值失败';
   } finally {
@@ -340,11 +327,11 @@ async function onAlipayRecharge() {
     const key = `prep-alipay-${Date.now()}-${secureRandomToken(6)}`;
     const { mode } = await runAlipayRecharge(2000, key);
     if (mode === 'live') {
-      uni.showToast({ title: '请在支付宝完成支付', icon: 'none' });
+      showError('请在支付宝完成支付');
       return;
     }
     account.value = await consumerApi.account();
-    uni.showToast({ title: '充值成功', icon: 'success' });
+    showSuccess('充值成功');
   } catch (error) {
     err.value = error instanceof Error ? error.message : '充值失败';
   } finally {
@@ -354,15 +341,11 @@ async function onAlipayRecharge() {
 
 async function onMockRecharge() {
   if (busy.value) return;
-  const confirmed = await new Promise<boolean>((resolve) =>
-    uni.showModal({
-      title: '确认充值',
-      content: '将发放 ¥20.00 余额（体验到账，不会真实扣款）。',
-      confirmText: '确认发放',
-      success: (result) => resolve(result.confirm),
-      fail: () => resolve(false)
-    })
-  );
+  const confirmed = await showConfirm({
+    title: '确认充值',
+    content: '将发放 ¥20.00 余额（体验到账，不会真实扣款）。',
+    confirmText: '确认发放'
+  });
   if (!confirmed) return;
   busy.value = true;
   err.value = '';
@@ -371,7 +354,7 @@ async function onMockRecharge() {
     const order = await consumerApi.createMockRecharge(2000, key);
     await consumerApi.confirmMockRecharge(order.orderId);
     account.value = await consumerApi.account();
-    uni.showToast({ title: '余额已到账', icon: 'success' });
+    showSuccess('余额已到账');
   } catch (error) {
     err.value = error instanceof Error ? error.message : '余额发放失败';
   } finally {
@@ -379,8 +362,8 @@ async function onMockRecharge() {
   }
 }
 
-function contactOps() {
-  uni.showModal({
+async function contactOps() {
+  await showConfirm({
     title: '联系运营人员',
     content: '请联系柜机所在点位的现场工作人员，并提供柜机编号。运营人员可在后台发放余额。',
     showCancel: false,
@@ -407,8 +390,8 @@ function onCancel() {
   width: 100%;
   max-width: 520px;
   margin: 0 auto;
-  background: #fff;
-  border-radius: 30rpx 30rpx 0 0;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card) 30rpx 0 0;
   padding: 18rpx 32rpx calc(34rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
   box-shadow: 0 -18rpx 55rpx rgba(15, 23, 42, 0.2);
@@ -419,20 +402,20 @@ function onCancel() {
 .drawer-handle {
   width: 64rpx;
   height: 8rpx;
-  background: #cbd5e1;
+  background: var(--text-subtle, #cbd5e1);
   border-radius: 4rpx;
   margin: 0 auto 24rpx;
 }
 .drawer-title {
-  font-size: 36rpx;
+  font-size: var(--font-size-display-sm);
   font-weight: 700;
-  color: #1b3027;
+  color: var(--text-primary, #1b3027);
   display: block;
   text-align: center;
 }
 .drawer-sub {
-  font-size: 26rpx;
-  color: #888;
+  font-size: var(--font-size-body);
+  color: var(--text-subtle, #888);
   display: block;
   text-align: center;
   margin-top: 8rpx;
@@ -449,19 +432,19 @@ function onCancel() {
   flex-direction: column;
   align-items: center;
   gap: 6rpx;
-  font-size: 22rpx;
-  color: #888;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle, #888);
 }
 .prep-step.done {
-  color: #07c160;
+  color: var(--brand-wx, #07c160);
 }
 .prep-dot {
   width: 48rpx;
   height: 48rpx;
   border-radius: 50%;
   background: #d4d4d4;
-  color: #334155;
-  font-size: 24rpx;
+  color: var(--text-muted, #334155);
+  font-size: var(--font-size-caption);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -469,9 +452,9 @@ function onCancel() {
   box-shadow: 0 0 0 6rpx #f4f7f5;
 }
 .prep-step.done .prep-dot {
-  background: linear-gradient(135deg, #047857, #059669);
+  background: linear-gradient(135deg, var(--brand), var(--brand));
   color: #fff;
-  box-shadow: 0 0 0 6rpx #d1fae5;
+  box-shadow: 0 0 0 6rpx var(--brand-soft, #d1fae5);
 }
 .prep-line {
   width: 80rpx;
@@ -480,28 +463,28 @@ function onCancel() {
   margin: 0 12rpx 20rpx;
 }
 .prep-line.done {
-  background: #07c160;
+  background: var(--brand-wx, #07c160);
 }
 .drawer-body {
   margin-top: 8rpx;
 }
 .field-label {
-  font-size: 26rpx;
-  color: #666;
+  font-size: var(--font-size-body);
+  color: var(--text-muted, #666);
   display: block;
   margin-bottom: 8rpx;
 }
 .input {
-  background: #f8faf9;
+  background: var(--page-bg, #f8faf9);
   border: 1rpx solid #e3eae6;
   border-radius: 17rpx;
   padding: 22rpx 24rpx;
   margin-bottom: 20rpx;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
 }
 .drawer-desc {
-  font-size: 26rpx;
-  color: #888;
+  font-size: var(--font-size-body);
+  color: var(--text-subtle, #888);
   line-height: 1.5;
   display: block;
   margin-bottom: 20rpx;
@@ -510,105 +493,22 @@ function onCancel() {
   display: flex;
   justify-content: space-between;
   padding: 16rpx 0 24rpx;
-  font-size: 28rpx;
-  color: #666;
+  font-size: var(--font-size-md);
+  color: var(--text-muted, #666);
 }
 .balance-val {
-  color: #191919;
+  color: var(--color-text-primary);
   font-weight: 600;
 }
-.btn-primary {
-  margin: 0;
-  width: 100%;
-  background: linear-gradient(135deg, #047857, #059669);
-  color: #fff;
-  border-radius: 44rpx;
-  font-size: 32rpx;
-  font-weight: 600;
-  line-height: 1.2;
-  min-height: 88rpx;
-  height: 88rpx;
-  box-shadow: 0 9rpx 24rpx rgba(5, 150, 105, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-}
-.btn-primary::after {
-  border: none;
-}
-.drawer-body > .btn-alipay {
+.drawer-body > .app-btn {
   margin: 16rpx 0 0;
   width: 100%;
-  border-radius: 44rpx;
-}
-.btn-alipay {
-  margin: 16rpx 0 0;
-  width: 100%;
-  background: #0958d9;
-  color: #fff;
-  border-radius: 12rpx;
-  font-size: 30rpx;
-  font-weight: 600;
-  line-height: 1.2;
-  min-height: 88rpx;
-  height: 88rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-}
-.btn-alipay::after {
-  border: none;
-}
-.btn-wechat {
-  margin: 16rpx 0 0;
-  width: 100%;
-  background: #048746;
-  color: #fff;
-  border-radius: 12rpx;
-  font-size: 30rpx;
-  font-weight: 600;
-  line-height: 1.2;
-  min-height: 88rpx;
-  height: 88rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-}
-.btn-wechat::after {
-  border: none;
-}
-.btn-ghost-fill {
-  margin: 16rpx 0 0;
-  width: 100%;
-  background: #f0fdf4;
-  color: #047857;
-  border-radius: 12rpx;
-  font-size: 28rpx;
-  font-weight: 600;
-  line-height: 1.2;
-  min-height: 88rpx;
-  height: 88rpx;
-  border: 1rpx solid #bbf7d0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-}
-.btn-ghost-fill::after {
-  border: none;
 }
 .btn-hover {
   opacity: 0.85;
 }
 .hint {
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   color: #b2b2b2;
   display: block;
   text-align: center;
@@ -621,24 +521,24 @@ function onCancel() {
 }
 .fallback-title {
   display: block;
-  font-size: 26rpx;
-  color: #64748b;
+  font-size: var(--font-size-body);
+  color: var(--text-muted);
   margin-bottom: 8rpx;
   font-weight: 600;
 }
 .balance-sub {
   display: block;
   margin: 8rpx 0 12rpx;
-  color: #64748b;
-  font-size: 22rpx;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
 }
 .balance-warning {
   display: block;
   padding: 20rpx;
-  border-radius: 12rpx;
+  border-radius: var(--radius-control);
   background: #fff7e6;
-  color: #92400e;
-  font-size: 25rpx;
+  color: var(--warning, #92400e);
+  font-size: var(--font-size-body);
   line-height: 1.5;
 }
 .channel-pick {
@@ -653,35 +553,41 @@ function onCancel() {
   flex: 1;
   text-align: center;
   padding: 18rpx 0;
-  border-radius: 12rpx;
+  border-radius: var(--radius-control);
   background: #f2f4f8;
-  color: #576b95;
-  font-size: 28rpx;
+  color: var(--color-link-secondary);
+  font-size: var(--font-size-md);
   border: 2rpx solid transparent;
 }
 .channel-chip.on {
-  background: #ecfdf5;
-  color: #047857;
+  background: var(--brand-soft);
+  color: var(--brand);
   border-color: #34d399;
   font-weight: 600;
 }
-.balance-warning + .btn-primary {
+.drawer-body > .app-btn,
+.drawer-body > .app-btn {
+  margin: 16rpx 0 0;
+  width: 100%;
+}
+.balance-warning + .app-btn,
+.balance-warning + .app-btn {
   margin-top: 22rpx;
 }
 .support-link {
   padding: 22rpx 0 4rpx;
   text-align: center;
-  color: #059669;
-  font-size: 25rpx;
+  color: var(--brand);
+  font-size: var(--font-size-body);
   font-weight: 500;
 }
 .support-link.muted {
-  color: #64748b;
+  color: var(--text-muted);
   font-weight: 400;
 }
 .err {
-  color: #fa5151;
-  font-size: 26rpx;
+  color: var(--color-danger);
+  font-size: var(--font-size-body);
   display: block;
   text-align: center;
   margin-top: 16rpx;
@@ -689,8 +595,8 @@ function onCancel() {
 .cancel-link {
   display: block;
   text-align: center;
-  color: #888;
-  font-size: 28rpx;
+  color: var(--text-subtle, #888);
+  font-size: var(--font-size-md);
   margin-top: 24rpx;
   padding: 12rpx 0;
 }

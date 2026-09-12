@@ -222,7 +222,7 @@
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="addDialog" title="加入黑名单" width="440px" destroy-on-close>
+    <el-dialog v-model="addDialog" title="加入黑名单" destroy-on-close>
       <el-form label-width="88px">
         <el-form-item label="用户 ID" required>
           <el-input-number
@@ -561,11 +561,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {

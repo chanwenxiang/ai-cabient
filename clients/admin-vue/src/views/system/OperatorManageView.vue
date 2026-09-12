@@ -224,7 +224,6 @@
     <el-dialog
       v-model="formDlg"
       :title="form.userId ? '编辑账号' : '新增账号'"
-      width="520px"
       destroy-on-close
     >
       <el-form label-width="88px">
@@ -329,7 +328,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="roleDlg" title="分配角色" width="480px" destroy-on-close>
+    <el-dialog v-model="roleDlg" title="分配角色" destroy-on-close>
       <el-alert
         type="warning"
         :closable="false"
@@ -379,8 +378,7 @@
 
     <el-dialog
       v-model="merchantDlg"
-      title="商户范围（设备数据范围）"
-      width="560px"
+      title="商户范围（设备数据范围）" class="dialog-wide"
       destroy-on-close
     >
       <div v-loading="merchantScopeLoading" class="scope-dlg-body">
@@ -412,7 +410,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="deviceDlg" title="货柜范围" width="640px" destroy-on-close>
+    <el-dialog v-model="deviceDlg" title="货柜范围" class="dialog-wide" destroy-on-close>
       <div v-loading="deviceScopeLoading" class="scope-dlg-body">
         <el-alert
           type="info"
@@ -1133,11 +1131,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {
@@ -1181,7 +1179,7 @@ onActivated(() => {
 }
 .role-group-title {
   margin: 12px 0 4px;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   font-weight: 600;
   color: var(--el-text-color-regular);
 }

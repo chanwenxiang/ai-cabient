@@ -22,14 +22,15 @@
             maxlength="8"
             @input="onRefundYuan"
           />
-          <button
-            class="btn-refund"
+          <app-button
+            variant="danger"
+            compact
+            :block="false"
             :disabled="refundBusy || !refundAmountCents"
             :loading="refundBusy"
+            :label="refundBusy ? '提交中…' : '提交申请'"
             @click="onApplyRefund"
-          >
-            {{ refundBusy ? '提交中…' : '提交申请' }}
-          </button>
+          />
         </view>
         <text v-if="refundError" class="custom-error">{{ refundError }}</text>
         <view v-if="refundRequests.length" class="refund-list">
@@ -56,7 +57,7 @@
 
       <view class="amount-grid">
         <view
-          v-for="item in amounts"
+          v-for="item in amounts" role="button"
           :key="item.value"
           class="amount-card"
           :class="{ selected: selectedAmount === item.value }"
@@ -79,51 +80,47 @@
         <text v-if="customAmountError" class="custom-error">{{ customAmountError }}</text>
       </view>
 
-      <button
+      <app-button
         v-if="wechatPayLive || wechatRechargeEnabled"
-        class="btn-wechat"
+        variant="wechat"
         :disabled="!selectedAmount || loading"
         :loading="loading"
-        @click="onWeChatRecharge"
-      >
-        {{
+        :label="
           loading
             ? '处理中…'
             : selectedAmount
               ? `${wechatPayLive ? '微信支付' : '微信充值'} ${fmtMoney(selectedAmount)}`
               : '微信充值'
-        }}
-      </button>
-      <button
+        "
+        @click="onWeChatRecharge"
+      />
+      <app-button
         v-if="devTools && mockEnabled"
-        class="btn-primary"
         :disabled="!selectedAmount || loading"
         :loading="loading"
-        @click="onRecharge"
-      >
-        {{
+        :label="
           loading
             ? '充值中…'
             : selectedAmount
               ? `确认充值 ${fmtMoney(selectedAmount)}`
               : '请选择金额'
-        }}
-      </button>
-      <button
+        "
+        @click="onRecharge"
+      />
+      <app-button
         v-if="devTools && alipayRechargeEnabled"
-        class="btn-alipay"
+        variant="alipay"
         :disabled="!selectedAmount || loading"
         :loading="loading"
-        @click="onAlipayRecharge"
-      >
-        {{
+        :label="
           loading
             ? '处理中…'
             : selectedAmount
               ? `支付宝充值 ${fmtMoney(selectedAmount)}`
               : '支付宝充值'
-        }}
-      </button>
+        "
+        @click="onAlipayRecharge"
+      />
 
       <view
         v-if="!wechatPayLive && !wechatRechargeEnabled && !(devTools && mockEnabled)"
@@ -142,16 +139,16 @@
         <text>余额可用于未开通免密时的开门兜底；推荐优先开通微信支付分。</text>
       </view>
 
-      <button class="btn-back" hover-class="btn-hover" @click="goBack">返回我的</button>
+      <app-button variant="ghost" label="返回我的" @click="goBack" />
 
       <view class="recharge-list">
         <view class="section-head">
           <text class="section-title">充值记录</text>
-          <text v-if="pendingCount" class="cleanup" @click="cancelPendings"
+          <text v-if="pendingCount" role="button" class="cleanup" @click="cancelPendings"
             >清理 {{ pendingCount }} 笔待支付</text
           >
         </view>
-        <view v-if="recordsLoading" class="empty">加载中…</view>
+        <view v-if="recordsLoading" class="empty">{{ UI_COPY.loading }}</view>
         <empty-state
           v-else-if="!visibleRecords.length"
           compact
@@ -172,7 +169,7 @@
           </view>
           <view class="record-right">
             <text class="record-status" :class="r.status">{{ statusText(r.status) }}</text>
-            <text v-if="r.status === 'PENDING'" class="cancel-link" @click="cancelOne(r.orderId)"
+            <text v-if="r.status === 'PENDING'" role="button" aria-label="取消" class="cancel-link" @click="cancelOne(r.orderId)"
               >取消</text
             >
           </view>
@@ -186,6 +183,11 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import {
+  showError,
+  showSuccess,
+  showConfirm
+} from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth, get } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
@@ -203,6 +205,7 @@ import type {
   BalanceRefundRequestDto
 } from '@aicabinet/shared-types';
 import {
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
   resolveMockEnabled,
   resolveSandboxRecharge,
   resolveWechatRechargeVisible,
@@ -315,27 +318,23 @@ async function loadRefundRequests() {
 
 async function onApplyRefund() {
   if (!refundAmountCents.value || refundBusy.value) return;
-  const confirmed = await new Promise<boolean>((resolve) =>
-    uni.showModal({
-      title: '提交退余额申请',
-      content: `申请退回 ${fmtMoney(refundAmountCents.value)}。审核通过后原路退回微信/支付宝充值，申请中金额将冻结。`,
-      confirmText: '提交',
-      success: (r) => resolve(!!r.confirm),
-      fail: () => resolve(false)
-    })
-  );
+  const confirmed = await showConfirm({
+    title: '提交退余额申请',
+    content: `申请退回 ${fmtMoney(refundAmountCents.value)}。审核通过后原路退回微信/支付宝充值，申请中金额将冻结。`,
+    confirmText: '提交'
+  });
   if (!confirmed) return;
   refundBusy.value = true;
   refundError.value = '';
   try {
     await consumerApi.applyBalanceRefund(refundAmountCents.value, '用户申请退可用余额');
-    uni.showToast({ title: '已提交审核', icon: 'success' });
+    showSuccess('已提交审核');
     refundYuan.value = '';
     refundAmountCents.value = 0;
     await Promise.all([loadBalance(), loadRefundRequests()]);
   } catch (e) {
     refundError.value = e instanceof Error ? e.message : '提交失败';
-    uni.showToast({ title: refundError.value, icon: 'none' });
+    showError(refundError.value);
   } finally {
     refundBusy.value = false;
   }
@@ -450,24 +449,20 @@ function channelText(channel?: string) {
 
 async function cancelOne(orderId: string) {
   if (cancelling.value) return;
-  const confirmed = await new Promise<boolean>((resolve) =>
-    uni.showModal({
-      title: '取消充值',
-      content: '确定取消这笔待支付充值单吗？',
-      confirmText: '取消订单',
-      cancelText: '保留',
-      success: (res) => resolve(!!res.confirm),
-      fail: () => resolve(false)
-    })
-  );
+  const confirmed = await showConfirm({
+    title: '取消充值',
+    content: '确定取消这笔待支付充值单吗？',
+    confirmText: '取消订单',
+    cancelText: '保留'
+  });
   if (!confirmed) return;
   cancelling.value = true;
   try {
     await consumerApi.cancelRecharge(orderId);
-    uni.showToast({ title: '已取消', icon: 'none' });
+    showError('已取消');
     await loadRecords();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '取消失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '取消失败');
   } finally {
     cancelling.value = false;
   }
@@ -475,14 +470,10 @@ async function cancelOne(orderId: string) {
 
 async function cancelPendings() {
   if (cancelling.value || !pendingCount.value) return;
-  const confirmed = await new Promise<boolean>((resolve) =>
-    uni.showModal({
-      title: '清理待支付',
-      content: `将取消 ${pendingCount.value} 笔未完成的充值单`,
-      success: (res) => resolve(!!res.confirm),
-      fail: () => resolve(false)
-    })
-  );
+  const confirmed = await showConfirm({
+    title: '清理待支付',
+    content: `将取消 ${pendingCount.value} 笔未完成的充值单`
+  });
   if (!confirmed) return;
   cancelling.value = true;
   try {
@@ -494,7 +485,7 @@ async function cancelPendings() {
         /* 单笔失败继续 */
       }
     }
-    uni.showToast({ title: '已清理', icon: 'success' });
+    showSuccess('已清理');
     await loadRecords();
   } finally {
     cancelling.value = false;
@@ -504,7 +495,7 @@ async function cancelPendings() {
 async function onRecharge() {
   if (!selectedAmount.value || loading.value) return;
   if (!mockEnabled.value) {
-    uni.showToast({ title: '模拟充值未开启', icon: 'none' });
+    showError('模拟充值未开启');
     return;
   }
   loading.value = true;
@@ -512,11 +503,11 @@ async function onRecharge() {
     const key = `recharge-${Date.now()}-${secureRandomToken(6)}`;
     const prepay = await consumerApi.createMockRecharge(selectedAmount.value, key);
     await consumerApi.confirmMockRecharge(prepay.orderId);
-    uni.showToast({ title: '充值成功', icon: 'success' });
+    showSuccess('充值成功');
     await loadBalance();
     await loadRecords();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '充值失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '充值失败');
   } finally {
     loading.value = false;
   }
@@ -528,14 +519,11 @@ async function onWeChatRecharge() {
   try {
     const key = `wechat-recharge-${Date.now()}-${secureRandomToken(6)}`;
     const { mode } = await runWeChatRecharge(selectedAmount.value, key);
-    uni.showToast({
-      title: mode === 'live' ? '充值已到账' : '充值成功',
-      icon: 'success'
-    });
+    showSuccess(mode === 'live' ? '充值已到账' : '充值成功');
     await loadBalance();
     await loadRecords();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '微信充值失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '微信充值失败');
   } finally {
     loading.value = false;
   }
@@ -548,14 +536,14 @@ async function onAlipayRecharge() {
     const key = `alipay-recharge-${Date.now()}-${secureRandomToken(6)}`;
     const { mode } = await runAlipayRecharge(selectedAmount.value, key);
     if (mode === 'live') {
-      uni.showToast({ title: '请在支付宝完成支付', icon: 'none' });
+      showError('请在支付宝完成支付');
       return;
     }
-    uni.showToast({ title: '支付宝模拟充值成功', icon: 'success' });
+    showSuccess('支付宝模拟充值成功');
     await loadBalance();
     await loadRecords();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '支付宝下单失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '支付宝下单失败');
   } finally {
     loading.value = false;
   }
@@ -565,7 +553,7 @@ async function onAlipayRecharge() {
 <style scoped>
 .page-root {
   padding: 0;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   min-height: 100%;
   box-sizing: border-box;
 }
@@ -574,42 +562,42 @@ async function onAlipayRecharge() {
   box-sizing: border-box;
 }
 .balance-card {
-  background: linear-gradient(135deg, #ecfdf5, #fff);
-  border: 1rpx solid #d1fae5;
-  border-radius: 20rpx;
+  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  border: 1rpx solid var(--brand-soft, #d1fae5);
+  border-radius: var(--radius-card);
   padding: 40rpx;
   text-align: center;
   margin-bottom: 30rpx;
 }
 .bal-label {
-  color: #64748b;
-  font-size: 28rpx;
+  color: var(--text-muted);
+  font-size: var(--font-size-md);
 }
 .bal-amount {
-  color: #047857;
+  color: var(--brand);
   font-size: 72rpx;
   font-weight: 700;
   margin-top: 10rpx;
   display: block;
 }
 .refund-entry {
-  background: #fff;
-  border: 1rpx solid #edf1ef;
-  border-radius: 16rpx;
+  background: var(--card-bg, #fff);
+  border: 1rpx solid var(--color-border-subtle, #edf1ef);
+  border-radius: var(--radius-panel);
   padding: 24rpx;
   margin-bottom: 28rpx;
 }
 .refund-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
-  color: #223029;
+  color: var(--text-primary, #223029);
 }
 .refund-hint {
   display: block;
   margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #849087;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #849087);
   line-height: 1.5;
 }
 .refund-row {
@@ -623,10 +611,10 @@ async function onAlipayRecharge() {
   min-height: 72rpx;
   height: 72rpx;
   padding: 0 20rpx;
-  background: #f8faf9;
+  background: var(--page-bg, #f8faf9);
   border: 1rpx solid #e3eae6;
-  border-radius: 12rpx;
-  font-size: 28rpx;
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-md);
   box-sizing: border-box;
 }
 .btn-refund {
@@ -635,11 +623,11 @@ async function onAlipayRecharge() {
   min-height: 72rpx;
   height: 72rpx;
   padding: 0 24rpx;
-  background: #fff;
-  color: #047857;
-  border: 2rpx solid #059669;
-  border-radius: 36rpx;
-  font-size: 26rpx;
+  background: var(--card-bg, #fff);
+  color: var(--brand);
+  border: 2rpx solid var(--brand);
+  border-radius: var(--radius-card);
+  font-size: var(--font-size-body);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -666,21 +654,21 @@ async function onAlipayRecharge() {
   gap: 12rpx;
 }
 .refund-amt {
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
-  color: #223029;
+  color: var(--text-primary, #223029);
   margin-right: 12rpx;
 }
 .refund-meta {
   display: block;
-  font-size: 22rpx;
-  color: #059669;
+  font-size: var(--font-size-sm);
+  color: var(--brand);
 }
 .refund-remark {
   display: block;
   margin-top: 4rpx;
-  font-size: 20rpx;
-  color: #b45309;
+  font-size: var(--font-size-xs);
+  color: var(--warning, #b45309);
   max-width: 420rpx;
 }
 .refund-right {
@@ -691,11 +679,11 @@ async function onAlipayRecharge() {
   flex-shrink: 0;
 }
 .refund-time {
-  font-size: 20rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-xs);
+  color: var(--text-subtle);
 }
 .refund-time.done {
-  color: #059669;
+  color: var(--brand);
 }
 .amount-grid {
   display: grid;
@@ -704,30 +692,30 @@ async function onAlipayRecharge() {
   margin-bottom: 30rpx;
 }
 .amount-card {
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-panel);
   padding: 30rpx 20rpx;
   text-align: center;
   border: 2rpx solid #eee;
 }
 .amount-card.selected {
-  border-color: #059669;
-  background: #ecfdf5;
+  border-color: var(--brand);
+  background: var(--brand-soft);
 }
 .amount-value {
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
   font-weight: 700;
   color: #333;
 }
 .amount-bonus {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: #ff6b35;
   margin-top: 8rpx;
   display: block;
 }
 .custom-row {
-  background: #fff;
-  border-radius: 20rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card);
   padding: 20rpx 24rpx;
   margin-bottom: 20rpx;
   display: flex;
@@ -736,44 +724,25 @@ async function onAlipayRecharge() {
   flex-wrap: wrap;
 }
 .custom-label {
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 .custom-input {
   flex: 1;
   min-width: 200rpx;
-  background: #f8faf9;
+  background: var(--page-bg, #f8faf9);
   border: 1rpx solid #e4ebe7;
-  border-radius: 12rpx;
+  border-radius: var(--radius-control);
   padding: 16rpx 20rpx;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
 }
 .custom-error {
   width: 100%;
-  font-size: 22rpx;
-  color: #dc2626;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
 }
-.btn-primary {
-  width: 100%;
-  min-height: 88rpx;
-  height: 88rpx;
-  line-height: 1.2;
-  background: linear-gradient(135deg, #047857, #059669);
-  color: #fff;
-  border-radius: 44rpx;
-  font-size: 30rpx;
-  font-weight: 600;
-  border: none;
-  margin-bottom: 16rpx;
-  box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-}
-.btn-primary[disabled] {
+.app-btn[disabled] {
   opacity: 0.5;
 }
 .btn-wechat {
@@ -781,10 +750,10 @@ async function onAlipayRecharge() {
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.2;
-  background: linear-gradient(135deg, #047857, #059669);
+  background: linear-gradient(135deg, var(--brand), var(--brand));
   color: #fff;
-  border-radius: 44rpx;
-  font-size: 30rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-lg);
   font-weight: 600;
   border: none;
   margin-bottom: 16rpx;
@@ -805,8 +774,8 @@ async function onAlipayRecharge() {
   line-height: 1.2;
   background: #0958d9;
   color: #fff;
-  border-radius: 44rpx;
-  font-size: 30rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-lg);
   border: none;
   margin-bottom: 16rpx;
   display: flex;
@@ -819,7 +788,7 @@ async function onAlipayRecharge() {
   opacity: 0.5;
 }
 .btn-alipay::after,
-.btn-primary::after,
+.app-btn::after,
 .btn-back::after,
 .btn-wechat::after {
   border: none;
@@ -829,10 +798,10 @@ async function onAlipayRecharge() {
   min-height: 80rpx;
   height: 80rpx;
   line-height: 1.2;
-  background: #fff;
-  color: #576b95;
-  border-radius: 40rpx;
-  font-size: 28rpx;
+  background: var(--card-bg, #fff);
+  color: var(--color-link-secondary);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-md);
   border: 1rpx solid #e5e5e5;
   margin-bottom: 24rpx;
   display: flex;
@@ -845,15 +814,15 @@ async function onAlipayRecharge() {
   opacity: 0.85;
 }
 .channel-hint {
-  font-size: 22rpx;
-  color: #999;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle, #999);
   text-align: center;
   margin-bottom: 24rpx;
   line-height: 1.5;
 }
 .recharge-list {
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-panel);
   padding: 24rpx;
 }
 .section-head {
@@ -863,19 +832,19 @@ async function onAlipayRecharge() {
   margin-bottom: 16rpx;
 }
 .section-title {
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
   color: #333;
 }
 .cleanup {
-  font-size: 24rpx;
-  color: #576b95;
+  font-size: var(--font-size-caption);
+  color: var(--color-link-secondary);
 }
 .empty {
   text-align: center;
-  color: #999;
+  color: var(--text-subtle, #999);
   padding: 40rpx;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
 }
 .record-row {
   display: flex;
@@ -889,7 +858,7 @@ async function onAlipayRecharge() {
   min-width: 0;
 }
 .record-amount {
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   display: block;
 }
@@ -901,15 +870,15 @@ async function onAlipayRecharge() {
   flex-wrap: wrap;
 }
 .record-channel {
-  font-size: 22rpx;
-  color: #576b95;
+  font-size: var(--font-size-sm);
+  color: var(--color-link-secondary);
   background: #f2f4f8;
   padding: 2rpx 10rpx;
-  border-radius: 6rpx;
+  border-radius: var(--radius-tag);
 }
 .record-time {
-  font-size: 22rpx;
-  color: #999;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle, #999);
 }
 .record-right {
   display: flex;
@@ -920,35 +889,35 @@ async function onAlipayRecharge() {
   margin-left: 16rpx;
 }
 .record-status {
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   padding: 4rpx 12rpx;
-  border-radius: 8rpx;
+  border-radius: var(--radius-tag);
   white-space: nowrap;
   line-height: 1.2;
 }
 .record-status.PAID,
 .record-status.SUCCESS {
-  color: #047857;
+  color: var(--brand);
   background: #f0fff4;
 }
 .record-status.PENDING {
-  color: #c2410c;
+  color: var(--accent-orange, #c2410c);
   background: #fff8e8;
 }
 .record-status.FAILED,
 .record-status.REFUNDED,
 .record-status.CANCELLED {
-  color: #991b1b;
+  color: var(--danger, #991b1b);
   background: #fff0ee;
 }
 .cancel-link {
-  font-size: 22rpx;
-  color: #576b95;
+  font-size: var(--font-size-sm);
+  color: var(--color-link-secondary);
 }
 .note {
   text-align: center;
-  font-size: 24rpx;
-  color: #999;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle, #999);
   margin-top: 24rpx;
   padding-bottom: 40rpx;
 }

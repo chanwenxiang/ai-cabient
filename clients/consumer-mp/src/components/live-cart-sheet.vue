@@ -1,7 +1,7 @@
 <template>
-  <view v-if="visible" class="sheet-mask" @click="emit('close')">
+  <view v-if="visible" role="button" aria-label="关闭" class="sheet-mask" @click="emit('close')">
     <view class="sheet-panel" @click.stop>
-      <view class="sheet-handle-hit" @click="emit('close')">
+      <view role="button" aria-label="关闭" class="sheet-handle-hit" @click="emit('close')">
         <view class="sheet-handle" />
       </view>
       <view class="sheet-head">
@@ -89,8 +89,8 @@ const footHint = computed(() =>
 .sheet-panel {
   width: 100%;
   max-height: 72vh;
-  background: #fff;
-  border-radius: 28rpx 28rpx 0 0;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card) 28rpx 0 0;
   padding: 4rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
   display: flex;
@@ -106,23 +106,23 @@ const footHint = computed(() =>
 .sheet-handle {
   width: 72rpx;
   height: 8rpx;
-  border-radius: 8rpx;
-  background: #e2e8f0;
+  border-radius: var(--radius-tag);
+  background: var(--color-border);
 }
 .sheet-head {
   margin-bottom: 12rpx;
 }
 .sheet-title {
   display: block;
-  font-size: 34rpx;
+  font-size: var(--font-size-h3);
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 .sheet-sub {
   display: block;
   margin-top: 8rpx;
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
   line-height: 1.45;
 }
 .sheet-list {
@@ -136,15 +136,15 @@ const footHint = computed(() =>
 }
 .sheet-empty-title {
   display: block;
-  font-size: 28rpx;
-  color: #334155;
+  font-size: var(--font-size-md);
+  color: var(--text-muted, #334155);
   font-weight: 600;
 }
 .sheet-empty-hint {
   display: block;
   margin-top: 12rpx;
-  font-size: 24rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle);
   line-height: 1.5;
 }
 .sheet-row {
@@ -153,7 +153,7 @@ const footHint = computed(() =>
   justify-content: space-between;
   gap: 20rpx;
   padding: 22rpx 0;
-  border-bottom: 1rpx solid #f1f5f9;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
 }
 .sheet-row-main {
   flex: 1;
@@ -161,8 +161,8 @@ const footHint = computed(() =>
 }
 .sheet-name {
   display: block;
-  font-size: 28rpx;
-  color: #0f172a;
+  font-size: var(--font-size-md);
+  color: var(--text-primary, #0f172a);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -171,18 +171,18 @@ const footHint = computed(() =>
 .sheet-meta {
   display: block;
   margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 .sheet-line-amt {
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
-  color: #047857;
+  color: var(--brand);
   flex-shrink: 0;
 }
 .sheet-foot {
   padding-top: 20rpx;
-  border-top: 1rpx solid #e2e8f0;
+  border-top: 1rpx solid var(--color-border);
   margin-top: 8rpx;
 }
 .sheet-foot-main {
@@ -197,22 +197,22 @@ const footHint = computed(() =>
 }
 .sheet-total-label {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
-  color: #334155;
+  color: var(--text-muted, #334155);
 }
 .sheet-total-amt {
   flex-shrink: 0;
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
   font-weight: 800;
-  color: #047857;
+  color: var(--brand);
   line-height: 1.1;
 }
 .sheet-foot-hint {
   display: block;
   margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
   line-height: 1.45;
 }
 </style>

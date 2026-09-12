@@ -2,10 +2,10 @@
   <view class="page">
     <app-nav-bar title="通知公告" />
     <view class="page-body">
-      <view v-if="loading && !list.length" class="card state">加载中…</view>
+      <view v-if="loading && !list.length" class="card state">{{ UI_COPY.loading }}</view>
       <view v-else-if="error && !list.length" class="card state">
         <text class="err">{{ error }}</text>
-        <button class="retry" @click="load">重试</button>
+        <app-button label="重试" @click="load" />
       </view>
       <empty-state
         v-else-if="!list.length"
@@ -15,7 +15,7 @@
       />
       <view v-else>
         <view
-          v-for="item in list"
+          v-for="item in list" role="button"
           :key="item.announceId"
           class="card item"
           hover-class="item-hover"
@@ -34,7 +34,7 @@
           </view>
           <text class="title">{{ item.title }}</text>
           <text class="preview">{{ previewText(item.content) }}</text>
-          <text class="action">查看详情 ›</text>
+          <text class="action app-link-chevron">查看详情</text>
         </view>
       </view>
     </view></view
@@ -45,6 +45,7 @@
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { useAnnouncementsList } from '@aicabinet/shared-uni/announcements';
 import { merchantApi } from '@/utils/merchant-api';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const {
   loading,
@@ -83,8 +84,8 @@ onPullDownRefresh(async () => {
   box-sizing: border-box;
 }
 .card {
-  background: #fff;
-  border-radius: 20rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card);
   padding: 28rpx;
   margin-bottom: 16rpx;
   box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.06);
@@ -94,14 +95,14 @@ onPullDownRefresh(async () => {
   flex-direction: column;
   align-items: center;
   gap: 16rpx;
-  color: #64748b;
+  color: var(--text-muted);
 }
 .err {
-  color: #b91c1c;
+  color: var(--color-danger);
   text-align: center;
 }
 .retry {
-  background: #0f766e;
+  background: var(--brand);
   color: #fff;
   border: none;
 }
@@ -115,53 +116,53 @@ onPullDownRefresh(async () => {
   margin-bottom: 12rpx;
 }
 .tag {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   line-height: 1;
   padding: 8rpx 12rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   font-weight: 600;
 }
 .tag.high {
-  color: #b45309;
-  background: #fef3c7;
+  color: var(--warning, #b45309);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
 }
 .tag.urgent {
-  color: #b91c1c;
-  background: #fee2e2;
+  color: var(--color-danger);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, #fff);
 }
 .unread-dot {
   color: #fff;
-  background: #dc2626;
-  font-size: 20rpx;
+  background: var(--color-danger);
+  font-size: var(--font-size-xs);
   line-height: 1;
   padding: 6rpx 10rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   margin-left: 8rpx;
 }
 .time {
   margin-left: auto;
-  color: #94a3b8;
-  font-size: 22rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-sm);
 }
 .title {
   display: block;
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 650;
-  color: #134e4a;
+  color: var(--brand-deep);
   line-height: 1.4;
 }
 .preview {
   display: block;
   margin-top: 10rpx;
-  font-size: 26rpx;
-  color: #64748b;
+  font-size: var(--font-size-body);
+  color: var(--text-muted);
   line-height: 1.55;
 }
 .action {
   display: block;
   margin-top: 16rpx;
-  font-size: 24rpx;
-  color: #0f766e;
+  font-size: var(--font-size-caption);
+  color: var(--brand);
   font-weight: 600;
   text-align: right;
   min-width: 140rpx;

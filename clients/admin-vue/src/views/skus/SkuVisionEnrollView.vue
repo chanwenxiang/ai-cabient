@@ -301,8 +301,7 @@
 
     <el-dialog
       v-model="enrollDialog"
-      :title="enrollForm.existing ? '编辑识别入驻' : '识别入驻配置'"
-      width="640px"
+      :title="enrollForm.existing ? '编辑识别入驻' : '识别入驻配置'" class="dialog-wide"
     >
       <el-form label-width="108px">
         <el-form-item v-if="!enrollForm.existing" label="关联商品" required>
@@ -433,7 +432,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="testDialog" :title="`识别测试 · ${testForm.skuName}`" width="560px">
+    <el-dialog v-model="testDialog" :title="`识别测试 · ${testForm.skuName}`" class="dialog-wide">
       <el-alert
         type="info"
         :closable="false"
@@ -1448,7 +1447,7 @@ onActivated(() => {
   border-radius: 999px;
   background: var(--el-fill-color-blank);
   color: var(--el-text-color-regular);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1;
   cursor: pointer;
 }
@@ -1469,7 +1468,7 @@ onActivated(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: var(--admin-font-size-xs);
   font-weight: 650;
   color: #fff;
   background: var(--el-color-primary);
@@ -1511,11 +1510,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {
@@ -1538,7 +1537,7 @@ onActivated(() => {
   align-items: center;
   justify-content: center;
   color: var(--el-text-color-placeholder);
-  font-size: 11px;
+  font-size: var(--admin-font-size-xs);
   border-style: dashed;
   object-fit: unset;
 }
@@ -1580,7 +1579,7 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
 }
 .sku-table {
-  font-size: 14px;
+  font-size: var(--admin-font-size-menu);
 }
 .inline-field {
   display: flex;
@@ -1594,11 +1593,11 @@ onActivated(() => {
 }
 .field-hint {
   color: var(--layout-muted);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   margin-top: 4px;
 }
 .test-table {
   margin-top: 12px;
-  font-size: 14px;
+  font-size: var(--admin-font-size-menu);
 }
 </style>

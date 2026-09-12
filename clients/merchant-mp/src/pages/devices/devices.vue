@@ -2,10 +2,23 @@
   <view class="page-root devices-page">
     <app-nav-bar title="柜机" />
     <view class="toolbar">
-      <button class="scan-btn" :loading="scanning" @click="onScan">扫码到柜</button>
-      <button v-if="canReplenishment" class="replenish-btn" @click="goReplenishment">
-        补货任务
-      </button>
+      <app-button
+        class="scan-btn"
+        :block="false"
+        compact
+        :loading="scanning"
+        label="扫码到柜"
+        @click="onScan"
+      />
+      <app-button
+        v-if="canReplenishment"
+        class="replenish-btn"
+        variant="outline"
+        :block="false"
+        compact
+        label="补货任务"
+        @click="goReplenishment"
+      />
     </view>
     <view class="filters">
       <input
@@ -16,23 +29,23 @@
       />
       <view class="chips">
         <text
-          v-for="f in filters"
+          v-for="f in filters" role="button"
           :key="f.value"
           class="chip"
           :class="{ active: filter === f.value }"
           @click="filter = f.value"
           >{{ f.label }} {{ countFor(f.value) }}</text
         >
-        <text class="chip" :class="{ active: onlyPreferred }" @click="toggleOnlyPreferred"
+        <text role="button" class="chip" :class="{ active: onlyPreferred }" @click="toggleOnlyPreferred"
           >常驻柜 {{ preferredId ? '1' : '0' }}</text
         >
       </view>
       <view v-if="preferredId" class="pref-hint">
         <text>常驻：{{ preferredLabel }}</text>
-        <text class="pref-clear" @click="clearPreferred">清除</text>
+        <text role="button" aria-label="清除常驻柜" class="pref-clear" @click="clearPreferred">清除</text>
       </view>
     </view>
-    <view v-if="loading && !devices.length" class="card">加载中…</view>
+    <view v-if="loading && !devices.length" class="card">{{ UI_COPY.loading }}</view>
     <error-state
       v-else-if="error && !devices.length"
       :title="error"
@@ -96,13 +109,20 @@
           >
             导航
           </button>
-          <text v-if="d.salesLocked" class="status-locked">停售</text>
+          <text v-if="d.salesLocked" class="status-locked">{{ UI_COPY.salesLocked }}</text>
           <text v-if="d.salesLocked && d.salesLockReason" class="status-lock-reason">{{
             d.salesLockReason
           }}</text>
-          <text v-if="d.replenishmentInProgress" class="status-replenish">补货中</text>
-          <text :class="d.online ? 'status-on' : 'status-off'">
-            {{ d.online ? '在线' : '离线' }}
+          <text v-if="d.replenishmentInProgress" class="status-replenish app-status is-warn">
+            <text class="app-status-dot" aria-hidden="true" />
+            {{ UI_COPY.replenishing }}
+          </text>
+          <text
+            class="app-status"
+            :class="d.online ? 'status-on is-online' : 'status-off is-offline'"
+          >
+            <text class="app-status-dot" aria-hidden="true" />
+            {{ onlineLabel(!!d.online) }}
           </text>
         </view>
       </view>
@@ -119,6 +139,10 @@
 
 <script setup lang="ts">
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
+import {
+  showError,
+  showSuccess
+} from '@/utils/notify';
 import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
@@ -132,6 +156,7 @@ import {
 import { dictLabel } from '@aicabinet/shared-dict';
 import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
 import type { DeviceInfo, MerchantMe } from '@aicabinet/shared-types';
+import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canListDevices = computed(() => hasPerm(me.value, 'merchant:devices:list'));
@@ -190,7 +215,7 @@ function countFor(value: 'all' | 'online' | 'offline' | 'locked') {
 
 function toggleOnlyPreferred() {
   if (!preferredId.value) {
-    uni.showToast({ title: '先点 ★ 设常驻柜', icon: 'none' });
+    showError('先点 ★ 设常驻柜');
     return;
   }
   onlyPreferred.value = !onlyPreferred.value;
@@ -201,12 +226,12 @@ function togglePreferred(id: string) {
     clearPreferredDeviceId();
     preferredId.value = '';
     onlyPreferred.value = false;
-    uni.showToast({ title: '已取消常驻', icon: 'none' });
+    showError('已取消常驻');
     return;
   }
   setPreferredDeviceId(id);
   preferredId.value = id;
-  uni.showToast({ title: '已设为常驻柜', icon: 'success' });
+  showSuccess('已设为常驻柜');
 }
 
 function clearPreferred() {
@@ -233,7 +258,7 @@ async function load() {
     seedMerchantMeDisplayCache(me);
   }
   if (!canListDevices.value) {
-    uni.showToast({ title: '无柜机权限', icon: 'none' });
+    showError('无柜机权限');
     uni.switchTab({ url: '/pages/home/home' });
     return;
   }
@@ -271,7 +296,7 @@ function openNav(d: DeviceInfo) {
 
 function goReplenishment() {
   if (!canReplenishment.value) {
-    uni.showToast({ title: '无补货权限', icon: 'none' });
+    showError('无补货权限');
     return;
   }
   uni.navigateTo({ url: '/pages/replenishment/replenishment' });
@@ -291,7 +316,7 @@ async function onScan() {
           .toUpperCase() === key
     );
     if (!hit) {
-      uni.showToast({ title: '未找到该柜机或无权限', icon: 'none' });
+      showError('未找到该柜机或无权限');
       return;
     }
     setPreferredDeviceId(hit.deviceId);
@@ -350,8 +375,8 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   margin: 0;
   min-height: 72rpx;
   height: 72rpx;
-  border-radius: 36rpx;
-  font-size: 26rpx;
+  border-radius: var(--radius-card);
+  font-size: var(--font-size-body);
   font-weight: 600;
 }
 .scan-btn {
@@ -359,9 +384,9 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   color: #fff;
 }
 .replenish-btn {
-  background: #fff;
+  background: var(--color-bg-card, #fff);
   color: var(--brand, #0f766e);
-  border: 1rpx solid var(--brand-soft, #99f6e4);
+  border: 1rpx solid color-mix(in srgb, var(--brand, #0f766e) 22%, transparent);
 }
 .scan-btn::after,
 .replenish-btn::after {
@@ -375,7 +400,7 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   -webkit-tap-highlight-color: transparent;
 }
 .device-card-hover {
-  background: #f8fafc !important;
+  background: var(--page-bg, #f8fafc) !important;
   opacity: 0.96;
 }
 .device-right {
@@ -393,24 +418,24 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   padding: 0 20rpx;
   min-height: 64rpx;
   height: 64rpx;
-  font-size: 24rpx;
-  color: #0f766e;
-  background: #ecfdf5;
-  border: 1rpx solid #99f6e4;
-  border-radius: 999rpx;
+  font-size: var(--font-size-caption);
+  color: var(--brand);
+  background: var(--brand-soft);
+  border: 1rpx solid var(--brand-mist, #99f6e4);
+  border-radius: var(--radius-pill);
 }
 .nav-btn::after {
   border: none;
 }
 .star {
-  color: #cbd5e1;
-  font-size: 36rpx;
+  color: var(--text-subtle, #cbd5e1);
+  font-size: var(--font-size-display-sm);
   padding: 8rpx;
   position: relative;
   z-index: 1;
 }
 .star.on {
-  color: #f59e0b;
+  color: var(--warning, #f59e0b);
 }
 .name,
 .meta,
@@ -430,11 +455,11 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 .search {
   height: 72rpx;
   box-sizing: border-box;
-  background: #fff;
-  border: 1rpx solid var(--brand-tint, #ccfbf1);
-  border-radius: 36rpx;
+  background: var(--card-bg, #fff);
+  border: 1rpx solid var(--brand-tint, var(--brand-mist));
+  border-radius: var(--radius-card);
   padding: 0 28rpx;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
 }
 .chips {
   display: flex;
@@ -444,10 +469,10 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 }
 .chip {
   padding: 10rpx 24rpx;
-  border-radius: 28rpx;
-  color: #64748b;
-  background: #fff;
-  font-size: 23rpx;
+  border-radius: var(--radius-card);
+  color: var(--text-muted);
+  background: var(--card-bg, #fff);
+  font-size: var(--font-size-sm);
 }
 .chip.active {
   color: #fff;
@@ -457,15 +482,15 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   margin-top: 12rpx;
   display: flex;
   justify-content: space-between;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: var(--brand, #0f766e);
 }
 .pref-clear {
-  color: #64748b;
+  color: var(--text-muted);
 }
 .empty {
   text-align: center;
-  color: #64748b;
+  color: var(--text-muted);
 }
 .device-left {
   display: flex;
@@ -476,8 +501,8 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 .device-thumb {
   width: 88rpx;
   height: 88rpx;
-  border-radius: 14rpx;
-  background: #ecfdf5;
+  border-radius: var(--radius-control);
+  background: var(--brand-soft);
   flex-shrink: 0;
 }
 .online-dot {
@@ -486,64 +511,57 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   border-radius: 50%;
 }
 .online-dot.on {
-  background: #16a34a;
+  background: var(--success, #16a34a);
   box-shadow: 0 0 8rpx rgba(22, 163, 74, 0.5);
 }
 .online-dot.off {
-  background: #cbd5e1;
+  background: var(--text-subtle, #cbd5e1);
 }
 .name {
   font-weight: 600;
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   max-width: 360rpx;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.status-on {
-  color: #16a34a;
-  font-weight: 600;
-  font-size: 26rpx;
-}
+.status-on,
 .status-off {
-  color: #94a3b8;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
 }
 .status-locked {
-  color: #b45309;
+  color: var(--warning, #b45309);
   font-weight: 700;
-  font-size: 24rpx;
-  background: #fef3c7;
+  font-size: var(--font-size-caption);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
   padding: 4rpx 12rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
 }
 .status-lock-reason {
   display: block;
   margin-top: 6rpx;
-  font-size: 20rpx;
-  color: #b45309;
+  font-size: var(--font-size-xs);
+  color: var(--warning, #b45309);
   max-width: 200rpx;
   text-align: right;
   line-height: 1.3;
 }
 .status-replenish {
-  color: #0f766e;
-  font-weight: 600;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
 }
 .meta.stock-warn {
-  color: #b45309;
+  color: var(--warning, #b45309);
 }
 .err {
-  color: #ef4444;
+  color: var(--color-danger);
   display: block;
 }
 .retry {
   margin-top: 16rpx;
   background: linear-gradient(135deg, var(--brand-deep, #134e4a), var(--brand, #0f766e));
   color: #fff;
-  border-radius: 44rpx;
+  border-radius: var(--radius-pill);
   font-weight: 600;
   border: none;
   box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);

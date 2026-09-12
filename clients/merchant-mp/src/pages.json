@@ -12,8 +12,6 @@
       "style": {
         "navigationBarTitleText": "工作台",
         "navigationStyle": "custom",
-        "navigationBarBackgroundColor": "#134e4a",
-        "navigationBarTextStyle": "white",
         "backgroundColor": "#134e4a",
         "enablePullDownRefresh": true
       }
@@ -23,9 +21,6 @@
       "style": {
         "navigationBarTitleText": "柜机",
         "navigationStyle": "custom",
-        "navigationBarBackgroundColor": "#134e4a",
-        "navigationBarTextStyle": "white",
-        "backgroundColor": "#ffffff",
         "enablePullDownRefresh": true
       }
     },
@@ -72,9 +67,6 @@
       "style": {
         "navigationBarTitleText": "待办",
         "navigationStyle": "custom",
-        "navigationBarBackgroundColor": "#134e4a",
-        "navigationBarTextStyle": "white",
-        "backgroundColor": "#ffffff",
         "enablePullDownRefresh": true
       }
     },
@@ -82,10 +74,7 @@
       "path": "pages/mine/mine",
       "style": {
         "navigationBarTitleText": "我的",
-        "navigationStyle": "custom",
-        "navigationBarBackgroundColor": "#134e4a",
-        "navigationBarTextStyle": "white",
-        "backgroundColor": "#ffffff"
+        "navigationStyle": "custom"
       }
     },
     {
@@ -187,7 +176,7 @@
     "color": "#64748b",
     "selectedColor": "#0f766e",
     "backgroundColor": "#f4faf7",
-    "borderStyle": "white",
+    "borderStyle": "black",
     "list": [
       {
         "pagePath": "pages/home/home",
@@ -220,12 +209,14 @@
     "custom": {
       "^empty-state$": "@/components/empty-state.vue",
       "^error-state$": "@/components/error-state.vue",
-      "^app-nav-bar$": "@/components/app-nav-bar.vue"
+      "^app-nav-bar$": "@/components/app-nav-bar.vue",
+      "^app-button$": "@/components/app-button.vue"
     }
   },
   "globalStyle": {
     "navigationBarTextStyle": "white",
     "navigationBarBackgroundColor": "#134e4a",
-    "backgroundColor": "#ffffff"
+    "backgroundColor": "#ffffff",
+    "backgroundColorTop": "#134e4a"
   }
 }

@@ -419,7 +419,6 @@
     <el-dialog
       v-model="nodeVisible"
       :title="nodeForm.nodeId ? '编辑组织' : '新增组织'"
-      width="420px"
     >
       <el-form label-position="top">
         <el-form-item label="组织名称">
@@ -442,7 +441,6 @@
     <el-dialog
       v-model="assignVisible"
       :title="`分配设备到 ${assignNode?.name || ''}`"
-      width="480px"
     >
       <el-select
         v-model="assignDeviceIds"
@@ -467,7 +465,6 @@
     <el-dialog
       v-model="contractVisible"
       :title="contractForm.contractId ? '编辑合同' : '新增合同'"
-      width="520px"
     >
       <el-form label-position="top">
         <el-form-item label="柜机">
@@ -540,10 +537,8 @@
     <el-dialog
       v-model="rentSplitVisible"
       :title="`租金分账 · ${rentSplitSiteName}`"
-      width="720px"
       destroy-on-close
-      class="rent-split-dialog"
-    >
+     class="dialog-wide rent-split-dialog">
       <el-alert
         type="info"
         :closable="false"
@@ -641,7 +636,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="generateVisible" :title="generateDialogTitle" width="420px">
+    <el-dialog v-model="generateVisible" :title="generateDialogTitle">
       <el-alert
         type="warning"
         :closable="false"
@@ -1442,7 +1437,7 @@ async function voidDataFeeBill(row: DeviceDataFeeBillDto) {
   margin-bottom: 12px;
   padding: 8px 12px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   background: var(--el-fill-color-light);
   color: var(--layout-muted, #64748b);
 }
@@ -1473,7 +1468,7 @@ async function voidDataFeeBill(row: DeviceDataFeeBillDto) {
 }
 .rent-card__title {
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--layout-text, #1e293b);
 }
 .rent-card__grid {
@@ -1489,7 +1484,7 @@ async function voidDataFeeBill(row: DeviceDataFeeBillDto) {
 .rent-field label {
   display: block;
   margin-bottom: 4px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--layout-muted, #64748b);
 }
 .rent-field :deep(.el-input-number) {
@@ -1497,7 +1492,7 @@ async function voidDataFeeBill(row: DeviceDataFeeBillDto) {
 }
 .field-hint {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
   color: var(--layout-muted, #64748b);
 }

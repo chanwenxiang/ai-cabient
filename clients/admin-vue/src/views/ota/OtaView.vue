@@ -135,7 +135,7 @@
     />
   </el-card>
 
-  <el-dialog v-model="dialog" title="发布固件版本" width="520px" destroy-on-close>
+  <el-dialog v-model="dialog" title="发布固件版本" destroy-on-close>
     <el-form label-width="110px">
       <el-form-item label="版本号" required>
         <el-input v-model="form.appVersion" placeholder="例如 1.2.0…" />
@@ -457,7 +457,7 @@ onMounted(load);
 
 <style scoped>
 .field-hint {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
   line-height: 1.5;
   margin-top: 4px;

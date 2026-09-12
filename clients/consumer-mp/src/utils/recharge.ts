@@ -1,4 +1,8 @@
 import { consumerApi } from '@/utils/consumer-api';
+import {
+  showError,
+  showSuccess
+} from '@/utils/notify';
 
 const PENDING_RECHARGE_KEY = 'pending_recharge_order_id';
 const ALIPAY_RETURN_PAGE_KEY = 'alipay_return_page';
@@ -184,7 +188,7 @@ export async function resumePendingRechargeIfAny(): Promise<boolean> {
     // 短轮询：覆盖沙箱收银台回跳后的短暂延迟；未支付则静默保留 pending
     await pollRechargePaid(orderId, 8, 1500);
     clearPendingRechargeOrder();
-    uni.showToast({ title: '充值已到账', icon: 'success' });
+    showSuccess('充值已到账');
     return true;
   } catch (e) {
     const msg = e instanceof Error ? e.message : '充值确认失败';
@@ -206,7 +210,7 @@ export async function resumePendingRechargeIfAny(): Promise<boolean> {
     const softKey = `recharge_resume_soft_${orderId}`;
     if (!uni.getStorageSync(softKey)) {
       uni.setStorageSync(softKey, '1');
-      uni.showToast({ title: '有一笔充值待确认，稍后刷新余额即可', icon: 'none', duration: 2500 });
+      showError('有一笔充值待确认，稍后刷新余额即可', 2500);
     }
     return false;
   }

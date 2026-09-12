@@ -8,12 +8,12 @@
           <text class="sub">{{ merchantNames }}</text>
           <text v-if="phone" class="phone">{{ phone }}</text>
         </view>
-        <text v-if="canEditProfile" class="edit-btn" @click="openProfileEdit">编辑资料</text>
+        <text v-if="canEditProfile" role="button" class="edit-btn" @click="openProfileEdit">编辑资料</text>
       </view>
     </view>
 
-    <view v-if="profileEditVisible" class="mask" @click="profileEditVisible = false">
-      <view class="dialog" @click.stop>
+    <view v-if="profileEditVisible" role="button" aria-label="关闭" class="mask" @click="profileEditVisible = false">
+      <view role="button" class="dialog" @click.stop>
         <text class="dialog-title">编辑资料</text>
         <text class="hint">维护联系电话与告警联系人，用于异常通知与现场联系</text>
         <input
@@ -48,7 +48,7 @@
     <view v-if="fieldNav.length" class="section-label">现场作业</view>
     <view v-if="fieldNav.length" class="menu-list">
       <view
-        v-for="item in fieldNav"
+        v-for="item in fieldNav" role="button"
         :key="item.key"
         class="menu-cell"
         :class="{ highlight: item.key === 'replenishment' }"
@@ -59,31 +59,31 @@
           <text class="menu-title">{{ item.title }}</text>
           <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
     </view>
 
     <view v-if="teamNav.length" class="section-label">团队与设置</view>
     <view v-if="teamNav.length" class="menu-list">
-      <view v-for="item in teamNav" :key="item.key" class="menu-cell" @click="goNav(item)">
+      <view v-for="item in teamNav" role="button" :key="item.key" class="menu-cell" @click="goNav(item)">
         <image class="menu-icon" :src="menuIcon(item.icon)" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">{{ item.title }}</text>
           <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
     </view>
 
     <view class="section-label">平台公告</view>
     <view class="menu-list">
-      <view class="menu-cell" @click="goAnnouncements">
+      <view role="button" class="menu-cell" @click="goAnnouncements">
         <image class="menu-icon" :src="menuIcon('notice')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">通知公告</text>
           <text class="menu-desc">运营发布的维护、活动与规则通知</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
     </view>
 
@@ -110,7 +110,7 @@
         <view v-for="t in alertTypeOptions" :key="t.value" class="notify-type">
           <switch
             :checked="enabledTypes.includes(t.value)"
-            color="#0f766e"
+            color="var(--brand)"
             :aria-label="t.label"
             @change="(e) => onToggleType(t.value, switchEnabled(e))"
           />
@@ -122,23 +122,23 @@
 
     <view v-if="bizNav.length" class="section-label">经营工具</view>
     <view v-if="bizNav.length" class="menu-list">
-      <view v-for="item in bizNav" :key="item.key" class="menu-cell" @click="goNav(item)">
+      <view v-for="item in bizNav" role="button" :key="item.key" class="menu-cell" @click="goNav(item)">
         <image class="menu-icon" :src="menuIcon(item.icon)" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">{{ item.title }}</text>
           <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
     </view>
 
     <view class="menu-list">
-      <view class="menu-cell danger-cell" @click="onLogout">
+      <view role="button" class="menu-cell danger-cell" @click="onLogout">
         <image class="menu-icon" :src="menuIcon('logout')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title danger">退出登录</text>
         </view>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
     </view>
   </view>
@@ -158,7 +158,10 @@ import {
   hasSubscribeTemplates,
   MERCHANT_ALERT_TYPES,
   requestMerchantSubscribe,
-  wxLoginCode
+  wxLoginCode,
+  showError,
+  showSuccess,
+  showConfirm
 } from '@/utils/notify';
 import {
   canAccessNav,
@@ -225,10 +228,10 @@ async function saveProfileEdit() {
       alertContactName: profileForm.value.alertContactName || undefined,
       alertContactPhone: profileForm.value.alertContactPhone || undefined
     });
-    uni.showToast({ title: '已保存', icon: 'success' });
+    showSuccess('已保存');
     profileEditVisible.value = false;
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '保存失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '保存失败');
   } finally {
     profileSaving.value = false;
   }
@@ -287,25 +290,22 @@ function switchEnabled(e: unknown) {
 
 async function onBindWx() {
   if (!subscribeReady) {
-    uni.showToast({ title: '未配置订阅模板，无法开启推送', icon: 'none' });
+    showError('未配置订阅模板，无法开启推送');
     return;
   }
   notifyBusy.value = true;
   try {
     const sub = await requestMerchantSubscribe();
     if (sub === 'failed') {
-      uni.showToast({ title: '微信授权未完成，仍可继续绑定账号', icon: 'none' });
+      showError('微信授权未完成，仍可继续绑定账号');
     }
     const code = await wxLoginCode();
     const prefs = await merchantApi.notifyWxBind(code);
     wxBound.value = !!prefs.wxBound;
     enabledTypes.value = [...(prefs.enabledAlertTypes || [])];
-    uni.showToast({ title: '已绑定微信提醒', icon: 'success' });
+    showSuccess('已绑定微信提醒');
   } catch (e) {
-    uni.showToast({
-      title: e instanceof Error ? e.message : '绑定失败',
-      icon: 'none'
-    });
+    showError(e instanceof Error ? e.message : '绑定失败');
   } finally {
     notifyBusy.value = false;
   }
@@ -317,36 +317,28 @@ async function onSaveSubscribe() {
     if (subscribeReady) {
       const sub = await requestMerchantSubscribe();
       if (sub === 'failed') {
-        uni.showToast({ title: '微信授权未完成，偏好仍会保存', icon: 'none' });
+        showError('微信授权未完成，偏好仍会保存');
       }
     }
     const prefs = await merchantApi.notifySubscribe(enabledTypes.value);
     enabledTypes.value = [...(prefs.enabledAlertTypes || [])];
-    uni.showToast({
-      title: subscribeReady ? '提醒偏好已保存' : '偏好已保存（未配置推送模板）',
-      icon: 'success'
-    });
+    showSuccess(subscribeReady ? '提醒偏好已保存' : '偏好已保存（未配置推送模板）');
   } catch (e) {
-    uni.showToast({
-      title: e instanceof Error ? e.message : '保存失败',
-      icon: 'none'
-    });
+    showError(e instanceof Error ? e.message : '保存失败');
   } finally {
     notifyBusy.value = false;
   }
 }
 
-function onLogout() {
-  uni.showModal({
+async function onLogout() {
+  const confirmed = await showConfirm({
     title: '退出登录',
     content: '确定退出当前账户吗？',
-    confirmText: '退出',
-    success(res) {
-      if (!res.confirm) return;
-      clearSession();
-      uni.reLaunch({ url: '/pages/login/login' });
-    }
+    confirmText: '退出'
   });
+  if (!confirmed) return;
+  clearSession();
+  uni.reLaunch({ url: '/pages/login/login' });
 }
 </script>
 
@@ -354,10 +346,10 @@ function onLogout() {
 .edit-btn {
   align-self: flex-start;
   padding: 10rpx 22rpx;
-  border-radius: 999rpx;
-  background: #ecfdf5;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
   color: var(--brand, #0f766e);
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   font-weight: 600;
 }
 .mask {
@@ -370,22 +362,22 @@ function onLogout() {
 }
 .dialog {
   width: 100%;
-  background: #fff;
-  border-radius: 28rpx 28rpx 0 0;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card) 28rpx 0 0;
   padding: 32rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .dialog-title {
   display: block;
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   color: var(--brand-deep, #134e4a);
 }
 .hint {
   display: block;
   margin: 8rpx 0 20rpx;
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
 }
 .input {
   display: block;
@@ -394,13 +386,13 @@ function onLogout() {
   min-height: 80rpx;
   line-height: 80rpx;
   box-sizing: border-box;
-  background: #f8fafc;
-  border: 1rpx solid #e2e8f0;
-  border-radius: 14rpx;
+  background: var(--page-bg, #f8fafc);
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-control);
   padding: 0 20rpx;
   margin-bottom: 16rpx;
-  font-size: 28rpx;
-  color: #0f172a;
+  font-size: var(--font-size-md);
+  color: var(--text-primary, #0f172a);
 }
 .dialog-actions {
   display: flex;
@@ -412,8 +404,8 @@ function onLogout() {
   background: var(--brand, #0f766e);
   color: #fff;
   border: none;
-  border-radius: 999rpx;
-  font-size: 28rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-md);
   min-height: 80rpx;
   line-height: 1.2;
   display: flex;
@@ -423,14 +415,14 @@ function onLogout() {
   box-sizing: border-box;
 }
 .btn.ghost {
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--color-border-subtle, #f1f5f9);
+  color: var(--text-muted, #475569);
 }
 
 .page {
   min-height: 100%;
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
 }
 .profile-header {
   margin: 0;
@@ -465,7 +457,7 @@ function onLogout() {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 34rpx;
+  font-size: var(--font-size-h3);
   font-weight: 700;
 }
 .profile-info {
@@ -473,32 +465,32 @@ function onLogout() {
   min-width: 0;
 }
 .hello {
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
   display: block;
 }
 .sub {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   opacity: 0.9;
   display: block;
   margin-top: 2rpx;
 }
 .phone {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   opacity: 0.75;
   display: block;
   margin-top: 2rpx;
 }
 .section-label {
   margin: 14rpx 28rpx 6rpx;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
   letter-spacing: 1rpx;
 }
 .menu-list {
   margin: 0 24rpx;
-  background: #fff;
-  border-radius: 14rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-control);
   overflow: hidden;
 }
 .menu-cell {
@@ -510,7 +502,7 @@ function onLogout() {
   align-items: center;
   gap: 14rpx;
   border: none;
-  border-bottom: 1rpx solid #f1f5f9;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
   box-shadow: none;
   min-height: 84rpx;
   box-sizing: border-box;
@@ -520,7 +512,7 @@ function onLogout() {
 }
 .menu-cell.highlight {
   border-color: transparent;
-  border-bottom: 1rpx solid #f1f5f9;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
   background: #f8fffc;
 }
 .menu-icon {
@@ -533,28 +525,32 @@ function onLogout() {
   min-width: 0;
 }
 .menu-title {
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 500;
   display: block;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   line-height: 1.3;
 }
 .menu-desc {
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
   display: block;
   margin-top: 2rpx;
   line-height: 1.3;
 }
 .menu-arrow {
-  color: #cbd5e1;
-  font-size: 28rpx;
+  color: var(--text-subtle, #cbd5e1);
+  flex-shrink: 0;
+  width: 0.55em;
+  height: 0.55em;
+  font-size: var(--font-size-md);
+  margin-left: 8rpx;
 }
 .notify-card {
-  background: #fff;
-  border-radius: 20rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card);
   padding: 24rpx;
-  margin: 0 24rpx 12rpx;
+  margin: 0 var(--page-gutter) 12rpx;
 }
 .notify-head {
   display: flex;
@@ -564,16 +560,16 @@ function onLogout() {
 }
 .bind-btn {
   flex-shrink: 0;
-  background: #ecfdf5;
+  background: var(--brand-soft);
   color: var(--brand, #0f766e);
   border: none;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   font-weight: 600;
   min-height: 72rpx;
   height: 72rpx;
   line-height: 72rpx;
   padding: 0 24rpx;
-  border-radius: 36rpx;
+  border-radius: var(--radius-card);
 }
 .bind-btn::after {
   border: none;
@@ -581,10 +577,10 @@ function onLogout() {
 .notify-warn {
   margin-bottom: 16rpx;
   padding: 12rpx 16rpx;
-  border-radius: 12rpx;
-  background: #ecfdf5;
+  border-radius: var(--radius-control);
+  background: var(--brand-soft);
   color: var(--brand, #0f766e);
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   line-height: 1.4;
 }
 .notify-types {
@@ -595,24 +591,24 @@ function onLogout() {
   display: flex;
   align-items: center;
   gap: 16rpx;
-  font-size: 26rpx;
-  color: #334155;
+  font-size: var(--font-size-body);
+  color: var(--text-muted, #334155);
 }
 .save-btn {
   margin-top: 20rpx;
   background: var(--brand, #0f766e);
   color: #fff;
   border: none;
-  border-radius: 12rpx;
-  font-size: 28rpx;
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-md);
 }
 .danger {
-  color: #ef4444;
+  color: var(--color-danger);
 }
 .danger-cell {
   background: #fffafa;
 }
 .danger-cell .menu-icon {
-  background: #fff1f0;
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, #fff);
 }
 </style>

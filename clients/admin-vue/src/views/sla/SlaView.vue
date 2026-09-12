@@ -21,12 +21,12 @@
           <button
             type="button"
             class="stat-tile"
-            :aria-label="listHydrated ? `${tile.label} ${tile.value}` : `${tile.label} 加载中…`"
+            :aria-label="listHydrated ? `${tile.label} ${tile.value}` : `${tile.label} ${UI_COPY.loading}`"
             tabindex="-1"
           >
             <div class="stat-label">{{ tile.label }}</div>
             <div class="stat-value">{{ listHydrated ? tile.value : '…' }}</div>
-            <div v-if="!listHydrated" class="stat-hint">加载中…</div>
+            <div v-if="!listHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
           </button>
         </el-col>
       </el-row>
@@ -66,6 +66,7 @@ import { computed, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 interface SlaRealtime {
   doorSuccessRate24h?: number;
@@ -164,16 +165,16 @@ onMounted(load);
 }
 .stat-label {
   color: var(--el-text-color-secondary);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   margin-bottom: 6px;
 }
 .stat-value {
-  font-size: 20px;
+  font-size: var(--admin-font-size-display);
   font-weight: 600;
 }
 .stat-hint {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .rt-block {

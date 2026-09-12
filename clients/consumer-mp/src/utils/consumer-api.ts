@@ -14,6 +14,7 @@ import {
 import { API_BASE_URL } from '@/config/api';
 import { isDevBuild } from '@/utils/runtime-flags';
 import { secureRandomToken } from '@/utils/secure-id';
+import { showConfirm } from '@/utils/notify';
 
 const BASE_URL = API_BASE_URL;
 
@@ -442,21 +443,19 @@ export function requireConsumerAuth(
   message = '请先完成微信授权',
   redirect?: string
 ): Promise<boolean> {
-  return ensureConsumerAuth().then((ok) => {
+  return ensureConsumerAuth().then(async (ok) => {
     if (!ok) {
       const target = redirect || currentPagePath();
-      uni.showModal({
+      const confirmed = await showConfirm({
         title: '需要授权',
         content: message,
-        confirmText: '去验证',
-        success(res) {
-          if (res.confirm) {
-            uni.navigateTo({
-              url: '/pages/login/login?redirect=' + encodeURIComponent(target)
-            });
-          }
-        }
+        confirmText: '去验证'
       });
+      if (confirmed) {
+        uni.navigateTo({
+          url: '/pages/login/login?redirect=' + encodeURIComponent(target)
+        });
+      }
     }
     return ok;
   });

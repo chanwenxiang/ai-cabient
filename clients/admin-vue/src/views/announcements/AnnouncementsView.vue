@@ -192,7 +192,6 @@
     <el-dialog
       v-model="showForm"
       :title="editingId ? '编辑公告' : '发布公告'"
-      width="480px"
       destroy-on-close
     >
       <el-form :model="form" label-width="80px">
@@ -250,7 +249,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="previewVisible" title="公告详情" width="480px" destroy-on-close>
+    <el-dialog v-model="previewVisible" title="公告详情" destroy-on-close>
       <el-descriptions v-if="previewRow" :column="2" border>
         <el-descriptions-item label="标题" :span="2">{{ previewRow.title }}</el-descriptions-item>
         <el-descriptions-item label="优先级">{{
@@ -662,12 +661,12 @@ onActivated(() => {
   gap: 4px;
 }
 .title {
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
   font-weight: 600;
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {

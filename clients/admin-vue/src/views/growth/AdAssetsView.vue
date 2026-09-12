@@ -160,7 +160,7 @@
       @size-change="onSizeChange"
     />
 
-    <el-dialog v-model="editVisible" title="编辑素材" width="420px">
+    <el-dialog v-model="editVisible" title="编辑素材">
       <el-form label-position="top">
         <el-form-item label="标题">
           <el-input v-model="editForm.title" />
@@ -495,6 +495,6 @@ function formatDateTime(iso?: string) {
 .muted {
   margin: 8px 0 0;
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 </style>

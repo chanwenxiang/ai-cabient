@@ -1,3 +1,4 @@
+import { showError, showConfirm } from '@/utils/notify';
 /**
  * 柜机地图导航：跳转前二次确认，避免误触直接离开小程序/H5。
  */
@@ -40,19 +41,11 @@ function launchMap(longitude: number, latitude: number, name: string, address: s
 let activeH5Finish: ((ok: boolean) => void) | null = null;
 
 function confirmNative(title: string, content: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    uni.showModal({
-      title,
-      content,
-      confirmText: '去导航',
-      cancelText: '取消',
-      success(res) {
-        resolve(!!res.confirm);
-      },
-      fail() {
-        resolve(false);
-      }
-    });
+  return showConfirm({
+    title,
+    content,
+    confirmText: '去导航',
+    cancelText: '取消'
   });
 }
 
@@ -215,7 +208,7 @@ export async function confirmOpenDeviceNavigation(target: DeviceNavTarget): Prom
     lng < -180 ||
     lng > 180
   ) {
-    uni.showToast({ title: '坐标无效', icon: 'none' });
+    showError('坐标无效');
     return;
   }
   const label = navLabel(target);

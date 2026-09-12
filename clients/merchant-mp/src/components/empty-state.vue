@@ -1,12 +1,20 @@
+<!--
+  Canonical: packages/shared-uni/src/components/empty-state.vue
+  Keep in sync (uni easycom 需本地路径).
+-->
 <template>
   <view class="empty-state" :class="[{ compact }, kindClass]">
     <image
       v-if="resolvedIcon.startsWith('/')"
-      class="empty-icon"
+      class="empty-icon app-icon app-icon--circle"
       :src="resolvedIcon"
       mode="aspectFit"
     />
-    <text v-else-if="resolvedIcon" class="empty-icon" aria-hidden="true">{{ resolvedIcon }}</text>
+    <text
+      v-else-if="resolvedIcon"
+      class="empty-icon app-icon app-icon--circle"
+      aria-hidden="true"
+    >{{ resolvedIcon }}</text>
     <text class="empty-title">{{ resolvedTitle }}</text>
     <text v-if="resolvedHint" class="empty-hint">{{ resolvedHint }}</text>
     <view v-if="$slots.default" class="empty-actions">
@@ -53,81 +61,89 @@ const resolvedHint = computed(() =>
   props.hint !== undefined && props.hint !== '' ? props.hint : preset.value.hint
 );
 const resolvedIcon = computed(() => props.icon || preset.value.icon);
-const kindClass = computed(() => `kind-${props.kind}`);
+const kindClass = computed(() => (props.kind && props.kind !== 'default' ? `kind-${props.kind}` : ''));
+</script>
+
+<script lang="ts">
+export default { name: 'EmptyState' };
 </script>
 
 <style scoped>
 .empty-state {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  /* stretch：避免 center 导致小程序里百分比宽度参照错误、按钮比上方卡片更宽 */
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   text-align: center;
-  /* 水平 padding 交给外层列表容器，避免按钮比卡片更窄 */
-  padding: 48rpx 0 24rpx;
+  padding: 64rpx 0 24rpx;
 }
 .empty-state.compact {
-  padding: 28rpx 0 16rpx;
+  padding: 40rpx 0 16rpx;
 }
 .empty-icon {
-  width: 104rpx;
-  height: 104rpx;
-  border-radius: 28rpx;
-  background: var(--brand-tint, #ccfbf1);
+  width: 88rpx;
+  height: 88rpx;
+  margin: 0 auto 16rpx;
+  border-radius: 50%;
+  background: var(--brand-soft, #ecfdf5);
   color: var(--brand, #0f766e);
-  font-size: 52rpx;
+  font-size: var(--font-size-display-sm);
   font-weight: 700;
-  line-height: 104rpx;
-  margin-bottom: 16rpx;
+  line-height: 88rpx;
+  text-align: center;
+  align-self: center;
 }
 .kind-alerts .empty-icon {
-  background: #fef3c7;
-  color: #b45309;
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
+  color: var(--warning, #b45309);
 }
 .kind-orders .empty-icon {
   background: #e0f2fe;
   color: #0369a1;
 }
 .kind-devices .empty-icon {
-  background: #ecfdf5;
-  color: #047857;
+  background: var(--brand-soft, #ecfdf5);
+  color: var(--brand, #0f766e);
 }
 .kind-wallet .empty-icon {
   background: #fce7f3;
   color: #be185d;
 }
 .empty-title {
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #64748b;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--text-primary, #14201b);
   text-align: center;
+  align-self: center;
 }
 .empty-hint {
-  margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #94a3b8;
+  margin-top: 10rpx;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #64748b);
   line-height: 1.5;
   text-align: center;
+  align-self: center;
 }
 .empty-actions {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  /* 勿用 > *：scoped 会编译成 >*.data-v-xxx，WXSS 不支持通配符 * */
   gap: 16rpx;
-  margin-top: 20rpx;
+  margin-top: 28rpx;
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
-:deep(.empty-btn + .empty-btn),
-:deep(uni-button.empty-btn + uni-button.empty-btn),
-:deep(button.empty-btn + button.empty-btn) {
-  margin-top: 24rpx !important;
+.empty-state :deep(.app-btn + .app-btn),
+:deep(.app-btn + .app-btn) {
+  margin-top: 16rpx;
 }
-:deep(.empty-btn),
-:deep(uni-button.empty-btn) {
+:deep(.app-btn) {
   width: 100% !important;
   max-width: none !important;
   min-width: 0 !important;
-  height: 88rpx;
-  min-height: 88rpx;
 }
 </style>

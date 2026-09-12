@@ -1,4 +1,7 @@
 import { consumerApi, getConsumerToken } from '@/utils/consumer-api';
+import {
+  showError
+} from '@/utils/notify';
 import { API_BASE_URL } from '@/config/api';
 import type { FileAttachmentDto } from '@aicabinet/shared-types';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
@@ -21,7 +24,7 @@ export async function pickAndUploadEvidence(
 ): Promise<LocalEvidence[]> {
   const remain = maxCount - current.length;
   if (remain <= 0) {
-    uni.showToast({ title: `最多 ${maxCount} 张`, icon: 'none' });
+    showError(`最多 ${maxCount} 张`);
     return current;
   }
   const paths = await new Promise<string[]>((resolve) => {
@@ -44,10 +47,7 @@ export async function pickAndUploadEvidence(
     try {
       await assertLocalImageSize(path);
     } catch (e) {
-      uni.showToast({
-        title: e instanceof Error ? e.message : '图片过大',
-        icon: 'none'
-      });
+      showError(e instanceof Error ? e.message : '图片过大');
       continue;
     }
     const placeholder: LocalEvidence = { localPath: path, uploading: true };
@@ -64,10 +64,7 @@ export async function pickAndUploadEvidence(
       const idx = next.lastIndexOf(placeholder);
       if (idx >= 0) next.splice(idx, 1);
       notify();
-      uni.showToast({
-        title: e instanceof Error ? e.message : '图片上传失败',
-        icon: 'none'
-      });
+      showError(e instanceof Error ? e.message : '图片上传失败');
     }
   }
   return next;

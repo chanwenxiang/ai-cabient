@@ -233,6 +233,7 @@ import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 interface DeviceReportRow {
   deviceId: string;
@@ -290,13 +291,13 @@ const sum = computed(() =>
 const pagePartial = computed(() => total.value > rows.value.length);
 
 function deviceReportDeviceCountHint(ready: boolean) {
-  if (!ready) return '加载中…';
+  if (!ready) return UI_COPY.loading;
   if (onlineFilter.value) return `已筛选 · 共 ${total.value} 台`;
   return undefined;
 }
 
 function deviceReportOfflineHint(ready: boolean) {
-  if (!ready) return '加载中…';
+  if (!ready) return UI_COPY.loading;
   if (offlineTotal.value) return '点击筛选离线';
   return '全部在线';
 }
@@ -336,13 +337,13 @@ const kpiTiles = computed(() => {
       label: '累计营收',
       value: ready ? `¥${(sum.value.revenueTotal / 100).toFixed(2)}` : '…',
       accent: 'accent-violet',
-      hint: ready ? pageHint || `订单 ${sum.value.orderTotal}` : '加载中…'
+      hint: ready ? pageHint || `订单 ${sum.value.orderTotal}` : UI_COPY.loading
     },
     {
       label: '今日营收',
       value: ready ? `¥${(sum.value.revenueToday / 100).toFixed(2)}` : '…',
       accent: 'accent-blue',
-      hint: ready ? pageHint : '加载中…'
+      hint: ready ? pageHint : UI_COPY.loading
     }
   ];
 });
@@ -558,12 +559,12 @@ onUnmounted(() => {
 
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 
 .hint {
   color: var(--layout-muted);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   font-weight: 400;
 }
 
@@ -643,7 +644,7 @@ onUnmounted(() => {
 }
 
 .kpi-label {
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--layout-muted);
   line-height: 1.3;
 }
@@ -659,7 +660,7 @@ onUnmounted(() => {
 }
 .kpi-hint {
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.3;
   color: var(--layout-muted);
 }

@@ -1,13 +1,13 @@
 <template>
   <view class="page">
-    <view v-if="loading && !meName" class="card"><text>加载中…</text></view>
+    <view v-if="loading && !meName" class="card"><text>{{ UI_COPY.loading }}</text></view>
     <view v-else-if="error && !meName" class="card"
       ><text class="err">{{ error }}</text></view
     >
     <view v-else>
       <view v-if="error" class="banner-err"
         ><text>{{ error }}</text
-        ><text class="banner-retry" @click="load">重试</text></view
+        ><text role="button" aria-label="重试" class="banner-retry" @click="load">重试</text></view
       >
       <view class="dash-header" :style="headerPadStyle">
         <text class="hello">你好，{{ meName }}</text>
@@ -34,9 +34,14 @@
           <text class="scan-title">扫码到柜</text>
           <text class="scan-desc">扫描柜门二维码，查看库存或开始补货</text>
         </view>
-        <button class="scan-btn" hover-class="btn-hover" :loading="scanning" @click="onScan">
-          扫码
-        </button>
+        <app-button
+          class="scan-btn"
+          :block="false"
+          compact
+          :loading="scanning"
+          label="扫码"
+          @click="onScan"
+        />
       </view>
 
       <view
@@ -48,7 +53,7 @@
       >
         <text class="notice-tag">公告</text>
         <text class="notice-title">{{ latestAnnouncement.title }}</text>
-        <text class="notice-more">›</text>
+        <view class="notice-more app-icon app-icon--chevron" aria-hidden="true" />
       </view>
 
       <view v-if="canReplenishment || canDevices || canAlerts" class="quick-row">
@@ -104,7 +109,7 @@
       <view v-if="canReplenishment" class="card section-card">
         <view class="section-head">
           <text class="section">今日补货</text>
-          <text class="section-more" @click="goReplenishment()">全部 ›</text>
+          <text role="button" aria-label="查看更多" class="section-more app-link-chevron" @click="goReplenishment()">全部</text>
         </view>
         <text v-if="preferredId" class="pref-tip">常驻柜 {{ preferredId }} 优先置顶</text>
         <!-- 仅首次进入显示加载；之后切回工作台保留上次列表/空态，避免「任务加载中」闪一下 -->
@@ -117,15 +122,14 @@
           title="暂无待处理补货任务"
           hint="可扫码巡柜看缺货，或从柜机列表进详情"
         >
-          <button class="empty-btn primary" :loading="scanning" @click="onScan">扫码到柜</button>
-          <button
+          <app-button label="扫码到柜" :loading="scanning" @click="onScan" />
+          <app-button
             v-if="canDevices"
-            class="empty-btn ghost"
+            variant="ghost"
+            label="柜机列表"
             @click="goTab('/pages/devices/devices')"
-          >
-            柜机列表
-          </button>
-          <button class="empty-btn ghost" @click="goReplenishment()">查看记录</button>
+          />
+          <app-button variant="ghost" label="查看记录" @click="goReplenishment()" />
         </empty-state>
         <block v-else>
           <view
@@ -146,22 +150,22 @@
               </text>
               <text class="task-meta">{{ task.deviceId }} · {{ statusLabel(task.status) }}</text>
             </view>
-            <text class="task-go">去补货 ›</text>
+            <text class="task-go app-link-chevron">去补货</text>
           </view>
         </block>
       </view>
 
       <view
-        v-if="canAlerts && actionItems.length"
+        v-if="canAlerts && actionItems.length" role="button"
         class="card section-card"
         @click="goTab('/pages/alerts/alerts')"
       >
         <view class="section-head">
           <text class="section">优先待办</text>
-          <text class="section-more">查看全部 ›</text>
+          <text class="section-more app-link-chevron">查看全部</text>
         </view>
         <view
-          v-for="item in actionItems"
+          v-for="item in actionItems" role="button"
           :key="item.type + item.title"
           class="todo-row"
           hover-class="todo-row-hover"
@@ -173,7 +177,7 @@
             <text v-if="item.deviceId" class="todo-detail">柜机 {{ item.deviceId }}</text>
             <text v-if="item.detail" class="todo-detail">{{ item.detail }}</text>
           </view>
-          <text class="todo-go">去处理 ›</text>
+          <text class="todo-go app-link-chevron">去处理</text>
         </view>
       </view>
 
@@ -183,19 +187,19 @@
       >
         <text class="ops-title">经营工具</text>
         <view class="ops-grid">
-          <view v-if="canReplenishment" class="ops-card" @click="goRequest">
+          <view v-if="canReplenishment" role="button" class="ops-card" @click="goRequest">
             <text class="ops-label">要货申请</text>
           </view>
-          <view v-if="canPricing" class="ops-card" @click="goPricing">
+          <view v-if="canPricing" role="button" class="ops-card" @click="goPricing">
             <text class="ops-label">点位定价</text>
           </view>
-          <view v-if="canSettlements" class="ops-card" @click="goSettlements">
+          <view v-if="canSettlements" role="button" class="ops-card" @click="goSettlements">
             <text class="ops-label">结算对账</text>
           </view>
-          <view v-if="canDisputes" class="ops-card" @click="goDisputes">
+          <view v-if="canDisputes" role="button" class="ops-card" @click="goDisputes">
             <text class="ops-label">争议处理</text>
           </view>
-          <view v-if="canBusiness" class="ops-card" @click="goBusiness">
+          <view v-if="canBusiness" role="button" class="ops-card" @click="goBusiness">
             <text class="ops-label">经营分析</text>
           </view>
         </view>
@@ -234,6 +238,9 @@
 
 <script setup lang="ts">
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
+import {
+  showError
+} from '@/utils/notify';
 import { computed, ref } from 'vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import {
@@ -248,6 +255,7 @@ import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import { formatMerchantNames } from '@/utils/merchant-display';
 import { menuIcon } from '@/utils/menu-icon';
@@ -374,10 +382,7 @@ async function onScan() {
     try {
       await merchantApi.assertReplenishmentDeviceAccess(deviceId);
     } catch (e) {
-      uni.showToast({
-        title: e instanceof Error ? e.message : '柜机不在您的管辖范围',
-        icon: 'none'
-      });
+      showError(e instanceof Error ? e.message : '柜机不在您的管辖范围');
       return;
     }
     // 扫码到柜：统一进柜机详情（库存/要货/补货入口都在详情页），避免有任务时劫持到补货页导致返回栈错乱
@@ -428,10 +433,7 @@ const EMPTY_WORKBENCH = {
 async function fetchHomeTrend() {
   if (!canTrend.value) return { last7Days: [] as { date?: string; revenueCents?: number }[] };
   return merchantApi.trend(7).catch((e) => {
-    uni.showToast({
-      title: (e instanceof Error ? e.message : '趋势加载失败').slice(0, 40),
-      icon: 'none'
-    });
+    showError((e instanceof Error ? e.message : '趋势加载失败').slice(0, 40));
     return { last7Days: [] };
   });
 }
@@ -439,10 +441,7 @@ async function fetchHomeTrend() {
 async function fetchHomeWorkbench() {
   if (!canAlerts.value) return EMPTY_WORKBENCH;
   return merchantApi.workbench().catch((e) => {
-    uni.showToast({
-      title: (e instanceof Error ? e.message : '待办加载失败').slice(0, 40),
-      icon: 'none'
-    });
+    showError((e instanceof Error ? e.message : '待办加载失败').slice(0, 40));
     return EMPTY_WORKBENCH;
   });
 }
@@ -450,10 +449,7 @@ async function fetchHomeWorkbench() {
 async function fetchHomeExceptions() {
   if (!canAlerts.value) return { items: [], total: 0 };
   return merchantApi.openExceptions(100).catch((e) => {
-    uni.showToast({
-      title: (e instanceof Error ? e.message : '异常加载失败').slice(0, 40),
-      icon: 'none'
-    });
+    showError((e instanceof Error ? e.message : '异常加载失败').slice(0, 40));
     return { items: [], total: 0 };
   });
 }
@@ -461,10 +457,7 @@ async function fetchHomeExceptions() {
 async function fetchHomeExpiryRows() {
   if (!canAlerts.value) return [];
   return merchantApi.expiryAlerts().catch((e) => {
-    uni.showToast({
-      title: (e instanceof Error ? e.message : '效期告警加载失败').slice(0, 40),
-      icon: 'none'
-    });
+    showError((e instanceof Error ? e.message : '效期告警加载失败').slice(0, 40));
     return [];
   });
 }
@@ -472,10 +465,7 @@ async function fetchHomeExpiryRows() {
 async function fetchHomeDevices() {
   if (!canDevices.value && !canReplenishment.value) return [];
   return merchantApi.devices().catch((e) => {
-    uni.showToast({
-      title: (e instanceof Error ? e.message : '柜机加载失败').slice(0, 40),
-      icon: 'none'
-    });
+    showError((e instanceof Error ? e.message : '柜机加载失败').slice(0, 40));
     return [];
   });
 }
@@ -483,10 +473,7 @@ async function fetchHomeDevices() {
 async function fetchHomeReplenishmentTasks() {
   if (!canReplenishment.value) return [];
   return merchantApi.replenishmentTasks().catch((e) => {
-    uni.showToast({
-      title: (e instanceof Error ? e.message : '补货任务加载失败').slice(0, 40),
-      icon: 'none'
-    });
+    showError((e instanceof Error ? e.message : '补货任务加载失败').slice(0, 40));
     return [];
   });
 }
@@ -494,10 +481,7 @@ async function fetchHomeReplenishmentTasks() {
 async function fetchHomeAnalytics() {
   if (!canBusiness.value) return null;
   return merchantApi.analytics(7).catch((e) => {
-    uni.showToast({
-      title: (e instanceof Error ? e.message : '经营数据加载失败').slice(0, 40),
-      icon: 'none'
-    });
+    showError((e instanceof Error ? e.message : '经营数据加载失败').slice(0, 40));
     return null;
   });
 }
@@ -505,10 +489,7 @@ async function fetchHomeAnalytics() {
 async function fetchHomeDashboardBundle() {
   return Promise.all([
     merchantApi.stats().catch((e) => {
-      uni.showToast({
-        title: (e instanceof Error ? e.message : '统计加载失败').slice(0, 40),
-        icon: 'none'
-      });
+      showError((e instanceof Error ? e.message : '统计加载失败').slice(0, 40));
       return {} as import('@aicabinet/shared-types').OpenApiMerchantDashboardStatsDto;
     }),
     fetchHomeTrend(),
@@ -656,7 +637,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .page {
   min-height: 100%;
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
 }
 .dash-header {
   background: linear-gradient(
@@ -672,12 +653,12 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   box-sizing: border-box;
 }
 .hello {
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   display: block;
 }
 .sub {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   opacity: 0.85;
   display: block;
   margin-top: 4rpx;
@@ -694,7 +675,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .h-val {
   display: block;
-  font-size: 36rpx;
+  font-size: var(--font-size-display-sm);
   font-weight: 800;
 }
 .h-val.urgent {
@@ -704,7 +685,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .h-label {
   display: block;
   margin-top: 2rpx;
-  font-size: 20rpx;
+  font-size: var(--font-size-xs);
   opacity: 0.8;
 }
 
@@ -712,14 +693,14 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   margin: 12rpx 24rpx 0;
   position: relative;
   z-index: 2;
-  background: #fff;
-  border-radius: 14rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-control);
   padding: 16rpx 18rpx;
   display: flex;
   align-items: center;
   gap: 12rpx;
   box-shadow: 0 6rpx 16rpx rgba(15, 118, 110, 0.08);
-  border: 1rpx solid var(--brand-tint, #ccfbf1);
+  border: 1rpx solid var(--brand-tint, var(--brand-mist));
 }
 .scan-copy {
   flex: 1;
@@ -727,15 +708,15 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .scan-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: var(--brand-deep, #134e4a);
 }
 .scan-desc {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
   line-height: 1.35;
 }
 .scan-btn {
@@ -745,10 +726,10 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   height: 72rpx;
   line-height: 72rpx;
   padding: 0 28rpx;
-  border-radius: 36rpx;
+  border-radius: var(--radius-card);
   background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
   color: #fff;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
   box-shadow: 0 6rpx 16rpx rgba(15, 118, 110, 0.22);
 }
@@ -765,32 +746,34 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   display: flex;
   align-items: center;
   gap: 12rpx;
-  background: #ecfdf5;
-  border: 1rpx solid var(--brand-soft, #99f6e4);
-  border-radius: 14rpx;
+  background: var(--brand-soft, #ecfdf5);
+  border: 1rpx solid color-mix(in srgb, var(--brand, #0f766e) 18%, transparent);
+  border-radius: var(--radius-control);
 }
 .notice-tag {
   flex-shrink: 0;
-  font-size: 20rpx;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   color: var(--brand, #0f766e);
-  background: var(--brand-tint, #ccfbf1);
+  background: var(--brand-tint, var(--brand-mist));
   padding: 6rpx 10rpx;
-  border-radius: 8rpx;
+  border-radius: var(--radius-tag);
 }
 .notice-title {
   flex: 1;
   min-width: 0;
-  font-size: 26rpx;
-  color: #92400e;
+  font-size: var(--font-size-body);
+  color: var(--warning, #92400e);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .notice-more {
   flex-shrink: 0;
-  color: #b45309;
-  font-size: 28rpx;
+  color: var(--warning, #b45309);
+  width: 0.55em;
+  height: 0.55em;
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 
@@ -802,11 +785,11 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .quick-item {
   position: relative;
   flex: 1;
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-panel);
   padding: 18rpx 10rpx;
   text-align: center;
-  border: 1rpx solid #e2e8f0;
+  border: 1rpx solid var(--color-border);
   box-shadow: 0 4rpx 14rpx rgba(15, 23, 42, 0.04);
 }
 .quick-item.primary {
@@ -818,18 +801,18 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   width: 76rpx;
   height: 76rpx;
   margin: 0 auto;
-  border-radius: 20rpx;
-  background: #ecfdf5;
+  border-radius: var(--radius-card);
+  background: var(--brand-soft);
   color: var(--brand, #0f766e);
-  font-size: 34rpx;
+  font-size: var(--font-size-h3);
   font-weight: 700;
   line-height: 76rpx;
 }
 .quick-label {
   display: block;
   margin-top: 8rpx;
-  font-size: 24rpx;
-  color: #334155;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #334155);
   font-weight: 600;
 }
 .quick-badge {
@@ -839,10 +822,10 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   min-width: 32rpx;
   height: 32rpx;
   padding: 0 8rpx;
-  border-radius: 16rpx;
-  background: #dc2626;
+  border-radius: var(--radius-panel);
+  background: var(--color-danger);
   color: #fff;
-  font-size: 20rpx;
+  font-size: var(--font-size-xs);
   line-height: 32rpx;
   text-align: center;
 }
@@ -850,9 +833,9 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .card {
   margin: 14rpx 20rpx 0;
   padding: 20rpx 20rpx;
-  background: #fff;
-  border-radius: 22rpx;
-  border: 1rpx solid #e2e8f0;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card);
+  border: 1rpx solid var(--color-border);
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
 }
 .section-head {
@@ -863,85 +846,45 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .section {
   font-weight: 700;
-  font-size: 30rpx;
-  color: #0f172a;
+  font-size: var(--font-size-lg);
+  color: var(--text-primary, #0f172a);
 }
 .section-more {
   color: var(--brand, #0f766e);
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
 }
 .pref-tip {
   display: block;
   margin: 0 0 12rpx;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: var(--brand, #0f766e);
 }
 .empty-inline {
   padding: 16rpx 0 4rpx;
   text-align: center;
-  color: #94a3b8;
-  font-size: 26rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-body);
 }
 .empty-actions {
   padding-bottom: 16rpx;
 }
 .empty-title {
   display: block;
-  color: #64748b;
-  font-size: 28rpx;
+  color: var(--text-muted);
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 .empty-hint {
   display: block;
   margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #cbd5e1;
-}
-.empty-btns {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 16rpx;
-  margin-top: 20rpx;
-  width: 100%;
-  box-sizing: border-box;
-}
-.empty-btn {
-  margin: 0;
-  padding: 0 22rpx;
-  min-height: 80rpx;
-  height: 80rpx;
-  line-height: 1.2;
-  border-radius: 999rpx;
-  font-size: 26rpx;
-  color: var(--brand, #0f766e);
-  background: #ecfdf5;
-  border: none;
-  width: 100% !important;
-  max-width: none !important;
-  min-width: 0 !important;
-  flex: none;
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-}
-.empty-btn.primary {
-  color: #fff;
-  background: var(--brand, #0f766e);
-  min-width: 0;
-  max-width: none;
-}
-.empty-btn::after {
-  border: none;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle, #cbd5e1);
 }
 .task-row {
   display: flex;
   align-items: center;
   padding: 20rpx 0;
-  border-top: 1rpx solid #f1f5f9;
+  border-top: 1rpx solid var(--color-border-subtle, #f1f5f9);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -964,9 +907,9 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .task-name {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -974,23 +917,23 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .pref-mark {
   margin-left: 10rpx;
   padding: 2rpx 10rpx;
-  border-radius: 8rpx;
-  background: var(--brand-tint, #ccfbf1);
+  border-radius: var(--radius-tag);
+  background: var(--brand-tint, var(--brand-mist));
   color: var(--brand, #0f766e);
-  font-size: 20rpx;
+  font-size: var(--font-size-xs);
   font-weight: 700;
 }
 .task-meta {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 .task-go {
   flex: 0 0 120rpx;
   width: 120rpx;
   color: var(--brand, #0f766e);
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 600;
   text-align: right;
   white-space: nowrap;
@@ -1000,7 +943,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   display: flex;
   align-items: flex-start;
   padding: 14rpx 0;
-  border-top: 1rpx solid #f1f5f9;
+  border-top: 1rpx solid var(--color-border-subtle, #f1f5f9);
   gap: 12rpx;
 }
 .todo-row-hover {
@@ -1012,7 +955,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   flex: 0 0 auto;
   margin: 13rpx 2rpx 0 0;
   border-radius: 50%;
-  background: #f59e0b;
+  background: var(--warning, #f59e0b);
 }
 .todo-copy {
   min-width: 0;
@@ -1023,21 +966,21 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   width: 120rpx;
   margin-top: 4rpx;
   color: var(--brand, #0f766e);
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 600;
   text-align: right;
   white-space: nowrap;
 }
 .todo-title {
   display: block;
-  font-size: 26rpx;
-  color: #0f172a;
+  font-size: var(--font-size-body);
+  color: var(--text-primary, #0f172a);
 }
 .todo-detail {
   display: block;
   margin-top: 4rpx;
-  color: #64748b;
-  font-size: 22rpx;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1049,8 +992,8 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .ops-title {
   display: block;
   margin: 0 8rpx 10rpx;
-  font-size: 24rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle);
   letter-spacing: 1rpx;
 }
 .ops-grid {
@@ -1059,15 +1002,15 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   gap: 10rpx;
 }
 .ops-card {
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-panel);
   padding: 20rpx 16rpx;
   text-align: center;
-  border: 1rpx solid #e2e8f0;
+  border: 1rpx solid var(--color-border);
 }
 .ops-label {
-  font-size: 28rpx;
-  color: #334155;
+  font-size: var(--font-size-md);
+  color: var(--text-muted, #334155);
   font-weight: 600;
 }
 
@@ -1082,14 +1025,14 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .kpi-label {
   display: block;
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
   text-align: center;
 }
 .kpi-value {
   display: block;
   margin-top: 6rpx;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
   color: var(--brand, #0f766e);
   text-align: center;
@@ -1109,24 +1052,24 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .bar {
   width: 100%;
   background: linear-gradient(180deg, var(--brand, #0f766e), var(--brand, #0f766e));
-  border-radius: 6rpx 6rpx 0 0;
+  border-radius: var(--radius-tag) 6rpx 0 0;
   min-height: 8rpx;
 }
 .bar-label {
-  font-size: 20rpx;
-  color: #64748b;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
   margin-top: 6rpx;
 }
 .err {
-  color: #ef4444;
+  color: var(--color-danger);
 }
 .banner-err {
   margin: 16rpx 24rpx 0;
   padding: 18rpx 22rpx;
-  border-radius: 16rpx;
-  background: #fef2f2;
-  color: #b91c1c;
-  font-size: 24rpx;
+  border-radius: var(--radius-panel);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, #fff);
+  color: var(--color-danger);
+  font-size: var(--font-size-caption);
   display: flex;
   justify-content: space-between;
   align-items: center;

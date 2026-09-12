@@ -4,6 +4,53 @@ const SUBSCRIBE_TMPL_IDS = (import.meta.env.VITE_WX_SUBSCRIBE_TMPL_IDS || '')
   .map((s: string) => s.trim())
   .filter(Boolean);
 
+/** 统一 Toast 时长（毫秒） */
+export const TOAST_DURATION_MS = 2000;
+export const TOAST_DURATION_LONG_MS = 2500;
+
+export type ToastIcon = 'success' | 'error' | 'loading' | 'none';
+
+export function showAppToast(
+  title: string,
+  options?: { icon?: ToastIcon; duration?: number; mask?: boolean }
+) {
+  const text = String(title || '').trim() || '操作失败';
+  uni.showToast({
+    title: text.length > 20 ? `${text.slice(0, 19)}…` : text,
+    icon: options?.icon ?? 'none',
+    duration: options?.duration ?? TOAST_DURATION_MS,
+    mask: options?.mask ?? false
+  });
+}
+
+export function showSuccess(title: string, duration = TOAST_DURATION_MS) {
+  showAppToast(title, { icon: 'success', duration });
+}
+
+export function showError(title: string, duration = TOAST_DURATION_LONG_MS) {
+  showAppToast(title, { icon: 'none', duration });
+}
+
+export function showConfirm(options: {
+  title?: string;
+  content: string;
+  confirmText?: string;
+  cancelText?: string;
+  showCancel?: boolean;
+}): Promise<boolean> {
+  return new Promise((resolve) => {
+    uni.showModal({
+      title: options.title || '确认',
+      content: options.content,
+      confirmText: options.confirmText || '确定',
+      cancelText: options.cancelText || '取消',
+      showCancel: options.showCancel !== false,
+      success: (res) => resolve(!!res.confirm),
+      fail: () => resolve(false)
+    });
+  });
+}
+
 function canSubscribeMessage() {
   return typeof uni !== 'undefined' && typeof uni.requestSubscribeMessage === 'function';
 }
@@ -74,7 +121,7 @@ export function showBillToast(totalCents: number) {
   uni.showToast({
     title,
     icon: totalCents <= 0 ? 'none' : 'success',
-    duration: 2000
+    duration: TOAST_DURATION_MS
   });
 }
 
@@ -94,7 +141,7 @@ export function showDisputeResolvedToast(ticket: {
   } else if (ticket.status === 'RESOLVED' && amount <= 0) {
     title = '审核完成，本次未扣款';
   }
-  uni.showToast({ title, icon: 'success', duration: 2500 });
+  uni.showToast({ title, icon: 'success', duration: TOAST_DURATION_LONG_MS });
 }
 
 export function delay(ms: number) {

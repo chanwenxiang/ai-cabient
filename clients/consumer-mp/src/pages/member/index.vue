@@ -24,12 +24,12 @@
           <text v-else>已达最高等级</text>
         </text>
       </view>
-      <view class="points-chip" @click="goPoints">
+      <view role="button" class="points-chip" @click="goPoints">
         <view class="points-left">
           <text class="points-label">可用积分</text>
           <text class="points-value">{{ profile?.availablePoints ?? 0 }}</text>
         </view>
-        <text class="points-action">积分明细 ›</text>
+        <text class="points-action app-link-chevron">积分明细</text>
       </view>
       <view class="hero-meta">
         <text v-if="currentLevelRate" class="hero-meta-item"
@@ -45,32 +45,32 @@
     </view>
 
     <view class="quick-grid">
-      <view class="quick" @click="goRedeem">
+      <view role="button" class="quick" @click="goRedeem">
         <image class="quick-mark" :src="menuIcon('coupons')" mode="aspectFit" />
         <text class="quick-title">积分兑换</text>
         <text class="quick-desc">积分换券</text>
       </view>
-      <view class="quick" @click="goMessages">
+      <view role="button" class="quick" @click="goMessages">
         <image class="quick-mark" :src="menuIcon('notice')" mode="aspectFit" />
         <text class="quick-title">消息中心</text>
         <text class="quick-desc">订单·售后</text>
       </view>
-      <view class="quick" @click="goCoupons">
+      <view role="button" class="quick" @click="goCoupons">
         <image class="quick-mark" :src="menuIcon('coupons')" mode="aspectFit" />
         <text class="quick-title">我的券</text>
         <text class="quick-desc">{{ couponCount }} 张可用</text>
       </view>
-      <view class="quick" @click="goMarketing">
+      <view role="button" class="quick" @click="goMarketing">
         <image class="quick-mark" :src="menuIcon('hot')" mode="aspectFit" />
         <text class="quick-title">热门活动</text>
         <text class="quick-desc">本周上新</text>
       </view>
-      <view class="quick" @click="goOrders">
+      <view role="button" class="quick" @click="goOrders">
         <image class="quick-mark" :src="menuIcon('orders')" mode="aspectFit" />
         <text class="quick-title">我的订单</text>
         <text class="quick-desc">消费记录</text>
       </view>
-      <view class="quick" @click="goShop">
+      <view role="button" class="quick" @click="goShop">
         <image class="quick-mark" :src="menuIcon('shopping')" mode="aspectFit" />
         <text class="quick-title">去购物</text>
         <text class="quick-desc">扫码开门</text>
@@ -117,6 +117,9 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import {
+  showError
+} from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth, type MemberProfileDto } from '@/utils/consumer-api';
 import { menuIcon } from '@/utils/menu-icon';
@@ -208,7 +211,7 @@ async function load() {
       return Number.isFinite(t) && t > now && t - now <= soon;
     }).length;
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '加载失败');
   }
 }
 
@@ -239,25 +242,25 @@ function goMessages() {
 .page {
   min-height: 100%;
   padding: 0 0 48rpx;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
 }
 .hero {
   position: relative;
   overflow: hidden;
   margin: 24rpx 24rpx 0;
   padding: 36rpx 32rpx 28rpx;
-  border-radius: 24rpx;
-  color: #14201b;
-  background: linear-gradient(135deg, #ecfdf5, #fff);
-  border: 1rpx solid #d1fae5;
+  border-radius: var(--radius-card);
+  color: var(--text-primary, #14201b);
+  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  border: 1rpx solid var(--brand-soft, #d1fae5);
   box-shadow: none;
 }
 .hero.lv-silver {
-  background: linear-gradient(135deg, #f1f5f9, #fff);
-  border-color: #e2e8f0;
+  background: linear-gradient(135deg, var(--color-border-subtle, #f1f5f9), #fff);
+  border-color: var(--color-border);
 }
 .hero.lv-gold {
-  background: linear-gradient(135deg, #fffbeb, #fff);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--warning, #b45309) 8%, #fff), #fff);
   border-color: #fde68a;
 }
 .hero.lv-platinum {
@@ -272,22 +275,22 @@ function goMessages() {
 }
 .hero-kicker {
   display: block;
-  font-size: 20rpx;
+  font-size: var(--font-size-xs);
   letter-spacing: 2rpx;
-  color: #849087;
+  color: var(--text-muted, #849087);
 }
 .hero-level {
   display: block;
   margin-top: 8rpx;
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
   font-weight: 800;
-  color: #047857;
+  color: var(--brand);
 }
 .hero.lv-silver .hero-level {
-  color: #475569;
+  color: var(--text-muted, #475569);
 }
 .hero.lv-gold .hero-level {
-  color: #b45309;
+  color: var(--warning, #b45309);
 }
 .hero.lv-platinum .hero-level {
   color: #4338ca;
@@ -295,43 +298,43 @@ function goMessages() {
 .spent-chip {
   min-width: 140rpx;
   padding: 16rpx 22rpx;
-  border-radius: 20rpx;
-  background: #f0fdf4;
+  border-radius: var(--radius-card);
+  background: var(--brand-soft, #f0fdf4);
   text-align: center;
 }
 .hero.lv-silver .spent-chip {
-  background: #f1f5f9;
+  background: var(--color-border-subtle, #f1f5f9);
 }
 .hero.lv-gold .spent-chip {
-  background: #fef3c7;
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
 }
 .hero.lv-platinum .spent-chip {
   background: #e0e7ff;
 }
 .spent-num {
   display: block;
-  font-size: 36rpx;
+  font-size: var(--font-size-display-sm);
   font-weight: 800;
   line-height: 1;
-  color: #14201b;
+  color: var(--text-primary, #14201b);
 }
 .spent-unit {
   display: block;
   margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #849087;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #849087);
 }
 .progress-block {
   margin-top: 28rpx;
 }
 .progress-track {
   height: 10rpx;
-  border-radius: 999rpx;
-  background: #d1fae5;
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft, #d1fae5);
   overflow: hidden;
 }
 .hero.lv-silver .progress-track {
-  background: #e2e8f0;
+  background: var(--color-border);
 }
 .hero.lv-gold .progress-track {
   background: #fde68a;
@@ -341,14 +344,14 @@ function goMessages() {
 }
 .progress-fill {
   height: 100%;
-  border-radius: 999rpx;
-  background: #059669;
+  border-radius: var(--radius-pill);
+  background: var(--brand);
 }
 .hero.lv-silver .progress-fill {
-  background: #64748b;
+  background: var(--text-muted);
 }
 .hero.lv-gold .progress-fill {
-  background: #d97706;
+  background: var(--warning, #d97706);
 }
 .hero.lv-platinum .progress-fill {
   background: #4f46e5;
@@ -356,8 +359,8 @@ function goMessages() {
 .progress-text {
   display: block;
   margin-top: 14rpx;
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
   line-height: 1.4;
 }
 .points-chip {
@@ -367,13 +370,13 @@ function goMessages() {
   margin-top: 20rpx;
   padding: 16rpx 22rpx;
   border-radius: 18rpx;
-  background: #f0fdf4;
+  background: var(--brand-soft, #f0fdf4);
 }
 .hero.lv-silver .points-chip {
-  background: #f1f5f9;
+  background: var(--color-border-subtle, #f1f5f9);
 }
 .hero.lv-gold .points-chip {
-  background: #fef3c7;
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
 }
 .hero.lv-platinum .points-chip {
   background: #e0e7ff;
@@ -385,11 +388,11 @@ function goMessages() {
   margin-top: 16rpx;
 }
 .hero-meta-item {
-  font-size: 22rpx;
-  color: #64748b;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
 }
 .hero-meta-item.warn {
-  color: #b45309;
+  color: var(--warning, #b45309);
   font-weight: 600;
 }
 .points-left {
@@ -398,17 +401,17 @@ function goMessages() {
   gap: 12rpx;
 }
 .points-label {
-  font-size: 22rpx;
-  color: #849087;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #849087);
 }
 .points-value {
-  font-size: 36rpx;
+  font-size: var(--font-size-display-sm);
   font-weight: 800;
-  color: #047857;
+  color: var(--brand);
 }
 .points-action {
-  font-size: 22rpx;
-  color: #047857;
+  font-size: var(--font-size-sm);
+  color: var(--brand);
 }
 
 .quick-grid {
@@ -419,8 +422,8 @@ function goMessages() {
 }
 .quick {
   padding: 22rpx 10rpx;
-  border-radius: 20rpx;
-  background: #fff;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
   text-align: center;
   box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.05);
 }
@@ -431,44 +434,44 @@ function goMessages() {
   margin: 0 auto;
   align-items: center;
   justify-content: center;
-  border-radius: 16rpx;
-  background: #f0fdf4;
-  font-size: 26rpx;
+  border-radius: var(--radius-panel);
+  background: var(--brand-soft, #f0fdf4);
+  font-size: var(--font-size-body);
   font-weight: 700;
-  color: #047857;
+  color: var(--brand);
 }
 .quick-title {
   display: block;
   margin-top: 8rpx;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   font-weight: 650;
-  color: #1f2a24;
+  color: var(--text-primary, #1f2a24);
 }
 .quick-desc {
   display: block;
   margin-top: 4rpx;
-  font-size: 20rpx;
-  color: #8a968e;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted, #8a968e);
 }
 
 .section {
   margin-top: 24rpx;
   padding: 28rpx 24rpx;
-  border-radius: 24rpx;
-  background: #fff;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
   box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
 }
 .section-title {
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
-  color: #1b3027;
+  color: var(--text-primary, #1b3027);
 }
 
 .benefit-row {
   display: flex;
   gap: 18rpx;
   padding: 18rpx 0;
-  border-bottom: 1rpx solid #f0f2f1;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f0f2f1);
 }
 .benefit-row:last-child {
   border-bottom: 0;
@@ -477,26 +480,26 @@ function goMessages() {
   width: 56rpx;
   height: 56rpx;
   flex-shrink: 0;
-  border-radius: 16rpx;
-  background: #f0fdf4;
+  border-radius: var(--radius-panel);
+  background: var(--brand-soft, #f0fdf4);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 700;
-  color: #047857;
+  color: var(--brand);
 }
 .benefit-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 650;
-  color: #223029;
+  color: var(--text-primary, #223029);
 }
 .benefit-desc {
   display: block;
   margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #849087;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #849087);
 }
 
 .level-row {
@@ -505,34 +508,34 @@ function goMessages() {
   align-items: center;
   padding: 20rpx 18rpx;
   margin-top: 12rpx;
-  border-radius: 16rpx;
-  background: #f8faf9;
+  border-radius: var(--radius-panel);
+  background: var(--page-bg, #f8faf9);
 }
 .level-row.on {
-  background: #ecfdf5;
-  border: 1rpx solid #a7f3d0;
+  background: var(--brand-soft);
+  border: 1rpx solid var(--brand-mist, #a7f3d0);
 }
 .level-name {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 650;
-  color: #1b3027;
+  color: var(--text-primary, #1b3027);
 }
 .level-range {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #849087;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #849087);
 }
 .level-rate {
   display: block;
   margin-top: 4rpx;
-  font-size: 20rpx;
-  color: #047857;
+  font-size: var(--font-size-xs);
+  color: var(--brand);
 }
 .level-badge {
-  font-size: 24rpx;
-  color: #047857;
+  font-size: var(--font-size-caption);
+  color: var(--brand);
   font-weight: 700;
 }
 </style>

@@ -208,7 +208,6 @@
     <el-dialog
       v-model="showCreate"
       :title="editingId ? '编辑优惠券' : '新建优惠券'"
-      width="500px"
       destroy-on-close
     >
       <el-form :model="createForm" label-width="100px">
@@ -297,7 +296,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showIssue" title="手动发券" width="450px" destroy-on-close>
+    <el-dialog v-model="showIssue" title="手动发券" destroy-on-close>
       <el-form label-width="80px">
         <el-form-item label="优惠券">
           <el-select v-model="issueForm.couponDefId" style="width: 100%">
@@ -324,7 +323,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="batchVisible" title="批量发券" width="480px" destroy-on-close>
+    <el-dialog v-model="batchVisible" title="批量发券" destroy-on-close>
       <el-form label-width="80px">
         <el-form-item label="优惠券">
           <el-select v-model="batchForm.couponDefId" style="width: 100%">
@@ -893,11 +892,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {

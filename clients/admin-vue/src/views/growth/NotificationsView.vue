@@ -117,7 +117,7 @@
       @size-change="onSizeChange"
     />
 
-    <el-dialog v-model="sendVisible" title="发送站内信" width="520px" destroy-on-close>
+    <el-dialog v-model="sendVisible" title="发送站内信" destroy-on-close>
       <el-form label-width="96px">
         <el-form-item label="受众" required>
           <el-radio-group v-model="sendForm.audience">
@@ -150,7 +150,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="editVisible" title="编辑站内信" width="520px" destroy-on-close>
+    <el-dialog v-model="editVisible" title="编辑站内信" destroy-on-close>
       <el-form label-width="96px">
         <el-form-item label="标题" required>
           <el-input v-model="editForm.title" maxlength="80" show-word-limit />

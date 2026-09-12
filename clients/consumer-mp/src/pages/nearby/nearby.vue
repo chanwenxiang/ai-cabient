@@ -1,9 +1,11 @@
 <template>
   <view class="page page-fill">
     <view class="nav" :style="{ paddingTop: statusBarPad + 'px' }">
-      <text class="nav-back" role="button" aria-label="返回" @click="goBack">‹</text>
+      <view class="nav-back" role="button" aria-label="返回" @click="goBack">
+        <view class="app-icon app-icon--back" aria-hidden="true" />
+      </view>
       <text class="nav-title">附近柜机</text>
-      <text class="nav-action" @click="reload">刷新</text>
+      <text role="button" class="nav-action" @click="reload">刷新</text>
     </view>
 
     <view class="toolbar">
@@ -11,9 +13,11 @@
       <view class="radius-row">
         <text
           v-for="r in radiusOptions"
+          role="button"
           :key="r"
           class="radius-chip"
           :class="{ on: radiusKm === r }"
+          :aria-label="`半径 ${r} 公里`"
           @click="setRadius(r)"
           >{{ r }}km</text
         >
@@ -23,14 +27,14 @@
     <view v-if="loading" class="state">定位并加载附近柜机…</view>
     <view v-else-if="error" class="state error">
       <text>{{ error }}</text>
-      <button class="retry" @click="reload">重试</button>
+      <app-button variant="ghost" label="重试" @click="reload" />
     </view>
     <view v-else-if="!list.length" class="state">
       <text>附近 {{ radiusKm }}km 暂无柜机</text>
       <text class="sub">可扩大范围，或扫柜门二维码开门</text>
     </view>
     <scroll-view v-else class="list" scroll-y>
-      <view v-for="d in list" :key="d.deviceId" class="card" @click="openDevice(d)">
+      <view v-for="d in list" role="button" :key="d.deviceId" class="card" @click="openDevice(d)">
         <view class="card-top">
           <view class="card-title-wrap">
             <text class="card-name">{{ d.deviceName || d.deviceId }}</text>
@@ -41,13 +45,17 @@
         <text class="addr">{{ d.address || '地址待完善' }}</text>
         <view class="meta">
           <text class="chip" :class="d.available ? 'ok' : 'busy'">{{
-            d.available ? '可开门' : '忙碌/停售'
+            d.available ? UI_COPY.available : UI_COPY.busy
           }}</text>
           <text
-            class="chip"
-            :class="String(d.onlineStatus || '').toUpperCase() === 'ONLINE' ? 'ok' : 'muted'"
-            >{{ String(d.onlineStatus || '').toUpperCase() === 'ONLINE' ? '在线' : '离线' }}</text
+            class="chip app-status"
+            :class="
+              String(d.onlineStatus || '').toUpperCase() === 'ONLINE' ? 'is-online' : 'is-offline'
+            "
           >
+            <text class="app-status-dot" aria-hidden="true" />
+            {{ onlineLabel(String(d.onlineStatus || '').toUpperCase() === 'ONLINE') }}
+          </text>
           <text class="chip muted"
             >在售 {{ d.sellableSkuCount }} 种 · {{ d.sellableItemCount }} 件</text
           >
@@ -73,9 +81,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import {
+  showError
+} from '@/utils/notify';
 import { consumerApi } from '@/utils/consumer-api';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
+import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
 
 type NearbyDevice = Awaited<ReturnType<typeof consumerApi.nearbyDevices>>[number];
 
@@ -116,7 +128,7 @@ function openDevice(d: NearbyDevice) {
 
 function openNav(d: NearbyDevice) {
   if (d.latitude == null || d.longitude == null) {
-    uni.showToast({ title: '暂无坐标', icon: 'none' });
+    showError('暂无坐标');
     return;
   }
   // #ifdef H5
@@ -195,13 +207,21 @@ onMounted(() => {
   display: flex;
   align-items: center;
   padding: 8px 12px 12px;
-  background: #064e3b;
+  background: var(--brand-deep);
   color: #fff;
 }
 .nav-back {
   width: 36px;
-  font-size: 28px;
-  line-height: 1;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.nav-back .app-icon--back {
+  width: 10px;
+  height: 10px;
+  border-width: 2px;
 }
 .nav-title {
   flex: 1;
@@ -217,12 +237,12 @@ onMounted(() => {
 }
 .toolbar {
   padding: 12px 16px 4px;
-  background: #fff;
-  border-bottom: 1px solid #e8eeeb;
+  background: var(--card-bg, #fff);
+  border-bottom: 1px solid var(--card-border, #e8eeeb);
 }
 .loc-hint {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-muted);
 }
 .radius-row {
   display: flex;
@@ -233,17 +253,17 @@ onMounted(() => {
   padding: 4px 12px;
   border-radius: 999px;
   background: #f1f5f4;
-  color: #334155;
+  color: var(--text-muted, #334155);
   font-size: 12px;
 }
 .radius-chip.on {
-  background: #064e3b;
+  background: var(--brand-deep);
   color: #fff;
 }
 .state {
   padding: 48px 24px;
   text-align: center;
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 14px;
   display: flex;
   flex-direction: column;
@@ -251,15 +271,15 @@ onMounted(() => {
   align-items: center;
 }
 .state.error {
-  color: #b91c1c;
+  color: var(--color-danger);
 }
 .state .sub {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-subtle);
 }
 .retry {
   margin-top: 8px;
-  background: #064e3b;
+  background: var(--brand-deep);
   color: #fff;
   font-size: 13px;
   border-radius: 20px;
@@ -272,7 +292,7 @@ onMounted(() => {
   box-sizing: border-box;
 }
 .card {
-  background: #fff;
+  background: var(--card-bg, #fff);
   border-radius: 14px;
   padding: 14px;
   margin-bottom: 10px;
@@ -286,25 +306,25 @@ onMounted(() => {
 .card-name {
   font-size: 16px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
 }
 .card-id {
   display: block;
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--text-subtle);
   margin-top: 2px;
 }
 .dist {
   font-size: 14px;
   font-weight: 600;
-  color: #064e3b;
+  color: var(--brand-deep);
   white-space: nowrap;
 }
 .addr {
   display: block;
   margin-top: 8px;
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-muted);
 }
 .meta {
   display: flex;
@@ -316,19 +336,27 @@ onMounted(() => {
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #e2e8f0;
-  color: #334155;
+  background: var(--color-border);
+  color: var(--text-muted, #334155);
 }
 .chip.ok {
-  background: #d1fae5;
-  color: #065f46;
+  background: var(--brand-soft, #d1fae5);
+  color: var(--brand-deep, #065f46);
 }
 .chip.busy {
-  background: #fee2e2;
-  color: #991b1b;
+  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, #fff);
+  color: var(--danger, #991b1b);
 }
 .chip.muted {
-  background: #f1f5f9;
+  background: var(--color-border-subtle, #f1f5f9);
+}
+.chip.app-status.is-online {
+  background: var(--brand-soft, #d1fae5);
+  color: var(--color-success, #16a34a);
+}
+.chip.app-status.is-offline {
+  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, #fff);
+  color: var(--color-danger, #b91c1c);
 }
 .preview {
   display: flex;
@@ -338,8 +366,8 @@ onMounted(() => {
 }
 .preview-item {
   font-size: 11px;
-  color: #475569;
-  background: #f8fafc;
+  color: var(--text-muted, #475569);
+  background: var(--page-bg, #f8fafc);
   padding: 2px 8px;
   border-radius: 6px;
 }
@@ -360,8 +388,8 @@ onMounted(() => {
   min-height: 72rpx;
   height: 72rpx;
   line-height: 72rpx;
-  border-radius: 36rpx;
-  font-size: 26rpx;
+  border-radius: var(--radius-card);
+  font-size: var(--font-size-body);
   font-weight: 600;
   text-align: center;
   box-sizing: border-box;
@@ -370,12 +398,12 @@ onMounted(() => {
   border: none;
 }
 .btn.ghost {
-  background: #ecfdf5;
-  color: #0f766e;
-  border: 1rpx solid #99f6e4;
+  background: var(--brand-soft);
+  color: var(--brand);
+  border: 1rpx solid var(--brand-mist, #99f6e4);
 }
 .btn.primary {
-  background: #0f766e;
+  background: var(--brand);
   color: #fff;
   border: none;
 }

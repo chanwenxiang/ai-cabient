@@ -1086,11 +1086,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {
@@ -1113,7 +1113,7 @@ onActivated(() => {
 }
 .sla-meta {
   color: var(--el-text-color-secondary);
-  font-size: 11px;
+  font-size: var(--admin-font-size-xs);
 }
 .sla-meta.danger {
   color: var(--el-color-danger);
@@ -1140,7 +1140,7 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
 }
 .muted.tiny {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.2;
   margin-top: 2px;
 }
@@ -1149,7 +1149,7 @@ onActivated(() => {
 }
 .tl-detail {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .tl-actions {

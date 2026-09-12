@@ -28,20 +28,48 @@ body,
 /* 微信小程序 page 节点标准：height 100% 供 tabBar 页 flex 一屏布局 */
 page,
 uni-page-body {
-  /* 唯一品牌绿阶：深底 / 主色 / 浅底；禁止另掺 teal 灰绿 */
-  --brand: #047857;
-  --brand-2: #047857;
-  --brand-deep: #064e3b;
-  --brand-ink: #043f32;
+  /* 与 shared-uni / merchant / admin 统一主色 #0f766e */
+  --brand: #0f766e;
+  --brand-2: #0f766e;
+  --brand-deep: #134e4a;
+  --brand-ink: #0f3f3c;
   --brand-wx: #07c160;
   --brand-soft: #ecfdf5;
-  --brand-mist: #d1fae5;
+  --brand-mist: #ccfbf1;
+  --color-primary: var(--brand);
+  --color-primary-deep: var(--brand-deep);
+  --color-primary-soft: var(--brand-soft);
+  --color-link: var(--brand);
+  --color-danger: var(--danger, #b91c1c);
+  --color-link-secondary: #576b95;
+  --color-text-primary: var(--text-primary, #14201b);
+  --color-text-secondary: var(--text-muted, #64748b);
+  --color-text-muted: var(--text-subtle, #94a3b8);
+  --color-bg-page: var(--page-bg);
   --page-bg: #ffffff;
+  --page-gutter: 24rpx;
+  --spacing-sm: 12rpx;
+  --spacing-md: 16rpx;
+  --spacing-lg: 24rpx;
+  --shadow-card: 0 8rpx 28rpx rgba(15, 118, 110, 0.08);
+  --font-size-xs: 20rpx;
+  --font-size-sm: 22rpx;
+  --font-size-caption: 24rpx;
+  --font-size-body: 26rpx;
+  --font-size-md: 28rpx;
+  --font-size-lg: 30rpx;
+  --font-size-xl: 32rpx;
+  --font-size-h3: 34rpx;
+  --font-size-h2: 40rpx;
+  --font-size-h1: 44rpx;
+  --font-size-display-sm: 36rpx;
+  --font-size-display: 48rpx;
   --text-muted: #64748b;
   --text-subtle: #94a3b8;
   /* 小程序圆角用 rpx，对齐共享 4 档 token */
   --radius-pill: 999rpx;
   --radius-card: 24rpx;
+  --radius-panel: 16rpx;
   --radius-control: 12rpx;
   --radius-tag: 8rpx;
   --card-radius: var(--radius-card);
@@ -85,7 +113,7 @@ uni-page-body::-webkit-scrollbar {
   align-items: center;
   padding: 10rpx 22rpx;
   border-radius: var(--radius-pill);
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   color: var(--text-muted);
   background: #fff;
   border: 1rpx solid rgba(15, 118, 110, 0.12);
@@ -181,14 +209,12 @@ input {
   font-size: 26rpx;
 }
 
-.btn-primary,
-.action-btn,
 .cart-cta,
-.empty-btn.primary {
+.app-btn--primary {
   background: linear-gradient(135deg, var(--brand), var(--brand-2));
   color: #fff;
   border: none;
-  border-radius: 44rpx;
+  border-radius: var(--radius-pill, 44rpx);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -197,148 +223,24 @@ input {
   box-sizing: border-box;
 }
 
-/* 微信触控建议 ≥44pt：750 设计稿用 88rpx；避免依赖 size=mini */
-.empty-btn,
-.empty-btn.primary,
-.empty-btn.ghost,
-uni-button.empty-btn {
-  min-height: 88rpx;
-  height: 88rpx;
-  line-height: 1.2;
-  font-size: 28rpx;
-  font-weight: 600;
-  border-radius: 44rpx;
-  padding-left: 36rpx;
-  padding-right: 36rpx;
-  box-sizing: border-box;
-}
-
-/* 主按钮：单独出现时收窄居中；通栏用 .btn-block / .empty-actions / empty-state；横向行内均分
- * 不用 width:fit-content（旧版微信基础库支持不稳），用固定/百分比宽度 */
-.btn-primary,
-.btn-outline,
-.btn-refund,
-.btn-ghost,
-.action-btn,
-.ghost-btn,
-uni-button.btn-primary,
-uni-button.btn-outline,
-uni-button.btn-refund,
-uni-button.btn-ghost,
-uni-button.action-btn,
-uni-button.ghost-btn {
-  width: 60%;
-  min-width: 240rpx;
-  max-width: 100%;
-  padding-left: 36rpx;
-  padding-right: 36rpx;
-  margin-left: auto;
-  margin-right: auto;
-  align-self: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-}
-/* 空态按钮默认通栏（与 page-body / 卡片同宽）；勿用 60% 居中 */
-.empty-btn.primary,
-.empty-btn.ghost,
-.empty-btn,
-uni-button.empty-btn {
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: none !important;
-  padding-left: 36rpx;
-  padding-right: 36rpx;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  align-self: stretch !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-}
-
 .btn-block,
-uni-button.btn-block {
+.app-btn--block {
   width: 100% !important;
   max-width: none !important;
   min-width: 0 !important;
   align-self: stretch !important;
 }
 
-/* 卡片内主按钮与输入框同宽，避免全局 60% 在表单页缩进去 */
-.card .btn-primary,
-.card .btn-outline,
-.card .btn-refund,
-.card .btn-ghost,
-.card .action-btn,
-.card .ghost-btn,
-.card uni-button.btn-primary,
-.card uni-button.btn-outline,
-.card uni-button.action-btn,
-.card uni-button.ghost-btn,
-.card button.btn-primary,
-.card button.btn-outline {
-  width: 100% !important;
-  max-width: none !important;
-  min-width: 0 !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  align-self: stretch !important;
-}
-
-/* 纵向操作区：通栏等宽 + 文字居中（订单详情 / 账单结果 / 争议 / 手动输入柜机等） */
-.actions,
-.btn-stack,
-.detail-actions,
-.footer-actions,
-.error-card,
-.landing-sheet,
-.drawer-body {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-}
-.actions > uni-button + uni-button,
-.actions > button + button,
-.btn-stack > uni-button + uni-button,
-.btn-stack > button + button,
-.detail-actions > uni-button + uni-button,
-.detail-actions > button + button,
-.footer-actions > uni-button + uni-button,
-.footer-actions > button + button,
-.error-card > uni-button + uni-button,
-.error-card > button + button {
-  margin-top: 16rpx !important;
-}
-
-.actions > .btn-primary,
-.actions > .btn-outline,
-.actions > .btn-refund,
-.actions > .btn-ghost,
-.actions > .action-btn,
-.actions > .ghost-btn,
-.actions > .primary-btn,
-.btn-stack > .btn-primary,
-.btn-stack > .btn-outline,
-.btn-stack > .btn-refund,
-.btn-stack > .btn-ghost,
-.btn-stack > .action-btn,
-.btn-stack > .ghost-btn,
-.detail-actions > .btn-primary,
-.detail-actions > .btn-outline,
-.detail-actions > .primary-btn,
-.footer-actions > .action-btn,
-.footer-actions > .ghost-btn,
-.footer-actions > .btn-primary,
-.footer-actions > .btn-outline,
-.error-card > .action-btn,
-.error-card > .ghost-btn,
-.error-card > .btn-primary,
-.error-card > .btn-outline,
+/* 卡片 / 纵向操作区：AppButton 通栏 */
+.card .app-btn,
+.actions > .app-btn,
+.btn-stack > .app-btn,
+.detail-actions > .app-btn,
+.footer-actions > .app-btn,
+.error-card > .app-btn,
+.landing-sheet > .app-btn,
+.drawer-body > .app-btn,
+.empty-actions > .app-btn,
 .actions > uni-button,
 .btn-stack > uni-button,
 .detail-actions > uni-button,
@@ -347,7 +249,8 @@ uni-button.btn-block {
 .landing-sheet > uni-button,
 .landing-sheet > button,
 .drawer-body > uni-button,
-.drawer-body > button {
+.drawer-body > button,
+.empty-actions > uni-button {
   width: 100% !important;
   max-width: none !important;
   min-width: 0 !important;
@@ -361,8 +264,39 @@ uni-button.btn-block {
   box-sizing: border-box !important;
 }
 
-.action-row > .btn-primary,
-.action-row > .btn-outline,
+.actions,
+.btn-stack,
+.detail-actions,
+.footer-actions,
+.error-card,
+.landing-sheet,
+.drawer-body {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.actions > .app-btn + .app-btn,
+.btn-stack > .app-btn + .app-btn,
+.detail-actions > .app-btn + .app-btn,
+.footer-actions > .app-btn + .app-btn,
+.error-card > .app-btn + .app-btn,
+.drawer-body > .app-btn + .app-btn,
+.actions > uni-button + uni-button,
+.actions > button + button,
+.btn-stack > uni-button + uni-button,
+.btn-stack > button + button,
+.detail-actions > uni-button + uni-button,
+.detail-actions > button + button,
+.footer-actions > uni-button + uni-button,
+.footer-actions > button + button,
+.error-card > uni-button + uni-button,
+.error-card > button + button {
+  margin-top: 16rpx !important;
+}
+
+.action-row > .app-btn,
+.action-row > .action-btn,
 .btn-inline {
   flex: 1 1 0;
   width: 0;
@@ -381,119 +315,47 @@ uni-button.btn-block {
   gap: 16rpx;
   width: 100%;
 }
-/* 微信小程序对 flex gap 支持不稳：竖排空态按钮用相邻 margin */
-.empty-actions > .empty-btn + .empty-btn,
-.empty-actions > .btn-primary + .empty-btn,
-.empty-actions > .empty-btn + .btn-primary,
-.empty-actions > .btn-primary + .btn-outline,
-.empty-actions > .btn-outline + .btn-primary,
+
+.empty-actions > .app-btn + .app-btn,
 .empty-actions > uni-button + uni-button,
 .empty-actions > button + button {
   margin-top: 24rpx !important;
 }
-/* uni 插槽扁平：组件根下相邻空态按钮也要拉开 */
-empty-state .empty-btn + .empty-btn,
-.state-wrap .empty-btn + .empty-btn,
-uni-button.empty-btn + uni-button.empty-btn,
-button.empty-btn + button.empty-btn {
-  margin-top: 24rpx !important;
-}
-empty-state .empty-btn,
-.state-wrap .empty-btn {
-  width: 100% !important;
-  max-width: none !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-}
-.empty-actions > .empty-btn,
-.empty-actions > .btn-primary,
-.empty-actions > .btn-outline,
-.empty-actions > .action-btn,
-.empty-actions > .ghost-btn,
-.empty-actions > uni-button {
-  width: 100% !important;
-  max-width: none !important;
-  min-width: 0 !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  margin-bottom: 0 !important;
-  align-self: stretch !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  text-align: center !important;
-  box-sizing: border-box !important;
-}
-
-.btn-outline,
-.btn-ghost,
-.ghost-btn,
-.empty-btn.ghost {
-  background: #fff;
-  color: var(--brand);
-  border: 2rpx solid var(--brand);
-  border-radius: 44rpx;
-  font-weight: 600;
-  box-sizing: border-box;
-}
-
-.btn-outline.danger,
-.btn-refund {
-  border-color: #ef4444;
-  color: #b91c1c;
-}
-
-.btn-refund {
-  background: linear-gradient(135deg, #dc2626, #ef4444);
-  color: #fff;
-  border: none;
-  border-radius: 44rpx;
-  font-weight: 600;
-  box-shadow: 0 8rpx 24rpx rgba(239, 68, 68, 0.22);
-}
 
 button,
-.btn-primary,
-.btn-ghost,
-.btn-outline,
+.app-btn,
 .menu-cell,
 .filter-chip,
 .scan-btn,
-.tip-btn {
+.cart-cta {
   transition:
     transform 0.18s ease,
     opacity 0.18s ease,
     box-shadow 0.18s ease;
 }
 button:active,
-.btn-primary:active,
-.btn-ghost:active,
-.btn-outline:active,
+.app-btn:active,
 .menu-cell:active,
 .filter-chip:active,
-.tip-btn:active {
+.cart-cta:active {
   transform: scale(0.985);
   opacity: 0.88;
 }
 
 @media (prefers-reduced-motion: reduce) {
   button,
-  .btn-primary,
-  .btn-ghost,
-  .btn-outline,
+  .app-btn,
   .menu-cell,
   .filter-chip,
   .scan-btn,
-  .tip-btn {
+  .cart-cta {
     transition: none;
   }
   button:active,
-  .btn-primary:active,
-  .btn-ghost:active,
-  .btn-outline:active,
+  .app-btn:active,
   .menu-cell:active,
   .filter-chip:active,
-  .tip-btn:active {
+  .cart-cta:active {
     transform: none;
     opacity: 1;
   }
@@ -501,6 +363,20 @@ button:active,
 
 /* 桌面手机框：居中真机比例；消掉导航双占位；底栏贴框底（仅 H5；WXSS 不支持 ~ 等选择器） */
 /* #ifdef H5 */
+/*
+ * 桌面手机框内 rpx 按「框宽」计 rem，勿按浏览器窗口宽。
+ * uni 默认 32rpx=1rem 且按 window 宽度换算；框宽 430 / 窗宽 900 时会把图标撑到 ~2 倍导致挤切。
+ */
+@media (min-width: 600px) {
+  html {
+    font-size: calc(clamp(360px, 100vw - 48px, 430px) * 32 / 750) !important;
+  }
+}
+@media (min-width: 1100px) {
+  html {
+    font-size: calc(clamp(390px, 100vw - 80px, 480px) * 32 / 750) !important;
+  }
+}
 @media (min-width: 600px) {
   html,
   body,
@@ -512,8 +388,9 @@ button:active,
   }
   uni-app {
     position: relative;
-    --phone-w: 390px;
-    --phone-h: min(720px, calc(100vh - 48px));
+    /* 桌面预览：随视口缩放，避免死锁 390；大屏略加宽仍保持手机比例 */
+    --phone-w: clamp(360px, calc(100vw - 48px), 430px);
+    --phone-h: min(780px, calc(100vh - 48px));
     --phone-inset: max(0px, calc((100vh - var(--phone-h)) / 2));
   }
   uni-page {
@@ -777,6 +654,11 @@ button:active,
     margin-right: auto !important;
     bottom: var(--phone-inset) !important;
     border-radius: 0 !important;
+  }
+}
+@media (min-width: 1100px) {
+  uni-app {
+    --phone-w: clamp(390px, calc(100vw - 80px), 480px);
   }
 }
 /* #endif */

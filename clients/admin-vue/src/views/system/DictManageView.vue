@@ -267,7 +267,6 @@
     <el-dialog
       v-model="itemDlg"
       :title="itemForm.dictDataId ? '编辑字典项' : '新增字典项'"
-      width="480px"
     >
       <el-form label-width="88px">
         <el-form-item label="字典值"
@@ -910,11 +909,11 @@ onBeforeUnmount(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.35;
 }
 .page-card-head__actions {

@@ -192,7 +192,6 @@
   <el-dialog
     v-model="dlg"
     :title="form.onboardingId ? '编辑进件' : '新建进件'"
-    width="520px"
     destroy-on-close
   >
     <el-form label-width="110px">
@@ -597,7 +596,7 @@ onMounted(load);
 }
 .muted {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 :deep(.is-highlight-row) > td {
   background: rgba(245, 158, 11, 0.12) !important;

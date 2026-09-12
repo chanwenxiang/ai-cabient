@@ -55,7 +55,7 @@
               {{ listHydrated ? (workbench?.devicesOnSale ?? '无') : '暂无' }}
             </div>
             <div class="stat-hint">
-              <template v-if="!listHydrated">加载中…</template>
+              <template v-if="!listHydrated">{{ UI_COPY.loading }}</template>
               <template v-else>
                 停售 {{ workbench?.devicesSalesLocked ?? 0 }}
                 <template v-if="canAccessPath('/devices')"> · 查看设备</template>
@@ -81,7 +81,7 @@
             <div class="stat-label">设备在线率</div>
             <div class="stat-value">{{ listHydrated ? `${onlineRate.toFixed(1)}%` : '…' }}</div>
             <div class="stat-hint">
-              <template v-if="!listHydrated">加载中…</template>
+              <template v-if="!listHydrated">{{ UI_COPY.loading }}</template>
               <template v-else>
                 {{ stats.deviceOnline || 0 }} / {{ stats.deviceTotal || 0 }} 台
                 <template v-if="canAccessPath('/devices')">
@@ -111,7 +111,7 @@
               {{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '…' }}
             </div>
             <div class="stat-hint">
-              <template v-if="!listHydrated">加载中…</template>
+              <template v-if="!listHydrated">{{ UI_COPY.loading }}</template>
               <template v-else>{{
                 canAccessPath('/finance') ? '查看财务毛利' : '今日快照'
               }}</template>
@@ -139,7 +139,7 @@
             <div class="stat-label">待处理异常</div>
             <div class="stat-value">{{ listHydrated ? openExceptionCount : '…' }}</div>
             <div class="stat-hint">
-              <template v-if="!listHydrated">加载中…</template>
+              <template v-if="!listHydrated">{{ UI_COPY.loading }}</template>
               <template v-else-if="canAccessPath('/exceptions')">
                 {{
                   openExceptionCount
@@ -328,6 +328,7 @@ import { displayLabel } from '@aicabinet/shared-dict';
 import { shortBizNo } from '@aicabinet/shared-uni/format';
 import type { OpsWorkbench, PageResult } from '@aicabinet/shared-types';
 import { normalizeListPage } from '@/utils/normalize-list-page';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 interface OpsStats {
   deviceTotal?: number;
@@ -809,16 +810,16 @@ onMounted(() => load({ silent: true }));
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .no-perm {
   color: var(--el-text-color-placeholder);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .zone-row {
   margin-top: 12px;
@@ -835,11 +836,11 @@ onMounted(() => load({ silent: true }));
 }
 .zone-title {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--admin-font-size-menu);
 }
 .zone-hint {
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .zone-links {
@@ -858,7 +859,7 @@ onMounted(() => load({ silent: true }));
   border-radius: var(--radius-tag);
   padding: 8px 10px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--layout-text);
 }
 .zone-link:hover {
@@ -868,11 +869,11 @@ onMounted(() => load({ silent: true }));
   color: var(--danger);
 }
 .zone-link strong {
-  font-size: 16px;
+  font-size: var(--font-size-lg, 16px);
 }
 .zone-empty {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .zone-extra {
@@ -916,18 +917,18 @@ onMounted(() => load({ silent: true }));
   color: var(--danger);
 }
 .stat-label {
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--layout-muted);
 }
 .stat-value {
-  font-size: 26px;
+  font-size: var(--admin-font-size-display-xl);
   font-weight: 700;
   margin-top: 6px;
   line-height: 1.2;
   color: var(--layout-text);
 }
 .stat-hint {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--layout-muted);
   margin-top: 8px;
 }
@@ -967,10 +968,10 @@ onMounted(() => load({ silent: true }));
 }
 .quick-label {
   color: var(--layout-muted);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .quick-value {
-  font-size: 24px;
+  font-size: var(--admin-font-size-display-lg);
   font-weight: 700;
   margin-top: 6px;
   line-height: 1.15;
@@ -979,7 +980,7 @@ onMounted(() => load({ silent: true }));
 .empty-quick {
   margin: 0 0 12px;
   color: var(--layout-muted);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .table-toolbar {
   display: flex;
@@ -990,7 +991,7 @@ onMounted(() => load({ silent: true }));
   margin: 8px 0 12px;
 }
 .table-meta {
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--layout-muted);
 }
 .action-table :deep(th.col-text > .cell),

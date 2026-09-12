@@ -14,7 +14,7 @@
         <text class="field-label">问题类型</text>
         <view class="issue-grid">
           <view
-            v-for="item in issueOptions"
+            v-for="item in issueOptions" role="button"
             :key="item.value"
             class="issue-chip"
             :class="{ active: issueType === item.value }"
@@ -49,23 +49,17 @@
         <text class="tip-body"
           >提交后运营通常在营业时间内跟进；紧急情况可拨打帮助中心客服热线。</text
         >
-        <text class="tip-link" @click="goHelp">查看帮助中心 ›</text>
+        <text role="button" class="tip-link app-link-chevron" @click="goHelp">查看帮助中心</text>
       </view>
 
-      <!-- 提交区独立：用 view+role=button，保证 H5 a11y 树可点（OBS-005） -->
       <view class="submit-bar">
-        <view
-          class="btn-primary"
-          role="button"
-          tabindex="0"
+        <app-button
           aria-label="提交报修"
-          :aria-disabled="submitting ? 'true' : 'false'"
-          hover-class="btn-hover"
-          @tap.stop="onSubmit"
-          @click.stop="onSubmit"
-        >
-          <text class="btn-primary-text">{{ submitting ? '提交中…' : '提交报修' }}</text>
-        </view>
+          :loading="submitting"
+          :disabled="submitting"
+          :label="submitting ? '提交中…' : '提交报修'"
+          @click="onSubmit"
+        />
         <text v-if="err" class="err">{{ err }}</text>
       </view>
     </view>
@@ -74,6 +68,9 @@
 
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app';
+import {
+  showSuccess
+} from '@/utils/notify';
 import { computed, ref } from 'vue';
 import { dictOptions } from '@aicabinet/shared-dict';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
@@ -138,7 +135,7 @@ function onSubmit() {
         issueType: issueType.value,
         description: descParts.filter(Boolean).join('\n') || undefined
       });
-      uni.showToast({ title: res.message || '已提交', icon: 'success' });
+      showSuccess(res.message || '已提交');
       setTimeout(() => uni.navigateBack(), 800);
     } catch (e) {
       err.value = e instanceof Error ? e.message : '提交失败';
@@ -152,7 +149,7 @@ function onSubmit() {
 <style scoped>
 .page {
   min-height: 100%;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   padding: 0;
   box-sizing: border-box;
 }
@@ -164,34 +161,34 @@ function onSubmit() {
   padding: 16rpx 8rpx 24rpx;
 }
 .hero-title {
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
   font-weight: 700;
-  color: #191919;
+  color: var(--color-text-primary);
   display: block;
 }
 .hero-sub {
-  font-size: 26rpx;
-  color: #888;
+  font-size: var(--font-size-body);
+  color: var(--text-subtle, #888);
   margin-top: 8rpx;
   display: block;
 }
 .card {
-  background: #fff;
-  border-radius: 24rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card);
   padding: 32rpx;
 }
 .field-label {
-  font-size: 26rpx;
-  color: #666;
+  font-size: var(--font-size-body);
+  color: var(--text-muted, #666);
   display: block;
   margin-bottom: 12rpx;
   margin-top: 8rpx;
 }
 .input {
-  background: #f5f7f8;
-  border-radius: 12rpx;
+  background: var(--page-bg, #f5f7f8);
+  border-radius: var(--radius-control);
   padding: 22rpx 24rpx;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   margin-bottom: 16rpx;
 }
 .issue-grid {
@@ -202,57 +199,57 @@ function onSubmit() {
 }
 .issue-chip {
   padding: 14rpx 24rpx;
-  border-radius: 32rpx;
-  background: #f5f7f8;
-  font-size: 26rpx;
-  color: #666;
+  border-radius: var(--radius-card);
+  background: var(--page-bg, #f5f7f8);
+  font-size: var(--font-size-body);
+  color: var(--text-muted, #666);
 }
 .issue-chip.active {
-  background: #e8f8ef;
-  color: #047857;
+  background: var(--brand-soft, #e8f8ef);
+  color: var(--brand);
   font-weight: 600;
 }
 .textarea {
   width: 100%;
   min-height: 160rpx;
-  background: #f5f7f8;
-  border-radius: 12rpx;
+  background: var(--page-bg, #f5f7f8);
+  border-radius: var(--radius-control);
   padding: 20rpx 24rpx;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   box-sizing: border-box;
   margin-bottom: 8rpx;
 }
 .counter {
   display: block;
   text-align: right;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
   margin-bottom: 20rpx;
 }
 .tip-card {
   margin-top: 8rpx;
   padding: 24rpx;
-  border-radius: 20rpx;
-  background: #f8fafc;
+  border-radius: var(--radius-card);
+  background: var(--page-bg, #f8fafc);
 }
 .tip-title {
   display: block;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 650;
-  color: #1e293b;
+  color: var(--text-primary, #1e293b);
 }
 .tip-body {
   display: block;
   margin-top: 8rpx;
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
   line-height: 1.5;
 }
 .tip-link {
   display: block;
   margin-top: 12rpx;
-  font-size: 24rpx;
-  color: #059669;
+  font-size: var(--font-size-caption);
+  color: var(--brand);
   font-weight: 600;
 }
 .submit-bar {
@@ -261,43 +258,18 @@ function onSubmit() {
   position: relative;
   z-index: 2;
 }
-.btn-primary {
-  margin: 0;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  background: linear-gradient(135deg, #047857, #059669);
+.app-btn-text {
   color: #fff;
-  border-radius: 44rpx;
-  font-size: 32rpx;
-  font-weight: 600;
-  line-height: 1.2;
-  min-height: 88rpx;
-  height: 88rpx;
-  border: none;
-  box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
-  position: relative;
-  z-index: 3;
-  pointer-events: auto;
-  box-sizing: border-box;
-}
-.btn-primary-text {
-  color: #fff;
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 600;
   pointer-events: none;
-}
-.btn-primary::after {
-  border: none;
 }
 .btn-hover {
   opacity: 0.85;
 }
 .err {
-  color: #fa5151;
-  font-size: 26rpx;
+  color: var(--color-danger);
+  font-size: var(--font-size-body);
   display: block;
   margin-top: 16rpx;
   text-align: center;

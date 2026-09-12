@@ -1,14 +1,14 @@
-﻿<template>
+<template>
   <view class="page-root">
     <app-nav-bar title="积分兑换" />
     <view class="page-body">
-      <view class="balance-bar" @click="goPoints">
+      <view role="button" class="balance-bar" @click="goPoints">
         <text class="balance-label">我的积分</text>
         <text class="balance-value">{{ summary?.availablePoints ?? 0 }}</text>
-        <text class="balance-action">明细 ›</text>
+        <text class="balance-action app-link-chevron">明细</text>
       </view>
 
-      <view v-if="loading && !items.length" class="loading"><text>加载中…</text></view>
+      <view v-if="loading && !items.length" class="loading"><text>{{ UI_COPY.loading }}</text></view>
       <view v-else-if="!items.length" class="empty">
         <text class="empty-title">暂无兑换商品</text>
         <text class="empty-hint">运营上架积分兑换后即可兑换优惠券</text>
@@ -60,9 +60,15 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import {
+  showError,
+  showSuccess,
+  showConfirm
+} from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
 import {
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
   consumerApi,
   ensureConsumerAuth,
   type MemberPointsSummaryDto,
@@ -91,7 +97,7 @@ async function load() {
     summary.value = s;
     items.value = list;
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '加载失败');
   } finally {
     loading.value = false;
   }
@@ -107,31 +113,27 @@ function deviceScopeText(scope?: string) {
 async function redeem(item: PointsRedeemItemDto) {
   if (redeeming.value) return;
   if (item.availableStock <= 0) {
-    uni.showToast({ title: '已兑完', icon: 'none' });
+    showError('已兑完');
     return;
   }
   if ((summary.value?.availablePoints ?? 0) < item.pointsCost) {
-    uni.showToast({ title: '积分不足', icon: 'none' });
+    showError('积分不足');
     return;
   }
-  const confirmed = await new Promise<boolean>((resolve) =>
-    uni.showModal({
-      title: '确认兑换',
-      content: `将消耗 ${item.pointsCost} 积分兑换「${item.title}」，兑换后发放至我的优惠券。`,
-      confirmText: '确认兑换',
-      success: (res) => resolve(!!res.confirm),
-      fail: () => resolve(false)
-    })
-  );
+  const confirmed = await showConfirm({
+    title: '确认兑换',
+    content: `将消耗 ${item.pointsCost} 积分兑换「${item.title}」，兑换后发放至我的优惠券。`,
+    confirmText: '确认兑换'
+  });
   if (!confirmed) return;
 
   redeeming.value = item.itemId;
   try {
     await consumerApi.redeemPoints(item.itemId);
-    uni.showToast({ title: '兑换成功，已放入我的券', icon: 'success' });
+    showSuccess('兑换成功，已放入我的券');
     await load();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '兑换失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '兑换失败');
   } finally {
     redeeming.value = null;
   }
@@ -146,7 +148,7 @@ function goPoints() {
 .page-root {
   min-height: 100%;
   padding: 0;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   box-sizing: border-box;
 }
 .page-body {
@@ -160,34 +162,34 @@ function goPoints() {
   justify-content: center;
   gap: 8rpx;
   padding: 26rpx 28rpx;
-  border-radius: 24rpx;
-  color: #14201b;
-  background: linear-gradient(135deg, #ecfdf5, #fff);
-  border: 1rpx solid #d1fae5;
+  border-radius: var(--radius-card);
+  color: var(--text-primary, #14201b);
+  background: linear-gradient(135deg, var(--brand-soft), #fff);
+  border: 1rpx solid var(--brand-soft, #d1fae5);
   text-align: center;
   position: relative;
 }
 .balance-label {
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
   text-align: center;
 }
 .balance-value {
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
   font-weight: 800;
-  color: #047857;
+  color: var(--brand);
   text-align: center;
 }
 .balance-action {
   margin-left: 0;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #059669;
+  font-size: var(--font-size-sm);
+  color: var(--brand);
 }
 .loading {
   padding: 120rpx 0;
   text-align: center;
-  color: #8a968e;
+  color: var(--text-muted, #8a968e);
 }
 .empty {
   padding: 120rpx 0;
@@ -195,14 +197,14 @@ function goPoints() {
 }
 .empty-title {
   display: block;
-  font-size: 28rpx;
-  color: #4b5563;
+  font-size: var(--font-size-md);
+  color: var(--text-muted, #4b5563);
 }
 .empty-hint {
   display: block;
   margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #9aa4a0;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle, #9aa4a0);
 }
 .item-card {
   display: flex;
@@ -211,8 +213,8 @@ function goPoints() {
   gap: 16rpx;
   margin-top: 20rpx;
   padding: 24rpx;
-  border-radius: 24rpx;
-  background: #fff;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
 }
 .item-main {
   display: flex;
@@ -227,33 +229,33 @@ function goPoints() {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 20rpx;
-  background: #f0fdf4;
-  font-size: 44rpx;
+  border-radius: var(--radius-card);
+  background: var(--brand-soft, #f0fdf4);
+  font-size: var(--font-size-h1);
 }
 .item-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 700;
-  color: #1f2a24;
+  color: var(--text-primary, #1f2a24);
 }
 .item-subtitle {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #8a968e;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #8a968e);
 }
 .item-coupon {
   display: block;
   margin-top: 4rpx;
-  font-size: 20rpx;
-  color: #64748b;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
 }
 .item-stock {
   display: block;
   margin-top: 4rpx;
-  font-size: 20rpx;
-  color: #059669;
+  font-size: var(--font-size-xs);
+  color: var(--brand);
 }
 .item-side {
   display: flex;
@@ -262,19 +264,19 @@ function goPoints() {
   gap: 12rpx;
 }
 .item-cost {
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   font-weight: 700;
-  color: #d97706;
+  color: var(--warning, #d97706);
 }
 .redeem-btn {
   margin: 0;
   padding: 0 28rpx;
   height: 60rpx;
   line-height: 60rpx;
-  border-radius: 999rpx;
-  font-size: 24rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-caption);
   color: #fff;
-  background: #047857;
+  background: var(--brand);
 }
 .redeem-btn.disabled {
   background: #c7d1cb;

@@ -182,7 +182,6 @@
     <el-dialog
       v-model="aliyunVisible"
       :title="aliyunForm.categoryId ? '编辑阿里云映射' : '新增阿里云映射'"
-      width="440px"
       destroy-on-close
     >
       <el-form label-position="top">
@@ -215,7 +214,6 @@
     <el-dialog
       v-model="dialogVisible"
       :title="creating ? '新增识别映射' : '编辑识别映射'"
-      width="480px"
       destroy-on-close
     >
       <el-form label-width="100px">
@@ -617,11 +615,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {

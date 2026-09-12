@@ -251,18 +251,18 @@ function barHeight(orders: number) {
   text-align: center;
 }
 .kpi-n {
-  font-size: 24px;
+  font-size: var(--admin-font-size-display-lg);
   font-weight: 700;
   color: var(--el-color-primary);
 }
 .kpi-l {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .section-title {
   margin: 16px 0 10px;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
   font-weight: 600;
 }
 .section-title--inline {
@@ -324,7 +324,7 @@ function barHeight(orders: number) {
   flex-wrap: wrap;
 }
 .legend {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
 .dot {
@@ -376,24 +376,24 @@ function barHeight(orders: number) {
   background: #f9fafb;
 }
 .slot-code {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   font-weight: 700;
 }
 .slot-sku {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   color: #334155;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .slot-qty {
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   font-weight: 700;
   color: #0f172a;
   font-variant-numeric: tabular-nums;
 }
 .muted {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 </style>

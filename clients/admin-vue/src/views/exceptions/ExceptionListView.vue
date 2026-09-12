@@ -339,7 +339,7 @@
                 description="无关联会话"
                 :image-size="72"
               />
-              <div v-else-if="videoLoading" class="video-loading">录像加载中…</div>
+              <div v-else-if="videoLoading" class="video-loading">录像{{ UI_COPY.loading }}</div>
               <div v-else class="video-loading muted">尚未加载录像</div>
               <div v-if="detail.exception.sessionId" class="drawer-actions drawer-actions--tight">
                 <el-button
@@ -601,6 +601,7 @@ import type { PageResult } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const route = useRoute();
 const router = useRouter();
@@ -1471,11 +1472,11 @@ onMounted(async () => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {
@@ -1518,7 +1519,7 @@ onMounted(async () => {
 }
 .sla-meta {
   color: var(--el-text-color-secondary);
-  font-size: 11px;
+  font-size: var(--admin-font-size-xs);
   text-align: center;
 }
 .sla-meta.danger {
@@ -1547,7 +1548,7 @@ onMounted(async () => {
   min-width: 0;
 }
 .items-title {
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   font-weight: 600;
   margin: 0 0 8px;
   color: var(--layout-text);
@@ -1556,7 +1557,7 @@ onMounted(async () => {
   padding: 24px 0;
   text-align: center;
   color: var(--el-text-color-secondary);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
 }
 .suggest-alert {
   margin: 8px 0 12px;
@@ -1585,7 +1586,7 @@ onMounted(async () => {
 }
 .section-title {
   margin: 16px 0 8px;
-  font-size: 14px;
+  font-size: var(--admin-font-size-menu);
   color: var(--layout-text);
 }
 .action-detail {

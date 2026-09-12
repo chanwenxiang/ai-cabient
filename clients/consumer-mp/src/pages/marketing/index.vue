@@ -9,30 +9,30 @@
           autoplay
           :interval="4200"
           indicator-dots
-          indicator-active-color="#059669"
+          indicator-active-color="var(--brand)"
         >
           <swiper-item v-for="b in banners" :key="b.id">
-            <view class="banner-card" :class="'tone-' + b.tone" @click="openPath(b.ctaPath)">
+            <view role="button" class="banner-card" :class="'tone-' + b.tone" @click="openPath(b.ctaPath)">
               <view class="banner-copy">
                 <text class="banner-title">{{ b.title }}</text>
                 <text class="banner-sub">{{ b.subtitle }}</text>
-                <text class="banner-cta">立即查看 ›</text>
+                <text class="banner-cta app-link-chevron">立即查看</text>
               </view>
               <image class="banner-mark" :src="menuIcon('gift')" mode="aspectFit" />
             </view>
           </swiper-item>
         </swiper>
 
-        <view class="entry" @click="goCoupons">
+        <view role="button" class="entry" @click="goCoupons">
           <view>
             <text class="entry-title">我的优惠券</text>
             <text class="entry-sub">{{ couponEntrySub }}</text>
           </view>
-          <text class="entry-arrow">›</text>
+          <view class="entry-arrow app-icon app-icon--chevron" aria-hidden="true" />
         </view>
 
         <view class="section-title">进行中</view>
-        <view v-if="loading && !campaigns.length" class="empty">加载中…</view>
+        <view v-if="loading && !campaigns.length" class="empty">{{ UI_COPY.loading }}</view>
         <view v-else-if="!campaigns.length" class="market-empty">
           <empty-state
             icon="/static/menu/hot.png"
@@ -41,17 +41,12 @@
           />
           <!-- 按钮放在页面层，与 banner/entry 同一包含块，避免自定义组件内 width:100% 撑出 page-body -->
           <view class="market-actions">
-            <!-- 用 view 而非原生 button：微信里 button 的 width:100% 常按页面宽度算，会比上方卡片更宽 -->
-            <view class="empty-btn primary btn-block" hover-class="btn-hover" @click="goShop"
-              >扫码购物</view
-            >
-            <view class="empty-btn ghost btn-block" hover-class="btn-hover" @click="goCoupons"
-              >去领券</view
-            >
+            <app-button label="扫码购物" @click="goShop" />
+            <app-button variant="ghost" label="去领券" @click="goCoupons" />
           </view>
         </view>
         <view v-else>
-          <view v-for="c in campaigns" :key="c.id" class="campaign" @click="onCampaignClick(c)">
+          <view v-for="c in campaigns" role="button" :key="c.id" class="campaign" @click="onCampaignClick(c)">
             <view class="campaign-badge" :class="'tone-' + c.coverColor">{{ c.typeLabel }}</view>
             <text class="campaign-title">{{ c.title }}</text>
             <text class="campaign-desc">{{ c.description }}</text>
@@ -63,10 +58,10 @@
                 }}</text>
               </view>
               <text
-                class="campaign-cta"
+                class="campaign-cta app-link-chevron"
                 :class="{ muted: c.claimed || !c.claimable || claimingId === c.id }"
               >
-                {{ claimingId === c.id ? '领取中…' : displayCta(c) }} ›
+                {{ claimingId === c.id ? '领取中…' : displayCta(c) }}
               </text>
             </view>
           </view>
@@ -78,6 +73,10 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import {
+  showError,
+  showSuccess
+} from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import {
   consumerApi,
@@ -87,6 +86,7 @@ import {
   type MarketingCampaignDto
 } from '@/utils/consumer-api';
 import { menuIcon } from '@/utils/menu-icon';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const banners = ref<MarketingBannerDto[]>([]);
 const campaigns = ref<MarketingCampaignDto[]>([]);
@@ -139,7 +139,7 @@ async function load() {
       banners.value = [];
       campaigns.value = [];
     }
-    uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '加载失败');
   } finally {
     loading.value = false;
   }
@@ -150,7 +150,7 @@ function openPath(path?: string) {
   const raw = String(path).trim();
   // 仅允许本小程序页面路径，禁止外链 / 协议跳转
   if (!raw.startsWith('/pages/') || /[\s\\]/.test(raw) || raw.includes('://')) {
-    uni.showToast({ title: '活动链接无效', icon: 'none' });
+    showError('活动链接无效');
     return;
   }
   const pathOnly = raw.split('?')[0] || raw;
@@ -177,7 +177,7 @@ function displayCta(c: MarketingCampaignDto) {
 async function onCampaignClick(c: MarketingCampaignDto) {
   if (!c?.id) return;
   if (String(c.type || '').toUpperCase() === 'POINTS') {
-    uni.showToast({ title: '该活动类型已下线', icon: 'none' });
+    showError('该活动类型已下线');
     return;
   }
   if (c.claimed || c.claimable === false) {
@@ -190,7 +190,7 @@ async function onCampaignClick(c: MarketingCampaignDto) {
   try {
     const coupon = await consumerApi.claimCampaign(c.id);
     const name = coupon?.couponName || '优惠券';
-    uni.showToast({ title: `已领取 ${name}`, icon: 'success' });
+    showSuccess(`已领取 ${name}`);
     c.claimed = true;
     c.claimable = false;
     c.ctaLabel = '查看券包';
@@ -202,7 +202,7 @@ async function onCampaignClick(c: MarketingCampaignDto) {
     setTimeout(() => openPath(c.ctaPath || '/pages/coupons/coupons'), 400);
   } catch (e) {
     const msg = e instanceof Error ? e.message : '领取失败';
-    uni.showToast({ title: msg, icon: 'none' });
+    showError(msg);
     if (String(msg).includes('已领取')) {
       c.claimed = true;
       c.claimable = false;
@@ -246,7 +246,7 @@ function remainText(end?: string) {
   height: 100%;
   min-height: 100%;
   padding: 0;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   box-sizing: border-box;
   overflow: hidden;
   display: flex;
@@ -286,16 +286,16 @@ function remainText(end?: string) {
   height: 100%;
   margin: 0;
   padding: 36rpx 28rpx;
-  border-radius: 24rpx;
+  border-radius: var(--radius-card);
   display: flex;
   justify-content: space-between;
   align-items: center;
   color: #fff;
-  background: linear-gradient(135deg, #064e3b, #059669);
+  background: linear-gradient(135deg, var(--brand-deep), var(--brand));
   box-sizing: border-box;
 }
 .banner-card.tone-amber {
-  background: linear-gradient(135deg, #92400e, #f59e0b);
+  background: linear-gradient(135deg, var(--warning, #92400e), var(--warning, #f59e0b));
 }
 .banner-card.tone-sky {
   background: linear-gradient(135deg, #0c4a6e, #0ea5e9);
@@ -304,17 +304,17 @@ function remainText(end?: string) {
   background: linear-gradient(135deg, #9f1239, #fb7185);
 }
 .banner-card.tone-mint {
-  background: linear-gradient(135deg, #064e3b, #10b981);
+  background: linear-gradient(135deg, var(--brand-deep), #10b981);
 }
 .banner-title {
   display: block;
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
   font-weight: 800;
 }
 .banner-sub {
   display: block;
   margin-top: 10rpx;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   opacity: 0.9;
   max-width: 420rpx;
 }
@@ -325,20 +325,20 @@ function remainText(end?: string) {
   margin-top: 22rpx;
   padding: 8rpx 18rpx;
   min-height: 48rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.2);
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
 }
 .banner-mark {
   width: 96rpx;
   height: 96rpx;
-  border-radius: 28rpx;
+  border-radius: var(--radius-card);
   background: rgba(6, 78, 59, 0.55);
   border: 2rpx solid rgba(255, 255, 255, 0.28);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
   font-weight: 800;
   color: #fff;
 }
@@ -349,45 +349,48 @@ function remainText(end?: string) {
   align-items: center;
   padding: 28rpx 24rpx;
   margin: 0 0 16rpx;
-  border-radius: 24rpx;
-  background: #fff;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
   box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
 }
 .entry.mint {
-  background: linear-gradient(90deg, #fff, #ecfdf5);
-  border: 1rpx solid #d1fae5;
+  background: linear-gradient(90deg, #fff, var(--brand-soft));
+  border: 1rpx solid var(--brand-soft, #d1fae5);
 }
 .entry-title {
   display: block;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 700;
-  color: #1b3027;
+  color: var(--text-primary, #1b3027);
 }
 .entry-sub {
   display: block;
   margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #849087;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #849087);
 }
 .entry-arrow {
-  font-size: 36rpx;
-  color: #cbd5e1;
+  color: var(--text-subtle, #cbd5e1);
+  flex-shrink: 0;
+  width: 0.55em;
+  height: 0.55em;
+  font-size: var(--font-size-lg);
 }
 
 .section-title {
   margin: 18rpx 0 14rpx;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 750;
-  color: #1b3027;
+  color: var(--text-primary, #1b3027);
 }
 .campaign {
   padding: 26rpx 24rpx;
   margin-bottom: 16rpx;
-  border-radius: 22rpx;
-  background: #fff;
+  border-radius: var(--radius-card);
+  background: var(--card-bg, #fff);
   box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
 }
 .campaign-badge {
@@ -395,14 +398,14 @@ function remainText(end?: string) {
   align-items: center;
   gap: 6rpx;
   padding: 6rpx 14rpx;
-  border-radius: 999rpx;
-  font-size: 22rpx;
-  color: #065f46;
-  background: #d1fae5;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
+  color: var(--brand-deep, #065f46);
+  background: var(--brand-soft, #d1fae5);
 }
 .campaign-badge.tone-amber {
-  color: #92400e;
-  background: #fef3c7;
+  color: var(--warning, #92400e);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
 }
 .campaign-badge.tone-sky {
   color: #075985;
@@ -415,15 +418,15 @@ function remainText(end?: string) {
 .campaign-title {
   display: block;
   margin-top: 14rpx;
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 750;
-  color: #1b3027;
+  color: var(--text-primary, #1b3027);
 }
 .campaign-desc {
   display: block;
   margin-top: 8rpx;
-  font-size: 24rpx;
-  color: #849087;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #849087);
   line-height: 1.5;
 }
 .campaign-foot {
@@ -440,26 +443,26 @@ function remainText(end?: string) {
   min-width: 0;
 }
 .campaign-time {
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 .campaign-remain {
-  font-size: 20rpx;
-  color: #b45309;
+  font-size: var(--font-size-xs);
+  color: var(--warning, #b45309);
   font-weight: 600;
 }
 .campaign-cta {
-  font-size: 24rpx;
-  color: #059669;
+  font-size: var(--font-size-caption);
+  color: var(--brand);
   font-weight: 700;
 }
 .campaign-cta.muted {
-  color: #94a3b8;
+  color: var(--text-subtle);
 }
 .empty {
   text-align: center;
   padding: 60rpx 0;
-  color: #999;
+  color: var(--text-subtle, #999);
 }
 .market-empty {
   width: 100%;
@@ -475,14 +478,11 @@ function remainText(end?: string) {
   box-sizing: border-box;
   margin-top: 8rpx;
 }
-.market-actions .empty-btn + .empty-btn {
+.market-actions .app-btn + .app-btn {
   margin-top: 24rpx !important;
 }
-/* 高度/通栏由 App.vue 统一（微信 88rpx 触控） */
-.empty-btn::after {
-  border: none;
-}
-.market-actions .empty-btn {
+/* 高度/通栏由 App.vue / AppButton 统一（微信 88rpx 触控） */
+.market-actions .app-btn {
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;

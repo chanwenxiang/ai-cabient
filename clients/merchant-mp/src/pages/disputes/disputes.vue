@@ -4,7 +4,7 @@
     <view class="page-body">
       <view class="tabs-pill">
         <text
-          v-for="t in tabs"
+          v-for="t in tabs" role="button"
           :key="t.key"
           class="filter-chip"
           :class="{ active: activeTab === t.key }"
@@ -13,7 +13,7 @@
         >
       </view>
 
-      <view v-if="loading && !list.length" class="loading"><text>加载中…</text></view>
+      <view v-if="loading && !list.length" class="loading"><text>{{ UI_COPY.loading }}</text></view>
       <error-state v-else-if="error && !list.length" :title="error" @retry="load" />
       <empty-state
         v-else-if="!list.length"
@@ -78,10 +78,10 @@
             ><text>{{ item.lastMessage }}</text></view
           >
           <view class="card-action">
-            <text v-if="canReplyTicket(item)" class="reply-hint" @click.stop="onReply(item)"
-              >回复 ›</text
+            <text v-if="canReplyTicket(item)" role="button" class="reply-hint app-link-chevron" @click.stop="onReply(item)"
+              >回复</text
             >
-            <text v-else class="reply-hint">查看详情 ›</text>
+            <text v-else class="reply-hint app-link-chevron">查看详情</text>
           </view>
         </view>
         <view v-if="hasMore" class="load-more" role="button" @click="loadMore">
@@ -92,7 +92,7 @@
 
       <!-- 争议详情底部抽屉：替代 uni.showModal 长文本，小屏可滚动 -->
       <view
-        v-if="detailVisible"
+        v-if="detailVisible" role="button" aria-label="关闭"
         class="detail-mask"
         @click.self="detailVisible = false"
         @touchmove.stop.prevent
@@ -188,49 +188,53 @@
             </view>
           </scroll-view>
           <view class="detail-actions">
-            <button
+            <app-button
               v-if="canResolveDetail && !detail?.assignee"
-              class="primary-btn"
               :loading="claiming"
+              label="认领工单"
               @click="claimFromDetail"
-            >
-              认领工单
-            </button>
-            <button v-if="canReplyDetail" class="primary-btn" @click="replyFromDetail">回复</button>
-            <button
+            />
+            <app-button v-if="canReplyDetail" label="回复" @click="replyFromDetail" />
+            <app-button
               v-if="canResolveDetail"
-              class="primary-btn waive"
+              variant="danger"
               :loading="resolving"
+              :label="displayLabel('dispute_resolution', 'WAIVE')"
               @click="resolveFromDetail('WAIVE')"
-            >
-              {{ displayLabel('dispute_resolution', 'WAIVE') }}
-            </button>
-            <button
+            />
+            <app-button
               v-if="canResolveDetail"
-              class="btn-outline"
+              variant="outline"
+              :label="moreActionsOpen ? '收起' : '更多'"
               @click="moreActionsOpen = !moreActionsOpen"
-            >
-              {{ moreActionsOpen ? '收起' : '更多' }}
-            </button>
+            />
             <template v-if="canResolveDetail && moreActionsOpen">
-              <button class="btn-outline" :loading="resolving" @click="resolveFromDetail('KEEP')">
-                {{ displayLabel('dispute_resolution', 'KEEP') }}
-              </button>
-              <button
-                class="btn-outline"
+              <app-button
+                variant="outline"
                 :loading="resolving"
+                :label="displayLabel('dispute_resolution', 'KEEP')"
+                @click="resolveFromDetail('KEEP')"
+              />
+              <app-button
+                variant="outline"
+                :loading="resolving"
+                :label="displayLabel('dispute_resolution', 'CONFIRM')"
                 @click="resolveFromDetail('CONFIRM')"
-              >
-                {{ displayLabel('dispute_resolution', 'CONFIRM') }}
-              </button>
+              />
             </template>
-            <button v-if="detail?.orderId" class="btn-outline" @click="goOrderFromDetail">
-              查看订单
-            </button>
-            <button v-else-if="detail?.deviceId" class="btn-outline" @click="goDeviceFromDetail">
-              查看柜机
-            </button>
-            <button class="btn-outline" @click="detailVisible = false">关闭</button>
+            <app-button
+              v-if="detail?.orderId"
+              variant="outline"
+              label="查看订单"
+              @click="goOrderFromDetail"
+            />
+            <app-button
+              v-else-if="detail?.deviceId"
+              variant="outline"
+              label="查看柜机"
+              @click="goDeviceFromDetail"
+            />
+            <app-button variant="ghost" label="关闭" @click="detailVisible = false" />
           </view>
         </view>
       </view>
@@ -240,6 +244,11 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import {
+  showError,
+  showSuccess,
+  showConfirm
+} from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
@@ -254,6 +263,7 @@ import {
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { promptText } from '@/utils/text-prompt';
 import type { MerchantMe } from '@aicabinet/shared-types';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canListDisputes = computed(() => hasPerm(me.value, 'merchant:disputes:list'));
@@ -343,7 +353,7 @@ function applyDisputesResponse(
 }
 
 function denyDisputesAccess() {
-  uni.showToast({ title: '无争议权限', icon: 'none' });
+  showError('无争议权限');
   uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
 }
 
@@ -458,13 +468,10 @@ async function claimFromDetail() {
   try {
     const ticket = await merchantApi.disputeClaim(detail.value.ticketId);
     detail.value = { ...detail.value, ...ticket };
-    uni.showToast({ title: '已认领', icon: 'success' });
+    showSuccess('已认领');
     await load();
   } catch (e) {
-    uni.showToast({
-      title: e instanceof Error ? e.message : '认领失败',
-      icon: 'none'
-    });
+    showError(e instanceof Error ? e.message : '认领失败');
   } finally {
     claiming.value = false;
   }
@@ -477,16 +484,12 @@ async function resolveFromDetail(type: 'KEEP' | 'WAIVE' | 'CONFIRM') {
     WAIVE: displayLabel('dispute_resolution', 'WAIVE'),
     CONFIRM: displayLabel('dispute_resolution', 'CONFIRM')
   };
-  const ok = await new Promise<boolean>((resolve) => {
-    uni.showModal({
-      title: labels[type],
-      content:
-        type === 'WAIVE'
-          ? '确认免单并原路退款？货已离柜请选「仅退款」逻辑由系统按默认处理。'
-          : `确认${labels[type]}？`,
-      success: (r) => resolve(!!r.confirm),
-      fail: () => resolve(false)
-    });
+  const ok = await showConfirm({
+    title: labels[type],
+    content:
+      type === 'WAIVE'
+        ? '确认免单并原路退款？货已离柜请选「仅退款」逻辑由系统按默认处理。'
+        : `确认${labels[type]}？`
   });
   if (!ok) return;
   resolving.value = true;
@@ -497,17 +500,11 @@ async function resolveFromDetail(type: 'KEEP' | 'WAIVE' | 'CONFIRM') {
     } = { resolutionType: type };
     if (type === 'WAIVE') body.restoreInventory = false;
     const res = await merchantApi.disputeResolve(detail.value.ticketId, body);
-    uni.showToast({
-      title: res.message || displayLabel('dispute_status', 'RESOLVED'),
-      icon: 'success'
-    });
+    showSuccess(res.message || displayLabel('dispute_status', 'RESOLVED'));
     detailVisible.value = false;
     await load();
   } catch (e) {
-    uni.showToast({
-      title: e instanceof Error ? e.message : '结案失败',
-      icon: 'none'
-    });
+    showError(e instanceof Error ? e.message : '结案失败');
   } finally {
     resolving.value = false;
   }
@@ -548,7 +545,7 @@ async function loadMore() {
     listTotal.value = total;
     hasMore.value = list.value.length < total && items.length >= PAGE_SIZE;
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '加载失败');
   } finally {
     loadingMore.value = false;
   }
@@ -566,7 +563,7 @@ function goDeviceFromDetail() {
 
 async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) {
   if (!canReply.value) {
-    uni.showToast({ title: '无回复权限', icon: 'none' });
+    showError('无回复权限');
     return;
   }
   if (!item.ticketId) return;
@@ -582,27 +579,27 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
   if (body == null) return;
   try {
     await merchantApi.disputeReply(item.ticketId, body);
-    uni.showToast({ title: '已回复', icon: 'success' });
+    showSuccess('已回复');
     await load();
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '回复失败', icon: 'none' });
+    showError(e instanceof Error ? e.message : '回复失败');
   }
 }
 </script>
 
 <style scoped>
 .sla-overdue {
-  color: #b91c1c;
+  color: var(--color-danger);
   font-weight: 700;
 }
 .sla-ok {
-  color: #b45309;
+  color: var(--warning, #b45309);
 }
 
 .page-root {
   padding: 0;
 
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   min-height: 100vh;
   box-sizing: border-box;
 }
@@ -610,49 +607,33 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
   margin-bottom: 20rpx;
 }
 .tab.active {
-  color: #0f766e;
+  color: var(--brand);
   font-weight: 600;
-  border-bottom: 4rpx solid #0f766e;
+  border-bottom: 4rpx solid var(--brand);
 }
 .loading,
 .empty {
   text-align: center;
-  color: #999;
+  color: var(--text-subtle, #999);
   padding: 80rpx 0;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
 }
 .err {
-  color: #ef4444;
+  color: var(--color-danger);
   display: block;
   margin-bottom: 20rpx;
 }
-.retry {
-  margin: 0 auto;
-  width: 200rpx;
-  height: 72rpx;
-  line-height: 72rpx;
-  border-radius: 44rpx;
-  background: linear-gradient(135deg, #134e4a, #0f766e);
-  color: #fff;
-  font-size: 26rpx;
-  font-weight: 600;
-  box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
-  border: none;
-}
-.retry::after {
-  border: none;
-}
 .card {
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-panel);
   padding: 24rpx;
   margin-bottom: 16rpx;
-  border: 1rpx solid #e2e8f0;
+  border: 1rpx solid var(--color-border);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 .card-hover {
-  background: #f8fafc !important;
+  background: var(--page-bg, #f8fafc) !important;
 }
 .card-header {
   display: flex;
@@ -671,45 +652,45 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
   justify-content: space-between;
   gap: 12rpx;
   margin-top: 8rpx;
-  font-size: 24rpx;
-  color: #0f766e;
+  font-size: var(--font-size-caption);
+  color: var(--brand);
   font-weight: 600;
 }
 .card-order {
-  color: #64748b;
+  color: var(--text-muted);
   font-weight: 400;
 }
 .card-video-hint {
   margin-top: 6rpx;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: #0369a1;
 }
 .card-id {
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 .card-status {
-  font-size: 22rpx;
-  color: #92400e;
-  background: #fef3c7;
+  font-size: var(--font-size-sm);
+  color: var(--warning, #92400e);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
   padding: 4rpx 12rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
 }
 .card-status.RESOLVED,
 .card-status.resolved {
-  color: #166534;
-  background: #dcfce7;
+  color: var(--brand-deep, #166534);
+  background: var(--brand-soft, #dcfce7);
 }
 .card-status.CLOSED,
 .card-status.closed {
-  color: #475569;
-  background: #e2e8f0;
+  color: var(--text-muted, #475569);
+  background: var(--color-border);
 }
 .card-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -718,16 +699,16 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
   display: flex;
   justify-content: space-between;
   margin-top: 12rpx;
-  font-size: 22rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
 }
 .card-msg {
   margin-top: 12rpx;
   padding: 12rpx;
-  background: #f8fafc;
-  border-radius: 12rpx;
-  font-size: 24rpx;
-  color: #475569;
+  background: var(--page-bg, #f8fafc);
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #475569);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -736,8 +717,8 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
 .card-action {
   margin-top: 12rpx;
   text-align: right;
-  color: #0f766e;
-  font-size: 24rpx;
+  color: var(--brand);
+  font-size: var(--font-size-caption);
 }
 .reply-hint {
   display: inline-block;
@@ -748,15 +729,15 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
 .trunc-hint {
   display: block;
   text-align: center;
-  color: #94a3b8;
-  font-size: 22rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-sm);
   padding: 8rpx 0 24rpx;
 }
 .load-more {
   display: block;
   text-align: center;
   color: var(--brand, #0f766e);
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   font-weight: 600;
   padding: 20rpx 0 8rpx;
 }
@@ -773,8 +754,8 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
   width: 100%;
   max-width: 520px;
   margin: 0 auto;
-  background: #fff;
-  border-radius: 28rpx 28rpx 0 0;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card) 28rpx 0 0;
   padding: 18rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
   max-height: 82vh;
@@ -784,23 +765,23 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
 .detail-handle {
   width: 64rpx;
   height: 8rpx;
-  background: #cbd5e1;
+  background: var(--text-subtle, #cbd5e1);
   border-radius: 4rpx;
   margin: 0 auto 20rpx;
   flex-shrink: 0;
 }
 .detail-title {
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   text-align: center;
   flex-shrink: 0;
 }
 .detail-reason {
   display: block;
   margin-top: 10rpx;
-  font-size: 26rpx;
-  color: #475569;
+  font-size: var(--font-size-body);
+  color: var(--text-muted, #475569);
   line-height: 1.5;
   text-align: center;
   flex-shrink: 0;
@@ -811,30 +792,30 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
   margin-top: 16rpx;
 }
 .detail-rows {
-  border-top: 1rpx solid #f1f5f9;
+  border-top: 1rpx solid var(--color-border-subtle, #f1f5f9);
 }
 .detail-row {
   display: flex;
   justify-content: space-between;
   gap: 20rpx;
   padding: 18rpx 0;
-  border-bottom: 1rpx solid #f1f5f9;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
 }
 .detail-lbl {
-  font-size: 24rpx;
-  color: #94a3b8;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle);
   flex-shrink: 0;
 }
 .detail-val {
-  font-size: 24rpx;
-  color: #1e293b;
+  font-size: var(--font-size-caption);
+  color: var(--text-primary, #1e293b);
   text-align: right;
   word-break: break-all;
   max-width: 70%;
 }
 .detail-val.amount-diff {
-  color: #64748b;
-  font-size: 22rpx;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
   line-height: 1.45;
 }
 .detail-actions {
@@ -845,14 +826,14 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
   margin-top: 20rpx;
   flex-shrink: 0;
 }
-.detail-actions .primary-btn,
+.detail-actions .app-btn,
 .detail-actions .btn-outline {
   margin: 0;
   width: 100%;
   min-height: 80rpx;
   line-height: 1.2;
-  border-radius: 40rpx;
-  font-size: 28rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-md);
   font-weight: 600;
   text-align: center;
   display: flex;
@@ -860,8 +841,8 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
   justify-content: center;
   box-sizing: border-box;
 }
-.detail-actions .primary-btn.waive {
-  background: #dc2626;
+.detail-actions .app-btn.waive {
+  background: var(--color-danger);
   color: #fff;
 }
 .video-block {
@@ -872,15 +853,15 @@ async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) 
 }
 .suggest-row {
   margin-top: 8rpx;
-  font-size: 24rpx;
-  color: #334155;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #334155);
 }
 .dispute-video {
   width: 100%;
   height: 360rpx;
   margin-top: 12rpx;
-  background: #0f172a;
-  border-radius: 12rpx;
+  background: var(--text-primary, #0f172a);
+  border-radius: var(--radius-control);
 }
 .page-body {
   padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));

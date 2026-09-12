@@ -1,10 +1,10 @@
 <template>
   <view class="page">
     <app-nav-bar title="公告详情" />
-    <view v-if="loading && !item" class="state">加载中…</view>
+    <view v-if="loading && !item" class="state">{{ UI_COPY.loading }}</view>
     <view v-else-if="error && !item" class="state">
       <text class="err">{{ error }}</text>
-      <button class="retry" @click="() => load()">重试</button>
+      <app-button label="重试" @click="() => load()" />
     </view>
     <view v-else-if="item" class="article">
       <view class="meta">
@@ -30,6 +30,7 @@
 import { onLoad } from '@dcloudio/uni-app';
 import { useAnnouncementDetail } from '@aicabinet/shared-uni/announcements';
 import { consumerApi } from '@/utils/consumer-api';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const { loading, error, item, load, formatTime, priorityLabel, priorityClass } =
   useAnnouncementDetail((id) => consumerApi.getAnnouncement(id));
@@ -59,7 +60,7 @@ onLoad((query) => {
 .page {
   min-height: 100%;
   padding: 0 0 64rpx;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   box-sizing: border-box;
 }
 .state {
@@ -68,22 +69,22 @@ onLoad((query) => {
   align-items: center;
   gap: 16rpx;
   padding: 80rpx 24rpx;
-  color: #64748b;
-  font-size: 28rpx;
+  color: var(--text-muted);
+  font-size: var(--font-size-md);
 }
 .err {
-  color: #b91c1c;
+  color: var(--color-danger);
   text-align: center;
 }
 .retry {
-  background: var(--brand, #047857);
+  background: var(--brand, #0f766e);
   color: #fff;
   border: none;
 }
 .article {
   margin: 20rpx 24rpx 0;
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-panel);
   padding: 28rpx 24rpx;
 }
 .meta {
@@ -93,33 +94,33 @@ onLoad((query) => {
   margin-bottom: 16rpx;
 }
 .tag {
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   line-height: 1;
   padding: 8rpx 12rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   font-weight: 600;
 }
 .tag.type {
-  color: #047857;
-  background: #ecfdf5;
+  color: var(--brand);
+  background: var(--brand-soft);
 }
 .tag.high {
-  color: #b45309;
-  background: #fef3c7;
+  color: var(--warning, #b45309);
+  background: color-mix(in srgb, var(--warning, #b45309) 14%, #fff);
 }
 .tag.urgent {
-  color: #b91c1c;
-  background: #fee2e2;
+  color: var(--color-danger);
+  background: color-mix(in srgb, var(--danger, #b91c1c) 12%, #fff);
 }
 .time {
-  color: #94a3b8;
-  font-size: 24rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-caption);
 }
 .title {
   display: block;
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
   line-height: 1.35;
   margin-bottom: 16rpx;
 }
@@ -127,18 +128,18 @@ onLoad((query) => {
 .scope {
   display: block;
   margin-bottom: 12rpx;
-  font-size: 24rpx;
-  color: #b45309;
+  font-size: var(--font-size-caption);
+  color: var(--warning, #b45309);
 }
 .scope {
-  color: #64748b;
+  color: var(--text-muted);
 }
 .content {
   display: block;
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 30rpx;
-  color: #334155;
+  font-size: var(--font-size-lg);
+  color: var(--text-muted, #334155);
   line-height: 1.75;
 }
 </style>

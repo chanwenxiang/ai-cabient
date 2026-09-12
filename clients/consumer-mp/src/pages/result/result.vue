@@ -1,11 +1,11 @@
 <template>
   <view class="page-root">
     <app-nav-bar title="账单结果" />
-    <view v-if="loading" class="card"><text class="meta">加载中…</text></view>
+    <view v-if="loading" class="card"><text class="meta">{{ UI_COPY.loading }}</text></view>
     <view v-else-if="error" class="card error-card">
       <text class="err">{{ error }}</text>
-      <button class="action-btn" hover-class="btn-hover" @click="goHome">回首页</button>
-      <button class="ghost-btn" hover-class="btn-hover" @click="goOrders">查看订单</button>
+      <app-button label="回首页" @click="goHome" />
+      <app-button variant="ghost" label="查看订单" @click="goOrders" />
     </view>
     <view v-else-if="order">
       <view class="status-header" :class="'tone-' + statusTone">
@@ -110,17 +110,17 @@
       </view>
 
       <view class="footer-actions">
-        <button class="action-btn" hover-class="btn-hover" @click="continueShop">返回本柜</button>
-        <button class="ghost-btn" hover-class="btn-hover" @click="goOrders">查看订单</button>
+        <app-button label="返回本柜" @click="continueShop" />
+        <app-button variant="ghost" label="查看订单" @click="goOrders" />
 
         <view v-if="sessionId && !disputeFiled && !refundDone" class="secondary-actions">
-          <text class="secondary-link warn" @click="openDispute">账单有问题</text>
+          <text role="button" class="secondary-link warn" @click="openDispute">账单有问题</text>
           <text v-if="canRefundNow" class="secondary-dot">·</text>
-          <text v-if="canRefundNow" class="secondary-link danger" @click="openRefund"
+          <text v-if="canRefundNow" role="button" class="secondary-link danger" @click="openRefund"
             >申请退款</text
           >
           <text class="secondary-dot">·</text>
-          <text class="secondary-link" @click="goHelp">帮助</text>
+          <text role="button" class="secondary-link" @click="goHelp">帮助</text>
         </view>
         <text v-else-if="disputeFiled && !refundDone" class="dispute-done"
           >申诉已提交，请在「订单」查看进度</text
@@ -131,12 +131,12 @@
     <view v-else class="card btn-stack">
       <text class="empty-title">暂无结算结果</text>
       <text class="empty-desc">订单尚未生成或已失效，可回首页继续购物，或到订单列表查看</text>
-      <button class="action-btn" hover-class="btn-hover" @click="goHome">回首页</button>
-      <button class="ghost-btn" hover-class="btn-hover" @click="goOrders">查看订单</button>
+      <app-button label="回首页" @click="goHome" />
+      <app-button variant="ghost" label="查看订单" @click="goOrders" />
     </view>
 
-    <view v-if="showDispute" class="dispute-mask" @click="closeDispute">
-      <view class="dispute-panel" @click.stop>
+    <view v-if="showDispute" role="button" aria-label="关闭" class="dispute-mask" @click="closeDispute">
+      <view role="button" class="dispute-panel" @click.stop>
         <text class="dispute-title">{{ refundMode ? '立即退款' : '账单申诉' }}</text>
         <text class="dispute-sub">
           {{
@@ -147,7 +147,7 @@
         </text>
         <view class="chip-row">
           <text
-            v-for="chip in reasonChips"
+            v-for="chip in reasonChips" role="button"
             :key="chip.label"
             class="reason-chip"
             :class="{ on: selectedCategory === chip.category }"
@@ -192,14 +192,10 @@
             >
           </view>
         </view>
-        <button
-          class="action-btn refund-submit"
-          hover-class="btn-hover"
+        <app-button
           :loading="disputeLoading || refundLoading"
           :disabled="disputeLoading || refundLoading"
-          @click="submitAction"
-        >
-          {{
+          :label="
             refundMode
               ? refundLoading
                 ? '退款中…'
@@ -207,9 +203,10 @@
               : disputeLoading
                 ? '提交中…'
                 : '提交申诉'
-          }}
-        </button>
-        <text class="dispute-cancel" @click="closeDispute">取消</text>
+          "
+          @click="submitAction"
+        />
+        <text role="button" class="dispute-cancel" aria-label="取消申诉" @click="closeDispute">取消</text>
       </view>
     </view>
   </view>
@@ -217,6 +214,11 @@
 
 <script setup lang="ts">
 import { onLoad, onShow } from '@dcloudio/uni-app';
+import {
+  showError,
+  showSuccess,
+  showConfirm
+} from '@/utils/notify';
 import { computed, ref } from 'vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
@@ -231,6 +233,7 @@ import {
 } from '@/utils/dispute-form';
 import { consumerAppealErrorMessage } from '@/utils/dispute-copy';
 import {
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
   pickAndUploadEvidence,
   evidenceFileIds,
   previewEvidenceSrc,
@@ -465,15 +468,11 @@ async function onAddEvidence() {
 }
 
 async function removeEvidence(idx: number) {
-  const confirmed = await new Promise<boolean>((resolve) => {
-    uni.showModal({
-      title: '删除图片',
-      content: '确定删除这张申诉附图吗？',
-      confirmText: '删除',
-      cancelText: '保留',
-      success: (res) => resolve(!!res.confirm),
-      fail: () => resolve(false)
-    });
+  const confirmed = await showConfirm({
+    title: '删除图片',
+    content: '确定删除这张申诉附图吗？',
+    confirmText: '删除',
+    cancelText: '保留'
   });
   if (!confirmed) return;
   evidence.value = removeEvidenceAt(evidence.value, idx);
@@ -487,15 +486,15 @@ async function submitAction() {
 async function submitDispute() {
   const reason = disputeReason.value.trim();
   if (!sessionId) {
-    uni.showToast({ title: '缺少订单信息', icon: 'none' });
+    showError('缺少订单信息');
     return;
   }
   if (reason.length < 4) {
-    uni.showToast({ title: '请至少填写 4 个字', icon: 'none' });
+    showError('请至少填写 4 个字');
     return;
   }
   if (evidence.value.some((e) => e.uploading)) {
-    uni.showToast({ title: '图片仍在上传', icon: 'none' });
+    showError('图片仍在上传');
     return;
   }
   disputeLoading.value = true;
@@ -516,9 +515,9 @@ async function submitDispute() {
     } else if (sessionId) {
       await loadBySession(sessionId);
     }
-    uni.showToast({ title: '申诉已提交', icon: 'success' });
+    showSuccess('申诉已提交');
   } catch (e) {
-    uni.showToast({ title: consumerAppealErrorMessage(e, '提交失败'), icon: 'none' });
+    showError(consumerAppealErrorMessage(e, '提交失败'));
   } finally {
     disputeLoading.value = false;
   }
@@ -528,32 +527,28 @@ async function submitRefund() {
   const oid = order.value?.orderId;
   const reason = disputeReason.value.trim();
   if (!oid) {
-    uni.showToast({ title: '缺少订单编号', icon: 'none' });
+    showError('缺少订单编号');
     return;
   }
   if (reason.length < 4) {
-    uni.showToast({ title: '请至少填写 4 字退款原因', icon: 'none' });
+    showError('请至少填写 4 字退款原因');
     return;
   }
   if (evidence.value.some((e) => e.uploading)) {
-    uni.showToast({ title: '图片仍在上传', icon: 'none' });
+    showError('图片仍在上传');
     return;
   }
   const restoreInventory = inferRestoreInventory(reason, selectedChip.value);
-  const confirmed = await new Promise<boolean>((resolve) =>
-    uni.showModal({
-      title: '确认退款',
-      content:
-        restoreInventory == null
-          ? '将立即退款；是否回库由平台规则判定。是否继续？'
-          : restoreInventory
-            ? '将立即退款，并把本单商品回库（适用于没拿/误识别）。是否继续？'
-            : '将立即退款，但库存不回库（货已拿走/仅退款）。是否继续？',
-      confirmText: '确认退款',
-      success: (r) => resolve(!!r.confirm),
-      fail: () => resolve(false)
-    })
-  );
+  const confirmed = await showConfirm({
+    title: '确认退款',
+    content:
+      restoreInventory == null
+        ? '将立即退款；是否回库由平台规则判定。是否继续？'
+        : restoreInventory
+          ? '将立即退款，并把本单商品回库（适用于没拿/误识别）。是否继续？'
+          : '将立即退款，但库存不回库（货已拿走/仅退款）。是否继续？',
+    confirmText: '确认退款'
+  });
   if (!confirmed) return;
   refundLoading.value = true;
   try {
@@ -566,9 +561,9 @@ async function submitRefund() {
     disputeFiled.value = true;
     showDispute.value = false;
     statusLabel.value = '已退款';
-    uni.showToast({ title: result.message || '退款成功', icon: 'success' });
+    showSuccess(result.message || '退款成功');
   } catch (e) {
-    uni.showToast({ title: consumerAppealErrorMessage(e, '退款失败'), icon: 'none' });
+    showError(consumerAppealErrorMessage(e, '退款失败'));
   } finally {
     refundLoading.value = false;
   }
@@ -599,7 +594,7 @@ function goHelp() {
 <style scoped>
 .page-root {
   min-height: 100%;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   box-sizing: border-box;
 }
 .status-header {
@@ -608,12 +603,12 @@ function goHelp() {
   gap: 20rpx;
   margin: 24rpx 24rpx 0;
   padding: 30rpx;
-  border-radius: 20rpx;
-  background: linear-gradient(135deg, #e8f5e9, #fff);
+  border-radius: var(--radius-card);
+  background: linear-gradient(135deg, var(--brand-soft, #e8f5e9), #fff);
   box-sizing: border-box;
 }
 .status-header.tone-warn {
-  background: linear-gradient(135deg, #fff7ed, #fff);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--warning, #b45309) 8%, #fff), #fff);
 }
 .status-header.tone-refund {
   background: linear-gradient(135deg, #eff6ff, #fff);
@@ -622,23 +617,23 @@ function goHelp() {
   background: linear-gradient(135deg, #fefce8, #fff);
 }
 .status-header.tone-muted {
-  background: linear-gradient(135deg, #f1f5f9, #fff);
+  background: linear-gradient(135deg, var(--color-border-subtle, #f1f5f9), #fff);
 }
 .status-icon {
   width: 64rpx;
   height: 64rpx;
-  border-radius: 32rpx;
-  background: linear-gradient(135deg, #047857, #059669);
+  border-radius: var(--radius-card);
+  background: linear-gradient(135deg, var(--brand), var(--brand));
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   flex-shrink: 0;
 }
 .status-header.tone-warn .status-icon {
-  background: linear-gradient(135deg, #c2410c, #f59e0b);
+  background: linear-gradient(135deg, var(--accent-orange, #c2410c), var(--warning, #f59e0b));
 }
 .status-header.tone-refund .status-icon {
   background: linear-gradient(135deg, #2563eb, #38bdf8);
@@ -647,21 +642,21 @@ function goHelp() {
   background: linear-gradient(135deg, #ca8a04, #eab308);
 }
 .status-header.tone-muted .status-icon {
-  background: linear-gradient(135deg, #64748b, #94a3b8);
+  background: linear-gradient(135deg, var(--text-muted), var(--text-subtle));
 }
 .status-copy {
   flex: 1;
   min-width: 0;
 }
 .status-title {
-  font-size: 32rpx;
+  font-size: var(--font-size-xl);
   font-weight: 700;
-  color: #191919;
+  color: var(--color-text-primary);
   display: block;
 }
 .status-detail {
-  font-size: 24rpx;
-  color: #666;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #666);
   display: block;
   margin-top: 4rpx;
 }
@@ -669,32 +664,32 @@ function goHelp() {
   text-align: center;
   margin: 20rpx 24rpx 18rpx;
   padding: 34rpx;
-  border-radius: 24rpx;
+  border-radius: var(--radius-card);
   box-shadow: none;
-  border: 1rpx solid #edf1ef;
+  border: 1rpx solid var(--color-border-subtle, #edf1ef);
 }
 .amount-label {
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
   display: block;
 }
 .amount {
   font-size: 66rpx;
   font-weight: 800;
-  color: #047857;
+  color: var(--brand);
   letter-spacing: -2rpx;
   display: block;
   margin-top: 4rpx;
 }
 .pay-channel {
-  font-size: 24rpx;
-  color: #64748b;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted);
   display: block;
   margin-top: 12rpx;
 }
 .zero-hint {
-  font-size: 24rpx;
-  color: #888;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle, #888);
   display: block;
   margin-top: 12rpx;
 }
@@ -703,21 +698,21 @@ function goHelp() {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  border-radius: 24rpx;
+  border-radius: var(--radius-card);
 }
 .balance-caption {
   display: block;
-  font-size: 23rpx;
-  color: #888;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle, #888);
 }
 .balance-number {
   display: block;
   margin-top: 6rpx;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   color: #555;
 }
 .balance-number.strong {
-  color: #07c160;
+  color: var(--brand-wx, #07c160);
   font-weight: 700;
 }
 .balance-arrow {
@@ -728,11 +723,11 @@ function goHelp() {
   margin-top: 18rpx;
   padding-top: 14rpx;
   border-top: 1rpx solid #eee;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: #ad6800;
 }
 .section-title {
-  font-size: 29rpx;
+  font-size: var(--font-size-md);
   font-weight: 600;
   color: #26342d;
   display: block;
@@ -744,7 +739,7 @@ function goHelp() {
   align-items: flex-start;
   gap: 16rpx;
   padding: 18rpx 0;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--color-border-subtle, #f1f5f9);
 }
 .line-main {
   flex: 1;
@@ -752,18 +747,18 @@ function goHelp() {
 }
 .line-name {
   display: block;
-  color: #1e293b;
+  color: var(--text-primary, #1e293b);
   font-weight: 600;
 }
 .line-meta,
 .line-unit {
   display: block;
   margin-top: 4rpx;
-  font-size: 22rpx;
-  color: #849087;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted, #849087);
 }
 .line-amt {
-  color: #07c160;
+  color: var(--brand-wx, #07c160);
   font-weight: 600;
   flex-shrink: 0;
 }
@@ -775,28 +770,28 @@ function goHelp() {
   justify-content: space-between;
   gap: 16rpx;
   padding: 12rpx 0;
-  border-bottom: 1px solid #f8fafc;
+  border-bottom: 1px solid var(--page-bg, #f8fafc);
 }
 .info-row:last-child {
   border-bottom: none;
 }
 .info-label {
-  font-size: 24rpx;
-  color: #849087;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #849087);
   flex-shrink: 0;
 }
 .info-value {
-  font-size: 24rpx;
-  color: #334155;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #334155);
   text-align: right;
   word-break: break-all;
 }
 .info-value.warn {
-  color: #b45309;
+  color: var(--warning, #b45309);
 }
 .empty-lines {
-  font-size: 26rpx;
-  color: #888;
+  font-size: var(--font-size-body);
+  color: var(--text-subtle, #888);
 }
 .sum-row {
   display: flex;
@@ -805,26 +800,26 @@ function goHelp() {
   margin-top: 8rpx;
 }
 .sum-row.discount .sum-value {
-  color: #d97706;
+  color: var(--warning, #d97706);
   font-weight: 600;
 }
 .sum-row.points .sum-value {
-  color: #059669;
+  color: var(--brand);
   font-weight: 700;
 }
 .sum-label {
-  font-size: 26rpx;
-  color: #64748b;
+  font-size: var(--font-size-body);
+  color: var(--text-muted);
 }
 .sum-value {
-  font-size: 28rpx;
-  color: #1e293b;
+  font-size: var(--font-size-md);
+  color: var(--text-primary, #1e293b);
   font-weight: 600;
 }
 .coupon-hint {
   display: block;
   margin-top: 8rpx;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   color: #ad6800;
 }
 .footer-actions {
@@ -843,29 +838,29 @@ function goHelp() {
   padding: 12rpx 0 8rpx;
 }
 .secondary-link {
-  font-size: 26rpx;
-  color: #64748b;
+  font-size: var(--font-size-body);
+  color: var(--text-muted);
   padding: 8rpx;
 }
 .secondary-link.warn {
   color: #d48806;
 }
 .secondary-link.danger {
-  color: #ef4444;
+  color: var(--color-danger);
 }
 .secondary-dot {
-  color: #cbd5e1;
-  font-size: 26rpx;
+  color: var(--text-subtle, #cbd5e1);
+  font-size: var(--font-size-body);
 }
 .action-btn {
   margin: 0;
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.2;
-  background: linear-gradient(135deg, #047857, #059669);
+  background: linear-gradient(135deg, var(--brand), var(--brand));
   color: #fff;
-  border-radius: 44rpx;
-  font-size: 32rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xl);
   font-weight: 700;
   box-shadow: 0 10rpx 26rpx rgba(5, 150, 105, 0.22);
   display: flex;
@@ -883,11 +878,11 @@ function goHelp() {
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.2;
-  background: #fff;
+  background: var(--card-bg, #fff);
   color: #53645b;
   border: 1rpx solid #e4ebe7;
-  border-radius: 44rpx;
-  font-size: 30rpx;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-lg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -899,23 +894,23 @@ function goHelp() {
   border: none;
 }
 .ghost-btn.warn {
-  color: #92400e;
+  color: var(--warning, #92400e);
   border: 1rpx solid #ffd591;
-  background: #fffbeb;
+  background: color-mix(in srgb, var(--warning, #b45309) 8%, #fff);
 }
 .ghost-btn.subtle {
-  color: #999;
-  font-size: 28rpx;
+  color: var(--text-subtle, #999);
+  font-size: var(--font-size-md);
 }
 .refund-btn {
   margin: 0;
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.2;
-  background: #dc2626;
+  background: var(--color-danger);
   color: #fff;
-  border-radius: 12rpx;
-  font-size: 30rpx;
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-lg);
   font-weight: 600;
   border: none;
   display: flex;
@@ -929,7 +924,7 @@ function goHelp() {
   border: none;
 }
 .refund-submit {
-  background: #ef4444;
+  background: var(--color-danger);
 }
 .chip-row {
   display: flex;
@@ -939,24 +934,24 @@ function goHelp() {
 }
 .reason-chip {
   padding: 10rpx 18rpx;
-  border-radius: 999rpx;
-  background: #f3f4f6;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-subtle);
   color: #374151;
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   border: 1rpx solid transparent;
 }
 .reason-chip.on {
-  background: #fef2f2;
-  color: #b91c1c;
-  border-color: #fecaca;
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, #fff);
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--danger, #b91c1c) 18%, #fff);
 }
 .evidence-block {
   margin-bottom: 16rpx;
 }
 .evidence-label {
   display: block;
-  font-size: 24rpx;
-  color: #888;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle, #888);
   margin-bottom: 10rpx;
 }
 .evidence-row {
@@ -972,8 +967,8 @@ function goHelp() {
 .evidence-img {
   width: 120rpx;
   height: 120rpx;
-  border-radius: 10rpx;
-  background: #f3f4f6;
+  border-radius: var(--radius-tag);
+  background: var(--color-border-subtle);
 }
 .evidence-del {
   position: absolute;
@@ -986,7 +981,7 @@ function goHelp() {
   color: #fff;
   text-align: center;
   line-height: 32rpx;
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
 }
 .evidence-uploading {
   position: absolute;
@@ -996,31 +991,31 @@ function goHelp() {
   justify-content: center;
   background: rgba(0, 0, 0, 0.45);
   color: #fff;
-  font-size: 20rpx;
-  border-radius: 10rpx;
+  font-size: var(--font-size-xs);
+  border-radius: var(--radius-tag);
 }
 .evidence-add {
   width: 120rpx;
   height: 120rpx;
-  border-radius: 10rpx;
+  border-radius: var(--radius-tag);
   border: 2rpx dashed #d1d5db;
   color: #9ca3af;
-  font-size: 40rpx;
+  font-size: var(--font-size-h2);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .dispute-done {
   text-align: center;
-  font-size: 26rpx;
-  color: #07c160;
+  font-size: var(--font-size-body);
+  color: var(--brand-wx, #07c160);
   padding: 8rpx 0;
 }
 .btn-hover {
   opacity: 0.85;
 }
 .err {
-  color: #fa5151;
+  color: var(--color-danger);
   display: block;
   margin-bottom: 24rpx;
   text-align: center;
@@ -1049,8 +1044,8 @@ function goHelp() {
   width: 100%;
   max-width: 520px;
   margin: 0 auto;
-  background: #fff;
-  border-radius: 30rpx 30rpx 0 0;
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-card) 30rpx 0 0;
   padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
   max-height: 90vh;
@@ -1058,14 +1053,14 @@ function goHelp() {
   overscroll-behavior: contain;
 }
 .dispute-title {
-  font-size: 34rpx;
+  font-size: var(--font-size-h3);
   font-weight: 700;
   display: block;
   text-align: center;
 }
 .dispute-sub {
-  font-size: 26rpx;
-  color: #888;
+  font-size: var(--font-size-body);
+  color: var(--text-subtle, #888);
   display: block;
   text-align: center;
   margin: 12rpx 0 24rpx;
@@ -1073,19 +1068,19 @@ function goHelp() {
 .dispute-input {
   width: 100%;
   min-height: 180rpx;
-  background: #f8faf9;
+  background: var(--page-bg, #f8faf9);
   border: 1rpx solid #e4ebe7;
-  border-radius: 12rpx;
+  border-radius: var(--radius-control);
   padding: 20rpx;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   box-sizing: border-box;
   margin-bottom: 20rpx;
 }
 .dispute-cancel {
   display: block;
   text-align: center;
-  color: #888;
-  font-size: 28rpx;
+  color: var(--text-subtle, #888);
+  font-size: var(--font-size-md);
   margin-top: 16rpx;
   padding: 12rpx;
 }

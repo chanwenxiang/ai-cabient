@@ -361,7 +361,7 @@
             description="暂无录像或加载失败"
             :image-size="72"
           />
-          <div v-else-if="videoLoading" class="video-loading">录像加载中…</div>
+          <div v-else-if="videoLoading" class="video-loading">录像{{ UI_COPY.loading }}</div>
           <div v-else class="video-loading muted">尚未加载录像</div>
           <el-alert
             v-if="!embedVideoUrl && videoAttempted && !videoLoading"
@@ -686,6 +686,7 @@ import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import { validateImageFile } from '@/utils/upload-validate';
+import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 interface ResolveDisputeResultDto {
   order?: { orderId?: string } | null;
@@ -1643,11 +1644,11 @@ onMounted(async () => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {
@@ -1660,7 +1661,7 @@ onMounted(async () => {
 .detected-classes {
   margin-top: 4px;
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .reason-block {
@@ -1695,7 +1696,7 @@ onMounted(async () => {
 }
 .amount-diff {
   color: var(--el-text-color-secondary);
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   line-height: 1.5;
 }
 .resolve-feedback {

@@ -137,12 +137,12 @@ onMounted(load);
   text-align: center;
 }
 .kpi-label {
-  font-size: 13px;
+  font-size: var(--admin-font-size-table);
   color: var(--el-text-color-secondary);
   margin-bottom: 8px;
 }
 .kpi-value {
-  font-size: 22px;
+  font-size: var(--admin-font-size-display-md);
   font-weight: 600;
   color: var(--el-text-color-primary);
 }

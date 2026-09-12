@@ -71,14 +71,13 @@
           >
         </view>
 
-        <view
-          class="btn-primary"
-          :class="{ disabled: loading }"
-          role="button"
+        <app-button
           data-testid="login-submit"
+          :loading="loading"
+          :disabled="loading"
+          :label="loading ? '登录中…' : '登录'"
           @click="onLogin"
-          >{{ loading ? '登录中…' : '登录' }}</view
-        >
+        />
         <text v-if="err" class="err" data-testid="login-error">{{ err }}</text>
         <text v-if="isDev && demoHint" class="hint">{{ demoHint }}</text>
       </view>
@@ -325,14 +324,14 @@ async function onLogin() {
   max-width: 320px;
 }
 .brand {
-  font-size: 44rpx;
+  font-size: var(--font-size-h1);
   font-weight: 800;
   display: block;
   color: var(--page-tint, #f0fdfa);
   letter-spacing: 2rpx;
 }
 .tagline {
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
   color: #a5b4c8;
   display: block;
   margin-top: 6rpx;
@@ -343,16 +342,16 @@ async function onLogin() {
   gap: 8rpx;
   margin-top: 12rpx;
   padding: 8rpx 18rpx;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   background: rgba(13, 148, 136, 0.18);
 }
 .badge-icon {
   color: var(--brand-soft, #99f6e4);
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
 }
 .badge-text {
-  color: #cbd5e1;
-  font-size: 22rpx;
+  color: var(--text-subtle, #cbd5e1);
+  font-size: var(--font-size-sm);
 }
 .login-spacer {
   flex: 0 0 auto;
@@ -368,7 +367,7 @@ async function onLogin() {
   max-width: 320px;
   margin: 0 auto;
   padding: 24rpx 22rpx 24rpx;
-  border-radius: 22rpx;
+  border-radius: var(--radius-card);
   background: rgba(8, 24, 30, 0.58);
   border: 2rpx solid rgba(148, 210, 198, 0.22);
   backdrop-filter: blur(52rpx);
@@ -378,7 +377,7 @@ async function onLogin() {
   box-sizing: border-box;
 }
 .title {
-  font-size: 34rpx;
+  font-size: var(--font-size-h3);
   font-weight: 700;
   display: block;
   margin-bottom: 6rpx;
@@ -386,7 +385,7 @@ async function onLogin() {
   text-align: center;
 }
 .subtitle {
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
   color: rgba(204, 251, 241, 0.74);
   display: block;
   margin-bottom: 20rpx;
@@ -398,8 +397,8 @@ async function onLogin() {
 }
 .field-label {
   display: block;
-  font-size: 24rpx;
-  color: var(--brand-tint, #ccfbf1);
+  font-size: var(--font-size-caption);
+  color: var(--brand-tint, var(--brand-mist));
   font-weight: 500;
   margin-bottom: 8rpx;
 }
@@ -410,9 +409,9 @@ async function onLogin() {
   box-sizing: border-box;
   background: rgba(8, 24, 30, 0.42);
   border: 2rpx solid rgba(148, 210, 198, 0.3);
-  border-radius: 14rpx;
+  border-radius: var(--radius-control);
   padding: 0 24rpx;
-  font-size: 28rpx;
+  font-size: var(--font-size-md);
   color: var(--page-tint, #f0fdfa);
   line-height: 76rpx;
   backdrop-filter: blur(16rpx);
@@ -435,7 +434,7 @@ async function onLogin() {
 .remember-box {
   width: 28rpx;
   height: 28rpx;
-  border-radius: 6rpx;
+  border-radius: var(--radius-tag);
   border: 2rpx solid rgba(148, 210, 198, 0.45);
   background: rgba(8, 24, 30, 0.35);
   display: flex;
@@ -449,16 +448,16 @@ async function onLogin() {
   background: rgba(15, 118, 110, 0.75);
 }
 .remember-check {
-  color: #ecfdf5;
+  color: var(--brand-soft);
   font-size: 18rpx;
   line-height: 1;
   font-weight: 700;
 }
 .remember-label {
   color: rgba(204, 251, 241, 0.82);
-  font-size: 24rpx;
+  font-size: var(--font-size-caption);
 }
-.btn-primary {
+:deep(.app-btn.app-btn--primary) {
   margin-top: 12rpx;
   align-self: stretch;
   width: 100% !important;
@@ -467,12 +466,12 @@ async function onLogin() {
   padding: 0 !important;
   background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
   color: #fff;
-  border-radius: 44rpx;
+  border-radius: var(--radius-pill);
   min-height: 80rpx;
   height: 80rpx;
   line-height: 1.2;
   text-align: center;
-  font-size: 30rpx;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   box-shadow: 0 10rpx 28rpx rgba(15, 118, 110, 0.28);
   box-sizing: border-box;
@@ -480,20 +479,20 @@ async function onLogin() {
   align-items: center;
   justify-content: center;
 }
-.btn-primary.disabled {
+:deep(.app-btn.is-disabled) {
   opacity: 0.55;
   pointer-events: none;
 }
 .err {
-  color: #ef4444;
+  color: var(--color-danger);
   display: block;
   margin-top: 16rpx;
   text-align: center;
-  font-size: 26rpx;
+  font-size: var(--font-size-body);
 }
 .hint {
   color: rgba(204, 251, 241, 0.62);
-  font-size: 22rpx;
+  font-size: var(--font-size-sm);
   display: block;
   margin-top: 20rpx;
   text-align: center;

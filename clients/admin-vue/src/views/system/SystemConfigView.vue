@@ -179,7 +179,6 @@
     <el-dialog
       v-model="dialogVisible"
       :title="creating ? '新增参数' : '编辑参数'"
-      width="480px"
       destroy-on-close
     >
       <el-form label-width="88px">
@@ -607,11 +606,11 @@ onActivated(() => {
 }
 .title {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--admin-font-size-title);
 }
 .hint {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   line-height: 1.4;
 }
 .page-card-head__actions {
@@ -649,7 +648,7 @@ onActivated(() => {
   place-items: center;
   overflow: hidden;
   color: #fff;
-  font-size: 22px;
+  font-size: var(--admin-font-size-display-md);
   font-weight: 700;
   background: linear-gradient(145deg, #14b8a6, var(--app-primary, #0f766e));
 }

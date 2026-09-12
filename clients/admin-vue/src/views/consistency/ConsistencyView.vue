@@ -589,7 +589,7 @@ onActivated(load);
 <style scoped>
 .mono {
   font-family: var(--app-font-mono);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
 }
 .key-link {
   padding: 0;
@@ -604,7 +604,7 @@ onActivated(load);
   display: inline-block;
   max-width: 100%;
   color: var(--el-text-color-regular);
-  font-size: 12px;
+  font-size: var(--admin-font-size-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
