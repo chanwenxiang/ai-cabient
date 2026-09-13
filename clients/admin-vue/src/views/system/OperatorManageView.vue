@@ -1286,9 +1286,13 @@ onActivated(() => {
 .reset-pwd-form :deep(.el-input__inner) {
   background-color: transparent !important;
   box-shadow: none !important;
-  -webkit-text-fill-color: var(--el-text-color-primary);
   caret-color: var(--el-text-color-primary);
   transition: background-color 99999s ease-out;
+}
+.reset-pwd-form :deep(.el-input__inner::placeholder) {
+  color: var(--el-text-color-placeholder);
+  -webkit-text-fill-color: var(--el-text-color-placeholder);
+  opacity: 1;
 }
 .reset-pwd-form :deep(.el-input__inner:-webkit-autofill),
 .reset-pwd-form :deep(.el-input__inner:-webkit-autofill:hover),
