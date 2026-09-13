@@ -53,7 +53,7 @@ class SettlementWaiveInventoryTest {
         org.springframework.test.util.ReflectionTestUtils.setField(waiveRefundService, "self", waiveRefundService);
         settlementService = new SettlementService(
                 sessionRepository, null, orderRepository, null,
-                null, null, null, waiveRefundService, null, revenueSplitService,
+                null, null, null, waiveRefundService, null, null, revenueSplitService,
                 null, null, inventoryService, orderPaymentService,
                 null, null, null, null, null, null,
                 null, null, null, null, null, null,
