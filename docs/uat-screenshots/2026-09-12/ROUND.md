@@ -127,9 +127,27 @@ T2抽样 PASS · T4 15/15 · T5 6/6 · T6 归档 · 基线 24/22/76·73/66 OK
 ## 未完成（完整轮后遗留，非本轮阻断）
 
 - [ ] T2 财务/运营角色侧栏全矩阵（viewer+他商户已覆盖）
-- [ ] §6 性能基线；§10 真实环境 🔒
+- [ ] §6 PERF-1 JMeter 全量基线（仓库无现成 .jmx）；§10 真实环境 🔒
+- [x] §6 FE-PERF / 轻量抽样（见下「推送后回归」）
+
+## 推送后回归（2026-09-13 12:27+ · `dev` @ `6bbdb171`）
+
+| 项 | 结果 | 说明 |
+|----|------|------|
+| git push `origin/dev` | PASS | `32a58897` feat + `6bbdb171` chore |
+| `check:admin-anti-jitter` | PASS | |
+| `check:admin-table-align` | PASS | |
+| `check:admin-bundle` | PASS | FE-PERF 预算内 |
+| `check:migration-safety` | PASS | |
+| trade / vision health | PASS | UP / ok |
+| Grafana `:13000` | PASS | 已拉起，`/api/health` database=ok |
+| 运营账号「重置密码」菜单 | PASS | 他人「更多」可见 |
+| 审计 `OPS_OPERATOR_RESET_PASSWORD` | PASS | API filter + UI `/audit?action=…` 1 行；`ops-reset-pwd-audit.png` |
+| §6 轻量并发 | PASS | 50 并行 `GET /rbac/operators` p95≈275ms，错误率 0（非 JMeter 全量） |
+
+仍开放：DV-06 已知缺口、PERF-1/3/4 全量、§10 真实环境🔒、T2 角色侧栏全矩阵。
 
 ## 结论（当前）
 
 **MASTER 完整轮已收口**，P0 **10/10 PASS**（含 #4 分账加深）。  
-残留：DV-06 已知缺口、§6/§10。证据目录 `docs/uat-screenshots/2026-09-12/`。
+推送后门禁与重置密码回归已补跑。证据目录 `docs/uat-screenshots/2026-09-12/`。
