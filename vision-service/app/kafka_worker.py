@@ -11,6 +11,9 @@ log = logging.getLogger(__name__)
 
 REQUEST_TOPIC = "aicabinet.vision.recognize.request"
 RESULT_TOPIC = "aicabinet.vision.recognize.result"
+REQUEST_DLT_TOPIC = os.getenv(
+    "KAFKA_VISION_REQUEST_DLT", "aicabinet.vision.recognize.request.DLT"
+)
 BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "localhost:9092")
 
 
@@ -59,17 +62,25 @@ def start_kafka_worker(recognizer) -> threading.Thread | None:
             bootstrap_servers=BOOTSTRAP,
             group_id="vision-service",
             auto_offset_reset="earliest",
+            enable_auto_commit=False,
             value_deserializer=_decode,
         )
         producer = KafkaProducer(
             bootstrap_servers=BOOTSTRAP,
             value_serializer=_encode,
         )
-        log.info("kafka worker started bootstrap=%s", BOOTSTRAP)
+        log.info(
+            "kafka worker started bootstrap=%s request=%s result=%s dlt=%s",
+            BOOTSTRAP,
+            REQUEST_TOPIC,
+            RESULT_TOPIC,
+            REQUEST_DLT_TOPIC,
+        )
 
         for message in consumer:
+            raw_value = message.value
             try:
-                req = json.loads(message.value)
+                req = json.loads(raw_value)
                 session_id = req["sessionId"]
                 task_id = req.get("taskId") or f"T-{session_id}"
                 out = _recognize(recognizer, req)
@@ -89,9 +100,23 @@ def start_kafka_worker(recognizer) -> threading.Thread | None:
                 }
                 producer.send(RESULT_TOPIC, json.dumps(result))
                 producer.flush()
+                consumer.commit()
                 log.info("vision result published session=%s", session_id)
             except Exception as exc:
                 log.exception("kafka worker failed: %s", exc)
+                try:
+                    dlt_payload = {
+                        "error": str(exc),
+                        "raw": raw_value if isinstance(raw_value, str) else str(raw_value),
+                    }
+                    producer.send(REQUEST_DLT_TOPIC, json.dumps(dlt_payload, ensure_ascii=False))
+                    producer.flush()
+                except Exception as dlt_exc:
+                    log.exception("failed to publish vision request DLT: %s", dlt_exc)
+                try:
+                    consumer.commit()
+                except Exception as commit_exc:
+                    log.exception("failed to commit after DLT: %s", commit_exc)
 
     thread = threading.Thread(target=run, name="vision-kafka-worker", daemon=True)
     thread.start()

@@ -110,6 +110,7 @@
           <text class="menu-desc">{{ notifyDesc }}</text>
         </view>
         <button
+          v-if="isMpWeixin"
           class="bind-btn"
           :loading="notifyBusy"
           :disabled="!subscribeReady"
@@ -117,6 +118,7 @@
         >
           {{ wxBound ? '重新绑定' : '开启提醒' }}
         </button>
+        <text v-else class="bind-h5-hint">请在微信小程序中开启</text>
       </view>
       <view v-if="!subscribeReady" class="notify-warn"
         >未配置订阅消息模板，当前仅可保存偏好，无法向微信申请推送授权。</view
@@ -217,7 +219,16 @@ const wxBound = ref(false);
 const enabledTypes = ref<string[]>([]);
 const alertTypeOptions = MERCHANT_ALERT_TYPES;
 const subscribeReady = hasSubscribeTemplates();
+const isMpWeixin = (() => {
+  try {
+    const info = uni.getSystemInfoSync() as { uniPlatform?: string };
+    return info.uniPlatform === 'mp-weixin';
+  } catch {
+    return false;
+  }
+})();
 const notifyDesc = computed(() => {
+  if (!isMpWeixin) return '微信订阅提醒仅支持小程序端';
   if (!subscribeReady) return '未配置订阅模板，偏好可保存但无法申请微信推送授权';
   if (wxBound.value) return '已绑定微信，可接收待办推送';
   return '绑定微信后可接收待办推送';
@@ -310,6 +321,10 @@ function switchEnabled(e: unknown) {
 }
 
 async function onBindWx() {
+  if (!isMpWeixin) {
+    showError('请在微信小程序中开启提醒');
+    return;
+  }
   if (!subscribeReady) {
     showError('未配置订阅模板，无法开启推送');
     return;
@@ -594,6 +609,14 @@ async function onLogout() {
 }
 .bind-btn::after {
   border: none;
+}
+.bind-h5-hint {
+  flex-shrink: 0;
+  font-size: var(--font-size-caption);
+  color: var(--text-muted, #64748b);
+  line-height: 1.4;
+  max-width: 220rpx;
+  text-align: right;
 }
 .notify-warn {
   margin-bottom: 16rpx;

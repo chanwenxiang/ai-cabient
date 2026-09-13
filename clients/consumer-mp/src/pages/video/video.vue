@@ -69,7 +69,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { showError } from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { API_BASE_URL } from '@/config/api';
 import { downloadAuthedFile, getConsumerToken } from '@/utils/consumer-api';
@@ -223,7 +223,7 @@ function copyUrl() {
   if (!data) return;
   uni.setClipboardData({
     data,
-    success: () => showError('视频链接已复制')
+    success: () => showSuccess('视频链接已复制')
   });
 }
 

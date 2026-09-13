@@ -18,6 +18,13 @@
 | 11 | admin UI | 一致性「基准/对照」露出 `SALE_OK`/`MISSING_SALE` 等英文码 | 后端存诊断码，前端未映射 | 展示走 `formatConsistencyValue` + `consistency_diag_code`；悬停可看原始码 | `ConsistencyView.vue`、`shared-dict` |
 | 12 | CI / GitHub | 连续多次 `CI` failure：`generated OpenAPI types are stale` | 新增/改 API（如 reset-password）后未 `pnpm gen:api-types` 并提交 `packages/shared-types` | **改 Controller/DTO 后必须**：起 trade → `pnpm gen:api-types` → 提交 `src/generated/`+`dist`；推前本地 `OPENAPI_CHECK_REGEN=1 OPENAPI_FILE=.tmp/live-openapi.json pnpm check:openapi-types` | `scripts/gen-openapi-types.mjs`、`check:openapi-types` |
 | 13 | CI / ESLint | `pnpm lint` 因 UAT 脚本未用变量 / JMeter report 第三方码失败 | `docs/uat-screenshots` 与压测 HTML 报告被扫进 `eslint .`；脚本里残留未使用绑定 | UAT 留证目录与 `.tmp` **必须**在 `eslint.config.mjs` ignores；`scripts/*.mjs` 未用变量删掉或 `_` 前缀；推前 `pnpm lint` | `eslint.config.mjs` |
+| 14 | admin RBAC | 漏登侧栏菜单的路由任意登录可进 | 守卫只拦 `nav?.perm`，无 menu 项时 fail-open | 业务路由必须能 `findNavByPath` 或显式 `meta.perm`；未知路径 **deny**；`canAccessPath` 同口径 | `router/index.ts`、`useNavAccess.ts` |
+| 15 | consumer 附近 | 拒定位仍看到上海柜机 | `getLocation` fail 静默回退硬编码坐标并继续拉列表 | 定位失败必须 error 空态，禁止默认城市假附近；半径切换在无定位时不请求 | `nearby.vue` |
+| 16 | consumer live | 真机关门后用户只能干等「请关门」 | live 刻意不暴露 demo-close，但缺刷新/客服兜底 | SHOPPING+!mock 必须提供「刷新状态」「未出账单？」；禁止把 demo-close 接到生产 | `index.vue` |
+| 17 | 资金限额 | 前端 ¥5000 可被改包绕过 | 充值/余额退款后端无同款上限 | `recharge.max_cents` / `balance.refund.max_cents` 服务端强制；单测覆盖超额拒绝 | `PaymentService`、`BalanceRefundService` |
+| 18 | merchant 补货 | 列表进场卡顿/弱网炸请求 | 每任务并发拉 evidence+lines，最多 80 请求 | 列表 DTO 聚合 `evidenceCount`/`lineSummary`；禁列表页 N+1 | `MerchantInventoryPortalService`、`replenishment.vue` |
+| 19 | Kafka 视觉 | 识别失败消息静默丢 | auto-commit + catch 吞异常 | vision `enable_auto_commit=false` 成功/入 DLT 后 commit；trade 失败发 result.DLT 再抛 | `kafka_worker.py`、`VisionRecognitionListener` |
+| 20 | toast | 成功操作弹出「错误」无图标 toast | 误用 `showError`（icon:none） | 成功/中性文案必须 `showSuccess` | consumer/merchant 多页 |
 
 ## 追加模板
 

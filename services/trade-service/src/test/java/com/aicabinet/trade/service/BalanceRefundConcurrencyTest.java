@@ -33,15 +33,18 @@ class BalanceRefundConcurrencyTest {
     @Mock private PermissionService permissionService;
     @Mock private AdminAuditService auditService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private SystemConfigService systemConfigService;
 
     private BalanceRefundService service;
 
     @BeforeEach
     void setUp() {
+        when(systemConfigService.getInt(SystemConfigService.BALANCE_REFUND_MAX_CENTS, 500_000))
+                .thenReturn(500_000);
         service = new BalanceRefundService(
                 requestMapper, allocationMapper, accountMapper, rechargeOrderMapper,
                 paymentService, balanceLedgerService, permissionService, auditService,
-                distributedLockService, null);
+                distributedLockService, null, systemConfigService);
     }
 
     @Test

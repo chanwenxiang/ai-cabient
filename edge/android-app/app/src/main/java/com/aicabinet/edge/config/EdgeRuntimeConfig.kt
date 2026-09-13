@@ -13,6 +13,15 @@ object EdgeRuntimeConfig {
     fun mqttBroker(context: Context): String =
         getString(context, "mqtt_broker", BuildConfig.MQTT_BROKER)
 
+    fun mqttUsername(context: Context): String =
+        getString(context, "mqtt_username", BuildConfig.MQTT_USERNAME)
+
+    fun mqttPassword(context: Context): String =
+        getString(context, "mqtt_password", BuildConfig.MQTT_PASSWORD)
+
+    fun mqttUseTls(context: Context): Boolean =
+        getBoolean(context, "mqtt_use_tls", BuildConfig.MQTT_USE_TLS)
+
     fun tradeServiceUrl(context: Context): String =
         getString(context, "trade_service_url", BuildConfig.TRADE_SERVICE_URL)
 

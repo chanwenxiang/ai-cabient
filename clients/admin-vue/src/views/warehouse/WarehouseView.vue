@@ -2122,7 +2122,7 @@
         v-model:current-page="page"
         v-model:page-size="size"
         :total="tabTotal"
-        :page-sizes="[10, 20, 50, 100]"
+        :page-sizes="[10, 20, 50]"
         layout="total, sizes, prev, pager, next"
         @current-change="onPagerChange"
         @size-change="onPagerSizeChange"

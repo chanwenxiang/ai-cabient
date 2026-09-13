@@ -590,7 +590,7 @@ async function onLogout() {
   authed.value = false;
   account.value = null;
   balanceYuan.value = '--';
-  showError('已退出');
+  showSuccess('已退出');
 }
 </script>
 

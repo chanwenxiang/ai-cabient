@@ -46,6 +46,7 @@ public class BalanceRefundService {
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
     private final ApprovalWorkflowService approvalWorkflowService;
+    private final SystemConfigService systemConfigService;
 
     private static final String BIZ_BALANCE_REFUND = "BALANCE_REFUND";
 
@@ -58,7 +59,8 @@ public class BalanceRefundService {
                                 PermissionService permissionService,
                                 AdminAuditService auditService,
                                 DistributedLockService distributedLockService,
-                                ApprovalWorkflowService approvalWorkflowService) {
+                                ApprovalWorkflowService approvalWorkflowService,
+                                SystemConfigService systemConfigService) {
         this.requestMapper = requestMapper;
         this.allocationMapper = allocationMapper;
         this.accountMapper = accountMapper;
@@ -69,6 +71,7 @@ public class BalanceRefundService {
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
         this.approvalWorkflowService = approvalWorkflowService;
+        this.systemConfigService = systemConfigService;
     }
 
     @Transactional(readOnly = true)
@@ -82,6 +85,11 @@ public class BalanceRefundService {
     public BalanceRefundRequestDto apply(Long userId, int amountCents, String reason) {
         if (amountCents < 100) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额至少 ¥1.00");
+        }
+        int maxCents = systemConfigService.getInt(SystemConfigService.BALANCE_REFUND_MAX_CENTS, 500_000);
+        if (maxCents > 0 && amountCents > maxCents) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "单次申请不超过 ¥" + String.format("%.2f", maxCents / 100.0));
         }
         return runWithBalanceRefundLock(userId, () -> doApply(userId, amountCents, reason));
     }

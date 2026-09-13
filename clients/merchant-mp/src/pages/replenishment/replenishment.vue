@@ -1018,7 +1018,7 @@ function copyDeviceId(id?: string) {
   if (!code) return;
   uni.setClipboardData({
     data: code,
-    success: () => showError('已复制柜机编号')
+    success: () => showSuccess('已复制柜机编号')
   });
 }
 
@@ -1171,8 +1171,7 @@ function applyReplenishmentListData(
   skus.value = (skuRows || []) as Record<string, unknown>[];
   efficiency.value = eff;
   lowStockList.value = aggregateLowStock(lowStockRows || []);
-  void refreshEvidenceCounts(allTasks.value);
-  void refreshLineSummaries(allTasks.value);
+  seedListAggregates(allTasks.value);
 }
 
 function findDeepLinkTaskById(): Task | undefined {
@@ -1358,7 +1357,7 @@ async function scanProduct(line: Line) {
       return;
     }
     adjustQty(target, 1);
-    showError(`已扫 ${sku.skuName || target.skuId}`);
+    showSuccess(`已扫 ${sku.skuName || target.skuId}`);
   } finally {
     scanning.value = false;
   }
@@ -1649,12 +1648,39 @@ function slotHint(line: Line): string {
 
 function evidenceCountOf(taskId?: number) {
   if (!taskId) return 0;
-  return Number(evidenceCountMap.value[taskId] || 0);
+  const fromMap = Number(evidenceCountMap.value[taskId] || 0);
+  if (fromMap > 0) return fromMap;
+  const hit = allTasks.value.find((t) => t.taskId === taskId) as Task & {
+    evidenceCount?: number;
+  };
+  return Number(hit?.evidenceCount || 0);
 }
 
 function lineSummaryOf(taskId?: number) {
   if (!taskId) return '';
-  return String(lineSummaryMap.value[taskId] || '');
+  const fromMap = String(lineSummaryMap.value[taskId] || '');
+  if (fromMap) return fromMap;
+  const hit = allTasks.value.find((t) => t.taskId === taskId) as Task & {
+    lineSummary?: string;
+  };
+  return String(hit?.lineSummary || '');
+}
+
+/** 列表接口已聚合 evidenceCount/lineSummary，写入本地 map 供详情内增量更新复用。 */
+function seedListAggregates(taskRows: Task[]) {
+  const evidenceNext: Record<number, number> = { ...evidenceCountMap.value };
+  const lineNext: Record<number, string> = { ...lineSummaryMap.value };
+  for (const row of taskRows || []) {
+    const id = Number(row.taskId);
+    if (!id) continue;
+    const ext = row as Task & { evidenceCount?: number; lineSummary?: string };
+    if (ext.evidenceCount != null) evidenceNext[id] = Number(ext.evidenceCount) || 0;
+    if (ext.lineSummary != null && String(ext.lineSummary)) {
+      lineNext[id] = String(ext.lineSummary);
+    }
+  }
+  evidenceCountMap.value = evidenceNext;
+  lineSummaryMap.value = lineNext;
 }
 
 function formatLineSummary(rows: Line[]): string {
@@ -1688,54 +1714,6 @@ function stockDeltaText(line: Line): string {
   const after = cap.bookQty + qty;
   const capacityHint = cap.maxLevel > 0 ? ` / 容量 ${cap.maxLevel}` : '';
   return `账面 ${cap.bookQty} → 补后 ${after}${capacityHint}`;
-}
-
-async function refreshLineSummaries(taskRows: Task[]) {
-  const ids = (taskRows || [])
-    .map((t) => t.taskId)
-    .filter((id) => Number.isFinite(id) && id > 0)
-    .slice(0, 40);
-  if (!ids.length) {
-    lineSummaryMap.value = {};
-    return;
-  }
-  const entries = await Promise.all(
-    ids.map(async (id) => {
-      try {
-        const raw = (await merchantApi.replenishmentTaskLines(id)) as Line[];
-        return [id, formatLineSummary(raw || [])] as const;
-      } catch {
-        return [id, lineSummaryMap.value[id] || ''] as const;
-      }
-    })
-  );
-  const next: Record<number, string> = { ...lineSummaryMap.value };
-  for (const [id, text] of entries) next[id] = text;
-  lineSummaryMap.value = next;
-}
-
-async function refreshEvidenceCounts(taskRows: Task[]) {
-  const ids = (taskRows || [])
-    .map((t) => t.taskId)
-    .filter((id) => Number.isFinite(id) && id > 0)
-    .slice(0, 40);
-  if (!ids.length) {
-    evidenceCountMap.value = {};
-    return;
-  }
-  const entries = await Promise.all(
-    ids.map(async (id) => {
-      try {
-        const list = await merchantApi.listReplenishmentEvidence(id);
-        return [id, (list || []).length] as const;
-      } catch {
-        return [id, evidenceCountMap.value[id] || 0] as const;
-      }
-    })
-  );
-  const next: Record<number, number> = { ...evidenceCountMap.value };
-  for (const [id, n] of entries) next[id] = n;
-  evidenceCountMap.value = next;
 }
 
 function closeDetail() {

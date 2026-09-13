@@ -30,12 +30,25 @@ class MqttDeviceClient(
 
     fun connect() {
         val persistenceDir = File(appContext.filesDir, "mqtt-paho/$deviceId").apply { mkdirs() }
-        client = MqttClient(broker, clientId, MqttDefaultFilePersistence(persistenceDir.absolutePath))
+        val useTls = EdgeRuntimeConfig.mqttUseTls(appContext)
+        val resolvedBroker = normalizeBroker(broker, useTls)
+        client = MqttClient(resolvedBroker, clientId, MqttDefaultFilePersistence(persistenceDir.absolutePath))
         val options = MqttConnectOptions().apply {
             isAutomaticReconnect = true
             isCleanSession = false
             connectionTimeout = 10
             keepAliveInterval = 30
+            val username = EdgeRuntimeConfig.mqttUsername(appContext)
+            val password = EdgeRuntimeConfig.mqttPassword(appContext)
+            if (username.isNotBlank()) {
+                userName = username
+            }
+            if (password.isNotBlank()) {
+                this.password = password.toCharArray()
+            }
+            if (useTls || resolvedBroker.startsWith("ssl://")) {
+                socketFactory = javax.net.ssl.SSLSocketFactory.getDefault()
+            }
         }
         client.setCallback(this)
         client.connect(options)
@@ -44,7 +57,18 @@ class MqttDeviceClient(
         flushOutbound()
         startHeartbeatLoop()
         DeviceStatusHub.setMqttConnected(true)
-        Log.i(TAG, "connected broker=$broker device=$deviceId")
+        Log.i(TAG, "connected broker=$resolvedBroker device=$deviceId tls=$useTls")
+    }
+
+    private fun normalizeBroker(raw: String, useTls: Boolean): String {
+        val trimmed = raw.trim()
+        if (!useTls) return trimmed
+        return when {
+            trimmed.startsWith("ssl://") -> trimmed
+            trimmed.startsWith("tcp://") -> "ssl://" + trimmed.removePrefix("tcp://")
+            trimmed.startsWith("mqtt://") -> "ssl://" + trimmed.removePrefix("mqtt://")
+            else -> trimmed
+        }
     }
 
     fun disconnect() {

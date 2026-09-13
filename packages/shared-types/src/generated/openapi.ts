@@ -10762,6 +10762,9 @@ export interface components {
             routeName?: string;
             /** Format: date */
             plannedDate?: string;
+            /** Format: int32 */
+            evidenceCount?: number;
+            lineSummary?: string;
         };
         ReplenishmentCheckInRequest: {
             /** Format: double */

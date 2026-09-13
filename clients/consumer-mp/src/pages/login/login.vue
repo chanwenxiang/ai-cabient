@@ -184,7 +184,7 @@
 
 <script setup lang="ts">
 import { onLoad, onReady, onShow, onUnload } from '@dcloudio/uni-app';
-import { showError } from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref, watch } from 'vue';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
@@ -418,7 +418,7 @@ async function onSendCode() {
       codeCooldown.value -= 1;
       if (codeCooldown.value <= 0) clearCodeTimer();
     }, 1000);
-    showError('验证码已发送');
+    showSuccess('验证码已发送');
     void loadCaptcha();
   } catch (e) {
     err.value = e instanceof Error ? e.message : '发送失败';

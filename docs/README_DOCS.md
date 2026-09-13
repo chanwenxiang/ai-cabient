@@ -39,6 +39,7 @@
 | [GO_LIVE_EXECUTION_PLAN.md](GO_LIVE_EXECUTION_PLAN.md) | 2026-07 上线主计划（**含过时 YOLO 叙述**，文首有勘误） |
 | [CODE_FIX_CHECKLIST.md](CODE_FIX_CHECKLIST.md) | 代码修复清单 |
 | [production-launch-checklist.md](production-launch-checklist.md) | 上线门禁清单 |
+| [final-audit-2026-09-13.md](final-audit-2026-09-13.md) | 2026-09-13 全仓代码审计最终版（开发期） |
 
 ### 历史 P0（2026-07 快照，供对照）
 

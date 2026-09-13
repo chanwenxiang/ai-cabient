@@ -305,7 +305,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -585,20 +585,6 @@ function goDevice(deviceId: string) {
   goPath(`/devices/${encodeURIComponent(deviceId)}`);
 }
 
-onMounted(() => {
-  applyRouteQuery();
-  globalThis.addEventListener('resize', onResize, { passive: true });
-  void loadDeviceOptions();
-  void loadOfflineTotal();
-  load();
-});
-onActivated(() => {
-  if (applyRouteQuery()) {
-    page.value = 1;
-    load();
-  }
-});
-
 function applyRouteQuery() {
   let changed = false;
   if (typeof route.query.online === 'string' && route.query.online !== onlineFilter.value) {
@@ -612,6 +598,23 @@ function applyRouteQuery() {
   return changed;
 }
 
+onMounted(() => {
+  applyRouteQuery();
+  globalThis.addEventListener('resize', onResize, { passive: true });
+  void loadDeviceOptions();
+  void loadOfflineTotal();
+  load();
+});
+onActivated(() => {
+  globalThis.addEventListener('resize', onResize, { passive: true });
+  if (applyRouteQuery()) {
+    page.value = 1;
+    load();
+  }
+});
+onDeactivated(() => {
+  globalThis.removeEventListener('resize', onResize);
+});
 onUnmounted(() => {
   globalThis.removeEventListener('resize', onResize);
 });

@@ -26,8 +26,12 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -212,6 +216,35 @@ public class FileAttachmentService {
             return 0;
         }
         return fileAttachmentMapper.findByRef(REF_REPLENISHMENT, String.valueOf(taskId)).size();
+    }
+
+    /** 批量统计补货任务凭证数（refId = taskId 字符串）。 */
+    @Transactional(readOnly = true)
+    public Map<Long, Integer> countReplenishmentEvidenceByTaskIds(Collection<Long> taskIds) {
+        Map<Long, Integer> out = new HashMap<>();
+        if (taskIds == null || taskIds.isEmpty()) {
+            return out;
+        }
+        List<String> refIds = taskIds.stream()
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .distinct()
+                .toList();
+        if (refIds.isEmpty()) {
+            return out;
+        }
+        for (FileAttachment row : fileAttachmentMapper.findByRefTypeAndRefIds(REF_REPLENISHMENT, refIds)) {
+            if (row.getRefId() == null || row.getRefId().isBlank()) {
+                continue;
+            }
+            try {
+                long taskId = Long.parseLong(row.getRefId().trim());
+                out.merge(taskId, 1, Integer::sum);
+            } catch (NumberFormatException ignored) {
+                // skip non-numeric refs
+            }
+        }
+        return out;
     }
 
     @Transactional(readOnly = true)
