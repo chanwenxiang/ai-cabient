@@ -49,14 +49,19 @@ class SessionDoorClosedIdempotencyTest {
     @Mock DistributedLockService distributedLockService;
 
     private SessionService service;
+    private SessionDoorService doorService;
 
     @BeforeEach
     void setUp() {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
-                gravityHelper, restockSnapshotService, null, null, null, opsExceptionService, userInfoRepository, orderRepository,
+                gravityHelper, null, null, null, null, opsExceptionService, userInfoRepository, orderRepository,
                 null, consumerPreauthService, distributedLockService, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        doorService = new SessionDoorService(repository, gravityHelper, restockSnapshotService, null,
+                cabinetMetrics, domainEventPublisher, service, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(doorService, "self", doorService);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionDoorService", doorService);
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
         lenient().when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }

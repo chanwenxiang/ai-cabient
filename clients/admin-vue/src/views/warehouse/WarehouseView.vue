@@ -2128,115 +2128,28 @@
         @size-change="onPagerSizeChange"
       />
 
-      <el-dialog
-        v-model="warehouseDialog"
-        :title="warehouseForm.editing ? '编辑仓库' : '新增仓库'"
-        destroy-on-close
-      >
-        <el-form label-width="auto">
-          <el-form-item label="仓库 ID" required>
-            <el-input
-              v-model="warehouseForm.warehouseId"
-              :disabled="warehouseForm.editing"
-              placeholder="如 WH-SH-001"
-            />
-          </el-form-item>
-          <el-form-item label="名称" required>
-            <el-input v-model="warehouseForm.warehouseName" maxlength="64" />
-          </el-form-item>
-          <el-form-item label="地址">
-            <el-input v-model="warehouseForm.address" maxlength="255" />
-          </el-form-item>
-          <el-form-item label="状态">
-            <el-radio-group v-model="warehouseForm.status">
-              <el-radio value="ACTIVE">正常</el-radio>
-              <el-radio value="INACTIVE">停用</el-radio>
-            </el-radio-group>
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="warehouseDialog = false">取消</el-button>
-          <el-button type="primary" :loading="saving" @click="saveWarehouse">保存</el-button>
-        </template>
-      </el-dialog>
-
-      <el-dialog
-        v-model="supplierDialog"
-        :title="supplierForm.editing ? '编辑供应商' : '新增供应商'"
-        destroy-on-close
-      >
-        <el-form label-width="auto">
-          <el-form-item label="供应商 ID"
-            ><el-input v-model="supplierForm.supplierId" :disabled="supplierForm.editing"
-          /></el-form-item>
-          <el-form-item label="供应商名称"
-            ><el-input v-model="supplierForm.supplierName"
-          /></el-form-item>
-          <el-form-item label="联系人"
-            ><el-input v-model="supplierForm.contactName"
-          /></el-form-item>
-          <el-form-item label="联系电话"
-            ><el-input v-model="supplierForm.contactPhone"
-          /></el-form-item>
-          <el-form-item label="账期(天)"
-            ><el-input-number
-              v-model="supplierForm.paymentTermsDays"
-              :min="0"
-              :max="365"
-              style="width: 100%"
-          /></el-form-item>
-          <el-form-item label="信用额度(元)"
-            ><el-input-number
-              v-model="supplierForm.creditLimitYuan"
-              :min="0"
-              :step="100"
-              :precision="2"
-              style="width: 100%"
-          /></el-form-item>
-          <el-form-item label="状态">
-            <el-select v-model="supplierForm.status" style="width: 100%">
-              <el-option
-                v-for="item in dictOptions('supplier_status')"
-                :key="item.value"
-                :label="item.label"
-                :value="item.value"
-              />
-            </el-select>
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="supplierDialog = false">取消</el-button>
-          <el-button type="primary" :loading="saving" @click="saveSupplier">保存</el-button>
-        </template>
-      </el-dialog>
-
-      <el-dialog v-model="paymentDialog" title="登记付款" destroy-on-close>
-        <el-form label-width="auto">
-          <el-form-item label="供应商">{{ payTarget.supplierName }}</el-form-item>
-          <el-form-item label="关联采购单">
-            <span class="cell-id">{{ payTarget.purchaseOrderId }}</span>
-          </el-form-item>
-          <el-form-item label="未付余额">¥{{ money(payTarget.balanceCents) }}</el-form-item>
-          <el-form-item label="付款金额(元)" required>
-            <el-input-number
-              v-model="paymentForm.amountYuan"
-              :min="0.01"
-              :max="payMaxYuan"
-              :precision="2"
-              :step="100"
-              controls-position="right"
-              style="width: 100%"
-            />
-          </el-form-item>
-          <el-form-item label="备注"
-            ><el-input v-model="paymentForm.notes" maxlength="200"
-          /></el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="paymentDialog = false">取消</el-button>
-          <el-button type="primary" :loading="saving" @click="savePayment">确认付款</el-button>
-        </template>
-      </el-dialog>
+      <WarehouseEntityDialogs
+        v-model:warehouse-dialog="warehouseDialog"
+        v-model:supplier-dialog="supplierDialog"
+        v-model:payment-dialog="paymentDialog"
+        v-model:inbound-dialog="inboundDialog"
+        :saving="saving"
+        :dialog-boot-loading="dialogBootLoading"
+        :warehouse-form="warehouseForm"
+        :supplier-form="supplierForm"
+        :payment-form="paymentForm"
+        :pay-target="payTarget"
+        :inbound-form="inboundForm"
+        :pay-max-yuan="payMaxYuan"
+        :active-warehouses="activeWarehouses"
+        :skus="skus"
+        @save-warehouse="saveWarehouse"
+        @save-supplier="saveSupplier"
+        @save-payment="savePayment"
+        @save-inbound="saveInbound"
+        @add-inbound-line="addInboundLine"
+        @remove-inbound-line="removeInboundLine"
+      />
 
       <WarehouseStocktakeDialogs
         v-model:stocktake-dialog="stocktakeDialog"
@@ -2323,94 +2236,21 @@
         @submit="submitOutboundConfirm"
         @closed="onOutboundConfirmClosed"
       />
-
-      <el-dialog v-model="inboundDialog" title="其他入库" class="dialog-wide" destroy-on-close>
-        <el-form v-loading="dialogBootLoading" label-width="auto">
-          <div class="form-grid">
-            <el-form-item label="仓库" required>
-              <el-select v-model="inboundForm.warehouseId" style="width: 100%">
-                <el-option
-                  v-for="w in activeWarehouses"
-                  :key="w.warehouseId"
-                  :label="w.warehouseName"
-                  :value="w.warehouseId"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="参考单号"><el-input v-model="inboundForm.refNo" /></el-form-item>
-          </div>
-          <el-form-item label="备注"><el-input v-model="inboundForm.notes" /></el-form-item>
-          <div class="section-title">
-            <span>入库明细</span>
-            <el-button link type="primary" @click="inboundForm.lines.push(newInboundLine())"
-              >添加一行</el-button
-            >
-          </div>
-          <div v-for="(line, index) in inboundForm.lines" :key="index" class="purchase-line-card">
-            <div class="line-card-head">
-              <strong>明细 {{ index + 1 }}</strong>
-              <el-button
-                link
-                type="danger"
-                :disabled="inboundForm.lines.length === 1"
-                @click="removeInboundLine(index)"
-                >删除</el-button
-              >
-            </div>
-            <div class="line-grid">
-              <div class="line-field">
-                <span>商品</span>
-                <el-select v-model="line.skuId" filterable>
-                  <el-option
-                    v-for="sku in skus"
-                    :key="sku.skuId"
-                    :label="sku.skuName || sku.skuId"
-                    :value="sku.skuId"
-                  />
-                </el-select>
-              </div>
-              <div class="line-field"><span>批次</span><el-input v-model="line.batchNo" /></div>
-              <div class="line-field">
-                <span>数量</span
-                ><el-input-number v-model="line.quantity" :min="1" controls-position="right" />
-              </div>
-              <label class="line-field"
-                ><span>生产日期</span
-                ><input v-model="line.productionDate" class="native-date" type="date"
-              /></label>
-              <label class="line-field"
-                ><span>到期日期</span
-                ><input v-model="line.expiryDate" class="native-date" type="date"
-              /></label>
-            </div>
-          </div>
-        </el-form>
-        <template #footer>
-          <el-button @click="inboundDialog = false">取消</el-button>
-          <el-button
-            type="primary"
-            :loading="saving"
-            :disabled="dialogBootLoading"
-            @click="saveInbound"
-            >确认入库</el-button
-          >
-        </template>
-      </el-dialog>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, onActivated, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, RefreshLeft } from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { errorMessage, isUserDismiss } from '@/utils/error-message';
+import { ElMessage } from 'element-plus';
+import { errorMessage } from '@/utils/error-message';
 import { api, downloadAuthFile } from '@/api/client';
-import { yuanToCents } from '@/utils/display';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import WarehouseBinDialogs from '@/components/warehouse/WarehouseBinDialogs.vue';
+import WarehouseEntityDialogs from '@/components/warehouse/WarehouseEntityDialogs.vue';
 import WarehouseOutboundDialogs from '@/components/warehouse/WarehouseOutboundDialogs.vue';
 import WarehousePurchaseDialogs from '@/components/warehouse/WarehousePurchaseDialogs.vue';
 import WarehouseStocktakeDialogs from '@/components/warehouse/WarehouseStocktakeDialogs.vue';
@@ -2419,9 +2259,11 @@ import { useListCsv } from '@/composables/useListCsv';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useWarehouseBins } from '@/composables/warehouse/useWarehouseBins';
+import { useWarehouseEntityDialogs } from '@/composables/warehouse/useWarehouseEntityDialogs';
 import { useWarehouseOutbounds } from '@/composables/warehouse/useWarehouseOutbounds';
 import { useWarehousePurchaseOrders } from '@/composables/warehouse/useWarehousePurchaseOrders';
 import { useWarehouseStocktakes } from '@/composables/warehouse/useWarehouseStocktakes';
+import { useWarehouseTabLoader } from '@/composables/warehouse/useWarehouseTabLoader';
 import { useWarehouseTransfers } from '@/composables/warehouse/useWarehouseTransfers';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
@@ -2688,9 +2530,6 @@ const payables = ref<Row[]>([]);
 const payableSummary = ref<Row[]>([]);
 const payableStatusFilter = ref('');
 const payableOverdueOnly = ref(false);
-const paymentDialog = ref(false);
-const paymentForm = reactive<Row>({ payableId: null, amountYuan: 0, notes: '' });
-const payTarget = ref<Row>({});
 const stocktakes = ref<Row[]>([]);
 const stocktakeStatusFilter = ref('');
 const bins = ref<Row[]>([]);
@@ -2700,29 +2539,7 @@ const devices = ref<Row[]>([]);
 const skus = ref<Row[]>([]);
 const loadedTabs = ref(new Set<string>(['warehouses']));
 
-const warehouseDialog = ref(false);
-const supplierDialog = ref(false);
-const inboundDialog = ref(false);
 const dialogBootLoading = ref(false);
-
-const warehouseForm = reactive({
-  editing: false,
-  warehouseId: '',
-  warehouseName: '',
-  address: '',
-  status: 'ACTIVE'
-});
-const supplierForm = reactive({
-  editing: false,
-  supplierId: '',
-  supplierName: '',
-  contactName: '',
-  contactPhone: '',
-  paymentTermsDays: 30,
-  creditLimitYuan: 0,
-  status: 'ACTIVE'
-});
-const inboundForm = reactive<Row>({ warehouseId: '', refNo: '', notes: '', lines: [] });
 
 const pageHint = computed(() => {
   if (tab.value === 'transit') {
@@ -2971,7 +2788,6 @@ const payableSummaryText = computed(() => {
   const overdue = rows.reduce((s, r) => s + (Number(r.overdueBalanceCents) || 0), 0);
   return `共 ${rows.length} 家供应商有欠款，未付合计 ¥${money(total)}，其中逾期 ¥${money(overdue)}`;
 });
-const payMaxYuan = computed(() => Number((payTarget.value.balanceCents || 0) / 100));
 
 watch(tab, () => {
   page.value = 1;
@@ -3326,20 +3142,7 @@ function stocktakeLineStatusType(code: string) {
   };
   return map[code] || 'info';
 }
-function localDate() {
-  const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-}
 
-function newInboundLine() {
-  return {
-    skuId: skus.value[0]?.skuId || '',
-    batchNo: '',
-    productionDate: localDate(),
-    expiryDate: '',
-    quantity: 1
-  };
-}
 function money(cents: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
 }
@@ -3382,172 +3185,50 @@ function outboundSecondaryActions(row: Row): TableAction[] {
   return acts;
 }
 
-async function ensureMeta() {
-  if (!devices.value.length) {
-    if (!auth.hasPerm('ops:device:list') && !auth.hasPerm('ops:device:ref')) {
-      devices.value = [];
-    } else {
-      devices.value = await api
-        .request<Row[]>('/api/v2/ops/admin/devices/ref', 'GET')
-        .catch(() => []);
-    }
-  }
-  if (!skus.value.length) {
-    skus.value =
-      (
-        await api
-          .request<{ items: Row[] }>('/api/v2/ops/admin/skus?page=0&size=500', 'GET')
-          .catch(() => ({ items: [] as Row[] }))
-      ).items || [];
-  }
-}
-
-async function loadWarehouses() {
-  const seq = loadSeq.begin('loadWarehouses');
-  const q = new URLSearchParams({
-    page: String(page.value - 1),
-    size: String(size.value)
-  });
-  if (keyword.value.trim()) q.set('q', keyword.value.trim());
-  const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/warehouse/list?${q}`,
-    'GET'
-  );
-  warehouses.value = data.items || [];
-  tabTotals.value = { ...tabTotals.value, warehouses: Number(data.total) || 0 };
-}
-async function loadWarehousesSoft() {
-  const seq = loadSeq.begin('loadWarehousesSoft');
-  try {
-    const data = await api.request<{ items: Row[] }>(
-      '/api/v2/ops/admin/warehouse/list?page=0&size=500',
-      'GET'
-    );
-    warehouses.value = data.items || [];
-  } catch {
-    if (!loadSeq.isCurrent(seq, 'loadWarehousesSoft')) return;
-    /* 筛选用元数据失败时保留旧列表，不拖垮库存/出库主数据 */
-  }
-}
-async function loadSuppliers() {
-  const seq = loadSeq.begin('loadSuppliers');
-  const q = new URLSearchParams({
-    page: String(page.value - 1),
-    size: String(size.value)
-  });
-  if (keyword.value.trim()) q.set('q', keyword.value.trim());
-  const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/suppliers?${q}`,
-    'GET'
-  );
-  suppliers.value = data.items || [];
-  tabTotals.value = { ...tabTotals.value, suppliers: Number(data.total) || 0 };
-}
-async function loadSuppliersSoft() {
-  const seq = loadSeq.begin('loadSuppliersSoft');
-  try {
-    const data = await api.request<{ items: Row[] }>(
-      '/api/v2/ops/admin/suppliers?page=0&size=500',
-      'GET'
-    );
-    suppliers.value = data.items || [];
-  } catch {
-    if (!loadSeq.isCurrent(seq, 'loadSuppliersSoft')) return;
-    /* 采购/退货筛选项可选 */
-  }
-}
-async function loadPurchase() {
-  const seq = loadSeq.begin('loadPurchase');
-  const q = warehouseListParams();
-  if (hideTestPurchaseOrders.value) q.set('excludeTestRef', 'true');
-  const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/purchase-orders?${q}`,
-    'GET'
-  );
-  purchaseOrders.value = data.items || [];
-  tabTotals.value = { ...tabTotals.value, purchase: Number(data.total) || 0 };
-}
-async function loadReturnablePurchaseOrders() {
-  const seq = loadSeq.begin('loadReturnablePurchaseOrders');
-  try {
-    returnablePurchaseOrders.value =
-      (
-        await api.request<{ items: Row[] }>(
-          '/api/v2/ops/admin/purchase-orders?returnableOnly=true&page=0&size=500',
-          'GET'
-        )
-      ).items || [];
-  } catch {
-    if (!loadSeq.isCurrent(seq, 'loadReturnablePurchaseOrders')) return;
-    returnablePurchaseOrders.value = [];
-  }
-}
-async function loadReturns() {
-  const seq = loadSeq.begin('loadReturns');
-  const q = new URLSearchParams({
-    page: String(page.value - 1),
-    size: String(size.value)
-  });
-  if (keyword.value.trim()) q.set('q', keyword.value.trim());
-  if (filterWarehouseId.value) q.set('warehouseId', filterWarehouseId.value);
-  const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/purchase-returns?${q}`,
-    'GET'
-  );
-  purchaseReturns.value = data.items || [];
-  tabTotals.value = { ...tabTotals.value, returns: Number(data.total) || 0 };
-}
-async function loadOutbounds() {
-  const seq = loadSeq.begin('loadOutbounds');
-  const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/warehouse/outbounds?${warehouseListParams()}`,
-    'GET'
-  );
-  outbounds.value = data.items || [];
-  tabTotals.value = { ...tabTotals.value, outbounds: Number(data.total) || 0 };
-}
-async function loadTransit() {
-  const seq = loadSeq.begin('loadTransit');
-  const q = new URLSearchParams({
-    page: String(page.value - 1),
-    size: String(size.value)
-  });
-  if (focusDeviceId.value) q.set('deviceId', focusDeviceId.value);
-  const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/warehouse/in-transit?${q}`,
-    'GET'
-  );
-  inTransit.value = data.items || [];
-  tabTotals.value = { ...tabTotals.value, transit: Number(data.total) || 0 };
-}
-async function loadInventory() {
-  const seq = loadSeq.begin('loadInventory');
-  const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/warehouse/inventory?${warehouseListParams()}`,
-    'GET'
-  );
-  inventory.value = data.items || [];
-  tabTotals.value = { ...tabTotals.value, inventory: Number(data.total) || 0 };
-}
-async function loadMovements() {
-  const seq = loadSeq.begin('loadMovements');
-  const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/warehouse/movements?${warehouseListParams()}`,
-    'GET'
-  );
-  movements.value = data.items || [];
-  tabTotals.value = { ...tabTotals.value, movements: Number(data.total) || 0 };
-}
-
-function warehouseListParams() {
-  const q = new URLSearchParams({
-    page: String(page.value - 1),
-    size: String(size.value)
-  });
-  if (keyword.value.trim()) q.set('q', keyword.value.trim());
-  if (filterWarehouseId.value) q.set('warehouseId', filterWarehouseId.value);
-  return q;
-}
+const {
+  ensureMeta,
+  loadWarehousesSoft,
+  loadSuppliersSoft,
+  loadPurchase,
+  loadTab
+} = useWarehouseTabLoader({
+  loadSeq,
+  hasDeviceListPerm: () => auth.hasPerm('ops:device:list') || auth.hasPerm('ops:device:ref'),
+  page,
+  size,
+  keyword,
+  filterWarehouseId,
+  hideTestPurchaseOrders,
+  focusDeviceId,
+  suggestionLeadTimeDays,
+  suggestionCoverageDays,
+  payableStatusFilter,
+  payableOverdueOnly,
+  stocktakeStatusFilter,
+  filterBinId,
+  warehouses,
+  suppliers,
+  purchaseOrders,
+  returnablePurchaseOrders,
+  purchaseReturns,
+  outbounds,
+  inTransit,
+  inventory,
+  movements,
+  suggestions,
+  payables,
+  payableSummary,
+  stocktakes,
+  bins,
+  binStock,
+  transfers,
+  devices,
+  skus,
+  tabTotals,
+  loadedTabs,
+  loadingTabs,
+  hydratedTabs
+});
 
 function onPagerChange() {
   if (SERVER_PAGINATED_TABS.has(tab.value)) {
@@ -3559,150 +3240,6 @@ function onPagerSizeChange() {
   page.value = 1;
   if (SERVER_PAGINATED_TABS.has(tab.value)) {
     loadTab(tab.value, true);
-  }
-}
-async function loadSuggestions() {
-  const seq = loadSeq.begin('loadSuggestions');
-  const params = new URLSearchParams({
-    page: String(page.value - 1),
-    size: String(size.value)
-  });
-  if (suggestionLeadTimeDays.value > 0) {
-    params.set('leadTimeDays', String(suggestionLeadTimeDays.value));
-  }
-  if (suggestionCoverageDays.value > 0) {
-    params.set('coverageDays', String(suggestionCoverageDays.value));
-  }
-  if (filterWarehouseId.value) {
-    params.set('warehouseId', filterWarehouseId.value);
-  }
-  const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/procurement/suggestions?${params}`,
-    'GET'
-  );
-  suggestions.value = data.items || [];
-  tabTotals.value = { ...tabTotals.value, suggestions: Number(data.total) || 0 };
-}
-async function loadPayables() {
-  const seq = loadSeq.begin('loadPayables');
-  const params = new URLSearchParams({
-    page: String(page.value - 1),
-    size: String(size.value)
-  });
-  if (payableStatusFilter.value) params.set('status', payableStatusFilter.value);
-  if (payableOverdueOnly.value) params.set('overdueOnly', 'true');
-  const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/suppliers/payables?${params}`,
-    'GET'
-  );
-  payables.value = data.items || [];
-  tabTotals.value = { ...tabTotals.value, payables: Number(data.total) || 0 };
-}
-async function loadPayableSummary() {
-  const seq = loadSeq.begin('loadPayableSummary');
-  payableSummary.value = await api
-    .request<Row[]>('/api/v2/ops/admin/suppliers/payables/summary', 'GET')
-    .catch(() => []);
-}
-async function loadStocktakes() {
-  const seq = loadSeq.begin('loadStocktakes');
-  const params = new URLSearchParams({
-    page: String(page.value - 1),
-    size: String(size.value)
-  });
-  if (stocktakeStatusFilter.value) params.set('status', stocktakeStatusFilter.value);
-  if (filterWarehouseId.value) params.set('warehouseId', filterWarehouseId.value);
-  const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/warehouse/stocktakes?${params}`,
-    'GET'
-  );
-  stocktakes.value = data.items || [];
-  tabTotals.value = { ...tabTotals.value, stocktakes: Number(data.total) || 0 };
-}
-async function loadBins() {
-  const seq = loadSeq.begin('loadBins');
-  bins.value = await api.request<Row[]>('/api/v2/ops/admin/warehouse/bins', 'GET');
-}
-async function loadBinStock() {
-  const seq = loadSeq.begin('loadBinStock');
-  const params = new URLSearchParams({
-    page: String(page.value - 1),
-    size: String(size.value)
-  });
-  if (filterWarehouseId.value) params.set('warehouseId', filterWarehouseId.value);
-  if (filterBinId.value != null) params.set('binId', String(filterBinId.value));
-  const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/warehouse/bins/stock?${params}`,
-    'GET'
-  );
-  binStock.value = data.items || [];
-  tabTotals.value = { ...tabTotals.value, bins: Number(data.total) || 0 };
-}
-async function loadTransfers() {
-  const seq = loadSeq.begin('loadTransfers');
-  const q = new URLSearchParams({
-    page: String(page.value - 1),
-    size: String(size.value)
-  });
-  const data = await api.request<{ items: Row[]; total: number }>(
-    `/api/v2/ops/admin/warehouse/transfers?${q}`,
-    'GET'
-  );
-  transfers.value = data.items || [];
-  tabTotals.value = { ...tabTotals.value, transfers: Number(data.total) || 0 };
-}
-
-async function loadWarehouseTabData(name: string) {
-  const seq = loadSeq.begin('loadWarehouseTabData');
-  const loaders: Record<string, () => Promise<unknown>> = {
-    warehouses: () => loadWarehouses(),
-    suppliers: () => loadSuppliers(),
-    purchase: () => Promise.all([loadPurchase(), loadSuppliersSoft(), loadWarehousesSoft()]),
-    returns: () =>
-      Promise.all([
-        loadReturns(),
-        loadReturnablePurchaseOrders(),
-        loadPurchase().catch((err) => {
-          console.warn('[warehouse] 退货弹窗预载采购单失败', err);
-        }),
-        loadSuppliersSoft(),
-        loadWarehousesSoft()
-      ]),
-    suggestions: () => Promise.all([loadSuggestions(), loadWarehousesSoft(), loadSuppliersSoft()]),
-    payables: () => Promise.all([loadPayables(), loadPayableSummary(), loadSuppliersSoft()]),
-    stocktakes: () => Promise.all([loadStocktakes(), loadWarehousesSoft()]),
-    bins: () => Promise.all([loadBins(), loadBinStock(), loadWarehousesSoft()]),
-    outbounds: () => Promise.all([loadOutbounds(), loadWarehousesSoft()]),
-    transit: () => loadTransit(),
-    transfers: () => Promise.all([loadTransfers(), loadWarehousesSoft()]),
-    inventory: () => Promise.all([loadInventory(), loadWarehousesSoft()]),
-    movements: () => Promise.all([loadMovements(), loadWarehousesSoft()])
-  };
-  const loader = loaders[name];
-  if (loader) await loader();
-}
-
-async function loadTab(name: string, force = false) {
-  const seq = loadSeq.begin('loadTab');
-  if (!force && loadedTabs.value.has(name) && name !== 'inventory' && name !== 'movements') return;
-  const nextLoading = new Set(loadingTabs.value);
-  nextLoading.add(name);
-  loadingTabs.value = nextLoading;
-  try {
-    await ensureMeta();
-    await loadWarehouseTabData(name);
-    loadedTabs.value.add(name);
-  } catch (e) {
-    if (!loadSeq.isCurrent(seq, 'loadTab')) return;
-    ElMessage.error(errorMessage(e, '加载失败'));
-  } finally {
-    if (!loadSeq.isCurrent(seq, 'loadTab')) return;
-    const next = new Set(hydratedTabs.value);
-    next.add(name);
-    hydratedTabs.value = next;
-    const doneLoading = new Set(loadingTabs.value);
-    doneLoading.delete(name);
-    loadingTabs.value = doneLoading;
   }
 }
 
@@ -3881,172 +3418,39 @@ const {
   loadTab
 });
 
-function openWarehouse(row?: Row) {
-  Object.assign(warehouseForm, {
-    editing: !!row,
-    warehouseId: row?.warehouseId || '',
-    warehouseName: row?.warehouseName || '',
-    address: row?.address || '',
-    status: row?.status || 'ACTIVE'
-  });
-  warehouseDialog.value = true;
-}
-async function saveWarehouse() {
-  if (!warehouseForm.warehouseId.trim() || !warehouseForm.warehouseName.trim()) {
-    return ElMessage.warning('请填写仓库 ID 和名称');
-  }
-  saving.value = true;
-  try {
-    await api.request(
-      `/api/v2/ops/admin/warehouse/${encodeURIComponent(warehouseForm.warehouseId.trim())}`,
-      'PUT',
-      {
-        warehouseName: warehouseForm.warehouseName.trim(),
-        address: warehouseForm.address,
-        status: warehouseForm.status
-      }
-    );
-    warehouseDialog.value = false;
-    ElMessage.success('仓库已保存');
-    loadedTabs.value.delete('warehouses');
-    await loadTab('warehouses', true);
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '保存失败'));
-  } finally {
-    saving.value = false;
-  }
-}
-
-function openSupplier(row?: Row) {
-  Object.assign(supplierForm, {
-    editing: !!row,
-    supplierId: row?.supplierId || '',
-    supplierName: row?.supplierName || '',
-    contactName: row?.contactName || '',
-    contactPhone: row?.contactPhone || '',
-    paymentTermsDays: row?.paymentTermsDays || 30,
-    creditLimitYuan: row?.creditLimitCents == null ? 0 : Number(row.creditLimitCents) / 100,
-    status: row?.status || 'ACTIVE'
-  });
-  supplierDialog.value = true;
-}
-async function saveSupplier() {
-  if (!supplierForm.supplierId.trim() || !supplierForm.supplierName.trim()) {
-    return ElMessage.warning('请填写供应商 ID 和名称');
-  }
-  saving.value = true;
-  try {
-    await api.request(
-      `/api/v2/ops/admin/suppliers/${encodeURIComponent(supplierForm.supplierId.trim())}`,
-      'PUT',
-      {
-        supplierId: supplierForm.supplierId.trim(),
-        supplierName: supplierForm.supplierName.trim(),
-        contactName: supplierForm.contactName,
-        contactPhone: supplierForm.contactPhone,
-        paymentTermsDays: Number(supplierForm.paymentTermsDays) || 30,
-        creditLimitCents: yuanToCents(supplierForm.creditLimitYuan) ?? 0,
-        status: supplierForm.status
-      }
-    );
-    supplierDialog.value = false;
-    ElMessage.success('供应商已保存');
-    loadedTabs.value.delete('suppliers');
-    await loadTab('suppliers', true);
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '保存失败'));
-  } finally {
-    saving.value = false;
-  }
-}
-
-function openPay(row: Row) {
-  Object.assign(payTarget.value, row);
-  paymentForm.payableId = row.payableId;
-  paymentForm.amountYuan = Number((Number(row.balanceCents) || 0) / 100);
-  paymentForm.notes = '';
-  paymentDialog.value = true;
-}
-async function savePayment() {
-  if (!paymentForm.payableId) return;
-  const amountCents = yuanToCents(paymentForm.amountYuan);
-  if (amountCents == null || amountCents <= 0) return ElMessage.warning('请输入付款金额');
-  saving.value = true;
-  try {
-    await api.request(`/api/v2/ops/admin/suppliers/payables/${paymentForm.payableId}/pay`, 'POST', {
-      amountCents,
-      notes: paymentForm.notes
-    });
-    paymentDialog.value = false;
-    ElMessage.success('付款登记成功');
-    loadedTabs.value.delete('payables');
-    await loadTab('payables', true);
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '付款登记失败'));
-  } finally {
-    saving.value = false;
-  }
-}
-async function removeInboundLine(index: number) {
-  if (inboundForm.lines.length <= 1) return;
-  try {
-    await ElMessageBox.confirm('确定删除该入库行吗？', '删除行', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      appendTo: document.body
-    });
-  } catch {
-    return;
-  }
-  inboundForm.lines.splice(index, 1);
-}
-
-async function openInbound() {
-  Object.assign(inboundForm, {
-    warehouseId: filterWarehouseId.value || '',
-    refNo: '',
-    notes: '',
-    lines: [newInboundLine()]
-  });
-  inboundDialog.value = true;
-  dialogBootLoading.value = true;
-  try {
-    await Promise.all([loadWarehousesSoft(), ensureMeta()]);
-    if (!inboundForm.warehouseId) {
-      inboundForm.warehouseId = activeWarehouses.value[0]?.warehouseId || '';
-    }
-  } finally {
-    dialogBootLoading.value = false;
-  }
-}
-async function saveInbound() {
-  if (
-    !inboundForm.warehouseId ||
-    inboundForm.lines.some((l: Row) => !l.skuId || !l.batchNo || !l.expiryDate || !l.quantity)
-  ) {
-    return ElMessage.warning('请完整填写仓库、商品、批次、到期日和数量');
-  }
-  saving.value = true;
-  try {
-    await api.request('/api/v2/ops/admin/warehouse/inbound', 'POST', {
-      warehouseId: inboundForm.warehouseId,
-      refNo: inboundForm.refNo,
-      notes: inboundForm.notes,
-      lines: inboundForm.lines
-    });
-    inboundDialog.value = false;
-    ElMessage.success('入库完成');
-    loadedTabs.value.delete('inventory');
-    loadedTabs.value.delete('movements');
-    tab.value = 'inventory';
-    await loadTab('inventory', true);
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '入库失败'));
-  } finally {
-    saving.value = false;
-  }
-}
+const {
+  warehouseDialog,
+  supplierDialog,
+  paymentDialog,
+  inboundDialog,
+  warehouseForm,
+  supplierForm,
+  paymentForm,
+  payTarget,
+  inboundForm,
+  payMaxYuan,
+  openWarehouse,
+  saveWarehouse,
+  openSupplier,
+  saveSupplier,
+  openPay,
+  savePayment,
+  addInboundLine,
+  removeInboundLine,
+  openInbound,
+  saveInbound
+} = useWarehouseEntityDialogs({
+  saving,
+  dialogBootLoading,
+  tab,
+  loadedTabs,
+  loadTab,
+  filterWarehouseId,
+  activeWarehouses,
+  skus,
+  loadWarehousesSoft,
+  ensureMeta
+});
 
 function syncRouteQuery(nextTab = tab.value) {
   const query: Record<string, string> = {
