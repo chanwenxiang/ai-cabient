@@ -270,86 +270,15 @@
             已开门，关门后继续核对{{ detailIsPullOff ? '下架' : '上架' }}
           </text>
 
-          <view class="section-heading">
-            <view>
-              <text class="section-title">现场照片</text>
-              <text class="section-subtitle">{{
-                selected?.checkInAt
-                  ? evidenceItems.length
-                    ? `已上传 ${evidenceItems.length}/5 · 点图可放大核对`
-                    : requireReplenishmentEvidence
-                      ? '须至少 1 张现场照片，最多 5 张'
-                      : '选填：建议拍柜内/货道全景，最多 5 张'
-                  : '签到后可拍照留存，最多 5 张'
-              }}</text>
-            </view>
-            <text
-              class="line-count"
-              :class="{
-                warn:
-                  requireReplenishmentEvidence &&
-                  evidenceItems.length === 0 &&
-                  !!selected?.checkInAt
-              }"
-            >
-              {{ evidenceItems.length }} 张
-            </text>
-          </view>
-          <view class="evidence-row">
-            <view
-              v-for="(item, idx) in evidenceItems"
-              :key="item.fileId || item.localPath || idx"
-              class="evidence-thumb-wrap"
-            >
-              <image
-                class="evidence-thumb"
-                :src="item.localPath"
-                mode="aspectFill"
-                :aria-label="`现场照片 ${idx + 1}`"
-                @click="previewEvidence(idx)"
-              />
-              <text class="evidence-caption">凭证 {{ idx + 1 }}</text>
-            </view>
-            <view
-              v-if="
-                canRequest &&
-                selected?.status !== 'COMPLETED' &&
-                selected?.checkInAt &&
-                evidenceItems.length < 5
-              "
-              class="evidence-add"
-              role="button"
-              aria-label="添加现场照片"
-              @click="addEvidence"
-            >
-              <text class="evidence-add-plus">+</text>
-              <text class="evidence-add-label">拍照</text>
-            </view>
-            <view
-              v-else-if="!evidenceItems.length"
-              class="evidence-empty"
-              role="button"
-              :aria-label="selected?.checkInAt ? '添加现场照片' : '请先签到'"
-              @click="
-                selected?.checkInAt && canRequest && selected?.status !== 'COMPLETED'
-                  ? addEvidence()
-                  : undefined
-              "
-            >
-              <text class="evidence-empty-title">{{
-                selected?.status === 'COMPLETED' ? '本次未留存照片' : '暂无现场照片'
-              }}</text>
-              <text class="evidence-empty-tip">{{
-                selected?.checkInAt
-                  ? selected?.status === 'COMPLETED'
-                    ? '完成后不可再补传'
-                    : requireReplenishmentEvidence
-                      ? '完成前须上传 · 点击拍照或从相册上传'
-                      : '可选上传 · 点击拍照或从相册上传'
-                  : '签到后可拍照'
-              }}</text>
-            </view>
-          </view>
+          <ReplenishEvidenceSection
+            :items="evidenceItems"
+            :checked-in="!!selected?.checkInAt"
+            :completed="selected?.status === 'COMPLETED'"
+            :can-interact="canRequest"
+            :require-evidence="requireReplenishmentEvidence"
+            @preview="previewEvidence"
+            @add="addEvidence"
+          />
 
           <view class="section-heading">
             <view>
@@ -543,6 +472,7 @@ import EmptyState from '@/components/empty-state.vue';
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue';
 import ReplenishCabinetCard from '@/components/ReplenishCabinetCard.vue';
 import ReplenishDetailSheet from '@/components/ReplenishDetailSheet.vue';
+import ReplenishEvidenceSection from '@/components/ReplenishEvidenceSection.vue';
 import ReplenishStepBar from '@/components/ReplenishStepBar.vue';
 import {
   hasPerm,
@@ -2749,77 +2679,6 @@ onPullDownRefresh(load);
 .product-copy {
   flex: 1;
   min-width: 0;
-}
-.evidence-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16rpx;
-  margin-bottom: 20rpx;
-}
-.evidence-thumb-wrap {
-  width: 140rpx;
-}
-.evidence-thumb,
-.evidence-add {
-  width: 140rpx;
-  height: 140rpx;
-  border-radius: var(--radius-panel);
-  background: var(--brand-soft);
-}
-.evidence-thumb {
-  display: block;
-}
-.evidence-caption {
-  display: block;
-  margin-top: 6rpx;
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
-  text-align: center;
-}
-.evidence-add {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  border: 2rpx dashed var(--brand-mist, #99f6e4);
-  color: var(--brand);
-  gap: 4rpx;
-}
-.evidence-add-plus {
-  font-size: var(--font-size-h2);
-  font-weight: 600;
-  line-height: 1;
-}
-.evidence-add-label {
-  font-size: var(--font-size-xs);
-}
-.evidence-empty {
-  width: 100%;
-  min-height: 140rpx;
-  height: auto;
-  padding: 24rpx 20rpx;
-  box-sizing: border-box;
-  border: 2rpx dashed var(--text-subtle, #cbd5e1);
-  background: var(--page-bg, #f8fafc);
-  border-radius: var(--radius-panel);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8rpx;
-}
-.evidence-empty-title {
-  font-size: var(--font-size-body);
-  font-weight: 650;
-  color: var(--text-muted, #334155);
-}
-.evidence-empty-tip {
-  font-size: var(--font-size-sm);
-  color: var(--text-subtle);
-}
-.evidence-hint {
-  align-self: center;
-  font-size: var(--font-size-sm);
-  color: var(--text-subtle);
 }
 .evidence-badge {
   color: var(--brand);
