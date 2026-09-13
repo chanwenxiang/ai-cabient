@@ -244,7 +244,6 @@ if (consumer) {
 // ========== §3.6 DV ==========
 {
   const v = await fetch('http://127.0.0.1:18082/health').then((r) => r.json()).catch((e) => ({ error: String(e) }));
-  const v2 = await fetch('http://127.0.0.1:18082/').then((r) => r.text()).catch(() => '');
   // try richer endpoints
   const modes = [];
   for (const p of ['/health', '/api/health', '/v1/health', '/ready']) {

@@ -23,7 +23,11 @@ export default tseslint.config(
       '**/target/**',
       '**/package-lock.json',
       'pnpm-lock.yaml',
-      'packages/shared-types/src/generated/**'
+      'packages/shared-types/src/generated/**',
+      // UAT 留证/一次性脚本与 JMeter HTML 报告（含第三方 bower），不进 CI lint 门禁
+      'docs/uat-screenshots/**',
+      '**/jmeter-order-read/report/**',
+      '.tmp/**'
     ]
   },
   ...tseslint.configs.recommended,

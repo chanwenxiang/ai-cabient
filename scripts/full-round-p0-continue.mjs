@@ -122,9 +122,6 @@ try {
   await page.screenshot({ path: `${UI}/p0-replenish-completed.png`, fullPage: true });
   // API assert
   const tasks = await api(mch.token, 'GET', '/api/v2/merchant/replenishment/tasks?status=COMPLETED');
-  const completed = (Array.isArray(tasks.data?.data) ? tasks.data.data : tasks.data?.data?.items || tasks.data?.data || [])
-    .concat(Array.isArray(tasks.data?.data) ? [] : [])
-    .filter?.(Boolean);
   let taskList = tasks.data?.data;
   if (taskList && !Array.isArray(taskList) && taskList.items) taskList = taskList.items;
   if (!Array.isArray(taskList)) taskList = [];

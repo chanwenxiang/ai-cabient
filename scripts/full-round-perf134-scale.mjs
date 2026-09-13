@@ -6,7 +6,7 @@
  * 用法：node scripts/full-round-perf134-scale.mjs
  * 环境变量：USERS=1000 RAMP_MS=60000 HOLD_MS=30000 TRADE_BASE=http://127.0.0.1:18080
  */
-import { execSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -15,7 +15,6 @@ const TRADE = process.env.TRADE_BASE || 'http://127.0.0.1:18080';
 const BASE = process.env.API_BASE || 'http://127.0.0.1';
 const VISION = process.env.VISION_BASE || 'http://127.0.0.1:18082';
 const VISION_KEY = process.env.VISION_API_KEY || 'dev-vision-key-change-me';
-const MINIO = process.env.MINIO_ENDPOINT || 'http://127.0.0.1:9000';
 const USERS = Number(process.env.USERS || 1000);
 const RAMP_MS = Number(process.env.RAMP_MS || 60_000);
 const HOLD_MS = Number(process.env.HOLD_MS || 30_000);
@@ -93,13 +92,11 @@ console.log('login ok');
   let total = 0;
   const start = Date.now();
   const endAt = start + RAMP_MS + HOLD_MS;
-  let active = 0;
   let nextVuAt = start;
   const vuGap = RAMP_MS / USERS;
   const workers = [];
 
-  async function vuLoop(id) {
-    active += 1;
+  async function vuLoop() {
     let i = 0;
     while (Date.now() < endAt) {
       const url = paths[i % paths.length];
@@ -111,20 +108,19 @@ console.log('login ok');
       // light think time to avoid pure spin
       await new Promise((r) => setTimeout(r, 20));
     }
-    active -= 1;
   }
 
   console.log(`PERF-1 ramp ${USERS} VU over ${RAMP_MS}ms, hold ${HOLD_MS}ms`);
   while (Date.now() < start + RAMP_MS) {
     while (workers.length < USERS && Date.now() >= nextVuAt) {
-      workers.push(vuLoop(workers.length));
+      workers.push(vuLoop());
       nextVuAt += vuGap;
     }
     await new Promise((r) => setTimeout(r, 25));
   }
   // ensure all VUs started
   while (workers.length < USERS) {
-    workers.push(vuLoop(workers.length));
+    workers.push(vuLoop());
   }
   await Promise.all(workers);
   const elapsed = Date.now() - start;

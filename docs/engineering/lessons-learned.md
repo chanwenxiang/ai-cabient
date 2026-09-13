@@ -17,6 +17,7 @@
 | 10 | admin 登录 | 登录页不应出现自助「忘记密码」 | 产品：仅系统→运营账号、持 `ops:rbac:assign:reset-password` 者可重置 | 禁止登录页忘记密码/SMS 重置入口；重置只走运营账号 API | `LoginView.vue` |
 | 11 | admin UI | 一致性「基准/对照」露出 `SALE_OK`/`MISSING_SALE` 等英文码 | 后端存诊断码，前端未映射 | 展示走 `formatConsistencyValue` + `consistency_diag_code`；悬停可看原始码 | `ConsistencyView.vue`、`shared-dict` |
 | 12 | CI / GitHub | 连续多次 `CI` failure：`generated OpenAPI types are stale` | 新增/改 API（如 reset-password）后未 `pnpm gen:api-types` 并提交 `packages/shared-types` | **改 Controller/DTO 后必须**：起 trade → `pnpm gen:api-types` → 提交 `src/generated/`+`dist`；推前本地 `OPENAPI_CHECK_REGEN=1 OPENAPI_FILE=.tmp/live-openapi.json pnpm check:openapi-types` | `scripts/gen-openapi-types.mjs`、`check:openapi-types` |
+| 13 | CI / ESLint | `pnpm lint` 因 UAT 脚本未用变量 / JMeter report 第三方码失败 | `docs/uat-screenshots` 与压测 HTML 报告被扫进 `eslint .`；脚本里残留未使用绑定 | UAT 留证目录与 `.tmp` **必须**在 `eslint.config.mjs` ignores；`scripts/*.mjs` 未用变量删掉或 `_` 前缀；推前 `pnpm lint` | `eslint.config.mjs` |
 
 ## 追加模板
 

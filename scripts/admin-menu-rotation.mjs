@@ -55,7 +55,7 @@ for (const p of menuPaths) {
   const before = consoleErrors.length;
   try {
     await page.goto(`http://localhost/admin${p}`, { waitUntil: 'networkidle', timeout: 30000 });
-  } catch (e) {
+  } catch {
     // interrupted navigations: still inspect final URL
   }
   await page.waitForTimeout(400);

@@ -20,10 +20,7 @@ const views = walkViews('clients/admin-vue/src/views');
 // Classify: top-level auth vs children under AdminLayout
 const topLevel = [];
 const children = [];
-let inChildren = false;
 for (const line of router.split('\n')) {
-  if (line.includes('bizChildren')) inChildren = true;
-  if (line.includes('const routes')) inChildren = false;
   const m = line.match(/path:\s*['"]([^'"]+)['"]/);
   if (!m) continue;
   // crude: children paths usually lack leading slash in this file
