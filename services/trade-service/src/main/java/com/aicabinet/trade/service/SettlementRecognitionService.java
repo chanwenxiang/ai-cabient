@@ -16,7 +16,7 @@ import java.util.List;
 
 /**
  * 识别结果决策管线（从 {@link SettlementService} 拆出）：重力兜底、审单旁路、空购零结、争议升级。
- * 落单/扣款与 DTO 仍委托 {@link SettlementService}。
+ * 落单委托 {@link SettlementService}；DTO 委托 {@link SettlementOrderSupport}。
  */
 @Service
 public class SettlementRecognitionService {
@@ -37,6 +37,7 @@ public class SettlementRecognitionService {
     private final DisputeService disputeService;
     private final ConsumerPreauthService consumerPreauthService;
     private final SettlementService settlement;
+    private final SettlementOrderSupport orderSupport;
 
     public SettlementRecognitionService(ShoppingSessionMapper sessionRepository,
                                         CabinetOrderMapper orderRepository,
@@ -48,7 +49,8 @@ public class SettlementRecognitionService {
                                         SkuVisionEnrollmentService skuVisionEnrollmentService,
                                         @Lazy DisputeService disputeService,
                                         ConsumerPreauthService consumerPreauthService,
-                                        @Lazy SettlementService settlement) {
+                                        @Lazy SettlementService settlement,
+                                        SettlementOrderSupport orderSupport) {
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
         this.confidenceService = confidenceService;
@@ -60,6 +62,7 @@ public class SettlementRecognitionService {
         this.disputeService = disputeService;
         this.consumerPreauthService = consumerPreauthService;
         this.settlement = settlement;
+        this.orderSupport = orderSupport;
     }
 
     OrderReadModel processRecognitionResultUnlocked(ShoppingSession session,
@@ -72,7 +75,7 @@ public class SettlementRecognitionService {
                                                     boolean allowDevFallback) {
         var existingOrder = orderRepository.findBySessionId(session.getSessionId());
         if (existingOrder.isPresent()) {
-            return settlement.toDto(existingOrder.get());
+            return orderSupport.toDto(existingOrder.get());
         }
 
         session.setRecognitionTaskId(recognition.taskId());

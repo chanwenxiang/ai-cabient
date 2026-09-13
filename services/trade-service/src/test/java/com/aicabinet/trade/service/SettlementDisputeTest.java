@@ -67,24 +67,27 @@ class SettlementDisputeTest {
 
     @BeforeEach
     void setUp() {
+        var orderViewAssembler = new com.aicabinet.trade.service.view.OrderViewAssembler();
+        SettlementOrderSupport orderSupport = new SettlementOrderSupport(
+                skuCatalogRepository, orderRepository, orderLineRepository, slotRepository,
+                skuPricingService, memberService, couponService, null,
+                revenueSplitService, orderPaymentService, systemConfigService, orderViewAssembler);
         settlementService = new SettlementService(
-                sessionRepository, skuCatalogRepository, orderRepository, orderLineRepository,
+                sessionRepository, orderRepository,
                 settlementVisionAsyncService, null, null, null, null, null,
-                revenueSplitService, orderPaymentService, skuPricingService, couponService, memberService, null,
-                slotRepository, systemConfigService, distributedLockService,
-                new com.aicabinet.trade.service.view.OrderViewAssembler());
+                orderSupport, distributedLockService);
         SettlementOrderFinalizeService finalizeSvc = new SettlementOrderFinalizeService(
                 sessionRepository, orderRepository, orderLineRepository, deviceValidationService,
                 inventoryService, orderPaymentService, userValidationService, couponService, memberService,
                 revenueSplitService, notificationService, videoArchiveService, displaySnapshotHelper,
-                settlementService);
+                orderSupport);
         SettlementRecognitionService recognitionSvc = new SettlementRecognitionService(
                 sessionRepository, orderRepository, confidenceService, gravityHelper,
                 securityProperties, stagingProperties, systemConfigService, skuVisionEnrollmentService,
-                disputeService, consumerPreauthService, settlementService);
+                disputeService, consumerPreauthService, settlementService, orderSupport);
         SettlementSettleOrchestrator settleOrchestrator = new SettlementSettleOrchestrator(
                 sessionRepository, orderRepository, visionClient, deviceValidationService,
-                recognitionSvc, settlementService, null);
+                recognitionSvc, settlementService, orderSupport, null);
         org.springframework.test.util.ReflectionTestUtils.setField(settleOrchestrator, "self", settleOrchestrator);
         org.springframework.test.util.ReflectionTestUtils.setField(
                 settlementService, "settlementOrderFinalizeService", finalizeSvc);
