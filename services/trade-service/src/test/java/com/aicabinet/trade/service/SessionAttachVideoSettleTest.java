@@ -53,7 +53,7 @@ class SessionAttachVideoSettleTest {
     @BeforeEach
     void setUp() {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
-                settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
+                settlementService, visionAsyncProperties, com.aicabinet.trade.config.SessionExpireProperties.defaults(), cabinetMetrics, domainEventPublisher,
                 gravityHelper, restockSnapshotService, null, opsExceptionService, userInfoRepository, orderRepository,
                 null, null, consumerPreauthService, null, distributedLockService, taskService, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);

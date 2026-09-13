@@ -47,7 +47,7 @@ class BalanceInsufficientSettlementTest {
     @BeforeEach
     void setUp() {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
-                settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
+                settlementService, visionAsyncProperties, com.aicabinet.trade.config.SessionExpireProperties.defaults(), cabinetMetrics, domainEventPublisher,
                 gravityHelper, restockSnapshotService, null, opsExceptionService, null, orderRepository,
                 null, null, null, null, distributedLockService, null, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);

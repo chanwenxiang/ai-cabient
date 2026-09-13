@@ -16,6 +16,7 @@ import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.config.SessionExpireProperties;
 import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.ShoppingSession;
@@ -58,14 +59,6 @@ public class SessionService {
 
     private static final Logger log = LoggerFactory.getLogger(SessionService.class);
 
-    private static final long OPENING_EXPIRE_SECONDS = 90;
-    /** 补货开门后未关门/未完成任务时的占柜超时（避免挡消费者）。 */
-    private static final long RESTOCK_SHOPPING_EXPIRE_MINUTES = 30;
-    /**
-     * 消费者购物开门超时：与 ops.scan.door_open_minutes 默认一致。
-     * 超时后自动关会话释放设备（告警仍由 ops-exception-scanner 去重写入）。
-     */
-    private static final long CONSUMER_DOOR_OPEN_EXPIRE_MINUTES = 10;
     private static final EnumSet<SessionState> ACTIVE_STATES = EnumSet.of(
             SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
             SessionState.WAITING_UPLOAD, SessionState.RECOGNIZING, SessionState.SETTLING);
@@ -79,6 +72,7 @@ public class SessionService {
     private final DeviceValidationService deviceValidationService;
     private final SettlementService settlementService;
     private final VisionAsyncProperties visionAsyncProperties;
+    private final SessionExpireProperties sessionExpireProperties;
     private final CabinetMetrics cabinetMetrics;
     private final DomainEventPublisher domainEventPublisher;
     private final GravitySettlementHelper gravityHelper;
@@ -103,6 +97,7 @@ public class SessionService {
                           DeviceValidationService deviceValidationService,
                           SettlementService settlementService,
                           VisionAsyncProperties visionAsyncProperties,
+                          SessionExpireProperties sessionExpireProperties,
                           CabinetMetrics cabinetMetrics,
                           DomainEventPublisher domainEventPublisher,
                           GravitySettlementHelper gravityHelper,
@@ -126,6 +121,9 @@ public class SessionService {
         this.deviceValidationService = deviceValidationService;
         this.settlementService = settlementService;
         this.visionAsyncProperties = visionAsyncProperties;
+        this.sessionExpireProperties = sessionExpireProperties != null
+                ? sessionExpireProperties
+                : SessionExpireProperties.defaults();
         this.cabinetMetrics = cabinetMetrics;
         this.domainEventPublisher = domainEventPublisher;
         this.gravityHelper = gravityHelper;
@@ -1097,7 +1095,7 @@ public class SessionService {
         boolean failed = false;
         String summary = "本次无超时开门会话";
         try {
-        Instant cutoff = Instant.now().minus(OPENING_EXPIRE_SECONDS, ChronoUnit.SECONDS);
+        Instant cutoff = Instant.now().minus(sessionExpireProperties.openingSeconds(), ChronoUnit.SECONDS);
         var stale = repository.findByStateInAndCreatedAtBefore(
                         List.of(SessionState.OPENING, SessionState.CREATED), cutoff, 500);
         int cancelled = 0;
@@ -1131,7 +1129,7 @@ public class SessionService {
         boolean failed = false;
         String summary = "本次无超时补货会话";
         try {
-        Instant cutoff = Instant.now().minus(RESTOCK_SHOPPING_EXPIRE_MINUTES, ChronoUnit.MINUTES);
+        Instant cutoff = Instant.now().minus(sessionExpireProperties.restockShoppingMinutes(), ChronoUnit.MINUTES);
         var stale = repository.findByStateInAndUpdatedAtBefore(
                         List.of(SessionState.SHOPPING, SessionState.WAITING_UPLOAD), cutoff, 500)
                 .stream()
@@ -1170,7 +1168,7 @@ public class SessionService {
         boolean failed = false;
         String summary = "本次无开门超时购物会话";
         try {
-            Instant cutoff = Instant.now().minus(CONSUMER_DOOR_OPEN_EXPIRE_MINUTES, ChronoUnit.MINUTES);
+            Instant cutoff = Instant.now().minus(sessionExpireProperties.consumerDoorOpenMinutes(), ChronoUnit.MINUTES);
             int closed = 0;
             for (ShoppingSession s : repository.findByStateAndOpenTimeBefore(
                     SessionState.SHOPPING, cutoff, 500)) {
@@ -1206,7 +1204,7 @@ public class SessionService {
         boolean failed = false;
         String summary = "本次无识别超时会话";
         try {
-        Instant cutoff = Instant.now().minus(10, ChronoUnit.MINUTES);
+        Instant cutoff = Instant.now().minus(sessionExpireProperties.recognizingMinutes(), ChronoUnit.MINUTES);
         int upgraded = 0;
         for (ShoppingSession s : repository.findByStateInAndUpdatedAtBefore(
                         List.of(SessionState.RECOGNIZING, SessionState.WAITING_UPLOAD, SessionState.SETTLING),
@@ -1473,7 +1471,7 @@ public class SessionService {
                     new OpsExceptionService.ExceptionReport.ExceptionRefs(
                             locked.getDeviceId(), locked.getSessionId(), locked.getOrderId(), locked.getUserId()),
                     "补货会话超时",
-                    "补货开门后超过" + RESTOCK_SHOPPING_EXPIRE_MINUTES + "分钟未结束");
+                    "补货开门后超过" + sessionExpireProperties.restockShoppingMinutes() + "分钟未结束");
             log.warn("restock shopping session expired session={} device={}",
                     locked.getSessionId(), locked.getDeviceId());
             return true;
@@ -1505,7 +1503,7 @@ public class SessionService {
                 return false;
             }
             consumerPreauthService.releaseIfFrozen(locked);
-            locked.setFailReason("开门超时自动关闭（超过" + CONSUMER_DOOR_OPEN_EXPIRE_MINUTES + "分钟未关门）");
+            locked.setFailReason("开门超时自动关闭（超过" + sessionExpireProperties.consumerDoorOpenMinutes() + "分钟未关门）");
             if (locked.getCloseTime() == null) {
                 locked.setCloseTime(Instant.now());
             }
@@ -1518,7 +1516,7 @@ public class SessionService {
                     new OpsExceptionService.ExceptionReport.ExceptionRefs(
                             locked.getDeviceId(), locked.getSessionId(), locked.getOrderId(), locked.getUserId()),
                     "柜门长时间未关闭",
-                    "柜门开启超过 " + CONSUMER_DOOR_OPEN_EXPIRE_MINUTES + " 分钟，已自动关闭会话并释放设备");
+                    "柜门开启超过 " + sessionExpireProperties.consumerDoorOpenMinutes() + " 分钟，已自动关闭会话并释放设备");
             opsExceptionService.resolveSystem(
                     "DOOR_OPEN_TOO_LONG",
                     locked.getSessionId(),
