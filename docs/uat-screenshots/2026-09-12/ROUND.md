@@ -126,9 +126,10 @@ T2抽样 PASS · T4 15/15 · T5 6/6 · T6 归档 · 基线 24/22/76·73/66 OK
 
 ## 未完成（完整轮后遗留，非本轮阻断）
 
-- [ ] T2 财务/运营角色侧栏全矩阵（viewer+他商户已覆盖）
+- [x] T2 财务/运营角色侧栏全矩阵（viewer+他商户已覆盖；本轮补 finance/operator/replenisher）
 - [ ] §6 PERF-1 JMeter 全量基线（仓库无现成 .jmx）；§10 真实环境 🔒
 - [x] §6 FE-PERF / 轻量抽样（见下「推送后回归」）
+- [x] §6 PERF-2 轻量（顺序幂等 + 忙柜拒绝；并行同 key 竞态已登记）
 
 ## 推送后回归（2026-09-13 12:27+ · `dev` @ `6bbdb171`）
 
@@ -145,9 +146,31 @@ T2抽样 PASS · T4 15/15 · T5 6/6 · T6 归档 · 基线 24/22/76·73/66 OK
 | 审计 `OPS_OPERATOR_RESET_PASSWORD` | PASS | API filter + UI `/audit?action=…` 1 行；`ops-reset-pwd-audit.png` |
 | §6 轻量并发 | PASS | 50 并行 `GET /rbac/operators` p95≈275ms，错误率 0（非 JMeter 全量） |
 
-仍开放：DV-06 已知缺口、PERF-1/3/4 全量、§10 真实环境🔒、T2 角色侧栏全矩阵。
+## T2 角色矩阵续测（2026-09-13 12:36+）
+
+脚本：`scripts/full-round-t2-role-matrix.mjs` → `full-round-t2-role-matrix.json`  
+账号：`13900000002` 财务 · `13900000003` 运营 · `13900000004` 补货（本轮补建）
+
+| 结果 | 说明 |
+|------|------|
+| **22/22 PASS** | 权限码期望、写 403、侧栏裁剪、直链 `/forbidden` 或可达 |
+| 证据 | `t2-finance-sidebar.png` / `t2-operator-sidebar.png` / `t2-*-forbidden.png` / `t2-*-ok.png` |
+
+## §6 PERF-2 轻量（2026-09-13）
+
+脚本：`scripts/full-round-perf2-light.mjs` → `full-round-perf2-light.json`
+
+| 项 | 结果 |
+|----|------|
+| 模拟器 Up + 主柜 ONLINE | PASS |
+| 设备 status×30 p95 | **44ms** |
+| 顺序同 idempotencyKey | PASS（同一 sessionId） |
+| 柜忙二次开门 | PASS（409 使用中） |
+| 并行同 key | **竞态登记**：一成功一 409（非顺序路径；DV-06/幂等加深候选） |
+
+仍开放：DV-06 已知缺口、PERF-1/3/4 全量、§10 真实环境🔒。
 
 ## 结论（当前）
 
 **MASTER 完整轮已收口**，P0 **10/10 PASS**（含 #4 分账加深）。  
-推送后门禁与重置密码回归已补跑。证据目录 `docs/uat-screenshots/2026-09-12/`。
+推送后门禁、重置密码回归、T2 三角色矩阵、PERF-2 轻量已补跑。证据目录 `docs/uat-screenshots/2026-09-12/`。
