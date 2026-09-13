@@ -121,7 +121,7 @@ DB/账号续建：viewer `13900000005`→userId `100000031`；商户B `138001380
 轮次: 2026-09-12~13  环境: env:docker-full pay:mock vision:mock door:sim client:h5
 P0: 10/10 PASS · 菜单 L1 65/66(+1 SKIP) · §2.4 本轮口径 26 PASS
 T2抽样 PASS · T4 15/15 · T5 6/6 · T6 归档 · 基线 24/22/76·73/66 OK
-关键开放: DV-06 已知缺口 · §6 性能未跑 · §10 真实环境🔒
+仍开放: PERF-1 JMeter 全量 · §10 真实环境🔒（DV-06 多柜/MQTT 本轮已补）
 ```
 
 ## 未完成（完整轮后遗留，非本轮阻断）
