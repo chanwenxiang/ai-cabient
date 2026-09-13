@@ -1,0 +1,37 @@
+{
+  "at": "2026-09-13T04:41:29.037Z",
+  "deviceStatus": {
+    "p50": 40,
+    "p95": 44,
+    "max": 46,
+    "n": 30
+  },
+  "concurrentIdempotent": {
+    "code1": 0,
+    "code2": 409,
+    "sid1": "1789274487999450781",
+    "same": false,
+    "ok": false,
+    "note": "并行同 key 可能竞态：一成功一 409；以顺序幂等为准"
+  },
+  "sequentialIdempotent": {
+    "code1": 0,
+    "code2": 0,
+    "sid1": "1789274488913669876",
+    "sid2": "1789274488913669876",
+    "same": true,
+    "ok": true
+  },
+  "busySecondOpen": {
+    "code": 409,
+    "message": "设备使用中，请稍后再试"
+  },
+  "simulator": "ai-cabinet-device-simulator-1 Up About a minute",
+  "verdict": {
+    "deviceStatusP95Ok": true,
+    "sequentialIdempotent": true,
+    "busyReject": true,
+    "simulatorUp": true,
+    "concurrentRaceNoted": true
+  }
+}

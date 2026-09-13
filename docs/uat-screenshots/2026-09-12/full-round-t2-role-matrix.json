@@ -1,0 +1,280 @@
+{
+  "at": "2026-09-13T04:38:44.462Z",
+  "accounts": [
+    {
+      "phone": "13900000002",
+      "name": "财务演示",
+      "roleKey": "finance",
+      "userId": 100000033,
+      "roleId": 4
+    },
+    {
+      "phone": "13900000003",
+      "name": "运营演示",
+      "roleKey": "operator",
+      "userId": 100000034,
+      "roleId": 2
+    },
+    {
+      "phone": "13900000004",
+      "name": "补货演示",
+      "roleKey": "replenisher",
+      "userId": 100000035,
+      "roleId": 3
+    }
+  ],
+  "cases": [
+    {
+      "id": "T2-finance-has-finance-view",
+      "status": "PASS",
+      "note": {
+        "has": true
+      }
+    },
+    {
+      "id": "T2-finance-no-order-list",
+      "status": "PASS",
+      "note": {
+        "hasOrder": false
+      }
+    },
+    {
+      "id": "T2-finance-no-rbac-role",
+      "status": "PASS",
+      "note": {
+        "hasRole": false,
+        "hasAdmin": false
+      }
+    },
+    {
+      "id": "T2-operator-has-order-dispute",
+      "status": "PASS",
+      "note": {
+        "order": true,
+        "dispute": true
+      }
+    },
+    {
+      "id": "T2-operator-no-finance-view",
+      "status": "PASS",
+      "note": {
+        "hasFinance": false
+      }
+    },
+    {
+      "id": "T2-operator-no-rbac-role",
+      "status": "PASS",
+      "note": {
+        "hasRole": false
+      }
+    },
+    {
+      "id": "T2-replenisher-has-replen-or-warehouse",
+      "status": "PASS",
+      "note": {
+        "sample": [
+          "ops:replenishment:export",
+          "ops:device:ref",
+          "merchant:replenishment:request",
+          "merchant:devices:detail",
+          "ops:nav:device",
+          "ops:replenishment:edit",
+          "merchant:replenishment:view",
+          "ops:warehouse:list",
+          "ops:replenishment:list",
+          "merchant:devices:list"
+        ]
+      }
+    },
+    {
+      "id": "T2-finance-device-create-403",
+      "status": "PASS",
+      "note": {
+        "code": 403,
+        "message": "无权限执行此操作",
+        "status": 403
+      }
+    },
+    {
+      "id": "T2-finance-roles-denied-or-empty",
+      "status": "PASS",
+      "note": {
+        "code": 403,
+        "status": 403,
+        "n": null
+      }
+    },
+    {
+      "id": "T2-operator-finance-stats-403",
+      "status": "PASS",
+      "note": {
+        "code": 403,
+        "message": "无权限执行此操作",
+        "status": 403
+      }
+    },
+    {
+      "id": "T2-operator-orders-ok",
+      "status": "PASS",
+      "note": {
+        "code": 0,
+        "status": 200
+      }
+    },
+    {
+      "id": "T2-finance-stats-ok",
+      "status": "PASS",
+      "note": {
+        "code": 0,
+        "status": 200
+      }
+    },
+    {
+      "id": "T2-finance-sidebar-has-finance",
+      "status": "PASS",
+      "note": {
+        "sample": [
+          "概览",
+          "运营工作台",
+          "运营大屏",
+          "财务毛利",
+          "销售报表",
+          "设备商品",
+          "设备运维",
+          "投放地图",
+          "维修工单",
+          "履约仓储",
+          "仓库",
+          "财务商户",
+          "资金账单",
+          "商户与分账",
+          "进件工作台",
+          "线长钱包",
+          "商户提现",
+          "对账",
+          "数据一致性",
+          "余额退款",
+          "开票申请",
+          "增长风控",
+          "手机验证"
+        ]
+      }
+    },
+    {
+      "id": "T2-finance-sidebar-no-orders",
+      "status": "PASS",
+      "note": {
+        "hasOrders": false
+      }
+    },
+    {
+      "id": "T2-finance-sidebar-no-roles",
+      "status": "PASS",
+      "note": {
+        "hit": []
+      }
+    },
+    {
+      "id": "T2-operator-sidebar-has-orders",
+      "status": "PASS",
+      "note": {
+        "sample": [
+          "概览",
+          "运营工作台",
+          "运营大屏",
+          "客流坪效",
+          "销售报表",
+          "库存健康",
+          "用户分析",
+          "交易履约",
+          "订单管理",
+          "开门记录",
+          "争议审核",
+          "异常中心",
+          "设备商品",
+          "设备运维",
+          "设备管理",
+          "投放地图",
+          "设备可用性",
+          "维修工单",
+          "商品管理",
+          "选品诊断",
+          "识别入驻",
+          "识别映射",
+          "录像上传",
+          "履约仓储",
+          "固件版本",
+          "服务时限监控",
+          "财务商户",
+          "资金账单",
+          "进件工作台",
+          "数据一致性"
+        ]
+      }
+    },
+    {
+      "id": "T2-operator-sidebar-no-finance-profit",
+      "status": "PASS",
+      "note": {
+        "hit": [
+          "财务商户"
+        ]
+      }
+    },
+    {
+      "id": "T2-deeplink-t2-finance-orders-forbidden",
+      "status": "PASS",
+      "note": {
+        "url": "http://localhost/admin/forbidden?from=/orders&title=%E8%AE%A2%E5%8D%95%E7%AE%A1%E7%90%86",
+        "forbidden": true,
+        "expectForbidden": true
+      }
+    },
+    {
+      "id": "T2-deeplink-t2-finance-finance-ok",
+      "status": "PASS",
+      "note": {
+        "url": "http://localhost/admin/finance",
+        "forbidden": false,
+        "expectForbidden": false
+      }
+    },
+    {
+      "id": "T2-deeplink-t2-operator-roles-forbidden",
+      "status": "PASS",
+      "note": {
+        "url": "http://localhost/admin/forbidden?from=/roles&title=%E8%A7%92%E8%89%B2%E7%AE%A1%E7%90%86",
+        "forbidden": true,
+        "expectForbidden": true
+      }
+    },
+    {
+      "id": "T2-deeplink-t2-operator-disputes-ok",
+      "status": "PASS",
+      "note": {
+        "url": "http://localhost/admin/disputes?status=OPEN",
+        "forbidden": false,
+        "expectForbidden": false
+      }
+    },
+    {
+      "id": "T2-deeplink-t2-operator-finance-forbidden",
+      "status": "PASS",
+      "note": {
+        "url": "http://localhost/admin/forbidden?from=/finance&title=%E8%B4%A2%E5%8A%A1%E6%AF%9B%E5%88%A9",
+        "forbidden": true,
+        "expectForbidden": true
+      }
+    }
+  ],
+  "summary": {
+    "pass": 22,
+    "fail": 0,
+    "total": 22
+  },
+  "permCounts": {
+    "finance": 44,
+    "operator": 72,
+    "replenisher": 23
+  }
+}
