@@ -1,0 +1,44 @@
+{
+  "at": "2026-09-13T05:46:52.497Z",
+  "source": "docs/uat-screenshots/2026-09-12/jmeter-order-read/results.jtl",
+  "total": 280567,
+  "ok": 280567,
+  "bad": 0,
+  "errorRate": 0,
+  "avg": 323,
+  "p50": 351,
+  "p95": 577,
+  "p99": 851,
+  "max": 2040,
+  "thresholds": {
+    "p95_ms": 800,
+    "error_rate": 0.001
+  },
+  "labels": {
+    "GET orders": {
+      "n": 93831,
+      "ok": 93831,
+      "bad": 0,
+      "p50": 338,
+      "p95": 467,
+      "p99": 805
+    },
+    "GET account": {
+      "n": 93520,
+      "ok": 93520,
+      "bad": 0,
+      "p50": 332,
+      "p95": 458,
+      "p99": 778
+    },
+    "GET device status": {
+      "n": 93216,
+      "ok": 93216,
+      "bad": 0,
+      "p50": 417,
+      "p95": 648,
+      "p99": 1023
+    }
+  },
+  "pass": true
+}
