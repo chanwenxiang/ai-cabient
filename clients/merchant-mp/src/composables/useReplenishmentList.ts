@@ -197,7 +197,13 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
         merchantApi.lowStockDevices().catch(() => [] as DeviceLowStockItem[])
       ]);
       if (seq !== loadSeq) return { seq, aborted: true };
-      applyReplenishmentListData(taskRows, deviceRows, skuRows, eff, lowStockRows);
+      applyReplenishmentListData(
+        taskRows,
+        deviceRows,
+        skuRows as Record<string, unknown>[],
+        eff,
+        lowStockRows
+      );
       return { seq, aborted: false };
     } catch (error) {
       if (seq !== loadSeq) return { seq, aborted: true };
