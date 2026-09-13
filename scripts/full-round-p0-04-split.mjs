@@ -77,14 +77,22 @@ async function api(token, method, path, body) {
 const report = { at: new Date().toISOString(), cases: [] };
 const push = (id, status, note) => {
   report.cases.push({ id, status, note });
-  console.log(status.padEnd(7), id, typeof note === 'string' ? note : JSON.stringify(note).slice(0, 280));
+  console.log(
+    status.padEnd(7),
+    id,
+    typeof note === 'string' ? note : JSON.stringify(note).slice(0, 280)
+  );
 };
 
 const ops = await adminLogin();
 const mch = await merchantLogin();
 
 // --- 1) API list + formula ---
-const splitsRes = await api(ops, 'GET', '/api/v2/ops/admin/merchants/revenue-splits?page=0&size=20');
+const splitsRes = await api(
+  ops,
+  'GET',
+  '/api/v2/ops/admin/merchants/revenue-splits?page=0&size=20'
+);
 const splitItems =
   splitsRes.data?.data?.items || splitsRes.data?.data?.list || splitsRes.data?.data || [];
 const splits = Array.isArray(splitItems) ? splitItems : [];
@@ -133,7 +141,9 @@ push('P0-04-ledger-link', ledgerAligned ? 'PASS' : 'FAIL', {
 });
 
 // wallet balance = sum credits + withdraws
-const bal = Number(psql("SELECT balance_cents FROM merchant_wallet_account WHERE merchant_id='MCH-DEFAULT'"));
+const bal = Number(
+  psql("SELECT balance_cents FROM merchant_wallet_account WHERE merchant_id='MCH-DEFAULT'")
+);
 const expectedBal =
   ledgerRows.reduce((s, r) => s + r.amount, 0) +
   Number(
@@ -175,24 +185,36 @@ const creditCountBefore = Number(
     `SELECT COUNT(*) FROM merchant_wallet_ledger WHERE entry_type='SPLIT_CREDIT' AND ref_id='${splitId}'`
   )
 );
-const balBefore = Number(psql("SELECT balance_cents FROM merchant_wallet_account WHERE merchant_id='MCH-DEFAULT'"));
+const balBefore = Number(
+  psql("SELECT balance_cents FROM merchant_wallet_account WHERE merchant_id='MCH-DEFAULT'")
+);
 
-const confirm1 = await api(ops, 'POST', `/api/v2/ops/admin/merchants/revenue-splits/${splitId}/confirm-ledger`, {
-  reason: 'P0-04 replay depth'
-});
-const confirm2 = await api(ops, 'POST', `/api/v2/ops/admin/merchants/revenue-splits/${splitId}/confirm-ledger`, {
-  reason: 'P0-04 replay again'
-});
+const confirm1 = await api(
+  ops,
+  'POST',
+  `/api/v2/ops/admin/merchants/revenue-splits/${splitId}/confirm-ledger`,
+  {
+    reason: 'P0-04 replay depth'
+  }
+);
+const confirm2 = await api(
+  ops,
+  'POST',
+  `/api/v2/ops/admin/merchants/revenue-splits/${splitId}/confirm-ledger`,
+  {
+    reason: 'P0-04 replay again'
+  }
+);
 
 const creditCountAfter = Number(
   psql(
     `SELECT COUNT(*) FROM merchant_wallet_ledger WHERE entry_type='SPLIT_CREDIT' AND ref_id='${splitId}'`
   )
 );
-const balAfter = Number(psql("SELECT balance_cents FROM merchant_wallet_account WHERE merchant_id='MCH-DEFAULT'"));
-const statusAfter = psql(
-  `SELECT status FROM order_revenue_split WHERE split_id='${splitId}'`
+const balAfter = Number(
+  psql("SELECT balance_cents FROM merchant_wallet_account WHERE merchant_id='MCH-DEFAULT'")
 );
+const statusAfter = psql(`SELECT status FROM order_revenue_split WHERE split_id='${splitId}'`);
 
 // UK replay: attempt second insert for same order should fail
 const orderId = target?.orderId;
@@ -213,19 +235,27 @@ const secondRejected =
   confirm2.status === 409 ||
   /仅 LEDGER_ONLY|冲突|CONFLICT|完结/.test(JSON.stringify(confirm2.data));
 
-push('P0-04-replay-no-double', noDoubleCredit && (secondRejected || confirm1.data?.code === 0) ? 'PASS' : 'FAIL', {
-  splitId,
-  orderId,
-  confirm1: { code: confirm1.data?.code, status: confirm1.data?.data?.status, message: confirm1.data?.message },
-  confirm2: { code: confirm2.data?.code, http: confirm2.status, message: confirm2.data?.message },
-  creditCountBefore,
-  creditCountAfter,
-  balBefore,
-  balAfter,
-  statusAfter,
-  ukDenied,
-  ukMsg
-});
+push(
+  'P0-04-replay-no-double',
+  noDoubleCredit && (secondRejected || confirm1.data?.code === 0) ? 'PASS' : 'FAIL',
+  {
+    splitId,
+    orderId,
+    confirm1: {
+      code: confirm1.data?.code,
+      status: confirm1.data?.data?.status,
+      message: confirm1.data?.message
+    },
+    confirm2: { code: confirm2.data?.code, http: confirm2.status, message: confirm2.data?.message },
+    creditCountBefore,
+    creditCountAfter,
+    balBefore,
+    balAfter,
+    statusAfter,
+    ukDenied,
+    ukMsg
+  }
+);
 
 // UI screenshot
 const browser = await chromium.launch({ headless: true });
@@ -252,21 +282,33 @@ await page.goto('http://localhost/admin/merchants', { waitUntil: 'networkidle' }
 for (const p of ['/admin/merchant-splits', '/admin/merchants?tab=splits', '/admin/finance']) {
   await page.goto(`http://localhost${p}`, { waitUntil: 'networkidle' }).catch(() => {});
 }
-await page.goto('http://localhost/admin/line-managers', { waitUntil: 'domcontentloaded' }).catch(() => {});
+await page
+  .goto('http://localhost/admin/line-managers', { waitUntil: 'domcontentloaded' })
+  .catch(() => {});
 // direct from menu - merchant splits often under 商户与分账
 await page.goto('http://localhost/admin/merchants', { waitUntil: 'networkidle' });
 await page.waitForTimeout(800);
 const hasSplitsNav = await page.getByText(/分账/).first().count();
 if (hasSplitsNav) {
-  await page.getByText(/分账/).first().click().catch(() => {});
+  await page
+    .getByText(/分账/)
+    .first()
+    .click()
+    .catch(() => {});
   await page.waitForTimeout(1000);
 }
 await page.screenshot({ path: `${UI}/p0-splits.png`, fullPage: true });
-const bodyText = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 300));
-push('P0-04-admin-ui', /分账|商户|LEDGER|315|270|SETTLED|记账/.test(bodyText) ? 'PASS' : 'PARTIAL', {
-  text: bodyText.slice(0, 180),
-  screenshot: 'p0-splits.png'
-});
+const bodyText = await page.evaluate(() =>
+  (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 300)
+);
+push(
+  'P0-04-admin-ui',
+  /分账|商户|LEDGER|315|270|SETTLED|记账/.test(bodyText) ? 'PASS' : 'PARTIAL',
+  {
+    text: bodyText.slice(0, 180),
+    screenshot: 'p0-splits.png'
+  }
+);
 await browser.close();
 
 report.summary = {
@@ -275,10 +317,11 @@ report.summary = {
   partial: report.cases.filter((c) => c.status === 'PARTIAL').length,
   total: report.cases.length
 };
-const overall =
-  report.cases.filter((c) => c.id.startsWith('P0-04') && c.id !== 'P0-04-admin-ui').every((c) => c.status === 'PASS')
-    ? 'PASS'
-    : 'PARTIAL';
+const overall = report.cases
+  .filter((c) => c.id.startsWith('P0-04') && c.id !== 'P0-04-admin-ui')
+  .every((c) => c.status === 'PASS')
+  ? 'PASS'
+  : 'PARTIAL';
 report.overall = overall;
 fs.writeFileSync(`${OUT}/full-round-p0-04-split.json`, JSON.stringify(report, null, 2));
 console.log('\nSUMMARY', report.summary, 'overall=', overall);

@@ -167,8 +167,12 @@
             </template>
           </el-table-column>
           <el-table-column
-            align="center" label="创建时间" width="168" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="创建时间"
+            width="168"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
@@ -327,8 +331,12 @@
               }}</template>
             </el-table-column>
             <el-table-column
-            align="center" label="交易时间" width="160" class-name="col-status"
-            label-class-name="col-status">
+              align="center"
+              label="交易时间"
+              width="160"
+              class-name="col-status"
+              label-class-name="col-status"
+            >
               <template #default="{ row }">
                 <span class="cell-datetime">{{
                   row.tradeTime ? formatDateTime(row.tradeTime) : '暂无'

@@ -240,18 +240,18 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="等待原因"
-            min-width="160"
-            class-name="col-text"
-          >
+          <el-table-column label="等待原因" min-width="160" class-name="col-text">
             <template #default="{ row }">
               <span>{{ waitReason(row) }}</span>
             </template>
           </el-table-column>
           <el-table-column
-            align="center" label="滞留 / 时限" width="160" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="滞留 / 时限"
+            width="160"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <div v-if="isActiveState(row.state)" class="sla-cell">
                 <template v-if="isStuck(row)">
@@ -274,16 +274,16 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="失败原因"
-            min-width="140"
-            class-name="col-text"
-          >
+          <el-table-column label="失败原因" min-width="140" class-name="col-text">
             <template #default="{ row }">{{ failReasonText(row) }}</template>
           </el-table-column>
           <el-table-column
-            align="center" label="更新时间" width="160" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="更新时间"
+            width="160"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>

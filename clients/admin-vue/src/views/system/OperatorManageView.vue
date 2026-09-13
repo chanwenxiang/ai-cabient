@@ -119,8 +119,12 @@
             </template>
           </el-table-column>
           <el-table-column
-            align="center" label="角色" min-width="160" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="角色"
+            min-width="160"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tooltip
                 v-if="(row.roleNames || []).length"
@@ -180,8 +184,12 @@
             </template>
           </el-table-column>
           <el-table-column
-            align="center" label="数据范围" min-width="180" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="数据范围"
+            min-width="180"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tooltip
                 v-if="(row.merchantNames || row.merchantIds || []).length"
@@ -522,7 +530,15 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Delete, EditPen, Key, Monitor, OfficeBuilding, Refresh, Unlock } from '@element-plus/icons-vue';
+import {
+  Delete,
+  EditPen,
+  Key,
+  Monitor,
+  OfficeBuilding,
+  Refresh,
+  Unlock
+} from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
@@ -750,10 +766,7 @@ function rowActions(row: OperatorRow): TableAction[] {
       { key: 'devices', label: '货柜范围', icon: Monitor, overflow: true }
     );
   }
-  if (
-    auth.hasPerm('ops:rbac:assign:reset-password') &&
-    row.userId !== Number(auth.userId)
-  ) {
+  if (auth.hasPerm('ops:rbac:assign:reset-password') && row.userId !== Number(auth.userId)) {
     acts.push({
       key: 'reset-password',
       label: '重置密码',

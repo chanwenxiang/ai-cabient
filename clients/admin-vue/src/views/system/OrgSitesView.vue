@@ -143,16 +143,8 @@
                 class-name="col-status"
                 label-class-name="col-status"
               />
-              <el-table-column
-                prop="deviceName"
-                label="柜机"
-                min-width="140"
-              />
-              <el-table-column
-                prop="deviceId"
-                label="设备ID"
-                min-width="110"
-              />
+              <el-table-column prop="deviceName" label="柜机" min-width="140" />
+              <el-table-column prop="deviceId" label="设备ID" min-width="110" />
               <el-table-column label="场地" min-width="140" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-ellipsis" :title="row.siteName || ''">{{ row.siteName }}</span>
@@ -333,11 +325,7 @@
                   <span class="cell-ellipsis" :title="row.siteName || ''">{{ row.siteName }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                prop="deviceId"
-                label="设备ID"
-                min-width="100"
-              />
+              <el-table-column prop="deviceId" label="设备ID" min-width="100" />
               <el-table-column
                 label="收款方"
                 width="100"
@@ -431,16 +419,8 @@
                 class-name="col-status"
                 label-class-name="col-status"
               />
-              <el-table-column
-                prop="deviceName"
-                label="柜机"
-                min-width="120"
-              />
-              <el-table-column
-                prop="deviceId"
-                label="设备ID"
-                min-width="110"
-              />
+              <el-table-column prop="deviceName" label="柜机" min-width="120" />
+              <el-table-column prop="deviceId" label="设备ID" min-width="110" />
               <el-table-column label="商户" width="120">
                 <template #default="{ row }">{{ row.merchantId || '—' }}</template>
               </el-table-column>

@@ -139,16 +139,16 @@
           <el-table-column label="说明" min-width="160" class-name="col-text">
             <template #default="{ row }">{{ row.description || '无说明' }}</template>
           </el-table-column>
-          <el-table-column
-            label="配置值"
-            min-width="200"
-            class-name="col-text"
-          >
+          <el-table-column label="配置值" min-width="200" class-name="col-text">
             <template #default="{ row }">{{ row.configValue || '无' }}</template>
           </el-table-column>
           <el-table-column
-            align="center" label="更新时间" width="168" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="更新时间"
+            width="168"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>

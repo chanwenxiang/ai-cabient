@@ -112,8 +112,12 @@
             </template>
           </el-table-column>
           <el-table-column
-            align="center" label="角色" min-width="140" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="角色"
+            min-width="140"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">{{ row.roleName || row.roleKey || '无' }}</template>
           </el-table-column>
           <el-table-column label="权限字符" min-width="140" class-name="col-text">
@@ -143,12 +147,7 @@
           >
             <template #default="{ row }">{{ permissionCountLabel(row) }}</template>
           </el-table-column>
-          <el-table-column
-            prop="remark"
-            label="备注"
-            min-width="160"
-            class-name="col-text"
-          >
+          <el-table-column prop="remark" label="备注" min-width="160" class-name="col-text">
             <template #default="{ row }">{{ row.remark || '无' }}</template>
           </el-table-column>
           <el-table-column

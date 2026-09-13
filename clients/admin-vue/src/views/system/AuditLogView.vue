@@ -107,32 +107,24 @@
           <el-table-column label="操作人ID" width="100" class-name="col-text">
             <template #default="{ row }">{{ row.operatorId ?? '暂无' }}</template>
           </el-table-column>
-          <el-table-column
-            label="操作人"
-            min-width="120"
-            class-name="col-text"
-          >
+          <el-table-column label="操作人" min-width="120" class-name="col-text">
             <template #default="{ row }">{{ operatorLabel(row) }}</template>
           </el-table-column>
           <el-table-column
-            align="center" label="动作" min-width="160" class-name="col-status"
-            label-class-name="col-status">
+            align="center"
+            label="动作"
+            min-width="160"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" effect="plain">{{ auditActionLabel(row.action) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="对象类型"
-            min-width="110"
-            class-name="col-text"
-          >
+          <el-table-column label="对象类型" min-width="110" class-name="col-text">
             <template #default="{ row }">{{ auditTargetLabel(row.targetType) }}</template>
           </el-table-column>
-          <el-table-column
-            label="对象ID"
-            min-width="120"
-            class-name="col-text"
-          >
+          <el-table-column label="对象ID" min-width="120" class-name="col-text">
             <template #default="{ row }">
               <span v-if="row.targetId" class="cell-id">{{ displayBizNo(row.targetId) }}</span>
               <span v-else class="muted">无</span>

@@ -69,7 +69,11 @@ async function api(token, method, path, body) {
 const report = { at: new Date().toISOString(), cases: [] };
 const push = (id, status, note) => {
   report.cases.push({ id, status, note });
-  console.log(status.padEnd(7), id, typeof note === 'string' ? note : JSON.stringify(note).slice(0, 260));
+  console.log(
+    status.padEnd(7),
+    id,
+    typeof note === 'string' ? note : JSON.stringify(note).slice(0, 260)
+  );
 };
 
 const ops = await adminLogin();
@@ -90,10 +94,14 @@ const consumer = await consumerLogin();
   }
   const pubList = await api(ops, 'GET', '/api/v2/ops/announcements/published');
   const list = Array.isArray(pubList.data?.data) ? pubList.data.data : [];
-  const found = list.some((a) => String(a.announceId) === String(id) || a.title?.includes('完整轮公告'));
+  const found = list.some(
+    (a) => String(a.announceId) === String(id) || a.title?.includes('完整轮公告')
+  );
   push(
     'P0-08-announcement',
-    created.data?.code === 0 && published?.data?.code === 0 && (found || published?.data?.data?.status === 'PUBLISHED')
+    created.data?.code === 0 &&
+      published?.data?.code === 0 &&
+      (found || published?.data?.data?.status === 'PUBLISHED')
       ? 'PASS'
       : 'FAIL',
     {
@@ -165,7 +173,9 @@ await page.evaluate((t) => {
 
 await page.goto('http://localhost/admin/announcements', { waitUntil: 'networkidle' });
 await page.waitForTimeout(1200);
-const annText = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 350));
+const annText = await page.evaluate(() =>
+  (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 350)
+);
 await page.screenshot({ path: `${UI}/p0-announcements.png`, fullPage: true });
 push('P0-08-announcements-ui', /公告|完整轮|发布|草稿/.test(annText) ? 'PASS' : 'FAIL', {
   text: annText.slice(0, 180),
@@ -174,7 +184,9 @@ push('P0-08-announcements-ui', /公告|完整轮|发布|草稿/.test(annText) ? 
 
 await page.goto('http://localhost/admin/notifications', { waitUntil: 'networkidle' });
 await page.waitForTimeout(1200);
-const nText = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 350));
+const nText = await page.evaluate(() =>
+  (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 350)
+);
 await page.screenshot({ path: `${UI}/p0-notifications.png`, fullPage: true });
 push('P0-08-notifications-ui', /消息|站内信|完整轮|通知/.test(nText) ? 'PASS' : 'FAIL', {
   text: nText.slice(0, 180),
@@ -198,24 +210,31 @@ await page.evaluate((payload) => {
   localStorage.setItem('consumer_token_expires', String(Date.now() + 1_700_000));
 }, consumer);
 
-await page.goto('http://localhost:3002/#/pages/member/index', { waitUntil: 'networkidle' }).catch(() =>
-  page.goto('http://localhost:3002/pages/member/index', { waitUntil: 'networkidle' })
-);
+await page
+  .goto('http://localhost:3002/#/pages/member/index', { waitUntil: 'networkidle' })
+  .catch(() => page.goto('http://localhost:3002/pages/member/index', { waitUntil: 'networkidle' }));
 await page.waitForTimeout(2000);
-const memberText = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 400));
+const memberText = await page.evaluate(() =>
+  (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 400)
+);
 await page.screenshot({ path: `${UI}/ui-c07-member-loggedin.png`, fullPage: true });
 
-await page.goto('http://localhost:3002/#/pages/points/redeem', { waitUntil: 'networkidle' }).catch(() =>
-  page.goto('http://localhost:3002/pages/points/redeem', { waitUntil: 'networkidle' })
-);
+await page
+  .goto('http://localhost:3002/#/pages/points/redeem', { waitUntil: 'networkidle' })
+  .catch(() =>
+    page.goto('http://localhost:3002/pages/points/redeem', { waitUntil: 'networkidle' })
+  );
 await page.waitForTimeout(2000);
-const redeemText = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 400));
+const redeemText = await page.evaluate(() =>
+  (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 400)
+);
 await page.screenshot({ path: `${UI}/ui-c07-redeem-loggedin.png`, fullPage: true });
 
 const loggedIn =
   !/微信授权登录|登录后继续|请先登录/.test(memberText + redeemText) ||
   /会员|积分|等级|兑换|倍率|成长值|当前/.test(memberText + redeemText);
-const stillAuthWall = /微信授权登录|登录后继续/.test(memberText) && /微信授权登录|登录后继续/.test(redeemText);
+const stillAuthWall =
+  /微信授权登录|登录后继续/.test(memberText) && /微信授权登录|登录后继续/.test(redeemText);
 
 push(
   'UI-C07-member-redeem',

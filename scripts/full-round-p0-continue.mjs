@@ -27,7 +27,12 @@ async function adminLogin(phone) {
   const res = await fetch(`${BASE}/api/v2/auth/admin-password-login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phoneNumber: phone, password: '123456', captchaId: id, captchaCode: code })
+    body: JSON.stringify({
+      phoneNumber: phone,
+      password: '123456',
+      captchaId: id,
+      captchaCode: code
+    })
   });
   const data = await res.json();
   if (data.code !== 0) throw new Error(`admin login ${phone}: ${JSON.stringify(data)}`);
@@ -47,7 +52,9 @@ async function merchantLogin(phone) {
 
 async function consumerToken() {
   // consumer demo: password login via admin-style may differ; use internal/session path from prior round
-  const cap = await fetch(`${BASE}/api/v2/auth/captcha`).then((r) => r.json()).catch(() => null);
+  const cap = await fetch(`${BASE}/api/v2/auth/captcha`)
+    .then((r) => r.json())
+    .catch(() => null);
   if (cap?.data?.captchaId) {
     const code = redisCaptcha(cap.data.captchaId);
     const res = await fetch(`${BASE}/api/v2/auth/password-login`, {
@@ -89,7 +96,10 @@ async function api(token, method, path, body, base = BASE) {
 const report = { at: new Date().toISOString(), cases: [] };
 function push(id, status, note) {
   report.cases.push({ id, status, note });
-  console.log(`${status.padEnd(6)} ${id}`, note && typeof note === 'object' ? JSON.stringify(note).slice(0, 180) : note || '');
+  console.log(
+    `${status.padEnd(6)} ${id}`,
+    note && typeof note === 'object' ? JSON.stringify(note).slice(0, 180) : note || ''
+  );
 }
 
 const browser = await chromium.launch({ headless: true });
@@ -110,34 +120,42 @@ try {
     if (payload.userId) localStorage.setItem('merchant_user_id', String(payload.userId));
     if (payload.merchantId) localStorage.setItem('merchant_id', payload.merchantId);
   }, mch);
-  await page.goto('http://localhost:3001/#/pages/replenishment/replenishment', {
-    waitUntil: 'networkidle',
-    timeout: 30000
-  }).catch(() => {});
+  await page
+    .goto('http://localhost:3001/#/pages/replenishment/replenishment', {
+      waitUntil: 'networkidle',
+      timeout: 30000
+    })
+    .catch(() => {});
   await page.waitForTimeout(2000);
-  const bodyText = await page.locator('body').innerText().catch(() => '');
+  const bodyText = await page
+    .locator('body')
+    .innerText()
+    .catch(() => '');
   const hasCompleted =
     /已完成|COMPLETED|完成/.test(bodyText) ||
-    (await page.locator('text=已完成').count().catch(() => 0)) > 0;
+    (await page
+      .locator('text=已完成')
+      .count()
+      .catch(() => 0)) > 0;
   await page.screenshot({ path: `${UI}/p0-replenish-completed.png`, fullPage: true });
   // API assert
-  const tasks = await api(mch.token, 'GET', '/api/v2/merchant/replenishment/tasks?status=COMPLETED');
+  const tasks = await api(
+    mch.token,
+    'GET',
+    '/api/v2/merchant/replenishment/tasks?status=COMPLETED'
+  );
   let taskList = tasks.data?.data;
   if (taskList && !Array.isArray(taskList) && taskList.items) taskList = taskList.items;
   if (!Array.isArray(taskList)) taskList = [];
   const found = taskList.find((t) => String(t.taskId) === '1' || t.status === 'COMPLETED');
-  push(
-    'P0-03-replenish',
-    found || hasCompleted ? 'PASS' : 'PARTIAL',
-    {
-      taskId: found?.taskId ?? 1,
-      apiCount: taskList.length,
-      uiHint: hasCompleted,
-      sessionId: '1789268547460101835',
-      screenshot: 'p0-replenish-completed.png',
-      e2e: 'warehouse path COMPLETED'
-    }
-  );
+  push('P0-03-replenish', found || hasCompleted ? 'PASS' : 'PARTIAL', {
+    taskId: found?.taskId ?? 1,
+    apiCount: taskList.length,
+    uiHint: hasCompleted,
+    sessionId: '1789268547460101835',
+    screenshot: 'p0-replenish-completed.png',
+    e2e: 'warehouse path COMPLETED'
+  });
 
   // ---------- P0#7 repair ticket ----------
   const ops = await adminLogin('13900000001');
@@ -189,9 +207,11 @@ try {
       localStorage.setItem('admin_token', t);
       localStorage.setItem('admin_token_expires', String(Date.now() + 1_700_000));
     }, ops);
-    await page.goto('http://localhost/admin/repair-tickets', { waitUntil: 'networkidle' }).catch(() =>
-      page.goto('http://localhost/admin/devices/repair', { waitUntil: 'domcontentloaded' })
-    );
+    await page
+      .goto('http://localhost/admin/repair-tickets', { waitUntil: 'networkidle' })
+      .catch(() =>
+        page.goto('http://localhost/admin/devices/repair', { waitUntil: 'domcontentloaded' })
+      );
     await page.waitForTimeout(1500);
     await page.screenshot({ path: `${UI}/p0-repair-done.png`, fullPage: true });
   }
@@ -201,18 +221,26 @@ try {
   const pending = await api(ops, 'GET', '/api/v2/ops/admin/approvals/pending?limit=20');
   const inbox = await api(ops, 'GET', '/api/v2/ops/admin/approvals/inbox?limit=20');
   // Try create purchase-order-ish approval by listing; if no pending, hit UI approval config
-  await page.goto('http://localhost/admin/approval-config', { waitUntil: 'networkidle' }).catch(() => {});
+  await page
+    .goto('http://localhost/admin/approval-config', { waitUntil: 'networkidle' })
+    .catch(() => {});
   await page.waitForTimeout(1200);
   await page.screenshot({ path: `${UI}/p0-approval-config.png`, fullPage: true });
   const defOk = defs.data?.code === 0;
   const pendingItems = pending.data?.data || inbox.data?.data || [];
-  push('P0-09-approval', defOk ? (Array.isArray(pendingItems) && pendingItems.length ? 'PASS' : 'PARTIAL') : 'FAIL', {
-    definitionsCode: defs.data?.code,
-    defCount: Array.isArray(defs.data?.data) ? defs.data.data.length : defs.data?.data?.items?.length,
-    pendingCount: Array.isArray(pendingItems) ? pendingItems.length : 0,
-    note: '定义可读；无待办则 PARTIAL（本轮未再造需审单）',
-    screenshot: 'p0-approval-config.png'
-  });
+  push(
+    'P0-09-approval',
+    defOk ? (Array.isArray(pendingItems) && pendingItems.length ? 'PASS' : 'PARTIAL') : 'FAIL',
+    {
+      definitionsCode: defs.data?.code,
+      defCount: Array.isArray(defs.data?.data)
+        ? defs.data.data.length
+        : defs.data?.data?.items?.length,
+      pendingCount: Array.isArray(pendingItems) ? pendingItems.length : 0,
+      note: '定义可读；无待办则 PARTIAL（本轮未再造需审单）',
+      screenshot: 'p0-approval-config.png'
+    }
+  );
 
   // ---------- P0#6 coupon redeem on eligible order ----------
   // Prefer create disputed shopping order via e2e-lib style internal mock — call shopping e2e briefly
@@ -287,7 +315,8 @@ try {
         'POST',
         `/api/v2/coupons/use?couponId=${couponId}&orderId=${encodeURIComponent(orderId)}&deviceId=${DEVICE}`
       );
-      const ok = used.data?.code === 0 && String(used.data?.data?.status || '').toUpperCase() === 'USED';
+      const ok =
+        used.data?.code === 0 && String(used.data?.data?.status || '').toUpperCase() === 'USED';
       push('P0-06-coupon-redeem', ok ? 'PASS' : 'FAIL', {
         couponId,
         orderId,

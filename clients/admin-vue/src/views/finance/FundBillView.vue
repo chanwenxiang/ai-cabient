@@ -111,11 +111,7 @@
                   <span class="cell-id">{{ row.merchantId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                label="商户"
-                min-width="120"
-                class-name="col-text"
-              >
+              <el-table-column label="商户" min-width="120" class-name="col-text">
                 <template #default="{ row }">{{ row.merchantName || '无' }}</template>
               </el-table-column>
               <el-table-column

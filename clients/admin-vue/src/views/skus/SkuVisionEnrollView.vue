@@ -226,19 +226,10 @@
               }}
             </template>
           </el-table-column>
-          <el-table-column
-            prop="category"
-            label="类目"
-            min-width="100"
-            class-name="col-text"
-          >
+          <el-table-column prop="category" label="类目" min-width="100" class-name="col-text">
             <template #default="{ row }">{{ categoryLabel(row.category) }}</template>
           </el-table-column>
-          <el-table-column
-            label="端侧类名"
-            min-width="130"
-            class-name="col-text"
-          >
+          <el-table-column label="端侧类名" min-width="130" class-name="col-text">
             <template #default="{ row }">
               <span v-if="row.yoloClassName" class="cell-id">{{ row.yoloClassName }}</span>
               <span v-else class="muted">无</span>

@@ -74,11 +74,7 @@ const teamPlan = [
 ];
 
 for (const u of teamPlan) {
-  const exists = await api(
-    adminTok,
-    'GET',
-    `/api/v2/merchant/team/users`
-  );
+  const exists = await api(adminTok, 'GET', `/api/v2/merchant/team/users`);
   const items = exists.data?.data || [];
   const arr = Array.isArray(items) ? items : items.items || [];
   const hit = arr.find((x) => String(x.phoneNumber) === u.phone);
@@ -95,7 +91,11 @@ for (const u of teamPlan) {
   report.accounts.push({
     ...u,
     status: ok(created) ? 'created' : 'fail',
-    note: { code: created.data?.code, message: created.data?.message, userId: created.data?.data?.userId }
+    note: {
+      code: created.data?.code,
+      message: created.data?.message,
+      userId: created.data?.data?.userId
+    }
   });
   if (!ok(created) && created.data?.code !== 409) {
     // conflict may mean phone taken outside team list — try login later
@@ -201,7 +201,11 @@ if (replen.token) {
     p.includes('merchant:replenishment:view') || p.includes('merchant:replenishment:request')
       ? 'PASS'
       : 'FAIL',
-    { sample: p.filter((x) => String(x).includes('replen') || String(x).includes('device')).slice(0, 10) }
+    {
+      sample: p
+        .filter((x) => String(x).includes('replen') || String(x).includes('device'))
+        .slice(0, 10)
+    }
   );
   push('M-replen-no-settlements', !p.includes('merchant:settlements:view') ? 'PASS' : 'FAIL', {
     has: p.includes('merchant:settlements:view')
@@ -236,14 +240,24 @@ if (staff.token) {
   await page.waitForTimeout(1500);
   const body = await page.locator('body').innerText();
   await page.screenshot({ path: `${UI}/t2-mch-staff-home.png` });
-  push('M-ui-staff-home', !/登录|验证码/.test(body.slice(0, 80)) || body.includes('设备') || body.length > 40 ? 'PASS' : 'FAIL', {
-    head: body.slice(0, 120)
-  });
+  push(
+    'M-ui-staff-home',
+    !/登录|验证码/.test(body.slice(0, 80)) || body.includes('设备') || body.length > 40
+      ? 'PASS'
+      : 'FAIL',
+    {
+      head: body.slice(0, 120)
+    }
+  );
 }
 if (finance.token) {
   await injectMerchant(finance.token);
-  await page.goto('http://localhost:3001/#/pages/wallet/wallet', { waitUntil: 'networkidle' }).catch(() => {});
-  await page.goto('http://localhost:3001/pages/wallet/wallet', { waitUntil: 'networkidle' }).catch(() => {});
+  await page
+    .goto('http://localhost:3001/#/pages/wallet/wallet', { waitUntil: 'networkidle' })
+    .catch(() => {});
+  await page
+    .goto('http://localhost:3001/pages/wallet/wallet', { waitUntil: 'networkidle' })
+    .catch(() => {});
   await page.waitForTimeout(1200);
   await page.screenshot({ path: `${UI}/t2-mch-finance-wallet.png` });
   const body = await page.locator('body').innerText();
@@ -291,7 +305,11 @@ await browser.close();
     via: TRADE,
     pass: times[Math.floor(N * 0.95) - 1] < 800 && errors / N < 0.01
   };
-  push('PERF1-light-account', report.perf.perf1Light.pass ? 'PASS' : 'FAIL', report.perf.perf1Light);
+  push(
+    'PERF1-light-account',
+    report.perf.perf1Light.pass ? 'PASS' : 'FAIL',
+    report.perf.perf1Light
+  );
 }
 
 // ---- PERF-3 light: MinIO health ----
@@ -358,6 +376,12 @@ const fail = report.cases.filter((c) => c.status === 'FAIL').length;
 report.summary = { pass, fail, total: report.cases.length };
 fs.writeFileSync(`${OUT}/full-round-t2-merchant-perf.json`, JSON.stringify(report, null, 2));
 console.log(JSON.stringify(report.summary, null, 2));
-console.log(JSON.stringify(report.cases.map((c) => `${c.status} ${c.id}`), null, 2));
+console.log(
+  JSON.stringify(
+    report.cases.map((c) => `${c.status} ${c.id}`),
+    null,
+    2
+  )
+);
 console.log(JSON.stringify(report.perf, null, 2));
 if (fail > 0) process.exit(1);

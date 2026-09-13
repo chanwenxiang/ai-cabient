@@ -24,7 +24,12 @@ async function adminLogin(phone = '13900000001') {
   const res = await fetch(`${BASE}/api/v2/auth/admin-password-login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phoneNumber: phone, password: '123456', captchaId: id, captchaCode: code })
+    body: JSON.stringify({
+      phoneNumber: phone,
+      password: '123456',
+      captchaId: id,
+      captchaCode: code
+    })
   });
   const data = await res.json();
   if (data.code !== 0) throw new Error(`login ${phone}: ${JSON.stringify(data)}`);
@@ -65,7 +70,11 @@ async function api(token, method, path, body) {
 const report = { at: new Date().toISOString(), cases: [] };
 const push = (id, status, note) => {
   report.cases.push({ id, status, note });
-  console.log(status.padEnd(7), id, typeof note === 'string' ? note : JSON.stringify(note).slice(0, 240));
+  console.log(
+    status.padEnd(7),
+    id,
+    typeof note === 'string' ? note : JSON.stringify(note).slice(0, 240)
+  );
 };
 
 const ops = await adminLogin();
@@ -82,7 +91,9 @@ try {
   const noAuth = await api(null, 'GET', '/api/v2/ops/admin/devices?page=0&size=1');
   push(
     'T4-G-401',
-    noAuth.status === 401 || noAuth.data?.code === 401 || /未登录|未授权|401/.test(JSON.stringify(noAuth.data))
+    noAuth.status === 401 ||
+      noAuth.data?.code === 401 ||
+      /未登录|未授权|401/.test(JSON.stringify(noAuth.data))
       ? 'PASS'
       : 'FAIL',
     { http: noAuth.status, code: noAuth.data?.code, message: noAuth.data?.message }
@@ -119,11 +130,11 @@ try {
     minSpendCents: -10,
     totalQuota: 0
   });
-  push(
-    'T4-G-illegal',
-    r.data?.code !== 0 || r.status >= 400 ? 'PASS' : 'FAIL',
-    { http: r.status, code: r.data?.code, message: r.data?.message }
-  );
+  push('T4-G-illegal', r.data?.code !== 0 || r.status >= 400 ? 'PASS' : 'FAIL', {
+    http: r.status,
+    code: r.data?.code,
+    message: r.data?.message
+  });
 }
 
 {
@@ -135,7 +146,9 @@ try {
   // empty title should fail or create with validation — accept reject OR explicit message
   push(
     'T4-G-empty',
-    r.data?.code !== 0 || !r.data?.data?.ticketId || /必填|不能为空|标题/.test(String(r.data?.message || ''))
+    r.data?.code !== 0 ||
+      !r.data?.data?.ticketId ||
+      /必填|不能为空|标题/.test(String(r.data?.message || ''))
       ? r.data?.code !== 0
         ? 'PASS'
         : 'PARTIAL'
@@ -151,19 +164,30 @@ try {
   const items = defs.data?.data?.items || defs.data?.data || [];
   const arr = Array.isArray(items) ? items : [];
   const defId = arr[0]?.couponDefId || arr[0]?.id || 1;
-  const disable = await api(ops, 'PUT', `/api/v2/coupons/definitions/${defId}/status?status=INACTIVE`);
-  const issue = await api(ops, 'POST', '/api/v2/coupons/issue', { userId: 10001, couponDefId: defId });
+  const disable = await api(
+    ops,
+    'PUT',
+    `/api/v2/coupons/definitions/${defId}/status?status=INACTIVE`
+  );
+  const issue = await api(ops, 'POST', '/api/v2/coupons/issue', {
+    userId: 10001,
+    couponDefId: defId
+  });
   const enable = await api(ops, 'PUT', `/api/v2/coupons/definitions/${defId}/status?status=ACTIVE`);
   const blocked =
     issue.data?.code !== 0 ||
     /停用|禁用|不可|失效|INACTIVE/i.test(String(issue.data?.message || ''));
-  push('T4-MK03-disable', disable.data?.code === 0 && blocked && enable.data?.code === 0 ? 'PASS' : 'FAIL', {
-    defId,
-    disable: disable.data?.code,
-    issueCode: issue.data?.code,
-    issueMsg: issue.data?.message,
-    enable: enable.data?.code
-  });
+  push(
+    'T4-MK03-disable',
+    disable.data?.code === 0 && blocked && enable.data?.code === 0 ? 'PASS' : 'FAIL',
+    {
+      defId,
+      disable: disable.data?.code,
+      issueCode: issue.data?.code,
+      issueMsg: issue.data?.message,
+      enable: enable.data?.code
+    }
+  );
 }
 
 // 风控 R-01 拉黑拒开门
@@ -183,13 +207,17 @@ if (consumer) {
     open.status === 412 ||
     /黑名单|拉黑|禁止|拒绝|受限/.test(JSON.stringify(open.data));
   const unbl = await api(ops, 'DELETE', '/api/v2/ops/admin/risk/blacklist/10001');
-  push('T4-R01-blacklist', bl.data?.code === 0 && denied && unbl.data?.code === 0 ? 'PASS' : 'FAIL', {
-    blacklist: bl.data?.code,
-    openHttp: open.status,
-    openCode: open.data?.code,
-    openMsg: open.data?.message,
-    unblock: unbl.data?.code
-  });
+  push(
+    'T4-R01-blacklist',
+    bl.data?.code === 0 && denied && unbl.data?.code === 0 ? 'PASS' : 'FAIL',
+    {
+      blacklist: bl.data?.code,
+      openHttp: open.status,
+      openCode: open.data?.code,
+      openMsg: open.data?.message,
+      unblock: unbl.data?.code
+    }
+  );
 }
 
 // 系统域：字典 / 参数可读
@@ -198,7 +226,8 @@ if (consumer) {
   let cfg = await api(ops, 'GET', '/api/v2/ops/admin/system-configs');
   if (cfg.data?.code !== 0) cfg = await api(ops, 'GET', '/api/v2/ops/admin/configs');
   if (cfg.data?.code !== 0) cfg = await api(ops, 'GET', '/api/v2/ops/admin/sys-config');
-  const dictAlt = dict.data?.code !== 0 ? await api(ops, 'GET', '/api/v2/ops/admin/dict/types') : dict;
+  const dictAlt =
+    dict.data?.code !== 0 ? await api(ops, 'GET', '/api/v2/ops/admin/dict/types') : dict;
   const ok = dict.data?.code === 0 || dictAlt.data?.code === 0;
   const cfgOk = cfg.data?.code === 0;
   push('T4-SYS-dict-config', ok && cfgOk ? 'PASS' : ok ? 'PARTIAL' : 'FAIL', {
@@ -226,8 +255,14 @@ if (consumer) {
   const acc = await api(consumer, 'GET', '/api/v2/account');
   const bal = acc.data?.data?.balanceCents ?? acc.data?.data?.availableCents;
   const key = `t4-idem-${Date.now()}`;
-  const a1 = await api(consumer, 'POST', '/api/v2/sessions', { deviceId: DEVICE, idempotencyKey: key });
-  const a2 = await api(consumer, 'POST', '/api/v2/sessions', { deviceId: DEVICE, idempotencyKey: key });
+  const a1 = await api(consumer, 'POST', '/api/v2/sessions', {
+    deviceId: DEVICE,
+    idempotencyKey: key
+  });
+  const a2 = await api(consumer, 'POST', '/api/v2/sessions', {
+    deviceId: DEVICE,
+    idempotencyKey: key
+  });
   const sameSession =
     a1.data?.data?.sessionId &&
     a2.data?.data?.sessionId &&
@@ -243,7 +278,9 @@ if (consumer) {
 
 // ========== §3.6 DV ==========
 {
-  const v = await fetch('http://127.0.0.1:18082/health').then((r) => r.json()).catch((e) => ({ error: String(e) }));
+  const v = await fetch('http://127.0.0.1:18082/health')
+    .then((r) => r.json())
+    .catch((e) => ({ error: String(e) }));
   // try richer endpoints
   const modes = [];
   for (const p of ['/health', '/api/health', '/v1/health', '/ready']) {
@@ -267,7 +304,11 @@ if (consumer) {
   const hasMock = items.some((t) => /MOCK|识别|RECOGNITION/i.test(JSON.stringify(t)));
   push(
     'T4-DV05-dispute-path',
-    disp.data?.code === 0 && (items.length > 0 || hasMock) ? 'PASS' : disp.data?.code === 0 ? 'PARTIAL' : 'FAIL',
+    disp.data?.code === 0 && (items.length > 0 || hasMock)
+      ? 'PASS'
+      : disp.data?.code === 0
+        ? 'PARTIAL'
+        : 'FAIL',
     {
       openCount: items.length,
       sample: items.slice(0, 2).map((t) => ({
@@ -293,7 +334,12 @@ if (consumer) {
   const devices = await api(ops, 'GET', '/api/v2/ops/admin/devices?page=0&size=50');
   const list = devices.data?.data?.items || devices.data?.data?.list || devices.data?.data || [];
   const arr = Array.isArray(list) ? list : [];
-  const online = arr.filter((d) => String(d.status || d.onlineStatus || '').toUpperCase().includes('ONLINE') || d.online === true);
+  const online = arr.filter(
+    (d) =>
+      String(d.status || d.onlineStatus || '')
+        .toUpperCase()
+        .includes('ONLINE') || d.online === true
+  );
   push('T4-DV03-simulator', sim.includes('Up') ? (arr.length >= 1 ? 'PASS' : 'PARTIAL') : 'BLOCK', {
     simulator: sim,
     deviceCount: arr.length,
@@ -347,9 +393,9 @@ await page.evaluate((t) => {
   localStorage.setItem('admin_token', t);
   localStorage.setItem('admin_token_expires', String(Date.now() + 1_700_000));
 }, ops);
-await page.goto('http://localhost/admin/risk', { waitUntil: 'networkidle' }).catch(() =>
-  page.goto('http://localhost/admin/blacklist', { waitUntil: 'domcontentloaded' })
-);
+await page
+  .goto('http://localhost/admin/risk', { waitUntil: 'networkidle' })
+  .catch(() => page.goto('http://localhost/admin/blacklist', { waitUntil: 'domcontentloaded' }));
 await page.waitForTimeout(1000);
 await page.screenshot({ path: `${UI}/t4-risk.png`, fullPage: true });
 const riskText = await page.evaluate(() => (document.body.innerText || '').slice(0, 200));
