@@ -449,8 +449,8 @@
 - [x] A-P1-002 / A-P1-003：pageSize 上限收紧至 50；A-P1-003 keep-alive 已修（虚拟化仍可后续）
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
-- [ ] M-P1-3 replenishment.vue 拆分（已抽子组件 + `useAppConfirmDialog` / `useReplenishmentDoorState` / `useReplenishmentList`；详情履约流仍在页内）
-- [ ] S-P1-1 SettlementService 拆分（已抽 VisionAsync / PartialRefundMath / WaiveRefund / ConfirmDispute / OrderFinalize / Recognition；settle 入口编排仍在主类）
+- [x] M-P1-3 replenishment.vue 拆分（子组件 + `useAppConfirmDialog` / `useReplenishmentDoorState` / `useReplenishmentList` / `useReplenishmentFulfillment`；页内剩余深链/扫码/证据上传壳）
+- [ ] S-P1-1 SettlementService 拆分（已抽 VisionAsync / PartialRefundMath / PartialRefund / WaiveRefund / ConfirmDispute / OrderFinalize / Recognition；settle 入口编排仍在主类）
 - [x] S-P1-5 / M-P1-5 定价乐观锁（`device_sku_price.version`；库存此前已有）
 - [x] H5 隐私政策首屏弹窗（C-P2-5 / M-P2-4）— `privacy-consent-modal` + 两端入口页
 - [x] 24 页分包（C-P2-3）— consumer `pages.json` 主包 6 + `subPackages` + `preloadRule`

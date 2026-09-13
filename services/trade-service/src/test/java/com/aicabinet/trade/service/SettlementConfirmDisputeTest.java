@@ -57,7 +57,7 @@ class SettlementConfirmDisputeTest {
     void setUp() {
         settlementService = new SettlementService(
                 sessionRepository, skuCatalogRepository, orderRepository, orderLineRepository,
-                null, null, null, null, null, null, null, revenueSplitService,
+                null, null, null, null, null, null, null, null, revenueSplitService,
                 null, null, inventoryService, orderPaymentService,
                 null, null, null, skuPricingService, userValidationService,
                 null, null, couponService, memberService, null, null,
