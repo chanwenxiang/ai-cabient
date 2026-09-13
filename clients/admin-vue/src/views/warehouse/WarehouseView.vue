@@ -2308,46 +2308,21 @@
         @return-po-change="onReturnPoChange"
       />
 
-      <el-dialog v-model="transferDialog" title="新建仓间调拨" destroy-on-close>
-        <el-form label-width="auto">
-          <el-form-item label="调出仓" required>
-            <el-select v-model="transferForm.fromWarehouseId" filterable style="width: 100%">
-              <el-option
-                v-for="w in warehouses"
-                :key="w.warehouseId"
-                :label="w.warehouseName || w.warehouseId"
-                :value="w.warehouseId"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="调入仓" required>
-            <el-select v-model="transferForm.toWarehouseId" filterable style="width: 100%">
-              <el-option
-                v-for="w in warehouses"
-                :key="'to-' + w.warehouseId"
-                :label="w.warehouseName || w.warehouseId"
-                :value="w.warehouseId"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="SKU" required>
-            <el-input v-model="transferForm.skuId" placeholder="商品 SKU" />
-          </el-form-item>
-          <el-form-item label="批次">
-            <el-input v-model="transferForm.batchNo" placeholder="可空" />
-          </el-form-item>
-          <el-form-item label="数量" required>
-            <el-input-number v-model="transferForm.quantity" :min="1" />
-          </el-form-item>
-          <el-form-item label="备注">
-            <el-input v-model="transferForm.notes" type="textarea" :rows="2" />
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="transferDialog = false">取消</el-button>
-          <el-button type="primary" :loading="saving" @click="saveTransfer">创建</el-button>
-        </template>
-      </el-dialog>
+      <WarehouseTransferDialogs
+        v-model:transfer-dialog="transferDialog"
+        :saving="saving"
+        :transfer-form="transferForm"
+        :warehouses="warehouses"
+        @save-transfer="saveTransfer"
+      />
+
+      <WarehouseOutboundDialogs
+        :outbound-confirm="outboundConfirm"
+        @update:visible="(v) => (outboundConfirm.visible = v)"
+        @cancel="cancelOutboundConfirm"
+        @submit="submitOutboundConfirm"
+        @closed="onOutboundConfirmClosed"
+      />
 
       <el-dialog v-model="inboundDialog" title="其他入库" class="dialog-wide" destroy-on-close>
         <el-form v-loading="dialogBootLoading" label-width="auto">
@@ -2421,37 +2396,6 @@
           >
         </template>
       </el-dialog>
-
-      <!-- 拣货/发运：用 el-dialog 替代 MessageBox，避免自动化偶发点不到确认钮 -->
-      <el-dialog
-        v-model="outboundConfirm.visible"
-        :title="outboundConfirm.title"
-        append-to-body
-        destroy-on-close
-        :close-on-click-modal="false"
-        data-testid="outbound-confirm-dialog"
-        @closed="onOutboundConfirmClosed"
-      >
-        <p class="outbound-confirm-body">
-          <span class="outbound-confirm-id" data-testid="outbound-confirm-id"
-            >出库单 {{ outboundConfirm.outboundId }}</span
-          >
-          <br />
-          {{ outboundConfirm.message }}
-        </p>
-        <template #footer>
-          <el-button data-testid="outbound-confirm-cancel" @click="cancelOutboundConfirm"
-            >取消</el-button
-          >
-          <el-button
-            type="primary"
-            :loading="outboundConfirm.saving"
-            data-testid="outbound-confirm-ok"
-            @click="submitOutboundConfirm"
-            >确定</el-button
-          >
-        </template>
-      </el-dialog>
     </el-card>
   </div>
 </template>
@@ -2467,14 +2411,18 @@ import { yuanToCents } from '@/utils/display';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import WarehouseBinDialogs from '@/components/warehouse/WarehouseBinDialogs.vue';
+import WarehouseOutboundDialogs from '@/components/warehouse/WarehouseOutboundDialogs.vue';
 import WarehousePurchaseDialogs from '@/components/warehouse/WarehousePurchaseDialogs.vue';
 import WarehouseStocktakeDialogs from '@/components/warehouse/WarehouseStocktakeDialogs.vue';
+import WarehouseTransferDialogs from '@/components/warehouse/WarehouseTransferDialogs.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useWarehouseBins } from '@/composables/warehouse/useWarehouseBins';
+import { useWarehouseOutbounds } from '@/composables/warehouse/useWarehouseOutbounds';
 import { useWarehousePurchaseOrders } from '@/composables/warehouse/useWarehousePurchaseOrders';
 import { useWarehouseStocktakes } from '@/composables/warehouse/useWarehouseStocktakes';
+import { useWarehouseTransfers } from '@/composables/warehouse/useWarehouseTransfers';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
 import { dictLabel, dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
@@ -2591,7 +2539,6 @@ function isTabLoading(name: string) {
   return loadingTabs.value.has(name);
 }
 const saving = ref(false);
-const cleanupStaleLoading = ref(false);
 const tab = ref('warehouses');
 
 type WarehouseTabGroup = 'overview' | 'procurement' | 'inventory' | 'fulfillment';
@@ -2730,15 +2677,6 @@ const {
 const purchaseOrders = ref<Row[]>([]);
 const purchaseReturns = ref<Row[]>([]);
 const transfers = ref<Row[]>([]);
-const transferDialog = ref(false);
-const transferForm = reactive({
-  fromWarehouseId: '',
-  toWarehouseId: '',
-  notes: '',
-  skuId: '',
-  batchNo: '',
-  quantity: 1
-});
 const outbounds = ref<Row[]>([]);
 const inTransit = ref<Row[]>([]);
 const inventory = ref<Row[]>([]);
@@ -3713,65 +3651,6 @@ async function loadTransfers() {
   transfers.value = data.items || [];
   tabTotals.value = { ...tabTotals.value, transfers: Number(data.total) || 0 };
 }
-async function openTransferCreate() {
-  Object.assign(transferForm, {
-    fromWarehouseId: warehouses.value[0]?.warehouseId || '',
-    toWarehouseId: warehouses.value[1]?.warehouseId || '',
-    notes: '',
-    skuId: '',
-    batchNo: '',
-    quantity: 1
-  });
-  await loadWarehousesSoft();
-  transferDialog.value = true;
-}
-async function saveTransfer() {
-  if (!transferForm.fromWarehouseId || !transferForm.toWarehouseId || !transferForm.skuId.trim()) {
-    ElMessage.warning('请填写调出/调入仓与 SKU');
-    return;
-  }
-  saving.value = true;
-  try {
-    await api.request('/api/v2/ops/admin/warehouse/transfers', 'POST', {
-      fromWarehouseId: transferForm.fromWarehouseId,
-      toWarehouseId: transferForm.toWarehouseId,
-      notes: transferForm.notes,
-      lines: [
-        {
-          skuId: transferForm.skuId.trim(),
-          batchNo: transferForm.batchNo || '',
-          quantity: transferForm.quantity
-        }
-      ]
-    });
-    transferDialog.value = false;
-    ElMessage.success('调拨单已创建');
-    loadedTabs.value.delete('transfers');
-    await loadTab('transfers', true);
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '创建失败'));
-  } finally {
-    saving.value = false;
-  }
-}
-async function shipTransfer(row: Row) {
-  await api.request(`/api/v2/ops/admin/warehouse/transfers/${row.transferId}/ship`, 'POST');
-  ElMessage.success('已发运');
-  loadedTabs.value.delete('transfers');
-  await loadTab('transfers', true);
-}
-async function receiveTransfer(row: Row) {
-  await api.request(`/api/v2/ops/admin/warehouse/transfers/${row.transferId}/receive`, 'POST');
-  ElMessage.success('已收货入库');
-  loadedTabs.value.delete('transfers');
-  await loadTab('transfers', true);
-}
-async function cancelTransfer(row: Row) {
-  await api.request(`/api/v2/ops/admin/warehouse/transfers/${row.transferId}/cancel`, 'POST');
-  ElMessage.success(displayLabel('order_status', 'CANCELLED'));
-  loadedTabs.value.delete('transfers');
-  await loadTab('transfers', true);
-}
 
 async function loadWarehouseTabData(name: string) {
   const seq = loadSeq.begin('loadWarehouseTabData');
@@ -3973,6 +3852,35 @@ const {
   ensureMeta
 });
 
+const {
+  transferDialog,
+  transferForm,
+  openTransferCreate,
+  saveTransfer,
+  shipTransfer,
+  receiveTransfer,
+  cancelTransfer
+} = useWarehouseTransfers({
+  saving,
+  loadedTabs,
+  loadTab,
+  warehouses,
+  loadWarehousesSoft
+});
+
+const {
+  cleanupStaleLoading,
+  outboundConfirm,
+  changeOutbound,
+  cancelOutboundConfirm,
+  onOutboundConfirmClosed,
+  submitOutboundConfirm,
+  cleanupStaleOutbounds
+} = useWarehouseOutbounds({
+  loadedTabs,
+  loadTab
+});
+
 function openWarehouse(row?: Row) {
   Object.assign(warehouseForm, {
     editing: !!row,
@@ -4092,113 +4000,6 @@ async function removeInboundLine(index: number) {
     return;
   }
   inboundForm.lines.splice(index, 1);
-}
-
-const outboundConfirm = reactive({
-  visible: false,
-  saving: false,
-  title: '',
-  message: '',
-  action: 'pick' as 'pick' | 'ship' | 'cancel-unreceived',
-  outboundId: null as number | string | null
-});
-
-function changeOutbound(row: Row, action: 'pick' | 'ship' | 'cancel-unreceived') {
-  outboundConfirm.action = action;
-  outboundConfirm.outboundId = row.outboundId;
-  if (action === 'pick') {
-    outboundConfirm.title = '确认拣货';
-    outboundConfirm.message = `确认出库单 ${row.outboundId} 已完成拣货？`;
-  } else if (action === 'ship') {
-    outboundConfirm.title = '确认发运';
-    outboundConfirm.message = `确认发运出库单 ${row.outboundId}？发运后库存将转为在途。`;
-  } else {
-    outboundConfirm.title = row.status === 'SHIPPED' ? '作废回仓' : '作废出库';
-    outboundConfirm.message =
-      row.status === 'SHIPPED'
-        ? `确认作废出库单 ${row.outboundId}？将回仓并取消在途（仅未签收）。`
-        : `确认作废出库单 ${row.outboundId}？未发运单据将直接取消。`;
-  }
-  outboundConfirm.saving = false;
-  outboundConfirm.visible = true;
-}
-
-function cancelOutboundConfirm() {
-  outboundConfirm.visible = false;
-}
-
-async function cleanupStaleOutbounds() {
-  try {
-    await ElMessageBox.confirm(
-      '将安全作废：空草稿/已拣货、终态路线上的未发运草稿、终态路线上未签收且无已完成任务的发运单（回仓并取消在途）。不硬删业务行；已签收或任务已完成的单据跳过。',
-      '清理空草稿/脏在途',
-      { type: 'warning', confirmButtonText: '确认清理', appendTo: document.body }
-    );
-  } catch {
-    return;
-  }
-  cleanupStaleLoading.value = true;
-  try {
-    const result = await api.request<{
-      cancelledEmptyDrafts?: number;
-      cancelledTerminalDrafts?: number;
-      cancelledOrphanShipped?: number;
-      skipped?: number;
-      cancelledOutboundIds?: number[];
-    }>('/api/v2/ops/admin/warehouse/outbounds/cleanup-stale', 'POST');
-    const total =
-      (result?.cancelledEmptyDrafts || 0) +
-      (result?.cancelledTerminalDrafts || 0) +
-      (result?.cancelledOrphanShipped || 0);
-    ElMessage.success({
-      message: total
-        ? `已清理 ${total} 单（空草稿 ${result?.cancelledEmptyDrafts || 0} / 终态草稿 ${result?.cancelledTerminalDrafts || 0} / 孤儿发运 ${result?.cancelledOrphanShipped || 0}），跳过 ${result?.skipped || 0}`
-        : `无可清理单据（跳过 ${result?.skipped || 0}）`,
-      duration: 5000
-    });
-    loadedTabs.value.delete('outbounds');
-    loadedTabs.value.delete('transit');
-    loadedTabs.value.delete('inventory');
-    await loadTab('outbounds', true);
-  } catch (e: unknown) {
-    ElMessage.error(errorMessage(e, '清理失败'));
-  } finally {
-    cleanupStaleLoading.value = false;
-  }
-}
-
-function onOutboundConfirmClosed() {
-  if (!outboundConfirm.saving) {
-    outboundConfirm.outboundId = null;
-  }
-}
-
-async function submitOutboundConfirm() {
-  const action = outboundConfirm.action;
-  const outboundId = outboundConfirm.outboundId;
-  if (outboundId == null) {
-    outboundConfirm.visible = false;
-    return;
-  }
-  outboundConfirm.saving = true;
-  try {
-    await api.request(`/api/v2/ops/admin/warehouse/outbounds/${outboundId}/${action}`, 'POST');
-    outboundConfirm.visible = false;
-    let okMsg: string;
-    if (action === 'pick') okMsg = '拣货完成';
-    else if (action === 'ship') okMsg = '已发运';
-    else okMsg = '出库单已作废';
-    ElMessage.success(okMsg);
-    loadedTabs.value.delete('outbounds');
-    loadedTabs.value.delete('transit');
-    loadedTabs.value.delete('inventory');
-    await loadTab('outbounds', true);
-  } catch (e: unknown) {
-    ElMessage.error(errorMessage(e, '操作失败'));
-  } finally {
-    outboundConfirm.saving = false;
-    outboundConfirm.outboundId = null;
-  }
 }
 
 async function openInbound() {
@@ -4452,19 +4253,6 @@ watch(
 .outbound-id-cell {
   font-weight: 650;
   font-variant-numeric: tabular-nums;
-}
-.outbound-confirm-body {
-  margin: 0;
-  color: var(--layout-text);
-  line-height: 1.6;
-  font-size: var(--admin-font-size-menu);
-}
-.outbound-confirm-id {
-  display: inline-block;
-  margin-bottom: 6px;
-  font-weight: 700;
-  font-size: var(--admin-font-size-title);
-  color: var(--app-primary, #0f766e);
 }
 :deep(.outbound-row--actionable) > td {
   background: color-mix(in srgb, var(--app-primary, #0f766e) 8%, transparent);

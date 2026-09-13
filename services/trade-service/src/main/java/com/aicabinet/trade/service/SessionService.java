@@ -53,9 +53,6 @@ public class SessionService {
     private static final EnumSet<SessionState> ACTIVE_STATES = EnumSet.of(
             SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
             SessionState.WAITING_UPLOAD, SessionState.RECOGNIZING, SessionState.SETTLING);
-    private static final EnumSet<SessionState> RESTOCK_CLOSEABLE_STATES = EnumSet.of(
-            SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
-            SessionState.WAITING_UPLOAD, SessionState.RECOGNIZING, SessionState.SETTLING);
 
     private final ShoppingSessionMapper repository;
     private final DeviceServiceClient deviceClient;
@@ -68,6 +65,7 @@ public class SessionService {
     private final GravitySettlementHelper gravityHelper;
     private final RestockSnapshotService restockSnapshotService;
     private final SessionOpenService sessionOpenService;
+    private final SessionRestockService sessionRestockService;
     private final SessionService self;
     private final OpsExceptionService opsExceptionService;
     private final UserInfoMapper userInfoRepository;
@@ -90,6 +88,7 @@ public class SessionService {
                           GravitySettlementHelper gravityHelper,
                           RestockSnapshotService restockSnapshotService,
                           SessionOpenService sessionOpenService,
+                          SessionRestockService sessionRestockService,
                           @Lazy SessionService self,
                           OpsExceptionService opsExceptionService,
                           UserInfoMapper userInfoRepository,
@@ -111,6 +110,7 @@ public class SessionService {
         this.gravityHelper = gravityHelper;
         this.restockSnapshotService = restockSnapshotService;
         this.sessionOpenService = sessionOpenService;
+        this.sessionRestockService = sessionRestockService;
         this.self = self;
         this.opsExceptionService = opsExceptionService;
         this.userInfoRepository = userInfoRepository;
@@ -268,7 +268,7 @@ public class SessionService {
             }
             if (session != null && isRestockSession(session)) {
                 if (afterDoor.state() == SessionState.RECOGNIZING) {
-                    return self.finishRestockSnapshot(event.sessionId());
+                    return sessionRestockService.finishRestockSnapshot(event.sessionId());
                 }
                 return afterDoor;
             }
@@ -380,7 +380,7 @@ public class SessionService {
                 return afterAttach;
             }
             if (isRestockSession(session)) {
-                return self.finishRestockSnapshot(session.getSessionId());
+                return sessionRestockService.finishRestockSnapshot(session.getSessionId());
             }
             return settleSession(session);
         });
@@ -408,54 +408,22 @@ public class SessionService {
 
     /** 补货关门后：视觉/重力快照回写货道实测，不创建订单。无外层长事务包裹 vision HTTP。 */
     public SessionDto finishRestockSnapshot(String sessionId) {
-        return runWithSessionLifeLock(sessionId, () -> {
-            ShoppingSession ready = self.beginRestockSnapshot(sessionId);
-            if (ready == null) {
-                return toDto(repository.findById(sessionId).orElseThrow(
-                        () -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND)));
-            }
-            try {
-                restockSnapshotService.applySnapshot(ready);
-                return self.completeRestockSnapshot(sessionId);
-            } catch (RuntimeException e) {
-                log.error("restock snapshot failed session={}", sessionId, e);
-                return self.failRestockSnapshot(sessionId);
-            }
-        });
+        return sessionRestockService.finishRestockSnapshot(sessionId);
     }
 
     @Transactional
     public ShoppingSession beginRestockSnapshot(String sessionId) {
-        ShoppingSession session = repository.findByIdForUpdate(sessionId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        if (!isRestockSession(session)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "not a restock session");
-        }
-        if (session.getState() != SessionState.RECOGNIZING && session.getState() != SessionState.SHOPPING) {
-            return null;
-        }
-        if (session.getState() == SessionState.RECOGNIZING) {
-            transition(session, SessionState.SETTLING);
-        }
-        return session;
+        return sessionRestockService.beginRestockSnapshot(sessionId);
     }
 
     @Transactional
     public SessionDto completeRestockSnapshot(String sessionId) {
-        ShoppingSession session = repository.findByIdForUpdate(sessionId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        transition(session, SessionState.COMPLETED);
-        log.info("restock snapshot completed session={} device={}", sessionId, session.getDeviceId());
-        return toDto(session);
+        return sessionRestockService.completeRestockSnapshot(sessionId);
     }
 
     @Transactional
     public SessionDto failRestockSnapshot(String sessionId) {
-        ShoppingSession session = repository.findByIdForUpdate(sessionId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        session.setFailReason("restock snapshot failed");
-        transition(session, SessionState.FAILED);
-        return toDto(session);
+        return sessionRestockService.failRestockSnapshot(sessionId);
     }
 
     @Transactional
@@ -919,41 +887,7 @@ public class SessionService {
      */
     @Transactional
     public int closeRestockSessionsForTask(Long taskId, String reason) {
-        if (taskId == null) {
-            return 0;
-        }
-        String failReason = (reason == null || reason.isBlank()) ? "补货任务结束，自动关闭会话" : reason.trim();
-        java.util.LinkedHashMap<String, ShoppingSession> byId = new java.util.LinkedHashMap<>();
-        for (ShoppingSession s : repository.findByReplenishmentTaskIdAndStateIn(taskId, RESTOCK_CLOSEABLE_STATES)) {
-            byId.put(s.getSessionId(), s);
-        }
-        for (ShoppingSession s : repository.findByIdempotencyKeyStartingWithAndStateIn(
-                "RESTOCK:" + taskId + ":", RESTOCK_CLOSEABLE_STATES)) {
-            byId.putIfAbsent(s.getSessionId(), s);
-        }
-        List<ShoppingSession> open = List.copyOf(byId.values());
-        for (ShoppingSession session : open) {
-            session.setFailReason(failReason);
-            if (session.getCloseTime() == null) {
-                session.setCloseTime(Instant.now());
-            }
-            // 任务结束时尽力回写实测，减少货道差异误报
-            try {
-                restockSnapshotService.applySnapshot(session);
-            } catch (Exception e) {
-                log.warn("restock auto-close snapshot failed session={} task={}",
-                        session.getSessionId(), taskId, e);
-            }
-            session.setState(SessionState.COMPLETED);
-            repository.save(session);
-            cabinetMetrics.recordSessionState(SessionState.COMPLETED);
-            domainEventPublisher.publish("RestockSessionAutoClosed", session.getSessionId(),
-                    Map.of(DEVICEID, session.getDeviceId(), "taskId", String.valueOf(taskId),
-                            "reason", failReason));
-            log.info("restock session auto-closed session={} task={} reason={}",
-                    session.getSessionId(), taskId, failReason);
-        }
-        return open.size();
+        return sessionRestockService.closeRestockSessionsForTask(taskId, reason);
     }
 
     /** 运营兜底：终止异常活跃会话，使设备重新可用。调用方必须完成权限、二次确认和审计。 */
@@ -1107,7 +1041,7 @@ public class SessionService {
         }
     }
 
-    private <T> T runWithSessionLifeLock(String sessionId, java.util.function.Supplier<T> action) {
+    <T> T runWithSessionLifeLock(String sessionId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(sessionLifeLockKey(sessionId), 60, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "会话处理中，请稍后重试");
         }

@@ -35,8 +35,8 @@
 | 28 | Settlement 拆分 | 改退款/异步视觉易牵动整类回归 | 纯计算与异步提交混在上帝类 | 按行退款数学进 `SettlementPartialRefundMath`；部分退编排进 `SettlementPartialRefundService`；异步视觉进 `SettlementVisionAsyncService`；免单进 `SettlementWaiveRefundService`；争议确认进 `SettlementConfirmDisputeService`；落单扣款进 `SettlementOrderFinalizeService`；识别决策进 `SettlementRecognitionService`；settle 入口进 `SettlementSettleOrchestrator`；行/DTO 进 `SettlementOrderSupport`；主类只委托 + 锁 | `SettlementService` |
 | 29 | merchant 分包 | 主包过大冷启动慢 | 业务页全进主包 | tab+登录留主包；其余 `subPackages` + `preloadRule` | `merchant-mp/src/pages.json` |
 | 30 | merchant 补货 | 开门缓存/确认框/列表逻辑与页耦合难测 | 状态机散落在 3k 行页内 | 开门缓存进 `useReplenishmentDoorState`；确认框进 `useAppConfirmDialog`；列表进 `useReplenishmentList`；签到/开门/核对/完成进 `useReplenishmentFulfillment`；深链/详情/凭证进 `useReplenishmentDetail`；扫柜/扫商品进 `useReplenishmentScan`；SKU/货道展示进 `useReplenishmentDisplay`；UI 块继续拆子组件 | `composables/`、`Replenish*.vue` |
-| 31 | Session 超时 | 改 expire 易牵动开门/结算整类回归 | `@Scheduled` expire 与开门/关门同上帝类 | expire 四任务进 `SessionExpireService`；开门短事务进 `SessionOpenService`；`@Scheduled` 只挂一处；状态变更仍走 `SessionService.transition` | `SessionExpireService`、`SessionOpenService`、`ScheduledTaskRegistry` |
-| 32 | admin 仓库页 | 改采购弹窗易误伤盘点/出库 | 单文件 5k+ 行多业务混杂 | 采购写流进 `useWarehousePurchaseOrders` + `WarehousePurchaseDialogs`；盘点/货位进 `useWarehouseStocktakes`/`useWarehouseBins` + 对应 Dialogs；列表/其它 tab 仍在页内，继续按域拆 | `WarehouseView.vue` |
+| 31 | Session 拆分 | 改 expire/开门/补货易牵动整类回归 | 调度与短事务混在上帝类 | expire→`SessionExpireService`；开门短事务→`SessionOpenService`；补货快照短事务→`SessionRestockService`；状态变更仍走 `SessionService.transition` | `SessionExpireService`、`SessionOpenService`、`SessionRestockService` |
+| 32 | admin 仓库页 | 改一域弹窗易误伤其它域 | 单文件 5k+ 行多业务混杂 | 采购/盘点/货位/出库/调拨写流分别进 composable+Dialogs；列表壳仍在页内，继续按域拆 | `WarehouseView.vue` |
 
 ## 追加模板
 
