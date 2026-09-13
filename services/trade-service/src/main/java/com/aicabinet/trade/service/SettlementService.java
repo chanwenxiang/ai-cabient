@@ -40,6 +40,7 @@ public class SettlementService {
     private final DisputeService disputeService;
     private final SettlementVisionAsyncService settlementVisionAsyncService;
     private final SettlementWaiveRefundService settlementWaiveRefundService;
+    private final SettlementConfirmDisputeService settlementConfirmDisputeService;
     private final RevenueSplitService revenueSplitService;
     private final SecurityProperties securityProperties;
     private final StagingProperties stagingProperties;
@@ -73,6 +74,7 @@ public class SettlementService {
                              @Lazy DisputeService disputeService,
                              SettlementVisionAsyncService settlementVisionAsyncService,
                              SettlementWaiveRefundService settlementWaiveRefundService,
+                             SettlementConfirmDisputeService settlementConfirmDisputeService,
                              RevenueSplitService revenueSplitService,
                              SecurityProperties securityProperties,
                              StagingProperties stagingProperties,
@@ -104,6 +106,7 @@ public class SettlementService {
         this.disputeService = disputeService;
         this.settlementVisionAsyncService = settlementVisionAsyncService;
         this.settlementWaiveRefundService = settlementWaiveRefundService;
+        this.settlementConfirmDisputeService = settlementConfirmDisputeService;
         this.revenueSplitService = revenueSplitService;
         this.securityProperties = securityProperties;
         this.stagingProperties = stagingProperties;
@@ -444,7 +447,7 @@ public class SettlementService {
         return gravityHelper.reconcileWithGravity(session.getGravityDeltas(), recognition);
     }
 
-    private String gravityDeltasForInventory(ShoppingSession session) {
+    String gravityDeltasForInventory(ShoppingSession session) {
         return systemConfigService.usesGravityFusion() ? session.getGravityDeltas() : null;
     }
 
@@ -532,113 +535,7 @@ public class SettlementService {
      */
     public ConfirmDisputeResult confirmDisputedItems(ShoppingSession session,
                                                    List<VisionServiceClient.RecognizedItem> items) {
-        return runWithSessionSettleLock(session.getSessionId(), () -> {
-            ConfirmDisputePrep prep = self.prepareConfirmDispute(session.getSessionId(), items);
-            if (prep.firstChargeDone()) {
-                return prep.result();
-            }
-            if (prep.paymentDelta() != 0) {
-                orderPaymentService.applyPaymentDelta(prep.order(), prep.paymentDelta());
-            }
-            return self.finalizeConfirmDispute(prep);
-        });
-    }
-
-    public record ConfirmDisputePrep(
-            boolean firstChargeDone,
-            ConfirmDisputeResult result,
-            CabinetOrder order,
-            int originalPayable,
-            int finalTotal,
-            int paymentDelta) {
-        static ConfirmDisputePrep firstCharge(ConfirmDisputeResult result) {
-            return new ConfirmDisputePrep(true, result, null, 0, 0, 0);
-        }
-
-        static ConfirmDisputePrep adjust(CabinetOrder order, int originalPayable, int finalTotal, int paymentDelta) {
-            return new ConfirmDisputePrep(false, null, order, originalPayable, finalTotal, paymentDelta);
-        }
-    }
-
-    @Transactional(noRollbackFor = {BalanceInsufficientException.class})
-    public ConfirmDisputePrep prepareConfirmDispute(String sessionId,
-                                                    List<VisionServiceClient.RecognizedItem> items) {
-        if (items == null || items.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_ITEMS_REQUIRED);
-        }
-        sessionRepository.findByIdForUpdate(sessionId);
-        ShoppingSession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-
-        var existing = orderRepository.findBySessionId(sessionId);
-        if (existing.isEmpty()) {
-            OrderReadModel order = finalizeOrder(session, items);
-            int amount = order.totalAmountCents();
-            return ConfirmDisputePrep.firstCharge(new ConfirmDisputeResult(order, 0, amount, amount));
-        }
-
-        CabinetOrder order = existing.get();
-        hydrateOrderLines(order);
-        if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_ALREADY_REFUNDED);
-        }
-
-        List<VisionServiceClient.RecognizedItem> oldItems = order.getLines().stream()
-                .map(l -> new VisionServiceClient.RecognizedItem(l.getSkuId(), l.getQuantity(),
-                        l.getConfidence() != null ? l.getConfidence() : 1f))
-                .toList();
-        var batchBySku = order.getLines().stream()
-                .filter(l -> l.getBatchNo() != null && !l.getBatchNo().isBlank())
-                .collect(java.util.stream.Collectors.toMap(
-                        com.aicabinet.trade.domain.CabinetOrderLine::getSkuId,
-                        com.aicabinet.trade.domain.CabinetOrderLine::getBatchNo,
-                        (a, b) -> a));
-
-        int originalPayable = order.getTotalAmountCents();
-        applyItemsToOrder(order, items);
-        recalculatePayableAfterLineChange(order);
-        int finalTotal = order.getTotalAmountCents();
-        int delta = finalTotal - originalPayable;
-
-        // 先校验余额再动库存，避免 412 触发 UnexpectedRollbackException（BUG-007）
-        if (delta > 0 && !userValidationService.canChargeViaPasswordFree(
-                session.getUserId(), session.getEntryChannel())) {
-            userValidationService.validateSufficientBalanceForCharge(session.getUserId(), delta);
-        }
-
-        if (order.isInventoryDeducted()) {
-            var adjustedBatches = inventoryService.adjustForOrder(
-                    session.getDeviceId(), oldItems, items, batchBySku, order.getOrderId());
-            applyBatchNos(order, adjustedBatches);
-        } else {
-            var deductedBatches = inventoryService.deductForOrder(
-                    session.getDeviceId(), items, order.getOrderId(), gravityDeltasForInventory(session));
-            applyBatchNos(order, deductedBatches);
-            order.setInventoryDeducted(true);
-        }
-        orderRepository.save(order);
-        replaceOrderLines(order);
-        log.info("dispute confirm prepare session={} order={} original={} final={} delta={}",
-                sessionId, order.getOrderId(), originalPayable, finalTotal, delta);
-        return ConfirmDisputePrep.adjust(order, originalPayable, finalTotal, delta);
-    }
-
-    @Transactional
-    public ConfirmDisputeResult finalizeConfirmDispute(ConfirmDisputePrep prep) {
-        CabinetOrder order = orderRepository.findByIdForUpdate(prep.order().getOrderId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        hydrateOrderLines(order);
-        // 三端一致：确认/改单后退出争议态（DisputeService 结案兜底也会对齐）
-        if ("DISPUTED".equals(order.getStatus())) {
-            order.setStatus("PAID");
-        }
-        if (prep.paymentDelta() != 0) {
-            revenueSplitService.adjustSplitAfterOrderChange(order, prep.originalPayable());
-        }
-        orderRepository.save(order);
-        log.info("dispute confirm finalize order={} original={} final={} delta={}",
-                order.getOrderId(), prep.originalPayable(), prep.finalTotal(), prep.paymentDelta());
-        return new ConfirmDisputeResult(toDto(order), prep.originalPayable(), prep.finalTotal(), prep.paymentDelta());
+        return settlementConfirmDisputeService.confirmDisputedItems(session, items);
     }
 
     /** 免单：退还该会话已扣款项（原路退回）；默认回库（兼容历史免单=误识别）。 */
@@ -847,7 +744,7 @@ public class SettlementService {
         order.setTotalAmountCents(Math.max(0, remainingSubtotalCents - discount));
     }
 
-    private OrderReadModel finalizeOrder(ShoppingSession session,
+    OrderReadModel finalizeOrder(ShoppingSession session,
                                    List<VisionServiceClient.RecognizedItem> items) {
         deviceValidationService.ensureSettlementAllowed(session.getDeviceId());
         CabinetOrder order = buildOrder(session, items);
@@ -1013,7 +910,7 @@ public class SettlementService {
         order.setOriginalAmountCents(Math.max(0, original));
     }
 
-    private void applyItemsToOrder(CabinetOrder order, List<VisionServiceClient.RecognizedItem> items) {
+    void applyItemsToOrder(CabinetOrder order, List<VisionServiceClient.RecognizedItem> items) {
         order.getLines().clear();
         Map<String, String> slotBySku = inferSlotBySku(order.getDeviceId());
         int total = 0;
@@ -1042,7 +939,7 @@ public class SettlementService {
     }
 
     /** 争议改单后按新明细重算折后应付（保留已绑券/会员折扣字段）。 */
-    private void recalculatePayableAfterLineChange(CabinetOrder order) {
+    void recalculatePayableAfterLineChange(CabinetOrder order) {
         int subtotal = order.getLines().stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
         order.setOriginalAmountCents(subtotal);
         int couponDisc = 0;
@@ -1075,7 +972,7 @@ public class SettlementService {
         return map;
     }
 
-    private static void applyBatchNos(CabinetOrder order, java.util.Map<String, String> batchBySku) {
+    static void applyBatchNos(CabinetOrder order, java.util.Map<String, String> batchBySku) {
         if (batchBySku == null || batchBySku.isEmpty()) {
             return;
         }
@@ -1120,7 +1017,7 @@ public class SettlementService {
         }
     }
 
-    private void replaceOrderLines(CabinetOrder order) {
+    void replaceOrderLines(CabinetOrder order) {
         orderLineRepository.deleteByOrderId(order.getOrderId());
         if (order.getLines() == null) {
             return;
@@ -1132,7 +1029,7 @@ public class SettlementService {
         }
     }
 
-    private void hydrateOrderLines(CabinetOrder order) {
+    void hydrateOrderLines(CabinetOrder order) {
         if (order == null || order.getOrderId() == null) {
             return;
         }
@@ -1142,7 +1039,7 @@ public class SettlementService {
         order.setLines(new java.util.ArrayList<>(orderLineRepository.findByOrderId(order.getOrderId())));
     }
 
-    private OrderReadModel toDto(CabinetOrder order) {
+    OrderReadModel toDto(CabinetOrder order) {
         hydrateOrderLines(order);
         String refundPolicy = refundPolicyService != null
                 ? refundPolicyService.resolveForDevice(order.getDeviceId()).name()
@@ -1179,7 +1076,7 @@ public class SettlementService {
         return "session:settle:" + sessionId;
     }
 
-    private <T> T runWithSessionSettleLock(String sessionId, java.util.function.Supplier<T> action) {
+    <T> T runWithSessionSettleLock(String sessionId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(sessionSettleLockKey(sessionId), 60, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "会话结算处理中，请稍后重试");
         }
