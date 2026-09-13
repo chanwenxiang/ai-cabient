@@ -178,10 +178,24 @@ clients/admin-vue/eyJhbGciOiJIUzI1NiJ9.*
 # Windows absolute path accidentally materialized as a directory name (D:\...)
 /D*devTools*
 
-# local perf secrets
+# local perf secrets / scale dumps（只留证 summary.json；5k/10k 原始结果勿入库）
 docs/uat-screenshots/**/jmeter-order-read/token.txt
 docs/uat-screenshots/**/jmeter-token.txt
-
-docs/uat-screenshots/**/jmeter-order-read/results.jtl
+docs/uat-screenshots/**/jmeter-order-read/results*.jtl
 docs/uat-screenshots/**/jmeter-order-read/smoke.jtl
+docs/uat-screenshots/**/jmeter-order-read/summary-5k.json
+docs/uat-screenshots/**/jmeter-order-read/summary-10k.json
 docs/uat-screenshots/**/jmeter-order-read/report/
+
+# UAT 本地会话/工具输出（cookies、登录态、eslint/tsc 转储）
+docs/uat-screenshots/**/admin-cookies.txt
+docs/uat-screenshots/**/login-session*.json
+docs/uat-screenshots/**/*-out.txt
+docs/uat-screenshots/**/tsc-*.txt
+docs/uat-screenshots/**/rebuild-accounts.json
+
+# 根目录偶发探针 / 审计草稿
+/__probe.txt
+/clients/admin-vue/filelist.txt
+/*-mp-audit.md
+/docs/final-audit-*.md
