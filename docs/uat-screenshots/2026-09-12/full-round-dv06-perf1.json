@@ -1,0 +1,144 @@
+{
+  "at": "2026-09-13T05:00:38.887Z",
+  "dv06": {
+    "cases": [
+      {
+        "name": "bind-cab001",
+        "result": "PASS",
+        "detail": "already MCH-DEFAULT"
+      },
+      {
+        "name": "dual-cabinet-online",
+        "result": "PASS",
+        "detail": "777740024057:ONLINE@2026-09-13 05:00:32.42925+00,CAB-001:ONLINE@2026-09-13 05:00:40.408058+00"
+      },
+      {
+        "name": "heartbeat-independent-sample",
+        "result": "PASS",
+        "detail": "t0=777740024057|2026-09-13 05:00:32.42925+00\nCAB-001|2026-09-13 05:00:40.408058+00 t1=777740024057|2026-09-13 05:00:42.439227+00\nCAB-001|2026-09-13 05:00:45.405847+00"
+      },
+      {
+        "name": "open-session-for-dedup",
+        "result": "PASS",
+        "detail": "1789275650858947757"
+      },
+      {
+        "name": "mqtt-publish",
+        "result": "PASS",
+        "detail": "CLOSED×2 session=1789275650858947757 + cross-cab orphan"
+      },
+      {
+        "name": "redis-door-dedup-key",
+        "result": "PASS",
+        "detail": "aicabinet:door-dedup:1789275650858947757:OPEN:||||,aicabinet:door-dedup:1789275650858947757:CLOSED:seq:dv06-1"
+      },
+      {
+        "name": "device-service-dedup-log",
+        "result": "PASS",
+        "detail": "duplicate door event ignored"
+      },
+      {
+        "name": "device-service-unit",
+        "result": "PASS",
+        "detail": "DoorEventDeduplicatorTest+MqttEventListenerDoorTest"
+      }
+    ],
+    "heartbeats": {
+      "hb1": "777740024057|2026-09-13 05:00:32.42925+00\nCAB-001|2026-09-13 05:00:40.408058+00",
+      "hb2": "777740024057|2026-09-13 05:00:42.439227+00\nCAB-001|2026-09-13 05:00:45.405847+00"
+    },
+    "redisDedupKeys": [
+      "aicabinet:door-dedup:1789275650858947757:OPEN:||||",
+      "aicabinet:door-dedup:1789275650858947757:CLOSED:seq:dv06-1"
+    ],
+    "logHints": {
+      "dedupLog": true,
+      "sample": [
+        "\tat org.eclipse.paho.client.mqttv3.internal.CommsCallback.deliverMessage(CommsCallback.java:519)",
+        "\tat org.eclipse.paho.client.mqttv3.internal.CommsCallback.handleMessage(CommsCallback.java:417)",
+        "\tat org.eclipse.paho.client.mqttv3.internal.CommsCallback.run(CommsCallback.java:214)",
+        "2026-09-13T05:00:50.885Z  INFO [device-service,,] c.a.device.mqtt.MqttCommandPublisher - published OPEN_DOOR to 777740024057 commandId=95434f5b-2a6d-4e21-b8ce-6c1b893b1564",
+        "2026-09-13T05:00:50.887Z  INFO [device-service,,] c.a.d.service.DeviceCommandTracker - device command ACK commandId=95434f5b-2a6d-4e21-b8ce-6c1b893b1564 device=777740024057 session=1789275650858947757 success=true",
+        "2026-09-13T05:00:50.887Z DEBUG [device-service,,] c.a.device.mqtt.MqttEventListener - device ACK commandId=95434f5b-2a6d-4e21-b8ce-6c1b893b1564 success=true",
+        "2026-09-13T05:00:51.201Z  INFO [device-service,,] c.a.device.client.TradeServiceClient - notify door event session=1789275650858947757 device=777740024057 state=CLOSED video=null upload=null gravity=no",
+        "2026-09-13T05:00:51.589Z  INFO [device-service,,] c.a.device.client.TradeServiceClient - notify door event session=1789275650858947757 device=777740024057 state=OPEN video=null upload=null gravity=no",
+        "2026-09-13T05:00:52.544Z  INFO [device-service,,] c.a.device.mqtt.MqttEventListener - duplicate door event ignored session=1789275650858947757 state=CLOSED",
+        "2026-09-13T05:00:53.009Z  INFO [device-service,,] c.a.device.client.TradeServiceClient - notify door event session=orphan-1789275652726 device=CAB-001 state=CLOSED video=null upload=null gravity=no",
+        "2026-09-13T05:00:53.016Z  WARN [device-service,,] c.a.device.client.TradeServiceClient - notify door event failed attempt=1/3 session=orphan-1789275652726: org.springframework.web.client.HttpClientErrorException$NotFound: 404 Not Found: \"{\"code\":404,\"message\":\"购物会话不存在\",\"data\":null}\"",
+        "2026-09-13T05:00:53.224Z  WARN [device-service,,] c.a.device.client.TradeServiceClient - notify door event failed attempt=2/3 session=orphan-1789275652726: org.springframework.web.client.HttpClientErrorException$NotFound: 404 Not Found: \"{\"code\":404,\"message\":\"购物会话不存在\",\"data\":null}\"",
+        "2026-09-13T05:00:53.631Z  WARN [device-service,,] c.a.device.client.TradeServiceClient - notify door event failed attempt=3/3 session=orphan-1789275652726: org.springframework.web.client.HttpClientErrorException$NotFound: 404 Not Found: \"{\"code\":404,\"message\":\"购物会话不存在\",\"data\":null}\"",
+        "2026-09-13T05:00:53.631Z ERROR [device-service,,] c.a.device.mqtt.MqttEventListener - failed to handle mqtt message topic=cabinet/CAB-001/evt body={\"type\":\"DOOR\",\"sessionId\":\"orphan-1789275652726\",\"deviceId\":\"CAB-001\",\"doorState\":\"CLOSED\",\"eventSeq\":\"cross-1\"}",
+        "\tat com.aicabinet.device.client.TradeServiceClient.notifyDoorEvent(TradeServiceClient.java:46)",
+        "\tat com.aicabinet.device.mqtt.MqttEventListener.handleDoorEvent(MqttEventListener.java:240)",
+        "\tat com.aicabinet.device.mqtt.MqttEventListener.messageArrived(MqttEventListener.java:110)",
+        "\tat org.eclipse.paho.client.mqttv3.internal.CommsCallback.deliverMessage(CommsCallback.java:519)",
+        "\tat org.eclipse.paho.client.mqttv3.internal.CommsCallback.handleMessage(CommsCallback.java:417)",
+        "\tat org.eclipse.paho.client.mqttv3.internal.CommsCallback.run(CommsCallback.java:214)"
+      ]
+    },
+    "unit": {
+      "ran": true,
+      "ok": true,
+      "out": "13:01:05.093 [main] INFO com.aicabinet.device.mqtt.MqttEventListener -- duplicate door event ignored session=S-Q2 state=CLOSED\r\n13:01:05.126 [main] ERROR com.aicabinet.device.mqtt.MqttEventListener --"
+    }
+  },
+  "perf1": {
+    "label": "node heavier baseline (NOT JMeter 1000-user)",
+    "waves": [
+      {
+        "name": "account",
+        "n": 200,
+        "concurrency": 50,
+        "elapsedMs": 199,
+        "p50": 43,
+        "p95": 77,
+        "p99": 80,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "orders-list",
+        "n": 200,
+        "concurrency": 40,
+        "elapsedMs": 159,
+        "p50": 34,
+        "p95": 41,
+        "p99": 47,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "device-status",
+        "n": 120,
+        "concurrency": 40,
+        "elapsedMs": 70,
+        "p50": 21,
+        "p95": 36,
+        "p99": 50,
+        "errors": 0,
+        "errorRate": 0
+      },
+      {
+        "name": "orders-burst",
+        "n": 400,
+        "concurrency": 80,
+        "elapsedMs": 326,
+        "p50": 60,
+        "p95": 123,
+        "p99": 132,
+        "errors": 0,
+        "errorRate": 0
+      }
+    ]
+  },
+  "notes": [
+    "second-before: CAB-001|MCH-DEFAULT|DEPLOYED|ONLINE",
+    "second-sim: {\"action\":\"already-up\"}"
+  ],
+  "summary": {
+    "dv06Pass": 8,
+    "dv06Fail": 0,
+    "dualOnline": true,
+    "perf1Waves": 4
+  }
+}
