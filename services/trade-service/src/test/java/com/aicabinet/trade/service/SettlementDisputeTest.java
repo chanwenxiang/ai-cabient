@@ -69,11 +69,10 @@ class SettlementDisputeTest {
     void setUp() {
         settlementService = new SettlementService(
                 sessionRepository, skuCatalogRepository, orderRepository, orderLineRepository,
-                visionClient, disputeService, settlementVisionAsyncService, null, null, null, null, null, revenueSplitService,
-                securityProperties, stagingProperties, inventoryService, orderPaymentService, confidenceService, gravityHelper,
-                deviceValidationService, skuPricingService, userValidationService, videoArchiveService,
-                skuVisionEnrollmentService, couponService, memberService, null, notificationService, slotRepository,
-                consumerPreauthService, systemConfigService, distributedLockService, null, displaySnapshotHelper, new com.aicabinet.trade.service.view.OrderViewAssembler());
+                settlementVisionAsyncService, null, null, null, null, null,
+                revenueSplitService, orderPaymentService, skuPricingService, couponService, memberService, null,
+                slotRepository, systemConfigService, distributedLockService,
+                new com.aicabinet.trade.service.view.OrderViewAssembler());
         SettlementOrderFinalizeService finalizeSvc = new SettlementOrderFinalizeService(
                 sessionRepository, orderRepository, orderLineRepository, deviceValidationService,
                 inventoryService, orderPaymentService, userValidationService, couponService, memberService,
@@ -83,11 +82,14 @@ class SettlementDisputeTest {
                 sessionRepository, orderRepository, confidenceService, gravityHelper,
                 securityProperties, stagingProperties, systemConfigService, skuVisionEnrollmentService,
                 disputeService, consumerPreauthService, settlementService);
+        SettlementSettleOrchestrator settleOrchestrator = new SettlementSettleOrchestrator(
+                sessionRepository, orderRepository, visionClient, deviceValidationService,
+                recognitionSvc, settlementService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(settleOrchestrator, "self", settleOrchestrator);
         org.springframework.test.util.ReflectionTestUtils.setField(
                 settlementService, "settlementOrderFinalizeService", finalizeSvc);
         org.springframework.test.util.ReflectionTestUtils.setField(
-                settlementService, "settlementRecognitionService", recognitionSvc);
-        org.springframework.test.util.ReflectionTestUtils.setField(settlementService, "self", settlementService);
+                settlementService, "settleOrchestrator", settleOrchestrator);
         lenient().when(systemConfigService.getBoolean(anyString(), anyBoolean()))
                 .thenAnswer(inv -> inv.getArgument(1));
         // 既有重力用例默认按融合模式；纯视觉用例单独 stub usesGravityFusion=false

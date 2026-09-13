@@ -333,13 +333,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
-import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 import EmptyState from '@/components/empty-state.vue';
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue';
 import ReplenishActionDock from '@/components/ReplenishActionDock.vue';
@@ -350,16 +349,15 @@ import ReplenishLinesSection from '@/components/ReplenishLinesSection.vue';
 import ReplenishStepBar from '@/components/ReplenishStepBar.vue';
 import {
   hasPerm,
-  isMerchantLoggedIn,
-  merchantApi
+  isMerchantLoggedIn
 } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { useAppConfirmDialog } from '@/composables/useAppConfirmDialog';
 import { useReplenishmentDoorState } from '@/composables/useReplenishmentDoorState';
+import { useReplenishmentDetail } from '@/composables/useReplenishmentDetail';
 import { useReplenishmentFulfillment } from '@/composables/useReplenishmentFulfillment';
 import { useReplenishmentList } from '@/composables/useReplenishmentList';
-import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
-import { promptText } from '@/utils/text-prompt';
+import { useReplenishmentScan } from '@/composables/useReplenishmentScan';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { getSkipCheckInLocation, setSkipCheckInLocation } from '@/utils/checkin-location-pref';
 import { showDevTools } from '@/utils/runtime-flags';
@@ -418,8 +416,6 @@ const detailLoading = ref(false);
 const submitting = ref(false);
 const scanning = ref(false);
 const focusTaskId = ref<number | null>(null);
-/** Deep-link query applied once; cleared so onShow/load won't reopen the same task. */
-let pendingDeepLink = false;
 const detailVisible = ref(false);
 /** 避免「点卡片打开」同一轮点击落到遮罩上立刻关掉 */
 const sheetCloseArmed = ref(false);
@@ -446,6 +442,36 @@ const { confirmDialog, askConfirm, resolveConfirm } = useAppConfirmDialog({
     skipLocationCheck.value = true;
     setSkipCheckInLocation(true);
   }
+});
+
+const {
+  applyRouteQuery,
+  clearDeepLinkQuery,
+  resolveDeepLinkOpenTask,
+  handleDeepLinkAfterLoad,
+  openTask,
+  addEvidence,
+  previewEvidence,
+  closeDetail
+} = useReplenishmentDetail({
+  allTasks,
+  evidenceCountMap,
+  selected,
+  lines,
+  linesConfirmed,
+  evidenceItems,
+  detailVisible,
+  sheetCloseArmed,
+  detailLoading,
+  submitting,
+  slotCaps,
+  deviceSlotsList,
+  focusTaskId,
+  filterDeviceId,
+  status,
+  canRequest,
+  restoreDoorState,
+  syncDoorStateFromServer
 });
 
 type DeviceMeta = {
@@ -497,6 +523,22 @@ const { checkIn, openDoor, adjustQty, confirmLines, completeTask } = useReplenis
   isPullOffType,
   formatLineSummary,
   slotHeadroom
+});
+
+const { verifyCabinetScan, onScan, scanProduct } = useReplenishmentScan({
+  devices,
+  skus,
+  allTasks,
+  selected,
+  lines,
+  linesConfirmed,
+  scanning,
+  filterDeviceId,
+  status,
+  canRequest,
+  askConfirm,
+  openTask,
+  adjustQty
 });
 
 function isPullOffType(type?: string) {
@@ -567,45 +609,6 @@ const emptyHint = computed(() => {
   if (filterDeviceId.value) return emptyHintForDeviceFilter();
   return emptyHintForStatusFilter();
 });
-
-function applyRouteQuery(opts?: Record<string, string | undefined>) {
-  const deviceId = opts?.deviceId || readHashQuery('deviceId');
-  const taskIdRaw = opts?.taskId || readHashQuery('taskId');
-  let changed = false;
-  if (deviceId) {
-    filterDeviceId.value = String(deviceId).trim().toUpperCase();
-    changed = true;
-  }
-  if (taskIdRaw) {
-    const id = Number(taskIdRaw);
-    if (Number.isFinite(id) && id > 0) {
-      focusTaskId.value = id;
-      changed = true;
-    }
-  }
-  if (deviceId || taskIdRaw) {
-    status.value = '';
-  }
-  if (changed) pendingDeepLink = true;
-}
-
-function readHashQuery(key: string): string | undefined {
-  if (typeof location === 'undefined') return undefined;
-  const m = location.hash.match(new RegExp(`[?&]${key}=([^&]+)`));
-  return m ? decodeURIComponent(m[1]) : undefined;
-}
-
-/** Strip deviceId/taskId from H5 hash so back/onShow won't re-apply the deep link. */
-function clearDeepLinkQuery() {
-  pendingDeepLink = false;
-  focusTaskId.value = null;
-  if (typeof location === 'undefined' || typeof history === 'undefined') return;
-  const hash = location.hash || '';
-  const qIndex = hash.indexOf('?');
-  if (qIndex < 0) return;
-  const path = hash.slice(0, qIndex);
-  history.replaceState(null, '', `${location.pathname}${location.search}${path}`);
-}
 
 function usePreferredDevice() {
   const id = preferredId.value;
@@ -688,54 +691,6 @@ function navigateToDevice(id?: string) {
   });
 }
 
-async function assertScannedDeviceAllowed(deviceId: string): Promise<boolean> {
-  const id = String(deviceId || '')
-    .trim()
-    .toUpperCase();
-  if (!id) return false;
-  const localHit = devices.value.some(
-    (d) =>
-      String((d as DeviceMeta).deviceId || '')
-        .trim()
-        .toUpperCase() === id
-  );
-  if (localHit) return true;
-  try {
-    await merchantApi.assertReplenishmentDeviceAccess(id);
-    return true;
-  } catch (e) {
-    showError(e instanceof Error ? e.message : '柜机不在您的管辖范围', 3200);
-    return false;
-  }
-}
-
-async function verifyCabinetScan() {
-  if (scanning.value) return;
-  scanning.value = true;
-  try {
-    const id = await scanCabinetDeviceId();
-    if (!id) return;
-    if (!(await assertScannedDeviceAllowed(id))) return;
-    const expected = String(selected.value?.deviceId || '')
-      .trim()
-      .toUpperCase();
-    const scanned = id.trim().toUpperCase();
-    if (!expected) return;
-    if (scanned !== expected) {
-      await askConfirm({
-        title: '柜机不符',
-        content: `扫到 ${scanned}，本任务柜机为 ${expected}。请确认是否找错柜。`,
-        confirmText: '知道了',
-        cancelText: '关闭'
-      });
-      return;
-    }
-    showSuccess('柜机核对一致');
-  } finally {
-    scanning.value = false;
-  }
-}
-
 function skuName(id: string) {
   const s = skus.value.find((item) => item.skuId === id) as { skuName?: string } | undefined;
   return s?.skuName || id;
@@ -801,44 +756,6 @@ async function ensureReplenishmentMe(seq: number): Promise<boolean> {
   return true;
 }
 
-function findDeepLinkTaskById(): Task | undefined {
-  if (!focusTaskId.value) return undefined;
-  const open = allTasks.value.find(
-    (t) => t.taskId === focusTaskId.value && t.status !== 'CANCELLED'
-  );
-  focusTaskId.value = null;
-  return open;
-}
-
-function findDeepLinkTaskByDevice(): Task | undefined {
-  if (detailVisible.value || !filterDeviceId.value) return undefined;
-  const key = filterDeviceId.value.trim().toUpperCase();
-  return allTasks.value.find(
-    (t) =>
-      String(t.deviceId || '')
-        .trim()
-        .toUpperCase() === key &&
-      t.status !== 'COMPLETED' &&
-      t.status !== 'CANCELLED'
-  );
-}
-
-function resolveDeepLinkOpenTask(): Task | undefined {
-  if (!pendingDeepLink) return undefined;
-  return findDeepLinkTaskById() || findDeepLinkTaskByDevice();
-}
-
-async function handleDeepLinkAfterLoad(open: Task | undefined, wantedTaskId: number | null) {
-  if (pendingDeepLink) {
-    clearDeepLinkQuery();
-  }
-  if (open) {
-    await openTask(open);
-  } else if (wantedTaskId) {
-    showError(`任务 #${wantedTaskId} 不可用或已取消`);
-  }
-}
-
 async function load() {
   const result = await fetchList({
     ensureMe: ensureReplenishmentMe,
@@ -855,111 +772,6 @@ function clearDeviceFilter() {
   clearDeepLinkQuery();
 }
 
-function findActiveTaskForDevice(deviceKey: string): Task | undefined {
-  return allTasks.value.find(
-    (t) =>
-      String(t.deviceId || '')
-        .trim()
-        .toUpperCase() === deviceKey &&
-      t.status !== 'COMPLETED' &&
-      t.status !== 'CANCELLED'
-  );
-}
-
-async function onScan() {
-  if (scanning.value) return;
-  scanning.value = true;
-  try {
-    const id = await scanCabinetDeviceId();
-    if (!id) return;
-    if (!(await assertScannedDeviceAllowed(id))) return;
-    const key = id.trim().toUpperCase();
-    filterDeviceId.value = key;
-    status.value = '';
-    const open = findActiveTaskForDevice(key);
-    if (open) {
-      await openTask(open);
-    } else {
-      showError('该柜暂无任务，已筛选列表');
-    }
-  } finally {
-    scanning.value = false;
-  }
-}
-
-async function readProductBarcode(): Promise<string | null> {
-  try {
-    const res = await new Promise<{ result?: string }>((resolve, reject) => {
-      uni.scanCode({
-        onlyFromCamera: false,
-        scanType: ['barCode', 'qrCode'],
-        success: (r) => resolve(r as { result?: string }),
-        fail: reject
-      });
-    });
-    return String(res.result || '').trim() || null;
-  } catch (err) {
-    const msg = String((err as { errMsg?: string })?.errMsg || '');
-    if (/cancel|取消/i.test(msg)) return null;
-    return (
-      String(
-        (await promptText({
-          title: '输入商品条码',
-          placeholder: '扫描商品包装条码',
-          required: true,
-          requiredMessage: '条码无效',
-          maxLength: 64,
-          singleLine: true,
-          testId: 'product-barcode-prompt'
-        })) || ''
-      ).trim() || null
-    );
-  }
-}
-
-function findSkuByBarcode(code: string) {
-  const key = code.trim().toUpperCase();
-  return skus.value.find(
-    (s) =>
-      String((s as { barcode?: string }).barcode || '')
-        .trim()
-        .toUpperCase() === key ||
-      String((s as { skuId?: string }).skuId || '')
-        .trim()
-        .toUpperCase() === key
-  ) as { skuId?: string; skuName?: string } | undefined;
-}
-
-function findMatchingTaskLine(skuId: string): Line | undefined {
-  return lines.value.find(
-    (l) => !l.applied && String(l.skuId).toUpperCase() === String(skuId).toUpperCase()
-  );
-}
-
-/** 扫商品条码自动匹配任务明细并 +1；浏览器无法调起扫码时手输条码 */
-async function scanProduct(line: Line) {
-  if (!canRequest.value || linesConfirmed.value || line.applied || scanning.value) return;
-  scanning.value = true;
-  try {
-    const code = await readProductBarcode();
-    if (!code) return;
-    const sku = findSkuByBarcode(code);
-    if (!sku?.skuId) {
-      showError('未匹配到商品条码');
-      return;
-    }
-    const target = findMatchingTaskLine(sku.skuId);
-    if (!target) {
-      showError('本次任务不含该商品');
-      return;
-    }
-    adjustQty(target, 1);
-    showSuccess(`已扫 ${sku.skuName || target.skuId}`);
-  } finally {
-    scanning.value = false;
-  }
-}
-
 function currentStep(): number {
   if (!selected.value) return 1;
   if (selected.value.status === 'COMPLETED') return 5;
@@ -967,139 +779,6 @@ function currentStep(): number {
   if (doorOpened.value) return 3;
   if (selected.value.checkInAt) return 2;
   return 1;
-}
-
-async function addEvidence() {
-  if (!selected.value || !canRequest.value) return;
-  if (!selected.value.checkInAt) {
-    showError('请先签到再拍照');
-    return;
-  }
-  if (evidenceItems.value.length >= 5) {
-    showError('最多 5 张');
-    return;
-  }
-  const paths = await new Promise<string[]>((resolve) => {
-    uni.chooseImage({
-      count: 5 - evidenceItems.value.length,
-      sizeType: ['compressed'],
-      sourceType: ['album', 'camera'],
-      success: (res) => {
-        // @dcloudio/types 中 tempFilePaths 声明为 string | string[]，统一归一化为数组
-        const raw = res.tempFilePaths || [];
-        resolve(Array.isArray(raw) ? raw : [raw]);
-      },
-      fail: () => resolve([])
-    });
-  });
-  for (const path of paths) {
-    try {
-      await assertLocalImageSize(path);
-      const uploaded = await merchantApi.uploadReplenishmentEvidence(selected.value.taskId, path);
-      evidenceItems.value.push({ localPath: path, fileId: uploaded.fileId });
-      if (selected.value?.taskId) {
-        evidenceCountMap.value = {
-          ...evidenceCountMap.value,
-          [selected.value.taskId]: evidenceItems.value.length
-        };
-      }
-    } catch (e) {
-      showError(e instanceof Error ? e.message : '上传失败');
-      break;
-    }
-  }
-}
-
-function previewEvidence(index: number) {
-  const urls = evidenceItems.value.map((i) => i.localPath).filter(Boolean);
-  if (!urls.length) return;
-  uni.previewImage({ urls, current: urls[index] || urls[0] });
-}
-
-function prepareTaskDetailSheet(task: Task) {
-  const fromList = allTasks.value.find((t) => t.taskId === task.taskId);
-  selected.value = { ...(fromList || task) };
-  sheetCloseArmed.value = false;
-  detailVisible.value = true;
-  linesConfirmed.value = selected.value.status === 'COMPLETED';
-  evidenceItems.value = [];
-  restoreDoorState(selected.value.taskId);
-  detailLoading.value = true;
-  slotCaps.value = {};
-  deviceSlotsList.value = [];
-}
-
-async function refreshSelectedTask(task: Task) {
-  try {
-    const latest = (await merchantApi.replenishmentTasks()) as Task[];
-    allTasks.value = latest;
-    const fresh = latest.find((t) => t.taskId === task.taskId);
-    if (fresh) selected.value = { ...fresh };
-  } catch {
-    /* keep selected */
-  }
-}
-
-async function mapEvidenceFiles(task: Task, evidence: { fileId?: number; url?: string }[]) {
-  return Promise.all(
-    (evidence || []).map(async (f) => {
-      const fileId = f.fileId;
-      if (!fileId) return { localPath: f.url || '', fileId };
-      try {
-        const localPath = await merchantApi.downloadReplenishmentEvidence(task.taskId, fileId);
-        return { localPath, fileId };
-      } catch {
-        return { localPath: f.url || '', fileId };
-      }
-    })
-  );
-}
-
-function buildSlotCapsFromSlots(slots: DeviceSlot[]) {
-  const map: Record<string, { maxLevel: number; bookQty: number }> = {};
-  for (const s of slots) {
-    const code = String(s.slotCode || '').toUpperCase();
-    if (!code) continue;
-    map[code] = {
-      maxLevel: Number(s.maxLevel) || 0,
-      bookQty: Number(s.bookQty) || 0
-    };
-  }
-  return map;
-}
-
-async function loadTaskDetailResources(task: Task) {
-  const [taskLines, slots, evidence] = await Promise.all([
-    merchantApi.replenishmentTaskLines(task.taskId) as Promise<Line[]>,
-    merchantApi.deviceSlots(task.deviceId).catch(() => [] as DeviceSlot[]),
-    merchantApi.listReplenishmentEvidence(task.taskId).catch(() => [])
-  ]);
-  lines.value = taskLines;
-  deviceSlotsList.value = (slots || []) as DeviceSlot[];
-  const mapped = await mapEvidenceFiles(task, evidence || []);
-  evidenceItems.value = mapped;
-  evidenceCountMap.value = {
-    ...evidenceCountMap.value,
-    [task.taskId]: mapped.length
-  };
-  slotCaps.value = buildSlotCapsFromSlots(deviceSlotsList.value);
-  await syncDoorStateFromServer(task.taskId);
-}
-
-async function openTask(task: Task) {
-  prepareTaskDetailSheet(task);
-  await nextTick();
-  setTimeout(() => {
-    sheetCloseArmed.value = true;
-  }, 280);
-  try {
-    await refreshSelectedTask(task);
-    await loadTaskDetailResources(task);
-  } catch (error) {
-    showError(error instanceof Error ? error.message : '明细加载失败');
-  } finally {
-    detailLoading.value = false;
-  }
 }
 
 function slotOptionsFor(line: Line) {
@@ -1186,15 +865,6 @@ function stockDeltaText(line: Line): string {
   const after = cap.bookQty + qty;
   const capacityHint = cap.maxLevel > 0 ? ` / 容量 ${cap.maxLevel}` : '';
   return `账面 ${cap.bookQty} → 补后 ${after}${capacityHint}`;
-}
-
-function closeDetail() {
-  if (!sheetCloseArmed.value) return;
-  if (!submitting.value) {
-    detailVisible.value = false;
-    sheetCloseArmed.value = false;
-    clearDeepLinkQuery();
-  }
 }
 
 onShow(() => {

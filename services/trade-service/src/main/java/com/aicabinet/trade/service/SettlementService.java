@@ -4,19 +4,14 @@ import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.dto.OrderRefundRequest;
 import com.aicabinet.trade.client.VisionServiceClient;
-import com.aicabinet.trade.config.SecurityProperties;
-import com.aicabinet.trade.config.StagingProperties;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.service.view.OrderViewAssembler;
 import com.aicabinet.trade.support.ApiMessages;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -28,115 +23,66 @@ public class SettlementService {
     private static final String GRAVITY_MISMATCH = "gravity-mismatch";
     private static final String GRAVITY_FILL = "gravity-fill";
 
-
-    private static final Logger log = LoggerFactory.getLogger(SettlementService.class);
-
     private final ShoppingSessionMapper sessionRepository;
     private final SkuCatalogMapper skuCatalogRepository;
     private final CabinetOrderMapper orderRepository;
     private final CabinetOrderLineMapper orderLineRepository;
-    private final VisionServiceClient visionClient;
-    private final DisputeService disputeService;
     private final SettlementVisionAsyncService settlementVisionAsyncService;
     private final SettlementWaiveRefundService settlementWaiveRefundService;
     private final SettlementConfirmDisputeService settlementConfirmDisputeService;
     private final SettlementOrderFinalizeService settlementOrderFinalizeService;
-    private final SettlementRecognitionService settlementRecognitionService;
     private final SettlementPartialRefundService settlementPartialRefundService;
+    private final SettlementSettleOrchestrator settleOrchestrator;
     private final RevenueSplitService revenueSplitService;
-    private final SecurityProperties securityProperties;
-    private final StagingProperties stagingProperties;
-    private final InventoryService inventoryService;
     private final OrderPaymentService orderPaymentService;
-    private final SettlementConfidenceService confidenceService;
-    private final GravitySettlementHelper gravityHelper;
-    private final DeviceValidationService deviceValidationService;
     private final MerchantSkuPricingService skuPricingService;
-    private final UserValidationService userValidationService;
-    private final VideoArchiveService videoArchiveService;
-    private final SkuVisionEnrollmentService skuVisionEnrollmentService;
     private final CouponService couponService;
     private final MemberService memberService;
     private final RefundPolicyService refundPolicyService;
-    private final NotificationService notificationService;
     private final DeviceSlotMapper slotRepository;
-    private final ConsumerPreauthService consumerPreauthService;
     private final SystemConfigService systemConfigService;
     private final DistributedLockService distributedLockService;
-    /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
-    private final SettlementService self;
-    private final DisplaySnapshotHelper displaySnapshotHelper;
     private final OrderViewAssembler orderViewAssembler;
 
     public SettlementService(ShoppingSessionMapper sessionRepository,
                              SkuCatalogMapper skuCatalogRepository,
                              CabinetOrderMapper orderRepository,
                              CabinetOrderLineMapper orderLineRepository,
-                             VisionServiceClient visionClient,
-                             @Lazy DisputeService disputeService,
                              SettlementVisionAsyncService settlementVisionAsyncService,
                              SettlementWaiveRefundService settlementWaiveRefundService,
                              SettlementConfirmDisputeService settlementConfirmDisputeService,
                              SettlementOrderFinalizeService settlementOrderFinalizeService,
-                             SettlementRecognitionService settlementRecognitionService,
                              SettlementPartialRefundService settlementPartialRefundService,
+                             @Lazy SettlementSettleOrchestrator settleOrchestrator,
                              RevenueSplitService revenueSplitService,
-                             SecurityProperties securityProperties,
-                             StagingProperties stagingProperties,
-                             InventoryService inventoryService,
                              OrderPaymentService orderPaymentService,
-                             SettlementConfidenceService confidenceService,
-                             GravitySettlementHelper gravityHelper,
-                             DeviceValidationService deviceValidationService,
                              MerchantSkuPricingService skuPricingService,
-                             UserValidationService userValidationService,
-                             VideoArchiveService videoArchiveService,
-                             SkuVisionEnrollmentService skuVisionEnrollmentService,
                              CouponService couponService,
                              MemberService memberService,
                              RefundPolicyService refundPolicyService,
-                             NotificationService notificationService,
                              DeviceSlotMapper slotRepository,
-                             ConsumerPreauthService consumerPreauthService,
                              SystemConfigService systemConfigService,
                              DistributedLockService distributedLockService,
-                             @Lazy SettlementService self,
-                             DisplaySnapshotHelper displaySnapshotHelper,
                              OrderViewAssembler orderViewAssembler) {
         this.sessionRepository = sessionRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
-        this.visionClient = visionClient;
-        this.disputeService = disputeService;
         this.settlementVisionAsyncService = settlementVisionAsyncService;
         this.settlementWaiveRefundService = settlementWaiveRefundService;
         this.settlementConfirmDisputeService = settlementConfirmDisputeService;
         this.settlementOrderFinalizeService = settlementOrderFinalizeService;
-        this.settlementRecognitionService = settlementRecognitionService;
         this.settlementPartialRefundService = settlementPartialRefundService;
+        this.settleOrchestrator = settleOrchestrator;
         this.revenueSplitService = revenueSplitService;
-        this.securityProperties = securityProperties;
-        this.stagingProperties = stagingProperties;
-        this.inventoryService = inventoryService;
         this.orderPaymentService = orderPaymentService;
-        this.confidenceService = confidenceService;
-        this.gravityHelper = gravityHelper;
-        this.deviceValidationService = deviceValidationService;
         this.skuPricingService = skuPricingService;
-        this.userValidationService = userValidationService;
-        this.videoArchiveService = videoArchiveService;
-        this.skuVisionEnrollmentService = skuVisionEnrollmentService;
         this.couponService = couponService;
         this.memberService = memberService;
         this.refundPolicyService = refundPolicyService;
-        this.notificationService = notificationService;
         this.slotRepository = slotRepository;
-        this.consumerPreauthService = consumerPreauthService;
         this.systemConfigService = systemConfigService;
         this.distributedLockService = distributedLockService;
-        this.self = self;
-        this.displaySnapshotHelper = displaySnapshotHelper;
         this.orderViewAssembler = orderViewAssembler;
     }
 
@@ -152,51 +98,26 @@ public class SettlementService {
      * 视觉识别 HTTP 在事务外；分布式锁内先识别再短事务落库/扣款，避免占用 DB 连接等待 vision。
      */
     public OrderReadModel settle(ShoppingSession session) {
-        return runWithSessionSettleLock(session.getSessionId(), () -> {
-            if (orderRepository.findBySessionId(session.getSessionId()).isPresent()) {
-                return toDto(orderRepository.findBySessionId(session.getSessionId()).get());
-            }
-            deviceValidationService.ensureSettlementAllowed(session.getDeviceId());
-
-            VisionServiceClient.RecognitionResult recognition;
-            try {
-                recognition = visionClient.recognize(session);
-                recognition = settlementRecognitionService.withGravityFallback(session, recognition);
-            } catch (RestClientException | IllegalStateException e) {
-                VisionServiceClient.RecognitionResult unavailable = new VisionServiceClient.RecognitionResult(
-                        "UNAVAILABLE-" + session.getSessionId(), List.of(), 0f, true,
-                        "vision-unavailable", List.of());
-                log.warn("vision unavailable session={}", session.getSessionId(), e);
-                // 经代理进入短事务写争议单，并抛出 DisputeRequiredException
-                return self.escalateVisionUnavailable(session, unavailable);
-            }
-            return self.processRecognitionAfterVision(session, recognition);
-        });
+        return settleOrchestrator.settle(session);
     }
 
     /** 识别已完成：短事务内 forUpdate + 落单/扣款。 */
-    @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
     public OrderReadModel processRecognitionAfterVision(ShoppingSession session,
                                                         VisionServiceClient.RecognitionResult recognition) {
-        sessionRepository.findByIdForUpdate(session.getSessionId());
-        return settlementRecognitionService.processRecognitionResultUnlocked(session, recognition);
+        return settleOrchestrator.processRecognitionAfterVision(session, recognition);
     }
 
     /**
      * 识别不可用：短事务建争议单后抛 {@link DisputeRequiredException}（方法签名供调用方 return）。
      */
-    @Transactional(noRollbackFor = {DisputeRequiredException.class})
     public OrderReadModel escalateVisionUnavailable(ShoppingSession session,
                                                     VisionServiceClient.RecognitionResult unavailable) {
-        settlementRecognitionService.escalateToDispute(session, unavailable,
-                "识别服务暂时不可用，已转人工审核，本次暂未扣款");
-        throw new IllegalStateException("unreachable after dispute escalate");
+        return settleOrchestrator.escalateVisionUnavailable(session, unavailable);
     }
 
-    @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
     public OrderReadModel processRecognitionResult(ShoppingSession session,
                                              VisionServiceClient.RecognitionResult recognition) {
-        return self.processRecognitionResult(session, recognition, true);
+        return settleOrchestrator.processRecognitionResult(session, recognition);
     }
 
     /**
@@ -204,15 +125,10 @@ public class SettlementService {
      *
      * @param allowDevFallback 为 false 时不注入 mock SKU（运营识别测试）
      */
-    @Transactional(noRollbackFor = {DisputeRequiredException.class, BalanceInsufficientException.class})
     public OrderReadModel processRecognitionResult(ShoppingSession session,
                                              VisionServiceClient.RecognitionResult recognition,
                                              boolean allowDevFallback) {
-        return runWithSessionSettleLock(session.getSessionId(), () -> {
-            sessionRepository.findByIdForUpdate(session.getSessionId());
-            return settlementRecognitionService.processRecognitionResultUnlocked(
-                    session, recognition, allowDevFallback);
-        });
+        return settleOrchestrator.processRecognitionResult(session, recognition, allowDevFallback);
     }
 
     String gravityDeltasForInventory(ShoppingSession session) {
