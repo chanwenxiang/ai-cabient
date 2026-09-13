@@ -2552,225 +2552,32 @@
         </template>
       </el-dialog>
 
-      <el-dialog v-model="purchaseDialog" title="新建采购单" class="dialog-wide" destroy-on-close>
-        <el-form v-loading="dialogBootLoading" label-width="auto">
-          <div class="form-grid">
-            <el-form-item
-              label="供应商"
-              :class="{ 'field-invalid': purchaseFieldErrors.supplierId }"
-            >
-              <el-select
-                v-model="purchaseForm.supplierId"
-                filterable
-                style="width: 100%"
-                @change="purchaseFieldErrors.supplierId = false"
-              >
-                <el-option
-                  v-for="item in activeSuppliers"
-                  :key="item.supplierId"
-                  :label="item.supplierName"
-                  :value="item.supplierId"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="入库仓库">
-              <el-select v-model="purchaseForm.warehouseId" style="width: 100%">
-                <el-option
-                  v-for="item in activeWarehouses"
-                  :key="item.warehouseId"
-                  :label="item.warehouseName"
-                  :value="item.warehouseId"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="外部单号">
-              <el-input
-                v-model="purchaseForm.refNo"
-                placeholder="选填：供应商合同号 / ERP 单号，留空则自动生成"
-                maxlength="64"
-              />
-            </el-form-item>
-            <el-form-item label="备注"><el-input v-model="purchaseForm.notes" /></el-form-item>
-          </div>
-          <div class="section-title">
-            <span>采购商品</span>
-            <el-button link type="primary" @click="addPurchaseLine">添加一行</el-button>
-          </div>
-          <div v-for="(line, index) in purchaseForm.lines" :key="index" class="purchase-line-card">
-            <div class="line-card-head">
-              <strong>明细 {{ index + 1 }}</strong>
-              <el-button
-                link
-                type="danger"
-                :disabled="purchaseForm.lines.length === 1"
-                @click="removePurchaseLine(index)"
-                >删除</el-button
-              >
-            </div>
-            <div class="line-grid">
-              <div
-                class="line-field"
-                :class="{ 'field-invalid': purchaseFieldErrors.lineErrors[index]?.skuId }"
-              >
-                <span>商品</span>
-                <el-select
-                  v-model="line.skuId"
-                  filterable
-                  placeholder="选择商品"
-                  @change="clearPurchaseLineError(index, 'skuId')"
-                >
-                  <el-option
-                    v-for="sku in skus"
-                    :key="sku.skuId"
-                    :label="`${sku.skuName || sku.skuId}`"
-                    :value="sku.skuId"
-                  />
-                </el-select>
-              </div>
-              <div
-                class="line-field"
-                :class="{ 'field-invalid': purchaseFieldErrors.lineErrors[index]?.batchNo }"
-              >
-                <span>批次号</span
-                ><el-input
-                  v-model="line.batchNo"
-                  @input="clearPurchaseLineError(index, 'batchNo')"
-                />
-              </div>
-              <div class="line-field">
-                <span>数量（件）</span
-                ><el-input-number v-model="line.orderedQty" :min="1" controls-position="right" />
-              </div>
-              <div class="line-field">
-                <span>单价（元）</span
-                ><el-input-number
-                  v-model="line.unitCostYuan"
-                  :min="0.01"
-                  :step="0.01"
-                  :precision="2"
-                  controls-position="right"
-                />
-              </div>
-              <label class="line-field"
-                ><span>生产日期</span
-                ><input v-model="line.productionDate" class="native-date" type="date"
-              /></label>
-              <label
-                class="line-field"
-                :class="{ 'field-invalid': purchaseFieldErrors.lineErrors[index]?.expiryDate }"
-                ><span>到期日期</span
-                ><input
-                  v-model="line.expiryDate"
-                  class="native-date"
-                  type="date"
-                  @change="clearPurchaseLineError(index, 'expiryDate')"
-              /></label>
-            </div>
-          </div>
-        </el-form>
-        <template #footer>
-          <el-button @click="purchaseDialog = false">取消</el-button>
-          <el-button
-            type="primary"
-            :loading="saving"
-            :disabled="dialogBootLoading"
-            @click="savePurchase"
-            >创建</el-button
-          >
-        </template>
-      </el-dialog>
-
-      <el-dialog v-model="receiveDialog" title="采购收货" class="dialog-wide" destroy-on-close>
-        <el-form label-width="auto" style="margin-bottom: 8px">
-          <el-form-item label="收货仓库">
-            <el-select v-model="receiveForm.receiveWarehouseId" filterable style="width: 100%">
-              <el-option
-                v-for="w in warehouses"
-                :key="w.warehouseId"
-                :label="`${w.warehouseName || w.warehouseId}（${w.warehouseId}）`"
-                :value="w.warehouseId"
-              />
-            </el-select>
-          </el-form-item>
-        </el-form>
-        <div class="table-scroll">
-          <el-table :data="receiveForm.lines" class="receive-table">
-            <el-table-column
-              label="商品"
-              min-width="160"
-              class-name="col-text"
-              label-class-name="col-text"
-            >
-              <template #default="{ row }">
-                <div>{{ skuName(row.skuId) }}</div>
-                <small class="muted">{{ row.skuId }}</small>
-              </template>
-            </el-table-column>
-            <el-table-column
-              prop="batchNo"
-              label="批次"
-              min-width="120"
-              class-name="col-text"
-              label-class-name="col-text"
-            />
-            <el-table-column
-              prop="expiryDate"
-              label="到期日"
-              width="110"
-              align="center"
-              class-name="col-status"
-              label-class-name="col-status"
-            >
-              <template #default="{ row }">{{ row.expiryDate || '暂无' }}</template>
-            </el-table-column>
-            <el-table-column
-              prop="orderedQty"
-              label="采购数"
-              width="90"
-              align="center"
-              class-name="col-status"
-              label-class-name="col-status"
-            />
-            <el-table-column
-              label="待收"
-              width="80"
-              align="center"
-              class-name="col-status"
-              label-class-name="col-status"
-            >
-              <template #default="{ row }">
-                {{ Math.max(0, Number(row.orderedQty || 0) - Number(row.receivedQty || 0)) }}
-              </template>
-            </el-table-column>
-            <el-table-column
-              label="累计收货"
-              width="150"
-              align="center"
-              class-name="col-status"
-              label-class-name="col-status"
-            >
-              <template #default="{ row }">
-                <el-input-number
-                  v-model="row.receivedQty"
-                  :min="row.minReceived"
-                  :max="row.orderedQty"
-                  controls-position="right"
-                />
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
-        <el-input
-          v-model="receiveForm.notes"
-          type="textarea"
-          placeholder="收货备注"
-          style="margin-top: 12px"
-        />
-        <template #footer>
-          <el-button @click="receiveDialog = false">取消</el-button>
-          <el-button type="primary" :loading="saving" @click="saveReceive">确认收货</el-button>
-        </template>
-      </el-dialog>
+      <WarehousePurchaseDialogs
+        v-model:purchase-dialog="purchaseDialog"
+        v-model:receive-dialog="receiveDialog"
+        v-model:return-dialog="returnDialog"
+        :dialog-boot-loading="dialogBootLoading"
+        :saving="saving"
+        :purchase-form="purchaseForm"
+        :purchase-field-errors="purchaseFieldErrors"
+        :receive-form="receiveForm"
+        :return-form="returnForm"
+        :active-suppliers="activeSuppliers"
+        :active-warehouses="activeWarehouses"
+        :warehouses="warehouses"
+        :skus="skus"
+        :returnable-purchase-orders="returnablePurchaseOrders"
+        :supplier-name="supplierName"
+        :warehouse-name="warehouseName"
+        :sku-name="skuName"
+        @add-purchase-line="addPurchaseLine"
+        @remove-purchase-line="removePurchaseLine"
+        @clear-purchase-line-error="clearPurchaseLineError"
+        @save-purchase="savePurchase"
+        @receive-purchase="receivePurchase"
+        @return-purchase="returnPurchase"
+        @return-po-change="onReturnPoChange"
+      />
 
       <el-dialog v-model="transferDialog" title="新建仓间调拨" destroy-on-close>
         <el-form label-width="auto">
@@ -2810,115 +2617,6 @@
         <template #footer>
           <el-button @click="transferDialog = false">取消</el-button>
           <el-button type="primary" :loading="saving" @click="saveTransfer">创建</el-button>
-        </template>
-      </el-dialog>
-
-      <el-dialog v-model="returnDialog" title="采购退货" class="dialog-wide" destroy-on-close>
-        <div v-loading="dialogBootLoading">
-          <el-form label-width="auto">
-            <el-form-item label="采购单" required>
-              <el-select
-                v-model="returnForm.purchaseOrderId"
-                filterable
-                placeholder="选择已收货采购单"
-                style="width: 100%"
-                @change="onReturnPoChange"
-              >
-                <el-option
-                  v-for="po in returnablePurchaseOrders"
-                  :key="po.purchaseOrderId"
-                  :label="`${po.purchaseOrderId} · ${supplierName(po.supplierId)} · ${warehouseName(po.warehouseId)}`"
-                  :value="po.purchaseOrderId"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="备注">
-              <el-input v-model="returnForm.notes" type="textarea" placeholder="退货备注" />
-            </el-form-item>
-          </el-form>
-          <div class="table-scroll">
-            <el-table :data="returnForm.lines" class="receive-table">
-              <el-table-column
-                label="商品"
-                min-width="160"
-                class-name="col-text"
-                label-class-name="col-text"
-              >
-                <template #default="{ row }">
-                  <div>{{ skuName(row.skuId) }}</div>
-                  <small class="muted">{{ row.skuId }}</small>
-                </template>
-              </el-table-column>
-              <el-table-column
-                prop="batchNo"
-                label="批次"
-                min-width="120"
-                class-name="col-text"
-                label-class-name="col-text"
-              />
-              <el-table-column
-                prop="expiryDate"
-                label="到期日"
-                width="110"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              >
-                <template #default="{ row }">{{ row.expiryDate || '暂无' }}</template>
-              </el-table-column>
-              <el-table-column
-                prop="receivedQty"
-                label="已收"
-                width="80"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
-              <el-table-column
-                prop="returnedQty"
-                label="已退"
-                width="80"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
-              <el-table-column
-                label="可退"
-                width="72"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              >
-                <template #default="{ row }">{{ row.maxQty ?? '暂无' }}</template>
-              </el-table-column>
-              <el-table-column
-                label="本次退货"
-                width="150"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              >
-                <template #default="{ row }">
-                  <el-input-number
-                    v-model="row.quantity"
-                    :min="0"
-                    :max="row.maxQty"
-                    controls-position="right"
-                  />
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </div>
-        <template #footer>
-          <el-button @click="returnDialog = false">取消</el-button>
-          <el-button
-            type="primary"
-            :loading="saving"
-            :disabled="dialogBootLoading"
-            @click="saveReturn"
-            >确认退货</el-button
-          >
         </template>
       </el-dialog>
 
@@ -3030,7 +2728,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, RefreshLeft } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -3039,19 +2737,16 @@ import { api, authFetch, downloadAuthFile } from '@/api/client';
 import { yuanToCents } from '@/utils/display';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
+import WarehousePurchaseDialogs from '@/components/warehouse/WarehousePurchaseDialogs.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { useWarehousePurchaseOrders } from '@/composables/warehouse/useWarehousePurchaseOrders';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
 import { dictLabel, dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
-import {
-  emitPurchaseOrderReviewed,
-  onPurchaseOrderReviewed,
-  showPurchaseReviewToast,
-  formatPurchaseReviewError
-} from '@/utils/purchase-order-sync';
+import { onPurchaseOrderReviewed } from '@/utils/purchase-order-sync';
 
 const loadSeq = createLoadSeq();
 
@@ -3368,9 +3063,6 @@ const loadedTabs = ref(new Set<string>(['warehouses']));
 
 const warehouseDialog = ref(false);
 const supplierDialog = ref(false);
-const purchaseDialog = ref(false);
-const receiveDialog = ref(false);
-const returnDialog = ref(false);
 const inboundDialog = ref(false);
 const dialogBootLoading = ref(false);
 
@@ -3391,76 +3083,6 @@ const supplierForm = reactive({
   creditLimitYuan: 0,
   status: 'ACTIVE'
 });
-const purchaseForm = reactive<Row>({
-  supplierId: '',
-  warehouseId: '',
-  refNo: '',
-  notes: '',
-  lines: []
-});
-type PurchaseLineFieldErrors = { skuId?: boolean; batchNo?: boolean; expiryDate?: boolean };
-const purchaseFieldErrors = reactive<{
-  supplierId: boolean;
-  lineErrors: PurchaseLineFieldErrors[];
-}>({ supplierId: false, lineErrors: [] });
-function resetPurchaseFieldErrors() {
-  purchaseFieldErrors.supplierId = false;
-  purchaseFieldErrors.lineErrors = (purchaseForm.lines || []).map(() => ({}));
-}
-function clearPurchaseLineError(index: number, field: keyof PurchaseLineFieldErrors) {
-  const row = purchaseFieldErrors.lineErrors[index];
-  if (row) row[field] = false;
-}
-function validatePurchaseForm(): boolean {
-  resetPurchaseFieldErrors();
-  let ok = true;
-  if (!purchaseForm.supplierId) {
-    purchaseFieldErrors.supplierId = true;
-    ok = false;
-  }
-  purchaseFieldErrors.lineErrors = purchaseForm.lines.map((line: Row) => {
-    const err: PurchaseLineFieldErrors = {};
-    if (!line.skuId) {
-      err.skuId = true;
-      ok = false;
-    }
-    if (!String(line.batchNo || '').trim()) {
-      err.batchNo = true;
-      ok = false;
-    }
-    if (!line.expiryDate) {
-      err.expiryDate = true;
-      ok = false;
-    }
-    return err;
-  });
-  if (!ok) {
-    ElMessage.warning('请完整填写供应商、商品、批次和到期日期');
-    nextTick(() => {
-      document
-        .querySelector('.purchase-line-card .field-invalid, .form-grid .field-invalid')
-        ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    });
-  }
-  return ok;
-}
-function patchPurchaseOrderRow(updated: Row) {
-  if (!updated?.purchaseOrderId) return;
-  const idx = purchaseOrders.value.findIndex(
-    (p) => String(p.purchaseOrderId) === String(updated.purchaseOrderId)
-  );
-  if (idx >= 0) {
-    purchaseOrders.value[idx] = { ...purchaseOrders.value[idx], ...updated };
-    purchaseOrders.value = [...purchaseOrders.value];
-  }
-}
-const receiveForm = reactive<Row>({
-  purchaseOrderId: null,
-  notes: '',
-  receiveWarehouseId: '',
-  lines: []
-});
-const returnForm = reactive<Row>({ purchaseOrderId: null, notes: '', lines: [] });
 const inboundForm = reactive<Row>({ warehouseId: '', refNo: '', notes: '', lines: [] });
 
 const pageHint = computed(() => {
@@ -4086,24 +3708,6 @@ function localDate() {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 
-/** 未手填外部单号时，创建采购单用时间戳单号。 */
-function defaultPurchaseRefNo() {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `PO-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
-}
-
-function newLine() {
-  return {
-    skuId: skus.value[0]?.skuId || '',
-    batchNo: '',
-    productionDate: localDate(),
-    expiryDate: '',
-    orderedQty: 1,
-    receivedQty: 0,
-    unitCostYuan: 1
-  };
-}
 function newInboundLine() {
   return {
     skuId: skus.value[0]?.skuId || '',
@@ -4587,6 +4191,48 @@ function onBinFilter() {
   loadTab('bins', true);
 }
 
+const {
+  purchaseDialog,
+  receiveDialog,
+  returnDialog,
+  purchaseForm,
+  purchaseFieldErrors,
+  receiveForm,
+  returnForm,
+  clearPurchaseLineError,
+  patchPurchaseOrderRow,
+  openPurchase,
+  openPurchaseFromSuggestions,
+  addPurchaseLine,
+  removePurchaseLine,
+  savePurchase,
+  reviewPurchase,
+  openReceive,
+  receivePurchase,
+  openReturn,
+  onReturnPoChange,
+  returnPurchase
+} = useWarehousePurchaseOrders({
+  saving,
+  dialogBootLoading,
+  tab,
+  loadedTabs,
+  loadTab,
+  purchaseOrders,
+  returnablePurchaseOrders,
+  suggestions,
+  skus,
+  filterWarehouseId,
+  suggestionCoverageDays,
+  activeSuppliers,
+  activeWarehouses,
+  pickSelected,
+  loadSuppliersSoft,
+  loadWarehousesSoft,
+  loadPurchase,
+  ensureMeta
+});
+
 function openWarehouse(row?: Row) {
   Object.assign(warehouseForm, {
     editing: !!row,
@@ -4666,67 +4312,6 @@ async function saveSupplier() {
   }
 }
 
-async function openPurchase() {
-  Object.assign(purchaseForm, {
-    supplierId: '',
-    warehouseId: '',
-    refNo: defaultPurchaseRefNo(),
-    notes: '',
-    lines: [newLine()]
-  });
-  resetPurchaseFieldErrors();
-  purchaseDialog.value = true;
-  dialogBootLoading.value = true;
-  try {
-    await Promise.all([loadSuppliersSoft(), loadWarehousesSoft(), ensureMeta()]);
-    purchaseForm.supplierId = activeSuppliers.value[0]?.supplierId || '';
-    purchaseForm.warehouseId = activeWarehouses.value[0]?.warehouseId || '';
-  } finally {
-    dialogBootLoading.value = false;
-  }
-}
-async function openPurchaseFromSuggestions() {
-  const rows = pickSelected(suggestions.value);
-  if (!rows.length) {
-    return ElMessage.warning('当前没有可用的采购建议');
-  }
-  Object.assign(purchaseForm, {
-    supplierId: '',
-    warehouseId: filterWarehouseId.value || '',
-    refNo: defaultPurchaseRefNo(),
-    notes: `由采购建议生成（覆盖 ${suggestionCoverageDays.value} 天）`,
-    lines: rows
-      .map((r: Row) => {
-        const qty = Number(r.suggestQty);
-        return {
-          skuId: r.skuId,
-          batchNo: '',
-          productionDate: localDate(),
-          expiryDate: '',
-          // 建议量为 0/空时不静默改成 1：过滤掉无效行
-          orderedQty: Number.isFinite(qty) && qty > 0 ? qty : 0,
-          receivedQty: 0,
-          unitCostYuan: 1
-        };
-      })
-      .filter((line) => line.orderedQty > 0)
-  });
-  if (!purchaseForm.lines.length) {
-    return ElMessage.warning('采购建议数量均为 0，无法生成采购单');
-  }
-  resetPurchaseFieldErrors();
-  purchaseDialog.value = true;
-  dialogBootLoading.value = true;
-  try {
-    await Promise.all([loadSuppliersSoft(), loadWarehousesSoft(), ensureMeta()]);
-    purchaseForm.supplierId = activeSuppliers.value[0]?.supplierId || '';
-    if (!purchaseForm.warehouseId) {
-      purchaseForm.warehouseId = activeWarehouses.value[0]?.warehouseId || '';
-    }
-  } finally {
-    dialogBootLoading.value = false;
-  }
-}
 function openPay(row: Row) {
   Object.assign(payTarget.value, row);
   paymentForm.payableId = row.payableId;
@@ -5041,23 +4626,7 @@ async function saveBinMove() {
     saving.value = false;
   }
 }
-function addPurchaseLine() {
-  purchaseForm.lines.push(newLine());
-}
-async function removePurchaseLine(index: number) {
-  if (purchaseForm.lines.length <= 1) return;
-  try {
-    await ElMessageBox.confirm('确定删除该采购行吗？', '删除行', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      appendTo: document.body
-    });
-  } catch {
-    return;
-  }
-  purchaseForm.lines.splice(index, 1);
-}
+
 async function removeInboundLine(index: number) {
   if (inboundForm.lines.length <= 1) return;
   try {
@@ -5071,189 +4640,6 @@ async function removeInboundLine(index: number) {
     return;
   }
   inboundForm.lines.splice(index, 1);
-}
-async function savePurchase() {
-  if (!validatePurchaseForm()) return;
-  saving.value = true;
-  try {
-    const refNo = String(purchaseForm.refNo || '').trim() || defaultPurchaseRefNo();
-    const body = {
-      supplierId: purchaseForm.supplierId,
-      warehouseId: purchaseForm.warehouseId,
-      refNo,
-      notes: purchaseForm.notes,
-      lines: purchaseForm.lines.map((l: Row) => ({
-        skuId: l.skuId,
-        batchNo: l.batchNo,
-        productionDate: l.productionDate,
-        expiryDate: l.expiryDate,
-        orderedQty: l.orderedQty,
-        receivedQty: 0,
-        unitCostCents: yuanToCents(l.unitCostYuan) ?? 0
-      }))
-    };
-    await api.request('/api/v2/ops/admin/purchase-orders', 'POST', body);
-    purchaseDialog.value = false;
-    tab.value = 'purchase';
-    ElMessage.success('采购单已提交审批');
-    loadedTabs.value.delete('purchase');
-    await loadTab('purchase', true);
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '创建失败'));
-  } finally {
-    saving.value = false;
-  }
-}
-async function reviewPurchase(row: Row, approve: boolean) {
-  const label = row.refNo || row.purchaseOrderId;
-  try {
-    await ElMessageBox.confirm(
-      approve ? `确认通过采购单 ${label}？` : `确认驳回采购单 ${label}？`,
-      approve ? '审批通过' : '审批驳回',
-      { type: approve ? 'info' : 'warning', appendTo: document.body }
-    );
-  } catch {
-    return;
-  }
-  try {
-    const updated = await api.request<Row>(
-      `/api/v2/ops/admin/purchase-orders/${row.purchaseOrderId}/review`,
-      'POST',
-      {
-        approve,
-        remark: approve ? '审批通过' : '审批驳回'
-      }
-    );
-    patchPurchaseOrderRow(updated);
-    emitPurchaseOrderReviewed(updated);
-    showPurchaseReviewToast(updated, approve);
-    loadedTabs.value.delete('purchase');
-    await loadTab('purchase', true);
-  } catch (e) {
-    ElMessage.error(formatPurchaseReviewError(e));
-  }
-}
-
-function openReceive(row: Row) {
-  Object.assign(receiveForm, {
-    purchaseOrderId: row.purchaseOrderId,
-    notes: '',
-    receiveWarehouseId: row.warehouseId || '',
-    lines: (row.lines || []).map((line: Row) => ({
-      ...line,
-      minReceived: line.receivedQty || 0,
-      receivedQty: line.receivedQty || 0
-    }))
-  });
-  receiveDialog.value = true;
-  loadWarehousesSoft();
-}
-async function saveReceive() {
-  saving.value = true;
-  try {
-    await ElMessageBox.confirm('确认按累计收货数量入库？', '采购收货', {
-      type: 'warning',
-      appendTo: document.body
-    });
-    await api.request(
-      `/api/v2/ops/admin/purchase-orders/${receiveForm.purchaseOrderId}/receive`,
-      'POST',
-      {
-        lines: receiveForm.lines,
-        notes: receiveForm.notes,
-        receiveWarehouseId: receiveForm.receiveWarehouseId || undefined
-      }
-    );
-    receiveDialog.value = false;
-    ElMessage.success('收货完成');
-    loadedTabs.value.delete('purchase');
-    loadedTabs.value.delete('inventory');
-    await loadTab('purchase', true);
-  } catch (e: unknown) {
-    if (e !== 'cancel' && e !== 'close') ElMessage.error(errorMessage(e, '收货失败'));
-  } finally {
-    saving.value = false;
-  }
-}
-
-async function openReturn() {
-  Object.assign(returnForm, {
-    purchaseOrderId: null,
-    notes: '',
-    lines: []
-  });
-  returnDialog.value = true;
-  dialogBootLoading.value = true;
-  try {
-    await Promise.all([
-      loadPurchase().catch((err) => {
-        console.warn('[warehouse] 弹窗启动预载采购单失败', err);
-      }),
-      loadSuppliersSoft(),
-      loadWarehousesSoft(),
-      ensureMeta()
-    ]);
-    const first = returnablePurchaseOrders.value[0];
-    returnForm.purchaseOrderId = first?.purchaseOrderId || null;
-    returnForm.notes = '';
-    returnForm.lines = [];
-    if (first) onReturnPoChange(first.purchaseOrderId);
-  } finally {
-    dialogBootLoading.value = false;
-  }
-}
-function onReturnPoChange(purchaseOrderId: number | string | null) {
-  const po = purchaseOrders.value.find((p) => p.purchaseOrderId === purchaseOrderId);
-  returnForm.lines = (po?.lines || [])
-    .map((line: Row) => {
-      const maxQty = Math.max(0, (line.receivedQty || 0) - (line.returnedQty || 0));
-      return {
-        purchaseLineId: line.lineId,
-        skuId: line.skuId,
-        batchNo: line.batchNo,
-        receivedQty: line.receivedQty || 0,
-        returnedQty: line.returnedQty || 0,
-        maxQty,
-        quantity: maxQty > 0 ? 1 : 0
-      };
-    })
-    .filter((l: Row) => l.maxQty > 0);
-}
-async function saveReturn() {
-  if (!returnForm.purchaseOrderId) {
-    return ElMessage.warning('请选择采购单');
-  }
-  const lines = (returnForm.lines || []).filter((l: Row) => (l.quantity || 0) > 0);
-  if (!lines.length) {
-    return ElMessage.warning('请填写退货数量');
-  }
-  saving.value = true;
-  try {
-    await ElMessageBox.confirm('确认退货并扣减仓库库存？', '采购退货', {
-      type: 'warning',
-      appendTo: document.body
-    });
-    await api.request('/api/v2/ops/admin/purchase-returns', 'POST', {
-      purchaseOrderId: returnForm.purchaseOrderId,
-      notes: returnForm.notes,
-      lines: lines.map((l: Row) => ({
-        purchaseLineId: l.purchaseLineId,
-        quantity: l.quantity
-      }))
-    });
-    returnDialog.value = false;
-    ElMessage.success('退货完成');
-    loadedTabs.value.delete('returns');
-    loadedTabs.value.delete('purchase');
-    loadedTabs.value.delete('inventory');
-    loadedTabs.value.delete('movements');
-    tab.value = 'returns';
-    await loadTab('returns', true);
-  } catch (e: unknown) {
-    if (e !== 'cancel' && e !== 'close') ElMessage.error(errorMessage(e, '退货失败'));
-  } finally {
-    saving.value = false;
-  }
 }
 
 const outboundConfirm = reactive({
