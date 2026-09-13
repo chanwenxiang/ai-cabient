@@ -9,6 +9,13 @@ export function errorMessage(error: unknown, fallback = '操作失败'): string 
   return fallback;
 }
 
+/** 会话失效类错误（退出登录在途请求常见）。 */
+export function isSessionAuthError(error: unknown): boolean {
+  return /请先登录|登录已失效|登录状态已失效|未授权|INVALID_TOKEN|MISSING_TOKEN/i.test(
+    errorMessage(error, '')
+  );
+}
+
 /** MessageBox 取消/关闭不提示。 */
 export function isUserDismiss(error: unknown): boolean {
   return error === 'cancel' || error === 'close';

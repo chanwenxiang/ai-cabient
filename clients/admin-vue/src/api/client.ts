@@ -5,6 +5,21 @@ const USER_KEY = 'admin_userId';
 const EXPIRES_KEY = 'admin_token_expires';
 const COOKIE_AUTH_KEY = 'admin_cookie_auth';
 
+/** 主动退出中：抑制在途请求 401 触发的「请先登录」提示与重复跳转。 */
+let loggingOut = false;
+
+export function beginLogout() {
+  loggingOut = true;
+}
+
+export function endLogout() {
+  loggingOut = false;
+}
+
+export function isLoggingOut() {
+  return loggingOut;
+}
+
 function getBaseUrl() {
   return (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
 }
@@ -61,6 +76,7 @@ export const api = new ApiClient({
   },
   clearSession,
   onUnauthorized: () => {
+    if (loggingOut) return;
     if (!globalThis.location.pathname.includes('/login')) {
       globalThis.location.assign('/admin/login');
     }
@@ -110,6 +126,7 @@ export function isSessionSoftExpired() {
 
 /** 登出：先通知服务端清除会话 Cookie，再清理本地状态（服务端调用失败不阻塞）。 */
 export async function logoutSession() {
+  loggingOut = true;
   try {
     await api.request<unknown>('/api/v2/auth/logout', 'POST', undefined, false);
   } catch {

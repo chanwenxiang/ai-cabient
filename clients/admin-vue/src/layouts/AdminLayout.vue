@@ -248,11 +248,12 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
-import { ElMessageBox, type MenuInstance } from 'element-plus';
+import { ElMessage, ElMessageBox, type MenuInstance } from 'element-plus';
 import { Fold, Expand, Brush, FullScreen } from '@element-plus/icons-vue';
 import { buildSidebarTree, sidebarOpenKeysForPath } from '@/config/sidebar';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
+import { beginLogout, endLogout } from '@/api/client';
 import { useBrandStore } from '@/stores/brand';
 import { dictRuntimeEpoch } from '@/stores/dict-runtime';
 import { PRIMARY_OPTIONS, useSettingsStore } from '@/stores/settings';
@@ -643,8 +644,15 @@ async function onUserCommand(cmd: string) {
     } catch {
       return;
     }
-    await auth.logout();
-    router.push('/login');
+    beginLogout();
+    try {
+      await auth.logout();
+      ElMessage.closeAll();
+      await router.replace('/login');
+    } finally {
+      // 给在途请求一点收尾时间，再放开 Toast 抑制
+      window.setTimeout(() => endLogout(), 2500);
+    }
   }
 }
 

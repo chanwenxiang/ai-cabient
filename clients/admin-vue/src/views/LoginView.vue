@@ -95,7 +95,6 @@
           <div class="remember-group">
             <el-checkbox v-model="rememberPhone" size="small">记住账号</el-checkbox>
           </div>
-          <button type="button" class="link-btn" @click="openResetDialog">忘记密码？</button>
         </div>
       </el-form>
       <el-form v-else label-position="top" @submit.prevent="onSubmitTwoFactor">
@@ -145,95 +144,6 @@
         补货 13900000004 · 只读 13900000005
       </p>
     </div>
-
-    <el-dialog
-      v-model="resetVisible"
-      title="重置密码"
-      class="login-reset-dialog"
-      modal-class="login-reset-modal"
-      append-to-body
-      destroy-on-close
-      :close-on-click-modal="false"
-    >
-      <el-form label-position="top" @submit.prevent="submitReset">
-        <el-form-item label="手机号">
-          <el-input
-            v-model="resetForm.phoneNumber"
-            type="tel"
-            maxlength="11"
-            inputmode="numeric"
-            placeholder="请输入 11 位手机号"
-          />
-        </el-form-item>
-        <el-form-item label="图形验证码">
-          <div class="captcha-row">
-            <el-input
-              v-model="resetCaptchaCode"
-              maxlength="8"
-              autocomplete="off"
-              spellcheck="false"
-              placeholder="图形验证码…"
-            />
-            <button
-              type="button"
-              class="captcha-img-btn"
-              title="点击刷新验证码"
-              aria-label="刷新图形验证码"
-              :data-captcha-id="resetCaptchaId"
-              :disabled="resetCaptchaLoading"
-              @click="loadResetCaptcha"
-            >
-              <img
-                v-if="resetCaptchaImage"
-                :src="resetCaptchaImage"
-                alt="验证码"
-                width="120"
-                height="40"
-              />
-              <span v-else>{{ resetCaptchaLoading ? UI_COPY.loading : '点击获取' }}</span>
-            </button>
-          </div>
-        </el-form-item>
-        <el-form-item label="短信验证码">
-          <div class="sms-row">
-            <el-input
-              v-model="resetForm.smsCode"
-              maxlength="6"
-              inputmode="numeric"
-              placeholder="6 位短信验证码"
-            />
-            <el-button
-              :disabled="smsCooldown > 0 || !/^1\d{10}$/.test(resetForm.phoneNumber.trim())"
-              @click="sendSmsCode"
-            >
-              {{ smsCooldown > 0 ? `${smsCooldown}s 后重发` : '发送验证码' }}
-            </el-button>
-          </div>
-        </el-form-item>
-        <el-form-item label="新密码">
-          <el-input
-            v-model="resetForm.newPassword"
-            type="password"
-            show-password
-            autocomplete="new-password"
-            placeholder="6-64 位"
-          />
-        </el-form-item>
-        <el-form-item label="确认新密码">
-          <el-input
-            v-model="resetForm.confirmPassword"
-            type="password"
-            show-password
-            autocomplete="new-password"
-            placeholder="再次输入新密码"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="resetVisible = false">取消</el-button>
-        <el-button type="primary" :loading="resetSaving" @click="submitReset">重置密码</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -241,7 +151,7 @@
 import { nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRouter, useRoute } from 'vue-router';
-import { ElMessage, type InputInstance } from 'element-plus';
+import { type InputInstance } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
 import { useBrandStore } from '@/stores/brand';
 import { api } from '@/api/client';
@@ -301,15 +211,6 @@ const err = ref('');
 const twoFactorStep = ref(false);
 const twoFactorCode = ref('');
 const usingRecovery = ref(false);
-const resetVisible = ref(false);
-const resetSaving = ref(false);
-const resetCaptchaId = ref('');
-const resetCaptchaImage = ref('');
-const resetCaptchaCode = ref('');
-const resetCaptchaLoading = ref(false);
-const smsCooldown = ref(0);
-const smsTimer = ref<ReturnType<typeof setInterval> | null>(null);
-const resetForm = ref({ phoneNumber: '', smsCode: '', newPassword: '', confirmPassword: '' });
 const phoneInput = ref<InputInstance | null>(null);
 const passwordInput = ref<InputInstance | null>(null);
 const captchaInput = ref<InputInstance | null>(null);
@@ -320,7 +221,6 @@ const route = useRoute();
 let caretFixTimers: number[] = [];
 
 onUnmounted(() => {
-  if (smsTimer.value) clearInterval(smsTimer.value);
   for (const id of caretFixTimers) window.clearTimeout(id);
   caretFixTimers = [];
 });
@@ -410,108 +310,6 @@ async function loadCaptcha() {
     err.value = e instanceof Error ? e.message : '验证码加载失败';
   } finally {
     captchaLoading.value = false;
-  }
-}
-
-async function loadResetCaptcha() {
-  resetCaptchaLoading.value = true;
-  try {
-    const data = await api.fetchCaptcha();
-    resetCaptchaId.value = data.captchaId;
-    resetCaptchaImage.value = data.imageBase64;
-    resetCaptchaCode.value = '';
-  } catch (e) {
-    err.value = e instanceof Error ? e.message : '验证码加载失败';
-  } finally {
-    resetCaptchaLoading.value = false;
-  }
-}
-
-function openResetDialog() {
-  resetForm.value = {
-    phoneNumber: phone.value.trim(),
-    smsCode: '',
-    newPassword: '',
-    confirmPassword: ''
-  };
-  resetCaptchaCode.value = '';
-  resetVisible.value = true;
-  void loadResetCaptcha();
-}
-
-async function sendSmsCode() {
-  const p = resetForm.value.phoneNumber.trim();
-  if (!/^1\d{10}$/.test(p)) {
-    err.value = '请输入正确的 11 位手机号';
-    return;
-  }
-  if (!resetCaptchaId.value || !resetCaptchaCode.value.trim()) {
-    ElMessage.warning('请先填写图形验证码再发送短信');
-    return;
-  }
-  try {
-    const q = new URLSearchParams({
-      phoneNumber: p,
-      captchaId: resetCaptchaId.value,
-      captchaCode: resetCaptchaCode.value.trim()
-    });
-    await api.request(`/api/v2/auth/sms-code?${q.toString()}`, 'POST');
-    ElMessage.success('短信验证码已发送');
-    void loadResetCaptcha();
-    smsCooldown.value = 60;
-    if (smsTimer.value) clearInterval(smsTimer.value);
-    smsTimer.value = setInterval(() => {
-      smsCooldown.value -= 1;
-      if (smsCooldown.value <= 0 && smsTimer.value) {
-        clearInterval(smsTimer.value);
-        smsTimer.value = null;
-      }
-    }, 1000);
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '发送失败');
-    void loadResetCaptcha();
-  }
-}
-
-async function submitReset() {
-  const f = resetForm.value;
-  if (!/^1\d{10}$/.test(f.phoneNumber.trim())) {
-    ElMessage.warning('请输入正确的 11 位手机号');
-    return;
-  }
-  if (!resetCaptchaCode.value.trim()) {
-    ElMessage.warning('请输入图形验证码');
-    return;
-  }
-  if (!f.smsCode.trim()) {
-    ElMessage.warning('请输入短信验证码');
-    return;
-  }
-  if (!f.newPassword || f.newPassword.length < 6 || f.newPassword.length > 64) {
-    ElMessage.warning('新密码长度需为 6-64 位');
-    return;
-  }
-  if (f.newPassword !== f.confirmPassword) {
-    ElMessage.warning('两次输入的新密码不一致');
-    return;
-  }
-  resetSaving.value = true;
-  try {
-    await api.request('/api/v2/auth/admin-password-reset', 'POST', {
-      phoneNumber: f.phoneNumber.trim(),
-      smsCode: f.smsCode.trim(),
-      captchaId: resetCaptchaId.value,
-      captchaCode: resetCaptchaCode.value.trim(),
-      newPassword: f.newPassword
-    });
-    ElMessage.success('密码已重置，请用新密码登录');
-    resetVisible.value = false;
-    phone.value = f.phoneNumber.trim();
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '重置失败');
-    void loadResetCaptcha();
-  } finally {
-    resetSaving.value = false;
   }
 }
 
@@ -934,7 +732,7 @@ async function onSubmitTwoFactor() {
 .login-extras {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   margin-top: 12px;
   color: rgba(207, 250, 254, 0.72);
   text-shadow: 0 1px 8px rgba(2, 10, 14, 0.6);
@@ -970,132 +768,10 @@ async function onSubmitTwoFactor() {
   outline: none;
   text-decoration: underline;
 }
-.sms-row {
-  display: flex;
-  gap: 10px;
-  width: 100%;
-  align-items: stretch;
-}
-.sms-row .el-input {
-  flex: 1;
-}
-.sms-row .el-button {
-  flex: 0 0 auto;
-}
 .hint {
   color: rgba(207, 250, 254, 0.6);
   font-size: 0.8rem;
   margin: 20px 0 0;
   text-align: center;
-}
-</style>
-
-<!-- append-to-body：需非 scoped 才能命中弹层；透明度对齐 .login-card -->
-<style>
-.login-reset-modal {
-  background: rgba(4, 22, 28, 0.48) !important;
-  backdrop-filter: none;
-}
-.login-reset-dialog.el-dialog {
-  --el-dialog-bg-color: transparent;
-  --el-dialog-border-radius: 16px;
-  --el-border-color: transparent;
-  --el-border-color-light: transparent;
-  border-radius: 16px;
-  border: 1px solid rgba(148, 210, 198, 0.22);
-  /* 与 .login-card 同批去玻璃态（R3-A01） */
-  background: rgba(8, 24, 30, 0.82) !important;
-  backdrop-filter: none;
-  box-shadow: 0 24px 64px rgba(2, 10, 14, 0.38);
-}
-.login-reset-dialog .el-dialog__header {
-  margin-right: 0;
-  padding-bottom: 4px;
-  border-bottom: none !important;
-  box-shadow: none !important;
-}
-.login-reset-dialog .el-dialog__header.show-close {
-  border-bottom: none !important;
-}
-.login-reset-dialog .el-dialog__title {
-  color: #ecfeff;
-  font-weight: 650;
-  text-shadow: 0 1px 10px rgba(2, 10, 14, 0.65);
-}
-.login-reset-dialog .el-dialog__headerbtn .el-dialog__close {
-  color: rgba(207, 250, 254, 0.72);
-}
-.login-reset-dialog .el-dialog__headerbtn:hover .el-dialog__close {
-  color: #99f6e4;
-}
-.login-reset-dialog .el-dialog__body {
-  color: rgba(207, 250, 254, 0.88);
-  padding-top: 12px;
-  border-top: none !important;
-}
-.login-reset-dialog .el-form-item__label {
-  color: rgba(204, 251, 241, 0.88) !important;
-  text-shadow: 0 1px 8px rgba(2, 10, 14, 0.55);
-}
-.login-reset-dialog .el-input__wrapper {
-  border-radius: 10px;
-  background: rgba(8, 24, 30, 0.42) !important;
-  box-shadow: 0 0 0 1px rgba(148, 210, 198, 0.26) inset !important;
-  backdrop-filter: none;
-}
-.login-reset-dialog .el-input__inner {
-  color: #f0fdfa !important;
-}
-.login-reset-dialog .el-input__inner::placeholder {
-  color: rgba(148, 210, 198, 0.55);
-}
-.login-reset-dialog .el-input__wrapper:hover {
-  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.42) inset !important;
-}
-.login-reset-dialog .el-input__wrapper.is-focus {
-  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.5) inset !important;
-}
-.login-reset-dialog .el-input__password {
-  color: rgba(148, 210, 198, 0.72);
-}
-.login-reset-dialog .captcha-img-btn {
-  border: 1px solid rgba(148, 210, 198, 0.3);
-  border-radius: 10px;
-  background: rgba(8, 24, 30, 0.42);
-  color: rgba(207, 250, 254, 0.8);
-  backdrop-filter: none;
-}
-.login-reset-dialog .sms-row .el-button {
-  --el-button-bg-color: rgba(8, 24, 30, 0.42);
-  --el-button-border-color: rgba(148, 210, 198, 0.3);
-  --el-button-text-color: rgba(207, 250, 254, 0.9);
-  --el-button-hover-bg-color: rgba(20, 48, 54, 0.65);
-  --el-button-hover-border-color: rgba(94, 234, 212, 0.45);
-  --el-button-hover-text-color: #ecfeff;
-  --el-button-disabled-bg-color: rgba(8, 24, 30, 0.35);
-  --el-button-disabled-border-color: rgba(148, 210, 198, 0.18);
-  --el-button-disabled-text-color: rgba(207, 250, 254, 0.45);
-  border-radius: 10px;
-}
-.login-reset-dialog .el-dialog__footer {
-  border-top: none !important;
-  box-shadow: none !important;
-  padding-top: 8px;
-}
-.login-reset-dialog .el-dialog__header::before,
-.login-reset-dialog .el-dialog__header::after,
-.login-reset-dialog .el-dialog__body::before,
-.login-reset-dialog .el-dialog__footer::before {
-  display: none !important;
-  content: none !important;
-  border: none !important;
-}
-.login-reset-dialog .el-dialog__footer .el-button:not(.el-button--primary) {
-  --el-button-bg-color: rgba(8, 24, 30, 0.42);
-  --el-button-border-color: rgba(148, 210, 198, 0.28);
-  --el-button-text-color: rgba(207, 250, 254, 0.88);
-  --el-button-hover-bg-color: rgba(20, 40, 46, 0.65);
-  --el-button-hover-border-color: rgba(94, 234, 212, 0.45);
-  --el-button-hover-text-color: #ecfeff;
 }
 </style>
