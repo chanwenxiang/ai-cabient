@@ -53,8 +53,8 @@ class SessionServiceRecoveryTest {
     void setUp() {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
-                gravityHelper, restockSnapshotService, null, opsExceptionService, userInfoRepository, orderRepository,
-                null, consumerPreauthService, null, distributedLockService, null, null, null);
+                gravityHelper, restockSnapshotService, null, null, opsExceptionService, userInfoRepository, orderRepository,
+                null, consumerPreauthService, distributedLockService, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         expireService = new SessionExpireService(
                 repository,

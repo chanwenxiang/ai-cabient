@@ -67,13 +67,13 @@ public class SessionService {
     private final DomainEventPublisher domainEventPublisher;
     private final GravitySettlementHelper gravityHelper;
     private final RestockSnapshotService restockSnapshotService;
+    private final SessionOpenService sessionOpenService;
     private final SessionService self;
     private final OpsExceptionService opsExceptionService;
     private final UserInfoMapper userInfoRepository;
     private final CabinetOrderMapper orderRepository;
     private final InventoryLotService inventoryLotService;
     private final ConsumerPreauthService consumerPreauthService;
-    private final MerchantOpsPolicyService opsPolicyService;
     private final DistributedLockService distributedLockService;
     private final ObjectMapper objectMapper;
     private final DisplaySnapshotHelper displaySnapshotHelper;
@@ -89,13 +89,13 @@ public class SessionService {
                           DomainEventPublisher domainEventPublisher,
                           GravitySettlementHelper gravityHelper,
                           RestockSnapshotService restockSnapshotService,
+                          SessionOpenService sessionOpenService,
                           @Lazy SessionService self,
                           OpsExceptionService opsExceptionService,
                           UserInfoMapper userInfoRepository,
                           CabinetOrderMapper orderRepository,
                           InventoryLotService inventoryLotService,
                           ConsumerPreauthService consumerPreauthService,
-                          MerchantOpsPolicyService opsPolicyService,
                           DistributedLockService distributedLockService,
                           ObjectMapper objectMapper,
                           DisplaySnapshotHelper displaySnapshotHelper,
@@ -110,13 +110,13 @@ public class SessionService {
         this.domainEventPublisher = domainEventPublisher;
         this.gravityHelper = gravityHelper;
         this.restockSnapshotService = restockSnapshotService;
+        this.sessionOpenService = sessionOpenService;
         this.self = self;
         this.opsExceptionService = opsExceptionService;
         this.userInfoRepository = userInfoRepository;
         this.orderRepository = orderRepository;
         this.inventoryLotService = inventoryLotService;
         this.consumerPreauthService = consumerPreauthService;
-        this.opsPolicyService = opsPolicyService;
         this.distributedLockService = distributedLockService;
         this.objectMapper = objectMapper;
         this.displaySnapshotHelper = displaySnapshotHelper;
@@ -139,66 +139,18 @@ public class SessionService {
         // 会话创建与开门分计：防刷会话与防刷开门互补（风控小时开门上限仍生效）
         apiRateLimitService.assertSessionCreateAllowed(userId);
         apiRateLimitService.assertOpenDoorAllowed(userId, request.deviceId());
-        SessionDto dto = self.persistConsumerOpeningSession(userId, request);
+        SessionDto dto = sessionOpenService.persistConsumerOpeningSession(userId, request);
         try {
             deviceClient.requestOpenDoor(dto.sessionId(), request.deviceId(), userId, false);
         } catch (ResponseStatusException e) {
-            self.markOpenDoorFailed(dto.sessionId(), "开门指令下发失败");
+            sessionOpenService.markOpenDoorFailed(dto.sessionId(), "开门指令下发失败");
             throw e;
         } catch (Exception e) {
-            self.markOpenDoorFailed(dto.sessionId(), "开门指令下发失败");
+            sessionOpenService.markOpenDoorFailed(dto.sessionId(), "开门指令下发失败");
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "开门指令下发失败（请确认 device-service 在线）", e);
         }
         return dto;
-    }
-
-    @Transactional
-    public SessionDto persistConsumerOpeningSession(Long userId, CreateSessionRequest request) {
-        String entryChannel = resolveEntryChannel(userId, request.entryChannel());
-        userValidationService.validateCanOpenDoor(userId, request.deviceId(), entryChannel);
-        deviceValidationService.requireDevice(request.deviceId());
-        deviceValidationService.ensureDeviceAvailable(request.deviceId());
-        opsPolicyService.requireInflightCapacity(request.deviceId());
-
-        ShoppingSession session = new ShoppingSession();
-        session.setSessionId(generateSessionId());
-        session.setUserId(userId);
-        session.setDeviceId(request.deviceId());
-        displaySnapshotHelper.applySessionDeviceName(session);
-        session.setState(SessionState.CREATED);
-        session.setEntryChannel(entryChannel);
-        session.setPreferredCouponId(request.preferredCouponId());
-        session.setIdempotencyKey(normalizeIdempotencyKey(request.idempotencyKey()));
-        // 先强制写入唯一幂等键，再改变状态和下发开门命令。并发重复请求会在这里失败，
-        // 不会出现两个事务都先向同一台柜机发送开门命令、最后才在提交时发现冲突。
-        repository.saveAndFlush(session);
-
-        boolean passwordFree = userValidationService.isPasswordFreeReady(userId, entryChannel);
-        consumerPreauthService.freezeForOpen(session, passwordFree);
-
-        transition(session, SessionState.OPENING);
-        return toDto(session);
-    }
-
-    @Transactional
-    public void markOpenDoorFailed(String sessionId, String failReason) {
-        ShoppingSession session = repository.findById(sessionId).orElse(null);
-        if (session == null) {
-            return;
-        }
-        if (session.getState() == SessionState.FAILED || session.getState() == SessionState.CANCELLED
-                || session.getState() == SessionState.COMPLETED) {
-            return;
-        }
-        session.setState(SessionState.FAILED);
-        session.setFailReason(failReason);
-        repository.save(session);
-        try {
-            consumerPreauthService.releaseIfFrozen(session);
-        } catch (Exception e) {
-            log.warn("release preauth after open fail session={}", sessionId, e);
-        }
     }
 
     /**
@@ -1102,7 +1054,7 @@ public class SessionService {
         return BizIds.nextNumeric();
     }
 
-    private SessionDto toDto(ShoppingSession s) {
+    SessionDto toDto(ShoppingSession s) {
         String payChannel = null;
         if (!isRestockSession(s)) {
             // 已生成订单时展示真实扣款渠道，避免扫码入口渠道（WECHAT）被当成余额支付渠道

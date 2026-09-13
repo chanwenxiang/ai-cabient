@@ -62,8 +62,8 @@ class DuplicateCallbackTest {
     void setUp() {
         sessionService = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
-                gravityHelper, restockSnapshotService, null, opsExceptionService, null, orderRepository,
-                null, null, null, distributedLockService, null, null, null);
+                gravityHelper, restockSnapshotService, null, null, opsExceptionService, null, orderRepository,
+                null, null, distributedLockService, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(sessionService, "self", sessionService);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
