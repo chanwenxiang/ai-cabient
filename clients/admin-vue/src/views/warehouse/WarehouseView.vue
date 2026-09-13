@@ -2238,319 +2238,48 @@
         </template>
       </el-dialog>
 
-      <el-dialog v-model="stocktakeDialog" title="新建盘点" destroy-on-close>
-        <el-form label-width="auto">
-          <el-form-item label="仓库" required>
-            <el-select v-model="stocktakeForm.warehouseId" filterable style="width: 100%">
-              <el-option
-                v-for="w in activeWarehouses"
-                :key="w.warehouseId"
-                :label="w.warehouseName"
-                :value="w.warehouseId"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="盘点模式">
-            <el-radio-group v-model="stocktakeForm.mode">
-              <el-radio value="OPEN">明盘（预填账面数）</el-radio>
-              <el-radio value="BLIND">盲盘（实盘留空）</el-radio>
-            </el-radio-group>
-          </el-form-item>
-          <el-form-item label="备注"
-            ><el-input v-model="stocktakeForm.notes" maxlength="200"
-          /></el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="stocktakeDialog = false">取消</el-button>
-          <el-button type="primary" :loading="saving" @click="saveStocktake">创建</el-button>
-        </template>
-      </el-dialog>
+      <WarehouseStocktakeDialogs
+        v-model:stocktake-dialog="stocktakeDialog"
+        v-model:stocktake-detail-dialog="stocktakeDetailDialog"
+        :saving="saving"
+        :scanning-photo="scanningPhoto"
+        :stocktake-form="stocktakeForm"
+        :stocktake-detail="stocktakeDetail"
+        :active-warehouses="activeWarehouses"
+        :stocktake-mode-text="stocktakeModeText"
+        :stocktake-status-text="stocktakeStatusText"
+        :stocktake-status-type="stocktakeStatusType"
+        :stocktake-line-status-text="stocktakeLineStatusText"
+        :stocktake-line-status-type="stocktakeLineStatusType"
+        @save-stocktake="saveStocktake"
+        @save-stocktake-lines="saveStocktakeLines"
+        @complete-stocktake="completeStocktakeAction"
+        @cancel-stocktake="cancelStocktakeAction"
+        @adjust-stocktake="adjustStocktakeAction"
+        @stocktake-photo="onStocktakePhoto"
+      />
 
-      <el-dialog
-        v-model="stocktakeDetailDialog"
-        :title="`盘点单 ${stocktakeDetail.stocktakeNo || ''}`"
-        class="dialog-wide"
-        destroy-on-close
-      >
-        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent>
-          <el-form-item label="仓库">{{ stocktakeDetail.warehouseName }}</el-form-item>
-          <el-form-item label="模式">{{ stocktakeModeText(stocktakeDetail.mode) }}</el-form-item>
-          <el-form-item label="状态">
-            <el-tag :type="stocktakeStatusType(stocktakeDetail.status)" size="small">
-              {{ stocktakeStatusText(stocktakeDetail.status) }}
-            </el-tag>
-          </el-form-item>
-          <el-form-item label="账面件数">{{ stocktakeDetail.bookQty ?? 0 }}</el-form-item>
-          <el-form-item label="实盘件数">{{ stocktakeDetail.countedQty ?? 0 }}</el-form-item>
-          <el-form-item label="差异件数">
-            <b>{{ stocktakeDetail.diffQty ?? 0 }}</b>
-          </el-form-item>
-          <el-form-item label="差异行数">{{ stocktakeDetail.diffLineCount ?? 0 }}</el-form-item>
-        </el-form>
-        <el-table
-          :data="stocktakeDetail.lines || []"
-          size="small"
-          border
-          max-height="420"
-          class="line-table"
-        >
-          <el-table-column label="商品" min-width="170">
-            <template #default="{ row }">{{ row.skuName }}</template>
-          </el-table-column>
-          <el-table-column prop="batchNo" label="批次" min-width="130" />
-          <el-table-column prop="productionDate" label="生产日期" min-width="110" />
-          <el-table-column prop="expiryDate" label="到期日" min-width="110" />
-          <el-table-column
-            prop="bookQty"
-            label="账面"
-            min-width="70"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          />
-          <el-table-column
-            label="实盘"
-            min-width="130"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          >
-            <template #default="{ row }">
-              <el-input-number
-                v-if="['DRAFT', 'IN_PROGRESS'].includes(stocktakeDetail.status)"
-                v-model="row.countedQty"
-                :min="0"
-                size="small"
-                controls-position="right"
-              />
-              <span v-else>{{ row.countedQty ?? '暂无' }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column
-            label="差异"
-            min-width="80"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          >
-            <template #default="{ row }">{{ row.diffQty }}</template>
-          </el-table-column>
-          <el-table-column
-            label="状态"
-            min-width="100"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          >
-            <template #default="{ row }">
-              <el-tag :type="stocktakeLineStatusType(row.status)" size="small">
-                {{ stocktakeLineStatusText(row.status) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-        </el-table>
-        <template #footer>
-          <el-button @click="stocktakeDetailDialog = false">关闭</el-button>
-          <template v-if="['DRAFT', 'IN_PROGRESS'].includes(stocktakeDetail.status)">
-            <el-button
-              type="primary"
-              plain
-              :loading="scanningPhoto"
-              @click="triggerStocktakePhotoScan"
-              >拍照识别</el-button
-            >
-            <el-button type="primary" :loading="saving" @click="saveStocktakeLines"
-              >保存实盘</el-button
-            >
-            <el-button type="success" :loading="saving" @click="completeStocktakeAction"
-              >完成盘点</el-button
-            >
-            <el-button
-              v-if="stocktakeDetail.status === 'DRAFT'"
-              :loading="saving"
-              @click="cancelStocktakeAction"
-              >取消盘点</el-button
-            >
-          </template>
-          <el-button
-            v-if="
-              stocktakeDetail.status === 'COMPLETED' && (stocktakeDetail.diffLineCount ?? 0) > 0
-            "
-            type="warning"
-            :loading="saving"
-            @click="adjustStocktakeAction"
-            >复盘调整</el-button
-          >
-        </template>
-        <input
-          ref="stocktakePhotoInput"
-          type="file"
-          accept="image/*"
-          class="hidden-input"
-          @change="onStocktakePhoto"
-        />
-      </el-dialog>
-
-      <el-dialog
-        v-model="binDialog"
-        :title="binForm.editing ? '编辑货位' : '新增货位'"
-        destroy-on-close
-      >
-        <el-form label-width="auto">
-          <el-form-item label="仓库" required>
-            <el-select
-              v-model="binForm.warehouseId"
-              filterable
-              :disabled="binForm.editing"
-              style="width: 100%"
-            >
-              <el-option
-                v-for="w in activeWarehouses"
-                :key="w.warehouseId"
-                :label="w.warehouseName"
-                :value="w.warehouseId"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="货位编码" required
-            ><el-input
-              v-model="binForm.binCode"
-              :disabled="binForm.editing"
-              placeholder="如 A-01"
-              maxlength="32"
-          /></el-form-item>
-          <el-form-item label="货位名称"
-            ><el-input v-model="binForm.binName" maxlength="64"
-          /></el-form-item>
-          <el-form-item label="状态">
-            <el-radio-group v-model="binForm.status">
-              <el-radio value="ACTIVE">启用</el-radio>
-              <el-radio value="INACTIVE">停用</el-radio>
-            </el-radio-group>
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="binDialog = false">取消</el-button>
-          <el-button type="primary" :loading="saving" @click="saveBin">保存</el-button>
-        </template>
-      </el-dialog>
-
-      <el-dialog v-model="binInboundDialog" title="入库到货位" class="dialog-wide" destroy-on-close>
-        <el-form label-width="auto">
-          <el-form-item label="仓库" required>
-            <el-select
-              v-model="binInboundForm.warehouseId"
-              filterable
-              style="width: 100%"
-              @change="onBinInboundWarehouse"
-            >
-              <el-option
-                v-for="w in activeWarehouses"
-                :key="w.warehouseId"
-                :label="w.warehouseName"
-                :value="w.warehouseId"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="货位" required>
-            <el-select v-model="binInboundForm.binCode" filterable style="width: 100%">
-              <el-option
-                v-for="b in activeBinsFor(binInboundForm.warehouseId)"
-                :key="b.binCode"
-                :label="b.binCode"
-                :value="b.binCode"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="商品" required>
-            <el-select v-model="binInboundForm.skuId" filterable style="width: 100%">
-              <el-option
-                v-for="sku in skus"
-                :key="sku.skuId"
-                :label="`${sku.skuName || sku.skuId}`"
-                :value="sku.skuId"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="批次" required
-            ><el-input v-model="binInboundForm.batchNo" maxlength="64"
-          /></el-form-item>
-          <el-form-item label="生产日期"
-            ><input v-model="binInboundForm.productionDate" class="native-date" type="date"
-          /></el-form-item>
-          <el-form-item label="到期日" required
-            ><input v-model="binInboundForm.expiryDate" class="native-date" type="date"
-          /></el-form-item>
-          <el-form-item label="数量" required>
-            <el-input-number
-              v-model="binInboundForm.quantity"
-              :min="1"
-              controls-position="right"
-              style="width: 100%"
-            />
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="binInboundDialog = false">取消</el-button>
-          <el-button type="primary" :loading="saving" @click="saveBinInbound">确认入库</el-button>
-        </template>
-      </el-dialog>
-
-      <el-dialog v-model="binMoveDialog" title="货位移库" class="dialog-wide" destroy-on-close>
-        <el-form label-width="auto">
-          <el-form-item label="源货位" required>
-            <el-select
-              v-model="binMoveForm.fromBinId"
-              filterable
-              style="width: 100%"
-              @change="onBinMoveSource"
-            >
-              <el-option
-                v-for="b in allBins"
-                :key="b.binId"
-                :label="binLabel(b)"
-                :value="b.binId"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="目标货位" required>
-            <el-select v-model="binMoveForm.toBinId" filterable style="width: 100%">
-              <el-option
-                v-for="b in allBins"
-                :key="b.binId"
-                :label="binLabel(b)"
-                :value="b.binId"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="商品" required>
-            <el-select v-model="binMoveForm.skuId" filterable style="width: 100%">
-              <el-option
-                v-for="s in sourceBinSkus"
-                :key="s.skuId"
-                :label="s.skuName"
-                :value="s.skuId"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="批次" required
-            ><el-input v-model="binMoveForm.batchNo" maxlength="64"
-          /></el-form-item>
-          <el-form-item label="数量" required>
-            <el-input-number
-              v-model="binMoveForm.quantity"
-              :min="1"
-              :max="sourceBinMaxQty"
-              controls-position="right"
-              style="width: 100%"
-            />
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="binMoveDialog = false">取消</el-button>
-          <el-button type="primary" :loading="saving" @click="saveBinMove">确认移库</el-button>
-        </template>
-      </el-dialog>
+      <WarehouseBinDialogs
+        v-model:bin-dialog="binDialog"
+        v-model:bin-inbound-dialog="binInboundDialog"
+        v-model:bin-move-dialog="binMoveDialog"
+        :saving="saving"
+        :bin-form="binForm"
+        :bin-inbound-form="binInboundForm"
+        :bin-move-form="binMoveForm"
+        :active-warehouses="activeWarehouses"
+        :skus="skus"
+        :all-bins="allBins"
+        :source-bin-skus="sourceBinSkus"
+        :source-bin-max-qty="sourceBinMaxQty"
+        :active-bins-for="activeBinsFor"
+        :bin-label="binLabel"
+        @save-bin="saveBin"
+        @save-bin-inbound="saveBinInbound"
+        @save-bin-move="saveBinMove"
+        @bin-inbound-warehouse-change="onBinInboundWarehouse"
+        @bin-move-source-change="onBinMoveSource"
+      />
 
       <WarehousePurchaseDialogs
         v-model:purchase-dialog="purchaseDialog"
@@ -2733,15 +2462,19 @@ import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, RefreshLeft } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
-import { api, authFetch, downloadAuthFile } from '@/api/client';
+import { api, downloadAuthFile } from '@/api/client';
 import { yuanToCents } from '@/utils/display';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
+import WarehouseBinDialogs from '@/components/warehouse/WarehouseBinDialogs.vue';
 import WarehousePurchaseDialogs from '@/components/warehouse/WarehousePurchaseDialogs.vue';
+import WarehouseStocktakeDialogs from '@/components/warehouse/WarehouseStocktakeDialogs.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { useWarehouseBins } from '@/composables/warehouse/useWarehouseBins';
 import { useWarehousePurchaseOrders } from '@/composables/warehouse/useWarehousePurchaseOrders';
+import { useWarehouseStocktakes } from '@/composables/warehouse/useWarehouseStocktakes';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
 import { dictLabel, dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
@@ -3022,41 +2755,9 @@ const paymentForm = reactive<Row>({ payableId: null, amountYuan: 0, notes: '' })
 const payTarget = ref<Row>({});
 const stocktakes = ref<Row[]>([]);
 const stocktakeStatusFilter = ref('');
-const stocktakeDialog = ref(false);
-const stocktakeDetailDialog = ref(false);
-const scanningPhoto = ref(false);
-const stocktakePhotoInput = ref<HTMLInputElement | null>(null);
-const stocktakeForm = reactive<Row>({ warehouseId: '', mode: 'OPEN', notes: '' });
-const stocktakeDetail = ref<Row>({});
 const bins = ref<Row[]>([]);
 const binStock = ref<Row[]>([]);
 const filterBinId = ref<number | null>(null);
-const binDialog = ref(false);
-const binInboundDialog = ref(false);
-const binMoveDialog = ref(false);
-const binForm = reactive<Row>({
-  editing: false,
-  warehouseId: '',
-  binCode: '',
-  binName: '',
-  status: 'ACTIVE'
-});
-const binInboundForm = reactive<Row>({
-  warehouseId: '',
-  binCode: '',
-  skuId: '',
-  batchNo: '',
-  productionDate: localDate(),
-  expiryDate: '',
-  quantity: 1
-});
-const binMoveForm = reactive<Row>({
-  fromBinId: null,
-  toBinId: null,
-  skuId: '',
-  batchNo: '',
-  quantity: 1
-});
 const devices = ref<Row[]>([]);
 const skus = ref<Row[]>([]);
 const loadedTabs = ref(new Set<string>(['warehouses']));
@@ -3333,22 +3034,6 @@ const payableSummaryText = computed(() => {
   return `共 ${rows.length} 家供应商有欠款，未付合计 ¥${money(total)}，其中逾期 ¥${money(overdue)}`;
 });
 const payMaxYuan = computed(() => Number((payTarget.value.balanceCents || 0) / 100));
-const allBins = computed(() => bins.value);
-const sourceBinSkus = computed(() => {
-  const rows = binStock.value.filter((r) => r.binId === binMoveForm.fromBinId);
-  const map = new Map<string, Row>();
-  for (const r of rows) {
-    if (!map.has(r.skuId)) {
-      map.set(r.skuId, { skuId: r.skuId, skuName: r.skuName });
-    }
-  }
-  return [...map.values()];
-});
-const sourceBinMaxQty = computed(() =>
-  binStock.value
-    .filter((r) => r.binId === binMoveForm.fromBinId && r.skuId === binMoveForm.skuId)
-    .reduce((s, r) => s + (Number(r.quantity) || 0), 0)
-);
 
 watch(tab, () => {
   page.value = 1;
@@ -4233,6 +3918,61 @@ const {
   ensureMeta
 });
 
+const {
+  stocktakeDialog,
+  stocktakeDetailDialog,
+  scanningPhoto,
+  stocktakeForm,
+  stocktakeDetail,
+  openStocktakeCreate,
+  saveStocktake,
+  openStocktakeDetail,
+  onStocktakePhoto,
+  saveStocktakeLines,
+  completeStocktakeAction,
+  adjustStocktakeAction,
+  cancelStocktakeAction
+} = useWarehouseStocktakes({
+  saving,
+  loadedTabs,
+  loadTab,
+  activeWarehouses,
+  loadWarehousesSoft
+});
+
+const {
+  binDialog,
+  binInboundDialog,
+  binMoveDialog,
+  binForm,
+  binInboundForm,
+  binMoveForm,
+  allBins,
+  sourceBinSkus,
+  sourceBinMaxQty,
+  activeBinsFor,
+  binLabel,
+  openBinDialog,
+  saveBin,
+  onBinInboundWarehouse,
+  openBinInbound,
+  saveBinInbound,
+  onBinMoveSource,
+  openBinMove,
+  saveBinMove
+} = useWarehouseBins({
+  saving,
+  loadedTabs,
+  loadTab,
+  bins,
+  binStock,
+  skus,
+  filterWarehouseId,
+  activeWarehouses,
+  loadWarehousesSoft,
+  ensureMeta
+});
+
 function openWarehouse(row?: Row) {
   Object.assign(warehouseForm, {
     editing: !!row,
@@ -4339,294 +4079,6 @@ async function savePayment() {
     saving.value = false;
   }
 }
-async function openStocktakeCreate() {
-  Object.assign(stocktakeForm, { warehouseId: '', mode: 'OPEN', notes: '' });
-  stocktakeDialog.value = true;
-  try {
-    await loadWarehousesSoft();
-    stocktakeForm.warehouseId = activeWarehouses.value[0]?.warehouseId || '';
-  } catch {
-    /* 保留空值由用户选择 */
-  }
-}
-async function saveStocktake() {
-  if (!stocktakeForm.warehouseId) return ElMessage.warning('请选择仓库');
-  saving.value = true;
-  try {
-    await api.request('/api/v2/ops/admin/warehouse/stocktakes', 'POST', {
-      warehouseId: stocktakeForm.warehouseId,
-      mode: stocktakeForm.mode,
-      notes: stocktakeForm.notes
-    });
-    stocktakeDialog.value = false;
-    ElMessage.success('盘点单已创建');
-    loadedTabs.value.delete('stocktakes');
-    await loadTab('stocktakes', true);
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '创建失败'));
-  } finally {
-    saving.value = false;
-  }
-}
-async function openStocktakeDetail(row: Row) {
-  try {
-    stocktakeDetail.value = await api.request<Row>(
-      `/api/v2/ops/admin/warehouse/stocktakes/${row.stocktakeId}`,
-      'GET'
-    );
-    stocktakeDetailDialog.value = true;
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '加载失败'));
-  }
-}
-function triggerStocktakePhotoScan() {
-  stocktakePhotoInput.value?.click();
-}
-async function onStocktakePhoto(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = '';
-  if (!file) return;
-  if (file.size > 8 * 1024 * 1024) {
-    ElMessage.warning('图片不能超过 8MB');
-    return;
-  }
-  scanningPhoto.value = true;
-  try {
-    const base =
-      (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || globalThis.location.origin;
-    const form = new FormData();
-    form.append('file', file);
-    const res = await authFetch(
-      `${base}/api/v2/ops/admin/warehouse/stocktakes/${stocktakeDetail.value.stocktakeId}/scan-photo`,
-      {
-        method: 'POST',
-        body: form
-      }
-    );
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok || json.code !== 0) {
-      throw new Error(json.message || `识别失败 (${res.status})`);
-    }
-    stocktakeDetail.value = json.data;
-    ElMessage.success('识别完成，已自动填入实盘数，请核对后保存');
-    loadedTabs.value.delete('stocktakes');
-    await loadTab('stocktakes', true);
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '识别失败'));
-  } finally {
-    scanningPhoto.value = false;
-  }
-}
-async function reloadStocktakeDetail() {
-  const id = stocktakeDetail.value.stocktakeId;
-  if (!id) return;
-  stocktakeDetail.value = await api.request<Row>(
-    `/api/v2/ops/admin/warehouse/stocktakes/${id}`,
-    'GET'
-  );
-  loadedTabs.value.delete('stocktakes');
-  await loadTab('stocktakes', true);
-}
-async function saveStocktakeLines() {
-  const id = stocktakeDetail.value.stocktakeId;
-  const lines: Row[] = stocktakeDetail.value.lines || [];
-  saving.value = true;
-  try {
-    await Promise.all(
-      lines
-        .filter((l: Row) => l.countedQty != null)
-        .map((l: Row) =>
-          api.request(`/api/v2/ops/admin/warehouse/stocktakes/${id}/lines/${l.lineId}`, 'PUT', {
-            countedQty: l.countedQty,
-            notes: l.notes
-          })
-        )
-    );
-    ElMessage.success('实盘数据已保存');
-    await reloadStocktakeDetail();
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '保存失败'));
-  } finally {
-    saving.value = false;
-  }
-}
-async function completeStocktakeAction() {
-  const id = stocktakeDetail.value.stocktakeId;
-  saving.value = true;
-  try {
-    await api.request(`/api/v2/ops/admin/warehouse/stocktakes/${id}/complete`, 'POST');
-    ElMessage.success('盘点已完成');
-    await reloadStocktakeDetail();
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '完成失败'));
-  } finally {
-    saving.value = false;
-  }
-}
-async function adjustStocktakeAction() {
-  const id = stocktakeDetail.value.stocktakeId;
-  saving.value = true;
-  try {
-    await api.request(`/api/v2/ops/admin/warehouse/stocktakes/${id}/adjust`, 'POST', {});
-    ElMessage.success('差异已调整入库');
-    await reloadStocktakeDetail();
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '调整失败'));
-  } finally {
-    saving.value = false;
-  }
-}
-async function cancelStocktakeAction() {
-  const id = stocktakeDetail.value.stocktakeId;
-  saving.value = true;
-  try {
-    await api.request(`/api/v2/ops/admin/warehouse/stocktakes/${id}/cancel`, 'POST');
-    ElMessage.success('盘点单已取消');
-    await reloadStocktakeDetail();
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '取消失败'));
-  } finally {
-    saving.value = false;
-  }
-}
-function openBinDialog(row?: Row) {
-  Object.assign(binForm, {
-    editing: !!row,
-    warehouseId: row?.warehouseId || activeWarehouses.value[0]?.warehouseId || '',
-    binCode: row?.binCode || '',
-    binName: row?.binName || '',
-    status: row?.status || 'ACTIVE'
-  });
-  binDialog.value = true;
-}
-async function saveBin() {
-  if (!binForm.warehouseId || !binForm.binCode.trim()) {
-    return ElMessage.warning('请填写仓库和货位编码');
-  }
-  saving.value = true;
-  try {
-    await api.request('/api/v2/ops/admin/warehouse/bins', 'PUT', {
-      warehouseId: binForm.warehouseId,
-      binCode: binForm.binCode.trim(),
-      binName: binForm.binName,
-      status: binForm.status
-    });
-    binDialog.value = false;
-    ElMessage.success('货位已保存');
-    loadedTabs.value.delete('bins');
-    await loadTab('bins', true);
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '保存失败'));
-  } finally {
-    saving.value = false;
-  }
-}
-function activeBinsFor(warehouseId: string) {
-  return bins.value.filter((b) => b.warehouseId === warehouseId && b.status === 'ACTIVE');
-}
-function binLabel(b: Row) {
-  return b.binName ? `${b.binCode} · ${b.binName}` : b.binCode;
-}
-function onBinInboundWarehouse() {
-  const first = activeBinsFor(binInboundForm.warehouseId)[0];
-  binInboundForm.binCode = first?.binCode || '';
-}
-async function openBinInbound() {
-  Object.assign(binInboundForm, {
-    warehouseId: filterWarehouseId.value || activeWarehouses.value[0]?.warehouseId || '',
-    binCode: '',
-    skuId: skus.value[0]?.skuId || '',
-    batchNo: '',
-    productionDate: localDate(),
-    expiryDate: '',
-    quantity: 1
-  });
-  binInboundDialog.value = true;
-  try {
-    await Promise.all([loadWarehousesSoft(), ensureMeta()]);
-  } catch {
-    /* 保留旧值 */
-  }
-  onBinInboundWarehouse();
-}
-async function saveBinInbound() {
-  if (
-    !binInboundForm.warehouseId ||
-    !binInboundForm.binCode ||
-    !binInboundForm.skuId ||
-    !binInboundForm.batchNo.trim() ||
-    !binInboundForm.expiryDate
-  ) {
-    return ElMessage.warning('请完整填写仓库、货位、商品、批次和到期日');
-  }
-  saving.value = true;
-  try {
-    await api.request('/api/v2/ops/admin/warehouse/bins/stock/inbound', 'POST', {
-      warehouseId: binInboundForm.warehouseId,
-      binCode: binInboundForm.binCode,
-      skuId: binInboundForm.skuId,
-      batchNo: binInboundForm.batchNo.trim(),
-      productionDate: binInboundForm.productionDate,
-      expiryDate: binInboundForm.expiryDate,
-      quantity: Number(binInboundForm.quantity) || 0
-    });
-    binInboundDialog.value = false;
-    ElMessage.success('已入库到货位');
-    loadedTabs.value.delete('bins');
-    await loadTab('bins', true);
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '入库失败'));
-  } finally {
-    saving.value = false;
-  }
-}
-function onBinMoveSource() {
-  const first = sourceBinSkus.value[0];
-  binMoveForm.skuId = first?.skuId || '';
-  binMoveForm.batchNo = '';
-  binMoveForm.quantity = 1;
-}
-async function openBinMove() {
-  Object.assign(binMoveForm, {
-    fromBinId: allBins.value[0]?.binId ?? null,
-    toBinId: null,
-    skuId: '',
-    batchNo: '',
-    quantity: 1
-  });
-  binMoveDialog.value = true;
-  onBinMoveSource();
-}
-async function saveBinMove() {
-  if (
-    binMoveForm.fromBinId == null ||
-    binMoveForm.toBinId == null ||
-    !binMoveForm.skuId ||
-    !binMoveForm.batchNo.trim()
-  ) {
-    return ElMessage.warning('请完整填写源/目标货位、商品和批次');
-  }
-  saving.value = true;
-  try {
-    await api.request('/api/v2/ops/admin/warehouse/bins/stock/move', 'POST', {
-      fromBinId: binMoveForm.fromBinId,
-      toBinId: binMoveForm.toBinId,
-      skuId: binMoveForm.skuId,
-      batchNo: binMoveForm.batchNo.trim(),
-      quantity: Number(binMoveForm.quantity) || 0
-    });
-    binMoveDialog.value = false;
-    ElMessage.success('移库完成');
-    loadedTabs.value.delete('bins');
-    await loadTab('bins', true);
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '移库失败'));
-  } finally {
-    saving.value = false;
-  }
-}
-
 async function removeInboundLine(index: number) {
   if (inboundForm.lines.length <= 1) return;
   try {

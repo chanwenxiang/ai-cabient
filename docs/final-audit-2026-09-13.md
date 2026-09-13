@@ -451,8 +451,8 @@
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display composables；页内剩余导航/文案壳）
 - [x] S-P1-1 SettlementService 拆分（VisionAsync / PartialRefundMath / PartialRefund / WaiveRefund / ConfirmDispute / OrderFinalize / Recognition / SettleOrchestrator / OrderSupport；主类为薄 Facade + 锁）
-- [x] S-P1-2 Session 超时调度抽离（`SessionExpireService` 独占 `@Scheduled` expire；SessionService 仍含开门/关门/结算编排，saga/outbox 后续）
-- [x] A-P2-002 WarehouseView 首刀拆分（采购写流 → `useWarehousePurchaseOrders` + `WarehousePurchaseDialogs`；页仍约 5k 行，盘点/货位/出库可继续拆）
+- [x] S-P1-2 Session 拆分（`SessionExpireService` 独占 expire 调度；`SessionOpenService` 承接开门短事务 persist/fail；SessionService 仍含关门/结算编排）
+- [x] A-P2-002 WarehouseView 拆分（采购写流 + 盘点/货位写流 → composables + Dialogs；页约 4.5k 行，出库/调拨可继续拆）
 - [x] S-P1-5 / M-P1-5 定价乐观锁（`device_sku_price.version`；库存此前已有）
 - [x] H5 隐私政策首屏弹窗（C-P2-5 / M-P2-4）— `privacy-consent-modal` + 两端入口页
 - [x] 24 页分包（C-P2-3）— consumer `pages.json` 主包 6 + `subPackages` + `preloadRule`
