@@ -303,32 +303,16 @@
             @assign-slot="assignSlot"
           />
 
-          <view
-            v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
-            class="action-dock"
-          >
-            <app-button
-              v-if="!linesConfirmed"
-              variant="outline"
-              data-testid="replenish-confirm-lines"
-              :disabled="submitting || !lines.length"
-              label="确认商品与数量"
-              @click="confirmLines"
-            />
-            <app-button
-              data-testid="replenish-complete"
-              :disabled="submitting || !lines.length || !linesConfirmed"
-              :label="detailIsPullOff ? '确认全部下架' : '确认全部上架'"
-              @click="completeTask"
-            />
-          </view>
-          <view v-if="selected?.status === 'COMPLETED'" class="complete-banner">
-            {{
-              detailIsPullOff
-                ? '任务已完成，下架库存已同步更新'
-                : '任务已完成，商品库存和在途状态已同步更新'
-            }}
-          </view>
+          <ReplenishActionDock
+            :show-dock="canRequest && selected?.status !== 'COMPLETED' && !!selected?.checkInAt"
+            :completed="selected?.status === 'COMPLETED'"
+            :lines-confirmed="linesConfirmed"
+            :has-lines="!!lines.length"
+            :submitting="submitting"
+            :pull-off="detailIsPullOff"
+            @confirm-lines="confirmLines"
+            @complete="completeTask"
+          />
       </ReplenishDetailSheet>
 
       <!-- H5 可访问确认框：替代 uni.showModal，便于自动化与读屏点击 -->
@@ -358,6 +342,7 @@ import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 import EmptyState from '@/components/empty-state.vue';
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue';
+import ReplenishActionDock from '@/components/ReplenishActionDock.vue';
 import ReplenishCabinetCard from '@/components/ReplenishCabinetCard.vue';
 import ReplenishDetailSheet from '@/components/ReplenishDetailSheet.vue';
 import ReplenishEvidenceSection from '@/components/ReplenishEvidenceSection.vue';
@@ -2285,8 +2270,7 @@ onPullDownRefresh(load);
 }
 .detail-btn,
 .app-btn,
-.secondary-btn,
-.action-dock .app-btn {
+.secondary-btn {
   margin-top: 22rpx;
   border: 0;
   border-radius: 18rpx;
@@ -2386,30 +2370,6 @@ onPullDownRefresh(load);
 .evidence-badge.muted {
   color: var(--text-subtle);
   font-weight: 500;
-}
-/* 非 sticky：避免滚动选择货道时底栏遮挡操作区（P0-27） */
-.action-dock {
-  position: relative;
-  z-index: 1;
-  margin-top: 22rpx;
-  padding: 16rpx 0 calc(8rpx + env(safe-area-inset-bottom));
-  background: var(--color-bg-card, #fff);
-  border-top: 1rpx solid var(--color-border, #e2e8f0);
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-}
-.action-dock .app-btn {
-  margin-top: 0;
-}
-.complete-banner {
-  margin-top: 22rpx;
-  padding: 22rpx;
-  border-radius: 18rpx;
-  color: var(--brand-deep, #166534);
-  background: var(--brand-soft, #dcfce7);
-  text-align: center;
-  font-size: var(--font-size-caption);
 }
 button[disabled] {
   opacity: 0.45;
