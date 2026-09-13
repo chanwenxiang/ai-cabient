@@ -568,7 +568,7 @@ export const consumerApi = {
     ),
   confirmMockRecharge: (orderId: string) =>
     request<import('@aicabinet/shared-types').RechargeOrderDto>(
-      `/api/v2/payment/recharge/${encodeURIComponent(orderId)}/mock-success`,
+      `/api/v2/dev/payment/recharge/${encodeURIComponent(orderId)}/mock-success`,
       'POST'
     ),
   cancelRecharge: (orderId: string) =>

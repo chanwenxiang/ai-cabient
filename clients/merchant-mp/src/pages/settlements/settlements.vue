@@ -183,7 +183,7 @@ import {
   merchantApi,
   downloadAuthedFile,
   openExportedFile,
-  getToken
+  isMerchantLoggedIn
 } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type {
@@ -344,7 +344,7 @@ function applySettlementResponses(
 }
 
 async function load() {
-  if (!getToken()) {
+  if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
@@ -357,7 +357,7 @@ async function load() {
   try {
     await refreshMe();
   } catch {
-    if (!getToken()) return;
+    if (!isMerchantLoggedIn()) return;
     seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return;

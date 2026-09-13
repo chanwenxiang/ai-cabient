@@ -332,8 +332,8 @@ docker compose -p ai-cabinet -f docker-compose.yml -f docker-compose.apps.yml -f
 默认 `dev` profile 仍可使用：
 
 - 验证码 `123456`（日志中可见）
-- Mock 微信支付 `/api/v2/payment/wechat/notify/mock/{orderId}`（须登录；userId 取登录态，禁止参数伪造）
-- 推荐统一走已鉴权充值成功：`POST /api/v2/payment/recharge/{orderId}/mock-success`
+- Mock 微信支付 `/api/v2/dev/payment/wechat/notify/mock/{orderId}`（须登录；userId 取登录态，禁止参数伪造）
+- 推荐统一走已鉴权充值成功：`POST /api/v2/dev/payment/recharge/{orderId}/mock-success`
 - 内部 API 默认 key：`dev-internal-key-change-me`
 
 详见 [LOCAL_SETUP.md](LOCAL_SETUP.md)。

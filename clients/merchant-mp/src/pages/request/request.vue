@@ -177,12 +177,10 @@ import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
-import {
-  hasPerm,
+import { hasPerm,
   merchantApi,
   type MerchantReplenishmentRequest,
-  type MerchantReplenishmentSuggest
-} from '@/utils/merchant-api';
+  type MerchantReplenishmentSuggest, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import type { DeviceInfo, DeviceSlot, MerchantMe } from '@aicabinet/shared-types';
@@ -253,7 +251,7 @@ function suggestReasonLabel(code?: string) {
 }
 
 onLoad((opts) => {
-  if (!uni.getStorageSync('merchant_token')) {
+  if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
@@ -282,7 +280,7 @@ async function bootstrap(preferDeviceId?: string) {
   try {
     await refreshMe();
   } catch {
-    if (!uni.getStorageSync('merchant_token')) return;
+    if (!isMerchantLoggedIn()) return;
     seedMerchantMeDisplayCache(me);
   }
   if (!canView.value) {

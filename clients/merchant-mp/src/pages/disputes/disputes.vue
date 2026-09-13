@@ -259,12 +259,10 @@ import { displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
 import { merchantDisputeDisplayCopy, merchantDisputeAmountDiffNote } from '@/utils/dispute-copy';
 import EmptyState from '@/components/empty-state.vue';
-import {
-  hasPerm,
+import { hasPerm,
   merchantApi,
   type MerchantDisputeTicket,
-  type MerchantDisputeDetailView
-} from '@/utils/merchant-api';
+  type MerchantDisputeDetailView, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { promptText } from '@/utils/text-prompt';
 import type { MerchantMe } from '@aicabinet/shared-types';
@@ -333,7 +331,7 @@ async function refreshDisputesMerchantMe(seq: number): Promise<boolean> {
   try {
     await refreshMe();
   } catch {
-    if (!uni.getStorageSync('merchant_token')) return false;
+    if (!isMerchantLoggedIn()) return false;
     seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return false;
@@ -402,7 +400,7 @@ async function handlePendingTicketId() {
 }
 
 async function load() {
-  if (!uni.getStorageSync('merchant_token')) {
+  if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }

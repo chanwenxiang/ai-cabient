@@ -52,7 +52,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
-import { hasPerm, merchantApi } from '@/utils/merchant-api';
+import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, displayBizNo, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
@@ -72,7 +72,7 @@ onLoad((query) => {
 });
 
 onShow(() => {
-  if (!uni.getStorageSync('merchant_token')) {
+  if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
@@ -142,7 +142,7 @@ async function load() {
         .sort((x, y) => String(y.createdAt || '').localeCompare(String(x.createdAt || '')));
     }
   } catch (e) {
-    if (!uni.getStorageSync('merchant_token')) return;
+    if (!isMerchantLoggedIn()) return;
     seedMerchantMeDisplayCache(me);
     list.value = [];
     error.value = e instanceof Error ? e.message : '加载失败';

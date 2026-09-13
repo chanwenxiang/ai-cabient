@@ -257,7 +257,7 @@ import { UI_COPY, onlineLabel, loadingLabel } from '@aicabinet/shared-uni/ui-cop
 import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import {
-  getToken,
+  isMerchantLoggedIn,
   hasPerm,
   merchantApi,
   downloadAuthedFile,
@@ -418,14 +418,14 @@ function skuMarginRate(sku: MerchantSkuSales) {
 }
 
 async function ensureAccess() {
-  if (!getToken()) {
+  if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return false;
   }
   try {
     await refreshMe();
   } catch {
-    if (!getToken()) return false;
+    if (!isMerchantLoggedIn()) return false;
     seedMerchantMeDisplayCache(me);
   }
   if (!canViewBusiness.value) {

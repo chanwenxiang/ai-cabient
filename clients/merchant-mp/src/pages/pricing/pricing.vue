@@ -111,7 +111,7 @@ import { showError, showSuccess } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import EmptyState from '@/components/empty-state.vue';
 import { yuanToCents } from '@aicabinet/shared-uni/format';
-import { hasPerm, merchantApi } from '@/utils/merchant-api';
+import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import {
   useMerchantMe,
   canEditPricingWithPerm,
@@ -213,7 +213,7 @@ async function runPricingLoad(seq: number) {
 }
 
 async function load(soft = false) {
-  if (!uni.getStorageSync('merchant_token')) {
+  if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
@@ -240,7 +240,7 @@ async function ensurePricingAccess(seq: number): Promise<boolean> {
   try {
     await refreshMe();
   } catch {
-    if (!uni.getStorageSync('merchant_token')) return false;
+    if (!isMerchantLoggedIn()) return false;
     seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return false;

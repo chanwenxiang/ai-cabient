@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { getToken, merchantApi, hasPerm } from '@/utils/merchant-api';
+import { isMerchantLoggedIn, merchantApi, hasPerm } from '@/utils/merchant-api';
 import type { MerchantMe } from '@aicabinet/shared-types';
 import type { MerchantNavItem, MerchantPack } from '@/config/merchant-nav';
 
@@ -67,10 +67,10 @@ export async function refreshMerchantMe(): Promise<MerchantMe> {
 
 export function useMerchantMe() {
   onShow(() => {
-    if (getToken()) {
+    if (isMerchantLoggedIn()) {
       refreshMerchantMe().catch(() => {
         // 软失败不回读 storage 里的 permissions（可被篡改抬权）；仅保留本会话已成功拉取的内存态
-        if (!getToken()) {
+        if (!isMerchantLoggedIn()) {
           meRef.value = null;
         }
       });

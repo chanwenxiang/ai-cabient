@@ -166,7 +166,7 @@ class ConsumerE2ETest {
         String rechargeOrderId = objectMapper.readTree(prepayResult.getResponse().getContentAsString())
                 .path("data").path("orderId").asText();
 
-        mockMvc.perform(post("/api/v2/payment/recharge/" + rechargeOrderId + "/mock-success")
+        mockMvc.perform(post("/api/v2/dev/payment/recharge/" + rechargeOrderId + "/mock-success")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));

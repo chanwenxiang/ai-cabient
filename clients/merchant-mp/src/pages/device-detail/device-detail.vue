@@ -176,7 +176,7 @@ import { onLoad } from '@dcloudio/uni-app';
 import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import { dictLabel } from '@aicabinet/shared-dict';
-import { merchantApi, hasPerm } from '@/utils/merchant-api';
+import { merchantApi, hasPerm, isMerchantLoggedIn } from '@/utils/merchant-api';
 import {
   useMerchantMe,
   canEditPlanogramForMerchant,
@@ -269,7 +269,7 @@ const canReplenishView = computed(() => hasPerm(me.value, 'merchant:replenishmen
 const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:request'));
 
 onLoad((opts) => {
-  if (!uni.getStorageSync('merchant_token')) {
+  if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
@@ -375,7 +375,7 @@ async function refreshDeviceDetailMe(seq: number): Promise<boolean> {
   try {
     await refreshMe();
   } catch {
-    if (!uni.getStorageSync('merchant_token')) return false;
+    if (!isMerchantLoggedIn()) return false;
     seedMerchantMeDisplayCache(me);
   }
   return seq === loadSeq;

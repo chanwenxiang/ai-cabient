@@ -11,9 +11,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 仅 mock 开启时可用：模拟充值支付成功 */
+/**
+ * Dev/mock 专用：模拟充值支付成功。
+ * 正式契约见 {@link PaymentController}（prepay / list / get / cancel）；本控制器不得并入正式路径。
+ */
 @RestController
-@RequestMapping("/api/v2/payment")
+@RequestMapping("/api/v2/dev/payment")
 @ConditionalOnProperty(name = "aicabinet.security.mock-enabled", havingValue = "true")
 public class DevMockRechargeController {
 

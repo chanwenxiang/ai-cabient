@@ -245,13 +245,21 @@
       </view>
     </view>
   </view>
+  <PrivacyConsentModal
+    :visible="showPrivacy"
+    policy-url="/pages/policy/privacy"
+    @accepted="onPrivacyAccepted"
+    @declined="onPrivacyDeclined"
+  />
 </template>
 
 <script setup lang="ts">
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { showError } from '@/utils/notify';
 import { computed, ref } from 'vue';
-import { hasPerm, merchantApi } from '@/utils/merchant-api';
+import { hasPerm, isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
+import PrivacyConsentModal from '@aicabinet/shared-uni/components/privacy-consent-modal.vue';
+import { usePrivacyConsentModal } from '@aicabinet/shared-uni/use-privacy-consent';
 import {
   canAccessNav,
   hasPack,
@@ -271,6 +279,9 @@ import { menuIcon } from '@/utils/menu-icon';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
 import { mergeTodoItems } from '@/utils/todo-list';
 import type { AnnouncementDto, MerchantMe } from '@aicabinet/shared-types';
+
+const { showPrivacy, refreshPrivacyGate, onPrivacyAccepted, onPrivacyDeclined } =
+  usePrivacyConsentModal();
 
 type TaskRow = { taskId: number; deviceId: string; status: string };
 
@@ -439,7 +450,7 @@ async function fetchHomeProfile(seq: number): Promise<MerchantMe | null> {
     if (seq !== loadSeq) return null;
     return profile;
   } catch {
-    if (!uni.getStorageSync('merchant_token')) return null;
+    if (!isMerchantLoggedIn()) return null;
     seedMerchantMeDisplayCache(me);
     if (seq !== loadSeq) return null;
     return me.value;
@@ -628,7 +639,7 @@ function applyTaskPreview(tasks: TaskRow[]) {
 }
 
 async function load() {
-  if (!uni.getStorageSync('merchant_token')) {
+  if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
@@ -654,7 +665,10 @@ async function load() {
   }
 }
 
-onShow(load);
+onShow(() => {
+  refreshPrivacyGate();
+  void load();
+});
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 </script>
 

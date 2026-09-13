@@ -90,7 +90,7 @@ import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
-import { hasPerm, merchantApi } from '@/utils/merchant-api';
+import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import type { MerchantSlotDiscrepancy } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
@@ -177,7 +177,7 @@ function actionHint(item: { type: string; deviceId?: string; ticketId?: string }
 }
 
 async function load() {
-  if (!uni.getStorageSync('merchant_token')) {
+  if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
@@ -185,7 +185,7 @@ async function load() {
   try {
     await refreshMe();
   } catch {
-    if (!uni.getStorageSync('merchant_token')) return;
+    if (!isMerchantLoggedIn()) return;
     seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return;

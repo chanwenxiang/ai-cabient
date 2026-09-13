@@ -170,6 +170,13 @@
         "enablePullDownRefresh": true,
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/policy/privacy",
+      "style": {
+        "navigationBarTitleText": "隐私政策",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "tabBar": {

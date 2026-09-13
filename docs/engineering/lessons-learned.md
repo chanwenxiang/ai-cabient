@@ -29,6 +29,8 @@
 | 22 | vision 超时 | 云端识别挂起无结果 | 无 wall-clock timeout / 失败只进 DLT | HTTP+Kafka 超时回退 `need_review=true` 仍发 result | `main.py`、`kafka_worker.py` |
 | 23 | 改价覆盖 | 并发改价后写互相覆盖 | `device_sku_price` 无 version | 库存同款乐观锁 + 客户端传 `expectedVersion` | `DeviceSkuPriceMapper`、`pricing.vue` |
 | 24 | consumer H5 | XSS 可读 JWT | H5 把 token 存 Storage | `cookieEnabled` 时不落 JWT，`withCredentials` + CSRF 头 | `consumer-api.ts`、`shared-uni/request.ts` |
+| 25 | 支付 mock | mock 路径挂在正式 `/payment` 前缀易被误当契约 | DevMock 与正式 Controller 同前缀 | mock 仅 `/api/v2/dev/payment/**` + `mock-enabled`；正式 `PaymentController` 契约冻结注释 | `DevMock*Controller`、`PaymentController` |
+| 26 | H5 隐私 | 首屏无同意即可继续用 | 缺隐私同意门闩 | H5 入口页弹 `privacy-consent-modal`，同意键 `aicabinet_privacy_consent_v1` | `shared-uni/privacy-consent` |
 
 ## 追加模板
 

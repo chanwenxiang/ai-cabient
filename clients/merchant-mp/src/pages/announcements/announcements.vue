@@ -45,7 +45,7 @@
 <script setup lang="ts">
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { useAnnouncementsList } from '@aicabinet/shared-uni/announcements';
-import { merchantApi } from '@/utils/merchant-api';
+import { merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const {
@@ -62,7 +62,7 @@ const {
 } = useAnnouncementsList(() => merchantApi.listAnnouncements());
 
 onShow(() => {
-  if (!uni.getStorageSync('merchant_token')) {
+  if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }

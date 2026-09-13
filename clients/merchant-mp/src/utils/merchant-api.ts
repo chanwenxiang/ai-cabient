@@ -5,7 +5,13 @@ import { matchPermission } from '@aicabinet/shared-rbac';
 import { loadRuntimeDict as sharedLoadRuntimeDict } from '@aicabinet/shared-uni/dict-runtime';
 import { localizeApiMessage } from '@aicabinet/shared-uni/format';
 import { withQuery } from '@aicabinet/shared-uni/query';
-import { mpRequest, createMpApiError, type MpApiSession } from '@aicabinet/shared-uni/request';
+import {
+  mpRequest,
+  createMpApiError,
+  type MpApiSession,
+  type MpRefreshData
+} from '@aicabinet/shared-uni/request';
+import type { LoginResponse } from '@aicabinet/shared-types';
 
 export type MerchantReplenishmentSuggest =
   import('@aicabinet/shared-types').OpenApiReplenishmentSuggestDto;
@@ -47,8 +53,29 @@ export type WalletOverview = import('@aicabinet/shared-types').OpenApiMerchantWa
 /** @deprecated 使用 OpenApiLineWalletOverviewDto */
 export type LineWalletOverview = import('@aicabinet/shared-types').OpenApiLineWalletOverviewDto;
 
+const TOKEN_KEY = 'merchant_token';
+const USER_KEY = 'merchant_user_id';
+const COOKIE_AUTH_KEY = 'merchant_cookie_auth';
+
+function isMerchantH5Runtime() {
+  return (
+    typeof window !== 'undefined' &&
+    typeof navigator !== 'undefined' &&
+    !/miniProgram|miniprogram/i.test(navigator.userAgent)
+  );
+}
+
+export function isMerchantCookieAuth() {
+  return isMerchantH5Runtime() && uni.getStorageSync(COOKIE_AUTH_KEY) === '1';
+}
+
+/** 登录态：本地 JWT 或 H5 Cookie 会话标记（商户走 admin_session Cookie） */
+export function isMerchantLoggedIn() {
+  return Boolean(getToken()) || isMerchantCookieAuth();
+}
+
 export function getToken() {
-  return uni.getStorageSync('merchant_token') || '';
+  return uni.getStorageSync(TOKEN_KEY) || '';
 }
 
 /** 登录页路径（去 query / 前后斜杠后比对）。 */
@@ -60,21 +87,34 @@ export function isMerchantLoginPath(url: string): boolean {
   return path === 'pages/login/login' || path.endsWith('/pages/login/login');
 }
 
+function applyLoginSession(data: Partial<LoginResponse> & MpRefreshData) {
+  if (isMerchantH5Runtime() && (data.cookieEnabled || isMerchantCookieAuth())) {
+    uni.removeStorageSync(TOKEN_KEY);
+    uni.setStorageSync(COOKIE_AUTH_KEY, '1');
+  } else if (data.token) {
+    uni.setStorageSync(TOKEN_KEY, data.token);
+    uni.removeStorageSync(COOKIE_AUTH_KEY);
+  }
+  if (data.userId != null) {
+    uni.setStorageSync(USER_KEY, String(data.userId));
+  }
+}
+
 const mpApiSession: MpApiSession = {
   baseUrl: API_BASE_URL,
   timeoutMs: 20_000,
   getToken,
+  hasSession: isMerchantLoggedIn,
+  useCookieAuth: isMerchantCookieAuth,
   clearSession,
-  applyRefreshedToken: (data) => {
-    uni.setStorageSync('merchant_token', data.token);
-    if (data.userId) uni.setStorageSync('merchant_user_id', data.userId);
-  },
+  applyRefreshedToken: (data) => applyLoginSession(data),
   handleUnauthorized
 };
 
 export function clearSession() {
-  uni.removeStorageSync('merchant_token');
-  uni.removeStorageSync('merchant_user_id');
+  uni.removeStorageSync(TOKEN_KEY);
+  uni.removeStorageSync(USER_KEY);
+  uni.removeStorageSync(COOKIE_AUTH_KEY);
   uni.removeStorageSync('merchant_me');
   clearDictOverrides();
 }
@@ -83,7 +123,7 @@ let unauthorizedHandling = false;
 let navGuardInstalled = false;
 
 /**
- * 统一导航守卫：无 token 时拦截业务跳转并 reLaunch 登录。
+ * 统一导航守卫：无登录态时拦截业务跳转并 reLaunch 登录。
  * 冷启动深链仍依赖 App.onLaunch；本拦截覆盖运行期 navigate/redirect/reLaunch/switchTab。
  */
 export function installMerchantNavGuard() {
@@ -93,7 +133,7 @@ export function installMerchantNavGuard() {
     invoke(args: { url?: string }) {
       const url = String(args?.url || '');
       if (isMerchantLoginPath(url)) return true;
-      if (getToken()) return true;
+      if (isMerchantLoggedIn()) return true;
       if (!unauthorizedHandling) {
         unauthorizedHandling = true;
         uni.reLaunch({
@@ -143,14 +183,19 @@ export function handleUnauthorized(message?: string) {
  */
 export function downloadAuthedFile(url: string, timeoutMs = 60_000): Promise<string> {
   return new Promise((resolve, reject) => {
-    const token = getToken();
-    if (!token) {
+    if (!isMerchantLoggedIn()) {
       reject(new Error('请先登录'));
       return;
     }
+    const header: Record<string, string> = { 'X-Requested-With': 'XMLHttpRequest' };
+    const token = getToken();
+    if (token) header.Authorization = 'Bearer ' + token;
     uni.downloadFile({
       url,
-      header: { Authorization: 'Bearer ' + token },
+      header,
+      // #ifdef H5
+      withCredentials: true,
+      // #endif
       timeout: timeoutMs,
       success(res) {
         if (res.statusCode === 401) {
@@ -218,14 +263,13 @@ export function request<T>(
 }
 
 export function merchantLogin(phone: string, password: string) {
-  return request<{ token: string; userId: string }>(
+  return request<LoginResponse>(
     '/api/v2/auth/merchant-password-login',
     'POST',
     { phoneNumber: phone, password },
     false
   ).then(async (data) => {
-    uni.setStorageSync('merchant_token', data.token);
-    uni.setStorageSync('merchant_user_id', data.userId);
+    applyLoginSession(data);
     await sharedLoadRuntimeDict({
       getToken: getToken,
       fetchRuntime: () => request('/api/v2/dicts/runtime', 'GET')
@@ -257,18 +301,23 @@ export function uploadReplenishmentEvidenceFile(
   filePath: string
 ): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
   return new Promise((resolve, reject) => {
-    if (!getToken()) {
+    if (!isMerchantLoggedIn()) {
       reject(new Error('请先登录'));
       return;
     }
+    const header: Record<string, string> = {
+      'X-Requested-With': 'XMLHttpRequest'
+    };
+    const token = getToken();
+    if (token) header.Authorization = 'Bearer ' + token;
     uni.uploadFile({
       url: `${API_BASE_URL}/api/v2/merchant/replenishment/tasks/${taskId}/evidence`,
       filePath,
       name: 'file',
-      header: {
-        Authorization: 'Bearer ' + getToken(),
-        'X-Requested-With': 'XMLHttpRequest'
-      },
+      header,
+      // #ifdef H5
+      withCredentials: true,
+      // #endif
       timeout: 30_000,
       success(res) {
         if (res.statusCode === 401) {
@@ -302,18 +351,23 @@ export function uploadReplenishmentRequestEvidenceFile(
   filePath: string
 ): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
   return new Promise((resolve, reject) => {
-    if (!getToken()) {
+    if (!isMerchantLoggedIn()) {
       reject(new Error('请先登录'));
       return;
     }
+    const header: Record<string, string> = {
+      'X-Requested-With': 'XMLHttpRequest'
+    };
+    const token = getToken();
+    if (token) header.Authorization = 'Bearer ' + token;
     uni.uploadFile({
       url: `${API_BASE_URL}/api/v2/merchant/replenishment/requests/evidence`,
       filePath,
       name: 'file',
-      header: {
-        Authorization: 'Bearer ' + getToken(),
-        'X-Requested-With': 'XMLHttpRequest'
-      },
+      header,
+      // #ifdef H5
+      withCredentials: true,
+      // #endif
       timeout: 30_000,
       success(res) {
         if (res.statusCode === 401) {

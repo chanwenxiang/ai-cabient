@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { onLaunch } from '@dcloudio/uni-app';
 import { loadRuntimeDict } from '@/utils/dict-runtime';
-import { getToken, installMerchantNavGuard, isMerchantLoginPath } from '@/utils/merchant-api';
+import {
+  installMerchantNavGuard,
+  isMerchantLoginPath,
+  isMerchantLoggedIn
+} from '@/utils/merchant-api';
 
 /** H5 / 微信小程序通用：当前是否登录页（避免无 token 深链先闪业务页）。 */
 function isLoginLaunch(options?: { path?: string }): boolean {
@@ -25,11 +29,11 @@ function isLoginLaunch(options?: { path?: string }): boolean {
 
 onLaunch((options) => {
   installMerchantNavGuard();
-  if (!getToken() && !isLoginLaunch(options)) {
+  if (!isMerchantLoggedIn() && !isLoginLaunch(options)) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
-  if (!getToken()) return;
+  if (!isMerchantLoggedIn()) return;
   void loadRuntimeDict();
 });
 </script>
