@@ -63,9 +63,9 @@ public class SessionService {
     private final CabinetMetrics cabinetMetrics;
     private final DomainEventPublisher domainEventPublisher;
     private final GravitySettlementHelper gravityHelper;
-    private final RestockSnapshotService restockSnapshotService;
     private final SessionOpenService sessionOpenService;
     private final SessionRestockService sessionRestockService;
+    private final SessionDoorService sessionDoorService;
     private final SessionService self;
     private final OpsExceptionService opsExceptionService;
     private final UserInfoMapper userInfoRepository;
@@ -86,9 +86,9 @@ public class SessionService {
                           CabinetMetrics cabinetMetrics,
                           DomainEventPublisher domainEventPublisher,
                           GravitySettlementHelper gravityHelper,
-                          RestockSnapshotService restockSnapshotService,
                           SessionOpenService sessionOpenService,
                           SessionRestockService sessionRestockService,
+                          SessionDoorService sessionDoorService,
                           @Lazy SessionService self,
                           OpsExceptionService opsExceptionService,
                           UserInfoMapper userInfoRepository,
@@ -108,9 +108,9 @@ public class SessionService {
         this.cabinetMetrics = cabinetMetrics;
         this.domainEventPublisher = domainEventPublisher;
         this.gravityHelper = gravityHelper;
-        this.restockSnapshotService = restockSnapshotService;
         this.sessionOpenService = sessionOpenService;
         this.sessionRestockService = sessionRestockService;
+        this.sessionDoorService = sessionDoorService;
         this.self = self;
         this.opsExceptionService = opsExceptionService;
         this.userInfoRepository = userInfoRepository;
@@ -255,26 +255,14 @@ public class SessionService {
         return toDto(session);
     }
 
-    /**
-     * 门事件入口。关门状态先单独提交，再结算，避免 vision/扣款失败把「已关门」回滚掉，
-     * 导致会话卡在 SHOPPING、设备无法再次开门。
-     */
+    /** 门事件入口；关门落库与结算编排见 {@link SessionDoorService}。 */
     public SessionDto handleDoorEvent(DoorEventRequest event) {
-        SessionDto afterDoor = self.applyDoorEvent(event);
-        if (event.doorState() == DoorState.CLOSED && afterDoor.state() != SessionState.WAITING_UPLOAD) {
-            ShoppingSession session = repository.findById(event.sessionId()).orElse(null);
-            if (session != null && isOpsRemoteSession(session)) {
-                return afterDoor;
-            }
-            if (session != null && isRestockSession(session)) {
-                if (afterDoor.state() == SessionState.RECOGNIZING) {
-                    return sessionRestockService.finishRestockSnapshot(event.sessionId());
-                }
-                return afterDoor;
-            }
-            return self.settleAfterClose(event.sessionId());
-        }
-        return afterDoor;
+        return sessionDoorService.handleDoorEvent(event);
+    }
+
+    /** 仅落门事件与会话态（短事务）；结算由 {@link #handleDoorEvent} 编排。 */
+    public SessionDto applyDoorEvent(DoorEventRequest event) {
+        return sessionDoorService.applyDoorEvent(event);
     }
 
     /**
@@ -296,7 +284,7 @@ public class SessionService {
         if (gravityHelper.toRecognizedItems(session.getGravityDeltas()).isEmpty()) {
             return self.completeDemoZeroSettle(userId, sessionId);
         }
-        return self.handleDoorEvent(new DoorEventRequest(
+        return sessionDoorService.handleDoorEvent(new DoorEventRequest(
                 session.getSessionId(),
                 session.getDeviceId(),
                 DoorState.CLOSED,
@@ -331,38 +319,6 @@ public class SessionService {
             cabinetMetrics.recordSettlementSuccess();
             return toDto(session);
         });
-    }
-
-    @Transactional
-    public SessionDto applyDoorEvent(DoorEventRequest event) {
-        return runWithSessionLifeLock(event.sessionId(), () -> doApplyDoorEvent(event));
-    }
-
-    private SessionDto doApplyDoorEvent(DoorEventRequest event) {
-        ShoppingSession session = repository.findByIdForUpdate(event.sessionId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-
-        if (!session.getDeviceId().equals(event.deviceId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DEVICE_MISMATCH);
-        }
-
-        if (event.videoUri() != null && !event.videoUri().isBlank()) {
-            session.setVideoUri(event.videoUri());
-        }
-        applyVideoMetadata(session, event.uploadStatus(), event.videoClipsJson(), event.cameraFusionMode());
-        if (event.gravityDeltasJson() != null && !event.gravityDeltasJson().isBlank()) {
-            session.setGravityDeltas(gravityHelper.mergeGravityJson(session.getGravityDeltas(), event.gravityDeltasJson()));
-        }
-        if (event.videoUri() != null || event.uploadStatus() != null || event.videoClipsJson() != null
-                || event.gravityDeltasJson() != null) {
-            repository.save(session);
-        }
-
-        return switch (event.doorState()) {
-            case OPEN -> onDoorOpened(session);
-            case CLOSED -> onDoorClosed(session, event.videoUri());
-            default -> toDto(session);
-        };
     }
 
     /**
@@ -614,72 +570,6 @@ public class SessionService {
         return new LiveCartDto(sessionId, lines, qty, amount);
     }
 
-    private SessionDto onDoorOpened(ShoppingSession session) {
-        if (session.getState() == SessionState.OPENING) {
-            session.setOpenTime(Instant.now());
-            transition(session, SessionState.SHOPPING);
-            cabinetMetrics.recordDoorOpen(true);
-            domainEventPublisher.publish("DoorOpened", session.getSessionId(),
-                    Map.of(DEVICEID, session.getDeviceId(), "userId", session.getUserId()));
-            log.info("door opened session={}", session.getSessionId());
-        }
-        return toDto(session);
-    }
-
-    private SessionDto onDoorClosed(ShoppingSession session, String videoUri) {
-        if (session.getState() == SessionState.OPENING) {
-            session.setOpenTime(Instant.now());
-            transition(session, SessionState.SHOPPING);
-            log.warn("door closed while opening, treat as shopping session={}", session.getSessionId());
-        }
-        if (session.getState() != SessionState.SHOPPING) {
-            return toDto(session);
-        }
-        session.setCloseTime(Instant.now());
-        if (videoUri != null && !videoUri.isBlank()) {
-            session.setVideoUri(videoUri);
-        }
-        repository.save(session);
-
-        if (isOpsRemoteSession(session)) {
-            // 运维开门：关门即完成，不识别、不结算；有录像则保留供审计
-            transition(session, SessionState.COMPLETED);
-            log.info("ops remote door closed session={} device={}", session.getSessionId(), session.getDeviceId());
-            return toDto(session);
-        }
-
-        if (isRestockSession(session)) {
-            if (isWaitingForUpload(session)) {
-                transition(session, SessionState.WAITING_UPLOAD);
-                log.info("restock door closed, waiting upload session={}", session.getSessionId());
-                return toDto(session);
-            }
-            boolean hasVideo = session.getVideoUri() != null && !session.getVideoUri().isBlank();
-            boolean hasSlotGravity = gravityHelper.hasSlotSpecificDeltas(
-                    gravityHelper.parse(session.getGravityDeltas()));
-            if (hasVideo && !hasSlotGravity) {
-                transition(session, SessionState.RECOGNIZING);
-                log.info("restock door closed, recognizing for snapshot session={}", session.getSessionId());
-                return toDto(session);
-            }
-            restockSnapshotService.applySnapshot(session);
-            transition(session, SessionState.COMPLETED);
-            log.info("restock door closed with gravity snapshot session={}", session.getSessionId());
-            return toDto(session);
-        }
-
-        if (isWaitingForUpload(session)) {
-            transition(session, SessionState.WAITING_UPLOAD);
-            log.info("door closed, waiting upload session={} uploadStatus={}",
-                    session.getSessionId(), session.getUploadStatus());
-            return toDto(session);
-        }
-
-        transition(session, SessionState.RECOGNIZING);
-        log.info("door closed, recognizing session={} video={}", session.getSessionId(), session.getVideoUri());
-        return toDto(session);
-    }
-
     /**
      * 关门事务提交后再结算，避免 vision/扣款失败把「已关门」回滚掉。
      * 无外层长事务：分布式锁内调用 settle / 异步投递。
@@ -814,11 +704,6 @@ public class SessionService {
             repository.save(session);
             log.warn("async session failed session={} reason={}", sessionId, e.getReason());
         }
-    }
-
-    private boolean isWaitingForUpload(ShoppingSession session) {
-        String status = session.getUploadStatus();
-        return "LOCAL_QUEUED".equalsIgnoreCase(status) || "UPLOADING".equalsIgnoreCase(status);
     }
 
     private void applyVideoMetadata(ShoppingSession session, String uploadStatus,
