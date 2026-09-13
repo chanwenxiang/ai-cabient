@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import path from 'node:path';
 
 function pagesFromJson(file) {
   const j = JSON.parse(fs.readFileSync(file, 'utf8'));

@@ -191,7 +191,9 @@ await page.evaluate((payload) => {
       uni.setStorageSync('consumer_token_expires', Date.now() + 1_700_000);
       if (payload.userId) uni.setStorageSync('consumer_user_id', payload.userId);
     }
-  } catch (_) {}
+  } catch {
+    /* uni H5 may be unavailable outside mini-program runtime */
+  }
   localStorage.setItem('consumer_token', payload.token);
   localStorage.setItem('consumer_token_expires', String(Date.now() + 1_700_000));
 }, consumer);

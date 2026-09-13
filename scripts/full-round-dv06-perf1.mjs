@@ -349,7 +349,6 @@ report.perf1.waves = [];
 for (const w of waves) {
   const times = [];
   let errors = 0;
-  let done = 0;
   async function one() {
     const s = Date.now();
     try {
@@ -359,7 +358,6 @@ for (const w of waves) {
       errors += 1;
     }
     times.push(Date.now() - s);
-    done += 1;
   }
   const queue = Array.from({ length: w.n }, () => one);
   const workers = Array.from({ length: w.concurrency }, async () => {
