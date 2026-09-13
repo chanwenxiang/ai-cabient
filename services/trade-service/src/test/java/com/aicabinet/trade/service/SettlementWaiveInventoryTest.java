@@ -46,9 +46,14 @@ class SettlementWaiveInventoryTest {
 
     @BeforeEach
     void setUp() {
+        SettlementWaiveRefundService waiveRefundService = new SettlementWaiveRefundService(
+                sessionRepository, orderRepository, null,
+                orderPaymentService, inventoryService, revenueSplitService,
+                distributedLockService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(waiveRefundService, "self", waiveRefundService);
         settlementService = new SettlementService(
                 sessionRepository, null, orderRepository, null,
-                null, null, null, revenueSplitService,
+                null, null, null, waiveRefundService, revenueSplitService,
                 null, null, inventoryService, orderPaymentService,
                 null, null, null, null, null, null,
                 null, null, null, null, null, null,

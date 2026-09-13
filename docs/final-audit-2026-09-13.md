@@ -449,12 +449,13 @@
 - [x] A-P1-002 / A-P1-003：pageSize 上限收紧至 50；A-P1-003 keep-alive 已修（虚拟化仍可后续）
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
-- [ ] M-P1-3 replenishment.vue 3000+ 行拆分（已抽 `AppConfirmDialog` / `ReplenishStepBar` / `ReplenishDetailSheet` / `ReplenishCabinetCard` / `ReplenishEvidenceSection`；核对行与完成流仍在页内）
-- [ ] S-P1-1 SettlementService ~30 依赖拆分（已抽 `SettlementVisionAsyncService` + `SettlementPartialRefundMath`；主流程仍待继续拆）
+- [ ] M-P1-3 replenishment.vue 拆分（已抽 ConfirmDialog / StepBar / DetailSheet / CabinetCard / EvidenceSection / LinesSection；完成流与页级状态仍在页内）
+- [ ] S-P1-1 SettlementService 拆分（已抽 VisionAsync / PartialRefundMath / WaiveRefundService；主结算流程仍待续）
 - [x] S-P1-5 / M-P1-5 定价乐观锁（`device_sku_price.version`；库存此前已有）
 - [x] H5 隐私政策首屏弹窗（C-P2-5 / M-P2-4）— `privacy-consent-modal` + 两端入口页
 - [x] 24 页分包（C-P2-3）— consumer `pages.json` 主包 6 + `subPackages` + `preloadRule`
 - [x] merchant H5 Cookie 优先（对齐 consumer；`aicabinet_admin_session`）
+- [x] merchant 分包 — 主包 tab+登录；其余 `subPackages` + `preloadRule`
 
 > urlCheck / 真实 appid：本地 `manifest` 可保持 `urlCheck:false`；**生产构建**由 `scripts/validate-miniapp-env.mjs` 强制 `urlCheck=true` + 非空 appid（真实支付/发号另议）。
 

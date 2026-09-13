@@ -280,140 +280,28 @@
             @add="addEvidence"
           />
 
-          <view class="section-heading">
-            <view>
-              <text class="section-title">{{
-                detailIsPullOff ? '本次下架商品' : '本次补货商品'
-              }}</text>
-              <text class="section-subtitle">{{
-                detailIsPullOff
-                  ? '请逐项核对下架数量与批次'
-                  : selected?.outboundId
-                    ? `仓配出库 #${selected.outboundId} · 核对后完成将签收在途`
-                    : '请逐项核对商品、批次和货道'
-              }}</text>
-            </view>
-            <text class="line-count">{{ lines.length }} 项</text>
-          </view>
-          <view v-if="detailLoading" class="empty small">{{ loadingLabel('明细') }}</view>
-          <view v-else-if="!lines.length" class="empty small lines-empty">
-            <view class="lines-empty-title">{{
-              detailIsPullOff ? '暂无下架明细' : '暂无补货明细'
-            }}</view>
-            <view class="lines-empty-tip">
-              {{
-                detailIsPullOff
-                  ? '可先开门执行下架；有任务明细时会显示在此核对'
-                  : '可先开门上架；有出库明细时会显示在此核对'
-              }}
-            </view>
-          </view>
-          <view
-            v-for="line in lines"
-            :key="line.lineId || `${line.skuId}-${line.batchNo}-${line.slotId}`"
-            class="line-card"
-          >
-            <view class="line-main">
-              <view class="product-thumb">
-                <image
-                  v-if="skuThumb(line.skuId)"
-                  class="product-thumb-img"
-                  :src="skuThumb(line.skuId)"
-                  mode="aspectFill"
-                />
-                <text v-else class="product-mark">{{ productGlyph(line.skuId) }}</text>
-              </view>
-              <view class="product-copy">
-                <text class="sku-name">{{ skuName(line.skuId) }}</text>
-                <text class="device-code">{{ line.skuId }}</text>
-              </view>
-              <view
-                v-if="
-                  canRequest && selected?.status !== 'COMPLETED' && !linesConfirmed && !line.applied
-                "
-                class="qty-actions"
-              >
-                <view class="qty-stepper">
-                  <text
-                    class="qty-btn"
-                    role="button"
-                    aria-label="减少数量"
-                    @click="adjustQty(line, -1)"
-                    >−</text
-                  >
-                  <text class="qty">{{ line.quantity }}</text>
-                  <text
-                    class="qty-btn"
-                    role="button"
-                    aria-label="增加数量"
-                    @click="adjustQty(line, 1)"
-                    >+</text
-                  >
-                </view>
-                <button
-                  class="scan-line"
-                  :disabled="scanning"
-                  data-testid="scan-product-line"
-                  @click="scanProduct(line)"
-                >
-                  扫码
-                </button>
-              </view>
-              <text v-else class="qty">× {{ line.quantity }}</text>
-            </view>
-            <view class="line-meta">
-              <text>批次 {{ line.batchNo || '无批次' }}</text>
-              <text>货道 {{ line.slotId || '待分配' }}</text>
-              <text class="line-type">{{ lineTypeLabel(line.lineType) }}</text>
-            </view>
-            <view class="line-meta soft">
-              <text>生产 {{ line.productionDate || '未填' }}</text>
-              <text>到期 {{ line.expiryDate || '未填' }}</text>
-              <text>{{ lineStatusLabel(line) }}</text>
-            </view>
-            <view class="line-stock" :class="{ muted: !stockDeltaText(line) }">{{
-              stockDeltaText(line) ||
-              (line.slotId
-                ? '货道容量待同步'
-                : isPullOffType(line.lineType)
-                  ? '选货道后显示账面 → 下架后数量'
-                  : '选货道后显示账面 → 补后数量')
-            }}</view>
-            <view
-              v-if="
-                canRequest &&
-                selected?.status !== 'COMPLETED' &&
-                !linesConfirmed &&
-                !line.applied &&
-                !isPullOffType(line.lineType) &&
-                !line.slotId
-              "
-              class="slot-pick"
-            >
-              <text class="slot-pick-label">选择货道</text>
-              <view v-if="slotOptionsFor(line).length" class="slot-chips">
-                <text
-                  v-for="opt in slotOptionsFor(line)"
-                  role="button"
-                  :key="opt.slotCode"
-                  class="slot-chip"
-                  :class="{ disabled: opt.room <= 0, active: line.slotId === opt.slotCode }"
-                  @click="assignSlot(line, opt)"
-                  >{{ opt.slotCode }} · 余{{ opt.room }}</text
-                >
-              </view>
-              <text v-else class="slot-empty">暂无可用货道，请先腾出容量或将数量调为 0</text>
-            </view>
-            <view
-              v-if="selected?.status !== 'COMPLETED' && line.slotId && slotHint(line)"
-              class="line-cap"
-              :class="{
-                full: slotHeadroom(line) <= 0,
-                warn: slotHeadroom(line) > 0 && line.quantity > slotHeadroom(line)
-              }"
-              >{{ slotHint(line) }}</view
-            >
-          </view>
+          <ReplenishLinesSection
+            :lines="lines"
+            :detail-loading="detailLoading"
+            :pull-off="detailIsPullOff"
+            :outbound-id="selected?.outboundId"
+            :can-edit="canRequest && !linesConfirmed"
+            :completed="selected?.status === 'COMPLETED'"
+            :scanning="scanning"
+            :sku-name="skuName"
+            :sku-thumb="skuThumb"
+            :product-glyph="productGlyph"
+            :line-type-label="lineTypeLabel"
+            :line-status-label="lineStatusLabel"
+            :stock-delta-text="stockDeltaText"
+            :is-pull-off-type="isPullOffType"
+            :slot-options-for="slotOptionsFor"
+            :slot-hint="slotHint"
+            :slot-headroom="slotHeadroom"
+            @adjust-qty="adjustQty"
+            @scan-product="scanProduct"
+            @assign-slot="assignSlot"
+          />
 
           <view
             v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
@@ -473,6 +361,7 @@ import AppConfirmDialog from '@/components/AppConfirmDialog.vue';
 import ReplenishCabinetCard from '@/components/ReplenishCabinetCard.vue';
 import ReplenishDetailSheet from '@/components/ReplenishDetailSheet.vue';
 import ReplenishEvidenceSection from '@/components/ReplenishEvidenceSection.vue';
+import ReplenishLinesSection from '@/components/ReplenishLinesSection.vue';
 import ReplenishStepBar from '@/components/ReplenishStepBar.vue';
 import {
   hasPerm,
@@ -2264,8 +2153,6 @@ onPullDownRefresh(load);
 }
 .task-head,
 .task-meta,
-.line-main,
-.line-meta,
 .sheet-head {
   display: flex;
   align-items: center;
@@ -2383,71 +2270,10 @@ onPullDownRefresh(load);
   color: var(--text-muted, #64748b);
   background: color-mix(in srgb, var(--text-muted, #64748b) 12%, var(--white));
 }
-.task-meta,
-.line-meta {
+.task-meta {
   margin-top: 16rpx;
   color: var(--text-muted);
   font-size: var(--font-size-sm);
-}
-.line-type {
-  color: var(--brand);
-  background: var(--brand-soft);
-  padding: 2rpx 10rpx;
-  border-radius: var(--radius-pill);
-  font-size: var(--font-size-xs);
-}
-.line-cap {
-  margin-top: 12rpx;
-  padding: 10rpx 14rpx;
-  border-radius: var(--radius-control);
-  font-size: var(--font-size-sm);
-  color: var(--brand);
-  background: var(--brand-soft);
-}
-.line-cap.warn {
-  color: var(--warning, #b45309);
-  background: color-mix(in srgb, var(--warning, #b45309) 8%, var(--white));
-}
-.line-cap.full {
-  color: var(--color-danger);
-  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, var(--white));
-}
-.slot-pick {
-  margin-top: 12rpx;
-}
-.slot-pick-label {
-  display: block;
-  font-size: var(--font-size-sm);
-  color: var(--brand);
-  margin-bottom: 8rpx;
-  font-weight: 600;
-}
-.slot-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10rpx;
-}
-.slot-chip {
-  padding: 8rpx 16rpx;
-  border-radius: var(--radius-pill);
-  background: var(--brand-soft);
-  color: var(--brand);
-  font-size: var(--font-size-sm);
-  border: 1rpx solid var(--brand-mist, #99f6e4);
-}
-.slot-chip.active {
-  background: var(--brand);
-  color: var(--white);
-  border-color: var(--brand);
-}
-.slot-chip.disabled {
-  background: var(--color-border);
-  color: var(--text-muted, #475569);
-  border-color: var(--text-subtle, #cbd5e1);
-}
-.slot-empty {
-  font-size: var(--font-size-sm);
-  color: var(--color-danger);
 }
 .task-note {
   margin-top: 16rpx;
@@ -2553,133 +2379,6 @@ onPullDownRefresh(load);
   font-size: var(--font-size-sm);
   line-height: 1.4;
 }
-.lines-empty {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.lines-empty-title {
-  font-size: 13px;
-  color: var(--text-muted);
-}
-.lines-empty-tip {
-  font-size: 12px;
-  color: var(--text-subtle);
-  line-height: 1.4;
-}
-.section-heading {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  margin: 28rpx 0 14rpx;
-}
-.section-title {
-  display: block;
-  font-size: var(--font-size-md);
-  font-weight: 700;
-}
-.section-subtitle {
-  display: block;
-  margin-top: 4rpx;
-  color: var(--text-subtle);
-  font-size: var(--font-size-sm);
-}
-.line-count {
-  padding: 6rpx 12rpx;
-  border-radius: var(--radius-pill);
-  color: var(--brand);
-  background: var(--brand-mist);
-  font-size: var(--font-size-sm);
-  font-weight: 700;
-}
-.line-card {
-  margin-bottom: 14rpx;
-  padding: 20rpx;
-  border: 1rpx solid var(--color-border);
-  border-radius: 18rpx;
-}
-.sku-name {
-  display: block;
-  font-size: var(--font-size-md);
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 360rpx;
-}
-.qty {
-  color: var(--brand);
-  font-size: var(--font-size-lg);
-  font-weight: 800;
-  min-width: 40rpx;
-  text-align: center;
-}
-.qty-stepper {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  padding: 4rpx 8rpx;
-  border-radius: var(--radius-pill);
-  background: var(--brand-soft);
-}
-.qty-actions {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-}
-.scan-line {
-  margin: 0;
-  padding: 0 20rpx;
-  height: 52rpx;
-  line-height: 52rpx;
-  border-radius: var(--radius-pill);
-  background: var(--brand);
-  color: var(--white);
-  font-size: var(--font-size-caption);
-  font-weight: 600;
-}
-.scan-line[disabled] {
-  opacity: 0.5;
-}
-.qty-btn {
-  width: 88rpx;
-  height: 88rpx;
-  line-height: 88rpx;
-  text-align: center;
-  border-radius: 50%;
-  background: var(--card-bg, #fff);
-  color: var(--brand);
-  font-size: var(--font-size-xl);
-  font-weight: 700;
-  box-shadow: 0 2rpx 8rpx rgba(15, 118, 110, 0.12);
-}
-.product-thumb {
-  position: relative;
-  display: flex;
-  width: 72rpx;
-  height: 72rpx;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-panel);
-  background: var(--brand-soft);
-  font-size: var(--font-size-xl);
-  margin-right: 16rpx;
-}
-.product-thumb-img {
-  width: 100%;
-  height: 100%;
-  border-radius: var(--radius-panel);
-  background: var(--brand-soft);
-}
-.product-mark {
-  font-size: var(--font-size-md);
-  font-weight: 700;
-  color: var(--brand);
-}
-.product-copy {
-  flex: 1;
-  min-width: 0;
-}
 .evidence-badge {
   color: var(--brand);
   font-weight: 650;
@@ -2687,24 +2386,6 @@ onPullDownRefresh(load);
 .evidence-badge.muted {
   color: var(--text-subtle);
   font-weight: 500;
-}
-.line-count.warn {
-  color: var(--warning, #b45309);
-}
-.line-stock {
-  margin-top: 8rpx;
-  font-size: var(--font-size-sm);
-  color: var(--brand);
-  background: var(--brand-soft);
-  border-radius: var(--radius-tag);
-  padding: 8rpx 12rpx;
-}
-.line-stock.muted {
-  color: var(--text-muted);
-  background: var(--page-bg, #f8fafc);
-}
-.line-meta.soft {
-  color: var(--text-muted);
 }
 /* 非 sticky：避免滚动选择货道时底栏遮挡操作区（P0-27） */
 .action-dock {
