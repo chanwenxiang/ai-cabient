@@ -39,6 +39,7 @@ public class SettlementService {
     private final VisionServiceClient visionClient;
     private final DisputeService disputeService;
     private final SettlementVisionAsyncService settlementVisionAsyncService;
+    private final SettlementWaiveRefundService settlementWaiveRefundService;
     private final RevenueSplitService revenueSplitService;
     private final SecurityProperties securityProperties;
     private final StagingProperties stagingProperties;
@@ -71,6 +72,7 @@ public class SettlementService {
                              VisionServiceClient visionClient,
                              @Lazy DisputeService disputeService,
                              SettlementVisionAsyncService settlementVisionAsyncService,
+                             SettlementWaiveRefundService settlementWaiveRefundService,
                              RevenueSplitService revenueSplitService,
                              SecurityProperties securityProperties,
                              StagingProperties stagingProperties,
@@ -101,6 +103,7 @@ public class SettlementService {
         this.visionClient = visionClient;
         this.disputeService = disputeService;
         this.settlementVisionAsyncService = settlementVisionAsyncService;
+        this.settlementWaiveRefundService = settlementWaiveRefundService;
         this.revenueSplitService = revenueSplitService;
         this.securityProperties = securityProperties;
         this.stagingProperties = stagingProperties;
@@ -640,7 +643,7 @@ public class SettlementService {
 
     /** 免单：退还该会话已扣款项（原路退回）；默认回库（兼容历史免单=误识别）。 */
     public int waiveAndRefund(ShoppingSession session) {
-        return self.waiveAndRefund(session, true);
+        return settlementWaiveRefundService.waiveAndRefund(session);
     }
 
     /**
@@ -649,89 +652,7 @@ public class SettlementService {
      * @param restoreInventory true=退货退款回库；false=仅退款不回库（货已离柜）
      */
     public int waiveAndRefund(ShoppingSession session, boolean restoreInventory) {
-        return runWithSessionSettleLock(session.getSessionId(), () -> {
-            WaiveRefundPrep prep = self.prepareWaiveRefund(session.getSessionId(), restoreInventory);
-            if (prep == null) {
-                return 0;
-            }
-            if (prep.refundCents() > 0) {
-                orderPaymentService.refundOrder(prep.order(), prep.refundCents(), prep.reason());
-            }
-            return self.finalizeWaiveRefund(prep);
-        });
-    }
-
-    public record WaiveRefundPrep(CabinetOrder order, int refundCents, String reason, boolean restoreInventory) {}
-
-    @Transactional
-    public WaiveRefundPrep prepareWaiveRefund(String sessionId, boolean restoreInventory) {
-        sessionRepository.findByIdForUpdate(sessionId);
-        ShoppingSession session = sessionRepository.findById(sessionId).orElse(null);
-        if (session == null) {
-            return null;
-        }
-        return orderRepository.findBySessionId(sessionId)
-                .map(order -> buildWaiveRefundPrep(session, order, restoreInventory))
-                .orElse(null);
-    }
-
-    private WaiveRefundPrep buildWaiveRefundPrep(ShoppingSession session, CabinetOrder order,
-                                                 boolean restoreInventory) {
-        hydrateOrderLines(order);
-        if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
-            return null;
-        }
-        int amount = Math.max(0, orderPaymentService.netCompletedCents(order.getOrderId()));
-        boolean didRestore = applyWaiveInventoryPolicy(order, restoreInventory);
-        String reason = restoreInventory ? "争议免单退款(回库)" : "争议免单退款(不回库)";
-        log.info("waive prepare session={} order={} refund={} restoreInventory={} didRestore={}",
-                session.getSessionId(), order.getOrderId(), amount, restoreInventory, didRestore);
-        return new WaiveRefundPrep(order, amount, reason, restoreInventory);
-    }
-
-    @Transactional
-    public int finalizeWaiveRefund(WaiveRefundPrep prep) {
-        CabinetOrder order = orderRepository.findByIdForUpdate(prep.order().getOrderId())
-                .orElse(prep.order());
-        if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
-            return prep.refundCents();
-        }
-        if (order.getRefundedAt() == null) {
-            order.setRefundedAt(java.time.Instant.now());
-        }
-        // 支付层可能已累加 refundedCents；此处兜底保证免单后金额可见
-        if (prep.refundCents() > 0 && order.getRefundedCents() < prep.refundCents()) {
-            order.setRefundedCents(prep.refundCents());
-        }
-        order.setStatus(CabinetConstants.ORDER_STATUS_REFUNDED);
-        orderRepository.save(order);
-        revenueSplitService.voidSplitOnFullRefund(order.getOrderId());
-        log.info("争议免单退款完成 order={} refund={} channel={} restoreInventory={}",
-                order.getOrderId(), prep.refundCents(), order.getPayChannel(), prep.restoreInventory());
-        return prep.refundCents();
-    }
-
-    private boolean applyWaiveInventoryPolicy(CabinetOrder order, boolean restoreInventory) {
-        if (!order.isInventoryDeducted()) {
-            return false;
-        }
-        List<VisionServiceClient.RecognizedItem> items = order.getLines().stream()
-                .map(l -> new VisionServiceClient.RecognizedItem(l.getSkuId(), l.getQuantity(), 1f))
-                .toList();
-        var batchBySku = order.getLines().stream()
-                .filter(l -> l.getBatchNo() != null && !l.getBatchNo().isBlank())
-                .collect(java.util.stream.Collectors.toMap(
-                        com.aicabinet.trade.domain.CabinetOrderLine::getSkuId,
-                        com.aicabinet.trade.domain.CabinetOrderLine::getBatchNo,
-                        (a, b) -> a));
-        if (restoreInventory) {
-            inventoryService.restoreForOrder(order.getDeviceId(), items, batchBySku);
-            order.setInventoryDeducted(false);
-            return true;
-        }
-        inventoryService.recordRefundKeptGoods(
-                order.getDeviceId(), items, batchBySku, order.getOrderId());
-        return false;
+        return settlementWaiveRefundService.waiveAndRefund(session, restoreInventory);
     }
 
     /**
