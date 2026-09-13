@@ -32,6 +32,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         MinioProperties.class, VisionAsyncProperties.class, SecurityProperties.class, StagingProperties.class,
         CheckoutProperties.class,
         OpsMonitoringProperties.class,
+        com.aicabinet.trade.config.SessionExpireProperties.class,
         InternalApiProperties.class, AuthProperties.class, CorsProperties.class, VisionApiProperties.class,
         com.aicabinet.trade.config.ReconciliationProperties.class,
         com.aicabinet.trade.config.AlipayProperties.class,

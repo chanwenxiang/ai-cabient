@@ -175,6 +175,9 @@ def debug_force_need_review(req: ForceNeedReviewRequest):
     return {"ok": True, "mock_force_need_review": enabled}
 
 
+RECOGNIZE_TIMEOUT_MS = int(os.getenv("RECOGNIZE_TIMEOUT_MS", "30000"))
+
+
 def _empty_need_review(session_id: str, reason: str) -> RecognitionOutput:
     return RecognitionOutput(
         items=[],
@@ -192,9 +195,20 @@ def _run_recognize(
     recognition_mode: str | None,
 ) -> RecognitionOutput:
     try:
-        return recognizer.recognize(
-            session_id, video_uri, device_id, recognition_mode=recognition_mode or None
-        )
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            fut = pool.submit(
+                recognizer.recognize,
+                session_id,
+                video_uri,
+                device_id,
+                recognition_mode=recognition_mode or None,
+            )
+            return fut.result(timeout=max(1, RECOGNIZE_TIMEOUT_MS) / 1000.0)
+    except FuturesTimeout:
+        log.warning("recognize timeout session=%s ms=%s", session_id, RECOGNIZE_TIMEOUT_MS)
+        return _empty_need_review(session_id, "recognize-timeout")
     except Exception:
         log.exception("recognize failed session=%s", session_id)
         return _empty_need_review(session_id, "recognize-error")

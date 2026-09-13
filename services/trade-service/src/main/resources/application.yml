@@ -208,6 +208,11 @@ aicabinet:
     upload-stuck-minutes: ${OPS_UPLOAD_STUCK_MINUTES:5}
     recognition-stuck-minutes: ${OPS_RECOGNITION_STUCK_MINUTES:3}
     settlement-stuck-minutes: ${OPS_SETTLEMENT_STUCK_MINUTES:3}
+  session-expire:
+    opening-seconds: ${SESSION_OPENING_EXPIRE_SECONDS:90}
+    restock-shopping-minutes: ${SESSION_RESTOCK_SHOPPING_MINUTES:30}
+    consumer-door-open-minutes: ${SESSION_CONSUMER_DOOR_OPEN_MINUTES:10}
+    recognizing-minutes: ${SESSION_RECOGNIZING_MINUTES:10}
   merchant-ai:
     enabled: ${MERCHANT_AI_ENABLED:true}
     base-url: ${MERCHANT_AI_BASE_URL:http://localhost:11434}

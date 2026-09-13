@@ -30,7 +30,7 @@ class SessionLiveCartTest {
     @BeforeEach
     void setUp() {
         sessionService = new SessionService(
-                repository, null, null, null, null, null, null, null, null, null,
+                repository, null, null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, distributedLockService, null, new ObjectMapper(), null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(sessionService, "self", sessionService);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
