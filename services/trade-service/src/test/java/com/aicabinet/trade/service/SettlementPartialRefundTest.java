@@ -49,7 +49,7 @@ class SettlementPartialRefundTest {
     void setUp() {
         settlementService = new SettlementService(
                 null, null, orderRepository, orderLineRepository,
-                null, null, null, null, null, null, revenueSplitService,
+                null, null, null, null, null, null, null, revenueSplitService,
                 null, null, inventoryService, orderPaymentService,
                 null, null, null, null, null, null,
                 null, couponService, null, null, null, null,

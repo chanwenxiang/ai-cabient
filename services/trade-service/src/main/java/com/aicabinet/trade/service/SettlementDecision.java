@@ -5,7 +5,7 @@ import com.aicabinet.trade.client.VisionServiceClient;
 /**
  * 结算路径决策（Pass 3A/3F）：把识别结果先归类，再进入 finalize / 争议。
  * <p>
- * 当前由 {@link SettlementService} 内联分支消费同等规则；本枚举供矩阵单测与后续抽取共用，
+ * 当前由 {@link SettlementRecognitionService} 内联分支消费同等规则；本枚举供矩阵单测与后续抽取共用，
  * 避免神类内隐式 if 顺序漂移。
  */
 public enum SettlementDecision {
@@ -21,7 +21,7 @@ public enum SettlementDecision {
     HUMAN_REVIEW_GENERIC;
 
     /**
-     * 根据识别结果归类。不替代 staging/mock 重力静默结算旁路——那些仍由 SettlementService 先尝试。
+     * 根据识别结果归类。不替代 staging/mock 重力静默结算旁路——那些仍由 SettlementRecognitionService 先尝试。
      */
     public static SettlementDecision classify(VisionServiceClient.RecognitionResult recognition) {
         if (recognition == null) {
