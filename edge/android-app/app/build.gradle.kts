@@ -15,6 +15,9 @@ android {
         versionName = "0.6.0"
         buildConfigField("String", "DEVICE_ID", "\"CAB-001\"")
         buildConfigField("String", "MQTT_BROKER", "\"tcp://10.0.2.2:11883\"")
+        buildConfigField("String", "MQTT_USERNAME", "\"\"")
+        buildConfigField("String", "MQTT_PASSWORD", "\"\"")
+        buildConfigField("boolean", "MQTT_USE_TLS", "false")
         buildConfigField("String", "TRADE_SERVICE_URL", "\"http://10.0.2.2:8080\"")
         buildConfigField("String", "INTERNAL_API_KEY", "\"dev-internal-key-change-me\"")
         buildConfigField("String", "SERIAL_PORT_PATH", "\"/dev/ttyS2\"")

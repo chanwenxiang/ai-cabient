@@ -339,6 +339,19 @@ class PaymentServiceTest {
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }
 
+    @Test
+    void createRechargePrepay_rejectsAboveConfiguredMax() {
+        when(systemConfigService.getInt(SystemConfigService.RECHARGE_MAX_CENTS, 500_000))
+                .thenReturn(500_000);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> paymentService.createRechargePrepay(10001L, "WECHAT", 500_001, "idem-max"));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(String.valueOf(ex.getReason()).contains("5000"));
+        verify(rechargeOrderRepository, never()).save(any());
+    }
+
     private static RechargeOrder pendingOrder(String id, Long userId) {
         RechargeOrder order = new RechargeOrder();
         order.setOrderId(id);

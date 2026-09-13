@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.ReplenishmentTaskLine;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import java.util.Collection;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 
@@ -10,6 +11,16 @@ public interface ReplenishmentTaskLineMapper extends BaseTradeMapper<Replenishme
 
     default List<ReplenishmentTaskLine> findByTaskIdOrderByLineIdAsc(Long taskId) {
     return selectList(Wrappers.<ReplenishmentTaskLine>lambdaQuery().eq(ReplenishmentTaskLine::getTaskId, taskId).orderByAsc(ReplenishmentTaskLine::getLineId));
+    }
+
+    default List<ReplenishmentTaskLine> findByTaskIdIn(Collection<Long> taskIds) {
+        if (taskIds == null || taskIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<ReplenishmentTaskLine>lambdaQuery()
+                .in(ReplenishmentTaskLine::getTaskId, taskIds)
+                .orderByAsc(ReplenishmentTaskLine::getTaskId)
+                .orderByAsc(ReplenishmentTaskLine::getLineId));
     }
 
     default List<ReplenishmentTaskLine> findByTaskIdAndAppliedFalse(Long taskId) {

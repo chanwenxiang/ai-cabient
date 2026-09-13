@@ -6,5 +6,6 @@ public final class KafkaTopics {
 
     public static final String VISION_RECOGNIZE_REQUEST = "aicabinet.vision.recognize.request";
     public static final String VISION_RECOGNIZE_RESULT = "aicabinet.vision.recognize.result";
+    public static final String VISION_RECOGNIZE_RESULT_DLT = "aicabinet.vision.recognize.result.DLT";
     public static final String NOTIFY_DISPATCH_REQUEST = "aicabinet.notify.dispatch.request";
 }

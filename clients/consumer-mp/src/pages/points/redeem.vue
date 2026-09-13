@@ -111,7 +111,7 @@ function deviceScopeText(scope?: string) {
 async function redeem(item: PointsRedeemItemDto) {
   if (redeeming.value) return;
   if (item.availableStock <= 0) {
-    showError('已兑完');
+    showSuccess('已兑完');
     return;
   }
   if ((summary.value?.availablePoints ?? 0) < item.pointsCost) {

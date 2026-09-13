@@ -5,10 +5,12 @@ import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.service.SessionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -19,15 +21,18 @@ import java.util.List;
 public class VisionRecognitionListener {
     private static final String ITEMS = "items";
 
-
     private static final Logger log = LoggerFactory.getLogger(VisionRecognitionListener.class);
 
     private final SessionService sessionService;
     private final ObjectMapper objectMapper;
+    private final KafkaTemplate<String, String> kafkaTemplate;
 
-    public VisionRecognitionListener(SessionService sessionService, ObjectMapper objectMapper) {
+    public VisionRecognitionListener(SessionService sessionService,
+                                     ObjectMapper objectMapper,
+                                     KafkaTemplate<String, String> kafkaTemplate) {
         this.sessionService = sessionService;
         this.objectMapper = objectMapper;
+        this.kafkaTemplate = kafkaTemplate;
     }
 
     @KafkaListener(topics = KafkaTopics.VISION_RECOGNIZE_RESULT, groupId = "trade-service")
@@ -56,6 +61,19 @@ public class VisionRecognitionListener {
             log.info("processed async vision result session={}", sessionId);
         } catch (Exception e) {
             log.error("failed to process vision result payload={}", payload, e);
+            publishToDlt(payload, e);
+            // 已入 DLT：不再抛出，避免默认重试把同一坏消息打爆；offset 随 listener 正常返回提交
+        }
+    }
+
+    private void publishToDlt(String payload, Exception error) {
+        try {
+            ObjectNode envelope = objectMapper.createObjectNode();
+            envelope.put("error", error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage());
+            envelope.put("payload", payload);
+            kafkaTemplate.send(KafkaTopics.VISION_RECOGNIZE_RESULT_DLT, envelope.toString());
+        } catch (Exception dltError) {
+            log.error("failed to publish vision result DLT payload={}", payload, dltError);
         }
     }
 }

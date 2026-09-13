@@ -99,7 +99,7 @@ const lat = ref(31.2304);
 const lng = ref(121.4737);
 const locHint = computed(() =>
   usingFallbackLoc.value
-    ? '未获取定位，已按默认城区展示；可点刷新重试'
+    ? '未获取定位，请开启权限后刷新'
     : `已定位 · 半径 ${radiusKm.value}km`
 );
 const usingFallbackLoc = ref(false);
@@ -111,6 +111,7 @@ function formatDist(m: number) {
 
 function setRadius(r: number) {
   radiusKm.value = r;
+  if (usingFallbackLoc.value || error.value.includes('定位')) return;
   loadList();
 }
 
@@ -158,8 +159,6 @@ function locate(): Promise<void> {
       },
       fail: () => {
         usingFallbackLoc.value = true;
-        lat.value = 31.2304;
-        lng.value = 121.4737;
         resolve();
       }
     });
@@ -185,7 +184,15 @@ async function loadList() {
 }
 
 async function reload() {
+  loading.value = true;
+  error.value = '';
   await locate();
+  if (usingFallbackLoc.value) {
+    loading.value = false;
+    list.value = [];
+    error.value = '未获取到定位，已停止按默认城市展示。请开启定位权限后点刷新。';
+    return;
+  }
   await loadList();
 }
 

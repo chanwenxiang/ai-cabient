@@ -20,7 +20,9 @@ export function useNavAccess() {
 
   function canAccessPath(path: string) {
     const nav = findNavByPath(path);
-    return !nav?.perm || auth.canAccessNav(nav);
+    // 未登记菜单的路径默认拒绝，避免漏登 menu 时 fail-open
+    if (!nav) return false;
+    return !nav.perm || auth.canAccessNav(nav);
   }
 
   function firstAccessiblePath(candidates?: string[]) {

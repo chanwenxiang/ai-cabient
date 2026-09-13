@@ -23,7 +23,11 @@ public record ReplenishmentTaskDto(
         /** 线路名称（联 replenishment_route） */
         String routeName,
         /** 线路计划日 / 业务截止日（联 replenishment_route.planned_date） */
-        LocalDate plannedDate
+        LocalDate plannedDate,
+        /** 现场凭证张数（列表聚合，避免 N+1） */
+        Integer evidenceCount,
+        /** 明细行摘要（列表聚合） */
+        String lineSummary
 ) {
     public ReplenishmentTaskDto(
             Long taskId,
@@ -43,7 +47,7 @@ public record ReplenishmentTaskDto(
     ) {
         this(taskId, routeId, deviceId, assigneeUserId, status, notes, completedAt, checkInAt,
                 checkInLat, checkInLng, checkInDistanceM, requestId, outboundId, createdAt,
-                null, null, null);
+                null, null, null, null, null);
     }
 
     public ReplenishmentTaskDto(
@@ -65,6 +69,30 @@ public record ReplenishmentTaskDto(
     ) {
         this(taskId, routeId, deviceId, assigneeUserId, status, notes, completedAt, checkInAt,
                 checkInLat, checkInLng, checkInDistanceM, requestId, outboundId, createdAt,
-                deviceName, null, null);
+                deviceName, null, null, null, null);
+    }
+
+    public ReplenishmentTaskDto(
+            Long taskId,
+            Long routeId,
+            String deviceId,
+            Long assigneeUserId,
+            String status,
+            String notes,
+            Instant completedAt,
+            Instant checkInAt,
+            Double checkInLat,
+            Double checkInLng,
+            Double checkInDistanceM,
+            Long requestId,
+            Long outboundId,
+            Instant createdAt,
+            String deviceName,
+            String routeName,
+            LocalDate plannedDate
+    ) {
+        this(taskId, routeId, deviceId, assigneeUserId, status, notes, completedAt, checkInAt,
+                checkInLat, checkInLng, checkInDistanceM, requestId, outboundId, createdAt,
+                deviceName, routeName, plannedDate, null, null);
     }
 }

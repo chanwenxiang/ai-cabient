@@ -17,6 +17,16 @@ public interface FileAttachmentMapper extends BaseTradeMapper<FileAttachment> {
                 .orderByAsc(FileAttachment::getFileId));
     }
 
+    default List<FileAttachment> findByRefTypeAndRefIds(String refType, Collection<String> refIds) {
+        if (refIds == null || refIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<FileAttachment>lambdaQuery()
+                .eq(FileAttachment::getRefType, refType)
+                .in(FileAttachment::getRefId, refIds)
+                .orderByAsc(FileAttachment::getFileId));
+    }
+
     default List<FileAttachment> findByIds(Collection<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return List.of();

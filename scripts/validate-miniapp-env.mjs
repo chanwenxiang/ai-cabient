@@ -72,3 +72,31 @@ if (!manifestAppId && projectAppId) {
   );
 }
 console.log(`mini-program AppID => ${manifestAppId || projectAppId || '(未配置，请确认)'}`);
+
+const effectiveAppId = manifestAppId || projectAppId;
+if (!effectiveAppId || effectiveAppId === 'touristappid') {
+  console.error(
+    'Production mini-program build requires a real mp-weixin.appid in src/manifest.json (and matching project.config.json).'
+  );
+  process.exit(1);
+}
+
+const urlCheck =
+  manifest?.['mp-weixin']?.setting?.urlCheck ??
+  manifest?.mpWeixin?.setting?.urlCheck ??
+  projectConfig?.setting?.urlCheck;
+if (urlCheck !== true) {
+  console.error(
+    'Production mini-program build requires urlCheck=true in src/manifest.json mp-weixin.setting (and project.config.json setting).'
+  );
+  console.error(
+    'Local dev may keep urlCheck=false; flip it to true before release builds, or set AICABINET_ALLOW_URL_CHECK_OFF=1 to bypass (not recommended).'
+  );
+  if (process.env.AICABINET_ALLOW_URL_CHECK_OFF === '1') {
+    console.warn('AICABINET_ALLOW_URL_CHECK_OFF=1: continuing with urlCheck off.');
+  } else {
+    process.exit(1);
+  }
+} else {
+  console.log('mini-program urlCheck => true');
+}

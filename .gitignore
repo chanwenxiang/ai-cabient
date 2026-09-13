@@ -197,5 +197,5 @@ docs/uat-screenshots/**/rebuild-accounts.json
 # 根目录偶发探针 / 审计草稿
 /__probe.txt
 /clients/admin-vue/filelist.txt
+# 各端独立 audit 草稿可忽略；最终版 docs/final-audit-*.md 纳入版本控制
 /*-mp-audit.md
-/docs/final-audit-*.md

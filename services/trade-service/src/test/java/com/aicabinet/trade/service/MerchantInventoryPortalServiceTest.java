@@ -42,6 +42,7 @@ class MerchantInventoryPortalServiceTest {
     @Mock ReplenishmentTaskLineMapper replenishmentTaskLineRepository;
     @Mock ReplenishmentRouteMapper replenishmentRouteRepository;
     @Mock DeviceInfoMapper deviceRepository;
+    @Mock FileAttachmentService fileAttachmentService;
 
     private MerchantInventoryPortalService service;
 
@@ -51,7 +52,7 @@ class MerchantInventoryPortalServiceTest {
                 permissionService, merchantPortalGuard, merchantFeaturePackService,
                 inventoryRepository, inventoryLotService, pullOffTaskRepository, deviceSlotService,
                 replenishmentTaskRepository, replenishmentTaskLineRepository, replenishmentRouteRepository,
-                deviceRepository);
+                deviceRepository, fileAttachmentService);
     }
 
     @Test

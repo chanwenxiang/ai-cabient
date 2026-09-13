@@ -43,12 +43,13 @@ if _IS_PROD and MOCK_ENABLED:
     raise RuntimeError("production forbids MOCK_ENABLED=true")
 if _IS_PROD and VISION_API_KEY == DEV_VISION_KEY:
     raise RuntimeError("production forbids default VISION_API_KEY")
-if VISION_API_KEY == DEV_VISION_KEY and not MOCK_ENABLED:
+if (VISION_API_KEY == DEV_VISION_KEY and not MOCK_ENABLED:
     raise RuntimeError("MOCK_ENABLED=false requires a strong VISION_API_KEY (not dev default)")
 if (not MOCK_ENABLED or VISION_FORCE_REAL) and not getattr(recognizer, "available", False):
-    log.warning(
-        "Recognizer unavailable with mock disabled; cloud will return need_review "
-        "(production recognition should come from edge provider)"
+    raise RuntimeError(
+        "Recognizer unavailable while mock is disabled "
+        f"(backend={RECOGNIZER_BACKEND}, load_error={getattr(recognizer, 'load_error', None)}). "
+        "Fix the recognition backend or set MOCK_ENABLED=true for non-production."
     )
 
 print("=" * 60)

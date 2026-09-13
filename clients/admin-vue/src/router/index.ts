@@ -471,7 +471,7 @@ router.beforeEach(async (to) => {
     const home = resolveHomePath(auth);
     const requested = safeRedirectPath(to.query.redirect, home);
     const nav = findNavByPath(requested);
-    const ok = !nav?.perm || auth.canAccessNav(nav);
+    const ok = !!nav && (!nav.perm || auth.canAccessNav(nav));
     return { path: ok ? requested : home };
   }
   if (to.meta.public) return true;
@@ -487,9 +487,35 @@ router.beforeEach(async (to) => {
   if (!auth.rbacHydrated) {
     await auth.restore();
   }
+  const metaPerm = typeof to.meta.perm === 'string' ? to.meta.perm : '';
   const nav = findNavByPath(to.path);
-  if (nav?.perm && !auth.canAccessNav(nav)) {
+  const requiredPerm = metaPerm || nav?.perm || '';
+  // fail-closed：业务路由须能解析到菜单项或显式 meta.perm；未登记路径一律拒绝
+  if (!nav && !metaPerm) {
+    return {
+      name: 'forbidden',
+      query: {
+        from: to.fullPath,
+        title: String(to.meta.title || '')
+      },
+      replace: true
+    };
+  }
+  if (requiredPerm && !auth.hasPerm(requiredPerm)) {
     // 默认工作台等落页无权限时，落到首个可进菜单（补货员等），避免一登录就「无权」
+    if (to.path === '/dashboard' || to.path === '/') {
+      return { path: resolveHomePath(auth), replace: true };
+    }
+    return {
+      name: 'forbidden',
+      query: {
+        from: to.fullPath,
+        title: String(to.meta.title || nav?.title || '')
+      },
+      replace: true
+    };
+  }
+  if (nav?.perm && !auth.canAccessNav(nav)) {
     if (to.path === '/dashboard' || to.path === '/') {
       return { path: resolveHomePath(auth), replace: true };
     }

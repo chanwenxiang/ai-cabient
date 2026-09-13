@@ -77,7 +77,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { showError } from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi, ensureConsumerAuth, type CouponDto } from '@/utils/consumer-api';
@@ -174,12 +174,12 @@ function pickForNextOpen(c: CouponDto) {
   if (preferredId.value === c.couponId) {
     preferredId.value = null;
     uni.removeStorageSync('preferred_coupon_id');
-    showError('已取消指定券');
+    showSuccess('已取消指定券');
     return;
   }
   preferredId.value = c.couponId;
   uni.setStorageSync('preferred_coupon_id', c.couponId);
-  showError('下次开门将优先用此券');
+  showSuccess('下次开门将优先用此券');
 }
 </script>
 

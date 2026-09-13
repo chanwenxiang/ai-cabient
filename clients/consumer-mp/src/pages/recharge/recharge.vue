@@ -461,7 +461,7 @@ async function cancelOne(orderId: string) {
   cancelling.value = true;
   try {
     await consumerApi.cancelRecharge(orderId);
-    showError('已取消');
+    showSuccess('已取消');
     await loadRecords();
   } catch (e) {
     showError(e instanceof Error ? e.message : '取消失败');

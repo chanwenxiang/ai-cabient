@@ -49,6 +49,7 @@ public class MerchantInventoryPortalService {
     private final ReplenishmentTaskLineMapper replenishmentTaskLineRepository;
     private final ReplenishmentRouteMapper replenishmentRouteRepository;
     private final DeviceInfoMapper deviceRepository;
+    private final FileAttachmentService fileAttachmentService;
 
     public MerchantInventoryPortalService(PermissionService permissionService,
                                           MerchantPortalGuard merchantPortalGuard,
@@ -60,7 +61,8 @@ public class MerchantInventoryPortalService {
                                           ReplenishmentTaskMapper replenishmentTaskRepository,
                                           ReplenishmentTaskLineMapper replenishmentTaskLineRepository,
                                           ReplenishmentRouteMapper replenishmentRouteRepository,
-                                          DeviceInfoMapper deviceRepository) {
+                                          DeviceInfoMapper deviceRepository,
+                                          FileAttachmentService fileAttachmentService) {
         this.permissionService = permissionService;
         this.merchantPortalGuard = merchantPortalGuard;
         this.merchantFeaturePackService = merchantFeaturePackService;
@@ -72,6 +74,7 @@ public class MerchantInventoryPortalService {
         this.replenishmentTaskLineRepository = replenishmentTaskLineRepository;
         this.replenishmentRouteRepository = replenishmentRouteRepository;
         this.deviceRepository = deviceRepository;
+        this.fileAttachmentService = fileAttachmentService;
     }
 
     @Transactional(readOnly = true)
@@ -176,8 +179,18 @@ public class MerchantInventoryPortalService {
                 .limit(100)
                 .toList();
         Map<Long, ReplenishmentRoute> routesById = loadRoutesById(tasks);
+        Set<Long> taskIds = tasks.stream()
+                .map(ReplenishmentTask::getTaskId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, Integer> evidenceByTask = fileAttachmentService.countReplenishmentEvidenceByTaskIds(taskIds);
+        Map<Long, String> lineSummaryByTask = loadLineSummariesByTaskIds(taskIds);
         return tasks.stream()
-                .map(t -> toReplenishmentTaskDto(t, routesById.get(t.getRouteId())))
+                .map(t -> toReplenishmentTaskDto(
+                        t,
+                        routesById.get(t.getRouteId()),
+                        evidenceByTask.getOrDefault(t.getTaskId(), 0),
+                        lineSummaryByTask.getOrDefault(t.getTaskId(), "")))
                 .toList();
     }
 
@@ -199,10 +212,15 @@ public class MerchantInventoryPortalService {
         ReplenishmentRoute route = t.getRouteId() == null
                 ? null
                 : replenishmentRouteRepository.findById(t.getRouteId()).orElse(null);
-        return toReplenishmentTaskDto(t, route);
+        return toReplenishmentTaskDto(t, route, null, null);
     }
 
     private ReplenishmentTaskDto toReplenishmentTaskDto(ReplenishmentTask t, ReplenishmentRoute route) {
+        return toReplenishmentTaskDto(t, route, null, null);
+    }
+
+    private ReplenishmentTaskDto toReplenishmentTaskDto(
+            ReplenishmentTask t, ReplenishmentRoute route, Integer evidenceCount, String lineSummary) {
         String deviceName = null;
         if (t.getDeviceId() != null) {
             deviceName = deviceRepository.findById(t.getDeviceId())
@@ -217,8 +235,60 @@ public class MerchantInventoryPortalService {
                 t.getRequestId(), t.getOutboundId(), t.getCreatedAt(),
                 deviceName,
                 route != null ? route.getRouteName() : null,
-                route != null ? route.getPlannedDate() : null
+                route != null ? route.getPlannedDate() : null,
+                evidenceCount,
+                lineSummary
         );
+    }
+
+    private Map<Long, String> loadLineSummariesByTaskIds(Collection<Long> taskIds) {
+        Map<Long, String> out = new HashMap<>();
+        if (taskIds == null || taskIds.isEmpty()) {
+            return out;
+        }
+        Map<Long, List<ReplenishmentTaskLine>> byTask = replenishmentTaskLineRepository
+                .findByTaskIdIn(taskIds)
+                .stream()
+                .collect(Collectors.groupingBy(ReplenishmentTaskLine::getTaskId));
+        for (Long taskId : taskIds) {
+            out.put(taskId, formatLineSummary(byTask.getOrDefault(taskId, List.of())));
+        }
+        return out;
+    }
+
+    private static String formatLineSummary(List<ReplenishmentTaskLine> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return "暂无明细行";
+        }
+        int qty = rows.stream().mapToInt(l -> Math.max(0, l.getQuantity())).sum();
+        long pull = rows.stream().filter(l -> isPullOffType(l.getLineType())).count();
+        long restock = rows.size() - pull;
+        long noExpiry = rows.stream()
+                .filter(l -> l.getExpiryDate() == null)
+                .count();
+        long noSlot = rows.stream()
+                .filter(l -> (l.getSlotId() == null || l.getSlotId().isBlank()) && !isPullOffType(l.getLineType()))
+                .count();
+        StringBuilder parts = new StringBuilder();
+        parts.append(rows.size()).append(" 行 · 共 ").append(qty).append(" 件");
+        if (restock > 0) {
+            parts.append(" · 补货 ").append(restock);
+        }
+        if (pull > 0) {
+            parts.append(" · 下架 ").append(pull);
+        }
+        if (noSlot > 0) {
+            parts.append(" · ").append(noSlot).append(" 行待选货道");
+        }
+        if (noExpiry > 0) {
+            parts.append(" · ").append(noExpiry).append(" 行缺效期");
+        }
+        return parts.toString();
+    }
+
+    private static boolean isPullOffType(String lineType) {
+        String code = (lineType == null || lineType.isBlank() ? "RESTOCK" : lineType).trim().toUpperCase();
+        return "PULL_OFF".equals(code) || "REMOVE".equals(code) || "PULL".equals(code);
     }
 
     private Map<Long, ReplenishmentRoute> loadRoutesById(Collection<ReplenishmentTask> tasks) {

@@ -485,7 +485,8 @@ const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection, sele
 
 function canAccessPath(path: string) {
   const nav = findNavByPath(path);
-  if (!nav?.perm) return true;
+  if (!nav) return false;
+  if (!nav.perm) return true;
   return auth.hasPerm(nav.perm);
 }
 

@@ -341,7 +341,7 @@ async function markAllRead() {
     await consumerApi.markAllNotificationsRead();
     list.value.forEach((m) => (m.read = true));
     unread.value = 0;
-    showError('已全部标记为已读');
+    showSuccess('已全部标记为已读');
   } catch (e) {
     showError(e instanceof Error ? e.message : '操作失败');
   }

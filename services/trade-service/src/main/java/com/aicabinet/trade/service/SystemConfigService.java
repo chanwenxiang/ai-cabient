@@ -38,6 +38,10 @@ public class SystemConfigService {
     public static final String REFUND_SELF_MAX_HOURS = "refund.self.max_hours";
     public static final String REFUND_SELF_MAX_CENTS = "refund.self.max_cents";
     public static final String REFUND_SELF_MAX_DAILY = "refund.self.max_daily";
+    /** 单次充值上限（分）；默认 ¥5000；0=不限制。 */
+    public static final String RECHARGE_MAX_CENTS = "recharge.max_cents";
+    /** 单次余额退款申请上限（分）；默认 ¥5000；0=不限制。 */
+    public static final String BALANCE_REFUND_MAX_CENTS = "balance.refund.max_cents";
     public static final String REFUND_SELF_PARTIAL_ENABLED = "refund.self.partial_enabled";
     /** 待支付订单超时自动关单小时数, 0=关闭自动关单. */
     public static final String UNPAID_AUTO_CANCEL_HOURS = "order.unpaid.auto_cancel_hours";
@@ -206,6 +210,10 @@ public class SystemConfigService {
         map.put("wechatSubscribeTemplateId",
                 wechatSubscribeOk ? weChatMiniAppProperties.resolveConsumerTemplateId() : "");
         map.put("mockEnabled", String.valueOf(securityProperties.mockEnabled()));
+        map.put("rechargeMaxCents",
+                String.valueOf(self.getInt(RECHARGE_MAX_CENTS, 500_000)));
+        map.put("balanceRefundMaxCents",
+                String.valueOf(self.getInt(BALANCE_REFUND_MAX_CENTS, 500_000)));
         // 沙箱: 已配置支付宝密钥, 或 mock 模式下允许走 mock 支付宝预下单
         boolean alipayOk = alipayProperties.isConfigured()
                 || (securityProperties.mockEnabled() && alipayProperties.enabled());
@@ -345,6 +353,8 @@ public class SystemConfigService {
         upsertIfAbsent(UNPAID_AUTO_CANCEL_HOURS, "48", "待支付订单超时自动关单小时数, 0=关闭");
         upsertIfAbsent(UNPAID_AUTO_BLACKLIST, FALSE, "待支付超时关单时是否自动拉黑用户");
         upsertIfAbsent(RECHARGE_AUTO_CANCEL_MINUTES, "30", "待支付充值单超时自动取消分钟数, 0=关闭");
+        upsertIfAbsent(RECHARGE_MAX_CENTS, "500000", "单次充值上限（分），默认 ¥5000，0=不限制");
+        upsertIfAbsent(BALANCE_REFUND_MAX_CENTS, "500000", "单次余额退款申请上限（分），默认 ¥5000，0=不限制");
         upsertIfAbsent(DEVICE_OFFLINE_AUTO_LOCK_MINUTES, "10", "设备离线超时自动锁机分钟数, 0=关闭");
         upsertIfAbsent(DEVICE_OFFLINE_MANUAL_UNLOCK_GRACE_MINUTES, "45",
                 "人工解锁后离线自动锁机宽限分钟数, 0=无宽限");

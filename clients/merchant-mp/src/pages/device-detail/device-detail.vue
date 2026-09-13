@@ -414,7 +414,7 @@ function togglePreferred() {
   if (isPreferred.value) {
     clearPreferredDeviceId();
     isPreferred.value = false;
-    showError('已取消常驻');
+    showSuccess('已取消常驻');
     return;
   }
   setPreferredDeviceId(deviceId.value);

@@ -365,7 +365,21 @@
           >
             关门结算
           </button>
-          <view v-else class="cart-status-chip soft">请关门</view>
+          <view v-else class="live-door-actions">
+            <view class="cart-status-chip soft">请关门</view>
+            <button
+              class="cart-help-btn"
+              hover-class="btn-hover"
+              :loading="pollRefreshing"
+              :disabled="pollRefreshing"
+              @click.stop="refreshSessionNow"
+            >
+              刷新状态
+            </button>
+            <button class="cart-help-btn ghost" hover-class="btn-hover" @click.stop="onLiveNeedHelp">
+              未出账单？
+            </button>
+          </view>
         </template>
         <template v-else>
           <view class="cart-info">
@@ -855,6 +869,8 @@ onShow(async () => {
 
 onHide(() => {
   stopDevicePoll();
+  stopPoll();
+  stopRecognitionTimer();
   // 切到订单/我的时务必显示底栏（hideTabBar 是全局的）
   uni.showTabBar({ animation: false });
 });
@@ -1133,7 +1149,7 @@ async function adoptOrphanSession(cabinetId: string): Promise<boolean> {
       setActiveSession(s.sessionId);
       applySessionView(s);
       startPoll();
-      showError('已恢复开门会话');
+      showSuccess('已恢复开门会话');
       return true;
     }
   } catch {
@@ -1200,6 +1216,29 @@ async function contactOps() {
     content: `请联系客服 ${servicePhone.value}，并提供审核编号：` + reviewSessionId.value,
     showCancel: false,
     confirmText: '我知道了'
+  });
+}
+
+/** live 模式：硬件关门驱动结算；提供刷新与客服兜底，避免卡在「请关门」。 */
+async function onLiveNeedHelp() {
+  const refresh = await showConfirm({
+    title: '关门后未出账单？',
+    content: `请确认柜门已关好。点「刷新状态」查看结算进度；仍无结果可联系客服 ${servicePhone.value}，或到「订单」页查看。`,
+    confirmText: '刷新状态',
+    cancelText: '联系客服'
+  });
+  if (refresh) {
+    await refreshSessionNow();
+    return;
+  }
+  const phone = String(servicePhone.value || '').replace(/[^\d+]/g, '');
+  if (!phone) {
+    showError('暂无客服电话，请到帮助页查看');
+    return;
+  }
+  uni.makePhoneCall({
+    phoneNumber: phone,
+    fail: () => showError(`请拨打 ${servicePhone.value}`)
   });
 }
 
@@ -1489,7 +1528,7 @@ async function cancelOpening() {
     deviceId.value = '';
     products.value = [];
     resetCatalogFilter();
-    showError('已取消开门');
+    showSuccess('已取消开门');
     return;
   }
   const confirmed = await showConfirm({
@@ -1508,7 +1547,7 @@ async function cancelOpening() {
     clearOpenAttempt();
     clearSessionUi();
     scanned.value = false;
-    showError('已取消本次开门');
+    showSuccess('已取消本次开门');
   } catch (e) {
     showError(formatError(e));
   } finally {
@@ -1713,7 +1752,7 @@ async function closeDoorDemo() {
       const nextSel: Record<string, number> = {};
       for (const it of items) nextSel[it.skuId] = it.qty;
       selected.value = nextSel;
-      showError('已按库存调整数量');
+      showSuccess('已按库存调整数量');
     }
     // 始终同步点选（含空列表），避免上次点选残留导致误扣/进审单
     await consumerApi.updateSessionCart(sid, { items });
@@ -1733,7 +1772,7 @@ async function closeDoorDemo() {
       return;
     }
     startPoll();
-    showError('已关门，结算中…');
+    showSuccess('已关门，结算中…');
   } catch (e) {
     showError(e instanceof Error ? e.message : '关门失败，请重试');
   } finally {
@@ -2776,6 +2815,39 @@ function stopDevicePoll() {
   border: 1rpx solid var(--brand-mist, #a7f3d0);
 }
 .cart-close-btn::after {
+  border: none;
+}
+.live-door-actions {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  flex-shrink: 0;
+  max-width: 58%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.cart-help-btn {
+  margin: 0;
+  padding: 0 22rpx;
+  min-height: 64rpx;
+  height: 64rpx;
+  line-height: 1.2;
+  background: var(--brand, #0f766e);
+  color: var(--white);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+.cart-help-btn.ghost {
+  background: transparent;
+  color: var(--brand, #0f766e);
+  border: 1rpx solid var(--brand-mist, #a7f3d0);
+}
+.cart-help-btn::after {
   border: none;
 }
 .settlement-review-card {
