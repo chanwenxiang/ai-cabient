@@ -175,16 +175,7 @@
         </view>
       </view>
 
-      <view
-        v-if="detailVisible"
-        role="button"
-        aria-label="关闭"
-        class="mask"
-        @click.self="closeDetail"
-        @touchmove.stop.prevent
-      >
-        <view role="button" class="sheet" @click.stop>
-          <view class="sheet-handle" />
+      <ReplenishDetailSheet :visible="detailVisible" @close="closeDetail">
           <view class="sheet-head">
             <view>
               <text class="sheet-title">{{
@@ -205,59 +196,22 @@
             <text class="close" role="button" aria-label="关闭" @click="closeDetail">×</text>
           </view>
 
-          <view v-if="selected?.deviceId" class="cabinet-card">
-            <text class="cabinet-addr">{{
-              deviceAddressLine(selected.deviceId) || '暂无点位地址，请对照编号或扫码核对柜机'
-            }}</text>
-            <view class="cabinet-actions">
-              <view
-                class="cabinet-chip"
-                role="button"
-                data-testid="copy-device-id"
-                @click.stop="copyDeviceId(selected.deviceId)"
-                >复制编号</view
-              >
-              <view
-                class="cabinet-chip"
-                role="button"
-                data-testid="navigate-device"
-                @click.stop="navigateToDevice(selected.deviceId)"
-                >导航</view
-              >
-              <view
-                class="cabinet-chip primary"
-                role="button"
-                data-testid="verify-cabinet-scan"
-                @click.stop="verifyCabinetScan"
-                >扫码核对</view
-              >
-            </view>
-          </view>
+          <ReplenishCabinetCard
+            :device-id="selected?.deviceId"
+            :address-line="selected?.deviceId ? deviceAddressLine(selected.deviceId) : ''"
+            @copy="copyDeviceId(selected?.deviceId)"
+            @navigate="navigateToDevice(selected?.deviceId)"
+            @verify-scan="verifyCabinetScan"
+          />
 
-          <view class="step-row four">
-            <view class="step" :class="stepClass(1)">
-              <text class="step-num">{{
-                selected?.status === 'COMPLETED' || selected?.checkInAt ? '✓' : '1'
-              }}</text>
-              <text class="step-label">签到</text>
-            </view>
-            <view class="step" :class="stepClass(2)">
-              <text class="step-num">{{
-                selected?.status === 'COMPLETED' || doorOpened || currentStep() > 2 ? '✓' : '2'
-              }}</text>
-              <text class="step-label">开门</text>
-            </view>
-            <view class="step" :class="stepClass(3)">
-              <text class="step-num">{{
-                selected?.status === 'COMPLETED' || linesConfirmed || currentStep() > 3 ? '✓' : '3'
-              }}</text>
-              <text class="step-label">核对</text>
-            </view>
-            <view class="step" :class="stepClass(4)">
-              <text class="step-num">{{ selected?.status === 'COMPLETED' ? '✓' : '4' }}</text>
-              <text class="step-label">{{ detailIsPullOff ? '下架' : '上架' }}</text>
-            </view>
-          </view>
+          <ReplenishStepBar
+            :current-step="currentStep()"
+            :completed="selected?.status === 'COMPLETED'"
+            :checked-in="!!selected?.checkInAt"
+            :door-opened="doorOpened"
+            :lines-confirmed="linesConfirmed"
+            :pull-off="detailIsPullOff"
+          />
 
           <view
             v-if="
@@ -558,8 +512,7 @@
                 : '任务已完成，商品库存和在途状态已同步更新'
             }}
           </view>
-        </view>
-      </view>
+      </ReplenishDetailSheet>
 
       <!-- H5 可访问确认框：替代 uni.showModal，便于自动化与读屏点击 -->
       <AppConfirmDialog
@@ -588,6 +541,9 @@ import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 import EmptyState from '@/components/empty-state.vue';
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue';
+import ReplenishCabinetCard from '@/components/ReplenishCabinetCard.vue';
+import ReplenishDetailSheet from '@/components/ReplenishDetailSheet.vue';
+import ReplenishStepBar from '@/components/ReplenishStepBar.vue';
 import {
   hasPerm,
   isMerchantLoggedIn,
@@ -1411,14 +1367,6 @@ function currentStep(): number {
   if (doorOpened.value) return 3;
   if (selected.value.checkInAt) return 2;
   return 1;
-}
-
-function stepClass(step: number) {
-  if (selected.value?.status === 'COMPLETED') {
-    return { done: true, current: false };
-  }
-  const cur = currentStep();
-  return { done: step < cur, current: step === cur };
 }
 
 function syncTaskInList(task: Task) {
@@ -2438,39 +2386,6 @@ onPullDownRefresh(load);
   line-height: 1.4;
   pointer-events: none;
 }
-.cabinet-card {
-  margin: 0 0 20rpx;
-  padding: 20rpx 22rpx;
-  border-radius: 18rpx;
-  background: var(--brand-soft, #f0fdf4);
-  border: 1rpx solid var(--brand-mist, #99f6e4);
-}
-.cabinet-addr {
-  display: block;
-  color: var(--brand-deep);
-  font-size: var(--font-size-caption);
-  line-height: 1.5;
-}
-.cabinet-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
-  margin-top: 16rpx;
-}
-.cabinet-chip {
-  padding: 10rpx 20rpx;
-  border-radius: var(--radius-pill);
-  background: var(--card-bg, #fff);
-  border: 1rpx solid var(--text-subtle, #cbd5e1);
-  color: var(--text-muted, #334155);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-}
-.cabinet-chip.primary {
-  background: var(--brand-soft);
-  border-color: var(--brand);
-  color: var(--brand);
-}
 .skip-loc-row {
   display: flex;
   align-items: center;
@@ -2688,37 +2603,6 @@ onPullDownRefresh(load);
   border: none;
 }
 
-.mask {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  /* 加深遮罩，避免列表文字从弹层边缘透出 */
-  background: rgba(15, 23, 42, 0.62);
-}
-.sheet {
-  width: 100%;
-  max-width: 520px;
-  max-height: 88vh;
-  padding: 30rpx 26rpx calc(30rpx + env(safe-area-inset-bottom));
-  border-radius: var(--radius-card) 32rpx 0 0;
-  background: var(--card-bg, #fff);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  box-sizing: border-box;
-  /* 实心底 + 顶部分隔，杜绝背后列表透视 */
-  isolation: isolate;
-  box-shadow: 0 -12rpx 40rpx rgba(15, 23, 42, 0.18);
-}
-.sheet-handle {
-  width: 64rpx;
-  height: 8rpx;
-  margin: 0 auto 16rpx;
-  border-radius: 4rpx;
-  background: var(--text-subtle, #cbd5e1);
-}
 .sheet-title {
   display: block;
   font-size: var(--font-size-h3);
@@ -2729,24 +2613,6 @@ onPullDownRefresh(load);
   color: var(--text-muted);
   font-size: var(--font-size-h1);
 }
-.step-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12rpx;
-  margin: 26rpx 0;
-  padding: 16rpx 8rpx;
-  border-radius: 18rpx;
-  background: var(--page-bg, #f8fafc);
-}
-.step-row.four {
-  grid-template-columns: repeat(4, 1fr);
-}
-@media (max-width: 380px) {
-  .step-row.four {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12rpx 8rpx;
-  }
-}
 .door-tip {
   display: block;
   margin-top: 12rpx;
@@ -2756,42 +2622,6 @@ onPullDownRefresh(load);
   color: var(--brand);
   font-size: var(--font-size-sm);
   line-height: 1.4;
-}
-.step {
-  text-align: center;
-  color: var(--text-subtle);
-  font-size: var(--font-size-sm);
-}
-.step-num {
-  display: flex;
-  width: 44rpx;
-  height: 44rpx;
-  margin: 0 auto 8rpx;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  color: var(--text-muted, #475569);
-  background: var(--color-border);
-  font-size: var(--font-size-caption);
-}
-.step-label {
-  display: block;
-}
-.step.done {
-  color: var(--brand);
-}
-.step.done .step-num {
-  color: var(--white);
-  background: var(--brand);
-}
-.step.current {
-  color: var(--brand);
-  font-weight: 600;
-}
-.step.current .step-num {
-  color: var(--white);
-  background: var(--brand);
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.2);
 }
 .lines-empty {
   display: flex;
