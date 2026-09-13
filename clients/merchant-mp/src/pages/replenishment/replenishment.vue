@@ -351,13 +351,12 @@ import ReplenishStepBar from '@/components/ReplenishStepBar.vue';
 import {
   hasPerm,
   isMerchantLoggedIn,
-  merchantApi,
-  type DeviceLowStockItem,
-  type MerchantReplenishmentEfficiency
+  merchantApi
 } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { useAppConfirmDialog } from '@/composables/useAppConfirmDialog';
 import { useReplenishmentDoorState } from '@/composables/useReplenishmentDoorState';
+import { useReplenishmentList } from '@/composables/useReplenishmentList';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { promptText } from '@/utils/text-prompt';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
@@ -385,29 +384,41 @@ const canSkipLocation = showDevTools();
 if (!canSkipLocation) {
   setSkipCheckInLocation(false);
 }
-const preferredId = ref(getPreferredDeviceId());
-
 type Task = import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto;
 type Line = import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto;
 
-const loading = ref(false);
-let loadSeq = 0;
+const preferredId = ref(getPreferredDeviceId());
+const {
+  loading,
+  allTasks,
+  evidenceCountMap,
+  lineSummaryMap,
+  devices,
+  skus,
+  efficiency,
+  lowStockList,
+  status,
+  filterDeviceId,
+  tasks,
+  pendingCount,
+  completedCount,
+  evidenceCountOf,
+  lineSummaryOf,
+  syncTaskInList,
+  changeStatus,
+  clearDeviceFilter: clearListDeviceFilter,
+  emptyHintForDeviceFilter,
+  emptyHintForStatusFilter,
+  fetchList,
+  isLatestLoad
+} = useReplenishmentList({ preferredId });
+
 const detailLoading = ref(false);
 const submitting = ref(false);
 const scanning = ref(false);
-const efficiency = ref<MerchantReplenishmentEfficiency | null>(null);
-const lowStockList = ref<{ deviceId: string; skuCount: number; shortageQty: number }[]>([]);
-const status = ref('');
-const filterDeviceId = ref('');
 const focusTaskId = ref<number | null>(null);
 /** Deep-link query applied once; cleared so onShow/load won't reopen the same task. */
 let pendingDeepLink = false;
-const allTasks = ref<Task[]>([]);
-/** taskId → 现场照片张数（列表徽标） */
-const evidenceCountMap = ref<Record<number, number>>({});
-const lineSummaryMap = ref<Record<number, string>>({});
-const devices = ref<Record<string, unknown>[]>([]);
-const skus = ref<Record<string, unknown>[]>([]);
 const detailVisible = ref(false);
 /** 避免「点卡片打开」同一轮点击落到遮罩上立刻关掉 */
 const sheetCloseArmed = ref(false);
@@ -521,61 +532,6 @@ const statusOptions = computed(() => [
   )
 ]);
 
-function filterTasksByDevice(rows: Task[], deviceKey: string) {
-  return rows.filter(
-    (t) =>
-      String(t.deviceId || '')
-        .trim()
-        .toUpperCase() === deviceKey
-  );
-}
-
-function sortTasksByPreferred(rows: Task[], preferred: string) {
-  if (!preferred) return rows;
-  return [...rows].sort((a, b) => {
-    if (a.deviceId === preferred) return -1;
-    if (b.deviceId === preferred) return 1;
-    return 0;
-  });
-}
-
-const tasks = computed(() => {
-  let rows = allTasks.value.filter((t) => t.status !== 'CANCELLED');
-  if (filterDeviceId.value) {
-    rows = filterTasksByDevice(rows, filterDeviceId.value.trim().toUpperCase());
-  }
-  if (status.value) {
-    rows = rows.filter((t) => t.status === status.value);
-  }
-  if (filterDeviceId.value || !preferredId.value) return rows;
-  return sortTasksByPreferred(rows, preferredId.value);
-});
-
-const pendingCount = computed(
-  () =>
-    allTasks.value.filter((item) => item.status !== 'COMPLETED' && item.status !== 'CANCELLED')
-      .length
-);
-const completedCount = computed(
-  () => allTasks.value.filter((item) => item.status === 'COMPLETED').length
-);
-
-function emptyHintForDeviceFilter(): string {
-  return status.value
-    ? `该柜机暂无「${displayLabel('replenishment_task_status', status.value, '该状态')}」任务`
-    : '该柜机暂无补货任务';
-}
-
-function emptyHintForStatusFilter(): string {
-  if (status.value === 'IN_PROGRESS' && pendingCount.value === 0 && completedCount.value > 0) {
-    return '暂无进行中的任务，可查看已完成记录';
-  }
-  if (status.value) {
-    return `暂无「${displayLabel('replenishment_task_status', status.value, '该状态')}」任务`;
-  }
-  return '当前没有补货任务';
-}
-
 const emptyHint = computed(() => {
   if (filterDeviceId.value) return emptyHintForDeviceFilter();
   return emptyHintForStatusFilter();
@@ -637,25 +593,6 @@ function goRequestForDevice(deviceId: string) {
   uni.navigateTo({
     url: `/pages/request/request?deviceId=${encodeURIComponent(deviceId)}`
   });
-}
-
-/** 按柜聚合低库存明细：缺货 SKU 数 + 缺口件数，按严重度排序取前 5。 */
-function aggregateLowStock(items: DeviceLowStockItem[]) {
-  const map = new Map<string, { skuCount: number; shortageQty: number }>();
-  for (const row of items || []) {
-    const key = String(row.deviceId || '')
-      .trim()
-      .toUpperCase();
-    if (!key) continue;
-    const cur = map.get(key) || { skuCount: 0, shortageQty: 0 };
-    cur.skuCount += 1;
-    cur.shortageQty += Math.max(0, (Number(row.lowThreshold) || 0) - (Number(row.quantity) || 0));
-    map.set(key, cur);
-  }
-  return [...map.entries()]
-    .map(([deviceId, v]) => ({ deviceId, ...v }))
-    .sort((a, b) => b.skuCount - a.skuCount || b.shortageQty - a.shortageQty)
-    .slice(0, 5);
 }
 
 onLoad((opts) => {
@@ -826,26 +763,11 @@ async function ensureReplenishmentMe(seq: number): Promise<boolean> {
     if (!isMerchantLoggedIn()) return false;
     seedMerchantMeDisplayCache(me);
   }
-  if (seq !== loadSeq) return false;
+  if (!isLatestLoad(seq)) return false;
   if (!me.value) {
     seedMerchantMeDisplayCache(me);
   }
   return true;
-}
-
-function applyReplenishmentListData(
-  taskRows: Task[],
-  deviceRows: Record<string, unknown>[],
-  skuRows: Record<string, unknown>[],
-  eff: MerchantReplenishmentEfficiency | null,
-  lowStockRows: DeviceLowStockItem[]
-) {
-  allTasks.value = taskRows || [];
-  devices.value = deviceRows;
-  skus.value = (skuRows || []) as Record<string, unknown>[];
-  efficiency.value = eff;
-  lowStockList.value = aggregateLowStock(lowStockRows || []);
-  seedListAggregates(allTasks.value);
 }
 
 function findDeepLinkTaskById(): Task | undefined {
@@ -887,48 +809,18 @@ async function handleDeepLinkAfterLoad(open: Task | undefined, wantedTaskId: num
 }
 
 async function load() {
-  if (!isMerchantLoggedIn()) {
-    uni.reLaunch({ url: '/pages/login/login' });
-    return;
-  }
-  const seq = ++loadSeq;
-  if (!(await ensureReplenishmentMe(seq))) return;
-  if (!canReplenish.value) {
-    showError('无补货权限');
-    uni.switchTab({ url: '/pages/home/home' });
-    return;
-  }
-  if (!allTasks.value.length) loading.value = true;
-  try {
-    const [taskRows, deviceRows, skuRows, eff, lowStockRows] = await Promise.all([
-      merchantApi.replenishmentTasks().catch(() => [] as Task[]),
-      merchantApi.devices().catch(() => [] as Record<string, unknown>[]),
-      merchantApi.pricing().catch(() => [] as Record<string, unknown>[]),
-      merchantApi.myReplenishmentEfficiency().catch(() => null),
-      merchantApi.lowStockDevices().catch(() => [] as DeviceLowStockItem[])
-    ]);
-    if (seq !== loadSeq) return;
-    applyReplenishmentListData(taskRows, deviceRows, skuRows, eff, lowStockRows);
-    const wantedTaskId = focusTaskId.value;
-    const open = resolveDeepLinkOpenTask();
-    await handleDeepLinkAfterLoad(open, wantedTaskId);
-  } catch (error) {
-    if (seq !== loadSeq) return;
-    showError(error instanceof Error ? error.message : '加载失败');
-  } finally {
-    if (seq === loadSeq) {
-      loading.value = false;
-      uni.stopPullDownRefresh();
-    }
-  }
-}
-
-function changeStatus(value: string) {
-  status.value = value;
+  const result = await fetchList({
+    ensureMe: ensureReplenishmentMe,
+    canReplenish: canReplenish.value
+  });
+  if (!result || result.aborted) return;
+  const wantedTaskId = focusTaskId.value;
+  const open = resolveDeepLinkOpenTask();
+  await handleDeepLinkAfterLoad(open, wantedTaskId);
 }
 
 function clearDeviceFilter() {
-  filterDeviceId.value = '';
+  clearListDeviceFilter();
   clearDeepLinkQuery();
 }
 
@@ -1044,13 +936,6 @@ function currentStep(): number {
   if (doorOpened.value) return 3;
   if (selected.value.checkInAt) return 2;
   return 1;
-}
-
-function syncTaskInList(task: Task) {
-  const idx = allTasks.value.findIndex((t) => t.taskId === task.taskId);
-  if (idx >= 0) {
-    allTasks.value[idx] = { ...allTasks.value[idx], ...task };
-  }
 }
 
 async function addEvidence() {
@@ -1237,43 +1122,6 @@ function slotHint(line: Line): string {
   if (line.quantity > room)
     return `超出容量：最多再补 ${room}（已有 ${cap.bookQty}/${cap.maxLevel}）`;
   return `还可补 ${room}（已有 ${cap.bookQty}/${cap.maxLevel}）`;
-}
-
-function evidenceCountOf(taskId?: number) {
-  if (!taskId) return 0;
-  const fromMap = Number(evidenceCountMap.value[taskId] || 0);
-  if (fromMap > 0) return fromMap;
-  const hit = allTasks.value.find((t) => t.taskId === taskId) as Task & {
-    evidenceCount?: number;
-  };
-  return Number(hit?.evidenceCount || 0);
-}
-
-function lineSummaryOf(taskId?: number) {
-  if (!taskId) return '';
-  const fromMap = String(lineSummaryMap.value[taskId] || '');
-  if (fromMap) return fromMap;
-  const hit = allTasks.value.find((t) => t.taskId === taskId) as Task & {
-    lineSummary?: string;
-  };
-  return String(hit?.lineSummary || '');
-}
-
-/** 列表接口已聚合 evidenceCount/lineSummary，写入本地 map 供详情内增量更新复用。 */
-function seedListAggregates(taskRows: Task[]) {
-  const evidenceNext: Record<number, number> = { ...evidenceCountMap.value };
-  const lineNext: Record<number, string> = { ...lineSummaryMap.value };
-  for (const row of taskRows || []) {
-    const id = Number(row.taskId);
-    if (!id) continue;
-    const ext = row as Task & { evidenceCount?: number; lineSummary?: string };
-    if (ext.evidenceCount != null) evidenceNext[id] = Number(ext.evidenceCount) || 0;
-    if (ext.lineSummary != null && String(ext.lineSummary)) {
-      lineNext[id] = String(ext.lineSummary);
-    }
-  }
-  evidenceCountMap.value = evidenceNext;
-  lineSummaryMap.value = lineNext;
 }
 
 function formatLineSummary(rows: Line[]): string {

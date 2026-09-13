@@ -69,7 +69,7 @@ class SettlementDisputeTest {
     void setUp() {
         settlementService = new SettlementService(
                 sessionRepository, skuCatalogRepository, orderRepository, orderLineRepository,
-                visionClient, disputeService, settlementVisionAsyncService, null, null, null, revenueSplitService,
+                visionClient, disputeService, settlementVisionAsyncService, null, null, null, null, revenueSplitService,
                 securityProperties, stagingProperties, inventoryService, orderPaymentService, confidenceService, gravityHelper,
                 deviceValidationService, skuPricingService, userValidationService, videoArchiveService,
                 skuVisionEnrollmentService, couponService, memberService, null, notificationService, slotRepository,
@@ -79,8 +79,14 @@ class SettlementDisputeTest {
                 inventoryService, orderPaymentService, userValidationService, couponService, memberService,
                 revenueSplitService, notificationService, videoArchiveService, displaySnapshotHelper,
                 settlementService);
+        SettlementRecognitionService recognitionSvc = new SettlementRecognitionService(
+                sessionRepository, orderRepository, confidenceService, gravityHelper,
+                securityProperties, stagingProperties, systemConfigService, skuVisionEnrollmentService,
+                disputeService, consumerPreauthService, settlementService);
         org.springframework.test.util.ReflectionTestUtils.setField(
                 settlementService, "settlementOrderFinalizeService", finalizeSvc);
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                settlementService, "settlementRecognitionService", recognitionSvc);
         org.springframework.test.util.ReflectionTestUtils.setField(settlementService, "self", settlementService);
         lenient().when(systemConfigService.getBoolean(anyString(), anyBoolean()))
                 .thenAnswer(inv -> inv.getArgument(1));
