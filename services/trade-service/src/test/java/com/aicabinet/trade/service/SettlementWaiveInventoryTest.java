@@ -53,13 +53,9 @@ class SettlementWaiveInventoryTest {
         org.springframework.test.util.ReflectionTestUtils.setField(waiveRefundService, "self", waiveRefundService);
         settlementService = new SettlementService(
                 sessionRepository, null, orderRepository, null,
-                null, null, null, waiveRefundService, null, null, null, null, revenueSplitService,
-                null, null, inventoryService, orderPaymentService,
-                null, null, null, null, null, null,
-                null, null, null, null, null, null,
-                null, null, distributedLockService, null, null,
-                new com.aicabinet.trade.service.view.OrderViewAssembler());
-        org.springframework.test.util.ReflectionTestUtils.setField(settlementService, "self", settlementService);
+                null, waiveRefundService, null, null, null, null,
+                revenueSplitService, orderPaymentService, null, null, null, null,
+                null, null, distributedLockService, new com.aicabinet.trade.service.view.OrderViewAssembler());
         lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
         lenient().when(sessionRepository.findByIdForUpdate(anyString())).thenAnswer(inv -> {
             ShoppingSession s = new ShoppingSession();
