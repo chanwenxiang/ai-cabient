@@ -8,13 +8,11 @@ import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.StagingProperties;
 import com.aicabinet.trade.domain.*;
-import com.aicabinet.trade.messaging.VisionRecognitionProducer;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.service.view.OrderViewAssembler;
 import com.aicabinet.trade.support.ApiMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -40,7 +38,7 @@ public class SettlementService {
     private final CabinetOrderLineMapper orderLineRepository;
     private final VisionServiceClient visionClient;
     private final DisputeService disputeService;
-    private final ObjectProvider<VisionRecognitionProducer> visionRecognitionProducer;
+    private final SettlementVisionAsyncService settlementVisionAsyncService;
     private final RevenueSplitService revenueSplitService;
     private final SecurityProperties securityProperties;
     private final StagingProperties stagingProperties;
@@ -72,7 +70,7 @@ public class SettlementService {
                              CabinetOrderLineMapper orderLineRepository,
                              VisionServiceClient visionClient,
                              @Lazy DisputeService disputeService,
-                             ObjectProvider<VisionRecognitionProducer> visionRecognitionProducer,
+                             SettlementVisionAsyncService settlementVisionAsyncService,
                              RevenueSplitService revenueSplitService,
                              SecurityProperties securityProperties,
                              StagingProperties stagingProperties,
@@ -102,7 +100,7 @@ public class SettlementService {
         this.orderLineRepository = orderLineRepository;
         this.visionClient = visionClient;
         this.disputeService = disputeService;
-        this.visionRecognitionProducer = visionRecognitionProducer;
+        this.settlementVisionAsyncService = settlementVisionAsyncService;
         this.revenueSplitService = revenueSplitService;
         this.securityProperties = securityProperties;
         this.stagingProperties = stagingProperties;
@@ -505,25 +503,12 @@ public class SettlementService {
     }
 
     public void submitAsyncRecognition(ShoppingSession session) {
-        VisionRecognitionProducer producer = visionRecognitionProducer.getIfAvailable();
-        if (producer == null) {
-            throw new IllegalStateException("vision async not enabled");
-        }
-        String taskId = "T-" + session.getSessionId();
-        self.persistRecognitionTaskId(session.getSessionId(), taskId);
-        session.setRecognitionTaskId(taskId);
-        producer.publish(session.getSessionId(), session.getVideoUri(), taskId,
-                session.getVideoClips(), session.getCameraFusionMode());
+        settlementVisionAsyncService.submitAsyncRecognition(session);
     }
 
     @Transactional
     public void persistRecognitionTaskId(String sessionId, String taskId) {
-        ShoppingSession session = sessionRepository.findByIdForUpdate(sessionId).orElse(null);
-        if (session == null) {
-            return;
-        }
-        session.setRecognitionTaskId(taskId);
-        sessionRepository.save(session);
+        settlementVisionAsyncService.persistRecognitionTaskId(sessionId, taskId);
     }
 
     @Transactional
@@ -787,8 +772,8 @@ public class SettlementService {
         int priorPayable = Math.max(0, order.getTotalAmountCents());
         PartialRefundPartition partition = validateAndPartitionRefundLines(order, refundLines, defaultRestore);
 
-        List<CabinetOrderLine> remaining = buildRemainingLines(
-                mergeLinesBySku(order.getLines()), partition.refundQtyBySku());
+        List<CabinetOrderLine> remaining = SettlementPartialRefundMath.buildRemainingLines(
+                SettlementPartialRefundMath.mergeLinesBySku(order.getLines()), partition.refundQtyBySku());
         order.setLines(remaining);
         int newSubtotal = remaining.stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
         couponService.recalcOrRestoreAfterPartialRefund(order, newSubtotal);
@@ -843,8 +828,9 @@ public class SettlementService {
             CabinetOrder order,
             List<OrderRefundRequest.PartialRefundLine> refundLines,
             boolean defaultRestore) {
-        Map<String, CabinetOrderLine> bySku = mergeLinesBySku(order.getLines());
-        Map<String, Integer> refundQtyBySku = validatePartialRefundQuantities(bySku, refundLines);
+        Map<String, CabinetOrderLine> bySku = SettlementPartialRefundMath.mergeLinesBySku(order.getLines());
+        Map<String, Integer> refundQtyBySku =
+                SettlementPartialRefundMath.validatePartialRefundQuantities(bySku, refundLines);
         return buildPartialRefundPartition(bySku, refundLines, defaultRestore, refundQtyBySku);
     }
 
@@ -903,48 +889,22 @@ public class SettlementService {
         if (order == null || refundLines == null || refundLines.isEmpty()) {
             return 0;
         }
-        CabinetOrder scratch = copyOrderForPartialRefundEstimate(order);
+        CabinetOrder scratch = SettlementPartialRefundMath.copyOrderForPartialRefundEstimate(order);
         hydrateOrderLines(scratch);
         if (scratch.getLines() == null || scratch.getLines().isEmpty()) {
             return 0;
         }
-        Map<String, CabinetOrderLine> bySku = mergeLinesBySku(scratch.getLines());
-        Map<String, Integer> refundQtyBySku = validatePartialRefundQuantities(bySku, refundLines);
+        Map<String, CabinetOrderLine> bySku = SettlementPartialRefundMath.mergeLinesBySku(scratch.getLines());
+        Map<String, Integer> refundQtyBySku =
+                SettlementPartialRefundMath.validatePartialRefundQuantities(bySku, refundLines);
         int priorPayable = Math.max(0, scratch.getTotalAmountCents());
-        List<CabinetOrderLine> remaining = buildRemainingLines(bySku, refundQtyBySku);
+        List<CabinetOrderLine> remaining =
+                SettlementPartialRefundMath.buildRemainingLines(bySku, refundQtyBySku);
         scratch.setLines(remaining);
         int newSubtotal = remaining.stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
         applyPartialRefundPayablePreview(scratch, newSubtotal);
         recalculatePayableAfterLineChange(scratch);
         return Math.max(0, priorPayable - scratch.getTotalAmountCents());
-    }
-
-    private static CabinetOrder copyOrderForPartialRefundEstimate(CabinetOrder order) {
-        CabinetOrder copy = new CabinetOrder();
-        copy.setOrderId(order.getOrderId());
-        copy.setTotalAmountCents(order.getTotalAmountCents());
-        copy.setOriginalAmountCents(order.getOriginalAmountCents());
-        copy.setCouponId(order.getCouponId());
-        copy.setCouponDiscountCents(order.getCouponDiscountCents());
-        copy.setMemberDiscountCents(order.getMemberDiscountCents());
-        if (order.getLines() != null) {
-            List<CabinetOrderLine> lines = new java.util.ArrayList<>();
-            for (CabinetOrderLine line : order.getLines()) {
-                CabinetOrderLine l = new CabinetOrderLine();
-                l.setSkuId(line.getSkuId());
-                l.setSkuName(line.getSkuName());
-                l.setQuantity(line.getQuantity());
-                l.setUnitPriceCents(line.getUnitPriceCents());
-                l.setLineAmountCents(line.getLineAmountCents());
-                l.setBatchNo(line.getBatchNo());
-                l.setSlotId(line.getSlotId());
-                l.setUnitCostCents(line.getUnitCostCents());
-                l.setConfidence(line.getConfidence());
-                lines.add(l);
-            }
-            copy.setLines(lines);
-        }
-        return copy;
     }
 
     /** 只读预估：按剩余明细重算应付，不写券状态。 */
@@ -964,70 +924,6 @@ public class SettlementService {
         }
         order.setCouponDiscountCents(discount);
         order.setTotalAmountCents(Math.max(0, remainingSubtotalCents - discount));
-    }
-
-    private static Map<String, CabinetOrderLine> mergeLinesBySku(List<CabinetOrderLine> lines) {
-        Map<String, CabinetOrderLine> bySku = new java.util.LinkedHashMap<>();
-        for (CabinetOrderLine line : lines) {
-            if (line.getSkuId() == null) {
-                continue;
-            }
-            bySku.merge(line.getSkuId(), line, (a, b) -> {
-                a.setQuantity(a.getQuantity() + b.getQuantity());
-                a.setLineAmountCents(a.getLineAmountCents() + b.getLineAmountCents());
-                return a;
-            });
-        }
-        return bySku;
-    }
-
-    private static Map<String, Integer> validatePartialRefundQuantities(
-            Map<String, CabinetOrderLine> bySku,
-            List<OrderRefundRequest.PartialRefundLine> refundLines) {
-        Map<String, Integer> refundQtyBySku = new java.util.LinkedHashMap<>();
-        for (OrderRefundRequest.PartialRefundLine req : refundLines) {
-            if (req == null || req.skuId() == null || req.skuId().isBlank() || req.quantity() <= 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款行 SKU/数量无效");
-            }
-            String sku = req.skuId().trim();
-            CabinetOrderLine line = bySku.get(sku);
-            if (line == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "订单不含商品：" + sku);
-            }
-            int already = refundQtyBySku.getOrDefault(sku, 0);
-            int need = already + req.quantity();
-            if (need > line.getQuantity()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "退款数量超过订单行：" + sku + " 可退 " + (line.getQuantity() - already));
-            }
-            refundQtyBySku.put(sku, need);
-        }
-        return refundQtyBySku;
-    }
-
-    private static List<CabinetOrderLine> buildRemainingLines(
-            Map<String, CabinetOrderLine> bySku,
-            Map<String, Integer> refundQtyBySku) {
-        List<CabinetOrderLine> remaining = new java.util.ArrayList<>();
-        for (Map.Entry<String, CabinetOrderLine> e : bySku.entrySet()) {
-            CabinetOrderLine src = e.getValue();
-            int cut = refundQtyBySku.getOrDefault(e.getKey(), 0);
-            int left = src.getQuantity() - cut;
-            if (left > 0) {
-                CabinetOrderLine copy = new CabinetOrderLine();
-                copy.setSkuId(src.getSkuId());
-                copy.setSkuName(src.getSkuName());
-                copy.setQuantity(left);
-                copy.setUnitPriceCents(src.getUnitPriceCents());
-                copy.setLineAmountCents(src.getUnitPriceCents() * left);
-                copy.setConfidence(src.getConfidence());
-                copy.setBatchNo(src.getBatchNo());
-                copy.setSlotId(src.getSlotId());
-                copy.setUnitCostCents(src.getUnitCostCents());
-                remaining.add(copy);
-            }
-        }
-        return remaining;
     }
 
     private OrderReadModel finalizeOrder(ShoppingSession session,

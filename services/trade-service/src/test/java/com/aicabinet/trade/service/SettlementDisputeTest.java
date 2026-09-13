@@ -14,7 +14,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import com.aicabinet.trade.support.ApiMessages;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.client.ResourceAccessException;
 
 import java.util.List;
@@ -43,7 +42,7 @@ class SettlementDisputeTest {
     @Mock com.aicabinet.trade.mapper.DeviceSlotMapper slotRepository;
     @Mock VisionServiceClient visionClient;
     @Mock DisputeService disputeService;
-    @Mock ObjectProvider<com.aicabinet.trade.messaging.VisionRecognitionProducer> visionRecognitionProducer;
+    @Mock SettlementVisionAsyncService settlementVisionAsyncService;
     @Mock RevenueSplitService revenueSplitService;
     @Mock SecurityProperties securityProperties;
     @Mock StagingProperties stagingProperties;
@@ -70,7 +69,7 @@ class SettlementDisputeTest {
     void setUp() {
         settlementService = new SettlementService(
                 sessionRepository, skuCatalogRepository, orderRepository, orderLineRepository,
-                visionClient, disputeService, visionRecognitionProducer, revenueSplitService,
+                visionClient, disputeService, settlementVisionAsyncService, revenueSplitService,
                 securityProperties, stagingProperties, inventoryService, orderPaymentService, confidenceService, gravityHelper,
                 deviceValidationService, skuPricingService, userValidationService, videoArchiveService,
                 skuVisionEnrollmentService, couponService, memberService, null, notificationService, slotRepository,

@@ -26,16 +26,16 @@
       }
     },
     {
-      "path": "pages/verify/verify",
+      "path": "pages/login/login",
       "style": {
-        "navigationBarTitleText": "开通支付",
+        "navigationBarTitleText": "登录",
         "navigationStyle": "custom"
       }
     },
     {
-      "path": "pages/login/login",
+      "path": "pages/verify/verify",
       "style": {
-        "navigationBarTitleText": "登录",
+        "navigationBarTitleText": "开通支付",
         "navigationStyle": "custom"
       }
     },
@@ -46,139 +46,231 @@
         "enablePullDownRefresh": false,
         "navigationStyle": "custom"
       }
-    },
-    {
-      "path": "pages/report/report",
-      "style": {
-        "navigationBarTitleText": "故障报修",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/feedback/feedback",
-      "style": {
-        "navigationBarTitleText": "意见反馈",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "style": {
-        "navigationBarTitleText": "账户充值",
-        "navigationStyle": "custom"
-      },
-      "path": "pages/recharge/recharge"
-    },
-    {
-      "path": "pages/balance/balance",
-      "style": {
-        "navigationBarTitleText": "余额明细",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "style": {
-        "navigationBarTitleText": "订单详情",
-        "navigationStyle": "custom"
-      },
-      "path": "pages/order-detail/order-detail"
-    },
-    {
-      "path": "pages/video/video",
-      "style": {
-        "navigationBarTitleText": "购物视频",
-        "navigationBarBackgroundColor": "#000000",
-        "backgroundColor": "#000000",
-        "navigationStyle": "custom",
-        "backgroundColorTop": "#000000"
-      }
-    },
-    {
-      "path": "pages/coupons/coupons",
-      "style": {
-        "navigationBarTitleText": "我的优惠券",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/nearby/nearby",
-      "style": {
-        "navigationBarTitleText": "附近柜机",
-        "backgroundColor": "#f5f7f6",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/member/index",
-      "style": {
-        "navigationBarTitleText": "会员中心",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/points/points",
-      "style": {
-        "navigationBarTitleText": "积分明细",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/points/redeem",
-      "style": {
-        "navigationBarTitleText": "积分兑换",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/messages/messages",
-      "style": {
-        "navigationBarTitleText": "消息中心",
-        "enablePullDownRefresh": true,
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/marketing/index",
-      "style": {
-        "navigationBarTitleText": "热门活动",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/dispute/detail",
-      "style": {
-        "navigationBarTitleText": "账单审核",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/help/help",
-      "style": {
-        "navigationBarTitleText": "帮助中心",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/policy/detail",
-      "style": {
-        "navigationBarTitleText": "条款说明",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/announcements/announcements",
-      "style": {
-        "navigationBarTitleText": "通知公告",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/announcements/detail",
-      "style": {
-        "navigationBarTitleText": "公告详情",
-        "navigationStyle": "custom"
-      }
     }
   ],
+  "subPackages": [
+    {
+      "root": "pages/order-detail",
+      "pages": [
+        {
+          "path": "order-detail",
+          "style": {
+            "navigationBarTitleText": "订单详情",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/video",
+      "pages": [
+        {
+          "path": "video",
+          "style": {
+            "navigationBarTitleText": "购物视频",
+            "navigationBarBackgroundColor": "#000000",
+            "backgroundColor": "#000000",
+            "navigationStyle": "custom",
+            "backgroundColorTop": "#000000"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/dispute",
+      "pages": [
+        {
+          "path": "detail",
+          "style": {
+            "navigationBarTitleText": "账单审核",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/recharge",
+      "pages": [
+        {
+          "path": "recharge",
+          "style": {
+            "navigationBarTitleText": "账户充值",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/balance",
+      "pages": [
+        {
+          "path": "balance",
+          "style": {
+            "navigationBarTitleText": "余额明细",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/nearby",
+      "pages": [
+        {
+          "path": "nearby",
+          "style": {
+            "navigationBarTitleText": "附近柜机",
+            "backgroundColor": "#f5f7f6",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/marketing",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationBarTitleText": "热门活动",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/member",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationBarTitleText": "会员中心",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/points",
+      "pages": [
+        {
+          "path": "points",
+          "style": {
+            "navigationBarTitleText": "积分明细",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "redeem",
+          "style": {
+            "navigationBarTitleText": "积分兑换",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/coupons",
+      "pages": [
+        {
+          "path": "coupons",
+          "style": {
+            "navigationBarTitleText": "我的优惠券",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/messages",
+      "pages": [
+        {
+          "path": "messages",
+          "style": {
+            "navigationBarTitleText": "消息中心",
+            "enablePullDownRefresh": true,
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/announcements",
+      "pages": [
+        {
+          "path": "announcements",
+          "style": {
+            "navigationBarTitleText": "通知公告",
+            "navigationStyle": "custom"
+          }
+        },
+        {
+          "path": "detail",
+          "style": {
+            "navigationBarTitleText": "公告详情",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/help",
+      "pages": [
+        {
+          "path": "help",
+          "style": {
+            "navigationBarTitleText": "帮助中心",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/policy",
+      "pages": [
+        {
+          "path": "detail",
+          "style": {
+            "navigationBarTitleText": "条款说明",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/report",
+      "pages": [
+        {
+          "path": "report",
+          "style": {
+            "navigationBarTitleText": "故障报修",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/feedback",
+      "pages": [
+        {
+          "path": "feedback",
+          "style": {
+            "navigationBarTitleText": "意见反馈",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    }
+  ],
+  "preloadRule": {
+    "pages/mine/mine": {
+      "network": "all",
+      "packages": ["pages/recharge", "pages/balance", "pages/help", "pages/policy"]
+    },
+    "pages/orders/orders": {
+      "network": "all",
+      "packages": ["pages/order-detail", "pages/dispute"]
+    }
+  },
   "tabBar": {
     "color": "#86a89a",
     "selectedColor": "#0f766e",
