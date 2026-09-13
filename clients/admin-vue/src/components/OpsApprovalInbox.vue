@@ -110,7 +110,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Bell } from '@element-plus/icons-vue';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { api } from '@/api/client';
+import { api, isLoggedIn } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { useNavAccess } from '@/composables/useNavAccess';
 import {
@@ -190,7 +190,7 @@ const visible = computed(
 const badgeCount = computed(() => pendingTaskCount.value + unreadMessageCount.value);
 
 async function loadInbox() {
-  if (!visible.value) return;
+  if (!visible.value || !isLoggedIn()) return;
   loading.value = true;
   try {
     const data = await api.request<InboxDto>('/api/v2/ops/admin/approvals/inbox?limit=15', 'GET');

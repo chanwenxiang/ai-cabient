@@ -354,6 +354,8 @@
             v-model="resetPwd.password"
             type="password"
             show-password
+            autocomplete="new-password"
+            name="ops-reset-new-password"
             placeholder="至少6位"
             maxlength="64"
           />
@@ -363,6 +365,8 @@
             v-model="resetPwd.confirm"
             type="password"
             show-password
+            autocomplete="new-password"
+            name="ops-reset-confirm-password"
             placeholder="再次输入新密码"
             maxlength="64"
           />
@@ -1275,6 +1279,25 @@ onActivated(() => {
 }
 .role-hint {
   margin-bottom: 12px;
+}
+.reset-pwd-form :deep(.el-input__wrapper) {
+  background-color: var(--el-fill-color-blank);
+}
+.reset-pwd-form :deep(.el-input__inner) {
+  background-color: transparent !important;
+  box-shadow: none !important;
+  -webkit-text-fill-color: var(--el-text-color-primary);
+  caret-color: var(--el-text-color-primary);
+  transition: background-color 99999s ease-out;
+}
+.reset-pwd-form :deep(.el-input__inner:-webkit-autofill),
+.reset-pwd-form :deep(.el-input__inner:-webkit-autofill:hover),
+.reset-pwd-form :deep(.el-input__inner:-webkit-autofill:focus),
+.reset-pwd-form :deep(input.el-input__inner:-webkit-autofill) {
+  -webkit-text-fill-color: var(--el-text-color-primary) !important;
+  caret-color: var(--el-text-color-primary);
+  box-shadow: 0 0 0 1000px var(--el-fill-color-blank) inset !important;
+  transition: background-color 99999s ease-out;
 }
 .role-group-title {
   margin: 12px 0 4px;

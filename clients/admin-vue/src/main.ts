@@ -13,11 +13,13 @@ import './styles/main.css';
 import { useSettingsStore } from './stores/settings';
 import { installElementPlus } from './plugins/element-plus';
 import { installMessageBoxDefaults } from './plugins/message-box-defaults';
+import { installLogoutMessageGuard } from './plugins/logout-message-guard';
 import { setupHasPermi } from './directives/hasPermi';
 import { installTableCellNativeTitle } from './utils/table-cell-native-title';
 
 normalizeAdminIndexHtmlHash();
 installMessageBoxDefaults();
+installLogoutMessageGuard();
 
 const pinia = createPinia();
 const app = createApp(App).use(pinia).use(router);
