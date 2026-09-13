@@ -84,7 +84,7 @@ DB/账号续建：viewer `13900000005`→userId `100000031`；商户B `138001380
 |----|------|------|
 | 边界 G | **5/5 PASS** | 401 未登录 / 403 viewer 写 / 404 设备 / 非法券名 400 / 空报修标题 400 |
 | 分域 | **PASS** | MK-03 停用发券拦截「优惠券已停用」；R-01 拉黑开门 403；字典+系统参数 46 项；开门幂等同 sessionId |
-| DV | **PASS** | DV-01/02 device-service 5 类单测绿；DV-03 模拟器 Up（主柜在线）；DV-04 vision `/health` ok；DV-05 OPEN MOCK 争议 2 条；DV-06 已知缺口已登记 |
+| DV | **PASS** | DV-01~05 + **DV-06 双柜/MQTT 去重 E2E**（见「DV-06 / PERF-1 加重」） |
 | UI | PASS | 风控页 `t4-risk.png` |
 
 证据：`full-round-t4.json`。
@@ -111,7 +111,7 @@ DB/账号续建：viewer `13900000005`→userId `100000031`；商户B `138001380
 | UI-C07 会员登录 | BLOCK | **PASS** | 密码 API + `uni.setStorageSync` 注入后会员/兑换页可读 |
 | P0#4 分账 | PARTIAL | **PASS** | 公式+流水+重放不双入+UK 已证 |
 | P0#8 公告 | PARTIAL | **PASS** | 创建发布公告 + 手工站内信 |
-| DV-06 多柜/MQTT | 缺口 | OPEN | 已登记 MASTER 附录 B |
+| DV-06 多柜/MQTT | 缺口 | **PASS（本轮补）** | 双柜 ONLINE + MQTT 去重 E2E；见下节 |
 
 证据：`full-round-t6.json`、`t6-route-audit.json`。
 
@@ -128,11 +128,13 @@ T2抽样 PASS · T4 15/15 · T5 6/6 · T6 归档 · 基线 24/22/76·73/66 OK
 
 - [x] T2 财务/运营角色侧栏全矩阵（viewer+他商户已覆盖；本轮补 finance/operator/replenisher）
 - [x] T2 商户端店员/财务/店长/补货员边界（`13800138002/004/006/007`）
-- [ ] §6 PERF-1 JMeter **1000 用户全量**（仓库无现成 .jmx；已有 node 轻量基线）
+- [ ] §6 PERF-1 JMeter **1000 用户全量**（仓库无现成 .jmx；已有 node 轻量+加重基线）
 - [ ] §10 真实环境 🔒
 - [x] §6 FE-PERF / 轻量抽样（见下「推送后回归」）
 - [x] §6 PERF-2 轻量（顺序幂等 + 忙柜拒绝；并行同 key 竞态已登记）
 - [x] §6 PERF-1/3/4 轻量（account / MinIO / vision）
+- [x] DV-06 / DV-03 双柜 ONLINE + MQTT 门事件去重 E2E
+- [x] §6 PERF-1 加重（node 并发，非 JMeter）
 
 ## 推送后回归（2026-09-13 12:27+ · `dev` @ `6bbdb171`）
 
@@ -184,9 +186,24 @@ T2抽样 PASS · T4 15/15 · T5 6/6 · T6 归档 · 基线 24/22/76·73/66 OK
 | PERF-3 轻量 | MinIO `:9000/minio/health/live`×40 p95 **20ms** |
 | PERF-4 轻量 | vision `/health`×40 p95 **48ms** |
 
-仍开放：DV-06 已知缺口、PERF-1 JMeter 全量、PERF-3/4 业务深压、§10 真实环境🔒。
+仍开放：PERF-1 JMeter 全量、PERF-3/4 业务深压、§10 真实环境🔒。
+
+## DV-06 / PERF-1 加重（2026-09-13 13:00+）
+
+脚本：`scripts/full-round-dv06-perf1.mjs` → `full-round-dv06-perf1.json`  
+第二柜：`CAB-001` 绑定 `MCH-DEFAULT` + 容器 `ai-cabinet-device-simulator-cab001`（无宿主端口，避 18090/xxl-job）
+
+| 项 | 结果 |
+|----|------|
+| 双柜 ONLINE | **PASS** `777740024057` + `CAB-001` 心跳各自推进 |
+| MQTT 桥 | **PASS** 真 session 发 CLOSED×2；Redis `aicabinet:door-dedup:…:CLOSED:seq:dv06-1` |
+| 去重日志 | **PASS** `duplicate door event ignored` |
+| device-service 单测 | **PASS** `DoorEventDeduplicatorTest` + `MqttEventListenerDoorTest` |
+| PERF-1 加重 | account×200 p95 **77ms**；orders×200 p95 **41ms**；status×120 p95 **36ms**；orders-burst×400@80 p95 **123ms**；错误率 **0**（标注非 JMeter 1000） |
+
+说明：假 session 的门事件会因 trade 404 清 dedup 键（设计如此）；E2E 去重须先开门会话再用 `eventSeq`。
 
 ## 结论（当前）
 
 **MASTER 完整轮已收口**，P0 **10/10 PASS**（含 #4 分账加深）。  
-推送后门禁、重置密码回归、T2 运营三角色 + 商户四角色、PERF-1/2/3/4 轻量已补跑。证据目录 `docs/uat-screenshots/2026-09-12/`。
+推送后门禁、重置密码回归、T2 角色矩阵、PERF 轻量/加重、DV-06 双柜+MQTT 去重已补跑。证据目录 `docs/uat-screenshots/2026-09-12/`。
