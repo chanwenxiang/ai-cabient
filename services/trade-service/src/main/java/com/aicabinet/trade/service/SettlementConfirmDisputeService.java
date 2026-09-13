@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 
 /**
  * 争议确认清单（从 {@link SettlementService} 拆出，降低上帝类体积）。
- * 落单/改行等仍委托 {@link SettlementService} 的包内协作方法。
+ * 锁/落单委托 {@link SettlementService}；行改/DTO 委托 {@link SettlementOrderSupport}。
  */
 @Service
 public class SettlementConfirmDisputeService {
@@ -35,6 +35,7 @@ public class SettlementConfirmDisputeService {
     private final UserValidationService userValidationService;
     private final RevenueSplitService revenueSplitService;
     private final SettlementService settlement;
+    private final SettlementOrderSupport orderSupport;
     private final SettlementConfirmDisputeService self;
 
     public SettlementConfirmDisputeService(ShoppingSessionMapper sessionRepository,
@@ -44,6 +45,7 @@ public class SettlementConfirmDisputeService {
                                            UserValidationService userValidationService,
                                            RevenueSplitService revenueSplitService,
                                            @Lazy SettlementService settlement,
+                                           SettlementOrderSupport orderSupport,
                                            @Lazy SettlementConfirmDisputeService self) {
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -52,6 +54,7 @@ public class SettlementConfirmDisputeService {
         this.userValidationService = userValidationService;
         this.revenueSplitService = revenueSplitService;
         this.settlement = settlement;
+        this.orderSupport = orderSupport;
         this.self = self;
     }
 
@@ -109,7 +112,7 @@ public class SettlementConfirmDisputeService {
         }
 
         CabinetOrder order = existing.get();
-        settlement.hydrateOrderLines(order);
+        orderSupport.hydrateOrderLines(order);
         if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_ALREADY_REFUNDED);
         }
@@ -126,8 +129,8 @@ public class SettlementConfirmDisputeService {
                         (a, b) -> a));
 
         int originalPayable = order.getTotalAmountCents();
-        settlement.applyItemsToOrder(order, items);
-        settlement.recalculatePayableAfterLineChange(order);
+        orderSupport.applyItemsToOrder(order, items);
+        orderSupport.recalculatePayableAfterLineChange(order);
         int finalTotal = order.getTotalAmountCents();
         int delta = finalTotal - originalPayable;
 
@@ -140,16 +143,16 @@ public class SettlementConfirmDisputeService {
         if (order.isInventoryDeducted()) {
             var adjustedBatches = inventoryService.adjustForOrder(
                     session.getDeviceId(), oldItems, items, batchBySku, order.getOrderId());
-            SettlementService.applyBatchNos(order, adjustedBatches);
+            SettlementOrderSupport.applyBatchNos(order, adjustedBatches);
         } else {
             var deductedBatches = inventoryService.deductForOrder(
                     session.getDeviceId(), items, order.getOrderId(),
-                    settlement.gravityDeltasForInventory(session));
-            SettlementService.applyBatchNos(order, deductedBatches);
+                    orderSupport.gravityDeltasForInventory(session));
+            SettlementOrderSupport.applyBatchNos(order, deductedBatches);
             order.setInventoryDeducted(true);
         }
         orderRepository.save(order);
-        settlement.replaceOrderLines(order);
+        orderSupport.replaceOrderLines(order);
         log.info("dispute confirm prepare session={} order={} original={} final={} delta={}",
                 sessionId, order.getOrderId(), originalPayable, finalTotal, delta);
         return ConfirmDisputePrep.adjust(order, originalPayable, finalTotal, delta);
@@ -159,7 +162,7 @@ public class SettlementConfirmDisputeService {
     public SettlementService.ConfirmDisputeResult finalizeConfirmDispute(ConfirmDisputePrep prep) {
         CabinetOrder order = orderRepository.findByIdForUpdate(prep.order().getOrderId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        settlement.hydrateOrderLines(order);
+        orderSupport.hydrateOrderLines(order);
         if ("DISPUTED".equals(order.getStatus())) {
             order.setStatus("PAID");
         }
@@ -170,6 +173,6 @@ public class SettlementConfirmDisputeService {
         log.info("dispute confirm finalize order={} original={} final={} delta={}",
                 order.getOrderId(), prep.originalPayable(), prep.finalTotal(), prep.paymentDelta());
         return new SettlementService.ConfirmDisputeResult(
-                settlement.toDto(order), prep.originalPayable(), prep.finalTotal(), prep.paymentDelta());
+                orderSupport.toDto(order), prep.originalPayable(), prep.finalTotal(), prep.paymentDelta());
     }
 }

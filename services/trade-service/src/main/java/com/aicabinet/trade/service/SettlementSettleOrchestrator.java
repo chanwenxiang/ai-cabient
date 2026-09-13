@@ -29,6 +29,7 @@ public class SettlementSettleOrchestrator {
     private final DeviceValidationService deviceValidationService;
     private final SettlementRecognitionService settlementRecognitionService;
     private final SettlementService settlement;
+    private final SettlementOrderSupport orderSupport;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final SettlementSettleOrchestrator self;
 
@@ -38,6 +39,7 @@ public class SettlementSettleOrchestrator {
                                         DeviceValidationService deviceValidationService,
                                         SettlementRecognitionService settlementRecognitionService,
                                         @Lazy SettlementService settlement,
+                                        SettlementOrderSupport orderSupport,
                                         @Lazy SettlementSettleOrchestrator self) {
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -45,6 +47,7 @@ public class SettlementSettleOrchestrator {
         this.deviceValidationService = deviceValidationService;
         this.settlementRecognitionService = settlementRecognitionService;
         this.settlement = settlement;
+        this.orderSupport = orderSupport;
         this.self = self;
     }
 
@@ -54,7 +57,7 @@ public class SettlementSettleOrchestrator {
     public OrderReadModel settle(ShoppingSession session) {
         return settlement.runWithSessionSettleLock(session.getSessionId(), () -> {
             if (orderRepository.findBySessionId(session.getSessionId()).isPresent()) {
-                return settlement.toDto(orderRepository.findBySessionId(session.getSessionId()).get());
+                return orderSupport.toDto(orderRepository.findBySessionId(session.getSessionId()).get());
             }
             deviceValidationService.ensureSettlementAllowed(session.getDeviceId());
 

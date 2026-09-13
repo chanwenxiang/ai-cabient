@@ -429,7 +429,7 @@
 
 - [ ] **两端小程序 `manifest.json` 填入真实 `mp-weixin.appid`**（C-P1-1 / M-P2-3；admin-vue 无此文件）
 - [ ] **两端小程序生产构建开启 `urlCheck`**（C-P2-6 / M-P2-3）
-- [ ] **部署强制 `prod`/`staging` profile**：`ProductionStartupValidator` 已拒绝默认 JWT/INTERNAL/VISION；禁止用默认 secret 跑对外环境（S-P2-11）
+- [x] **部署强制 `prod`/`staging` profile**：`docker-compose.production.yml` / `staging.yml` 固定 `SPRING_PROFILES_ACTIVE`；`ProductionStartupValidator` 拒绝默认密钥；`scripts/check-env.ps1` 门禁（S-P2-11）
 - [x] **支付接口契约冻结**：mock / DevMock 与真实实现路由隔离；`PaymentController` 对外契约不再随意变更（S-P1-4）— mock 迁至 `/api/v2/dev/payment/**`
 - [x] **H5 token 存储改 httpOnly Cookie**（C-P1-2；MP 可维持 Storage）— consumer H5 `cookieEnabled` 不落 JWT + `withCredentials`
 - [x] **充值/退余额后端可配置金额上限**（与前端 ¥5000 对齐；C-P1-3）— recharge.max_cents / balance.refund.max_cents
@@ -449,8 +449,8 @@
 - [x] A-P1-002 / A-P1-003：pageSize 上限收紧至 50；A-P1-003 keep-alive 已修（虚拟化仍可后续）
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
 - [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
-- [x] M-P1-3 replenishment.vue 拆分（子组件 + `useAppConfirmDialog` / `useReplenishmentDoorState` / `useReplenishmentList` / `useReplenishmentFulfillment` / `useReplenishmentDetail` / `useReplenishmentScan`；页内剩余展示/货道辅助壳）
-- [x] S-P1-1 SettlementService 拆分（已抽 VisionAsync / PartialRefundMath / PartialRefund / WaiveRefund / ConfirmDispute / OrderFinalize / Recognition / SettleOrchestrator；主类保留 DTO/锁/行改共享辅助与薄委托）
+- [x] M-P1-3 replenishment.vue 拆分（子组件 + Door/List/Fulfillment/Detail/Scan/Display composables；页内剩余导航/文案壳）
+- [x] S-P1-1 SettlementService 拆分（VisionAsync / PartialRefundMath / PartialRefund / WaiveRefund / ConfirmDispute / OrderFinalize / Recognition / SettleOrchestrator / OrderSupport；主类为薄 Facade + 锁）
 - [x] S-P1-5 / M-P1-5 定价乐观锁（`device_sku_price.version`；库存此前已有）
 - [x] H5 隐私政策首屏弹窗（C-P2-5 / M-P2-4）— `privacy-consent-modal` + 两端入口页
 - [x] 24 页分包（C-P2-3）— consumer `pages.json` 主包 6 + `subPackages` + `preloadRule`

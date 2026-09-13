@@ -21,7 +21,7 @@ import java.util.Map;
 
 /**
  * 结算落单与扣款（从 {@link SettlementService} 拆出，降低上帝类体积）。
- * toDto / hydrate / applyItems / applyBatchNos / gravity 等仍委托 {@link SettlementService}。
+ * toDto / applyItems / applyBatchNos / gravity 等委托 {@link SettlementOrderSupport}。
  */
 @Service
 public class SettlementOrderFinalizeService {
@@ -41,7 +41,7 @@ public class SettlementOrderFinalizeService {
     private final NotificationService notificationService;
     private final VideoArchiveService videoArchiveService;
     private final DisplaySnapshotHelper displaySnapshotHelper;
-    private final SettlementService settlement;
+    private final SettlementOrderSupport orderSupport;
 
     public SettlementOrderFinalizeService(ShoppingSessionMapper sessionRepository,
                                           CabinetOrderMapper orderRepository,
@@ -56,7 +56,7 @@ public class SettlementOrderFinalizeService {
                                           NotificationService notificationService,
                                           VideoArchiveService videoArchiveService,
                                           DisplaySnapshotHelper displaySnapshotHelper,
-                                          @Lazy SettlementService settlement) {
+                                          SettlementOrderSupport orderSupport) {
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
@@ -70,7 +70,7 @@ public class SettlementOrderFinalizeService {
         this.notificationService = notificationService;
         this.videoArchiveService = videoArchiveService;
         this.displaySnapshotHelper = displaySnapshotHelper;
-        this.settlement = settlement;
+        this.orderSupport = orderSupport;
     }
 
     OrderReadModel finalizeOrder(ShoppingSession session,
@@ -84,8 +84,8 @@ public class SettlementOrderFinalizeService {
             clearCouponSelection(order);
         }
         var batchBySku = inventoryService.deductForOrder(
-                session.getDeviceId(), items, order.getOrderId(), settlement.gravityDeltasForInventory(session));
-        SettlementService.applyBatchNos(order, batchBySku);
+                session.getDeviceId(), items, order.getOrderId(), orderSupport.gravityDeltasForInventory(session));
+        SettlementOrderSupport.applyBatchNos(order, batchBySku);
         order.setInventoryDeducted(true);
         order.setStatus(unpaid ? "PENDING" : "PAID");
         // Persist order before charge/coupon mark — payment_operation & user_coupon FK to cabinet_order
@@ -96,7 +96,7 @@ public class SettlementOrderFinalizeService {
             return finishUnpaidOrder(session, order);
         }
         if (!tryChargeSettledOrder(session, order)) {
-            return settlement.toDto(order);
+            return orderSupport.toDto(order);
         }
         orderRepository.save(order);
         if (appliedCoupon != null) {
@@ -130,7 +130,7 @@ public class SettlementOrderFinalizeService {
         log.info("settled session={} order={} amount={} couponDiscount={} channel={}",
                 session.getSessionId(), order.getOrderId(), order.getTotalAmountCents(),
                 order.getCouponDiscountCents(), order.getPayChannel());
-        return settlement.toDto(order);
+        return orderSupport.toDto(order);
     }
 
     /** 余额不足时预判为待支付（优惠券延后核销）。 */
@@ -160,7 +160,7 @@ public class SettlementOrderFinalizeService {
         videoArchiveService.archiveAfterSettlement(session);
         log.info("unpaid order created session={} order={} amount={}",
                 session.getSessionId(), order.getOrderId(), order.getTotalAmountCents());
-        return settlement.toDto(order);
+        return orderSupport.toDto(order);
     }
 
     /**
@@ -248,7 +248,7 @@ public class SettlementOrderFinalizeService {
         order.setDeviceId(session.getDeviceId());
         displaySnapshotHelper.stampOrderSnapshot(order);
         order.setStatus("PAID");
-        settlement.applyItemsToOrder(order, items);
+        orderSupport.applyItemsToOrder(order, items);
         return order;
     }
 

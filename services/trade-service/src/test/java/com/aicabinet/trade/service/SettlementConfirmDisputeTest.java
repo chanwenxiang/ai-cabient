@@ -55,14 +55,18 @@ class SettlementConfirmDisputeTest {
 
     @BeforeEach
     void setUp() {
+        var orderViewAssembler = new com.aicabinet.trade.service.view.OrderViewAssembler();
+        SettlementOrderSupport orderSupport = new SettlementOrderSupport(
+                skuCatalogRepository, orderRepository, orderLineRepository, slotRepository,
+                skuPricingService, memberService, couponService, null,
+                revenueSplitService, orderPaymentService, null, orderViewAssembler);
         settlementService = new SettlementService(
-                sessionRepository, skuCatalogRepository, orderRepository, orderLineRepository,
+                sessionRepository, orderRepository,
                 null, null, null, null, null, null,
-                revenueSplitService, orderPaymentService, skuPricingService, couponService, memberService, null,
-                slotRepository, null, distributedLockService, new com.aicabinet.trade.service.view.OrderViewAssembler());
+                orderSupport, distributedLockService);
         SettlementConfirmDisputeService confirmSvc = new SettlementConfirmDisputeService(
                 sessionRepository, orderRepository, orderPaymentService, inventoryService,
-                userValidationService, revenueSplitService, settlementService, null);
+                userValidationService, revenueSplitService, settlementService, orderSupport, null);
         org.springframework.test.util.ReflectionTestUtils.setField(confirmSvc, "self", confirmSvc);
         org.springframework.test.util.ReflectionTestUtils.setField(
                 settlementService, "settlementConfirmDisputeService", confirmSvc);

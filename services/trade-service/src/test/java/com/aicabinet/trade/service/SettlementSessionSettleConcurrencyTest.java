@@ -33,12 +33,11 @@ class SettlementSessionSettleConcurrencyTest {
                 null, null, null, distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(waiveRefundService, "self", waiveRefundService);
         settlementService = new SettlementService(
-                sessionRepository, null, orderRepository, null,
+                sessionRepository, orderRepository,
                 null, waiveRefundService, null, null, null, null,
-                null, null, null, null, null, null,
-                null, null, distributedLockService, new com.aicabinet.trade.service.view.OrderViewAssembler());
+                null, distributedLockService);
         SettlementSettleOrchestrator settleOrchestrator = new SettlementSettleOrchestrator(
-                sessionRepository, orderRepository, null, null, null, settlementService, null);
+                sessionRepository, orderRepository, null, null, null, settlementService, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(settleOrchestrator, "self", settleOrchestrator);
         org.springframework.test.util.ReflectionTestUtils.setField(
                 settlementService, "settleOrchestrator", settleOrchestrator);

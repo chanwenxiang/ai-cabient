@@ -47,14 +47,18 @@ class SettlementPartialRefundTest {
 
     @BeforeEach
     void setUp() {
+        var orderViewAssembler = new com.aicabinet.trade.service.view.OrderViewAssembler();
+        SettlementOrderSupport orderSupport = new SettlementOrderSupport(
+                null, orderRepository, orderLineRepository, null,
+                null, null, couponService, null,
+                revenueSplitService, orderPaymentService, null, orderViewAssembler);
         settlementService = new SettlementService(
-                null, null, orderRepository, orderLineRepository,
+                null, orderRepository,
                 null, null, null, null, null, null,
-                revenueSplitService, orderPaymentService, null, couponService, null, null,
-                null, null, null, new com.aicabinet.trade.service.view.OrderViewAssembler());
+                orderSupport, null);
         SettlementPartialRefundService partialRefundService = new SettlementPartialRefundService(
                 orderRepository, orderPaymentService, inventoryService, revenueSplitService,
-                couponService, settlementService, null);
+                couponService, orderSupport, null);
         org.springframework.test.util.ReflectionTestUtils.setField(partialRefundService, "self", partialRefundService);
         org.springframework.test.util.ReflectionTestUtils.setField(
                 settlementService, "settlementPartialRefundService", partialRefundService);

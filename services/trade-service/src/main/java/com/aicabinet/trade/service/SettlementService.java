@@ -1,22 +1,20 @@
 package com.aicabinet.trade.service;
-import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.common.dto.OrderRefundRequest;
 import com.aicabinet.trade.client.VisionServiceClient;
-import com.aicabinet.trade.domain.*;
-import com.aicabinet.trade.mapper.*;
-import com.aicabinet.trade.service.view.OrderViewAssembler;
-import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.domain.CabinetOrder;
+import com.aicabinet.trade.domain.ShoppingSession;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.Instant;
 import java.util.List;
-import java.util.Map;
+
 @Service
 @SuppressWarnings("java:S6539")
 public class SettlementService {
@@ -24,66 +22,36 @@ public class SettlementService {
     private static final String GRAVITY_FILL = "gravity-fill";
 
     private final ShoppingSessionMapper sessionRepository;
-    private final SkuCatalogMapper skuCatalogRepository;
     private final CabinetOrderMapper orderRepository;
-    private final CabinetOrderLineMapper orderLineRepository;
     private final SettlementVisionAsyncService settlementVisionAsyncService;
     private final SettlementWaiveRefundService settlementWaiveRefundService;
     private final SettlementConfirmDisputeService settlementConfirmDisputeService;
     private final SettlementOrderFinalizeService settlementOrderFinalizeService;
     private final SettlementPartialRefundService settlementPartialRefundService;
     private final SettlementSettleOrchestrator settleOrchestrator;
-    private final RevenueSplitService revenueSplitService;
-    private final OrderPaymentService orderPaymentService;
-    private final MerchantSkuPricingService skuPricingService;
-    private final CouponService couponService;
-    private final MemberService memberService;
-    private final RefundPolicyService refundPolicyService;
-    private final DeviceSlotMapper slotRepository;
-    private final SystemConfigService systemConfigService;
+    private final SettlementOrderSupport orderSupport;
     private final DistributedLockService distributedLockService;
-    private final OrderViewAssembler orderViewAssembler;
 
     public SettlementService(ShoppingSessionMapper sessionRepository,
-                             SkuCatalogMapper skuCatalogRepository,
                              CabinetOrderMapper orderRepository,
-                             CabinetOrderLineMapper orderLineRepository,
                              SettlementVisionAsyncService settlementVisionAsyncService,
                              SettlementWaiveRefundService settlementWaiveRefundService,
                              SettlementConfirmDisputeService settlementConfirmDisputeService,
                              SettlementOrderFinalizeService settlementOrderFinalizeService,
                              SettlementPartialRefundService settlementPartialRefundService,
                              @Lazy SettlementSettleOrchestrator settleOrchestrator,
-                             RevenueSplitService revenueSplitService,
-                             OrderPaymentService orderPaymentService,
-                             MerchantSkuPricingService skuPricingService,
-                             CouponService couponService,
-                             MemberService memberService,
-                             RefundPolicyService refundPolicyService,
-                             DeviceSlotMapper slotRepository,
-                             SystemConfigService systemConfigService,
-                             DistributedLockService distributedLockService,
-                             OrderViewAssembler orderViewAssembler) {
+                             SettlementOrderSupport orderSupport,
+                             DistributedLockService distributedLockService) {
         this.sessionRepository = sessionRepository;
-        this.skuCatalogRepository = skuCatalogRepository;
         this.orderRepository = orderRepository;
-        this.orderLineRepository = orderLineRepository;
         this.settlementVisionAsyncService = settlementVisionAsyncService;
         this.settlementWaiveRefundService = settlementWaiveRefundService;
         this.settlementConfirmDisputeService = settlementConfirmDisputeService;
         this.settlementOrderFinalizeService = settlementOrderFinalizeService;
         this.settlementPartialRefundService = settlementPartialRefundService;
         this.settleOrchestrator = settleOrchestrator;
-        this.revenueSplitService = revenueSplitService;
-        this.orderPaymentService = orderPaymentService;
-        this.skuPricingService = skuPricingService;
-        this.couponService = couponService;
-        this.memberService = memberService;
-        this.refundPolicyService = refundPolicyService;
-        this.slotRepository = slotRepository;
-        this.systemConfigService = systemConfigService;
+        this.orderSupport = orderSupport;
         this.distributedLockService = distributedLockService;
-        this.orderViewAssembler = orderViewAssembler;
     }
 
     /** 人工审核后确认清单：无订单则首次扣款；有订单则按差额退/补。 */
@@ -131,10 +99,6 @@ public class SettlementService {
         return settleOrchestrator.processRecognitionResult(session, recognition, allowDevFallback);
     }
 
-    String gravityDeltasForInventory(ShoppingSession session) {
-        return systemConfigService.usesGravityFusion() ? session.getGravityDeltas() : null;
-    }
-
     /** mock / gravity-mismatch / gravity-fill 不得静默按「生产精度」扣款。 */
     static boolean blocksSilentSettle(VisionServiceClient.RecognitionResult recognition) {
         String version = recognition.modelVersion() != null ? recognition.modelVersion().toLowerCase() : "";
@@ -173,7 +137,7 @@ public class SettlementService {
         return runWithSessionSettleLock(session.getSessionId(), () -> {
             sessionRepository.findByIdForUpdate(session.getSessionId());
             if (orderRepository.findBySessionId(session.getSessionId()).isPresent()) {
-                return toDto(orderRepository.findBySessionId(session.getSessionId()).get());
+                return orderSupport.toDto(orderRepository.findBySessionId(session.getSessionId()).get());
             }
             return finalizeOrder(session, items);
         });
@@ -194,7 +158,7 @@ public class SettlementService {
     }
 
     /**
-     * 免单/全额退款。无外层长事务：库存短事务 → 退款（可含渠道 HTTP）→ 状态短事务。
+     * 争议单/全额退款。无外层长事务：库存短事务 → 退款（可含渠道 HTTP）→ 状态短事务。
      *
      * @param restoreInventory true=退货退款回库；false=仅退款不回库（货已离柜）
      */
@@ -245,143 +209,12 @@ public class SettlementService {
         return settlementOrderFinalizeService.finalizeOrder(session, items);
     }
 
-    void applyItemsToOrder(CabinetOrder order, List<VisionServiceClient.RecognizedItem> items) {
-        order.getLines().clear();
-        Map<String, String> slotBySku = inferSlotBySku(order.getDeviceId());
-        int total = 0;
-        for (VisionServiceClient.RecognizedItem item : items) {
-            SkuCatalog sku = skuCatalogRepository.findById(item.skuId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                            ApiMessages.SKU_NOT_FOUND + "：" + item.skuId()));
-            int unitPrice = skuPricingService.resolveUnitPriceCents(order.getDeviceId(), sku);
-            unitPrice = memberService.applyMemberPriceDiscount(order.getUserId(), unitPrice);
-            int lineAmount = unitPrice * item.quantity();
-            total += lineAmount;
-
-            CabinetOrderLine line = new CabinetOrderLine();
-            line.setSkuId(sku.getSkuId());
-            line.setSkuName(sku.getSkuName());
-            line.setQuantity(item.quantity());
-            line.setUnitPriceCents(unitPrice);
-            line.setLineAmountCents(lineAmount);
-            line.setUnitCostCents(sku.getPurchaseCostCents());
-            line.setConfidence(item.confidence());
-            line.setSlotId(slotBySku.get(sku.getSkuId()));
-            order.addLine(line);
-        }
-        order.setOriginalAmountCents(total);
-        order.setTotalAmountCents(total);
-    }
-
-    /** 争议改单后按新明细重算折后应付（保留已绑券/会员折扣字段）。 */
-    void recalculatePayableAfterLineChange(CabinetOrder order) {
-        int subtotal = order.getLines().stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
-        order.setOriginalAmountCents(subtotal);
-        int couponDisc = 0;
-        if (order.getCouponId() != null && subtotal > 0) {
-            couponDisc = couponService.discountForOrderCoupon(order.getCouponId(), subtotal);
-        }
-        order.setCouponDiscountCents(couponDisc);
-        int memberDisc = Math.min(Math.max(0, order.getMemberDiscountCents()),
-                Math.max(0, subtotal - couponDisc));
-        order.setMemberDiscountCents(memberDisc);
-        order.setTotalAmountCents(Math.max(0, subtotal - couponDisc - memberDisc));
-    }
-
-    /** SKU 唯一绑定某货道时回填货道；同一 SKU 出现在多个货道则不推断。 */
-    private Map<String, String> inferSlotBySku(String deviceId) {
-        Map<String, String> map = new java.util.HashMap<>();
-        if (deviceId == null) {
-            return map;
-        }
-        for (DeviceSlot slot : slotRepository.findByIdDeviceId(deviceId)) {
-            if (!slot.isEnabled() || slot.getAssignedSkuId() == null || slot.getAssignedSkuId().isBlank()) {
-                continue;
-            }
-            String existing = map.putIfAbsent(slot.getAssignedSkuId(), slot.getSlotCode());
-            if (existing != null) {
-                map.put(slot.getAssignedSkuId(), null);
-            }
-        }
-        map.values().removeIf(v -> v == null);
-        return map;
-    }
-
-    static void applyBatchNos(CabinetOrder order, java.util.Map<String, String> batchBySku) {
-        if (batchBySku == null || batchBySku.isEmpty()) {
-            return;
-        }
-        for (CabinetOrderLine line : order.getLines()) {
-            String batch = batchBySku.get(line.getSkuId());
-            if (batch != null && !batch.isBlank()) {
-                line.setBatchNo(batch);
-            }
-        }
-    }
-
     /**
      * 仅同包服务在归属校验后调用；勿对 Controller / 跨模块公开，防 IDOR 绕过。
      */
     @Transactional(readOnly = true)
     OrderReadModel getOrderBySession(String sessionId) {
-        return orderRepository.findBySessionId(sessionId)
-                .map(this::toDto)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-    }
-
-    void replaceOrderLines(CabinetOrder order) {
-        orderLineRepository.deleteByOrderId(order.getOrderId());
-        if (order.getLines() == null) {
-            return;
-        }
-        for (CabinetOrderLine line : order.getLines()) {
-            line.setId(null);
-            line.setOrderId(order.getOrderId());
-            orderLineRepository.save(line);
-        }
-    }
-
-    void hydrateOrderLines(CabinetOrder order) {
-        if (order == null || order.getOrderId() == null) {
-            return;
-        }
-        if (order.getLines() != null && !order.getLines().isEmpty()) {
-            return;
-        }
-        order.setLines(new java.util.ArrayList<>(orderLineRepository.findByOrderId(order.getOrderId())));
-    }
-
-    OrderReadModel toDto(CabinetOrder order) {
-        hydrateOrderLines(order);
-        String refundPolicy = refundPolicyService != null
-                ? refundPolicyService.resolveForDevice(order.getDeviceId()).name()
-                : null;
-        String splitStatus = revenueSplitService.findStatusByOrderId(order.getOrderId()).orElse(null);
-        return orderViewAssembler.assembleDetail(
-                order,
-                order.getLines(),
-                splitStatus,
-                resolvePaidAt(order),
-                refundPolicy,
-                null);
-    }
-
-    private Instant resolvePaidAt(CabinetOrder order) {
-        String status = order.getStatus();
-        if (status == null
-                || "PENDING".equals(status)
-                || "CANCELLED".equals(status)
-                || CabinetConstants.ORDER_STATUS_FAILED.equals(status)) {
-            return null;
-        }
-        String opId = order.getPaymentOperationId();
-        if (opId != null && !opId.isBlank()) {
-            Instant at = orderPaymentService.findOperationCreatedAt(opId).orElse(null);
-            if (at != null) {
-                return at;
-            }
-        }
-        return order.getCreatedAt();
+        return orderSupport.getOrderBySession(sessionId);
     }
 
     static String sessionSettleLockKey(String sessionId) {

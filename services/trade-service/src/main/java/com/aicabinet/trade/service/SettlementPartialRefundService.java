@@ -20,7 +20,7 @@ import java.util.Map;
 
 /**
  * 按行部分退款（从 {@link SettlementService} 拆出，降低上帝类体积）。
- * 行改/应付重算委托 {@link SettlementService}；纯数学见 {@link SettlementPartialRefundMath}。
+ * 行改/应付重算委托 {@link SettlementOrderSupport}；纯数学见 {@link SettlementPartialRefundMath}。
  */
 @Service
 public class SettlementPartialRefundService {
@@ -32,7 +32,7 @@ public class SettlementPartialRefundService {
     private final InventoryService inventoryService;
     private final RevenueSplitService revenueSplitService;
     private final CouponService couponService;
-    private final SettlementService settlement;
+    private final SettlementOrderSupport orderSupport;
     private final SettlementPartialRefundService self;
 
     public SettlementPartialRefundService(CabinetOrderMapper orderRepository,
@@ -40,14 +40,14 @@ public class SettlementPartialRefundService {
                                           InventoryService inventoryService,
                                           RevenueSplitService revenueSplitService,
                                           CouponService couponService,
-                                          @Lazy SettlementService settlement,
+                                          SettlementOrderSupport orderSupport,
                                           @Lazy SettlementPartialRefundService self) {
         this.orderRepository = orderRepository;
         this.orderPaymentService = orderPaymentService;
         this.inventoryService = inventoryService;
         this.revenueSplitService = revenueSplitService;
         this.couponService = couponService;
-        this.settlement = settlement;
+        this.orderSupport = orderSupport;
         this.self = self;
     }
 
@@ -82,7 +82,7 @@ public class SettlementPartialRefundService {
                                                   boolean defaultRestore) {
         CabinetOrder order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        settlement.hydrateOrderLines(order);
+        orderSupport.hydrateOrderLines(order);
         if (order.getLines() == null || order.getLines().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "订单无商品行，无法按行退款");
         }
@@ -94,7 +94,7 @@ public class SettlementPartialRefundService {
         order.setLines(remaining);
         int newSubtotal = remaining.stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
         couponService.recalcOrRestoreAfterPartialRefund(order, newSubtotal);
-        settlement.recalculatePayableAfterLineChange(order);
+        orderSupport.recalculatePayableAfterLineChange(order);
         int refundCents = Math.max(0, priorPayable - order.getTotalAmountCents());
         if (refundCents <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额为 0");
@@ -103,7 +103,7 @@ public class SettlementPartialRefundService {
         applyPartialRefundInventory(order, partition, remaining.isEmpty());
         int priorRefunded = Math.max(0, order.getRefundedCents());
         orderRepository.save(order);
-        settlement.replaceOrderLines(order);
+        orderSupport.replaceOrderLines(order);
         return new PartialRefundPrep(order, refundCents, priorRefunded, remaining.isEmpty(), partition.anyRestored());
     }
 
@@ -111,7 +111,7 @@ public class SettlementPartialRefundService {
     public PartialRefundResult finalizePartialRefund(PartialRefundPrep prep) {
         CabinetOrder order = orderRepository.findByIdForUpdate(prep.order().getOrderId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        settlement.hydrateOrderLines(order);
+        orderSupport.hydrateOrderLines(order);
         int refundCents = prep.refundCents();
         // 支付层正常会累加 refundedCents；演示账号早退 / 历史路径漏写时在此兜底
         if (order.getRefundedCents() < prep.priorRefunded() + refundCents) {
@@ -127,7 +127,7 @@ public class SettlementPartialRefundService {
         }
         revenueSplitService.adjustSplitAfterPartialRefund(order, full);
         orderRepository.save(order);
-        settlement.replaceOrderLines(order);
+        orderSupport.replaceOrderLines(order);
         log.info("partial refund order={} refundCents={} status={} anyRestored={}",
                 order.getOrderId(), refundCents, order.getStatus(), prep.anyRestored());
         return new PartialRefundResult(refundCents, order.getStatus(), prep.anyRestored());
@@ -207,7 +207,7 @@ public class SettlementPartialRefundService {
             return 0;
         }
         CabinetOrder scratch = SettlementPartialRefundMath.copyOrderForPartialRefundEstimate(order);
-        settlement.hydrateOrderLines(scratch);
+        orderSupport.hydrateOrderLines(scratch);
         if (scratch.getLines() == null || scratch.getLines().isEmpty()) {
             return 0;
         }
@@ -220,7 +220,7 @@ public class SettlementPartialRefundService {
         scratch.setLines(remaining);
         int newSubtotal = remaining.stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
         applyPartialRefundPayablePreview(scratch, newSubtotal);
-        settlement.recalculatePayableAfterLineChange(scratch);
+        orderSupport.recalculatePayableAfterLineChange(scratch);
         return Math.max(0, priorPayable - scratch.getTotalAmountCents());
     }
 
