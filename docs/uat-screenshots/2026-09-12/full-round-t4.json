@@ -1,0 +1,190 @@
+{
+  "at": "2026-09-13T03:20:53.680Z",
+  "cases": [
+    {
+      "id": "T4-G-401",
+      "status": "PASS",
+      "note": {
+        "http": 401,
+        "code": 401,
+        "message": "请先登录"
+      }
+    },
+    {
+      "id": "T4-G-403",
+      "status": "PASS",
+      "note": {
+        "code": 403,
+        "message": "无权限执行此操作"
+      }
+    },
+    {
+      "id": "T4-G-404",
+      "status": "PASS",
+      "note": {
+        "http": 404,
+        "code": 404,
+        "message": "设备不存在，请检查设备编号"
+      }
+    },
+    {
+      "id": "T4-G-illegal",
+      "status": "PASS",
+      "note": {
+        "http": 400,
+        "code": 400,
+        "message": "请填写优惠券名称"
+      }
+    },
+    {
+      "id": "T4-G-empty",
+      "status": "PASS",
+      "note": {
+        "code": 400,
+        "message": "标题必填"
+      }
+    },
+    {
+      "id": "T4-MK03-disable",
+      "status": "PASS",
+      "note": {
+        "defId": 1,
+        "disable": 0,
+        "issueCode": 400,
+        "issueMsg": "优惠券已停用",
+        "enable": 0
+      }
+    },
+    {
+      "id": "T4-R01-blacklist",
+      "status": "PASS",
+      "note": {
+        "blacklist": 0,
+        "openHttp": 403,
+        "openCode": 403,
+        "openMsg": "账号受限，请联系客服：T4抽样拉黑",
+        "unblock": 0
+      }
+    },
+    {
+      "id": "T4-SYS-dict-config",
+      "status": "PASS",
+      "note": {
+        "dictCode": 0,
+        "cfgCode": 0,
+        "cfgMsg": "ok",
+        "cfgSample": 46
+      }
+    },
+    {
+      "id": "T4-P-idempotency",
+      "status": "PASS",
+      "note": {
+        "balanceCents": 9350,
+        "first": {
+          "code": 0,
+          "sessionId": "1789269657437425029",
+          "msg": "ok"
+        },
+        "second": {
+          "code": 0,
+          "sessionId": "1789269657437425029",
+          "msg": "ok"
+        },
+        "sameSession": true
+      }
+    },
+    {
+      "id": "T4-DV04-vision",
+      "status": "PASS",
+      "note": {
+        "health": {
+          "status": "ok"
+        },
+        "probes": [
+          {
+            "p": "/health",
+            "status": 200,
+            "body": "{\"status\":\"ok\"}"
+          },
+          {
+            "p": "/api/health",
+            "status": 401,
+            "body": "{\"detail\":\"unauthorized\"}"
+          },
+          {
+            "p": "/v1/health",
+            "status": 404,
+            "body": "{\"detail\":\"Not Found\"}"
+          },
+          {
+            "p": "/ready",
+            "status": 404,
+            "body": "{\"detail\":\"Not Found\"}"
+          }
+        ]
+      }
+    },
+    {
+      "id": "T4-DV05-dispute-path",
+      "status": "PASS",
+      "note": {
+        "openCount": 2,
+        "sample": [
+          {
+            "ticketId": "1789268868482617204",
+            "reviewCode": "MOCK",
+            "category": "RECOGNITION",
+            "sessionId": "1789268787236878929"
+          },
+          {
+            "ticketId": "1789223205860291679",
+            "reviewCode": "MOCK",
+            "category": "RECOGNITION",
+            "sessionId": "1789223073659165081"
+          }
+        ]
+      }
+    },
+    {
+      "id": "T4-DV03-simulator",
+      "status": "PASS",
+      "note": {
+        "simulator": "ai-cabinet-device-simulator-1 Up 13 hours",
+        "deviceCount": 2,
+        "onlineCount": 1,
+        "note": "完整轮环境单主柜 777740024057；≥2 柜属已知缺口 DV-06"
+      }
+    },
+    {
+      "id": "T4-DV06-known-gap",
+      "status": "PASS",
+      "note": {
+        "note": "登记：device-service 集成薄；多柜并发/MQTT 桥端到端乱序注入仍为已知缺口（MASTER §3.6）"
+      }
+    },
+    {
+      "id": "T4-DV01-02-unit",
+      "status": "PASS",
+      "note": {
+        "exit": 0,
+        "tail": "cate door event ignored session=S-Q7 state=CLOSED\r\n11:21:18.138 [main] INFO com.aicabinet.device.service.DeviceCommandTracker -- device command ACK commandId=cmd-1 device=CAB-001 session=sess-1 success=true\r\n11:21:18.140 [main] INFO com.aicabinet.device.service.DeviceCommandTracker -- received repeated ACK commandId=cmd-1 previousStatus=ACKED success=true\r\n\nJava HotSpot(TM) 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended\r\n"
+      }
+    },
+    {
+      "id": "T4-UI-risk",
+      "status": "PASS",
+      "note": {
+        "text": "跳到主内容 前海易购运营 概览 交易履约 设备商品 履约仓储 财务商户 增长风控 手机验证 风控 营销活动 优惠券 素材库 投放计划 积分兑换管理 会员等级规则 活动效果分析 消息记录 用户反馈 系统 首页 / 增长风控 / 风控 搜索页面",
+        "screenshot": "t4-risk.png"
+      }
+    }
+  ],
+  "summary": {
+    "pass": 15,
+    "fail": 0,
+    "partial": 0,
+    "block": 0,
+    "total": 15
+  }
+}

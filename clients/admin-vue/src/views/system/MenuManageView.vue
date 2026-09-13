@@ -119,7 +119,7 @@
               ><span class="cell-id">{{ row.permCode }}</span></template
             >
           </el-table-column>
-          <el-table-column label="路由" min-width="140" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="路由" min-width="140" class-name="col-text">
             <template #default="{ row }">{{ row.path || '无' }}</template>
           </el-table-column>
           <el-table-column

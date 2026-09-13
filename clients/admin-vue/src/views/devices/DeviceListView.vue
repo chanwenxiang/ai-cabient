@@ -204,7 +204,6 @@
             label="设备编号"
             min-width="140"
             class-name="col-text"
-            show-overflow-tooltip
             sortable="custom"
           >
             <template #default="{ row }">
@@ -224,7 +223,7 @@
               </button>
             </template>
           </el-table-column>
-          <el-table-column label="类型" min-width="100" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="类型" min-width="100" class-name="col-text">
             <template #default="{ row }">{{ dictLabel('device_type', row.deviceType) }}</template>
           </el-table-column>
           <el-table-column
@@ -333,21 +332,20 @@
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="IMEI" min-width="120" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="IMEI" min-width="120" class-name="col-text">
             <template #default="{ row }">{{ row.imei || '无' }}</template>
           </el-table-column>
           <el-table-column
             label="资产方"
             min-width="100"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.assetOwner || '无' }}</template>
           </el-table-column>
-          <el-table-column label="路线" width="90" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="路线" width="90" class-name="col-text">
             <template #default="{ row }">{{ row.routeCode || '无' }}</template>
           </el-table-column>
-          <el-table-column label="商户" min-width="120" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="商户" min-width="120" class-name="col-text">
             <template #default="{ row }">{{ row.merchantName || row.merchantId || '无' }}</template>
           </el-table-column>
           <el-table-column
@@ -356,7 +354,6 @@
             min-width="168"
             class-name="col-status"
             label-class-name="col-status"
-            show-overflow-tooltip
           >
             <template #default="{ row }">
               <el-tag
@@ -372,7 +369,6 @@
             label="最近会话"
             min-width="140"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">
               <span v-if="row.activeSessionId" class="mono">{{
@@ -400,7 +396,6 @@
             min-width="168"
             class-name="col-status"
             label-class-name="col-status"
-            show-overflow-tooltip
           >
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>

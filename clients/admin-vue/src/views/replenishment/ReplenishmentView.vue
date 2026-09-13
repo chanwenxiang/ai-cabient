@@ -326,7 +326,6 @@
                 label="路线"
                 min-width="140"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.routeName || '无' }}</template>
               </el-table-column>
@@ -335,7 +334,6 @@
                 label="路线ID"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
                 sortable="custom"
               >
                 <template #default="{ row }">
@@ -471,7 +469,6 @@
                 label="设备"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">
                   <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
@@ -483,7 +480,6 @@
                 label="设备ID"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">
                   <span class="cell-id">{{ row.deviceId }}</span>
@@ -493,7 +489,6 @@
                 label="路线"
                 min-width="140"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.routeName || row.routeId || '无' }}</template>
               </el-table-column>
@@ -679,13 +674,11 @@
                 label="商户"
                 min-width="160"
                 class-name="col-text"
-                show-overflow-tooltip
               />
               <el-table-column
                 label="目标设备"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">
                   <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
@@ -697,7 +690,6 @@
                 label="设备ID"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">
                   <span class="cell-id">{{ row.deviceId }}</span>
@@ -707,7 +699,6 @@
                 label="明细"
                 min-width="220"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">
                   <span>{{ formatRequestLines(row) }}</span>
@@ -730,7 +721,6 @@
                 label="审核人"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">
                   <span v-if="row.reviewerName || row.reviewerId">{{
@@ -753,7 +743,6 @@
                 label="驳回原因"
                 min-width="160"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">
                   <span v-if="row.rejectReason" class="reject-reason">{{ row.rejectReason }}</span>
@@ -847,7 +836,6 @@
                 label="设备"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">
                   <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
@@ -859,7 +847,6 @@
                 label="设备ID"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">
                   <span class="cell-id">{{ row.deviceId }}</span>
@@ -877,7 +864,6 @@
                 label="商品"
                 min-width="140"
                 class-name="col-text"
-                show-overflow-tooltip
               />
               <el-table-column
                 prop="bookQty"
@@ -972,7 +958,6 @@
                 label="设备"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">
                   <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
@@ -984,7 +969,6 @@
                 label="设备ID"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">
                   <span class="cell-id">{{ row.deviceId }}</span>
@@ -995,21 +979,18 @@
                 label="商品 SKU"
                 min-width="140"
                 class-name="col-text"
-                show-overflow-tooltip
               />
               <el-table-column
                 prop="batchNo"
                 label="批次"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
               />
               <el-table-column
                 prop="lotId"
                 label="批次 ID"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
               />
               <el-table-column
                 prop="quantity"
@@ -1023,7 +1004,6 @@
                 label="原因"
                 min-width="160"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">{{
                   displayLabel('pull_off_reason', row.reason, '临期')
@@ -1213,7 +1193,6 @@
             <el-table-column
               label="商品"
               min-width="120"
-              show-overflow-tooltip
               class-name="col-text"
               label-class-name="col-text"
             >
@@ -1266,7 +1245,6 @@
             <el-table-column
               label="批次"
               min-width="90"
-              show-overflow-tooltip
               class-name="col-text"
               label-class-name="col-text"
             >

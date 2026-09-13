@@ -1,0 +1,72 @@
+{
+  "at": "2026-09-13T11:25:00+08:00",
+  "round": "MASTER完整轮 T6",
+  "routeAudit": {
+    "pathDeclsTotal": 76,
+    "uniqueIncludingDynamic": 76,
+    "uniqueNonDynamic": 73,
+    "excludedFromNonDynamic": ["/", "devices/:id", ":pathMatch(.*)*"],
+    "menuPaths": 66,
+    "viewVueCount": 70,
+    "resolution": "MASTER 保持 76 声明口径；补充 uniqueNonDynamic=73 说明；非缺陷",
+    "masterVersion": "2.1.1",
+    "baselineScript": "scripts/count-page-baseline.mjs 现双口径且门禁一致"
+  },
+  "defectRetest": [
+    {
+      "id": "UI-A06",
+      "was": "BLOCK（viewer 登录失败）",
+      "now": "PASS",
+      "note": "重建 13900000005 → userId 100000031；争议无写按钮；直链提现 /forbidden",
+      "evidence": ["t2-viewer-disputes.png", "t2-viewer-withdraw.png", "full-round-t2-p0.json"]
+    },
+    {
+      "id": "admin-route-76-vs-73",
+      "was": "ROUND 记漂移 3",
+      "now": "CLOSED（口径澄清）",
+      "note": "76=全部 path 声明；73=排除 / 与 :动态段；已回写 MASTER §2.1 / DoD / 附录 B",
+      "evidence": ["t6-route-audit.json", "MASTER_TEST_PLAN.md v2.1.1"]
+    },
+    {
+      "id": "T5-grafana-unreachable",
+      "was": "BLOCK",
+      "now": "PASS",
+      "note": "compose up prometheus+grafana；:13000 health ok",
+      "evidence": ["full-round-t5.json", "t5-grafana.png"]
+    },
+    {
+      "id": "UI-C07",
+      "was": "BLOCK（密码未设+验证码自动化）",
+      "now": "PARTIAL",
+      "note": "consumer 10001 已补 password_hash，password-login API PASS；H5 图形验证码自动化仍弱（本轮未强开浏览器复测会员兑换页）",
+      "evidence": ["API password-login code=0"]
+    },
+    {
+      "id": "P0-08-announcements",
+      "was": "PARTIAL",
+      "now": "PARTIAL（保留）",
+      "note": "消息记录列表可达；写路径（发公告/推送）未闭环"
+    },
+    {
+      "id": "P0-04-split",
+      "was": "PARTIAL",
+      "now": "PARTIAL（保留）",
+      "note": "分账金额可见；重放幂等断言未再加深"
+    },
+    {
+      "id": "DV-06",
+      "was": "已知缺口",
+      "now": "OPEN（登记）",
+      "note": "device-service 集成薄；多柜并发/MQTT 桥端到端乱序注入仍缺"
+    }
+  ],
+  "dodChecklist": {
+    "pageBaseline": "PASS（24/22/76·73/66）",
+    "p0Ten": "8 PASS · 2 PARTIAL（#4/#8）· 0 FAIL",
+    "uiGates": "本轮 T0 已 PASS（anti-jitter/table-align/mp-a11y/bundle/smoke）",
+    "t2Sample": "PASS",
+    "t4Sample": "15/15 PASS",
+    "t5": "6/6 PASS",
+    "openP0P1": "无开放 P0/P1 FAIL；残留 PARTIAL/BLOCK 见上表"
+  }
+}

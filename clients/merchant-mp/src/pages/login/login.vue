@@ -62,10 +62,9 @@
             :class="{ on: rememberCredentials }"
             role="checkbox"
             :aria-checked="rememberCredentials"
+            aria-label="记住账号"
             @tap="rememberCredentials = !rememberCredentials"
-          >
-            <text v-if="rememberCredentials" class="remember-check">✓</text>
-          </view>
+          />
           <text class="remember-label" @tap="rememberCredentials = !rememberCredentials"
             >记住账号</text
           >
@@ -427,36 +426,49 @@ async function onLogin() {
 .remember-row {
   display: flex;
   align-items: center;
-  gap: 12rpx;
-  margin: 4rpx 0 4rpx;
+  gap: 16rpx;
+  margin: 4rpx 0;
   padding: 4rpx 0;
   align-self: flex-start;
 }
+/* 对齐管理后台 LoginView el-checkbox（size=small ≈12px）：方框 + CSS 勾，禁文字 ✓ */
 .remember-box {
-  width: 28rpx;
-  height: 28rpx;
-  border-radius: var(--radius-tag);
-  border: 2rpx solid rgba(148, 210, 198, 0.45);
+  position: relative;
+  width: 24rpx;
+  height: 24rpx;
+  border-radius: 4rpx;
+  border: 2rpx solid rgba(148, 210, 198, 0.55);
   background: rgba(8, 24, 30, 0.35);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   box-sizing: border-box;
   flex-shrink: 0;
 }
-.remember-box.on {
-  border-color: rgba(94, 234, 212, 0.85);
-  background: rgba(15, 118, 110, 0.75);
+.remember-box::after {
+  content: '';
+  position: absolute;
+  box-sizing: content-box;
+  border: 2rpx solid transparent;
+  border-left: 0;
+  border-top: 0;
+  height: 12rpx;
+  width: 5rpx;
+  left: 7rpx;
+  top: 1rpx;
+  transform: rotate(45deg) scaleY(0);
+  transform-origin: center;
+  transition: transform 0.12s ease-in;
 }
-.remember-check {
-  color: var(--brand-soft);
-  font-size: 18rpx;
-  line-height: 1;
-  font-weight: 700;
+.remember-box.on {
+  border-color: var(--brand, #0f766e);
+  background: var(--brand, #0f766e);
+}
+.remember-box.on::after {
+  border-color: #fff;
+  transform: rotate(45deg) scaleY(1);
 }
 .remember-label {
   color: rgba(204, 251, 241, 0.82);
   font-size: var(--font-size-caption);
+  line-height: 1.2;
 }
 :deep(.app-btn.app-btn--primary) {
   margin-top: 12rpx;

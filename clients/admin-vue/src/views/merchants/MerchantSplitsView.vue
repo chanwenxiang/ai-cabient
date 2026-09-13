@@ -136,7 +136,6 @@
                 label="商户编号"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
                 sortable="custom"
               >
                 <template #default="{ row }">
@@ -147,7 +146,6 @@
                 label="商户"
                 min-width="140"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.merchantName || '无' }}</template>
               </el-table-column>
@@ -430,7 +428,6 @@
             prop="permissionHint"
             label="权限提示"
             min-width="200"
-            show-overflow-tooltip
             align="center"
             class-name="col-status"
             label-class-name="col-status"
@@ -555,7 +552,6 @@
                 label="订单"
                 min-width="130"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">
                   <button
@@ -573,7 +569,6 @@
                 label="商户"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">{{
                   row.merchantName || row.merchantId || '无'
@@ -591,7 +586,6 @@
               <el-table-column
                 label="设备"
                 min-width="100"
-                show-overflow-tooltip
                 class-name="col-text"
                 label-class-name="col-text"
               >
@@ -601,7 +595,6 @@
                 label="结算批次"
                 min-width="110"
                 align="center"
-                show-overflow-tooltip
                 class-name="col-status"
                 label-class-name="col-status"
               >
@@ -624,7 +617,6 @@
                 label="失败原因"
                 min-width="140"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.failureReason || '无' }}</template>
               </el-table-column>

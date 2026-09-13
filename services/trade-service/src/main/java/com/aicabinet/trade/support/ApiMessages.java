@@ -126,6 +126,7 @@ public final class ApiMessages {
     public static final String ACCOUNT_DISABLED = "账号已停用";
     public static final String PHONE_ALREADY_EXISTS = "该手机号已注册";
     public static final String CANNOT_DISABLE_SELF = "不能停用当前登录账号";
+    public static final String CANNOT_RESET_OWN_PASSWORD = "不能重置当前登录账号的密码，请使用个人中心修改";
     public static final String DEVICE_IDS_REQUIRED = "请指定设备列表";
     public static final String BIND_OPENID_DISABLED = "生产环境不允许绑定微信 OpenID";
     public static final String WECHAT_MINIAPP_NOT_CONFIGURED = "微信小程序未配置";

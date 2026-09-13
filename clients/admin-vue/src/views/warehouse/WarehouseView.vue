@@ -335,7 +335,6 @@
                   label="仓库编号"
                   min-width="120"
                   class-name="col-text"
-                  show-overflow-tooltip
                   sortable="custom"
                 >
                   <template #default="{ row }">
@@ -346,7 +345,6 @@
                   label="仓库"
                   min-width="140"
                   class-name="col-text"
-                  show-overflow-tooltip
                 >
                   <template #default="{ row }">{{ row.warehouseName || '无' }}</template>
                 </el-table-column>
@@ -354,7 +352,6 @@
                   prop="address"
                   label="地址"
                   min-width="220"
-                  show-overflow-tooltip
                   class-name="col-text"
                 />
                 <el-table-column
@@ -415,14 +412,13 @@
                   prop="transferNo"
                   label="调拨单号"
                   min-width="160"
-                  show-overflow-tooltip
                 />
-                <el-table-column label="调出仓" min-width="120" show-overflow-tooltip>
+                <el-table-column label="调出仓" min-width="120">
                   <template #default="{ row }">{{
                     warehouseName(row.fromWarehouseId) || row.fromWarehouseId
                   }}</template>
                 </el-table-column>
-                <el-table-column label="调入仓" min-width="120" show-overflow-tooltip>
+                <el-table-column label="调入仓" min-width="120">
                   <template #default="{ row }">{{
                     warehouseName(row.toWarehouseId) || row.toWarehouseId
                   }}</template>
@@ -565,7 +561,6 @@
                   label="供应商编号"
                   min-width="120"
                   class-name="col-text"
-                  show-overflow-tooltip
                   sortable="custom"
                 >
                   <template #default="{ row }">
@@ -576,7 +571,6 @@
                   label="供应商"
                   min-width="140"
                   class-name="col-text"
-                  show-overflow-tooltip
                 >
                   <template #default="{ row }">{{ row.supplierName || '无' }}</template>
                 </el-table-column>
@@ -750,7 +744,6 @@
                   prop="refNo"
                   label="外部单号"
                   min-width="140"
-                  show-overflow-tooltip
                   align="center"
                   class-name="col-status"
                   label-class-name="col-status"
@@ -799,7 +792,6 @@
                   label="审批节点"
                   min-width="140"
                   align="center"
-                  show-overflow-tooltip
                   class-name="col-status"
                   label-class-name="col-status"
                 >
@@ -893,7 +885,6 @@
                 <el-table-column
                   label="商品"
                   min-width="170"
-                  show-overflow-tooltip
                   class-name="col-text"
                   label-class-name="col-text"
                 >
@@ -1225,7 +1216,6 @@
                 <el-table-column
                   label="供应商"
                   min-width="150"
-                  show-overflow-tooltip
                   class-name="col-text"
                   label-class-name="col-text"
                 >
@@ -1564,7 +1554,6 @@
               <el-table-column
                 label="商品"
                 min-width="170"
-                show-overflow-tooltip
                 class-name="col-text"
                 label-class-name="col-text"
               >

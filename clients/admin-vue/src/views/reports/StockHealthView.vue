@@ -168,33 +168,31 @@
               }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="设备" min-width="120" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="设备" min-width="120" class-name="col-text">
             <template #default="{ row }">{{ row.deviceName || row.deviceId || '无' }}</template>
           </el-table-column>
           <el-table-column
             label="设备ID"
             min-width="120"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">
               <span class="cell-id">{{ row.deviceId || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="商户" min-width="110" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="商户" min-width="110" class-name="col-text">
             <template #default="{ row }">{{ row.merchantId || '无' }}</template>
           </el-table-column>
-          <el-table-column label="路线" width="90" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="路线" width="90" class-name="col-text">
             <template #default="{ row }">{{ row.routeCode || '无' }}</template>
           </el-table-column>
-          <el-table-column label="SKU" min-width="120" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="SKU" min-width="120" class-name="col-text">
             <template #default="{ row }">{{ row.skuName || row.skuId || '无' }}</template>
           </el-table-column>
           <el-table-column
             label="SKU ID"
             min-width="120"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">
               <span class="cell-id">{{ row.skuId || '无' }}</span>

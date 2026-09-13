@@ -10,7 +10,7 @@ alwaysApply: false
 - HTTP：用 `src/api/client.ts` 的 `api` / `get` / `post` / `put` / `del`（基于 `@aicabinet/shared-api`），勿另写 fetch 封装。
 - 页面：`src/views/<domain>/*View.vue`；列表页沿用 `el-card.page-card`、filter-bar、表格与 `TableActions` 等现有布局。
 - **UI Token 三约定**（详见 `ui-token-conventions`）：禁裸业务 hex；`z-index` 用 `--z-*`；新 `el-table-column` 挂 `col-text` / `col-money` / `col-status` / `col-action`。日常合入靠 `pnpm check`。
-- **布局防抖**：改 `AdminLayout` / `table-scroll-fit` / `main.css` 时必须遵守 `admin-layout-anti-jitter`（`100svh` + `--layout-vh-px`、禁止 `visualViewport`、勿 `translateZ(0)`、勿表内 sticky 固定列、dock 取整回滞）。
+- **布局防抖 / 审单工作台**：改 `AdminLayout` / `table-scroll-fit` / `main.css` / `ResizableDrawer` / 争议·异常审单页时，必须遵守 `admin-layout-anti-jitter`（问题表 A～G：操作列 sticky、抽屉松手不弹宽、滚动条不挤内容、描述表不盖字、数量框不挡「删除」等）。合入前跑 `pnpm check:admin-anti-jitter`。
 - 权限：按钮用 `v-hasPermi="['ops:...']"`；路由/菜单对齐 `src/config/menu.ts`、`sidebar.ts` 与后端权限码。
 - 状态：认证/字典用 `stores/auth.ts`、`stores/dict-runtime.ts`。
 - 共享类型优先 `@aicabinet/shared-types`；改 API 契约时同步共享包。

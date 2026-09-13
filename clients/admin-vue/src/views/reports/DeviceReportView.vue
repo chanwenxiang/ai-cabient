@@ -108,14 +108,13 @@
             label="设备编号"
             min-width="140"
             class-name="col-text"
-            show-overflow-tooltip
             sortable="custom"
           >
             <template #default="{ row }">
               <span class="cell-id">{{ row.deviceId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="设备" min-width="140" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="设备" min-width="140" class-name="col-text">
             <template #default="{ row }">
               <button
                 v-if="canAccessPath('/devices')"
@@ -144,7 +143,6 @@
           <el-table-column
             label="商户"
             min-width="120"
-            show-overflow-tooltip
             class-name="col-text"
             label-class-name="col-text"
           >
@@ -154,7 +152,6 @@
             label="线路"
             width="100"
             align="center"
-            show-overflow-tooltip
             class-name="col-status"
             label-class-name="col-status"
           >
@@ -193,7 +190,6 @@
             label="固件"
             width="88"
             align="center"
-            show-overflow-tooltip
             class-name="col-status"
             label-class-name="col-status"
           >

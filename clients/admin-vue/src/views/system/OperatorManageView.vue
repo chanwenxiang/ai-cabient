@@ -251,12 +251,12 @@
             @input="form.phoneNumber = form.phoneNumber.replace(/\D/g, '')"
           />
         </el-form-item>
-        <el-form-item :label="form.userId ? '新密码' : '密码'" :required="!form.userId">
+        <el-form-item v-if="!form.userId" label="密码" required>
           <el-input
             v-model="form.password"
             type="password"
             show-password
-            :placeholder="form.userId ? '不填则不修改' : '至少6位'"
+            placeholder="至少6位"
             maxlength="64"
           />
         </el-form-item>
@@ -336,6 +336,43 @@
       <template #footer>
         <el-button @click="formDlg = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="saveForm">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="resetPwdDlg" title="重置密码" destroy-on-close width="420px">
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        class="role-hint"
+        :title="resetPwdTarget?.name || resetPwdTarget?.phoneNumber || '目标账号'"
+        description="将为该运营账号设置新密码；不能重置当前登录账号。"
+      />
+      <el-form label-width="auto" class="reset-pwd-form" @submit.prevent>
+        <el-form-item label="新密码" required>
+          <el-input
+            v-model="resetPwd.password"
+            type="password"
+            show-password
+            placeholder="至少6位"
+            maxlength="64"
+          />
+        </el-form-item>
+        <el-form-item label="确认密码" required>
+          <el-input
+            v-model="resetPwd.confirm"
+            type="password"
+            show-password
+            placeholder="再次输入新密码"
+            maxlength="64"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="resetPwdDlg = false">取消</el-button>
+        <el-button type="primary" :loading="resetPwdSaving" @click="submitResetPassword"
+          >确认重置</el-button
+        >
       </template>
     </el-dialog>
 
@@ -481,7 +518,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Delete, EditPen, Key, Monitor, OfficeBuilding, Refresh } from '@element-plus/icons-vue';
+import { Delete, EditPen, Key, Monitor, OfficeBuilding, Refresh, Unlock } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
@@ -552,6 +589,10 @@ const page = ref(1);
 const size = ref(20);
 const total = ref(0);
 const formDlg = ref(false);
+const resetPwdDlg = ref(false);
+const resetPwdSaving = ref(false);
+const resetPwdTarget = ref<OperatorRow | null>(null);
+const resetPwd = ref({ password: '', confirm: '' });
 const roleDlg = ref(false);
 const merchantDlg = ref(false);
 const deviceDlg = ref(false);
@@ -706,6 +747,18 @@ function rowActions(row: OperatorRow): TableAction[] {
     );
   }
   if (
+    auth.hasPerm('ops:rbac:assign:reset-password') &&
+    row.userId !== Number(auth.userId)
+  ) {
+    acts.push({
+      key: 'reset-password',
+      label: '重置密码',
+      icon: Unlock,
+      type: 'warning',
+      overflow: true
+    });
+  }
+  if (
     auth.hasPerm('ops:rbac:assign:disable') &&
     row.status === 'ACTIVE' &&
     row.userId !== Number(auth.userId)
@@ -726,6 +779,7 @@ function onRowAction(key: string, row: OperatorRow) {
   else if (key === 'roles') openRoles(row);
   else if (key === 'merchants') openMerchants(row);
   else if (key === 'devices') openDevices(row);
+  else if (key === 'reset-password') openResetPassword(row);
   else if (key === 'disable') onDisable(row);
 }
 
@@ -849,6 +903,40 @@ function openEdit(row: OperatorRow) {
   formDlg.value = true;
 }
 
+function openResetPassword(row: OperatorRow) {
+  if (row.userId === Number(auth.userId)) {
+    ElMessage.warning('不能重置当前登录账号的密码');
+    return;
+  }
+  resetPwdTarget.value = row;
+  resetPwd.value = { password: '', confirm: '' };
+  resetPwdDlg.value = true;
+}
+
+async function submitResetPassword() {
+  const target = resetPwdTarget.value;
+  if (!target) return;
+  if (target.userId === Number(auth.userId)) {
+    return ElMessage.warning('不能重置当前登录账号的密码');
+  }
+  const pwd = resetPwd.value.password;
+  const confirm = resetPwd.value.confirm;
+  if (!pwd || pwd.length < 6) return ElMessage.warning('新密码至少6位');
+  if (pwd !== confirm) return ElMessage.warning('两次输入的密码不一致');
+  resetPwdSaving.value = true;
+  try {
+    await api.request(`/api/v2/ops/admin/rbac/operators/${target.userId}/reset-password`, 'POST', {
+      password: pwd
+    });
+    ElMessage.success('密码已重置');
+    resetPwdDlg.value = false;
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '重置密码失败'));
+  } finally {
+    resetPwdSaving.value = false;
+  }
+}
+
 async function saveForm() {
   const f = form.value;
   if (!f.name.trim()) return ElMessage.warning('请填写姓名');
@@ -877,7 +965,6 @@ async function saveForm() {
       await api.request(`/api/v2/ops/admin/rbac/operators/${f.userId}`, 'PUT', {
         name: f.name.trim(),
         phoneNumber: f.phoneNumber.trim(),
-        password: f.password || null,
         status: f.status,
         deptIds: f.deptIds,
         primaryDeptId: f.primaryDeptId

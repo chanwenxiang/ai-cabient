@@ -54,7 +54,6 @@
                   label="类型"
                   min-width="120"
                   class-name="col-text"
-                  show-overflow-tooltip
                 >
                   <template #default="{ row }">{{ row.dictName || '无' }}</template>
                 </el-table-column>
@@ -191,7 +190,6 @@
                   label="字典项"
                   min-width="120"
                   class-name="col-text"
-                  show-overflow-tooltip
                 >
                   <template #default="{ row }">{{ row.dictLabel || '无' }}</template>
                 </el-table-column>
@@ -199,7 +197,6 @@
                   label="值"
                   min-width="100"
                   class-name="col-text"
-                  show-overflow-tooltip
                 >
                   <template #default="{ row }">
                     <span class="cell-id">{{ row.dictValue }}</span>

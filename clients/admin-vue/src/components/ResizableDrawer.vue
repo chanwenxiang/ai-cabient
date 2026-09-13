@@ -117,17 +117,48 @@ const { width, onResizeStart } = useResizableDrawer({
 <style>
 .resizable-drawer-panel.el-drawer {
   overflow: visible !important;
+  /* 禁止 EP 宽度 transition，避免松手/同步 :size 时「自己变宽」的动画感 */
+  transition: none !important;
 }
 .resizable-drawer-panel .el-drawer__body {
-  overflow: auto;
+  /* 与 main.css 一致：常驻纵向滚动条 + gutter，点击滑块不挤内容 */
+  overflow-x: hidden;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  overflow-anchor: none;
+}
+
+/*
+ * 拖左缘改宽：冻结内部重排与过渡，避免工作台下半（调整明细 / 表格）每帧抖动。
+ * 松手后移除 .is-resizing 再让 EP 表格正常测宽。
+ */
+.resizable-drawer-panel.is-resizing,
+.resizable-drawer-panel.is-resizing .el-drawer__body,
+.resizable-drawer-panel.is-resizing .resizable-drawer-body {
+  transition: none !important;
+  animation: none !important;
+}
+.resizable-drawer-panel.is-resizing .el-drawer__body {
+  overflow: hidden !important;
+  pointer-events: none;
+  /* 拖宽期间隔离布局，减轻栅格/表格连锁 reflow 传到可视下半区 */
+  contain: layout style;
 }
 .resizable-drawer-panel.is-resizing .el-table__body-wrapper,
 .resizable-drawer-panel.is-resizing .el-table__header-wrapper,
 .resizable-drawer-panel.is-resizing .table-scroll {
-  overflow-x: hidden !important;
+  overflow: hidden !important;
   pointer-events: none;
 }
-.resizable-drawer-panel.is-resizing .el-table {
-  table-layout: fixed;
+.resizable-drawer-panel.is-resizing .el-table,
+.resizable-drawer-panel.is-resizing .el-table__inner-wrapper {
+  table-layout: fixed !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+.resizable-drawer-panel.is-resizing .workbench-grid {
+  /* 拖宽时勿用 minmax 反复改列宽，稳定两栏比例 */
+  grid-template-columns: 1fr 1.15fr !important;
 }
 </style>

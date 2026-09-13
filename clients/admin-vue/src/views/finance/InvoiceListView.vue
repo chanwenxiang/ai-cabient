@@ -389,7 +389,7 @@ onMounted(load);
               <span class="cell-ellipsis" :title="row.title || ''">{{ row.title }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="税号" width="140" show-overflow-tooltip>
+          <el-table-column label="税号" width="140">
             <template #default="{ row }">{{ row.taxNo || '' }}</template>
           </el-table-column>
           <el-table-column label="邮箱" min-width="140" class-name="col-text">

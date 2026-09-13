@@ -73,7 +73,6 @@
               <el-table-column
                 label="设备"
                 min-width="110"
-                show-overflow-tooltip
                 class-name="col-text"
                 label-class-name="col-text"
               >
@@ -93,7 +92,6 @@
                 label="详情"
                 min-width="160"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">{{ formatRiskEventDetail(row.detail) }}</template>
               </el-table-column>
@@ -126,7 +124,6 @@
               <el-table-column
                 label="处置备注"
                 min-width="120"
-                show-overflow-tooltip
                 class-name="col-text"
                 label-class-name="col-text"
               >
@@ -207,7 +204,6 @@
                 label="原因"
                 min-width="180"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.reason || '无' }}</template>
               </el-table-column>

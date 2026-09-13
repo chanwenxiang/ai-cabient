@@ -1,0 +1,117 @@
+{
+  "at": "2026-09-13T03:14:59.036Z",
+  "cases": [
+    {
+      "id": "T5-grafana-health",
+      "status": "PASS",
+      "note": {
+        "direct": {
+          "ok": true,
+          "status": 200,
+          "body": "{\n  \"commit\": \"03f502a94d17f7dc4e6c34acdf8428aedd986e4c\",\n  \"database\": \"ok\",\n  \"version\": \"10.4.0\"\n}"
+        },
+        "gateway": {
+          "ok": true,
+          "status": 200,
+          "body": "{\n  \"commit\": \"03f502a94d17f7dc4e6c34acdf8428aedd986e4c\",\n  \"database\": \"ok\",\n  \"version\": \"10.4.0\"\n}"
+        },
+        "url": "http://localhost:13000"
+      }
+    },
+    {
+      "id": "T5-DC01-reconciliation",
+      "status": "PASS",
+      "note": {
+        "date": "2026-09-13",
+        "listBeforeCode": 0,
+        "listBeforeCount": 0,
+        "wechat": {
+          "code": 0,
+          "message": "ok",
+          "reconId": 1,
+          "status": "MATCHED"
+        },
+        "balance": {
+          "code": 0,
+          "message": "ok",
+          "reconId": 2,
+          "status": "MISMATCH"
+        },
+        "listAfterCount": 2,
+        "detailCode": 0,
+        "detailSummary": {}
+      }
+    },
+    {
+      "id": "T5-DC02-consistency",
+      "status": "PASS",
+      "note": {
+        "code": 0,
+        "message": "ok",
+        "failCount": 7,
+        "failureSample": [
+          {
+            "id": 7,
+            "checkType": "CROSS_LINK",
+            "status": "FAIL",
+            "message": ""
+          },
+          {
+            "id": 6,
+            "checkType": "INVENTORY_MISMATCH",
+            "status": "FAIL",
+            "message": ""
+          },
+          {
+            "id": 5,
+            "checkType": "INVENTORY_MISMATCH",
+            "status": "FAIL",
+            "message": ""
+          },
+          {
+            "id": 4,
+            "checkType": "INVENTORY_MISMATCH",
+            "status": "FAIL",
+            "message": ""
+          },
+          {
+            "id": 3,
+            "checkType": "INVENTORY_MISMATCH",
+            "status": "FAIL",
+            "message": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "T5-UI-reconciliation",
+      "status": "PASS",
+      "note": {
+        "text": "跳到主内容 前海易购运营 概览 交易履约 设备商品 履约仓储 财务商户 资金账单 商户与分账 进件工作台 线长钱包 商户提现 对账 数据一致性 充值管理 余额退款 开票申请 用户余额 增长风控 系统 首页 / 财务商户 / 对账 搜索页面名称或关键词… 运 运营超管 13900000001 · 超级管理员、运营人员、平台补货员 全局数据范围 对账 对账 按渠道 / 状态筛选；金额差额与未匹配笔数标",
+        "screenshot": "t5-reconciliation.png"
+      }
+    },
+    {
+      "id": "T5-UI-consistency",
+      "status": "PASS",
+      "note": {
+        "text": "跳到主内容 前海易购运营 概览 交易履约 设备商品 履约仓储 财务商户 资金账单 商户与分账 进件工作台 线长钱包 商户提现 对账 数据一致性 充值管理 余额退款 开票申请 用户余额 增长风控 系统 首页 / 财务商户 / 数据一致性 搜索页面名称或关键词… 运 运营超管 13900000001 · 超级管理员、运营人员、平台补货员 全局数据范围 数据一致性 数据一致性 巡检订单/支付/库存批次/",
+        "screenshot": "t5-consistency.png"
+      }
+    },
+    {
+      "id": "T5-UI-grafana",
+      "status": "PASS",
+      "note": {
+        "text": "Skip to main content 搜索或跳转至... ctrl+k 首页 仪表板 首页 已加星标 仪表板 探索 警报 连接 管理 仪表板 新建 创建并管理仪表板，以将您的数据可视化 按标签筛选 已加星标 排序 名称 标签 AI Cabinet",
+        "screenshot": "t5-grafana.png"
+      }
+    }
+  ],
+  "summary": {
+    "pass": 6,
+    "fail": 0,
+    "block": 0,
+    "total": 6
+  }
+}

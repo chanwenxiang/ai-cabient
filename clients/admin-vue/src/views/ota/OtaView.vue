@@ -109,7 +109,6 @@
             prop="releaseNotes"
             label="说明"
             min-width="180"
-            show-overflow-tooltip
             class-name="col-text"
             label-class-name="col-text"
           />

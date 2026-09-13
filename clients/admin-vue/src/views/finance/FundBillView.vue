@@ -105,7 +105,6 @@
                 label="商户编号"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
                 sortable="custom"
               >
                 <template #default="{ row }">
@@ -116,7 +115,6 @@
                 label="商户"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.merchantName || '无' }}</template>
               </el-table-column>
@@ -311,7 +309,6 @@
                 prop="orderId"
                 label="订单"
                 min-width="160"
-                show-overflow-tooltip
                 class-name="col-text"
                 label-class-name="col-text"
               />
@@ -327,7 +324,6 @@
                 prop="merchantName"
                 label="商户"
                 min-width="140"
-                show-overflow-tooltip
                 class-name="col-text"
                 label-class-name="col-text"
               />

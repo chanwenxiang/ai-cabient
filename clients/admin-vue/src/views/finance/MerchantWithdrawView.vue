@@ -98,7 +98,6 @@
                 prop="merchantName"
                 label="名称"
                 min-width="140"
-                show-overflow-tooltip
                 class-name="col-text"
                 label-class-name="col-text"
               />
@@ -246,7 +245,6 @@
               prop="requestNo"
               label="业务单号"
               min-width="160"
-              show-overflow-tooltip
               class-name="col-text"
               label-class-name="col-text"
             />
@@ -262,7 +260,6 @@
               prop="merchantName"
               label="商户"
               min-width="120"
-              show-overflow-tooltip
               class-name="col-text"
               label-class-name="col-text"
             />
@@ -309,7 +306,6 @@
               prop="payoutRef"
               label="回执"
               min-width="140"
-              show-overflow-tooltip
               align="center"
               class-name="col-status"
               label-class-name="col-status"
@@ -318,7 +314,6 @@
               prop="payoutMessage"
               label="打款说明"
               min-width="140"
-              show-overflow-tooltip
               class-name="col-text"
               label-class-name="col-text"
             />
@@ -326,7 +321,6 @@
               prop="reviewRemark"
               label="审核备注"
               min-width="120"
-              show-overflow-tooltip
               class-name="col-text"
               label-class-name="col-text"
             />
@@ -432,7 +426,6 @@
         <el-table-column
           label="关联单号"
           min-width="140"
-          show-overflow-tooltip
           align="center"
           class-name="col-status"
           label-class-name="col-status"
@@ -451,7 +444,6 @@
           prop="remark"
           label="备注"
           min-width="120"
-          show-overflow-tooltip
           class-name="col-text"
           label-class-name="col-text"
         />

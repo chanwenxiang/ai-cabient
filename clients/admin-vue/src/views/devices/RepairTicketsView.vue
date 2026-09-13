@@ -150,7 +150,6 @@
             prop="merchantName"
             label="商户"
             min-width="100"
-            show-overflow-tooltip
             class-name="col-text"
             label-class-name="col-text"
           >
@@ -160,7 +159,6 @@
             prop="title"
             label="标题"
             min-width="110"
-            show-overflow-tooltip
             class-name="col-text"
             label-class-name="col-text"
           />

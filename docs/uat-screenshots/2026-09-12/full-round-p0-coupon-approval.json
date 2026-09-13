@@ -1,0 +1,41 @@
+{
+  "at": "2026-09-13T03:06:18.188Z",
+  "cases": [
+    {
+      "id": "P0-09-approval",
+      "status": "PASS",
+      "note": {
+        "requestId": 1,
+        "pendingBefore": 1,
+        "pendingHit": true,
+        "status": "ACCEPTED",
+        "taskId": 2,
+        "code": 0,
+        "message": "ok"
+      }
+    },
+    {
+      "id": "consumer-login",
+      "status": "PASS",
+      "note": {
+        "userId": 10001
+      }
+    },
+    {
+      "id": "P0-06-coupon-redeem",
+      "status": "BLOCK",
+      "note": {
+        "couponId": 1,
+        "orderId": "1789223756879762169",
+        "orderStatus": "PAID",
+        "reason": "order not eligible"
+      }
+    }
+  ],
+  "summary": {
+    "pass": 2,
+    "fail": 0,
+    "block": 1,
+    "total": 3
+  }
+}

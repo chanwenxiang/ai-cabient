@@ -1,0 +1,41 @@
+{
+  "at": "2026-09-13T11:38:30+08:00",
+  "cases": [
+    {
+      "id": "P0-08-announcement",
+      "status": "PASS",
+      "note": {
+        "announceId": 1,
+        "flow": "create DRAFT → publish PUBLISHED",
+        "foundInPublished": true,
+        "screenshot": "p0-announcements.png"
+      }
+    },
+    {
+      "id": "P0-08-notification-send",
+      "status": "PASS",
+      "note": {
+        "id": 2,
+        "title": "完整轮站内信",
+        "audience": "CONSUMER",
+        "userId": 10001,
+        "channel": "IN_APP",
+        "screenshot": "p0-notifications.png"
+      }
+    },
+    {
+      "id": "UI-C07-member-redeem",
+      "status": "PASS",
+      "note": {
+        "method": "password-login + uni.setStorageSync(consumer_token) then hash navigate",
+        "member": "会员中心 · NORMAL · 可用积分 6 · 积分兑换入口可见",
+        "redeem": "积分兑换 · 我的积分 6 · 暂无兑换商品（空态中文可接受）",
+        "screenshots": [
+          "c07-pages-member-index.png",
+          "c07-pages-points-redeem.png"
+        ]
+      }
+    }
+  ],
+  "summary": { "pass": 3, "fail": 0, "partial": 0 }
+}

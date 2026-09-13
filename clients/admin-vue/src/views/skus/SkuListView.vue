@@ -163,11 +163,10 @@
             label="条码"
             min-width="80"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.barcode || '无' }}</template>
           </el-table-column>
-          <el-table-column label="名称" min-width="96" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="名称" min-width="96" class-name="col-text">
             <template #default="{ row }">
               <button
                 type="button"
@@ -183,7 +182,6 @@
             label="品牌"
             min-width="72"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.brand || '无' }}</template>
           </el-table-column>
@@ -192,7 +190,6 @@
             label="规格"
             min-width="72"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.spec || '无' }}</template>
           </el-table-column>
@@ -223,7 +220,6 @@
             label="类目"
             min-width="88"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">{{ categoryLabel(row.category) }}</template>
           </el-table-column>

@@ -143,7 +143,6 @@
             label="配置值"
             min-width="200"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.configValue || '无' }}</template>
           </el-table-column>

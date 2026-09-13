@@ -297,14 +297,12 @@
               label="平台流水"
               min-width="140"
               class-name="col-text"
-              show-overflow-tooltip
             />
             <el-table-column
               prop="merchantOrderNo"
               label="商户单号"
               min-width="120"
               class-name="col-text"
-              show-overflow-tooltip
             />
             <el-table-column
               label="金额"
