@@ -1,0 +1,228 @@
+{
+  "at": "2026-09-13T04:50:14.817Z",
+  "cases": [
+    {
+      "id": "M-staff-no-wallet-apply",
+      "status": "PASS",
+      "note": {
+        "hasApply": false
+      }
+    },
+    {
+      "id": "M-staff-no-invite",
+      "status": "PASS",
+      "note": {
+        "hasInvite": false
+      }
+    },
+    {
+      "id": "M-staff-withdraw-403",
+      "status": "PASS",
+      "note": {
+        "code": 403,
+        "message": "无权限执行此操作"
+      }
+    },
+    {
+      "id": "M-staff-devices-ok",
+      "status": "PASS",
+      "note": {
+        "code": 0,
+        "status": 200
+      }
+    },
+    {
+      "id": "M-finance-has-wallet-view",
+      "status": "PASS",
+      "note": {
+        "has": true
+      }
+    },
+    {
+      "id": "M-finance-no-wallet-apply",
+      "status": "PASS",
+      "note": {
+        "hasApply": false
+      }
+    },
+    {
+      "id": "M-finance-settlements-ok",
+      "status": "PASS",
+      "note": {
+        "code": 0,
+        "message": "ok"
+      }
+    },
+    {
+      "id": "M-finance-invite-403",
+      "status": "PASS",
+      "note": {
+        "code": 403,
+        "message": "无权限执行此操作"
+      }
+    },
+    {
+      "id": "M-store-has-users-list",
+      "status": "PASS",
+      "note": {
+        "has": true
+      }
+    },
+    {
+      "id": "M-store-no-disable",
+      "status": "PASS",
+      "note": {
+        "has": false
+      }
+    },
+    {
+      "id": "M-store-team-list-ok",
+      "status": "PASS",
+      "note": {
+        "code": 0
+      }
+    },
+    {
+      "id": "M-replen-has-field",
+      "status": "PASS",
+      "note": {
+        "sample": [
+          "merchant:replenishment:request",
+          "merchant:replenishment:view",
+          "merchant:devices:detail",
+          "merchant:devices:list"
+        ]
+      }
+    },
+    {
+      "id": "M-replen-no-settlements",
+      "status": "PASS",
+      "note": {
+        "has": false
+      }
+    },
+    {
+      "id": "M-replen-settlements-403",
+      "status": "PASS",
+      "note": {
+        "code": 403,
+        "message": "无权限执行此操作"
+      }
+    },
+    {
+      "id": "M-ui-staff-home",
+      "status": "PASS",
+      "note": {
+        "head": "AI开门柜\n补货与运营\n◆\n扫码到柜 · 补货上架 · 经营对账\n登录\n补货员与商户运营共用入口\n手机号\n请输入11位手机号…\n密码\n请输入登录密码…\n记住账号\n登录"
+      }
+    },
+    {
+      "id": "M-ui-finance-wallet",
+      "status": "PASS",
+      "note": {
+        "head": "商户钱包\n商户 · 可自主提现\n默认演示商户 · MCH-DEFAULT\n可用余额\n¥4.85\n账面 ¥4.85\n冻结 ¥0.00\n提现金额（元）\n最多可提现 ¥4.85\n申请提现\n分账入账后可提现；大额需运营审核，到账以银行/微信回执为准"
+      }
+    },
+    {
+      "id": "PERF1-light-account",
+      "status": "PASS",
+      "note": {
+        "n": 80,
+        "wallMs": 69,
+        "p50": 57,
+        "p95": 63,
+        "max": 63,
+        "errors": 0,
+        "errRate": 0,
+        "via": "http://127.0.0.1:18080",
+        "pass": true
+      }
+    },
+    {
+      "id": "PERF3-light-minio",
+      "status": "PASS",
+      "note": {
+        "n": 40,
+        "p50": 19,
+        "p95": 20,
+        "errors": 0,
+        "pass": true,
+        "target": "http://127.0.0.1:9000/minio/health/live"
+      }
+    },
+    {
+      "id": "PERF4-light-vision",
+      "status": "PASS",
+      "note": {
+        "n": 40,
+        "p50": 41,
+        "p95": 48,
+        "errors": 0,
+        "pass": true
+      }
+    }
+  ],
+  "perf": {
+    "perf1Light": {
+      "n": 80,
+      "wallMs": 69,
+      "p50": 57,
+      "p95": 63,
+      "max": 63,
+      "errors": 0,
+      "errRate": 0,
+      "via": "http://127.0.0.1:18080",
+      "pass": true
+    },
+    "perf3Light": {
+      "n": 40,
+      "p50": 19,
+      "p95": 20,
+      "errors": 0,
+      "pass": true,
+      "target": "http://127.0.0.1:9000/minio/health/live"
+    },
+    "perf4Light": {
+      "n": 40,
+      "p50": 41,
+      "p95": 48,
+      "errors": 0,
+      "pass": true
+    }
+  },
+  "accounts": [
+    {
+      "phone": "13800138002",
+      "name": "商户店员",
+      "roleKey": "merchant_staff",
+      "userId": 100000036,
+      "status": "exists"
+    },
+    {
+      "phone": "13800138004",
+      "name": "商户财务",
+      "roleKey": "merchant_finance",
+      "userId": 100000037,
+      "status": "exists"
+    },
+    {
+      "phone": "13800138006",
+      "name": "商户店长",
+      "roleKey": "merchant_store_manager",
+      "userId": 100000038,
+      "status": "exists"
+    },
+    {
+      "phone": "13800138007",
+      "name": "商户补货员",
+      "roleKey": "merchant_replenisher",
+      "userId": 100000039,
+      "status": "exists"
+    }
+  ],
+  "summary": {
+    "pass": 19,
+    "fail": 0,
+    "total": 19
+  }
+}
