@@ -46,16 +46,15 @@ class SessionAttachVideoSettleTest {
     @Mock com.aicabinet.trade.mapper.CabinetOrderMapper orderRepository;
     @Mock ConsumerPreauthService consumerPreauthService;
     @Mock DistributedLockService distributedLockService;
-    @Mock ScheduledTaskService taskService;
 
     private SessionService service;
 
     @BeforeEach
     void setUp() {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
-                settlementService, visionAsyncProperties, com.aicabinet.trade.config.SessionExpireProperties.defaults(), cabinetMetrics, domainEventPublisher,
+                settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
                 gravityHelper, restockSnapshotService, null, opsExceptionService, userInfoRepository, orderRepository,
-                null, null, consumerPreauthService, null, distributedLockService, taskService, null, null, null);
+                null, consumerPreauthService, null, distributedLockService, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
         lenient().when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));

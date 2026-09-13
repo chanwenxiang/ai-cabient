@@ -50,7 +50,7 @@ public class ScheduledTaskRegistry {
                                  DataConsistencyService dataConsistencyService,
                                  DevicePresenceService devicePresenceService,
                                  OpsExceptionScannerService opsExceptionScannerService,
-                                 SessionService sessionService,
+                                 SessionExpireService sessionExpireService,
                                  CompensationTaskScheduler compensationTaskScheduler,
                                  PointsExpiryScheduler pointsExpiryScheduler,
                                  CouponExpiryReminderScheduler couponExpiryReminderScheduler,
@@ -61,11 +61,13 @@ public class ScheduledTaskRegistry {
         register("device-presence", "设备离线巡检", "DEVICE", V_60, 600,
                 devicePresenceService::markStaleDevicesOffline);
         register("session-opening-expire", "开门超时会话清理", TRADE, V_30, 600,
-                sessionService::expireStaleOpeningSessions);
+                sessionExpireService::expireStaleOpeningSessions);
         register("session-restock-expire", "补货会话超时清理", TRADE, V_60, 600,
-                sessionService::expireStaleRestockShoppingSessions);
+                sessionExpireService::expireStaleRestockShoppingSessions);
+        register("session-door-open-expire", "消费者开门超时清理", TRADE, V_60, 600,
+                sessionExpireService::expireStaleConsumerShoppingSessions);
         register("session-recognizing-expire", "识别结算超时升级", TRADE, V_60, 600,
-                sessionService::expireStaleRecognizingSessions);
+                sessionExpireService::expireStaleRecognizingSessions);
         register("ops-exception-scanner", "异常卡点扫描", "OPS", V_30, 600,
                 opsExceptionScannerService::scan);
         register("compensation-process", "补偿任务处理", SYSTEM, V_30, 600,

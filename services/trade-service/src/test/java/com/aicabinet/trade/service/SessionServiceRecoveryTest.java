@@ -44,16 +44,29 @@ class SessionServiceRecoveryTest {
     @Mock ConsumerPreauthService consumerPreauthService;
     @Mock DistributedLockService distributedLockService;
     @Mock ScheduledTaskService taskService;
+    @Mock DisputeService disputeService;
 
     private SessionService service;
+    private SessionExpireService expireService;
 
     @BeforeEach
     void setUp() {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
-                settlementService, visionAsyncProperties, com.aicabinet.trade.config.SessionExpireProperties.defaults(), cabinetMetrics, domainEventPublisher,
+                settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
                 gravityHelper, restockSnapshotService, null, opsExceptionService, userInfoRepository, orderRepository,
-                null, null, consumerPreauthService, null, distributedLockService, taskService, null, null, null);
+                null, consumerPreauthService, null, distributedLockService, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        expireService = new SessionExpireService(
+                repository,
+                com.aicabinet.trade.config.SessionExpireProperties.defaults(),
+                cabinetMetrics,
+                restockSnapshotService,
+                opsExceptionService,
+                disputeService,
+                consumerPreauthService,
+                distributedLockService,
+                taskService,
+                service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyLong(),
@@ -128,7 +141,7 @@ class SessionServiceRecoveryTest {
                 .thenReturn(java.util.List.of(stale));
         when(repository.findByIdForUpdate("S-OPEN")).thenReturn(Optional.of(stale));
 
-        service.expireStaleConsumerShoppingSessions();
+        expireService.expireStaleConsumerShoppingSessions();
 
         assertEquals(SessionState.CANCELLED, stale.getState());
         assertEquals("开门超时自动关闭（超过10分钟未关门）", stale.getFailReason());
