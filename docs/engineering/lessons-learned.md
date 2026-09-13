@@ -32,8 +32,9 @@
 | 25 | 支付 mock | mock 路径挂在正式 `/payment` 前缀易被误当契约 | DevMock 与正式 Controller 同前缀 | mock 仅 `/api/v2/dev/payment/**` + `mock-enabled`；正式 `PaymentController` 契约冻结注释 | `DevMock*Controller`、`PaymentController` |
 | 26 | H5 隐私 | 首屏无同意即可继续用 | 缺隐私同意门闩 | H5 入口页弹 `privacy-consent-modal`，同意键 `aicabinet_privacy_consent_v1` | `shared-uni/privacy-consent` |
 | 27 | consumer 分包 | 主包过大启动慢 | 24 页全进主包无 `subPackages` | tab/登录/结果留主包；其余按目录 `subPackages` + `preloadRule` | `consumer-mp/src/pages.json` |
-| 28 | Settlement 拆分 | 改退款/异步视觉易牵动整类回归 | 纯计算与异步提交混在上帝类 | 按行退款数学进 `SettlementPartialRefundMath`；异步视觉进 `SettlementVisionAsyncService`；免单进 `SettlementWaiveRefundService`；争议确认进 `SettlementConfirmDisputeService`；主类只委托 | `SettlementService` |
+| 28 | Settlement 拆分 | 改退款/异步视觉易牵动整类回归 | 纯计算与异步提交混在上帝类 | 按行退款数学进 `SettlementPartialRefundMath`；异步视觉进 `SettlementVisionAsyncService`；免单进 `SettlementWaiveRefundService`；争议确认进 `SettlementConfirmDisputeService`；落单扣款进 `SettlementOrderFinalizeService`；主类只委托 | `SettlementService` |
 | 29 | merchant 分包 | 主包过大冷启动慢 | 业务页全进主包 | tab+登录留主包；其余 `subPackages` + `preloadRule` | `merchant-mp/src/pages.json` |
+| 30 | merchant 补货 | 开门缓存/确认框逻辑与页耦合难测 | 状态机散落在 3k 行页内 | 开门缓存进 `useReplenishmentDoorState`；确认框进 `useAppConfirmDialog`；UI 块继续拆子组件 | `composables/`、`Replenish*.vue` |
 
 ## 追加模板
 

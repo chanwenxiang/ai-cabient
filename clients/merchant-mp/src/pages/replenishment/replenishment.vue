@@ -356,6 +356,8 @@ import {
   type MerchantReplenishmentEfficiency
 } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
+import { useAppConfirmDialog } from '@/composables/useAppConfirmDialog';
+import { useReplenishmentDoorState } from '@/composables/useReplenishmentDoorState';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { promptText } from '@/utils/text-prompt';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
@@ -413,12 +415,26 @@ const selected = ref<Task | null>(null);
 const lines = ref<Line[]>([]);
 const linesConfirmed = ref(false);
 const evidenceItems = ref<{ localPath: string; fileId?: number }[]>([]);
-const doorOpened = ref(false);
-const openSessionId = ref('');
+const {
+  doorOpened,
+  openSessionId,
+  restoreDoorState,
+  syncDoorStateFromServer,
+  persistDoorState,
+  clearDoorState
+} = useReplenishmentDoorState();
 /** slotCode -> { maxLevel, bookQty } */
 const slotCaps = ref<Record<string, { maxLevel: number; bookQty: number }>>({});
 const deviceSlotsList = ref<DeviceSlot[]>([]);
 const skipLocationCheck = ref(canSkipLocation && getSkipCheckInLocation());
+
+const { confirmDialog, askConfirm, resolveConfirm } = useAppConfirmDialog({
+  onRemember: () => {
+    if (!canSkipLocation) return;
+    skipLocationCheck.value = true;
+    setSkipCheckInLocation(true);
+  }
+});
 
 type DeviceMeta = {
   deviceId?: string;
@@ -496,76 +512,6 @@ function taskActionLabel(task: Task) {
   const pull = taskLooksPullOff(task);
   if (task.checkInAt) return pull ? '继续下架' : '继续补货';
   return pull ? '开始下架' : '开始补货';
-}
-
-type ConfirmDialogState = {
-  visible: boolean;
-  title: string;
-  content: string;
-  confirmText: string;
-  cancelText: string;
-  rememberLabel?: string;
-  rememberChecked: boolean;
-  resolve: ((ok: boolean) => void) | null;
-};
-const confirmDialog = ref<ConfirmDialogState>({
-  visible: false,
-  title: '',
-  content: '',
-  confirmText: '确定',
-  cancelText: '取消',
-  rememberLabel: undefined,
-  rememberChecked: false,
-  resolve: null
-});
-
-function askConfirm(opts: {
-  title: string;
-  content: string;
-  confirmText?: string;
-  cancelText?: string;
-  rememberLabel?: string;
-  rememberDefault?: boolean;
-}): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (confirmDialog.value.visible && confirmDialog.value.resolve) {
-      confirmDialog.value.resolve(false);
-    }
-    confirmDialog.value = {
-      visible: true,
-      title: opts.title,
-      content: opts.content,
-      confirmText: opts.confirmText || '确定',
-      cancelText: opts.cancelText || '取消',
-      rememberLabel: opts.rememberLabel,
-      rememberChecked: opts.rememberDefault ?? false,
-      resolve
-    };
-  });
-}
-
-function resolveConfirm(ok: boolean) {
-  const resolver = confirmDialog.value.resolve;
-  if (
-    ok &&
-    canSkipLocation &&
-    confirmDialog.value.rememberLabel &&
-    confirmDialog.value.rememberChecked
-  ) {
-    skipLocationCheck.value = true;
-    setSkipCheckInLocation(true);
-  }
-  confirmDialog.value = {
-    visible: false,
-    title: '',
-    content: '',
-    confirmText: '确定',
-    cancelText: '取消',
-    rememberLabel: undefined,
-    rememberChecked: false,
-    resolve: null
-  };
-  resolver?.(ok);
 }
 
 const statusOptions = computed(() => [
@@ -1089,79 +1035,6 @@ async function scanProduct(line: Line) {
   } finally {
     scanning.value = false;
   }
-}
-
-function doorCacheKey(taskId: number) {
-  return `replenish_door_${taskId}`;
-}
-
-/** 本地开门缓存结构校验（M-24） */
-function parseDoorCache(raw: unknown): { sessionId: string } | null {
-  let cached: unknown = raw;
-  if (typeof raw === 'string') {
-    try {
-      cached = JSON.parse(raw);
-    } catch {
-      return null;
-    }
-  }
-  if (!cached || typeof cached !== 'object') return null;
-  const sessionId = String((cached as { sessionId?: unknown }).sessionId ?? '').trim();
-  if (!sessionId) return null;
-  return { sessionId };
-}
-
-function restoreDoorState(taskId: number) {
-  try {
-    const raw = uni.getStorageSync(doorCacheKey(taskId));
-    if (!raw) {
-      doorOpened.value = false;
-      openSessionId.value = '';
-      return;
-    }
-    const cached = parseDoorCache(raw);
-    if (!cached) {
-      doorOpened.value = false;
-      openSessionId.value = '';
-      try {
-        uni.removeStorageSync(doorCacheKey(taskId));
-      } catch {
-        /* ignore */
-      }
-      return;
-    }
-    doorOpened.value = true;
-    openSessionId.value = cached.sessionId;
-  } catch {
-    doorOpened.value = false;
-    openSessionId.value = '';
-  }
-}
-
-/** 以服务端补货会话覆盖本地开门缓存（M-12） */
-async function syncDoorStateFromServer(taskId: number) {
-  try {
-    const info = await merchantApi.replenishmentDoorSession(taskId);
-    if (info?.doorOpened && info.sessionId) {
-      doorOpened.value = true;
-      openSessionId.value = String(info.sessionId);
-      persistDoorState(taskId, String(info.sessionId));
-      return;
-    }
-    doorOpened.value = false;
-    openSessionId.value = '';
-    try {
-      uni.removeStorageSync(doorCacheKey(taskId));
-    } catch {
-      /* ignore */
-    }
-  } catch {
-    // 网络失败时保留本地乐观状态，完成任务仍由服务端门禁兜底
-  }
-}
-
-function persistDoorState(taskId: number, sessionId: string) {
-  uni.setStorageSync(doorCacheKey(taskId), { sessionId, at: Date.now() });
 }
 
 function currentStep(): number {
@@ -1801,13 +1674,7 @@ async function confirmCompleteAction(): Promise<boolean> {
 async function finalizeCompletedTask(taskId: number) {
   selected.value = (await merchantApi.completeReplenishmentTask(taskId)) as Task;
   lines.value = lines.value.map((line) => ({ ...line, applied: true }));
-  try {
-    uni.removeStorageSync(doorCacheKey(taskId));
-  } catch {
-    /* ignore */
-  }
-  doorOpened.value = false;
-  openSessionId.value = '';
+  clearDoorState(taskId);
   showSuccess(detailIsPullOff.value ? '下架完成' : '补货完成');
   await load();
   const fresh = allTasks.value.find((t) => t.taskId === taskId);
