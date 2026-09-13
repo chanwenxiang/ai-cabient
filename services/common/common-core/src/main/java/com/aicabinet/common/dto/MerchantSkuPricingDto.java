@@ -15,5 +15,7 @@ public record MerchantSkuPricingDto(
         int inventoryQty,
         Instant priceUpdatedAt,
         String imageUrl,
-        String barcode
+        String barcode,
+        /** 柜机改价乐观锁版本；无覆盖价时为 0。 */
+        long priceVersion
 ) {}

@@ -568,6 +568,8 @@ export interface MerchantSkuPricing {
   minPriceCents?: number | null;
   /** 商户可改价上限（分），空表示不限制 */
   maxPriceCents?: number | null;
+  /** 柜机改价乐观锁版本 */
+  priceVersion?: number;
 }
 
 export interface MerchantMe {

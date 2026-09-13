@@ -123,7 +123,7 @@
 import { computed, ref } from 'vue';
 import { showError } from '@/utils/notify';
 import { onLoad, onShow } from '@dcloudio/uni-app';
-import { consumerApi, getConsumerToken, requireConsumerAuth } from '@/utils/consumer-api';
+import { consumerApi, isConsumerLoggedIn, requireConsumerAuth } from '@/utils/consumer-api';
 import {
   consumerDisputeReviewCopy,
   consumerDisputeStatusLabel,
@@ -353,7 +353,7 @@ function abortReload(message: string) {
 }
 
 function canReloadDispute(): boolean {
-  if (!getConsumerToken()) {
+  if (!isConsumerLoggedIn()) {
     abortReload('请先登录后查看审核详情');
     return false;
   }

@@ -153,7 +153,8 @@ async function loadOrderVideo(oid: string) {
   try {
     // #ifdef H5
     const res = await fetch(apiUrl, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
+      credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}` } : { 'X-Requested-With': 'XMLHttpRequest' }
     });
     if (!res.ok) {
       if (res.status === 404) throw new Error('该订单暂无购物视频');

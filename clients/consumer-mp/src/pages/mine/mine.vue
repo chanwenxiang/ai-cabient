@@ -286,7 +286,7 @@ import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import {
   consumerApi,
   ensureConsumerAuth,
-  getConsumerToken,
+  isConsumerLoggedIn,
   logoutConsumerSession
 } from '@/utils/consumer-api';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
@@ -381,7 +381,7 @@ function syncBalanceDisplay(acc: AccountDto | null) {
 onShow(async () => {
   uni.showTabBar({ animation: false });
   await ensureConsumerAuth();
-  authed.value = !!getConsumerToken();
+  authed.value = isConsumerLoggedIn();
   try {
     const cfg = await consumerApi.consumerPublicConfig();
     mockRechargeEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
@@ -410,7 +410,7 @@ onShow(async () => {
   } catch (e) {
     syncBalanceDisplay(null);
     account.value = null;
-    authed.value = !!getConsumerToken();
+    authed.value = isConsumerLoggedIn();
     if (!authed.value) {
       showError('登录已失效，请重新登录');
       return;

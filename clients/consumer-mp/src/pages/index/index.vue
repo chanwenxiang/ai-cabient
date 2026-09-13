@@ -467,7 +467,7 @@ import {
   clearOpenAttempt,
   consumerApi,
   ensureConsumerAuth,
-  getConsumerToken
+  isConsumerLoggedIn
 } from '@/utils/consumer-api';
 import { parseCabinetScan, parseLaunchOptions } from '@aicabinet/shared-uni/qrcode';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
@@ -861,7 +861,7 @@ onShow(async () => {
   lastDeviceName.value = uni.getStorageSync('last_device_name') || '';
   await loadConsumerConfig();
   await ensureConsumerAuth();
-  if (getConsumerToken()) {
+  if (isConsumerLoggedIn()) {
     await onAuthenticatedShow();
   }
   startDevicePoll();
@@ -1255,7 +1255,7 @@ async function loadConsumerConfig() {
 
 async function refreshReviewState() {
   const sid = String(uni.getStorageSync(REVIEW_SESSION_KEY) || '');
-  if (!sid || !getConsumerToken()) {
+  if (!sid || !isConsumerLoggedIn()) {
     clearReviewSession();
     reviewTicket.value = null;
     return;

@@ -385,7 +385,10 @@ export const merchantApi = {
       : '/api/v2/merchant/pricing/skus';
     return request<import('@aicabinet/shared-types').MerchantSkuPricing[]>(path);
   },
-  updatePricing: (skuId: string, body: { deviceId: string; priceCents: number | null }) =>
+  updatePricing: (
+    skuId: string,
+    body: { deviceId: string; priceCents: number | null; expectedVersion?: number | null }
+  ) =>
     request<import('@aicabinet/shared-types').MerchantSkuPricing>(
       `/api/v2/merchant/pricing/skus/${encodeURIComponent(skuId)}`,
       'PATCH',

@@ -223,7 +223,7 @@
 <script setup lang="ts">
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
-import { consumerApi, ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
+import { consumerApi, ensureConsumerAuth, isConsumerLoggedIn } from '@/utils/consumer-api';
 import {
   shortBizNo,
   formatDateTimeShort,
@@ -466,7 +466,7 @@ async function load() {
   hasMore.value = false;
   ordersTotal.value = 0;
   await ensureConsumerAuth();
-  authed.value = !!getConsumerToken();
+  authed.value = isConsumerLoggedIn();
   if (!authed.value) {
     loading.value = false;
     booting.value = false;

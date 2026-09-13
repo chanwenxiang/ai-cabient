@@ -60,11 +60,24 @@ public interface DeviceSkuPriceMapper extends BaseTradeMapper<DeviceSkuPrice> {
                 .eq(DeviceSkuPrice::getSkuId, entity.getSkuId())
                 .last("LIMIT 1"));
         if (existing == null) {
+            if (entity.getVersion() < 0) {
+                entity.setVersion(0);
+            }
             insert(entity);
         } else {
-            update(entity, Wrappers.<DeviceSkuPrice>lambdaUpdate()
+            long expected = entity.getVersion();
+            entity.setVersion(expected + 1);
+            int rows = update(entity, Wrappers.<DeviceSkuPrice>lambdaUpdate()
                     .eq(DeviceSkuPrice::getDeviceId, entity.getDeviceId())
-                    .eq(DeviceSkuPrice::getSkuId, entity.getSkuId()));
+                    .eq(DeviceSkuPrice::getSkuId, entity.getSkuId())
+                    .eq(DeviceSkuPrice::getVersion, expected));
+            if (rows == 0) {
+                entity.setVersion(expected);
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.CONFLICT,
+                        "价格已被他人修改，请刷新后重试 device=" + entity.getDeviceId()
+                                + " sku=" + entity.getSkuId());
+            }
         }
         return entity;
     }

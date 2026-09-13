@@ -25,6 +25,10 @@
 | 18 | merchant 补货 | 列表进场卡顿/弱网炸请求 | 每任务并发拉 evidence+lines，最多 80 请求 | 列表 DTO 聚合 `evidenceCount`/`lineSummary`；禁列表页 N+1 | `MerchantInventoryPortalService`、`replenishment.vue` |
 | 19 | Kafka 视觉 | 识别失败消息静默丢 | auto-commit + catch 吞异常 | vision `enable_auto_commit=false` 成功/入 DLT 后 commit；trade 失败发 result.DLT 再抛 | `kafka_worker.py`、`VisionRecognitionListener` |
 | 20 | toast | 成功操作弹出「错误」无图标 toast | 误用 `showError`（icon:none） | 成功/中性文案必须 `showSuccess` | consumer/merchant 多页 |
+| 21 | session 超时 | 开门/补货/识别过期只能改代码常量 | 魔法值散落 SessionService | 收归 `aicabinet.session-expire` + `SessionExpireProperties` | `application.yml`、`SessionExpireProperties` |
+| 22 | vision 超时 | 云端识别挂起无结果 | 无 wall-clock timeout / 失败只进 DLT | HTTP+Kafka 超时回退 `need_review=true` 仍发 result | `main.py`、`kafka_worker.py` |
+| 23 | 改价覆盖 | 并发改价后写互相覆盖 | `device_sku_price` 无 version | 库存同款乐观锁 + 客户端传 `expectedVersion` | `DeviceSkuPriceMapper`、`pricing.vue` |
+| 24 | consumer H5 | XSS 可读 JWT | H5 把 token 存 Storage | `cookieEnabled` 时不落 JWT，`withCredentials` + CSRF 头 | `consumer-api.ts`、`shared-uni/request.ts` |
 
 ## 追加模板
 

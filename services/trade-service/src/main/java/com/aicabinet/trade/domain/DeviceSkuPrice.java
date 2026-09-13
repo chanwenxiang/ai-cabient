@@ -28,6 +28,9 @@ public class DeviceSkuPrice {
     @TableField("updated_by_user_id")
     private Long updatedByUserId;
 
+    /** 乐观锁版本；与改价分布式锁并存。 */
+    private long version;
+
     public DeviceSkuPriceId getId() {
         if (id == null && deviceId != null && skuId != null) {
             id = new DeviceSkuPriceId(deviceId, skuId);

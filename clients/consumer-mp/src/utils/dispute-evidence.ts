@@ -99,7 +99,12 @@ export function fetchEvidenceLocalPath(url?: string): Promise<string> {
   return new Promise((resolve) => {
     uni.downloadFile({
       url: abs,
-      header: token ? { Authorization: 'Bearer ' + token } : {},
+      header: token
+        ? { Authorization: 'Bearer ' + token, 'X-Requested-With': 'XMLHttpRequest' }
+        : { 'X-Requested-With': 'XMLHttpRequest' },
+      // #ifdef H5
+      withCredentials: true,
+      // #endif
       success: (res) => {
         if (res.statusCode >= 200 && res.statusCode < 300 && res.tempFilePath) {
           evidenceLocalCache.set(abs, res.tempFilePath);

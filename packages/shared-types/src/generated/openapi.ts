@@ -12034,6 +12034,8 @@ export interface components {
             deviceId?: string;
             /** Format: int32 */
             priceCents?: number;
+            /** Format: int64 */
+            expectedVersion?: number;
         };
         ApiResponseMerchantSkuPricingDto: {
             /** Format: int32 */
@@ -12062,6 +12064,8 @@ export interface components {
             priceUpdatedAt?: string;
             imageUrl?: string;
             barcode?: string;
+            /** Format: int64 */
+            priceVersion?: number;
         };
         UpdateMerchantDeviceSettingsRequest: {
             deviceName?: string;
