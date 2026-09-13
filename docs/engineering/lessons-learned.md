@@ -12,6 +12,11 @@
 | 5 | admin 审单 | 数量框挡住「删除」 | 数量列 132px < input-number ~150px | `.manual-line` 数量列 ≥150px 且 input `max-width:100%` | 同上 |
 | 6 | 业务空态 | 识别存疑「订单/关联订单」显示暂无被当成丢数据 | 争议未落账前会话无 `order_id`，属阶段空 | 文案用「待落账」+ title 说明；结案后才有订单号 | Exception/Dispute 列表视图 |
 | 7 | ops RBAC | 从超管角色去掉按钮权限后，UI/API 仍能操作 | `PermissionService`：持有 `ops:admin` 时运营域权限一律放行 | 测按钮权限必须用不含 `ops:admin` 的角色；超管场景只测「有权限」路径 | `PermissionService.hasPermission` |
+| 8 | admin 表单 | 运营账号「重置密码」新密码框蓝底；placeholder 像已填正文 | Chrome autofill 改背景；`-webkit-text-fill-color` 误伤 placeholder | 弹窗内单独 autofill 覆盖 + `autocomplete="new-password"`；placeholder 用 `--el-text-color-placeholder`，autofill 只作用于已填值 | `OperatorManageView.vue` |
+| 9 | admin 鉴权 | 退出登录连弹两次「请先登录」 | 清 session 后在途 inbox 轮询/请求 401，全局拦截器仍 `ElMessage.error` | 退出设 `loggingOut` 抑制 toast；轮询判 `isLoggedIn()`；退出时 `closeAll()` | `api/client.ts`、`logout-message-guard.ts`、`OpsApprovalInbox.vue` |
+| 10 | admin 登录 | 登录页不应出现自助「忘记密码」 | 产品：仅系统→运营账号、持 `ops:rbac:assign:reset-password` 者可重置 | 禁止登录页忘记密码/SMS 重置入口；重置只走运营账号 API | `LoginView.vue` |
+| 11 | admin UI | 一致性「基准/对照」露出 `SALE_OK`/`MISSING_SALE` 等英文码 | 后端存诊断码，前端未映射 | 展示走 `formatConsistencyValue` + `consistency_diag_code`；悬停可看原始码 | `ConsistencyView.vue`、`shared-dict` |
+| 12 | CI / GitHub | 连续多次 `CI` failure：`generated OpenAPI types are stale` | 新增/改 API（如 reset-password）后未 `pnpm gen:api-types` 并提交 `packages/shared-types` | **改 Controller/DTO 后必须**：起 trade → `pnpm gen:api-types` → 提交 `src/generated/`+`dist`；推前本地 `OPENAPI_CHECK_REGEN=1 OPENAPI_FILE=.tmp/live-openapi.json pnpm check:openapi-types` | `scripts/gen-openapi-types.mjs`、`check:openapi-types` |
 
 ## 追加模板
 

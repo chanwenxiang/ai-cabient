@@ -1,4 +1,4 @@
-﻿# AI Cabinet 性能压力测试
+# AI Cabinet 性能压力测试
 
 ## 📋 测试环境
 

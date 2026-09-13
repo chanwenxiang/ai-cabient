@@ -68,6 +68,12 @@ export declare const DICT: {
         readonly RESOLVED: "已结案";
         readonly CLOSED: "已关闭";
     };
+    readonly dispute_resolution: {
+        readonly KEEP: "维持原账单";
+        readonly WAIVE: "免单并退款";
+        readonly CONFIRM: "按识别清单结案";
+        readonly ADJUST: "按调整明细落账";
+    };
     readonly dispute_category: {
         readonly USER_APPEAL: "用户申诉";
         readonly RECOGNITION: "识别争议";
@@ -212,6 +218,12 @@ export declare const DICT: {
         readonly DRAFT: "草稿";
         readonly PUBLISHED: "已发布";
         readonly ARCHIVED: "已归档";
+    };
+    readonly balance_refund_status: {
+        readonly PENDING_REVIEW: "待审核";
+        readonly REFUNDED: "已退款";
+        readonly REJECTED: "已驳回";
+        readonly FAILED: "失败";
     };
     readonly announcement_audience: {
         readonly ALL: "全部用户";
@@ -571,12 +583,33 @@ export declare const DICT: {
         readonly ORDER_AMOUNT: "订单金额";
         readonly PAYMENT_AMOUNT: "支付净额";
         readonly INVENTORY_MISMATCH: "库存汇总";
+        readonly INVENTORY_ORPHAN_LOT: "孤儿批次";
         readonly POINTS_BALANCE: "积分余额";
+        readonly POINTS_IDENTITY: "积分恒等式";
         readonly COUPON_ISSUED: "发券数量";
-        readonly WALLET_BALANCE: "钱包余额";
+        readonly COUPON_OVER_QUOTA: "发券超配额";
+        readonly WALLET_BALANCE: "用户钱包";
+        readonly MERCHANT_WALLET: "商户钱包";
+        readonly LINE_WALLET: "线路钱包";
         readonly REFUND_AMOUNT: "退款金额";
         readonly ORDER_LINE_SUM: "订单行金额";
         readonly COUPON_USED_LINK: "券核销关联";
+        readonly REVENUE_SPLIT_SUM: "分账金额";
+        readonly REVENUE_SPLIT_MISSING: "分账缺失";
+        readonly SLOT_SKU_MISMATCH: "货道SKU";
+        readonly SLOT_CAPACITY: "货道容量";
+        readonly SLOT_PHYSICAL: "货道盘点";
+        readonly WAREHOUSE_NEGATIVE: "仓存负库存";
+        readonly CROSS_LINK: "关联投影";
+    };
+    /** 一致性巡检「基准/对照」列：内部诊断码 → 中文（勿把 SALE_OK 等直接露出） */
+    readonly consistency_diag_code: {
+        readonly SALE_OK: "应有 SALE 扣库流水";
+        readonly MISSING_SALE: "缺少 SALE 扣库流水";
+        readonly INVENTORY_FLAG: "未标记已扣库";
+        readonly REFUND_OR_KEPT: "应有退款/留货库存流水";
+        readonly MISSING: "缺少退款/留货库存流水";
+        readonly LINKED: "应有关联订单";
     };
     readonly sku_perf_level: {
         readonly BEST_SELLER: "畅销";
@@ -665,9 +698,8 @@ export declare const DICT: {
 export type DictType = keyof typeof DICT;
 export type DictTagType = 'success' | 'warning' | 'danger' | 'info' | 'primary';
 export declare function dictLabel(type: DictType | string, code: string | null | undefined): string;
-/**
- * 三端 UI 展示用：优先字典中文，绝不把英文枚举码当文案回退（避免 `|| status` 露出 OPEN/PAID）。
- */
+/** 一致性巡检「基准/对照」展示：枚举码中文化；金额/数量保留可读数值 */
+export declare function formatConsistencyValue(checkType: string, role: 'expected' | 'actual', raw: string | null | undefined, checkKey?: string | null): string;
 export declare function displayLabel(type: DictType | string, code: string | null | undefined, empty?: string): string;
 /** 操作人展示：系统任务 / 无姓名时可读 */
 export declare function actorDisplayName(input: {
