@@ -121,7 +121,6 @@
               prop="orgName"
               label="组织"
               min-width="110"
-              show-overflow-tooltip
               align="center"
               class-name="col-status"
               label-class-name="col-status"
@@ -138,7 +137,6 @@
               prop="wxOpenid"
               label="微信 OpenID"
               min-width="140"
-              show-overflow-tooltip
               class-name="col-text"
               label-class-name="col-text"
             />
@@ -163,7 +161,6 @@
             <el-table-column
               label="绑柜"
               min-width="160"
-              show-overflow-tooltip
               align="center"
               class-name="col-status"
               label-class-name="col-status"
@@ -313,7 +310,6 @@
               prop="requestNo"
               label="业务单号"
               min-width="160"
-              show-overflow-tooltip
               class-name="col-text"
               label-class-name="col-text"
             />
@@ -375,7 +371,6 @@
               prop="payoutRef"
               label="回执"
               min-width="140"
-              show-overflow-tooltip
               align="center"
               class-name="col-status"
               label-class-name="col-status"
@@ -384,7 +379,6 @@
               prop="payoutMessage"
               label="打款说明"
               min-width="140"
-              show-overflow-tooltip
               class-name="col-text"
               label-class-name="col-text"
             />
@@ -392,7 +386,6 @@
               prop="reviewRemark"
               label="审核备注"
               min-width="120"
-              show-overflow-tooltip
               class-name="col-text"
               label-class-name="col-text"
             />
@@ -471,7 +464,7 @@
           </template>
           <el-table-column prop="taskId" label="编号" width="70" />
           <el-table-column prop="managerId" label="线长ID" width="90" />
-          <el-table-column prop="title" label="任务" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="title" label="任务" min-width="140" />
           <el-table-column prop="routeCode" label="线路" width="100" />
           <el-table-column label="进度" width="110">
             <template #default="{ row }">{{ row.doneQty }}/{{ row.targetQty }}</template>
@@ -610,7 +603,6 @@
           prop="remark"
           label="备注"
           min-width="140"
-          show-overflow-tooltip
           class-name="col-text"
           label-class-name="col-text"
         />

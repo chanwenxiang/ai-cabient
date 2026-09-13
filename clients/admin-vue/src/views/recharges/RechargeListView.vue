@@ -107,7 +107,6 @@
             label="外部单号"
             min-width="140"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">
               <span class="mono">{{

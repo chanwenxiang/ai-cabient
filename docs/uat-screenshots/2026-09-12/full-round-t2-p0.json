@@ -1,0 +1,55 @@
+{
+  "at": "2026-09-13T10:59:00+08:00",
+  "accounts": {
+    "viewer": { "phone": "13900000005", "userId": 100000031 },
+    "mchB": { "phone": "13800138003", "userId": 100000032, "merchantId": "MCH-OTHER" }
+  },
+  "cases": [
+    {
+      "id": "T2-viewer-write-403",
+      "status": "PASS",
+      "note": "POST /ops/admin/devices → 403 无权限"
+    },
+    {
+      "id": "T2-viewer-rbac-roles-403",
+      "status": "PASS",
+      "note": "GET /rbac/roles → 403（只读无 RBAC 管理权）"
+    },
+    {
+      "id": "T2-viewer-withdraw-list-403",
+      "status": "PASS",
+      "note": "GET /merchant-withdraws → 403"
+    },
+    {
+      "id": "UI-A06-viewer-disputes",
+      "status": "PASS",
+      "note": "争议页无结案/打款写按钮；截图 t2-viewer-disputes.png"
+    },
+    {
+      "id": "UI-A06-viewer-withdraw-forbidden",
+      "status": "PASS",
+      "note": "直链 /merchant-withdraw → /forbidden；截图 t2-viewer-withdraw.png"
+    },
+    {
+      "id": "T2-mchB-api-no-default-device",
+      "status": "PASS",
+      "note": "merchant devices count=0，无 777740024057"
+    },
+    {
+      "id": "T2-mchB-ui-devices",
+      "status": "PASS",
+      "note": "柜机页暂无柜机；截图 t2-mchB-devices.png"
+    },
+    {
+      "id": "P0-05-withdraw",
+      "status": "PASS",
+      "note": "requestId=1 requestNo=MW-FULL-1789268300338 status=PAID amount=100¢；余额 315→215；截图 p0-withdraw-paid.png"
+    },
+    {
+      "id": "P0-06-coupon",
+      "status": "PASS",
+      "note": "couponDefId=1 AMOUNT_OFF 50¢；issue couponId=1 code=CRSXYKJ8PXDW → userId=10001 UNUSED"
+    }
+  ],
+  "summary": { "pass": 9, "fail": 0, "block": 0 }
+}

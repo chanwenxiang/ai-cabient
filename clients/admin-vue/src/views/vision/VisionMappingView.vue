@@ -73,14 +73,13 @@
             label="类名"
             min-width="140"
             class-name="col-text"
-            show-overflow-tooltip
             sortable="custom"
           >
             <template #default="{ row }">
               <span class="cell-id">{{ row.className || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="商品" min-width="160" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="商品" min-width="160" class-name="col-text">
             <template #default="{ row }">{{ row.skuName || row.skuId || '无' }}</template>
           </el-table-column>
           <el-table-column
@@ -173,7 +172,7 @@
       </template>
       <el-table :data="aliyunMappings" stripe border size="small">
         <el-table-column prop="categoryId" label="类目ID" width="150" class-name="col-text" />
-        <el-table-column prop="categoryName" label="类目名" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="categoryName" label="类目名" min-width="150" />
         <el-table-column prop="skuId" label="SKU" width="130" class-name="col-text" />
         <el-table-column
           label="最低置信度"

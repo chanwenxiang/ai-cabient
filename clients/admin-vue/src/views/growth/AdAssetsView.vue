@@ -116,7 +116,7 @@
             class-name="col-status"
             label-class-name="col-status"
           />
-          <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="title" label="标题" min-width="160" />
           <el-table-column
             label="类型"
             width="90"

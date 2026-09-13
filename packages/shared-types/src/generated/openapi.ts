@@ -345,6 +345,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/rbac/operators/{userId}/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resetOperatorPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/rbac/me": {
         parameters: {
             query?: never;
@@ -8961,11 +8977,13 @@ export interface components {
         UpdateOpsOperatorRequest: {
             phoneNumber: string;
             name: string;
-            password?: string;
             status?: string;
             deptIds?: number[];
             /** Format: int64 */
             primaryDeptId?: number;
+        };
+        ResetOpsOperatorPasswordRequest: {
+            password: string;
         };
         ApiResponseOpsOperatorDto: {
             /** Format: int32 */
@@ -16355,6 +16373,32 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    resetOperatorPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetOpsOperatorPasswordRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {

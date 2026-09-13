@@ -62,6 +62,7 @@ public class OpsRbacService {
     private final OpsUserDepartmentMapper userDepartmentRepository;
     private final OpsDepartmentMapper departmentRepository;
     private final FileAttachmentMapper fileAttachmentRepository;
+    private final AdminAuditService auditService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final OpsRbacService self;
 
@@ -82,6 +83,7 @@ public class OpsRbacService {
                           OpsUserDepartmentMapper userDepartmentRepository,
                           OpsDepartmentMapper departmentRepository,
                           FileAttachmentMapper fileAttachmentRepository,
+                          AdminAuditService auditService,
                           @Lazy OpsRbacService self) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
@@ -100,6 +102,7 @@ public class OpsRbacService {
         this.userDepartmentRepository = userDepartmentRepository;
         this.departmentRepository = departmentRepository;
         this.fileAttachmentRepository = fileAttachmentRepository;
+        this.auditService = auditService;
         this.self = self;
     }
 
@@ -398,9 +401,6 @@ public class OpsRbacService {
         });
         user.setPhoneNumber(phone);
         user.setName(request.name().trim());
-        if (request.password() != null && !request.password().isBlank()) {
-            user.setPasswordHash(passwordEncoder.encode(request.password()));
-        }
         if (request.status() != null && !request.status().isBlank()) {
             String status = normalizeAccountStatus(request.status());
             if (INACTIVE.equals(status) && userId.equals(operatorId)) {
@@ -435,7 +435,31 @@ public class OpsRbacService {
         userInfoRepository.save(user);
     }
 
-    /** 运营账号自助修改密码（个人中心）。 */
+    /** 管理员重置他人运营账号密码；禁止重置自己（请走个人中心）。 */
+    @Transactional
+    public void resetOperatorPassword(Long operatorId, Long userId, ResetOpsOperatorPasswordRequest request) {
+        permissionService.requirePermission(operatorId, "ops:rbac:assign:reset-password");
+        runWithOperatorLock(userId, () -> {
+            doResetOperatorPassword(operatorId, userId, request);
+            return null;
+        });
+    }
+
+    private void doResetOperatorPassword(Long operatorId, Long userId, ResetOpsOperatorPasswordRequest request) {
+        ensureOperatorAccount(userId);
+        if (userId.equals(operatorId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.CANNOT_RESET_OWN_PASSWORD);
+        }
+        String password = request.password();
+        if (password == null || password.length() < 6 || password.length() > 64) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "新密码长度需在 6-64 位之间");
+        }
+        UserInfo user = userInfoRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        user.setPasswordHash(passwordEncoder.encode(password));
+        userInfoRepository.save(user);
+        auditService.appendLog(operatorId, "OPS_OPERATOR_RESET_PASSWORD", "USER", String.valueOf(userId), null);
+    }
     @Transactional
     public void changeMyPassword(Long operatorId, ChangePasswordRequest request) {
         runWithOperatorLock(operatorId, () -> {

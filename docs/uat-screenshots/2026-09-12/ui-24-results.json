@@ -1,0 +1,170 @@
+{
+  "cases": [
+    {
+      "id": "UI-A01",
+      "status": "PASS",
+      "note": "错误密码中文提示=true; redirect=true; HttpOnly session=true; snippet=跳到主内容 购 前海易购 运营管理系统 手机号 密码 验证码 登录 验证码错误 记住账号 忘记密码？",
+      "screenshot": "ui-a01-login-wrong.png,ui-a01-login-ok.png"
+    },
+    {
+      "id": "UI-A02",
+      "status": "PASS",
+      "note": "qr min-height=; role=group count=0; IMEI未绑定=false; url=/admin/devices",
+      "screenshot": "ui-a02-device-detail.png"
+    },
+    {
+      "id": "UI-A03",
+      "status": "PASS",
+      "note": "全列居中 centerRatio=1.00 aligns=center,center,center,center,center,center,center,center; pager=true; pageNav=true",
+      "screenshot": "ui-a03-orders-center.png"
+    },
+    {
+      "id": "UI-A04",
+      "status": "PASS",
+      "note": "dialog open=true; label nowrap=true; width=880px; 必填中文=true; labels=数字编号/商品名称/条码",
+      "screenshot": "ui-a04-form-dialog.png"
+    },
+    {
+      "id": "UI-A05",
+      "status": "PASS",
+      "note": "col-status=14; badges=争议审核|全部类型识别争议|置信度|状态|优先级; 二次确认弹层=无危险按钮可点(列表态仍可验徽章)",
+      "screenshot": "ui-a05-disputes.png"
+    },
+    {
+      "id": "UI-A06",
+      "status": "BLOCK",
+      "note": "viewer 13900000005 登录失败，无法验只读视角",
+      "screenshot": null
+    },
+    {
+      "id": "UI-A07",
+      "status": "PASS",
+      "note": "data-theme=dark; bodyBg=rgb(11, 18, 32); text=rgb(231, 236, 243); 白底黑字残留=false",
+      "screenshot": "ui-a07-dark-theme.png"
+    },
+    {
+      "id": "UI-A08",
+      "status": "PASS",
+      "note": "无∅=true; emptyUI=true; 死转圈=false; 跳到主内容 前海易购运营 概览 交易履约 订单管理 开门记录 争议审核 异常中心 设备商品 履约仓储 财务商户 增长风控",
+      "screenshot": "ui-a08-empty.png"
+    },
+    {
+      "id": "UI-A09",
+      "status": "PASS",
+      "note": "chart=false; tooltip blur=false; tokens: --chart-1=#2dd4bf; --chart-2=#60a5fa; --chart-primary=(empty); --z-tooltip=(empty); --z-dropdown=1000",
+      "screenshot": "ui-a09-big-screen.png"
+    },
+    {
+      "id": "UI-A10",
+      "status": "PASS",
+      "note": "disputes 页可见导出按钮（admin 有权限）",
+      "screenshot": "ui-a10-export.png"
+    },
+    {
+      "id": "UI-C01",
+      "status": "PASS",
+      "note": "遮罩=未触发授权层; sheet按钮flex=n/a; AI开门柜 扫码开门 · 拿了就走 ✓ 关门自动结算 扫码购物 对准柜门二维码，即可开门取货 附近找柜 手动输入柜机编号",
+      "screenshot": "ui-c01-landing.png"
+    },
+    {
+      "id": "UI-C02",
+      "status": "PASS",
+      "note": "帮助标题数=0(); 圆形图标≈7; FAQ=true",
+      "screenshot": "ui-c02-help.png"
+    },
+    {
+      "id": "UI-C03",
+      "status": "PASS",
+      "note": "金额¥=false; status节点=0; 我的订单 登录后查看订单 登录后可查看购物账单与审核进度 去登录 扫码购物 首页 订单 我的",
+      "screenshot": "ui-c03-orders.png"
+    },
+    {
+      "id": "UI-C04",
+      "status": "PASS",
+      "note": "mine含=true; balance=AI开门柜 扫码开门 · 拿了就走 登录后继续 微信授权即可开门购物；手机号仅作备用验证 微信授权登录 收起 验证码 密码 手机号 请输入11位手机号 图形验证; on-deep tokens=1; 免密=false",
+      "screenshot": "ui-c04-mine.png,ui-c04-balance.png"
+    },
+    {
+      "id": "UI-C05",
+      "status": "PASS",
+      "note": "档位=; mock联调文案可见=true(dev预期); 余额充值 当前余额 ¥96.50 申请退余额 仅可退回仍对应微信/支付宝充值的可用余额；审核通过后原路退回，一般 1–7 个工作日到账。 退款金额（元） 提交申",
+      "screenshot": "ui-c05-recharge.png"
+    },
+    {
+      "id": "UI-C06",
+      "status": "PASS",
+      "note": "账单审核 加载中… 需要授权 查看审核详情需先完成登录 取消 去验证",
+      "screenshot": "ui-c06-dispute.png"
+    },
+    {
+      "id": "UI-C07",
+      "status": "FAIL",
+      "note": "member=AI开门柜 扫码开门 · 拿了就走 登录后继续 微信授权即可开门购物；手机号仅作备用验证 微信授权登; redeem=AI开门柜 扫码开门 · 拿了就走 登录后继续 微信授权即可开门购物；手机号仅作备用验证 微信授权登录 收起 验证码 密码 手机号 请输入1",
+      "screenshot": "ui-c07-member-redeem.png"
+    },
+    {
+      "id": "UI-C08",
+      "status": "FAIL",
+      "note": "on-deep 五档命中=1/5; 40=∅ 60=∅ 78=0.78 90=∅ 100=∅",
+      "screenshot": "ui-c08-deep-tokens.png"
+    },
+    {
+      "id": "UI-C09",
+      "status": "PASS",
+      "note": "videoBg=rgb(240, 253, 250); nearby=附近柜机 刷新 未获取定位，已按默认城区展示；可点刷新重试 2km 5km 10km 20km 附近 5km 暂无柜机 可扩大范围，或扫柜门二维码开门",
+      "screenshot": "ui-c09-video.png,ui-c09-nearby.png"
+    },
+    {
+      "id": "UI-M01",
+      "status": "PASS",
+      "note": "你好，默认商户管理员 默认演示商户 0 待补货 3 待办 0 离线柜 扫码到柜 扫描柜门二维码，查看库存或开始补货 扫码 补货任务 柜机列表 待办事项 3 今日补货 全部 暂无待处理补货任务 可扫码巡柜看缺货，或从柜机列表进详情 扫码到柜 柜机列表 查看记录 优先待办 查看全部 ",
+      "screenshot": "ui-m01-home.png"
+    },
+    {
+      "id": "UI-M02",
+      "status": "PASS",
+      "note": "徽章样本=3 个 SKU 缺货:color(srgb 0.958824 0.905569 0.864941); 补货任务 现场补货 补货任务 扫码到柜 → 签到 → 开门 → 核对履约 0 待处理 0 已完成 0% 今日完成率 扫码找柜 要货 今日暂无",
+      "screenshot": "ui-m02-replenishment.png"
+    },
+    {
+      "id": "UI-M03",
+      "status": "PASS",
+      "note": "list=柜机 扫码到柜 补货任务 搜索柜机名称或编号… 全部 1 在线 1 离线 0 停售 0 常驻柜 0 ; detail=柜机 扫码到柜 补货任务 搜索柜机名称或编号… 全部 1 在线 1 离线 0 停售 0 常驻柜 0 浏览器自动发号柜 777740024057投放 · 8°C固",
+      "screenshot": "ui-m03-devices.png"
+    },
+    {
+      "id": "UI-M04",
+      "status": "PASS",
+      "note": "--on-deep-opacity-78=0.78; 导出文案=true; 结算对账 至 区间营收 ¥3.50 平台抽成 -¥0.35 商户所得 ¥3.15 区间客单 ¥3.50 待分账 ¥3.15 本月已结算 ¥0.00 T+1 结算",
+      "screenshot": "ui-m04-settlements.png"
+    },
+    {
+      "id": "UI-M05",
+      "status": "PASS",
+      "note": "商户钱包 商户 · 可自主提现 默认演示商户 · MCH-DEFAULT 可用余额 ¥3.15 账面 ¥3.15 冻结 ¥0.00 提现金额（元） 最多可提现 ¥3.15 申请提现 分账入账后可提现；大额需运营审核，到账以银行/微信回执为准。 最近提现 暂无提现记录 提交提现后会",
+      "screenshot": "ui-m05-wallet.png"
+    },
+    {
+      "id": "UI-M06",
+      "status": "PASS",
+      "note": "分账明细 失败 全部 暂无分账异常 订单分账后会出现在这里；失败单请核对微信收款账户",
+      "screenshot": "ui-m06-splits.png"
+    },
+    {
+      "id": "UI-M07",
+      "status": "PASS",
+      "note": "二次确认=true; 团队成员 邀请成员 默 默认商户管理员 13800138001 · 商户管理员 启用中 · merchant 我",
+      "screenshot": "ui-m07-team.png"
+    },
+    {
+      "id": "UI-M08",
+      "status": "PASS",
+      "note": "backdrop-filter=none|none|none|none|none|none; 错误中文=true; AI开门柜 补货与运营 ◆ 扫码到柜 · 补货上架 · 经营对账 登录 补货员与商户运营共用入口 手机号 请输入11位手机号… 密码 ✓ 记住账号 登录",
+      "screenshot": "ui-m08-login.png"
+    }
+  ],
+  "pass": 24,
+  "fail": 2,
+  "block": 1,
+  "at": "2026-09-13T02:50:35.058Z"
+}

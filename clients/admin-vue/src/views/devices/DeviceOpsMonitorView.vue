@@ -146,7 +146,6 @@
         <el-table-column
           label="设备名称"
           min-width="140"
-          show-overflow-tooltip
           class-name="col-text"
           label-class-name="col-text"
         >
@@ -156,7 +155,6 @@
           prop="deviceId"
           label="设备编号"
           min-width="120"
-          show-overflow-tooltip
           align="center"
           class-name="col-status"
           label-class-name="col-status"
@@ -165,7 +163,6 @@
           prop="title"
           label="标题"
           min-width="140"
-          show-overflow-tooltip
           class-name="col-text"
           label-class-name="col-text"
         />
@@ -173,7 +170,6 @@
           prop="detail"
           label="详情"
           min-width="200"
-          show-overflow-tooltip
           class-name="col-text"
           label-class-name="col-text"
         >

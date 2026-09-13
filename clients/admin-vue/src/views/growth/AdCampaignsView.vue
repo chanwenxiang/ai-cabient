@@ -75,7 +75,7 @@
             class-name="col-status"
             label-class-name="col-status"
           />
-          <el-table-column prop="name" label="名称" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="name" label="名称" min-width="160" />
           <el-table-column
             label="状态"
             width="100"
@@ -157,7 +157,6 @@
             label="时间窗"
             min-width="220"
             align="center"
-            show-overflow-tooltip
             class-name="col-status"
             label-class-name="col-status"
           >

@@ -167,6 +167,16 @@ public class OpsRbacController {
         return ApiResponse.ok(null);
     }
 
+    @RequiresPermissions("ops:rbac:assign:reset-password")
+    @PostMapping("/rbac/operators/{userId}/reset-password")
+    public ApiResponse<Void> resetOperatorPassword(
+            HttpServletRequest request,
+            @PathVariable Long userId,
+            @Valid @RequestBody ResetOpsOperatorPasswordRequest body) {
+        rbacService.resetOperatorPassword(operatorId(request), userId, body);
+        return ApiResponse.ok(null);
+    }
+
     @RequiresPermissions("ops:rbac:assign")
     @GetMapping("/rbac/users/{userId}/roles")
     public ApiResponse<OpsUserRolesDto> userRoles(HttpServletRequest request, @PathVariable Long userId) {

@@ -718,13 +718,11 @@
           label="单号"
           width="70"
           class-name="col-text"
-          show-overflow-tooltip
         />
         <el-table-column
           prop="title"
           label="标题"
           min-width="140"
-          show-overflow-tooltip
           class-name="col-text"
         />
         <el-table-column
@@ -1007,7 +1005,6 @@
                   label="会话"
                   min-width="160"
                   class-name="col-text"
-                  show-overflow-tooltip
                 >
                   <template #default="{ row }">
                     <span class="cell-id">{{ displayBizNo(row.sessionId) }}</span>
@@ -1068,7 +1065,6 @@
                   label="订单"
                   min-width="120"
                   class-name="col-text"
-                  show-overflow-tooltip
                 >
                   <template #default="{ row }">
                     <span class="cell-id">{{ displayBizNo(row.orderId, '无') }}</span>
@@ -1078,7 +1074,6 @@
                   label="失败原因"
                   min-width="120"
                   class-name="col-text"
-                  show-overflow-tooltip
                 >
                   <template #default="{ row }">
                     {{ row.failReason || row.failureReason || '暂无' }}
@@ -1140,7 +1135,6 @@
                   label="订单"
                   min-width="160"
                   class-name="col-text"
-                  show-overflow-tooltip
                 >
                   <template #default="{ row }">
                     <span class="cell-id">{{ displayBizNo(row.orderId) }}</span>

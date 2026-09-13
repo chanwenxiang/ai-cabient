@@ -147,13 +147,11 @@
                 prop="deviceName"
                 label="柜机"
                 min-width="140"
-                show-overflow-tooltip
               />
               <el-table-column
                 prop="deviceId"
                 label="设备ID"
                 min-width="110"
-                show-overflow-tooltip
               />
               <el-table-column label="场地" min-width="140" class-name="col-text">
                 <template #default="{ row }">
@@ -339,7 +337,6 @@
                 prop="deviceId"
                 label="设备ID"
                 min-width="100"
-                show-overflow-tooltip
               />
               <el-table-column
                 label="收款方"
@@ -350,7 +347,7 @@
               >
                 <template #default="{ row }">{{ rentPartyLabel(row.partyType) }}</template>
               </el-table-column>
-              <el-table-column label="对方ID" width="100" show-overflow-tooltip>
+              <el-table-column label="对方ID" width="100">
                 <template #default="{ row }">{{ row.partyId || '—' }}</template>
               </el-table-column>
               <el-table-column
@@ -438,15 +435,13 @@
                 prop="deviceName"
                 label="柜机"
                 min-width="120"
-                show-overflow-tooltip
               />
               <el-table-column
                 prop="deviceId"
                 label="设备ID"
                 min-width="110"
-                show-overflow-tooltip
               />
-              <el-table-column label="商户" width="120" show-overflow-tooltip>
+              <el-table-column label="商户" width="120">
                 <template #default="{ row }">{{ row.merchantId || '—' }}</template>
               </el-table-column>
               <el-table-column

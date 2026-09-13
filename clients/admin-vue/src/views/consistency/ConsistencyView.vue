@@ -142,7 +142,7 @@
           </el-table-column>
           <el-table-column label="说明" min-width="160" class-name="col-text">
             <template #default="{ row }">
-              <!-- 勿用 show-overflow-tooltip：横滚/右侧 sticky 操作列时会漂到操作列上 -->
+              <!-- 勿用：横滚/右侧 sticky 操作列时会漂到操作列上 -->
               <span v-if="row.errorMessage" class="err-msg" :title="row.errorMessage">{{
                 row.errorMessage
               }}</span>

@@ -96,7 +96,6 @@
             prop="remark"
             label="备注"
             min-width="160"
-            show-overflow-tooltip
             class-name="col-text"
             label-class-name="col-text"
           />

@@ -155,7 +155,6 @@
             label="流水号"
             min-width="110"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">
               <span class="mono">{{
@@ -231,7 +230,6 @@
             label="会话"
             min-width="110"
             align="center"
-            show-overflow-tooltip
             class-name="col-status"
             label-class-name="col-status"
           >
@@ -258,7 +256,6 @@
           <el-table-column
             label="设备"
             min-width="120"
-            show-overflow-tooltip
             class-name="col-text"
             label-class-name="col-text"
           >
@@ -277,7 +274,6 @@
           <el-table-column
             label="商户"
             min-width="120"
-            show-overflow-tooltip
             class-name="col-text"
             label-class-name="col-text"
           >
@@ -388,7 +384,6 @@
             label="退款时间"
             width="140"
             align="center"
-            show-overflow-tooltip
             class-name="col-money"
             label-class-name="col-money"
           >
@@ -422,7 +417,6 @@
             label="创建时间"
             width="140"
             align="center"
-            show-overflow-tooltip
             class-name="col-status"
             label-class-name="col-status"
           >
@@ -631,7 +625,6 @@
               label="SKU"
               min-width="100"
               align="center"
-              show-overflow-tooltip
               class-name="col-status"
               label-class-name="col-status"
             />
@@ -648,7 +641,6 @@
               prop="batchNo"
               label="批次"
               width="100"
-              show-overflow-tooltip
               class-name="col-text"
               label-class-name="col-text"
             >

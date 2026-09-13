@@ -1,0 +1,191 @@
+{
+  "walletBefore": {
+    "bound": true,
+    "merchantId": "MCH-DEFAULT",
+    "merchantName": "默认演示商户",
+    "balanceCents": 315,
+    "frozenCents": 0,
+    "availableCents": 315,
+    "recentLedgers": [
+      {
+        "ledgerId": 1,
+        "merchantId": "MCH-DEFAULT",
+        "merchantName": "默认演示商户",
+        "entryType": "SPLIT_CREDIT",
+        "amountCents": 315,
+        "balanceAfter": 315,
+        "frozenAfter": 0,
+        "refType": "SPLIT",
+        "refId": "1789223757064580674",
+        "remark": "分账入账 1789223756879762169",
+        "createdAt": "2026-09-12T14:35:57.095376Z"
+      }
+    ],
+    "recentWithdraws": []
+  },
+  "withdraw": {
+    "code": 0,
+    "message": "ok",
+    "data": {
+      "requestId": 1,
+      "requestNo": "MW-FULL-1789268300338",
+      "merchantId": "MCH-DEFAULT",
+      "merchantName": "默认演示商户",
+      "amountCents": 100,
+      "status": "PAID",
+      "payChannel": "MOCK",
+      "reviewerId": null,
+      "reviewRemark": "低于审核阈值自动通过",
+      "reviewedAt": "2026-09-13T02:58:20.350865Z",
+      "payoutRef": "MOCK-MW-0C513BB49AFB4425",
+      "payoutMessage": "仅 Mock 成功：未发起真实微信转账",
+      "paidAt": "2026-09-13T02:58:20.378853372Z",
+      "createdAt": "2026-09-13T02:58:20.350865Z",
+      "updatedAt": "2026-09-13T02:58:20.378853372Z",
+      "feeCents": 0
+    }
+  },
+  "walletAfter": {
+    "bound": true,
+    "merchantId": "MCH-DEFAULT",
+    "merchantName": "默认演示商户",
+    "balanceCents": 215,
+    "frozenCents": 0,
+    "availableCents": 215,
+    "recentLedgers": [
+      {
+        "ledgerId": 3,
+        "merchantId": "MCH-DEFAULT",
+        "merchantName": "默认演示商户",
+        "entryType": "WITHDRAW_PAID",
+        "amountCents": -100,
+        "balanceAfter": 215,
+        "frozenAfter": 0,
+        "refType": "WITHDRAW",
+        "refId": "1",
+        "remark": "提现打款成功",
+        "createdAt": "2026-09-13T02:58:20.382945Z"
+      },
+      {
+        "ledgerId": 2,
+        "merchantId": "MCH-DEFAULT",
+        "merchantName": "默认演示商户",
+        "entryType": "WITHDRAW_FREEZE",
+        "amountCents": -100,
+        "balanceAfter": 315,
+        "frozenAfter": 100,
+        "refType": "WITHDRAW",
+        "refId": "1",
+        "remark": "提现申请冻结",
+        "createdAt": "2026-09-13T02:58:20.364809Z"
+      },
+      {
+        "ledgerId": 1,
+        "merchantId": "MCH-DEFAULT",
+        "merchantName": "默认演示商户",
+        "entryType": "SPLIT_CREDIT",
+        "amountCents": 315,
+        "balanceAfter": 315,
+        "frozenAfter": 0,
+        "refType": "SPLIT",
+        "refId": "1789223757064580674",
+        "remark": "分账入账 1789223756879762169",
+        "createdAt": "2026-09-12T14:35:57.095376Z"
+      }
+    ],
+    "recentWithdraws": [
+      {
+        "requestId": 1,
+        "requestNo": "MW-FULL-1789268300338",
+        "merchantId": "MCH-DEFAULT",
+        "merchantName": "默认演示商户",
+        "amountCents": 100,
+        "status": "PAID",
+        "payChannel": "MOCK",
+        "reviewerId": null,
+        "reviewRemark": "低于审核阈值自动通过",
+        "reviewedAt": "2026-09-13T02:58:20.350865Z",
+        "payoutRef": "MOCK-MW-0C513BB49AFB4425",
+        "payoutMessage": "仅 Mock 成功：未发起真实微信转账",
+        "paidAt": "2026-09-13T02:58:20.378853Z",
+        "createdAt": "2026-09-13T02:58:20.350865Z",
+        "updatedAt": "2026-09-13T02:58:20.378853Z",
+        "feeCents": 0
+      }
+    ]
+  },
+  "couponCreate": {
+    "code": 0,
+    "message": "ok",
+    "data": {
+      "couponDefId": 1,
+      "couponName": "完整轮满减券",
+      "couponType": "AMOUNT_OFF",
+      "denominationCents": 50,
+      "minSpendCents": 100,
+      "discountPercent": null,
+      "validityDays": 30,
+      "maxIssueCount": 20,
+      "issuedCount": 0,
+      "status": "ACTIVE",
+      "description": "MASTER完整轮发券",
+      "activityId": null
+    }
+  },
+  "couponList": {
+    "code": 0,
+    "message": "ok",
+    "data": {
+      "items": [],
+      "page": 0,
+      "size": 5,
+      "total": 0
+    }
+  },
+  "viewerRoles": {
+    "status": 403,
+    "data": {
+      "code": 403,
+      "message": "无权限执行此操作",
+      "data": null
+    }
+  },
+  "viewerWithdraws": {
+    "status": 403,
+    "data": {
+      "code": 403,
+      "message": "无权限执行此操作",
+      "data": null
+    }
+  },
+  "couponIssue": {
+    "code": 0,
+    "message": "ok",
+    "data": {
+      "couponId": 1,
+      "couponName": "完整轮满减券",
+      "couponType": "AMOUNT_OFF",
+      "denominationCents": 50,
+      "minSpendCents": 100,
+      "status": "UNUSED",
+      "expireAt": "2026-10-13T02:58:45.846000843Z",
+      "receivedAt": null,
+      "usedAt": null,
+      "couponCode": "CRSXYKJ8PXDW",
+      "deviceScope": "ALL",
+      "description": "MASTER完整轮发券"
+    }
+  },
+  "couponRedeem": {
+    "path": "settlement auto-apply",
+    "couponId": 1,
+    "couponCode": "CRSXYKJ8PXDW",
+    "status": "USED",
+    "orderId": "1789269033478876790",
+    "originalCents": 350,
+    "couponDiscountCents": 50,
+    "payableCents": 300,
+    "sessionId": "1789268889368458573",
+    "ticketId": "1789268970802128403"
+  }
+}

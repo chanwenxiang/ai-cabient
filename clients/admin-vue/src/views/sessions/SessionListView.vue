@@ -214,7 +214,7 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="订单" min-width="130" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="订单" min-width="130" class-name="col-text">
             <template #default="{ row }">
               <button
                 v-if="row.orderId"
@@ -244,7 +244,6 @@
             label="等待原因"
             min-width="160"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">
               <span>{{ waitReason(row) }}</span>
@@ -279,7 +278,6 @@
             label="失败原因"
             min-width="140"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">{{ failReasonText(row) }}</template>
           </el-table-column>

@@ -1,0 +1,61 @@
+{
+  "at": "2026-09-13T11:10:40+08:00",
+  "cases": [
+    {
+      "id": "P0-03-replenish",
+      "status": "PASS",
+      "note": {
+        "taskId": 1,
+        "routeId": 1,
+        "outboundId": 1,
+        "sessionId": "1789268547460101835",
+        "path": "warehouse pick→ship→check-in→open-door→evidence→COMPLETED",
+        "merchantUserId": 100000030,
+        "screenshot": "browser-ui/p0-replenish-completed.png",
+        "e2e": "scripts/e2e-replenishment.ps1 DeviceId=777740024057"
+      }
+    },
+    {
+      "id": "P0-07-repair",
+      "status": "PASS",
+      "note": {
+        "ticketId": 1,
+        "flow": "OPEN→IN_PROGRESS→DONE",
+        "title": "完整轮报修-门磁异常",
+        "deviceId": "777740024057",
+        "screenshot": "browser-ui/p0-repair-done.png"
+      }
+    },
+    {
+      "id": "P0-09-approval",
+      "status": "PASS",
+      "note": {
+        "bizType": "MERCHANT_REPLEN_REQUEST",
+        "requestId": 1,
+        "pendingHit": true,
+        "acceptStatus": "ACCEPTED",
+        "replenishmentTaskId": 2,
+        "definitions": 7,
+        "screenshot": "browser-ui/p0-approval-replen-request.png"
+      }
+    },
+    {
+      "id": "P0-06-coupon-redeem",
+      "status": "PASS",
+      "note": {
+        "path": "结算自动选券核销（SettlementService.selectBestCouponForOrder）",
+        "couponId": 1,
+        "couponCode": "CRSXYKJ8PXDW",
+        "orderId": "1789269033478876790",
+        "orderStatus": "PAID",
+        "originalCents": 350,
+        "couponDiscountCents": 50,
+        "payableCents": 300,
+        "sessionId": "1789268889368458573",
+        "ticketId": "1789268970802128403",
+        "screenshot": "browser-ui/p0-coupon-after-redeem.png"
+      }
+    }
+  ],
+  "summary": { "pass": 4, "fail": 0, "block": 0 }
+}

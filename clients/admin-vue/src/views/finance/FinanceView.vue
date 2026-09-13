@@ -175,7 +175,6 @@
                 label="商品编号"
                 min-width="120"
                 class-name="col-text"
-                show-overflow-tooltip
                 sortable="custom"
               >
                 <template #default="{ row }">
@@ -186,7 +185,6 @@
                 label="商品"
                 min-width="140"
                 class-name="col-text"
-                show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.skuName || '无' }}</template>
               </el-table-column>

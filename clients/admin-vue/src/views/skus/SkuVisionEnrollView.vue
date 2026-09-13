@@ -231,7 +231,6 @@
             label="类目"
             min-width="100"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">{{ categoryLabel(row.category) }}</template>
           </el-table-column>
@@ -239,7 +238,6 @@
             label="端侧类名"
             min-width="130"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">
               <span v-if="row.yoloClassName" class="cell-id">{{ row.yoloClassName }}</span>

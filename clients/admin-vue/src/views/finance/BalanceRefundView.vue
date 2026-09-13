@@ -331,7 +331,6 @@ onMounted(load);
             label="申请号"
             min-width="160"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">
               <span class="cell-id">{{ displayBizNo(row.requestNo) }}</span>
@@ -370,7 +369,6 @@ onMounted(load);
             label="申请原因"
             min-width="140"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.reason || '暂无' }}</template>
           </el-table-column>
@@ -378,7 +376,6 @@ onMounted(load);
             label="审核备注"
             min-width="120"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.reviewRemark || '暂无' }}</template>
           </el-table-column>
@@ -386,7 +383,6 @@ onMounted(load);
             label="失败原因"
             min-width="140"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.failReason || '暂无' }}</template>
           </el-table-column>

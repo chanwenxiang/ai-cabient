@@ -148,7 +148,6 @@
             label="备注"
             min-width="160"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.remark || '无' }}</template>
           </el-table-column>

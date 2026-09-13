@@ -71,7 +71,7 @@
           style="width: 100%"
           empty-text="暂无柜机数据"
         >
-          <el-table-column prop="deviceName" label="柜机" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="deviceName" label="柜机" min-width="160" />
           <el-table-column
             prop="opens"
             label="开门"
@@ -120,8 +120,8 @@
           style="width: 100%"
           empty-text="暂无商品数据"
         >
-          <el-table-column prop="skuName" label="商品" min-width="140" show-overflow-tooltip />
-          <el-table-column prop="skuId" label="SKU" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="skuName" label="商品" min-width="140" />
+          <el-table-column prop="skuId" label="SKU" min-width="120" />
           <el-table-column
             prop="qtySold"
             label="销量"

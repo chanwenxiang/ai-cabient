@@ -1,8 +1,9 @@
 # ai-cabinet 最终版全量测试文档（MASTER TEST PLAN）
 
-> **版本**：2.1（FINAL · 代码对照版） · 日期：2026-09-12
+> **版本**：2.1.1（FINAL · 代码对照版） · 日期：2026-09-13
 > **v2.1 变更**：①修正后端测试资产计数（246 全库/87 并发/198 service）；②§7 全景重写（改动→必跑映射、E2E/UAT 资产补全、CI 对照表、Playwright 纪律、可观测冒烟）；③新增 §3.6 设备/视觉/边缘专项；④§0.3 PASS 保鲜规则；⑤§2.4 菜单轮转规则；⑥§2.7 UI/UX PR 最短验收（贴合近期 token/a11y/表格/文案类合入）。数字以 v2.1 实测为准。
-> **定位**：本文是 ai-cabinet 三端 + 后端 + 边缘的**唯一总测试真源**，覆盖业务、UI、资金、权限、数据一致性、安全、性能、兼容性、回归自动化与上线门槛。每个 UI 用例均标注**代码真源路径**，页面数量以当前代码统计为准（2026-09-12 实测）。
+> **v2.1.1**：澄清 admin 路由计数——`path:` 声明 **76**（含 `/` 与动态段）；过滤后 uniqueNonDynamic **73**；menu **66**（完整轮 T6 校正，见 `docs/uat-screenshots/2026-09-12/ROUND.md`）。
+> **定位**：本文是 ai-cabinet 三端 + 后端 + 边缘的**唯一总测试真源**，覆盖业务、UI、资金、权限、数据一致性、安全、性能、兼容性、回归自动化与上线门槛。每个 UI 用例均标注**代码真源路径**，页面数量以当前代码统计为准（2026-09-13 复核）。
 > 旧测试文档（附录 A）自本版起降级为分册/历史，冲突时**以本文为准**。
 >
 > **阶段前提（重要）**：项目处于**开发/联调阶段**——未接入真实柜机硬件、未接入真实微信/支付宝商户号、识别为端侧提供方 + 云端 mock。本文用例默认运行 `pay:mock · door:sim · vision:mock`；凡标 🔒 的项**只能在真实环境终验**，mock 通过 ≠ 真实通过。
@@ -84,11 +85,11 @@
 
 | 端 | 真源文件 | 实测数量 |
 |----|----------|----------|
-| 运营后台 | `clients/admin-vue/src/router/index.ts` | 路由 **76** 条（业务 66 + 登录/打印/forbidden/动态/兜底等）；`views/` 下 **70** 个 .vue；`menu.ts` **66** 个 path 条目 |
+| 运营后台 | `clients/admin-vue/src/router/index.ts` | 路由 path 声明 **76** 条（含 `/`、`devices/:id`、兜底 `:pathMatch(.*)*`）；排除根路径与动态段后可读 unique **73**；业务侧栏 `menu.ts` **66**；`views/` **70** 个 .vue |
 | 商户端 | `clients/merchant-mp/src/pages.json` | **22** 页；TabBar 4：工作台/柜机/待办/我的；`merchant-nav.ts` 13 个功能 key（replenishment/devices/alerts/messages/pricing/settlements/wallet/splits/line-wallet/orders/disputes/business/team） |
 | 消费者端 | `clients/consumer-mp/src/pages.json` | **24** 页（较旧矩阵 +1：`pages/balance/balance` 余额明细）；TabBar 3：首页/订单/我的 |
 
-> 每轮回归先重跑上述统计，数量变化必须先更新真源文档再测。**注意**：旧 `BUSINESS_FULL_TEST_MATRIX.md` 写消费者 23 页已过时。
+> 每轮回归先重跑 `node scripts/count-page-baseline.mjs`（同时输出 decls=76 / uniqueNonDynamic=73）。**勿把「过滤动态段后的 73」与「声明总数 76」互相改写对方。** 数量变化必须先更新真源文档再测。**注意**：旧 `BUSINESS_FULL_TEST_MATRIX.md` 写消费者 23 页已过时。
 
 ### 2.2 设计系统基线（新代码必须遵守，违者打回）
 
@@ -446,7 +447,7 @@ pnpm test:mp                                 # 两端小程序 vitest（本地�
 
 **单轮 DoD**：
 - [ ] §7.1 快速回归全绿（附输出；注意 §2.3 两条 CI 未覆盖门禁必须在列）
-- [ ] §2.1 页面数与真源一致（consumer 24 / merchant 22 / admin 76 路由）
+- [ ] §2.1 页面数与真源一致（consumer 24 / merchant 22 / admin 路由声明 76 · uniqueNonDynamic 73 · menu 66）
 - [ ] §3.1 P0 十条全 PASS 且带证据 ID（按 §0.3 保鲜规则，过期即复测）
 - [ ] §2.4 UI 抽测无开放 P1/P2；两条 UI 门禁全绿；本迭代 UI PR 均有 §2.7 最短验收记录
 - [ ] 所有 FAIL 有截图/日志；P0/P1 已修复复测或登记 issue
@@ -492,7 +493,7 @@ P0: __/10 · 快速回归: 绿/红 · UI 门禁: 绿/红 · 包体积: OK/超
 
 | 指标 | 值 |
 |------|-----|
-| 页面入口 | consumer **24** 页 / merchant **22** 页 / admin **76** 路由（70 个 view，menu.ts 66 项） |
+| 页面入口 | consumer **24** 页 / merchant **22** 页 / admin 路由声明 **76**（uniqueNonDynamic **73**；menu.ts **66**；views **70**） |
 | UI 门禁 a11y | 392/392 + 37/37 = 100%（`MIN_ROLE_PCT=95`） |
 | UI 门禁表格 | conflicts 0 / 债 0（历史 632）/ 金额未挂 0（col-money 137 处） |
 | UI 债务 | P3 收口关闭；blur 全清；z-index 七档 token；深底白字五档 |
@@ -500,10 +501,10 @@ P0: __/10 · 快速回归: 绿/红 · UI 门禁: 绿/红 · 包体积: OK/超
 | P0 业务链路 | 10/10 PASS（2026-09-08 · docker-full · pay:mock · door:sim · h5）**——按 §0.3 保鲜规则，资金类 14 天即到期，下轮须复测** |
 | 后端测试资产 | 全库 **246** 个 `*Test.java`：trade-service **241**（`*ConcurrencyTest*` **87**，`/service/` 路径约 **198**）+ device-service **5**；另 3 端 E2E |
 | E2E/UAT 资产 | `scripts/e2e-*.ps1` 磁盘 17 个 = **16 场景 + e2e-lib 公共库**；3 个 verify 聚合；Playwright UAT **8** 个（clients/*/tests/） |
-| 已知缺口 | device-service 集成测试薄（§3.6 DV-06）；CI 缺 mp-a11y/table-align 两门禁（§2.3）；性能基线未跑（§6） |
+| 已知缺口 | device-service 集成测试薄（§3.6 DV-06）；多柜并发/MQTT 桥端到端乱序注入缺；CI 缺 mp-a11y/table-align 两门禁（§2.3，本地门禁已跑）；性能基线未跑（§6） |
 | UI/UX 最短集 | 仅 UI 合入走 **§2.7**（门禁 + 按面加验 + UX 五问）；完整抽测仍 §2.4 |
 | 待办 | §6 性能基线未跑；§2.5 原生专项 🔒 未验；§10 真实环境 🔒 全部未验 |
 
 ---
 
-*维护约定：新增/删除页面、新增资金域、更换支付/识别策略时，必须同步更新 §2.1 基线数字与对应章节并升版本号。本文由业务矩阵 v1.2 + 五轮 UI 审计（2026-09-12）合并升级，v2.1 按当日代码与脚本清单二次实测校正。*
+*维护约定：新增/删除页面、新增资金域、更换支付/识别策略时，必须同步更新 §2.1 基线数字与对应章节并升版本号。本文由业务矩阵 v1.2 + 五轮 UI 审计（2026-09-12）合并升级，v2.1 按当日代码与脚本清单二次实测校正；v2.1.1（2026-09-13）澄清 admin 路由 76/73 双口径。*

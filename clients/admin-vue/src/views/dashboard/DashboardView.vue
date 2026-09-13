@@ -274,13 +274,11 @@
               prop="title"
               label="标题"
               min-width="140"
-              show-overflow-tooltip
               class-name="col-text"
             />
             <el-table-column
               label="关联"
               min-width="160"
-              show-overflow-tooltip
               class-name="col-text"
             >
               <template #default="{ row }">{{ contextLabel(row) }}</template>
@@ -289,7 +287,6 @@
               prop="detail"
               label="详情"
               min-width="220"
-              show-overflow-tooltip
               class-name="col-text"
             />
             <el-table-column

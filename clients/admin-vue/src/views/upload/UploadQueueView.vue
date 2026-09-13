@@ -143,7 +143,6 @@
             label="对象路径"
             min-width="180"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">
               <span v-if="objectKey(row.videoUri)" class="cell-id">{{
@@ -169,7 +168,6 @@
             label="等待原因"
             min-width="200"
             class-name="col-text"
-            show-overflow-tooltip
           >
             <template #default="{ row }">
               <span>{{ waitReason(row) }}</span>

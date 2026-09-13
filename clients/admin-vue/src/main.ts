@@ -14,6 +14,7 @@ import { useSettingsStore } from './stores/settings';
 import { installElementPlus } from './plugins/element-plus';
 import { installMessageBoxDefaults } from './plugins/message-box-defaults';
 import { setupHasPermi } from './directives/hasPermi';
+import { installTableCellNativeTitle } from './utils/table-cell-native-title';
 
 normalizeAdminIndexHtmlHash();
 installMessageBoxDefaults();
@@ -22,6 +23,7 @@ const pinia = createPinia();
 const app = createApp(App).use(pinia).use(router);
 installElementPlus(app);
 setupHasPermi(app);
+installTableCellNativeTitle();
 
 useSettingsStore(pinia).init();
 

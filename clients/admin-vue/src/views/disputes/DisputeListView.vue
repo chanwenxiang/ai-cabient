@@ -105,16 +105,22 @@
             label="工单号"
             min-width="140"
             class-name="col-text"
-            show-overflow-tooltip
             sortable="custom"
           >
             <template #default="{ row }">
-              <span class="cell-id">{{ row.ticketId }}</span>
+              <span class="cell-id cell-ellipsis" :title="String(row.ticketId || '')">{{
+                row.ticketId
+              }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="工单" min-width="160" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="工单" min-width="160" class-name="col-text">
             <template #default="{ row }">
-              <button type="button" class="link-cell" @click="openDetail(row)">
+              <button
+                type="button"
+                class="link-cell cell-ellipsis"
+                :title="row.reason || '无'"
+                @click="openDetail(row)"
+              >
                 {{ row.reason || '无' }}
               </button>
             </template>
@@ -137,12 +143,13 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="设备" min-width="110" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="设备" min-width="110" class-name="col-text">
             <template #default="{ row }">
               <button
                 v-if="row.deviceId"
                 type="button"
-                class="link-cell"
+                class="link-cell cell-ellipsis"
+                :title="row.deviceId"
                 @click="goDevice(row.deviceId)"
               >
                 {{ row.deviceId }}
@@ -150,12 +157,13 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="会话" min-width="130" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="会话" min-width="130" class-name="col-text">
             <template #default="{ row }">
               <button
                 v-if="row.sessionId"
                 type="button"
-                class="link-cell mono"
+                class="link-cell mono cell-ellipsis"
+                :title="String(row.sessionId)"
                 @click="goSessions(row.deviceId, row.sessionId)"
               >
                 {{ displayBizNo(row.sessionId, '无') }}
@@ -163,22 +171,27 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column
-            label="关联订单"
-            min-width="130"
-            class-name="col-text"
-            show-overflow-tooltip
-          >
+          <el-table-column label="关联订单" min-width="130" class-name="col-text">
             <template #default="{ row }">
               <button
                 v-if="row.orderId"
                 type="button"
-                class="link-cell mono"
+                class="link-cell mono cell-ellipsis"
+                :title="String(row.orderId)"
                 @click="goOrders(row.deviceId, row.orderId)"
               >
                 {{ displayBizNo(row.orderId) }}
               </button>
-              <span v-else class="muted">无</span>
+              <span
+                v-else
+                class="muted"
+                :title="
+                  row.sessionId
+                    ? '争议未结案前通常尚无订单；审单落账（确认/调整/免单）后才会生成订单号'
+                    : '无关联会话'
+                "
+                >{{ row.sessionId ? '待落账' : '无' }}</span
+              >
             </template>
           </el-table-column>
           <el-table-column
@@ -194,15 +207,21 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="处理人" width="110" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="处理人" width="110" class-name="col-text">
             <template #default="{ row }">
-              <span v-if="row.assignee">{{ row.assignee }}</span>
+              <span v-if="row.assignee" class="cell-ellipsis" :title="row.assignee">{{
+                row.assignee
+              }}</span>
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column label="分类" width="100" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="分类" width="100" class-name="col-text">
             <template #default="{ row }">
-              {{ displayLabel('dispute_category', row.category, '未知') }}
+              <span
+                class="cell-ellipsis"
+                :title="displayLabel('dispute_category', row.category, '未知')"
+                >{{ displayLabel('dispute_category', row.category, '未知') }}</span
+              >
             </template>
           </el-table-column>
           <el-table-column
@@ -326,8 +345,8 @@
       v-model="detailVisible"
       title="争议审单工作台"
       storage-key="admin.drawer.disputes.workbench"
-      :default-width="880"
-      :min-width="560"
+      :default-width="1120"
+      :min-width="640"
       :max-width="1400"
       append-to-body
       destroy-on-close
@@ -344,334 +363,350 @@
         class="resolve-feedback"
       />
 
-      <div v-if="selected" class="workbench-grid">
-        <section class="workbench-media">
-          <div class="items-title">会话录像</div>
-          <div v-if="embedVideoUrl" class="video-wrap">
-            <video :src="embedVideoUrl" controls playsinline class="session-video">
-              <track
-                kind="captions"
-                srclang="zh"
-                label="现场录像无对白字幕"
-                src="data:text/vtt,WEBVTT"
-              />
-              <track
-                kind="descriptions"
-                srclang="zh"
-                label="购物过程监控录像"
-                src="data:text/vtt,WEBVTT"
-              />
-            </video>
-          </div>
-          <el-empty
-            v-else-if="videoAttempted && !videoLoading"
-            description="暂无录像或加载失败"
-            :image-size="72"
-          />
-          <div v-else-if="videoLoading" class="video-loading">录像{{ UI_COPY.loading }}</div>
-          <div v-else class="video-loading muted">尚未加载录像</div>
-          <el-alert
-            v-if="!embedVideoUrl && videoAttempted && !videoLoading"
-            type="info"
-            :closable="false"
-            show-icon
-            class="no-video-guide"
-            title="无录像时的结案步骤"
-            description="先点「重新加载录像」或「新窗口打开」再试；仍无法播放时，勾选「无录像 / 无法播放，仍结案」，再勾选「已对照录像核对」，然后处理结案。有录像时必须先观看并勾选核对。"
-          />
-          <div class="drawer-actions drawer-actions--review">
-            <el-button
-              v-if="
-                selected.sessionId &&
-                (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))
-              "
-              type="warning"
-              :loading="videoLoading"
-              @click="loadEmbedVideo(selected.sessionId, true)"
-              >重新加载录像</el-button
-            >
-            <el-button
-              v-if="
-                selected.sessionId &&
-                (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))
-              "
-              link
-              type="primary"
-              @click="playVideo(selected.sessionId)"
-              >新窗口打开</el-button
-            >
-            <el-checkbox v-model="videoReviewed" :disabled="!embedVideoUrl && !noVideoAck"
-              >已对照录像核对</el-checkbox
-            >
-            <el-checkbox
-              v-if="!embedVideoUrl && videoAttempted && !videoLoading"
-              v-model="noVideoAck"
-              >无录像 / 无法播放，仍结案</el-checkbox
-            >
-            <el-button
-              v-if="selected.deviceId && canAccessPath('/exceptions')"
-              @click="goExceptions(selected.deviceId)"
-              >异常中心</el-button
-            >
-            <el-button
-              v-if="selected.orderId || selected.deviceId"
-              @click="goOrders(selected.deviceId, selected.orderId)"
-              >关联订单</el-button
-            >
-          </div>
-        </section>
-
-        <section class="workbench-meta">
-          <el-alert
-            v-if="selected.reviewCode === 'MOCK' || /模拟|非生产精度/.test(selected.reason || '')"
-            type="warning"
-            :closable="false"
-            show-icon
-            title="当前为兜底识别，精度有限；请对照录像人工确认后再落账。"
-            class="suggest-alert"
-          />
-          <el-descriptions :column="1" border size="small">
-            <el-descriptions-item label="工单">
-              <span class="cell-id">{{ selected.ticketId }}</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="会话">
-              <button
-                v-if="selected.sessionId"
-                type="button"
-                class="link-cell mono"
-                @click="goSessions(selected.deviceId, selected.sessionId)"
-              >
-                {{ displayBizNo(selected.sessionId, '无') }}
-              </button>
-              <span v-else class="muted">暂无</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="设备">
-              <button
-                v-if="selected.deviceId"
-                type="button"
-                class="link-cell"
-                @click="goDevice(selected.deviceId)"
-              >
-                {{ selected.deviceId }}
-              </button>
-              <span v-else class="muted">暂无</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="原因">
-              <div class="reason-block">
-                <span>{{ selected.reason || '无' }}</span>
-                <el-tag
-                  v-if="confidenceHint(selected)"
-                  size="small"
-                  :type="reviewChipType(selected)"
-                  effect="plain"
-                >
-                  {{ confidenceHint(selected) }}
-                </el-tag>
-              </div>
-            </el-descriptions-item>
-            <el-descriptions-item v-if="selected.detectedClasses?.length" label="检出类">
-              <div class="detected-classes">
-                {{ selected.detectedClasses.join('、') }}
-                <el-button
-                  v-if="selected.reviewCode === 'UNMAPPED' || selected.detectedClasses.length"
-                  link
-                  type="primary"
-                  @click="goVisionMapping(selected)"
-                  >去映射</el-button
-                >
-              </div>
-            </el-descriptions-item>
-            <el-descriptions-item label="已扣金额"
-              >¥{{ money(selected.billedAmountCents) }}</el-descriptions-item
-            >
-            <el-descriptions-item label="建议金额">
-              <span v-if="selected.claimedAmountCents != null"
-                >¥{{ money(selected.claimedAmountCents) }}</span
-              >
-              <span v-else class="muted">—</span>
-            </el-descriptions-item>
-            <el-descriptions-item v-if="selectedAmountDiffNote" label="差额说明">
-              <span class="amount-diff">{{ selectedAmountDiffNote }}</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="已退金额">
-              <span v-if="selected.refundedAmountCents != null"
-                >¥{{ money(selected.refundedAmountCents) }}</span
-              >
-              <span v-else class="muted">—</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="SLA">
-              <el-tag v-if="selected.slaOverdue" type="danger" size="small">已超时</el-tag>
-              <span v-else-if="selected.slaHoursRemaining != null"
-                >剩余 {{ selected.slaHoursRemaining }} 小时</span
-              >
-              <span v-else-if="selected.slaDueAt">{{ formatDateTime(selected.slaDueAt) }}</span>
-              <span v-else class="muted">—</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="状态">
-              <el-tag
-                v-if="resolveFeedback || selected.status !== 'OPEN'"
-                type="success"
-                effect="light"
-                size="small"
-              >
-                {{ resolveFeedback ? '已处理' : dictLabel('dispute_status', selected.status) }}
-              </el-tag>
-              <el-tag v-else size="small" type="warning">
-                {{ dictLabel('dispute_status', selected.status) }}
-              </el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="处理人">
-              <span v-if="selected.assignee">{{ selected.assignee }}</span>
-              <span v-else class="muted">—</span>
-            </el-descriptions-item>
-            <el-descriptions-item v-if="selected.resolvedAt" label="处理时间">
-              {{ formatDateTime(selected.resolvedAt) }}
-            </el-descriptions-item>
-            <el-descriptions-item v-if="selected.orderId" label="关联订单">
-              <button
-                type="button"
-                class="link-cell mono"
-                @click="goOrders(selected.deviceId, selected.orderId)"
-              >
-                {{ displayBizNo(selected.orderId) }}
-              </button>
-            </el-descriptions-item>
-          </el-descriptions>
-
-          <div v-if="selected.suggestedItems?.length" class="items-block">
-            <div class="items-title">识别建议（只读）</div>
-            <el-table :data="selected.suggestedItems" size="small" stripe border>
-              <el-table-column prop="skuName" label="商品" min-width="120" class-name="col-text" />
-              <el-table-column
-                prop="skuId"
-                label="SKU"
-                min-width="100"
-                class-name="col-text"
-                show-overflow-tooltip
-              />
-              <el-table-column
-                prop="quantity"
-                label="数量"
-                width="72"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
-              <el-table-column
-                label="单价"
-                width="88"
-                align="center"
-                class-name="col-money"
-                label-class-name="col-money"
-              >
-                <template #default="{ row }">¥{{ money(row.unitPriceCents) }}</template>
-              </el-table-column>
-              <el-table-column
-                label="小计"
-                width="88"
-                align="center"
-                class-name="col-money"
-                label-class-name="col-money"
-              >
-                <template #default="{ row }">¥{{ money(row.lineAmountCents) }}</template>
-              </el-table-column>
-              <el-table-column
-                prop="slotId"
-                label="货道"
-                width="72"
-                class-name="col-text"
-                label-class-name="col-text"
-              >
-                <template #default="{ row }">{{ row.slotId || '暂无' }}</template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </section>
-      </div>
-
-      <div v-if="selected?.status === 'OPEN'" class="drawer-actions">
-        <div class="items-block adjust-block">
-          <div class="items-title">调整明细（落账依据）</div>
-          <el-alert
-            type="info"
-            :closable="false"
-            show-icon
-            title="对照左侧录像修改 SKU / 数量后，用「按调整明细落账」写回账单差额。"
-            class="suggest-alert"
-          />
-          <div class="manual-lines">
-            <div v-for="(line, index) in draftLines" :key="index" class="manual-line">
-              <el-select v-model="line.skuId" filterable placeholder="选择商品" style="flex: 1">
-                <el-option
-                  v-for="sku in skus"
-                  :key="sku.skuId"
-                  :label="`${sku.skuName}（¥${((sku.priceCents || 0) / 100).toFixed(2)}）`"
-                  :value="sku.skuId"
+      <div v-if="selected" class="workbench-stack">
+        <div class="workbench-grid">
+          <section class="workbench-media">
+            <div class="items-title">会话录像</div>
+            <div v-if="embedVideoUrl" class="video-wrap">
+              <video :src="embedVideoUrl" controls playsinline class="session-video">
+                <track
+                  kind="captions"
+                  srclang="zh"
+                  label="现场录像无对白字幕"
+                  src="data:text/vtt,WEBVTT"
                 />
-              </el-select>
-              <el-input-number v-model="line.quantity" :min="1" :max="99" />
-              <el-button type="danger" link @click="removeDraftLine(index)">删除</el-button>
+                <track
+                  kind="descriptions"
+                  srclang="zh"
+                  label="购物过程监控录像"
+                  src="data:text/vtt,WEBVTT"
+                />
+              </video>
             </div>
-            <el-button @click="draftLines.push({ skuId: '', quantity: 1 })">添加商品</el-button>
-            <el-button link type="primary" @click="resetDraftFromSuggested"
-              >从识别建议填充</el-button
+            <el-empty
+              v-else-if="videoAttempted && !videoLoading"
+              description="暂无录像或加载失败"
+              :image-size="64"
+            />
+            <div v-else-if="videoLoading" class="video-loading">录像{{ UI_COPY.loading }}</div>
+            <div v-else class="video-loading muted">尚未加载录像</div>
+            <el-alert
+              v-if="!embedVideoUrl && videoAttempted && !videoLoading"
+              type="info"
+              :closable="false"
+              show-icon
+              class="no-video-guide"
+              title="无录像时的结案步骤"
+              description="先点「重新加载录像」或「新窗口打开」再试；仍无法播放时，勾选「无录像 / 无法播放，仍结案」，再勾选「已对照录像核对」，然后处理结案。有录像时必须先观看并勾选核对。"
+            />
+            <div class="workbench-media-actions">
+              <el-button
+                v-if="
+                  selected.sessionId &&
+                  (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))
+                "
+                type="warning"
+                size="small"
+                :loading="videoLoading"
+                @click="loadEmbedVideo(selected.sessionId, true)"
+                >重新加载录像</el-button
+              >
+              <el-button
+                v-if="
+                  selected.sessionId &&
+                  (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))
+                "
+                link
+                type="primary"
+                @click="playVideo(selected.sessionId)"
+                >新窗口打开</el-button
+              >
+              <el-checkbox v-model="videoReviewed" :disabled="!embedVideoUrl && !noVideoAck"
+                >已对照录像核对</el-checkbox
+              >
+              <el-checkbox
+                v-if="!embedVideoUrl && videoAttempted && !videoLoading"
+                v-model="noVideoAck"
+                >无录像 / 无法播放，仍结案</el-checkbox
+              >
+              <el-button
+                v-if="selected.deviceId && canAccessPath('/exceptions')"
+                size="small"
+                @click="goExceptions(selected.deviceId)"
+                >异常中心</el-button
+              >
+              <el-button
+                v-if="selected.orderId || selected.deviceId"
+                size="small"
+                @click="goOrders(selected.deviceId, selected.orderId)"
+                >关联订单</el-button
+              >
+            </div>
+          </section>
+
+          <section class="workbench-meta">
+            <el-alert
+              v-if="selected.reviewCode === 'MOCK' || /模拟|非生产精度/.test(selected.reason || '')"
+              type="warning"
+              :closable="false"
+              show-icon
+              title="当前为兜底识别，精度有限；请对照录像人工确认后再落账。"
+              class="suggest-alert"
+            />
+            <el-descriptions :column="2" border size="small" class="workbench-desc">
+              <el-descriptions-item label="工单" :span="2">
+                <span class="cell-id">{{ selected.ticketId }}</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="会话">
+                <button
+                  v-if="selected.sessionId"
+                  type="button"
+                  class="link-cell mono"
+                  @click="goSessions(selected.deviceId, selected.sessionId)"
+                >
+                  {{ displayBizNo(selected.sessionId, '无') }}
+                </button>
+                <span v-else class="muted">暂无</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="设备">
+                <button
+                  v-if="selected.deviceId"
+                  type="button"
+                  class="link-cell"
+                  @click="goDevice(selected.deviceId)"
+                >
+                  {{ selected.deviceId }}
+                </button>
+                <span v-else class="muted">暂无</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="原因" :span="2">
+                <div class="reason-block">
+                  <span>{{ selected.reason || '无' }}</span>
+                  <el-tag
+                    v-if="confidenceHint(selected)"
+                    size="small"
+                    :type="reviewChipType(selected)"
+                    effect="plain"
+                  >
+                    {{ confidenceHint(selected) }}
+                  </el-tag>
+                </div>
+              </el-descriptions-item>
+              <el-descriptions-item v-if="selected.detectedClasses?.length" label="检出类" :span="2">
+                <div class="detected-classes">
+                  {{ selected.detectedClasses.join('、') }}
+                  <el-button
+                    v-if="selected.reviewCode === 'UNMAPPED' || selected.detectedClasses.length"
+                    link
+                    type="primary"
+                    @click="goVisionMapping(selected)"
+                    >去映射</el-button
+                  >
+                </div>
+              </el-descriptions-item>
+              <el-descriptions-item label="已扣金额"
+                >¥{{ money(selected.billedAmountCents) }}</el-descriptions-item
+              >
+              <el-descriptions-item label="建议金额">
+                <span v-if="selected.claimedAmountCents != null"
+                  >¥{{ money(selected.claimedAmountCents) }}</span
+                >
+                <span v-else class="muted">—</span>
+              </el-descriptions-item>
+              <el-descriptions-item v-if="selectedAmountDiffNote" label="差额说明" :span="2">
+                <span class="amount-diff">{{ selectedAmountDiffNote }}</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="已退金额">
+                <span v-if="selected.refundedAmountCents != null"
+                  >¥{{ money(selected.refundedAmountCents) }}</span
+                >
+                <span v-else class="muted">—</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="SLA">
+                <el-tag v-if="selected.slaOverdue" type="danger" size="small">已超时</el-tag>
+                <span v-else-if="selected.slaHoursRemaining != null"
+                  >剩余 {{ selected.slaHoursRemaining }} 小时</span
+                >
+                <span v-else-if="selected.slaDueAt">{{ formatDateTime(selected.slaDueAt) }}</span>
+                <span v-else class="muted">—</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="状态">
+                <el-tag
+                  v-if="resolveFeedback || selected.status !== 'OPEN'"
+                  type="success"
+                  effect="light"
+                  size="small"
+                >
+                  {{ resolveFeedback ? '已处理' : dictLabel('dispute_status', selected.status) }}
+                </el-tag>
+                <el-tag v-else size="small" type="warning">
+                  {{ dictLabel('dispute_status', selected.status) }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="处理人">
+                <span v-if="selected.assignee">{{ selected.assignee }}</span>
+                <span v-else class="muted">—</span>
+              </el-descriptions-item>
+              <el-descriptions-item v-if="selected.resolvedAt" label="处理时间">
+                {{ formatDateTime(selected.resolvedAt) }}
+              </el-descriptions-item>
+              <el-descriptions-item label="关联订单" :span="2">
+                <button
+                  v-if="selected.orderId"
+                  type="button"
+                  class="link-cell mono"
+                  @click="goOrders(selected.deviceId, selected.orderId)"
+                >
+                  {{ displayBizNo(selected.orderId) }}
+                </button>
+                <span
+                  v-else
+                  class="muted"
+                  title="争议未结案前通常尚无订单；审单落账（确认/调整/免单）后才会生成订单号"
+                  >待落账</span
+                >
+              </el-descriptions-item>
+            </el-descriptions>
+          </section>
+        </div>
+
+        <section v-if="selected.suggestedItems?.length" class="workbench-suggest">
+          <div class="items-title">识别建议（只读）</div>
+          <el-table :data="selected.suggestedItems" size="small" stripe border class="suggest-table">
+            <el-table-column prop="skuName" label="商品" min-width="110" class-name="col-text" />
+            <el-table-column prop="skuId" label="SKU" min-width="110" class-name="col-text">
+              <template #default="{ row }">
+                <span class="cell-ellipsis" :title="String(row.skuId || '')">{{ row.skuId }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              prop="quantity"
+              label="数量"
+              width="72"
+              align="center"
+              class-name="col-status"
+              label-class-name="col-status"
+            />
+            <el-table-column
+              label="单价"
+              width="88"
+              align="center"
+              class-name="col-money"
+              label-class-name="col-money"
+            >
+              <template #default="{ row }">¥{{ money(row.unitPriceCents) }}</template>
+            </el-table-column>
+            <el-table-column
+              label="小计"
+              width="88"
+              align="center"
+              class-name="col-money"
+              label-class-name="col-money"
+            >
+              <template #default="{ row }">¥{{ money(row.lineAmountCents) }}</template>
+            </el-table-column>
+            <el-table-column
+              prop="slotId"
+              label="货道"
+              width="72"
+              align="center"
+              class-name="col-text"
+              label-class-name="col-text"
+            >
+              <template #default="{ row }">{{ row.slotId || '暂无' }}</template>
+            </el-table-column>
+          </el-table>
+        </section>
+
+        <div v-if="selected.status === 'OPEN'" class="workbench-settle">
+          <div class="adjust-block">
+            <div class="items-title">调整明细（落账依据）</div>
+            <el-alert
+              type="info"
+              :closable="false"
+              show-icon
+              title="对照左侧录像修改 SKU / 数量后，用「按调整明细落账」写回账单差额。"
+              class="suggest-alert"
+            />
+            <div class="manual-lines">
+              <div v-for="(line, index) in draftLines" :key="index" class="manual-line">
+                <el-select v-model="line.skuId" filterable placeholder="选择商品">
+                  <el-option
+                    v-for="sku in skus"
+                    :key="sku.skuId"
+                    :label="`${sku.skuName}（¥${((sku.priceCents || 0) / 100).toFixed(2)}）`"
+                    :value="sku.skuId"
+                  />
+                </el-select>
+                <el-input-number v-model="line.quantity" :min="1" :max="99" controls-position="right" />
+                <el-button type="danger" link @click="removeDraftLine(index)">删除</el-button>
+              </div>
+              <div class="manual-line-toolbar">
+                <el-button size="small" @click="draftLines.push({ skuId: '', quantity: 1 })"
+                  >添加商品</el-button
+                >
+                <el-button link type="primary" @click="resetDraftFromSuggested"
+                  >从识别建议填充</el-button
+                >
+              </div>
+            </div>
+          </div>
+          <div class="ai-suggest-block">
+            <div class="items-title">智能识别建议</div>
+            <input
+              ref="disputeImageInput"
+              type="file"
+              accept="image/*"
+              class="hidden-input"
+              @change="onDisputeImagePick"
+            />
+            <el-button size="small" :loading="suggestingDispute" @click="triggerDisputeImage">
+              上传关键帧获取商品建议
+            </el-button>
+            <el-alert
+              v-if="disputeSuggestHint"
+              :title="disputeSuggestHint"
+              type="info"
+              show-icon
+              :closable="false"
+              class="suggest-alert"
+            />
+          </div>
+          <div class="workbench-settle-actions">
+            <el-button
+              v-hasPermi="['ops:dispute:resolve']"
+              type="warning"
+              plain
+              :loading="claiming"
+              @click="claimSelected"
+              >认领工单</el-button
+            >
+            <el-button
+              v-if="hasPriorBill"
+              v-hasPermi="['ops:dispute:resolve']"
+              type="primary"
+              :loading="resolving"
+              @click="resolveSelected('KEEP')"
+              >{{ displayLabel('dispute_resolution', 'KEEP') }}</el-button
+            >
+            <el-button
+              v-hasPermi="['ops:dispute:resolve']"
+              type="success"
+              :loading="resolving"
+              :disabled="!draftConfirmItems.length"
+              @click="resolveSelected('ADJUST')"
+              >{{ displayLabel('dispute_resolution', 'ADJUST') }}</el-button
+            >
+            <el-button
+              v-hasPermi="['ops:dispute:resolve']"
+              type="danger"
+              plain
+              :loading="resolving"
+              @click="resolveSelected('WAIVE')"
+              >{{ displayLabel('dispute_resolution', 'WAIVE') }}</el-button
             >
           </div>
         </div>
-        <div class="ai-suggest-block">
-          <div class="items-title">智能识别建议</div>
-          <input
-            ref="disputeImageInput"
-            type="file"
-            accept="image/*"
-            class="hidden-input"
-            @change="onDisputeImagePick"
-          />
-          <el-button size="small" :loading="suggestingDispute" @click="triggerDisputeImage">
-            上传关键帧获取商品建议
-          </el-button>
-          <el-alert
-            v-if="disputeSuggestHint"
-            :title="disputeSuggestHint"
-            type="info"
-            show-icon
-            :closable="false"
-            class="suggest-alert"
-          />
-        </div>
-        <el-button
-          v-if="selected && selected.status === 'OPEN'"
-          v-hasPermi="['ops:dispute:resolve']"
-          type="warning"
-          plain
-          :loading="claiming"
-          @click="claimSelected"
-          >认领工单</el-button
-        >
-        <el-button
-          v-if="hasPriorBill"
-          v-hasPermi="['ops:dispute:resolve']"
-          type="primary"
-          :loading="resolving"
-          @click="resolveSelected('KEEP')"
-          >{{ displayLabel('dispute_resolution', 'KEEP') }}</el-button
-        >
-        <el-button
-          v-hasPermi="['ops:dispute:resolve']"
-          type="success"
-          :loading="resolving"
-          :disabled="!draftConfirmItems.length"
-          @click="resolveSelected('ADJUST')"
-          >{{ displayLabel('dispute_resolution', 'ADJUST') }}</el-button
-        >
-        <el-button
-          v-hasPermi="['ops:dispute:resolve']"
-          type="danger"
-          plain
-          :loading="resolving"
-          @click="resolveSelected('WAIVE')"
-          >{{ displayLabel('dispute_resolution', 'WAIVE') }}</el-button
-        >
       </div>
     </ResizableDrawer>
   </el-card>
@@ -1725,34 +1760,21 @@ onMounted(async () => {
   line-height: 1.5;
 }
 .resolve-feedback {
-  margin-bottom: 16px;
-}
-.drawer-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 24px;
-}
-.drawer-actions--review {
-  margin-top: 16px;
-  margin-bottom: 0;
+  margin-bottom: 12px;
 }
 .status-tabs {
   margin: 0 0 10px;
 }
-.items-block {
-  margin-top: 20px;
-}
 .items-title {
   font-weight: 600;
   margin-bottom: 8px;
+  font-size: var(--admin-font-size-table);
 }
 .ai-suggest-block {
-  width: 100%;
-  margin-bottom: 12px;
+  margin: 12px 0 4px;
 }
 .suggest-alert {
-  margin-top: 8px;
+  margin: 0 0 10px;
 }
 .no-video-guide {
   margin: 8px 0;
@@ -1760,15 +1782,30 @@ onMounted(async () => {
 .hidden-input {
   display: none;
 }
+.workbench-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
 .workbench-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 1.1fr) minmax(280px, 1fr);
-  gap: 16px;
+  /* minmax(0,…)：避免抽屉被滚动条瞬间挤窄时，300/340 硬下限把侧栏压成单字列 */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 14px;
   align-items: start;
 }
 .workbench-media,
-.workbench-meta {
+.workbench-meta,
+.workbench-suggest,
+.workbench-settle {
   min-width: 0;
+}
+.workbench-suggest,
+.adjust-block {
+  padding: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--el-fill-color-blank) 70%, transparent);
 }
 .video-wrap {
   border: 1px solid var(--el-border-color);
@@ -1779,28 +1816,26 @@ onMounted(async () => {
 .session-video {
   display: block;
   width: 100%;
-  max-height: 360px;
+  max-height: 280px;
   background: #0f172a;
 }
 .video-loading {
-  padding: 48px 12px;
+  padding: 36px 12px;
   text-align: center;
   color: var(--el-text-color-secondary);
   border: 1px dashed var(--el-border-color);
   border-radius: 8px;
 }
-.adjust-block {
-  width: 100%;
-}
 .manual-lines {
   display: grid;
-  gap: 10px;
-  margin-top: 10px;
-}
-.manual-line {
-  display: flex;
   gap: 8px;
-  align-items: center;
+  margin-top: 8px;
+}
+.workbench-settle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 @media (max-width: 900px) {
   .workbench-grid {

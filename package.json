@@ -17,6 +17,7 @@
     "test:mp": "pnpm --filter @aicabinet/consumer-mp run test:ci && pnpm --filter @aicabinet/merchant-mp run test:ci",
     "check:nav-perms": "node scripts/check-nav-perms.mjs",
     "check:admin-table-align": "node scripts/check-admin-table-align.mjs",
+    "check:admin-anti-jitter": "node scripts/check-admin-anti-jitter.mjs",
     "check:mp-a11y": "node scripts/check-mp-a11y-coverage.mjs",
     "migrate:hex-tokens": "node scripts/migrate-hex-tokens.mjs",
     "check:openapi-types": "node scripts/check-openapi-types.mjs",

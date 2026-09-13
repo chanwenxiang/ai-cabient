@@ -157,7 +157,8 @@
   --admin-dialog-width-wide: 880px;
   --admin-dialog-max: 720px;
   --admin-dialog-max-wide: 960px;
-  --admin-drawer-workbench-width: min(880px, 100vw);
+  /* 审单工作台默认宽：双栏 + 识别表；实际宽度由 ResizableDrawer 控制 */
+  --admin-drawer-workbench-width: min(1120px, 100vw);
   /* A11：卡片头/身统一内边距 */
   --admin-card-pad-y: 14px;
   --admin-card-pad-x: 16px;
@@ -445,9 +446,14 @@ select {
 }
 
 .el-drawer__body {
-  overflow: auto;
+  /* scroll（非 auto）：避免 Win/Chrome 叠加滚动条在「点击滑块」时
+   * 从 overlay 切到经典条，瞬间吃掉 ~12px → 内容往左缩再弹回，按钮折行闪一下 */
+  overflow-x: hidden;
+  overflow-y: scroll;
   overscroll-behavior: contain;
+  overflow-anchor: none;
   padding: 16px 20px 24px;
+  scrollbar-gutter: stable;
 }
 
 /* 抽屉内嵌套在主区滚动时，全局 sticky 表头会与抽屉滚动打架导致下半段抖动 */
@@ -457,6 +463,7 @@ select {
   top: auto !important;
 }
 
+/* 工作台宽度交给 ResizableDrawer 的 size；窄屏才强制全宽 */
 @media (max-width: 920px) {
   .el-drawer.drawer-workbench {
     width: 100vw !important;
@@ -464,7 +471,106 @@ select {
 }
 
 .el-drawer.drawer-workbench {
-  width: var(--admin-drawer-workbench-width) !important;
+  max-width: 100vw;
+}
+
+/* 审单工作台：标签不换行；内容在格内换行，禁止溢出盖住邻格 */
+.el-drawer.drawer-workbench .workbench-desc .el-descriptions__label {
+  width: 5.5em;
+  min-width: 5.5em;
+  max-width: 5.5em;
+  white-space: nowrap;
+  box-sizing: border-box;
+  vertical-align: top;
+}
+.el-drawer.drawer-workbench .workbench-desc .el-descriptions__cell {
+  padding: 6px 10px !important;
+}
+.el-drawer.drawer-workbench .workbench-desc .el-descriptions__table {
+  table-layout: fixed;
+  width: 100%;
+}
+.el-drawer.drawer-workbench .workbench-desc .el-descriptions__content {
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  /* 长文案/Tag 在格内折行，勿 overflow:visible 盖住右侧「严重级别」等 */
+  overflow: hidden;
+  vertical-align: top;
+}
+.el-drawer.drawer-workbench .workbench-desc .el-descriptions__content .el-tag {
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+  line-height: 1.35;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+.el-drawer.drawer-workbench .workbench-desc .el-descriptions__content .link-cell,
+.el-drawer.drawer-workbench .workbench-desc .el-descriptions__content .mono,
+.el-drawer.drawer-workbench .workbench-desc .el-descriptions__content .cell-id {
+  display: inline-block;
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+.el-drawer.drawer-workbench .manual-line {
+  display: grid;
+  /* 数量列须 ≥ EP input-number（右控件）默认宽，132 会溢出盖住「删除」 */
+  grid-template-columns: minmax(0, 1fr) 150px max-content;
+  gap: 8px;
+  align-items: center;
+}
+.el-drawer.drawer-workbench .manual-line .el-select,
+.el-drawer.drawer-workbench .manual-line .el-select__wrapper {
+  width: 100%;
+  min-width: 0;
+}
+.el-drawer.drawer-workbench .manual-line .el-input-number {
+  width: 100% !important;
+  max-width: 100%;
+}
+.el-drawer.drawer-workbench .manual-line > .el-button {
+  justify-self: start;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.el-drawer.drawer-workbench .manual-line-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.el-drawer.drawer-workbench .manual-line-toolbar > .el-button {
+  width: auto;
+  align-self: flex-start;
+}
+.el-drawer.drawer-workbench .workbench-suggest .el-table {
+  width: 100%;
+}
+.el-drawer.drawer-workbench .el-table th.el-table__cell,
+.el-drawer.drawer-workbench .el-table td.el-table__cell {
+  text-align: center;
+}
+.el-drawer.drawer-workbench .el-table th.el-table__cell > .cell,
+.el-drawer.drawer-workbench .el-table td.el-table__cell > .cell {
+  justify-content: center;
+  text-align: center;
+}
+.el-drawer.drawer-workbench .workbench-media-actions {
+  display: flex;
+  /* 禁止 wrap：滚动条占位闪动时勿把「开门记录」挤到第二行 */
+  flex-wrap: nowrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
 
 :root {
@@ -672,6 +778,18 @@ select {
 .page-card .el-table .link-cell {
   text-align: center;
   justify-content: center;
+}
+/* 长文案链接：左对齐省略 + 原生 title，勿用 show-overflow-tooltip 盖邻列 */
+.layout-main-scroll .el-table .link-cell.cell-ellipsis,
+.page-card .el-table .link-cell.cell-ellipsis {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  justify-content: flex-start;
+  vertical-align: bottom;
 }
 
 /* 树表名称列：保留左对齐与缩进 */
@@ -1513,6 +1631,16 @@ a:focus-visible {
   white-space: nowrap;
   vertical-align: bottom;
 }
+/* 链接单元格也要吃满列宽再省略，否则 EP tooltip 会盖邻列 */
+.el-table .link-cell.cell-ellipsis {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  vertical-align: bottom;
+}
 
 .table-scroll .el-table {
   width: 100% !important;
@@ -1550,25 +1678,33 @@ a:focus-visible {
 }
 
 /*
- * .table-scroll 已承担横滚。EP sticky 固定列在缩放 / 非 1× DPR 下会钉错位并
- * 造成主区 1～2px 抖动。左右固定列一律降为普通列，整表随外壳横滑。
- * （曾短暂恢复右侧 sticky 以钉住操作列，但抖动回归；稳定性优先。）
+ * .table-scroll 横滚由外壳承担。左侧 sticky 仍降级（易抖）。
+ * 右侧操作列必须 sticky 钉住（产品要求）；不透明底 + 阴影见下文 fixed 列样式。
+ * 见 .cursor/rules/admin-layout-anti-jitter.mdc
  */
 .table-scroll .el-table__header-wrapper tr th.el-table-fixed-column--left,
-.table-scroll .el-table__header-wrapper tr th.el-table-fixed-column--right,
 .table-scroll .el-table__body-wrapper tr td.el-table-fixed-column--left,
-.table-scroll .el-table__body-wrapper tr td.el-table-fixed-column--right,
-.table-scroll .el-table__footer-wrapper tr td.el-table-fixed-column--left,
-.table-scroll .el-table__footer-wrapper tr td.el-table-fixed-column--right {
+.table-scroll .el-table__footer-wrapper tr td.el-table-fixed-column--left {
   position: static !important;
   left: auto !important;
   right: auto !important;
   z-index: auto !important;
 }
-.table-scroll .el-table-fixed-column--right.is-first-column::before,
 .table-scroll .el-table-fixed-column--left.is-last-column::before {
   display: none !important;
   box-shadow: none !important;
+}
+
+/* 右侧操作列：相对 .table-scroll 横滚容器钉住 */
+.table-scroll .el-table__header-wrapper tr th.el-table-fixed-column--right,
+.table-scroll .el-table__body-wrapper tr td.el-table-fixed-column--right,
+.table-scroll .el-table__footer-wrapper tr td.el-table-fixed-column--right {
+  position: sticky !important;
+  right: 0 !important;
+  z-index: 4 !important;
+}
+.table-scroll .el-table__header-wrapper tr th.el-table-fixed-column--right {
+  z-index: 7 !important;
 }
 
 .table-scroll .el-table__inner-wrapper {
