@@ -308,7 +308,8 @@ async function savePrice(p: MerchantSkuPricing) {
   try {
     const updated = await merchantApi.updatePricing(p.skuId, {
       deviceId: p.deviceId,
-      priceCents
+      priceCents,
+      expectedVersion: p.priceVersion ?? 0
     });
     const idx = rows.value.findIndex((r) => draftKey(r) === key);
     if (idx >= 0) {
@@ -318,7 +319,11 @@ async function savePrice(p: MerchantSkuPricing) {
     showSuccess('已更新');
   } catch (e) {
     draft.value[key] = prev;
-    showError(e instanceof Error ? e.message : '保存失败');
+    const msg = e instanceof Error ? e.message : '保存失败';
+    showError(msg);
+    if (msg.includes('他人修改') || msg.includes('冲突') || msg.includes('409')) {
+      void load(false);
+    }
   } finally {
     savingKey.value = '';
   }

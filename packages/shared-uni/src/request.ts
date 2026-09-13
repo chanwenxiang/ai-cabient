@@ -6,6 +6,7 @@ export interface MpRefreshData {
   userId?: string;
   expiresInSeconds?: number;
   serverBootEpoch?: number;
+  cookieEnabled?: boolean;
 }
 
 /** 带 HTTP/业务语义的请求错误，避免调用方靠文案 includes 判断鉴权失败。 */
@@ -39,6 +40,10 @@ export interface MpApiSession {
   getRetryCount?: number;
   refreshPath?: string;
   getToken(): string;
+  /** 是否已登录（含 H5 HttpOnly Cookie 会话标记） */
+  hasSession?(): boolean;
+  /** H5 Cookie 优先：不落 JWT、请求凭 Cookie */
+  useCookieAuth?(): boolean;
   clearSession(): void;
   applyRefreshedToken(data: MpRefreshData): void;
   /** 登录失效：清理会话并返回错误（可按端决定是否跳转登录页）。 */
@@ -103,24 +108,34 @@ export function formatMpRequestError(
 
 /** 401 时静默刷新 token（单飞）；刷新失败由调用方决定如何收尾。 */
 export async function refreshTokenSilently(opts: MpApiSession): Promise<boolean> {
-  if (!opts.getToken()) return false;
+  const hasAuth = opts.hasSession?.() ?? Boolean(opts.getToken());
+  if (!hasAuth) return false;
   if (refreshInFlight) return refreshInFlight;
   const refreshPath = opts.refreshPath ?? '/api/v2/auth/refresh';
   const pending = new Promise<boolean>((resolve, reject) => {
+    const header: Record<string, string> = {
+      'Content-Type': 'application/json',
+      // Cookie 会话写请求 CSRF 双保险（与 admin/shared-api 对齐）
+      'X-Requested-With': 'XMLHttpRequest'
+    };
+    const token = opts.getToken();
+    if (token) header.Authorization = 'Bearer ' + token;
     uni.request({
       url: opts.baseUrl + refreshPath,
       method: 'POST',
-      header: {
-        Authorization: 'Bearer ' + opts.getToken(),
-        'Content-Type': 'application/json',
-        // Cookie 会话写请求 CSRF 双保险（与 admin/shared-api 对齐）
-        'X-Requested-With': 'XMLHttpRequest'
-      },
+      header,
+      withCredentials: isH5Runtime(),
       timeout: opts.timeoutMs ?? 20_000,
       success(res) {
         const body = res.data as { code?: number; data?: MpRefreshData };
         if (res.statusCode === 200 && body?.code === 0 && body.data?.token) {
           opts.applyRefreshedToken(body.data);
+          resolve(true);
+          return;
+        }
+        // Cookie 会话刷新可能只续 Cookie、不回传 token
+        if (res.statusCode === 200 && body?.code === 0 && opts.useCookieAuth?.()) {
+          if (body.data) opts.applyRefreshedToken(body.data);
           resolve(true);
           return;
         }
@@ -214,6 +229,7 @@ function mpRequestOnce<T>(
       method,
       data: data as UniApp.RequestOptions['data'],
       header,
+      withCredentials: isH5Runtime(),
       timeout: opts.timeoutMs ?? 20_000,
       success(res) {
         const body = res.data as { code?: number; message?: string; data?: T };

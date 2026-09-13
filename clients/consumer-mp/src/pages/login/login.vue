@@ -196,7 +196,7 @@ import {
   consumerWxLogin,
   ensureConsumerAuth,
   fetchCaptcha,
-  getConsumerToken,
+  isConsumerLoggedIn,
   sendSmsCode
 } from '@/utils/consumer-api';
 import { eventInputValue, readDomFieldValue, readDomPassword } from '@/utils/form-bind';
@@ -280,7 +280,7 @@ onLoad((opts) => {
 
 /** 已登录时不应停留在 login URL（IMP-004） */
 onShow(async () => {
-  if (!getConsumerToken()) return;
+  if (!isConsumerLoggedIn()) return;
   try {
     const ok = await ensureConsumerAuth();
     if (ok) finishLogin();

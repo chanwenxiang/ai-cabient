@@ -88,7 +88,7 @@ import { showError, showSuccess } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import {
   consumerApi,
-  getConsumerToken,
+  isConsumerLoggedIn,
   requireConsumerAuth,
   type MarketingBannerDto,
   type MarketingCampaignDto
@@ -113,7 +113,7 @@ onShow(() => load());
 
 async function load() {
   if (!campaigns.value.length && !banners.value.length) loading.value = true;
-  authed.value = !!getConsumerToken();
+  authed.value = isConsumerLoggedIn();
   try {
     const [b, c] = await Promise.all([
       consumerApi.marketingBanners(),

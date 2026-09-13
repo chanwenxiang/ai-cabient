@@ -431,12 +431,15 @@
 - [ ] **两端小程序生产构建开启 `urlCheck`**（C-P2-6 / M-P2-3）
 - [ ] **部署强制 `prod`/`staging` profile**：`ProductionStartupValidator` 已拒绝默认 JWT/INTERNAL/VISION；禁止用默认 secret 跑对外环境（S-P2-11）
 - [ ] **支付接口契约冻结**：mock / DevMock 与真实实现路由隔离；`PaymentController` 对外契约不再随意变更（S-P1-4）
-- [ ] **H5 token 存储改 httpOnly Cookie**（C-P1-2；MP 可维持 Storage）
-- [x] **充值/退余额后端可配置金额上限**（与前端 ¥5000 对齐；C-P1-3）— echarge.max_cents\ / \alance.refund.max_cents- [x] **live 模式「关门结算」兜底入口**（C-P1-4）— 刷新状态 + 未出账单/客服
+- [x] **H5 token 存储改 httpOnly Cookie**（C-P1-2；MP 可维持 Storage）— consumer H5 `cookieEnabled` 不落 JWT + `withCredentials`
+- [x] **充值/退余额后端可配置金额上限**（与前端 ¥5000 对齐；C-P1-3）— recharge.max_cents / balance.refund.max_cents
+- [x] **live 模式「关门结算」兜底入口**（C-P1-4）— 刷新状态 + 未出账单/客服
 - [x] **文档化「模拟支付 vs 占位」边界**（C-P1-5）— live 兜底文案已区分 demo-close
 - [x] **vision-service 强制识别后端可用检查**（V-P1-1）— mock 关闭且 recognizer 不可用时启动失败
 - [x] **Kafka DLT topic + 显式 ack**（V-P1-3 / S-P2-5）— vision request DLT + trade result DLT
 - [x] **edge MQTT TLS/账号配置化**（E-P1-1）— BuildConfig/Prefs 可选 TLS+user/pass；设备证书仍待现场签发
+- [x] **Session 超时配置化**（S-P1-3）— `aicabinet.session-expire`
+- [x] **vision 识别超时 need_review fallback**（V-P1-2）— HTTP/Kafka `RECOGNIZE_TIMEOUT_MS`
 
 > 已同步落地：admin 路由 fail-closed、DeviceReportView keep-alive 解绑、consumer onHide 停轮询、nearby 定位失败空态、merchant H5 隐藏微信绑定、生产构建校验 appid/urlCheck。
 
@@ -445,9 +448,10 @@
 - [x] A-P1-001 路由守卫 fail-closed（未知路径 deny；明细仍靠 findNavByPath）
 - [x] A-P1-002 / A-P1-003：pageSize 上限收紧至 50；A-P1-003 keep-alive 已修（虚拟化仍可后续）
 - [x] M-P1-1 补货列表聚合接口（消 N+1）— evidenceCount/lineSummary
+- [x] M-P1-2 钱包页抽公共组件（`WalletPage` + role）
 - [ ] M-P1-3 replenishment.vue 3000+ 行拆分
 - [ ] S-P1-1 SettlementService ~30 依赖拆分
-- [ ] S-P1-5 乐观锁（@Version + updatedAt）
+- [x] S-P1-5 / M-P1-5 定价乐观锁（`device_sku_price.version`；库存此前已有）
 - [ ] H5 隐私政策首屏弹窗（C-P2-5 / M-P2-4）
 - [ ] 24 页分包（C-P2-3）
 

@@ -51,7 +51,7 @@ import { showError } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import type { AccountDto, BalanceTransactionDto } from '@aicabinet/shared-types';
 import { formatDateTimeShort, fmtMoney, shortBizNo } from '@aicabinet/shared-uni/format';
-import { consumerApi, ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
+import { consumerApi, ensureConsumerAuth, isConsumerLoggedIn } from '@/utils/consumer-api';
 import { availableCents } from '@/utils/account';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
@@ -65,7 +65,7 @@ const page = ref(0);
 const hasMore = ref(false);
 
 onShow(async () => {
-  if (!(await ensureConsumerAuth()) || !getConsumerToken()) {
+  if (!(await ensureConsumerAuth()) || !isConsumerLoggedIn()) {
     uni.navigateTo({
       url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/balance/balance')
     });

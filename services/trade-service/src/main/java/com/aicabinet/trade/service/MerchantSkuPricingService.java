@@ -167,7 +167,8 @@ public class MerchantSkuPricingService {
                     qtyBySku.getOrDefault(skuId, 0),
                     override != null ? override.getUpdatedAt() : null,
                     sku.getImageUrl(),
-                    sku.getBarcode()
+                    sku.getBarcode(),
+                    override != null ? override.getVersion() : 0L
             ));
         }
         return rows;
@@ -221,6 +222,15 @@ public class MerchantSkuPricingService {
             validatePrice(sku, newPrice);
             DeviceSkuPrice row = existing.orElseGet(DeviceSkuPrice::new);
             row.setId(priceId);
+            if (existing.isPresent() && request.expectedVersion() != null
+                    && request.expectedVersion() != row.getVersion()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "价格已被他人修改，请刷新后重试");
+            }
+            if (existing.isEmpty()) {
+                row.setVersion(0);
+            } else if (request.expectedVersion() != null) {
+                row.setVersion(request.expectedVersion());
+            }
             row.setPriceCents(newPrice);
             row.setUpdatedByUserId(userId);
             priceRepository.save(row);
@@ -248,7 +258,8 @@ public class MerchantSkuPricingService {
                 qty,
                 saved.map(DeviceSkuPrice::getUpdatedAt).orElse(null),
                 sku.getImageUrl(),
-                sku.getBarcode()
+                sku.getBarcode(),
+                saved.map(DeviceSkuPrice::getVersion).orElse(0L)
         );
     }
 

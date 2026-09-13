@@ -24,16 +24,37 @@ function formatRequestError(errMsg: string | undefined, path: string) {
 const TOKEN_KEY = 'consumer_token';
 const USER_KEY = 'consumer_user_id';
 const EXPIRES_KEY = 'consumer_token_expires';
+/** H5：服务端已写 HttpOnly Cookie 时的本地会话标记（不落 JWT） */
+const COOKIE_AUTH_KEY = 'consumer_cookie_auth';
 const OPEN_ATTEMPT_KEY = 'consumer_open_attempt';
 /** 用户主动退出后禁止静默微信建档，直到再次点登录 */
 const SKIP_SILENT_AUTH_KEY = 'consumer_skip_silent_auth';
 const REQUEST_TIMEOUT_MS = 12_000;
+
+function isConsumerH5Runtime() {
+  return (
+    typeof window !== 'undefined' &&
+    typeof navigator !== 'undefined' &&
+    !/miniProgram|miniprogram/i.test(navigator.userAgent)
+  );
+}
+
+export function isConsumerCookieAuth() {
+  return isConsumerH5Runtime() && uni.getStorageSync(COOKIE_AUTH_KEY) === '1';
+}
+
+/** 登录态：本地 JWT 或 H5 Cookie 会话标记 */
+export function isConsumerLoggedIn() {
+  return Boolean(getConsumerToken()) || isConsumerCookieAuth();
+}
 
 const mpApiSession: MpApiSession = {
   baseUrl: BASE_URL,
   isDevBuild,
   timeoutMs: REQUEST_TIMEOUT_MS,
   getToken: getConsumerToken,
+  hasSession: isConsumerLoggedIn,
+  useCookieAuth: isConsumerCookieAuth,
   clearSession: clearConsumerSession,
   applyRefreshedToken: (data) => applyTokenSession(data as LoginResponse),
   handleUnauthorized: (message) => {
@@ -49,14 +70,19 @@ export function getConsumerToken() {
 /** 带鉴权下载到本地临时路径（小程序 video/导出等无法带 Authorization 的场景） */
 export function downloadAuthedFile(url: string, timeoutMs = 60_000): Promise<string> {
   return new Promise((resolve, reject) => {
-    const token = getConsumerToken();
-    if (!token) {
+    if (!isConsumerLoggedIn()) {
       reject(new Error('请先登录'));
       return;
     }
+    const header: Record<string, string> = { 'X-Requested-With': 'XMLHttpRequest' };
+    const token = getConsumerToken();
+    if (token) header.Authorization = `Bearer ${token}`;
     uni.downloadFile({
       url,
-      header: { Authorization: `Bearer ${token}` },
+      header,
+      // #ifdef H5
+      withCredentials: true,
+      // #endif
       timeout: timeoutMs,
       success(res) {
         if (res.statusCode === 401) {
@@ -81,6 +107,7 @@ export function clearConsumerSession() {
   uni.removeStorageSync(TOKEN_KEY);
   uni.removeStorageSync(USER_KEY);
   uni.removeStorageSync(EXPIRES_KEY);
+  uni.removeStorageSync(COOKIE_AUTH_KEY);
   uni.removeStorageSync('consumer_server_boot');
   uni.removeStorageSync('active_session_id');
   uni.removeStorageSync(OPEN_ATTEMPT_KEY);
@@ -125,8 +152,19 @@ function applyTokenSession(data: LoginResponse) {
   ) {
     throw new Error('登录响应缺少有效过期时间');
   }
-  uni.setStorageSync(TOKEN_KEY, data.token);
-  uni.setStorageSync(USER_KEY, data.userId);
+  // H5 + cookieEnabled（或已在 Cookie 会话中刷新）：不落 JWT，凭 HttpOnly Cookie；MP 仍存 Storage
+  if (isConsumerH5Runtime() && (data.cookieEnabled || isConsumerCookieAuth())) {
+    uni.removeStorageSync(TOKEN_KEY);
+    uni.setStorageSync(COOKIE_AUTH_KEY, '1');
+  } else if (data.token) {
+    uni.setStorageSync(TOKEN_KEY, data.token);
+    uni.removeStorageSync(COOKIE_AUTH_KEY);
+  } else {
+    throw new Error('登录响应缺少 token');
+  }
+  if (data.userId) {
+    uni.setStorageSync(USER_KEY, data.userId);
+  }
   const ms = Number(data.expiresInSeconds) * 1000;
   uni.setStorageSync(EXPIRES_KEY, String(Date.now() + ms));
   if (data.serverBootEpoch != null) {
@@ -165,18 +203,23 @@ export function uploadDisputeEvidenceFile(
   filePath: string
 ): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
   return new Promise((resolve, reject) => {
-    if (!getConsumerToken()) {
+    if (!isConsumerLoggedIn()) {
       reject(new Error('请先登录'));
       return;
     }
+    const header: Record<string, string> = {
+      'X-Requested-With': 'XMLHttpRequest'
+    };
+    const token = getConsumerToken();
+    if (token) header.Authorization = 'Bearer ' + token;
     uni.uploadFile({
       url: BASE_URL + '/api/v2/disputes/evidence',
       filePath,
       name: 'file',
-      header: {
-        Authorization: 'Bearer ' + getConsumerToken(),
-        'X-Requested-With': 'XMLHttpRequest'
-      },
+      header,
+      // #ifdef H5
+      withCredentials: true,
+      // #endif
       timeout: 30_000,
       success(res) {
         try {
@@ -202,7 +245,7 @@ export function uploadDisputeEvidenceFile(
 }
 
 export async function bootstrapConsumerSession() {
-  if (!getConsumerToken()) return false;
+  if (!isConsumerLoggedIn()) return false;
   let bootEpoch: number | string | undefined;
   try {
     const boot = await request<{ serverBootEpoch?: number }>(
@@ -214,7 +257,7 @@ export async function bootstrapConsumerSession() {
     bootEpoch = boot.serverBootEpoch;
   } catch {
     // 仅网关/服务短暂不可达：不清会话（不等于服务已重启）
-    return !!getConsumerToken();
+    return isConsumerLoggedIn();
   }
 
   const saved = uni.getStorageSync('consumer_server_boot');
@@ -236,7 +279,7 @@ export async function bootstrapConsumerSession() {
       clearConsumerSession();
       return false;
     }
-    return !!getConsumerToken();
+    return isConsumerLoggedIn();
   }
 }
 
@@ -364,7 +407,7 @@ function shouldSkipSilentAuth() {
 
 /** 竞品式静默登录：扫码进小程序即完成微信建档，无需先填手机号。主动退出后不再静默重建。 */
 export async function ensureConsumerAuth(opts?: { force?: boolean }): Promise<boolean> {
-  if (getConsumerToken()) {
+  if (isConsumerLoggedIn()) {
     const ok = await bootstrapConsumerSession();
     if (ok) return true;
     // bootstrap clears stale token; fall through to silent wx login on MP.
@@ -482,7 +525,7 @@ export function sendSmsCode(phone: string, captchaId: string, captchaCode: strin
 /** 登出：服务端吊销 JWT（失败也清本地会话）。 */
 export async function logoutConsumerSession() {
   try {
-    if (getConsumerToken()) {
+    if (isConsumerLoggedIn()) {
       await request<void>('/api/v2/auth/logout', 'POST', null, true);
     }
   } catch {
