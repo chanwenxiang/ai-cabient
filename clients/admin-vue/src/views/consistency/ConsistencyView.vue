@@ -130,14 +130,18 @@
               <el-tag size="small" :type="severityTag(row)">{{ severityLabel(row) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="基准" min-width="90" class-name="col-text">
+          <el-table-column label="基准" min-width="140" class-name="col-text">
             <template #default="{ row }">
-              <span :title="valueHint(row)">{{ row.expectedValue }}</span>
+              <span class="cell-ellipsis" :title="valueTitle(row, 'expected')">{{
+                displayValue(row, 'expected')
+              }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="对照" min-width="100" class-name="col-text">
+          <el-table-column label="对照" min-width="160" class-name="col-text">
             <template #default="{ row }">
-              <span class="is-mismatch" :title="actualHint(row)">{{ row.actualValue }}</span>
+              <span class="cell-ellipsis is-mismatch" :title="valueTitle(row, 'actual')">{{
+                displayValue(row, 'actual')
+              }}</span>
             </template>
           </el-table-column>
           <el-table-column label="说明" min-width="160" class-name="col-text">
@@ -220,7 +224,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
+import { dictOptions, displayLabel, formatConsistencyValue } from '@aicabinet/shared-dict';
 
 type Row = {
   id: number;
@@ -338,12 +342,26 @@ function severityTag(row: Row) {
   return 'info';
 }
 
+function displayValue(row: Row, role: 'expected' | 'actual') {
+  const raw = role === 'expected' ? row.expectedValue : row.actualValue;
+  return formatConsistencyValue(row.checkType, role, raw, row.checkKey);
+}
+
+function valueTitle(row: Row, role: 'expected' | 'actual') {
+  const raw = role === 'expected' ? row.expectedValue : row.actualValue;
+  const label = role === 'expected' ? valueHint(row) : actualHint(row);
+  const display = displayValue(row, role);
+  const rawText = raw == null || String(raw).trim() === '' ? '暂无' : String(raw);
+  if (display !== rawText) return `${label}：${display}（原始 ${rawText}）`;
+  return `${label}：${display}`;
+}
+
 function fixPreview(row: Row): string {
   if (row.checkType === 'INVENTORY_MISMATCH') {
-    return `将汇总库存改为在架批次合计 ${row.actualValue ?? '—'}`;
+    return `将汇总库存改为在架批次合计 ${displayValue(row, 'actual')}`;
   }
   if (row.checkType === 'INVENTORY_ORPHAN_LOT') {
-    return `按在架批次合计 ${row.actualValue ?? '—'} 补齐汇总库存行`;
+    return `按在架批次合计 ${displayValue(row, 'actual')} 补齐汇总库存行`;
   }
   if (row.checkType === 'POINTS_IDENTITY') {
     return '按 available+used+expired 回写累计积分';
@@ -354,7 +372,7 @@ function fixPreview(row: Row): string {
       return '实付与明细一致：清除未生效的券/折扣字段，并尝试退还券占用';
     }
     if (msg.includes('实付已与折后入账')) {
-      return `将订单头同步为按明细应收 ${row.actualValue ?? '—'}`;
+      return `将订单头同步为按明细应收 ${displayValue(row, 'actual')}`;
     }
     return '按服务端规则对齐订单头/明细（无匹配策略时将拒绝修复）';
   }

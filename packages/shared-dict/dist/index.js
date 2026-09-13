@@ -80,6 +80,12 @@ export const DICT = {
         FAILED: '上传失败'
     },
     dispute_status: { OPEN: '待审核', RESOLVED: '已结案', CLOSED: '已关闭' },
+    dispute_resolution: {
+        KEEP: '维持原账单',
+        WAIVE: '免单并退款',
+        CONFIRM: '按识别清单结案',
+        ADJUST: '按调整明细落账'
+    },
     dispute_category: {
         USER_APPEAL: '用户申诉',
         RECOGNITION: '识别争议',
@@ -210,6 +216,12 @@ export const DICT = {
         DRAFT: '草稿',
         PUBLISHED: '已发布',
         ARCHIVED: '已归档'
+    },
+    balance_refund_status: {
+        PENDING_REVIEW: '待审核',
+        REFUNDED: '已退款',
+        REJECTED: '已驳回',
+        FAILED: '失败'
     },
     announcement_audience: {
         ALL: '全部用户',
@@ -536,12 +548,33 @@ export const DICT = {
         ORDER_AMOUNT: '订单金额',
         PAYMENT_AMOUNT: '支付净额',
         INVENTORY_MISMATCH: '库存汇总',
+        INVENTORY_ORPHAN_LOT: '孤儿批次',
         POINTS_BALANCE: '积分余额',
+        POINTS_IDENTITY: '积分恒等式',
         COUPON_ISSUED: '发券数量',
-        WALLET_BALANCE: '钱包余额',
+        COUPON_OVER_QUOTA: '发券超配额',
+        WALLET_BALANCE: '用户钱包',
+        MERCHANT_WALLET: '商户钱包',
+        LINE_WALLET: '线路钱包',
         REFUND_AMOUNT: '退款金额',
         ORDER_LINE_SUM: '订单行金额',
-        COUPON_USED_LINK: '券核销关联'
+        COUPON_USED_LINK: '券核销关联',
+        REVENUE_SPLIT_SUM: '分账金额',
+        REVENUE_SPLIT_MISSING: '分账缺失',
+        SLOT_SKU_MISMATCH: '货道SKU',
+        SLOT_CAPACITY: '货道容量',
+        SLOT_PHYSICAL: '货道盘点',
+        WAREHOUSE_NEGATIVE: '仓存负库存',
+        CROSS_LINK: '关联投影'
+    },
+    /** 一致性巡检「基准/对照」列：内部诊断码 → 中文（勿把 SALE_OK 等直接露出） */
+    consistency_diag_code: {
+        SALE_OK: '应有 SALE 扣库流水',
+        MISSING_SALE: '缺少 SALE 扣库流水',
+        INVENTORY_FLAG: '未标记已扣库',
+        REFUND_OR_KEPT: '应有退款/留货库存流水',
+        MISSING: '缺少退款/留货库存流水',
+        LINKED: '应有关联订单'
     },
     sku_perf_level: {
         BEST_SELLER: '畅销',
@@ -660,6 +693,69 @@ export function dictLabel(type, code) {
 /**
  * 三端 UI 展示用：优先字典中文，绝不把英文枚举码当文案回退（避免 `|| status` 露出 OPEN/PAID）。
  */
+const CONSISTENCY_MONEY_TYPES = new Set([
+    'ORDER_AMOUNT',
+    'PAYMENT_AMOUNT',
+    'REFUND_AMOUNT',
+    'ORDER_LINE_SUM',
+    'COUPON_USED_LINK',
+    'WALLET_BALANCE',
+    'MERCHANT_WALLET',
+    'LINE_WALLET',
+    'REVENUE_SPLIT_SUM',
+    'REVENUE_SPLIT_MISSING'
+]);
+/** 一致性巡检「基准/对照」展示：枚举码中文化；金额/数量保留可读数值 */
+export function formatConsistencyValue(checkType, role, raw, checkKey) {
+    if (raw == null || String(raw).trim() === '')
+        return '暂无';
+    const v = String(raw).trim();
+    if (checkType === 'CROSS_LINK' && checkKey) {
+        if (checkKey.startsWith('DSP|')) {
+            if (role === 'expected')
+                return displayLabel('consistency_diag_code', 'LINKED', '应有关联订单');
+            const [ticket, order] = v.split('/', 2);
+            const ticketLabel = displayLabel('dispute_status', ticket, ticket === 'null' ? '无' : ticket);
+            const orderLabel = order === 'null' || order === ''
+                ? '无订单'
+                : displayLabel('order_status', order, order);
+            return `争议 ${ticketLabel} / 订单 ${orderLabel}`;
+        }
+        if (checkKey.startsWith('ODV|')) {
+            return role === 'expected' ? `柜机归属 ${v}` : `订单快照 ${v}`;
+        }
+    }
+    if (checkType === 'INVENTORY_ORPHAN_LOT' && role === 'expected' && v === '0')
+        return '无汇总行';
+    if (checkType === 'REVENUE_SPLIT_MISSING' && role === 'actual' && v === '0')
+        return '无分账记录';
+    if (checkType === 'WAREHOUSE_NEGATIVE' && role === 'expected' && v === '0')
+        return '应 ≥ 0';
+    if (/^-?\d+$/.test(v)) {
+        if (CONSISTENCY_MONEY_TYPES.has(checkType)) {
+            const cents = Number(v);
+            const yuan = (Math.abs(cents) / 100).toFixed(2);
+            return (cents < 0 ? '-' : '') + `¥${yuan}`;
+        }
+        if (checkType === 'POINTS_BALANCE' || checkType === 'POINTS_IDENTITY')
+            return `${v} 积分`;
+        if (checkType === 'INVENTORY_MISMATCH' ||
+            checkType === 'INVENTORY_ORPHAN_LOT' ||
+            checkType === 'SLOT_CAPACITY' ||
+            checkType === 'SLOT_PHYSICAL') {
+            return `${v} 件`;
+        }
+        if (checkType === 'COUPON_ISSUED' || checkType === 'COUPON_OVER_QUOTA')
+            return `${v} 张`;
+        return v;
+    }
+    const diag = displayLabel('consistency_diag_code', v, '');
+    if (diag)
+        return diag;
+    if (/^[A-Z][A-Z0-9_]*$/.test(v))
+        return '未知';
+    return v;
+}
 export function displayLabel(type, code, empty = '暂无') {
     if (code == null || String(code).trim() === '')
         return empty;

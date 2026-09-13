@@ -345,22 +345,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/rbac/operators/{userId}/reset-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["resetOperatorPassword"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/rbac/me": {
         parameters: {
             query?: never;
@@ -2211,6 +2195,22 @@ export interface paths {
         get: operations["operators"];
         put?: never;
         post: operations["createOperator"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/rbac/operators/{userId}/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resetOperatorPassword"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8982,9 +8982,6 @@ export interface components {
             /** Format: int64 */
             primaryDeptId?: number;
         };
-        ResetOpsOperatorPasswordRequest: {
-            password: string;
-        };
         ApiResponseOpsOperatorDto: {
             /** Format: int32 */
             code?: number;
@@ -10957,6 +10954,9 @@ export interface components {
             deptIds?: number[];
             /** Format: int64 */
             primaryDeptId?: number;
+        };
+        ResetOpsOperatorPasswordRequest: {
+            password: string;
         };
         TwoFactorCodeRequest: {
             code: string;
@@ -16385,32 +16385,6 @@ export interface operations {
             };
         };
     };
-    resetOperatorPassword: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                userId: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ResetOpsOperatorPasswordRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseVoid"];
-                };
-            };
-        };
-    };
     myProfile: {
         parameters: {
             query?: never;
@@ -19988,6 +19962,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseOpsOperatorDto"];
+                };
+            };
+        };
+    };
+    resetOperatorPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetOpsOperatorPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
                 };
             };
         };
