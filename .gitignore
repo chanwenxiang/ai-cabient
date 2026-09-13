@@ -177,3 +177,11 @@ clients/admin-vue/eyJhbGciOiJIUzI1NiJ9.*
 
 # Windows absolute path accidentally materialized as a directory name (D:\...)
 /D*devTools*
+
+# local perf secrets
+docs/uat-screenshots/**/jmeter-order-read/token.txt
+docs/uat-screenshots/**/jmeter-token.txt
+
+docs/uat-screenshots/**/jmeter-order-read/results.jtl
+docs/uat-screenshots/**/jmeter-order-read/smoke.jtl
+docs/uat-screenshots/**/jmeter-order-read/report/

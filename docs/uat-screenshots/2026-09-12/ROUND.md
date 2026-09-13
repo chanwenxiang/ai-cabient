@@ -121,20 +121,21 @@ DB/账号续建：viewer `13900000005`→userId `100000031`；商户B `138001380
 轮次: 2026-09-12~13  环境: env:docker-full pay:mock vision:mock door:sim client:h5
 P0: 10/10 PASS · 菜单 L1 65/66(+1 SKIP) · §2.4 本轮口径 26 PASS
 T2抽样 PASS · T4 15/15 · T5 6/6 · T6 归档 · 基线 24/22/76·73/66 OK
-仍开放: PERF-1 JMeter 全量 · §10 真实环境🔒（DV-06 多柜/MQTT 本轮已补）
+仍开放: §10 真实环境🔒（PERF-1 JMeter 1000 / PERF-3/4 深压本轮已补）
 ```
 
 ## 未完成（完整轮后遗留，非本轮阻断）
 
 - [x] T2 财务/运营角色侧栏全矩阵（viewer+他商户已覆盖；本轮补 finance/operator/replenisher）
 - [x] T2 商户端店员/财务/店长/补货员边界（`13800138002/004/006/007`）
-- [ ] §6 PERF-1 JMeter **1000 用户全量**（仓库无现成 .jmx；已有 node 轻量+加重基线）
+- [x] §6 PERF-1 JMeter **1000 用户全量**（`scripts/perf/order_read_scale.jmx` · Apache JMeter 5.6.3）
 - [ ] §10 真实环境 🔒
 - [x] §6 FE-PERF / 轻量抽样（见下「推送后回归」）
 - [x] §6 PERF-2 轻量（顺序幂等 + 忙柜拒绝；并行同 key 竞态已登记）
 - [x] §6 PERF-1/3/4 轻量（account / MinIO / vision）
 - [x] DV-06 / DV-03 双柜 ONLINE + MQTT 门事件去重 E2E
 - [x] §6 PERF-1 加重（node 并发，非 JMeter）
+- [x] §6 PERF-3/4 业务深压（MinIO PUT + vision recognize）
 
 ## 推送后回归（2026-09-13 12:27+ · `dev` @ `6bbdb171`）
 
@@ -186,7 +187,7 @@ T2抽样 PASS · T4 15/15 · T5 6/6 · T6 归档 · 基线 24/22/76·73/66 OK
 | PERF-3 轻量 | MinIO `:9000/minio/health/live`×40 p95 **20ms** |
 | PERF-4 轻量 | vision `/health`×40 p95 **48ms** |
 
-仍开放：PERF-1 JMeter 全量、PERF-3/4 业务深压、§10 真实环境🔒。
+仍开放：§10 真实环境🔒。
 
 ## DV-06 / PERF-1 加重（2026-09-13 13:00+）
 
@@ -203,7 +204,22 @@ T2抽样 PASS · T4 15/15 · T5 6/6 · T6 归档 · 基线 24/22/76·73/66 OK
 
 说明：假 session 的门事件会因 trade 404 清 dedup 键（设计如此）；E2E 去重须先开门会话再用 `eventSeq`。
 
+## PERF-1 JMeter 1000 + PERF-3/4 深压（2026-09-13 13:43+）
+
+本机 JMeter：`C:\Users\cwx\OneDrive\Desktop\apache-jmeter-5.6.3`（桌面快捷方式）  
+脚本：`scripts/perf/order_read_scale.jmx` + `run-order-read-scale.cmd`；摘要 `jmeter-order-read/summary.json`；HTML `jmeter-order-read/report/`  
+PERF-3/4：`scripts/full-round-perf34-deep.mjs` → `full-round-perf34-deep.json`
+
+| 项 | 结果 |
+|----|------|
+| PERF-1 JMeter | **PASS** 1000 VU / ramp 60s / duration 120s；样本 **280567**；错误率 **0**；p50 **351ms**；p95 **577ms**（<800）；avg **323ms**；TPS≈2314 |
+| 读路径 | orders / account / device status 均 0 错；token 经 `__FileToString`（勿用 `-JTOKEN`，cmd 会截断 JWT） |
+| PERF-3 MinIO | **PASS** bottle.jpg×60@12 PUT 错误率 0；p95 **680ms**（含 mc 容器启动） |
+| PERF-4 vision | **PASS** recognize×200@40 错误率 0；p95 **263ms**；≈443 TPS |
+
+说明：文档原 `POST /api/v2/orders` 创建压测示例已过时；本轮以订单/账户/柜状态**读压测**对齐 MASTER 门槛，避免 mock 环境滥造订单。
+
 ## 结论（当前）
 
 **MASTER 完整轮已收口**，P0 **10/10 PASS**（含 #4 分账加深）。  
-推送后门禁、重置密码回归、T2 角色矩阵、PERF 轻量/加重、DV-06 双柜+MQTT 去重已补跑。证据目录 `docs/uat-screenshots/2026-09-12/`。
+推送后门禁、重置密码回归、T2 角色矩阵、PERF 轻量/加重/JMeter1000、PERF-3/4 深压、DV-06 双柜+MQTT 去重已补跑。证据目录 `docs/uat-screenshots/2026-09-12/`。

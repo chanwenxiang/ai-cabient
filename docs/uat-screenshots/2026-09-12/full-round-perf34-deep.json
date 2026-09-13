@@ -1,0 +1,32 @@
+{
+  "at": "2026-09-13T05:46:52.805Z",
+  "perf3": {
+    "n": 60,
+    "errors": 0,
+    "errorRate": 0,
+    "p50": 628,
+    "p95": 680,
+    "p99": 1590,
+    "max": 1590,
+    "elapsedMs": 38874,
+    "prefix": "cabinet-videos/perf134/1789278412805",
+    "objectBytes": 2244177,
+    "pass": true
+  },
+  "perf4": {
+    "n": 200,
+    "errors": 0,
+    "errorRate": 0,
+    "p50": 38,
+    "p95": 263,
+    "p99": 268,
+    "max": 283,
+    "elapsedMs": 451,
+    "approxTps": 443.4589800443459,
+    "pass": true
+  },
+  "summary": {
+    "perf3Pass": true,
+    "perf4Pass": true
+  }
+}

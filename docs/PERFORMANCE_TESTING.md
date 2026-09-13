@@ -18,6 +18,8 @@
 
 ## 1. JMeter测试脚本
 
+> **可跑真源（2026-09-13）**：仓库已落盘 `scripts/perf/order_read_scale.jmx`（订单/账户/柜状态**读压测**，1000 VU）。本机跑：`scripts/perf/run-order-read-scale.cmd`（默认使用桌面 `apache-jmeter-5.6.3`）。JWT 须经 `__FileToString` 读入，勿用 `-JTOKEN`（cmd 会截断）。下文内嵌 XML 为历史草稿，ThreadGroup 变量未填全，**不要直接当成品用**。
+
 ### 订单创建测试
 
 `xml
